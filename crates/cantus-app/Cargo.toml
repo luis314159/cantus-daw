@@ -1,0 +1,19 @@
+[package]
+name = "cantus"
+description = "Cantus — a free, open-source digital audio workstation."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cantus"
+path = "src/main.rs"
+
+[dependencies]
+cantus-ui.workspace = true
+env_logger.workspace = true
+log.workspace = true
+anyhow.workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "cantus-engine"
+description = "Cantus DAW — real-time audio engine: transport, sequencer, graph, lock-free messaging, offline render."
+license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+cantus-dsp.workspace = true
+rtrb.workspace = true
+cpal.workspace = true
+hound.workspace = true
+thiserror.workspace = true
+log.workspace = true
+
+[dev-dependencies]

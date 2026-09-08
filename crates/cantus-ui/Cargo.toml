@@ -1,0 +1,24 @@
+[package]
+name = "cantus-ui"
+description = "Cantus DAW — egui user interface: transport, arrangement, piano roll, mixer."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+cantus-engine.workspace = true
+cantus-project.workspace = true
+cantus-ai.workspace = true
+egui.workspace = true
+eframe.workspace = true
+rfd.workspace = true
+log.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+hound.workspace = true

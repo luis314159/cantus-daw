@@ -1,0 +1,28 @@
+//! # cantus-core
+//!
+//! The heart of Cantus: musical time, the project model, the command bus and playback
+//! snapshots. This crate has **no I/O and no threads**; it is pure data and logic so it can
+//! be tested exhaustively and embedded anywhere (the UI, the AI layer, scripts, tests).
+//!
+//! See `docs/adr/0004-command-bus.md`.
+
+#![forbid(unsafe_code)]
+#![warn(missing_debug_implementations)]
+
+pub mod bus;
+pub mod command;
+pub mod instrument;
+pub mod model;
+pub mod snapshot;
+pub mod time;
+
+pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
+pub use command::{Command, CommandError, Origin};
+pub use instrument::{FirmusParam, FirmusParams, InstrumentSpec, ParamInfo, Waveform};
+pub use model::{
+    db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId, Color,
+    LoopRegion, Master, Note, NoteId, Pitch, Project, Track, TrackId, Velocity, MAX_GAIN_DB,
+    MIN_GAIN_DB,
+};
+pub use snapshot::{NoteEvent, Snapshot, TrackSnapshot};
+pub use time::{Ticks, TimeSignature, PPQ};

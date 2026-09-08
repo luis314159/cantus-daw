@@ -1,0 +1,2 @@
+# The audio thread is sacred: warn loudly on anything that might allocate or block.
+avoid-breaking-exported-api = false

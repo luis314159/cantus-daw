@@ -1,0 +1,80 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cantus-core",
+    "crates/cantus-dsp",
+    "crates/cantus-engine",
+    "crates/cantus-project",
+    "crates/cantus-ai",
+    "crates/cantus-ui",
+    "crates/cantus-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["Luis Angel Almazan Lopez"]
+repository = "https://github.com/lalmazan/cantus"
+homepage = "https://github.com/lalmazan/cantus"
+
+[workspace.dependencies]
+# Internal crates
+cantus-core = { path = "crates/cantus-core" }
+cantus-dsp = { path = "crates/cantus-dsp" }
+cantus-engine = { path = "crates/cantus-engine" }
+cantus-project = { path = "crates/cantus-project" }
+cantus-ai = { path = "crates/cantus-ai" }
+cantus-ui = { path = "crates/cantus-ui" }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# Real-time communication
+rtrb = "0.4"
+crossbeam-channel = "0.5"
+
+# Audio I/O + files
+cpal = "0.18"
+hound = "3.5"
+midir = "0.11"
+
+# GUI
+egui = "0.36"
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+rfd = "0.15"
+
+# Utilities
+thiserror = "2"
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+parking_lot = "0.12"
+sha2 = "0.10"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+directories = "6"
+
+# Testing
+proptest = "1"
+criterion = { version = "0.6", features = ["html_reports"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+debug = 1
+
+[profile.dev]
+opt-level = 1
+
+# DSP and engine must be fast even in debug builds or audio glitches hide real bugs.
+[profile.dev.package.cantus-dsp]
+opt-level = 3
+[profile.dev.package.cantus-engine]
+opt-level = 3
+
+[profile.bench]
+inherits = "release"
+debug = true

@@ -1,0 +1,370 @@
+//! The command bus: owns the project, executes commands, keeps undo/redo history and an
+//! audit log. There is exactly one of these per open project (ADR 0004).
+
+use crate::command::{Command, CommandError, Origin};
+use crate::model::Project;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+/// Identifies a continuous gesture (dragging a fader, sweeping a knob). Consecutive
+/// commands with the same key collapse into one undo step.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MergeKey(pub u64);
+
+impl MergeKey {
+    pub fn of<T: Hash>(value: &T) -> MergeKey {
+        let mut h = DefaultHasher::new();
+        value.hash(&mut h);
+        MergeKey(h.finish())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct HistoryEntry {
+    pub label_key: String,
+    pub command: Command,
+    pub inverse: Command,
+    pub origin: Origin,
+    merge_key: Option<MergeKey>,
+}
+
+#[derive(Clone, Debug)]
+pub struct AuditEntry {
+    pub seq: u64,
+    pub revision: u64,
+    pub origin: Origin,
+    pub label_key: String,
+    pub kind: AuditKind,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum AuditKind {
+    Execute,
+    Undo,
+    Redo,
+    Rejected,
+}
+
+#[derive(Debug)]
+pub struct CommandBus {
+    project: Project,
+    undo: Vec<HistoryEntry>,
+    redo: Vec<HistoryEntry>,
+    /// Bumped on every successful mutation (including undo/redo).
+    revision: u64,
+    saved_revision: u64,
+    audit: Vec<AuditEntry>,
+    audit_seq: u64,
+    max_history: usize,
+    max_audit: usize,
+}
+
+impl Default for CommandBus {
+    fn default() -> Self {
+        Self::new(Project::default())
+    }
+}
+
+impl CommandBus {
+    pub fn new(project: Project) -> Self {
+        CommandBus {
+            project,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            revision: 0,
+            saved_revision: 0,
+            audit: Vec::new(),
+            audit_seq: 0,
+            max_history: 10_000,
+            max_audit: 50_000,
+        }
+    }
+
+    pub fn project(&self) -> &Project {
+        &self.project
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.revision != self.saved_revision
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.saved_revision = self.revision;
+    }
+
+    // Id allocation is deliberately *not* a command: ids are monotonic and never reused, so
+    // allocating one is never undone and never conflicts. These helpers build entities
+    // with fresh ids; inserting them is still done through a command.
+
+    pub fn new_track(&mut self, name: impl Into<String>) -> crate::model::Track {
+        self.project.make_track(name)
+    }
+
+    pub fn new_clip(
+        &mut self,
+        name: impl Into<String>,
+        start: crate::time::Ticks,
+        length: crate::time::Ticks,
+    ) -> crate::model::Clip {
+        self.project.make_clip(name, start, length)
+    }
+
+    pub fn new_note(
+        &mut self,
+        start: crate::time::Ticks,
+        length: crate::time::Ticks,
+        pitch: crate::model::Pitch,
+        velocity: crate::model::Velocity,
+    ) -> crate::model::Note {
+        self.project.make_note(start, length, pitch, velocity)
+    }
+
+    /// Execute a command as its own undo step.
+    pub fn execute(&mut self, command: Command, origin: Origin) -> Result<(), CommandError> {
+        self.execute_inner(command, origin, None)
+    }
+
+    /// Execute a command, merging it into the previous undo step if that step carries the
+    /// same key. Call [`CommandBus::end_gesture`] when the gesture (drag) ends.
+    pub fn execute_merging(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        key: MergeKey,
+    ) -> Result<(), CommandError> {
+        self.execute_inner(command, origin, Some(key))
+    }
+
+    /// Seal the current gesture so the next command starts a new undo step.
+    pub fn end_gesture(&mut self) {
+        if let Some(top) = self.undo.last_mut() {
+            top.merge_key = None;
+        }
+    }
+
+    fn execute_inner(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        merge_key: Option<MergeKey>,
+    ) -> Result<(), CommandError> {
+        let label_key = command.label_key().to_string();
+        let inverse = match command.clone().apply(&mut self.project) {
+            Ok(inv) => inv,
+            Err(e) => {
+                self.audit_push(origin, label_key, AuditKind::Rejected);
+                return Err(e);
+            }
+        };
+        self.revision += 1;
+        self.redo.clear();
+
+        let command = match (merge_key, self.undo.last_mut()) {
+            (Some(key), Some(top)) if top.merge_key == Some(key) && top.origin == origin => {
+                // Keep the original inverse (restores pre-gesture state), replace the
+                // forward command with the latest value.
+                top.command = command;
+                None
+            }
+            _ => Some(command),
+        };
+        if let Some(command) = command {
+            self.undo.push(HistoryEntry {
+                label_key: label_key.clone(),
+                command,
+                inverse,
+                origin,
+                merge_key,
+            });
+            if self.undo.len() > self.max_history {
+                let excess = self.undo.len() - self.max_history;
+                self.undo.drain(..excess);
+            }
+        }
+        self.audit_push(origin, label_key, AuditKind::Execute);
+        Ok(())
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+
+    pub fn undo_label_key(&self) -> Option<&str> {
+        self.undo.last().map(|e| e.label_key.as_str())
+    }
+
+    pub fn redo_label_key(&self) -> Option<&str> {
+        self.redo.last().map(|e| e.label_key.as_str())
+    }
+
+    /// Undo the last step. Returns its label key.
+    pub fn undo(&mut self) -> Option<String> {
+        let entry = self.undo.pop()?;
+        // The inverse of a successfully applied command must apply; if it does not, the
+        // model has a bug and we must not silently desync — restore the entry and bail.
+        match entry.inverse.clone().apply(&mut self.project) {
+            Ok(re_inverse) => {
+                self.revision += 1;
+                let label = entry.label_key.clone();
+                self.audit_push(entry.origin, label.clone(), AuditKind::Undo);
+                self.redo.push(HistoryEntry {
+                    label_key: entry.label_key,
+                    command: entry.command,
+                    inverse: re_inverse,
+                    origin: entry.origin,
+                    merge_key: None,
+                });
+                Some(label)
+            }
+            Err(_) => {
+                self.undo.push(entry);
+                None
+            }
+        }
+    }
+
+    pub fn redo(&mut self) -> Option<String> {
+        let entry = self.redo.pop()?;
+        match entry.command.clone().apply(&mut self.project) {
+            Ok(inverse) => {
+                self.revision += 1;
+                let label = entry.label_key.clone();
+                self.audit_push(entry.origin, label.clone(), AuditKind::Redo);
+                self.undo.push(HistoryEntry {
+                    label_key: entry.label_key,
+                    command: entry.command,
+                    inverse,
+                    origin: entry.origin,
+                    merge_key: None,
+                });
+                Some(label)
+            }
+            Err(_) => {
+                self.redo.push(entry);
+                None
+            }
+        }
+    }
+
+    pub fn history(&self) -> &[HistoryEntry] {
+        &self.undo
+    }
+
+    pub fn audit_log(&self) -> &[AuditEntry] {
+        &self.audit
+    }
+
+    /// Replace the project and wipe history (new/open). Use `Command::ReplaceProject`
+    /// instead when the replacement should be undoable.
+    pub fn reset(&mut self, project: Project) {
+        self.project = project;
+        self.undo.clear();
+        self.redo.clear();
+        self.revision += 1;
+        self.saved_revision = self.revision;
+    }
+
+    fn audit_push(&mut self, origin: Origin, label_key: String, kind: AuditKind) {
+        self.audit_seq += 1;
+        self.audit.push(AuditEntry {
+            seq: self.audit_seq,
+            revision: self.revision,
+            origin,
+            label_key,
+            kind,
+        });
+        if self.audit.len() > self.max_audit {
+            let excess = self.audit.len() - self.max_audit;
+            self.audit.drain(..excess);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::TrackId;
+
+    fn bus_with_track() -> (CommandBus, TrackId) {
+        let mut bus = CommandBus::default();
+        let mut p = bus.project().clone();
+        let t = p.make_track("Lead");
+        let id = t.id;
+        bus.reset(p);
+        bus.execute(
+            Command::InsertTrack {
+                index: 0,
+                track: Box::new(t),
+            },
+            Origin::User,
+        )
+        .unwrap();
+        (bus, id)
+    }
+
+    #[test]
+    fn undo_redo_roundtrip() {
+        let (mut bus, id) = bus_with_track();
+        let before = bus.project().clone();
+        bus.execute(Command::SetTrackGain { id, gain_db: -6.0 }, Origin::User)
+            .unwrap();
+        assert_eq!(bus.project().tracks[0].gain_db, -6.0);
+        assert!(bus.is_dirty());
+        assert_eq!(bus.undo_label_key(), Some("cmd.set_track_gain"));
+        bus.undo();
+        assert_eq!(*bus.project(), before);
+        bus.redo();
+        assert_eq!(bus.project().tracks[0].gain_db, -6.0);
+    }
+
+    #[test]
+    fn gesture_merges_into_one_step() {
+        let (mut bus, id) = bus_with_track();
+        let before = bus.project().clone();
+        let key = MergeKey::of(&("gain", id));
+        for g in [-1.0, -2.0, -3.0, -4.0] {
+            bus.execute_merging(Command::SetTrackGain { id, gain_db: g }, Origin::User, key)
+                .unwrap();
+        }
+        bus.end_gesture();
+        assert_eq!(bus.history().len(), 2); // insert track + one merged gain step
+        bus.undo();
+        assert_eq!(*bus.project(), before);
+        bus.redo();
+        assert_eq!(bus.project().tracks[0].gain_db, -4.0);
+    }
+
+    #[test]
+    fn different_origins_never_merge() {
+        let (mut bus, id) = bus_with_track();
+        let key = MergeKey::of(&"g");
+        bus.execute_merging(
+            Command::SetTrackGain { id, gain_db: -1.0 },
+            Origin::User,
+            key,
+        )
+        .unwrap();
+        bus.execute_merging(Command::SetTrackGain { id, gain_db: -2.0 }, Origin::Ai, key)
+            .unwrap();
+        assert_eq!(bus.history().len(), 3);
+    }
+
+    #[test]
+    fn rejected_commands_leave_no_trace_in_history() {
+        let (mut bus, _) = bus_with_track();
+        let n = bus.history().len();
+        assert!(bus
+            .execute(Command::RemoveTrack { id: TrackId(999) }, Origin::Mcp)
+            .is_err());
+        assert_eq!(bus.history().len(), n);
+        assert_eq!(bus.audit_log().last().unwrap().kind, AuditKind::Rejected);
+    }
+}

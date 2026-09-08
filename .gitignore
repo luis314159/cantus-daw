@@ -1,0 +1,8 @@
+/target
+**/*.rs.bk
+*.pdb
+*.wav
+!tests/null-tests/fixtures/*.wav
+/tmp
+.DS_Store
+Thumbs.db

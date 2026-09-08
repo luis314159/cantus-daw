@@ -1,0 +1,16 @@
+[package]
+name = "cantus-ai"
+description = "Cantus DAW — provider-agnostic AI layer. Async only; never touches the audio thread."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
