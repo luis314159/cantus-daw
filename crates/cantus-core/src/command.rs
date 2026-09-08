@@ -3,6 +3,7 @@
 //! A [`Command`] is the *only* way to mutate a [`Project`]. Applying one returns its
 //! inverse, which is what makes undo/redo, auditing and AI reversibility fall out for free.
 
+use crate::effect::EffectSlot;
 use crate::instrument::FirmusParam;
 use crate::model::*;
 use crate::time::{clamp_bpm, Ticks, TimeSignature};
@@ -35,6 +36,8 @@ pub enum CommandError {
     InvalidValue(String),
     #[error("instrument on track {0} does not have that parameter")]
     ParamNotApplicable(TrackId),
+    #[error("effect {0} not found")]
+    EffectNotFound(EffectId),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -108,6 +111,33 @@ pub enum Command {
         value: f32,
     },
 
+    // --- effects ----------------------------------------------------------------------
+    InsertEffect {
+        track: TrackId,
+        index: usize,
+        slot: Box<EffectSlot>,
+    },
+    RemoveEffect {
+        track: TrackId,
+        effect: EffectId,
+    },
+    MoveEffect {
+        track: TrackId,
+        effect: EffectId,
+        index: usize,
+    },
+    SetEffectBypass {
+        track: TrackId,
+        effect: EffectId,
+        bypass: bool,
+    },
+    SetEffectParam {
+        track: TrackId,
+        effect: EffectId,
+        key: String,
+        value: f32,
+    },
+
     // --- clips ------------------------------------------------------------------------
     InsertClip {
         track: TrackId,
@@ -177,6 +207,11 @@ impl Command {
             SetTrackMute { .. } => "cmd.set_track_mute",
             SetTrackSolo { .. } => "cmd.set_track_solo",
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
+            InsertEffect { .. } => "cmd.insert_effect",
+            RemoveEffect { .. } => "cmd.remove_effect",
+            MoveEffect { .. } => "cmd.move_effect",
+            SetEffectBypass { .. } => "cmd.set_effect_bypass",
+            SetEffectParam { .. } => "cmd.set_effect_param",
             InsertClip { .. } => "cmd.insert_clip",
             RemoveClip { .. } => "cmd.remove_clip",
             SetClipBounds { .. } => "cmd.set_clip_bounds",
@@ -185,6 +220,100 @@ impl Command {
             RemoveNotes { .. } => "cmd.remove_notes",
             SetNotes { .. } => "cmd.set_notes",
             Batch { label_key, .. } => label_key,
+        }
+    }
+
+    /// `true` when `self` sets the same parameter as `older`, so in a merged gesture the
+    /// newer value simply replaces the older one (a fader drag). Anything else — inserts,
+    /// removals, different targets — accumulates instead.
+    pub fn supersedes(&self, older: &Command) -> bool {
+        use Command::*;
+        match (self, older) {
+            (SetProjectName { .. }, SetProjectName { .. })
+            | (SetTempo { .. }, SetTempo { .. })
+            | (SetTimeSignature { .. }, SetTimeSignature { .. })
+            | (SetLoopRegion { .. }, SetLoopRegion { .. })
+            | (SetLoopEnabled { .. }, SetLoopEnabled { .. })
+            | (SetMetronome { .. }, SetMetronome { .. })
+            | (SetMasterGain { .. }, SetMasterGain { .. }) => true,
+            (SetTrackName { id: a, .. }, SetTrackName { id: b, .. })
+            | (SetTrackColor { id: a, .. }, SetTrackColor { id: b, .. })
+            | (SetTrackGain { id: a, .. }, SetTrackGain { id: b, .. })
+            | (SetTrackPan { id: a, .. }, SetTrackPan { id: b, .. })
+            | (SetTrackMute { id: a, .. }, SetTrackMute { id: b, .. })
+            | (SetTrackSolo { id: a, .. }, SetTrackSolo { id: b, .. }) => a == b,
+            (
+                SetInstrumentParam {
+                    track: a,
+                    param: pa,
+                    ..
+                },
+                SetInstrumentParam {
+                    track: b,
+                    param: pb,
+                    ..
+                },
+            ) => a == b && pa == pb,
+            (
+                SetEffectBypass {
+                    track: a,
+                    effect: ea,
+                    ..
+                },
+                SetEffectBypass {
+                    track: b,
+                    effect: eb,
+                    ..
+                },
+            ) => a == b && ea == eb,
+            (
+                SetEffectParam {
+                    track: a,
+                    effect: ea,
+                    key: ka,
+                    ..
+                },
+                SetEffectParam {
+                    track: b,
+                    effect: eb,
+                    key: kb,
+                    ..
+                },
+            ) => a == b && ea == eb && ka == kb,
+            (
+                SetClipBounds {
+                    track: a, clip: ca, ..
+                },
+                SetClipBounds {
+                    track: b, clip: cb, ..
+                },
+            )
+            | (
+                SetClipName {
+                    track: a, clip: ca, ..
+                },
+                SetClipName {
+                    track: b, clip: cb, ..
+                },
+            ) => a == b && ca == cb,
+            (
+                SetNotes {
+                    track: a,
+                    clip: ca,
+                    notes: na,
+                },
+                SetNotes {
+                    track: b,
+                    clip: cb,
+                    notes: nb,
+                },
+            ) => {
+                a == b
+                    && ca == cb
+                    && na.len() == nb.len()
+                    && na.iter().all(|n| nb.iter().any(|m| m.id == n.id))
+            }
+            _ => false,
         }
     }
 
@@ -345,6 +474,99 @@ impl Command {
                 })
             }
 
+            InsertEffect { track, index, slot } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let len = t.effects.len();
+                if index > len {
+                    return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                if t.effect(slot.id).is_some() {
+                    return Err(CommandError::DuplicateId(slot.id.0));
+                }
+                let id = slot.id;
+                t.effects.insert(index, *slot);
+                Ok(RemoveEffect { track, effect: id })
+            }
+            RemoveEffect { track, effect } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let index = t
+                    .effect_index(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let slot = t.effects.remove(index);
+                Ok(InsertEffect {
+                    track,
+                    index,
+                    slot: Box::new(slot),
+                })
+            }
+            MoveEffect {
+                track,
+                effect,
+                index,
+            } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let from = t
+                    .effect_index(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let len = t.effects.len();
+                if index >= len {
+                    return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                let e = t.effects.remove(from);
+                t.effects.insert(index, e);
+                Ok(MoveEffect {
+                    track,
+                    effect,
+                    index: from,
+                })
+            }
+            SetEffectBypass {
+                track,
+                effect,
+                bypass,
+            } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let old = std::mem::replace(&mut e.bypass, bypass);
+                Ok(SetEffectBypass {
+                    track,
+                    effect,
+                    bypass: old,
+                })
+            }
+            SetEffectParam {
+                track,
+                effect,
+                key,
+                value,
+            } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let old = e.spec.get(&key);
+                e.spec
+                    .set(&key, value)
+                    .ok_or_else(|| CommandError::InvalidValue(format!("effect param {key}")))?;
+                Ok(SetEffectParam {
+                    track,
+                    effect,
+                    key,
+                    value: old,
+                })
+            }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
                 let t = project

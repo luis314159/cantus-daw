@@ -15,12 +15,20 @@ fn main() -> anyhow::Result<()> {
         match arg.as_str() {
             "--stress" => options.stress = true,
             "--locale" => options.locale = args.next(),
+            "--mixer" => options.mixer = true,
+            "--window" => {
+                let w = args.next().and_then(|s| s.parse::<f32>().ok());
+                let h = args.next().and_then(|s| s.parse::<f32>().ok());
+                options.window = w.zip(h);
+            }
             "--version" | "-V" => {
                 println!("cantus {}", cantus_ui::APP_VERSION);
                 return Ok(());
             }
             "--help" | "-h" => {
-                println!("cantus [--stress] [--locale en|es] [project.cantus]");
+                println!(
+                    "cantus [--stress] [--locale en|es] [--mixer] [--window W H] [project.cantus]"
+                );
                 return Ok(());
             }
             other => options.project = Some(PathBuf::from(other)),

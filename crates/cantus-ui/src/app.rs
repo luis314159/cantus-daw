@@ -4,12 +4,16 @@
 
 use crate::i18n::{t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
+use crate::recording::{RecordedNote, Recorder};
 use crate::theme;
-use crate::views::{self, arrangement::ArrangementView, piano_roll::PianoRollView};
-use cantus_core::{
-    ClipId, Command, CommandBus, MergeKey, Origin, Project, Snapshot, Ticks, TrackId,
+use crate::views::{
+    self, arrangement::ArrangementView, mixer::MixerView, piano_roll::PianoRollView,
 };
-use cantus_engine::{AudioConfig, EngineHandle, RenderOptions, Rendered};
+use cantus_core::{
+    ClipId, Command, CommandBus, EffectId, EffectKind, MergeKey, Origin, Project, Snapshot, Ticks,
+    TrackId,
+};
+use cantus_engine::{AudioConfig, EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -17,6 +21,13 @@ use std::time::{Duration, Instant};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// What the central area shows.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CentralView {
+    PianoRoll,
+    Mixer,
+}
 
 #[derive(Debug)]
 pub struct Status {
@@ -34,6 +45,12 @@ pub struct CantusApp {
     pub selected_notes: Vec<cantus_core::NoteId>,
     pub arrangement: ArrangementView,
     pub piano_roll: PianoRollView,
+    pub mixer: MixerView,
+    pub central: CentralView,
+    pub recorder: Recorder,
+    pub midi_port_names: Vec<String>,
+    midi_inputs: Option<MidiInputs>,
+    live_track_sent: Option<Option<TrackId>>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
     pub status: Status,
@@ -66,7 +83,13 @@ impl CantusApp {
                 EngineHandle::dummy()
             }
         };
-        Self::from_parts(project, engine, stress)
+        let mut app = Self::from_parts(project, engine, stress);
+        if app.engine.is_live() {
+            let inputs = MidiInputs::open_all(app.engine.midi_sender());
+            app.midi_port_names = inputs.names.clone();
+            app.midi_inputs = Some(inputs);
+        }
+        app
     }
 
     /// Build the application around an existing engine handle (headless tests use
@@ -94,6 +117,12 @@ impl CantusApp {
             selected_notes: Vec::new(),
             arrangement: ArrangementView::default(),
             piano_roll: PianoRollView::default(),
+            mixer: MixerView::default(),
+            central: CentralView::PianoRoll,
+            recorder: Recorder::new(),
+            midi_port_names: Vec::new(),
+            midi_inputs: None,
+            live_track_sent: None,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
             status: Status {
@@ -114,6 +143,7 @@ impl CantusApp {
             frame_times: Vec::with_capacity(120),
         };
         app.select_first();
+        app.sync_live_track();
         if let Some(e) = audio_error {
             app.set_error(tf("status.audio_failed", &[("error", &e)]));
         }
@@ -338,10 +368,185 @@ impl CantusApp {
         }
     }
 
+    // ---- effects --------------------------------------------------------------------
+
+    pub fn add_effect(&mut self, track: TrackId, kind: EffectKind) {
+        let slot = self.bus.new_effect(kind);
+        let index = self
+            .project()
+            .track(track)
+            .map(|t| t.effects.len())
+            .unwrap_or(0);
+        self.exec(Command::InsertEffect {
+            track,
+            index,
+            slot: Box::new(slot),
+        });
+    }
+
+    pub fn remove_effect(&mut self, track: TrackId, effect: EffectId) {
+        self.exec(Command::RemoveEffect { track, effect });
+    }
+
+    // ---- recording ------------------------------------------------------------------
+
+    pub fn is_recording(&self) -> bool {
+        self.recorder.is_recording()
+    }
+
+    /// Start recording onto the selected track (creating a clip at the playhead if the
+    /// track has none) and roll the transport.
+    pub fn start_recording(&mut self) {
+        let Some(track) = self.selected_track else {
+            return;
+        };
+        if self.selected_clip.is_none() {
+            let start = self
+                .engine
+                .position()
+                .snap_floor(self.project().time_signature.ticks_per_bar());
+            let len = self.project().time_signature.ticks_per_bar() * 4;
+            self.create_clip(track, start, len);
+        }
+        self.recorder.start();
+        self.engine.set_recording(true);
+        if !self.engine.is_playing() {
+            self.engine.play();
+        }
+        self.set_status(t("status.recording"));
+    }
+
+    pub fn stop_recording(&mut self) {
+        if !self.recorder.is_recording() {
+            return;
+        }
+        let at = self.engine.position();
+        let notes = self.recorder.stop(at);
+        self.engine.set_recording(false);
+        self.commit_recorded(notes);
+        self.end_gesture();
+        self.set_status(t("status.ready"));
+    }
+
+    pub fn toggle_record(&mut self) {
+        if self.is_recording() {
+            self.stop_recording();
+        } else {
+            self.start_recording();
+        }
+    }
+
+    /// Feed live-note events (normally from the engine) into the current take.
+    pub fn ingest_note_inputs(&mut self, inputs: Vec<NoteInput>) {
+        if inputs.is_empty() {
+            return;
+        }
+        let loop_region = if self.project().loop_enabled {
+            self.project().loop_region.clone()
+        } else {
+            None
+        };
+        let notes = self.recorder.ingest(&inputs, loop_region.as_ref());
+        self.commit_recorded(notes);
+    }
+
+    fn commit_recorded(&mut self, notes: Vec<RecordedNote>) {
+        if notes.is_empty() {
+            return;
+        }
+        let (Some(track), Some(clip_id)) = (self.selected_track, self.selected_clip) else {
+            return;
+        };
+        let Some(clip) = self
+            .project()
+            .track(track)
+            .and_then(|t| t.clip(clip_id))
+            .cloned()
+        else {
+            return;
+        };
+        let mut commands = Vec::new();
+        // Grow the clip so every recorded note lies inside it.
+        let mut start = clip.start;
+        let mut end = clip.end();
+        for n in &notes {
+            start = start.min(n.start);
+            end = end.max(n.start + n.length);
+        }
+        if start != clip.start || end != clip.end() {
+            commands.push(Command::SetClipBounds {
+                track,
+                clip: clip_id,
+                start,
+                length: end - start,
+            });
+            if start != clip.start {
+                // Shift existing notes so they stay where they sound.
+                let shift = clip.start - start;
+                let moved: Vec<_> = clip
+                    .notes
+                    .iter()
+                    .map(|n| cantus_core::Note {
+                        start: n.start + shift,
+                        ..n.clone()
+                    })
+                    .collect();
+                if !moved.is_empty() {
+                    commands.push(Command::SetNotes {
+                        track,
+                        clip: clip_id,
+                        notes: moved,
+                    });
+                }
+            }
+        }
+        let new_notes: Vec<_> = notes
+            .iter()
+            .map(|n| {
+                self.bus
+                    .new_note(n.start - start, n.length, n.pitch, n.velocity)
+            })
+            .collect();
+        commands.push(Command::InsertNotes {
+            track,
+            clip: clip_id,
+            notes: new_notes,
+        });
+        let key = MergeKey::of(&("take", self.recorder.take()));
+        self.exec_merging(
+            Command::Batch {
+                label_key: "cmd.record_take".into(),
+                commands,
+            },
+            key,
+        );
+    }
+
+    fn poll_recording(&mut self) {
+        let inputs = self.engine.take_note_inputs();
+        if self.recorder.is_recording() {
+            self.ingest_note_inputs(inputs);
+            if !self.engine.is_playing() && self.engine.stats().blocks_processed > 0 {
+                // Transport stopped (space, end of loop-less content): close the take.
+                self.stop_recording();
+            }
+        }
+    }
+
+    fn sync_live_track(&mut self) {
+        if self.live_track_sent != Some(self.selected_track) {
+            self.live_track_sent = Some(self.selected_track);
+            self.engine.set_live_track(self.selected_track);
+        }
+    }
+
     // ---- transport ------------------------------------------------------------------
 
     pub fn toggle_play(&mut self) {
         if self.engine.is_playing() {
+            if self.is_recording() {
+                self.stop_recording();
+            }
             self.engine.stop();
         } else {
             self.engine.play();
@@ -349,6 +554,9 @@ impl CantusApp {
     }
 
     pub fn stop(&mut self) {
+        if self.is_recording() {
+            self.stop_recording();
+        }
         if self.engine.is_playing() {
             self.engine.stop();
         } else {
@@ -560,7 +768,7 @@ impl CantusApp {
 
     // ---- per-frame ------------------------------------------------------------------
 
-    fn sync_engine(&mut self) {
+    pub fn sync_engine(&mut self) {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
@@ -593,6 +801,10 @@ impl CantusApp {
                 i.modifiers.shift,
             )
         });
+        let r = ctx.input(|i| i.key_pressed(egui::Key::R));
+        if r && !cmd {
+            self.toggle_record();
+        }
         if space {
             self.toggle_play();
         }
@@ -679,6 +891,12 @@ impl CantusApp {
                 );
                 ui.separator();
                 ui.label(
+                    egui::RichText::new(tf("status.midi", &[("n", &self.midi_port_names.len())]))
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                ui.separator();
+                ui.label(
                     egui::RichText::new(tf(
                         "status.keyboard",
                         &[("octave", &self.keyboard.octave)],
@@ -744,7 +962,9 @@ impl eframe::App for CantusApp {
         let frame_start = Instant::now();
         self.engine.poll();
         self.poll_export();
+        self.poll_recording();
         self.global_shortcuts(ctx);
+        self.sync_live_track();
 
         // Release auditions after 250 ms.
         let now = Instant::now();
@@ -794,7 +1014,13 @@ impl eframe::App for CantusApp {
                     .fill(theme::INK)
                     .inner_margin(egui::Margin::same(4)),
             )
-            .show(root, |ui| views::piano_roll::show(self, ui));
+            .show(root, |ui| {
+                ui.horizontal(|ui| views::transport::view_tabs(self, ui));
+                match self.central {
+                    CentralView::PianoRoll => views::piano_roll::show(self, ui),
+                    CentralView::Mixer => views::mixer::show(self, ui),
+                }
+            });
         self.dialogs(ctx);
 
         self.sync_engine();
@@ -819,7 +1045,7 @@ impl eframe::App for CantusApp {
         }
         self.frame_times.push(dt);
         ctx.request_repaint_after(Duration::from_millis(
-            if self.engine.is_playing() || !self.auditions.is_empty() {
+            if self.engine.is_playing() || !self.auditions.is_empty() || self.is_recording() {
                 16
             } else {
                 100

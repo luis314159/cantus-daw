@@ -188,3 +188,69 @@ fn transport_icons_are_painted_as_shapes() {
         "play and to-start triangles must be painted (found {paths})"
     );
 }
+
+#[test]
+fn recording_turns_live_notes_into_one_undoable_take() {
+    let mut a = app(starter_project());
+    let track = a.selected_track.unwrap();
+    let clip = a.selected_clip.unwrap();
+    let before_notes = a
+        .project()
+        .track(track)
+        .unwrap()
+        .clip(clip)
+        .unwrap()
+        .notes
+        .len();
+    let history = a.bus.history().len();
+
+    a.start_recording();
+    assert!(a.is_recording());
+    let ev = |tick: i64, pitch: u8, vel: u8| cantus_engine::NoteInput {
+        track,
+        tick: Ticks(tick),
+        pitch,
+        velocity: vel,
+    };
+    a.ingest_note_inputs(vec![ev(960, 62, 100), ev(1440, 62, 0)]);
+    a.ingest_note_inputs(vec![ev(1920, 65, 90)]);
+    // Note past the clip end grows the clip.
+    a.ingest_note_inputs(vec![ev(1920 + 16 * 960, 65, 0)]);
+    a.stop_recording();
+    assert!(!a.is_recording());
+
+    let c = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(c.notes.len(), before_notes + 2);
+    let rec = c.notes.iter().find(|n| n.pitch == 62).unwrap();
+    assert_eq!(
+        (rec.start, rec.length, rec.velocity),
+        (Ticks(960), Ticks(480), 100)
+    );
+    assert!(
+        c.end() >= Ticks(1920 + 16 * 960),
+        "clip grew to hold the take"
+    );
+    assert_eq!(a.bus.history().len(), history + 1, "one undo step per take");
+    a.undo();
+    let c = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(c.notes.len(), before_notes);
+}
+
+#[test]
+fn effects_are_added_and_delivered_to_the_engine() {
+    let mut a = app(starter_project());
+    let track = a.selected_track.unwrap();
+    a.add_effect(track, EffectKind::Delay);
+    a.add_effect(track, EffectKind::Reverb);
+    assert_eq!(a.project().track(track).unwrap().effects.len(), 2);
+    a.sync_engine();
+    assert_eq!(a.engine.known_effect_count(), 2);
+    let fx = a.project().track(track).unwrap().effects[0].id;
+    a.remove_effect(track, fx);
+    assert_eq!(a.project().track(track).unwrap().effects.len(), 1);
+    a.undo();
+    assert_eq!(a.project().track(track).unwrap().effects.len(), 2);
+    // Mixer view renders headless too.
+    a.central = cantus_ui::app::CentralView::Mixer;
+    run_frames(&mut a, 2);
+}

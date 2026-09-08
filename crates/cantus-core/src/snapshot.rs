@@ -4,6 +4,7 @@
 //! The UI compiles a new snapshot after every command and hands an `Arc<Snapshot>` to the
 //! engine. The engine never mutates it.
 
+use crate::effect::EffectSlot;
 use crate::instrument::InstrumentSpec;
 use crate::model::*;
 use crate::time::{Ticks, TimeSignature};
@@ -33,6 +34,8 @@ pub struct TrackSnapshot {
     /// Mute/solo already resolved.
     pub audible: bool,
     pub instrument: InstrumentSpec,
+    /// Insert chain in processing order (bypassed slots included, flagged).
+    pub effects: Vec<EffectSlot>,
     /// Sorted by `(tick, off-before-on)`.
     pub events: Vec<NoteEvent>,
 }
@@ -69,6 +72,7 @@ impl Snapshot {
                 pan: t.pan,
                 audible: project.track_audible(t),
                 instrument: t.instrument.clone(),
+                effects: t.effects.clone(),
                 events: compile_events(t),
             })
             .collect();

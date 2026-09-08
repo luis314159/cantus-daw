@@ -1,11 +1,14 @@
 //! The audio-thread processor. Owns every voice, buffer and queue it needs; after
 //! construction it never allocates, locks, logs or panics (ADR 0005).
+//!
+//! Signal flow per track: Firmus (mono) → insert effects (stereo) → gain/pan → master.
 
+use crate::effects::EffectUnit;
 use crate::messages::*;
 use crate::transport::Transport;
-use cantus_core::{pan_gains, InstrumentSpec, NoteEvent, Snapshot, TrackId, TrackSnapshot};
+use cantus_core::{pan_gains, InstrumentSpec, NoteEvent, Snapshot, TrackId};
 use cantus_dsp::{Click, Firmus, FirmusSettings, Wave};
-use rtrb::{Consumer, Producer};
+use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -13,10 +16,16 @@ use std::time::Instant;
 const LIVE_TAG: u64 = u64::MAX;
 /// How many snapshots we can hold back when the garbage queue is full.
 const PENDING_GARBAGE: usize = 8;
+/// MIDI events drained per block at most.
+const MAX_MIDI_PER_BLOCK: usize = 512;
 
+#[allow(clippy::vec_box)]
 struct TrackSlot {
     id: Option<TrackId>,
     synth: Firmus,
+    /// Insert chain in processing order; capacity fixed at construction.
+    effects: Vec<Box<EffectUnit>>,
+    bypass: [bool; MAX_EFFECTS_PER_TRACK],
     /// Index into the snapshot track's events of the next event to fire.
     next_event: usize,
     gain: f32,
@@ -30,6 +39,8 @@ impl TrackSlot {
         TrackSlot {
             id: None,
             synth: Firmus::new(sample_rate),
+            effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
+            bypass: [false; MAX_EFFECTS_PER_TRACK],
             next_event: 0,
             gain: 1.0,
             pan: 0.0,
@@ -39,20 +50,30 @@ impl TrackSlot {
     }
 }
 
+#[allow(clippy::vec_box)]
 pub struct Processor {
     sample_rate: f64,
     rx: Consumer<EngineMessage>,
     tx: Producer<EngineEvent>,
+    midi_rx: Consumer<MidiEvent>,
     snapshot: Option<Arc<Snapshot>>,
     pending_garbage: Vec<Arc<Snapshot>>,
+    /// Effect units received but not yet claimed by a snapshot.
+    incoming_effects: Vec<Box<EffectUnit>>,
+    /// Scratch space while re-ordering a track's chain (never grows past one chain).
+    scratch_effects: Vec<Box<EffectUnit>>,
     transport: Transport,
     slots: Vec<TrackSlot>,
     /// Snapshot track index → slot index.
     track_to_slot: Vec<usize>,
     mono: Vec<f32>,
+    buf_l: Vec<f32>,
+    buf_r: Vec<f32>,
     click: Click,
     metronome: bool,
     next_beat_tick: f64,
+    live_track: Option<TrackId>,
+    recording: bool,
     stats: EngineStats,
     meters: Meters,
     /// Whether `transport.playing` was true on the previous block (to emit note-offs).
@@ -60,21 +81,33 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(sample_rate: f64, rx: Consumer<EngineMessage>, tx: Producer<EngineEvent>) -> Self {
+    pub fn new(
+        sample_rate: f64,
+        rx: Consumer<EngineMessage>,
+        tx: Producer<EngineEvent>,
+        midi_rx: Consumer<MidiEvent>,
+    ) -> Self {
         let sr = sample_rate as f32;
         Processor {
             sample_rate,
             rx,
             tx,
+            midi_rx,
             snapshot: None,
             pending_garbage: Vec::with_capacity(PENDING_GARBAGE),
+            incoming_effects: Vec::with_capacity(MAX_PENDING_EFFECTS),
+            scratch_effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
             transport: Transport::new(sample_rate),
             slots: (0..MAX_TRACKS).map(|_| TrackSlot::new(sr)).collect(),
             track_to_slot: Vec::with_capacity(MAX_TRACKS),
             mono: vec![0.0; MAX_BLOCK_FRAMES],
+            buf_l: vec![0.0; MAX_BLOCK_FRAMES],
+            buf_r: vec![0.0; MAX_BLOCK_FRAMES],
             click: Click::new(sr),
             metronome: false,
             next_beat_tick: 0.0,
+            live_track: None,
+            recording: false,
             stats: EngineStats {
                 sample_rate,
                 ..Default::default()
@@ -82,6 +115,17 @@ impl Processor {
             meters: Meters::default(),
             was_playing: false,
         }
+    }
+
+    /// A processor with no hardware MIDI queue (tests, offline render).
+    pub fn without_midi(
+        sample_rate: f64,
+        rx: Consumer<EngineMessage>,
+        tx: Producer<EngineEvent>,
+    ) -> Self {
+        let (_p, c) = RingBuffer::<MidiEvent>::new(1);
+        // The producer is dropped: the consumer simply stays empty forever.
+        Self::new(sample_rate, rx, tx, c)
     }
 
     pub fn transport(&self) -> &Transport {
@@ -101,6 +145,7 @@ impl Processor {
         output.iter_mut().for_each(|s| *s = 0.0);
 
         self.drain_messages();
+        self.drain_midi();
         self.retry_garbage();
 
         if self.was_playing && !self.transport.is_playing() {
@@ -141,6 +186,14 @@ impl Processor {
             let Ok(msg) = self.rx.pop() else { break };
             match msg {
                 EngineMessage::SetSnapshot(snapshot) => self.install_snapshot(snapshot),
+                EngineMessage::AddEffect(unit) => {
+                    if self.incoming_effects.len() < MAX_PENDING_EFFECTS {
+                        self.incoming_effects.push(unit);
+                    } else {
+                        self.stats.dropped_events += 1;
+                        let _ = self.tx.push(EngineEvent::GarbageEffect(unit));
+                    }
+                }
                 EngineMessage::Play => {
                     if !self.transport.is_playing() {
                         self.reseek_events();
@@ -157,22 +210,61 @@ impl Processor {
                     track,
                     pitch,
                     velocity,
-                } => {
-                    if let Some(slot) = self.slot_for(track) {
-                        self.slots[slot].synth.note_on(pitch, velocity, LIVE_TAG);
-                    }
-                }
-                EngineMessage::NoteOff { track, pitch } => {
-                    if let Some(slot) = self.slot_for(track) {
-                        self.slots[slot].synth.note_off(pitch, LIVE_TAG);
-                    }
-                }
+                } => self.live_note(track, pitch, velocity.max(1)),
+                EngineMessage::NoteOff { track, pitch } => self.live_note(track, pitch, 0),
+                EngineMessage::Midi(ev) => self.midi(ev),
+                EngineMessage::SetLiveTrack(t) => self.live_track = t,
+                EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::Panic => {
                     for s in &mut self.slots {
                         s.synth.reset();
+                        for e in &mut s.effects {
+                            e.reset();
+                        }
                     }
                 }
             }
+        }
+    }
+
+    fn drain_midi(&mut self) {
+        for _ in 0..MAX_MIDI_PER_BLOCK {
+            let Ok(ev) = self.midi_rx.pop() else { break };
+            self.midi(ev);
+        }
+    }
+
+    fn midi(&mut self, ev: MidiEvent) {
+        let Some(track) = self.live_track else { return };
+        match ev.status & 0xF0 {
+            0x90 if ev.data2 > 0 => self.live_note(track, ev.data1, ev.data2),
+            0x80 | 0x90 => self.live_note(track, ev.data1, 0),
+            0xB0 if ev.data1 == 123 || ev.data1 == 120 => {
+                if let Some(slot) = self.slot_for(track) {
+                    self.slots[slot].synth.all_notes_off();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Play (velocity > 0) or release a live note and, while recording, report it.
+    fn live_note(&mut self, track: TrackId, pitch: u8, velocity: u8) {
+        let Some(slot) = self.slot_for(track) else {
+            return;
+        };
+        if velocity > 0 {
+            self.slots[slot].synth.note_on(pitch, velocity, LIVE_TAG);
+        } else {
+            self.slots[slot].synth.note_off(pitch, LIVE_TAG);
+        }
+        if self.recording && self.transport.is_playing() {
+            let _ = self.tx.push(EngineEvent::NoteInput(NoteInput {
+                track,
+                tick: self.transport.position(),
+                pitch,
+                velocity,
+            }));
         }
     }
 
@@ -203,18 +295,26 @@ impl Processor {
                 }
             };
             self.track_to_slot.push(slot);
+            self.rebuild_chain(slot, &t.effects);
             let s = &mut self.slots[slot];
             s.gain = t.gain;
             s.pan = t.pan;
             s.audible = t.audible;
             s.synth.set_settings(&to_settings(&t.instrument));
         }
-        // Slots whose track vanished: silence them and free them.
-        for (i, s) in self.slots.iter_mut().enumerate() {
-            if !used[i] && s.id.is_some() {
-                s.synth.all_notes_off();
-                s.id = None;
+        // Slots whose track vanished: silence them, free them, return their effects.
+        for (i, in_use) in used.iter().enumerate() {
+            if !in_use && self.slots[i].id.is_some() {
+                self.slots[i].synth.all_notes_off();
+                self.slots[i].id = None;
+                while let Some(e) = self.slots[i].effects.pop() {
+                    self.dispose_effect(e);
+                }
             }
+        }
+        // Units nobody claimed are stale.
+        while let Some(e) = self.incoming_effects.pop() {
+            self.dispose_effect(e);
         }
         self.transport.set_bpm(snapshot.tempo_bpm);
         self.transport.set_loop(snapshot.loop_region.clone());
@@ -225,6 +325,46 @@ impl Processor {
             self.dispose(old);
         }
         self.reseek_events();
+    }
+
+    /// Re-order a slot's effect chain to match `wanted`, pulling new units from the
+    /// incoming pool and returning dropped ones. No allocation: every Vec involved was
+    /// sized at construction and `wanted` is capped at MAX_EFFECTS_PER_TRACK.
+    fn rebuild_chain(&mut self, slot: usize, wanted: &[cantus_core::EffectSlot]) {
+        self.scratch_effects.clear();
+        while let Some(e) = self.slots[slot].effects.pop() {
+            self.scratch_effects.push(e);
+        }
+        for (i, want) in wanted.iter().take(MAX_EFFECTS_PER_TRACK).enumerate() {
+            let found = self
+                .scratch_effects
+                .iter()
+                .position(|e| e.id == want.id)
+                .map(|p| self.scratch_effects.swap_remove(p))
+                .or_else(|| {
+                    self.incoming_effects
+                        .iter()
+                        .position(|e| e.id == want.id)
+                        .map(|p| self.incoming_effects.swap_remove(p))
+                });
+            match found {
+                Some(mut unit) => {
+                    unit.configure(&want.spec);
+                    let s = &mut self.slots[slot];
+                    let idx = s.effects.len();
+                    s.bypass[idx] = want.bypass;
+                    s.effects.push(unit);
+                }
+                None => {
+                    // Unit not delivered yet (or dropped): skip it this snapshot.
+                    self.stats.dropped_events += 1;
+                    let _ = i;
+                }
+            }
+        }
+        while let Some(e) = self.scratch_effects.pop() {
+            self.dispose_effect(e);
+        }
     }
 
     fn dispose(&mut self, old: Arc<Snapshot>) {
@@ -238,6 +378,13 @@ impl Processor {
                 self.stats.dropped_events += 1;
                 drop(old);
             }
+        }
+    }
+
+    fn dispose_effect(&mut self, unit: Box<EffectUnit>) {
+        if self.tx.push(EngineEvent::GarbageEffect(unit)).is_err() {
+            // Queue full: the box is freed here. Extremely unlikely (queue holds 4096).
+            self.stats.dropped_events += 1;
         }
     }
 
@@ -358,19 +505,38 @@ impl Processor {
                 let s = &mut self.slots[slot];
                 let mono = &mut self.mono[..n];
                 mono.iter_mut().for_each(|x| *x = 0.0);
-                if !s.synth.process_add(mono) {
+                let has_signal = s.synth.process_add(mono);
+                if !has_signal && s.effects.is_empty() {
                     continue; // Idle: nothing to mix, nothing to meter.
+                }
+                let l = &mut self.buf_l[..n];
+                let r = &mut self.buf_r[..n];
+                l.copy_from_slice(mono);
+                r.copy_from_slice(mono);
+                for (i, e) in s.effects.iter_mut().enumerate() {
+                    if !s.bypass[i] {
+                        e.process(l, r);
+                    }
                 }
                 let (pl, pr) = pan_gains(s.pan);
                 let g = if s.audible { s.gain } else { 0.0 };
-                let (gl, gr) = (g * pl, g * pr);
+                // Equal-power balance: pan attenuates the far channel by up to −3 dB.
+                let (gl, gr) = (
+                    g * pl * std::f32::consts::SQRT_2,
+                    g * pr * std::f32::consts::SQRT_2,
+                );
+                let (gl, gr) = (gl.min(g), gr.min(g));
                 let mut peak = s.peak;
-                for (i, m) in mono.iter().enumerate() {
-                    peak = peak.max(m.abs() * g);
+                for i in 0..n {
+                    let sl = l[i] * gl;
+                    let sr = r[i] * gr;
+                    peak = peak.max(sl.abs()).max(sr.abs());
                     let frame = &mut out[i * channels..(i + 1) * channels];
-                    frame[0] += m * gl;
+                    frame[0] += sl;
                     if channels > 1 {
-                        frame[1] += m * gr;
+                        frame[1] += sr;
+                    } else {
+                        frame[0] += sr;
                     }
                 }
                 s.peak = peak;
@@ -466,6 +632,3 @@ fn wave(w: cantus_core::Waveform) -> Wave {
         cantus_core::Waveform::Square => Wave::Square,
     }
 }
-
-#[allow(dead_code)]
-fn _track_snapshot_is_send(_: &TrackSnapshot) {}

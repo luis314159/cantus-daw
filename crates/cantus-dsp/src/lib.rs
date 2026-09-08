@@ -18,16 +18,20 @@
 #![allow(clippy::should_implement_trait)]
 
 pub mod click;
+pub mod delay;
 pub mod env;
 pub mod filter;
 pub mod firmus;
 pub mod nulltest;
 pub mod osc;
+pub mod reverb;
 pub mod smoother;
 
 pub use click::Click;
+pub use delay::{DelaySettings, StereoDelay};
 pub use env::{Adsr, Stage};
 pub use filter::{FilterMode, Svf};
 pub use firmus::{Firmus, FirmusSettings, MAX_VOICES};
 pub use osc::{PolyBlepOsc, Wave};
+pub use reverb::{Reverb, ReverbSettings};
 pub use smoother::Smoother;

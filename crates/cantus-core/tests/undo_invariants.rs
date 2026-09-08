@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(14) {
+    match rng.below(16) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -150,6 +150,55 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 },
             ],
         },
+        13 if tracks > 0 => {
+            let id = project.tracks[rng.below(tracks as u64) as usize].id;
+            let kind = EffectKind::ALL[rng.below(2) as usize];
+            let slot = project.make_effect(kind);
+            let len = project.track(id).unwrap().effects.len();
+            Command::InsertEffect {
+                track: id,
+                index: rng.below(len as u64 + 1) as usize,
+                slot: Box::new(slot),
+            }
+        }
+        14 if tracks > 0 => {
+            let t = &project.tracks[rng.below(tracks as u64) as usize];
+            match t
+                .effects
+                .get(rng.below(t.effects.len().max(1) as u64) as usize)
+            {
+                Some(e) => match rng.below(4) {
+                    0 => Command::RemoveEffect {
+                        track: t.id,
+                        effect: e.id,
+                    },
+                    1 => Command::SetEffectBypass {
+                        track: t.id,
+                        effect: e.id,
+                        bypass: rng.below(2) == 1,
+                    },
+                    2 => Command::MoveEffect {
+                        track: t.id,
+                        effect: e.id,
+                        index: rng.below(t.effects.len() as u64) as usize,
+                    },
+                    _ => {
+                        let infos = e.spec.kind.params();
+                        let info = infos[rng.below(infos.len() as u64) as usize];
+                        Command::SetEffectParam {
+                            track: t.id,
+                            effect: e.id,
+                            key: info.key.to_string(),
+                            value: rng.f32(info.min - 1.0, info.max + 1.0),
+                        }
+                    }
+                },
+                None => Command::SetTrackMute {
+                    id: t.id,
+                    muted: rng.below(2) == 1,
+                },
+            }
+        }
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },

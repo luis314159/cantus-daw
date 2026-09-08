@@ -113,6 +113,10 @@ impl CommandBus {
         self.project.make_clip(name, start, length)
     }
 
+    pub fn new_effect(&mut self, kind: crate::effect::EffectKind) -> crate::effect::EffectSlot {
+        self.project.make_effect(kind)
+    }
+
     pub fn new_note(
         &mut self,
         start: crate::time::Ticks,
@@ -163,16 +167,27 @@ impl CommandBus {
         self.revision += 1;
         self.redo.clear();
 
-        let command = match (merge_key, self.undo.last_mut()) {
+        let fresh = match (merge_key, self.undo.last_mut()) {
             (Some(key), Some(top)) if top.merge_key == Some(key) && top.origin == origin => {
-                // Keep the original inverse (restores pre-gesture state), replace the
-                // forward command with the latest value.
-                top.command = command;
+                if command.supersedes(&top.command) {
+                    // Same parameter again: keep the original inverse (restores the
+                    // pre-gesture state), replace the forward command with the latest value.
+                    top.command = command;
+                } else {
+                    // Accumulating gesture (e.g. a recording take): compose. Redo replays
+                    // old then new; undo applies new⁻¹ then old⁻¹.
+                    let label = top.label_key.clone();
+                    let placeholder = Command::SetMetronome { enabled: false };
+                    let old_cmd = std::mem::replace(&mut top.command, placeholder.clone());
+                    let old_inv = std::mem::replace(&mut top.inverse, placeholder);
+                    top.command = compose(&label, old_cmd, command, false);
+                    top.inverse = compose(&label, old_inv, inverse, true);
+                }
                 None
             }
-            _ => Some(command),
+            _ => Some((command, inverse)),
         };
-        if let Some(command) = command {
+        if let Some((command, inverse)) = fresh {
             self.undo.push(HistoryEntry {
                 label_key: label_key.clone(),
                 command,
@@ -288,10 +303,77 @@ impl CommandBus {
     }
 }
 
+/// Merge two commands into one batch. `prepend` puts `new` before `old` (inverses).
+fn compose(label: &str, old: Command, new: Command, prepend: bool) -> Command {
+    let mut commands = match old {
+        Command::Batch {
+            label_key,
+            commands,
+        } if label_key == label => commands,
+        other => vec![other],
+    };
+    if prepend {
+        commands.insert(0, new);
+    } else {
+        commands.push(new);
+    }
+    Command::Batch {
+        label_key: label.to_string(),
+        commands,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::TrackId;
+
+    #[test]
+    fn accumulating_gesture_composes_and_undoes_completely() {
+        let (mut bus, id) = bus_with_track();
+        let clip = bus.new_clip("c", crate::time::Ticks::ZERO, crate::time::Ticks::beats(4));
+        let cid = clip.id;
+        bus.execute(
+            Command::InsertClip {
+                track: id,
+                clip: Box::new(clip),
+            },
+            Origin::User,
+        )
+        .unwrap();
+        let before = bus.project().clone();
+        let key = MergeKey::of(&"take");
+        for pitch in [60u8, 64, 67] {
+            let n = bus.new_note(
+                crate::time::Ticks::ZERO,
+                crate::time::Ticks::QUARTER,
+                pitch,
+                100,
+            );
+            bus.execute_merging(
+                Command::Batch {
+                    label_key: "take".into(),
+                    commands: vec![Command::InsertNotes {
+                        track: id,
+                        clip: cid,
+                        notes: vec![n],
+                    }],
+                },
+                Origin::User,
+                key,
+            )
+            .unwrap();
+        }
+        bus.end_gesture();
+        assert_eq!(bus.history().len(), 3); // track, clip, one take
+        assert_eq!(bus.project().tracks[0].clips[0].notes.len(), 3);
+        bus.undo();
+        let mut now = bus.project().clone();
+        now.next_id = before.next_id;
+        assert_eq!(now, before);
+        bus.redo();
+        assert_eq!(bus.project().tracks[0].clips[0].notes.len(), 3);
+    }
 
     fn bus_with_track() -> (CommandBus, TrackId) {
         let mut bus = CommandBus::default();

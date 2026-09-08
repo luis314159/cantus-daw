@@ -228,6 +228,18 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     }
     app.piano_roll_notes_drawn = drawn;
 
+    // Notes being recorded: from their start to the playhead.
+    if app.recorder.is_recording() {
+        let ph_beats = ticks_to_beats(app.engine.position() - clip.start);
+        for pending in app.recorder.pending() {
+            let x0 = geo.x(ticks_to_beats(pending.start - clip.start));
+            let x1 = geo.x(ph_beats).max(x0 + 2.0);
+            let y0 = geo.y(pending.pitch as f32 + 1.0);
+            let r = Rect::from_min_max(pos2(x0, y0 + 1.0), pos2(x1, y0 + geo.key_h - 1.0));
+            p.rect_filled(r, CornerRadius::same(2), theme::DANGER.gamma_multiply(0.8));
+        }
+    }
+
     // Marquee.
     if let Some((a, b)) = app.piano_roll.marquee {
         let r = Rect::from_two_pos(a, b);

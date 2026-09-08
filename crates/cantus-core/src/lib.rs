@@ -11,6 +11,7 @@
 
 pub mod bus;
 pub mod command;
+pub mod effect;
 pub mod instrument;
 pub mod model;
 pub mod snapshot;
@@ -18,9 +19,10 @@ pub mod time;
 
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
 pub use command::{Command, CommandError, Origin};
+pub use effect::{EffectKind, EffectParamInfo, EffectSlot, EffectSpec};
 pub use instrument::{FirmusParam, FirmusParams, InstrumentSpec, ParamInfo, Waveform};
 pub use model::{
-    db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId, Color,
+    db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId, Color, EffectId,
     LoopRegion, Master, Note, NoteId, Pitch, Project, Track, TrackId, Velocity, MAX_GAIN_DB,
     MIN_GAIN_DB,
 };

@@ -112,7 +112,7 @@ fn realtime_style_processing_matches_offline_render() {
 
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
-    let mut p = Processor::new(48_000.0, rx_engine, tx_engine);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
     let mut snap_rt = (*snap).clone();
     snap_rt.loop_region = None;
     tx.push(EngineMessage::SetSnapshot(Arc::new(snap_rt)))
@@ -140,7 +140,7 @@ fn stop_releases_notes_and_seek_restarts_cleanly() {
     let snap = snapshot();
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
-    let mut p = Processor::new(48_000.0, rx_engine, tx_engine);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     let mut buf = vec![0f32; 512 * 2];
@@ -193,7 +193,7 @@ fn looping_wraps_and_keeps_playing() {
     let snap = Arc::new(Snapshot::compile(&project, 1));
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
-    let mut p = Processor::new(48_000.0, rx_engine, tx_engine);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     let mut buf = vec![0f32; 480 * 2];
@@ -224,7 +224,7 @@ fn snapshot_swap_mid_playback_is_glitch_free_and_returns_garbage() {
     let snap = snapshot();
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
-    let mut p = Processor::new(48_000.0, rx_engine, tx_engine);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
     tx.push(EngineMessage::SetSnapshot(snap.clone())).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     let mut buf = vec![0f32; 256 * 2];

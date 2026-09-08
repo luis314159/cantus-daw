@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -177,7 +177,7 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
 /// Migration `i` converts schema `i` → `i + 1`. Never remove or reorder entries: a file
 /// saved today must open in five years (idea.md §5.15).
 type Migration = fn(&mut Value) -> Result<(), String>;
-static MIGRATIONS: &[Migration] = &[migrate_0_to_1];
+static MIGRATIONS: &[Migration] = &[migrate_0_to_1, migrate_1_to_2];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
 fn migrate_0_to_1(value: &mut Value) -> Result<(), String> {
@@ -191,10 +191,54 @@ fn migrate_0_to_1(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 2 added per-track insert effects.
+fn migrate_1_to_2(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        if t.get("effects").is_none() {
+            t["effects"] = Value::Array(Vec::new());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use cantus_core::Ticks;
+
+    /// Every historical fixture in `fixtures/` must open, whatever its schema version.
+    #[test]
+    fn all_fixtures_load_and_migrate() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let mut seen = 0;
+        for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("cantus") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let r = parse(&text, true).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            assert_eq!(r.file.schema_version, SCHEMA_VERSION, "{}", path.display());
+            assert_eq!(r.file.project.tracks.len(), 2, "{}", path.display());
+            assert_eq!(r.file.project.tracks[0].name, "Keys");
+            assert_eq!(r.file.project.tracks[0].clips[0].notes.len(), 4);
+            // Re-saving a migrated project must round-trip at the current schema.
+            let again = ProjectFile::wrap(r.file.project.clone(), "test")
+                .unwrap()
+                .to_json()
+                .unwrap();
+            let back = parse(&again, true).unwrap();
+            assert_eq!(back.file.project, r.file.project);
+            assert!(back.integrity_verified);
+            seen += 1;
+        }
+        assert!(seen >= 1, "no fixtures found in {}", dir.display());
+    }
 
     fn demo() -> Project {
         let mut p = Project::new("Demo");

@@ -3,6 +3,7 @@
 
 pub mod arrangement;
 pub mod inspector;
+pub mod mixer;
 pub mod piano_roll;
 pub mod transport;
 

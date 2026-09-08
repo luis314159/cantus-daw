@@ -3,6 +3,7 @@
 //!
 //! This module is deliberately plain data. All behaviour lives in [`crate::command`].
 
+use crate::effect::EffectSlot;
 use crate::instrument::InstrumentSpec;
 use crate::time::{Ticks, TimeSignature};
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,7 @@ macro_rules! id_type {
 id_type!(TrackId, "t");
 id_type!(ClipId, "c");
 id_type!(NoteId, "n");
+id_type!(EffectId, "fx");
 
 /// MIDI-style note (0..=127). Middle C is 60.
 pub type Pitch = u8;
@@ -107,6 +109,9 @@ pub struct Track {
     pub name: String,
     pub color: Color,
     pub instrument: InstrumentSpec,
+    /// Insert effects, processed in order after the instrument.
+    #[serde(default)]
+    pub effects: Vec<EffectSlot>,
     pub clips: Vec<Clip>,
     /// Fader gain in decibels. 0 dB = unity, `-inf` is represented by [`MIN_GAIN_DB`].
     pub gain_db: f32,
@@ -126,6 +131,18 @@ impl Track {
 
     pub fn clip_mut(&mut self, id: ClipId) -> Option<&mut Clip> {
         self.clips.iter_mut().find(|c| c.id == id)
+    }
+
+    pub fn effect(&self, id: EffectId) -> Option<&EffectSlot> {
+        self.effects.iter().find(|e| e.id == id)
+    }
+
+    pub fn effect_mut(&mut self, id: EffectId) -> Option<&mut EffectSlot> {
+        self.effects.iter_mut().find(|e| e.id == id)
+    }
+
+    pub fn effect_index(&self, id: EffectId) -> Option<usize> {
+        self.effects.iter().position(|e| e.id == id)
     }
 }
 
@@ -247,6 +264,7 @@ impl Project {
             name: name.into(),
             color,
             instrument: InstrumentSpec::default(),
+            effects: Vec::new(),
             clips: Vec::new(),
             gain_db: 0.0,
             pan: 0.0,
@@ -262,6 +280,14 @@ impl Project {
             start,
             length,
             notes: Vec::new(),
+        }
+    }
+
+    pub fn make_effect(&mut self, kind: crate::effect::EffectKind) -> EffectSlot {
+        EffectSlot {
+            id: EffectId(self.alloc_id()),
+            bypass: false,
+            spec: crate::effect::EffectSpec::new(kind),
         }
     }
 

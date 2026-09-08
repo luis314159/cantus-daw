@@ -18,7 +18,12 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   filter, two ADSRs, key tracking).
 - Arrangement view (tracks, clips, mute/solo/gain/pan, loop region) and a painter-based
   piano roll (draw, move, resize, velocity, marquee, quantize, snap grid, zoom).
-- Computer keyboard as a MIDI controller (`A`–`'` keys, `Z`/`X` octave).
+- Computer keyboard as a MIDI controller (`A`–`'` keys, `Z`/`X` octave) and **hardware MIDI
+  input** (every port is opened at start).
+- **MIDI recording** into the selected clip (press `R`): live take preview in the piano
+  roll, loop-wrap aware, one undo step per take.
+- **Insert effects** per track — a tempo-free stereo delay (ping-pong, tone) and an
+  algorithmic reverb — plus a **mixer view** with faders, pan, peak-hold meters and master.
 - One command bus for every mutation, with unlimited undo/redo, gesture merging and an
   audit log that records who did what — user, script, AI or MCP (ADR 0004).
 - Versioned JSON project files with SHA-256 integrity, schema migrations and atomic,
@@ -35,6 +40,7 @@ cargo run --release -p cantus
 cargo run --release -p cantus -- --stress        # 160 000-note stress project (ADR 0003)
 cargo run --release -p cantus -- --locale es
 cargo run --release -p cantus -- song.cantus
+cargo run --release -p cantus -- --mixer --window 1200 760   # start in the mixer, fixed size
 ```
 
 Requires stable Rust 1.85 or newer. No system libraries are needed on Windows or macOS;
@@ -68,6 +74,6 @@ See [ADR 0001](docs/adr/0001-license.md) for why the license is split.
 
 ## Keyboard
 
-Space play/stop · Home to start · Ctrl+Z/Y undo/redo · Ctrl+S save · Ctrl+O open ·
+Space play/stop · R record · Home to start · Ctrl+Z/Y undo/redo · Ctrl+S save · Ctrl+O open ·
 Ctrl+N new · Ctrl+E export WAV · Ctrl+L loop · Ctrl+M metronome · Delete · Ctrl+A ·
 Q quantize · Ctrl+scroll zoom · Shift+scroll horizontal scroll.

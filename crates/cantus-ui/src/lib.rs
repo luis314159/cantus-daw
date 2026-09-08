@@ -8,6 +8,7 @@
 pub mod app;
 pub mod i18n;
 pub mod keyboard;
+pub mod recording;
 pub mod theme;
 pub mod views;
 
@@ -23,6 +24,10 @@ pub struct LaunchOptions {
     pub stress: bool,
     /// Force a locale (`en`, `es`).
     pub locale: Option<String>,
+    /// Open at this window size instead of maximized (also handy for screenshots).
+    pub window: Option<(f32, f32)>,
+    /// Start in the mixer instead of the piano roll.
+    pub mixer: bool,
 }
 
 /// Run the desktop application until the window closes.
@@ -41,19 +46,31 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         None => None,
     };
     let stress = options.stress;
-    let native = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title(i18n::t("app.title"))
-            .with_app_id("cantus")
+    let mixer = options.mixer;
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(i18n::t("app.title"))
+        .with_app_id("cantus")
+        .with_min_inner_size([960.0, 600.0]);
+    viewport = match options.window {
+        Some((w, h)) => viewport.with_inner_size([w, h]),
+        None => viewport
             .with_inner_size([1280.0, 800.0])
-            .with_min_inner_size([960.0, 600.0])
             .with_maximized(true),
+    };
+    let native = eframe::NativeOptions {
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
         "Cantus",
         native,
-        Box::new(move |cc| Ok(Box::new(CantusApp::new(cc, project, stress)))),
+        Box::new(move |cc| {
+            let mut app = CantusApp::new(cc, project, stress);
+            if mixer {
+                app.central = app::CentralView::Mixer;
+            }
+            Ok(Box::new(app))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("{e}"))
 }

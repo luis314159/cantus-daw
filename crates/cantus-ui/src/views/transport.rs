@@ -130,6 +130,7 @@ enum Icon {
     Play,
     Pause,
     Stop,
+    Record,
 }
 
 /// Transport icons are painted, not typed: the bundled fonts lack some glyphs and a
@@ -184,6 +185,10 @@ fn icon_button(ui: &mut egui::Ui, icon: Icon, active: bool, tip: String) -> egui
                 color,
             );
         }
+        Icon::Record => {
+            let col = if active { theme::DANGER } else { color };
+            p.circle_filled(c, h + 1.0, col);
+        }
         Icon::ToStart => {
             p.rect_filled(
                 Rect::from_center_size(pos2(c.x - 5.0, c.y), vec2(2.0, 2.0 * h)),
@@ -216,6 +221,10 @@ fn buttons(app: &mut CantusApp, ui: &mut egui::Ui) {
     if icon_button(ui, Icon::Stop, false, t("transport.stop")).clicked() {
         app.stop();
     }
+    let recording = app.is_recording();
+    if icon_button(ui, Icon::Record, recording, t("transport.record")).clicked() {
+        app.toggle_record();
+    }
     let mut looping = app.project().loop_enabled;
     if ui.toggle_value(&mut looping, t("transport.loop")).changed() {
         app.exec(Command::SetLoopEnabled { enabled: looping });
@@ -227,7 +236,11 @@ fn buttons(app: &mut CantusApp, ui: &mut egui::Ui) {
     {
         app.exec(Command::SetMetronome { enabled: metro });
     }
-    if ui.small_button(t("transport.panic")).clicked() {
+    if ui
+        .small_button(t("transport.panic_short"))
+        .on_hover_text(t("transport.panic"))
+        .clicked()
+    {
         app.engine.panic();
     }
 }
@@ -265,6 +278,18 @@ fn tempo_and_position(app: &mut CantusApp, ui: &mut egui::Ui) {
     )
     .on_hover_text(t("transport.position"));
     ui.label(RichText::new(ts.to_string()).color(theme::TEXT_DIM));
+}
+
+pub fn view_tabs(app: &mut CantusApp, ui: &mut egui::Ui) {
+    use crate::app::CentralView;
+    for (view, key) in [
+        (CentralView::PianoRoll, "view.piano_roll"),
+        (CentralView::Mixer, "view.mixer"),
+    ] {
+        if ui.selectable_label(app.central == view, t(key)).clicked() {
+            app.central = view;
+        }
+    }
 }
 
 fn undo_redo(app: &mut CantusApp, ui: &mut egui::Ui) {

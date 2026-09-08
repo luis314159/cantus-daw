@@ -14,6 +14,7 @@ cantus-dsp.workspace = true
 rtrb.workspace = true
 cpal.workspace = true
 hound.workspace = true
+midir.workspace = true
 thiserror.workspace = true
 log.workspace = true
 

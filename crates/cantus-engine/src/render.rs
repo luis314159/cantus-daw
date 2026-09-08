@@ -2,6 +2,7 @@
 //! block, into memory or a WAV file. Because the processor is deterministic and
 //! block-size independent, the result is bit-identical to real-time playback.
 
+use crate::effects::EffectUnit;
 use crate::messages::{EngineEvent, EngineMessage};
 use crate::processor::Processor;
 use cantus_core::{Snapshot, Ticks};
@@ -79,16 +80,23 @@ pub fn render(snapshot: Arc<Snapshot>, opts: &RenderOptions) -> Result<Rendered,
         .clamp(1, crate::messages::MAX_BLOCK_FRAMES);
     let sr = opts.sample_rate as f64;
 
-    let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16);
-    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64);
-    let mut p = Processor::new(sr, rx_engine, tx_engine);
-
     // Loop is a playback convenience, not part of the rendered piece.
     let mut snap = (*snapshot).clone();
     snap.loop_region = None;
     snap.metronome = false;
     let snap = Arc::new(snap);
 
+    let effect_count: usize = snap.tracks.iter().map(|t| t.effects.len()).sum();
+    let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count);
+    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
+    let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
+
+    for track in &snap.tracks {
+        for slot in &track.effects {
+            let unit = EffectUnit::new(slot, sr as f32);
+            tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
+        }
+    }
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     tx.push(EngineMessage::Seek(opts.start)).ok();
     tx.push(EngineMessage::Play).ok();

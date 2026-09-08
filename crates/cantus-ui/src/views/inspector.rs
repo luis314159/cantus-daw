@@ -3,7 +3,9 @@
 use crate::app::CantusApp;
 use crate::i18n::t;
 use crate::theme;
-use cantus_core::{Color, Command, FirmusParam, MergeKey, TrackId, Waveform};
+use cantus_core::{
+    Color, Command, EffectKind, EffectSlot, FirmusParam, MergeKey, TrackId, Waveform,
+};
 use egui::RichText;
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
@@ -113,6 +115,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         }
         section(ui, "inspector.output");
         param_slider(app, ui, id, FirmusParam::Gain, params.gain_db);
+        ui.add_space(10.0);
+        ui.separator();
+        effects(app, ui, id, &track.effects);
         ui.add_space(8.0);
     });
 }
@@ -189,5 +194,123 @@ fn param_slider(
             param,
             value: info.default,
         });
+    }
+}
+
+fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectSlot]) {
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(t("inspector.effects"))
+                .strong()
+                .color(theme::GOLD),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.menu_button(t("effect.add"), |ui| {
+                for kind in EffectKind::ALL {
+                    if ui.button(t(kind.name_key())).clicked() {
+                        ui.close();
+                        app.add_effect(id, kind);
+                    }
+                }
+            });
+        });
+    });
+    let n = slots.len();
+    for (i, slot) in slots.iter().enumerate() {
+        let frame = egui::Frame::NONE
+            .fill(theme::PANEL_RAISED)
+            .inner_margin(egui::Margin::same(6))
+            .corner_radius(4);
+        frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let mut on = !slot.bypass;
+                if ui
+                    .checkbox(&mut on, "")
+                    .on_hover_text(t("effect.bypass"))
+                    .changed()
+                {
+                    app.exec(Command::SetEffectBypass {
+                        track: id,
+                        effect: slot.id,
+                        bypass: !on,
+                    });
+                }
+                ui.label(RichText::new(t(slot.spec.kind.name_key())).strong());
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(t("effect.remove_short"))
+                        .on_hover_text(t("effect.remove"))
+                        .clicked()
+                    {
+                        app.remove_effect(id, slot.id);
+                    }
+                    if ui
+                        .add_enabled(i + 1 < n, egui::Button::new(t("effect.down_short")).small())
+                        .on_hover_text(t("effect.down"))
+                        .clicked()
+                    {
+                        app.exec(Command::MoveEffect {
+                            track: id,
+                            effect: slot.id,
+                            index: i + 1,
+                        });
+                    }
+                    if ui
+                        .add_enabled(i > 0, egui::Button::new(t("effect.up_short")).small())
+                        .on_hover_text(t("effect.up"))
+                        .clicked()
+                    {
+                        app.exec(Command::MoveEffect {
+                            track: id,
+                            effect: slot.id,
+                            index: i - 1,
+                        });
+                    }
+                });
+            });
+            for info in slot.spec.kind.params() {
+                let mut v = slot.spec.get(info.key);
+                let mut slider = egui::Slider::new(&mut v, info.min..=info.max)
+                    .text(t(info.label_key))
+                    .logarithmic(info.logarithmic);
+                if !info.unit.is_empty() {
+                    slider = slider.suffix(format!(" {}", info.unit));
+                }
+                if info.stepped {
+                    slider = slider.step_by(1.0);
+                }
+                let r = ui.add(slider);
+                if r.changed() {
+                    app.exec_merging(
+                        Command::SetEffectParam {
+                            track: id,
+                            effect: slot.id,
+                            key: info.key.to_string(),
+                            value: v,
+                        },
+                        MergeKey::of(&("fx", slot.id.0, info.key)),
+                    );
+                }
+                if r.drag_stopped() || r.lost_focus() {
+                    app.end_gesture();
+                }
+                if r.double_clicked() {
+                    app.exec(Command::SetEffectParam {
+                        track: id,
+                        effect: slot.id,
+                        key: info.key.to_string(),
+                        value: info.default,
+                    });
+                }
+            }
+        });
+        ui.add_space(4.0);
+    }
+    if slots.is_empty() {
+        ui.label(
+            RichText::new(t("effect.none"))
+                .small()
+                .color(theme::TEXT_DIM),
+        );
     }
 }

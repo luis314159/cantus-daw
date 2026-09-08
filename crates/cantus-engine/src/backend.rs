@@ -1,18 +1,23 @@
 //! Audio I/O backend (cpal) and the UI-side [`EngineHandle`].
 //!
 //! The handle is the only thing the rest of the application touches: it owns the stream,
-//! the message producer and the event consumer, and caches the latest engine state.
+//! the message producer and the event consumer, caches the latest engine state, and keeps
+//! effect instances in sync with the snapshots it sends.
 
+use crate::effects::EffectUnit;
 use crate::messages::*;
+use crate::midi::MidiSender;
 use crate::processor::Processor;
-use cantus_core::{Snapshot, Ticks, TrackId};
+use cantus_core::{EffectId, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
+use std::collections::HashSet;
 use std::sync::Arc;
 use thiserror::Error;
 
 const MESSAGE_QUEUE: usize = 1024;
 const EVENT_QUEUE: usize = 4096;
+const MIDI_QUEUE: usize = 1024;
 
 #[derive(Debug, Error)]
 pub enum EngineError {
@@ -60,6 +65,7 @@ pub struct AudioConfig {
 pub struct EngineHandle {
     tx: Producer<EngineMessage>,
     rx: Consumer<EngineEvent>,
+    midi: MidiSender,
     _stream: Option<cpal::Stream>,
     pub device_name: String,
     pub sample_rate: f64,
@@ -69,6 +75,9 @@ pub struct EngineHandle {
     meters: Meters,
     stats: EngineStats,
     send_failures: u64,
+    /// Effect ids whose unit currently lives in the engine.
+    known_effects: HashSet<EffectId>,
+    note_inputs: Vec<NoteInput>,
 }
 
 impl std::fmt::Debug for EngineHandle {
@@ -114,7 +123,8 @@ impl EngineHandle {
 
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
-        let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine);
+        let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
+        let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
 
         let stream = device
             .build_output_stream(
@@ -134,6 +144,7 @@ impl EngineHandle {
         Ok(EngineHandle {
             tx,
             rx,
+            midi: MidiSender::new(midi_tx),
             _stream: Some(stream),
             device_name,
             sample_rate: sample_rate as f64,
@@ -143,6 +154,8 @@ impl EngineHandle {
             meters: Meters::default(),
             stats: EngineStats::default(),
             send_failures: 0,
+            known_effects: HashSet::new(),
+            note_inputs: Vec::new(),
         })
     }
 
@@ -151,9 +164,11 @@ impl EngineHandle {
     pub fn dummy() -> Self {
         let (tx, _rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (_tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
+        let (midi_tx, _midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
         EngineHandle {
             tx,
             rx,
+            midi: MidiSender::new(midi_tx),
             _stream: None,
             device_name: "none".into(),
             sample_rate: 48_000.0,
@@ -163,11 +178,18 @@ impl EngineHandle {
             meters: Meters::default(),
             stats: EngineStats::default(),
             send_failures: 0,
+            known_effects: HashSet::new(),
+            note_inputs: Vec::new(),
         }
     }
 
     pub fn is_live(&self) -> bool {
         self._stream.is_some()
+    }
+
+    /// Sender for hardware MIDI threads (see [`crate::midi::MidiInputs`]).
+    pub fn midi_sender(&self) -> MidiSender {
+        self.midi.clone()
     }
 
     pub fn send(&mut self, msg: EngineMessage) {
@@ -176,7 +198,24 @@ impl EngineHandle {
         }
     }
 
+    /// Send a snapshot, first delivering units for any effect the engine does not have.
     pub fn set_snapshot(&mut self, snapshot: Arc<Snapshot>) {
+        for track in &snapshot.tracks {
+            for slot in &track.effects {
+                if !self.known_effects.contains(&slot.id) {
+                    let unit = EffectUnit::new(slot, self.sample_rate as f32);
+                    if self
+                        .tx
+                        .push(EngineMessage::AddEffect(Box::new(unit)))
+                        .is_ok()
+                    {
+                        self.known_effects.insert(slot.id);
+                    } else {
+                        self.send_failures += 1;
+                    }
+                }
+            }
+        }
         self.send(EngineMessage::SetSnapshot(snapshot));
     }
 
@@ -205,6 +244,14 @@ impl EngineHandle {
         self.send(EngineMessage::NoteOff { track, pitch });
     }
 
+    pub fn set_live_track(&mut self, track: Option<TrackId>) {
+        self.send(EngineMessage::SetLiveTrack(track));
+    }
+
+    pub fn set_recording(&mut self, on: bool) {
+        self.send(EngineMessage::SetRecording(on));
+    }
+
     pub fn panic(&mut self) {
         self.send(EngineMessage::Panic);
     }
@@ -222,10 +269,20 @@ impl EngineHandle {
                 }
                 EngineEvent::Meters(m) => self.meters = m,
                 EngineEvent::Stats(s) => self.stats = s,
+                EngineEvent::NoteInput(note) => self.note_inputs.push(note),
                 EngineEvent::Garbage(old) => drop(old),
+                EngineEvent::GarbageEffect(unit) => {
+                    self.known_effects.remove(&unit.id);
+                    drop(unit);
+                }
             }
         }
         n
+    }
+
+    /// Live notes recorded since the last call.
+    pub fn take_note_inputs(&mut self) -> Vec<NoteInput> {
+        std::mem::take(&mut self.note_inputs)
     }
 
     pub fn position(&self) -> Ticks {
@@ -246,5 +303,9 @@ impl EngineHandle {
 
     pub fn send_failures(&self) -> u64 {
         self.send_failures
+    }
+
+    pub fn known_effect_count(&self) -> usize {
+        self.known_effects.len()
     }
 }

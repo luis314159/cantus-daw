@@ -2,7 +2,7 @@
 //! back door — it goes through the same bus, undo and audit as a mouse click (ADR 0004).
 
 use crate::provider::{ToolCall, ToolSpec};
-use cantus_core::{Command, CommandBus, FirmusParam, Project, Ticks, TrackId};
+use cantus_core::{Command, CommandBus, EffectKind, FirmusParam, Project, Ticks, TrackId};
 use serde_json::{json, Value};
 use thiserror::Error;
 
@@ -74,6 +74,15 @@ pub fn tool_specs() -> Vec<ToolSpec> {
                 "type": "object",
                 "properties": { "track_id": { "type": "integer" }, "gain_db": { "type": "number" } },
                 "required": ["track_id", "gain_db"]
+            }),
+        },
+        ToolSpec {
+            name: "add_effect".into(),
+            description: "Append an insert effect to a track. kind: \"delay\" or \"reverb\".".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "track_id": { "type": "integer" }, "kind": { "type": "string", "enum": ["delay", "reverb"] } },
+                "required": ["track_id", "kind"]
             }),
         },
         ToolSpec {
@@ -218,6 +227,25 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
                 .and_then(Value::as_f64)
                 .ok_or(BridgeError::BadArgument("gain_db"))? as f32;
             Ok(Some(Command::SetTrackGain { id, gain_db }))
+        }
+        "add_effect" => {
+            let track = track_id(a, bus.project())?;
+            let kind = match a.get("kind").and_then(Value::as_str) {
+                Some("delay") => EffectKind::Delay,
+                Some("reverb") => EffectKind::Reverb,
+                _ => return Err(BridgeError::BadArgument("kind")),
+            };
+            let slot = bus.new_effect(kind);
+            let index = bus
+                .project()
+                .track(track)
+                .map(|t| t.effects.len())
+                .unwrap_or(0);
+            Ok(Some(Command::InsertEffect {
+                track,
+                index,
+                slot: Box::new(slot),
+            }))
         }
         "set_synth_param" => {
             let track = track_id(a, bus.project())?;
