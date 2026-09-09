@@ -23,6 +23,12 @@ pub const DEFAULT_AUTOSAVE_SECONDS: u64 = 60;
 pub const MIN_AUTOSAVE_SECONDS: u64 = 10;
 pub const MAX_AUTOSAVE_SECONDS: u64 = 600;
 
+/// How much bigger or smaller everything is drawn. egui scales fonts and the spacing grid
+/// together, so the layout keeps its proportions rather than only the text growing.
+pub const MIN_UI_SCALE: f32 = 0.7;
+pub const MAX_UI_SCALE: f32 = 2.0;
+pub const DEFAULT_UI_SCALE: f32 = 1.0;
+
 /// Sample rates worth offering. `None` means "whatever the device prefers", which is the
 /// right default: it is the one setting guaranteed to work.
 pub const SAMPLE_RATES: [u32; 5] = [44_100, 48_000, 88_200, 96_000, 192_000];
@@ -65,6 +71,7 @@ pub struct Settings {
     /// `None` = follow the `--locale` flag, then the built-in default.
     pub locale: Option<String>,
     pub autosave_seconds: u64,
+    pub ui_scale: f32,
 }
 
 impl Default for Settings {
@@ -73,11 +80,22 @@ impl Default for Settings {
             audio: AudioSettings::default(),
             locale: None,
             autosave_seconds: DEFAULT_AUTOSAVE_SECONDS,
+            ui_scale: DEFAULT_UI_SCALE,
         }
     }
 }
 
 impl Settings {
+    /// The UI scale, clamped: a settings file hand-edited to 0 would draw nothing at all,
+    /// and one edited to 50 would draw a single letter.
+    pub fn ui_scale(&self) -> f32 {
+        if self.ui_scale.is_finite() {
+            self.ui_scale.clamp(MIN_UI_SCALE, MAX_UI_SCALE)
+        } else {
+            DEFAULT_UI_SCALE
+        }
+    }
+
     /// The autosave interval, clamped to something sane. A settings file edited by hand to
     /// say `0` must not turn autosave into a busy loop that writes on every frame.
     pub fn autosave_interval(&self) -> Duration {
@@ -131,6 +149,7 @@ mod tests {
             },
             locale: Some("es".into()),
             autosave_seconds: 30,
+            ui_scale: 1.25,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
@@ -168,6 +187,23 @@ mod tests {
         assert_eq!(
             s.autosave_interval(),
             Duration::from_secs(MAX_AUTOSAVE_SECONDS)
+        );
+    }
+
+    #[test]
+    fn the_ui_scale_is_clamped_to_something_you_can_still_read() {
+        let mut s = Settings::default();
+        assert_eq!(s.ui_scale(), DEFAULT_UI_SCALE);
+        // A hand-edited 0 would draw nothing at all; a 50 would draw one letter.
+        s.ui_scale = 0.0;
+        assert_eq!(s.ui_scale(), MIN_UI_SCALE);
+        s.ui_scale = 50.0;
+        assert_eq!(s.ui_scale(), MAX_UI_SCALE);
+        s.ui_scale = f32::NAN;
+        assert_eq!(
+            s.ui_scale(),
+            DEFAULT_UI_SCALE,
+            "NaN must not escape the clamp"
         );
     }
 

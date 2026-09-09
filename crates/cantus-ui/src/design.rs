@@ -241,6 +241,12 @@ pub fn install_style(ctx: &Context) {
         s.scroll.bar_inner_margin = space::S1;
         s.scroll.bar_outer_margin = 0.0;
 
+        // Faders, not trackbars. egui defaults to a chunky rectangle on a thick rail, which
+        // is what makes a slider look like a Windows 95 control. A console fader is a slim
+        // cap riding a thin groove, and that is what the mixer wants a hundred of.
+        style.visuals.handle_shape = egui::style::HandleShape::Rect { aspect_ratio: 0.38 };
+        s.slider_rail_height = space::S1;
+
         // A DAW is read at a glance: tooltips should not make the user wait.
         style.interaction.tooltip_delay = 0.35;
         style.interaction.show_tooltips_only_when_still = false;

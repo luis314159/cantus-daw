@@ -195,6 +195,71 @@ impl Theme {
     }
 }
 
+/// One editable colour in the theme: which group it belongs to, what to call it, and the
+/// hex string in the [`Theme`] itself.
+///
+/// This exists so the settings dialog can offer a colour picker per token without knowing
+/// anything about the palette, and so that adding a token to `Theme` and forgetting to
+/// expose it is caught by a test rather than by a user who cannot find it.
+pub struct Token<'a> {
+    pub group_key: &'static str,
+    pub label_key: &'static str,
+    pub hex: &'a mut String,
+}
+
+impl Theme {
+    /// Every colour the user can change, grouped the way the dialog shows them.
+    pub fn tokens_mut(&mut self) -> Vec<Token<'_>> {
+        let t = |group_key, label_key, hex| Token {
+            group_key,
+            label_key,
+            hex,
+        };
+        const SURFACES: &str = "theme.group.surfaces";
+        const LINES: &str = "theme.group.lines";
+        const TEXT: &str = "theme.group.text";
+        const ACCENT: &str = "theme.group.accent";
+        const STATUS: &str = "theme.group.status";
+        const ROLL: &str = "theme.group.roll";
+        const METERS: &str = "theme.group.meters";
+        vec![
+            t(SURFACES, "theme.token.ink", &mut self.ink),
+            t(SURFACES, "theme.token.panel", &mut self.panel),
+            t(SURFACES, "theme.token.panel_raised", &mut self.panel_raised),
+            t(SURFACES, "theme.token.shadow", &mut self.shadow),
+            t(LINES, "theme.token.grid", &mut self.grid),
+            t(LINES, "theme.token.grid_strong", &mut self.grid_strong),
+            t(LINES, "theme.token.grid_bar", &mut self.grid_bar),
+            t(TEXT, "theme.token.text", &mut self.text),
+            t(TEXT, "theme.token.text_dim", &mut self.text_dim),
+            t(ACCENT, "theme.token.accent", &mut self.accent),
+            t(ACCENT, "theme.token.accent_bright", &mut self.accent_bright),
+            t(ACCENT, "theme.token.focus", &mut self.focus),
+            t(ACCENT, "theme.token.selection", &mut self.selection),
+            t(STATUS, "theme.token.danger", &mut self.danger),
+            t(STATUS, "theme.token.ok", &mut self.ok),
+            t(ROLL, "theme.token.white_key", &mut self.white_key),
+            t(ROLL, "theme.token.black_key", &mut self.black_key),
+            t(ROLL, "theme.token.row_white", &mut self.row_white),
+            t(ROLL, "theme.token.row_black", &mut self.row_black),
+            t(METERS, "theme.token.meter_low", &mut self.meter_low),
+            t(METERS, "theme.token.meter_high", &mut self.meter_high),
+            t(METERS, "theme.token.meter_clip", &mut self.meter_clip),
+        ]
+    }
+
+    /// The groups, in the order the dialog shows them.
+    pub const GROUPS: [&'static str; 7] = [
+        "theme.group.surfaces",
+        "theme.group.lines",
+        "theme.group.text",
+        "theme.group.accent",
+        "theme.group.status",
+        "theme.group.roll",
+        "theme.group.meters",
+    ];
+}
+
 const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
@@ -231,7 +296,44 @@ pub const fn ink_and_gold_palette() -> Palette {
     }
 }
 
-/// A light variant: parchment surfaces, the same gold accent, ink text.
+/// The default: white surfaces, ink text, the same gold accent.
+///
+/// Every foreground colour here clears WCAG AA against the surface it is used on — 4.5:1
+/// for text, 3:1 for the focus ring and for `accent_bright`, which is only ever used on
+/// the large numeric readouts. The canvas is pure white and the panels a hair grey, so a
+/// panel still reads as a distinct surface without a border.
+pub const fn paper_palette() -> Palette {
+    Palette {
+        ink: rgb(0xff, 0xff, 0xff),
+        panel: rgb(0xf4, 0xf5, 0xf7),
+        panel_raised: rgb(0xea, 0xec, 0xf0),
+        grid: rgb(0xe5, 0xe8, 0xed),
+        grid_strong: rgb(0xd2, 0xd7, 0xdf),
+        grid_bar: rgb(0xb4, 0xbb, 0xc6),
+        text: rgb(0x14, 0x16, 0x1a),
+        text_dim: rgb(0x5b, 0x62, 0x70),
+        // Darker than the dark theme's gold: the same colour that glows on ink is
+        // unreadable on white, and 4.5:1 against the panel is what decides it.
+        gold: rgb(0x95, 0x66, 0x08),
+        gold_bright: rgb(0xb8, 0x80, 0x1a),
+        focus: rgb(0x7a, 0x4d, 0x00),
+        shadow: Color32::from_rgba_premultiplied(0x1a, 0x1d, 0x23, 0x38),
+        selection: rgb(0x25, 0x63, 0xeb),
+        danger: rgb(0xb3, 0x26, 0x1e),
+        ok: rgb(0x1c, 0x7a, 0x45),
+        black_key: rgb(0x2a, 0x2d, 0x34),
+        white_key: rgb(0xff, 0xff, 0xff),
+        row_black: rgb(0xee, 0xf0, 0xf4),
+        row_white: rgb(0xfa, 0xfb, 0xfc),
+        meter_low: rgb(0x1c, 0x7a, 0x45),
+        meter_high: rgb(0x95, 0x66, 0x08),
+        meter_clip: rgb(0xb3, 0x26, 0x1e),
+        corner_radius: 3,
+        dark: false,
+    }
+}
+
+/// A warmer light variant: parchment surfaces, the same gold accent, ink text.
 pub const fn parchment_palette() -> Palette {
     Palette {
         ink: rgb(0xf3, 0xef, 0xe6),
@@ -241,15 +343,21 @@ pub const fn parchment_palette() -> Palette {
         grid_strong: rgb(0xc4, 0xbd, 0xad),
         grid_bar: rgb(0xa9, 0xa1, 0x90),
         text: rgb(0x1e, 0x1b, 0x16),
-        text_dim: rgb(0x6b, 0x66, 0x5c),
-        gold: rgb(0xb0, 0x7c, 0x1e),
-        gold_bright: rgb(0xd0, 0x92, 0x1c),
+        // 0x6b665c landed on exactly 4.50:1 against the panel — legible by a rounding
+        // error. This clears it with room.
+        text_dim: rgb(0x66, 0x61, 0x58),
+        // The gold that glows on ink is far too light on parchment: the original
+        // #b07c1e managed 2.88:1 against the panel, so every heading was decorative
+        // rather than readable. These clear AA (4.5:1, and 3:1 for the bright variant,
+        // which is only used on the large readouts).
+        gold: rgb(0x87, 0x5c, 0x08),
+        gold_bright: rgb(0xad, 0x78, 0x10),
         // On parchment the ring has to go *darker* than the accent to stay visible.
         focus: rgb(0x6b, 0x45, 0x06),
         shadow: Color32::from_rgba_premultiplied(0x1a, 0x15, 0x0e, 0x40),
         selection: rgb(0x2f, 0x6f, 0xd6),
-        danger: rgb(0xc0, 0x3b, 0x3b),
-        ok: rgb(0x2f, 0x8f, 0x46),
+        danger: rgb(0xb0, 0x33, 0x33),
+        ok: rgb(0x24, 0x7a, 0x3b),
         black_key: rgb(0x2a, 0x27, 0x22),
         white_key: rgb(0xfb, 0xf8, 0xf0),
         row_black: rgb(0xe6, 0xe0, 0xd2),
@@ -260,6 +368,10 @@ pub const fn parchment_palette() -> Palette {
         corner_radius: 3,
         dark: false,
     }
+}
+
+pub fn paper() -> Theme {
+    Theme::from_palette("Paper", &paper_palette())
 }
 
 pub fn ink_and_gold() -> Theme {
@@ -273,14 +385,22 @@ pub fn parchment() -> Theme {
 /// A named theme preset: i18n key + constructor.
 pub type Preset = (&'static str, fn() -> Theme);
 
-pub const PRESETS: [Preset; 2] = [
-    ("theme.ink_gold", ink_and_gold),
+pub const PRESETS: [Preset; 3] = [
+    ("theme.paper", paper),
     ("theme.parchment", parchment),
+    ("theme.ink_gold", ink_and_gold),
 ];
+
+/// What a fresh install starts with, and the fallback whenever a theme file cannot be
+/// read. Light: a DAW is looked at in daylight as often as in a dark studio, and a white
+/// ground is the one that does not assume which.
+pub fn default_theme() -> Theme {
+    paper()
+}
 
 fn current() -> &'static RwLock<Palette> {
     static CURRENT: OnceLock<RwLock<Palette>> = OnceLock::new();
-    CURRENT.get_or_init(|| RwLock::new(ink_and_gold_palette()))
+    CURRENT.get_or_init(|| RwLock::new(paper_palette()))
 }
 
 /// The active palette.
@@ -318,10 +438,18 @@ pub fn visuals(pal: &Palette) -> Visuals {
     v.widgets.noninteractive.bg_fill = pal.panel;
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, pal.grid);
     // `bg_fill` paints slider rails, checkboxes and combo boxes; `weak_bg_fill` paints
-    // buttons. Rails need contrast against the panel, buttons should sit quietly.
+    // buttons and the fader cap. The rail is a quiet groove — the filled part of it is
+    // drawn in the accent by `slider_trailing_fill` — and the cap reads as a solid object
+    // sitting on top of it, with an edge so it does not dissolve into the fill.
     v.widgets.inactive.bg_fill = pal.grid_strong;
     v.widgets.inactive.weak_bg_fill = pal.panel_raised;
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, pal.text);
+    // egui paints a slider's groove and its cap with the same `inactive.bg_fill`, so the
+    // only thing that makes the cap read as an object sitting on the groove is its edge.
+    // Give it a definite one. (A cap with its own fill needs a widget of our own; see
+    // STATUS.)
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, pal.grid_bar);
+    v.widgets.hovered.weak_bg_fill = pal.grid_strong;
     v.widgets.hovered.bg_fill = pal.grid_bar;
     v.widgets.hovered.weak_bg_fill = pal.grid_strong;
     v.widgets.hovered.fg_stroke = Stroke::new(1.5, pal.text);
@@ -418,6 +546,112 @@ impl ThemeWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Relative luminance, WCAG 2.1.
+    fn luminance(c: Color32) -> f64 {
+        let ch = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.03928 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * ch(c.r()) + 0.7152 * ch(c.g()) + 0.0722 * ch(c.b())
+    }
+
+    /// WCAG contrast ratio between two opaque colours.
+    fn contrast(a: Color32, b: Color32) -> f64 {
+        let (la, lb) = (luminance(a), luminance(b));
+        let (hi, lo) = if la > lb { (la, lb) } else { (lb, la) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    #[test]
+    fn every_shipped_theme_is_legible() {
+        // A theme that ships with Cantus has to be readable, and "it looked fine on my
+        // monitor" is not a standard. WCAG AA: 4.5:1 for text, 3:1 for the focus ring and
+        // for `gold_bright`, which is only used on the large numeric readouts.
+        for (key, make) in PRESETS {
+            let p = make().palette();
+            let checks: [(&str, Color32, Color32, f64); 13] = [
+                ("text on canvas", p.text, p.ink, 4.5),
+                ("text on panel", p.text, p.panel, 4.5),
+                ("text on card", p.text, p.panel_raised, 4.5),
+                ("dim text on panel", p.text_dim, p.panel, 4.5),
+                ("accent on panel", p.gold, p.panel, 4.5),
+                ("accent on canvas", p.gold, p.ink, 4.5),
+                ("bright accent on panel", p.gold_bright, p.panel, 3.0),
+                ("focus ring on panel", p.focus, p.panel, 3.0),
+                ("focus ring on canvas", p.focus, p.ink, 3.0),
+                ("danger on panel", p.danger, p.panel, 4.5),
+                ("black key on white key", p.black_key, p.white_key, 4.5),
+                // A selected note is filled with this. If it does not stand out from the
+                // canvas the user cannot tell what they have selected — which is exactly
+                // what happened when selection was painted white on a white theme.
+                ("selection on canvas", p.selection, p.ink, 3.0),
+                ("selection on a panel", p.selection, p.panel, 3.0),
+            ];
+            for (what, fg, bg, need) in checks {
+                let got = contrast(fg, bg);
+                assert!(
+                    got >= need,
+                    "{key}: {what} is {got:.2}:1, below the {need}:1 it needs \
+                     ({} on {})",
+                    to_hex(fg),
+                    to_hex(bg)
+                );
+            }
+            // A panel has to be distinguishable from the canvas behind it, or the
+            // elevation scale says nothing.
+            assert!(
+                contrast(p.panel, p.ink) > 1.02,
+                "{key}: the panel is indistinguishable from the canvas"
+            );
+        }
+    }
+
+    #[test]
+    fn every_colour_in_a_theme_is_editable_in_the_dialog() {
+        // Adding a field to `Theme` and forgetting `tokens_mut` would leave a colour the
+        // user can only reach by editing JSON. Count the hex fields the serialized form
+        // has and require the editor to expose all of them.
+        let mut theme = default_theme();
+        let exposed = theme.tokens_mut().len();
+        let value = serde_json::to_value(default_theme()).unwrap();
+        let hex_fields = value
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter(|(k, v)| {
+                v.as_str().map(|s| s.starts_with('#')).unwrap_or(false) && *k != "name"
+            })
+            .count();
+        assert_eq!(
+            exposed, hex_fields,
+            "the theme has {hex_fields} colours but the dialog exposes {exposed}"
+        );
+        // And every token names a group the dialog actually renders.
+        for token in default_theme().tokens_mut() {
+            assert!(
+                Theme::GROUPS.contains(&token.group_key),
+                "{} is in group {:?}, which the dialog does not show",
+                token.label_key,
+                token.group_key
+            );
+        }
+    }
+
+    #[test]
+    fn the_default_theme_is_light() {
+        let d = default_theme().palette();
+        assert!(!d.dark, "the shipped default is a light theme");
+        assert!(
+            luminance(d.ink) > 0.9,
+            "the canvas should be white, got {}",
+            to_hex(d.ink)
+        );
+    }
 
     #[test]
     fn hex_roundtrip_and_presets_parse() {

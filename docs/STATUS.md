@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 9: piano roll performance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 121 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 10: light theme, configurable appearance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 125 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -56,6 +56,45 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
 
+## Appearance (round 10): white by default, and yours to change
+
+**The default is now light.** `theme::paper_palette()` — white canvas, light grey panels,
+ink text, the gold accent darkened until it is readable on white. Ink & Gold stays as the
+dark preset, and Parchment as the warm light one; *Settings → Theme* switches between them.
+An existing `theme.json` is left alone, so anyone already on a theme keeps it.
+
+**Every colour is legible, and a test says so.** `every_shipped_theme_is_legible` computes
+WCAG contrast for each preset: 4.5:1 for text and the accent, 3:1 for the focus ring, the
+bright accent and the selection. Writing it immediately found two real defects in the
+*existing* Parchment theme — its gold managed 2.88:1 against the panel, so every heading
+was decorative rather than readable, and its dim text sat on exactly 4.50:1. Both fixed.
+
+**The whole palette is editable in the app**, not just in the file. *Settings → Colours*
+opens a window with a picker for each of the 22 tokens, grouped, applied as you drag and
+written through to `theme.json` — which stays the source of truth and what `ThemeWatcher`
+reloads. `Theme::tokens_mut` is what the dialog iterates, and a test asserts it exposes
+every hex field the struct serializes, so a token cannot be added and silently left
+unreachable.
+
+**Interface size** is a setting too (`settings.ui_scale`, 70–200 %), applied through
+egui's zoom factor so the spacing grid scales with the type instead of only the text
+growing. Clamped, NaN included, because it comes from a file people edit.
+
+Two defects the white ground exposed, both fixed:
+
+- The piano roll dimmed everything past the end of the clip with a **black scrim**. On ink
+  it was invisible; on white it was a heavy grey slab covering half the view. It now paints
+  the panel colour — one step of the elevation scale, right in any theme.
+- **Selected notes were painted white**, which was my own regression from the mesh
+  batching: unmistakable on ink, invisible on paper. Selection now uses the palette's
+  `selection` colour with a `text`-coloured outline, and the contrast test covers it.
+
+**Faders**: egui defaults to a chunky rectangle on a thick rail — the "old Windows" look.
+They are now a slim cap (`HandleShape::Rect { aspect_ratio: 0.38 }`) on a 4-px groove with
+a defined edge. **Known limit:** egui paints a slider's groove and its cap from the same
+`inactive.bg_fill`, so at rest they can only differ by that edge. A cap with its own fill,
+a centre line and dB ticks needs a widget of our own — the next thing to do for the mixer.
+
 ## Piano roll performance (round 9) — and why we stayed on egui
 
 Prompted by "would Slint be better?", ADR 0011. The honest answer needed a number, and the
@@ -91,6 +130,13 @@ audio overruns.
 
 Known refinement: at that zoom the velocity lane's per-note bars overlap into a solid
 block. Truthful about density, but it could show the peak per column instead.
+
+Note on verification: driving the running app with synthetic clicks is unreliable on
+Windows — twice now a stray event has landed in the app during a screenshot (once dragging
+the autosave slider, once switching theme and selecting every note). When a capture
+disagrees with the code, check `settings.json` / `theme.json` before believing the
+screenshot, and prefer the headless render tests, which assert on the text actually
+painted.
 
 Also fixed: `looping_wraps_and_keeps_playing` asserted `stats().overruns == 0`, which
 compares wall clock against the block budget. On a loaded machine a 1 000-block run

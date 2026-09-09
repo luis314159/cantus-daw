@@ -590,6 +590,7 @@ fn every_dialog_renders_what_it_should_say() {
         "Settings",                 // the preferences window
         "Output device",            // ... and that its audio section rendered
         "Autosave every",           // ... and its saving section
+        "Interface size",           // ... and that the UI scale is offered
     ] {
         assert!(
             text.contains(expected),
@@ -597,6 +598,27 @@ fn every_dialog_renders_what_it_should_say() {
 {text}"
         );
     }
+
+    // The colour editor is tall enough to scroll the sections above out of view, so it
+    // gets its own frame rather than being asserted alongside them.
+    a.show_theme_editor = true;
+    ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()))
+        .textures_delta
+        .clear();
+    let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    // Not every token: there are twenty-two and the rest are below the fold, which is what
+    // a scroll area is for. `theme::tests::every_colour_in_a_theme_is_editable_in_the_dialog`
+    // is what guarantees none of them is missing.
+    for expected in ["SURFACES", "Canvas", "Focus ring"] {
+        assert!(
+            text.contains(expected),
+            "the colour editor did not paint {expected:?}; painted:
+{text}"
+        );
+    }
+    a.show_theme_editor = false;
 
     // The editor must survive a keymap that is already broken, and say so.
     a.keymap.bind(

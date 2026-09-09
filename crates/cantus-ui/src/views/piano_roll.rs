@@ -328,8 +328,12 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let r = geo.note_rect(n);
         let selected = app.selected_notes.contains(&n.id);
         let alpha = 0.55 + 0.45 * (n.velocity as f32 / 127.0);
+        // Selection has to survive any theme and any track colour. The accent does not:
+        // on a light theme the gold sits right next to the warm track colours, and the
+        // white outline that made it obvious on ink disappeared into the page. The
+        // palette's `selection` is the one colour reserved for exactly this.
         let base = if selected {
-            theme::p().gold_bright
+            theme::p().selection
         } else {
             track_color
         };
@@ -340,7 +344,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let lod = NoteLod::for_rect(r);
         if lod.bulk {
             let fill = if selected {
-                Color32::WHITE
+                theme::p().selection
             } else if n.muted {
                 base.gamma_multiply(0.35)
             } else {
@@ -373,7 +377,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                     Stroke::new(
                         1.0,
                         if selected {
-                            Color32::WHITE
+                            // Maximum contrast against the canvas, whatever the canvas is.
+                            theme::p().text
                         } else {
                             theme::p().ink
                         },
@@ -381,9 +386,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                     StrokeKind::Inside,
                 );
             } else if selected {
-                // Selection has to stay visible at every zoom; at this size the brightest
-                // fill we have is the cheapest way to say it.
-                p.rect_filled(r, lod.radius, Color32::WHITE);
+                // Too small for an outline: the selection colour fills it instead.
+                p.rect_filled(r, lod.radius, theme::p().selection);
             }
         }
         if r.width() > 28.0 && geo.key_h >= 11.0 {
@@ -603,12 +607,15 @@ fn paint_grid(app: &CantusApp, ui: &egui::Ui, geo: &Geo, clip: &cantus_core::Cli
             p.hline(grid.x_range(), y1, Stroke::new(1.0, theme::p().grid_strong));
         }
     }
+    // Past the end of the clip. A black scrim was invisible on a dark theme and a heavy
+    // grey slab on a light one; painting the panel colour instead says "not part of this
+    // clip" as one step of the elevation scale, and reads the same way in any theme.
     let clip_end_x = geo.x(ticks_to_beats(clip.length));
     if clip_end_x < grid.right() {
         p.rect_filled(
             Rect::from_min_max(pos2(clip_end_x, grid.top()), grid.max),
             0.0,
-            Color32::from_black_alpha(90),
+            theme::p().panel,
         );
     }
     let ts = app.project().time_signature;

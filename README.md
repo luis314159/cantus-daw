@@ -35,8 +35,12 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - English and Spanish interfaces (ADR 0007); every string is in `crates/cantus-ui/locales`.
 - A design system (ADR 0009): bundled IBM Plex Sans/Mono so the UI looks the same
   everywhere and every number is monospaced, a 4-px spacing grid, panel elevation, and a
-  focus ring on whatever holds keyboard focus. Colour is yours to change — the theme lives
-  in an editable JSON file that the app reloads while it is running.
+  focus ring on whatever holds keyboard focus.
+- **Make it look how you like.** Three themes — Paper (the light default), Parchment and
+  Ink & Gold — a colour picker for all 22 palette tokens in *Settings → Colours*, and an
+  interface size from 70 % to 200 %. Every shipped theme clears WCAG AA contrast, checked
+  by a test. The theme is a JSON file the app reloads while running, so you can edit it by
+  hand too.
 - **Named layouts**: size the panels how you like, hide the ones you are not using, save
   the shape under a name and switch between them from *View → Layout*. Panel sizes survive
   a restart.
@@ -74,8 +78,8 @@ upgraded in place on load, so new colour tokens appear in your file ready to edi
 Type, spacing and elevation are **not** in that file: they are the product's design
 system (`crates/cantus-ui/src/design.rs`), and ADR 0009 explains the split.
 
-Preferences — audio device, sample rate, buffer size, language and the autosave interval —
-live in `settings.json` and are edited from *View → Settings…*.
+Preferences — audio device, sample rate, buffer size, language, interface size and the
+autosave interval — live in `settings.json` and are edited from *View → Settings…*.
 
 Keyboard shortcuts live next to it in `keymap.toml` — plain TOML with comments, written
 on first run. *Help → Shortcuts* edits it: choose a preset, click a shortcut to clear it,

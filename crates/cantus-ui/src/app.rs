@@ -78,6 +78,12 @@ pub struct CantusApp {
     /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
     pub settings_path: PathBuf,
     pub show_settings: bool,
+    /// The theme as text, while the colour pickers are open. Kept here rather than
+    /// re-derived from the palette each frame so that a colour the user is dragging does
+    /// not round-trip through hex and back on every mouse move.
+    editing_theme: Option<theme::Theme>,
+    /// True while the colour editor is expanded.
+    pub show_theme_editor: bool,
     /// Set while the audio device is being reopened, to report the outcome once.
     audio_error: Option<String>,
     /// Every shortcut, from `keymap.toml` (`crate::keymap`).
@@ -139,7 +145,7 @@ impl CantusApp {
                 t
             }
             Err(_) => {
-                let t = theme::ink_and_gold();
+                let t = theme::default_theme();
                 if let Err(e) = theme::save_file(&t, &theme_path) {
                     log::warn!("cannot write theme file: {e}");
                 }
@@ -158,6 +164,7 @@ impl CantusApp {
                 i18n::set_locale(l);
             }
         }
+        cc.egui_ctx.set_zoom_factor(settings.ui_scale());
         let layouts_path = layout::layouts_path(&directories_fallback());
         let mut layouts = Layouts::load(&layouts_path);
         layouts.force();
@@ -234,6 +241,8 @@ impl CantusApp {
             settings: Settings::default(),
             settings_path: settings::settings_path(&directories_fallback()),
             show_settings: false,
+            editing_theme: None,
+            show_theme_editor: false,
             audio_error: None,
             keymap: Keymap::default(),
             keymap_path: crate::keymap::keymap_path(&directories_fallback()),
@@ -390,6 +399,40 @@ impl CantusApp {
             log::warn!("cannot write layouts file: {e}");
         }
         self.set_status(t("layout.was_reset"));
+    }
+
+    /// Apply an edited theme immediately and write it to the theme file.
+    ///
+    /// The file is the source of truth — the same one `ThemeWatcher` reloads and the user
+    /// can edit by hand — so the dialog writes through to it rather than keeping a second
+    /// copy of the truth in memory.
+    pub fn apply_theme_edit(&mut self, theme: theme::Theme) {
+        self.apply_theme(&theme);
+        if let Err(e) = theme::save_file(&theme, &self.theme_path) {
+            log::warn!("cannot write theme file: {e}");
+        }
+        self.editing_theme = Some(theme);
+    }
+
+    /// The theme currently being edited, seeded from the file the first time it is asked
+    /// for.
+    pub fn theme_for_editing(&mut self) -> theme::Theme {
+        if self.editing_theme.is_none() {
+            self.editing_theme =
+                Some(theme::load_file(&self.theme_path).unwrap_or_else(|_| theme::default_theme()));
+        }
+        self.editing_theme
+            .clone()
+            .unwrap_or_else(theme::default_theme)
+    }
+
+    /// The scale everything is drawn at. egui applies it to fonts and to the spacing grid
+    /// together, so the layout keeps its proportions instead of only the text growing.
+    pub fn apply_ui_scale(&mut self, ctx: &egui::Context, scale: f32) {
+        let scale = scale.clamp(settings::MIN_UI_SCALE, settings::MAX_UI_SCALE);
+        ctx.set_zoom_factor(scale);
+        self.settings.ui_scale = scale;
+        self.store_settings();
     }
 
     pub fn store_settings(&mut self) {
@@ -1582,6 +1625,8 @@ impl CantusApp {
         let mut locale_change: Option<Locale> = None;
         let mut preset_change: Option<theme::Theme> = None;
         let mut open_theme = false;
+        let mut ui_scale: Option<f32> = None;
+        let mut open_colours = false;
         let mut autosave = self.settings.autosave_seconds;
 
         egui::Window::new(t("settings.title"))
@@ -1777,6 +1822,32 @@ impl CantusApp {
                             });
                             ui.end_row();
 
+                            ui.label(t("settings.ui_scale"));
+                            ui.horizontal(|ui| {
+                                let mut scale = self.settings.ui_scale;
+                                let r = ui.add(
+                                    egui::Slider::new(
+                                        &mut scale,
+                                        settings::MIN_UI_SCALE..=settings::MAX_UI_SCALE,
+                                    )
+                                    .step_by(0.05)
+                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+                                );
+                                if r.changed() {
+                                    ui_scale = Some(scale);
+                                }
+                                if ui.button(t("settings.reset")).clicked() {
+                                    ui_scale = Some(1.0);
+                                }
+                            });
+                            ui.end_row();
+
+                            ui.label(t("settings.colours"));
+                            if ui.button(t("settings.edit_colours")).clicked() {
+                                open_colours = true;
+                            }
+                            ui.end_row();
+
                             ui.label(t("keymap.title"));
                             if ui.button(t("settings.edit_shortcuts")).clicked() {
                                 open_shortcuts = true;
@@ -1824,8 +1895,91 @@ impl CantusApp {
         if open_theme {
             self.reveal_theme_file();
         }
+        if let Some(scale) = ui_scale {
+            self.apply_ui_scale(ctx, scale);
+        }
+        if open_colours {
+            self.show_theme_editor = true;
+        }
+
         if open_shortcuts {
             self.show_shortcuts = true;
+        }
+    }
+
+    /// The colour editor: every token in the theme, with a picker, applied as you drag.
+    ///
+    /// It is a window of its own rather than a section inside Settings because there are
+    /// twenty-two colours: inside the settings dialog's scroll area you could see two of
+    /// them at a time. It writes through to `theme.json`, which stays the source of truth
+    /// and the thing `ThemeWatcher` reloads.
+    fn theme_dialog(&mut self, ctx: &egui::Context) {
+        let mut open = self.show_theme_editor;
+        let mut edits: Vec<(&'static str, egui::Color32)> = Vec::new();
+        let mut reset = false;
+        let mut edited = self.theme_for_editing();
+
+        egui::Window::new(t("settings.colours"))
+            .collapsible(false)
+            .open(&mut open)
+            .default_size([space::GRID * 90.0, space::GRID * 150.0])
+            .show(ctx, |ui| {
+                ui.label(
+                    egui::RichText::new(tf("theme.editing", &[("name", &edited.name)]))
+                        .text_style(design::caption())
+                        .color(theme::p().text_dim),
+                );
+                ui.separator();
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let tokens = edited.tokens_mut();
+                    for group in theme::Theme::GROUPS {
+                        ui.add_space(space::S2);
+                        ui.label(
+                            egui::RichText::new(t(group).to_uppercase())
+                                .text_style(design::caption())
+                                .color(theme::p().text_dim),
+                        );
+                        egui::Grid::new(group)
+                            .num_columns(2)
+                            .spacing([space::S3, space::S1])
+                            .show(ui, |ui| {
+                                for token in tokens.iter().filter(|k| k.group_key == group) {
+                                    ui.label(t(token.label_key));
+                                    // The picker speaks Color32; the file speaks hex, and
+                                    // stays what the user can edit by hand.
+                                    let mut colour =
+                                        theme::parse_hex(token.hex).unwrap_or(egui::Color32::GRAY);
+                                    if ui.color_edit_button_srgba(&mut colour).changed() {
+                                        edits.push((token.label_key, colour));
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
+                });
+                ui.separator();
+                if ui.button(t("settings.reset_theme")).clicked() {
+                    reset = true;
+                }
+            });
+
+        self.show_theme_editor = open;
+        if reset {
+            self.editing_theme = None;
+            self.apply_theme_preset(theme::default_theme());
+            return;
+        }
+        if !edits.is_empty() {
+            let mut theme = edited;
+            {
+                let mut tokens = theme.tokens_mut();
+                for (label_key, colour) in edits {
+                    if let Some(token) = tokens.iter_mut().find(|k| k.label_key == label_key) {
+                        *token.hex = theme::to_hex(colour);
+                    }
+                }
+            }
+            self.apply_theme_edit(theme);
         }
     }
 
@@ -2048,6 +2202,9 @@ impl CantusApp {
         }
         if self.show_settings {
             self.settings_dialog(ctx);
+        }
+        if self.show_theme_editor {
+            self.theme_dialog(ctx);
         }
         if self.show_shortcuts {
             self.keymap_dialog(ctx);
