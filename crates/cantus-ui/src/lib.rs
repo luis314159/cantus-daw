@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod i18n;
+pub mod icons;
 pub mod keyboard;
 pub mod recording;
 pub mod theme;

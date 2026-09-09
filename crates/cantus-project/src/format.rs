@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -177,7 +177,7 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
 /// Migration `i` converts schema `i` → `i + 1`. Never remove or reorder entries: a file
 /// saved today must open in five years (idea.md §5.15).
 type Migration = fn(&mut Value) -> Result<(), String>;
-static MIGRATIONS: &[Migration] = &[migrate_0_to_1, migrate_1_to_2];
+static MIGRATIONS: &[Migration] = &[migrate_0_to_1, migrate_1_to_2, migrate_2_to_3];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
 fn migrate_0_to_1(value: &mut Value) -> Result<(), String> {
@@ -201,6 +201,31 @@ fn migrate_1_to_2(value: &mut Value) -> Result<(), String> {
     for t in tracks {
         if t.get("effects").is_none() {
             t["effects"] = Value::Array(Vec::new());
+        }
+    }
+    Ok(())
+}
+
+/// Schema 3 added per-note mute.
+fn migrate_2_to_3(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(clips) = t.get_mut("clips").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for c in clips {
+            let Some(notes) = c.get_mut("notes").and_then(Value::as_array_mut) else {
+                continue;
+            };
+            for n in notes {
+                if n.get("muted").is_none() {
+                    n["muted"] = Value::Bool(false);
+                }
+            }
         }
     }
     Ok(())

@@ -102,7 +102,7 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
     let mut events = Vec::new();
     for clip in &track.clips {
         for n in &clip.notes {
-            if n.start.is_negative() || n.start >= clip.length {
+            if n.muted || n.start.is_negative() || n.start >= clip.length {
                 continue;
             }
             let on = clip.start + n.start;

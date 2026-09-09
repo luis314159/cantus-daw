@@ -69,7 +69,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let timeline_rect =
         Rect::from_min_max(pos2(full.left() + header_w + 1.0, full.top()), full.max);
 
-    ui.painter().rect_filled(full, 0.0, theme::INK);
+    ui.painter().rect_filled(full, 0.0, theme::p().ink);
     headers(app, ui, header_rect);
     timeline(app, ui, timeline_rect);
 }
@@ -81,7 +81,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
     let ui = &mut child;
-    ui.painter().rect_filled(rect, 0.0, theme::PANEL);
+    ui.painter().rect_filled(rect, 0.0, theme::p().panel);
     // Ruler-height spacer with the add button.
     let (top, _) = ui.allocate_exact_size(vec2(rect.width(), RULER_H), Sense::hover());
     let mut top_ui = ui.new_child(
@@ -108,11 +108,11 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         };
         let p = ui.painter();
         let bg = if selected {
-            theme::PANEL_RAISED
+            theme::p().panel_raised
         } else if i % 2 == 0 {
-            theme::PANEL
+            theme::p().panel
         } else {
-            theme::ROW_WHITE
+            theme::p().row_white
         };
         p.rect_filled(row, 0.0, bg);
         p.rect_filled(
@@ -123,7 +123,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         p.hline(
             row.x_range(),
             row.bottom() - 0.5,
-            Stroke::new(1.0, theme::GRID),
+            Stroke::new(1.0, theme::p().grid),
         );
         if resp.clicked() {
             app.select_track(*id);
@@ -162,9 +162,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 }
             } else {
                 let color = if selected {
-                    theme::GOLD_BRIGHT
+                    theme::p().gold_bright
                 } else {
-                    theme::TEXT
+                    theme::p().text
                 };
                 ui.label(egui::RichText::new(&track.name).color(color).strong());
             }
@@ -173,9 +173,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 let s = ui.selectable_label(
                     solo,
                     egui::RichText::new(t("track.solo")).color(if solo {
-                        theme::GOLD_BRIGHT
+                        theme::p().gold_bright
                     } else {
-                        theme::TEXT_DIM
+                        theme::p().text_dim
                     }),
                 );
                 if s.on_hover_text(t("track.solo_tip")).clicked() {
@@ -189,9 +189,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 let m = ui.selectable_label(
                     muted,
                     egui::RichText::new(t("track.mute")).color(if muted {
-                        theme::DANGER
+                        theme::p().danger
                     } else {
-                        theme::TEXT_DIM
+                        theme::p().text_dim
                     }),
                 );
                 if m.on_hover_text(t("track.mute_tip")).clicked() {
@@ -224,7 +224,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 egui::RichText::new(format!("{gain:+.1}"))
                     .monospace()
                     .small()
-                    .color(theme::TEXT_DIM),
+                    .color(theme::p().text_dim),
             );
             ui.spacing_mut().slider_width = 50.0;
             let mut pan = track.pan;
@@ -305,21 +305,21 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             row,
             0.0,
             if i % 2 == 0 {
-                theme::ROW_BLACK
+                theme::p().row_black
             } else {
-                theme::ROW_WHITE
+                theme::p().row_white
             },
         );
         p.hline(
             row.x_range(),
             row.bottom() - 0.5,
-            Stroke::new(1.0, theme::GRID),
+            Stroke::new(1.0, theme::p().grid),
         );
     }
 
     // Ruler background (painted before the bar numbers so they stay readable).
     let ruler = Rect::from_min_max(rect.min, pos2(rect.right(), body_top));
-    p.rect_filled(ruler, 0.0, theme::PANEL.gamma_multiply(0.9));
+    p.rect_filled(ruler, 0.0, theme::p().panel.gamma_multiply(0.9));
 
     // Grid lines: bars strong, beats faint.
     let first_beat = view.scroll_beats.floor() as i64;
@@ -333,7 +333,11 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     while b <= last_beat {
         let x = view.x(b as f32);
         let is_bar = (b as f32 % beats_per_bar).abs() < 1e-3;
-        let color = if is_bar { theme::GRID_BAR } else { theme::GRID };
+        let color = if is_bar {
+            theme::p().grid_bar
+        } else {
+            theme::p().grid
+        };
         p.vline(x, body_top..=rect.bottom(), Stroke::new(1.0, color));
         if is_bar {
             let bar_no = (b as f32 / beats_per_bar) as i64 + 1;
@@ -342,7 +346,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 Align2::LEFT_TOP,
                 bar_no.to_string(),
                 FontId::proportional(10.0),
-                theme::TEXT_DIM,
+                theme::p().text_dim,
             );
         }
         b += beat_step;
@@ -355,13 +359,13 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         p.rect_filled(
             Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.top() + 4.0)),
             0.0,
-            theme::GOLD.gamma_multiply(alpha),
+            theme::p().gold.gamma_multiply(alpha),
         );
     }
     p.hline(
         ruler.x_range(),
         body_top - 0.5,
-        Stroke::new(1.0, theme::GRID_STRONG),
+        Stroke::new(1.0, theme::p().grid_strong),
     );
 
     // Clips.
@@ -389,7 +393,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 CornerRadius::same(3),
                 Stroke::new(
                     if sel { 2.0 } else { 1.0 },
-                    if sel { theme::GOLD_BRIGHT } else { color },
+                    if sel { theme::p().gold_bright } else { color },
                 ),
                 StrokeKind::Inside,
             );
@@ -423,7 +427,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 Align2::LEFT_TOP,
                 &clip.name,
                 FontId::proportional(11.0),
-                theme::TEXT,
+                theme::p().text,
             );
             if let Some(pos) = pointer {
                 if r.contains(pos) {
@@ -436,7 +440,11 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     // Playhead.
     let ph_x = view.x(ticks_to_beats(app.engine.position()));
     if ph_x >= rect.left() && ph_x <= rect.right() {
-        p.vline(ph_x, rect.y_range(), Stroke::new(1.5, theme::GOLD_BRIGHT));
+        p.vline(
+            ph_x,
+            rect.y_range(),
+            Stroke::new(1.5, theme::p().gold_bright),
+        );
     }
 
     // Interaction.
@@ -547,7 +555,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             Align2::CENTER_CENTER,
             t("track.add"),
             FontId::proportional(13.0),
-            theme::TEXT_DIM,
+            theme::p().text_dim,
         );
     } else {
         p.text(
@@ -555,7 +563,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             Align2::LEFT_BOTTOM,
             t("clip.new_tip"),
             FontId::proportional(10.0),
-            theme::TEXT_DIM.gamma_multiply(0.7),
+            theme::p().text_dim.gamma_multiply(0.7),
         );
     }
     let _ = Color32::WHITE;

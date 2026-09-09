@@ -254,3 +254,96 @@ fn effects_are_added_and_delivered_to_the_engine() {
     a.central = cantus_ui::app::CentralView::Mixer;
     run_frames(&mut a, 2);
 }
+
+#[test]
+fn note_editing_operations() {
+    let mut a = app(starter_project());
+    let track = a.selected_track.unwrap();
+    let clip = a.selected_clip.unwrap();
+    let notes = |a: &CantusApp| {
+        a.project()
+            .track(track)
+            .unwrap()
+            .clip(clip)
+            .unwrap()
+            .notes
+            .clone()
+    };
+    let initial = notes(&a);
+    assert_eq!(initial.len(), 4);
+
+    // Nudge & transpose the whole selection.
+    a.select_all_notes();
+    a.nudge_selection(Ticks::EIGHTH);
+    assert!(notes(&a)
+        .iter()
+        .zip(&initial)
+        .all(|(n, o)| n.start == o.start + Ticks::EIGHTH));
+    a.nudge_selection(-Ticks::beats(10)); // clamps at the clip start
+    assert_eq!(
+        notes(&a).iter().map(|n| n.start).min().unwrap(),
+        Ticks::ZERO
+    );
+    a.transpose_selection(12);
+    assert!(notes(&a)
+        .iter()
+        .zip(&initial)
+        .all(|(n, o)| n.pitch == o.pitch + 12));
+    a.transpose_selection(-12);
+
+    // Duplicate: 4 more notes, one grid past the selection span.
+    a.duplicate_selection();
+    assert_eq!(notes(&a).len(), 8);
+    assert_eq!(a.selected_notes.len(), 4, "the copies are selected");
+    let span_end = initial.iter().map(|n| n.end()).max().unwrap();
+    let copies_start = notes(&a)
+        .iter()
+        .map(|n| n.start)
+        .filter(|s| *s >= span_end)
+        .min()
+        .unwrap();
+    assert_eq!(copies_start, span_end.snap(Ticks::SIXTEENTH).max(span_end));
+
+    // Slice at beat 0.5 splits the first note (C4, one quarter long).
+    a.selected_notes.clear();
+    let before = notes(&a).len();
+    assert_eq!(a.slice_at(Ticks::EIGHTH), 1);
+    assert_eq!(notes(&a).len(), before + 1);
+    let halves: Vec<_> = notes(&a)
+        .into_iter()
+        .filter(|n| n.pitch == 60 && n.start < Ticks::QUARTER)
+        .collect();
+    assert_eq!(halves.len(), 2);
+    assert!(halves.iter().all(|n| n.length <= Ticks::EIGHTH));
+
+    // Mute toggles, and muted notes vanish from the playback snapshot.
+    let first = notes(&a)[0].id;
+    a.toggle_mute_notes(vec![first]);
+    assert!(notes(&a)[0].muted);
+    let snap = Snapshot::compile(a.project(), 0);
+    assert!(snap.tracks[0].events.iter().all(|e| e.note != first));
+    a.toggle_mute_notes(vec![first]);
+    assert!(!notes(&a)[0].muted);
+
+    // Copy / paste at the playhead (stopped at 0 → pastes at 0), cut removes.
+    a.selected_notes = vec![first];
+    a.copy_selection();
+    assert_eq!(a.clipboard.len(), 1);
+    let n_before = notes(&a).len();
+    a.paste_clipboard();
+    assert_eq!(notes(&a).len(), n_before + 1);
+    a.cut_selection();
+    assert_eq!(notes(&a).len(), n_before);
+
+    // Erase with a merge key: two strokes' erases form one undo step each.
+    let history = a.bus.history().len();
+    let ids: Vec<_> = notes(&a).iter().take(2).map(|n| n.id).collect();
+    let key = MergeKey::of(&"erase-test");
+    a.erase_notes(vec![ids[0]], Some(key));
+    a.erase_notes(vec![ids[1]], Some(key));
+    a.end_gesture();
+    assert_eq!(notes(&a).len(), n_before - 2);
+    assert_eq!(a.bus.history().len(), history + 1);
+    a.undo();
+    assert_eq!(notes(&a).len(), n_before);
+}

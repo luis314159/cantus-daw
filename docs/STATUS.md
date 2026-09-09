@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-08 (round 2) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 82 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~12 500 lines of Rust
+**Updated:** 2026-09-08 (round 4: icons + theme file) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 83 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~12 500 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -12,9 +12,9 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 | `cantus-core`: time, model, commands, bus, snapshots, **effects model** | done; 24 tests incl. 40-seed undo/redo invariant fuzz (now covering effect commands) |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **stereo delay, Freeverb-style reverb**, null-test harness | done; 19 tests |
 | `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
-| `cantus-project`: versioned JSON (**schema 2**), SHA-256, migrations 0→1→2, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1.cantus`, `v2.cantus` must always load |
+| `cantus-project`: versioned JSON (**schema 3**), SHA-256, migrations 0→1→2→3, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1`–`v3.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, i18n EN/ES | done; 13 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery) |
+| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, i18n EN/ES | done; 14 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -24,6 +24,20 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
   and without effect chains.
 - Real-device test: 200 blocks, 0 overruns, max callback 194 µs at 480-frame blocks.
 - Fixture `v2.cantus` opens with a Delay on the Keys track; the effects rack edits it live.
+
+## Piano roll tools (round 3)
+
+Bug fixed: drags hit-test the **press origin**, not the current pointer, so resizing from a
+note's right edge no longer turns into a marquee. Tools use FL's letters — `P` Draw, `B`
+Paint, `E` Select, `D` Delete, `T` Mute, `C` Slice, `Y` Play — and also `1`–`7`. The typing
+keyboard piano starts **off** (as in FL) because it claims the letter keys; `Ctrl+T` or the
+*Keys* toggle in the transport turns it on, and then only the number keys switch tools. Modifiers follow FL:
+Shift locks pitch, Ctrl locks time, Alt bypasses snap, right-click deletes, Ctrl+drag
+selects, Alt+wheel edits velocity. Shortcuts: Ctrl+B/Ctrl+D duplicate, Ctrl+C/X/V, arrows
+nudge (Shift: bar) and transpose (Shift: octave), Esc clears, Ctrl+T toggles the typing
+piano. `Note.muted` is schema 3 (fixture `v3.cantus`). All operations live on `CantusApp`
+(`slice_at`, `toggle_mute_notes`, `duplicate_selection`, …) so they are unit-tested without
+a window.
 
 ## How the new pieces fit
 
@@ -43,17 +57,44 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 - Timing note: live notes are stamped at block start (≤ 10 ms at 480 frames). Sub-block
   timestamps from `midir`/cpal are a later refinement.
 
+## Design & personalization plan (requested 2026-09-08)
+
+Goal: a look that says "best DAW in the world" and a UI the user can make their own.
+Ordered plan, each step shippable on its own:
+
+1. ~~**Theme tokens as data**~~ **done (round 4)**: `theme::Theme` is serialized to
+   `%LOCALAPPDATA%/Cantus/theme.json` (created from "Ink & Gold" on first run), reloaded
+   live by `ThemeWatcher`; presets Ink & Gold (dark) and Parchment (light) under
+   *View → Theme*, plus "Open theme file". Views read colours via `theme::p()` (a copied
+   `Palette`), never constants. `icons.rs` paints all toolbar/transport icons as shapes;
+   the piano roll tools are icon buttons with a tooltip "Name (letter / number)" and the
+   long hint moved to the status bar.
+2. **Design pass** — typography scale (a real UI font bundled: Inter or IBM Plex Sans,
+   plus a mono for numbers), consistent 4-px spacing grid, icon set painted as vector
+   shapes (`icons.rs`) instead of glyphs, hover/active states, focus rings for keyboard
+   navigation, subtle elevation for panels.
+3. **Layout personalization** — dockable/resizable panels with saved layouts (egui already
+   persists panel sizes; add named layouts and a "reset layout" action), per-view zoom
+   presets, configurable track colours and clip colours.
+4. **Keyboard map file** — every shortcut in a `keymap.toml` (FL / Live / Bitwig presets),
+   editable in a Settings dialog with conflict detection.
+5. **Settings dialog** — audio device / sample rate / buffer, MIDI ports, theme, language,
+   keymap, autosave interval.
+6. **Piano roll polish** — scale highlighting + snap-to-scale, ghost notes, chord stamps,
+   note properties popup, glue/legato, strum/arpeggiate, magic lasso.
+
 ## Known gaps / next steps (in order)
 
-1. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
-2. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
-3. More native devices: EQ, compressor, chorus; a sampler instrument.
-4. **CLAP host** (`cantus-plugin-host`, GPL) with out-of-process sandboxing (Phase 3).
-5. **AI providers** (Anthropic/OpenAI/Ollama over `reqwest`), disclosure dialog, MCP server.
-6. Recording polish: count-in, punch in/out, overdub vs replace, sub-block MIDI timestamps.
-7. Accessibility pass (semantic nodes for the painted views), audio settings dialog
+1. The design & personalization plan above (theme file → design pass → layouts → keymap → settings).
+2. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
+3. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
+4. More native devices: EQ, compressor, chorus; a sampler instrument.
+5. **CLAP host** (`cantus-plugin-host`, GPL) with out-of-process sandboxing (Phase 3).
+6. **AI providers** (Anthropic/OpenAI/Ollama over `reqwest`), disclosure dialog, MCP server.
+7. Recording polish: count-in, punch in/out, overdub vs replace, sub-block MIDI timestamps.
+8. Accessibility pass (semantic nodes for the painted views), audio settings dialog
    (device / sample rate / buffer size — `AudioConfig` already supports it).
-8. `docs/adr/0001`: trademark search for the name before any public release.
+9. `docs/adr/0001`: trademark search for the name before any public release.
 
 ## Conventions
 

@@ -17,7 +17,9 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **Firmus**, a built-in 16-voice subtractive polysynth (2 PolyBLEP oscillators, SVF
   filter, two ADSRs, key tracking).
 - Arrangement view (tracks, clips, mute/solo/gain/pan, loop region) and a painter-based
-  piano roll (draw, move, resize, velocity, marquee, quantize, snap grid, zoom).
+  piano roll with FL-style tools (`P` Draw, `B` Paint, `E` Select, `D` Delete, `T` Mute,
+  `C` Slice, `Y` Play, or `1`–`7`), Shift/Ctrl/Alt modifiers, clipboard, duplicate,
+  nudge/transpose, quantize.
 - Computer keyboard as a MIDI controller (`A`–`'` keys, `Z`/`X` octave) and **hardware MIDI
   input** (every port is opened at start).
 - **MIDI recording** into the selected clip (press `R`): live take preview in the piano
@@ -76,4 +78,5 @@ See [ADR 0001](docs/adr/0001-license.md) for why the license is split.
 
 Space play/stop · R record · Home to start · Ctrl+Z/Y undo/redo · Ctrl+S save · Ctrl+O open ·
 Ctrl+N new · Ctrl+E export WAV · Ctrl+L loop · Ctrl+M metronome · Delete · Ctrl+A ·
-Q quantize · Ctrl+scroll zoom · Shift+scroll horizontal scroll.
+Q quantize · P/B/E/D/T/C/Y or 1–7 tools · Ctrl+B duplicate · Ctrl+C/X/V · Arrows nudge/transpose (Shift: bar/octave) ·
+Alt no snap · Ctrl+T typing keyboard · Ctrl+scroll zoom · Shift+scroll horizontal scroll.

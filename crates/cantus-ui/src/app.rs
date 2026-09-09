@@ -51,8 +51,15 @@ pub struct CantusApp {
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
+    theme_watcher: Option<theme::ThemeWatcher>,
+    theme_path: PathBuf,
+    theme_ctx: Option<egui::Context>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
+    /// Typing keyboard plays the selected track (Ctrl+T toggles; off frees more keys).
+    pub keyboard_piano: bool,
+    /// Note clipboard, relative to the earliest copied note.
+    pub clipboard: Vec<cantus_core::Note>,
     pub status: Status,
     pub show_stats: bool,
     pub show_about: bool,
@@ -69,13 +76,19 @@ pub struct CantusApp {
 
 impl CantusApp {
     pub fn new(cc: &eframe::CreationContext<'_>, project: Option<Project>, stress: bool) -> Self {
-        // Cantus has one look. Pin the theme so a light system preference (which egui
-        // follows by default) cannot swap in light widget colours under our dark surfaces.
-        cc.egui_ctx.set_theme(egui::Theme::Dark);
-        cc.egui_ctx
-            .set_visuals_of(egui::Theme::Dark, theme::visuals());
-        cc.egui_ctx
-            .set_visuals_of(egui::Theme::Light, theme::visuals());
+        // The theme lives in a user-editable file; create it from the default on first run.
+        let theme_path = directories_fallback().join("theme.json");
+        let loaded = match theme::load_file(&theme_path) {
+            Ok(t) => t,
+            Err(_) => {
+                let t = theme::ink_and_gold();
+                if let Err(e) = theme::save_file(&t, &theme_path) {
+                    log::warn!("cannot write theme file: {e}");
+                }
+                t
+            }
+        };
+        theme::apply(&loaded, &cc.egui_ctx);
         let engine = match EngineHandle::start(&AudioConfig::default()) {
             Ok(e) => e,
             Err(e) => {
@@ -84,6 +97,9 @@ impl CantusApp {
             }
         };
         let mut app = Self::from_parts(project, engine, stress);
+        app.theme_watcher = Some(theme::ThemeWatcher::new(theme_path.clone()));
+        app.theme_path = theme_path;
+        app.theme_ctx = Some(cc.egui_ctx.clone());
         if app.engine.is_live() {
             let inputs = MidiInputs::open_all(app.engine.midi_sender());
             app.midi_port_names = inputs.names.clone();
@@ -123,8 +139,13 @@ impl CantusApp {
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,
+            theme_watcher: None,
+            theme_path: directories_fallback().join("theme.json"),
+            theme_ctx: None,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
+            keyboard_piano: false,
+            clipboard: Vec::new(),
             status: Status {
                 text: t("status.ready"),
                 error: false,
@@ -365,6 +386,370 @@ impl CantusApp {
     pub fn delete_clip(&mut self, track: TrackId, clip: ClipId) {
         if self.exec(Command::RemoveClip { track, clip }) {
             self.validate_selection();
+        }
+    }
+
+    // ---- note editing (shared by tools, menus and shortcuts) ------------------------
+
+    fn selected_clip_notes(&self) -> Option<(TrackId, ClipId, Vec<cantus_core::Note>)> {
+        let (t, c) = (self.selected_track?, self.selected_clip?);
+        let clip = self.project().track(t)?.clip(c)?;
+        Some((t, c, clip.notes.clone()))
+    }
+
+    /// Notes to operate on: the selection, or nothing.
+    fn selected_note_values(&self) -> Option<(TrackId, ClipId, Vec<cantus_core::Note>)> {
+        let (t, c, notes) = self.selected_clip_notes()?;
+        let sel: Vec<_> = notes
+            .into_iter()
+            .filter(|n| self.selected_notes.contains(&n.id))
+            .collect();
+        if sel.is_empty() {
+            None
+        } else {
+            Some((t, c, sel))
+        }
+    }
+
+    /// Remove notes; with a merge key consecutive erases form one undo step (eraser drag).
+    pub fn erase_notes(&mut self, ids: Vec<cantus_core::NoteId>, merge: Option<MergeKey>) {
+        let (Some(t), Some(c)) = (self.selected_track, self.selected_clip) else {
+            return;
+        };
+        let ids: Vec<_> = {
+            let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)) else {
+                return;
+            };
+            ids.into_iter()
+                .filter(|id| clip.note(*id).is_some())
+                .collect()
+        };
+        if ids.is_empty() {
+            return;
+        }
+        self.selected_notes.retain(|n| !ids.contains(n));
+        let cmd = Command::Batch {
+            label_key: "cmd.erase".into(),
+            commands: vec![Command::RemoveNotes {
+                track: t,
+                clip: c,
+                ids,
+            }],
+        };
+        match merge {
+            Some(key) => {
+                self.exec_merging(cmd, key);
+            }
+            None => {
+                self.exec(cmd);
+            }
+        }
+    }
+
+    pub fn toggle_mute_notes(&mut self, ids: Vec<cantus_core::NoteId>) {
+        let Some((t, c, notes)) = self.selected_clip_notes() else {
+            return;
+        };
+        let targets: Vec<_> = notes.into_iter().filter(|n| ids.contains(&n.id)).collect();
+        if targets.is_empty() {
+            return;
+        }
+        // If any is unmuted, mute all; otherwise unmute all.
+        let mute = targets.iter().any(|n| !n.muted);
+        let notes = targets
+            .into_iter()
+            .map(|n| cantus_core::Note { muted: mute, ..n })
+            .collect();
+        self.exec(Command::Batch {
+            label_key: "cmd.mute_notes".into(),
+            commands: vec![Command::SetNotes {
+                track: t,
+                clip: c,
+                notes,
+            }],
+        });
+    }
+
+    /// Split every note that spans `tick` (clip-relative) into two. Returns how many.
+    pub fn slice_at(&mut self, tick: Ticks) -> usize {
+        let Some((t, c, notes)) = self.selected_clip_notes() else {
+            return 0;
+        };
+        let only_selected = !self.selected_notes.is_empty()
+            && notes
+                .iter()
+                .any(|n| self.selected_notes.contains(&n.id) && n.start < tick && n.end() > tick);
+        let mut shortened = Vec::new();
+        let mut tails = Vec::new();
+        for n in notes {
+            if n.start < tick
+                && n.end() > tick
+                && (!only_selected || self.selected_notes.contains(&n.id))
+            {
+                let tail = self.bus.new_note(tick, n.end() - tick, n.pitch, n.velocity);
+                tails.push(cantus_core::Note {
+                    muted: n.muted,
+                    ..tail
+                });
+                shortened.push(cantus_core::Note {
+                    length: tick - n.start,
+                    ..n
+                });
+            }
+        }
+        let count = tails.len();
+        if count == 0 {
+            return 0;
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.slice".into(),
+            commands: vec![
+                Command::SetNotes {
+                    track: t,
+                    clip: c,
+                    notes: shortened,
+                },
+                Command::InsertNotes {
+                    track: t,
+                    clip: c,
+                    notes: tails,
+                },
+            ],
+        });
+        count
+    }
+
+    /// Move the selection in time (negative = earlier). Never before the clip start.
+    pub fn nudge_selection(&mut self, delta: Ticks) {
+        let Some((t, c, sel)) = self.selected_note_values() else {
+            return;
+        };
+        let min_start = sel.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
+        let delta = delta.max(-min_start);
+        if delta == Ticks::ZERO {
+            return;
+        }
+        let notes = sel
+            .into_iter()
+            .map(|n| cantus_core::Note {
+                start: n.start + delta,
+                ..n
+            })
+            .collect();
+        self.exec(Command::Batch {
+            label_key: "cmd.nudge".into(),
+            commands: vec![Command::SetNotes {
+                track: t,
+                clip: c,
+                notes,
+            }],
+        });
+    }
+
+    pub fn transpose_selection(&mut self, semitones: i32) {
+        let Some((t, c, sel)) = self.selected_note_values() else {
+            return;
+        };
+        if sel
+            .iter()
+            .any(|n| !(0..=127).contains(&(n.pitch as i32 + semitones)))
+        {
+            return;
+        }
+        let notes: Vec<_> = sel
+            .into_iter()
+            .map(|n| cantus_core::Note {
+                pitch: (n.pitch as i32 + semitones) as u8,
+                ..n
+            })
+            .collect();
+        if let Some(first) = notes.first() {
+            self.audition(t, first.pitch);
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.transpose".into(),
+            commands: vec![Command::SetNotes {
+                track: t,
+                clip: c,
+                notes,
+            }],
+        });
+    }
+
+    /// Copy the selection right after itself (FL Ctrl+B / Live Ctrl+D). The offset is the
+    /// selection's span rounded up to the grid, so repeated presses tile cleanly.
+    pub fn duplicate_selection(&mut self) {
+        let Some((t, c, sel)) = self.selected_note_values() else {
+            return;
+        };
+        let start = sel.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
+        let end = sel.iter().map(|n| n.end()).max().unwrap_or(Ticks::ZERO);
+        let grid = self.piano_roll.grid;
+        let span = end - start;
+        let offset = Ticks(((span.0 + grid.0 - 1) / grid.0).max(1) * grid.0);
+        let copies: Vec<_> = sel
+            .iter()
+            .map(|n| {
+                let mut m = self
+                    .bus
+                    .new_note(n.start + offset, n.length, n.pitch, n.velocity);
+                m.muted = n.muted;
+                m
+            })
+            .collect();
+        let ids = copies.iter().map(|n| n.id).collect();
+        let mut commands = vec![Command::InsertNotes {
+            track: t,
+            clip: c,
+            notes: copies,
+        }];
+        // Grow the clip if the copies run past its end.
+        if let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)) {
+            if clip.length < end + offset {
+                commands.insert(
+                    0,
+                    Command::SetClipBounds {
+                        track: t,
+                        clip: c,
+                        start: clip.start,
+                        length: end + offset,
+                    },
+                );
+            }
+        }
+        if self.exec(Command::Batch {
+            label_key: "cmd.duplicate".into(),
+            commands,
+        }) {
+            self.selected_notes = ids;
+        }
+    }
+
+    pub fn copy_selection(&mut self) {
+        let Some((_, _, sel)) = self.selected_note_values() else {
+            return;
+        };
+        let start = sel.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
+        self.clipboard = sel
+            .into_iter()
+            .map(|n| cantus_core::Note {
+                start: n.start - start,
+                ..n
+            })
+            .collect();
+    }
+
+    pub fn cut_selection(&mut self) {
+        self.copy_selection();
+        self.delete_selection();
+    }
+
+    /// Paste at the playhead (clip-relative, snapped to the grid), or at 0 if the playhead
+    /// is outside the clip.
+    pub fn paste_clipboard(&mut self) {
+        if self.clipboard.is_empty() {
+            return;
+        }
+        let (Some(t), Some(c)) = (self.selected_track, self.selected_clip) else {
+            return;
+        };
+        let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)).cloned() else {
+            return;
+        };
+        let ph = self.engine.position() - clip.start;
+        let at = if ph >= Ticks::ZERO && ph < clip.length {
+            ph.snap_floor(self.piano_roll.grid)
+        } else {
+            Ticks::ZERO
+        };
+        let notes: Vec<_> = self
+            .clipboard
+            .clone()
+            .into_iter()
+            .map(|n| {
+                let mut m = self
+                    .bus
+                    .new_note(n.start + at, n.length, n.pitch, n.velocity);
+                m.muted = n.muted;
+                m
+            })
+            .collect();
+        let end = notes.iter().map(|n| n.end()).max().unwrap_or(Ticks::ZERO);
+        let ids = notes.iter().map(|n| n.id).collect();
+        let mut commands = vec![Command::InsertNotes {
+            track: t,
+            clip: c,
+            notes,
+        }];
+        if clip.length < end {
+            commands.insert(
+                0,
+                Command::SetClipBounds {
+                    track: t,
+                    clip: c,
+                    start: clip.start,
+                    length: end,
+                },
+            );
+        }
+        if self.exec(Command::Batch {
+            label_key: "cmd.paste".into(),
+            commands,
+        }) {
+            self.selected_notes = ids;
+        }
+    }
+
+    // ---- theme ----------------------------------------------------------------------
+
+    /// Write a preset to the theme file and apply it.
+    pub fn apply_theme_preset(&mut self, theme: theme::Theme) {
+        if let Err(e) = theme::save_file(&theme, &self.theme_path) {
+            self.set_error(tf("status.theme_error", &[("error", &e)]));
+            return;
+        }
+        if let Some(w) = self.theme_watcher.as_mut() {
+            *w = theme::ThemeWatcher::new(self.theme_path.clone());
+        }
+        self.apply_theme(&theme);
+    }
+
+    fn apply_theme(&mut self, theme: &theme::Theme) {
+        if let Some(ctx) = &self.theme_ctx {
+            theme::apply(theme, ctx);
+        }
+        self.set_status(tf("status.theme_applied", &[("name", &theme.name)]));
+    }
+
+    /// Show the theme file in the OS file manager so the user can edit it.
+    pub fn reveal_theme_file(&mut self) {
+        let path = self.theme_path.clone();
+        #[cfg(target_os = "windows")]
+        let result = std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path.display()))
+            .spawn();
+        #[cfg(target_os = "macos")]
+        let result = std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn();
+        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+        let result = std::process::Command::new("xdg-open")
+            .arg(path.parent().unwrap_or(&path))
+            .spawn();
+        match result {
+            Ok(_) => self.set_status(tf("status.theme_file", &[("path", &path.display())])),
+            Err(e) => self.set_error(e.to_string()),
+        }
+    }
+
+    fn poll_theme(&mut self) {
+        let Some(result) = self.theme_watcher.as_mut().and_then(|w| w.poll()) else {
+            return;
+        };
+        match result {
+            Ok(theme) => self.apply_theme(&theme),
+            Err(e) => self.set_error(tf("status.theme_error", &[("error", &e)])),
         }
     }
 
@@ -805,6 +1190,93 @@ impl CantusApp {
         if r && !cmd {
             self.toggle_record();
         }
+        // Tools: number keys (Bitwig convention; letters are taken by the typing piano).
+        let digit = ctx.input(|i| {
+            use egui::Key;
+            [
+                Key::Num1,
+                Key::Num2,
+                Key::Num3,
+                Key::Num4,
+                Key::Num5,
+                Key::Num6,
+                Key::Num7,
+            ]
+            .iter()
+            .position(|k| i.key_pressed(*k))
+        });
+        if let (Some(d), false) = (digit, cmd) {
+            if let Some(tool) = views::piano_roll::Tool::ALL.get(d) {
+                self.piano_roll.tool = *tool;
+            }
+        }
+        // FL letters, only while the typing piano is not claiming the letter keys.
+        if !cmd && !self.keyboard_piano {
+            let picked = ctx.input(|i| {
+                views::piano_roll::Tool::ALL
+                    .iter()
+                    .copied()
+                    .find(|t| i.key_pressed(t.key()))
+            });
+            if let Some(tool) = picked {
+                self.piano_roll.tool = tool;
+            }
+        }
+        let (b, d, c, v, x, tkey, esc, left, right, up, down) = ctx.input(|i| {
+            use egui::Key;
+            (
+                i.key_pressed(Key::B),
+                i.key_pressed(Key::D),
+                i.key_pressed(Key::C),
+                i.key_pressed(Key::V),
+                i.key_pressed(Key::X),
+                i.key_pressed(Key::T),
+                i.key_pressed(Key::Escape),
+                i.key_pressed(Key::ArrowLeft),
+                i.key_pressed(Key::ArrowRight),
+                i.key_pressed(Key::ArrowUp),
+                i.key_pressed(Key::ArrowDown),
+            )
+        });
+        if cmd && (b || d) {
+            self.duplicate_selection();
+        }
+        if cmd && c {
+            self.copy_selection();
+        }
+        if cmd && x {
+            self.cut_selection();
+        }
+        if cmd && v {
+            self.paste_clipboard();
+        }
+        if cmd && tkey {
+            self.keyboard_piano = !self.keyboard_piano;
+            for ev in self.keyboard.release_all() {
+                self.apply_key_event(ev);
+            }
+        }
+        if esc {
+            self.selected_notes.clear();
+        }
+        let grid = self.piano_roll.grid;
+        let step = if shift {
+            self.project().time_signature.ticks_per_bar()
+        } else {
+            grid
+        };
+        if left {
+            self.nudge_selection(-step);
+        }
+        if right {
+            self.nudge_selection(step);
+        }
+        if up {
+            self.transpose_selection(if shift { 12 } else { 1 });
+        }
+        if down {
+            self.transpose_selection(if shift { -12 } else { -1 });
+        }
         if space {
             self.toggle_play();
         }
@@ -849,7 +1321,7 @@ impl CantusApp {
         if q && !cmd {
             self.quantize_selection();
         }
-        if !cmd {
+        if !cmd && self.keyboard_piano {
             for ev in self.keyboard.poll(ctx) {
                 self.apply_key_event(ev);
             }
@@ -859,11 +1331,19 @@ impl CantusApp {
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let color = if self.status.error {
-                theme::DANGER
+                theme::p().danger
             } else {
-                theme::TEXT_DIM
+                theme::p().text_dim
             };
             ui.label(egui::RichText::new(&self.status.text).color(color));
+            if self.central == CentralView::PianoRoll {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(t(self.piano_roll.tool.hint_key()))
+                        .small()
+                        .color(theme::p().text_dim),
+                );
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let s = self.engine.stats();
                 let engine = if self.engine.is_live() {
@@ -884,26 +1364,24 @@ impl CantusApp {
                     egui::RichText::new(engine)
                         .small()
                         .color(if s.overruns > 0 {
-                            theme::DANGER
+                            theme::p().danger
                         } else {
-                            theme::TEXT_DIM
+                            theme::p().text_dim
                         }),
                 );
                 ui.separator();
                 ui.label(
                     egui::RichText::new(tf("status.midi", &[("n", &self.midi_port_names.len())]))
                         .small()
-                        .color(theme::TEXT_DIM),
+                        .color(theme::p().text_dim),
                 );
                 ui.separator();
-                ui.label(
-                    egui::RichText::new(tf(
-                        "status.keyboard",
-                        &[("octave", &self.keyboard.octave)],
-                    ))
-                    .small()
-                    .color(theme::TEXT_DIM),
-                );
+                let kb = if self.keyboard_piano {
+                    tf("status.keyboard", &[("octave", &self.keyboard.octave)])
+                } else {
+                    t("status.keyboard_off")
+                };
+                ui.label(egui::RichText::new(kb).small().color(theme::p().text_dim));
                 if self.show_stats {
                     ui.separator();
                     let avg = if self.frame_times.is_empty() {
@@ -921,7 +1399,7 @@ impl CantusApp {
                         ))
                         .small()
                         .monospace()
-                        .color(theme::TEXT_DIM),
+                        .color(theme::p().text_dim),
                     );
                 }
             });
@@ -935,7 +1413,11 @@ impl CantusApp {
                 .resizable(false)
                 .open(&mut self.show_about)
                 .show(ctx, |ui| {
-                    ui.label(egui::RichText::new("Cantus").size(22.0).color(theme::GOLD));
+                    ui.label(
+                        egui::RichText::new("Cantus")
+                            .size(22.0)
+                            .color(theme::p().gold),
+                    );
                     ui.label(format!("v{APP_VERSION}"));
                     ui.add_space(6.0);
                     ui.label(t("about.text"));
@@ -963,6 +1445,7 @@ impl eframe::App for CantusApp {
         self.engine.poll();
         self.poll_export();
         self.poll_recording();
+        self.poll_theme();
         self.global_shortcuts(ctx);
         self.sync_live_track();
 
@@ -981,14 +1464,14 @@ impl eframe::App for CantusApp {
         egui::Panel::top(egui::Id::new("transport"))
             .frame(
                 egui::Frame::NONE
-                    .fill(theme::PANEL)
+                    .fill(theme::p().panel)
                     .inner_margin(egui::Margin::symmetric(8, 6)),
             )
             .show(root, |ui| views::transport::show(self, ui));
         egui::Panel::bottom(egui::Id::new("status"))
             .frame(
                 egui::Frame::NONE
-                    .fill(theme::PANEL)
+                    .fill(theme::p().panel)
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
             .show(root, |ui| self.status_bar(ui));
@@ -998,7 +1481,7 @@ impl eframe::App for CantusApp {
             .min_size(240.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(theme::PANEL)
+                    .fill(theme::p().panel)
                     .inner_margin(egui::Margin::same(8)),
             )
             .show(root, |ui| views::inspector::show(self, ui));
@@ -1011,7 +1494,7 @@ impl eframe::App for CantusApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
-                    .fill(theme::INK)
+                    .fill(theme::p().ink)
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(root, |ui| {

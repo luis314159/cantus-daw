@@ -2,6 +2,7 @@
 
 use crate::app::CantusApp;
 use crate::i18n::{t, tf, Locale};
+use crate::icons::{self, Icon};
 use crate::theme;
 use cantus_core::{Command, MergeKey, Ticks};
 use egui::{pos2, vec2, Align2, Color32, FontId, Rect, RichText, Sense, Stroke, StrokeKind};
@@ -20,7 +21,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             ui.separator();
             let name = app.project().name.clone();
             let dirty = if app.bus.is_dirty() { " •" } else { "" };
-            ui.label(RichText::new(format!("{name}{dirty}")).color(theme::TEXT_DIM));
+            ui.label(RichText::new(format!("{name}{dirty}")).color(theme::p().text_dim));
         });
     });
 }
@@ -85,6 +86,23 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
             app.redo();
         }
         ui.separator();
+        if ui.button(t("menu.cut")).clicked() {
+            ui.close();
+            app.cut_selection();
+        }
+        if ui.button(t("menu.copy")).clicked() {
+            ui.close();
+            app.copy_selection();
+        }
+        if ui.button(t("menu.paste")).clicked() {
+            ui.close();
+            app.paste_clipboard();
+        }
+        if ui.button(t("menu.duplicate")).clicked() {
+            ui.close();
+            app.duplicate_selection();
+        }
+        ui.separator();
         if ui.button(t("menu.select_all")).clicked() {
             ui.close();
             app.select_all_notes();
@@ -110,6 +128,20 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
                 }
             }
         });
+        ui.menu_button(t("menu.theme"), |ui| {
+            for (key, make) in theme::PRESETS {
+                if ui.button(t(key)).clicked() {
+                    ui.close();
+                    app.apply_theme_preset(make());
+                }
+            }
+            ui.separator();
+            if ui.button(t("menu.open_theme_file")).clicked() {
+                ui.close();
+                app.reveal_theme_file();
+            }
+        });
+        ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
         ui.checkbox(&mut app.show_stats, t("menu.stats"));
     });
     ui.menu_button(t("menu.help"), |ui| {
@@ -124,105 +156,20 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
     });
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum Icon {
-    ToStart,
-    Play,
-    Pause,
-    Stop,
-    Record,
-}
-
-/// Transport icons are painted, not typed: the bundled fonts lack some glyphs and a
-/// painted icon looks identical on every platform.
-fn icon_button(ui: &mut egui::Ui, icon: Icon, active: bool, tip: String) -> egui::Response {
-    let size = vec2(30.0, 24.0);
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
-    let visuals = ui.style().interact(&resp);
-    let p = ui.painter();
-    p.rect(
-        rect,
-        3.0,
-        visuals.bg_fill,
-        visuals.bg_stroke,
-        StrokeKind::Inside,
-    );
-    let color = if active {
-        theme::GOLD_BRIGHT
-    } else {
-        theme::TEXT
-    };
-    let c = rect.center();
-    let h = 5.0;
-    match icon {
-        Icon::Play => {
-            p.add(egui::Shape::convex_polygon(
-                vec![
-                    pos2(c.x - 4.0, c.y - h),
-                    pos2(c.x + 6.0, c.y),
-                    pos2(c.x - 4.0, c.y + h),
-                ],
-                color,
-                Stroke::NONE,
-            ));
-        }
-        Icon::Pause => {
-            p.rect_filled(
-                Rect::from_center_size(pos2(c.x - 3.0, c.y), vec2(3.0, 2.0 * h)),
-                0.0,
-                color,
-            );
-            p.rect_filled(
-                Rect::from_center_size(pos2(c.x + 3.0, c.y), vec2(3.0, 2.0 * h)),
-                0.0,
-                color,
-            );
-        }
-        Icon::Stop => {
-            p.rect_filled(
-                Rect::from_center_size(c, vec2(2.0 * h, 2.0 * h)),
-                1.0,
-                color,
-            );
-        }
-        Icon::Record => {
-            let col = if active { theme::DANGER } else { color };
-            p.circle_filled(c, h + 1.0, col);
-        }
-        Icon::ToStart => {
-            p.rect_filled(
-                Rect::from_center_size(pos2(c.x - 5.0, c.y), vec2(2.0, 2.0 * h)),
-                0.0,
-                color,
-            );
-            p.add(egui::Shape::convex_polygon(
-                vec![
-                    pos2(c.x + 6.0, c.y - h),
-                    pos2(c.x - 3.0, c.y),
-                    pos2(c.x + 6.0, c.y + h),
-                ],
-                color,
-                Stroke::NONE,
-            ));
-        }
-    }
-    resp.on_hover_text(tip)
-}
-
 fn buttons(app: &mut CantusApp, ui: &mut egui::Ui) {
-    if icon_button(ui, Icon::ToStart, false, t("transport.to_start")).clicked() {
+    if icons::button(ui, Icon::ToStart, false, t("transport.to_start")).clicked() {
         app.seek(Ticks::ZERO);
     }
     let playing = app.engine.is_playing();
     let icon = if playing { Icon::Pause } else { Icon::Play };
-    if icon_button(ui, icon, playing, t("transport.play")).clicked() {
+    if icons::button(ui, icon, playing, t("transport.play")).clicked() {
         app.toggle_play();
     }
-    if icon_button(ui, Icon::Stop, false, t("transport.stop")).clicked() {
+    if icons::button(ui, Icon::Stop, false, t("transport.stop")).clicked() {
         app.stop();
     }
     let recording = app.is_recording();
-    if icon_button(ui, Icon::Record, recording, t("transport.record")).clicked() {
+    if icons::button(ui, Icon::Record, recording, t("transport.record")).clicked() {
         app.toggle_record();
     }
     let mut looping = app.project().loop_enabled;
@@ -235,6 +182,14 @@ fn buttons(app: &mut CantusApp, ui: &mut egui::Ui) {
         .changed()
     {
         app.exec(Command::SetMetronome { enabled: metro });
+    }
+    let mut typing = app.keyboard_piano;
+    if ui
+        .toggle_value(&mut typing, t("transport.typing"))
+        .on_hover_text(t("transport.typing_tip"))
+        .changed()
+    {
+        app.keyboard_piano = typing;
     }
     if ui
         .small_button(t("transport.panic_short"))
@@ -274,10 +229,10 @@ fn tempo_and_position(app: &mut CantusApp, ui: &mut egui::Ui) {
         RichText::new(text)
             .monospace()
             .size(15.0)
-            .color(theme::GOLD_BRIGHT),
+            .color(theme::p().gold_bright),
     )
     .on_hover_text(t("transport.position"));
-    ui.label(RichText::new(ts.to_string()).color(theme::TEXT_DIM));
+    ui.label(RichText::new(ts.to_string()).color(theme::p().text_dim));
 }
 
 pub fn view_tabs(app: &mut CantusApp, ui: &mut egui::Ui) {
@@ -322,7 +277,7 @@ fn undo_redo(app: &mut CantusApp, ui: &mut egui::Ui) {
 fn master_meter(app: &mut CantusApp, ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(vec2(120.0, 18.0), Sense::hover());
     let p = ui.painter();
-    p.rect_filled(rect, 2.0, theme::INK);
+    p.rect_filled(rect, 2.0, theme::p().ink);
     let m = app.engine.meters().master;
     for (ch, peak) in m.iter().enumerate() {
         let h = (rect.height() - 4.0) / 2.0 - 1.0;
@@ -337,7 +292,7 @@ fn master_meter(app: &mut CantusApp, ui: &mut egui::Ui) {
     p.rect_stroke(
         rect,
         2.0,
-        Stroke::new(1.0, theme::GRID_STRONG),
+        Stroke::new(1.0, theme::p().grid_strong),
         StrokeKind::Inside,
     );
     let peak = m[0].max(m[1]);

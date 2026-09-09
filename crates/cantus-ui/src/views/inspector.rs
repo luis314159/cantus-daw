@@ -14,7 +14,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         ui.label(
             RichText::new(t("inspector.master"))
                 .strong()
-                .color(theme::GOLD),
+                .color(theme::p().gold),
         );
         let mut master = app.project().master.gain_db;
         let r = ui.add(
@@ -34,7 +34,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         ui.separator();
 
         let Some(id) = app.selected_track else {
-            ui.label(RichText::new(t("track.no_selection")).color(theme::TEXT_DIM));
+            ui.label(RichText::new(t("track.no_selection")).color(theme::p().text_dim));
             return;
         };
         let Some(track) = app.project().track(id).cloned() else {
@@ -53,7 +53,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                     ui.painter().rect_stroke(
                         rect,
                         3.0,
-                        egui::Stroke::new(2.0, theme::TEXT),
+                        egui::Stroke::new(2.0, theme::p().text),
                         egui::StrokeKind::Inside,
                     );
                 }
@@ -70,7 +70,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 t(track.instrument.name_key())
             ))
             .strong()
-            .color(theme::GOLD),
+            .color(theme::p().gold),
         );
         let Some(params) = track.instrument.firmus().cloned() else {
             return;
@@ -124,7 +124,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 fn section(ui: &mut egui::Ui, key: &str) {
     ui.add_space(6.0);
-    ui.label(RichText::new(t(key)).small().color(theme::TEXT_DIM));
+    ui.label(RichText::new(t(key)).small().color(theme::p().text_dim));
 }
 
 fn wave_combo(
@@ -202,7 +202,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
         ui.label(
             RichText::new(t("inspector.effects"))
                 .strong()
-                .color(theme::GOLD),
+                .color(theme::p().gold),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.menu_button(t("effect.add"), |ui| {
@@ -218,7 +218,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
     let n = slots.len();
     for (i, slot) in slots.iter().enumerate() {
         let frame = egui::Frame::NONE
-            .fill(theme::PANEL_RAISED)
+            .fill(theme::p().panel_raised)
             .inner_margin(egui::Margin::same(6))
             .corner_radius(4);
         frame.show(ui, |ui| {
@@ -310,7 +310,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
         ui.label(
             RichText::new(t("effect.none"))
                 .small()
-                .color(theme::TEXT_DIM),
+                .color(theme::p().text_dim),
         );
     }
 }

@@ -43,6 +43,9 @@ pub struct Note {
     pub length: Ticks,
     pub pitch: Pitch,
     pub velocity: Velocity,
+    /// Muted notes stay in the clip but are not played (FL-style mute tool).
+    #[serde(default)]
+    pub muted: bool,
 }
 
 impl Note {
@@ -304,6 +307,7 @@ impl Project {
             length,
             pitch: pitch.min(127),
             velocity: velocity.clamp(1, 127),
+            muted: false,
         }
     }
 }

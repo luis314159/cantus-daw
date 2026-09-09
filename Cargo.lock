@@ -745,6 +745,8 @@ dependencies = [
  "hound",
  "log",
  "rfd",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 

@@ -33,10 +33,14 @@ impl MixerView {
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(t("mixer.title")).strong().color(theme::GOLD));
+        ui.label(
+            RichText::new(t("mixer.title"))
+                .strong()
+                .color(theme::p().gold),
+        );
         ui.label(
             RichText::new(tf("mixer.tracks", &[("n", &app.project().tracks.len())]))
-                .color(theme::TEXT_DIM),
+                .color(theme::p().text_dim),
         );
     });
     let ids: Vec<TrackId> = app.project().tracks.iter().map(|t| t.id).collect();
@@ -53,7 +57,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 fn meter(ui: &mut egui::Ui, rect: Rect, peak: f32, hold: f32) {
     let p = ui.painter();
-    p.rect_filled(rect, 2.0, theme::INK);
+    p.rect_filled(rect, 2.0, theme::p().ink);
     let frac = |v: f32| ((linear_to_db(v) + 60.0) / 60.0).clamp(0.0, 1.0);
     let h = rect.height() * frac(peak);
     let bar = Rect::from_min_max(
@@ -73,13 +77,13 @@ fn meter(ui: &mut egui::Ui, rect: Rect, peak: f32, hold: f32) {
         p.hline(
             rect.left()..=rect.left() + 3.0,
             y,
-            Stroke::new(1.0, theme::GRID_BAR),
+            Stroke::new(1.0, theme::p().grid_bar),
         );
     }
     p.rect_stroke(
         rect,
         2.0,
-        Stroke::new(1.0, theme::GRID_STRONG),
+        Stroke::new(1.0, theme::p().grid_strong),
         StrokeKind::Inside,
     );
 }
@@ -101,13 +105,17 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
 
     let frame = egui::Frame::NONE
         .fill(if selected {
-            theme::PANEL_RAISED
+            theme::p().panel_raised
         } else {
-            theme::PANEL
+            theme::p().panel
         })
         .stroke(Stroke::new(
             1.0,
-            if selected { theme::GOLD } else { theme::GRID },
+            if selected {
+                theme::p().gold
+            } else {
+                theme::p().grid
+            },
         ))
         .inner_margin(egui::Margin::same(6))
         .corner_radius(4);
@@ -126,7 +134,7 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                 Align2::CENTER_CENTER,
                 &track.name,
                 FontId::proportional(12.0),
-                theme::INK,
+                theme::p().ink,
             );
             if resp.clicked() {
                 app.select_track(id);
@@ -136,7 +144,7 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
             ui.label(
                 RichText::new(tf("mixer.effects", &[("n", &track.effects.len())]))
                     .small()
-                    .color(theme::TEXT_DIM),
+                    .color(theme::p().text_dim),
             );
             // Pan.
             let mut pan = track.pan;
@@ -165,7 +173,7 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                 RichText::new(pan_text)
                     .small()
                     .monospace()
-                    .color(theme::TEXT_DIM),
+                    .color(theme::p().text_dim),
             );
             ui.add_space(4.0);
             // Fader + meter side by side.
@@ -204,9 +212,9 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                     .selectable_label(
                         muted,
                         RichText::new(t("track.mute")).color(if muted {
-                            theme::DANGER
+                            theme::p().danger
                         } else {
-                            theme::TEXT_DIM
+                            theme::p().text_dim
                         }),
                     )
                     .clicked()
@@ -219,9 +227,9 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                     .selectable_label(
                         solo,
                         RichText::new(t("track.solo")).color(if solo {
-                            theme::GOLD_BRIGHT
+                            theme::p().gold_bright
                         } else {
-                            theme::TEXT_DIM
+                            theme::p().text_dim
                         }),
                     )
                     .clicked()
@@ -239,27 +247,27 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
     let peak = m[0].max(m[1]);
     let hold = app.mixer.hold(index, peak);
     let frame = egui::Frame::NONE
-        .fill(theme::PANEL_RAISED)
-        .stroke(Stroke::new(1.0, theme::GOLD.gamma_multiply(0.6)))
+        .fill(theme::p().panel_raised)
+        .stroke(Stroke::new(1.0, theme::p().gold.gamma_multiply(0.6)))
         .inner_margin(egui::Margin::same(6))
         .corner_radius(4);
     frame.show(ui, |ui| {
         ui.set_width(STRIP_W);
         ui.vertical_centered(|ui| {
             let (rect, _) = ui.allocate_exact_size(vec2(STRIP_W, 22.0), Sense::hover());
-            ui.painter().rect_filled(rect, 3.0, theme::GOLD);
+            ui.painter().rect_filled(rect, 3.0, theme::p().gold);
             ui.painter().text(
                 rect.center(),
                 Align2::CENTER_CENTER,
                 t("mixer.master"),
                 FontId::proportional(12.0),
-                theme::INK,
+                theme::p().ink,
             );
             ui.add_space(4.0);
             ui.label(
                 RichText::new(t("mixer.stereo"))
                     .small()
-                    .color(theme::TEXT_DIM),
+                    .color(theme::p().text_dim),
             );
             let slider_h = ui.spacing().interact_size.y + ui.spacing().item_spacing.y;
             ui.add_space(slider_h);
@@ -267,7 +275,7 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                 RichText::new("L / R")
                     .small()
                     .monospace()
-                    .color(theme::TEXT_DIM),
+                    .color(theme::p().text_dim),
             );
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -307,9 +315,9 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                     .small()
                     .monospace()
                     .color(if hold >= 1.0 {
-                        theme::DANGER
+                        theme::p().danger
                     } else {
-                        theme::TEXT_DIM
+                        theme::p().text_dim
                     }),
             );
         });
