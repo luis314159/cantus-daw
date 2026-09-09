@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-08 (round 6: layouts) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 99 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-08 (round 7: keymap) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 113 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -8,13 +8,13 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0009 | done |
+| Workspace, licenses, ADRs 0001–0010 | done |
 | `cantus-core`: time, model, commands, bus, snapshots, **effects model** | done; 24 tests incl. 40-seed undo/redo invariant fuzz (now covering effect commands) |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **stereo delay, Freeverb-style reverb**, null-test harness | done; 19 tests |
 | `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
 | `cantus-project`: versioned JSON (**schema 3**), SHA-256, migrations 0→1→2→3, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1`–`v3.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, i18n EN/ES | done; 30 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, i18n EN/ES | done; 43 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -55,6 +55,37 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## The keymap (round 7)
+
+`cantus-ui/src/keymap.rs` and ADR 0010. An `Action` is a thing the app can do, a `Binding`
+is a key plus exactly those modifiers, and `keymap.toml` joins them — next to the theme and
+the layouts, and written on first run so it is there to be found. *Help → Shortcuts* is now
+a real editor: pick a preset, click a shortcut to clear it, click *Add* and press a key to
+bind it, with conflicts flagged in red.
+
+- **`CantusApp::run_action` is the single dispatch.** Shortcuts, menus and any future
+  script go through one `match`, so a binding cannot reach something a menu cannot. The old
+  `if cmd && z` chain in `global_shortcuts` is gone.
+- **Modifiers match exactly**, or `Ctrl+Z` would fire on `Ctrl+Shift+Z`.
+- **Presets are conflict-free by construction**: a preset is a shared spine plus its own
+  bindings, and a later binding takes the shortcut from whoever held it. Tests assert that
+  no shipped preset conflicts with itself and that none leaves an essential action unbound
+  — that is how the Live preset's `Ctrl+E` (split) colliding with WAV export was caught
+  before it shipped; export moved to `Ctrl+Shift+E` there.
+- **FL / Live / Bitwig presets are approximations**, following each program's conventions
+  for the actions Cantus has. The dialog says so. Only the Cantus preset is authoritative —
+  claiming parity we have not verified would be worse than saying nothing.
+- **A damaged file never stops the app**: unknown ids and unreadable shortcuts are logged
+  and skipped, and something that is not TOML falls back to the default map.
+- Views no longer read keys. The piano-roll tooltips ask `Keymap::display_for`, so they
+  show whatever is bound today instead of a typed-in "P / 1". `Tool::shortcut()` and
+  `Tool::key()` are gone; `Tool::action()` replaces them.
+- Mouse and wheel modifiers are not bindings and are not in the file; they are listed
+  below the scrolling list — not inside it, where a newcomer would never scroll far enough
+  to find them.
+- `cantus --shortcuts` opens the editor at startup, next to the existing `--mixer`. Both
+  exist so a look at a view does not depend on driving menus.
 
 ## Named layouts (round 6)
 
@@ -134,8 +165,8 @@ Ordered plan, each step shippable on its own:
    sizes, panel visibility and *Reset layout* — see "Named layouts" above. Still open from
    this step: per-view zoom presets and configurable clip colours (track colours are
    already editable in the inspector).
-4. **Keyboard map file** — every shortcut in a `keymap.toml` (FL / Live / Bitwig presets),
-   editable in a Settings dialog with conflict detection.
+4. ~~**Keyboard map file**~~ **done (round 7)** — see "The keymap" above. The editor is a
+   self-contained window today; the settings dialog will host it rather than redefine it.
 5. **Settings dialog** — audio device / sample rate / buffer, MIDI ports, theme, language,
    keymap, autosave interval.
 6. **Piano roll polish** — scale highlighting + snap-to-scale, ghost notes, chord stamps,
@@ -143,9 +174,9 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. The design & personalization plan above — **next: the keymap file** (`keymap.toml`
-   with FL / Live / Bitwig presets and conflict detection), then the settings dialog, then
-   piano roll polish.
+1. The design & personalization plan above — **next: the settings dialog** (audio device,
+   sample rate and buffer — `AudioConfig` already supports them — MIDI ports, theme,
+   language, autosave interval, and the keymap editor folded in), then piano roll polish.
 2. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
 3. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
 4. More native devices: EQ, compressor, chorus; a sampler instrument.
@@ -177,6 +208,9 @@ Ordered plan, each step shippable on its own:
 - A new colour token goes in `Palette`, in `Theme` with `#[serde(default)]`, **and** in
   `Theme::fill_missing`, so older `theme.json` files keep loading and get the new token
   written back for the user to edit.
+- No view reads keys. A view that wants a shortcut adds a `keymap::Action` and a
+  `run_action` arm; a view that wants to *show* one asks `Keymap::display_for`. Adding an
+  action also means an `action.<id>` string in both locales.
 - Anything a test writes to disk must go through a `tempfile::tempdir()`. `CantusApp`'s
   `layouts_path` is public so tests can redirect it; never let a test write to the real
   `%LOCALAPPDATA%/Cantus`.

@@ -85,16 +85,18 @@ impl Tool {
         Tool::ALL.iter().position(|t| *t == self).unwrap_or(0) as u8 + 1
     }
 
-    /// FL Studio letter shortcut.
-    pub fn shortcut(self) -> char {
+    /// The keymap action that selects this tool, so the toolbar can show whatever
+    /// shortcut is actually bound rather than a hard-coded letter.
+    pub fn action(self) -> crate::keymap::Action {
+        use crate::keymap::Action;
         match self {
-            Tool::Draw => 'P',
-            Tool::Paint => 'B',
-            Tool::Select => 'E',
-            Tool::Delete => 'D',
-            Tool::Mute => 'T',
-            Tool::Slice => 'C',
-            Tool::Playback => 'Y',
+            Tool::Draw => Action::ToolDraw,
+            Tool::Paint => Action::ToolPaint,
+            Tool::Select => Action::ToolSelect,
+            Tool::Delete => Action::ToolDelete,
+            Tool::Mute => Action::ToolMute,
+            Tool::Slice => Action::ToolSlice,
+            Tool::Playback => Action::ToolPlayback,
         }
     }
 
@@ -459,12 +461,13 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, clip: &cantus_core::Clip) {
         ui.separator();
         for tool in Tool::ALL {
             let selected = app.piano_roll.tool == tool;
-            let tip = format!(
-                "{} ({} / {})",
-                t(tool.label_key()),
-                tool.shortcut(),
-                tool.number()
-            );
+            // Show the shortcut that is bound right now, not the one that shipped.
+            let keys = app.keymap.display_for(tool.action());
+            let tip = if keys.is_empty() {
+                t(tool.label_key())
+            } else {
+                format!("{} ({keys})", t(tool.label_key()))
+            };
             if crate::icons::button(ui, tool.icon(), selected, tip).clicked() {
                 app.piano_roll.tool = tool;
             }

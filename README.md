@@ -39,6 +39,9 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **Named layouts**: size the panels how you like, hide the ones you are not using, save
   the shape under a name and switch between them from *View → Layout*. Panel sizes survive
   a restart.
+- **Every shortcut is yours** (ADR 0010): `keymap.toml` holds them all, with presets
+  modelled on FL Studio, Ableton Live and Bitwig, and an editor under *Help → Shortcuts*
+  that flags conflicts.
 - The AI layer skeleton: provider trait, tool catalogue, permissions and a command bridge,
   so an agent can only act through the same undoable commands as a mouse click.
 
@@ -50,6 +53,7 @@ cargo run --release -p cantus -- --stress        # 160 000-note stress project (
 cargo run --release -p cantus -- --locale es
 cargo run --release -p cantus -- song.cantus
 cargo run --release -p cantus -- --mixer --window 1200 760   # start in the mixer, fixed size
+cargo run --release -p cantus -- --shortcuts                 # open the shortcuts editor
 ```
 
 Requires stable Rust 1.85 or newer. No system libraries are needed on Windows or macOS;
@@ -65,6 +69,12 @@ upgraded in place on load, so new colour tokens appear in your file ready to edi
 
 Type, spacing and elevation are **not** in that file: they are the product's design
 system (`crates/cantus-ui/src/design.rs`), and ADR 0009 explains the split.
+
+Keyboard shortcuts live next to it in `keymap.toml` — plain TOML with comments, written
+on first run. *Help → Shortcuts* edits it: choose a preset, click a shortcut to clear it,
+click *Add* and press the keys you want. Conflicts are shown in red. The presets for other
+DAWs follow their conventions for the actions Cantus has; they are a starting point, not a
+copy.
 
 Window layouts live next to it in `layouts.json`. *View → Layout* saves the current shape
 under a name, switches between saved shapes, toggles the arrangement and inspector panels,
@@ -103,7 +113,14 @@ unmodified — "IBM Plex" is a Reserved Font Name (ADR 0009).
 
 ## Keyboard
 
+These are the defaults; every one of them is rebindable in `keymap.toml` or under
+*Help → Shortcuts* (ADR 0010).
+
 Space play/stop · R record · Home to start · Ctrl+Z/Y undo/redo · Ctrl+S save · Ctrl+O open ·
 Ctrl+N new · Ctrl+E export WAV · Ctrl+L loop · Ctrl+M metronome · Delete · Ctrl+A ·
 Q quantize · P/B/E/D/T/C/Y or 1–7 tools · Ctrl+B duplicate · Ctrl+C/X/V · Arrows nudge/transpose (Shift: bar/octave) ·
-Alt no snap · Ctrl+T typing keyboard · Ctrl+scroll zoom · Shift+scroll horizontal scroll.
+Ctrl+T typing keyboard.
+
+The mouse is not rebindable: Alt while dragging ignores the grid, Shift locks the pitch,
+Ctrl locks the time, Alt+wheel edits velocity, Ctrl+wheel zooms, Shift+wheel scrolls
+sideways.

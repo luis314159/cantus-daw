@@ -10,6 +10,7 @@ pub mod design;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
+pub mod keymap;
 pub mod layout;
 pub mod recording;
 pub mod theme;
@@ -31,6 +32,8 @@ pub struct LaunchOptions {
     pub window: Option<(f32, f32)>,
     /// Start in the mixer instead of the piano roll.
     pub mixer: bool,
+    /// Open the shortcuts editor at startup (handy for a look without hunting the menu).
+    pub shortcuts: bool,
 }
 
 /// Run the desktop application until the window closes.
@@ -50,6 +53,7 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     };
     let stress = options.stress;
     let mixer = options.mixer;
+    let shortcuts = options.shortcuts;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(i18n::t("app.title"))
         .with_app_id("cantus")
@@ -72,6 +76,7 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
             if mixer {
                 app.central = app::CentralView::Mixer;
             }
+            app.show_shortcuts = shortcuts;
             Ok(Box::new(app))
         }),
     )

@@ -431,3 +431,189 @@ fn layouts_are_saved_switched_and_reset_through_the_app() {
     assert_eq!(reloaded.saved[0].name, "Mixing");
     assert!(!reloaded.current.show_inspector);
 }
+
+/// Feed one key press through a frame, exactly as a keyboard would.
+fn press(ctx: &egui::Context, a: &mut CantusApp, key: egui::Key, modifiers: egui::Modifiers) {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1200.0, 800.0),
+        )),
+        // `RawInput` carries no modifier state of its own: it arrives with the events.
+        events: vec![
+            egui::Event::ModifiersChanged(modifiers),
+            egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            },
+        ],
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| {
+        a.global_shortcuts(ui.ctx());
+    })
+    .textures_delta
+    .clear();
+}
+
+#[test]
+fn the_keymap_drives_what_the_keyboard_does() {
+    use cantus_ui::keymap::{Action, Binding, Preset};
+    use cantus_ui::views::piano_roll::Tool;
+
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let none = egui::Modifiers::default();
+    let cmd = egui::Modifiers {
+        command: true,
+        ..Default::default()
+    };
+
+    // A bare letter picks a tool.
+    a.piano_roll.tool = Tool::Draw;
+    press(&ctx, &mut a, egui::Key::C, none);
+    assert_eq!(a.piano_roll.tool, Tool::Slice, "C is the slice tool");
+
+    // Ctrl+A is a different binding from A, and reaches a different action.
+    a.selected_notes.clear();
+    press(&ctx, &mut a, egui::Key::A, cmd);
+    assert!(!a.selected_notes.is_empty(), "Ctrl+A selects all notes");
+
+    // While the typing piano owns the letters, bare letters stop switching tools — which
+    // is why every tool also sits on a number.
+    a.keyboard_piano = true;
+    a.piano_roll.tool = Tool::Draw;
+    press(&ctx, &mut a, egui::Key::C, none);
+    assert_eq!(a.piano_roll.tool, Tool::Draw, "the piano owns the letters");
+    press(&ctx, &mut a, egui::Key::Num6, none);
+    assert_eq!(a.piano_roll.tool, Tool::Slice, "numbers still switch tools");
+    // Modified letters are never the piano's.
+    a.selected_notes.clear();
+    press(&ctx, &mut a, egui::Key::A, cmd);
+    assert!(
+        !a.selected_notes.is_empty(),
+        "Ctrl+A works with the piano on"
+    );
+    a.keyboard_piano = false;
+
+    // Rebinding really changes what the key does.
+    a.keymap.bind(Action::ToolMute, Binding::key(egui::Key::C));
+    a.piano_roll.tool = Tool::Draw;
+    press(&ctx, &mut a, egui::Key::C, none);
+    assert_eq!(
+        a.piano_roll.tool,
+        Tool::Mute,
+        "C was rebound to the mute tool"
+    );
+
+    // And a preset switch changes a whole set at once: Live puts the pencil on B.
+    a.keymap = Preset::Live.keymap();
+    a.piano_roll.tool = Tool::Slice;
+    press(&ctx, &mut a, egui::Key::B, none);
+    assert_eq!(a.piano_roll.tool, Tool::Draw, "Live draws with B");
+}
+
+#[test]
+fn the_keymap_file_is_written_and_read_back_by_the_app() {
+    use cantus_ui::keymap::{self, Action, Binding, Keymap};
+
+    let mut a = app(starter_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.keymap_path = keymap::keymap_path(dir.path());
+
+    a.keymap.bind(Action::Panic, Binding::key(egui::Key::F1));
+    a.store_keymap();
+    assert!(a.keymap_path.exists());
+
+    let back = Keymap::load(&a.keymap_path);
+    assert_eq!(
+        back.bindings_for(Action::Panic),
+        [Binding::key(egui::Key::F1)]
+    );
+    assert!(back.conflicts().is_empty());
+}
+
+/// All the text painted in a frame, however deeply egui nested the shapes.
+fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> String {
+    fn walk(shape: &egui::Shape, out: &mut String) {
+        match shape {
+            egui::Shape::Text(t) => {
+                out.push_str(t.galley.text());
+                out.push_str(" | ");
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = String::new();
+    for s in shapes {
+        walk(&s.shape, &mut out);
+    }
+    out
+}
+
+#[test]
+fn every_dialog_renders_what_it_should_say() {
+    // Dialogs are the easiest place for a missing text style or a bad layout to hide,
+    // because nothing else opens them.
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    a.show_about = true;
+    a.show_shortcuts = true;
+    a.naming_layout = Some("Mixing".into());
+
+    // egui lays a window out on one frame and paints it on the next, so read the second.
+    ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()))
+        .textures_delta
+        .clear();
+    let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    for expected in [
+        "Cantus",                   // About
+        "Keyboard shortcuts",       // the editor's title
+        "Play / pause",             // an action label, so the list really rendered
+        "Ctrl+Shift+S",             // a binding, so display_for really rendered
+        "Alt+wheel edits velocity", // the mouse help a keymap cannot express
+        "Layout name",              // the layout naming prompt
+    ] {
+        assert!(
+            text.contains(expected),
+            "no dialog painted {expected:?}; painted:
+{text}"
+        );
+    }
+
+    // The editor must survive a keymap that is already broken, and say so.
+    a.keymap.bind(
+        cantus_ui::keymap::Action::Panic,
+        cantus_ui::keymap::Binding::key(egui::Key::Q),
+    );
+    a.keymap
+        .bindings
+        .entry(cantus_ui::keymap::Action::Quantize)
+        .or_default()
+        .push(cantus_ui::keymap::Binding::key(egui::Key::Q));
+    assert_eq!(a.keymap.conflicts().len(), 1);
+    ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()))
+        .textures_delta
+        .clear();
+    let mut out = ctx.run_ui(input, |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    assert!(
+        text.contains("more than one action"),
+        "a conflicting keymap must be reported in the dialog; painted:
+{text}"
+    );
+}

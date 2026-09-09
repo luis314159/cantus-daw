@@ -30,6 +30,8 @@ cantus-ui = { path = "crates/cantus-ui" }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+# The keymap is TOML, not JSON: it is a file people edit by hand, and it wants comments.
+toml = "0.9"
 
 # Real-time communication
 rtrb = "0.4"

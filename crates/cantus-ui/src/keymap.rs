@@ -1,0 +1,956 @@
+//! The keyboard map: every shortcut in one editable file.
+//!
+//! Musicians arrive from other DAWs with a decade of muscle memory, so Cantus keeps no
+//! shortcut hard-coded in the views. An [`Action`] is a thing the application can do; a
+//! [`Binding`] is a key plus modifiers; a [`Keymap`] joins them and lives in
+//! `keymap.toml` next to the theme and the layouts.
+//!
+//! Three things are worth knowing before changing this module:
+//!
+//! - **Modifiers match exactly.** `Ctrl+Z` must not fire when the user presses
+//!   `Ctrl+Shift+Z`, because that is Redo. Every comparison is on the whole modifier
+//!   triple, never "contains".
+//! - **Letter shortcuts yield to the typing piano.** When the computer keyboard is playing
+//!   notes it owns the letter keys, so bindings without a modifier are suppressed
+//!   ([`Keymap::pressed`] takes that as an argument). That is a mode, not a conflict, and
+//!   it is why the tool actions also have number bindings.
+//! - **The presets for other DAWs are approximations.** They follow each program's
+//!   conventions for the actions Cantus actually has; they are a starting point to edit,
+//!   not a claim of parity. Only [`Preset::Cantus`] is authoritative.
+
+use egui::{Key, Modifiers};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fmt;
+use std::path::{Path, PathBuf};
+
+// ---- actions ------------------------------------------------------------------------
+
+/// Everything the keyboard can ask the application to do.
+///
+/// The string form is the key in `keymap.toml` and must stay stable: renaming one silently
+/// unbinds it in everybody's file. Adding one is free — it simply has no binding until a
+/// preset or the user gives it one.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Action {
+    // Transport
+    PlayPause,
+    Stop,
+    Record,
+    ToStart,
+    ToggleLoop,
+    ToggleMetronome,
+    Panic,
+    // File
+    NewProject,
+    Open,
+    Save,
+    SaveAs,
+    ExportWav,
+    // Edit
+    Undo,
+    Redo,
+    Cut,
+    Copy,
+    Paste,
+    Duplicate,
+    SelectAll,
+    Delete,
+    Quantize,
+    ClearSelection,
+    // Notes
+    NudgeLeft,
+    NudgeRight,
+    NudgeLeftBar,
+    NudgeRightBar,
+    TransposeUp,
+    TransposeDown,
+    TransposeOctaveUp,
+    TransposeOctaveDown,
+    // Tools
+    ToolDraw,
+    ToolPaint,
+    ToolSelect,
+    ToolDelete,
+    ToolMute,
+    ToolSlice,
+    ToolPlayback,
+    // View
+    ToggleTypingPiano,
+}
+
+/// How the shortcuts dialog groups the list.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Category {
+    Transport,
+    File,
+    Edit,
+    Notes,
+    Tools,
+    View,
+}
+
+impl Category {
+    pub const ALL: [Category; 6] = [
+        Category::Transport,
+        Category::File,
+        Category::Edit,
+        Category::Notes,
+        Category::Tools,
+        Category::View,
+    ];
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Category::Transport => "keymap.cat.transport",
+            Category::File => "keymap.cat.file",
+            Category::Edit => "keymap.cat.edit",
+            Category::Notes => "keymap.cat.notes",
+            Category::Tools => "keymap.cat.tools",
+            Category::View => "keymap.cat.view",
+        }
+    }
+}
+
+impl Action {
+    pub const ALL: [Action; 38] = [
+        Action::PlayPause,
+        Action::Stop,
+        Action::Record,
+        Action::ToStart,
+        Action::ToggleLoop,
+        Action::ToggleMetronome,
+        Action::Panic,
+        Action::NewProject,
+        Action::Open,
+        Action::Save,
+        Action::SaveAs,
+        Action::ExportWav,
+        Action::Undo,
+        Action::Redo,
+        Action::Cut,
+        Action::Copy,
+        Action::Paste,
+        Action::Duplicate,
+        Action::SelectAll,
+        Action::Delete,
+        Action::Quantize,
+        Action::ClearSelection,
+        Action::NudgeLeft,
+        Action::NudgeRight,
+        Action::NudgeLeftBar,
+        Action::NudgeRightBar,
+        Action::TransposeUp,
+        Action::TransposeDown,
+        Action::TransposeOctaveUp,
+        Action::TransposeOctaveDown,
+        Action::ToolDraw,
+        Action::ToolPaint,
+        Action::ToolSelect,
+        Action::ToolDelete,
+        Action::ToolMute,
+        Action::ToolSlice,
+        Action::ToolPlayback,
+        Action::ToggleTypingPiano,
+    ];
+
+    /// The stable id used in `keymap.toml`.
+    pub fn id(self) -> &'static str {
+        match self {
+            Action::PlayPause => "play-pause",
+            Action::Stop => "stop",
+            Action::Record => "record",
+            Action::ToStart => "to-start",
+            Action::ToggleLoop => "toggle-loop",
+            Action::ToggleMetronome => "toggle-metronome",
+            Action::Panic => "panic",
+            Action::NewProject => "new-project",
+            Action::Open => "open",
+            Action::Save => "save",
+            Action::SaveAs => "save-as",
+            Action::ExportWav => "export-wav",
+            Action::Undo => "undo",
+            Action::Redo => "redo",
+            Action::Cut => "cut",
+            Action::Copy => "copy",
+            Action::Paste => "paste",
+            Action::Duplicate => "duplicate",
+            Action::SelectAll => "select-all",
+            Action::Delete => "delete",
+            Action::Quantize => "quantize",
+            Action::ClearSelection => "clear-selection",
+            Action::NudgeLeft => "nudge-left",
+            Action::NudgeRight => "nudge-right",
+            Action::NudgeLeftBar => "nudge-left-bar",
+            Action::NudgeRightBar => "nudge-right-bar",
+            Action::TransposeUp => "transpose-up",
+            Action::TransposeDown => "transpose-down",
+            Action::TransposeOctaveUp => "transpose-octave-up",
+            Action::TransposeOctaveDown => "transpose-octave-down",
+            Action::ToolDraw => "tool-draw",
+            Action::ToolPaint => "tool-paint",
+            Action::ToolSelect => "tool-select",
+            Action::ToolDelete => "tool-delete",
+            Action::ToolMute => "tool-mute",
+            Action::ToolSlice => "tool-slice",
+            Action::ToolPlayback => "tool-playback",
+            Action::ToggleTypingPiano => "toggle-typing-piano",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Action> {
+        Action::ALL.into_iter().find(|a| a.id() == id)
+    }
+
+    /// i18n key for the name shown in the shortcuts dialog.
+    pub fn label_key(self) -> String {
+        format!("action.{}", self.id())
+    }
+
+    pub fn category(self) -> Category {
+        use Action::*;
+        match self {
+            PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | Panic => {
+                Category::Transport
+            }
+            NewProject | Open | Save | SaveAs | ExportWav => Category::File,
+            Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
+            | ClearSelection => Category::Edit,
+            NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
+            | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
+            ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
+            | ToolPlayback => Category::Tools,
+            ToggleTypingPiano => Category::View,
+        }
+    }
+}
+
+// ---- bindings -----------------------------------------------------------------------
+
+/// A key plus the modifiers that must be held with it — exactly those, no others.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Binding {
+    pub key: Key,
+    /// Ctrl on Windows and Linux, Cmd on macOS (egui's `Modifiers::command`).
+    pub command: bool,
+    pub shift: bool,
+    pub alt: bool,
+}
+
+impl Binding {
+    pub fn key(key: Key) -> Binding {
+        Binding {
+            key,
+            command: false,
+            shift: false,
+            alt: false,
+        }
+    }
+
+    pub fn cmd(key: Key) -> Binding {
+        Binding {
+            command: true,
+            ..Binding::key(key)
+        }
+    }
+
+    pub fn cmd_shift(key: Key) -> Binding {
+        Binding {
+            command: true,
+            shift: true,
+            ..Binding::key(key)
+        }
+    }
+
+    pub fn shift(key: Key) -> Binding {
+        Binding {
+            shift: true,
+            ..Binding::key(key)
+        }
+    }
+
+    /// Does this binding need no modifier? Those are the ones the typing piano takes over.
+    pub fn is_bare(&self) -> bool {
+        !self.command && !self.shift && !self.alt
+    }
+
+    fn matches(&self, m: Modifiers) -> bool {
+        // Exact match: `Ctrl+Z` must not fire on `Ctrl+Shift+Z`.
+        m.command == self.command && m.shift == self.shift && m.alt == self.alt
+    }
+
+    /// What to show the user. On macOS the command modifier is Cmd, not Ctrl.
+    pub fn display(&self) -> String {
+        let cmd = if cfg!(target_os = "macos") {
+            "Cmd"
+        } else {
+            "Ctrl"
+        };
+        let mut s = String::new();
+        if self.command {
+            s.push_str(cmd);
+            s.push('+');
+        }
+        if self.shift {
+            s.push_str("Shift+");
+        }
+        if self.alt {
+            s.push_str("Alt+");
+        }
+        s.push_str(self.key.name());
+        s
+    }
+
+    pub fn parse(text: &str) -> Option<Binding> {
+        let mut b = Binding {
+            key: Key::Space,
+            command: false,
+            shift: false,
+            alt: false,
+        };
+        let mut key = None;
+        for part in text.split('+') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            match part.to_ascii_lowercase().as_str() {
+                "ctrl" | "control" | "cmd" | "command" | "super" => b.command = true,
+                "shift" => b.shift = true,
+                "alt" | "option" => b.alt = true,
+                _ => key = Some(Key::from_name(part)?),
+            }
+        }
+        b.key = key?;
+        Some(b)
+    }
+}
+
+impl fmt::Display for Binding {
+    /// The file form, which always says `Ctrl` so a keymap is portable between machines.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.command {
+            write!(f, "Ctrl+")?;
+        }
+        if self.shift {
+            write!(f, "Shift+")?;
+        }
+        if self.alt {
+            write!(f, "Alt+")?;
+        }
+        write!(f, "{}", self.key.name())
+    }
+}
+
+// ---- presets ------------------------------------------------------------------------
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Preset {
+    Cantus,
+    FlStudio,
+    Live,
+    Bitwig,
+}
+
+impl Preset {
+    pub const ALL: [Preset; 4] = [
+        Preset::Cantus,
+        Preset::FlStudio,
+        Preset::Live,
+        Preset::Bitwig,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Preset::Cantus => "cantus",
+            Preset::FlStudio => "fl-studio",
+            Preset::Live => "live",
+            Preset::Bitwig => "bitwig",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Preset> {
+        Preset::ALL.into_iter().find(|p| p.id() == id)
+    }
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Preset::Cantus => "keymap.preset.cantus",
+            Preset::FlStudio => "keymap.preset.fl",
+            Preset::Live => "keymap.preset.live",
+            Preset::Bitwig => "keymap.preset.bitwig",
+        }
+    }
+
+    pub fn keymap(self) -> Keymap {
+        match self {
+            Preset::Cantus => cantus_keymap(),
+            Preset::FlStudio => fl_keymap(),
+            Preset::Live => live_keymap(),
+            Preset::Bitwig => bitwig_keymap(),
+        }
+    }
+}
+
+const TOOL_LETTERS: [(Action, Key); 7] = [
+    (Action::ToolDraw, Key::P),
+    (Action::ToolPaint, Key::B),
+    (Action::ToolSelect, Key::E),
+    (Action::ToolDelete, Key::D),
+    (Action::ToolMute, Key::T),
+    (Action::ToolSlice, Key::C),
+    (Action::ToolPlayback, Key::Y),
+];
+
+const TOOL_DIGITS: [(Action, Key); 7] = [
+    (Action::ToolDraw, Key::Num1),
+    (Action::ToolPaint, Key::Num2),
+    (Action::ToolSelect, Key::Num3),
+    (Action::ToolDelete, Key::Num4),
+    (Action::ToolMute, Key::Num5),
+    (Action::ToolSlice, Key::Num6),
+    (Action::ToolPlayback, Key::Num7),
+];
+
+/// The shared spine every preset starts from: the shortcuts that are the same in every DAW
+/// worth copying, because they are the same in every application.
+fn common() -> Vec<(Action, Binding)> {
+    use Action::*;
+    vec![
+        (PlayPause, Binding::key(Key::Space)),
+        (Record, Binding::key(Key::R)),
+        (ToStart, Binding::key(Key::Home)),
+        (NewProject, Binding::cmd(Key::N)),
+        (Open, Binding::cmd(Key::O)),
+        (Save, Binding::cmd(Key::S)),
+        (SaveAs, Binding::cmd_shift(Key::S)),
+        (ExportWav, Binding::cmd(Key::E)),
+        (Undo, Binding::cmd(Key::Z)),
+        (Redo, Binding::cmd(Key::Y)),
+        (Redo, Binding::cmd_shift(Key::Z)),
+        (Cut, Binding::cmd(Key::X)),
+        (Copy, Binding::cmd(Key::C)),
+        (Paste, Binding::cmd(Key::V)),
+        (SelectAll, Binding::cmd(Key::A)),
+        (Delete, Binding::key(Key::Delete)),
+        (Delete, Binding::key(Key::Backspace)),
+        (ClearSelection, Binding::key(Key::Escape)),
+        (ToggleLoop, Binding::cmd(Key::L)),
+        (ToggleMetronome, Binding::cmd(Key::M)),
+        (ToggleTypingPiano, Binding::cmd(Key::T)),
+        (NudgeLeft, Binding::key(Key::ArrowLeft)),
+        (NudgeRight, Binding::key(Key::ArrowRight)),
+        (NudgeLeftBar, Binding::shift(Key::ArrowLeft)),
+        (NudgeRightBar, Binding::shift(Key::ArrowRight)),
+        (TransposeUp, Binding::key(Key::ArrowUp)),
+        (TransposeDown, Binding::key(Key::ArrowDown)),
+        (TransposeOctaveUp, Binding::shift(Key::ArrowUp)),
+        (TransposeOctaveDown, Binding::shift(Key::ArrowDown)),
+    ]
+}
+
+/// Build a preset from the shared spine plus its own bindings.
+///
+/// A later binding takes the shortcut from whoever held it, so a preset can never conflict
+/// with itself: a preset that wants `Ctrl+E` for its own action simply displaces the spine's
+/// use of it, and is then expected to give that action another shortcut. The test
+/// `no_shipped_preset_conflicts_with_itself` is what keeps that honest.
+fn build(preset: Preset, extra: Vec<(Action, Binding)>) -> Keymap {
+    let mut map = Keymap {
+        preset: preset.id().to_string(),
+        bindings: BTreeMap::new(),
+    };
+    for (action, binding) in common().into_iter().chain(extra) {
+        for list in map.bindings.values_mut() {
+            list.retain(|b| *b != binding);
+        }
+        map.bindings.entry(action).or_default().push(binding);
+    }
+    map.bindings.retain(|_, v| !v.is_empty());
+    map
+}
+
+/// Cantus's own map: FL's tool letters, which are the most widely copied, plus number keys
+/// so the tools stay reachable while the typing piano owns the letters.
+pub fn cantus_keymap() -> Keymap {
+    let mut extra: Vec<(Action, Binding)> = vec![
+        (Action::Duplicate, Binding::cmd(Key::B)),
+        (Action::Duplicate, Binding::cmd(Key::D)),
+        (Action::Quantize, Binding::key(Key::Q)),
+    ];
+    extra.extend(TOOL_LETTERS.map(|(a, k)| (a, Binding::key(k))));
+    extra.extend(TOOL_DIGITS.map(|(a, k)| (a, Binding::key(k))));
+    build(Preset::Cantus, extra)
+}
+
+/// Modelled on FL Studio: the tool letters and `Ctrl+B` duplicate.
+pub fn fl_keymap() -> Keymap {
+    let mut extra: Vec<(Action, Binding)> = vec![
+        (Action::Duplicate, Binding::cmd(Key::B)),
+        (Action::Quantize, Binding::key(Key::Q)),
+    ];
+    extra.extend(TOOL_LETTERS.map(|(a, k)| (a, Binding::key(k))));
+    build(Preset::FlStudio, extra)
+}
+
+/// Modelled on Ableton Live: `Ctrl+D` duplicate, `Ctrl+U` quantize, `B` for the pencil,
+/// `Ctrl+E` to split. Live has no WAV-export shortcut to copy, so export steps aside to
+/// `Ctrl+Shift+E` rather than fighting the split.
+pub fn live_keymap() -> Keymap {
+    let extra: Vec<(Action, Binding)> = vec![
+        (Action::Duplicate, Binding::cmd(Key::D)),
+        (Action::Quantize, Binding::cmd(Key::U)),
+        (Action::ToolDraw, Binding::key(Key::B)),
+        (Action::ToolSelect, Binding::key(Key::V)),
+        (Action::ToolSlice, Binding::cmd(Key::E)),
+        (Action::ExportWav, Binding::cmd_shift(Key::E)),
+    ];
+    build(Preset::Live, extra)
+}
+
+/// Modelled on Bitwig Studio: tools on the number row, `Ctrl+D` duplicate.
+pub fn bitwig_keymap() -> Keymap {
+    let mut extra: Vec<(Action, Binding)> = vec![
+        (Action::Duplicate, Binding::cmd(Key::D)),
+        (Action::Quantize, Binding::cmd(Key::Q)),
+    ];
+    extra.extend(TOOL_DIGITS.map(|(a, k)| (a, Binding::key(k))));
+    build(Preset::Bitwig, extra)
+}
+
+// ---- the map ------------------------------------------------------------------------
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Keymap {
+    /// Which preset this started from. Purely informational once the user edits it.
+    pub preset: String,
+    pub bindings: BTreeMap<Action, Vec<Binding>>,
+}
+
+impl Default for Keymap {
+    fn default() -> Self {
+        cantus_keymap()
+    }
+}
+
+/// One binding claimed by more than one action.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Conflict {
+    pub binding: Binding,
+    pub actions: Vec<Action>,
+}
+
+impl Keymap {
+    pub fn bindings_for(&self, action: Action) -> &[Binding] {
+        self.bindings.get(&action).map_or(&[], |v| v.as_slice())
+    }
+
+    /// The bindings for `action`, joined for display: "Ctrl+B, Ctrl+D".
+    pub fn display_for(&self, action: Action) -> String {
+        self.bindings_for(action)
+            .iter()
+            .map(|b| b.display())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Give `action` this binding, taking it away from whoever else had it.
+    ///
+    /// Rebinding is how conflicts are avoided in the first place; [`Self::conflicts`]
+    /// exists for maps that arrive already broken, from a hand-edited file.
+    pub fn bind(&mut self, action: Action, binding: Binding) {
+        for list in self.bindings.values_mut() {
+            list.retain(|b| *b != binding);
+        }
+        self.bindings.entry(action).or_default().push(binding);
+        self.bindings.retain(|_, v| !v.is_empty());
+        self.preset = CUSTOM.to_string();
+    }
+
+    pub fn unbind(&mut self, action: Action, binding: Binding) {
+        if let Some(list) = self.bindings.get_mut(&action) {
+            list.retain(|b| *b != binding);
+            if list.is_empty() {
+                self.bindings.remove(&action);
+            }
+        }
+        self.preset = CUSTOM.to_string();
+    }
+
+    /// Bindings claimed by more than one action, with the actions that claim them. Empty
+    /// for every shipped preset — a test asserts that.
+    pub fn conflicts(&self) -> Vec<Conflict> {
+        let mut by_binding: BTreeMap<Binding, Vec<Action>> = BTreeMap::new();
+        for (action, list) in &self.bindings {
+            for b in list {
+                by_binding.entry(*b).or_default().push(*action);
+            }
+        }
+        by_binding
+            .into_iter()
+            .filter(|(_, actions)| actions.len() > 1)
+            .map(|(binding, actions)| Conflict { binding, actions })
+            .collect()
+    }
+
+    /// Which actions fired this frame.
+    ///
+    /// `letters_taken` is true while the typing piano owns the letter keys; bindings with
+    /// no modifier are then ignored, which is why every tool also has a number binding.
+    pub fn pressed(&self, ctx: &egui::Context, letters_taken: bool) -> Vec<Action> {
+        ctx.input(|i| {
+            let m = i.modifiers;
+            let mut fired = Vec::new();
+            for (action, list) in &self.bindings {
+                for b in list {
+                    if letters_taken && b.is_bare() && is_letter(b.key) {
+                        continue;
+                    }
+                    if b.matches(m) && i.key_pressed(b.key) {
+                        fired.push(*action);
+                        break;
+                    }
+                }
+            }
+            fired
+        })
+    }
+
+    // ---- file ----
+
+    pub fn load(path: &Path) -> Keymap {
+        match std::fs::read_to_string(path) {
+            Ok(text) => Keymap::from_toml(&text).unwrap_or_else(|e| {
+                log::warn!("keymap.toml is not usable ({e}); falling back to the default");
+                Keymap::default()
+            }),
+            Err(_) => Keymap::default(),
+        }
+    }
+
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(path, self.to_toml()).map_err(|e| e.to_string())
+    }
+
+    pub fn from_toml(text: &str) -> Result<Keymap, String> {
+        let file: KeymapFile = toml::from_str(text).map_err(|e| e.to_string())?;
+        let mut bindings: BTreeMap<Action, Vec<Binding>> = BTreeMap::new();
+        for (id, keys) in file.bindings {
+            // An unknown id is a keymap from a newer version, or a typo. Neither is worth
+            // refusing to start over; keep the rest and say so.
+            let Some(action) = Action::from_id(&id) else {
+                log::warn!("keymap.toml: unknown action {id:?}, ignored");
+                continue;
+            };
+            for text in keys {
+                match Binding::parse(&text) {
+                    Some(b) => bindings.entry(action).or_default().push(b),
+                    None => log::warn!("keymap.toml: cannot read the shortcut {text:?}, ignored"),
+                }
+            }
+        }
+        Ok(Keymap {
+            preset: file.preset.unwrap_or_else(|| CUSTOM.to_string()),
+            bindings,
+        })
+    }
+
+    pub fn to_toml(&self) -> String {
+        let mut out = String::new();
+        out.push_str("# Cantus keyboard map. Edit freely; the app reads it at startup.\n");
+        out.push_str("# A shortcut is a key plus modifiers, e.g. \"Ctrl+Shift+S\" or \"Space\".\n");
+        out.push_str("# Modifiers are Ctrl, Shift and Alt; on macOS Ctrl means Cmd.\n");
+        out.push_str("# An action may have several shortcuts. Delete a line to unbind it.\n\n");
+        out.push_str(&format!("preset = {:?}\n\n[bindings]\n", self.preset));
+        // Grouped by category, in the order the shortcuts dialog shows them, so a hand
+        // edit lands near the shortcuts it belongs with.
+        for category in Category::ALL {
+            let mut wrote_header = false;
+            for action in Action::ALL.into_iter().filter(|a| a.category() == category) {
+                let list = self.bindings_for(action);
+                if list.is_empty() {
+                    continue;
+                }
+                if !wrote_header {
+                    out.push_str(&format!("\n# {category:?}\n"));
+                    wrote_header = true;
+                }
+                let keys: Vec<String> = list
+                    .iter()
+                    .map(|b| format!("{:?}", b.to_string()))
+                    .collect();
+                out.push_str(&format!("{} = [{}]\n", action.id(), keys.join(", ")));
+            }
+        }
+        out
+    }
+}
+
+/// The `preset` value written once the user has edited their map by hand or in the dialog.
+pub const CUSTOM: &str = "custom";
+
+#[derive(Serialize, Deserialize)]
+struct KeymapFile {
+    preset: Option<String>,
+    #[serde(default)]
+    bindings: BTreeMap<String, Vec<String>>,
+}
+
+fn is_letter(key: Key) -> bool {
+    matches!(
+        key,
+        Key::A
+            | Key::B
+            | Key::C
+            | Key::D
+            | Key::E
+            | Key::F
+            | Key::G
+            | Key::H
+            | Key::I
+            | Key::J
+            | Key::K
+            | Key::L
+            | Key::M
+            | Key::N
+            | Key::O
+            | Key::P
+            | Key::Q
+            | Key::R
+            | Key::S
+            | Key::T
+            | Key::U
+            | Key::V
+            | Key::W
+            | Key::X
+            | Key::Y
+            | Key::Z
+    )
+}
+
+/// Where the keymap lives, next to the theme and the layouts.
+pub fn keymap_path(dir: &Path) -> PathBuf {
+    dir.join("keymap.toml")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_action_has_a_stable_id_and_a_category() {
+        let mut seen = std::collections::HashSet::new();
+        for a in Action::ALL {
+            assert!(seen.insert(a.id()), "duplicate action id {:?}", a.id());
+            assert_eq!(Action::from_id(a.id()), Some(a), "id {:?}", a.id());
+            // Every action must be reachable from its category, or the dialog hides it.
+            assert!(Category::ALL.contains(&a.category()));
+        }
+        assert_eq!(seen.len(), Action::ALL.len());
+        assert_eq!(Action::from_id("no-such-action"), None);
+    }
+
+    #[test]
+    fn bindings_round_trip_through_text() {
+        // The property that matters: whatever we write, we can read back — for every key
+        // egui knows, not just the handful someone thought to list.
+        for key in Key::ALL {
+            for (command, shift, alt) in [
+                (false, false, false),
+                (true, false, false),
+                (true, true, false),
+                (false, false, true),
+                (true, true, true),
+            ] {
+                let b = Binding {
+                    key: *key,
+                    command,
+                    shift,
+                    alt,
+                };
+                assert_eq!(Binding::parse(&b.to_string()), Some(b), "round trip of {b}");
+            }
+        }
+        // And the spellings that end up in the file, so the format stays recognisable.
+        assert_eq!(Binding::key(Key::Space).to_string(), "Space");
+        assert_eq!(Binding::cmd(Key::Z).to_string(), "Ctrl+Z");
+        assert_eq!(Binding::cmd_shift(Key::S).to_string(), "Ctrl+Shift+S");
+        // Aliases people will actually type.
+        assert_eq!(Binding::parse("cmd+z"), Binding::parse("Ctrl+Z"));
+        assert_eq!(Binding::parse("Esc"), Binding::parse("Escape"));
+        assert_eq!(Binding::parse("ArrowLeft"), Binding::parse("Left"));
+        assert_eq!(Binding::parse("nonsense+Z"), None);
+        assert_eq!(
+            Binding::parse("Ctrl"),
+            None,
+            "a modifier alone is not a shortcut"
+        );
+    }
+
+    #[test]
+    fn modifiers_must_match_exactly() {
+        let undo = Binding::cmd(Key::Z);
+        let redo = Binding::cmd_shift(Key::Z);
+        let cmd = Modifiers {
+            command: true,
+            ..Default::default()
+        };
+        let cmd_shift = Modifiers {
+            command: true,
+            shift: true,
+            ..Default::default()
+        };
+        assert!(undo.matches(cmd));
+        assert!(
+            !undo.matches(cmd_shift),
+            "Ctrl+Z must not fire on Ctrl+Shift+Z"
+        );
+        assert!(redo.matches(cmd_shift));
+        assert!(!redo.matches(cmd));
+    }
+
+    #[test]
+    fn no_shipped_preset_conflicts_with_itself() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            let conflicts = map.conflicts();
+            assert!(
+                conflicts.is_empty(),
+                "preset {} has conflicting shortcuts: {:?}",
+                preset.id(),
+                conflicts
+            );
+        }
+    }
+
+    #[test]
+    fn every_preset_binds_the_shortcuts_a_daw_cannot_be_used_without() {
+        use Action::*;
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            for action in [
+                PlayPause, Record, Save, Undo, Redo, Copy, Paste, Delete, Duplicate, Quantize,
+                ToolDraw, ToolSelect,
+            ] {
+                assert!(
+                    !map.bindings_for(action).is_empty(),
+                    "preset {} leaves {:?} unbound",
+                    preset.id(),
+                    action
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rebinding_takes_the_shortcut_away_from_its_previous_owner() {
+        let mut map = cantus_keymap();
+        let q = Binding::key(Key::Q);
+        assert_eq!(map.bindings_for(Action::Quantize), [q]);
+
+        map.bind(Action::Panic, q);
+        assert_eq!(map.bindings_for(Action::Panic), [q]);
+        assert!(
+            map.bindings_for(Action::Quantize).is_empty(),
+            "the old owner must lose it, or the map would conflict with itself"
+        );
+        assert!(map.conflicts().is_empty());
+        assert_eq!(map.preset, CUSTOM);
+
+        map.unbind(Action::Panic, q);
+        assert!(map.bindings_for(Action::Panic).is_empty());
+    }
+
+    #[test]
+    fn conflicts_are_reported_for_a_hand_broken_file() {
+        let map = Keymap::from_toml(
+            r#"
+            preset = "custom"
+            [bindings]
+            quantize = ["Q"]
+            panic = ["Q"]
+            play-pause = ["Space"]
+            "#,
+        )
+        .unwrap();
+        let conflicts = map.conflicts();
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].binding, Binding::key(Key::Q));
+        assert_eq!(conflicts[0].actions, vec![Action::Panic, Action::Quantize]);
+    }
+
+    #[test]
+    fn a_keymap_survives_a_round_trip_through_toml() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            let back = Keymap::from_toml(&map.to_toml()).unwrap();
+            assert_eq!(back, map, "preset {} did not survive TOML", preset.id());
+        }
+    }
+
+    #[test]
+    fn a_damaged_file_keeps_what_it_can_and_never_refuses_to_start() {
+        // An unknown action and an unreadable shortcut are dropped; the rest survives.
+        let map = Keymap::from_toml(
+            r#"
+            preset = "custom"
+            [bindings]
+            play-pause = ["Space"]
+            fly-to-the-moon = ["Ctrl+M"]
+            save = ["Ctrl+S", "not a key"]
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            map.bindings_for(Action::PlayPause),
+            [Binding::key(Key::Space)]
+        );
+        assert_eq!(map.bindings_for(Action::Save), [Binding::cmd(Key::S)]);
+
+        // Something that is not TOML at all is an error the caller falls back from.
+        assert!(Keymap::from_toml("{{{ not toml").is_err());
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = keymap_path(dir.path());
+        assert_eq!(
+            Keymap::load(&path),
+            Keymap::default(),
+            "a missing file is fine"
+        );
+        std::fs::write(&path, "{{{ not toml").unwrap();
+        assert_eq!(
+            Keymap::load(&path),
+            Keymap::default(),
+            "a broken file is fine"
+        );
+    }
+
+    #[test]
+    fn the_written_file_says_what_it_is_and_groups_by_category() {
+        let toml = cantus_keymap().to_toml();
+        assert!(toml.starts_with("# Cantus keyboard map."));
+        assert!(toml.contains("[bindings]"));
+        assert!(toml.contains("# Transport"));
+        assert!(toml.contains("play-pause = [\"Space\"]"));
+        assert!(toml.contains("save-as = [\"Ctrl+Shift+S\"]"));
+        // Multiple shortcuts on one action stay on one line.
+        assert!(toml.contains("redo = [\"Ctrl+Y\", \"Ctrl+Shift+Z\"]"));
+    }
+
+    #[test]
+    fn the_typing_piano_takes_the_bare_letters_but_not_the_shortcuts() {
+        let map = cantus_keymap();
+        // A tool bound to a bare letter is suppressed while the piano owns the letters,
+        // which is why the same tool is also on a number.
+        let draw = map.bindings_for(Action::ToolDraw);
+        assert!(draw.contains(&Binding::key(Key::P)));
+        assert!(draw.contains(&Binding::key(Key::Num1)));
+        assert!(Binding::key(Key::P).is_bare() && is_letter(Key::P));
+        assert!(!is_letter(Key::Num1), "numbers stay available");
+        // Modified letters are never the piano's.
+        assert!(!Binding::cmd(Key::S).is_bare());
+    }
+}

@@ -5,6 +5,7 @@
 use crate::design::{self, space, Elevation};
 use crate::i18n::{t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
+use crate::keymap::{Action, Keymap};
 use crate::layout::{self, Layouts};
 use crate::recording::{RecordedNote, Recorder};
 use crate::theme;
@@ -73,6 +74,13 @@ pub struct CantusApp {
     live_track_sent: Option<Option<TrackId>>,
     theme_watcher: Option<theme::ThemeWatcher>,
     theme_path: PathBuf,
+    /// Every shortcut, from `keymap.toml` (`crate::keymap`).
+    pub keymap: Keymap,
+    /// Where [`Self::store_keymap`] writes. Public so tests can redirect it.
+    pub keymap_path: PathBuf,
+    /// Open while the shortcuts dialog is showing; holds the action being rebound.
+    pub rebinding: Option<Action>,
+    pub show_keymap: bool,
     /// Named window layouts, and the one in use (`crate::layout`).
     pub layouts: Layouts,
     /// Where [`Self::store_layouts`] writes. Public so tests can redirect it away from the
@@ -129,6 +137,15 @@ impl CantusApp {
         let layouts_path = layout::layouts_path(&directories_fallback());
         let mut layouts = Layouts::load(&layouts_path);
         layouts.force();
+        // The keymap file is written on first run so it is there to be discovered and
+        // edited, the same way the theme is.
+        let keymap_path = crate::keymap::keymap_path(&directories_fallback());
+        let keymap = Keymap::load(&keymap_path);
+        if !keymap_path.exists() {
+            if let Err(e) = keymap.save(&keymap_path) {
+                log::warn!("cannot write keymap file: {e}");
+            }
+        }
         theme::apply(&loaded, &cc.egui_ctx);
         let engine = match EngineHandle::start(&AudioConfig::default()) {
             Ok(e) => e,
@@ -141,6 +158,8 @@ impl CantusApp {
         app.central = layouts.current.central.into();
         app.layouts = layouts;
         app.layouts_path = layouts_path;
+        app.keymap = keymap;
+        app.keymap_path = keymap_path;
         app.theme_watcher = Some(theme::ThemeWatcher::new(theme_path.clone()));
         app.theme_path = theme_path;
         app.theme_ctx = Some(cc.egui_ctx.clone());
@@ -186,6 +205,10 @@ impl CantusApp {
             theme_watcher: None,
             theme_path: directories_fallback().join("theme.json"),
             theme_ctx: None,
+            keymap: Keymap::default(),
+            keymap_path: crate::keymap::keymap_path(&directories_fallback()),
+            rebinding: None,
+            show_keymap: false,
             layouts: Layouts::default(),
             layouts_path: layout::layouts_path(&directories_fallback()),
             naming_layout: None,
@@ -337,6 +360,18 @@ impl CantusApp {
             log::warn!("cannot write layouts file: {e}");
         }
         self.set_status(t("layout.was_reset"));
+    }
+
+    pub fn store_keymap(&mut self) {
+        if let Err(e) = self.keymap.save(&self.keymap_path) {
+            log::warn!("cannot write keymap file: {e}");
+        }
+    }
+
+    pub fn apply_keymap_preset(&mut self, preset: crate::keymap::Preset) {
+        self.keymap = preset.keymap();
+        self.store_keymap();
+        self.set_status(t(preset.label_key()));
     }
 
     pub fn set_status(&mut self, text: String) {
@@ -821,20 +856,15 @@ impl CantusApp {
     /// Show the theme file in the OS file manager so the user can edit it.
     pub fn reveal_theme_file(&mut self) {
         let path = self.theme_path.clone();
-        #[cfg(target_os = "windows")]
-        let result = std::process::Command::new("explorer")
-            .arg(format!("/select,{}", path.display()))
-            .spawn();
-        #[cfg(target_os = "macos")]
-        let result = std::process::Command::new("open")
-            .arg("-R")
-            .arg(&path)
-            .spawn();
-        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-        let result = std::process::Command::new("xdg-open")
-            .arg(path.parent().unwrap_or(&path))
-            .spawn();
-        match result {
+        match reveal(&path) {
+            Ok(_) => self.set_status(tf("status.theme_file", &[("path", &path.display())])),
+            Err(e) => self.set_error(e.to_string()),
+        }
+    }
+
+    pub fn reveal_keymap_file(&mut self) {
+        let path = self.keymap_path.clone();
+        match reveal(&path) {
             Ok(_) => self.set_status(tf("status.theme_file", &[("path", &path.display())])),
             Err(e) => self.set_error(e.to_string()),
         }
@@ -1259,168 +1289,85 @@ impl CantusApp {
         }
     }
 
-    fn global_shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() {
+    /// Turn this frame's key presses into actions, then run them.
+    ///
+    /// Nothing here knows which key does what — that is `keymap.toml` (ADR 0010). The one
+    /// piece of policy left is the typing piano: while it is on it owns the bare letter
+    /// keys, so those bindings are suppressed and the tools stay reachable on the numbers.
+    pub fn global_shortcuts(&mut self, ctx: &egui::Context) {
+        if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() {
             return;
         }
-        let (space, home, cmd, z, y, s, o, n, e, a, del, q, l, m, shift) = ctx.input(|i| {
-            use egui::Key;
-            (
-                i.key_pressed(Key::Space),
-                i.key_pressed(Key::Home),
-                i.modifiers.command,
-                i.key_pressed(Key::Z),
-                i.key_pressed(Key::Y),
-                i.key_pressed(Key::S),
-                i.key_pressed(Key::O),
-                i.key_pressed(Key::N),
-                i.key_pressed(Key::E),
-                i.key_pressed(Key::A),
-                i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace),
-                i.key_pressed(Key::Q),
-                i.key_pressed(Key::L),
-                i.key_pressed(Key::M),
-                i.modifiers.shift,
-            )
-        });
-        let r = ctx.input(|i| i.key_pressed(egui::Key::R));
-        if r && !cmd {
-            self.toggle_record();
+        for action in self.keymap.pressed(ctx, self.keyboard_piano) {
+            self.run_action(action);
         }
-        // Tools: number keys (Bitwig convention; letters are taken by the typing piano).
-        let digit = ctx.input(|i| {
-            use egui::Key;
-            [
-                Key::Num1,
-                Key::Num2,
-                Key::Num3,
-                Key::Num4,
-                Key::Num5,
-                Key::Num6,
-                Key::Num7,
-            ]
-            .iter()
-            .position(|k| i.key_pressed(*k))
-        });
-        if let (Some(d), false) = (digit, cmd) {
-            if let Some(tool) = views::piano_roll::Tool::ALL.get(d) {
-                self.piano_roll.tool = *tool;
-            }
-        }
-        // FL letters, only while the typing piano is not claiming the letter keys.
-        if !cmd && !self.keyboard_piano {
-            let picked = ctx.input(|i| {
-                views::piano_roll::Tool::ALL
-                    .iter()
-                    .copied()
-                    .find(|t| i.key_pressed(t.key()))
-            });
-            if let Some(tool) = picked {
-                self.piano_roll.tool = tool;
-            }
-        }
-        let (b, d, c, v, x, tkey, esc, left, right, up, down) = ctx.input(|i| {
-            use egui::Key;
-            (
-                i.key_pressed(Key::B),
-                i.key_pressed(Key::D),
-                i.key_pressed(Key::C),
-                i.key_pressed(Key::V),
-                i.key_pressed(Key::X),
-                i.key_pressed(Key::T),
-                i.key_pressed(Key::Escape),
-                i.key_pressed(Key::ArrowLeft),
-                i.key_pressed(Key::ArrowRight),
-                i.key_pressed(Key::ArrowUp),
-                i.key_pressed(Key::ArrowDown),
-            )
-        });
-        if cmd && (b || d) {
-            self.duplicate_selection();
-        }
-        if cmd && c {
-            self.copy_selection();
-        }
-        if cmd && x {
-            self.cut_selection();
-        }
-        if cmd && v {
-            self.paste_clipboard();
-        }
-        if cmd && tkey {
-            self.keyboard_piano = !self.keyboard_piano;
-            for ev in self.keyboard.release_all() {
-                self.apply_key_event(ev);
-            }
-        }
-        if esc {
-            self.selected_notes.clear();
-        }
-        let grid = self.piano_roll.grid;
-        let step = if shift {
-            self.project().time_signature.ticks_per_bar()
-        } else {
-            grid
-        };
-        if left {
-            self.nudge_selection(-step);
-        }
-        if right {
-            self.nudge_selection(step);
-        }
-        if up {
-            self.transpose_selection(if shift { 12 } else { 1 });
-        }
-        if down {
-            self.transpose_selection(if shift { -12 } else { -1 });
-        }
-        if space {
-            self.toggle_play();
-        }
-        if home {
-            self.seek(Ticks::ZERO);
-        }
-        if cmd && z && shift || cmd && y {
-            self.redo();
-        } else if cmd && z {
-            self.undo();
-        }
-        if cmd && s {
-            if shift {
-                self.save_as();
-            } else {
-                self.save();
-            }
-        }
-        if cmd && o {
-            self.open_dialog();
-        }
-        if cmd && n {
-            self.new_project();
-        }
-        if cmd && e {
-            self.export_dialog();
-        }
-        if cmd && a {
-            self.select_all_notes();
-        }
-        if cmd && l {
-            let enabled = !self.project().loop_enabled;
-            self.exec(Command::SetLoopEnabled { enabled });
-        }
-        if cmd && m {
-            let enabled = !self.project().metronome;
-            self.exec(Command::SetMetronome { enabled });
-        }
-        if del {
-            self.delete_selection();
-        }
-        if q && !cmd {
-            self.quantize_selection();
-        }
-        if !cmd && self.keyboard_piano {
+        if self.keyboard_piano {
             for ev in self.keyboard.poll(ctx) {
                 self.apply_key_event(ev);
+            }
+        }
+    }
+
+    /// Do one thing. Every path into this — a shortcut, a menu item, a future script or
+    /// MCP call — goes through the same match, so a binding can never do something a menu
+    /// item cannot.
+    pub fn run_action(&mut self, action: Action) {
+        use Action::*;
+        match action {
+            PlayPause => self.toggle_play(),
+            Stop => self.stop(),
+            Record => self.toggle_record(),
+            ToStart => self.seek(Ticks::ZERO),
+            ToggleLoop => {
+                let enabled = !self.project().loop_enabled;
+                self.exec(Command::SetLoopEnabled { enabled });
+            }
+            ToggleMetronome => {
+                let enabled = !self.project().metronome;
+                self.exec(Command::SetMetronome { enabled });
+            }
+            Panic => self.engine.panic(),
+            NewProject => self.new_project(),
+            Open => self.open_dialog(),
+            Save => self.save(),
+            SaveAs => self.save_as(),
+            ExportWav => self.export_dialog(),
+            Undo => self.undo(),
+            Redo => self.redo(),
+            Cut => self.cut_selection(),
+            Copy => self.copy_selection(),
+            Paste => self.paste_clipboard(),
+            Duplicate => self.duplicate_selection(),
+            SelectAll => self.select_all_notes(),
+            Delete => self.delete_selection(),
+            Quantize => self.quantize_selection(),
+            ClearSelection => self.selected_notes.clear(),
+            NudgeLeft => self.nudge_selection(-self.piano_roll.grid),
+            NudgeRight => self.nudge_selection(self.piano_roll.grid),
+            NudgeLeftBar => {
+                let bar = self.project().time_signature.ticks_per_bar();
+                self.nudge_selection(-bar);
+            }
+            NudgeRightBar => {
+                let bar = self.project().time_signature.ticks_per_bar();
+                self.nudge_selection(bar);
+            }
+            TransposeUp => self.transpose_selection(1),
+            TransposeDown => self.transpose_selection(-1),
+            TransposeOctaveUp => self.transpose_selection(12),
+            TransposeOctaveDown => self.transpose_selection(-12),
+            ToolDraw => self.piano_roll.tool = views::piano_roll::Tool::Draw,
+            ToolPaint => self.piano_roll.tool = views::piano_roll::Tool::Paint,
+            ToolSelect => self.piano_roll.tool = views::piano_roll::Tool::Select,
+            ToolDelete => self.piano_roll.tool = views::piano_roll::Tool::Delete,
+            ToolMute => self.piano_roll.tool = views::piano_roll::Tool::Mute,
+            ToolSlice => self.piano_roll.tool = views::piano_roll::Tool::Slice,
+            ToolPlayback => self.piano_roll.tool = views::piano_roll::Tool::Playback,
+            ToggleTypingPiano => {
+                self.keyboard_piano = !self.keyboard_piano;
+                for ev in self.keyboard.release_all() {
+                    self.apply_key_event(ev);
+                }
             }
         }
     }
@@ -1518,7 +1465,162 @@ impl CantusApp {
         });
     }
 
-    fn dialogs(&mut self, ctx: &egui::Context) {
+    /// The shortcuts editor: every action, what it is bound to, and a click to rebind.
+    fn keymap_dialog(&mut self, ctx: &egui::Context) {
+        use crate::keymap::{Category, Preset};
+
+        // A rebind in progress swallows the next key press, so read it before the widgets
+        // get a chance to act on it.
+        if let Some(action) = self.rebinding {
+            if let Some(binding) = captured_binding(ctx) {
+                self.keymap.bind(action, binding);
+                self.store_keymap();
+                self.rebinding = None;
+            } else if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.rebinding = None;
+            }
+        }
+
+        let mut open = self.show_shortcuts;
+        let mut open_file = false;
+        let mut apply_preset: Option<Preset> = None;
+        let mut rebind: Option<Action> = None;
+        let mut unbind: Option<(Action, crate::keymap::Binding)> = None;
+        let conflicts = self.keymap.conflicts();
+
+        egui::Window::new(t("keymap.title"))
+            .collapsible(false)
+            .open(&mut open)
+            .default_size([space::GRID * 150.0, space::GRID * 140.0])
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(t("keymap.preset"));
+                    for preset in Preset::ALL {
+                        let selected = self.keymap.preset == preset.id();
+                        if ui
+                            .selectable_label(selected, t(preset.label_key()))
+                            .clicked()
+                        {
+                            apply_preset = Some(preset);
+                        }
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        open_file = ui.button(t("keymap.open_file")).clicked();
+                    });
+                });
+                ui.label(
+                    egui::RichText::new(t("keymap.approximate"))
+                        .text_style(design::caption())
+                        .color(theme::p().text_dim),
+                );
+                if !conflicts.is_empty() {
+                    ui.label(
+                        egui::RichText::new(tf("keymap.conflicts", &[("n", &conflicts.len())]))
+                            .text_style(design::strong())
+                            .color(theme::p().danger),
+                    );
+                }
+                ui.separator();
+
+                // The list scrolls; the mouse help below it does not, because it is the
+                // part a newcomer needs and would never scroll far enough to find.
+                egui::ScrollArea::vertical()
+                    .max_height(space::GRID * 88.0)
+                    .show(ui, |ui| {
+                        for category in Category::ALL {
+                            ui.add_space(space::S2);
+                            ui.label(
+                                egui::RichText::new(t(category.label_key()).to_uppercase())
+                                    .text_style(design::caption())
+                                    .color(theme::p().text_dim),
+                            );
+                            // A grid, not a row of fixed widths: it sizes the name column
+                            // to the longest name in the category, so the shortcuts line
+                            // up however long the labels are in the current language.
+                            egui::Grid::new(category.label_key())
+                                .num_columns(2)
+                                .spacing([space::S3, space::S1])
+                                .min_row_height(space::ROW)
+                                .show(ui, |ui| {
+                                    for action in
+                                        Action::ALL.into_iter().filter(|a| a.category() == category)
+                                    {
+                                        ui.label(t(&action.label_key()));
+                                        ui.horizontal(|ui| {
+                                            let bindings =
+                                                self.keymap.bindings_for(action).to_vec();
+                                            for b in &bindings {
+                                                let clashes =
+                                                    conflicts.iter().any(|c| c.binding == *b);
+                                                let mut text = egui::RichText::new(b.display())
+                                                    .text_style(design::mono_small());
+                                                if clashes {
+                                                    text = text.color(theme::p().danger);
+                                                }
+                                                if ui
+                                                    .button(text)
+                                                    .on_hover_text(t("keymap.clear"))
+                                                    .clicked()
+                                                {
+                                                    unbind = Some((action, *b));
+                                                }
+                                            }
+                                            if bindings.is_empty() {
+                                                ui.label(
+                                                    egui::RichText::new(t("keymap.unbound"))
+                                                        .color(theme::p().text_dim),
+                                                );
+                                            }
+                                            let listening = self.rebinding == Some(action);
+                                            let label = if listening {
+                                                t("keymap.press")
+                                            } else {
+                                                t("keymap.add")
+                                            };
+                                            if ui.selectable_label(listening, label).clicked() {
+                                                rebind =
+                                                    if listening { None } else { Some(action) };
+                                            }
+                                        });
+                                        ui.end_row();
+                                    }
+                                });
+                        }
+                    });
+                // The things a keymap cannot express: what the mouse and wheel do.
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(t("keymap.mouse").to_uppercase())
+                        .text_style(design::caption())
+                        .color(theme::p().text_dim),
+                );
+                for line in t("shortcuts.text").split(" · ") {
+                    ui.label(egui::RichText::new(line).text_style(design::caption()));
+                }
+            });
+
+        self.show_shortcuts = open;
+        if !open {
+            self.rebinding = None;
+        }
+        if open_file {
+            self.reveal_keymap_file();
+        }
+        if let Some(preset) = apply_preset {
+            self.apply_keymap_preset(preset);
+        }
+        if let Some(action) = rebind {
+            self.rebinding = Some(action);
+        }
+        if let Some((action, binding)) = unbind {
+            self.keymap.unbind(action, binding);
+            self.store_keymap();
+        }
+    }
+
+    /// Every window that floats over the layout: About, the shortcuts editor, the layout
+    /// naming prompt. Public so headless tests can render them.
+    pub fn dialogs(&mut self, ctx: &egui::Context) {
         if self.show_about {
             egui::Window::new(t("menu.about"))
                 .collapsible(false)
@@ -1581,15 +1683,7 @@ impl CantusApp {
             self.naming_layout = if close { None } else { Some(name) };
         }
         if self.show_shortcuts {
-            egui::Window::new(t("menu.shortcuts"))
-                .collapsible(false)
-                .open(&mut self.show_shortcuts)
-                .show(ctx, |ui| {
-                    ui.set_max_width(space::GRID * 130.0);
-                    for line in t("shortcuts.text").split(" · ") {
-                        ui.label(line);
-                    }
-                });
+            self.keymap_dialog(ctx);
         }
     }
 }
@@ -1720,6 +1814,45 @@ impl eframe::App for CantusApp {
             },
         ));
     }
+}
+
+/// Show a file in the platform's file manager, selecting it where that is supported.
+fn reveal(path: &Path) -> std::io::Result<std::process::Child> {
+    #[cfg(target_os = "windows")]
+    return std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path.display()))
+        .spawn();
+    #[cfg(target_os = "macos")]
+    return std::process::Command::new("open")
+        .arg("-R")
+        .arg(path)
+        .spawn();
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    return std::process::Command::new("xdg-open")
+        .arg(path.parent().unwrap_or(path))
+        .spawn();
+}
+
+/// The first real key pressed this frame, with its modifiers — or `None` while only
+/// modifiers are held, so "Ctrl+…" can be typed without the Ctrl itself being captured.
+fn captured_binding(ctx: &egui::Context) -> Option<crate::keymap::Binding> {
+    ctx.input(|i| {
+        let m = i.modifiers;
+        i.events.iter().find_map(|e| match e {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                repeat: false,
+                ..
+            } if *key != egui::Key::Escape => Some(crate::keymap::Binding {
+                key: *key,
+                command: m.command,
+                shift: m.shift,
+                alt: m.alt,
+            }),
+            _ => None,
+        })
+    })
 }
 
 fn directories_fallback() -> PathBuf {
