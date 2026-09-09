@@ -839,3 +839,52 @@ fn stress_piano_roll_frame_cost() {
         build + tess
     );
 }
+
+#[test]
+fn the_ruler_thins_its_bar_numbers_out_when_zoomed_out() {
+    // A bar number every bar becomes an unreadable smear once a bar is a few pixels wide,
+    // which is exactly the range the zoom-out limit was lowered into.
+    let count_numbers = |px_per_beat: f32| -> usize {
+        let mut a = app(stress_project());
+        a.piano_roll.px_per_beat = px_per_beat;
+        let ctx = ctx();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1400.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        // Two frames: egui lays out on one and paints on the next.
+        ctx.run_ui(input.clone(), |ui| {
+            egui::CentralPanel::default().show(ui, |ui| views::piano_roll::show(&mut a, ui));
+        })
+        .textures_delta
+        .clear();
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| views::piano_roll::show(&mut a, ui));
+        });
+        out.textures_delta.clear();
+        // Bar numbers are the only text in the ruler that is a bare integer.
+        painted_text(&out.shapes)
+            .split(" | ")
+            .filter(|t| t.parse::<u32>().is_ok())
+            .count()
+    };
+
+    let wide = count_numbers(48.0);
+    let zoomed_out = count_numbers(0.5);
+    assert!(
+        wide > 5,
+        "at editing zoom the ruler should be numbered: {wide}"
+    );
+    assert!(
+        zoomed_out < 60,
+        "at the widest zoom the ruler painted {zoomed_out} bar numbers across 1400 px; \
+         they would overlap into a smear"
+    );
+    assert!(
+        zoomed_out > 3,
+        "the ruler stopped numbering altogether at the widest zoom"
+    );
+}

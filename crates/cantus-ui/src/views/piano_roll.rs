@@ -280,7 +280,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 .map(|p| p.x)
                 .unwrap_or(grid.left());
             let anchor = (hover_x - grid.left()) / v.px_per_beat + v.scroll_beats;
-            v.px_per_beat = (v.px_per_beat * zoom).clamp(4.0, 800.0);
+            v.px_per_beat = (v.px_per_beat * zoom).clamp(MIN_PX_PER_BEAT, MAX_PX_PER_BEAT);
             v.scroll_beats = (anchor - (hover_x - grid.left()) / v.px_per_beat).max(0.0);
         } else if scroll != egui::Vec2::ZERO {
             if mods.shift || scroll.x != 0.0 {
@@ -676,12 +676,35 @@ fn paint_keys(ui: &egui::Ui, geo: &Geo, keys: Rect) {
     );
 }
 
+/// Zoom limits, in pixels per beat.
+///
+/// The lower bound used to be 4.0, which showed about 80 bars — the limit was there
+/// because drawing that many notes was ruinous. Since notes below a few pixels became two
+/// triangles in a shared mesh (ADR 0011), 20 000 of them cost about 7 ms, so the limit can
+/// be what a musician actually wants: at 0.5 a 1 300-px grid shows some 650 bars, which is
+/// most of an hour of music, and the whole piece fits on screen.
+const MIN_PX_PER_BEAT: f32 = 0.5;
+const MAX_PX_PER_BEAT: f32 = 800.0;
+
+/// Least space between two bar numbers in the ruler. Wide enough for four digits and a
+/// gap, so the numbers stay separate at any zoom.
+const RULER_LABEL_GAP: f32 = 44.0;
+
 fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &cantus_core::Clip) {
     let p = ui.painter().with_clip_rect(ruler);
     p.rect_filled(ruler, 0.0, theme::p().panel);
     let ts = app.project().time_signature;
     let bar = ts.ticks_per_bar();
-    let first = (beats_to_ticks(geo.beats(ruler.left()).max(0.0)) + clip.start).snap_floor(bar)
+    // Zoomed out, a bar can be two pixels wide, and one number per bar becomes a smear.
+    // Thin them out by *doubling* rather than by whatever fits, so the numbers shown stay
+    // ones a musician counts in — every bar, every 2, every 4 — and never every 7th.
+    let bar_px = ticks_to_beats(bar) * geo.px_per_beat;
+    let mut bars_per_label = 1i64;
+    while bar_px * (bars_per_label as f32) < RULER_LABEL_GAP {
+        bars_per_label *= 2;
+    }
+    let step = bar * bars_per_label;
+    let first = (beats_to_ticks(geo.beats(ruler.left()).max(0.0)) + clip.start).snap_floor(step)
         - clip.start;
     let last = beats_to_ticks(geo.beats(ruler.right()));
     let mut tick = first;
@@ -696,7 +719,7 @@ fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &ca
             design::paint::ruler(),
             theme::p().text_dim,
         );
-        tick += bar;
+        tick += step;
     }
     p.hline(
         ruler.x_range(),

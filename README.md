@@ -17,7 +17,8 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **Firmus**, a built-in 16-voice subtractive polysynth (2 PolyBLEP oscillators, SVF
   filter, two ADSRs, key tracking).
 - Arrangement view (tracks, clips, mute/solo/gain/pan, loop region) and a painter-based
-  piano roll with FL-style tools (`P` Draw, `B` Paint, `E` Select, `D` Delete, `T` Mute,
+  piano roll that holds 60 fps with 20 000 notes on screen (ADR 0011) and zooms out far
+  enough to see a whole piece, with FL-style tools (`P` Draw, `B` Paint, `E` Select, `D` Delete, `T` Mute,
   `C` Slice, `Y` Play, or `1`–`7`), Shift/Ctrl/Alt modifiers, clipboard, duplicate,
   nudge/transpose, quantize.
 - Computer keyboard as a MIDI controller (`A`–`'` keys, `Z`/`X` octave) and **hardware MIDI

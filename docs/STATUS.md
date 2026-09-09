@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 9: piano roll performance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 120 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 9: piano roll performance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 121 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -79,6 +79,18 @@ changed visually — verified by screenshot.
 **Convention this establishes:** anything drawn once per note, clip, sample or automation
 point goes into a `Mesh` and gets a level-of-detail rule. Not an optimisation to remember —
 a rule, because the convenience painters cost ~10x per item.
+
+**What the speed bought:** the piano roll's zoom-out limit was 4 px/beat — about 80 bars —
+and it was there because drawing more was ruinous. It is now 0.5 px/beat
+(`MIN_PX_PER_BEAT`), so a 1 300-px grid shows some 650 bars and a whole piece fits on
+screen. That needed the ruler to thin its bar numbers out, which it now does by doubling
+(every bar, every 2, every 4 …) so the numbers shown stay ones a musician counts in, never
+every 7th; a test asserts it. Verified by running: the 20 000-note stress project at the
+widest zoom draws 6 540 notes in a 6.8 ms frame in a *debug* build, ruler legible, zero
+audio overruns.
+
+Known refinement: at that zoom the velocity lane's per-note bars overlap into a solid
+block. Truthful about density, but it could show the peak per column instead.
 
 Also fixed: `looping_wraps_and_keeps_playing` asserted `stats().overruns == 0`, which
 compares wall clock against the block budget. On a loaded machine a 1 000-block run
