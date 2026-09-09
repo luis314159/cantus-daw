@@ -22,6 +22,11 @@ pub struct Palette {
     pub text_dim: Color32,
     pub gold: Color32,
     pub gold_bright: Color32,
+    /// Keyboard focus ring (`design::paint_focus_ring`). Must contrast with every
+    /// surface, since focus can land on a widget over any of them.
+    pub focus: Color32,
+    /// Drop shadow for surfaces that float over the layout: windows and menus.
+    pub shadow: Color32,
     pub selection: Color32,
     pub danger: Color32,
     pub ok: Color32,
@@ -54,6 +59,12 @@ pub struct Theme {
     pub text_dim: String,
     pub accent: String,
     pub accent_bright: String,
+    /// Added after the first release: themes written before it fall back to the accent.
+    #[serde(default)]
+    pub focus: String,
+    /// Added after the first release; `#rrggbbaa`, so it can be translucent.
+    #[serde(default)]
+    pub shadow: String,
     pub selection: String,
     pub danger: String,
     pub ok: String,
@@ -88,8 +99,15 @@ pub fn parse_hex(s: &str) -> Option<Color32> {
     }
 }
 
+/// `#rrggbb`, or `#rrggbbaa` when the colour is translucent, so a round trip through the
+/// theme file never silently drops alpha.
 pub fn to_hex(c: Color32) -> String {
-    format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    if a == 255 {
+        format!("#{r:02x}{g:02x}{b:02x}")
+    } else {
+        format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+    }
 }
 
 impl Theme {
@@ -108,6 +126,10 @@ impl Theme {
             text_dim: c(&self.text_dim, d.text_dim),
             gold: c(&self.accent, d.gold),
             gold_bright: c(&self.accent_bright, d.gold_bright),
+            // An empty string is a theme written before these tokens existed: derive
+            // the ring from that theme's own accent rather than the default theme's.
+            focus: parse_hex(&self.focus).unwrap_or_else(|| c(&self.accent_bright, d.gold_bright)),
+            shadow: c(&self.shadow, d.shadow),
             selection: c(&self.selection, d.selection),
             danger: c(&self.danger, d.danger),
             ok: c(&self.ok, d.ok),
@@ -121,6 +143,25 @@ impl Theme {
             corner_radius: self.corner_radius,
             dark: self.dark,
         }
+    }
+
+    /// Fill in tokens a theme file written by an older version does not have, deriving
+    /// them from the colours it *does* have. Returns whether anything was filled, so the
+    /// caller can write the upgraded file back — otherwise a token added in a new release
+    /// would stay invisible to anyone still editing their old file by hand.
+    pub fn fill_missing(&mut self) -> bool {
+        let derived = self.palette();
+        let mut filled = false;
+        for (field, value) in [
+            (&mut self.focus, derived.focus),
+            (&mut self.shadow, derived.shadow),
+        ] {
+            if parse_hex(field).is_none() {
+                *field = to_hex(value);
+                filled = true;
+            }
+        }
+        filled
     }
 
     pub fn from_palette(name: &str, p: &Palette) -> Theme {
@@ -138,6 +179,8 @@ impl Theme {
             text_dim: to_hex(p.text_dim),
             accent: to_hex(p.gold),
             accent_bright: to_hex(p.gold_bright),
+            focus: to_hex(p.focus),
+            shadow: to_hex(p.shadow),
             selection: to_hex(p.selection),
             danger: to_hex(p.danger),
             ok: to_hex(p.ok),
@@ -169,6 +212,10 @@ pub const fn ink_and_gold_palette() -> Palette {
         text_dim: rgb(0x8f, 0x93, 0x9e),
         gold: rgb(0xd4, 0xa2, 0x4c),
         gold_bright: rgb(0xf2, 0xc1, 0x4e),
+        // Paler than the accent so the ring stays visible on top of a gold-filled
+        // button, which is what egui paints for a focused widget.
+        focus: rgb(0xff, 0xe4, 0xa8),
+        shadow: Color32::from_rgba_premultiplied(0, 0, 0, 0x8c),
         selection: rgb(0x7f, 0xb2, 0xff),
         danger: rgb(0xd9, 0x5d, 0x5d),
         ok: rgb(0x5c, 0xb8, 0x6e),
@@ -197,6 +244,9 @@ pub const fn parchment_palette() -> Palette {
         text_dim: rgb(0x6b, 0x66, 0x5c),
         gold: rgb(0xb0, 0x7c, 0x1e),
         gold_bright: rgb(0xd0, 0x92, 0x1c),
+        // On parchment the ring has to go *darker* than the accent to stay visible.
+        focus: rgb(0x6b, 0x45, 0x06),
+        shadow: Color32::from_rgba_premultiplied(0x1a, 0x15, 0x0e, 0x40),
         selection: rgb(0x2f, 0x6f, 0xd6),
         danger: rgb(0xc0, 0x3b, 0x3b),
         ok: rgb(0x2f, 0x8f, 0x46),
@@ -290,6 +340,10 @@ pub fn visuals(pal: &Palette) -> Visuals {
     v.widgets.open.corner_radius = r;
     v.window_corner_radius = CornerRadius::same(pal.corner_radius + 1);
     v.menu_corner_radius = CornerRadius::same(pal.corner_radius + 1);
+    // Only surfaces that float over the layout cast a shadow (design::Elevation).
+    v.window_shadow = crate::design::overlay_shadow(pal);
+    v.popup_shadow = crate::design::overlay_shadow(pal);
+    v.window_stroke = Stroke::new(1.0, pal.grid_strong);
     v
 }
 
@@ -380,6 +434,33 @@ mod tests {
             assert_eq!(back.palette(), theme.palette());
         }
         assert_eq!(ink_and_gold().palette(), ink_and_gold_palette());
+    }
+
+    #[test]
+    fn a_theme_file_missing_new_tokens_is_upgraded_in_place() {
+        // What a file written before `focus` and `shadow` existed deserializes to.
+        let mut old = ink_and_gold();
+        old.focus = String::new();
+        old.shadow = String::new();
+        old.accent_bright = "#00ff00".into();
+
+        assert!(
+            old.fill_missing(),
+            "missing tokens should be reported as filled"
+        );
+        // Derived from *this* theme's accent, not from the default theme's.
+        assert_eq!(old.focus, "#00ff00");
+        assert_eq!(parse_hex(&old.shadow), Some(ink_and_gold_palette().shadow));
+        // Alpha survives the round trip through the file.
+        assert!(
+            old.shadow.len() == 9,
+            "shadow should serialize alpha: {}",
+            old.shadow
+        );
+        assert!(
+            !old.fill_missing(),
+            "a complete theme should not be rewritten"
+        );
     }
 
     #[test]

@@ -2,13 +2,18 @@
 //! commands the arrangement headers issue, so both views always agree.
 
 use crate::app::CantusApp;
+use crate::design::{self, space};
 use crate::i18n::{t, tf};
 use crate::theme;
 use cantus_core::{linear_to_db, Command, MergeKey, TrackId};
 use egui::{pos2, vec2, Align2, FontId, Rect, RichText, Sense, Stroke, StrokeKind};
 use std::time::Instant;
 
-const STRIP_W: f32 = 92.0;
+/// Strip geometry, all on the 4-px grid (`design::space`).
+const STRIP_W: f32 = space::GRID * 24.0;
+const HEADER_H: f32 = space::ROW;
+const FADER_H: f32 = space::GRID * 40.0;
+const METER_W: f32 = space::S4;
 const HOLD_SECONDS: f32 = 1.2;
 
 #[derive(Debug, Default)]
@@ -35,11 +40,12 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(t("mixer.title"))
-                .strong()
+                .heading()
                 .color(theme::p().gold),
         );
         ui.label(
             RichText::new(tf("mixer.tracks", &[("n", &app.project().tracks.len())]))
+                .text_style(design::caption())
                 .color(theme::p().text_dim),
         );
     });
@@ -49,7 +55,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             for (i, id) in ids.iter().enumerate() {
                 strip(app, ui, *id, i);
             }
-            ui.add_space(8.0);
+            ui.add_space(space::S2);
             master_strip(app, ui, ids.len());
         });
     });
@@ -117,18 +123,20 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                 theme::p().grid
             },
         ))
-        .inner_margin(egui::Margin::same(6))
-        .corner_radius(4);
+        .inner_margin(egui::Margin::same(space::S2 as i8))
+        .corner_radius(theme::p().corner_radius);
     frame.show(ui, |ui| {
         ui.set_width(STRIP_W);
         ui.vertical_centered(|ui| {
-            // Header: colour bar + name; click selects.
-            let (rect, resp) = ui.allocate_exact_size(vec2(STRIP_W, 22.0), Sense::click());
-            ui.painter().rect_filled(
-                rect,
-                3.0,
-                color.gamma_multiply(if selected { 0.9 } else { 0.55 }),
-            );
+            // Header: colour bar + name; click selects, hover brightens.
+            let (rect, resp) = ui.allocate_exact_size(vec2(STRIP_W, HEADER_H), Sense::click());
+            let lift = match (selected, resp.hovered()) {
+                (true, _) => 0.9,
+                (false, true) => 0.72,
+                (false, false) => 0.55,
+            };
+            ui.painter()
+                .rect_filled(rect, theme::p().corner_radius, color.gamma_multiply(lift));
             ui.painter().with_clip_rect(rect).text(
                 rect.center(),
                 Align2::CENTER_CENTER,
@@ -139,16 +147,16 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
             if resp.clicked() {
                 app.select_track(id);
             }
-            ui.add_space(4.0);
+            ui.add_space(space::S1);
             // Effects count.
             ui.label(
                 RichText::new(tf("mixer.effects", &[("n", &track.effects.len())]))
-                    .small()
+                    .text_style(design::caption())
                     .color(theme::p().text_dim),
             );
             // Pan.
             let mut pan = track.pan;
-            ui.spacing_mut().slider_width = STRIP_W - 16.0;
+            ui.spacing_mut().slider_width = STRIP_W - space::S4;
             let pr = ui.add(egui::Slider::new(&mut pan, -1.0..=1.0).show_value(false));
             if pr.changed() {
                 app.exec_merging(
@@ -171,16 +179,15 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
             };
             ui.label(
                 RichText::new(pan_text)
-                    .small()
-                    .monospace()
+                    .text_style(design::mono_small())
                     .color(theme::p().text_dim),
             );
-            ui.add_space(4.0);
+            ui.add_space(space::S1);
             // Fader + meter side by side.
             ui.horizontal(|ui| {
-                ui.add_space(10.0);
+                ui.add_space(space::S3);
                 let mut gain = track.gain_db;
-                ui.spacing_mut().slider_width = 160.0;
+                ui.spacing_mut().slider_width = FADER_H;
                 let g = ui.add(
                     egui::Slider::new(&mut gain, -60.0..=12.0)
                         .vertical()
@@ -198,13 +205,12 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                 if g.double_clicked() {
                     app.exec(Command::SetTrackGain { id, gain_db: 0.0 });
                 }
-                let (rect, _) = ui.allocate_exact_size(vec2(14.0, 160.0), Sense::hover());
+                let (rect, _) = ui.allocate_exact_size(vec2(METER_W, FADER_H), Sense::hover());
                 meter(ui, rect, peak, hold);
             });
             ui.label(
                 RichText::new(format!("{:+.1} dB", track.gain_db))
-                    .small()
-                    .monospace(),
+                    .text_style(design::readout_small()),
             );
             ui.horizontal(|ui| {
                 let mut muted = track.muted;
@@ -249,13 +255,14 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
     let frame = egui::Frame::NONE
         .fill(theme::p().panel_raised)
         .stroke(Stroke::new(1.0, theme::p().gold.gamma_multiply(0.6)))
-        .inner_margin(egui::Margin::same(6))
-        .corner_radius(4);
+        .inner_margin(egui::Margin::same(space::S2 as i8))
+        .corner_radius(theme::p().corner_radius);
     frame.show(ui, |ui| {
         ui.set_width(STRIP_W);
         ui.vertical_centered(|ui| {
-            let (rect, _) = ui.allocate_exact_size(vec2(STRIP_W, 22.0), Sense::hover());
-            ui.painter().rect_filled(rect, 3.0, theme::p().gold);
+            let (rect, _) = ui.allocate_exact_size(vec2(STRIP_W, HEADER_H), Sense::hover());
+            ui.painter()
+                .rect_filled(rect, theme::p().corner_radius, theme::p().gold);
             ui.painter().text(
                 rect.center(),
                 Align2::CENTER_CENTER,
@@ -263,25 +270,24 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                 FontId::proportional(12.0),
                 theme::p().ink,
             );
-            ui.add_space(4.0);
+            ui.add_space(space::S1);
             ui.label(
                 RichText::new(t("mixer.stereo"))
-                    .small()
+                    .text_style(design::caption())
                     .color(theme::p().text_dim),
             );
             let slider_h = ui.spacing().interact_size.y + ui.spacing().item_spacing.y;
             ui.add_space(slider_h);
             ui.label(
                 RichText::new("L / R")
-                    .small()
-                    .monospace()
+                    .text_style(design::mono_small())
                     .color(theme::p().text_dim),
             );
-            ui.add_space(4.0);
+            ui.add_space(space::S1);
             ui.horizontal(|ui| {
-                ui.add_space(4.0);
+                ui.add_space(space::S1);
                 let mut gain = app.project().master.gain_db;
-                ui.spacing_mut().slider_width = 160.0;
+                ui.spacing_mut().slider_width = FADER_H;
                 let g = ui.add(
                     egui::Slider::new(&mut gain, -60.0..=12.0)
                         .vertical()
@@ -299,21 +305,19 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                 if g.double_clicked() {
                     app.exec(Command::SetMasterGain { gain_db: 0.0 });
                 }
-                let (l, _) = ui.allocate_exact_size(vec2(10.0, 160.0), Sense::hover());
+                let (l, _) = ui.allocate_exact_size(vec2(space::S2, FADER_H), Sense::hover());
                 meter(ui, l, m[0], hold);
-                let (r, _) = ui.allocate_exact_size(vec2(10.0, 160.0), Sense::hover());
+                let (r, _) = ui.allocate_exact_size(vec2(space::S2, FADER_H), Sense::hover());
                 meter(ui, r, m[1], hold);
             });
             ui.label(
                 RichText::new(format!("{:+.1} dB", app.project().master.gain_db))
-                    .small()
-                    .monospace(),
+                    .text_style(design::readout_small()),
             );
             let peak_db = linear_to_db(hold);
             ui.label(
                 RichText::new(format!("{peak_db:.1}"))
-                    .small()
-                    .monospace()
+                    .text_style(design::mono_small())
                     .color(if hold >= 1.0 {
                         theme::p().danger
                     } else {

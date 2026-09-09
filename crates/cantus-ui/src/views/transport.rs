@@ -1,6 +1,7 @@
 //! Transport bar: menus, play/stop/loop/metronome, tempo, position, undo/redo, master meter.
 
 use crate::app::CantusApp;
+use crate::design::{self, space};
 use crate::i18n::{t, tf, Locale};
 use crate::icons::{self, Icon};
 use crate::theme;
@@ -8,20 +9,33 @@ use cantus_core::{Command, MergeKey, Ticks};
 use egui::{pos2, vec2, Align2, Color32, FontId, Rect, RichText, Sense, Stroke, StrokeKind};
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
+    // Right-to-left on the outside, then left-to-right for the remainder: the meter and
+    // the project name claim their width first, so a narrow window squeezes the controls
+    // instead of letting them overrun the readouts.
     ui.horizontal(|ui| {
-        menus(app, ui);
-        ui.separator();
-        buttons(app, ui);
-        ui.separator();
-        tempo_and_position(app, ui);
-        ui.separator();
-        undo_redo(app, ui);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             master_meter(app, ui);
             ui.separator();
             let name = app.project().name.clone();
             let dirty = if app.bus.is_dirty() { " •" } else { "" };
-            ui.label(RichText::new(format!("{name}{dirty}")).color(theme::p().text_dim));
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("{name}{dirty}"))
+                        .text_style(design::caption())
+                        .color(theme::p().text_dim),
+                )
+                .truncate(),
+            );
+            ui.separator();
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                menus(app, ui);
+                ui.separator();
+                buttons(app, ui);
+                ui.separator();
+                tempo_and_position(app, ui);
+                ui.separator();
+                undo_redo(app, ui);
+            });
         });
     });
 }
@@ -172,24 +186,24 @@ fn buttons(app: &mut CantusApp, ui: &mut egui::Ui) {
     if icons::button(ui, Icon::Record, recording, t("transport.record")).clicked() {
         app.toggle_record();
     }
-    let mut looping = app.project().loop_enabled;
-    if ui.toggle_value(&mut looping, t("transport.loop")).changed() {
-        app.exec(Command::SetLoopEnabled { enabled: looping });
+    let looping = app.project().loop_enabled;
+    if icons::button(ui, Icon::Loop, looping, t("transport.loop")).clicked() {
+        app.exec(Command::SetLoopEnabled { enabled: !looping });
     }
-    let mut metro = app.project().metronome;
-    if ui
-        .toggle_value(&mut metro, t("transport.metronome"))
-        .changed()
-    {
-        app.exec(Command::SetMetronome { enabled: metro });
+    let metro = app.project().metronome;
+    if icons::button(ui, Icon::Metronome, metro, t("transport.metronome")).clicked() {
+        app.exec(Command::SetMetronome { enabled: !metro });
     }
-    let mut typing = app.keyboard_piano;
-    if ui
-        .toggle_value(&mut typing, t("transport.typing"))
-        .on_hover_text(t("transport.typing_tip"))
-        .changed()
+    let typing = app.keyboard_piano;
+    if icons::button(
+        ui,
+        Icon::Keyboard,
+        typing,
+        format!("{} — {}", t("transport.typing"), t("transport.typing_tip")),
+    )
+    .clicked()
     {
-        app.keyboard_piano = typing;
+        app.keyboard_piano = !typing;
     }
     if ui
         .small_button(t("transport.panic_short"))
@@ -220,19 +234,26 @@ fn tempo_and_position(app: &mut CantusApp, ui: &mut egui::Ui) {
     let ts = app.project().time_signature;
     let (bar, beat, tick) = ts.bbt(pos);
     let secs = pos.to_seconds(app.project().tempo_bpm);
-    let text = format!(
-        "{bar:>3}.{beat}.{tick:03}  {:02}:{:05.2}",
-        (secs / 60.0) as i64,
-        secs % 60.0
-    );
+    // Bars.beats.ticks is what a musician reads; the clock is the check. Both are
+    // monospaced so the digits stay in their columns as the transport runs.
+    let bbt = format!("{bar:>3}.{beat}.{tick:03}");
+    let clock = format!("{:02}:{:05.2}", (secs / 60.0) as i64, secs % 60.0);
     ui.label(
-        RichText::new(text)
-            .monospace()
-            .size(15.0)
+        RichText::new(bbt)
+            .text_style(design::readout())
             .color(theme::p().gold_bright),
     )
     .on_hover_text(t("transport.position"));
-    ui.label(RichText::new(ts.to_string()).color(theme::p().text_dim));
+    ui.label(
+        RichText::new(clock)
+            .text_style(design::readout_small())
+            .color(theme::p().text_dim),
+    );
+    ui.label(
+        RichText::new(ts.to_string())
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
 }
 
 pub fn view_tabs(app: &mut CantusApp, ui: &mut egui::Ui) {
@@ -275,7 +296,7 @@ fn undo_redo(app: &mut CantusApp, ui: &mut egui::Ui) {
 }
 
 fn master_meter(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let (rect, _) = ui.allocate_exact_size(vec2(120.0, 18.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(space::GRID * 30.0, space::S4), Sense::hover());
     let p = ui.painter();
     p.rect_filled(rect, 2.0, theme::p().ink);
     let m = app.engine.meters().master;
@@ -301,7 +322,7 @@ fn master_meter(app: &mut CantusApp, ui: &mut egui::Ui) {
             rect.right_center() + vec2(-4.0, 0.0),
             Align2::RIGHT_CENTER,
             "CLIP",
-            FontId::proportional(9.0),
+            FontId::proportional(10.0),
             Color32::WHITE,
         );
     }

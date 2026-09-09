@@ -32,6 +32,10 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   backup-preserving saves plus autosave (ADR 0006).
 - Offline WAV export that is **bit-identical** to real-time playback, verified by null tests.
 - English and Spanish interfaces (ADR 0007); every string is in `crates/cantus-ui/locales`.
+- A design system (ADR 0009): bundled IBM Plex Sans/Mono so the UI looks the same
+  everywhere and every number is monospaced, a 4-px spacing grid, panel elevation, and a
+  focus ring on whatever holds keyboard focus. Colour is yours to change — the theme lives
+  in an editable JSON file that the app reloads while it is running.
 - The AI layer skeleton: provider trait, tool catalogue, permissions and a command bridge,
   so an agent can only act through the same undoable commands as a mouse click.
 
@@ -47,6 +51,17 @@ cargo run --release -p cantus -- --mixer --window 1200 760   # start in the mixe
 
 Requires stable Rust 1.85 or newer. No system libraries are needed on Windows or macOS;
 on Linux install `libasound2-dev` (and `libxkbcommon-dev`, `libwayland-dev` for the window).
+
+## Making it yours
+
+The theme is a JSON file — `%LOCALAPPDATA%\Cantus\theme.json` on Windows,
+`$XDG_DATA_HOME/Cantus` or `~/.local/share/Cantus` elsewhere. Edit it in any editor and
+Cantus reloads it within a second, no restart. *View → Theme* switches between the shipped
+presets (Ink & Gold, Parchment) or opens the file. A theme written by an older version is
+upgraded in place on load, so new colour tokens appear in your file ready to edit.
+
+Type, spacing and elevation are **not** in that file: they are the product's design
+system (`crates/cantus-ui/src/design.rs`), and ADR 0009 explains the split.
 
 ## Tests
 
@@ -69,10 +84,15 @@ block sizes, or if a render stops matching playback.
 | `cantus-engine` | MIT OR Apache-2.0 | audio thread, transport, sequencer, cpal backend, offline render |
 | `cantus-project` | MIT OR Apache-2.0 | project file format, migrations, atomic save |
 | `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, tool specs, command bridge |
-| `cantus-ui` | GPL-3.0-or-later | egui application |
+| `cantus-ui` | GPL-3.0-or-later | egui application, theme and design system |
 | `cantus` | GPL-3.0-or-later | the binary |
 
 See [ADR 0001](docs/adr/0001-license.md) for why the license is split.
+
+The bundled UI fonts (IBM Plex Sans and IBM Plex Mono, in
+`crates/cantus-ui/assets/fonts/`) are licensed separately under the
+[SIL Open Font License 1.1](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt) and are shipped
+unmodified — "IBM Plex" is a Reserved Font Name (ADR 0009).
 
 ## Keyboard
 

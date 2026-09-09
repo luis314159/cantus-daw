@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod design;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;

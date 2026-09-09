@@ -1,6 +1,7 @@
 //! Vector icons painted with shapes. The bundled fonts lack most symbol glyphs, and painted
 //! icons look identical on every platform and scale with the UI.
 
+use crate::design;
 use crate::theme;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Shape, Stroke, StrokeKind};
 
@@ -18,13 +19,19 @@ pub enum Icon {
     Mute,
     Slice,
     Playback,
+    Loop,
+    Metronome,
+    Keyboard,
 }
 
-/// Paint `icon` centred in `rect` (designed for ~16 px, scales with the rect).
-pub fn paint(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
+/// Paint `icon` centred in `rect` (designed for ~16 px, scales with the rect), over a
+/// surface of colour `bg` — a couple of icons cut a gap out of a stroke to read correctly.
+pub fn paint_on(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32, bg: Color32) {
     let c = rect.center();
     let s = rect.height().min(rect.width()) * 0.5; // half-size
-    let h = s * 0.55;
+                                                   // `h` is the glyph's half-height; every icon is drawn as multiples of it, so this one
+                                                   // number decides how much of the button the icons fill.
+    let h = s * 0.72;
     let thin = Stroke::new((s * 0.18).max(1.2), color);
     match icon {
         Icon::Play => {
@@ -161,6 +168,72 @@ pub fn paint(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             );
             p.line_segment([pos2(c.x, c.y - h), pos2(c.x, c.y + h)], thin);
         }
+        Icon::Loop => {
+            // A cycle: a wide, flat stadium track, broken at the top right where the
+            // arrowhead rides it. Wide and low so it does not read as a circle.
+            let r = Rect::from_center_size(c, vec2(2.4 * h, h * 1.1));
+            p.rect_stroke(r, r.height() * 0.5, thin, StrokeKind::Middle);
+            // Cut the track under the head, so the head reads as motion and not a blob.
+            p.line_segment(
+                [pos2(c.x + h * 0.15, r.top()), pos2(c.x + h * 0.95, r.top())],
+                Stroke::new(thin.width * 2.5, bg),
+            );
+            p.add(Shape::convex_polygon(
+                vec![
+                    pos2(c.x + h * 0.3, r.top() - h * 0.32),
+                    pos2(c.x + h * 0.95, r.top()),
+                    pos2(c.x + h * 0.3, r.top() + h * 0.32),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        }
+        Icon::Metronome => {
+            // A trapezoid case — not a triangle, which reads as a warning sign — with the
+            // pendulum leaning inside it and its weight on the arm.
+            p.add(Shape::convex_polygon(
+                vec![
+                    pos2(c.x - h * 0.36, c.y - h),
+                    pos2(c.x + h * 0.36, c.y - h),
+                    pos2(c.x + h * 0.92, c.y + h),
+                    pos2(c.x - h * 0.92, c.y + h),
+                ],
+                Color32::TRANSPARENT,
+                thin,
+            ));
+            p.line_segment(
+                [
+                    pos2(c.x - h * 0.06, c.y + h * 0.72),
+                    pos2(c.x + h * 0.34, c.y - h * 0.78),
+                ],
+                thin,
+            );
+            p.rect_filled(
+                Rect::from_center_size(pos2(c.x + h * 0.16, c.y - h * 0.1), vec2(h * 0.5, h * 0.3)),
+                0.0,
+                color,
+            );
+        }
+        Icon::Keyboard => {
+            // A piano keyboard: three white keys with two black ones between them, the
+            // smallest arrangement that still reads as a keyboard and not a grid.
+            let r = Rect::from_center_size(c, vec2(2.1 * h, h * 1.5));
+            p.rect_stroke(r, 1.0, thin, StrokeKind::Inside);
+            let key_w = r.width() / 3.0;
+            for i in 1..3 {
+                let x = r.left() + key_w * i as f32;
+                p.line_segment([pos2(x, r.top()), pos2(x, r.bottom())], thin);
+            }
+            let black_w = key_w * 0.42;
+            for i in 1..3 {
+                let x = r.left() + key_w * i as f32 - black_w * 0.5;
+                p.rect_filled(
+                    Rect::from_min_size(pos2(x, r.top()), vec2(black_w, r.height() * 0.58)),
+                    0.0,
+                    color,
+                );
+            }
+        }
         Icon::Playback => {
             // Small speaker: box + cone.
             p.rect_filled(
@@ -192,30 +265,57 @@ pub fn paint(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
     }
 }
 
-/// A clickable icon button. `active` paints the icon in the accent colour; `tip` is the
-/// tooltip (name + shortcut).
+/// Paint `icon` on the panel background. Use [`paint_on`] where the icon sits on a filled
+/// surface, so the icons that cut a gap out of their own stroke cut the right colour.
+pub fn paint(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
+    paint_on(p, rect, icon, color, theme::p().panel);
+}
+
+/// A clickable icon button. `active` paints it in the accent colour — that is *state*
+/// (playing, recording, tool selected), not a press. `tip` is the tooltip, and should read
+/// "Name (shortcut)".
+///
+/// The three interaction states are deliberately distinct: at rest the button is flush with
+/// its panel, hover raises the fill one step, and a press deepens it. Keyboard focus is not
+/// handled here — `design::paint_focus_ring` draws the ring for every widget in the app.
 pub fn button(ui: &mut egui::Ui, icon: Icon, active: bool, tip: impl Into<String>) -> Response {
-    let size = vec2(30.0, 24.0);
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
-    let visuals = ui.style().interact(&resp);
+    let (rect, resp) = ui.allocate_exact_size(design::ICON_BUTTON, Sense::click());
     let pal = theme::p();
-    let fill = if active {
-        pal.gold.gamma_multiply(0.35)
+    let (fill, stroke) = if active {
+        let lift = if resp.hovered() { 0.5 } else { 0.35 };
+        (
+            pal.gold.gamma_multiply(lift),
+            Stroke::new(1.0, pal.gold_bright),
+        )
+    } else if resp.is_pointer_button_down_on() {
+        (pal.grid_bar, Stroke::new(1.0, pal.grid_bar))
+    } else if resp.hovered() {
+        (pal.grid_strong, Stroke::new(1.0, pal.grid_bar))
     } else {
-        visuals.bg_fill
+        (Color32::TRANSPARENT, Stroke::NONE)
     };
-    ui.painter().rect(
-        rect,
-        3.0,
-        fill,
-        if active {
-            Stroke::new(1.0, pal.gold)
-        } else {
-            visuals.bg_stroke
-        },
-        StrokeKind::Inside,
+    ui.painter()
+        .rect(rect, pal.corner_radius, fill, stroke, StrokeKind::Inside);
+    let color = if active {
+        pal.gold_bright
+    } else if resp.hovered() {
+        pal.text
+    } else {
+        pal.text.gamma_multiply(0.85)
+    };
+    // The cut-out icons need whatever is actually behind them, which is the button's own
+    // fill once it has one.
+    let behind = if fill == Color32::TRANSPARENT {
+        pal.panel
+    } else {
+        pal.panel.lerp_to_gamma(fill, fill.a() as f32 / 255.0)
+    };
+    paint_on(
+        ui.painter(),
+        rect.shrink(design::space::S1),
+        icon,
+        color,
+        behind,
     );
-    let color = if active { pal.gold_bright } else { pal.text };
-    paint(ui.painter(), rect.shrink(5.0), icon, color);
     resp.on_hover_text(tip.into())
 }

@@ -12,6 +12,16 @@ fn app(project: Project) -> CantusApp {
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
+/// A context set up the way `CantusApp::new` sets up the real one: bundled fonts and the
+/// design system's type scale. Views ask for named text styles, and egui panics on a style
+/// it cannot resolve, so a bare `Context::default()` would not render the app at all.
+fn ctx() -> egui::Context {
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    ctx
+}
+
 #[test]
 fn starter_project_is_playable_and_selected() {
     let a = app(starter_project());
@@ -108,7 +118,7 @@ fn save_open_export_roundtrip() {
 /// One headless egui frame per view. Fails on a panic anywhere in the painting or
 /// interaction code, and prints frame times for the stress project.
 fn run_frames(a: &mut CantusApp, frames: usize) -> Duration {
-    let ctx = egui::Context::default();
+    let ctx = ctx();
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -161,7 +171,7 @@ fn stress_project_renders_within_budget() {
 #[test]
 fn transport_icons_are_painted_as_shapes() {
     let mut a = app(starter_project());
-    let ctx = egui::Context::default();
+    let ctx = ctx();
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,

@@ -1,6 +1,7 @@
 //! Inspector: master gain, selected track settings and the Firmus parameters.
 
 use crate::app::CantusApp;
+use crate::design::{self, space, Elevation};
 use crate::i18n::t;
 use crate::theme;
 use cantus_core::{
@@ -10,12 +11,8 @@ use egui::RichText;
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new(t("inspector.master"))
-                .strong()
-                .color(theme::p().gold),
-        );
+        ui.add_space(space::S1);
+        heading(ui, &t("inspector.master"));
         let mut master = app.project().master.gain_db;
         let r = ui.add(
             egui::Slider::new(&mut master, -60.0..=12.0)
@@ -41,19 +38,31 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             return;
         };
 
-        ui.label(RichText::new(&track.name).strong().size(15.0));
+        ui.add_space(space::S1);
+        ui.label(RichText::new(&track.name).heading());
         ui.horizontal(|ui| {
             ui.label(t("track.color"));
             for c in Color::PALETTE {
                 let (rect, resp) =
-                    ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::click());
+                    ui.allocate_exact_size(egui::vec2(space::S4, space::S4), egui::Sense::click());
                 let selected = c == track.color;
-                ui.painter().rect_filled(rect, 3.0, theme::track_color(c));
-                if selected {
+                let pal = theme::p();
+                ui.painter()
+                    .rect_filled(rect, pal.corner_radius, theme::track_color(c));
+                // Selected reads as a ring in the text colour; hover only lifts the edge,
+                // so the two states never look alike.
+                let edge = if selected {
+                    Some(egui::Stroke::new(2.0, pal.text))
+                } else if resp.hovered() {
+                    Some(egui::Stroke::new(1.0, pal.text_dim))
+                } else {
+                    None
+                };
+                if let Some(stroke) = edge {
                     ui.painter().rect_stroke(
                         rect,
-                        3.0,
-                        egui::Stroke::new(2.0, theme::p().text),
+                        pal.corner_radius,
+                        stroke,
                         egui::StrokeKind::Inside,
                     );
                 }
@@ -63,14 +72,13 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             }
         });
         ui.separator();
-        ui.label(
-            RichText::new(format!(
+        heading(
+            ui,
+            &format!(
                 "{} · {}",
                 t("inspector.title"),
                 t(track.instrument.name_key())
-            ))
-            .strong()
-            .color(theme::p().gold),
+            ),
         );
         let Some(params) = track.instrument.firmus().cloned() else {
             return;
@@ -115,16 +123,27 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         }
         section(ui, "inspector.output");
         param_slider(app, ui, id, FirmusParam::Gain, params.gain_db);
-        ui.add_space(10.0);
+        ui.add_space(space::S3);
         ui.separator();
         effects(app, ui, id, &track.effects);
-        ui.add_space(8.0);
+        ui.add_space(space::S2);
     });
 }
 
+/// A panel heading: the accent colour carries the hierarchy, the semibold face carries
+/// the weight, so neither has to shout.
+fn heading(ui: &mut egui::Ui, text: &str) {
+    ui.label(RichText::new(text).heading().color(theme::p().gold));
+}
+
+/// A group label inside a panel — one step quieter than a heading.
 fn section(ui: &mut egui::Ui, key: &str) {
-    ui.add_space(6.0);
-    ui.label(RichText::new(t(key)).small().color(theme::p().text_dim));
+    ui.add_space(space::S2);
+    ui.label(
+        RichText::new(t(key).to_uppercase())
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
 }
 
 fn wave_combo(
@@ -199,11 +218,7 @@ fn param_slider(
 
 fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectSlot]) {
     ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("inspector.effects"))
-                .strong()
-                .color(theme::p().gold),
-        );
+        heading(ui, &t("inspector.effects"));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.menu_button(t("effect.add"), |ui| {
                 for kind in EffectKind::ALL {
@@ -217,11 +232,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
     });
     let n = slots.len();
     for (i, slot) in slots.iter().enumerate() {
-        let frame = egui::Frame::NONE
-            .fill(theme::p().panel_raised)
-            .inner_margin(egui::Margin::same(6))
-            .corner_radius(4);
-        frame.show(ui, |ui| {
+        Elevation::Card.frame(&theme::p()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let mut on = !slot.bypass;
                 if ui
@@ -235,7 +246,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
                         bypass: !on,
                     });
                 }
-                ui.label(RichText::new(t(slot.spec.kind.name_key())).strong());
+                ui.label(RichText::new(t(slot.spec.kind.name_key())).text_style(design::strong()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .small_button(t("effect.remove_short"))
@@ -304,12 +315,11 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
                 }
             }
         });
-        ui.add_space(4.0);
     }
     if slots.is_empty() {
         ui.label(
             RichText::new(t("effect.none"))
-                .small()
+                .text_style(design::caption())
                 .color(theme::p().text_dim),
         );
     }

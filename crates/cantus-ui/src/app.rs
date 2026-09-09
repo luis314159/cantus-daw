@@ -2,6 +2,7 @@
 //! Every mutation goes through [`CantusApp::exec`] (ADR 0004); the engine only ever sees
 //! compiled snapshots.
 
+use crate::design::{self, space, Elevation};
 use crate::i18n::{t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
 use crate::recording::{RecordedNote, Recorder};
@@ -79,7 +80,16 @@ impl CantusApp {
         // The theme lives in a user-editable file; create it from the default on first run.
         let theme_path = directories_fallback().join("theme.json");
         let loaded = match theme::load_file(&theme_path) {
-            Ok(t) => t,
+            Ok(mut t) => {
+                // A file from an older release is missing whatever tokens have been added
+                // since. Write them back so they are there to be edited.
+                if t.fill_missing() {
+                    if let Err(e) = theme::save_file(&t, &theme_path) {
+                        log::warn!("cannot upgrade theme file: {e}");
+                    }
+                }
+                t
+            }
             Err(_) => {
                 let t = theme::ink_and_gold();
                 if let Err(e) = theme::save_file(&t, &theme_path) {
@@ -88,6 +98,8 @@ impl CantusApp {
                 t
             }
         };
+        design::install_fonts(&cc.egui_ctx);
+        design::install_style(&cc.egui_ctx);
         theme::apply(&loaded, &cc.egui_ctx);
         let engine = match EngineHandle::start(&AudioConfig::default()) {
             Ok(e) => e,
@@ -1329,21 +1341,9 @@ impl CantusApp {
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
+        // The engine and MIDI readouts on the right are the ones that must always be
+        // legible, so they claim their width first and the tool hint takes what is left.
         ui.horizontal(|ui| {
-            let color = if self.status.error {
-                theme::p().danger
-            } else {
-                theme::p().text_dim
-            };
-            ui.label(egui::RichText::new(&self.status.text).color(color));
-            if self.central == CentralView::PianoRoll {
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(t(self.piano_roll.tool.hint_key()))
-                        .small()
-                        .color(theme::p().text_dim),
-                );
-            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let s = self.engine.stats();
                 let engine = if self.engine.is_live() {
@@ -1362,7 +1362,7 @@ impl CantusApp {
                 };
                 ui.label(
                     egui::RichText::new(engine)
-                        .small()
+                        .text_style(design::caption())
                         .color(if s.overruns > 0 {
                             theme::p().danger
                         } else {
@@ -1372,7 +1372,7 @@ impl CantusApp {
                 ui.separator();
                 ui.label(
                     egui::RichText::new(tf("status.midi", &[("n", &self.midi_port_names.len())]))
-                        .small()
+                        .text_style(design::caption())
                         .color(theme::p().text_dim),
                 );
                 ui.separator();
@@ -1381,7 +1381,11 @@ impl CantusApp {
                 } else {
                     t("status.keyboard_off")
                 };
-                ui.label(egui::RichText::new(kb).small().color(theme::p().text_dim));
+                ui.label(
+                    egui::RichText::new(kb)
+                        .text_style(design::caption())
+                        .color(theme::p().text_dim),
+                );
                 if self.show_stats {
                     ui.separator();
                     let avg = if self.frame_times.is_empty() {
@@ -1397,11 +1401,34 @@ impl CantusApp {
                             s.block_frames,
                             s.max_block_us
                         ))
-                        .small()
-                        .monospace()
+                        .text_style(design::mono_small())
                         .color(theme::p().text_dim),
                     );
                 }
+                ui.separator();
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    let color = if self.status.error {
+                        theme::p().danger
+                    } else {
+                        theme::p().text_dim
+                    };
+                    ui.label(
+                        egui::RichText::new(&self.status.text)
+                            .text_style(design::caption())
+                            .color(color),
+                    );
+                    if self.central == CentralView::PianoRoll {
+                        ui.separator();
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(t(self.piano_roll.tool.hint_key()))
+                                    .text_style(design::caption())
+                                    .color(theme::p().text_dim),
+                            )
+                            .truncate(),
+                        );
+                    }
+                });
             });
         });
     }
@@ -1415,11 +1442,16 @@ impl CantusApp {
                 .show(ctx, |ui| {
                     ui.label(
                         egui::RichText::new("Cantus")
-                            .size(22.0)
+                            .size(24.0)
+                            .family(design::family_strong())
                             .color(theme::p().gold),
                     );
-                    ui.label(format!("v{APP_VERSION}"));
-                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new(format!("v{APP_VERSION}"))
+                            .text_style(design::mono_small())
+                            .color(theme::p().text_dim),
+                    );
+                    ui.add_space(space::S2);
                     ui.label(t("about.text"));
                 });
         }
@@ -1428,7 +1460,7 @@ impl CantusApp {
                 .collapsible(false)
                 .open(&mut self.show_shortcuts)
                 .show(ctx, |ui| {
-                    ui.set_max_width(520.0);
+                    ui.set_max_width(space::GRID * 130.0);
                     for line in t("shortcuts.text").split(" · ") {
                         ui.label(line);
                     }
@@ -1461,41 +1493,48 @@ impl eframe::App for CantusApp {
             }
         }
 
+        // Chrome panels sit one step above the canvas and are separated from it by a
+        // hairline on the edge they meet it at (design::Elevation).
+        let pal = theme::p();
+        let panel = Elevation::Panel.frame(&pal);
+        let hairline = design::hairline(&pal);
         egui::Panel::top(egui::Id::new("transport"))
-            .frame(
-                egui::Frame::NONE
-                    .fill(theme::p().panel)
-                    .inner_margin(egui::Margin::symmetric(8, 6)),
-            )
+            .frame(panel.stroke(hairline).outer_margin(egui::Margin {
+                bottom: -1,
+                ..Default::default()
+            }))
             .show(root, |ui| views::transport::show(self, ui));
         egui::Panel::bottom(egui::Id::new("status"))
-            .frame(
-                egui::Frame::NONE
-                    .fill(theme::p().panel)
-                    .inner_margin(egui::Margin::symmetric(8, 4)),
-            )
+            .frame(panel.stroke(hairline).outer_margin(egui::Margin {
+                top: -1,
+                ..Default::default()
+            }))
             .show(root, |ui| self.status_bar(ui));
         egui::Panel::right(egui::Id::new("inspector"))
             .resizable(true)
-            .default_size(300.0)
-            .min_size(240.0)
+            .default_size(space::GRID * 76.0)
+            .min_size(space::GRID * 60.0)
             .frame(
-                egui::Frame::NONE
-                    .fill(theme::p().panel)
-                    .inner_margin(egui::Margin::same(8)),
+                panel
+                    .inner_margin(egui::Margin::same(space::S3 as i8))
+                    .stroke(hairline)
+                    .outer_margin(egui::Margin {
+                        left: -1,
+                        ..Default::default()
+                    }),
             )
             .show(root, |ui| views::inspector::show(self, ui));
         egui::Panel::top(egui::Id::new("arrangement"))
             .resizable(true)
-            .default_size(260.0)
-            .min_size(120.0)
-            .frame(egui::Frame::NONE)
+            .default_size(space::GRID * 65.0)
+            .min_size(space::GRID * 30.0)
+            .frame(Elevation::Canvas.frame(&pal))
             .show(root, |ui| views::arrangement::show(self, ui));
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::NONE
-                    .fill(theme::p().ink)
-                    .inner_margin(egui::Margin::same(4)),
+                Elevation::Canvas
+                    .frame(&pal)
+                    .inner_margin(egui::Margin::same(space::S1 as i8)),
             )
             .show(root, |ui| {
                 ui.horizontal(|ui| views::transport::view_tabs(self, ui));
@@ -1505,6 +1544,7 @@ impl eframe::App for CantusApp {
                 }
             });
         self.dialogs(ctx);
+        design::paint_focus_ring(ctx, &pal);
 
         self.sync_engine();
         self.maybe_autosave();

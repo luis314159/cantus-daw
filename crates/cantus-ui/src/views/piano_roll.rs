@@ -7,12 +7,12 @@
 
 use super::{beats_to_ticks, ticks_to_beats, GRIDS};
 use crate::app::CantusApp;
+use crate::design;
 use crate::i18n::{t, tf};
 use crate::theme;
 use cantus_core::{pitch_name, ClipId, Command, MergeKey, Note, NoteId, Ticks, TrackId};
 use egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, FontId, PointerButton, Pos2, Rect, Sense, Stroke,
-    StrokeKind,
+    pos2, vec2, Align2, Color32, CornerRadius, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind,
 };
 
 const KEYS_W: f32 = 56.0;
@@ -354,7 +354,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 pos2(r.left() + 3.0, r.center().y),
                 Align2::LEFT_CENTER,
                 pitch_name(n.pitch),
-                FontId::proportional(9.0),
+                design::paint::ruler(),
                 if n.muted {
                     theme::p().text_dim
                 } else {
@@ -585,7 +585,7 @@ fn paint_keys(ui: &egui::Ui, geo: &Geo, keys: Rect) {
                 pos2(keys.right() - 3.0, r.center().y),
                 Align2::RIGHT_CENTER,
                 pitch_name(pitch as u8),
-                FontId::proportional(9.0),
+                design::paint::ruler(),
                 theme::p().ink,
             );
         }
@@ -614,7 +614,7 @@ fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &ca
             pos2(x + 3.0, ruler.center().y),
             Align2::LEFT_CENTER,
             b.to_string(),
-            FontId::proportional(10.0),
+            design::paint::ruler(),
             theme::p().text_dim,
         );
         tick += bar;
@@ -649,7 +649,7 @@ fn velocity_lane(
         pos2(vel.left() + 4.0, vel.top() + 3.0),
         Align2::LEFT_TOP,
         t("pianoroll.velocity"),
-        FontId::proportional(9.0),
+        design::paint::caption(),
         theme::p().text_dim,
     );
     let inner_top = vel.top() + 6.0;

@@ -2,12 +2,12 @@
 
 use super::{beats_to_ticks, ticks_to_beats};
 use crate::app::CantusApp;
+use crate::design;
 use crate::i18n::t;
 use crate::theme;
 use cantus_core::{ClipId, Command, MergeKey, Ticks, TrackId};
 use egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, FontId, PointerButton, Rect, Sense, Stroke,
-    StrokeKind,
+    pos2, vec2, Align2, Color32, CornerRadius, PointerButton, Rect, Sense, Stroke, StrokeKind,
 };
 
 const RULER_H: f32 = 22.0;
@@ -166,7 +166,11 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 } else {
                     theme::p().text
                 };
-                ui.label(egui::RichText::new(&track.name).color(color).strong());
+                ui.label(
+                    egui::RichText::new(&track.name)
+                        .text_style(design::strong())
+                        .color(color),
+                );
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let mut solo = track.soloed;
@@ -345,7 +349,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 pos2(x + 3.0, rect.top() + 3.0),
                 Align2::LEFT_TOP,
                 bar_no.to_string(),
-                FontId::proportional(10.0),
+                design::paint::ruler(),
                 theme::p().text_dim,
             );
         }
@@ -426,7 +430,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 pos2(r.left() + 5.0, r.top() + 3.0),
                 Align2::LEFT_TOP,
                 &clip.name,
-                FontId::proportional(11.0),
+                design::paint::label(),
                 theme::p().text,
             );
             if let Some(pos) = pointer {
@@ -554,7 +558,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             rect.center(),
             Align2::CENTER_CENTER,
             t("track.add"),
-            FontId::proportional(13.0),
+            design::paint::empty_state(),
             theme::p().text_dim,
         );
     } else {
@@ -562,7 +566,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             pos2(rect.left() + 8.0, rect.bottom() - 6.0),
             Align2::LEFT_BOTTOM,
             t("clip.new_tip"),
-            FontId::proportional(10.0),
+            design::paint::caption(),
             theme::p().text_dim.gamma_multiply(0.7),
         );
     }
