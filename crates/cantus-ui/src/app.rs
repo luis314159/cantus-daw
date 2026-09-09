@@ -5,6 +5,7 @@
 use crate::design::{self, space, Elevation};
 use crate::i18n::{t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
+use crate::layout::{self, Layouts};
 use crate::recording::{RecordedNote, Recorder};
 use crate::theme;
 use crate::views::{
@@ -28,6 +29,24 @@ const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(60);
 pub enum CentralView {
     PianoRoll,
     Mixer,
+}
+
+impl From<layout::Central> for CentralView {
+    fn from(c: layout::Central) -> Self {
+        match c {
+            layout::Central::PianoRoll => CentralView::PianoRoll,
+            layout::Central::Mixer => CentralView::Mixer,
+        }
+    }
+}
+
+impl From<CentralView> for layout::Central {
+    fn from(c: CentralView) -> Self {
+        match c {
+            CentralView::PianoRoll => layout::Central::PianoRoll,
+            CentralView::Mixer => layout::Central::Mixer,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -54,6 +73,13 @@ pub struct CantusApp {
     live_track_sent: Option<Option<TrackId>>,
     theme_watcher: Option<theme::ThemeWatcher>,
     theme_path: PathBuf,
+    /// Named window layouts, and the one in use (`crate::layout`).
+    pub layouts: Layouts,
+    /// Where [`Self::store_layouts`] writes. Public so tests can redirect it away from the
+    /// user's real configuration directory.
+    pub layouts_path: PathBuf,
+    /// Open when the user is naming a layout; holds the text being typed.
+    pub naming_layout: Option<String>,
     theme_ctx: Option<egui::Context>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
@@ -100,6 +126,9 @@ impl CantusApp {
         };
         design::install_fonts(&cc.egui_ctx);
         design::install_style(&cc.egui_ctx);
+        let layouts_path = layout::layouts_path(&directories_fallback());
+        let mut layouts = Layouts::load(&layouts_path);
+        layouts.force();
         theme::apply(&loaded, &cc.egui_ctx);
         let engine = match EngineHandle::start(&AudioConfig::default()) {
             Ok(e) => e,
@@ -109,6 +138,9 @@ impl CantusApp {
             }
         };
         let mut app = Self::from_parts(project, engine, stress);
+        app.central = layouts.current.central.into();
+        app.layouts = layouts;
+        app.layouts_path = layouts_path;
         app.theme_watcher = Some(theme::ThemeWatcher::new(theme_path.clone()));
         app.theme_path = theme_path;
         app.theme_ctx = Some(cc.egui_ctx.clone());
@@ -154,6 +186,9 @@ impl CantusApp {
             theme_watcher: None,
             theme_path: directories_fallback().join("theme.json"),
             theme_ctx: None,
+            layouts: Layouts::default(),
+            layouts_path: layout::layouts_path(&directories_fallback()),
+            naming_layout: None,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
             keyboard_piano: false,
@@ -252,6 +287,56 @@ impl CantusApp {
             self.selected_track = Some(t.id);
             self.selected_clip = t.clips.first().map(|c| c.id);
         }
+    }
+
+    /// Fold the live panel sizes and the current view into the layout, then write the
+    /// layouts file. Called whenever a layout changes and once on exit, so what is on disk
+    /// is what the user was last looking at.
+    pub fn store_layouts(&mut self, ctx: &egui::Context) {
+        self.layouts.sync(ctx);
+        self.layouts.current.central = self.central.into();
+        if let Err(e) = self.layouts.save(&self.layouts_path) {
+            log::warn!("cannot write layouts file: {e}");
+        }
+    }
+
+    pub fn save_layout_as(&mut self, name: &str, ctx: &egui::Context) {
+        let name = name.trim();
+        if name.is_empty() {
+            return;
+        }
+        self.layouts.current.central = self.central.into();
+        self.layouts.save_as(name, ctx);
+        self.store_layouts(ctx);
+        self.set_status(tf("layout.saved", &[("name", &name)]));
+    }
+
+    pub fn apply_layout(&mut self, name: &str) {
+        if !self.layouts.apply_named(name) {
+            return;
+        }
+        self.central = self.layouts.current.central.into();
+        let label = self.layouts.current.display_name();
+        // `store` would sync the live sizes back over the ones we just applied, so the
+        // file is written from the layout itself.
+        if let Err(e) = self.layouts.save(&self.layouts_path) {
+            log::warn!("cannot write layouts file: {e}");
+        }
+        self.set_status(tf("layout.applied", &[("name", &label)]));
+    }
+
+    pub fn delete_layout(&mut self, name: &str, ctx: &egui::Context) {
+        self.layouts.delete(name);
+        self.store_layouts(ctx);
+    }
+
+    pub fn reset_layout(&mut self) {
+        self.layouts.reset();
+        self.central = self.layouts.current.central.into();
+        if let Err(e) = self.layouts.save(&self.layouts_path) {
+            log::warn!("cannot write layouts file: {e}");
+        }
+        self.set_status(t("layout.was_reset"));
     }
 
     pub fn set_status(&mut self, text: String) {
@@ -1455,6 +1540,46 @@ impl CantusApp {
                     ui.label(t("about.text"));
                 });
         }
+        if let Some(name) = self.naming_layout.clone() {
+            let mut name = name;
+            let mut close = false;
+            let mut save = false;
+            egui::Window::new(t("layout.save_as"))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label(t("layout.name"));
+                    let edit =
+                        ui.add(egui::TextEdit::singleline(&mut name).hint_text(t("layout.name")));
+                    // Focus the field when the dialog opens, but only then: re-requesting
+                    // every frame would trap focus and stop the user tabbing to the
+                    // buttons.
+                    if ui.ctx().memory(|m| m.focused()).is_none() {
+                        edit.request_focus();
+                    }
+                    save = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    ui.add_space(space::S2);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(
+                                !name.trim().is_empty(),
+                                egui::Button::new(t("layout.save")),
+                            )
+                            .clicked()
+                        {
+                            save = true;
+                        }
+                        if ui.button(t("layout.cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+            if save && !name.trim().is_empty() {
+                self.save_layout_as(&name, ctx);
+                close = true;
+            }
+            self.naming_layout = if close { None } else { Some(name) };
+        }
         if self.show_shortcuts {
             egui::Window::new(t("menu.shortcuts"))
                 .collapsible(false)
@@ -1510,11 +1635,20 @@ impl eframe::App for CantusApp {
                 ..Default::default()
             }))
             .show(root, |ui| self.status_bar(ui));
-        egui::Panel::right(egui::Id::new("inspector"))
-            .resizable(true)
-            .default_size(space::GRID * 76.0)
-            .min_size(space::GRID * 60.0)
-            .frame(
+        // A layout being applied pins the panel for one frame (`Layouts::forced`);
+        // otherwise the panel is resizable and the user's drag is what counts.
+        let forced_inspector = self.layouts.forced(layout::INSPECTOR);
+        let forced_arrangement = self.layouts.forced(layout::ARRANGEMENT);
+        if self.layouts.current.show_inspector {
+            let p = egui::Panel::right(layout::panel_id(layout::INSPECTOR));
+            let p = match forced_inspector {
+                Some(w) => p.exact_size(w),
+                None => p
+                    .resizable(true)
+                    .default_size(space::GRID * 76.0)
+                    .min_size(space::GRID * 60.0),
+            };
+            p.frame(
                 panel
                     .inner_margin(egui::Margin::same(space::S3 as i8))
                     .stroke(hairline)
@@ -1524,12 +1658,19 @@ impl eframe::App for CantusApp {
                     }),
             )
             .show(root, |ui| views::inspector::show(self, ui));
-        egui::Panel::top(egui::Id::new("arrangement"))
-            .resizable(true)
-            .default_size(space::GRID * 65.0)
-            .min_size(space::GRID * 30.0)
-            .frame(Elevation::Canvas.frame(&pal))
-            .show(root, |ui| views::arrangement::show(self, ui));
+        }
+        if self.layouts.current.show_arrangement {
+            let p = egui::Panel::top(layout::panel_id(layout::ARRANGEMENT));
+            let p = match forced_arrangement {
+                Some(h) => p.exact_size(h),
+                None => p
+                    .resizable(true)
+                    .default_size(space::GRID * 65.0)
+                    .min_size(space::GRID * 30.0),
+            };
+            p.frame(Elevation::Canvas.frame(&pal))
+                .show(root, |ui| views::arrangement::show(self, ui));
+        }
         egui::CentralPanel::default()
             .frame(
                 Elevation::Canvas
@@ -1545,12 +1686,16 @@ impl eframe::App for CantusApp {
             });
         self.dialogs(ctx);
         design::paint_focus_ring(ctx, &pal);
+        self.layouts.end_frame();
 
         self.sync_engine();
         self.maybe_autosave();
 
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.store_layouts(ctx);
         }
         if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
             // Last line of defence: never lose work on close.

@@ -36,6 +36,9 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   everywhere and every number is monospaced, a 4-px spacing grid, panel elevation, and a
   focus ring on whatever holds keyboard focus. Colour is yours to change — the theme lives
   in an editable JSON file that the app reloads while it is running.
+- **Named layouts**: size the panels how you like, hide the ones you are not using, save
+  the shape under a name and switch between them from *View → Layout*. Panel sizes survive
+  a restart.
 - The AI layer skeleton: provider trait, tool catalogue, permissions and a command bridge,
   so an agent can only act through the same undoable commands as a mouse click.
 
@@ -62,6 +65,10 @@ upgraded in place on load, so new colour tokens appear in your file ready to edi
 
 Type, spacing and elevation are **not** in that file: they are the product's design
 system (`crates/cantus-ui/src/design.rs`), and ADR 0009 explains the split.
+
+Window layouts live next to it in `layouts.json`. *View → Layout* saves the current shape
+under a name, switches between saved shapes, toggles the arrangement and inspector panels,
+and resets to the built-in shape.
 
 ## Tests
 

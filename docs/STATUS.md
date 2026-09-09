@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-08 (round 5: design system) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 91 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-08 (round 6: layouts) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 99 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -14,7 +14,7 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 | `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
 | `cantus-project`: versioned JSON (**schema 3**), SHA-256, migrations 0→1→2→3, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1`–`v3.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, i18n EN/ES | done; 22 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, i18n EN/ES | done; 30 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -55,6 +55,32 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Named layouts (round 6)
+
+`cantus-ui/src/layout.rs`. A `Layout` is the shape of the window — the inspector's width,
+the arrangement's height, which of the two are showing, and which view fills the centre.
+`Layouts` holds the current one plus the user's named ones, in
+`%LOCALAPPDATA%/Cantus/layouts.json`. *View → Layout* switches between them, toggles the
+panels, saves the current shape under a name, deletes one, or resets to the built-in shape.
+
+Two things about egui 0.36 shaped the design, both found by experiment and both recorded in
+tests so a future upgrade tells us if they change:
+
+- **`Panel::default_size` cannot impose a size** once a panel has stored state, and eframe
+  is built here **without its `persistence` feature**, so egui does not carry panel sizes
+  across restarts at all. The layouts file is what makes sizes survive: the app captures the
+  layout on exit and forces it on the first frame.
+- **Applying a layout uses `Panel::exact_size` for exactly one frame** (`Layouts::forced` /
+  `end_frame`). `exact_size` pins the size range to a point, so it wins whether or not the
+  panel has state; the frame after, the panel is resizable again from there. There is no
+  setter for `PanelState`, and forging egui's internal state would break the first time it
+  changed shape.
+
+A bare `egui::Context` does not keep panel sizes between frames the way eframe's does, so
+the tests assert what a *forced* frame produces and leave "a dragged size stays put" to be
+checked by running the app. That is noted at the top of the module so the next person does
+not read the gap as an oversight.
 
 ## Piano roll tools (round 3)
 
@@ -104,9 +130,10 @@ Ordered plan, each step shippable on its own:
    Plex Sans/Mono, the 4-px grid, `Elevation`, a global focus ring, distinct hover/active
    states, and three more painted icons (Loop, Metronome, Keyboard). ADR 0009 records the
    typography and licensing decision.
-3. **Layout personalization** — dockable/resizable panels with saved layouts (egui already
-   persists panel sizes; add named layouts and a "reset layout" action), per-view zoom
-   presets, configurable track colours and clip colours.
+3. ~~**Layout personalization**~~ **done (round 6)** for panels: named layouts, saved panel
+   sizes, panel visibility and *Reset layout* — see "Named layouts" above. Still open from
+   this step: per-view zoom presets and configurable clip colours (track colours are
+   already editable in the inspector).
 4. **Keyboard map file** — every shortcut in a `keymap.toml` (FL / Live / Bitwig presets),
    editable in a Settings dialog with conflict detection.
 5. **Settings dialog** — audio device / sample rate / buffer, MIDI ports, theme, language,
@@ -116,8 +143,9 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. The design & personalization plan above — **next: layouts** (named, saved panel sizes
-   and a "reset layout" action), then keymap → settings dialog → piano roll polish.
+1. The design & personalization plan above — **next: the keymap file** (`keymap.toml`
+   with FL / Live / Bitwig presets and conflict detection), then the settings dialog, then
+   piano roll polish.
 2. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
 3. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
 4. More native devices: EQ, compressor, chorus; a sampler instrument.
@@ -149,6 +177,9 @@ Ordered plan, each step shippable on its own:
 - A new colour token goes in `Palette`, in `Theme` with `#[serde(default)]`, **and** in
   `Theme::fill_missing`, so older `theme.json` files keep loading and get the new token
   written back for the user to edit.
+- Anything a test writes to disk must go through a `tempfile::tempdir()`. `CantusApp`'s
+  `layouts_path` is public so tests can redirect it; never let a test write to the real
+  `%LOCALAPPDATA%/Cantus`.
 - Bump `SCHEMA_VERSION`, append a migration and regenerate a fixture
   (`cargo run -p cantus-project --example write_fixture`) whenever `Project` changes shape.
 - Screenshots on this machine: PrintWindow from a DPI-aware process (see session notes);

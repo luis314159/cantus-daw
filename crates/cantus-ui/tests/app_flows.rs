@@ -357,3 +357,77 @@ fn note_editing_operations() {
     a.undo();
     assert_eq!(notes(&a).len(), n_before);
 }
+
+#[test]
+fn layouts_are_saved_switched_and_reset_through_the_app() {
+    use cantus_ui::layout;
+
+    let mut a = app(starter_project());
+    let dir = tempfile::tempdir().unwrap();
+    // Never write to the user's real configuration directory from a test.
+    a.layouts_path = layout::layouts_path(dir.path());
+    let ctx = ctx();
+
+    // Lay the window out once so the panels have sizes to capture.
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    let frame = |a: &mut CantusApp| {
+        let forced = a.layouts.forced(layout::INSPECTOR);
+        let show = a.layouts.current.show_inspector;
+        let mut drew_inspector = false;
+        ctx.run_ui(input.clone(), |ui| {
+            if show {
+                drew_inspector = true;
+                let p = egui::Panel::right(layout::panel_id(layout::INSPECTOR));
+                match forced {
+                    Some(w) => p.exact_size(w),
+                    None => p.resizable(true).min_size(240.0),
+                }
+                .show(ui, |ui| views::inspector::show(a, ui));
+            }
+            egui::CentralPanel::default().show(ui, |ui| views::piano_roll::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+        a.layouts.end_frame();
+        drew_inspector
+    };
+
+    a.layouts.current.inspector = 320.0;
+    a.layouts.force();
+    assert!(frame(&mut a), "the inspector shows by default");
+
+    // Save the shape under a name, switch the central view, then come back to it.
+    a.central = cantus_ui::app::CentralView::Mixer;
+    a.save_layout_as("Mixing", &ctx);
+    assert!(a.layouts_path.exists(), "saving a layout writes the file");
+
+    a.reset_layout();
+    assert_eq!(a.central, cantus_ui::app::CentralView::PianoRoll);
+    assert_eq!(a.layouts.current.name, layout::DEFAULT_NAME);
+
+    a.apply_layout("Mixing");
+    assert_eq!(a.central, cantus_ui::app::CentralView::Mixer);
+    assert_eq!(
+        a.layouts.forced(layout::INSPECTOR),
+        Some(320.0),
+        "switching back must restore the saved width"
+    );
+    frame(&mut a);
+
+    // Hiding a panel really stops it being drawn.
+    a.layouts.current.show_inspector = false;
+    assert!(!frame(&mut a), "a hidden panel must not be laid out");
+
+    // And everything survives a round trip through the file.
+    a.store_layouts(&ctx);
+    let reloaded = cantus_ui::layout::Layouts::load(&a.layouts_path);
+    assert_eq!(reloaded.saved.len(), 1);
+    assert_eq!(reloaded.saved[0].name, "Mixing");
+    assert!(!reloaded.current.show_inspector);
+}

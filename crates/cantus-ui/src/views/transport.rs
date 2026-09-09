@@ -155,6 +155,7 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
                 app.reveal_theme_file();
             }
         });
+        layout_menu(app, ui);
         ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
         ui.checkbox(&mut app.show_stats, t("menu.stats"));
     });
@@ -166,6 +167,66 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
         if ui.button(t("menu.about")).clicked() {
             ui.close();
             app.show_about = true;
+        }
+    });
+}
+
+/// *View → Layout*: switch between saved window shapes, toggle the panels, save the
+/// current shape under a name, or go back to the built-in one.
+fn layout_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+    ui.menu_button(t("menu.layout"), |ui| {
+        let current = app.layouts.current.name.clone();
+        let saved: Vec<String> = app.layouts.saved.iter().map(|l| l.name.clone()).collect();
+        for name in &saved {
+            if ui.selectable_label(*name == current, name).clicked() {
+                ui.close();
+                app.apply_layout(name);
+            }
+        }
+        if !saved.is_empty() {
+            ui.separator();
+        }
+
+        // Panel visibility is part of the layout, so toggling it here is an edit to the
+        // current layout, not a separate piece of view state.
+        let mut arrangement = app.layouts.current.show_arrangement;
+        if ui
+            .checkbox(&mut arrangement, t("layout.show_arrangement"))
+            .changed()
+        {
+            app.layouts.current.show_arrangement = arrangement;
+        }
+        let mut inspector = app.layouts.current.show_inspector;
+        if ui
+            .checkbox(&mut inspector, t("layout.show_inspector"))
+            .changed()
+        {
+            app.layouts.current.show_inspector = inspector;
+        }
+        ui.separator();
+
+        if ui.button(t("layout.save_as")).clicked() {
+            ui.close();
+            // Offer the current name, so re-saving a layout is one keystroke.
+            let seed = if current == crate::layout::DEFAULT_NAME {
+                String::new()
+            } else {
+                current.clone()
+            };
+            app.naming_layout = Some(seed);
+        }
+        let is_saved = saved.contains(&current);
+        if ui
+            .add_enabled(is_saved, egui::Button::new(t("layout.delete")))
+            .clicked()
+        {
+            ui.close();
+            let ctx = ui.ctx().clone();
+            app.delete_layout(&current, &ctx);
+        }
+        if ui.button(t("layout.reset")).clicked() {
+            ui.close();
+            app.reset_layout();
         }
     });
 }

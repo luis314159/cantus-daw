@@ -10,6 +10,7 @@ pub mod design;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
+pub mod layout;
 pub mod recording;
 pub mod theme;
 pub mod views;
