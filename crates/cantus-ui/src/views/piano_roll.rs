@@ -312,6 +312,12 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let lo_pitch = geo.pitch(grid.bottom()).floor() as i32 - 1;
     let hi_pitch = geo.pitch(grid.top()).ceil() as i32 + 1;
     let mut drawn = 0usize;
+    // Notes small enough to need no corners and no outline go into one mesh instead of
+    // one shape each. epaint anti-aliases every filled shape by expanding it into a
+    // feathered ring — about twenty triangles for a rectangle — and at this size the
+    // feathering is invisible anyway. Two triangles per note, one shape for the lot, and
+    // the tessellator has almost nothing to do.
+    let mut bulk = egui::Mesh::default();
     for n in &clip.notes {
         if n.start > visible_end {
             break; // notes are sorted by start
@@ -327,29 +333,58 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         } else {
             track_color
         };
+        // Level of detail. Zoomed out, a note can be a fraction of a pixel wide, and
+        // rounding its corners and stroking its outline costs ~30 triangles to render
+        // detail no one can see. Below the thresholds a note is a single quad: two
+        // triangles, same colour on screen, an order of magnitude less work.
+        let lod = NoteLod::for_rect(r);
+        if lod.bulk {
+            let fill = if selected {
+                Color32::WHITE
+            } else if n.muted {
+                base.gamma_multiply(0.35)
+            } else {
+                base.gamma_multiply(alpha)
+            };
+            bulk.add_colored_rect(r, fill);
+            drawn += 1;
+            continue;
+        }
         if n.muted {
-            p.rect_filled(r, CornerRadius::same(2), theme::p().panel_raised);
-            p.rect_stroke(
-                r,
-                CornerRadius::same(2),
-                Stroke::new(1.0, base.gamma_multiply(0.7)),
-                StrokeKind::Inside,
-            );
+            p.rect_filled(r, lod.radius, theme::p().panel_raised);
+            if lod.stroke {
+                p.rect_stroke(
+                    r,
+                    lod.radius,
+                    Stroke::new(1.0, base.gamma_multiply(0.7)),
+                    StrokeKind::Inside,
+                );
+            } else {
+                // The outline is what says "muted" at this size, so keep the colour
+                // rather than the shape: a dimmed fill reads the same way.
+                p.rect_filled(r, lod.radius, base.gamma_multiply(0.35));
+            }
         } else {
-            p.rect_filled(r, CornerRadius::same(2), base.gamma_multiply(alpha));
-            p.rect_stroke(
-                r,
-                CornerRadius::same(2),
-                Stroke::new(
-                    1.0,
-                    if selected {
-                        Color32::WHITE
-                    } else {
-                        theme::p().ink
-                    },
-                ),
-                StrokeKind::Inside,
-            );
+            p.rect_filled(r, lod.radius, base.gamma_multiply(alpha));
+            if lod.stroke {
+                p.rect_stroke(
+                    r,
+                    lod.radius,
+                    Stroke::new(
+                        1.0,
+                        if selected {
+                            Color32::WHITE
+                        } else {
+                            theme::p().ink
+                        },
+                    ),
+                    StrokeKind::Inside,
+                );
+            } else if selected {
+                // Selection has to stay visible at every zoom; at this size the brightest
+                // fill we have is the cheapest way to say it.
+                p.rect_filled(r, lod.radius, Color32::WHITE);
+            }
         }
         if r.width() > 28.0 && geo.key_h >= 11.0 {
             p.with_clip_rect(r).text(
@@ -365,6 +400,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             );
         }
         drawn += 1;
+    }
+    if !bulk.is_empty() {
+        p.add(egui::Shape::Mesh(std::sync::Arc::new(bulk)));
     }
     app.piano_roll_notes_drawn = drawn;
 
@@ -447,6 +485,44 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             _ => egui::CursorIcon::Default,
         };
         ui.ctx().set_cursor_icon(icon);
+    }
+}
+
+/// How much detail a note is worth at its current size on screen.
+///
+/// This is the difference between the piano roll running at 60 fps when zoomed out and
+/// running at 9: rounded corners and a stroked outline cost about thirty triangles per
+/// note, and below a few pixels neither is visible at all.
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct NoteLod {
+    radius: CornerRadius,
+    stroke: bool,
+    /// Draw this note into the shared mesh rather than as a shape of its own.
+    bulk: bool,
+}
+
+impl NoteLod {
+    /// Corners stop reading below this size, so stop paying for them.
+    const ROUND_ABOVE: f32 = 7.0;
+    /// A 1-px outline inside a rectangle this small eats the fill it is supposed to frame.
+    const STROKE_ABOVE_W: f32 = 3.5;
+    const STROKE_ABOVE_H: f32 = 5.0;
+
+    fn for_rect(r: Rect) -> NoteLod {
+        let (w, h) = (r.width(), r.height());
+        let radius = if w >= Self::ROUND_ABOVE && h >= Self::ROUND_ABOVE {
+            CornerRadius::same(2)
+        } else {
+            CornerRadius::ZERO
+        };
+        let stroke = w >= Self::STROKE_ABOVE_W && h >= Self::STROKE_ABOVE_H;
+        NoteLod {
+            radius,
+            stroke,
+            // A plain square-cornered fill is exactly what a mesh quad draws, so anything
+            // that needs neither a corner nor an outline can join the batch.
+            bulk: radius == CornerRadius::ZERO && !stroke,
+        }
     }
 }
 
@@ -665,6 +741,10 @@ fn velocity_lane(
             .find(|n| (geo.x(ticks_to_beats(n.start)) - x).abs() < 5.0)
             .map(|n| n.id)
     };
+    // One mesh for every bar, for the same reason the notes use one: these are plain
+    // square-cornered rectangles, and letting epaint anti-alias each of them separately
+    // costs about ten triangles apiece to feather an edge nobody can see.
+    let mut bars = egui::Mesh::default();
     for n in &clip.notes {
         let x = geo.x(ticks_to_beats(n.start));
         if x < vel.left() - 4.0 || x > vel.right() {
@@ -673,9 +753,8 @@ fn velocity_lane(
         let h = (inner_bottom - inner_top) * n.velocity as f32 / 127.0;
         let r = Rect::from_min_max(pos2(x, inner_bottom - h), pos2(x + 4.0, inner_bottom));
         let selected = app.selected_notes.contains(&n.id);
-        p.rect_filled(
+        bars.add_colored_rect(
             r,
-            0.0,
             if selected {
                 theme::p().gold_bright
             } else if n.muted {
@@ -684,6 +763,9 @@ fn velocity_lane(
                 color
             },
         );
+    }
+    if !bars.is_empty() {
+        p.add(egui::Shape::Mesh(std::sync::Arc::new(bars)));
     }
     if resp.drag_started_by(PointerButton::Primary) {
         if let Some(press) = press {

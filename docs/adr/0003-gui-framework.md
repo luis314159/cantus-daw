@@ -1,6 +1,6 @@
 # ADR 0003 — GUI framework: egui
 
-**Status:** Accepted (revisit if the Phase-0 stress view fails) · **Date:** 2026-09-07
+**Status:** Accepted · re-confirmed by [ADR 0011](0011-gui-toolkit-re-evaluated.md), which measured the guardrail below for the first time · **Date:** 2026-09-07
 
 ## Options considered
 - **egui/eframe** — immediate mode, very mature, huge community, accesskit integration
@@ -15,7 +15,9 @@ are drawn with `Painter` primitives on culled visible ranges — never one widge
 
 ## Guardrail (from idea.md §12)
 The piano roll must keep 60 fps with 20 000 visible notes. `cantus-ui` ships a
-stress mode (`--stress`) to measure this continuously.
+stress mode (`--stress`), and `stress_piano_roll_frame_cost` measures it. **Note:** until
+ADR 0011 that test ran at a zoom where culling left only ~139 notes on screen, so it was
+not checking this at all. Measured properly it now stands at 6.9 ms for 20 000 notes.
 
 ## Consequences
 - Every UI string goes through `i18n::t()` (ADR 0007).

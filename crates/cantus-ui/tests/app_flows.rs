@@ -721,3 +721,121 @@ fn opening_the_settings_dialog_changes_nothing_by_itself() {
     );
     assert!(a.show_settings, "the dialog closed itself");
 }
+
+/// What a piano-roll frame actually costs, at two zoom levels.
+///
+/// The old version of this test ran the stress project at the default zoom, where culling
+/// means only a couple of hundred notes are on screen — so it proved nothing about ADR
+/// 0003's "60 fps with 20 000 visible notes". This one measures what a frame costs,
+/// tessellation included: `run_ui` only builds the shape list, and turning notes into
+/// triangles is where the CPU goes.
+///
+/// Two zooms, because they answer different questions:
+///
+/// - **`px_per_beat` 4.0** is as far out as a user can actually zoom (the wheel clamps
+///   there), so it is the worst case reachable today.
+/// - **`px_per_beat` 0.5** is what seeing a whole long piece at once would need, and is
+///   the scenario ADR 0003 named. It is not reachable through the UI yet; measuring it
+///   says what lifting the clamp would cost.
+fn piano_roll_frame_cost(px_per_beat: f32) -> (usize, f64, f64, usize) {
+    piano_roll_frame_cost_of(stress_project(), px_per_beat)
+}
+
+/// The same measurement with an empty clip isolates what the chrome costs — grid lines,
+/// keyboard, ruler, velocity lane — from what the notes cost.
+fn piano_roll_frame_cost_of(project: Project, px_per_beat: f32) -> (usize, f64, f64, usize) {
+    let mut a = app(project);
+    a.piano_roll.px_per_beat = px_per_beat;
+    a.piano_roll.key_height = 10.0;
+    a.piano_roll.top_pitch = 100.0;
+    a.piano_roll.scroll_beats = 0.0;
+
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1600.0, 1000.0),
+        )),
+        ..Default::default()
+    };
+
+    let mut build = Vec::new();
+    let mut tess = Vec::new();
+    let mut triangles = 0usize;
+    for _ in 0..20 {
+        let t0 = Instant::now();
+        let mut out = ctx.run_ui(input.clone(), |ui| {
+            egui::CentralPanel::default().show(ui, |ui| views::piano_roll::show(&mut a, ui));
+        });
+        let t1 = Instant::now();
+        let prims = ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);
+        let t2 = Instant::now();
+        out.textures_delta.clear();
+        triangles = prims
+            .iter()
+            .map(|p| match &p.primitive {
+                egui::epaint::Primitive::Mesh(m) => m.indices.len() / 3,
+                _ => 0,
+            })
+            .sum();
+        build.push(t1 - t0);
+        tess.push(t2 - t1);
+    }
+    build.sort();
+    tess.sort();
+    let med = |v: &Vec<Duration>| v[v.len() / 2].as_secs_f64() * 1e3;
+    (a.piano_roll_notes_drawn, med(&build), med(&tess), triangles)
+}
+
+/// The stress project with every note removed: same tracks, same clip bounds, no notes.
+fn empty_stress_project() -> Project {
+    let mut p = stress_project();
+    for track in &mut p.tracks {
+        for clip in &mut track.clips {
+            clip.notes.clear();
+        }
+    }
+    p
+}
+
+#[test]
+fn stress_piano_roll_frame_cost() {
+    for px in [4.0f32, 0.5] {
+        let (_, b, t, tris) = piano_roll_frame_cost_of(empty_stress_project(), px);
+        eprintln!(
+            "px_per_beat {px:>4} | CHROME ONLY (no notes)      | build {b:6.2} ms |              tessellate {t:6.2} ms | total {:6.2} ms | {tris:>7} triangles",
+            b + t
+        );
+    }
+    for px in [4.0f32, 0.5] {
+        let (notes, build, tess, tris) = piano_roll_frame_cost(px);
+        eprintln!(
+            "px_per_beat {px:>4} | notes {notes:>6} | build {build:6.2} ms | tessellate \
+             {tess:6.2} ms | total {:6.2} ms | {tris:>7} triangles | {:.1} tri/note",
+            build + tess,
+            tris as f64 / notes.max(1) as f64
+        );
+    }
+
+    // ADR 0003's guardrail, now that it is actually measurable: 20 000 visible notes
+    // inside a 60 fps frame. The ceiling is generous against the measured ~7 ms because
+    // these numbers move with whatever else the machine is compiling; it guards against a
+    // regression of the order the mesh batching fixed, not against a few per cent.
+    let (notes, build, tess, _) = piano_roll_frame_cost(0.5);
+    assert_eq!(
+        notes, 20_000,
+        "the guardrail is about 20 000 *visible* notes"
+    );
+    // 60 fps is a claim about a release build; debug is several times slower, and these
+    // numbers move with whatever else the machine happens to be compiling. So the
+    // ceiling is per profile and deliberately loose: it catches a regression of the
+    // order the mesh batching fixed (that path measured ~370 ms in debug before it was
+    // written), not a few per cent of drift.
+    let budget = if cfg!(debug_assertions) { 120.0 } else { 16.6 };
+    assert!(
+        build + tess < budget,
+        "a frame with 20 000 visible notes took {:.2} ms, over the {budget} ms ceiling; \
+         ADR 0003 asks for 60 fps, so run with --release for the figure that counts",
+        build + tess
+    );
+}

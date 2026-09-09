@@ -216,7 +216,13 @@ fn looping_wraps_and_keeps_playing() {
         loud_blocks > 800,
         "only {loud_blocks} loud blocks — looping stalled?"
     );
-    assert_eq!(p.stats().overruns, 0);
+    // Deliberately no assertion on `stats().overruns` here. That counter compares wall
+    // clock against the block's audio-time budget, so on a loaded machine — a CI runner,
+    // or a laptop compiling something else — a run of 1 000 blocks will occasionally
+    // exceed it and fail a test that is otherwise fully deterministic. Whether the
+    // callback keeps up with real time is a property of a real device under a real load,
+    // and `tests/hardware.rs` is where it is asserted. A flaky guardrail is worse than no
+    // guardrail: people learn to re-run it instead of reading it.
 }
 
 #[test]

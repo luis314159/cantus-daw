@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 8: settings) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 119 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 9: piano roll performance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 120 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -8,7 +8,7 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0010 | done |
+| Workspace, licenses, ADRs 0001–0011 | done |
 | `cantus-core`: time, model, commands, bus, snapshots, **effects model** | done; 24 tests incl. 40-seed undo/redo invariant fuzz (now covering effect commands) |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **stereo delay, Freeverb-style reverb**, null-test harness | done; 19 tests |
 | `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
@@ -55,6 +55,36 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Piano roll performance (round 9) — and why we stayed on egui
+
+Prompted by "would Slint be better?", ADR 0011. The honest answer needed a number, and the
+number did not exist: the stress test ran at a zoom where culling left **139 notes** on
+screen, so ADR 0003's "60 fps with 20 000 visible notes" was never being checked.
+
+Measured properly, with tessellation included:
+
+| | Frame | Triangles | Per note |
+|---|---|---|---|
+| Before | **74.7 ms** (13 fps) | 416 772 | 20.8 |
+| After | **6.9 ms** (146 fps) | 96 772 | 4.8 |
+
+Two causes, both ours. Notes were drawn as rounded rectangles with a stroked outline at
+every zoom, and epaint anti-aliases every filled shape into a feathered ring — about twenty
+triangles for a rectangle. About forty lines fixed it: `NoteLod` decides what a note is
+worth at its size on screen, and anything below the thresholds joins one `egui::Mesh` at
+two triangles each. Tessellation fell from 60.4 ms to 2.9 ms. At editing zoom nothing
+changed visually — verified by screenshot.
+
+**Convention this establishes:** anything drawn once per note, clip, sample or automation
+point goes into a `Mesh` and gets a level-of-detail rule. Not an optimisation to remember —
+a rule, because the convenience painters cost ~10x per item.
+
+Also fixed: `looping_wraps_and_keeps_playing` asserted `stats().overruns == 0`, which
+compares wall clock against the block budget. On a loaded machine a 1 000-block run
+exceeds it and the test fails, in an otherwise fully deterministic null test. Real-time
+behaviour belongs in `tests/hardware.rs`; a flaky guardrail teaches people to re-run
+instead of read.
 
 ## Settings (round 8)
 
