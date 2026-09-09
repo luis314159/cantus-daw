@@ -13,6 +13,7 @@ pub mod keyboard;
 pub mod keymap;
 pub mod layout;
 pub mod recording;
+pub mod settings;
 pub mod theme;
 pub mod views;
 
@@ -34,11 +35,16 @@ pub struct LaunchOptions {
     pub mixer: bool,
     /// Open the shortcuts editor at startup (handy for a look without hunting the menu).
     pub shortcuts: bool,
+    /// Open the settings dialog at startup, for the same reason.
+    pub settings: bool,
 }
 
 /// Run the desktop application until the window closes.
 pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
-    if let Some(l) = options.locale.as_deref().and_then(i18n::Locale::from_code) {
+    // An explicit `--locale` wins over the stored preference; the app applies whichever
+    // it is given.
+    let locale_from_flag = options.locale.as_deref().and_then(i18n::Locale::from_code);
+    if let Some(l) = locale_from_flag {
         i18n::set_locale(l);
     }
     let project = match &options.project {
@@ -54,6 +60,7 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     let stress = options.stress;
     let mixer = options.mixer;
     let shortcuts = options.shortcuts;
+    let settings = options.settings;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(i18n::t("app.title"))
         .with_app_id("cantus")
@@ -72,11 +79,12 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         "Cantus",
         native,
         Box::new(move |cc| {
-            let mut app = CantusApp::new(cc, project, stress);
+            let mut app = CantusApp::new(cc, project, stress, locale_from_flag);
             if mixer {
                 app.central = app::CentralView::Mixer;
             }
             app.show_shortcuts = shortcuts;
+            app.show_settings = settings;
             Ok(Box::new(app))
         }),
     )

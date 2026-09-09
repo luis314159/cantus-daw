@@ -299,3 +299,25 @@ action.tool-slice = Slice tool
 action.tool-playback = Play tool
 action.toggle-typing-piano = Typing keyboard plays notes
 keymap.mouse = Mouse and wheel
+
+# Settings dialog (settings.json)
+menu.settings = Settings…
+settings.title = Settings
+settings.audio = Audio
+settings.device = Output device
+settings.sample_rate = Sample rate
+settings.buffer = Buffer size
+settings.default = System default
+settings.apply = Apply
+settings.audio_now = Now: {device} at {rate} Hz
+settings.audio_opened = Audio: {device} at {rate} Hz
+settings.audio_failed = Could not open the audio device: {error}
+settings.midi = MIDI
+settings.rescan_midi = Rescan ports
+settings.midi_rescanned = {n} MIDI input(s)
+settings.no_midi = No MIDI inputs found. Plug a keyboard in and rescan.
+settings.appearance = Appearance
+settings.edit_shortcuts = Edit shortcuts…
+settings.saving = Saving
+settings.autosave = Autosave every
+settings.autosave_hint = Autosave keeps a recovery copy beside your project; it never overwrites the file you are working on.

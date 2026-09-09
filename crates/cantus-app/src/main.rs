@@ -17,6 +17,7 @@ fn main() -> anyhow::Result<()> {
             "--locale" => options.locale = args.next(),
             "--mixer" => options.mixer = true,
             "--shortcuts" => options.shortcuts = true,
+            "--settings" => options.settings = true,
             "--window" => {
                 let w = args.next().and_then(|s| s.parse::<f32>().ok());
                 let h = args.next().and_then(|s| s.parse::<f32>().ok());
@@ -28,7 +29,7 @@ fn main() -> anyhow::Result<()> {
             }
             "--help" | "-h" => {
                 println!(
-                    "cantus [--stress] [--locale en|es] [--mixer] [--shortcuts] [--window W H] [project.cantus]"
+                    "cantus [--stress] [--locale en|es] [--mixer] [--shortcuts] [--settings] [--window W H] [project.cantus]"
                 );
                 return Ok(());
             }

@@ -3,11 +3,12 @@
 //! compiled snapshots.
 
 use crate::design::{self, space, Elevation};
-use crate::i18n::{t, tf};
+use crate::i18n::{self, t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
 use crate::keymap::{Action, Keymap};
 use crate::layout::{self, Layouts};
 use crate::recording::{RecordedNote, Recorder};
+use crate::settings::{self, Settings};
 use crate::theme;
 use crate::views::{
     self, arrangement::ArrangementView, mixer::MixerView, piano_roll::PianoRollView,
@@ -16,15 +17,13 @@ use cantus_core::{
     ClipId, Command, CommandBus, EffectId, EffectKind, MergeKey, Origin, Project, Snapshot, Ticks,
     TrackId,
 };
-use cantus_engine::{AudioConfig, EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
+use cantus_engine::{EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(60);
-
 /// What the central area shows.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CentralView {
@@ -74,6 +73,13 @@ pub struct CantusApp {
     live_track_sent: Option<Option<TrackId>>,
     theme_watcher: Option<theme::ThemeWatcher>,
     theme_path: PathBuf,
+    /// User preferences, from `settings.json` (`crate::settings`).
+    pub settings: Settings,
+    /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
+    pub settings_path: PathBuf,
+    pub show_settings: bool,
+    /// Set while the audio device is being reopened, to report the outcome once.
+    audio_error: Option<String>,
     /// Every shortcut, from `keymap.toml` (`crate::keymap`).
     pub keymap: Keymap,
     /// Where [`Self::store_keymap`] writes. Public so tests can redirect it.
@@ -110,7 +116,15 @@ pub struct CantusApp {
 }
 
 impl CantusApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, project: Option<Project>, stress: bool) -> Self {
+    /// `locale_from_flag` is whatever `--locale` asked for. It is passed in rather than
+    /// read here because an explicit flag must win over the stored preference, and only
+    /// the caller knows whether one was given.
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        project: Option<Project>,
+        stress: bool,
+        locale_from_flag: Option<i18n::Locale>,
+    ) -> Self {
         // The theme lives in a user-editable file; create it from the default on first run.
         let theme_path = directories_fallback().join("theme.json");
         let loaded = match theme::load_file(&theme_path) {
@@ -134,6 +148,16 @@ impl CantusApp {
         };
         design::install_fonts(&cc.egui_ctx);
         design::install_style(&cc.egui_ctx);
+        // Settings are read before anything else: they decide the language the first
+        // strings are drawn in and which device the engine opens.
+        let settings_path = settings::settings_path(&directories_fallback());
+        let settings = Settings::load(&settings_path);
+        // An explicit `--locale` on the command line wins over the stored preference.
+        if locale_from_flag.is_none() {
+            if let Some(l) = settings.locale.as_deref().and_then(i18n::Locale::from_code) {
+                i18n::set_locale(l);
+            }
+        }
         let layouts_path = layout::layouts_path(&directories_fallback());
         let mut layouts = Layouts::load(&layouts_path);
         layouts.force();
@@ -147,7 +171,7 @@ impl CantusApp {
             }
         }
         theme::apply(&loaded, &cc.egui_ctx);
-        let engine = match EngineHandle::start(&AudioConfig::default()) {
+        let engine = match EngineHandle::start(&settings.audio.to_config()) {
             Ok(e) => e,
             Err(e) => {
                 log::error!("audio: {e}");
@@ -155,6 +179,8 @@ impl CantusApp {
             }
         };
         let mut app = Self::from_parts(project, engine, stress);
+        app.settings = settings;
+        app.settings_path = settings_path;
         app.central = layouts.current.central.into();
         app.layouts = layouts;
         app.layouts_path = layouts_path;
@@ -205,6 +231,10 @@ impl CantusApp {
             theme_watcher: None,
             theme_path: directories_fallback().join("theme.json"),
             theme_ctx: None,
+            settings: Settings::default(),
+            settings_path: settings::settings_path(&directories_fallback()),
+            show_settings: false,
+            audio_error: None,
             keymap: Keymap::default(),
             keymap_path: crate::keymap::keymap_path(&directories_fallback()),
             rebinding: None,
@@ -360,6 +390,73 @@ impl CantusApp {
             log::warn!("cannot write layouts file: {e}");
         }
         self.set_status(t("layout.was_reset"));
+    }
+
+    pub fn store_settings(&mut self) {
+        if let Err(e) = self.settings.save(&self.settings_path) {
+            log::warn!("cannot write settings file: {e}");
+        }
+    }
+
+    /// Reopen the audio device with the current settings.
+    ///
+    /// Two things keep a settings change from leaving the user in silence, which is the
+    /// worst thing a settings dialog in an audio application can do. `EngineHandle::start`
+    /// falls back to the system default when the named device is not there — unplugged
+    /// since the settings were saved, say — and if it cannot open anything at all, the
+    /// engine that is already running is left alone. Either way the status line names the
+    /// device actually in use, so a fallback is visible rather than mysterious.
+    pub fn restart_audio(&mut self) {
+        match EngineHandle::start(&self.settings.audio.to_config()) {
+            Ok(engine) => {
+                self.engine = engine;
+                self.midi_inputs = None;
+                if self.engine.is_live() {
+                    let inputs = MidiInputs::open_all(self.engine.midi_sender());
+                    self.midi_port_names = inputs.names.clone();
+                    self.midi_inputs = Some(inputs);
+                }
+                // The new engine has never seen this project.
+                self.synced_revision = u64::MAX;
+                self.live_track_sent = None;
+                self.sync_engine();
+                self.sync_live_track();
+                self.audio_error = None;
+                self.set_status(tf(
+                    "settings.audio_opened",
+                    &[
+                        ("device", &self.engine.device_name),
+                        ("rate", &(self.engine.sample_rate as u32)),
+                    ],
+                ));
+            }
+            Err(e) => {
+                self.audio_error = Some(e.to_string());
+                self.set_error(tf("settings.audio_failed", &[("error", &e.to_string())]));
+            }
+        }
+        self.store_settings();
+    }
+
+    /// Rescan MIDI inputs — what a user reaches for after plugging a keyboard in.
+    pub fn rescan_midi(&mut self) {
+        if !self.engine.is_live() {
+            return;
+        }
+        self.midi_inputs = None;
+        let inputs = MidiInputs::open_all(self.engine.midi_sender());
+        self.midi_port_names = inputs.names.clone();
+        self.midi_inputs = Some(inputs);
+        self.set_status(tf(
+            "settings.midi_rescanned",
+            &[("n", &self.midi_port_names.len())],
+        ));
+    }
+
+    pub fn set_locale(&mut self, locale: i18n::Locale) {
+        i18n::set_locale(locale);
+        self.settings.locale = Some(locale.code().to_string());
+        self.store_settings();
     }
 
     pub fn store_keymap(&mut self) {
@@ -1184,7 +1281,7 @@ impl CantusApp {
     }
 
     fn maybe_autosave(&mut self) {
-        if self.last_autosave.elapsed() < AUTOSAVE_INTERVAL {
+        if self.last_autosave.elapsed() < self.settings.autosave_interval() {
             return;
         }
         self.last_autosave = Instant::now();
@@ -1465,6 +1562,273 @@ impl CantusApp {
         });
     }
 
+    /// Preferences: the sound card, the MIDI ports, the language, the theme, how often to
+    /// autosave — and a way through to the shortcuts editor.
+    ///
+    /// Audio changes are deliberately *not* applied as the user drags: reopening the
+    /// device on every frame of a combo box would stutter the audio. The dialog collects a
+    /// pending choice and applies it when *Apply* is pressed.
+    fn settings_dialog(&mut self, ctx: &egui::Context) {
+        use crate::i18n::Locale;
+        use crate::settings::{
+            BUFFER_SIZES, MAX_AUTOSAVE_SECONDS, MIN_AUTOSAVE_SECONDS, SAMPLE_RATES,
+        };
+
+        let mut open = self.show_settings;
+        let mut pending = self.settings.audio.clone();
+        let mut apply_audio = false;
+        let mut rescan = false;
+        let mut open_shortcuts = false;
+        let mut locale_change: Option<Locale> = None;
+        let mut preset_change: Option<theme::Theme> = None;
+        let mut open_theme = false;
+        let mut autosave = self.settings.autosave_seconds;
+
+        egui::Window::new(t("settings.title"))
+            .collapsible(false)
+            .open(&mut open)
+            // Tall enough for all four sections at once: a preferences window that makes
+            // you scroll to find "Saving" hides half of itself.
+            .default_size([space::GRID * 130.0, space::GRID * 165.0])
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    section(ui, "settings.audio");
+                    egui::Grid::new("settings-audio")
+                        .num_columns(2)
+                        .spacing([space::S3, space::S2])
+                        .min_row_height(space::ROW)
+                        .show(ui, |ui| {
+                            ui.label(t("settings.device"));
+                            egui::ComboBox::from_id_salt("device")
+                                .selected_text(
+                                    pending
+                                        .device
+                                        .clone()
+                                        .unwrap_or_else(|| t("settings.default")),
+                                )
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut pending.device,
+                                        None,
+                                        t("settings.default"),
+                                    );
+                                    for d in cantus_engine::output_devices() {
+                                        let label = if d.is_default {
+                                            format!("{} ({})", d.name, t("settings.default"))
+                                        } else {
+                                            d.name.clone()
+                                        };
+                                        ui.selectable_value(
+                                            &mut pending.device,
+                                            Some(d.name.clone()),
+                                            label,
+                                        );
+                                    }
+                                });
+                            ui.end_row();
+
+                            ui.label(t("settings.sample_rate"));
+                            egui::ComboBox::from_id_salt("rate")
+                                .selected_text(match pending.sample_rate {
+                                    Some(r) => format!("{r} Hz"),
+                                    None => t("settings.default"),
+                                })
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut pending.sample_rate,
+                                        None,
+                                        t("settings.default"),
+                                    );
+                                    for r in SAMPLE_RATES {
+                                        ui.selectable_value(
+                                            &mut pending.sample_rate,
+                                            Some(r),
+                                            format!("{r} Hz"),
+                                        );
+                                    }
+                                });
+                            ui.end_row();
+
+                            ui.label(t("settings.buffer"));
+                            ui.horizontal(|ui| {
+                                egui::ComboBox::from_id_salt("buffer")
+                                    .selected_text(match pending.buffer_frames {
+                                        Some(b) => b.to_string(),
+                                        None => t("settings.default"),
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut pending.buffer_frames,
+                                            None,
+                                            t("settings.default"),
+                                        );
+                                        for b in BUFFER_SIZES {
+                                            ui.selectable_value(
+                                                &mut pending.buffer_frames,
+                                                Some(b),
+                                                b.to_string(),
+                                            );
+                                        }
+                                    });
+                                // Frames mean nothing on their own; milliseconds are what
+                                // a musician is actually choosing between.
+                                if let Some(ms) = pending.block_latency_ms(self.engine.sample_rate)
+                                {
+                                    ui.label(
+                                        egui::RichText::new(format!("≈ {ms:.1} ms"))
+                                            .text_style(design::mono_small())
+                                            .color(theme::p().text_dim),
+                                    );
+                                }
+                            });
+                            ui.end_row();
+                        });
+
+                    ui.horizontal(|ui| {
+                        let changed = pending != self.settings.audio;
+                        if ui
+                            .add_enabled(changed, egui::Button::new(t("settings.apply")))
+                            .clicked()
+                        {
+                            apply_audio = true;
+                        }
+                        let running = if self.engine.is_live() {
+                            tf(
+                                "settings.audio_now",
+                                &[
+                                    ("device", &self.engine.device_name),
+                                    ("rate", &(self.engine.sample_rate as u32)),
+                                ],
+                            )
+                        } else {
+                            t("status.no_audio")
+                        };
+                        ui.label(
+                            egui::RichText::new(running)
+                                .text_style(design::caption())
+                                .color(theme::p().text_dim),
+                        );
+                    });
+                    if let Some(e) = &self.audio_error {
+                        ui.label(egui::RichText::new(e).color(theme::p().danger));
+                    }
+
+                    section(ui, "settings.midi");
+                    ui.horizontal(|ui| {
+                        if ui.button(t("settings.rescan_midi")).clicked() {
+                            rescan = true;
+                        }
+                        ui.label(
+                            egui::RichText::new(tf(
+                                "status.midi",
+                                &[("n", &self.midi_port_names.len())],
+                            ))
+                            .text_style(design::caption())
+                            .color(theme::p().text_dim),
+                        );
+                    });
+                    for name in &self.midi_port_names {
+                        ui.label(
+                            egui::RichText::new(name)
+                                .text_style(design::caption())
+                                .color(theme::p().text_dim),
+                        );
+                    }
+                    if self.midi_port_names.is_empty() {
+                        ui.label(
+                            egui::RichText::new(t("settings.no_midi"))
+                                .text_style(design::caption())
+                                .color(theme::p().text_dim),
+                        );
+                    }
+
+                    section(ui, "settings.appearance");
+                    egui::Grid::new("settings-look")
+                        .num_columns(2)
+                        .spacing([space::S3, space::S2])
+                        .min_row_height(space::ROW)
+                        .show(ui, |ui| {
+                            ui.label(t("menu.language"));
+                            ui.horizontal(|ui| {
+                                for l in Locale::ALL {
+                                    if ui
+                                        .selectable_label(
+                                            crate::i18n::locale() == l,
+                                            l.native_name(),
+                                        )
+                                        .clicked()
+                                    {
+                                        locale_change = Some(l);
+                                    }
+                                }
+                            });
+                            ui.end_row();
+
+                            ui.label(t("menu.theme"));
+                            ui.horizontal(|ui| {
+                                for (key, make) in theme::PRESETS {
+                                    if ui.button(t(key)).clicked() {
+                                        preset_change = Some(make());
+                                    }
+                                }
+                                if ui.button(t("menu.open_theme_file")).clicked() {
+                                    open_theme = true;
+                                }
+                            });
+                            ui.end_row();
+
+                            ui.label(t("keymap.title"));
+                            if ui.button(t("settings.edit_shortcuts")).clicked() {
+                                open_shortcuts = true;
+                            }
+                            ui.end_row();
+                        });
+
+                    section(ui, "settings.saving");
+                    ui.horizontal(|ui| {
+                        ui.label(t("settings.autosave"));
+                        ui.add(
+                            egui::Slider::new(
+                                &mut autosave,
+                                MIN_AUTOSAVE_SECONDS..=MAX_AUTOSAVE_SECONDS,
+                            )
+                            .suffix(" s"),
+                        );
+                    });
+                    ui.label(
+                        egui::RichText::new(t("settings.autosave_hint"))
+                            .text_style(design::caption())
+                            .color(theme::p().text_dim),
+                    );
+                });
+            });
+
+        self.show_settings = open;
+        if autosave != self.settings.autosave_seconds {
+            self.settings.autosave_seconds = autosave;
+            self.store_settings();
+        }
+        if apply_audio {
+            self.settings.audio = pending;
+            self.restart_audio();
+        }
+        if rescan {
+            self.rescan_midi();
+        }
+        if let Some(l) = locale_change {
+            self.set_locale(l);
+        }
+        if let Some(theme) = preset_change {
+            self.apply_theme_preset(theme);
+        }
+        if open_theme {
+            self.reveal_theme_file();
+        }
+        if open_shortcuts {
+            self.show_shortcuts = true;
+        }
+    }
+
     /// The shortcuts editor: every action, what it is bound to, and a click to rebind.
     fn keymap_dialog(&mut self, ctx: &egui::Context) {
         use crate::keymap::{Category, Preset};
@@ -1682,6 +2046,9 @@ impl CantusApp {
             }
             self.naming_layout = if close { None } else { Some(name) };
         }
+        if self.show_settings {
+            self.settings_dialog(ctx);
+        }
         if self.show_shortcuts {
             self.keymap_dialog(ctx);
         }
@@ -1814,6 +2181,17 @@ impl eframe::App for CantusApp {
             },
         ));
     }
+}
+
+/// A group heading inside a dialog, matching the inspector's.
+fn section(ui: &mut egui::Ui, key: &str) {
+    ui.add_space(space::S3);
+    ui.label(
+        egui::RichText::new(t(key).to_uppercase())
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
+    ui.add_space(space::S1);
 }
 
 /// Show a file in the platform's file manager, selecting it where that is supported.

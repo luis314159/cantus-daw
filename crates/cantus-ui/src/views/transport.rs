@@ -2,7 +2,7 @@
 
 use crate::app::CantusApp;
 use crate::design::{self, space};
-use crate::i18n::{t, tf, Locale};
+use crate::i18n::{t, tf};
 use crate::icons::{self, Icon};
 use crate::theme;
 use cantus_core::{Command, MergeKey, Ticks};
@@ -131,30 +131,13 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
         }
     });
     ui.menu_button(t("menu.view"), |ui| {
-        ui.menu_button(t("menu.language"), |ui| {
-            for l in Locale::ALL {
-                if ui
-                    .selectable_label(crate::i18n::locale() == l, l.native_name())
-                    .clicked()
-                {
-                    crate::i18n::set_locale(l);
-                    ui.close();
-                }
-            }
-        });
-        ui.menu_button(t("menu.theme"), |ui| {
-            for (key, make) in theme::PRESETS {
-                if ui.button(t(key)).clicked() {
-                    ui.close();
-                    app.apply_theme_preset(make());
-                }
-            }
-            ui.separator();
-            if ui.button(t("menu.open_theme_file")).clicked() {
-                ui.close();
-                app.reveal_theme_file();
-            }
-        });
+        // Language and theme live in Settings rather than here as well: two places to
+        // change one thing is how they drift apart.
+        if ui.button(t("menu.settings")).clicked() {
+            ui.close();
+            app.show_settings = true;
+        }
+        ui.separator();
         layout_menu(app, ui);
         ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
         ui.checkbox(&mut app.show_stats, t("menu.stats"));

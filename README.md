@@ -39,6 +39,8 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **Named layouts**: size the panels how you like, hide the ones you are not using, save
   the shape under a name and switch between them from *View → Layout*. Panel sizes survive
   a restart.
+- **A settings dialog** (*View → Settings…*): output device, sample rate and buffer size
+  with the latency in milliseconds, MIDI ports, language, theme and how often to autosave.
 - **Every shortcut is yours** (ADR 0010): `keymap.toml` holds them all, with presets
   modelled on FL Studio, Ableton Live and Bitwig, and an editor under *Help → Shortcuts*
   that flags conflicts.
@@ -54,6 +56,7 @@ cargo run --release -p cantus -- --locale es
 cargo run --release -p cantus -- song.cantus
 cargo run --release -p cantus -- --mixer --window 1200 760   # start in the mixer, fixed size
 cargo run --release -p cantus -- --shortcuts                 # open the shortcuts editor
+cargo run --release -p cantus -- --settings                  # open the settings dialog
 ```
 
 Requires stable Rust 1.85 or newer. No system libraries are needed on Windows or macOS;
@@ -69,6 +72,9 @@ upgraded in place on load, so new colour tokens appear in your file ready to edi
 
 Type, spacing and elevation are **not** in that file: they are the product's design
 system (`crates/cantus-ui/src/design.rs`), and ADR 0009 explains the split.
+
+Preferences — audio device, sample rate, buffer size, language and the autosave interval —
+live in `settings.json` and are edited from *View → Settings…*.
 
 Keyboard shortcuts live next to it in `keymap.toml` — plain TOML with comments, written
 on first run. *Help → Shortcuts* edits it: choose a preset, click a shortcut to clear it,

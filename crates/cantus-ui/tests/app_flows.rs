@@ -570,6 +570,7 @@ fn every_dialog_renders_what_it_should_say() {
     };
     a.show_about = true;
     a.show_shortcuts = true;
+    a.show_settings = true;
     a.naming_layout = Some("Mixing".into());
 
     // egui lays a window out on one frame and paints it on the next, so read the second.
@@ -586,6 +587,9 @@ fn every_dialog_renders_what_it_should_say() {
         "Ctrl+Shift+S",             // a binding, so display_for really rendered
         "Alt+wheel edits velocity", // the mouse help a keymap cannot express
         "Layout name",              // the layout naming prompt
+        "Settings",                 // the preferences window
+        "Output device",            // ... and that its audio section rendered
+        "Autosave every",           // ... and its saving section
     ] {
         assert!(
             text.contains(expected),
@@ -616,4 +620,104 @@ fn every_dialog_renders_what_it_should_say() {
         "a conflicting keymap must be reported in the dialog; painted:
 {text}"
     );
+}
+
+#[test]
+fn settings_are_applied_and_persisted() {
+    use cantus_ui::i18n::Locale;
+    use cantus_ui::settings::{self, Settings, MIN_AUTOSAVE_SECONDS};
+
+    let mut a = app(starter_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.settings_path = settings::settings_path(dir.path());
+
+    // Choosing a language stores the preference, so the next run opens in it. The locale
+    // is process-wide and these tests run in parallel, so this sets the one the suite
+    // already uses rather than racing the other tests for it.
+    a.set_locale(Locale::En);
+    assert_eq!(
+        Settings::load(&a.settings_path).locale.as_deref(),
+        Some("en")
+    );
+
+    // The autosave interval is a setting, not a constant, and is clamped on the way out
+    // so a hand-edited zero cannot turn autosave into a per-frame write.
+    a.settings.autosave_seconds = 15;
+    a.store_settings();
+    assert_eq!(
+        Settings::load(&a.settings_path)
+            .autosave_interval()
+            .as_secs(),
+        15
+    );
+    a.settings.autosave_seconds = 0;
+    assert_eq!(
+        a.settings.autosave_interval().as_secs(),
+        MIN_AUTOSAVE_SECONDS
+    );
+
+    // A device that is not there — unplugged since the settings were saved, say — falls
+    // back to the system default rather than leaving the user with no sound at all
+    // (`EngineHandle::start`). What matters is that the app then says which device it
+    // actually opened, so the fallback is visible rather than mysterious.
+    a.settings.audio.device = Some("No Such Device 9000".into());
+    a.restart_audio();
+    assert_ne!(
+        a.engine.device_name.as_str(),
+        "No Such Device 9000",
+        "the missing device cannot have been opened"
+    );
+    if a.engine.is_live() {
+        assert!(!a.status.error, "falling back is not an error");
+        assert!(
+            a.status.text.contains(&a.engine.device_name),
+            "the status must name the device actually in use, got {:?}",
+            a.status.text
+        );
+    }
+    // The request is still remembered, so the dialog shows what was asked for and the
+    // device is used again once it comes back.
+    assert_eq!(
+        Settings::load(&a.settings_path).audio.device.as_deref(),
+        Some("No Such Device 9000")
+    );
+}
+
+#[test]
+fn opening_the_settings_dialog_changes_nothing_by_itself() {
+    // A preferences window that writes a preference merely by being looked at is a nasty
+    // bug: every widget in it is bound to a value, and one that reports "changed" on its
+    // first frame would silently rewrite the user's settings file.
+    use cantus_ui::settings;
+
+    let mut a = app(starter_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.settings_path = settings::settings_path(dir.path());
+    let before = a.settings.clone();
+    a.show_settings = true;
+
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    // Several frames, because egui lays a window out on one and paints it on the next.
+    for _ in 0..3 {
+        ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()))
+            .textures_delta
+            .clear();
+    }
+
+    assert_eq!(
+        a.settings, before,
+        "the dialog edited the settings on its own"
+    );
+    assert!(
+        !a.settings_path.exists(),
+        "the dialog wrote the settings file without the user changing anything"
+    );
+    assert!(a.show_settings, "the dialog closed itself");
 }

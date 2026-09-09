@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-08 (round 7: keymap) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 113 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 8: settings) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 119 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -14,7 +14,7 @@ Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 | `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
 | `cantus-project`: versioned JSON (**schema 3**), SHA-256, migrations 0→1→2→3, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1`–`v3.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, i18n EN/ES | done; 43 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, **settings dialog**, i18n EN/ES | done; 49 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -55,6 +55,34 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Settings (round 8)
+
+`cantus-ui/src/settings.rs` and the *View → Settings…* dialog. Preferences — the ones a
+dialog can hold in a handful of rows — live in `settings.json` beside the other user files:
+audio device, sample rate, buffer size, language, autosave interval. The theme deliberately
+stays in `theme.json`: it is a whole document the user edits by hand and the app reloads
+live, not a row in a dialog.
+
+- **Audio changes are applied on *Apply*, never as you drag.** Reopening the device on
+  every frame of a combo box would stutter the audio.
+- **A settings change can never leave the user in silence.** `EngineHandle::start` falls
+  back to the system default when the saved device is not there (unplugged since last
+  time), and if nothing can be opened at all, the engine already running is left alone.
+  Either way the status line names the device actually in use, so a fallback is visible
+  rather than mysterious — there is a test for exactly that.
+- **The buffer size is shown in milliseconds** next to the frame count, because that is
+  what a musician is actually choosing between.
+- **The autosave interval is clamped on the way out** (10 s–10 min): a `settings.json`
+  hand-edited to `0` must not turn autosave into a per-frame write of the whole project.
+- **Language and theme moved out of the *View* menu** into Settings. Two places to change
+  one thing is how they drift apart.
+- A test asserts that *opening* the dialog changes nothing and writes no file. A
+  preferences window that rewrites preferences by being looked at is a nasty bug, and every
+  widget in it is bound to a value that could report "changed" on its first frame.
+- `--settings` and `--shortcuts` open those dialogs at startup, next to `--mixer`. They
+  exist so that looking at a view does not depend on driving menus, which synthetic clicks
+  do not do reliably on Windows.
 
 ## The keymap (round 7)
 
@@ -167,24 +195,23 @@ Ordered plan, each step shippable on its own:
    already editable in the inspector).
 4. ~~**Keyboard map file**~~ **done (round 7)** — see "The keymap" above. The editor is a
    self-contained window today; the settings dialog will host it rather than redefine it.
-5. **Settings dialog** — audio device / sample rate / buffer, MIDI ports, theme, language,
-   keymap, autosave interval.
+5. ~~**Settings dialog**~~ **done (round 8)** — see "Settings" above. It hosts the keymap
+   editor rather than redefining it.
 6. **Piano roll polish** — scale highlighting + snap-to-scale, ghost notes, chord stamps,
    note properties popup, glue/legato, strum/arpeggiate, magic lasso.
 
 ## Known gaps / next steps (in order)
 
-1. The design & personalization plan above — **next: the settings dialog** (audio device,
-   sample rate and buffer — `AudioConfig` already supports them — MIDI ports, theme,
-   language, autosave interval, and the keymap editor folded in), then piano roll polish.
+1. The design & personalization plan above — **next and last of it: piano roll polish**
+   (scale highlighting and snap-to-scale, ghost notes from other clips, chord stamps, a
+   note properties popup, glue/legato, strum, arpeggiate).
 2. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
 3. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
 4. More native devices: EQ, compressor, chorus; a sampler instrument.
 5. **CLAP host** (`cantus-plugin-host`, GPL) with out-of-process sandboxing (Phase 3).
 6. **AI providers** (Anthropic/OpenAI/Ollama over `reqwest`), disclosure dialog, MCP server.
 7. Recording polish: count-in, punch in/out, overdub vs replace, sub-block MIDI timestamps.
-8. Accessibility pass (semantic nodes for the painted views), audio settings dialog
-   (device / sample rate / buffer size — `AudioConfig` already supports it).
+8. Accessibility pass (semantic nodes for the painted views).
 9. `docs/adr/0001`: trademark search for the name before any public release.
 10. Light-theme gap the design pass surfaced: the piano roll dims the region outside the
     clip with a dark scrim, which is subtle on Ink & Gold but heavy on Parchment. Fold the
@@ -212,8 +239,10 @@ Ordered plan, each step shippable on its own:
   `run_action` arm; a view that wants to *show* one asks `Keymap::display_for`. Adding an
   action also means an `action.<id>` string in both locales.
 - Anything a test writes to disk must go through a `tempfile::tempdir()`. `CantusApp`'s
-  `layouts_path` is public so tests can redirect it; never let a test write to the real
-  `%LOCALAPPDATA%/Cantus`.
+  `layouts_path`, `keymap_path` and `settings_path` are public so tests can redirect them;
+  never let a test write to the real `%LOCALAPPDATA%/Cantus`.
+- The locale is process-wide and tests run in parallel: a test must not leave it changed,
+  or it races every test that asserts an English string.
 - Bump `SCHEMA_VERSION`, append a migration and regenerate a fixture
   (`cargo run -p cantus-project --example write_fixture`) whenever `Project` changes shape.
 - Screenshots on this machine: PrintWindow from a DPI-aware process (see session notes);

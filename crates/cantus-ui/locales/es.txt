@@ -299,3 +299,25 @@ action.tool-slice = Herramienta de corte
 action.tool-playback = Herramienta de escucha
 action.toggle-typing-piano = El teclado del ordenador toca notas
 keymap.mouse = Ratón y rueda
+
+# Settings dialog (settings.json)
+menu.settings = Ajustes…
+settings.title = Ajustes
+settings.audio = Audio
+settings.device = Dispositivo de salida
+settings.sample_rate = Frecuencia de muestreo
+settings.buffer = Tamaño del búfer
+settings.default = Predeterminado del sistema
+settings.apply = Aplicar
+settings.audio_now = Ahora: {device} a {rate} Hz
+settings.audio_opened = Audio: {device} a {rate} Hz
+settings.audio_failed = No se pudo abrir el dispositivo de audio: {error}
+settings.midi = MIDI
+settings.rescan_midi = Volver a buscar puertos
+settings.midi_rescanned = {n} entrada(s) MIDI
+settings.no_midi = No se encontraron entradas MIDI. Conecta un teclado y vuelve a buscar.
+settings.appearance = Apariencia
+settings.edit_shortcuts = Editar atajos…
+settings.saving = Guardado
+settings.autosave = Autoguardar cada
+settings.autosave_hint = El autoguardado mantiene una copia de recuperación junto a tu proyecto; nunca sobrescribe el archivo en el que trabajas.
