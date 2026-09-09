@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 10: light theme, configurable appearance) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 125 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 10: light theme, configurable appearance; backlog for clips and channel routing) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 125 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -55,6 +55,58 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Planned: clip editing (requested 2026-09-09)
+
+**What exists today.** Clips can be created (double-click), moved, resized from the right
+edge, renamed (`SetClipName`, no UI yet) and deleted. `Clip` is `{ id, name, start, length,
+notes }`, and notes outside `[0, length)` are *kept* rather than discarded, so shrinking and
+regrowing a clip is already lossless — which is the foundation the rest of this needs.
+
+**What is missing.** The goal is to take the best of what the established DAWs do rather
+than copy one of them; where a shortcut is named below it is the convention we would follow,
+and like the keymap presets (ADR 0010) those are conventions to verify, not claims of parity.
+
+| Capability | Convention | What it needs |
+|---|---|---|
+| **Split at the cursor** | FL slice tool `C`; Live/Bitwig `Ctrl+E`; Logic `Cmd+T` | `SplitClip { clip, at }`; the right half needs a **content offset** so its notes keep their position |
+| **Glue / join** | Live `Ctrl+J`; Logic `Cmd+J` | `MergeClips { clips }`; concatenate notes with each clip's offset applied |
+| **Duplicate** | FL `Ctrl+B` (to the right); Live/Bitwig `Ctrl+D` | reuse the note clipboard machinery already in `CantusApp` |
+| **Copy / cut / paste** at the playhead | universal | a clip clipboard beside the note one |
+| **Drag between tracks** | universal | today's drag only changes `start`/`length`; needs a clip move across tracks |
+| **Alt-drag to copy** | FL / Live / Bitwig | a modifier on the existing drag |
+| **Trim from the left edge** | universal | needs the content offset, or the notes shift when you trim |
+| **Slip the content** inside the clip | Live / Bitwig / Pro Tools | the same offset, dragged directly |
+| **Loop / repeat** by dragging past the content | Live & Bitwig loop; FL pattern repeat | content length distinct from clip length |
+| **Clip mute** | FL right-click; Live `0` | `Clip.muted`, like `Note.muted` already is |
+| **Clip colour** override | Live / Bitwig | `Clip.color: Option<Color>` |
+| **Multi-select** clips, marquee and `Ctrl+click` | universal | selection state for clips, then every operation acts on the set |
+| **Nudge** with the arrow keys, snap-aware | universal | `keymap::Action`s, reusing the note nudge |
+
+**The one decision to make first:** `Clip` gains a **content offset** (and a content length
+for looping). Split, left-trim, slip and repeat all fail without it, and retrofitting it
+later means touching every one of them again. It changes the shape of `Project`, so it is a
+`SCHEMA_VERSION` bump, a migration and a regenerated fixture — cheap now, expensive later.
+
+## Planned: pan, mono and width (requested 2026-09-09)
+
+**What exists today.** `Track.pan` (−1…1) with `SetTrackPan`, and a pan control in *both*
+the arrangement track header and the mixer strip, with an `L/C/R` readout. So panning is
+there; what is missing is everything around it.
+
+| Capability | Notes |
+|---|---|
+| **Mono** per track and on the master | Best modelled as **stereo width = 0** rather than a boolean: one control, and mono is its end stop |
+| **Stereo width** | 0 = mono, 1 = as recorded, >1 = wider. A width knob is standard on every console strip |
+| **Master pan** | `Master` has gain only today |
+| **Phase invert (Ø)** | Standard on a mixer strip, and the cheapest way to diagnose a summing problem |
+| **Pan law** | −3 dB / −4.5 dB / −6 dB constant power. This one is a **project-wide decision**, not a preference: it changes the audio a project renders, so it belongs in the project file with a documented default, and probably an ADR |
+
+Engine side: `processor` applies gain and pan per track today. Width, mono and phase all
+land in the same place, and all three have to reach the audio thread through the
+`Snapshot` — so this is a `cantus-core` model change, a schema bump, and a **null test
+before the DSP** (the standing rule). Pan law in particular needs a null test that a
+project rendered before and after the change is bit-identical when the law is unchanged.
 
 ## Appearance (round 10): white by default, and yours to change
 
@@ -290,21 +342,26 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. The design & personalization plan above — **next and last of it: piano roll polish**
-   (scale highlighting and snap-to-scale, ghost notes from other clips, chord stamps, a
-   note properties popup, glue/legato, strum, arpeggiate).
-2. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
-3. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
-4. More native devices: EQ, compressor, chorus; a sampler instrument.
-5. **CLAP host** (`cantus-plugin-host`, GPL) with out-of-process sandboxing (Phase 3).
-6. **AI providers** (Anthropic/OpenAI/Ollama over `reqwest`), disclosure dialog, MCP server.
-7. Recording polish: count-in, punch in/out, overdub vs replace, sub-block MIDI timestamps.
-8. Accessibility pass (semantic nodes for the painted views).
-9. `docs/adr/0001`: trademark search for the name before any public release.
-10. Light-theme gap the design pass surfaced: the piano roll dims the region outside the
-    clip with a dark scrim, which is subtle on Ink & Gold but heavy on Parchment. Fold the
-    fix into the piano roll polish step (dim by blending toward `ink`, not by overlaying
-    black).
+1. **A fader widget of our own** for the mixer and the inspector — egui's slider paints the
+   groove and the cap from one colour (see "Appearance" above), so a real cap with a centre
+   line and dB marks needs a custom widget. Requested after the round-10 review.
+2. **Clip editing** — see "Planned: clip editing" above. Start with the `Clip` content
+   offset and the schema bump, because split, trim, slip and repeat all depend on it.
+3. **Pan, mono and width** — see "Planned: pan, mono and width" above. Decide the pan law
+   first; it is the part that changes what a project sounds like.
+4. Piano roll polish, the last of the design plan: scale highlighting and snap-to-scale,
+   ghost notes from other clips, chord stamps, a note properties popup, glue/legato, strum,
+   arpeggiate.
+5. **Automation lanes** (parameter curves, sample-accurate) and a **tempo track**.
+6. **Sends/buses**: the mixer has strips but no routing yet; add bus tracks + sends.
+7. More native devices: EQ, compressor, chorus; a sampler instrument.
+8. **CLAP host** (`cantus-plugin-host`, GPL) with out-of-process sandboxing (Phase 3).
+9. **AI providers** (Anthropic/OpenAI/Ollama over `reqwest`), disclosure dialog, MCP server.
+10. Recording polish: count-in, punch in/out, overdub vs replace, sub-block MIDI timestamps.
+11. Accessibility pass (semantic nodes for the painted views).
+12. `docs/adr/0001`: trademark search for the name before any public release.
+13. Velocity lane at the widest zoom: per-note bars overlap into a solid block. Showing the
+    peak per column would say more.
 
 ## Conventions
 
