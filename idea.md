@@ -153,7 +153,9 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 
 ### 5.3 MIDI Sequencing
 - [ ] Piano roll with velocity, humanize, quantize (swing/groove templates), chord stacking, built-in arpeggiator
-- [ ] Step sequencer (FL-style) as an alternative view to the piano roll
+- [ ] Step sequencer (FL-style) as an alternative view to the piano roll — as a second
+      *editor* for the same clip, not a second data model: a step is a note, so the two
+      views never need converting between (see the channel rack plan in `docs/STATUS.md`)
 - [ ] Tracker mode (Renoise-style) for those who prefer it
 - [ ] Global Chord Track with chord detection/suggestion (Cubase/Studio One style)
 - [ ] MIDI Logical Editor (programmable MIDI transformations, Cubase-style)
@@ -164,13 +166,28 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] Full MPE (MIDI Polyphonic Expression) for expressive controllers
 
 ### 5.4 Arrangement Views
+> Measured feature by feature against FL's playlist in `docs/STATUS.md` → *Planned: the
+> arrangement, measured against FL Studio's playlist* — including the three decisions that
+> have to come first (shared clip sources, timeline selection, and one grouping tree shared
+> with the mixer's buses), and an honest account of where FL's interface is ahead of ours.
+
 - [ ] **Playlist/Arrangement View** (FL/Cubase style): linear timeline with tracks, patterns, automation
 - [ ] **Session View** (Ableton style): clips + scenes for improvisation and loop-based production, with launch quantization
 - [ ] **Arranger Track** (Studio One style): macro sections (Intro, Verse, Chorus) that reorder all content at once
-- [ ] Pattern-based workflow (FL-style pattern reuse) coexisting with linear arrangement
+- [ ] Pattern-based workflow (FL-style pattern reuse) coexisting with linear arrangement.
+      **Decided against a global pattern bank**: a clip already does what patterns are for
+      — duplicate, repeat, colour, name — and running two timeline models is how a DAW
+      becomes two DAWs. Recorded in the channel rack plan in `docs/STATUS.md`
 - [ ] Take comping (record multiple takes and comp the best, Pro Tools style)
-- [ ] Folder/group tracks with nested organization
-- [ ] Markers, regions, and arrangement-level navigation
+- [ ] Folder/group tracks with nested organization — **one tree**, shared with the mixer's
+      buses. Two grouping systems that nearly agree is a bug that takes a year to surface
+- [ ] Markers, regions, and arrangement-level navigation. Named markers with Start and Loop
+      actions and per-region time signatures; FL's marker *branching* (skip/pause/jump)
+      belongs in the arranger track, not in the ruler
+- [ ] **Timeline selection** across all tracks, and what hangs off it: insert/delete space,
+      ripple editing, quantize clip starts, loop-to-selection, render-selection
+- [ ] **Mini-map scrollbar** showing the whole song, with markers on it
+- [ ] Consolidate/freeze a track to audio, and stem export per track and per group
 
 ### 5.5 Audio Editing
 - [ ] Sample-accurate editing (cut, crossfade, fade in/out with curves)
@@ -214,7 +231,11 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] FM synth (DX7/FM8 class)
 - [ ] Wavetable synth (Serum class)
 - [ ] Multi-layer sampler with disk streaming (for large libraries)
-- [ ] Drum machine with integrated step sequencer
+- [ ] **Pulsus**, a synthesized drum kit — kick, snare, hi-hat with choke groups — with an
+      FL-style channel rack and a piano roll that names its pads instead of its keys.
+      Synthesized rather than sampled: ADR 0001 makes every bundled sample a licensing
+      question, and a synthesized drum is tunable. Designed in `docs/STATUS.md` →
+      *Planned: drums, a channel rack…*
 - [ ] Granular synth
 - [ ] Modal/physical modeling engine (for experimental instruments)
 - [ ] Sample slicer/chopper (beat-slicing workflow)

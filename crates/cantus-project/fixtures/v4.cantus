@@ -1,0 +1,183 @@
+{
+  "format": "cantus-project",
+  "schema_version": 4,
+  "app_version": "fixture",
+  "saved_at": 1789001035,
+  "project": {
+    "name": "Fixture",
+    "tempo_bpm": 96.0,
+    "time_signature": {
+      "numerator": 4,
+      "denominator": 4
+    },
+    "tracks": [
+      {
+        "id": 1,
+        "name": "Keys",
+        "color": {
+          "r": 224,
+          "g": 142,
+          "b": 58
+        },
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Square",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 900.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "effects": [
+          {
+            "id": 2,
+            "bypass": false,
+            "spec": {
+              "kind": "Delay",
+              "params": {
+                "feedback": 0.4,
+                "mix": 0.2,
+                "ping_pong": 1.0,
+                "time_ms": 375.0,
+                "tone_hz": 6000.0
+              }
+            }
+          }
+        ],
+        "clips": [
+          {
+            "id": 3,
+            "name": "Intro",
+            "start": 3840,
+            "length": 7680,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 4,
+                "start": 0,
+                "length": 960,
+                "pitch": 60,
+                "velocity": 80,
+                "muted": false
+              },
+              {
+                "id": 5,
+                "start": 1920,
+                "length": 960,
+                "pitch": 64,
+                "velocity": 81,
+                "muted": false
+              },
+              {
+                "id": 6,
+                "start": 3840,
+                "length": 960,
+                "pitch": 67,
+                "velocity": 82,
+                "muted": false
+              },
+              {
+                "id": 7,
+                "start": 5760,
+                "length": 960,
+                "pitch": 71,
+                "velocity": 83,
+                "muted": false
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "name": "Loop",
+            "start": 15360,
+            "length": 15360,
+            "offset": 1920,
+            "content_length": 3840,
+            "muted": true,
+            "color": {
+              "r": 179,
+              "g": 107,
+              "b": 214
+            },
+            "notes": [
+              {
+                "id": 9,
+                "start": 1920,
+                "length": 960,
+                "pitch": 55,
+                "velocity": 90,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": -4.5,
+        "pan": 0.25,
+        "muted": false,
+        "soloed": false
+      },
+      {
+        "id": 10,
+        "name": "Bass",
+        "color": {
+          "r": 79,
+          "g": 163,
+          "b": 199
+        },
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Saw",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 2200.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "effects": [],
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "muted": true,
+        "soloed": false
+      }
+    ],
+    "master": {
+      "gain_db": 0.0
+    },
+    "loop_region": {
+      "start": 0,
+      "end": 15360
+    },
+    "loop_enabled": true,
+    "metronome": false,
+    "next_id": 11
+  },
+  "integrity": "9182878c09ce4658294aaab3dff073b897719057cdcfc39158cdffdf94a02bf1"
+}

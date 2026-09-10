@@ -5,7 +5,8 @@ use crate::app::CantusApp;
 use crate::design::{self, space};
 use crate::i18n::{t, tf};
 use crate::theme;
-use cantus_core::{linear_to_db, Command, MergeKey, TrackId};
+use crate::widgets::{bar, fader, Bar, Fader};
+use cantus_core::{linear_to_db, Command, MergeKey, PanLaw, TrackId};
 use egui::{pos2, vec2, Align2, FontId, Rect, RichText, Sense, Stroke, StrokeKind};
 use std::time::Instant;
 
@@ -63,7 +64,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 fn meter(ui: &mut egui::Ui, rect: Rect, peak: f32, hold: f32) {
     let p = ui.painter();
-    p.rect_filled(rect, 2.0, theme::p().ink);
+    // A meter is a well cut into the strip, like the fader's groove beside it — the same
+    // colour rule, so the two read as one control rather than two unrelated boxes. `ink`
+    // was right on a dark theme and a white slab on Paper.
+    p.rect_filled(rect, 2.0, theme::recess(&theme::p()));
     let frac = |v: f32| ((linear_to_db(v) + 60.0) / 60.0).clamp(0.0, 1.0);
     let h = rect.height() * frac(peak);
     let bar = Rect::from_min_max(
@@ -154,10 +158,11 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                     .text_style(design::caption())
                     .color(theme::p().text_dim),
             );
-            // Pan.
+            // Pan, width and polarity: the three things a channel strip does to the
+            // stereo field, in the order the signal meets them.
+            let lane = STRIP_W - space::S4;
             let mut pan = track.pan;
-            ui.spacing_mut().slider_width = STRIP_W - space::S4;
-            let pr = ui.add(egui::Slider::new(&mut pan, -1.0..=1.0).show_value(false));
+            let pr = ui.add(Bar::pan(&mut pan).size(lane).name(t("track.pan")));
             if pr.changed() {
                 app.exec_merging(
                     Command::SetTrackPan { id, pan },
@@ -167,31 +172,64 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
             if pr.drag_stopped() {
                 app.end_gesture();
             }
-            if pr.double_clicked() {
-                app.exec(Command::SetTrackPan { id, pan: 0.0 });
-            }
-            let pan_text = if pan.abs() < 0.005 {
-                "C".to_string()
-            } else if pan < 0.0 {
-                format!("L{:.0}", -pan * 100.0)
-            } else {
-                format!("R{:.0}", pan * 100.0)
-            };
             ui.label(
-                RichText::new(pan_text)
+                RichText::new(bar::pan_text(pan))
                     .text_style(design::mono_small())
                     .color(theme::p().text_dim),
             );
+            let mut width = track.width;
+            let wr = ui.add(Bar::width(&mut width).size(lane).name(t("track.width")));
+            if wr.changed() {
+                app.exec_merging(
+                    Command::SetTrackWidth { id, width },
+                    MergeKey::of(&("width", id.0)),
+                );
+            }
+            if wr.drag_stopped() {
+                app.end_gesture();
+            }
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(bar::width_text(width))
+                        .text_style(design::mono_small())
+                        .color(theme::p().text_dim),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    phase_button(ui, track.phase_invert).clicked().then(|| {
+                        app.exec(Command::SetTrackPhaseInvert {
+                            id,
+                            invert: !track.phase_invert,
+                        })
+                    });
+                    // Mono is the width control's end stop, so the button is a shortcut
+                    // to it rather than a second, disagreeing switch.
+                    let is_mono = track.width <= 0.005;
+                    if ui
+                        .selectable_label(
+                            is_mono,
+                            RichText::new(t("track.mono")).text_style(design::caption()),
+                        )
+                        .on_hover_text(t("track.mono_tip"))
+                        .clicked()
+                    {
+                        app.exec(Command::SetTrackWidth {
+                            id,
+                            width: if is_mono { 1.0 } else { 0.0 },
+                        });
+                    }
+                });
+            });
             ui.add_space(space::S1);
             // Fader + meter side by side.
             ui.horizontal(|ui| {
-                ui.add_space(space::S3);
                 let mut gain = track.gain_db;
-                ui.spacing_mut().slider_width = FADER_H;
+                // The mixer's scroll area scrolls horizontally, so the wheel is free for
+                // the faders (`Fader::wheel`).
                 let g = ui.add(
-                    egui::Slider::new(&mut gain, -60.0..=12.0)
-                        .vertical()
-                        .show_value(false),
+                    Fader::new(&mut gain)
+                        .vertical(FADER_H)
+                        .wheel(true)
+                        .name(&track.name),
                 );
                 if g.changed() {
                     app.exec_merging(
@@ -202,15 +240,12 @@ fn strip(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, index: usize) {
                 if g.drag_stopped() {
                     app.end_gesture();
                 }
-                if g.double_clicked() {
-                    app.exec(Command::SetTrackGain { id, gain_db: 0.0 });
-                }
+                ui.add_space(space::S2);
                 let (rect, _) = ui.allocate_exact_size(vec2(METER_W, FADER_H), Sense::hover());
                 meter(ui, rect, peak, hold);
             });
             ui.label(
-                RichText::new(format!("{:+.1} dB", track.gain_db))
-                    .text_style(design::readout_small()),
+                RichText::new(fader::read_out(track.gain_db)).text_style(design::readout_small()),
             );
             ui.horizontal(|ui| {
                 let mut muted = track.muted;
@@ -276,22 +311,58 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                     .text_style(design::caption())
                     .color(theme::p().text_dim),
             );
-            let slider_h = ui.spacing().interact_size.y + ui.spacing().item_spacing.y;
-            ui.add_space(slider_h);
+            // The master is a channel strip too: a mix can be off-centre, too wide, or
+            // out of polarity against a reference. Its pan is a *balance* — the pan law
+            // does not apply to it, because the master is already stereo (ADR 0012).
+            let lane = STRIP_W - space::S4;
+            let mut mpan = app.project().master.pan;
+            let pr = ui.add(Bar::pan(&mut mpan).size(lane).name(t("mixer.master")));
+            if pr.changed() {
+                app.exec_merging(
+                    Command::SetMasterPan { pan: mpan },
+                    MergeKey::of(&"master-pan"),
+                );
+            }
+            if pr.drag_stopped() {
+                app.end_gesture();
+            }
             ui.label(
-                RichText::new("L / R")
+                RichText::new(bar::pan_text(mpan))
                     .text_style(design::mono_small())
                     .color(theme::p().text_dim),
             );
+            let mut mwidth = app.project().master.width;
+            let wr = ui.add(Bar::width(&mut mwidth).size(lane).name(t("track.width")));
+            if wr.changed() {
+                app.exec_merging(
+                    Command::SetMasterWidth { width: mwidth },
+                    MergeKey::of(&"master-width"),
+                );
+            }
+            if wr.drag_stopped() {
+                app.end_gesture();
+            }
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(bar::width_text(mwidth))
+                        .text_style(design::mono_small())
+                        .color(theme::p().text_dim),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let inverted = app.project().master.phase_invert;
+                    if phase_button(ui, inverted).clicked() {
+                        app.exec(Command::SetMasterPhaseInvert { invert: !inverted });
+                    }
+                });
+            });
             ui.add_space(space::S1);
             ui.horizontal(|ui| {
-                ui.add_space(space::S1);
                 let mut gain = app.project().master.gain_db;
-                ui.spacing_mut().slider_width = FADER_H;
                 let g = ui.add(
-                    egui::Slider::new(&mut gain, -60.0..=12.0)
-                        .vertical()
-                        .show_value(false),
+                    Fader::new(&mut gain)
+                        .vertical(FADER_H)
+                        .wheel(true)
+                        .name(t("mixer.master")),
                 );
                 if g.changed() {
                     app.exec_merging(
@@ -302,28 +373,79 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
                 if g.drag_stopped() {
                     app.end_gesture();
                 }
-                if g.double_clicked() {
-                    app.exec(Command::SetMasterGain { gain_db: 0.0 });
-                }
+                ui.add_space(space::S2);
                 let (l, _) = ui.allocate_exact_size(vec2(space::S2, FADER_H), Sense::hover());
                 meter(ui, l, m[0], hold);
                 let (r, _) = ui.allocate_exact_size(vec2(space::S2, FADER_H), Sense::hover());
                 meter(ui, r, m[1], hold);
             });
             ui.label(
-                RichText::new(format!("{:+.1} dB", app.project().master.gain_db))
+                RichText::new(fader::read_out(app.project().master.gain_db))
                     .text_style(design::readout_small()),
             );
+            pan_law_picker(app, ui);
             let peak_db = linear_to_db(hold);
             ui.label(
-                RichText::new(format!("{peak_db:.1}"))
-                    .text_style(design::mono_small())
-                    .color(if hold >= 1.0 {
-                        theme::p().danger
-                    } else {
-                        theme::p().text_dim
-                    }),
+                RichText::new(if hold <= 0.0 {
+                    "-\u{221e}".to_string()
+                } else {
+                    format!("{peak_db:.1}")
+                })
+                .text_style(design::mono_small())
+                .color(if hold >= 1.0 {
+                    theme::p().danger
+                } else {
+                    theme::p().text_dim
+                }),
             );
         });
     });
+}
+
+/// The polarity switch. A Ø that is *on* is a state, so it gets the accent fill — the one
+/// thing the design system reserves it for.
+fn phase_button(ui: &mut egui::Ui, inverted: bool) -> egui::Response {
+    ui.selectable_label(
+        inverted,
+        RichText::new(t("track.phase"))
+            .text_style(design::caption())
+            .color(if inverted {
+                theme::p().gold_bright
+            } else {
+                theme::p().text_dim
+            }),
+    )
+    .on_hover_text(t("track.phase_tip"))
+}
+
+/// The pan law lives on the master strip because that is where somebody mixing looks for
+/// it, and it is a *project* setting rather than a preference: it decides what the file
+/// renders as (ADR 0012), so it travels with the file.
+fn pan_law_picker(app: &mut CantusApp, ui: &mut egui::Ui) {
+    let current = app.project().pan_law;
+    ui.label(
+        RichText::new(t("mixer.pan_law").to_uppercase())
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
+    let mut chosen = None;
+    egui::ComboBox::from_id_salt("pan-law")
+        .width(STRIP_W - space::S4)
+        .selected_text(RichText::new(current.id()).text_style(design::mono_small()))
+        .show_ui(ui, |ui| {
+            for law in PanLaw::ALL {
+                if ui
+                    .selectable_label(law == current, t(law.label_key()))
+                    .clicked()
+                    && law != current
+                {
+                    chosen = Some(law);
+                }
+            }
+        })
+        .response
+        .on_hover_text(t("panlaw.tip"));
+    if let Some(law) = chosen {
+        app.exec(Command::SetPanLaw { law });
+    }
 }

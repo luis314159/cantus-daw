@@ -147,7 +147,7 @@ cmd.quantize = quantize
 cmd.ai_add_notes = AI: add notes
 
 about.text = Cantus — a free, open-source digital audio workstation built in Rust.\nCore crates MIT/Apache-2.0, application GPL-3.0-or-later.\n\n"Whatever you do, work at it with all your heart." — Colossians 3:23
-shortcuts.text = Drag a note's right edge to resize · Right-click deletes · Ctrl+drag marquee-selects · Shift while dragging locks the pitch · Ctrl while dragging locks the time · Alt while dragging ignores the grid · Alt+wheel edits velocity · Ctrl+wheel zooms · Shift+wheel scrolls sideways · With the typing keyboard on, A–L play the selected track and Z/X change octave
+shortcuts.text = Drag a note's right edge to resize · Right-click deletes · Ctrl+drag marquee-selects · Shift while dragging locks the pitch · Ctrl while dragging locks the time · Alt while dragging ignores the grid · Alt+wheel edits velocity · Ctrl+wheel zooms · Shift+wheel scrolls sideways · With the typing keyboard on, A–L play the selected track and Z/X change octave · In the arrangement: drag a clip's edge to trim it, Alt+drag to copy instead of move, Shift+drag to slip the music inside the clip, Ctrl while dragging ignores the grid, drag empty space to select clips, Ctrl+click adds one to the selection, right-click opens the clip's menu
 
 transport.record = Record (R)
 view.piano_roll = Piano roll
@@ -359,3 +359,56 @@ theme.token.meter_low = Meter, quiet
 theme.token.meter_high = Meter, loud
 theme.token.meter_clip = Meter, clipping
 theme.editing = Editing “{name}” — changes are saved as you make them
+
+# Clip editing (round 11)
+clip.split = Split at the playhead
+clip.glue = Glue
+clip.duplicate = Duplicate
+clip.mute = Mute clip
+clip.unmute = Unmute clip
+clip.muted_short = muted
+clip.loop_on = Repeat the content
+clip.loop_off = Stop repeating
+clip.color = Clip colour
+clip.color_reset = Use the track colour
+cmd.set_clip_offset = slip clip
+cmd.set_clip_loop = clip repeat change
+cmd.set_clip_mute = clip mute change
+cmd.set_clip_color = clip colour change
+cmd.move_clip_to_track = move clip to another track
+cmd.move_clip = move clip
+cmd.split_clip = split clip
+cmd.glue_clips = glue clips
+keymap.cat.clips = Clips
+action.split-clip = Split clip at the playhead
+action.glue-clips = Glue clips
+action.toggle-clip-mute = Mute clip on/off
+action.toggle-clip-loop = Clip repeat on/off
+
+# Pan, width and polarity (round 11, ADR 0012)
+track.mono = Mono
+track.width = Width
+track.phase = Ø
+track.phase_tip = Invert the polarity
+track.mono_tip = Collapse to mono (width 0)
+mixer.pan_law = Pan law
+panlaw.zero = 0 dB (no compensation)
+panlaw.minus3 = -3 dB (constant power)
+panlaw.minus45 = -4.5 dB
+panlaw.minus6 = -6 dB (mono-safe)
+panlaw.tip = How much a centred track is attenuated. Part of the project: changing it changes the mix.
+cmd.set_master_pan = master pan change
+cmd.set_master_width = master width change
+cmd.set_master_phase = master polarity change
+cmd.set_pan_law = pan law change
+cmd.set_track_width = track width change
+cmd.set_track_phase = track polarity change
+menu.clip = Clip
+clip.menu_hint = In the arrangement: drag an edge to trim, Alt+drag to copy, Shift+drag to slip.
+arrangement.hint = Drag a clip's edge: trim · Alt+drag: copy · Shift+drag: slip · Ctrl+E: split · Ctrl+J: glue · Right-click: clip menu
+arrangement.title = Arrangement
+arrangement.grid = Grid
+arrangement.selected = {n} selected
+clip.rename = Rename clip
+action.clip-color-next = Next clip colour
+action.rename-clip = Rename clip

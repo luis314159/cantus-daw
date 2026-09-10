@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod clips;
 pub mod design;
 pub mod i18n;
 pub mod icons;
@@ -16,6 +17,7 @@ pub mod recording;
 pub mod settings;
 pub mod theme;
 pub mod views;
+pub mod widgets;
 
 pub use app::{starter_project, stress_project, CantusApp, APP_VERSION};
 

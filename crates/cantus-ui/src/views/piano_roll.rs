@@ -412,9 +412,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
     // Notes being recorded: from their start to the playhead.
     if app.recorder.is_recording() {
-        let ph_beats = ticks_to_beats(app.engine.position() - clip.start);
+        let ph_beats = ticks_to_beats(clip.content_of(app.engine.position()));
         for pending in app.recorder.pending() {
-            let x0 = geo.x(ticks_to_beats(pending.start - clip.start));
+            let x0 = geo.x(ticks_to_beats(clip.content_of(pending.start)));
             let x1 = geo.x(ph_beats).max(x0 + 2.0);
             let y0 = geo.y(pending.pitch as f32 + 1.0);
             let r = Rect::from_min_max(pos2(x0, y0 + 1.0), pos2(x1, y0 + geo.key_h - 1.0));
@@ -442,8 +442,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         p.vline(x, grid.y_range(), Stroke::new(1.5, theme::p().danger));
     }
 
-    // Playhead (clip-relative).
-    let ph = app.engine.position() - clip.start;
+    // Playhead, in the clip's content frame: a slipped clip shows the playhead where the
+    // music is, and a repeating one shows it inside the period it is playing.
+    let ph = clip
+        .content_shown_at(app.engine.position())
+        .unwrap_or_else(|| clip.content_of(app.engine.position()));
     let ph_x = geo.x(ticks_to_beats(ph));
     if ph_x >= grid.left() && ph_x <= grid.right() {
         p.vline(
@@ -610,7 +613,20 @@ fn paint_grid(app: &CantusApp, ui: &egui::Ui, geo: &Geo, clip: &cantus_core::Cli
     // Past the end of the clip. A black scrim was invisible on a dark theme and a heavy
     // grey slab on a light one; painting the panel colour instead says "not part of this
     // clip" as one step of the elevation scale, and reads the same way in any theme.
-    let clip_end_x = geo.x(ticks_to_beats(clip.length));
+    //
+    // Both edges, not just the end: with a content offset the window can start well into
+    // the content, and what is before it is exactly as much "not part of this clip" as
+    // what is after.
+    let window = clip.period().map_or(clip.length, |p| p.min(clip.length));
+    let start_x = geo.x(ticks_to_beats(clip.content_start()));
+    if start_x > grid.left() {
+        p.rect_filled(
+            Rect::from_min_max(grid.min, pos2(start_x, grid.bottom())),
+            0.0,
+            theme::p().panel,
+        );
+    }
+    let clip_end_x = geo.x(ticks_to_beats(clip.content_start() + window));
     if clip_end_x < grid.right() {
         p.rect_filled(
             Rect::from_min_max(pos2(clip_end_x, grid.top()), grid.max),
@@ -711,13 +727,16 @@ fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &ca
         bars_per_label *= 2;
     }
     let step = bar * bars_per_label;
-    let first = (beats_to_ticks(geo.beats(ruler.left()).max(0.0)) + clip.start).snap_floor(step)
-        - clip.start;
+    // Bar numbers are the *arrangement's*, so the piano roll and the timeline agree even
+    // when the clip's content is offset from where it sits.
+    let to_timeline = clip.start - clip.offset;
+    let first = (beats_to_ticks(geo.beats(ruler.left()).max(0.0)) + to_timeline).snap_floor(step)
+        - to_timeline;
     let last = beats_to_ticks(geo.beats(ruler.right()));
     let mut tick = first;
     while tick <= last {
         let x = geo.x(ticks_to_beats(tick));
-        let (b, _, _) = ts.bbt(tick + clip.start);
+        let (b, _, _) = ts.bbt(tick + to_timeline);
         p.vline(x, ruler.y_range(), Stroke::new(1.0, theme::p().grid_strong));
         p.text(
             pos2(x + 3.0, ruler.center().y),
@@ -895,7 +914,7 @@ fn interact(
                 .tick_at(pos.x)
                 .max(Ticks::ZERO)
                 .snap_floor(Ticks::QUARTER)
-                + clip.start;
+                + (clip.start - clip.offset);
             app.seek(tick);
         }
     }

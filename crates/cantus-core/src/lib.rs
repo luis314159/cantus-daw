@@ -22,9 +22,9 @@ pub use command::{Command, CommandError, Origin};
 pub use effect::{EffectKind, EffectParamInfo, EffectSlot, EffectSpec};
 pub use instrument::{FirmusParam, FirmusParams, InstrumentSpec, ParamInfo, Waveform};
 pub use model::{
-    db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId, Color, EffectId,
-    LoopRegion, Master, Note, NoteId, Pitch, Project, Track, TrackId, Velocity, MAX_GAIN_DB,
-    MIN_GAIN_DB,
+    apply_width, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId,
+    ClipWindow, Color, EffectId, LoopRegion, Master, Note, NoteId, PanLaw, Pitch, Project, Track,
+    TrackId, Velocity, MAX_GAIN_DB, MAX_WIDTH, MIN_GAIN_DB,
 };
 pub use snapshot::{NoteEvent, Snapshot, TrackSnapshot};
 pub use time::{Ticks, TimeSignature, PPQ};

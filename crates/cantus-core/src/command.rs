@@ -64,6 +64,19 @@ pub enum Command {
     SetMasterGain {
         gain_db: f32,
     },
+    SetMasterPan {
+        pan: f32,
+    },
+    SetMasterWidth {
+        width: f32,
+    },
+    SetMasterPhaseInvert {
+        invert: bool,
+    },
+    /// Project-wide, because it changes what the project renders as (ADR 0012).
+    SetPanLaw {
+        law: PanLaw,
+    },
     /// Replace the whole project (used by "open"). Inverse restores the previous one.
     ReplaceProject {
         project: Box<Project>,
@@ -96,6 +109,15 @@ pub enum Command {
     SetTrackPan {
         id: TrackId,
         pan: f32,
+    },
+    /// 0 is mono, 1 as recorded, 2 twice as wide.
+    SetTrackWidth {
+        id: TrackId,
+        width: f32,
+    },
+    SetTrackPhaseInvert {
+        id: TrackId,
+        invert: bool,
     },
     SetTrackMute {
         id: TrackId,
@@ -158,6 +180,36 @@ pub enum Command {
         clip: ClipId,
         name: String,
     },
+    /// Slip: move the content under the window without moving the window.
+    SetClipOffset {
+        track: TrackId,
+        clip: ClipId,
+        offset: Ticks,
+    },
+    /// Turn the clip's repeat on (`Some(period)`) or off (`None`).
+    SetClipLoop {
+        track: TrackId,
+        clip: ClipId,
+        content_length: Option<Ticks>,
+    },
+    SetClipMute {
+        track: TrackId,
+        clip: ClipId,
+        muted: bool,
+    },
+    /// `None` puts the clip back on the track's colour.
+    SetClipColor {
+        track: TrackId,
+        clip: ClipId,
+        color: Option<Color>,
+    },
+    /// Move a clip to another track, keeping its id — so a drag across tracks is one
+    /// reversible step and the selection survives it.
+    MoveClipToTrack {
+        from: TrackId,
+        to: TrackId,
+        clip: ClipId,
+    },
 
     // --- notes ------------------------------------------------------------------------
     InsertNotes {
@@ -196,6 +248,10 @@ impl Command {
             SetLoopEnabled { .. } => "cmd.set_loop_enabled",
             SetMetronome { .. } => "cmd.set_metronome",
             SetMasterGain { .. } => "cmd.set_master_gain",
+            SetMasterPan { .. } => "cmd.set_master_pan",
+            SetMasterWidth { .. } => "cmd.set_master_width",
+            SetMasterPhaseInvert { .. } => "cmd.set_master_phase",
+            SetPanLaw { .. } => "cmd.set_pan_law",
             ReplaceProject { .. } => "cmd.replace_project",
             InsertTrack { .. } => "cmd.insert_track",
             RemoveTrack { .. } => "cmd.remove_track",
@@ -204,6 +260,8 @@ impl Command {
             SetTrackColor { .. } => "cmd.set_track_color",
             SetTrackGain { .. } => "cmd.set_track_gain",
             SetTrackPan { .. } => "cmd.set_track_pan",
+            SetTrackWidth { .. } => "cmd.set_track_width",
+            SetTrackPhaseInvert { .. } => "cmd.set_track_phase",
             SetTrackMute { .. } => "cmd.set_track_mute",
             SetTrackSolo { .. } => "cmd.set_track_solo",
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
@@ -216,6 +274,11 @@ impl Command {
             RemoveClip { .. } => "cmd.remove_clip",
             SetClipBounds { .. } => "cmd.set_clip_bounds",
             SetClipName { .. } => "cmd.set_clip_name",
+            SetClipOffset { .. } => "cmd.set_clip_offset",
+            SetClipLoop { .. } => "cmd.set_clip_loop",
+            SetClipMute { .. } => "cmd.set_clip_mute",
+            SetClipColor { .. } => "cmd.set_clip_color",
+            MoveClipToTrack { .. } => "cmd.move_clip_to_track",
             InsertNotes { .. } => "cmd.insert_notes",
             RemoveNotes { .. } => "cmd.remove_notes",
             SetNotes { .. } => "cmd.set_notes",
@@ -235,11 +298,17 @@ impl Command {
             | (SetLoopRegion { .. }, SetLoopRegion { .. })
             | (SetLoopEnabled { .. }, SetLoopEnabled { .. })
             | (SetMetronome { .. }, SetMetronome { .. })
-            | (SetMasterGain { .. }, SetMasterGain { .. }) => true,
+            | (SetMasterGain { .. }, SetMasterGain { .. })
+            | (SetMasterPan { .. }, SetMasterPan { .. })
+            | (SetMasterWidth { .. }, SetMasterWidth { .. })
+            | (SetMasterPhaseInvert { .. }, SetMasterPhaseInvert { .. })
+            | (SetPanLaw { .. }, SetPanLaw { .. }) => true,
             (SetTrackName { id: a, .. }, SetTrackName { id: b, .. })
             | (SetTrackColor { id: a, .. }, SetTrackColor { id: b, .. })
             | (SetTrackGain { id: a, .. }, SetTrackGain { id: b, .. })
             | (SetTrackPan { id: a, .. }, SetTrackPan { id: b, .. })
+            | (SetTrackWidth { id: a, .. }, SetTrackWidth { id: b, .. })
+            | (SetTrackPhaseInvert { id: a, .. }, SetTrackPhaseInvert { id: b, .. })
             | (SetTrackMute { id: a, .. }, SetTrackMute { id: b, .. })
             | (SetTrackSolo { id: a, .. }, SetTrackSolo { id: b, .. }) => a == b,
             (
@@ -293,6 +362,14 @@ impl Command {
                     track: a, clip: ca, ..
                 },
                 SetClipName {
+                    track: b, clip: cb, ..
+                },
+            )
+            | (
+                SetClipOffset {
+                    track: a, clip: ca, ..
+                },
+                SetClipOffset {
                     track: b, clip: cb, ..
                 },
             ) => a == b && ca == cb,
@@ -366,6 +443,22 @@ impl Command {
                 project.master.gain_db = clamp_gain(gain_db)?;
                 Ok(SetMasterGain { gain_db: old })
             }
+            SetMasterPan { pan } => {
+                let old = std::mem::replace(&mut project.master.pan, clamp_pan(pan)?);
+                Ok(SetMasterPan { pan: old })
+            }
+            SetMasterWidth { width } => {
+                let old = std::mem::replace(&mut project.master.width, clamp_width(width)?);
+                Ok(SetMasterWidth { width: old })
+            }
+            SetMasterPhaseInvert { invert } => {
+                let old = std::mem::replace(&mut project.master.phase_invert, invert);
+                Ok(SetMasterPhaseInvert { invert: old })
+            }
+            SetPanLaw { law } => {
+                let old = std::mem::replace(&mut project.pan_law, law);
+                Ok(SetPanLaw { law: old })
+            }
             ReplaceProject { project: new } => {
                 let old = std::mem::replace(project, *new);
                 Ok(ReplaceProject {
@@ -438,6 +531,21 @@ impl Command {
                     .ok_or(CommandError::TrackNotFound(id))?;
                 let old = std::mem::replace(&mut t.pan, pan.clamp(-1.0, 1.0));
                 Ok(SetTrackPan { id, pan: old })
+            }
+            SetTrackWidth { id, width } => {
+                let width = clamp_width(width)?;
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.width, width);
+                Ok(SetTrackWidth { id, width: old })
+            }
+            SetTrackPhaseInvert { id, invert } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.phase_invert, invert);
+                Ok(SetTrackPhaseInvert { id, invert: old })
             }
             SetTrackMute { id, muted } => {
                 let t = project
@@ -619,6 +727,108 @@ impl Command {
                     length: old_len,
                 })
             }
+            SetClipOffset {
+                track,
+                clip,
+                offset,
+            } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.offset, offset);
+                Ok(SetClipOffset {
+                    track,
+                    clip,
+                    offset: old,
+                })
+            }
+            SetClipLoop {
+                track,
+                clip,
+                content_length,
+            } => {
+                if let Some(l) = content_length {
+                    if l <= Ticks::ZERO {
+                        return Err(CommandError::InvalidValue("clip loop length".into()));
+                    }
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.content_length, content_length);
+                Ok(SetClipLoop {
+                    track,
+                    clip,
+                    content_length: old,
+                })
+            }
+            SetClipMute { track, clip, muted } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.muted, muted);
+                Ok(SetClipMute {
+                    track,
+                    clip,
+                    muted: old,
+                })
+            }
+            SetClipColor { track, clip, color } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.color, color);
+                Ok(SetClipColor {
+                    track,
+                    clip,
+                    color: old,
+                })
+            }
+            MoveClipToTrack { from, to, clip } => {
+                if from == to {
+                    // Not an error: a drag that ends on the track it started on is a
+                    // no-op, and its inverse is itself. It still has to name a clip that
+                    // exists, or a batch would half-apply and report success.
+                    let t = project
+                        .track(from)
+                        .ok_or(CommandError::TrackNotFound(from))?;
+                    t.clip(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                    return Ok(MoveClipToTrack { from, to, clip });
+                }
+                if project.track(to).is_none() {
+                    return Err(CommandError::TrackNotFound(to));
+                }
+                let src = project
+                    .track_mut(from)
+                    .ok_or(CommandError::TrackNotFound(from))?;
+                let idx = src
+                    .clips
+                    .iter()
+                    .position(|c| c.id == clip)
+                    .ok_or(CommandError::ClipNotFound(clip))?;
+                let moved = src.clips.remove(idx);
+                let dst = project
+                    .track_mut(to)
+                    .ok_or(CommandError::TrackNotFound(to))?;
+                if dst.clip(clip).is_some() {
+                    // Cannot happen with ids from `Project::alloc_id`, but a project file
+                    // is a file: put the clip back rather than lose it.
+                    let src = project.track_mut(from).expect("checked above");
+                    src.clips.insert(idx, moved);
+                    return Err(CommandError::DuplicateId(clip.0));
+                }
+                dst.clips.push(moved);
+                dst.clips.sort_by_key(|c| c.start);
+                Ok(MoveClipToTrack {
+                    from: to,
+                    to: from,
+                    clip,
+                })
+            }
             SetClipName { track, clip, name } => {
                 let t = project
                     .track_mut(track)
@@ -736,6 +946,20 @@ fn clamp_gain(db: f32) -> Result<f32, CommandError> {
         return Err(CommandError::InvalidValue("gain".into()));
     }
     Ok(db.clamp(MIN_GAIN_DB, MAX_GAIN_DB))
+}
+
+fn clamp_pan(pan: f32) -> Result<f32, CommandError> {
+    if !pan.is_finite() {
+        return Err(CommandError::InvalidValue("pan".into()));
+    }
+    Ok(pan.clamp(-1.0, 1.0))
+}
+
+fn clamp_width(width: f32) -> Result<f32, CommandError> {
+    if !width.is_finite() {
+        return Err(CommandError::InvalidValue("width".into()));
+    }
+    Ok(width.clamp(0.0, MAX_WIDTH))
 }
 
 fn validate_clip(c: &Clip) -> Result<(), CommandError> {

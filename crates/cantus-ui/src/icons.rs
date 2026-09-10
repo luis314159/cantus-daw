@@ -18,6 +18,8 @@ pub enum Icon {
     Delete,
     Mute,
     Slice,
+    Glue,
+    Duplicate,
     Playback,
     Loop,
     Metronome,
@@ -167,6 +169,46 @@ pub fn paint_on(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32, bg: C
                 color,
             );
             p.line_segment([pos2(c.x, c.y - h), pos2(c.x, c.y + h)], thin);
+        }
+        Icon::Glue => {
+            // Two blocks driven together: the arrowheads are what say "join", because two
+            // touching rectangles on their own read as one rectangle with a line in it.
+            let gap = h * 0.18;
+            for side in [-1.0f32, 1.0] {
+                p.rect_filled(
+                    Rect::from_min_max(
+                        pos2((c.x + side * gap).min(c.x + side * h), c.y - h * 0.42),
+                        pos2((c.x + side * h).max(c.x + side * gap), c.y + h * 0.42),
+                    ),
+                    1.0,
+                    color,
+                );
+                p.add(Shape::convex_polygon(
+                    vec![
+                        pos2(c.x + side * h * 0.95, c.y - h * 0.95),
+                        pos2(c.x + side * h * 0.35, c.y - h * 0.62),
+                        pos2(c.x + side * h * 0.95, c.y - h * 0.3),
+                    ],
+                    color,
+                    Stroke::NONE,
+                ));
+            }
+        }
+        Icon::Duplicate => {
+            // Two clips, one behind the other: the back one outlined, the front one solid,
+            // so the pair reads as a copy rather than as two unrelated blocks.
+            let size = vec2(h * 1.5, h * 1.1);
+            p.rect_stroke(
+                Rect::from_min_size(pos2(c.x - h, c.y - h), size),
+                1.0,
+                thin,
+                StrokeKind::Inside,
+            );
+            p.rect_filled(
+                Rect::from_min_size(pos2(c.x - h * 0.3, c.y - h * 0.15), size),
+                1.0,
+                color,
+            );
         }
         Icon::Loop => {
             // A cycle: a wide, flat stadium track, broken at the top right where the

@@ -1,12 +1,18 @@
 //! The audio-thread processor. Owns every voice, buffer and queue it needs; after
 //! construction it never allocates, locks, logs or panics (ADR 0005).
 //!
-//! Signal flow per track: Firmus (mono) → insert effects (stereo) → gain/pan → master.
+//! Signal flow per track: Firmus (mono) → **polarity** → insert effects (stereo) →
+//! **width** → gain/pan → master (**width → gain/pan → polarity**).
+//!
+//! Polarity sits at the *input* of a channel, where a console's Ø switch is, so that what
+//! comes out of the strip is the whole channel inverted — inserts and all. On the master
+//! it sits at the very end, which is the same place for the same reason: it is the last
+//! thing before the output.
 
 use crate::effects::EffectUnit;
 use crate::messages::*;
 use crate::transport::Transport;
-use cantus_core::{pan_gains, InstrumentSpec, NoteEvent, Snapshot, TrackId};
+use cantus_core::{apply_width, InstrumentSpec, NoteEvent, PanLaw, Snapshot, TrackId};
 use cantus_dsp::{Click, Firmus, FirmusSettings, Wave};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
@@ -30,6 +36,8 @@ struct TrackSlot {
     next_event: usize,
     gain: f32,
     pan: f32,
+    width: f32,
+    phase_invert: bool,
     audible: bool,
     peak: f32,
 }
@@ -44,6 +52,8 @@ impl TrackSlot {
             next_event: 0,
             gain: 1.0,
             pan: 0.0,
+            width: 1.0,
+            phase_invert: false,
             audible: true,
             peak: 0.0,
         }
@@ -299,6 +309,8 @@ impl Processor {
             let s = &mut self.slots[slot];
             s.gain = t.gain;
             s.pan = t.pan;
+            s.width = t.width;
+            s.phase_invert = t.phase_invert;
             s.audible = t.audible;
             s.synth.set_settings(&to_settings(&t.instrument));
         }
@@ -429,7 +441,26 @@ impl Processor {
             s.peak = 0.0;
         }
         let mut master_peak = [0f32; 2];
-        let master_gain = self.snapshot.as_ref().map(|s| s.master_gain).unwrap_or(1.0);
+        let (master_gain, master_width, master_pan, master_invert, law) = self
+            .snapshot
+            .as_ref()
+            .map(|s| {
+                (
+                    s.master_gain,
+                    s.master_width,
+                    s.master_pan,
+                    s.master_phase_invert,
+                    s.pan_law,
+                )
+            })
+            .unwrap_or((1.0, 1.0, 0.0, false, PanLaw::default()));
+        // The master's pan is a *balance*, not a pan pot, so it does not take the
+        // project's pan law. A pan law compensates for placing a **mono source** in a
+        // stereo field; the master carries a mix that is already stereo, and running it
+        // through, say, the −6 dB law would take 6 dB off every centred mix for nothing.
+        // `ZeroDb` is the balance formulation: unity at centre, the far channel taper.
+        let (master_l, master_r) = PanLaw::ZeroDb.gains(master_pan);
+        let master_sign = if master_invert { -1.0f32 } else { 1.0 };
 
         let mut done = 0usize;
         let mut guard = 0usize;
@@ -511,6 +542,13 @@ impl Processor {
                 }
                 let l = &mut self.buf_l[..n];
                 let r = &mut self.buf_r[..n];
+                // Polarity first: the console's Ø is an input-stage switch, so the whole
+                // channel — inserts included — comes out inverted.
+                if s.phase_invert {
+                    for x in mono.iter_mut() {
+                        *x = -*x;
+                    }
+                }
                 l.copy_from_slice(mono);
                 r.copy_from_slice(mono);
                 for (i, e) in s.effects.iter_mut().enumerate() {
@@ -518,14 +556,12 @@ impl Processor {
                         e.process(l, r);
                     }
                 }
-                let (pl, pr) = pan_gains(s.pan);
+                // Width, then pan: narrowing a stereo reverb has to happen before the
+                // channel is placed, or the placement is what gets narrowed.
+                apply_width(l, r, s.width);
+                let (gl, gr) = law.gains(s.pan);
                 let g = if s.audible { s.gain } else { 0.0 };
-                // Equal-power balance: pan attenuates the far channel by up to −3 dB.
-                let (gl, gr) = (
-                    g * pl * std::f32::consts::SQRT_2,
-                    g * pr * std::f32::consts::SQRT_2,
-                );
-                let (gl, gr) = (gl.min(g), gr.min(g));
+                let (gl, gr) = (g * gl, g * gr);
                 let mut peak = s.peak;
                 for i in 0..n {
                     let sl = l[i] * gl;
@@ -551,10 +587,27 @@ impl Processor {
                     }
                 }
             }
+            // Master strip: width, then pan and gain, then polarity last of all.
+            if channels > 1 && master_width != 1.0 {
+                for i in 0..n {
+                    let frame = &mut out[i * channels..(i + 1) * channels];
+                    let (mut l, mut r) = (frame[0], frame[1]);
+                    let (mid, side) = ((l + r) * 0.5, (l - r) * 0.5 * master_width.clamp(0.0, 2.0));
+                    l = mid + side;
+                    r = mid - side;
+                    frame[0] = l;
+                    frame[1] = r;
+                }
+            }
             for i in 0..n {
                 let frame = &mut out[i * channels..(i + 1) * channels];
                 for (ch, s) in frame.iter_mut().enumerate() {
-                    *s *= master_gain;
+                    let pan = match ch {
+                        0 => master_l,
+                        1 => master_r,
+                        _ => 1.0,
+                    };
+                    *s *= master_gain * pan * master_sign;
                     if ch < 2 {
                         master_peak[ch] = master_peak[ch].max(s.abs());
                     }

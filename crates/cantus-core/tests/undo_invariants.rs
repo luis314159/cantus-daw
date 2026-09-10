@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(16) {
+    match rng.below(18) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -196,6 +196,53 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 None => Command::SetTrackMute {
                     id: t.id,
                     muted: rng.below(2) == 1,
+                },
+            }
+        }
+        // Schema 4's clip fields: a clip is a window onto its content, and every one of
+        // these has to be as reversible as the rest.
+        15..=16 if tracks > 0 => {
+            let ti = rng.below(tracks as u64) as usize;
+            let t = &project.tracks[ti];
+            let tid = t.id;
+            let Some(c) = t.clips.get(rng.below(t.clips.len().max(1) as u64) as usize) else {
+                return Command::SetTrackMute {
+                    id: tid,
+                    muted: rng.below(2) == 1,
+                };
+            };
+            let cid = c.id;
+            match rng.below(6) {
+                0 => Command::SetClipOffset {
+                    track: tid,
+                    clip: cid,
+                    offset: Ticks(rng.below(8000) as i64 - 4000),
+                },
+                1 => Command::SetClipLoop {
+                    track: tid,
+                    clip: cid,
+                    content_length: (rng.below(2) == 1).then(|| Ticks(1 + rng.below(4000) as i64)),
+                },
+                2 => Command::SetClipMute {
+                    track: tid,
+                    clip: cid,
+                    muted: rng.below(2) == 1,
+                },
+                3 => Command::SetClipColor {
+                    track: tid,
+                    clip: cid,
+                    color: (rng.below(2) == 1).then(|| Color::PALETTE[rng.below(8) as usize]),
+                },
+                4 if tracks > 1 => Command::MoveClipToTrack {
+                    from: tid,
+                    to: project.tracks[rng.below(tracks as u64) as usize].id,
+                    clip: cid,
+                },
+                _ => Command::SetClipBounds {
+                    track: tid,
+                    clip: cid,
+                    start: Ticks(rng.below(20_000) as i64),
+                    length: Ticks(1 + rng.below(8000) as i64),
                 },
             }
         }

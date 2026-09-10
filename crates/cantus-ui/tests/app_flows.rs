@@ -169,6 +169,155 @@ fn stress_project_renders_within_budget() {
 }
 
 #[test]
+fn the_mixer_draws_faders_with_a_scale_and_a_readout() {
+    // The mixer was the one view `run_frames` never touched, and the fader is most of
+    // what it is made of. This renders it and reads back the text it painted.
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 700.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| views::mixer::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    for want in ["+12", "-12", "-30", "-60", "-\u{221e}", "+0.0 dB"] {
+        assert!(
+            text.contains(want),
+            "the mixer never painted {want:?}: {text}"
+        );
+    }
+}
+
+/// Tab through the mixer and press an arrow at every control that claims them, checking
+/// after each press that the note selection did not move. Returns true once a press has
+/// actually reached a vertical fader.
+///
+/// The arrow pressed is the one that control owns — vertical for a fader, horizontal for
+/// a pan or width bar. That is not a convenience: an arrow a widget has *not* claimed is
+/// how egui moves focus between widgets, so pressing the wrong one walks the focus around
+/// the strip instead of moving the control. Which is itself worth knowing, and is why the
+/// assertion below that focus stayed put is part of the test.
+fn walk_the_mixer_with_arrows(
+    ctx: &egui::Context,
+    a: &mut CantusApp,
+    mut gain: impl FnMut(&CantusApp) -> f32,
+    mut check: impl FnMut(&CantusApp),
+) -> bool {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 700.0),
+        )),
+        ..Default::default()
+    };
+    let frame = |a: &mut CantusApp, key: Option<egui::Key>, dispatch: bool| {
+        let mut i = input.clone();
+        if let Some(key) = key {
+            i.events.push(egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        ctx.run_ui(i, |ui| {
+            if dispatch {
+                a.global_shortcuts(ui.ctx());
+            }
+            egui::CentralPanel::default().show(ui, |ui| views::mixer::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    frame(a, None, false);
+    let mut reached_a_fader = false;
+    for _ in 0..24 {
+        frame(a, Some(egui::Key::Tab), false);
+        // egui only installs a widget's focus filter on the frame *after* it gains focus
+        // (`Memory::set_focus_lock_filter` checks `had_focus_last_frame`), so give it the
+        // idle frame a real user would. Pressing an arrow in the same frame as the Tab
+        // moves the focus instead, which is egui's behaviour and not ours to fix here.
+        frame(a, None, false);
+        if !cantus_ui::widgets::arrow_keys_claimed(ctx) {
+            continue;
+        }
+        let focused = ctx
+            .memory(|m| m.focused())
+            .expect("something claimed the keys");
+        let rect = ctx.read_response(focused).expect("focused response").rect;
+        let vertical = rect.height() > rect.width();
+        let before = gain(a);
+        frame(
+            a,
+            Some(if vertical {
+                egui::Key::ArrowUp
+            } else {
+                egui::Key::ArrowRight
+            }),
+            true,
+        );
+        check(a);
+        assert_eq!(
+            ctx.memory(|m| m.focused()),
+            Some(focused),
+            "the control did not claim the arrow it owns, so focus walked away instead"
+        );
+        // Only the first vertical fader is this track's; the next one belongs to the
+        // master strip and moves a different number.
+        if vertical && !reached_a_fader {
+            assert!(gain(a) > before, "an arrow key never reached the fader");
+            reached_a_fader = true;
+        }
+    }
+    reached_a_fader
+}
+
+#[test]
+fn a_focused_fader_takes_the_arrow_keys_from_the_note_nudge() {
+    // Both want the arrows. Without the claim in `cantus_ui::widgets` one press would
+    // move the control *and* transpose every selected note — the sort of defect a user
+    // reports as "my notes move on their own". The check runs at every control the Tab
+    // key stops on, not only at the fader: they all claim the arrows.
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    a.select_all_notes();
+    let pitches = |a: &CantusApp| -> Vec<u8> {
+        a.project()
+            .track(track)
+            .unwrap()
+            .clip(clip)
+            .unwrap()
+            .notes
+            .iter()
+            .map(|n| n.pitch)
+            .collect()
+    };
+    let before = pitches(&a);
+
+    let ctx = ctx();
+    let reached = walk_the_mixer_with_arrows(
+        &ctx,
+        &mut a,
+        |a| a.project().track(track).unwrap().gain_db,
+        |a| {
+            assert_eq!(
+                pitches(a),
+                before,
+                "an arrow key on a focused mixer control transposed the notes as well"
+            );
+        },
+    );
+    assert!(reached, "tabbing through the mixer never reached a fader");
+}
+
+#[test]
 fn transport_icons_are_painted_as_shapes() {
     let mut a = app(starter_project());
     let ctx = ctx();
@@ -909,4 +1058,700 @@ fn the_ruler_thins_its_bar_numbers_out_when_zoomed_out() {
         zoomed_out > 3,
         "the ruler stopped numbering altogether at the widest zoom"
     );
+}
+
+/// The pitches heard at each tick, straight from the snapshot the engine would get.
+fn heard(a: &CantusApp) -> Vec<(i64, u8)> {
+    let s = Snapshot::compile(a.project(), 0);
+    let mut v: Vec<(i64, u8)> = s
+        .tracks
+        .iter()
+        .flat_map(|t| t.events.iter())
+        .filter(|e| e.is_on())
+        .map(|e| (e.tick.0, e.pitch))
+        .collect();
+    v.sort_unstable();
+    v
+}
+
+#[test]
+fn clip_editing_is_reversible_and_survives_a_save() {
+    let mut a = app(starter_project());
+    let track = a.project().tracks[0].id;
+    let clip = a.project().tracks[0].clips[0].id;
+    let before = a.project().clone();
+    let sounded = heard(&a);
+    a.focus_arrangement();
+    a.select_clip(track, clip);
+
+    // Split in the middle. Nothing about the music changes; only the bookkeeping does.
+    let mid = {
+        let c = a.project().track(track).unwrap().clip(clip).unwrap();
+        c.start + c.length / 2
+    };
+    a.seek(mid);
+    a.run_action(cantus_ui::keymap::Action::SplitClip);
+    assert_eq!(a.project().track(track).unwrap().clips.len(), 2);
+    assert_eq!(heard(&a), sounded, "splitting changed what is played");
+
+    // Glue them back: the clip comes out the way it went in.
+    a.select_all_clips();
+    a.run_action(cantus_ui::keymap::Action::GlueClips);
+    assert_eq!(a.project().track(track).unwrap().clips.len(), 1);
+    assert_eq!(heard(&a), sounded);
+
+    // Mute, colour, repeat.
+    a.run_action(cantus_ui::keymap::Action::ToggleClipMute);
+    assert!(a.project().track(track).unwrap().clips[0].muted);
+    assert!(heard(&a).is_empty(), "a muted clip still sounds");
+    a.run_action(cantus_ui::keymap::Action::ToggleClipMute);
+    a.set_clip_color(Some(Color::PALETTE[3]));
+    a.run_action(cantus_ui::keymap::Action::ToggleClipLoop);
+    assert!(a.project().track(track).unwrap().clips[0]
+        .content_length
+        .is_some());
+
+    // Save and reopen: schema 4 round-trips everything above.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clips.cantus");
+    a.save_to_path(&path);
+    let reopened = cantus_project::load(&path, true).expect("reopen");
+    assert_eq!(
+        &reopened.project,
+        a.project(),
+        "schema 4 did not round-trip"
+    );
+
+    // And every one of those edits undoes.
+    for _ in 0..20 {
+        a.undo();
+    }
+    let mut now = a.project().clone();
+    now.next_id = before.next_id;
+    assert_eq!(now, before, "undo-all did not restore the project");
+}
+
+#[test]
+fn a_clip_dragged_to_another_track_takes_its_music_with_it() {
+    let mut a = app(starter_project());
+    a.add_track();
+    let (from, to) = (a.project().tracks[0].id, a.project().tracks[1].id);
+    let clip = a.project().tracks[0].clips[0].id;
+    let pitches: Vec<u8> = a.project().tracks[0].clips[0]
+        .notes
+        .iter()
+        .map(|n| n.pitch)
+        .collect();
+    let before = heard(&a);
+    a.focus_arrangement();
+    a.select_clip(from, clip);
+    a.commit_clip_drag(
+        (from, clip),
+        views::arrangement::ClipDragResult::Move {
+            delta: Ticks::beats(4),
+            rows: 1,
+            copy: false,
+        },
+    );
+    assert!(a.project().track(from).unwrap().clips.is_empty());
+    let moved = a
+        .project()
+        .track(to)
+        .unwrap()
+        .clip(clip)
+        .expect("kept its id");
+    assert_eq!(
+        moved.notes.iter().map(|n| n.pitch).collect::<Vec<_>>(),
+        pitches
+    );
+    // On the events the engine would play, not on the note list: the notes never move
+    // when a clip does — the *window* does — so a list that looks unchanged proves
+    // nothing about whether the music went with it.
+    assert_eq!(
+        heard(&a),
+        before
+            .iter()
+            .map(|(t, p)| (t + Ticks::beats(4).0, *p))
+            .collect::<Vec<_>>(),
+        "the clip changed track but its music stayed where it was"
+    );
+    assert_eq!(
+        a.clip_selection(),
+        vec![(to, clip)],
+        "the selection followed"
+    );
+
+    // Alt-drag copies instead: the original stays, and the copy is independent.
+    a.commit_clip_drag(
+        (to, clip),
+        views::arrangement::ClipDragResult::Move {
+            delta: Ticks::beats(8),
+            rows: -1,
+            copy: true,
+        },
+    );
+    assert_eq!(a.project().track(to).unwrap().clips.len(), 1);
+    let copy = &a.project().track(from).unwrap().clips[0];
+    assert_ne!(copy.id, clip);
+    let original = a.project().track(to).unwrap().clip(clip).unwrap();
+    assert!(
+        copy.notes.iter().all(|n| original.note(n.id).is_none()),
+        "a copy that shares note ids is not an independent copy"
+    );
+}
+
+#[test]
+fn trimming_and_slipping_go_through_the_content_offset() {
+    let mut a = app(starter_project());
+    let track = a.project().tracks[0].id;
+    let clip = a.project().tracks[0].clips[0].id;
+    let sounded = heard(&a);
+    a.focus_arrangement();
+    a.select_clip(track, clip);
+
+    // Trim a beat off the front: the first note is hidden, the rest do not move.
+    a.commit_clip_drag(
+        (track, clip),
+        views::arrangement::ClipDragResult::TrimStart {
+            delta: Ticks::beats(1),
+        },
+    );
+    let c = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(
+        c.offset,
+        Ticks::beats(1),
+        "trimming did not move the offset"
+    );
+    assert_eq!(c.notes.len(), 4, "trimming threw notes away");
+    let after = heard(&a);
+    assert_eq!(after, sounded[1..].to_vec());
+
+    // Trim it back: the note comes back exactly where it was.
+    a.commit_clip_drag(
+        (track, clip),
+        views::arrangement::ClipDragResult::TrimStart {
+            delta: Ticks::beats(-1),
+        },
+    );
+    assert_eq!(heard(&a), sounded, "trimming is not lossless");
+
+    // Slip: the window stays, the music moves.
+    let (start, length) = {
+        let c = a.project().track(track).unwrap().clip(clip).unwrap();
+        (c.start, c.length)
+    };
+    a.commit_clip_drag(
+        (track, clip),
+        views::arrangement::ClipDragResult::Slip {
+            delta: Ticks::beats(1),
+        },
+    );
+    let c = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(
+        (c.start, c.length),
+        (start, length),
+        "slip moved the window"
+    );
+    assert_ne!(heard(&a), sounded, "slip did not move the music");
+}
+
+#[test]
+fn the_arrow_keys_move_whatever_the_user_was_last_editing() {
+    // The same key means two things, and which one is decided by where the last edit
+    // happened. Getting this wrong moves the notes when the user meant the clip.
+    let mut a = app(starter_project());
+    let track = a.project().tracks[0].id;
+    let clip = a.project().tracks[0].clips[0].id;
+    let clip_start = |a: &CantusApp| a.project().track(track).unwrap().clip(clip).unwrap().start;
+    let note_start =
+        |a: &CantusApp| a.project().track(track).unwrap().clip(clip).unwrap().notes[0].start;
+
+    a.select_clip(track, clip);
+    a.select_all_notes();
+    a.focus_piano_roll();
+    let (c0, n0) = (clip_start(&a), note_start(&a));
+    a.run_action(cantus_ui::keymap::Action::NudgeRight);
+    assert_eq!(clip_start(&a), c0, "editing notes moved the clip");
+    assert_ne!(note_start(&a), n0, "the notes did not move");
+
+    a.focus_arrangement();
+    let (c1, n1) = (clip_start(&a), note_start(&a));
+    a.run_action(cantus_ui::keymap::Action::NudgeRight);
+    assert_ne!(clip_start(&a), c1, "the clip did not move");
+    assert_eq!(note_start(&a), n1, "editing clips moved the notes");
+}
+
+#[test]
+fn copying_clips_keeps_their_shape_across_tracks_and_time() {
+    let mut a = app(starter_project());
+    a.add_track();
+    let (t0, t1) = (a.project().tracks[0].id, a.project().tracks[1].id);
+    let c0 = a.project().tracks[0].clips[0].id;
+    a.create_clip(t1, Ticks::beats(8), Ticks::beats(4));
+    let c1 = a.project().tracks[1].clips[0].id;
+    let gap = a.project().track(t1).unwrap().clip(c1).unwrap().start
+        - a.project().track(t0).unwrap().clip(c0).unwrap().start;
+
+    a.focus_arrangement();
+    a.set_clip_selection(vec![(t0, c0), (t1, c1)]);
+    a.run_action(cantus_ui::keymap::Action::Copy);
+    a.select_track(t0);
+    a.seek(Ticks::beats(32));
+    a.run_action(cantus_ui::keymap::Action::Paste);
+
+    let pasted = a.clip_selection();
+    assert_eq!(pasted.len(), 2, "both clips should have been pasted");
+    let first = clip_at(&a, pasted[0]);
+    let second = clip_at(&a, pasted[1]);
+    assert_eq!(
+        first.start,
+        Ticks::beats(32),
+        "paste landed off the playhead"
+    );
+    assert_eq!(
+        second.start - first.start,
+        gap,
+        "the clips lost their spacing in time"
+    );
+    assert_ne!(
+        pasted[0].0, pasted[1].0,
+        "the clips lost their spacing in tracks"
+    );
+}
+
+fn clip_at(a: &CantusApp, r: (TrackId, ClipId)) -> cantus_core::Clip {
+    a.project().track(r.0).unwrap().clip(r.1).unwrap().clone()
+}
+
+#[test]
+fn the_arrangement_renders_clips_with_their_state() {
+    let mut a = app(starter_project());
+    let track = a.project().tracks[0].id;
+    let clip = a.project().tracks[0].clips[0].id;
+    a.focus_arrangement();
+    a.select_clip(track, clip);
+    a.run_action(cantus_ui::keymap::Action::ToggleClipMute);
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1200.0, 500.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| views::arrangement::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    assert!(
+        text.contains("(muted)"),
+        "a muted clip must say so on the clip itself: {text}"
+    );
+}
+
+#[test]
+fn the_pan_law_is_reachable_reversible_and_stored_in_the_project() {
+    // The one setting in this round that changes what a file *renders as*. It has to be
+    // in the project, not in the preferences, or the same file would mix differently on
+    // two machines (ADR 0012).
+    let mut a = app(starter_project());
+    assert_eq!(
+        a.project().pan_law,
+        PanLaw::Minus3dB,
+        "a new project should start on constant power"
+    );
+    a.exec(Command::SetPanLaw {
+        law: PanLaw::Minus6dB,
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("law.cantus");
+    a.save_to_path(&path);
+    let back = cantus_project::load(&path, true).expect("reopen");
+    assert_eq!(
+        back.project.pan_law,
+        PanLaw::Minus6dB,
+        "the law did not travel"
+    );
+    a.undo();
+    assert_eq!(
+        a.project().pan_law,
+        PanLaw::Minus3dB,
+        "the law did not undo"
+    );
+}
+
+#[test]
+fn the_mixer_shows_pan_width_and_polarity() {
+    let mut a = app(starter_project());
+    let id = a.project().tracks[0].id;
+    a.exec(Command::SetTrackPan { id, pan: -0.5 });
+    a.exec(Command::SetTrackWidth { id, width: 0.0 });
+    a.exec(Command::SetTrackPhaseInvert { id, invert: true });
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| views::mixer::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    for want in ["L50", "0%", "Mono", "\u{d8}", "-3"] {
+        assert!(
+            text.contains(want),
+            "the mixer never painted {want:?}: {text}"
+        );
+    }
+}
+
+/// Drive the arrangement with real pointer events: press at `from`, travel to `to` in a
+/// few steps, release. This is the only way to test a drag *gesture* — the earlier tests
+/// called `commit_clip_drag` directly, which is the last step of it and skips every
+/// decision the view makes about what the user grabbed.
+fn drag_the_arrangement(
+    a: &mut CantusApp,
+    aim: impl Fn(&views::arrangement::TimelineGeometry) -> (egui::Pos2, egui::Pos2),
+    modifiers: egui::Modifiers,
+) {
+    let ctx = ctx();
+    let size = egui::vec2(1200.0, 400.0);
+    let show = |a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| views::arrangement::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    let button = |pos: egui::Pos2, pressed: bool| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers,
+    };
+    // One frame to lay the view out, then ask it where it put things. Mirroring the
+    // layout here instead would make the test break the next time a toolbar is added —
+    // which is how it was written the first time, and how it broke.
+    show(a, &ctx, vec![]);
+    let geo = a.arrangement.geometry().expect("the timeline drew a frame");
+    let (from, to) = aim(&geo);
+    // Hover first: the view hit-tests what is under the pointer before anything is
+    // pressed, so a press with no preceding move would land on nothing.
+    show(a, &ctx, vec![egui::Event::PointerMoved(from)]);
+    show(
+        a,
+        &ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true)],
+    );
+    for i in 1..=4 {
+        let t = i as f32 / 4.0;
+        let at = from + (to - from) * t;
+        show(a, &ctx, vec![egui::Event::PointerMoved(at)]);
+    }
+    show(
+        a,
+        &ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+    );
+    show(a, &ctx, vec![]);
+}
+
+#[test]
+fn dragging_a_clip_edge_resizes_it() {
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let before = a
+        .project()
+        .track(track)
+        .unwrap()
+        .clip(clip)
+        .unwrap()
+        .clone();
+    assert_eq!(before.start, Ticks::ZERO);
+    assert_eq!(before.length, Ticks::beats(16));
+
+    // Grab the right edge — a few pixels inside it — and pull it four beats left.
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let edge = g.x(16.0) - 3.0;
+            (
+                egui::pos2(edge, g.row_y(0)),
+                egui::pos2(edge - 4.0 * g.px_per_beat, g.row_y(0)),
+            )
+        },
+        egui::Modifiers::NONE,
+    );
+    let after = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(after.start, Ticks::ZERO, "resizing moved the clip");
+    assert_eq!(
+        after.length,
+        Ticks::beats(12),
+        "dragging the right edge did not resize the clip"
+    );
+}
+
+#[test]
+fn dragging_the_left_edge_trims_without_moving_the_notes() {
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let pitches: Vec<(Ticks, u8)> = a.project().tracks[0].clips[0]
+        .notes
+        .iter()
+        .map(|n| (n.start, n.pitch))
+        .collect();
+
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let edge = g.x(0.0) + 3.0;
+            (
+                egui::pos2(edge, g.row_y(0)),
+                egui::pos2(edge + 4.0 * g.px_per_beat, g.row_y(0)),
+            )
+        },
+        egui::Modifiers::NONE,
+    );
+    let after = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(after.start, Ticks::beats(4), "the left edge did not move");
+    assert_eq!(after.length, Ticks::beats(12), "the clip did not shrink");
+    assert_eq!(
+        after.offset,
+        Ticks::beats(4),
+        "the content offset did not follow"
+    );
+    assert_eq!(
+        after
+            .notes
+            .iter()
+            .map(|n| (n.start, n.pitch))
+            .collect::<Vec<_>>(),
+        pitches,
+        "trimming moved the notes"
+    );
+}
+
+#[test]
+fn dragging_the_middle_of_a_clip_moves_it() {
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            (
+                egui::pos2(g.x(8.0), g.row_y(0)),
+                egui::pos2(g.x(12.0), g.row_y(0)),
+            )
+        },
+        egui::Modifiers::NONE,
+    );
+    let after = a.project().track(track).unwrap().clip(clip).unwrap();
+    assert_eq!(after.start, Ticks::beats(4), "the clip did not move");
+    assert_eq!(after.length, Ticks::beats(16), "moving resized the clip");
+}
+
+#[test]
+fn the_clip_menu_opens_on_a_right_click_and_survives_the_pointer_leaving() {
+    // A context menu appears *next to* the pointer, so reaching for it takes the pointer
+    // off the clip. Drawing it only while its own target is hovered meant it vanished
+    // before it could be used — and a menu you cannot reach is the same as no menu.
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let size = egui::vec2(1200.0, 400.0);
+    let frame = |a: &mut CantusApp, events: Vec<egui::Event>| -> String {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| views::arrangement::show(a, ui));
+        });
+        out.textures_delta.clear();
+        painted_text(&out.shapes)
+    };
+    // Lay the view out, then ask it where the clip is (`TimelineGeometry`).
+    frame(&mut a, vec![]);
+    let geo = a.arrangement.geometry().expect("the timeline drew a frame");
+    let on_clip = egui::pos2(geo.x(8.0), geo.row_y(0));
+    frame(&mut a, vec![egui::Event::PointerMoved(on_clip)]);
+    let secondary = |pressed| egui::Event::PointerButton {
+        pos: on_clip,
+        button: egui::PointerButton::Secondary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    frame(&mut a, vec![secondary(true)]);
+    frame(&mut a, vec![secondary(false)]);
+    // egui lays the menu out on the frame after the click.
+    let opened = frame(&mut a, vec![]);
+    assert!(
+        opened.contains("Split at the playhead"),
+        "right-clicking a clip did not open its menu: {opened}"
+    );
+    assert!(
+        opened.contains("Ctrl+E"),
+        "the menu does not show the shortcut it teaches: {opened}"
+    );
+
+    // Now move the pointer well away, as anyone reaching for the menu would.
+    let away = frame(
+        &mut a,
+        vec![egui::Event::PointerMoved(egui::pos2(
+            geo.x(40.0),
+            geo.row_y(2),
+        ))],
+    );
+    assert!(
+        away.contains("Split at the playhead"),
+        "the clip menu closed as soon as the pointer left the clip: {away}"
+    );
+}
+
+#[test]
+fn clip_editing_is_visible_in_the_menu_bar() {
+    // Everything in this round was reachable only from a right-click and from shortcuts
+    // nobody had been told about, which is the same as not being there.
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 200.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::Panel::top(egui::Id::new("t")).show(ui, |ui| views::transport::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    assert!(
+        text.contains("Clip"),
+        "the menu bar has no Clip menu: {text}"
+    );
+}
+
+#[test]
+fn the_arrangement_toolbar_is_a_row_of_icons_with_a_grid_picker() {
+    // The clip operations were reachable from a menu and a shortcut, which is not the same
+    // as being to hand. This is the row that makes them findable.
+    let mut a = app(starter_project());
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 400.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| views::arrangement::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    for want in ["Arrangement", "Grid", "1 bar", "Snap", "1 selected"] {
+        assert!(
+            text.contains(want),
+            "the toolbar never painted {want:?}: {text}"
+        );
+    }
+    // The buttons themselves are painted shapes, not text: count the icon-sized
+    // interactive rects instead, so the test fails if the row silently loses one.
+    let buttons = out
+        .shapes
+        .iter()
+        .filter(|s| {
+            matches!(&s.shape, egui::Shape::Rect(r)
+                if (r.rect.width() - cantus_ui::design::ICON_BUTTON.x).abs() < 0.5
+                    && (r.rect.height() - cantus_ui::design::ICON_BUTTON.y).abs() < 0.5)
+        })
+        .count();
+    assert!(
+        buttons >= 1,
+        "no icon buttons were painted in the arrangement toolbar"
+    );
+}
+
+#[test]
+fn every_clip_action_has_a_key_bound_to_it() {
+    // "Shortcuts for all of it" is only true if it stays true, so this asserts it for the
+    // whole category rather than for the four that had one when it was written.
+    use cantus_ui::keymap::{Action, Category, Keymap};
+    let map = Keymap::default();
+    let unbound: Vec<&str> = Action::ALL
+        .into_iter()
+        .filter(|a| a.category() == Category::Clips)
+        .filter(|a| map.bindings_for(*a).is_empty())
+        .map(|a| a.id())
+        .collect();
+    assert!(
+        unbound.is_empty(),
+        "clip actions with no shortcut: {unbound:?}"
+    );
+}
+
+#[test]
+fn renaming_a_clip_goes_through_a_command_and_undoes() {
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let before = a
+        .project()
+        .track(track)
+        .unwrap()
+        .clip(clip)
+        .unwrap()
+        .name
+        .clone();
+    a.focus_arrangement();
+    a.select_clip(track, clip);
+    a.rename_clip((track, clip), "Verse".into());
+    assert_eq!(
+        a.project().track(track).unwrap().clip(clip).unwrap().name,
+        "Verse"
+    );
+    // An abandoned edit must not wipe the name.
+    a.rename_clip((track, clip), "   ".into());
+    assert_eq!(
+        a.project().track(track).unwrap().clip(clip).unwrap().name,
+        "Verse"
+    );
+    a.undo();
+    assert_eq!(
+        a.project().track(track).unwrap().clip(clip).unwrap().name,
+        before
+    );
+}
+
+#[test]
+fn the_clip_colour_key_cycles_through_the_palette_and_back_off() {
+    let mut a = app(starter_project());
+    let (track, clip) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    a.focus_arrangement();
+    a.select_clip(track, clip);
+    let colour = |a: &CantusApp| a.project().track(track).unwrap().clip(clip).unwrap().color;
+    assert_eq!(colour(&a), None, "a new clip follows its track");
+    for expected in Color::PALETTE {
+        a.run_action(cantus_ui::keymap::Action::ClipColorNext);
+        assert_eq!(colour(&a), Some(expected));
+    }
+    // Off the end of the palette and back to the track's colour: every state is leavable
+    // with the same key that reached it.
+    a.run_action(cantus_ui::keymap::Action::ClipColorNext);
+    assert_eq!(colour(&a), None);
 }

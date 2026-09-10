@@ -5,6 +5,7 @@ use crate::design::{self, space};
 use crate::i18n::{t, tf};
 use crate::icons::{self, Icon};
 use crate::theme;
+use crate::views;
 use cantus_core::{Command, MergeKey, Ticks};
 use egui::{pos2, vec2, Align2, Color32, FontId, Rect, RichText, Sense, Stroke, StrokeKind};
 
@@ -100,36 +101,33 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
             app.redo();
         }
         ui.separator();
-        if ui.button(t("menu.cut")).clicked() {
-            ui.close();
-            app.cut_selection();
-        }
-        if ui.button(t("menu.copy")).clicked() {
-            ui.close();
-            app.copy_selection();
-        }
-        if ui.button(t("menu.paste")).clicked() {
-            ui.close();
-            app.paste_clipboard();
-        }
-        if ui.button(t("menu.duplicate")).clicked() {
-            ui.close();
-            app.duplicate_selection();
+        // Through `run_action`, not straight to the note methods: these six mean one thing
+        // in the piano roll and another in the arrangement, and ADR 0010's rule is that a
+        // menu and a shortcut reach the same code. Calling `app.cut_selection()` here made
+        // the menu permanently about notes however the arrangement was being used.
+        use crate::keymap::Action;
+        for (action, key) in [
+            (Action::Cut, "menu.cut"),
+            (Action::Copy, "menu.copy"),
+            (Action::Paste, "menu.paste"),
+            (Action::Duplicate, "menu.duplicate"),
+        ] {
+            if views::arrangement::action_item(app, ui, action, key) {
+                ui.close();
+            }
         }
         ui.separator();
-        if ui.button(t("menu.select_all")).clicked() {
-            ui.close();
-            app.select_all_notes();
-        }
-        if ui.button(t("menu.delete")).clicked() {
-            ui.close();
-            app.delete_selection();
-        }
-        if ui.button(t("menu.quantize")).clicked() {
-            ui.close();
-            app.quantize_selection();
+        for (action, key) in [
+            (Action::SelectAll, "menu.select_all"),
+            (Action::Delete, "menu.delete"),
+            (Action::Quantize, "menu.quantize"),
+        ] {
+            if views::arrangement::action_item(app, ui, action, key) {
+                ui.close();
+            }
         }
     });
+    clip_menu_bar(app, ui);
     ui.menu_button(t("menu.view"), |ui| {
         // Language and theme live in Settings rather than here as well: two places to
         // change one thing is how they drift apart.
@@ -370,4 +368,98 @@ fn master_meter(app: &mut CantusApp, ui: &mut egui::Ui) {
             Color32::WHITE,
         );
     }
+}
+
+/// The **Clip** menu.
+///
+/// Clip editing was reachable only from a right-click and from shortcuts nobody had been
+/// told about, which is the same as not being there. Everything here goes through
+/// `run_action`, and every entry shows the key bound to it, so the menu teaches the
+/// shortcut instead of replacing it.
+fn clip_menu_bar(app: &mut CantusApp, ui: &mut egui::Ui) {
+    use crate::keymap::Action;
+    let selection = app.clip_selection();
+    let (muted, looping) = selection
+        .first()
+        .and_then(|(t, c)| app.project().track(*t)?.clip(*c))
+        .map(|c| (c.muted, c.content_length.is_some()))
+        .unwrap_or((false, false));
+    ui.menu_button(t("menu.clip"), |ui| {
+        // The whole menu is about the clip selection; with none there is nothing to
+        // enable, and greying it out says that more clearly than an entry that does
+        // nothing when clicked.
+        ui.add_enabled_ui(!selection.is_empty(), |ui| {
+            for (action, key) in [
+                (Action::SplitClip, "clip.split"),
+                (Action::GlueClips, "clip.glue"),
+                (Action::Duplicate, "clip.duplicate"),
+            ] {
+                if views::arrangement::action_item(app, ui, action, key) {
+                    ui.close();
+                }
+            }
+            ui.separator();
+            if views::arrangement::action_item(
+                app,
+                ui,
+                Action::ToggleClipMute,
+                if muted { "clip.unmute" } else { "clip.mute" },
+            ) {
+                ui.close();
+            }
+            if views::arrangement::action_item(
+                app,
+                ui,
+                Action::ToggleClipLoop,
+                if looping {
+                    "clip.loop_off"
+                } else {
+                    "clip.loop_on"
+                },
+            ) {
+                ui.close();
+            }
+            ui.separator();
+            ui.label(
+                RichText::new(t("clip.color"))
+                    .text_style(design::caption())
+                    .color(theme::p().text_dim),
+            );
+            ui.horizontal(|ui| {
+                for c in cantus_core::Color::PALETTE {
+                    let (r, resp) =
+                        ui.allocate_exact_size(vec2(space::S4, space::S4), Sense::click());
+                    ui.painter()
+                        .rect_filled(r, theme::p().corner_radius, theme::track_color(c));
+                    if resp.hovered() {
+                        ui.painter().rect_stroke(
+                            r,
+                            theme::p().corner_radius,
+                            Stroke::new(1.0, theme::p().text),
+                            StrokeKind::Inside,
+                        );
+                    }
+                    if resp.clicked() {
+                        app.set_clip_color(Some(c));
+                        ui.close();
+                    }
+                }
+            });
+            if ui.button(t("clip.color_reset")).clicked() {
+                app.set_clip_color(None);
+                ui.close();
+            }
+            ui.separator();
+            if ui.button(t("clip.delete")).clicked() {
+                app.delete_clip_selection();
+                ui.close();
+            }
+        });
+        ui.separator();
+        ui.label(
+            RichText::new(t("clip.menu_hint"))
+                .text_style(design::caption())
+                .color(theme::p().text_dim),
+        );
+    });
 }

@@ -58,6 +58,13 @@ pub enum Action {
     Delete,
     Quantize,
     ClearSelection,
+    // Clips
+    SplitClip,
+    GlueClips,
+    ToggleClipMute,
+    ToggleClipLoop,
+    ClipColorNext,
+    RenameClip,
     // Notes
     NudgeLeft,
     NudgeRight,
@@ -85,16 +92,18 @@ pub enum Category {
     Transport,
     File,
     Edit,
+    Clips,
     Notes,
     Tools,
     View,
 }
 
 impl Category {
-    pub const ALL: [Category; 6] = [
+    pub const ALL: [Category; 7] = [
         Category::Transport,
         Category::File,
         Category::Edit,
+        Category::Clips,
         Category::Notes,
         Category::Tools,
         Category::View,
@@ -105,6 +114,7 @@ impl Category {
             Category::Transport => "keymap.cat.transport",
             Category::File => "keymap.cat.file",
             Category::Edit => "keymap.cat.edit",
+            Category::Clips => "keymap.cat.clips",
             Category::Notes => "keymap.cat.notes",
             Category::Tools => "keymap.cat.tools",
             Category::View => "keymap.cat.view",
@@ -113,7 +123,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 38] = [
+    pub const ALL: [Action; 44] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -136,6 +146,12 @@ impl Action {
         Action::Delete,
         Action::Quantize,
         Action::ClearSelection,
+        Action::SplitClip,
+        Action::GlueClips,
+        Action::ToggleClipMute,
+        Action::ToggleClipLoop,
+        Action::ClipColorNext,
+        Action::RenameClip,
         Action::NudgeLeft,
         Action::NudgeRight,
         Action::NudgeLeftBar,
@@ -179,6 +195,12 @@ impl Action {
             Action::Delete => "delete",
             Action::Quantize => "quantize",
             Action::ClearSelection => "clear-selection",
+            Action::SplitClip => "split-clip",
+            Action::GlueClips => "glue-clips",
+            Action::ToggleClipMute => "toggle-clip-mute",
+            Action::ToggleClipLoop => "toggle-clip-loop",
+            Action::ClipColorNext => "clip-color-next",
+            Action::RenameClip => "rename-clip",
             Action::NudgeLeft => "nudge-left",
             Action::NudgeRight => "nudge-right",
             Action::NudgeLeftBar => "nudge-left-bar",
@@ -216,6 +238,8 @@ impl Action {
             NewProject | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
+            SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
+            | RenameClip => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
@@ -272,6 +296,15 @@ impl Binding {
     /// Does this binding need no modifier? Those are the ones the typing piano takes over.
     pub fn is_bare(&self) -> bool {
         !self.command && !self.shift && !self.alt
+    }
+
+    /// Is this an arrow key? Those are the ones a focused fader takes over, the same way
+    /// the typing piano takes the letters — a mode, not a conflict (`crate::widgets`).
+    pub fn is_arrow(&self) -> bool {
+        matches!(
+            self.key,
+            Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown
+        )
     }
 
     fn matches(&self, m: Modifiers) -> bool {
@@ -449,6 +482,28 @@ fn common() -> Vec<(Action, Binding)> {
     ]
 }
 
+/// The clip shortcuts every preset gets.
+///
+/// `Ctrl+E` for split and `Ctrl+J` for glue are Live's and Logic's, and they are what most
+/// people arrive with. Splitting a clip is something a musician does a hundred times an
+/// hour and exporting a WAV a handful of times a day, so where the two collide it is the
+/// export that moves — to `Ctrl+Shift+E`, which is where the Live preset already had it.
+fn clip_bindings() -> Vec<(Action, Binding)> {
+    use Action::*;
+    vec![
+        (SplitClip, Binding::cmd(Key::E)),
+        (ExportWav, Binding::cmd_shift(Key::E)),
+        (GlueClips, Binding::cmd(Key::J)),
+        // Live mutes a clip with `0`; the bare digit is free because the tools took 1-7.
+        (ToggleClipMute, Binding::key(Key::Num0)),
+        // Repeat is the clip's own loop, so it sits beside the transport's `Ctrl+L`.
+        (ToggleClipLoop, Binding::cmd_shift(Key::L)),
+        (ClipColorNext, Binding::cmd_shift(Key::C)),
+        // F2 renames the thing that is selected, everywhere, in everything.
+        (RenameClip, Binding::key(Key::F2)),
+    ]
+}
+
 /// Build a preset from the shared spine plus its own bindings.
 ///
 /// A later binding takes the shortcut from whoever held it, so a preset can never conflict
@@ -473,11 +528,12 @@ fn build(preset: Preset, extra: Vec<(Action, Binding)>) -> Keymap {
 /// Cantus's own map: FL's tool letters, which are the most widely copied, plus number keys
 /// so the tools stay reachable while the typing piano owns the letters.
 pub fn cantus_keymap() -> Keymap {
-    let mut extra: Vec<(Action, Binding)> = vec![
+    let mut extra: Vec<(Action, Binding)> = clip_bindings();
+    extra.extend(vec![
         (Action::Duplicate, Binding::cmd(Key::B)),
         (Action::Duplicate, Binding::cmd(Key::D)),
         (Action::Quantize, Binding::key(Key::Q)),
-    ];
+    ]);
     extra.extend(TOOL_LETTERS.map(|(a, k)| (a, Binding::key(k))));
     extra.extend(TOOL_DIGITS.map(|(a, k)| (a, Binding::key(k))));
     build(Preset::Cantus, extra)
@@ -485,35 +541,36 @@ pub fn cantus_keymap() -> Keymap {
 
 /// Modelled on FL Studio: the tool letters and `Ctrl+B` duplicate.
 pub fn fl_keymap() -> Keymap {
-    let mut extra: Vec<(Action, Binding)> = vec![
+    let mut extra: Vec<(Action, Binding)> = clip_bindings();
+    extra.extend([
         (Action::Duplicate, Binding::cmd(Key::B)),
         (Action::Quantize, Binding::key(Key::Q)),
-    ];
+    ]);
     extra.extend(TOOL_LETTERS.map(|(a, k)| (a, Binding::key(k))));
     build(Preset::FlStudio, extra)
 }
 
 /// Modelled on Ableton Live: `Ctrl+D` duplicate, `Ctrl+U` quantize, `B` for the pencil,
-/// `Ctrl+E` to split. Live has no WAV-export shortcut to copy, so export steps aside to
-/// `Ctrl+Shift+E` rather than fighting the split.
+/// `V` for the select tool. Split and glue come from [`clip_bindings`], which is Live's
+/// layout to begin with.
 pub fn live_keymap() -> Keymap {
-    let extra: Vec<(Action, Binding)> = vec![
+    let mut extra: Vec<(Action, Binding)> = clip_bindings();
+    extra.extend([
         (Action::Duplicate, Binding::cmd(Key::D)),
         (Action::Quantize, Binding::cmd(Key::U)),
         (Action::ToolDraw, Binding::key(Key::B)),
         (Action::ToolSelect, Binding::key(Key::V)),
-        (Action::ToolSlice, Binding::cmd(Key::E)),
-        (Action::ExportWav, Binding::cmd_shift(Key::E)),
-    ];
+    ]);
     build(Preset::Live, extra)
 }
 
 /// Modelled on Bitwig Studio: tools on the number row, `Ctrl+D` duplicate.
 pub fn bitwig_keymap() -> Keymap {
-    let mut extra: Vec<(Action, Binding)> = vec![
+    let mut extra: Vec<(Action, Binding)> = clip_bindings();
+    extra.extend([
         (Action::Duplicate, Binding::cmd(Key::D)),
         (Action::Quantize, Binding::cmd(Key::Q)),
-    ];
+    ]);
     extra.extend(TOOL_DIGITS.map(|(a, k)| (a, Binding::key(k))));
     build(Preset::Bitwig, extra)
 }
@@ -597,13 +654,28 @@ impl Keymap {
     ///
     /// `letters_taken` is true while the typing piano owns the letter keys; bindings with
     /// no modifier are then ignored, which is why every tool also has a number binding.
-    pub fn pressed(&self, ctx: &egui::Context, letters_taken: bool) -> Vec<Action> {
+    /// The actions whose shortcut was pressed this frame.
+    ///
+    /// `letters_taken` is the typing piano owning the bare letters; `arrows_taken` is a
+    /// focused widget owning the arrow keys. Both are modes, not conflicts, and both are
+    /// resolved here rather than at the call sites, so no key is ever suppressed by an
+    /// action's *identity* — only by the key the user actually pressed. A user who binds
+    /// Save to `ArrowUp` gets the same rule as the shipped nudge does.
+    pub fn pressed(
+        &self,
+        ctx: &egui::Context,
+        letters_taken: bool,
+        arrows_taken: bool,
+    ) -> Vec<Action> {
         ctx.input(|i| {
             let m = i.modifiers;
             let mut fired = Vec::new();
             for (action, list) in &self.bindings {
                 for b in list {
                     if letters_taken && b.is_bare() && is_letter(b.key) {
+                        continue;
+                    }
+                    if arrows_taken && b.is_arrow() {
                         continue;
                     }
                     if b.matches(m) && i.key_pressed(b.key) {

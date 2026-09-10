@@ -100,6 +100,23 @@ impl CommandBus {
     // allocating one is never undone and never conflicts. These helpers build entities
     // with fresh ids; inserting them is still done through a command.
 
+    /// A fresh id, for callers that build a whole entity themselves (a clip copied with
+    /// all its notes, say) rather than through the helpers below.
+    pub fn alloc_id(&mut self) -> u64 {
+        self.project.alloc_id()
+    }
+
+    /// Promise that every id below `next` has been handed out.
+    ///
+    /// An operation that builds several entities at once needs to read the project while
+    /// it allocates, which it cannot do through [`Self::alloc_id`] — that borrows the bus.
+    /// It takes ids from `project.next_id` upwards instead and says so here afterwards.
+    /// Ids only ever go up, so a caller that reserves more than it used wastes numbers
+    /// from a 64-bit supply and nothing else.
+    pub fn reserve_ids(&mut self, next: u64) {
+        self.project.next_id = self.project.next_id.max(next);
+    }
+
     pub fn new_track(&mut self, name: impl Into<String>) -> crate::model::Track {
         self.project.make_track(name)
     }

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 5;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -177,7 +177,13 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
 /// Migration `i` converts schema `i` → `i + 1`. Never remove or reorder entries: a file
 /// saved today must open in five years (idea.md §5.15).
 type Migration = fn(&mut Value) -> Result<(), String>;
-static MIGRATIONS: &[Migration] = &[migrate_0_to_1, migrate_1_to_2, migrate_2_to_3];
+static MIGRATIONS: &[Migration] = &[
+    migrate_0_to_1,
+    migrate_1_to_2,
+    migrate_2_to_3,
+    migrate_3_to_4,
+    migrate_4_to_5,
+];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
 fn migrate_0_to_1(value: &mut Value) -> Result<(), String> {
@@ -226,6 +232,81 @@ fn migrate_2_to_3(value: &mut Value) -> Result<(), String> {
                     n["muted"] = Value::Bool(false);
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+/// Schema 4 turned a clip into a *window onto its content*: it gained a content offset,
+/// an optional repeat period, a mute and a colour override.
+///
+/// The migration writes the values that mean "behave exactly as before" — offset zero and
+/// no repeat — rather than trying to be clever. A schema-3 clip played its notes once,
+/// relative to its own start, and that is what `offset: 0, content_length: null` is. In
+/// particular the repeat is *not* seeded from the clip's length: that would silently turn
+/// every old clip into a looping one the first time somebody dragged its right edge.
+fn migrate_3_to_4(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(clips) = t.get_mut("clips").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for c in clips {
+            if c.get("offset").is_none() {
+                c["offset"] = Value::from(0);
+            }
+            if c.get("content_length").is_none() {
+                c["content_length"] = Value::Null;
+            }
+            if c.get("muted").is_none() {
+                c["muted"] = Value::Bool(false);
+            }
+            if c.get("color").is_none() {
+                c["color"] = Value::Null;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Schema 5 added the pan law, stereo width, and polarity inversion (ADR 0012).
+///
+/// **The pan law is the reason this migration matters.** New projects default to −3 dB,
+/// but a project written before the setting existed was mixed by ear against the law
+/// Cantus actually had, so it migrates to `"0"` — which is that behaviour exactly, to the
+/// sample (`PanLaw::the_zero_db_law_is_bit_identical_to_what_cantus_did_before`). A
+/// migration that silently re-balanced every panned track in somebody's finished mix
+/// would be the worst kind of bug: one you only hear.
+fn migrate_4_to_5(value: &mut Value) -> Result<(), String> {
+    let project = value.get_mut("project").ok_or("missing project")?;
+    if project.get("pan_law").is_none() {
+        project["pan_law"] = Value::from("0");
+    }
+    if let Some(master) = project.get_mut("master") {
+        if master.get("pan").is_none() {
+            master["pan"] = Value::from(0.0);
+        }
+        if master.get("width").is_none() {
+            master["width"] = Value::from(1.0);
+        }
+        if master.get("phase_invert").is_none() {
+            master["phase_invert"] = Value::Bool(false);
+        }
+    }
+    let tracks = project
+        .get_mut("tracks")
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        if t.get("width").is_none() {
+            t["width"] = Value::from(1.0);
+        }
+        if t.get("phase_invert").is_none() {
+            t["phase_invert"] = Value::Bool(false);
         }
     }
     Ok(())
@@ -316,6 +397,40 @@ mod tests {
         assert_eq!(r.migrated_from, Some(0));
         assert!(!r.file.project.loop_enabled);
         assert_eq!(r.file.schema_version, SCHEMA_VERSION);
+    }
+
+    /// The promise the pan-law migration makes, checked on the real historical files
+    /// rather than on a hand-built value.
+    #[test]
+    fn old_projects_keep_the_pan_law_they_were_mixed_with() {
+        use cantus_core::PanLaw;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("cantus") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let r = parse(&text, true).unwrap();
+            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            if r.migrated_from.is_none() {
+                // The current fixture is written *with* the new controls set, on purpose:
+                // it is what proves the fields survive a round trip. Only the older files
+                // are making a migration promise.
+                continue;
+            }
+            assert_eq!(
+                r.file.project.pan_law,
+                PanLaw::ZeroDb,
+                "{name} migrated to the wrong pan law — its panned tracks would move"
+            );
+            for t in &r.file.project.tracks {
+                assert_eq!(t.width, 1.0, "{name}: width must migrate to unity");
+                assert!(!t.phase_invert, "{name}: polarity must migrate to normal");
+            }
+            assert_eq!(r.file.project.master.pan, 0.0, "{name}: master pan");
+            assert_eq!(r.file.project.master.width, 1.0, "{name}: master width");
+        }
     }
 
     #[test]

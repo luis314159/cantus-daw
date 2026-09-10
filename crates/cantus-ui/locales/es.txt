@@ -147,7 +147,7 @@ cmd.quantize = cuantizar
 cmd.ai_add_notes = IA: añadir notas
 
 about.text = Cantus — una estación de trabajo de audio digital libre y de código abierto escrita en Rust.\nCrates centrales MIT/Apache-2.0, aplicación GPL-3.0-or-later.\n\n"Hagan lo que hagan, trabajen de corazón." — Colosenses 3:23
-shortcuts.text = Arrastra el borde derecho de una nota para redimensionarla · Clic derecho elimina · Ctrl+arrastrar selecciona por marco · Mayús al arrastrar fija el tono · Ctrl al arrastrar fija el tiempo · Alt al arrastrar ignora la rejilla · Alt+rueda edita la velocidad · Ctrl+rueda hace zoom · Mayús+rueda desplaza en horizontal · Con el teclado del ordenador activo, A–L tocan la pista seleccionada y Z/X cambian de octava
+shortcuts.text = Arrastra el borde derecho de una nota para redimensionarla · Clic derecho elimina · Ctrl+arrastrar selecciona por marco · Mayús al arrastrar fija el tono · Ctrl al arrastrar fija el tiempo · Alt al arrastrar ignora la rejilla · Alt+rueda edita la velocidad · Ctrl+rueda hace zoom · Mayús+rueda desplaza en horizontal · Con el teclado del ordenador activo, A–L tocan la pista seleccionada y Z/X cambian de octava · En el arreglo: arrastra el borde de un clip para recortarlo, Alt+arrastrar copia en vez de mover, Mayús+arrastrar desplaza la música dentro del clip, Ctrl al arrastrar ignora la rejilla, arrastra en vacío para seleccionar clips, Ctrl+clic añade a la selección, clic derecho abre el menú del clip
 
 transport.record = Grabar (R)
 view.piano_roll = Piano roll
@@ -359,3 +359,56 @@ theme.token.meter_low = Medidor, bajo
 theme.token.meter_high = Medidor, alto
 theme.token.meter_clip = Medidor, saturación
 theme.editing = Editando «{name}» — los cambios se guardan solos
+
+# Clip editing (round 11)
+clip.split = Cortar en el cursor
+clip.glue = Unir
+clip.duplicate = Duplicar
+clip.mute = Silenciar clip
+clip.unmute = Activar clip
+clip.muted_short = silencio
+clip.loop_on = Repetir el contenido
+clip.loop_off = Dejar de repetir
+clip.color = Color del clip
+clip.color_reset = Usar el color de la pista
+cmd.set_clip_offset = desplazar contenido
+cmd.set_clip_loop = cambio de repetición
+cmd.set_clip_mute = silencio de clip
+cmd.set_clip_color = color de clip
+cmd.move_clip_to_track = mover clip de pista
+cmd.move_clip = mover clip
+cmd.split_clip = cortar clip
+cmd.glue_clips = unir clips
+keymap.cat.clips = Clips
+action.split-clip = Cortar el clip en el cursor
+action.glue-clips = Unir clips
+action.toggle-clip-mute = Silenciar clip
+action.toggle-clip-loop = Repetición del clip
+
+# Pan, width and polarity (round 11, ADR 0012)
+track.mono = Mono
+track.width = Ancho
+track.phase = Ø
+track.phase_tip = Invertir la polaridad
+track.mono_tip = Colapsar a mono (ancho 0)
+mixer.pan_law = Ley de paneo
+panlaw.zero = 0 dB (sin compensación)
+panlaw.minus3 = -3 dB (potencia constante)
+panlaw.minus45 = -4,5 dB
+panlaw.minus6 = -6 dB (seguro en mono)
+panlaw.tip = Cuánto se atenúa una pista centrada. Va en el proyecto: cambiarla cambia la mezcla.
+cmd.set_master_pan = paneo del máster
+cmd.set_master_width = ancho del máster
+cmd.set_master_phase = polaridad del máster
+cmd.set_pan_law = cambio de ley de paneo
+cmd.set_track_width = ancho de pista
+cmd.set_track_phase = polaridad de pista
+menu.clip = Clip
+clip.menu_hint = En el arreglo: arrastra un borde para recortar, Alt+arrastrar copia, Mayús+arrastrar desplaza.
+arrangement.hint = Arrastra el borde de un clip: recortar · Alt+arrastrar: copiar · Mayús+arrastrar: desplazar · Ctrl+E: cortar · Ctrl+J: unir · Clic derecho: menú del clip
+arrangement.title = Arreglo
+arrangement.grid = Rejilla
+arrangement.selected = {n} seleccionados
+clip.rename = Renombrar clip
+action.clip-color-next = Siguiente color de clip
+action.rename-clip = Renombrar clip

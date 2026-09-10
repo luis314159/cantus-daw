@@ -31,6 +31,9 @@ pub struct TrackSnapshot {
     /// Linear gain (fader × instrument-independent).
     pub gain: f32,
     pub pan: f32,
+    /// 0 mono, 1 as recorded, 2 twice as wide.
+    pub width: f32,
+    pub phase_invert: bool,
     /// Mute/solo already resolved.
     pub audible: bool,
     pub instrument: InstrumentSpec,
@@ -56,6 +59,12 @@ pub struct Snapshot {
     pub loop_enabled: bool,
     pub metronome: bool,
     pub master_gain: f32,
+    pub master_pan: f32,
+    pub master_width: f32,
+    pub master_phase_invert: bool,
+    /// Resolved once here so the audio thread never has to know which law is in force —
+    /// it reads two multipliers, the same as it always did.
+    pub pan_law: PanLaw,
     pub tracks: Vec<TrackSnapshot>,
     pub content_end: Ticks,
 }
@@ -70,6 +79,8 @@ impl Snapshot {
                 name: t.name.clone(),
                 gain: db_to_linear(t.gain_db),
                 pan: t.pan,
+                width: t.width,
+                phase_invert: t.phase_invert,
                 audible: project.track_audible(t),
                 instrument: t.instrument.clone(),
                 effects: t.effects.clone(),
@@ -88,6 +99,10 @@ impl Snapshot {
             loop_enabled: project.loop_enabled,
             metronome: project.metronome,
             master_gain: db_to_linear(project.master.gain_db),
+            master_pan: project.master.pan,
+            master_width: project.master.width,
+            master_phase_invert: project.master.phase_invert,
+            pan_law: project.pan_law,
             tracks,
             content_end: project.content_end(),
         }
@@ -100,28 +115,44 @@ impl Snapshot {
 
 fn compile_events(track: &Track) -> Vec<NoteEvent> {
     let mut events = Vec::new();
+    // Reused across every note so compiling a project of 20 000 notes allocates once.
+    let mut at = Vec::new();
     for clip in &track.clips {
+        if clip.muted {
+            continue;
+        }
         for n in &clip.notes {
-            if n.muted || n.start.is_negative() || n.start >= clip.length {
+            if n.muted {
                 continue;
             }
-            let on = clip.start + n.start;
-            let off = (clip.start + n.end()).min(clip.end());
-            if off <= on {
-                continue;
+            // Where the note is *heard*, which is not where it is stored: a clip is a
+            // window onto its content, and a looping clip shows the same note more than
+            // once (`Clip::timeline_positions`).
+            clip.timeline_positions(n.start, &mut at);
+            for on in at.iter().copied() {
+                let mut off = on + n.length;
+                // A note never sounds past the clip, nor past the start of the next
+                // repetition — otherwise a looped clip would stack its own tails.
+                off = off.min(clip.end());
+                if let Some(period) = clip.period() {
+                    off = off.min(on + period);
+                }
+                if off <= on {
+                    continue;
+                }
+                events.push(NoteEvent {
+                    tick: on,
+                    pitch: n.pitch,
+                    velocity: n.velocity.max(1),
+                    note: n.id,
+                });
+                events.push(NoteEvent {
+                    tick: off,
+                    pitch: n.pitch,
+                    velocity: 0,
+                    note: n.id,
+                });
             }
-            events.push(NoteEvent {
-                tick: on,
-                pitch: n.pitch,
-                velocity: n.velocity.max(1),
-                note: n.id,
-            });
-            events.push(NoteEvent {
-                tick: off,
-                pitch: n.pitch,
-                velocity: 0,
-                note: n.id,
-            });
         }
     }
     // Offs before ons at the same tick so a retriggered pitch restarts cleanly.

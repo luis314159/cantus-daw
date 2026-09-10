@@ -2,6 +2,7 @@
 //! Every mutation goes through [`CantusApp::exec`] (ADR 0004); the engine only ever sees
 //! compiled snapshots.
 
+use crate::clips::{self, ClipRef};
 use crate::design::{self, space, Elevation};
 use crate::i18n::{self, t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
@@ -11,11 +12,12 @@ use crate::recording::{RecordedNote, Recorder};
 use crate::settings::{self, Settings};
 use crate::theme;
 use crate::views::{
-    self, arrangement::ArrangementView, mixer::MixerView, piano_roll::PianoRollView,
+    self, arrangement::ArrangementView, arrangement::ClipDragResult, mixer::MixerView,
+    piano_roll::PianoRollView,
 };
 use cantus_core::{
-    ClipId, Command, CommandBus, EffectId, EffectKind, MergeKey, Origin, Project, Snapshot, Ticks,
-    TrackId,
+    Clip, ClipId, Color, Command, CommandBus, EffectId, EffectKind, MergeKey, Origin, Project,
+    Snapshot, Ticks, TrackId,
 };
 use cantus_engine::{EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
@@ -49,6 +51,13 @@ impl From<CentralView> for layout::Central {
     }
 }
 
+/// Which view an editing command applies to.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum EditFocus {
+    Arrangement,
+    PianoRoll,
+}
+
 #[derive(Debug)]
 pub struct Status {
     pub text: String,
@@ -61,8 +70,17 @@ pub struct CantusApp {
     pub engine: EngineHandle,
     pub path: Option<PathBuf>,
     pub selected_track: Option<TrackId>,
+    /// The clip the piano roll is editing. Always one of [`Self::selected_clips`] when
+    /// that is non-empty: the arrangement can have many clips selected, but only one of
+    /// them is the one whose notes are on screen.
     pub selected_clip: Option<ClipId>,
+    /// The arrangement's selection: every clip an arrangement-wide operation acts on.
+    pub selected_clips: Vec<ClipRef>,
     pub selected_notes: Vec<cantus_core::NoteId>,
+    /// Which half of the window the last edit gesture happened in. Cut, copy, paste,
+    /// duplicate, delete and the arrow keys all mean different things depending on it, and
+    /// "whatever you touched last" is the rule a musician can predict without being told.
+    pub focus: EditFocus,
     pub arrangement: ArrangementView,
     pub piano_roll: PianoRollView,
     pub mixer: MixerView,
@@ -107,6 +125,9 @@ pub struct CantusApp {
     pub keyboard_piano: bool,
     /// Note clipboard, relative to the earliest copied note.
     pub clipboard: Vec<cantus_core::Note>,
+    /// Clip clipboard: how many tracks below the topmost copied clip each one sat, and
+    /// the clip itself with its start relative to the earliest.
+    pub clip_clipboard: Vec<(usize, Clip)>,
     pub status: Status,
     pub show_stats: bool,
     pub show_about: bool,
@@ -226,7 +247,9 @@ impl CantusApp {
             path: None,
             selected_track: None,
             selected_clip: None,
+            selected_clips: Vec::new(),
             selected_notes: Vec::new(),
+            focus: EditFocus::PianoRoll,
             arrangement: ArrangementView::default(),
             piano_roll: PianoRollView::default(),
             mixer: MixerView::default(),
@@ -255,6 +278,7 @@ impl CantusApp {
             keyboard: KeyboardPiano::default(),
             keyboard_piano: false,
             clipboard: Vec::new(),
+            clip_clipboard: Vec::new(),
             status: Status {
                 text: t("status.ready"),
                 error: false,
@@ -339,6 +363,9 @@ impl CantusApp {
                 }
             }
         }
+        let p = self.bus.project();
+        self.selected_clips
+            .retain(|(t, c)| p.track(*t).and_then(|t| t.clip(*c)).is_some());
         if self.selected_track.is_none() {
             self.select_first();
         }
@@ -543,27 +570,42 @@ impl CantusApp {
                 .project()
                 .track(id)
                 .and_then(|t| t.clips.first().map(|c| c.id));
+            self.selected_clips = match (self.selected_track, self.selected_clip) {
+                (Some(t), Some(c)) => vec![(t, c)],
+                _ => Vec::new(),
+            };
             self.selected_notes.clear();
         }
     }
 
     pub fn select_clip(&mut self, track: TrackId, clip: ClipId) {
         self.select_track(track);
+        self.selected_clips = vec![(track, clip)];
         if self.selected_clip != Some(clip) {
             self.selected_clip = Some(clip);
             self.selected_notes.clear();
         }
-        if let Some(c) = self.project().track(track).and_then(|t| t.clip(clip)) {
-            // Centre the view on the clip's notes.
-            if let Some((lo, hi)) = c.notes.iter().fold(None, |acc: Option<(u8, u8)>, n| {
-                Some(acc.map_or((n.pitch, n.pitch), |(l, h)| {
-                    (l.min(n.pitch), h.max(n.pitch))
-                }))
-            }) {
+        let view = self
+            .project()
+            .track(track)
+            .and_then(|t| t.clip(clip))
+            .map(|c| {
+                // Centre the view on the clip's notes, and open on the *window* rather than on
+                // content tick zero: a clip that has been trimmed or slipped has its music
+                // somewhere else in the content, and empty grid would look like it had gone.
+                let pitches = c.notes.iter().fold(None, |acc: Option<(u8, u8)>, n| {
+                    Some(acc.map_or((n.pitch, n.pitch), |(l, h)| {
+                        (l.min(n.pitch), h.max(n.pitch))
+                    }))
+                });
+                (pitches, c.content_start().as_beats_f64() as f32)
+            });
+        if let Some((pitches, scroll)) = view {
+            if let Some((lo, hi)) = pitches {
                 self.piano_roll.top_pitch =
                     ((lo as f32 + hi as f32) / 2.0 + 14.0).clamp(24.0, 127.0);
             }
-            self.piano_roll.scroll_beats = 0.0;
+            self.piano_roll.scroll_beats = scroll;
         }
     }
 
@@ -659,6 +701,396 @@ impl CantusApp {
         if self.exec(Command::RemoveClip { track, clip }) {
             self.validate_selection();
         }
+    }
+
+    // ---- clip selection and editing --------------------------------------------------
+
+    /// The clips an arrangement-wide operation acts on.
+    pub fn clip_selection(&self) -> Vec<ClipRef> {
+        if !self.selected_clips.is_empty() {
+            return self.selected_clips.clone();
+        }
+        match (self.selected_track, self.selected_clip) {
+            (Some(t), Some(c)) => vec![(t, c)],
+            _ => Vec::new(),
+        }
+    }
+
+    /// Ctrl+click: add the clip to the selection, or take it out again.
+    pub fn toggle_clip_selection(&mut self, track: TrackId, clip: ClipId) {
+        if let Some(i) = self.selected_clips.iter().position(|r| *r == (track, clip)) {
+            self.selected_clips.remove(i);
+            // The piano roll cannot edit a clip that is no longer selected; hand it
+            // whatever is still selected rather than leaving it showing a ghost.
+            if self.selected_clip == Some(clip) {
+                if let Some((t, c)) = self.selected_clips.first().copied() {
+                    self.selected_track = Some(t);
+                    self.selected_clip = Some(c);
+                }
+                self.selected_notes.clear();
+            }
+        } else {
+            self.selected_clips.push((track, clip));
+            self.selected_track = Some(track);
+            self.selected_clip = Some(clip);
+            self.selected_notes.clear();
+        }
+    }
+
+    /// Replace the whole clip selection — what a marquee ends with.
+    pub fn set_clip_selection(&mut self, clips: Vec<ClipRef>) {
+        self.selected_clips = clips;
+        if let Some((t, c)) = self.selected_clips.first().copied() {
+            self.selected_track = Some(t);
+            if self.selected_clip != Some(c) {
+                self.selected_clip = Some(c);
+                self.selected_notes.clear();
+            }
+        }
+    }
+
+    pub fn clear_clip_selection(&mut self) {
+        self.selected_clips.clear();
+    }
+
+    pub fn focus_arrangement(&mut self) {
+        self.focus = EditFocus::Arrangement;
+    }
+
+    pub fn focus_piano_roll(&mut self) {
+        self.focus = EditFocus::PianoRoll;
+    }
+
+    /// Whether an edit command should act on clips rather than on notes.
+    ///
+    /// Editing in the arrangement and then pressing Delete must delete the clip; editing
+    /// in the piano roll and pressing Delete must delete the notes. Nothing else about
+    /// the two selections tells them apart — both are usually non-empty — so the rule is
+    /// simply which one the user touched last.
+    pub fn editing_clips(&self) -> bool {
+        self.focus == EditFocus::Arrangement && !self.clip_selection().is_empty()
+    }
+
+    pub fn select_all_clips(&mut self) {
+        let all: Vec<ClipRef> = self
+            .project()
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.id)))
+            .collect();
+        self.set_clip_selection(all);
+    }
+
+    /// One arrow-key press: clips or notes, by the grid or by the bar.
+    fn nudge(&mut self, direction: i64, by_bar: bool) {
+        let bar = self.project().time_signature.ticks_per_bar();
+        if self.editing_clips() {
+            let step = if by_bar { bar } else { self.arrangement.grid };
+            self.nudge_clips(Ticks(step.0 * direction));
+        } else {
+            let step = if by_bar { bar } else { self.piano_roll.grid };
+            self.nudge_selection(Ticks(step.0 * direction));
+        }
+    }
+
+    /// Run a batch, and select what it produced. Nothing happens if the batch is empty:
+    /// an edit that changes nothing must not land in the undo history.
+    fn exec_clip_batch(&mut self, label: &str, commands: Vec<Command>, select: Vec<ClipRef>) {
+        if commands.is_empty() {
+            return;
+        }
+        if self.exec(Command::Batch {
+            label_key: label.to_string(),
+            commands,
+        }) && !select.is_empty()
+        {
+            self.set_clip_selection(select);
+        }
+        self.validate_selection();
+    }
+
+    /// Run `f` with the project and a source of fresh ids.
+    ///
+    /// A clip operation has to read the project *while* it allocates ids for the clips and
+    /// notes it is about to build, and `CommandBus::alloc_id` borrows the bus. So the ids
+    /// are taken from the project's counter directly and the bus is told afterwards
+    /// ([`CommandBus::reserve_ids`]).
+    fn with_ids<R>(&mut self, f: impl FnOnce(&Project, clips::Ids) -> R) -> R {
+        let mut next = self.bus.project().next_id;
+        let out = {
+            let project = self.bus.project();
+            let mut alloc = || {
+                let id = next;
+                next += 1;
+                id
+            };
+            f(project, &mut alloc)
+        };
+        self.bus.reserve_ids(next);
+        out
+    }
+
+    /// Split every selected clip the playhead runs through. Clips it misses are left
+    /// alone rather than refused: cutting a whole track at a bar line is one gesture.
+    pub fn split_clips_at_playhead(&mut self) {
+        let at = self.engine.position();
+        let sel = self.clip_selection();
+        let (commands, select) = self.with_ids(|project, ids| {
+            let mut commands = Vec::new();
+            let mut select = Vec::new();
+            for (track, id) in &sel {
+                let Some(clip) = clips::clip_of(project, (*track, *id)) else {
+                    continue;
+                };
+                select.push((*track, *id));
+                let Some(cmds) = clips::split(*track, clip, at, ids) else {
+                    continue;
+                };
+                for c in &cmds {
+                    if let Command::InsertClip { clip, .. } = c {
+                        select.push((*track, clip.id));
+                    }
+                }
+                commands.extend(cmds);
+            }
+            (commands, select)
+        });
+        self.exec_clip_batch("cmd.split_clip", commands, select);
+    }
+
+    /// Glue the selected clips together, one track at a time. Clips on different tracks
+    /// are separate pieces of music and are glued separately, not merged into one.
+    pub fn glue_clips(&mut self) {
+        let sel = self.clip_selection();
+        let mut tracks: Vec<TrackId> = sel.iter().map(|r| r.0).collect();
+        tracks.sort_by_key(|t| t.0);
+        tracks.dedup();
+        let (commands, select) = self.with_ids(|project, ids| {
+            let mut commands = Vec::new();
+            let mut select = Vec::new();
+            for track in tracks {
+                let Some(t) = project.track(track) else {
+                    continue;
+                };
+                let on_track: Vec<&Clip> = t
+                    .clips
+                    .iter()
+                    .filter(|c| sel.contains(&(track, c.id)))
+                    .collect();
+                let keep = on_track
+                    .iter()
+                    .min_by_key(|c| (c.start, c.id.0))
+                    .map(|c| c.id);
+                if let Some(cmds) = clips::glue(track, &on_track, ids) {
+                    if let Some(k) = keep {
+                        select.push((track, k));
+                    }
+                    commands.extend(cmds);
+                }
+            }
+            (commands, select)
+        });
+        self.exec_clip_batch("cmd.glue_clips", commands, select);
+    }
+
+    pub fn duplicate_clips(&mut self) {
+        let sel = self.clip_selection();
+        let (commands, made) = self.with_ids(|project, ids| clips::duplicate(project, &sel, ids));
+        self.exec_clip_batch("cmd.duplicate", commands, made);
+    }
+
+    /// Copy the selected clips, keeping their spacing in time *and* across tracks, so a
+    /// four-bar section lifted from three tracks pastes back as a four-bar section on
+    /// three tracks.
+    pub fn copy_clips(&mut self) {
+        let sel = self.clip_selection();
+        let project = self.bus.project();
+        let mut rows: Vec<(usize, Clip)> = sel
+            .iter()
+            .filter_map(|r| {
+                Some((
+                    project.track_index(r.0)?,
+                    clips::clip_of(project, *r)?.clone(),
+                ))
+            })
+            .collect();
+        if rows.is_empty() {
+            return;
+        }
+        let top = rows.iter().map(|(i, _)| *i).min().unwrap_or(0);
+        let earliest = rows
+            .iter()
+            .map(|(_, c)| c.start)
+            .min()
+            .unwrap_or(Ticks::ZERO);
+        for (row, clip) in &mut rows {
+            *row -= top;
+            clip.start -= earliest;
+        }
+        self.clip_clipboard = rows;
+    }
+
+    pub fn cut_clips(&mut self) {
+        self.copy_clips();
+        self.delete_clip_selection();
+    }
+
+    /// Paste at the playhead, on the selected track and the ones below it.
+    pub fn paste_clips(&mut self) {
+        if self.clip_clipboard.is_empty() {
+            return;
+        }
+        let at = self.engine.position().snap(self.arrangement.grid);
+        let from = self
+            .selected_track
+            .and_then(|t| self.project().track_index(t))
+            .unwrap_or(0);
+        let board = std::mem::take(&mut self.clip_clipboard);
+        let (commands, made) =
+            self.with_ids(|project, ids| clips::paste(project, &board, from, at, ids));
+        self.clip_clipboard = board;
+        self.exec_clip_batch("cmd.paste", commands, made);
+    }
+
+    pub fn delete_clip_selection(&mut self) {
+        let sel = self.clip_selection();
+        let commands: Vec<Command> = sel
+            .iter()
+            .filter(|r| clips::clip_of(self.bus.project(), **r).is_some())
+            .map(|r| Command::RemoveClip {
+                track: r.0,
+                clip: r.1,
+            })
+            .collect();
+        if commands.is_empty() {
+            return;
+        }
+        self.selected_clips.clear();
+        self.exec(Command::Batch {
+            label_key: "cmd.remove_clip".into(),
+            commands,
+        });
+        self.validate_selection();
+    }
+
+    /// Mute or unmute the selection. A mixed selection is muted, not toggled one by one:
+    /// one press should leave the selection in a state you can see, not in two.
+    pub fn toggle_clip_mute(&mut self) {
+        let sel = self.clip_selection();
+        let all_muted = !sel.is_empty()
+            && sel
+                .iter()
+                .all(|r| clips::clip_of(self.bus.project(), *r).is_some_and(|c| c.muted));
+        let commands = clips::set_mute(self.bus.project(), &sel, !all_muted);
+        self.exec_clip_batch("cmd.set_clip_mute", commands, Vec::new());
+    }
+
+    pub fn toggle_clip_loop(&mut self) {
+        let sel = self.clip_selection();
+        let all_looping = !sel.is_empty()
+            && sel.iter().all(|r| {
+                clips::clip_of(self.bus.project(), *r).is_some_and(|c| c.content_length.is_some())
+            });
+        let commands = clips::set_loop(self.bus.project(), &sel, !all_looping);
+        self.exec_clip_batch("cmd.set_clip_loop", commands, Vec::new());
+    }
+
+    /// Step the selection through the track palette, and off the end back to the track's
+    /// own colour — so one key both colours a clip and clears it, and there is no state
+    /// you can reach and not leave.
+    pub fn cycle_clip_color(&mut self) {
+        let sel = self.clip_selection();
+        let current = sel
+            .first()
+            .and_then(|r| clips::clip_of(self.bus.project(), *r))
+            .and_then(|c| c.color);
+        let next = match current {
+            None => Some(Color::PALETTE[0]),
+            Some(c) => Color::PALETTE
+                .iter()
+                .position(|p| *p == c)
+                .and_then(|i| Color::PALETTE.get(i + 1).copied()),
+        };
+        self.set_clip_color(next);
+    }
+
+    /// Start renaming the first selected clip. The arrangement draws the editor over the
+    /// clip itself; this only says which one and with what text.
+    pub fn begin_rename_clip(&mut self) {
+        if let Some(r) = self.clip_selection().first().copied() {
+            if let Some(clip) = clips::clip_of(self.bus.project(), r) {
+                let name = clip.name.clone();
+                self.arrangement.begin_rename_clip(r, name);
+                self.focus_arrangement();
+            }
+        }
+    }
+
+    /// Commit an in-place rename. An empty name means the edit was abandoned (Escape) or
+    /// emptied, and a clip with no name at all is worse than the one it had.
+    pub fn rename_clip(&mut self, clip: ClipRef, name: String) {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        let unchanged = clips::clip_of(self.bus.project(), clip).is_some_and(|c| c.name == name);
+        if unchanged {
+            return;
+        }
+        self.exec(Command::SetClipName {
+            track: clip.0,
+            clip: clip.1,
+            name,
+        });
+    }
+
+    pub fn set_clip_color(&mut self, color: Option<Color>) {
+        let sel = self.clip_selection();
+        let commands = clips::set_color(self.bus.project(), &sel, color);
+        self.exec_clip_batch("cmd.set_clip_color", commands, Vec::new());
+    }
+
+    /// Move the selected clips along the timeline by `delta`, snapped by the caller.
+    pub fn nudge_clips(&mut self, delta: Ticks) {
+        let sel = self.clip_selection();
+        let (commands, made) = self.with_ids(|project, ids| {
+            clips::transpose_selection(project, &sel, delta, 0, false, ids)
+        });
+        self.exec_clip_batch("cmd.nudge", commands, made);
+    }
+
+    /// Apply a finished drag from the arrangement. One batch, one undo step, whatever the
+    /// pointer did on the way there.
+    pub fn commit_clip_drag(&mut self, anchor: ClipRef, result: ClipDragResult) {
+        let sel = self.clip_selection();
+        let (commands, made) = self.with_ids(|project, ids| {
+            let Some(clip) = clips::clip_of(project, anchor) else {
+                return (Vec::new(), Vec::new());
+            };
+            match result {
+                ClipDragResult::Move { delta, rows, copy } => {
+                    clips::transpose_selection(project, &sel, delta, rows, copy, ids)
+                }
+                ClipDragResult::TrimStart { delta } => (
+                    clips::set_window(anchor.0, clip, clip.start + delta, clip.length - delta),
+                    Vec::new(),
+                ),
+                ClipDragResult::TrimEnd { delta } => (
+                    clips::set_window(anchor.0, clip, clip.start, clip.length + delta),
+                    Vec::new(),
+                ),
+                // Dragging the content to the right moves the music later, which means
+                // the window starts *earlier* in the content.
+                ClipDragResult::Slip { delta } => (clips::slip(anchor.0, clip, -delta), Vec::new()),
+            }
+        });
+        let label = match result {
+            ClipDragResult::Move { copy: true, .. } => "cmd.duplicate",
+            ClipDragResult::Move { .. } => "cmd.move_clip",
+            ClipDragResult::Slip { .. } => "cmd.set_clip_offset",
+            _ => "cmd.set_clip_bounds",
+        };
+        self.exec_clip_batch(label, commands, made);
     }
 
     // ---- note editing (shared by tools, menus and shortcuts) ------------------------
@@ -877,14 +1309,14 @@ impl CantusApp {
         }];
         // Grow the clip if the copies run past its end.
         if let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)) {
-            if clip.length < end + offset {
+            if clip.content_end() < end + offset {
                 commands.insert(
                     0,
                     Command::SetClipBounds {
                         track: t,
                         clip: c,
                         start: clip.start,
-                        length: end + offset,
+                        length: end + offset - clip.offset,
                     },
                 );
             }
@@ -928,11 +1360,9 @@ impl CantusApp {
         let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)).cloned() else {
             return;
         };
-        let ph = self.engine.position() - clip.start;
-        let at = if ph >= Ticks::ZERO && ph < clip.length {
-            ph.snap_floor(self.piano_roll.grid)
-        } else {
-            Ticks::ZERO
+        let at = match clip.content_shown_at(self.engine.position()) {
+            Some(c) => c.snap_floor(self.piano_roll.grid),
+            None => clip.content_start(),
         };
         let notes: Vec<_> = self
             .clipboard
@@ -953,14 +1383,14 @@ impl CantusApp {
             clip: c,
             notes,
         }];
-        if clip.length < end {
+        if clip.content_end() < end {
             commands.insert(
                 0,
                 Command::SetClipBounds {
                     track: t,
                     clip: c,
                     start: clip.start,
-                    length: end,
+                    length: end - clip.offset,
                 },
             );
         }
@@ -1118,45 +1548,21 @@ impl CantusApp {
             return;
         };
         let mut commands = Vec::new();
-        // Grow the clip so every recorded note lies inside it.
+        // Grow the clip so every recorded note lies inside it. Growing to the left moves
+        // the window *and* the offset (`clips::set_window`), so not a single existing note
+        // has to move — which is what the content offset bought.
         let mut start = clip.start;
         let mut end = clip.end();
         for n in &notes {
             start = start.min(n.start);
             end = end.max(n.start + n.length);
         }
-        if start != clip.start || end != clip.end() {
-            commands.push(Command::SetClipBounds {
-                track,
-                clip: clip_id,
-                start,
-                length: end - start,
-            });
-            if start != clip.start {
-                // Shift existing notes so they stay where they sound.
-                let shift = clip.start - start;
-                let moved: Vec<_> = clip
-                    .notes
-                    .iter()
-                    .map(|n| cantus_core::Note {
-                        start: n.start + shift,
-                        ..n.clone()
-                    })
-                    .collect();
-                if !moved.is_empty() {
-                    commands.push(Command::SetNotes {
-                        track,
-                        clip: clip_id,
-                        notes: moved,
-                    });
-                }
-            }
-        }
+        commands.extend(clips::set_window(track, &clip, start, end - start));
         let new_notes: Vec<_> = notes
             .iter()
             .map(|n| {
                 self.bus
-                    .new_note(n.start - start, n.length, n.pitch, n.velocity)
+                    .new_note(clip.content_of(n.start), n.length, n.pitch, n.velocity)
             })
             .collect();
         commands.push(Command::InsertNotes {
@@ -1438,7 +1844,11 @@ impl CantusApp {
         if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() {
             return;
         }
-        for action in self.keymap.pressed(ctx, self.keyboard_piano) {
+        // A focused fader moves with the arrow keys. This dispatch runs before any panel
+        // is laid out, so without the claim the same press would nudge the note selection
+        // as well (`crate::widgets`).
+        let arrows_taken = crate::widgets::arrow_keys_claimed(ctx);
+        for action in self.keymap.pressed(ctx, self.keyboard_piano, arrows_taken) {
             self.run_action(action);
         }
         if self.keyboard_piano {
@@ -1474,24 +1884,71 @@ impl CantusApp {
             ExportWav => self.export_dialog(),
             Undo => self.undo(),
             Redo => self.redo(),
-            Cut => self.cut_selection(),
-            Copy => self.copy_selection(),
-            Paste => self.paste_clipboard(),
-            Duplicate => self.duplicate_selection(),
-            SelectAll => self.select_all_notes(),
-            Delete => self.delete_selection(),
+            // Cut, copy, paste, duplicate, delete and the arrows all exist twice over:
+            // once for notes and once for clips. Which one runs is decided by the half of
+            // the window the user last edited in (`EditFocus`) — not by which is
+            // non-empty, because both usually are, and not by a separate shortcut, because
+            // then everyone would have to learn two.
+            Cut => {
+                if self.editing_clips() {
+                    self.cut_clips();
+                } else {
+                    self.cut_selection();
+                }
+            }
+            Copy => {
+                if self.editing_clips() {
+                    self.copy_clips();
+                } else {
+                    self.copy_selection();
+                }
+            }
+            Paste => {
+                if self.editing_clips() {
+                    self.paste_clips();
+                } else {
+                    self.paste_clipboard();
+                }
+            }
+            Duplicate => {
+                if self.editing_clips() {
+                    self.duplicate_clips();
+                } else {
+                    self.duplicate_selection();
+                }
+            }
+            SelectAll => {
+                if self.editing_clips() {
+                    self.select_all_clips();
+                } else {
+                    self.select_all_notes();
+                }
+            }
+            Delete => {
+                if self.editing_clips() {
+                    self.delete_clip_selection();
+                } else {
+                    self.delete_selection();
+                }
+            }
             Quantize => self.quantize_selection(),
-            ClearSelection => self.selected_notes.clear(),
-            NudgeLeft => self.nudge_selection(-self.piano_roll.grid),
-            NudgeRight => self.nudge_selection(self.piano_roll.grid),
-            NudgeLeftBar => {
-                let bar = self.project().time_signature.ticks_per_bar();
-                self.nudge_selection(-bar);
+            ClearSelection => {
+                if self.editing_clips() {
+                    self.clear_clip_selection();
+                } else {
+                    self.selected_notes.clear();
+                }
             }
-            NudgeRightBar => {
-                let bar = self.project().time_signature.ticks_per_bar();
-                self.nudge_selection(bar);
-            }
+            SplitClip => self.split_clips_at_playhead(),
+            GlueClips => self.glue_clips(),
+            ToggleClipMute => self.toggle_clip_mute(),
+            ToggleClipLoop => self.toggle_clip_loop(),
+            ClipColorNext => self.cycle_clip_color(),
+            RenameClip => self.begin_rename_clip(),
+            NudgeLeft => self.nudge(-1, false),
+            NudgeRight => self.nudge(1, false),
+            NudgeLeftBar => self.nudge(-1, true),
+            NudgeRightBar => self.nudge(1, true),
             TransposeUp => self.transpose_selection(1),
             TransposeDown => self.transpose_selection(-1),
             TransposeOctaveUp => self.transpose_selection(12),
@@ -1589,11 +2046,22 @@ impl CantusApp {
                             .text_style(design::caption())
                             .color(color),
                     );
-                    if self.central == CentralView::PianoRoll {
+                    // The hint follows the half of the window being edited. Showing the
+                    // piano roll's tool hints while somebody is dragging clips around the
+                    // arrangement is worse than showing nothing: it is an answer to a
+                    // question they are not asking.
+                    let hint = match self.focus {
+                        EditFocus::Arrangement => Some(t("arrangement.hint")),
+                        EditFocus::PianoRoll if self.central == CentralView::PianoRoll => {
+                            Some(t(self.piano_roll.tool.hint_key()))
+                        }
+                        EditFocus::PianoRoll => None,
+                    };
+                    if let Some(hint) = hint {
                         ui.separator();
                         ui.add(
                             egui::Label::new(
-                                egui::RichText::new(t(self.piano_roll.tool.hint_key()))
+                                egui::RichText::new(hint)
                                     .text_style(design::caption())
                                     .color(theme::p().text_dim),
                             )

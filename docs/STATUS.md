@@ -1,20 +1,48 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 10: light theme, configurable appearance; backlog for clips and channel routing) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 125 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~14 400 lines of Rust
+**Updated:** 2026-09-09 (round 11: a fader of our own, clip editing, pan law / width / polarity) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 171 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~23 400 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: a channel rack of our own, and the playlist
+
+Two blocks, in this order. Both are designed in full further down; this is the map.
+
+**Block A — a channel rack.** It cannot be built first, because a channel rack with no pads
+is a rack of nothing. The order inside it is forced:
+
+1. `InstrumentSpec::lane_name(pitch)` / `lanes()`, and the piano roll asking for them
+   instead of assuming a keyboard. No DSP, no schema change, and it makes the piano roll
+   ready before there is a kit to put in it.
+2. **Pulsus**, the synthesized kit — kick, snare, hi-hat, with choke groups. A null test per
+   voice *before* it lands, and a schema bump for the new `InstrumentSpec` variant.
+3. **The channel rack panel** itself: pads down the side, a step grid across, editing the
+   selected clip through the commands that already exist. A step is a note — that is the
+   decision the whole thing rests on.
+
+See *Planned: drums, a channel rack…* for the five decisions and the reasoning.
+
+**Block B — the playlist.** Start with **timeline selection**, a time range across all
+tracks in the ruler. Insert/delete space, ripple, quantize starts, loop-to-selection,
+render-selection and zoom-to-selection all hang off it, so anything built before it gets
+built twice. Then **track shape**: per-track height, icons, reorder by drag, and moving the
+fader/pan/meter out of the track header into the inspector — which is what buys back the
+density the header is currently spending.
+
+See *Planned: the arrangement, measured against FL Studio's playlist* for the item-by-item
+gap, the three decisions, and the honest account of where FL's interface is ahead of ours.
 
 ## What exists
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0011 | done |
-| `cantus-core`: time, model, commands, bus, snapshots, **effects model** | done; 24 tests incl. 40-seed undo/redo invariant fuzz (now covering effect commands) |
+| Workspace, licenses, ADRs 0001–0012 | done |
+| `cantus-core`: time, model, commands, bus, snapshots, **effects model**, **clip windows**, **pan law / width** | done; 27 tests incl. 40-seed undo/redo invariant fuzz (now covering the clip and pan commands) |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **stereo delay, Freeverb-style reverb**, null-test harness | done; 19 tests |
-| `cantus-engine`: transport, processor with **insert chains**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 11 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
-| `cantus-project`: versioned JSON (**schema 3**), SHA-256, migrations 0→1→2→3, atomic save, autosave, recovery, **fixture corpus** | done; 8 tests; fixtures `v1`–`v3.cantus` must always load |
+| `cantus-engine`: transport, processor with **insert chains**, **width / pan law / polarity**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 15 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
+| `cantus-project`: versioned JSON (**schema 5**), SHA-256, migrations 0→1→…→5, atomic save, autosave, recovery, **fixture corpus** | done; 9 tests; fixtures `v1`–`v5.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement, piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, **settings dialog**, i18n EN/ES | done; 49 tests (headless egui frames, edit/undo flows, save→open→export, recording take, effects delivery, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport (**record**), arrangement (**clip editing**), piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), **widgets (fader, bipolar bar)**, keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, **settings dialog**, i18n EN/ES | done; 83 tests (headless egui frames, edit/undo flows, clip split/glue/drag, save→open→export, recording take, effects delivery, fader taper and painting, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -56,57 +84,579 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
 
-## Planned: clip editing (requested 2026-09-09)
+## Round 11: a fader of our own, clip editing, and the pan law
 
-**What exists today.** Clips can be created (double-click), moved, resized from the right
-edge, renamed (`SetClipName`, no UI yet) and deleted. `Clip` is `{ id, name, start, length,
-notes }`, and notes outside `[0, length)` are *kept* rather than discarded, so shrinking and
-regrowing a clip is already lossless — which is the foundation the rest of this needs.
+Three blocks, in the order the last handoff asked for them.
 
-**What is missing.** The goal is to take the best of what the established DAWs do rather
-than copy one of them; where a shortcut is named below it is the convention we would follow,
-and like the keymap presets (ADR 0010) those are conventions to verify, not claims of parity.
+### A console fader (and a bipolar bar) — `cantus-ui/src/widgets/`
 
-| Capability | Convention | What it needs |
+egui paints a slider's groove and its cap from the same `inactive.bg_fill`, so at rest the
+two could only differ by an outline — the limit the round-10 review ran into. `Fader` is
+ours: a **recessed groove**, a **raised cap with a read line**, a **dB scale** beside it and
+a **unity datum** that crosses the whole lane, so "is this track above or below unity" is
+answerable at a glance across twenty strips.
+
+- **The taper is the interesting part.** Linear dB spends half the travel on −60…−30, a
+  range nobody mixes in; linear amplitude crushes the useful range into the top centimetre.
+  Cantus's fader is **6 dB per 10 % of travel above −24 dB, with unity at 80 %**, and
+  steepens below that so silence is reachable without spending the fader on it. Silence is
+  a real position (`MIN_GAIN_DB`), not a clamp: pulled all the way down, a fader is off.
+  `db_at` and `pos_of` are exact inverses (there is a test over a thousand positions), or
+  the cap would jump under the pointer on the frame after a drag.
+- **Recessed, in every theme.** A slot is darker than its surface whether the theme is
+  dark or light, so `theme::recess` takes whichever of the canvas and the strong grid line
+  is actually darker — `ink` on a dark theme, `grid_strong` on a light one — and falls back
+  to darkening the surface if a hand-edited theme leaves neither. The mixer's meters use it
+  too; on Paper they used to be white slabs.
+- **States are edges, never fills.** Rest, hover and grabbed differ by the cap's outline,
+  with the accent reserved for the grabbed/focused state — the design-system rule that a
+  light theme's "darker fill = pressed" gets exactly backwards.
+- `Bar` is the same argument for bipolar controls: egui's slider fills from its left end,
+  so a pan at dead centre looks like a pan at 3 %. `Bar` fills **from its detent outwards**,
+  which makes the direction the reading and the length the amount, and it snaps to the
+  detent within a pixel so centre is reachable by hand.
+- Both are used by the mixer, the inspector and the arrangement track headers, and both are
+  keyboard-operable.
+
+**Widgets that own the arrow keys.** A focused fader moves with the arrows and so does the
+note selection, and `global_shortcuts` runs before any panel is laid out, so it cannot see
+that a widget is about to take the key. `widgets::claim_arrow_keys` /`arrow_keys_claimed`
+close that: `Keymap::pressed` now takes `arrows_taken` beside `letters_taken`, and suppresses
+by *the key pressed*, never by the action's identity — so rebinding Save to `ArrowUp` gets
+the same rule the shipped nudge does. Without it, nudging a fader also transposed every
+selected note. One egui detail the test pinned down: a widget's focus filter is only
+installed on the frame *after* it gains focus, so an arrow pressed in the same frame as the
+Tab moves the focus instead of the control.
+
+### Clip editing — schema 4, `cantus-ui/src/clips.rs`
+
+**The decision the last handoff said to make first: a clip is a window onto its content.**
+`Clip` gained `offset` (which content tick sits at the left edge) and `content_length` (the
+repeat period), plus `muted` and `color`. Notes now live in the clip's own content timeline,
+and everything else falls out of that:
+
+- **Splitting moves no notes at all.** Both halves carry the whole note list and differ
+  only in `start`/`offset`. Which is why **split then glue gives back the clip, note for
+  note** — there is a test that asserts exactly that, on the notes and on the snapshot the
+  engine would play.
+- **Trimming the left edge** moves `start` and `offset` together, so nothing slides. It is
+  also lossless in both directions: notes outside the window are kept, as they already were.
+- **Slipping** moves `offset` alone.
+- Recording into a clip that has to grow leftwards now moves the offset instead of shifting
+  every existing note, which is the same operation as a left-trim.
+
+**Split shares note ids; copying allocates new ones.** Split has to share them, or glueing
+the halves would not recognise them as the same notes. A *copy* must not, or glueing a clip
+to its own duplicate would see every note as one it already had and throw the lot away.
+That asymmetry is deliberate and both directions have a test.
+
+**Repeat is opt-in, and that is a decision.** `content_length: None` — the default and what
+every migrated clip gets — is a clip that plays its content once and reveals more of it as
+it grows. `Some(period)` repeats. The two are different intents and must not be conflated:
+dragging the right edge of a clip you shrank has to give back the notes you hid, and
+dragging the right edge of a *looping* clip has to repeat it. Live draws the same
+distinction with its Loop switch. The period is a brace around the content, not a modulus:
+content outside it is not heard, rather than being piled onto the first bar.
+
+**Drags preview and commit once.** The old code issued a merged `SetClipBounds` every frame
+of a drag, which could not express a cross-track move at all and left undo depending on
+gesture merging. Now the clips are *drawn* where they would land and one batch is committed
+on release — one undo step whatever the pointer did on the way. Move, copy, trim and slip
+are one code path.
+
+**Modifiers in the arrangement are not the piano roll's**, and deliberately: there is no
+pitch axis here, so Shift and Alt are free. **Alt+drag copies**, **Shift+drag slips**, Ctrl
+ignores the grid, Ctrl+click extends the selection (egui reports a click only when the
+pointer did not travel, so Ctrl+click and Ctrl+drag never meet). Right-click opens the
+clip's menu instead of deleting it outright — deleting the wrong clip with no warning is a
+hard thing to undo your way out of.
+
+**Notes and clips share their shortcuts**, and which one runs is decided by `EditFocus` —
+the half of the window you last edited in. Cut, copy, paste, duplicate, delete, select-all
+and the arrow keys all exist twice over; deciding by "whatever you touched last" is a rule a
+musician can predict without being told, and it is not decided by which selection is
+non-empty, because both usually are.
+
+New actions: `split-clip` (`Ctrl+E`), `glue-clips` (`Ctrl+J`), `toggle-clip-mute` (`0`),
+`toggle-clip-loop` (unbound by default; it is in the clip's menu). WAV export moved to
+`Ctrl+Shift+E` in **every** preset, where the Live preset already had it: splitting is
+something a musician does a hundred times an hour and exporting a WAV a handful of times a
+day, so where the two collide it is the export that moves.
+
+Also: the arrangement's note miniatures now go into **one mesh for the whole view** with a
+size check, per the ADR 0011 convention. They were one filled rect per note per clip.
+
+### Pan law, width, mono and polarity — schema 5, ADR 0012
+
+**The law is a field of `Project`,** not a preference. It changes the level of every panned
+track in a piece, so two people opening the same file have to hear the same mix. It is
+undoable like anything else and it is shown on the master strip, where somebody mixing
+looks for it.
+
+Four laws, named by how much a **centred** track is attenuated (the Logic/Pro Tools
+convention); all four agree at the extremes:
+
+| Law | Centre | Constant | For |
+|---|---|---|---|
+| `0` | 0 dB | neither | what Cantus did before — every migrated project gets this |
+| `-3` | −3.01 dB | power | **the default**: music on two speakers |
+| `-4.5` | −4.52 dB | the geometric mean | the hedge (Pro Tools's default) |
+| `-6` | −6.02 dB | amplitude | anything that will be summed to mono |
+
+**`0 dB` is a compatibility guarantee.** `PanLaw::ZeroDb::gains` is the old expression
+verbatim, and a test sweeps two thousand pan positions asserting the two agree *exactly*.
+Seeding old projects with the new default would have been one line and the worst kind of
+bug: one you only hear, in a finished mix, months later.
+
+**The master's pan does not take the law.** A pan law compensates for placing a *mono
+source* in a stereo field; the master is already stereo, so the −6 dB law would take 6 dB
+off every centred mix for nothing. Its pan is the balance formulation. The null test found
+this — a centred mix came out 12 dB down instead of 6, because the law was applied twice.
+
+**Mono is width zero**, not a switch: one value, one control, and no way for a boolean and a
+knob to disagree. The mixer still shows a *Mono* button because that is what people look
+for, but it is a shortcut to the end stop. Width sits after the inserts and before the pan,
+which is a console strip's order — narrowing a stereo reverb has to happen before the
+channel is placed. Polarity is an input-stage switch, before the inserts, as on a console;
+on the master it is the last thing before the output.
+
+**Null tests.** `width_at_unity_and_polarity_off_change_nothing` is the standing rule made
+explicit: a control at its default must not touch a sample, so `apply_width` returns early
+at unity rather than computing a mid/side round trip that is only *algebraically* the
+identity. `a_track_against_its_inverted_copy_is_exactly_silence` is the classic one — a
+track summed with a polarity-inverted copy of itself cancels to zero, not to a small number
+— with the flip removed at the end so the test cannot pass by nothing playing.
+
+### Three defects the round-11 review found, and what they were really about
+
+All three shipped green. Worth writing down, because each one says something about what
+the tests were and were not asserting.
+
+**1. Resizing a clip moved it instead.** The drag hit-tested where the pointer *is*, but
+egui only reports a drag once the pointer has travelled a few pixels — by which time it has
+left the 8-px trim zone at the clip's edge, so every resize was read as a move. The fix is
+to hit-test the **press origin**, which is exactly what the piano roll learned in round 3
+and what its own note about the bug says. The arrangement was written without reading it.
+
+**2. Moving a clip left its notes behind.** `move_to` was one line —
+`set_window(track, clip, start, clip.length)` — and `set_window` is *trim* semantics: it
+moves `offset` with `start` so the content stays anchored where it sounds. That is right for
+an edge and precisely backwards for a move, so a dragged clip slid out from under its own
+music. The two operations are opposites on the same two fields and now say so in their doc
+comments.
+
+The point is not the one-line fix. **The whole test suite passed with this bug in it**,
+because the clip tests asserted on `start` and on the note list — and a clip that has slid
+away from its notes still has exactly the `start` you asked for, and the note list of a
+clip *never* changes when it moves, since it is the window that moves. The clip unit tests
+in `clips.rs` had it right and asserted on `Snapshot::compile` — what the engine would
+actually play — and the gesture tests in `app_flows.rs` did not. They do now, and the new
+one was checked against the broken code before the fix went in.
+
+**3. Clip editing was invisible.** It existed only on a right-click and on shortcuts
+nobody had been told about, and the right-click menu closed the moment the pointer left the
+clip — it was drawn inside `if let Some(hit)`, and a context menu appears *next to* the
+pointer, so reaching for it took the pointer off its own target. Now: a **Clip** menu in
+the menu bar, the context menu opened on the clip that was under the pointer when the
+button went down and drawn every frame after, every entry showing the key bound to it
+(`Keymap::display_for`, so the menu teaches the shortcut), and the status bar's hint
+following `EditFocus` instead of always describing the piano roll.
+
+The **Edit** menu was calling `cut_selection`/`paste_clipboard` directly, so it was
+permanently about notes however the arrangement was being used. It goes through
+`run_action` now — which is ADR 0010's rule, stated there and not followed here.
+
+### A toolbar for clips, and a key for every one of them
+
+Asked for after the fixes above: the operations to hand, as icons, the way the piano roll's
+tools are — because a menu entry and a shortcut are not the same as a row of buttons above
+the thing they act on.
+
+`views::arrangement::toolbar` mirrors the piano roll's row exactly: title, icon buttons,
+then the grid picker and the snap toggle, then a count on the right. Two new icons (`Glue`,
+`Duplicate`); split reuses `Slice`, because it is the same idea applied to a clip and two
+glyphs for one operation would be worse than one shared. `active` still means *state* —
+mute and repeat light up because the clip is muted or repeating — never a press.
+
+- **The colour button shows the colour**, not an icon of one. A monochrome glyph could only
+  say "colour"; the swatch says *which*, and a diagonal bar says "the track's".
+- **The grid is the same list the piano roll offers** (`views::GRIDS`), with the same names.
+  Two pickers that disagreed about what "1/8" is called would be a small cruelty. The
+  arrangement defaults to a bar; the piano roll to 1/16.
+- Every tooltip carries the key bound **right now** (`Keymap::display_for`), so the toolbar
+  teaches the shortcut instead of competing with it.
+
+**Every clip action now has a key**, and a test asserts it for the whole `Clips` category
+rather than for the ones that had one the day it was written: split `Ctrl+E`, glue
+`Ctrl+J`, duplicate `Ctrl+B`/`Ctrl+D`, mute `0`, repeat `Ctrl+Shift+L`, colour
+`Ctrl+Shift+C`, rename `F2`, delete `Del`.
+
+Two of those are new operations, not just new keys:
+
+- **Rename**, which `SetClipName` had supported since round 3 with no UI at all. `F2` opens
+  an editor **on the clip itself** — the name is a label on a rectangle, and typing it in a
+  dialog means looking away from the thing you are naming. Enter and clicking away commit;
+  Escape and an empty name leave it alone, because a clip with no name is worse than the
+  one it had.
+- **Colour cycling**, which steps the selection through the palette and off the end back to
+  the track's colour — so one key both sets a colour and clears it, and there is no state
+  you can reach and not leave.
+
+**`TimelineGeometry`.** The view now records where it drew the timeline each frame, and the
+drag tests ask it instead of recomputing the layout from constants. They had mirrored it,
+and adding this toolbar broke all four of them — a test that recomputes the layout is a
+test that breaks the day the layout changes, which is the day it is least useful.
+
+### What is not done, and why
+
+- **Per-pad mixer routing** for a drum kit waits for bus tracks — see the drums plan.
+- **The arrangement is roughly a third of FL's playlist**, and the gap is measured item by
+  item in the plan above rather than left as an impression.
+- **Repeat by dragging the right edge past the content** is not bound to a bare drag. That
+  gesture already means "give me back the notes I shrank away", which is a promise Cantus
+  makes and Live makes too. Repeat is the clip menu's *Repeat the content* and the
+  `toggle-clip-loop` action.
+- **`Ctrl+A` selects notes or clips by focus**, but there is no separate "select all clips
+  on this track" yet.
+- The **velocity lane at the widest zoom** still overlaps into a solid block (round 9).
+
+## Planned: the arrangement, measured against FL Studio's playlist (requested 2026-09-10)
+
+Read against [FL's playlist manual][fl-playlist] and its own screenshots. The point is not
+to end up looking like FL — it is to know exactly what is missing and to decide, for each
+thing, whether to take it, take it differently, or not take it at all. An unexamined "we
+should have that too" is how a DAW ends up with two of everything.
+
+[fl-playlist]: https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/playlist.htm
+
+### Where we stand
+
+The arrangement today: one clip type (notes), tracks of one fixed height, a bar ruler with
+a loop region, a clip toolbar, and the round-11 clip editing — split, glue, duplicate,
+trim, slip, repeat, mute, colour, name, marquee and `Ctrl+click` selection, drag between
+tracks, Alt-drag to copy. That is a working arrangement and roughly Live's Session-less
+core. It is perhaps a third of what FL's playlist does.
+
+### The gap
+
+**Verdicts:** *take* — do it as FL does. *differently* — the need is real, the mechanism
+should not be copied. *not this* — a deliberate no, with the reason. *blocked* — wanted,
+but something else has to exist first.
+
+#### Clip types
+
+| FL has | We have | Verdict |
 |---|---|---|
-| **Split at the cursor** | FL slice tool `C`; Live/Bitwig `Ctrl+E`; Logic `Cmd+T` | `SplitClip { clip, at }`; the right half needs a **content offset** so its notes keep their position |
-| **Glue / join** | Live `Ctrl+J`; Logic `Cmd+J` | `MergeClips { clips }`; concatenate notes with each clip's offset applied |
-| **Duplicate** | FL `Ctrl+B` (to the right); Live/Bitwig `Ctrl+D` | reuse the note clipboard machinery already in `CantusApp` |
-| **Copy / cut / paste** at the playhead | universal | a clip clipboard beside the note one |
-| **Drag between tracks** | universal | today's drag only changes `start`/`length`; needs a clip move across tracks |
-| **Alt-drag to copy** | FL / Live / Bitwig | a modifier on the existing drag |
-| **Trim from the left edge** | universal | needs the content offset, or the notes shift when you trim |
-| **Slip the content** inside the clip | Live / Bitwig / Pro Tools | the same offset, dragged directly |
-| **Loop / repeat** by dragging past the content | Live & Bitwig loop; FL pattern repeat | content length distinct from clip length |
-| **Clip mute** | FL right-click; Live `0` | `Clip.muted`, like `Note.muted` already is |
-| **Clip colour** override | Live / Bitwig | `Clip.color: Option<Color>` |
-| **Multi-select** clips, marquee and `Ctrl+click` | universal | selection state for clips, then every operation acts on the set |
-| **Nudge** with the arrow keys, snap-aware | universal | `keymap::Action`s, reusing the note nudge |
+| **Audio clips** — waveform, fades/gain envelope, time-stretch, beat-slicing, zero-cross slicing, reverse | nothing | **take**, and it is the single biggest hole. Needs an audio-file model, a sample cache, and waveform drawing (a `Mesh` with LOD from line one) |
+| **Automation clips** — control-point envelopes, step/slide modes, articulator tools | nothing | **take** — already roadmap step 3. FL's *articulators* (flip, scale, normalise, smooth, "create sequence") are worth stealing wholesale; almost nobody else has them |
+| Stereo / combined / **spectral** view per audio clip | — | **take, later**. A spectral view in the arrangement is rare and genuinely useful; it is also a lot of DSP for a view |
+| Pattern clips carrying **notes *and* automation** in one clip | notes only | **differently** — with automation lanes on tracks, a clip carrying both is a modelling choice we should make once, deliberately |
+| **Stem extraction / Deverb** (source separation) | — | **not this**, not for a long time. It is a machine-learning product inside a DAW; it belongs after the AI layer exists, if ever |
 
-**The one decision to make first:** `Clip` gains a **content offset** (and a content length
-for looping). Split, left-trim, slip and repeat all fail without it, and retrofitting it
-later means touching every one of them again. It changes the shape of `Project`, so it is a
-`SCHEMA_VERSION` bump, a migration and a regenerated fixture — cheap now, expensive later.
+#### Tracks
 
-## Planned: pan, mono and width (requested 2026-09-09)
+| FL has | We have | Verdict |
+|---|---|---|
+| **Per-track height**, dragged on the divider, presets 33–200 %, lock to size | one global height | **take**. This is small and it is felt every session |
+| **Track groups** (drag to nest), group solo/mute, auto-colour a group | none | **take** — and it should be the same tree the mixer's buses use, not a second grouping |
+| **Track icons** beside the name | colour only | **take**. An icon is read faster than a name at 40 px |
+| **Track modes** (unassigned / instrument / audio) linking track ↔ channel ↔ mixer track | every track is an instrument track | **differently.** FL needs modes because its playlist is *not* the instrument list; ours is. A track is an instrument or (later) an audio track, and that follows from what is on it |
+| **Auto-name / auto-name clips** from the instrument | manual names | **take** — a new clip should be called what the track plays, not "Clip" |
+| **Reorder tracks** by drag or Shift+wheel | `MoveTrack` exists, no UI | **take**. The command is already there and reversible; it needs a drag handle |
+| **Track selector** strip, `Ctrl+↑/↓` to change the selected track | click only | **take** |
+| **Performance settings** per track (launch modes, trigger columns) | — | **blocked** on a session/clip-launch view, which is a whole feature (idea.md §5.4) |
 
-**What exists today.** `Track.pan` (−1…1) with `SetTrackPan`, and a pan control in *both*
-the arrangement track header and the mixer strip, with an `L/C/R` readout. So panning is
-there; what is missing is everything around it.
+#### Time: markers, signatures, arrangements
 
-| Capability | Notes |
+| FL has | We have | Verdict |
+|---|---|---|
+| **Named time markers** in the ruler | loop region only | **take.** Markers are how a song becomes navigable, and they cost a `Vec<Marker>` and a schema bump |
+| Marker **actions**: Start, Loop, Marker loop, Marker skip, Marker pause, Start/Stop recording | — | **take the first three, differently.** Loop/skip/pause turn the ruler into a little program, which is powerful and unreadable. A marker should say *where* something is; a arrangement-level structure should say what plays. Take Start and Loop; leave the branching to a proper arranger track (idea.md §5.4) |
+| **Time-signature changes** at markers, per region | one signature per project | **take.** It changes the ruler, the grid, the bar numbers and `ticks_per_bar` everywhere — the reason to do it early rather than late |
+| **Multiple named arrangements** sharing channels and mixer | one | **take, differently.** The need is real (an edit, a radio version). FL's caveat — "be careful not to delete Channels used by other Arrangements" — is a warning about a model that lets you break the thing you are not looking at. Ours should make the shared part explicit rather than a footnote |
+| **Insert / delete space**, slice-and-insert (`Ctrl+Ins`, `Ctrl+Del`, `Ctrl+Alt+Ins`) | — | **take.** This is ripple editing and it is how a song's structure actually gets changed |
+
+#### Selection and editing
+
+| FL has | We have | Verdict |
+|---|---|---|
+| **Timeline selection**: `Ctrl+drag` in the ruler selects a time range across all tracks | — | **take.** It is the anchor for insert/delete space, loop-to-selection, render-selection, quantize and consolidate. Nearly every entry below depends on it |
+| **Eight tools** (draw, paint, delete, mute, slip, slice, select, zoom) as modes | modifiers and a toolbar | **differently.** The piano roll has tools because a note is drawn; a clip is mostly moved. Add the two that are modes rather than gestures — **slice** and **mute** — and leave the rest as direct manipulation. Eight letter keys to memorise is FL's tax, not its feature |
+| **Magic lasso** (loop the pointer around clips, no click) | marquee | **take.** It is genuinely faster and it is one of the few things nobody else copied |
+| **Clip groups** (`Shift+G` / `Alt+G`) — move and delete together | — | **take** |
+| **Make unique** (detach a clip from its shared source) | n/a — clips own their notes | **decision, see below** |
+| **Ripple edit** on a clip edge (`Shift+S`) | — | **take** once timeline selection exists |
+| **Swap clip source**, transpose clips, "select all similar" | — | **take** — cheap, and each saves a repetitive job |
+| **Quantize clip start times** (`Ctrl+Q`) | note quantize only | **take** |
+| Snap: Main / Line / **Cell** / None / steps / beats / bar / **Events** | grid list + snap toggle | **take Cell and Events.** "Cell" snaps to the grid cell rather than the line, which is what you want when placing; "Events" snaps to other clips' edges, which is what you want when butting two clips together |
+
+#### Navigation
+
+| FL has | We have | Verdict |
+|---|---|---|
+| **Zoom & scroll bar** doubling as a **mini playlist preview** of the whole song | plain scrolling | **take.** It is the single best orientation device in FL's playlist, and it is cheap once clips are already drawn as a mesh |
+| Zoom presets `Shift+1..5`, zoom to selection, `Ctrl+RMB` zoom, middle-mouse pan | wheel zoom only | **take** |
+| **Vertical zoom** / resize all tracks | — | **take** with per-track height |
+| **Center on playhead** (`Shift+0`), follow playback | — | **take** |
+| **Picker panel** — every clip in the project, filterable, drag into the playlist | — | **take, differently**, and only after the source decision below: without shared sources a picker is a list of things to copy, which is much less useful |
+
+#### Rendering and performance
+
+| FL has | We have | Verdict |
+|---|---|---|
+| **Consolidate** a track or selection to audio, muting the source (freeze) | — | **blocked** on audio clips; then **take**. It is how a CPU-heavy project stays playable |
+| **Export all tracks / track groups** as stems | whole-mix WAV only | **take.** The render path exists and is already proven bit-identical; stems are a loop over it with solo applied |
+| **Performance mode** — trigger and loop tracks and clips live | — | **not this, here.** Live triggering is a *session view* (idea.md §5.4), and bolting it onto the linear playlist is exactly the "two DAWs in one" trap. It should be its own view sharing the same clips |
+
+### The three decisions to make first
+
+Like the content offset was for clip editing: get these wrong and everything above has to
+be redone.
+
+**1. Does a clip own its notes, or reference a shared source?** In FL a Pattern Clip is an
+*instance* of a pattern; twenty copies of a drum loop are twenty views of one thing, and
+editing any of them edits all. "Make unique" is what detaches one. In Cantus a clip owns
+its notes, so twenty copies are twenty independent note lists.
+
+FL's model is the productive one for the music FL is used for, and the picker panel, "select
+all similar", "make unique" and "swap source" all exist only because of it. But it also
+means every edit is an action at a distance, which is why *make unique* has to be so
+reachable.
+
+The recommendation is to add it as an **opt-in link, not the default**: `Clip.source:
+Option<PatternId>`, where `None` is exactly today's clip and `Some` means the notes live in
+a project-level pool. Independent by default, shared when you ask; "make unique" writes the
+pool's notes back into the clip. That keeps every existing project and every existing test
+meaning what it meant, and it is a strict addition to the model rather than a replacement.
+It is also a schema bump, a change to `Snapshot::compile`, and a change to every command
+that edits notes — so it is the *first* thing to do, not a later one.
+
+**2. Timeline selection, before anything that depends on it.** A time range across all
+tracks is the anchor for insert/delete space, ripple, loop-to-selection, quantize starts,
+render selection, consolidate, and zoom-to-selection. Building any of those first means
+building it twice.
+
+**3. Per-track height and track groups are the same feature as mixer buses.** A "group" in
+the arrangement and a bus in the mixer must be one tree, decided once. Two grouping systems
+that nearly agree is a bug that takes a year to surface and a rewrite to fix.
+
+### The interface gap, specifically
+
+The honest summary: **we are ahead of FL on discipline and well behind it on density and
+richness.** Both halves of that are worth stating precisely, because "make it more polished"
+is not a task and this list is.
+
+**What FL's playlist does better than ours, and why it works:**
+
+1. **Every clip has a title bar.** A darker strip across the top with a type icon and the
+   source name, separated from the content. It does three jobs at once: says what kind of
+   clip this is, gives a grab handle that is not the content, and keeps the name legible
+   over a busy waveform. Ours paints the name straight onto the body, so it competes with
+   the notes underneath.
+2. **The clip body *is* the preview.** Notes, automation curves as filled areas, waveforms,
+   spectra — a clip is recognisable without reading it. Ours draws a note miniature and
+   nothing else, because there is nothing else yet.
+3. **The track header is a map, not a label.** FL draws a miniature of the whole track's
+   content behind the track name. You can find the chorus without scrolling.
+4. **Colour identity is total.** The track's colour tints the header, the clip title bar,
+   the body and the content, so you navigate a forty-track song by colour alone. Ours tints
+   the clip and a 4-px stripe on the header.
+5. **Density.** FL fits a name, mute/solo, a menu and a content preview into about 40 px of
+   track height. Ours uses 64 px for a name, M/S, a fader, a pan bar and a meter — which is
+   a *mixer strip* in a track header, and it is why only four tracks fit on screen.
+6. **The scrollbar is a mini-map** of the entire song. It is the best orientation device in
+   the playlist and it costs almost nothing once clips are already drawn as a mesh.
+7. **Time markers are chips in the ruler** with names, and a time selection is a translucent
+   column across every track. Both make the song's structure visible rather than remembered.
+
+**What we already do better, and should not give up to get the above:**
+
+- **Type.** Bundled IBM Plex with a named scale, and every number monospaced so nothing
+  jitters as it counts (ADR 0009). FL's playlist sets everything in one small proportional
+  face; its bar numbers shift as they scroll.
+- **Colour is the user's**, editable to 22 tokens, with a test that every shipped theme
+  clears WCAG AA. FL's is fixed per theme and several of its greys fail contrast outright.
+- **Keyboard focus is visible** on every widget in the app, from one implementation. FL's
+  playlist shows none at all.
+- **The accent means state**, never decoration. FL colours everything, which is precisely
+  why nothing in it stands out.
+- **Every menu entry shows its shortcut**, so the menu teaches the keyboard.
+
+**What "superior" would concretely mean.** Not FL's look — FL's *information*, at our
+standard of craft:
+
+| | |
 |---|---|
-| **Mono** per track and on the master | Best modelled as **stereo width = 0** rather than a boolean: one control, and mono is its end stop |
-| **Stereo width** | 0 = mono, 1 = as recorded, >1 = wider. A width knob is standard on every console strip |
-| **Master pan** | `Master` has gain only today |
-| **Phase invert (Ø)** | Standard on a mixer strip, and the cheapest way to diagnose a summing problem |
-| **Pan law** | −3 dB / −4.5 dB / −6 dB constant power. This one is a **project-wide decision**, not a preference: it changes the audio a project renders, so it belongs in the project file with a documented default, and probably an ADR |
+| **Clip chrome** | Title bar with a type icon and a grab area; the name stays readable down to a 12-px-wide clip, and disappears rather than smearing below that |
+| **Body as preview** | Every clip type draws its content, at every zoom, through a `Mesh` with an LOD rule (ADR 0011). FL degrades to mush when zoomed out; we already have the machinery not to |
+| **Header as map** | A miniature of the track's content behind the name — and the mixer-strip controls moved out of the header into the inspector where they belong, which is what buys the density back |
+| **Mini-map scrollbar** | The whole song in the scroll bar, with markers on it |
+| **Structure visible** | Marker chips in the ruler; a time selection as a column across all tracks |
+| **Motion** | State changes animate — a clip landing, a selection forming, a marker being dragged — and nothing else does. Never at the cost of a frame; the budget is the ADR 0011 one |
+| **Every zoom readable** | The one thing no DAW does well. A 300-bar view should still tell you where the chorus is |
 
-Engine side: `processor` applies gain and pan per track today. Width, mono and phase all
-land in the same place, and all three have to reach the audio thread through the
-`Snapshot` — so this is a `cantus-core` model change, a schema bump, and a **null test
-before the DSP** (the standing rule). Pan law in particular needs a null test that a
-project rendered before and after the change is bit-identical when the law is unchanged.
+### Order of work
+
+Grouped so that each block is shippable and nothing is built twice. The drums block
+(previous section) is independent of all of this and can go before, after or between.
+
+1. **Timeline selection** — a time range across all tracks, in the ruler. Nothing else in
+   this list is worth starting first: insert/delete space, ripple, quantize starts,
+   loop-to-selection, render-selection and zoom-to-selection all hang off it.
+2. **Track shape**: per-track height with a drag divider and presets, track icons,
+   auto-name, reorder by drag (`MoveTrack` is already there and reversible), `Ctrl+↑/↓`.
+   Move the fader/pan/meter out of the header into the inspector — that is what makes a
+   40-px track possible and it is the density fix.
+3. **Clip chrome and the header map** — the visual block above. No model changes, and it is
+   the one that will make the arrangement *feel* like a finished product.
+4. **Markers and time signatures**: named markers, Start and Loop actions, per-region time
+   signature. A schema bump, and it touches the ruler, the grid and `ticks_per_bar`
+   everywhere — which is the argument for doing it before there are many projects.
+5. **Structural editing**: insert/delete space, ripple, clip groups, magic lasso, snap to
+   cell and to events, quantize clip starts, swap source, select-all-similar.
+6. **Navigation**: mini-map scrollbar, zoom presets, zoom to selection, centre on playhead,
+   follow playback, middle-mouse pan.
+7. **Shared clip sources** (decision 1) and then the **picker panel**, which is only worth
+   much once sources are shared.
+8. **Audio clips** — the biggest single block, and the one that needs a file model, a sample
+   cache, waveform drawing and stretch. Then **consolidate/freeze** and **stem export**,
+   which are cheap once audio clips exist and the render path is already proven.
+9. **Automation clips and lanes** (roadmap step 3), with FL's articulator tools — flip,
+   scale, normalise, smooth, create-sequence — which are nearly free once envelopes exist
+   and which almost no other DAW offers.
+10. **Multiple arrangements**, once there is enough in a project for a second version of it
+    to be worth having.
+
+**Deliberately not on this list:** performance mode (it is a session view, and it belongs in
+its own view sharing the same clips — not bolted onto the linear timeline), stem separation
+and de-verb (a machine-learning product inside a DAW), and FL's eight-tool model for the
+arrangement (two of the eight are modes; the rest are gestures we already have).
+
+## Planned: drums, a channel rack, and a piano roll that knows what a pad is (requested 2026-09-10)
+
+**The ask.** A drum kit with a *good* kick, snare and hi-hat; a way to program it in the
+piano roll with the keys adapted or renamed for percussion; and a **channel rack** like FL
+Studio's ([its manual][fl-rack] is the reference for what that means).
+
+[fl-rack]: https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/channelrack.htm
+
+### The decisions to make first
+
+These are the equivalents of the content offset in the clip work: get them wrong and every
+later piece has to be redone.
+
+**1. A kit is one instrument on one track, and pads are pitches.** Not one track per drum.
+A kit is one instrument the way a piano is; a pad is a note on it. Everything already
+built then applies unchanged — one clip, one note list, the same commands, the same undo,
+the same snapshot. FL's model, where every drum is its own channel with its own mixer
+track, buys per-drum inserts, and that is worth having — but it needs **bus tracks and
+sends**, which are already next-but-one in the roadmap. So: pads carry their own level, pan
+and choke inside the kit now, and per-pad *routing* arrives with the buses rather than
+being faked before them.
+
+**2. The step sequencer is a second editor for the same clip, not a second data model.**
+A step is a note: pad pitch, position `i × step`, a short length, a velocity. Toggling a
+step is `InsertNotes`/`RemoveNotes` like everything else, so it undoes, it saves, and it is
+the same thing the piano roll is editing — switch views mid-edit and nothing is lost or
+converted. FL keeps them as two representations that need converting between; we do not
+have to, and should not.
+
+**3. A "pattern" in Cantus is a clip.** FL's Channel Rack is a *global* pattern bank: every
+channel shares one pattern, and patterns are placed in the playlist. That is a second
+timeline model beside the one Cantus has, and running both is how a DAW becomes two DAWs.
+Clips already do what patterns are for — duplicate, repeat (`content_length`, round 11),
+colour, name — so the channel rack edits **the selected clip**, and reuse stays clips.
+This is the one place where we deliberately do not copy FL, and it should be said out loud
+rather than discovered.
+
+**4. Swing is a clip property, applied when the snapshot is compiled.** Not baked into note
+positions. FL's swing is a playback-time offset of the even steps and is adjustable
+afterwards; if we wrote it into the notes it would be destructive and un-un-doable by
+degree. That makes it a `Clip` field and therefore a schema bump — cheap now, expensive
+after people have projects with grooves in them.
+
+**5. Lane names come from the instrument.** The piano roll asks the track's instrument what
+a pitch is called and which pitches are worth showing, instead of assuming a keyboard.
+`InstrumentSpec` grows `lane_name(pitch) -> Option<&str>` and `lanes() -> Option<&[Pitch]>`;
+`pitch_name` stays the fallback. That is what makes drum mode a property of the *kit*
+rather than a mode the user has to remember to switch on, and it is what a sampler with
+named zones will want later too.
+
+### Pulsus — the kit
+
+Named like Firmus: *pulsus* is the Latin for a beat, a striking. **Synthesized, not
+sampled**, and that is a decision rather than a shortcut:
+
+- ADR 0001 requires bundled samples to be original or CC0, so every sampled kit is a
+  licensing question before it is a musical one. Synthesis has none.
+- A synthesized drum is *tunable*: the kick's pitch envelope, the snare's body, the hat's
+  decay are parameters, not a file you replace. That is the difference between a kit and
+  a folder of wavs.
+- It costs kilobytes, and the sampler (roadmap) is the right home for sampled kits anyway.
+
+| Voice | Design | The parameters that matter |
+|---|---|---|
+| **Kick** | Sine body with a fast downward pitch envelope, plus a short click transient, plus soft saturation | start pitch (~110 Hz), end pitch (~45 Hz), pitch decay (~40 ms), amp decay, click level, drive |
+| **Snare** | Two tuned bodies (≈180 Hz and ≈330 Hz) plus band-passed noise, decaying separately | body pitch, body/noise mix, body decay, noise decay, noise tone (band-pass centre) |
+| **Hi-hat** | Six detuned square oscillators through a band-pass then a high-pass — the 808 method, which is what makes a hat metallic rather than just bright | tone (band-pass centre), closed decay, open decay, HP cutoff |
+
+**Choke groups** are not a detail to leave for later: an open hat must be cut by a closed
+hat, or the kit does not sound like a kit. A pad names a choke group; a pad triggering
+silences any voice in the same group. It is a handful of lines in the voice allocator and
+it is the difference between "hi-hats" and "two unrelated noises".
+
+**The standing rule applies before any of it lands:** a null test per voice — block-size
+independence and offline-equals-realtime — the same as every other DSP module.
+
+### The channel rack
+
+A panel listing the kit's pads, one row each, editing the selected clip. Following FL's
+layout where it is right, which is most of it:
+
+| Element | FL's | Ours |
+|---|---|---|
+| Mute | per channel | per pad |
+| Pan / volume knobs | per channel, pre-mixer | per pad, inside the kit |
+| Channel button | opens the plugin | opens the pad in the inspector |
+| **Step grid** | 16th notes, left-click on, right-click off | the same, on the selected clip's notes |
+| Steps per pattern | up to 512 | the clip's length ÷ the grid, so it follows the clip |
+| **Graph editor** (`Ctrl+K`) | velocity, pan, pitch, shift, … per step | velocity first; the rest as the note model grows |
+| Global + channel swing | both must be > 0 | one swing per clip (decision 4) — two controls that must agree is a trap |
+| Mixer routing | per channel | with buses (see decision 1) |
+| Channel groups/filters | named groups, Page Up/Down | later, and only if a kit ever gets big enough to need it |
+
+The grid is dense — pads × steps, redrawn every frame — so it goes into a **`Mesh` with a
+level-of-detail rule** from the first line, per ADR 0011. Not after it is slow.
+
+### Drum mode in the piano roll
+
+With decision 5 in place this is small, and it is what "adapting the keys" means:
+
+- The key strip shows **pad names** — Kick, Snare, Closed hat — instead of C1/D1/F#1, and
+  the black/white key colouring gives way to one lane per pad.
+- Only the pitches the kit actually uses get a lane, so a 12-pad kit is 12 rows and not
+  128 with 12 in use.
+- Notes default to a fixed short length, because a drum has no note-off worth aiming at.
+- A pad's name is editable, and travels in the kit rather than in the project, so a kit
+  renamed once is renamed everywhere it is used.
+
+The velocity lane, the tools, the clipboard, quantize and everything else keep working
+unchanged — which is the whole reason for making a pad a pitch rather than a new kind of
+thing.
+
+### Order of work
+
+1. **`InstrumentSpec::lane_name` / `lanes`**, and the piano roll asking for them. No new
+   DSP, no schema change, and it makes the piano roll ready before there is anything to
+   put in it.
+2. **Pulsus**: the three voices with their null tests, choke groups, one pad per pitch.
+   `InstrumentSpec` gains a variant, which *is* a schema bump and a migration.
+3. **The channel rack panel**, editing the selected clip through the existing commands.
+4. **Swing** as a clip property (a second schema bump, or folded into 2 if the order holds).
+5. Per-pad mixer routing, when bus tracks arrive.
+
+More voices — toms, clap, rim, ride, crash — are the same shapes with different numbers
+once the three above are right, and are not worth planning separately.
 
 ## Appearance (round 10): white by default, and yours to change
 
@@ -342,13 +892,13 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. **A fader widget of our own** for the mixer and the inspector — egui's slider paints the
-   groove and the cap from one colour (see "Appearance" above), so a real cap with a centre
-   line and dB marks needs a custom widget. Requested after the round-10 review.
-2. **Clip editing** — see "Planned: clip editing" above. Start with the `Clip` content
-   offset and the schema bump, because split, trim, slip and repeat all depend on it.
-3. **Pan, mono and width** — see "Planned: pan, mono and width" above. Decide the pan law
-   first; it is the part that changes what a project sounds like.
+1. **A channel rack** — lanes, then Pulsus, then the rack itself. See *The next session*
+   at the top and *Planned: drums, a channel rack…* for the design.
+2. **The playlist**: timeline selection first, then track shape and density. See *The next
+   session* and *Planned: the arrangement, measured against FL Studio's playlist*.
+3. The rest of the playlist plan, in the order it gives: clip chrome and the header map,
+   markers and time signatures, structural editing, navigation, shared clip sources and the
+   picker panel, audio clips, automation clips, multiple arrangements.
 4. Piano roll polish, the last of the design plan: scale highlighting and snap-to-scale,
    ghost notes from other clips, chord stamps, a note properties popup, glue/legato, strum,
    arpeggiate.
@@ -383,6 +933,33 @@ Ordered plan, each step shippable on its own:
 - No view reads keys. A view that wants a shortcut adds a `keymap::Action` and a
   `run_action` arm; a view that wants to *show* one asks `Keymap::display_for`. Adding an
   action also means an `action.<id>` string in both locales.
+- A **widget** that moves with the arrow keys while focused calls
+  `widgets::claim_arrow_keys`, or the same press also nudges the note selection. Widget
+  keys are not shortcuts and do not belong in `keymap.toml`.
+- **A drag hit-tests the press origin, not the pointer.** egui reports a drag only after
+  the pointer has travelled, so by then it has left whatever narrow zone it was aimed at.
+- **A menu item runs a `keymap::Action`**, never the method behind it: the same entry means
+  different things in the arrangement and the piano roll, and ADR 0010 says a menu and a
+  shortcut must reach the same code. `views::arrangement::action_item` also shows the
+  binding, which is how a shortcut gets discovered.
+- **A test of a clip edit asserts on `Snapshot::compile`** — what the engine would play —
+  and not on the clip's fields. A clip is a window: its notes do not move when it does, so
+  a note list that looks unchanged proves nothing.
+- **A control at its default must not touch a sample.** Skip the maths, do not rely on it
+  being algebraically the identity — `(l+r)/2 + (l−r)/2` is not bit-identical to `l`.
+- Anything that changes **what a project renders as** belongs in the project file, not in
+  `settings.json` (ADR 0012). Preferences follow the machine; a mix must not.
+- The **arrangement** and the **piano roll** have different mouse modifiers on purpose, and
+  the shortcuts dialog lists both. `EditFocus` — the half of the window last edited in —
+  decides whether a shared shortcut acts on clips or on notes.
+- **Anything drawn once per note, clip, step, sample or automation point goes into a
+  `Mesh` with a level-of-detail rule** (ADR 0011). The convenience painters cost ~10x per
+  item. This is a rule at the first line, not an optimisation after it is slow — the
+  channel rack's pad × step grid is the next thing it applies to.
+- **A view that is tested by pointer gesture publishes its geometry**
+  (`arrangement::TimelineGeometry`) and the test asks it where things are. A test that
+  mirrors the layout breaks the day the layout changes, which is the day it is least
+  useful.
 - Anything a test writes to disk must go through a `tempfile::tempdir()`. `CantusApp`'s
   `layouts_path`, `keymap_path` and `settings_path` are public so tests can redirect them;
   never let a test write to the real `%LOCALAPPDATA%/Cantus`.
@@ -390,5 +967,8 @@ Ordered plan, each step shippable on its own:
   or it races every test that asserts an English string.
 - Bump `SCHEMA_VERSION`, append a migration and regenerate a fixture
   (`cargo run -p cantus-project --example write_fixture`) whenever `Project` changes shape.
-- Screenshots on this machine: PrintWindow from a DPI-aware process (see session notes);
-  pick the newest `cantus` process, never kill instances you did not start.
+- Screenshots on this machine: PrintWindow from a DPI-aware process, enumerating the
+  process's windows and taking the largest visible one — `MainWindowHandle` points at an
+  18x18 helper window and gives a blank capture. Pick the newest `cantus` process, and
+  never kill instances you did not start: if one holds the exe and blocks a build, **rename
+  the exe** (Windows allows renaming a running binary) rather than killing it.

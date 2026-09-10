@@ -4,6 +4,7 @@ use crate::app::CantusApp;
 use crate::design::{self, space, Elevation};
 use crate::i18n::t;
 use crate::theme;
+use crate::widgets::{fader, Fader};
 use cantus_core::{
     Color, Command, EffectKind, EffectSlot, FirmusParam, MergeKey, TrackId, Waveform,
 };
@@ -14,10 +15,23 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         ui.add_space(space::S1);
         heading(ui, &t("inspector.master"));
         let mut master = app.project().master.gain_db;
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(t("track.gain"))
+                    .text_style(design::caption())
+                    .color(theme::p().text_dim),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(fader::read_out(master)).text_style(design::readout_small()),
+                );
+            });
+        });
+        // The inspector scrolls vertically, so this one does not take the wheel.
         let r = ui.add(
-            egui::Slider::new(&mut master, -60.0..=12.0)
-                .suffix(" dB")
-                .text(t("track.gain")),
+            Fader::new(&mut master)
+                .horizontal(ui.available_width() - space::S2)
+                .name(t("inspector.master")),
         );
         if r.changed() {
             app.exec_merging(

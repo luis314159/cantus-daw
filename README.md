@@ -21,12 +21,25 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   enough to see a whole piece, with FL-style tools (`P` Draw, `B` Paint, `E` Select, `D` Delete, `T` Mute,
   `C` Slice, `Y` Play, or `1`–`7`), Shift/Ctrl/Alt modifiers, clipboard, duplicate,
   nudge/transpose, quantize.
+- **Clip editing**, built on a clip being a *window onto its content*: split (`Ctrl+E`) and
+  glue (`Ctrl+J`), trim either edge without a note moving, slip the music inside the clip,
+  repeat the content, drag between tracks, Alt-drag to copy, per-clip mute (`0`), colour
+  (`Ctrl+Shift+C`) and name (`F2`), marquee and `Ctrl+click` multi-selection, and arrow-key
+  nudge. Splitting a clip and gluing the halves gives back the clip, note for note. All of
+  it is on a toolbar above the arrangement, in a **Clip** menu, and on the clip's own
+  right-click menu — every entry showing the key bound to it.
+- **Pan law, stereo width and polarity** (ADR 0012). The pan law — 0 / −3 / −4.5 / −6 dB —
+  lives in the *project*, because it changes what the project renders as; mono is the
+  width control's end stop rather than a switch of its own; and every channel and the
+  master have a Ø. Projects written before this keep the law they were mixed with.
 - Computer keyboard as a MIDI controller (`A`–`'` keys, `Z`/`X` octave) and **hardware MIDI
   input** (every port is opened at start).
 - **MIDI recording** into the selected clip (press `R`): live take preview in the piano
   roll, loop-wrap aware, one undo step per take.
 - **Insert effects** per track — a tempo-free stereo delay (ping-pong, tone) and an
-  algorithmic reverb — plus a **mixer view** with faders, pan, peak-hold meters and master.
+  algorithmic reverb — plus a **mixer view** with console faders (a real cap, a read line
+  and a dB scale, on a taper that gives 6 dB per tenth of travel through the useful range),
+  pan and width bars that fill from their detent, peak-hold meters and a master strip.
 - One command bus for every mutation, with unlimited undo/redo, gesture merging and an
   audit log that records who did what — user, script, AI or MCP (ADR 0004).
 - Versioned JSON project files with SHA-256 integrity, schema migrations and atomic,
@@ -101,7 +114,10 @@ cargo clippy --workspace --all-targets
 
 The null tests in `crates/cantus-engine/tests/null_tests.rs` are the project's most
 important guardrail: they fail if the engine ever produces different output for different
-block sizes, or if a render stops matching playback.
+block sizes, or if a render stops matching playback. They also hold the line that **a
+control at its default must not touch a sample** — width at unity and polarity off have to
+be free, not merely inaudible — and that a track summed with a polarity-inverted copy of
+itself cancels to exact zero.
 
 ## Layout
 

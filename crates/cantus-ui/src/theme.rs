@@ -492,6 +492,42 @@ pub fn meter_color(peak: f32) -> Color32 {
     }
 }
 
+/// Relative luminance (WCAG), used to decide which of two tokens is the darker.
+fn luminance(c: Color32) -> f32 {
+    let ch = |v: u8| {
+        let v = v as f32 / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * ch(c.r()) + 0.7152 * ch(c.g()) + 0.0722 * ch(c.b())
+}
+
+/// The colour of a slot cut into a surface — a fader groove, and any recess added later.
+///
+/// A recess is *darker* than the surface around it in every theme, dark or light: that is
+/// how a shadowed slot looks, and it is why the same token cannot serve both. No new
+/// palette entry is needed, because the palette already contains two candidates that are
+/// darker than `panel_raised` in one theme family each: the canvas (`ink`) on a dark
+/// theme, the strong grid line on a light one. Take whichever is actually darker, and if
+/// a hand-edited theme leaves neither darker than the surface, darken the surface itself
+/// rather than paint an invisible groove.
+pub fn recess(pal: &Palette) -> Color32 {
+    let surface = luminance(pal.panel_raised);
+    let candidate = if luminance(pal.ink) <= luminance(pal.grid_strong) {
+        pal.ink
+    } else {
+        pal.grid_strong
+    };
+    if luminance(candidate) < surface {
+        candidate
+    } else {
+        pal.panel_raised.gamma_multiply(0.72)
+    }
+}
+
 // ---- theme file ---------------------------------------------------------------------
 
 pub fn load_file(path: &Path) -> Result<Theme, String> {

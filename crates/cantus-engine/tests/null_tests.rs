@@ -260,3 +260,171 @@ fn snapshot_swap_mid_playback_is_glitch_free_and_returns_garbage() {
         "engine must not retain the old snapshot"
     );
 }
+
+// ---- pan law, width and polarity (ADR 0012) -----------------------------------------
+
+fn render_of(project: &Project) -> Vec<f32> {
+    let opts = RenderOptions {
+        tail_seconds: 0.25,
+        block_frames: 256,
+        ..Default::default()
+    };
+    render(Arc::new(Snapshot::compile(project, 1)), &opts)
+        .unwrap()
+        .samples
+}
+
+/// The rule the standing convention asks for: **a control at its default must not touch
+/// a single sample.** Width 1 and polarity off have to be free, not merely inaudible.
+#[test]
+fn width_at_unity_and_polarity_off_change_nothing() {
+    let base = demo_project();
+    let reference = render_of(&base);
+
+    let mut explicit = base.clone();
+    for t in &mut explicit.tracks {
+        t.width = 1.0;
+        t.phase_invert = false;
+    }
+    explicit.master.width = 1.0;
+    explicit.master.phase_invert = false;
+    explicit.master.pan = 0.0;
+    assert_null(
+        &reference,
+        &render_of(&explicit),
+        0.0,
+        "the defaults are not a no-op",
+    );
+}
+
+/// The classic null test, and the strongest statement about polarity there is: a track
+/// against a polarity-inverted copy of itself must cancel to digital silence — not to a
+/// small number, to zero.
+#[test]
+fn a_track_against_its_inverted_copy_is_exactly_silence() {
+    let mut p = Project::new("null");
+    let mut a = p.make_track("A");
+    let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
+    for i in 0..8 {
+        clip.notes
+            .push(p.make_note(Ticks::EIGHTH * i, Ticks::EIGHTH, 50 + i as u8, 90));
+    }
+    a.clips.push(clip);
+    let mut b = a.clone();
+    b.id = TrackId(p.alloc_id());
+    b.name = "B".into();
+    b.phase_invert = true;
+    // Same voices, same order, same everything: only the polarity differs.
+    for (n, m) in a.clips[0].notes.iter().zip(b.clips[0].notes.iter_mut()) {
+        m.id = n.id;
+    }
+    p.tracks.push(a);
+    p.tracks.push(b);
+
+    let out = render_of(&p);
+    let worst = out.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
+    assert_eq!(worst, 0.0, "a polarity flip did not cancel: peak {worst}");
+
+    // And with the flip removed, the same project is loud — so the test above is not
+    // passing because nothing was playing.
+    p.tracks[1].phase_invert = false;
+    assert!(peak(&render_of(&p)) > 0.05);
+}
+
+/// Mono is width zero, and width zero has to mean the two channels are *the same samples*
+/// — not close, the same.
+#[test]
+fn width_zero_makes_a_track_mono() {
+    let mut p = demo_project();
+    // One track, panned centre so the pan law cannot re-separate the channels.
+    p.tracks.truncate(1);
+    p.tracks[0].pan = 0.0;
+    p.tracks[0].width = 0.0;
+    let delay = p.make_effect(EffectKind::Delay);
+    p.tracks[0].effects.push(delay);
+    // A stereo delay is what makes this test worth running: without one the source is
+    // already mono and width would have nothing to collapse.
+    let out = render_of(&p);
+    assert!(peak(&out) > 0.01, "silent render");
+    for (i, frame) in out.chunks_exact(2).enumerate() {
+        assert_eq!(frame[0], frame[1], "frame {i} is not mono: {frame:?}");
+    }
+
+    // At width 1 the same project is genuinely stereo, so mono is doing something.
+    p.tracks[0].width = 1.0;
+    let stereo = render_of(&p);
+    assert!(
+        stereo.chunks_exact(2).any(|f| f[0] != f[1]),
+        "the reference render was mono already"
+    );
+}
+
+/// Changing the pan law changes the mix — that is the point of it being in the project
+/// file — and *not* changing it changes nothing.
+#[test]
+fn the_pan_law_is_part_of_what_a_project_renders() {
+    let mut p = demo_project();
+    p.pan_law = PanLaw::ZeroDb;
+    let reference = render_of(&p);
+
+    // Setting the same law again is a no-op, to the sample.
+    p.pan_law = PanLaw::ZeroDb;
+    assert_null(&reference, &render_of(&p), 0.0, "same law, same render");
+
+    // Every other law moves the balance of the panned tracks.
+    for law in [PanLaw::Minus3dB, PanLaw::Minus4_5dB, PanLaw::Minus6dB] {
+        p.pan_law = law;
+        let out = render_of(&p);
+        let d = compare(&reference, &out);
+        assert!(
+            d.max_abs_diff > 1e-4,
+            "{law:?} rendered the same as 0 dB (max diff {})",
+            d.max_abs_diff
+        );
+        assert!(peak(&out) > 0.05, "{law:?} rendered near silence");
+    }
+
+    // A centred track is untouched by the law's *choice* only in the sense that all four
+    // agree at the extremes; at the centre they differ by exactly their names.
+    let mut centred = demo_project();
+    for t in &mut centred.tracks {
+        t.pan = 0.0;
+    }
+    centred.pan_law = PanLaw::ZeroDb;
+    let flat = peak(&render_of(&centred));
+    centred.pan_law = PanLaw::Minus6dB;
+    let halved = peak(&render_of(&centred));
+    assert!(
+        (linear_to_db(halved / flat) + 6.02).abs() < 0.1,
+        "-6 dB law should take exactly 6 dB off a centred mix, took {}",
+        linear_to_db(halved / flat)
+    );
+}
+
+/// The master strip is a channel strip: its pan, width and polarity have to reach the
+/// output, and their defaults have to be free.
+#[test]
+fn the_master_strip_reaches_the_output() {
+    let mut p = demo_project();
+    let reference = render_of(&p);
+
+    p.master.phase_invert = true;
+    let flipped = render_of(&p);
+    for (a, b) in reference.iter().zip(flipped.iter()) {
+        assert_eq!(*a, -*b, "master polarity is not an exact inversion");
+    }
+    p.master.phase_invert = false;
+
+    p.master.pan = -1.0;
+    let hard_left = render_of(&p);
+    assert!(
+        hard_left.chunks_exact(2).all(|f| f[1] == 0.0),
+        "master panned hard left still puts signal in the right channel"
+    );
+    p.master.pan = 0.0;
+
+    p.master.width = 0.0;
+    let mono = render_of(&p);
+    assert!(mono.chunks_exact(2).all(|f| f[0] == f[1]), "master mono");
+    assert!(peak(&mono) > 0.05);
+}
