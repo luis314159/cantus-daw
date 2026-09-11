@@ -354,11 +354,74 @@ impl Color {
     ];
 }
 
+/// A picture for a track, read faster than a name at 40 pixels.
+///
+/// `None` is not "no icon": it means **derive one from the instrument**, so a kit gets a
+/// drum and a synth gets a waveform without anybody choosing. Storing a derived value
+/// would freeze it the moment the track's instrument changed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TrackIcon {
+    Drums,
+    Keys,
+    Strings,
+    Vocal,
+    Synth,
+    Fx,
+}
+
+impl TrackIcon {
+    pub const ALL: [TrackIcon; 6] = [
+        TrackIcon::Drums,
+        TrackIcon::Keys,
+        TrackIcon::Strings,
+        TrackIcon::Vocal,
+        TrackIcon::Synth,
+        TrackIcon::Fx,
+    ];
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            TrackIcon::Drums => "icon.drums",
+            TrackIcon::Keys => "icon.keys",
+            TrackIcon::Strings => "icon.strings",
+            TrackIcon::Vocal => "icon.vocal",
+            TrackIcon::Synth => "icon.synth",
+            TrackIcon::Fx => "icon.fx",
+        }
+    }
+}
+
+/// How tall a track is drawn, as a multiple of the arrangement's base row.
+///
+/// A multiple rather than a number of pixels, because the interface scales (round 10's
+/// `ui_scale`) and a track stored as "72 points" would be the wrong size on the next
+/// machine. The limits are what stays *usable*: below a third of a row a clip's name has
+/// nowhere to go, and above four the divider is off screen before you have finished
+/// dragging it.
+pub const MIN_TRACK_HEIGHT: f32 = 0.34;
+pub const MAX_TRACK_HEIGHT: f32 = 4.0;
+
+fn unit_height() -> f32 {
+    1.0
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub id: TrackId,
     pub name: String,
     pub color: Color,
+    /// How tall this track is drawn, as a multiple of the base row.
+    ///
+    /// **In the project, not in settings.** It does not change what the piece renders as,
+    /// so ADR 0012's rule does not force it here — but it is a property of *this track in
+    /// this song* (the drum track you keep tall so you can see the pattern), and a height
+    /// that did not travel with the file would have to be set again on every machine and
+    /// after every reopen, which is the same as not having it.
+    #[serde(default = "unit_height")]
+    pub height: f32,
+    /// `None` derives one from the instrument; see [`TrackIcon`].
+    #[serde(default)]
+    pub icon: Option<TrackIcon>,
     pub instrument: InstrumentSpec,
     /// Insert effects, processed in order after the instrument.
     #[serde(default)]
@@ -415,6 +478,24 @@ pub const MIN_GAIN_DB: f32 = -96.0;
 pub const MAX_GAIN_DB: f32 = 12.0;
 
 impl Track {
+    /// The icon to draw: the one that was chosen, or the one the instrument implies.
+    pub fn icon(&self) -> TrackIcon {
+        self.icon.unwrap_or(match &self.instrument {
+            InstrumentSpec::Pulsus(_) => TrackIcon::Drums,
+            InstrumentSpec::Firmus(_) => TrackIcon::Synth,
+        })
+    }
+
+    /// The stored height, clamped — a hand-edited project file must not be able to make a
+    /// track two pixels tall or taller than the window.
+    pub fn height(&self) -> f32 {
+        if self.height.is_finite() {
+            self.height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT)
+        } else {
+            1.0
+        }
+    }
+
     pub fn clip(&self, id: ClipId) -> Option<&Clip> {
         self.clips.iter().find(|c| c.id == id)
     }
@@ -571,6 +652,8 @@ impl Project {
             id,
             name: name.into(),
             color,
+            height: 1.0,
+            icon: None,
             instrument: InstrumentSpec::default(),
             effects: Vec::new(),
             clips: Vec::new(),

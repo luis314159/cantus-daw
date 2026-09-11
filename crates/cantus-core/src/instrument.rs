@@ -4,6 +4,8 @@
 //! Keeping the spec here means the project format, undo/redo and the AI layer can all
 //! reason about sounds without linking the DSP crate.
 
+use crate::model::Pitch;
+use crate::pads::{Lanes, PadField, PulsusParams};
 use serde::{Deserialize, Serialize};
 
 /// Oscillator waveform. Stored by name so project files stay readable.
@@ -368,12 +370,39 @@ impl FirmusParam {
     }
 }
 
+/// One addressable parameter of *whatever* instrument a track hosts.
+///
+/// `SetInstrumentParam` used to carry a [`FirmusParam`] directly, which quietly said
+/// "every instrument is Firmus". It is this now, so a second instrument does not need a
+/// second command — and neither will a third. The `From` impls keep every existing call
+/// site reading the way it did.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum InstrumentParam {
+    Firmus(FirmusParam),
+    /// A field of one pad of a kit, addressed by the pad's **index**, which is its row in
+    /// the channel rack and its lane in the piano roll (pads are sorted by pitch).
+    Pulsus {
+        pad: u8,
+        field: PadField,
+    },
+}
+
+impl From<FirmusParam> for InstrumentParam {
+    fn from(p: FirmusParam) -> Self {
+        InstrumentParam::Firmus(p)
+    }
+}
+
 /// Which instrument a track hosts. New instruments are added as variants; plugin hosting
 /// will add a `Plugin { format, id, state }` variant.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum InstrumentSpec {
     Firmus(FirmusParams),
+    /// **Pulsus**, the synthesized kit. Its arrival is what schema 6 is: a schema-5 build
+    /// cannot read a project containing one, and the version number is what makes it say
+    /// so instead of failing in some more confusing way.
+    Pulsus(PulsusParams),
 }
 
 impl Default for InstrumentSpec {
@@ -386,18 +415,83 @@ impl InstrumentSpec {
     pub fn firmus(&self) -> Option<&FirmusParams> {
         match self {
             InstrumentSpec::Firmus(p) => Some(p),
+            _ => None,
         }
     }
 
     pub fn firmus_mut(&mut self) -> Option<&mut FirmusParams> {
         match self {
             InstrumentSpec::Firmus(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    pub fn pulsus(&self) -> Option<&PulsusParams> {
+        match self {
+            InstrumentSpec::Pulsus(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    pub fn pulsus_mut(&mut self) -> Option<&mut PulsusParams> {
+        match self {
+            InstrumentSpec::Pulsus(p) => Some(p),
+            _ => None,
         }
     }
 
     pub fn name_key(&self) -> &'static str {
         match self {
             InstrumentSpec::Firmus(_) => "instrument.firmus",
+            InstrumentSpec::Pulsus(_) => "instrument.pulsus",
+        }
+    }
+
+    /// What this instrument calls a pitch, when it has a name of its own for it.
+    ///
+    /// `None` means "ask the keyboard": the caller falls back to
+    /// [`pitch_name`](crate::pitch_name). It is deliberately not "C4" for a kit — a lane
+    /// called `F#2` when it plays a closed hat is a lane the musician has to translate.
+    pub fn lane_name(&self, pitch: Pitch) -> Option<&str> {
+        match self {
+            InstrumentSpec::Firmus(_) => None,
+            InstrumentSpec::Pulsus(p) => p
+                .pads
+                .iter()
+                .find(|pad| pad.pitch == pitch)
+                .map(|pad| pad.name.as_str()),
+        }
+    }
+
+    /// The rows a note editor should draw for this instrument.
+    pub fn lanes(&self) -> Lanes<'_> {
+        match self {
+            InstrumentSpec::Firmus(_) => Lanes::Chromatic,
+            InstrumentSpec::Pulsus(p) => Lanes::Pads(&p.pads),
+        }
+    }
+
+    /// Set a parameter, clamping to its range. Returns the value actually stored, or
+    /// `None` when the parameter does not belong to this instrument — which is what a
+    /// project file edited by hand, or an AI tool call, can ask for.
+    pub fn set_param(&mut self, param: InstrumentParam, value: f32) -> Option<f32> {
+        match (self, param) {
+            (InstrumentSpec::Firmus(p), InstrumentParam::Firmus(f)) => Some(f.set(p, value)),
+            (InstrumentSpec::Pulsus(p), InstrumentParam::Pulsus { pad, field }) => {
+                let pad = p.pad_mut(pad as usize)?;
+                Some(field.set(pad, value))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn param(&self, param: InstrumentParam) -> Option<f32> {
+        match (self, param) {
+            (InstrumentSpec::Firmus(p), InstrumentParam::Firmus(f)) => Some(f.get(p)),
+            (InstrumentSpec::Pulsus(p), InstrumentParam::Pulsus { pad, field }) => {
+                Some(field.get(p.pad(pad as usize)?))
+            }
+            _ => None,
         }
     }
 }

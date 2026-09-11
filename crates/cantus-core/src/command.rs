@@ -4,8 +4,9 @@
 //! inverse, which is what makes undo/redo, auditing and AI reversibility fall out for free.
 
 use crate::effect::EffectSlot;
-use crate::instrument::FirmusParam;
+use crate::instrument::{InstrumentParam, InstrumentSpec};
 use crate::model::*;
+use crate::pads::DrumPad;
 use crate::time::{clamp_bpm, Ticks, TimeSignature};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -119,6 +120,17 @@ pub enum Command {
         id: TrackId,
         invert: bool,
     },
+    /// How tall the track is drawn, as a multiple of the base row. A view thing, and a
+    /// command all the same: it is stored in the project, so it is undoable like the rest.
+    SetTrackHeight {
+        id: TrackId,
+        height: f32,
+    },
+    /// `None` puts the track back on the icon its instrument implies.
+    SetTrackIcon {
+        id: TrackId,
+        icon: Option<TrackIcon>,
+    },
     SetTrackMute {
         id: TrackId,
         muted: bool,
@@ -127,10 +139,45 @@ pub enum Command {
         id: TrackId,
         soloed: bool,
     },
+    /// Replace the track's instrument wholesale — a synth becomes a kit, or the other way.
+    /// The clips stay: a note is a pitch either way, and the editors' lanes follow the new
+    /// instrument (`InstrumentSpec::lanes`).
+    SetInstrument {
+        track: TrackId,
+        spec: Box<InstrumentSpec>,
+    },
+    /// Add a pad to a kit. Pads are kept sorted by pitch and a pitch can hold one pad, so
+    /// this fails rather than shadowing an existing one.
+    InsertPad {
+        track: TrackId,
+        pad: Box<DrumPad>,
+    },
+    RemovePad {
+        track: TrackId,
+        pitch: Pitch,
+    },
+    /// Set one parameter of whatever instrument the track hosts.
+    ///
+    /// The address is an [`InstrumentParam`], not a `FirmusParam`: a second instrument
+    /// must not need a second command, or every later one needs another.
     SetInstrumentParam {
         track: TrackId,
-        param: FirmusParam,
+        param: InstrumentParam,
         value: f32,
+    },
+    /// Rename a pad of a kit. The name lives **in the kit**, so this renames the lane in
+    /// every clip on the track at once — which is the point of a pad having a name at all.
+    SetPadName {
+        track: TrackId,
+        pad: u8,
+        name: String,
+    },
+    /// Point a pad at a sample file (or at none). The pad's voice is set separately, so a
+    /// pad can hold on to its file while it is switched back to a synthesized voice.
+    SetPadSample {
+        track: TrackId,
+        pad: u8,
+        path: Option<String>,
     },
 
     // --- effects ----------------------------------------------------------------------
@@ -262,9 +309,16 @@ impl Command {
             SetTrackPan { .. } => "cmd.set_track_pan",
             SetTrackWidth { .. } => "cmd.set_track_width",
             SetTrackPhaseInvert { .. } => "cmd.set_track_phase",
+            SetTrackHeight { .. } => "cmd.set_track_height",
+            SetTrackIcon { .. } => "cmd.set_track_icon",
             SetTrackMute { .. } => "cmd.set_track_mute",
             SetTrackSolo { .. } => "cmd.set_track_solo",
+            SetInstrument { .. } => "cmd.set_instrument",
+            InsertPad { .. } => "cmd.insert_pad",
+            RemovePad { .. } => "cmd.remove_pad",
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
+            SetPadName { .. } => "cmd.set_pad_name",
+            SetPadSample { .. } => "cmd.set_pad_sample",
             InsertEffect { .. } => "cmd.insert_effect",
             RemoveEffect { .. } => "cmd.remove_effect",
             MoveEffect { .. } => "cmd.move_effect",
@@ -311,6 +365,7 @@ impl Command {
             | (SetTrackPhaseInvert { id: a, .. }, SetTrackPhaseInvert { id: b, .. })
             | (SetTrackMute { id: a, .. }, SetTrackMute { id: b, .. })
             | (SetTrackSolo { id: a, .. }, SetTrackSolo { id: b, .. }) => a == b,
+            (SetTrackHeight { id: a, .. }, SetTrackHeight { id: b, .. }) => a == b,
             (
                 SetInstrumentParam {
                     track: a,
@@ -547,6 +602,28 @@ impl Command {
                 let old = std::mem::replace(&mut t.phase_invert, invert);
                 Ok(SetTrackPhaseInvert { id, invert: old })
             }
+            SetTrackHeight { id, height } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = t.height;
+                t.height = if height.is_finite() {
+                    height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT)
+                } else {
+                    1.0
+                };
+                Ok(SetTrackHeight { id, height: old })
+            }
+
+            SetTrackIcon { id, icon } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = t.icon;
+                t.icon = icon;
+                Ok(SetTrackIcon { id, icon: old })
+            }
+
             SetTrackMute { id, muted } => {
                 let t = project
                     .track_mut(id)
@@ -569,16 +646,101 @@ impl Command {
                 let t = project
                     .track_mut(track)
                     .ok_or(CommandError::TrackNotFound(track))?;
-                let p = t
+                let old = t
                     .instrument
-                    .firmus_mut()
+                    .param(param)
                     .ok_or(CommandError::ParamNotApplicable(track))?;
-                let old = param.get(p);
-                param.set(p, value);
+                t.instrument
+                    .set_param(param, value)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
                 Ok(SetInstrumentParam {
                     track,
                     param,
                     value: old,
+                })
+            }
+
+            SetInstrument { track, spec } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.instrument, *spec);
+                Ok(SetInstrument {
+                    track,
+                    spec: Box::new(old),
+                })
+            }
+
+            InsertPad { track, pad } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                if kit.index_of_pitch(pad.pitch).is_some() {
+                    return Err(CommandError::DuplicateId(pad.pitch as u64));
+                }
+                let pitch = pad.pitch;
+                let at = kit.pads.partition_point(|p| p.pitch < pitch);
+                kit.pads.insert(at, *pad);
+                Ok(RemovePad { track, pitch })
+            }
+
+            RemovePad { track, pitch } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let at = kit
+                    .index_of_pitch(pitch)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let pad = kit.pads.remove(at);
+                Ok(InsertPad {
+                    track,
+                    pad: Box::new(pad),
+                })
+            }
+
+            SetPadName { track, pad, name } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let slot = kit
+                    .pad_mut(pad as usize)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let old = std::mem::replace(&mut slot.name, name);
+                Ok(SetPadName {
+                    track,
+                    pad,
+                    name: old,
+                })
+            }
+
+            SetPadSample { track, pad, path } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let slot = kit
+                    .pad_mut(pad as usize)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let old = std::mem::replace(&mut slot.sample, path);
+                Ok(SetPadSample {
+                    track,
+                    pad,
+                    path: old,
                 })
             }
 

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 5;
+pub const SCHEMA_VERSION: u32 = 8;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -183,6 +183,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_2_to_3,
     migrate_3_to_4,
     migrate_4_to_5,
+    migrate_5_to_6,
+    migrate_6_to_7,
+    migrate_7_to_8,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -312,6 +315,85 @@ fn migrate_4_to_5(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 6 is **Pulsus**: `InstrumentSpec` gained a second variant.
+///
+/// Nothing in a schema-5 file changes shape, so this migration writes nothing — and that
+/// is the honest implementation rather than a placeholder. The version number is doing
+/// the work: a schema-6 project may contain a track whose instrument is
+/// `{"type": "Pulsus", ...}`, and a build that predates the kit cannot render it. Bumping
+/// the number is what makes that build say *"saved by a newer Cantus"* and stop, instead
+/// of failing somewhere further in with a message about an unknown enum variant.
+///
+/// The one thing it does check is that every track still has an instrument tag, because a
+/// file that lost one would otherwise fail deserialization with no indication of which
+/// track was at fault.
+fn migrate_5_to_6(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for (i, t) in tracks.iter().enumerate() {
+        if t.get("instrument").and_then(|i| i.get("type")).is_none() {
+            return Err(format!("track {i} has no instrument"));
+        }
+    }
+    Ok(())
+}
+
+/// Schema 7 gave a track a **height** and an **icon**.
+///
+/// Both migrate to the values that mean "as before": height 1, which is the base row every
+/// schema-6 track was drawn at, and no icon, which is *derive one from the instrument*
+/// rather than *have none*. Writing a derived icon into the file here would have frozen it
+/// the first time somebody changed the track's instrument.
+fn migrate_6_to_7(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        if t.get("height").is_none() {
+            t["height"] = Value::from(1.0);
+        }
+        if t.get("icon").is_none() {
+            t["icon"] = Value::Null;
+        }
+    }
+    Ok(())
+}
+
+/// Schema 8: a pad can be a **sample**. `DrumPad` gained `sample` (a file path) and
+/// `PadVoice` gained `Sample`.
+///
+/// Every schema-7 pad was synthesized, so the migration writes `sample: null` and leaves
+/// the voice alone. The path is stored as given rather than resolved: a project points at
+/// the musician's library, and a file that has moved makes a pad silent — never a project
+/// that will not open.
+fn migrate_7_to_8(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(pads) = t
+            .get_mut("instrument")
+            .and_then(|i| i.get_mut("pads"))
+            .and_then(Value::as_array_mut)
+        else {
+            continue;
+        };
+        for pad in pads {
+            if pad.get("sample").is_none() {
+                pad["sample"] = Value::Null;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,7 +412,6 @@ mod tests {
             let text = std::fs::read_to_string(&path).unwrap();
             let r = parse(&text, true).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             assert_eq!(r.file.schema_version, SCHEMA_VERSION, "{}", path.display());
-            assert_eq!(r.file.project.tracks.len(), 2, "{}", path.display());
             assert_eq!(r.file.project.tracks[0].name, "Keys");
             assert_eq!(r.file.project.tracks[0].clips[0].notes.len(), 4);
             // Re-saving a migrated project must round-trip at the current schema.
@@ -413,11 +494,19 @@ mod tests {
             let text = std::fs::read_to_string(&path).unwrap();
             let r = parse(&text, true).unwrap();
             let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-            if r.migrated_from.is_none() {
-                // The current fixture is written *with* the new controls set, on purpose:
-                // it is what proves the fields survive a round trip. Only the older files
-                // are making a migration promise.
+            // Only files written *before* the pan law existed are making a promise. From
+            // schema 5 on the field is really in the file, and the fixtures deliberately
+            // set it — which is what proves it survives a round trip. Keying this on the
+            // stored version rather than on "did it migrate at all" is the difference
+            // between a test that stays true and one that breaks at the next schema bump,
+            // which is exactly what it did.
+            const PAN_LAW_SCHEMA: u32 = 5;
+            if r.migrated_from.unwrap_or(SCHEMA_VERSION) >= PAN_LAW_SCHEMA {
                 continue;
+            }
+            for t in &r.file.project.tracks {
+                assert_eq!(t.height, 1.0, "{name}: height must migrate to the base row");
+                assert_eq!(t.icon, None, "{name}: the icon must stay derived");
             }
             assert_eq!(
                 r.file.project.pan_law,

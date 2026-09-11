@@ -153,9 +153,9 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 
 ### 5.3 MIDI Sequencing
 - [ ] Piano roll with velocity, humanize, quantize (swing/groove templates), chord stacking, built-in arpeggiator
-- [ ] Step sequencer (FL-style) as an alternative view to the piano roll — as a second
+- [x] Step sequencer (FL-style) as an alternative view to the piano roll — as a second
       *editor* for the same clip, not a second data model: a step is a note, so the two
-      views never need converting between (see the channel rack plan in `docs/STATUS.md`)
+      views never need converting between (ADR 0013; the channel rack, `F6`)
 - [ ] Tracker mode (Renoise-style) for those who prefer it
 - [ ] Global Chord Track with chord detection/suggestion (Cubase/Studio One style)
 - [ ] MIDI Logical Editor (programmable MIDI transformations, Cubase-style)
@@ -184,8 +184,9 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] Markers, regions, and arrangement-level navigation. Named markers with Start and Loop
       actions and per-region time signatures; FL's marker *branching* (skip/pause/jump)
       belongs in the arranger track, not in the ruler
-- [ ] **Timeline selection** across all tracks, and what hangs off it: insert/delete space,
-      ripple editing, quantize clip starts, loop-to-selection, render-selection
+- [ ] **Timeline selection** across all tracks (done, round 12 — with loop-to-selection
+      and zoom-to-selection), and what still hangs off it: insert/delete space, ripple
+      editing, quantize clip starts, render-selection
 - [ ] **Mini-map scrollbar** showing the whole song, with markers on it
 - [ ] Consolidate/freeze a track to audio, and stem export per track and per group
 
@@ -231,11 +232,12 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] FM synth (DX7/FM8 class)
 - [ ] Wavetable synth (Serum class)
 - [ ] Multi-layer sampler with disk streaming (for large libraries)
-- [ ] **Pulsus**, a synthesized drum kit — kick, snare, hi-hat with choke groups — with an
-      FL-style channel rack and a piano roll that names its pads instead of its keys.
-      Synthesized rather than sampled: ADR 0001 makes every bundled sample a licensing
-      question, and a synthesized drum is tunable. Designed in `docs/STATUS.md` →
-      *Planned: drums, a channel rack…*
+- [x] **Pulsus**, a synthesized drum kit — kick, snare, hi-hat with choke groups, and
+      **sample pads** in the same kit — with an FL-style channel rack across every track
+      and a piano roll that names its pads instead of its keys. Synthesized by default:
+      ADR 0001 makes every bundled sample a licensing question, and a synthesized drum is
+      tunable. Shipped in round 12 (ADR 0013); swing as a clip property is still open, and
+      routing several channels to one mixer strip is the buses block
 - [ ] Granular synth
 - [ ] Modal/physical modeling engine (for experimental instruments)
 - [ ] Sample slicer/chopper (beat-slicing workflow)

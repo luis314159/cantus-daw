@@ -1,48 +1,63 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-09 (round 11: a fader of our own, clip editing, pan law / width / polarity) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 171 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~23 400 lines of Rust
+**Updated:** 2026-09-10 (round 12: Pulsus and a channel rack across every track, samples per pad, time selection, track shape) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 221 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~30 500 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
-## The next session: a channel rack of our own, and the playlist
+## The next session: buses, then what hangs off the selection, then swing
 
-Two blocks, in this order. Both are designed in full further down; this is the map.
+Round 12 built both blocks the last handoff asked for — the kit, the rack, the time
+selection, the track shape — and then, on the user's direction, reshaped the rack into
+FL's: every track a channel, a drum per track, samples per pad, a groove on start-up.
+That leaves three threads, in this order:
 
-**Block A — a channel rack.** It cannot be built first, because a channel rack with no pads
-is a rack of nothing. The order inside it is forced:
+**0. Buses and sends — the routing the channel rack now visibly lacks.** Every drum is its
+own track and its own mixer strip, and the rack prints the strip number on each row; what
+it cannot do yet is send the kick and the snare to *one* strip, or a group of tracks to a
+bus with a compressor on it. This is roadmap item 6 pulled forward, because the rack made
+the hole visible. The shape: a bus is a `Track` with no instrument and no clips;
+`Track.output: Output::{Master, Bus(TrackId)}`; the processor renders tracks in dependency
+order (a bus after everything routed to it), which is a topological sort done once per
+snapshot on the UI thread and stored in the snapshot as a play order; the mixer shows
+buses as strips with a different header; the rack's strip number becomes a picker. Cycles
+are refused by the command. Track groups in the arrangement are the **same tree** (the
+playlist plan's decision 3) — do not build a second one.
 
-1. `InstrumentSpec::lane_name(pitch)` / `lanes()`, and the piano roll asking for them
-   instead of assuming a keyboard. No DSP, no schema change, and it makes the piano roll
-   ready before there is a kit to put in it.
-2. **Pulsus**, the synthesized kit — kick, snare, hi-hat, with choke groups. A null test per
-   voice *before* it lands, and a schema bump for the new `InstrumentSpec` variant.
-3. **The channel rack panel** itself: pads down the side, a step grid across, editing the
-   selected clip through the commands that already exist. A step is a note — that is the
-   decision the whole thing rests on.
+**1. What hangs off the time selection.** It exists, it is visible as a column across every
+track, and today two things use it: loop-to-selection (`Shift+L`) and zoom-to-selection
+(`Z`). The playlist plan's step 5 is the rest, and every one of them is now a small job
+instead of a large one: **insert / delete space** (ripple every clip after the selection),
+**quantize clip starts**, **select the clips inside the selection**, **render the
+selection**. Do insert/delete space first — it is how a song's structure actually gets
+changed, and it exercises the selection as an *edit* anchor rather than a view one.
+`CantusApp::time_selection` is the field; `clips.rs` is where the commands go, as free
+functions over a `Project` so they are tested without a window.
 
-See *Planned: drums, a channel rack…* for the five decisions and the reasoning.
+**2. Swing as a clip property** — decision 4 of the drums plan, still open. A `Clip.swing`
+field applied when the snapshot is compiled (`compile_events` is the one place the
+timeline mapping is written down), *not* baked into note positions, so it is adjustable
+afterwards and undoable by degree. That is a schema bump (8), a migration writing `0`, and
+a control in the rack's toolbar. Small, and cheap now; expensive after people have
+projects with grooves in them.
 
-**Block B — the playlist.** Start with **timeline selection**, a time range across all
-tracks in the ruler. Insert/delete space, ripple, quantize starts, loop-to-selection,
-render-selection and zoom-to-selection all hang off it, so anything built before it gets
-built twice. Then **track shape**: per-track height, icons, reorder by drag, and moving the
-fader/pan/meter out of the track header into the inspector — which is what buys back the
-density the header is currently spending.
+Then, in the order the playlist plan gives: **clip chrome and the header map** (the visual
+block — a title bar per clip, the track's content as a miniature behind its name), and
+**markers and time signatures**.
 
-See *Planned: the arrangement, measured against FL Studio's playlist* for the item-by-item
-gap, the three decisions, and the honest account of where FL's interface is ahead of ours.
+The two plans below are kept as written, with each item marked as it landed, so the
+reasoning stays next to the result.
 
 ## What exists
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0012 | done |
-| `cantus-core`: time, model, commands, bus, snapshots, **effects model**, **clip windows**, **pan law / width** | done; 27 tests incl. 40-seed undo/redo invariant fuzz (now covering the clip and pan commands) |
-| `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **stereo delay, Freeverb-style reverb**, null-test harness | done; 19 tests |
-| `cantus-engine`: transport, processor with **insert chains**, **width / pan law / polarity**, **hardware MIDI in (midir)**, **recording feedback**, cpal backend, offline render | done; 15 null/behaviour tests + 4 transport/midi unit tests + 1 real-device test |
-| `cantus-project`: versioned JSON (**schema 5**), SHA-256, migrations 0→1→…→5, atomic save, autosave, recovery, **fixture corpus** | done; 9 tests; fixtures `v1`–`v5.cantus` must always load |
+| Workspace, licenses, ADRs 0001–0013 | done |
+| `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, **pads and lanes**, **track height and icon** | done; 32 tests incl. 40-seed undo/redo invariant fuzz (now covering pad parameters, pad names and both instrument variants) |
+| `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, null-test harness | done; 33 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |
+| `cantus-engine`: transport, processor with insert chains, width / pan law / polarity, **two instruments per slot, stereo instrument path, sample cache**, hardware MIDI in, recording feedback, cpal backend, offline render | done; 16 null/behaviour tests (five for a kit) + 5 effect/MIDI tests + 6 unit tests + 1 real-device test |
+| `cantus-project`: versioned JSON (**schema 8**), SHA-256, migrations 0→1→…→8, atomic save, autosave, recovery, fixture corpus | done; 9 tests; fixtures `v1`–`v8.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport (**record**), arrangement (**clip editing**), piano roll (**take preview, 7 mouse tools, clipboard, nudge/transpose, slice, mute**), **mixer view**, inspector (**effects rack**), **widgets (fader, bipolar bar)**, keyboard piano, **MIDI recording**, **design system**, **named layouts**, **editable keymap**, **settings dialog**, i18n EN/ES | done; 83 tests (headless egui frames, edit/undo flows, clip split/glue/drag, save→open→export, recording take, effects delivery, fader taper and painting, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport, arrangement (clip editing, **time selection, per-track height, icons, reorder by drag**), piano roll (**lanes from the instrument**, 7 mouse tools, clipboard, nudge/transpose, slice, mute), **channel rack across every track**, mixer view, inspector (**channel strip, instrument picker, pad editor with samples**, effects rack), widgets (fader, bar), keyboard piano, MIDI recording, design system, named layouts, editable keymap, settings dialog, **welcome groove**, i18n EN/ES | done; 117 tests (headless egui frames, edit/undo flows, clip and step gestures through published geometry, kit lanes as painted, save→open→export, recording take, effects delivery, fader taper, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -52,6 +67,12 @@ gap, the three decisions, and the honest account of where FL's interface is ahea
   and without effect chains.
 - Real-device test: 200 blocks, 0 overruns, max callback 194 µs at 480-frame blocks.
 - Fixture `v2.cantus` opens with a Delay on the Keys track; the effects rack edits it live.
+- Round 12, fixture `v7.cantus`: the Drums track opens in the piano roll with seven named
+  lanes filling the grid and the kick at the bottom; `--rack --track 1` opens the channel
+  rack with the fixture's kick and closed-hat steps lit, the muted pad shown muted, and the
+  inspector on *Bombo · Kick*; the header row is 40 px with the drum, keys and strings
+  icons and the taller Drums / shorter Bass rows the fixture stores; the inspector's channel
+  strip shows the Keys track's −4.5 dB and R25. Checked in English and Spanish.
 
 ## The design system (round 5)
 
@@ -83,6 +104,215 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Round 12: Pulsus and the channel rack, the time selection, the shape of a track
+
+Two blocks, in the order the last handoff asked for them. The decisions that turned out to
+be architectural are in ADR 0013; this is what was built and what was learned.
+
+### Block A — a channel rack of our own
+
+**1. The piano roll asks the instrument.** `InstrumentSpec::lanes()` returns a `Lanes` —
+`Chromatic` for Firmus, `Pads(&[DrumPad])` for a kit — and `lane_name(pitch)` answers
+what a pitch is called. The piano roll builds an `Axis` from it every frame (lane → pitch,
+pitch → lane, lane → name), plus a row for any pitch the clip holds that the kit has no pad
+for, named as a keyboard would name it, so changing a track's instrument can never make
+music invisible. The plan had asked for `Option<&[Pitch]>`; the reason it is `Lanes`
+instead is written on the type and in ADR 0013 — a slice of pitches is one of the three
+mappings an editor needs, and returning it would have put the other two in every caller.
+
+On a kit the rows are the pads, kick at the bottom, **sized to fill the grid** (up to 44
+px): seven pads at keyboard height were a strip along the top of an empty canvas.
+Vertical moves are in **rows**, and the octave keys move four pads. A drum's note has a
+fixed 1/16 length.
+
+**2. Pulsus.** `cantus-dsp/src/pulsus.rs`: kick (sine with a fast pitch envelope, a
+high-passed noise click, soft saturation), snare (two tuned bodies a fifth-and-a-bit
+apart, band-passed noise with its **own** decay), hi-hat (the 808's six squares as ratios
+of a base, band-pass then high-pass), and **choke groups** with a 4 ms fade rather than a
+hard cut. Seven pads on the GM map: kick, rim, snare, closed hat, low tom, open hat, high
+tom — the toms and the rim are the snare shape retuned, which is a preset and not a fourth
+voice, and the kit says so. Everything is one-shot and parameters are captured at the
+note-on, which is what makes the output block-size independent without a single smoother.
+
+The null tests went in **before** the engine wiring, as the standing rule says, and two of
+them were checked against deliberately broken code: disabling the choke fails exactly the
+choke test, and resetting a filter per block fails exactly the block-size test. Two things
+the tests then found in the *design*:
+
+- **The kit was too hot.** The kick alone hit 0 dBFS at velocity 127, so a busy bar arrived
+  at the fader already clipped. `voice_level` now puts the loudest pad around −6 dBFS — the
+  same place Firmus's default gain puts it — and a headroom test holds the line.
+- **The saturator was a hidden gain stage.** Peak-preserving normalisation lifts the body
+  rather than lowering the top, which is right for a driven kick, but at `k = 1 + 7·drive`
+  the default lifted the tail by 10 dB. It is `1 + 3·drive` now, defaulting to 0.2 (about
+  +4 dB), with the reason on the function.
+
+The engine holds **both** engines per track slot, preallocated, and switches with a flag
+(ADR 0005: no allocation on the audio thread when a track changes instrument). Pulsus
+renders **stereo** because its pads are panned; Firmus stays mono and is copied. A muted
+pad is resolved in `Snapshot::compile`, like a muted track. `SetInstrumentParam` now
+addresses an `InstrumentParam` — `Firmus(_)` or `Pulsus { pad, field }` — so a third
+instrument will not need a third command; `SetPadName` renames a pad in the kit. Schema
+**6** is the variant's arrival; the migration writes nothing and says why.
+
+**3. The channel rack** (`views/channel_rack.rs`, `F6`). Pads down the side — mute, name
+(double-click to rename), level and pan bars — and a step grid across, editing the
+selected clip. **A step is a note**: switching one on or off is `InsertNotes` /
+`RemoveNotes`, and there is a test that round-trips a project through both views and
+asserts it is byte-identical. The steps follow the clip: a repeating clip shows one period.
+Left-click on, right-click off, drag to paint with the mode decided at the press, Alt+wheel
+for velocity — the same gesture as the piano roll's, because it is the same edit. Velocity
+is the height of the lit part of a step, so the graph editor's first column is always on
+screen. The pads × steps grid goes into **one `Mesh` with a level-of-detail rule** from
+the first line: below four pixels the empty cells stop being drawn (the column shading
+behind them says the same thing), below seven the lit steps become plain quads. The test
+asserts the *shape count*, not a frame time, so it stays true on a loaded machine.
+
+The rack uses the same `Axis` as the piano roll, which means it is a step view of *any*
+clip: on a synth the rows are the pitches the clip uses.
+
+The inspector shows the kit as a row of pad buttons and the selected pad's parameters —
+only the fields its voice has, with the ranges its voice needs (a hi-hat's tone lives
+around 9 kHz, a snare's around 2 kHz). The choke group is a named list, not a slider: it
+is an identity, not a quantity.
+
+### Block B — the playlist
+
+**1. Time selection.** `CantusApp::time_selection: Option<(Ticks, Ticks)>`, a range across
+every track. It lives on the app, beside `selected_clips`, and not in the project: a
+selection is not part of the piece. The **ruler is two lanes** now — an 8-px loop lane on
+top where dragging sets the loop brace (which is what a bare ruler drag used to do), and
+the selection lane below where dragging selects time. Reaper splits the ruler the same way
+and for the same reason: putting the new gesture on the old one would have cost the loop
+its direct manipulation, and putting it behind FL's `Ctrl+drag` would have hidden the
+thing everything else hangs off. A click in the selection lane still seeks, and clears the
+selection. The selection is drawn as a translucent column across every track, brighter in
+the ruler where the edges are grabbed, and its length in bars is read out in the toolbar.
+
+What hangs off it today: `loop-to-selection` (`Shift+L`; sets the region **and** enables
+looping, in one undo step) and `zoom-to-selection` (`Z`, Live's key; a view change, so not
+a command). Live's `Ctrl+L` was not taken because it is the loop *switch* here and a switch
+has to stay reachable when nothing is selected. `Esc` in the arrangement clears both
+selections.
+
+**2. Track shape.** `Track.height` (a multiple of the base row, in the **project** — it
+does not change what the piece renders as, so ADR 0012 does not force it there, but a
+height that did not travel with the file would have to be set again on every machine) and
+`Track.icon: Option<TrackIcon>`, where `None` means *derive from the instrument* — a kit
+gets a drum, a synth a waveform — so it keeps following the instrument until somebody
+chooses. Schema **7**.
+
+The header lost its fader, pan bar and meter to the **inspector's channel strip**, where
+the fader has a scale and the pan has a readout. What is left is what a header is for:
+colour, icon, name, M/S and a hairline meter. The base row went from 64 px to **40**, and
+three tracks that used to fill the panel now leave room for four more. Drag the divider
+under a header to resize the track; drag the header itself to reorder (`MoveTrack`, one
+undo step); the context menu has height presets, *give every track this height*, and the
+icon picker. `Ctrl+↑/↓` change track. `rows_of` is the one function that says where each
+row is, and both the headers and the timeline ask it; `TimelineGeometry` publishes the
+rows, so a gesture test asks rather than multiplies.
+
+Six painted track icons (`icons::paint_track_icon`): drums, keys, strings, vocal, synth,
+effects. The first drums glyph was a circle with a diagonal through it — which at 14 px
+is the polarity Ø already on every channel strip. It is a drum with two crossed sticks now.
+An icon must not be another icon's twin.
+
+### Three defects found by running, and what they were about
+
+**1. The key labels were painted in the canvas colour.** `paint_keys` wrote `C4` in
+`theme::p().ink`, which is the *canvas* — dark on Ink & Gold, where it worked, and white on
+Paper, where it had been invisible since round 10. The kit's lane names inherited the same
+line and showed up only on every second row, which is what made it visible. It is
+`theme::on_light_key` now: whichever of `ink` and `text` is darker, legible on a light key
+in any theme. The test that asserted `"C4"` was *painted* had been passing throughout;
+text that is painted invisibly is the round-11 lesson in a new shape.
+
+**2. Every divider drag was a reorder.** The header rows were allocated flush, so the
+divider line belonged to two rows' hit rectangles and egui gave the press to the later
+one — for which the press was not on *its* grip. The interactive rect is shifted down by
+the grip now: a row owns the divider *below* it. The gesture test caught this before it
+shipped, which is what publishing the geometry is for.
+
+**3. A pan test that measured the wrong thing.** The first stereo test panned the hi-hat
+and summed `|x|` over the whole render; the kick dominates that sum, and the hat moved it
+by 0.03 %. True, and no assertion can rest on it. The test pans the kick now, and its
+companion asserts that with every pad centred the two channels are *bit-identical* —
+which is the "a control at its default touches nothing" rule, again.
+
+Also: a flaky guardrail did what round 9 said it would. `stress_project_renders_within_budget`
+failed once at 266 ms against a 250 ms ceiling while another project was compiling, and
+passed alone. It was left as it is; the note in round 9 already says what it means.
+
+### Round 12, second half: the rack becomes FL's, on the user's direction
+
+After the first half landed, the direction came back: *the channel rack should map several
+channels and send them to different mixer channels or group them, use samples or generate
+sounds, and open with a kick, snare and hi-hat that sound incredible.* Decision 1 of the
+drums plan — one kit on one track, always — was what stood in the way, and it was wrong
+about what FL's rack is for. Revised in ADR 0013, and this is what changed:
+
+- **A channel is a track.** The rack lists every track, one row each, with the track's own
+  mute, fader and pan (`SetTrackMute` / `SetTrackGain` / `SetTrackPan` — the mixer's
+  commands) and the number of the strip it lands on. A kit with several pads expands into
+  indented pad rows with the pad's own controls. A drum that needs its own strip is a
+  track with a one-pad kit (`PulsusParams::single`); the whole kit on one strip is a
+  track with seven. Both are the same type and the same rows.
+- **The rack edits a pattern region** — the selected clip's window — on every track. A row
+  shows what its track's clip plays inside it; a step on a channel with no clip there
+  creates one, the pattern's size and repeat, in the same undo step. The rack **fits the
+  pattern to its width** by default and only scrolls once you zoom. Clips stay the unit of
+  reuse: still one timeline model. A melodic track is one row whose step adds the clip's
+  lowest note, or middle C.
+- **Samples per pad.** `PadVoice::Sample` and `DrumPad::sample`, schema **8**. A pad plays
+  a WAV — any rate, mono or stereo, resampled and retuned by the pad's tune, choked and
+  muted like the others — in the same kit as synthesized pads. `cantus_engine::samples::
+  SampleCache` decodes with `hound` and **attaches** the audio to the snapshot
+  (`TrackSnapshot::samples`) before it is sent, so real-time and offline render see one
+  buffer; the cache never evicts, so an `Arc` dropped on the audio thread is never the
+  last. A missing file makes the pad silent and the inspector say so; fixture `v8` points
+  at a file that does not exist on purpose. Null tests: block-size independence and
+  realtime-equals-offline through a real WAV in a tempdir; tuning up an octave halves the
+  length; a stereo file keeps its channels apart; a missing file is exact silence.
+- **Any track can become a kit** (`SetInstrument`, an *Instrument* combo in the inspector),
+  **pads can be added and removed** (`InsertPad` / `RemovePad`, *+ Pad* and *Remove pad*),
+  and *Load…* on a pad picks a WAV (`SetPadSample`, which also switches the voice, in one
+  undo step). All four ran through the undo fuzz, which caught the first `PadField::Voice`
+  resetting the decay alongside the voice — undo restored one and not the other. A
+  parameter set changes exactly one field now.
+- **The app opens on a groove.** `welcome_project()`: keys, kick, snare and hi-hat as four
+  tracks — the drums each their own strip — playing two bars in a four-bar loop, pad names
+  in the interface language. `starter_project()` stays as the tests' fixture, so a change
+  to the groove cannot break a test about undo.
+- **The voices.** Kick: a second, much faster pitch stage (the beater's knock, gone in
+  8 ms) on top of the slow fall. Snare: a small pitch drop at the hit, two noise paths (a
+  band-pass for the wires, a high-pass an octave below it for the crack), noise mix
+  brighter with velocity. Hi-hat: two milliseconds of stick noise before the metal. The
+  stick noise exposed a real non-locality — noise was seeded from a *global* hit counter,
+  so adding a kick changed how the next hat sounded; the `kick under hats` residue test
+  caught it and the seed is per pad now. I cannot listen; `cargo run -p cantus-ui
+  --example render_kit -- out/` renders each drum and the groove to WAV, and those files
+  went to the user for judgement. **Whether they sound incredible is not established** —
+  the numbers (kick fundamental 47 Hz, ~110 ms to −20 dB; snare centroid brought down from
+  10 kHz to ~6; hats −10 dB under the kick) say plausible, and only ears say good.
+
+One mistake to own: mid-way, a `git checkout` on the test file restored the *staged*
+round-11 copy and threw away the session's test additions. Every patch had been a script
+in the scratchpad, so they were replayed in order and the count came back; the habit of
+patching through scripts is what made that a ten-minute loss and not a day.
+
+### What is not done, and why
+
+- **Buses and sends** — the "send several channels to one mixer channel" half of the ask.
+  Each drum has its own strip today; grouping them is the next block, designed above.
+- **Swing** (decision 4 of the drums plan) — not started; it is schema 9. See *The next
+  session*.
+- **What hangs off the selection beyond loop and zoom** — insert/delete space, ripple,
+  quantize starts, render selection — is step 5 of the playlist plan and the next pull.
+- **The rack has no horizontal scrollbar**; it scrolls with the wheel and Ctrl+wheel zooms
+  the cells. A mini-map scrollbar is step 6 of the playlist plan and the rack should share
+  it.
+- **Track groups** are still one tree with the mixer's buses, still not started.
 
 ## Round 11: a fader of our own, clip editing, and the pan law
 
@@ -357,13 +587,13 @@ but something else has to exist first.
 
 | FL has | We have | Verdict |
 |---|---|---|
-| **Per-track height**, dragged on the divider, presets 33–200 %, lock to size | one global height | **take**. This is small and it is felt every session |
+| **Per-track height**, dragged on the divider, presets 33–200 %, lock to size | ~~one global height~~ **done (round 12)**: divider, four presets, *give every track this height*, stored in the project | **take**. This is small and it is felt every session |
 | **Track groups** (drag to nest), group solo/mute, auto-colour a group | none | **take** — and it should be the same tree the mixer's buses use, not a second grouping |
-| **Track icons** beside the name | colour only | **take**. An icon is read faster than a name at 40 px |
+| **Track icons** beside the name | **done (round 12)**: six painted icons, derived from the instrument until one is chosen | **take**. An icon is read faster than a name at 40 px |
 | **Track modes** (unassigned / instrument / audio) linking track ↔ channel ↔ mixer track | every track is an instrument track | **differently.** FL needs modes because its playlist is *not* the instrument list; ours is. A track is an instrument or (later) an audio track, and that follows from what is on it |
 | **Auto-name / auto-name clips** from the instrument | manual names | **take** — a new clip should be called what the track plays, not "Clip" |
-| **Reorder tracks** by drag or Shift+wheel | `MoveTrack` exists, no UI | **take**. The command is already there and reversible; it needs a drag handle |
-| **Track selector** strip, `Ctrl+↑/↓` to change the selected track | click only | **take** |
+| **Reorder tracks** by drag or Shift+wheel | **done (round 12)**: drag the header | **take**. The command is already there and reversible; it needs a drag handle |
+| **Track selector** strip, `Ctrl+↑/↓` to change the selected track | **done (round 12)**: `Ctrl+↑/↓` | **take** |
 | **Performance settings** per track (launch modes, trigger columns) | — | **blocked** on a session/clip-launch view, which is a whole feature (idea.md §5.4) |
 
 #### Time: markers, signatures, arrangements
@@ -380,7 +610,7 @@ but something else has to exist first.
 
 | FL has | We have | Verdict |
 |---|---|---|
-| **Timeline selection**: `Ctrl+drag` in the ruler selects a time range across all tracks | — | **take.** It is the anchor for insert/delete space, loop-to-selection, render-selection, quantize and consolidate. Nearly every entry below depends on it |
+| **Timeline selection**: `Ctrl+drag` in the ruler selects a time range across all tracks | **done (round 12)**, on a bare drag in the ruler's lower lane; the loop brace moved to its own lane on top | **take.** It is the anchor for insert/delete space, loop-to-selection, render-selection, quantize and consolidate. Nearly every entry below depends on it |
 | **Eight tools** (draw, paint, delete, mute, slip, slice, select, zoom) as modes | modifiers and a toolbar | **differently.** The piano roll has tools because a note is drawn; a clip is mostly moved. Add the two that are modes rather than gestures — **slice** and **mute** — and leave the rest as direct manipulation. Eight letter keys to memorise is FL's tax, not its feature |
 | **Magic lasso** (loop the pointer around clips, no click) | marquee | **take.** It is genuinely faster and it is one of the few things nobody else copied |
 | **Clip groups** (`Shift+G` / `Alt+G`) — move and delete together | — | **take** |
@@ -395,7 +625,7 @@ but something else has to exist first.
 | FL has | We have | Verdict |
 |---|---|---|
 | **Zoom & scroll bar** doubling as a **mini playlist preview** of the whole song | plain scrolling | **take.** It is the single best orientation device in FL's playlist, and it is cheap once clips are already drawn as a mesh |
-| Zoom presets `Shift+1..5`, zoom to selection, `Ctrl+RMB` zoom, middle-mouse pan | wheel zoom only | **take** |
+| Zoom presets `Shift+1..5`, zoom to selection, `Ctrl+RMB` zoom, middle-mouse pan | zoom to selection **done (round 12**, `Z`); the rest not yet | **take** |
 | **Vertical zoom** / resize all tracks | — | **take** with per-track height |
 | **Center on playhead** (`Shift+0`), follow playback | — | **take** |
 | **Picker panel** — every clip in the project, filterable, drag into the playlist | — | **take, differently**, and only after the source decision below: without shared sources a picker is a list of things to copy, which is much less useful |
@@ -500,13 +730,11 @@ standard of craft:
 Grouped so that each block is shippable and nothing is built twice. The drums block
 (previous section) is independent of all of this and can go before, after or between.
 
-1. **Timeline selection** — a time range across all tracks, in the ruler. Nothing else in
-   this list is worth starting first: insert/delete space, ripple, quantize starts,
-   loop-to-selection, render-selection and zoom-to-selection all hang off it.
-2. **Track shape**: per-track height with a drag divider and presets, track icons,
-   auto-name, reorder by drag (`MoveTrack` is already there and reversible), `Ctrl+↑/↓`.
-   Move the fader/pan/meter out of the header into the inspector — that is what makes a
-   40-px track possible and it is the density fix.
+1. ~~**Timeline selection**~~ **done (round 12)** — with loop-to-selection and
+   zoom-to-selection hanging off it; the rest of what hangs off it is step 5.
+2. ~~**Track shape**~~ **done (round 12)** except auto-naming clips from the instrument,
+   which is small and still open. The header is 40 px and the fader/pan/meter are in the
+   inspector.
 3. **Clip chrome and the header map** — the visual block above. No model changes, and it is
    the one that will make the arrangement *feel* like a finished product.
 4. **Markers and time signatures**: named markers, Start and Loop actions, per-region time
@@ -545,7 +773,11 @@ Studio's ([its manual][fl-rack] is the reference for what that means).
 These are the equivalents of the content offset in the clip work: get them wrong and every
 later piece has to be redone.
 
-**1. A kit is one instrument on one track, and pads are pitches.** Not one track per drum.
+**1. A kit is one instrument on one track, and pads are pitches.** ~~Not one track per drum.~~
+*Revised the same day (round 12, second half; ADR 0013): a channel is a track, so a drum
+that needs its own strip is a track with a one-pad kit, and the rack lists every track.
+Per-drum routing is therefore real today up to one strip per drum; grouping several into
+one strip is buses, next.*
 A kit is one instrument the way a piano is; a pad is a note on it. Everything already
 built then applies unchanged — one clip, one note list, the same commands, the same undo,
 the same snapshot. FL's model, where every drum is its own channel with its own mixer
@@ -622,7 +854,7 @@ layout where it is right, which is most of it:
 | Steps per pattern | up to 512 | the clip's length ÷ the grid, so it follows the clip |
 | **Graph editor** (`Ctrl+K`) | velocity, pan, pitch, shift, … per step | velocity first; the rest as the note model grows |
 | Global + channel swing | both must be > 0 | one swing per clip (decision 4) — two controls that must agree is a trap |
-| Mixer routing | per channel | with buses (see decision 1) |
+| Mixer routing | per channel | one strip per track today (the rack shows the number); several channels into one strip needs buses — next |
 | Channel groups/filters | named groups, Page Up/Down | later, and only if a kit ever gets big enough to need it |
 
 The grid is dense — pads × steps, redrawn every frame — so it goes into a **`Mesh` with a
@@ -646,13 +878,12 @@ thing.
 
 ### Order of work
 
-1. **`InstrumentSpec::lane_name` / `lanes`**, and the piano roll asking for them. No new
-   DSP, no schema change, and it makes the piano roll ready before there is anything to
-   put in it.
-2. **Pulsus**: the three voices with their null tests, choke groups, one pad per pitch.
-   `InstrumentSpec` gains a variant, which *is* a schema bump and a migration.
-3. **The channel rack panel**, editing the selected clip through the existing commands.
-4. **Swing** as a clip property (a second schema bump, or folded into 2 if the order holds).
+1. ~~**`InstrumentSpec::lane_name` / `lanes`**~~ **done (round 12)** — as `Lanes`, not
+   `Option<&[Pitch]>`; ADR 0013 says why.
+2. ~~**Pulsus**~~ **done (round 12)**, schema 6. Seven pads: the three voices plus toms and
+   a rim as presets of the snare shape.
+3. ~~**The channel rack panel**~~ **done (round 12)**, `F6`.
+4. **Swing** as a clip property — **still open**, and the next schema bump (8).
 5. Per-pad mixer routing, when bus tracks arrive.
 
 More voices — toms, clap, rim, ride, crash — are the same shapes with different numbers
@@ -892,13 +1123,15 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. **A channel rack** — lanes, then Pulsus, then the rack itself. See *The next session*
-   at the top and *Planned: drums, a channel rack…* for the design.
-2. **The playlist**: timeline selection first, then track shape and density. See *The next
-   session* and *Planned: the arrangement, measured against FL Studio's playlist*.
-3. The rest of the playlist plan, in the order it gives: clip chrome and the header map,
-   markers and time signatures, structural editing, navigation, shared clip sources and the
-   picker panel, audio clips, automation clips, multiple arrangements.
+1. **Buses and sends**: route several tracks to one strip; the same tree as track groups.
+   See *The next session*.
+2. **What hangs off the time selection**: insert/delete space, ripple, quantize clip
+   starts, select clips in the selection, render the selection.
+3. **Swing as a clip property** (schema 9).
+4. The rest of the playlist plan, in the order it gives: clip chrome and the header map,
+   markers and time signatures, the remaining structural editing, navigation (a mini-map
+   scrollbar the channel rack should share), shared clip sources and the picker panel,
+   audio clips, automation clips, multiple arrangements.
 4. Piano roll polish, the last of the design plan: scale highlighting and snap-to-scale,
    ghost notes from other clips, chord stamps, a note properties popup, glue/legato, strum,
    arpeggiate.
@@ -967,6 +1200,42 @@ Ordered plan, each step shippable on its own:
   or it races every test that asserts an English string.
 - Bump `SCHEMA_VERSION`, append a migration and regenerate a fixture
   (`cargo run -p cantus-project --example write_fixture`) whenever `Project` changes shape.
+- **An editor's vertical axis comes from the instrument** (`InstrumentSpec::lanes`, ADR
+  0013), through `views::piano_roll::Axis`, which also gives a row to any pitch the clip
+  holds that the instrument has no lane for. A view must never assume a keyboard, and
+  every vertical move — drag, transpose — goes through `Axis::moved`, in rows.
+- **A step is a note.** The channel rack issues `InsertNotes` / `RemoveNotes` and holds no
+  data of its own. A second editor for a clip must not be a second data model.
+- **A pad's mute, like a track's, is resolved in `Snapshot::compile`.** The audio thread
+  is handed events with the pad already gone; it never consults a kit per note.
+- **A snapshot that will be *played* is made by `EngineHandle::compile`**, never by
+  `Snapshot::compile` alone: the engine attaches the sample files. Tests that only look at
+  events may compile directly.
+- **The sample cache never evicts.** That is what makes every `Arc` the audio thread
+  holds safe to drop there. Do not add an eviction without adding a garbage path.
+- **Noise is seeded per pad**, never from a global counter: editing one pad must not
+  change another's render. The `kick under hats` residue test is the guard.
+- **A parameter set changes exactly one field.** The command's inverse restores that
+  field; anything else it touched is not undone. The fuzz catches this, but only after.
+- **The channel rack is a view over every track.** A "channel" is a `Track`; a new
+  per-channel feature (routing, sends) goes on `Track` and the rack shows it.
+- **One instrument per track, both engines per slot.** `TrackSlot` holds a `Firmus` and a
+  `Pulsus` preallocated and switches with a flag; a new instrument adds a field, never a
+  `Box<dyn>` (ADR 0005). An instrument that pans inside itself renders stereo; everything
+  from the polarity switch on is one signal path.
+- A parameter of *any* instrument is addressed by `InstrumentParam`, never by a
+  per-instrument command. Adding an instrument means a variant there, a `set_param` arm,
+  and a fixture that uses it.
+- **Text on a light key is `theme::on_light_key`**, never `ink` (the canvas colour, white
+  on Paper) and never `text` (light on Ink & Gold). A test that asserts text was painted
+  does not assert it was visible.
+- **Rows come from `rows_of`.** Track heights vary; anything that needs to know where row
+  *n* is asks `TimelineGeometry::rows`, never multiplies by a height.
+- **A row's interactive rect owns the grip below it**, shifted down by the grip's width,
+  or a press on the divider goes to the row underneath and means something else.
+- `--rack` and `--track N` open the channel rack and select a track at startup, next to
+  `--mixer`; synthetic input to the running app is unreliable here, and these exist so a
+  view of a particular track can be looked at without it.
 - Screenshots on this machine: PrintWindow from a DPI-aware process, enumerating the
   process's windows and taking the largest visible one — `MainWindowHandle` points at an
   18x18 helper window and gives a blank capture. Pick the newest `cantus` process, and

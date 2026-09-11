@@ -32,6 +32,25 @@ pub struct Bar<'a> {
 }
 
 impl<'a> Bar<'a> {
+    /// A bar over any range, filling out from `detent` — which is also where a
+    /// double-click resets it to.
+    ///
+    /// [`pan`](Self::pan) and [`width`](Self::width) are this with the two shapes the
+    /// mixer needs already filled in; a pad's level (0 dB in the middle of −24…+12) and a
+    /// step's velocity are the same control with different numbers, and they must not be
+    /// a second widget.
+    pub fn new(value: &'a mut f32, range: std::ops::RangeInclusive<f32>, detent: f32) -> Self {
+        let (min, max) = (*range.start(), *range.end());
+        Bar {
+            value,
+            min,
+            max,
+            detent: detent.clamp(min, max),
+            width: space::GRID * 20.0,
+            name: String::new(),
+        }
+    }
+
     /// A pan control: −1…1, centred.
     pub fn pan(value: &'a mut f32) -> Self {
         Bar {

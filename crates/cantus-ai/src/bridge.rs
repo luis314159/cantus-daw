@@ -270,7 +270,7 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
             };
             Ok(Some(Command::SetInstrumentParam {
                 track,
-                param,
+                param: param.into(),
                 value,
             }))
         }

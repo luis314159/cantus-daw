@@ -19,7 +19,7 @@ pub mod theme;
 pub mod views;
 pub mod widgets;
 
-pub use app::{starter_project, stress_project, CantusApp, APP_VERSION};
+pub use app::{starter_project, stress_project, welcome_project, CantusApp, APP_VERSION};
 
 use std::path::PathBuf;
 
@@ -35,6 +35,11 @@ pub struct LaunchOptions {
     pub window: Option<(f32, f32)>,
     /// Start in the mixer instead of the piano roll.
     pub mixer: bool,
+    /// Start in the channel rack, for the same reason as `--mixer`.
+    pub rack: bool,
+    /// Select this track (by index) at startup, so a view of a particular track can be
+    /// looked at without driving the arrangement — synthetic input is unreliable here.
+    pub track: Option<usize>,
     /// Open the shortcuts editor at startup (handy for a look without hunting the menu).
     pub shortcuts: bool,
     /// Open the settings dialog at startup, for the same reason.
@@ -61,6 +66,8 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     };
     let stress = options.stress;
     let mixer = options.mixer;
+    let rack = options.rack;
+    let track = options.track;
     let shortcuts = options.shortcuts;
     let settings = options.settings;
     let mut viewport = egui::ViewportBuilder::default()
@@ -84,6 +91,12 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
             let mut app = CantusApp::new(cc, project, stress, locale_from_flag);
             if mixer {
                 app.central = app::CentralView::Mixer;
+            }
+            if rack {
+                app.central = app::CentralView::ChannelRack;
+            }
+            if let Some(id) = track.and_then(|i| app.project().tracks.get(i).map(|t| t.id)) {
+                app.select_track(id);
             }
             app.show_shortcuts = shortcuts;
             app.show_settings = settings;

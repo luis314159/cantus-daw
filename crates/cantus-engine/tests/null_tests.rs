@@ -34,7 +34,7 @@ fn demo_project() -> Project {
     p.tracks.push(lead);
 
     let mut bass = p.make_track("Bass");
-    let InstrumentSpec::Firmus(f) = &mut bass.instrument;
+    let f = bass.instrument.firmus_mut().expect("Firmus");
     f.cutoff_hz = 400.0;
     f.osc1_wave = Waveform::Square;
     f.amp_release_s = 0.05;
@@ -427,4 +427,304 @@ fn the_master_strip_reaches_the_output() {
     let mono = render_of(&p);
     assert!(mono.chunks_exact(2).all(|f| f[0] == f[1]), "master mono");
     assert!(peak(&mono) > 0.05);
+}
+
+/// A project with a **kit** on it, which exercises the stereo instrument path, per-pad
+/// pan, choke groups and pad mute all the way through the processor.
+fn drum_project() -> Project {
+    let mut p = Project::new("drums");
+    p.tempo_bpm = 140.0;
+    let mut t = p.make_track("Drums");
+    let mut kit = PulsusParams::default();
+    // Pan a pad off centre and mute another, so this project can only render correctly if
+    // the stereo path and the compile-time pad mute both work. The panned one is the
+    // *kick*, deliberately: panning the hi-hat moved the mix by 0.03 %, which is a true
+    // statement that no assertion can rest on.
+    kit.pads[0].pan = -0.6;
+    kit.pads[1].muted = true;
+    t.instrument = InstrumentSpec::Pulsus(kit);
+    let mut clip = p.make_clip("Beat", Ticks::ZERO, Ticks::beats(8));
+    // Kick on the beat, hats on the eighth (open on 3, closed right after it: the choke),
+    // snare on 2 and 4, and a hit on the muted rim pad that must not be heard.
+    for beat in 0..8i64 {
+        clip.notes
+            .push(p.make_note(Ticks::beats(beat), Ticks::SIXTEENTH, 36, 110));
+        if beat % 4 == 2 {
+            clip.notes
+                .push(p.make_note(Ticks::beats(beat), Ticks::SIXTEENTH, 38, 100));
+        }
+    }
+    for eighth in 0..16i64 {
+        let pitch = if eighth == 5 { 46 } else { 42 };
+        clip.notes
+            .push(p.make_note(Ticks::EIGHTH * eighth, Ticks::SIXTEENTH, pitch, 80));
+    }
+    clip.notes
+        .push(p.make_note(Ticks::beats(1), Ticks::SIXTEENTH, 37, 120));
+    t.clips.push(clip);
+    t.pan = 0.15;
+    p.tracks.push(t);
+    p
+}
+
+fn drum_snapshot() -> Arc<Snapshot> {
+    Arc::new(Snapshot::compile(&drum_project(), 1))
+}
+
+/// The standing guardrail, applied to Pulsus through the whole engine rather than to the
+/// voice on its own: where the host splits the buffer must not be audible.
+#[test]
+fn a_kit_renders_the_same_at_every_block_size() {
+    let snap = drum_snapshot();
+    let mut opts = RenderOptions {
+        tail_seconds: 0.5,
+        block_frames: 512,
+        ..Default::default()
+    };
+    let reference = render(snap.clone(), &opts).unwrap();
+    assert!(reference.peak > 0.05, "silent kit: peak {}", reference.peak);
+    assert!(
+        reference.peak < 1.0,
+        "clipping kit: peak {}",
+        reference.peak
+    );
+    for block in [1usize, 7, 64, 480, 4096] {
+        opts.block_frames = block;
+        let r = render(snap.clone(), &opts).unwrap();
+        assert_null(
+            &reference.samples,
+            &r.samples,
+            0.0,
+            &format!("kit at block size {block}"),
+        );
+    }
+}
+
+#[test]
+fn a_kit_renders_the_same_in_real_time_as_offline() {
+    let snap = drum_snapshot();
+    let opts = RenderOptions {
+        tail_seconds: 0.25,
+        block_frames: 256,
+        ..Default::default()
+    };
+    let offline = render(snap.clone(), &opts).unwrap();
+
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let total = offline.frames();
+    let mut out = Vec::with_capacity(total * 2);
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut i = 0;
+    while out.len() / 2 < total {
+        let n = sizes[i % sizes.len()].min(total - out.len() / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        p.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+    }
+    assert_null(&offline.samples, &out, 0.0, "kit realtime vs offline");
+}
+
+/// A muted pad must be *gone*, not quiet — and the notes on it must still be in the
+/// project, so unmuting brings them back untouched.
+#[test]
+fn a_muted_pad_is_silent_and_unmuting_it_brings_it_back() {
+    let opts = RenderOptions {
+        tail_seconds: 0.3,
+        ..Default::default()
+    };
+    let muted = render(drum_snapshot(), &opts).unwrap();
+
+    let mut project = drum_project();
+    let kit = project.tracks[0].instrument.pulsus_mut().unwrap();
+    assert!(kit.pads[1].muted, "the fixture stopped muting a pad");
+    kit.pads[1].muted = false;
+    let heard = render(Arc::new(Snapshot::compile(&project, 2)), &opts).unwrap();
+
+    let r = compare(&muted.samples, &heard.samples);
+    assert!(
+        r.max_abs_diff > 0.01,
+        "unmuting the rim changed nothing: the mute was never doing anything"
+    );
+    // And the notes are still there either way: mute hides a pad, it does not delete it.
+    assert!(project.tracks[0].clips[0]
+        .notes
+        .iter()
+        .any(|n| n.pitch == 37));
+}
+
+/// Pads carry their own pan, so the kit's own output is not the same in both channels —
+/// and it must not be, or per-pad pan is decoration.
+#[test]
+fn a_kit_places_its_pads_across_the_stereo_field() {
+    let mut project = drum_project();
+    // Centre the *track* so what is left can only have come from the pads.
+    project.tracks[0].pan = 0.0;
+    let panned = render(
+        Arc::new(Snapshot::compile(&project, 1)),
+        &RenderOptions {
+            tail_seconds: 0.3,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let (mut left, mut right) = (0f64, 0f64);
+    for f in panned.samples.chunks_exact(2) {
+        left += (f[0] as f64).abs();
+        right += (f[1] as f64).abs();
+    }
+    assert!(
+        left > right * 1.05,
+        "the pad panned left did not move the mix left: {left} against {right}"
+    );
+
+    // With every pad centred the two channels are *identical*, not merely close: a pad at
+    // its default must not touch a sample.
+    let kit = project.tracks[0].instrument.pulsus_mut().unwrap();
+    for pad in &mut kit.pads {
+        pad.pan = 0.0;
+    }
+    let centred = render(
+        Arc::new(Snapshot::compile(&project, 2)),
+        &RenderOptions {
+            tail_seconds: 0.3,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    for f in centred.samples.chunks_exact(2) {
+        assert_eq!(f[0], f[1], "a kit with every pad centred is not centred");
+    }
+}
+
+/// A kit with a **sampled** pad, loaded from a real file through the cache, must obey the
+/// same guardrails as a synthesized one: the same at every block size, and the same in real
+/// time as offline. And a pad whose file is missing is silent — not an error, not a click.
+#[test]
+fn a_sampled_pad_renders_the_same_everywhere_and_a_missing_file_is_silent() {
+    let dir = tempfile::tempdir().unwrap();
+    let wav = dir.path().join("clap.wav");
+    {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 44_100,
+            bits_per_sample: 24,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut w = hound::WavWriter::create(&wav, spec).unwrap();
+        for i in 0..8_000 {
+            let t = i as f32 / 44_100.0;
+            let env = (-t * 12.0).exp();
+            let l = ((t * 1_800.0).sin() * env * 6_000_000.0) as i32;
+            let r = ((t * 2_600.0).sin() * env * 6_000_000.0) as i32;
+            w.write_sample(l).unwrap();
+            w.write_sample(r).unwrap();
+        }
+        w.finalize().unwrap();
+    }
+
+    let mut p = Project::new("sampled");
+    let mut t = p.make_track("Clap");
+    let mut pad = DrumPad::snare();
+    pad.voice = PadVoice::Sample;
+    pad.sample = Some(wav.to_string_lossy().to_string());
+    let mut missing = DrumPad::rim();
+    missing.voice = PadVoice::Sample;
+    missing.sample = Some(dir.path().join("gone.wav").to_string_lossy().to_string());
+    t.instrument = InstrumentSpec::Pulsus(PulsusParams::of(vec![pad, missing]));
+    let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
+    for beat in 0..4i64 {
+        clip.notes
+            .push(p.make_note(Ticks::beats(beat), Ticks::SIXTEENTH, 38, 110));
+        clip.notes.push(p.make_note(
+            Ticks::beats(beat) + Ticks::EIGHTH,
+            Ticks::SIXTEENTH,
+            37,
+            110,
+        ));
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+
+    let mut cache = SampleCache::new();
+    let mut snap = Snapshot::compile(&p, 1);
+    let errors = cache.attach(&mut snap);
+    assert_eq!(
+        errors.len(),
+        1,
+        "exactly the missing file should be reported"
+    );
+    // Pads sort by pitch: the missing rim (37) is pad 0, the clap on the snare's pitch is 1.
+    assert!(snap.tracks[0].samples[0].is_none());
+    assert!(snap.tracks[0].samples[1].is_some());
+    let snap = Arc::new(snap);
+
+    let mut opts = RenderOptions {
+        tail_seconds: 0.3,
+        block_frames: 512,
+        ..Default::default()
+    };
+    let reference = render(snap.clone(), &opts).unwrap();
+    assert!(
+        reference.peak > 0.05,
+        "the sample did not play: {}",
+        reference.peak
+    );
+    for block in [1usize, 7, 480, 4096] {
+        opts.block_frames = block;
+        let r = render(snap.clone(), &opts).unwrap();
+        assert_null(
+            &reference.samples,
+            &r.samples,
+            0.0,
+            &format!("sample at block {block}"),
+        );
+    }
+
+    // Real time against offline, through the processor as the callback drives it.
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    tx.push(EngineMessage::SetSnapshot(snap.clone())).unwrap();
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    opts.block_frames = 512;
+    let offline = render(snap.clone(), &opts).unwrap();
+    let total = offline.frames();
+    let mut out = Vec::with_capacity(total * 2);
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut i = 0;
+    while out.len() / 2 < total {
+        let n = sizes[i % sizes.len()].min(total - out.len() / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        proc.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+    }
+    assert_null(
+        &offline.samples,
+        &out,
+        0.0,
+        "sampled kit realtime vs offline",
+    );
+
+    // The missing pad contributed nothing: the render equals one with that pad muted.
+    let mut quiet = p.clone();
+    quiet.tracks[0].instrument.pulsus_mut().unwrap().pads[1].muted = true;
+    let mut q = Snapshot::compile(&quiet, 2);
+    cache.attach(&mut q);
+    let q = render(Arc::new(q), &opts).unwrap();
+    assert_null(
+        &q.samples,
+        &vec![0.0; q.samples.len()],
+        0.0,
+        "a missing sample must be exact silence",
+    );
 }

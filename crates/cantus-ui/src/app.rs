@@ -12,17 +12,16 @@ use crate::recording::{RecordedNote, Recorder};
 use crate::settings::{self, Settings};
 use crate::theme;
 use crate::views::{
-    self, arrangement::ArrangementView, arrangement::ClipDragResult, mixer::MixerView,
-    piano_roll::PianoRollView,
+    self, arrangement::ArrangementView, arrangement::ClipDragResult, channel_rack::ChannelRackView,
+    mixer::MixerView, piano_roll::PianoRollView,
 };
 use cantus_core::{
-    Clip, ClipId, Color, Command, CommandBus, EffectId, EffectKind, MergeKey, Origin, Project,
-    Snapshot, Ticks, TrackId,
+    Clip, ClipId, Color, Command, CommandBus, EffectId, EffectKind, InstrumentSpec, MergeKey,
+    Origin, Project, Ticks, TrackId,
 };
 use cantus_engine::{EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -30,6 +29,9 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CentralView {
     PianoRoll,
+    /// The channel rack. Beside the piano roll rather than beside the arrangement,
+    /// because it is a *second editor for the same clip* and not a second timeline.
+    ChannelRack,
     Mixer,
 }
 
@@ -37,6 +39,7 @@ impl From<layout::Central> for CentralView {
     fn from(c: layout::Central) -> Self {
         match c {
             layout::Central::PianoRoll => CentralView::PianoRoll,
+            layout::Central::ChannelRack => CentralView::ChannelRack,
             layout::Central::Mixer => CentralView::Mixer,
         }
     }
@@ -46,6 +49,7 @@ impl From<CentralView> for layout::Central {
     fn from(c: CentralView) -> Self {
         match c {
             CentralView::PianoRoll => layout::Central::PianoRoll,
+            CentralView::ChannelRack => layout::Central::ChannelRack,
             CentralView::Mixer => layout::Central::Mixer,
         }
     }
@@ -76,6 +80,17 @@ pub struct CantusApp {
     pub selected_clip: Option<ClipId>,
     /// The arrangement's selection: every clip an arrangement-wide operation acts on.
     pub selected_clips: Vec<ClipRef>,
+    /// A range of *time*, across every track, `(from, to)` with `from < to`.
+    ///
+    /// It lives here rather than in the arrangement's view state because it is a
+    /// selection, like [`selected_clips`](Self::selected_clips), and because everything
+    /// that will hang off it — insert and delete space, ripple, quantize starts,
+    /// render-selection, consolidate — is an *application* operation reached from a menu
+    /// or a key, not something the view does to itself.
+    ///
+    /// Not in the project: a selection is not part of the piece, any more than which clip
+    /// is highlighted is.
+    pub time_selection: Option<(Ticks, Ticks)>,
     pub selected_notes: Vec<cantus_core::NoteId>,
     /// Which half of the window the last edit gesture happened in. Cut, copy, paste,
     /// duplicate, delete and the arrow keys all mean different things depending on it, and
@@ -83,6 +98,7 @@ pub struct CantusApp {
     pub focus: EditFocus,
     pub arrangement: ArrangementView,
     pub piano_roll: PianoRollView,
+    pub rack: ChannelRackView,
     pub mixer: MixerView,
     pub central: CentralView,
     pub recorder: Recorder,
@@ -238,7 +254,7 @@ impl CantusApp {
             if stress {
                 stress_project()
             } else {
-                starter_project()
+                welcome_project()
             }
         });
         let mut app = CantusApp {
@@ -248,10 +264,12 @@ impl CantusApp {
             selected_track: None,
             selected_clip: None,
             selected_clips: Vec::new(),
+            time_selection: None,
             selected_notes: Vec::new(),
             focus: EditFocus::PianoRoll,
             arrangement: ArrangementView::default(),
             piano_roll: PianoRollView::default(),
+            rack: ChannelRackView::default(),
             mixer: MixerView::default(),
             central: CentralView::PianoRoll,
             recorder: Recorder::new(),
@@ -601,11 +619,39 @@ impl CantusApp {
                 (pitches, c.content_start().as_beats_f64() as f32)
             });
         if let Some((pitches, scroll)) = view {
+            // Centre the *rows*, not the pitches: on a kit the two are different numbers,
+            // and a kit with twelve pads scrolled to "pitch 60" would show empty grid.
+            let axis = self.note_axis();
             if let Some((lo, hi)) = pitches {
-                self.piano_roll.top_pitch =
-                    ((lo as f32 + hi as f32) / 2.0 + 14.0).clamp(24.0, 127.0);
+                let rows = axis.len() as f32;
+                let mid = match (axis.lane_of(lo), axis.lane_of(hi)) {
+                    (Some(a), Some(b)) => (a + b) as f32 / 2.0,
+                    _ => rows * 0.5,
+                };
+                let half = if axis.pads() { rows * 0.5 } else { 14.0 };
+                self.piano_roll.top_lane = (mid + half + 1.0).clamp(1.0, rows);
             }
             self.piano_roll.scroll_beats = scroll;
+        }
+    }
+
+    /// The vertical axis of the clip the piano roll is editing.
+    ///
+    /// Rebuilt on demand rather than cached: it is a handful of entries, and a cached copy
+    /// would be one more thing that can be stale the frame after a pad is renamed. Every
+    /// vertical operation asks for it, so there is exactly one answer to "what is above
+    /// this note".
+    pub fn note_axis(&self) -> views::piano_roll::Axis {
+        let Some((t, c)) = self.selected_track.zip(self.selected_clip) else {
+            return views::piano_roll::Axis::default();
+        };
+        match self
+            .project()
+            .track(t)
+            .and_then(|track| track.clip(c).map(|clip| (track, clip)))
+        {
+            Some((track, clip)) => views::piano_roll::Axis::build(&track.instrument, clip),
+            None => views::piano_roll::Axis::default(),
         }
     }
 
@@ -747,6 +793,101 @@ impl CantusApp {
                 self.selected_notes.clear();
             }
         }
+    }
+
+    /// Set the time selection, normalising the ends and dropping an empty range.
+    ///
+    /// An empty selection is `None`, never `Some(t, t)`: every operation that hangs off
+    /// this has to answer "is there a selection", and a zero-length one that answers yes
+    /// is a bug in every one of them at once.
+    pub fn set_time_selection(&mut self, from: Ticks, to: Ticks) {
+        let (a, b) = if from <= to { (from, to) } else { (to, from) };
+        let a = a.max(Ticks::ZERO);
+        self.time_selection = (b > a).then_some((a, b));
+    }
+
+    pub fn clear_time_selection(&mut self) {
+        self.time_selection = None;
+    }
+
+    /// Put the loop brace on the time selection and switch looping on.
+    ///
+    /// Both, not one: a loop region you have to remember to enable separately is the sort
+    /// of two-step that gets blamed on the transport.
+    pub fn loop_to_selection(&mut self) {
+        let Some((from, to)) = self.time_selection else {
+            return;
+        };
+        self.exec(Command::Batch {
+            label_key: "cmd.loop_to_selection".into(),
+            commands: vec![
+                Command::SetLoopRegion {
+                    region: Some(cantus_core::LoopRegion {
+                        start: from,
+                        end: to,
+                    }),
+                },
+                Command::SetLoopEnabled { enabled: true },
+            ],
+        });
+    }
+
+    /// Fit the time selection to the arrangement's width.
+    ///
+    /// A view change, so it is not a command and does not undo — nothing about the piece
+    /// changed. A little margin on each side, because a selection whose edges are exactly
+    /// on the edges of the window cannot be grabbed.
+    pub fn zoom_to_selection(&mut self) {
+        let Some((from, to)) = self.time_selection else {
+            return;
+        };
+        let Some(geo) = self.arrangement.geometry() else {
+            return;
+        };
+        let width = geo.width;
+        let beats = (to - from).as_beats_f64() as f32;
+        if beats <= 0.0 || width <= 0.0 {
+            return;
+        }
+        let margin = 0.92;
+        self.arrangement.px_per_beat = (width * margin / beats).clamp(2.0, 400.0);
+        let visible = width / self.arrangement.px_per_beat;
+        let centre = (from.as_beats_f64() as f32 + to.as_beats_f64() as f32) * 0.5;
+        self.arrangement.scroll_beats = (centre - visible * 0.5).max(0.0);
+    }
+
+    /// Give every track the same height. The divider is for aiming; this is for agreeing.
+    pub fn set_all_track_heights(&mut self, height: f32) {
+        let commands: Vec<Command> = self
+            .project()
+            .tracks
+            .iter()
+            .filter(|t| (t.height() - height).abs() > 0.001)
+            .map(|t| Command::SetTrackHeight { id: t.id, height })
+            .collect();
+        if commands.is_empty() {
+            return;
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.set_track_height".into(),
+            commands,
+        });
+    }
+
+    /// Move the selection one track up or down the list.
+    pub fn step_track(&mut self, delta: i32) {
+        let tracks = self.project().tracks.len();
+        if tracks == 0 {
+            return;
+        }
+        let current = self
+            .selected_track
+            .and_then(|id| self.project().track_index(id))
+            .map(|i| i as i32)
+            .unwrap_or(if delta > 0 { -1 } else { tracks as i32 });
+        let next = (current + delta).clamp(0, tracks as i32 - 1) as usize;
+        let id = self.project().tracks[next].id;
+        self.select_track(id);
     }
 
     pub fn clear_clip_selection(&mut self) {
@@ -1250,10 +1391,53 @@ impl CantusApp {
         });
     }
 
+    /// Move the selection up or down the editor's vertical axis.
+    ///
+    /// `semitones` is what it says on a keyboard. On a **kit** it is rows: ±1 is the next
+    /// pad and ±12 — the octave keys — is four pads, which is a row of a 4×4 pad grid.
+    /// Neither "a semitone" nor "an octave" names anything on a drum kit, and a key that
+    /// silently did nothing would be worse than one that moves by the unit the layout
+    /// actually has.
     pub fn transpose_selection(&mut self, semitones: i32) {
         let Some((t, c, sel)) = self.selected_note_values() else {
             return;
         };
+        let axis = self.note_axis();
+        if axis.pads() {
+            let rows = if semitones.abs() >= 12 {
+                semitones.signum() * 4
+            } else {
+                semitones
+            };
+            // Refuse the whole move rather than piling the selection up against an end
+            // stop: a transpose that squashed three pads onto one would not be undoable
+            // by transposing back.
+            if sel
+                .iter()
+                .any(|n| axis.moved(n.pitch, rows) == n.pitch && rows != 0)
+            {
+                return;
+            }
+            let notes: Vec<_> = sel
+                .into_iter()
+                .map(|n| cantus_core::Note {
+                    pitch: axis.moved(n.pitch, rows),
+                    ..n
+                })
+                .collect();
+            if let Some(first) = notes.first() {
+                self.audition(t, first.pitch);
+            }
+            self.exec(Command::Batch {
+                label_key: "cmd.transpose".into(),
+                commands: vec![Command::SetNotes {
+                    track: t,
+                    clip: c,
+                    notes,
+                }],
+            });
+            return;
+        }
         if sel
             .iter()
             .any(|n| !(0..=127).contains(&(n.pitch as i32 + semitones)))
@@ -1646,13 +1830,142 @@ impl CantusApp {
 
     pub fn new_project(&mut self) {
         self.engine.stop();
-        self.bus.reset(starter_project());
+        self.bus.reset(welcome_project());
         self.path = None;
         self.selected_track = None;
         self.selected_clip = None;
         self.selected_notes.clear();
         self.select_first();
         self.seek(Ticks::ZERO);
+    }
+
+    /// Give the track a different instrument. A kit arrives with its pad names in the
+    /// interface language, because "Closed hat" on a Spanish screen is a bug however good
+    /// the hat sounds.
+    pub fn set_instrument(&mut self, track: TrackId, spec: InstrumentSpec) {
+        let spec = match spec {
+            InstrumentSpec::Pulsus(mut kit) => {
+                for pad in &mut kit.pads {
+                    pad.name = localized_pad_name(pad);
+                }
+                InstrumentSpec::Pulsus(kit)
+            }
+            other => other,
+        };
+        self.exec(Command::SetInstrument {
+            track,
+            spec: Box::new(spec),
+        });
+        self.rack.selected_pad = 0;
+    }
+
+    /// Add a pad of the given voice to the track's kit, on the next free pitch above its
+    /// highest — so a new pad never shadows one already there — and select it.
+    pub fn add_pad(&mut self, track: TrackId, voice: cantus_core::PadVoice) {
+        use cantus_core::{DrumPad, PadVoice};
+        let Some(kit) = self
+            .project()
+            .track(track)
+            .and_then(|t| t.instrument.pulsus())
+        else {
+            return;
+        };
+        let pitch = kit
+            .pads
+            .iter()
+            .map(|p| p.pitch)
+            .max()
+            .map(|m| m.saturating_add(1))
+            .unwrap_or(36)
+            .min(127);
+        if kit.index_of_pitch(pitch).is_some() {
+            return; // Every pitch above the top is taken: the kit is as big as it can be.
+        }
+        let mut pad = match voice {
+            PadVoice::Kick => DrumPad::kick(),
+            PadVoice::Snare => DrumPad::snare(),
+            PadVoice::HiHat => DrumPad::closed_hat(),
+            PadVoice::Sample => {
+                let mut p = DrumPad::snare();
+                p.voice = PadVoice::Sample;
+                p.decay = cantus_core::PadField::Decay.info(PadVoice::Sample).default;
+                p
+            }
+        };
+        pad.pitch = pitch;
+        pad.choke = 0;
+        pad.name = if voice == PadVoice::Sample {
+            t("pad.voice.sample")
+        } else {
+            localized_pad_name(&pad)
+        };
+        let index = kit.pads.partition_point(|p| p.pitch < pitch);
+        if self.exec(Command::InsertPad {
+            track,
+            pad: Box::new(pad),
+        }) {
+            self.rack.selected_pad = index;
+        }
+    }
+
+    pub fn remove_pad(&mut self, track: TrackId, pad: usize) {
+        let Some(pitch) = self
+            .project()
+            .track(track)
+            .and_then(|t| t.instrument.pulsus())
+            .and_then(|k| k.pad(pad))
+            .map(|p| p.pitch)
+        else {
+            return;
+        };
+        if self.exec(Command::RemovePad { track, pitch }) {
+            self.rack.selected_pad = pad.saturating_sub(1);
+        }
+    }
+
+    /// Choose a WAV for a pad. The dialog is the only part that cannot be tested headless;
+    /// [`set_pad_sample`](Self::set_pad_sample) is the part that can.
+    pub fn load_pad_sample(&mut self, track: TrackId, pad: usize) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("WAV", &["wav", "WAV"])
+            .pick_file()
+        {
+            self.set_pad_sample(track, pad, Some(path.to_string_lossy().to_string()));
+        }
+    }
+
+    /// Point a pad at a file and make it a sample pad, in one undo step. A pad with a file
+    /// but a synthesized voice would be a pad that looks loaded and sounds like a drum
+    /// machine, which is a support question waiting to be asked.
+    pub fn set_pad_sample(&mut self, track: TrackId, pad: usize, path: Option<String>) {
+        if let Some(p) = path.as_deref() {
+            self.engine.samples.retry(std::path::Path::new(p));
+        }
+        let mut commands = vec![Command::SetPadSample {
+            track,
+            pad: pad as u8,
+            path,
+        }];
+        let is_sample = self
+            .project()
+            .track(track)
+            .and_then(|t| t.instrument.pulsus())
+            .and_then(|k| k.pad(pad))
+            .is_some_and(|p| p.voice == cantus_core::PadVoice::Sample);
+        if !is_sample {
+            commands.push(Command::SetInstrumentParam {
+                track,
+                param: cantus_core::InstrumentParam::Pulsus {
+                    pad: pad as u8,
+                    field: cantus_core::PadField::Voice,
+                },
+                value: cantus_core::PadVoice::Sample.index() as f32,
+            });
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.set_pad_sample".into(),
+            commands,
+        });
     }
 
     pub fn open_dialog(&mut self) {
@@ -1774,7 +2087,7 @@ impl CantusApp {
         if self.export.is_some() {
             return;
         }
-        let snapshot = Arc::new(Snapshot::compile(self.project(), self.bus.revision()));
+        let snapshot = self.engine.compile(self.bus.project(), self.bus.revision());
         let opts = RenderOptions {
             sample_rate: self.engine.sample_rate.round() as u32,
             ..Default::default()
@@ -1830,8 +2143,8 @@ impl CantusApp {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            self.engine
-                .set_snapshot(Arc::new(Snapshot::compile(self.project(), rev)));
+            let snapshot = self.engine.compile(self.bus.project(), rev);
+            self.engine.set_snapshot(snapshot);
         }
     }
 
@@ -1935,10 +2248,18 @@ impl CantusApp {
             ClearSelection => {
                 if self.editing_clips() {
                     self.clear_clip_selection();
+                    // Escape in the arrangement clears *both* selections. Two presses to
+                    // clear what reads as one selected thing is the kind of detail that
+                    // makes an editor feel unfinished.
+                    self.clear_time_selection();
                 } else {
                     self.selected_notes.clear();
                 }
             }
+            LoopToSelection => self.loop_to_selection(),
+            ZoomToSelection => self.zoom_to_selection(),
+            SelectPrevTrack => self.step_track(-1),
+            SelectNextTrack => self.step_track(1),
             SplitClip => self.split_clips_at_playhead(),
             GlueClips => self.glue_clips(),
             ToggleClipMute => self.toggle_clip_mute(),
@@ -1966,6 +2287,9 @@ impl CantusApp {
                     self.apply_key_event(ev);
                 }
             }
+            ViewPianoRoll => self.central = CentralView::PianoRoll,
+            ViewChannelRack => self.central = CentralView::ChannelRack,
+            ViewMixer => self.central = CentralView::Mixer,
         }
     }
 
@@ -2054,6 +2378,9 @@ impl CantusApp {
                         EditFocus::Arrangement => Some(t("arrangement.hint")),
                         EditFocus::PianoRoll if self.central == CentralView::PianoRoll => {
                             Some(t(self.piano_roll.tool.hint_key()))
+                        }
+                        EditFocus::PianoRoll if self.central == CentralView::ChannelRack => {
+                            Some(t("rack.hint"))
                         }
                         EditFocus::PianoRoll => None,
                     };
@@ -2767,6 +3094,7 @@ impl eframe::App for CantusApp {
                 ui.horizontal(|ui| views::transport::view_tabs(self, ui));
                 match self.central {
                     CentralView::PianoRoll => views::piano_roll::show(self, ui),
+                    CentralView::ChannelRack => views::channel_rack::show(self, ui),
                     CentralView::Mixer => views::mixer::show(self, ui),
                 }
             });
@@ -2874,6 +3202,120 @@ fn directories_fallback() -> PathBuf {
 }
 
 /// A new project that already makes a sound: one track, one 4-bar clip, a small motif.
+/// What a new session opens with: keys and a kit, already playing a groove.
+///
+/// A DAW that opens on silence asks the musician to build a drum machine before they can
+/// hear anything; this one opens on four bars of kick, snare and hats with a motif over
+/// them, looping, so the first thing that happens is music. Each drum is **its own
+/// track** with a one-pad kit — its own mixer strip, its own inserts, its own row in the
+/// channel rack — which is the arrangement a musician who wants to treat the kick and the
+/// snare differently needs, and the one FL's channel rack is built around.
+///
+/// [`starter_project`] is the smaller fixture the tests use; keeping the two apart means
+/// a change to the groove cannot break a test about undo.
+/// The shipped pads carry English names in `cantus-core`, which does no i18n. This maps
+/// those onto the interface language; a name the user typed is left alone.
+pub fn localized_pad_name(pad: &cantus_core::DrumPad) -> String {
+    let key = match pad.name.as_str() {
+        "Kick" => "pad.name.kick",
+        "Rim" => "pad.name.rim",
+        "Snare" => "pad.name.snare",
+        "Closed hat" => "pad.name.closed_hat",
+        "Open hat" => "pad.name.open_hat",
+        "Low tom" => "pad.name.low_tom",
+        "High tom" => "pad.name.high_tom",
+        _ => return pad.name.clone(),
+    };
+    t(key)
+}
+
+pub fn welcome_project() -> Project {
+    use cantus_core::{DrumPad, PulsusParams};
+    let mut p = Project::new(t("app.untitled"));
+    let bars2 = Ticks::beats(8);
+    let length = Ticks::beats(16);
+    p.loop_region = Some(cantus_core::LoopRegion {
+        start: Ticks::ZERO,
+        end: length,
+    });
+    p.loop_enabled = true;
+
+    // Keys: a two-bar motif, repeating.
+    let mut keys = p.make_track(t("track.keys"));
+    let mut clip = p.make_clip(t("clip.motif"), Ticks::ZERO, length);
+    clip.content_length = Some(bars2);
+    let motif = [
+        (0, 60),
+        (1, 64),
+        (2, 67),
+        (3, 72),
+        (4, 71),
+        (5, 67),
+        (6, 64),
+        (7, 60),
+    ];
+    for (beat, pitch) in motif {
+        let n = p.make_note(Ticks::beats(beat), Ticks::QUARTER - Ticks(60), pitch, 96);
+        clip.notes.push(n);
+    }
+    keys.clips.push(clip);
+    keys.gain_db = -6.0;
+    p.tracks.push(keys);
+
+    // The kit, one drum per track. Steps are 1/16ths over two bars.
+    let step = Ticks::SIXTEENTH;
+    let drum = |p: &mut Project, name: String, pads: Vec<DrumPad>, hits: &[(i64, u8, u8)]| {
+        let mut t = p.make_track(name.clone());
+        let pads = pads
+            .into_iter()
+            .map(|mut pad| {
+                pad.name = localized_pad_name(&pad);
+                pad
+            })
+            .collect();
+        t.instrument = InstrumentSpec::Pulsus(PulsusParams::of(pads));
+        let mut clip = p.make_clip(name, Ticks::ZERO, length);
+        clip.content_length = Some(bars2);
+        for (at, pitch, velocity) in hits {
+            let n = p.make_note(step * *at, step, *pitch, *velocity);
+            clip.notes.push(n);
+        }
+        t.clips.push(clip);
+        p.tracks.push(t);
+    };
+    drum(
+        &mut p,
+        t("track.kick"),
+        vec![DrumPad::kick()],
+        &[(0, 36, 118), (10, 36, 100), (16, 36, 118), (26, 36, 104)],
+    );
+    drum(
+        &mut p,
+        t("track.snare"),
+        vec![DrumPad::snare()],
+        &[
+            (4, 38, 110),
+            (12, 38, 112),
+            (20, 38, 110),
+            (28, 38, 114),
+            (30, 38, 46),
+        ],
+    );
+    let mut hats = Vec::new();
+    for i in (0..32).step_by(2) {
+        let open = i == 14 || i == 30;
+        let velocity = if i % 4 == 0 { 96 } else { 70 };
+        hats.push((i, if open { 46 } else { 42 }, velocity));
+    }
+    drum(
+        &mut p,
+        t("track.hihat"),
+        vec![DrumPad::closed_hat(), DrumPad::open_hat()],
+        &hats,
+    );
+    p
+}
+
 pub fn starter_project() -> Project {
     let mut p = Project::new(t("app.untitled"));
     let mut track = p.make_track(tf("track.new_name", &[("n", &1)]));

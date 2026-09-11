@@ -404,7 +404,7 @@ fn master_strip(app: &mut CantusApp, ui: &mut egui::Ui, index: usize) {
 
 /// The polarity switch. A Ø that is *on* is a state, so it gets the accent fill — the one
 /// thing the design system reserves it for.
-fn phase_button(ui: &mut egui::Ui, inverted: bool) -> egui::Response {
+pub fn phase_button(ui: &mut egui::Ui, inverted: bool) -> egui::Response {
     ui.selectable_label(
         inverted,
         RichText::new(t("track.phase"))

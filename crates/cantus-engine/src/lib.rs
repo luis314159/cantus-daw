@@ -13,6 +13,7 @@ pub mod messages;
 pub mod midi;
 pub mod processor;
 pub mod render;
+pub mod samples;
 pub mod transport;
 
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
@@ -24,4 +25,5 @@ pub use messages::{
 pub use midi::{list_ports, MidiInputs, MidiSender};
 pub use processor::Processor;
 pub use render::{render, render_to_wav, write_wav, RenderError, RenderOptions, Rendered};
+pub use samples::{SampleCache, SampleStatus};
 pub use transport::Transport;

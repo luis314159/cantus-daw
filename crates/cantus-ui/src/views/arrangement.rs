@@ -6,18 +6,40 @@ use crate::design::{self, space};
 use crate::i18n::{t, tf};
 use crate::icons::{self, Icon};
 use crate::theme;
-use crate::widgets::{fader, Fader};
-use cantus_core::{ClipId, Command, MergeKey, Ticks, TrackId};
+use cantus_core::{
+    ClipId, Command, LoopRegion, MergeKey, Ticks, TrackId, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT,
+};
 use egui::{pos2, vec2, Align2, CornerRadius, PointerButton, Rect, Sense, Stroke, StrokeKind};
 
-const RULER_H: f32 = 22.0;
+/// The ruler is two lanes, and that is what makes both gestures direct.
+///
+/// The **loop lane** on top is where dragging sets the loop brace, which is what a bare
+/// drag in the ruler used to do. The **selection lane** below it is where dragging makes a
+/// time selection. Putting the new gesture on top of the old one would have cost the loop
+/// its direct manipulation; putting the selection behind a modifier (FL's `Ctrl+drag`)
+/// would have hidden the thing nearly everything else in the playlist plan hangs off.
+/// Reaper splits the ruler the same way, for the same reason.
+const RULER_H: f32 = 26.0;
+const LOOP_LANE_H: f32 = 8.0;
+/// How wide the grab zone on a header's bottom edge is.
+const DIVIDER_GRIP: f32 = 5.0;
 
 #[derive(Debug)]
 pub struct ArrangementView {
     pub px_per_beat: f32,
     pub scroll_beats: f32,
+    /// The base row height. A track's own height is a multiple of this, so the interface
+    /// scale and the per-track choice compose instead of fighting.
     pub track_height: f32,
     pub header_width: f32,
+    /// A header divider being dragged: the track, and the height it started at.
+    divider: Option<(TrackId, f32)>,
+    /// A track header being dragged to reorder: the track, and where it would land.
+    reorder: Option<(TrackId, usize)>,
+    /// A time selection being dragged in the ruler: where it started.
+    selecting: Option<Ticks>,
+    /// A loop brace being dragged in the loop lane: where it started.
+    looping: Option<Ticks>,
     /// What a clip drag snaps to, chosen from the toolbar. Ctrl bypasses it for one drag.
     pub grid: Ticks,
     /// Whether the grid is on at all. The toolbar toggle, mirroring the piano roll's.
@@ -82,8 +104,15 @@ impl Default for ArrangementView {
         ArrangementView {
             px_per_beat: 26.0,
             scroll_beats: 0.0,
-            track_height: 64.0,
+            // 40 px, not 64. The header used to hold a fader, a pan bar and a meter — a
+            // mixer strip inside a track header — and it is why only four tracks fitted on
+            // screen. Those live in the inspector now, which is what buys the density.
+            track_height: 40.0,
             header_width: 220.0,
+            divider: None,
+            reorder: None,
+            selecting: None,
+            looping: None,
             // A bar, which is where clips land nine times out of ten. The toolbar's grid
             // picker is there for the tenth.
             grid: Ticks::beats(4),
@@ -101,7 +130,7 @@ impl Default for ArrangementView {
 impl ArrangementView {
     /// Where the timeline was drawn last frame, or `None` before the first one.
     pub fn geometry(&self) -> Option<TimelineGeometry> {
-        self.geometry
+        self.geometry.clone()
     }
 
     /// Start renaming a clip in place.
@@ -245,6 +274,51 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
                     .text_style(design::caption())
                     .color(theme::p().text_dim),
             );
+            ui.separator();
+            // The time selection's length in bars, monospaced so it does not shift as it
+            // is dragged. Shown even when empty, so the readout is a place the eye learns.
+            let text = match app.time_selection {
+                Some((from, to)) => {
+                    let bar = app.project().time_signature.ticks_per_bar().0 as f32;
+                    let bars = (to - from).0 as f32 / bar;
+                    tf("arrangement.selection", &[("bars", &format!("{bars:.2}"))])
+                }
+                None => t("arrangement.no_selection"),
+            };
+            ui.label(
+                egui::RichText::new(text)
+                    .text_style(design::mono_small())
+                    .color(theme::p().text_dim),
+            );
+            // Icons, like the rest of the row: the tooltip carries the sentence and the
+            // key, the button carries the picture.
+            let has_selection = app.time_selection.is_some();
+            for (action, icon, key) in [
+                (
+                    Action::ZoomToSelection,
+                    Icon::Zoom,
+                    "action.zoom-to-selection",
+                ),
+                (
+                    Action::LoopToSelection,
+                    Icon::Loop,
+                    "action.loop-to-selection",
+                ),
+            ] {
+                let keys = app.keymap.display_for(action);
+                let tip = if keys.is_empty() {
+                    t(key)
+                } else {
+                    format!("{} ({keys})", t(key))
+                };
+                let clicked = ui
+                    .add_enabled_ui(has_selection, |ui| icons::button(ui, icon, false, tip))
+                    .inner
+                    .clicked();
+                if clicked {
+                    app.run_action(action);
+                }
+            }
         });
     });
 }
@@ -318,6 +392,15 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     timeline(app, ui, timeline_rect);
 }
 
+/// The track headers.
+///
+/// **What is *not* here any more is the point.** Until this round each header carried a
+/// fader, a pan bar and a meter — a mixer strip inside a track header, in 64 px, which is
+/// why only four tracks fitted on a screen. Those moved to the inspector, where there is
+/// room to show them properly and where somebody mixing is already looking. What is left
+/// is what a header is *for*: which track this is (colour, icon, name) and whether it is
+/// sounding (mute, solo, a hairline meter). That fits in 40 px, and 40 px is what makes a
+/// twelve-track song legible without scrolling.
 fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     let mut child = ui.new_child(
         egui::UiBuilder::new()
@@ -340,11 +423,29 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         app.add_track();
     }
 
-    let th = app.arrangement.track_height;
+    let base = app.arrangement.track_height;
+    let rows = rows_of(app.project(), top.bottom(), base);
     let ids: Vec<TrackId> = app.project().tracks.iter().map(|t| t.id).collect();
     let mut to_delete = None;
+    let pal = theme::p();
+
     for (i, id) in ids.iter().enumerate() {
-        let (row, resp) = ui.allocate_exact_size(vec2(rect.width(), th), Sense::click());
+        let Some(geo_row) = rows.get(i).copied() else {
+            continue;
+        };
+        let row = Rect::from_min_size(
+            pos2(rect.left(), geo_row.top),
+            vec2(rect.width(), geo_row.height),
+        );
+        // The interactive area is shifted down by the grip: a row owns the divider *below*
+        // it and not the one above, so a press exactly on the line goes to the row whose
+        // height it changes. With the plain rect, both rows contained the line and the
+        // later one won, which turned every divider drag into a reorder of the row below.
+        let hit = Rect::from_min_max(
+            pos2(row.left(), row.top() + DIVIDER_GRIP),
+            pos2(row.right(), row.bottom() + DIVIDER_GRIP),
+        );
+        let resp = ui.allocate_rect(hit, Sense::click_and_drag());
         let selected = app.selected_track == Some(*id);
         let track = match app.project().track(*id) {
             Some(t) => t.clone(),
@@ -352,163 +453,310 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         };
         let p = ui.painter();
         let bg = if selected {
-            theme::p().panel_raised
+            pal.panel_raised
         } else if i % 2 == 0 {
-            theme::p().panel
+            pal.panel
         } else {
-            theme::p().row_white
+            pal.row_white
         };
         p.rect_filled(row, 0.0, bg);
+        // The colour stripe is wider than it was and it is the grab handle for reordering,
+        // which is why it is worth the pixels: a header you can drag anywhere would fight
+        // with the name editor and the buttons.
         p.rect_filled(
-            Rect::from_min_size(row.min, vec2(4.0, th)),
+            Rect::from_min_size(row.min, vec2(6.0, row.height())),
             0.0,
             theme::track_color(track.color),
         );
         p.hline(
             row.x_range(),
             row.bottom() - 0.5,
-            Stroke::new(1.0, theme::p().grid),
+            Stroke::new(1.0, pal.grid),
         );
+
+        // Where the row is being dragged to, drawn as a line rather than by moving the
+        // headers: a list that reshuffles under the pointer is a list you cannot aim at.
+        if let Some((dragged, to)) = app.arrangement.reorder {
+            if dragged != *id && to == i {
+                p.hline(row.x_range(), row.top(), Stroke::new(2.0, pal.gold_bright));
+            }
+        }
+
+        let inner = row.shrink2(vec2(space::S3, 2.0));
+        let icon_rect =
+            Rect::from_min_size(pos2(inner.left(), inner.center().y - 8.0), vec2(16.0, 16.0));
+        icons::paint_track_icon(
+            p,
+            icon_rect,
+            track.icon(),
+            if selected {
+                pal.gold_bright
+            } else {
+                pal.text_dim
+            },
+        );
+
+        let body = Rect::from_min_max(pos2(icon_rect.right() + space::S2, inner.top()), inner.max);
+        let mut r = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(body)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        header_row(app, &mut r, *id, &track, selected);
+
+        // The meter is a hairline along the bottom of the header now, not a bar with a
+        // lane of its own. It answers "is this track making a sound", which is the only
+        // metering question a *header* has to answer; the mixer answers the rest.
+        let meters = app.engine.meters();
+        if let Some(idx) = app.project().track_index(*id) {
+            if idx < meters.track_count {
+                let peak = meters.tracks[idx];
+                let frac = ((cantus_core::linear_to_db(peak) + 60.0) / 60.0).clamp(0.0, 1.0);
+                if frac > 0.0 {
+                    let bar = Rect::from_min_size(
+                        pos2(row.left() + 6.0, row.bottom() - 3.0),
+                        vec2((row.width() - 6.0) * frac, 2.0),
+                    );
+                    ui.painter().rect_filled(bar, 0.0, theme::meter_color(peak));
+                }
+            }
+        }
+
+        // ---- the divider ------------------------------------------------------------
+        let grip = Rect::from_min_max(
+            pos2(row.left(), row.bottom() - DIVIDER_GRIP),
+            pos2(row.right(), row.bottom() + DIVIDER_GRIP),
+        );
+        let over_grip = resp.hover_pos().is_some_and(|p| grip.contains(p));
+        if over_grip || app.arrangement.divider.map(|(d, _)| d) == Some(*id) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+            ui.painter().hline(
+                row.x_range(),
+                row.bottom() - 0.5,
+                Stroke::new(2.0, pal.gold),
+            );
+        }
+
         if resp.clicked() {
             app.select_track(*id);
         }
         if resp.double_clicked() {
             app.arrangement.rename = Some((*id, track.name.clone()));
         }
-        resp.context_menu(|ui| {
-            if ui.button(t("track.delete")).clicked() {
-                to_delete = Some(*id);
-                ui.close();
-            }
-        });
-
-        let inner = row.shrink2(vec2(10.0, 4.0));
-        let mut r = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(inner)
-                .layout(egui::Layout::top_down(egui::Align::Min)),
-        );
-        r.horizontal(|ui| {
-            if let Some((rid, name)) = app.arrangement.rename.as_mut().filter(|(rid, _)| rid == id)
-            {
-                let resp = ui.text_edit_singleline(name);
-                resp.request_focus();
-                if resp.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    let new_name = name.clone();
-                    let rid = *rid;
-                    app.arrangement.rename = None;
-                    if new_name != track.name {
-                        app.exec(Command::SetTrackName {
-                            id: rid,
-                            name: new_name,
-                        });
-                    }
-                }
+        // A drag that starts on the divider resizes; anywhere else it reorders. Decided at
+        // the **press origin**, never at the pointer: egui reports a drag only once the
+        // pointer has travelled, by which time it has left the five-pixel grip. That is the
+        // round-3 lesson the arrangement had to learn twice.
+        if resp.drag_started() {
+            let origin = ui.input(|i| i.pointer.press_origin());
+            if origin.is_some_and(|p| grip.contains(p)) {
+                app.arrangement.divider = Some((*id, track.height()));
             } else {
-                let color = if selected {
-                    theme::p().gold_bright
-                } else {
-                    theme::p().text
-                };
-                ui.label(
-                    egui::RichText::new(&track.name)
-                        .text_style(design::strong())
-                        .color(color),
-                );
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let mut solo = track.soloed;
-                let s = ui.selectable_label(
-                    solo,
-                    egui::RichText::new(t("track.solo")).color(if solo {
-                        theme::p().gold_bright
-                    } else {
-                        theme::p().text_dim
-                    }),
-                );
-                if s.on_hover_text(t("track.solo_tip")).clicked() {
-                    solo = !solo;
-                    app.exec(Command::SetTrackSolo {
-                        id: *id,
-                        soloed: solo,
-                    });
-                }
-                let mut muted = track.muted;
-                let m = ui.selectable_label(
-                    muted,
-                    egui::RichText::new(t("track.mute")).color(if muted {
-                        theme::p().danger
-                    } else {
-                        theme::p().text_dim
-                    }),
-                );
-                if m.on_hover_text(t("track.mute_tip")).clicked() {
-                    muted = !muted;
-                    app.exec(Command::SetTrackMute { id: *id, muted });
-                }
-            });
-        });
-        r.horizontal(|ui| {
-            let mut gain = track.gain_db;
-            // A track header row has no space for a scale, but it keeps the unity mark,
-            // so "is this track above or below unity" is still readable at a glance.
-            let g = ui.add(
-                Fader::new(&mut gain)
-                    .horizontal(90.0)
-                    .compact()
-                    .name(&track.name),
-            );
-            if g.changed() {
-                app.exec_merging(
-                    Command::SetTrackGain {
-                        id: *id,
-                        gain_db: gain,
-                    },
-                    MergeKey::of(&("gain", id.0)),
-                );
-            }
-            if g.drag_stopped() {
-                app.end_gesture();
-            }
-            ui.label(
-                egui::RichText::new(fader::read_out(gain))
-                    .text_style(design::mono_small())
-                    .color(theme::p().text_dim),
-            );
-            let mut pan = track.pan;
-            let pr = ui.add(
-                crate::widgets::Bar::pan(&mut pan)
-                    .size(56.0)
-                    .name(t("track.pan")),
-            );
-            if pr.changed() {
-                app.exec_merging(
-                    Command::SetTrackPan { id: *id, pan },
-                    MergeKey::of(&("pan", id.0)),
-                );
-            }
-            if pr.drag_stopped() {
-                app.end_gesture();
-            }
-        });
-        // Peak meter strip.
-        let meters = app.engine.meters();
-        if let Some(idx) = app.project().track_index(*id) {
-            if idx < meters.track_count {
-                let peak = meters.tracks[idx];
-                let frac = ((cantus_core::linear_to_db(peak) + 60.0) / 60.0).clamp(0.0, 1.0);
-                let bar = Rect::from_min_size(
-                    pos2(inner.left(), row.bottom() - 6.0),
-                    vec2(inner.width() * frac, 3.0),
-                );
-                ui.painter().rect_filled(bar, 1.0, theme::meter_color(peak));
+                app.select_track(*id);
+                app.arrangement.reorder = Some((*id, i));
             }
         }
+        if resp.dragged() {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                if let Some((did, start_h)) = app.arrangement.divider {
+                    if did == *id {
+                        let origin = ui
+                            .input(|i| i.pointer.press_origin())
+                            .map(|p| p.y)
+                            .unwrap_or(pos.y);
+                        let height = start_h + (pos.y - origin) / base;
+                        app.exec_merging(
+                            Command::SetTrackHeight {
+                                id: *id,
+                                height: height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT),
+                            },
+                            MergeKey::of(&("height", id.0)),
+                        );
+                    }
+                } else if app.arrangement.reorder.map(|(d, _)| d) == Some(*id) {
+                    let to = rows
+                        .iter()
+                        .position(|r| pos.y < r.top + r.height * 0.5)
+                        .unwrap_or(rows.len().saturating_sub(1));
+                    app.arrangement.reorder = Some((*id, to));
+                }
+            }
+        }
+        if resp.drag_stopped() {
+            app.arrangement.divider = None;
+            if let Some((did, to)) = app.arrangement.reorder.take() {
+                if did == *id && to != i {
+                    app.exec(Command::MoveTrack { id: did, index: to });
+                }
+            }
+            app.end_gesture();
+        }
+
+        resp.context_menu(|ui| {
+            track_menu(app, ui, *id, &mut to_delete);
+        });
     }
     if let Some(id) = to_delete {
         app.delete_track(id);
     }
 }
+
+/// The one row of controls a header keeps: the name, then mute and solo on the right.
+fn header_row(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    id: TrackId,
+    track: &cantus_core::Track,
+    selected: bool,
+) {
+    if let Some((rid, name)) = app
+        .arrangement
+        .rename
+        .as_mut()
+        .filter(|(rid, _)| *rid == id)
+    {
+        let resp = ui.text_edit_singleline(name);
+        resp.request_focus();
+        if resp.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            let new_name = name.clone();
+            let rid = *rid;
+            app.arrangement.rename = None;
+            if new_name != track.name {
+                app.exec(Command::SetTrackName {
+                    id: rid,
+                    name: new_name,
+                });
+            }
+        }
+    } else {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(&track.name)
+                    .text_style(design::strong())
+                    .color(if selected {
+                        theme::p().gold_bright
+                    } else {
+                        theme::p().text
+                    }),
+            )
+            .truncate()
+            .selectable(false),
+        );
+    }
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let mut solo = track.soloed;
+        let s = ui.selectable_label(
+            solo,
+            egui::RichText::new(t("track.solo")).color(if solo {
+                theme::p().gold_bright
+            } else {
+                theme::p().text_dim
+            }),
+        );
+        if s.on_hover_text(t("track.solo_tip")).clicked() {
+            solo = !solo;
+            app.exec(Command::SetTrackSolo { id, soloed: solo });
+        }
+        let mut muted = track.muted;
+        let m = ui.selectable_label(
+            muted,
+            egui::RichText::new(t("track.mute")).color(if muted {
+                theme::p().danger
+            } else {
+                theme::p().text_dim
+            }),
+        );
+        if m.on_hover_text(t("track.mute_tip")).clicked() {
+            muted = !muted;
+            app.exec(Command::SetTrackMute { id, muted });
+        }
+    });
+}
+
+/// The track's own menu: height presets, an icon, and delete.
+///
+/// Presets as well as the divider because a divider is for *aiming* and a preset is for
+/// *agreeing*: getting six tracks to exactly the same height by hand is a job nobody
+/// should be given.
+fn track_menu(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    id: TrackId,
+    to_delete: &mut Option<TrackId>,
+) {
+    let current = app.project().track(id).map(|t| t.height()).unwrap_or(1.0);
+    ui.label(
+        egui::RichText::new(t("track.height"))
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
+    for (key, h) in TRACK_HEIGHTS {
+        if ui
+            .selectable_label((current - h).abs() < 0.01, t(key))
+            .clicked()
+        {
+            app.exec(Command::SetTrackHeight { id, height: h });
+            ui.close();
+        }
+    }
+    if ui.button(t("track.height_all")).clicked() {
+        app.set_all_track_heights(current);
+        ui.close();
+    }
+    ui.separator();
+    ui.label(
+        egui::RichText::new(t("track.icon"))
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+    );
+    let chosen = app.project().track(id).and_then(|t| t.icon);
+    ui.horizontal(|ui| {
+        for icon in cantus_core::TrackIcon::ALL {
+            let (rect, resp) = ui.allocate_exact_size(design::ICON_BUTTON, Sense::click());
+            let on = chosen == Some(icon);
+            let pal = theme::p();
+            if on {
+                ui.painter()
+                    .rect_filled(rect, pal.corner_radius, pal.gold.gamma_multiply(0.35));
+            }
+            icons::paint_track_icon(
+                ui.painter(),
+                rect.shrink(space::S1),
+                icon,
+                if on || resp.hovered() {
+                    pal.text
+                } else {
+                    pal.text_dim
+                },
+            );
+            if resp.on_hover_text(t(icon.label_key())).clicked() {
+                app.exec(Command::SetTrackIcon {
+                    id,
+                    icon: Some(icon),
+                });
+                ui.close();
+            }
+        }
+    });
+    if ui.button(t("track.icon_auto")).clicked() {
+        app.exec(Command::SetTrackIcon { id, icon: None });
+        ui.close();
+    }
+    ui.separator();
+    if ui.button(t("track.delete")).clicked() {
+        *to_delete = Some(id);
+        ui.close();
+    }
+}
+
+/// The height presets, as multiples of the base row. Small enough to scan a long song,
+/// tall enough to read a clip's contents, and two steps in between.
+pub const TRACK_HEIGHTS: [(&str, f32); 4] = [
+    ("track.height_small", 0.6),
+    ("track.height_medium", 1.0),
+    ("track.height_large", 1.8),
+    ("track.height_huge", 3.0),
+];
 
 /// Where the timeline was drawn, in screen coordinates.
 ///
@@ -517,13 +765,30 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
 /// pixels by *asking* rather than by mirroring the layout constants. A test that
 /// recomputes the layout is a test that breaks the day a toolbar is added, which is
 /// exactly what happened.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TimelineGeometry {
     pub left: f32,
+    /// How wide the timeline was drawn. Zoom-to-selection needs it and cannot recompute
+    /// it: the panel's width is whatever the layout gave it this frame.
+    pub width: f32,
+    /// The top of the ruler; the loop lane runs from here to `loop_lane_bottom`, the
+    /// selection lane from there to `body_top`.
+    pub ruler_top: f32,
+    pub loop_lane_bottom: f32,
     pub body_top: f32,
     pub px_per_beat: f32,
     pub scroll_beats: f32,
-    pub track_height: f32,
+    /// Where each track's row was drawn: its top and its height. Rows are no longer all
+    /// the same size, so a single `track_height` cannot answer "where is row 3" any more —
+    /// and every caller that used to multiply is exactly the caller that would have got it
+    /// wrong.
+    pub rows: Vec<TrackRow>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TrackRow {
+    pub top: f32,
+    pub height: f32,
 }
 
 impl TimelineGeometry {
@@ -532,10 +797,50 @@ impl TimelineGeometry {
         self.left + (beats - self.scroll_beats) * self.px_per_beat
     }
 
+    /// Position in beats of a screen x.
+    pub fn beats(&self, x: f32) -> f32 {
+        (x - self.left) / self.px_per_beat + self.scroll_beats
+    }
+
     /// Screen y of the middle of a track's row.
     pub fn row_y(&self, row: usize) -> f32 {
-        self.body_top + (row as f32 + 0.5) * self.track_height
+        match self.rows.get(row) {
+            Some(r) => r.top + r.height * 0.5,
+            None => self.body_top,
+        }
     }
+
+    /// Which row a screen y falls in.
+    pub fn row_at(&self, y: f32) -> Option<usize> {
+        self.rows
+            .iter()
+            .position(|r| y >= r.top && y < r.top + r.height)
+    }
+
+    /// One past the bottom of the last row.
+    pub fn bottom(&self) -> f32 {
+        self.rows
+            .last()
+            .map(|r| r.top + r.height)
+            .unwrap_or(self.body_top)
+    }
+}
+
+/// Where each track's row sits, given the base row height. One function, so the headers
+/// and the timeline can never disagree about which stripe belongs to which track — which
+/// they would the first time one of them forgot that heights vary.
+pub fn rows_of(project: &cantus_core::Project, top: f32, base: f32) -> Vec<TrackRow> {
+    let mut y = top;
+    project
+        .tracks
+        .iter()
+        .map(|t| {
+            let height = (base * t.height()).round();
+            let row = TrackRow { top: y, height };
+            y += height;
+            row
+        })
+        .collect()
 }
 
 /// Hit test result: which clip the pointer is over, and where in it.
@@ -585,20 +890,28 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         scroll_beats: app.arrangement.scroll_beats,
     };
 
-    // Rows.
-    let th = app.arrangement.track_height;
+    // Rows. Heights are per track now, and both halves of the view get them from
+    // `rows_of` rather than each multiplying by a base — which is how a header and its
+    // lane would end up one pixel apart at the bottom of a long song.
+    let base = app.arrangement.track_height;
     let body_top = rect.top() + RULER_H;
+    let rows = rows_of(app.project(), body_top, base);
     app.arrangement.geometry = Some(TimelineGeometry {
         left,
+        width: rect.width(),
+        ruler_top: rect.top(),
+        loop_lane_bottom: rect.top() + LOOP_LANE_H,
         body_top,
         px_per_beat: view.px_per_beat,
         scroll_beats: view.scroll_beats,
-        track_height: th,
+        rows: rows.clone(),
     });
-    let n_tracks = app.project().tracks.len();
-    for i in 0..n_tracks {
-        let y = body_top + i as f32 * th;
-        let row = Rect::from_min_max(pos2(rect.left(), y), pos2(rect.right(), y + th));
+    let n_tracks = rows.len();
+    for (i, r) in rows.iter().enumerate() {
+        let row = Rect::from_min_max(
+            pos2(rect.left(), r.top),
+            pos2(rect.right(), r.top + r.height),
+        );
         p.rect_filled(
             row,
             0.0,
@@ -649,16 +962,48 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         }
         b += beat_step;
     }
-    // Loop region.
+    // The loop brace lives in the top lane, which is also where it is dragged.
+    let loop_lane = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + LOOP_LANE_H));
+    p.rect_filled(loop_lane, 0.0, theme::p().ink.gamma_multiply(0.25));
     if let Some(l) = &app.project().loop_region {
         let x0 = view.x(ticks_to_beats(l.start));
         let x1 = view.x(ticks_to_beats(l.end));
-        let alpha = if app.project().loop_enabled { 0.8 } else { 0.3 };
+        let alpha = if app.project().loop_enabled {
+            0.85
+        } else {
+            0.3
+        };
         p.rect_filled(
-            Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.top() + 4.0)),
+            Rect::from_min_max(
+                pos2(x0, loop_lane.top() + 1.0),
+                pos2(x1, loop_lane.bottom() - 1.0),
+            ),
             0.0,
             theme::p().gold.gamma_multiply(alpha),
         );
+    }
+    // The time selection: a translucent column across **every** track, which is what makes
+    // "this stretch of the song" a thing you can see rather than remember. It is drawn
+    // before the clips so it tints them rather than covering them.
+    if let Some((from, to)) = app.time_selection {
+        let x0 = view.x(ticks_to_beats(from));
+        let x1 = view.x(ticks_to_beats(to));
+        let column = Rect::from_min_max(pos2(x0, body_top), pos2(x1, rect.bottom()));
+        p.rect_filled(column, 0.0, theme::p().selection.gamma_multiply(0.16));
+        // Brighter in the ruler, where the edges are: a wash that is legible over a clip
+        // is too faint to aim at, and a band you can aim at is too heavy over the music.
+        p.rect_filled(
+            Rect::from_min_max(pos2(x0, loop_lane.bottom()), pos2(x1, body_top)),
+            0.0,
+            theme::p().selection.gamma_multiply(0.55),
+        );
+        for x in [x0, x1] {
+            p.vline(
+                x,
+                rect.top()..=rect.bottom(),
+                Stroke::new(1.0, theme::p().selection),
+            );
+        }
     }
     p.hline(
         ruler.x_range(),
@@ -689,7 +1034,9 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     // Where to put the in-place name editor, once the clip being renamed is drawn.
     let mut renaming: Option<Rect> = None;
     for (i, track) in app.project().tracks.iter().enumerate() {
-        let y = body_top + i as f32 * th;
+        let Some(here) = rows.get(i).copied() else {
+            continue;
+        };
         let track_color = theme::track_color(track.color);
         for clip in &track.clips {
             let r = (track.id, clip.id);
@@ -699,16 +1046,26 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                     .unwrap_or((Ticks::ZERO, Ticks::ZERO, 0));
             let start = clip.start + dstart;
             let length = (clip.length + dlen).max(Ticks::SIXTEENTH);
-            let row_y = y + drows as f32 * th;
+            // A clip being dragged across tracks lands in the row it lands in, and rows
+            // are different heights now — so it takes the *target* row's shape, not its
+            // own. A preview that kept its old height would be a lie about where it goes.
+            let target = rows
+                .get((i as i32 + drows).clamp(0, rows.len() as i32 - 1) as usize)
+                .copied()
+                .unwrap_or(here);
+            let (row_y, row_h) = (target.top, target.height);
             let x0 = view.x(ticks_to_beats(start));
             let x1 = view.x(ticks_to_beats(start + length));
             if x1 < rect.left() || x0 > rect.right() {
                 continue;
             }
             let color = clip.color.map(theme::track_color).unwrap_or(track_color);
+            // The chrome scales with the row: at 24 px there is no room for a four-pixel
+            // margin top and bottom, and a clip that is all margin is a clip you cannot see.
+            let inset = (row_h * 0.08).clamp(1.0, 4.0);
             let body = Rect::from_min_max(
-                pos2(x0, row_y + 4.0),
-                pos2(x1.max(x0 + 2.0), row_y + th - 4.0),
+                pos2(x0, row_y + inset),
+                pos2(x1.max(x0 + 2.0), row_y + row_h - inset),
             );
             let sel = selection.contains(&r);
             // A muted clip keeps its colour but loses its weight: it is still that
@@ -745,7 +1102,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                     (lo.min(n.pitch), hi.max(n.pitch))
                 });
                 let span = (hi - lo).max(12) as f32;
-                let inner = body.shrink2(vec2(2.0, 14.0));
+                // Leave room for the name at the top, but never more than half the clip:
+                // on a short track the miniature would otherwise vanish entirely.
+                let name_h = (row_h * 0.35).clamp(4.0, 14.0);
+                let inner = body.shrink2(vec2(2.0, name_h));
                 if inner.height() > 2.0 {
                     for n in &clip.notes {
                         shown.timeline_positions(n.start, &mut at);
@@ -885,6 +1245,16 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             Stroke::new(1.5, theme::p().gold_bright),
         );
     }
+    if let Some(pos) = pointer {
+        if pos.y < body_top && app.arrangement.drag.is_none() {
+            ui.ctx()
+                .set_cursor_icon(if pos.y < rect.top() + LOOP_LANE_H {
+                    egui::CursorIcon::ResizeHorizontal
+                } else {
+                    egui::CursorIcon::Text
+                });
+        }
+    }
     if let Some(h) = hit {
         if app.arrangement.drag.is_none() {
             ui.ctx().set_cursor_icon(match h.mode {
@@ -897,26 +1267,20 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     // ---- interaction ----------------------------------------------------------------
     let press = ui.input(|i| i.pointer.press_origin());
     let mods = ui.input(|i| i.modifiers);
-    let track_ids: Vec<TrackId> = app.project().tracks.iter().map(|t| t.id).collect();
+    let ids: Vec<TrackId> = app.project().tracks.iter().map(|t| t.id).collect();
+    let row_rects = rows.clone();
     let row_of = move |y: f32| -> Option<usize> {
-        let i = ((y - body_top) / th).floor();
-        (i >= 0.0)
-            .then_some(i as usize)
-            .filter(|i| *i < track_ids.len())
+        row_rects
+            .iter()
+            .position(|r| y >= r.top && y < r.top + r.height)
     };
     let track_at = {
-        let ids = app
-            .project()
-            .tracks
-            .iter()
-            .map(|t| t.id)
-            .collect::<Vec<_>>();
+        let rows = rows.clone();
+        let ids = ids.clone();
         move |y: f32| -> Option<TrackId> {
-            let i = ((y - body_top) / th).floor();
-            if i < 0.0 {
-                return None;
-            }
-            ids.get(i as usize).copied()
+            rows.iter()
+                .position(|r| y >= r.top && y < r.top + r.height)
+                .and_then(|i| ids.get(i).copied())
         }
     };
     // Copied out of the view: the closure must not hold a borrow of `app`, since almost
@@ -943,6 +1307,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             if pos.y < body_top {
                 let beats = view.beats(pos.x).max(0.0);
                 app.seek(snap_to(beats_to_ticks(beats), mods.command));
+                if pos.y >= rect.top() + LOOP_LANE_H {
+                    app.focus_arrangement();
+                    app.clear_time_selection();
+                }
             } else if let Some(h) = hit {
                 app.focus_arrangement();
                 if mods.command {
@@ -992,6 +1360,13 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         if let Some(pos) = press {
             if pos.y < body_top {
                 app.arrangement.drag = None;
+                let at = snap_to(beats_to_ticks(view.beats(pos.x).max(0.0)), mods.command);
+                if pos.y < rect.top() + LOOP_LANE_H {
+                    app.arrangement.looping = Some(at);
+                } else {
+                    app.focus_arrangement();
+                    app.arrangement.selecting = Some(at);
+                }
             } else if let Some(h) = hit_at_press {
                 app.focus_arrangement();
                 if !app.clip_selection().contains(&(h.track, h.clip)) {
@@ -1056,24 +1431,29 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 }
             } else if let Some(m) = app.arrangement.marquee.as_mut() {
                 m.1 = pos;
-            } else if let Some(origin) = press {
-                if origin.y < body_top {
-                    let a = snap_to(beats_to_ticks(view.beats(origin.x).max(0.0)), mods.command);
-                    let b = snap_to(beats_to_ticks(view.beats(pos.x).max(0.0)), mods.command);
-                    let (s, e) = if a <= b { (a, b) } else { (b, a) };
-                    if e > s {
-                        app.exec_merging(
-                            Command::SetLoopRegion {
-                                region: Some(cantus_core::LoopRegion { start: s, end: e }),
-                            },
-                            MergeKey::of(&"loop"),
-                        );
-                    }
+            } else if let Some(a) = app.arrangement.looping {
+                let b = snap_to(beats_to_ticks(view.beats(pos.x).max(0.0)), mods.command);
+                let (s, e) = if a <= b { (a, b) } else { (b, a) };
+                if e > s {
+                    app.exec_merging(
+                        Command::SetLoopRegion {
+                            region: Some(LoopRegion { start: s, end: e }),
+                        },
+                        MergeKey::of(&"loop"),
+                    );
                 }
+            } else if let Some(a) = app.arrangement.selecting {
+                // A selection is not a command: nothing about the piece changed, so there
+                // is nothing to undo. It is the same kind of state as which clips are
+                // highlighted.
+                let b = snap_to(beats_to_ticks(view.beats(pos.x).max(0.0)), mods.command);
+                app.set_time_selection(a, b);
             }
         }
     }
     if resp.drag_stopped() {
+        app.arrangement.looping = None;
+        app.arrangement.selecting = None;
         if let Some(d) = app.arrangement.drag.take() {
             app.commit_clip_drag(
                 d.anchor,
@@ -1092,10 +1472,12 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             let band = Rect::from_two_pos(a, b);
             let mut picked = Vec::new();
             for (i, track) in app.project().tracks.iter().enumerate() {
-                let y = body_top + i as f32 * th;
+                let Some(r) = rows.get(i).copied() else {
+                    continue;
+                };
                 let row = Rect::from_min_max(
-                    pos2(rect.left(), y + 4.0),
-                    pos2(rect.right(), y + th - 4.0),
+                    pos2(rect.left(), r.top + 2.0),
+                    pos2(rect.right(), r.top + r.height - 2.0),
                 );
                 if !band.intersects(row) {
                     continue;

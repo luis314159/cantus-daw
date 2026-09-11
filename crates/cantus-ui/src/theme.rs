@@ -528,6 +528,22 @@ pub fn recess(pal: &Palette) -> Color32 {
     }
 }
 
+/// Text that has to be legible on a **light key** — the white keys of the piano roll and
+/// the named lanes of a kit — whatever the theme.
+///
+/// `ink` is the *canvas* colour, which is dark on Ink & Gold and white on Paper, so a label
+/// painted in it disappears on a light theme; `text` is light on a dark theme and vanishes
+/// on a white key there. Whichever of the two is darker is legible on a light surface in
+/// both cases. Painting key labels in `ink` was a round-4 bug that the light theme made
+/// visible, or rather invisible.
+pub fn on_light_key(pal: &Palette) -> Color32 {
+    if luminance(pal.ink) <= luminance(pal.text) {
+        pal.ink
+    } else {
+        pal.text
+    }
+}
+
 // ---- theme file ---------------------------------------------------------------------
 
 pub fn load_file(path: &Path) -> Result<Theme, String> {

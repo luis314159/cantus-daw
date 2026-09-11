@@ -10,12 +10,19 @@ use crate::app::CantusApp;
 use crate::design;
 use crate::i18n::{t, tf};
 use crate::theme;
-use cantus_core::{pitch_name, ClipId, Command, MergeKey, Note, NoteId, Ticks, TrackId};
+use cantus_core::{
+    pitch_name, Clip, ClipId, Command, InstrumentSpec, MergeKey, Note, NoteId, Pitch, Ticks,
+    TrackId,
+};
 use egui::{
     pos2, vec2, Align2, Color32, CornerRadius, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind,
 };
 
 const KEYS_W: f32 = 56.0;
+/// Wider when the lanes are named: "Closed hat" does not fit in the width of "F#2".
+const PAD_KEYS_W: f32 = 104.0;
+/// Tallest a kit's row grows when the rows are stretched to fill the grid.
+const PAD_ROW_MAX: f32 = 44.0;
 const RULER_H: f32 = 20.0;
 const VEL_H: f32 = 70.0;
 const RESIZE_GRIP: f32 = 8.0;
@@ -113,13 +120,134 @@ impl Tool {
     }
 }
 
+/// The piano roll's vertical axis: what each row is, for the instrument being edited.
+///
+/// A keyboard has 128 rows and calls them `C4`; a kit has one row per pad and calls them
+/// `Kick`. The view asks the instrument (`InstrumentSpec::lanes`) rather than assuming,
+/// which is what makes drum mode a property of the kit instead of a switch the user has
+/// to find.
+///
+/// **The clip has a say too.** A kit's rows are its pads — but a clip may hold notes on
+/// pitches the kit has no pad for, most often because the track used to be a synth. Those
+/// get a row of their own, named the way a keyboard would name it, so that changing a
+/// track's instrument can never make music *invisible*. Editing them is how you get them
+/// back.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Axis {
+    /// Ascending pitches, one per row. **Empty means chromatic**, where row and pitch are
+    /// the same number and no vector is built at all — the common case must not allocate
+    /// 128 entries every frame.
+    pitches: Vec<Pitch>,
+    names: Vec<String>,
+    /// The instrument named these rows, so this is a kit and not a keyboard.
+    pads: bool,
+}
+
+impl Axis {
+    pub fn build(instrument: &InstrumentSpec, clip: &Clip) -> Axis {
+        let lanes = instrument.lanes();
+        if lanes.is_chromatic() {
+            return Axis::default();
+        }
+        let mut pitches: Vec<Pitch> = (0..lanes.count()).filter_map(|i| lanes.pitch(i)).collect();
+        // Anything in the clip the kit cannot play still gets a row.
+        for n in &clip.notes {
+            if !pitches.contains(&n.pitch) {
+                pitches.push(n.pitch);
+            }
+        }
+        pitches.sort_unstable();
+        let names = pitches
+            .iter()
+            .map(|p| match lanes.lane_of(*p) {
+                Some(lane) => lanes.name(lane),
+                None => pitch_name(*p),
+            })
+            .collect();
+        Axis {
+            pitches,
+            names,
+            pads: true,
+        }
+    }
+
+    /// Whether every pitch is a row. True for a keyboard.
+    pub fn is_chromatic(&self) -> bool {
+        self.pitches.is_empty()
+    }
+
+    /// Whether the rows are named pads — the one thing the drawing branches on.
+    pub fn pads(&self) -> bool {
+        self.pads
+    }
+
+    pub fn len(&self) -> usize {
+        if self.pitches.is_empty() {
+            128
+        } else {
+            self.pitches.len()
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The pitch a row plays. Out-of-range rows clamp to the nearest, so a pointer just
+    /// past the top of the grid edits the top row rather than nothing.
+    pub fn pitch(&self, lane: usize) -> Pitch {
+        if self.pitches.is_empty() {
+            lane.min(127) as Pitch
+        } else {
+            self.pitches[lane.min(self.pitches.len() - 1)]
+        }
+    }
+
+    pub fn lane_of(&self, pitch: Pitch) -> Option<usize> {
+        if self.pitches.is_empty() {
+            Some(pitch as usize)
+        } else {
+            self.pitches.iter().position(|p| *p == pitch)
+        }
+    }
+
+    pub fn name(&self, lane: usize) -> String {
+        if self.pitches.is_empty() {
+            pitch_name(lane.min(127) as Pitch)
+        } else {
+            self.names
+                .get(lane)
+                .cloned()
+                .unwrap_or_else(|| pitch_name(self.pitch(lane)))
+        }
+    }
+
+    /// Move a pitch by `rows`, in **rows** rather than semitones.
+    ///
+    /// On a keyboard the two are the same thing. On a kit they are emphatically not: one
+    /// row above a snare is the next pad, and a "semitone" is a pitch the kit has no drum
+    /// for. Every vertical move — dragging, transposing — goes through here, so the two
+    /// axes can never disagree about what up means.
+    pub fn moved(&self, pitch: Pitch, rows: i32) -> Pitch {
+        let Some(lane) = self.lane_of(pitch) else {
+            return pitch;
+        };
+        let target = (lane as i32 + rows).clamp(0, self.len() as i32 - 1);
+        self.pitch(target as usize)
+    }
+}
+
 #[derive(Debug)]
 pub struct PianoRollView {
     pub px_per_beat: f32,
     pub scroll_beats: f32,
     pub key_height: f32,
-    /// Pitch shown at the top edge (fractional for smooth scrolling).
-    pub top_pitch: f32,
+    /// The **row** at the top edge, fractional for smooth scrolling.
+    ///
+    /// Rows, not pitches: on a kit the two are different numbers and the scroll position
+    /// has to mean the same thing in both. On a keyboard they coincide, which is why the
+    /// default reads as a pitch.
+    pub top_lane: f32,
     pub grid: Ticks,
     pub snap: bool,
     pub last_note_length: Ticks,
@@ -156,7 +284,7 @@ impl Default for PianoRollView {
             px_per_beat: 48.0,
             scroll_beats: 0.0,
             key_height: 14.0,
-            top_pitch: 84.0,
+            top_lane: 84.0,
             grid: Ticks::SIXTEENTH,
             snap: true,
             last_note_length: Ticks::SIXTEENTH,
@@ -170,29 +298,41 @@ impl Default for PianoRollView {
     }
 }
 
-struct Geo {
+struct Geo<'a> {
     grid: Rect,
     px_per_beat: f32,
     scroll_beats: f32,
     key_h: f32,
-    top_pitch: f32,
+    top_lane: f32,
+    axis: &'a Axis,
 }
 
-impl Geo {
+impl Geo<'_> {
     fn x(&self, beats: f32) -> f32 {
         self.grid.left() + (beats - self.scroll_beats) * self.px_per_beat
     }
     fn beats(&self, x: f32) -> f32 {
         (x - self.grid.left()) / self.px_per_beat + self.scroll_beats
     }
-    fn y(&self, pitch: f32) -> f32 {
-        self.grid.top() + (self.top_pitch - pitch) * self.key_h
+    /// Screen y of a row boundary. Row `l` occupies `y(l + 1) ..= y(l)`.
+    fn y(&self, lane: f32) -> f32 {
+        self.grid.top() + (self.top_lane - lane) * self.key_h
     }
-    fn pitch(&self, y: f32) -> f32 {
-        self.top_pitch - (y - self.grid.top()) / self.key_h
+    fn lane(&self, y: f32) -> f32 {
+        self.top_lane - (y - self.grid.top()) / self.key_h
     }
-    fn pitch_at(&self, y: f32) -> u8 {
-        self.pitch(y).floor().clamp(0.0, 127.0) as u8
+    fn lane_at(&self, y: f32) -> usize {
+        self.lane(y)
+            .floor()
+            .clamp(0.0, self.axis.len() as f32 - 1.0) as usize
+    }
+    /// Screen y of the top of the row a pitch lives on, or `None` when this axis has no
+    /// row for it — a live note being recorded onto a pitch the kit cannot play.
+    fn y_of_pitch(&self, pitch: Pitch) -> Option<f32> {
+        self.axis.lane_of(pitch).map(|l| self.y(l as f32 + 1.0))
+    }
+    fn pitch_at(&self, y: f32) -> Pitch {
+        self.axis.pitch(self.lane_at(y))
     }
     fn tick_at(&self, x: f32) -> Ticks {
         beats_to_ticks(self.beats(x))
@@ -200,7 +340,12 @@ impl Geo {
     fn note_rect(&self, n: &Note) -> Rect {
         let x0 = self.x(ticks_to_beats(n.start));
         let x1 = self.x(ticks_to_beats(n.end()));
-        let y0 = self.y(n.pitch as f32 + 1.0);
+        // Every pitch in the clip has a row (`Axis::build`), so the fallback is only ever
+        // reached by a note that is not in the clip yet.
+        let y0 = match self.y_of_pitch(n.pitch) {
+            Some(y) => y,
+            None => return Rect::NOTHING,
+        };
         Rect::from_min_max(
             pos2(x0, y0 + 1.0),
             pos2(x1.max(x0 + 2.0), y0 + self.key_h - 1.0),
@@ -248,9 +393,18 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
     toolbar(app, ui, &clip);
 
+    // The vertical axis comes from the *instrument*, once per frame, before anything is
+    // laid out: it decides how wide the key strip has to be as well as what is in it.
+    let axis = app
+        .project()
+        .track(track_id)
+        .map(|t| Axis::build(&t.instrument, &clip))
+        .unwrap_or_default();
+    let keys_w = if axis.pads() { PAD_KEYS_W } else { KEYS_W };
+
     let full = ui.available_rect_before_wrap();
     let grid = Rect::from_min_max(
-        pos2(full.left() + KEYS_W, full.top() + RULER_H),
+        pos2(full.left() + keys_w, full.top() + RULER_H),
         pos2(full.right(), full.bottom() - VEL_H),
     );
     let keys = Rect::from_min_max(
@@ -288,17 +442,45 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 v.scroll_beats = (v.scroll_beats - dx / v.px_per_beat).max(0.0);
             }
             if !mods.shift && scroll.y != 0.0 {
-                v.top_pitch = (v.top_pitch + scroll.y / v.key_height).clamp(12.0, 128.0);
+                // The top of the scroll range is one row past the last, so the highest row
+                // can reach the top of the grid; the bottom keeps one row on screen.
+                let top = axis.len() as f32;
+                let row_h = if axis.pads() {
+                    (grid.height() / top.max(1.0)).clamp(v.key_height, PAD_ROW_MAX)
+                } else {
+                    v.key_height
+                };
+                v.top_lane = (v.top_lane + scroll.y / row_h).clamp(1.0, top);
             }
         }
+    }
+    // A kit has a dozen rows, a keyboard 128, and the stored scroll position is in rows:
+    // switching between them has to land somewhere sensible rather than off the end.
+    let max_top = axis.len() as f32;
+    if app.piano_roll.top_lane > max_top || app.piano_roll.top_lane < 1.0 {
+        app.piano_roll.top_lane = max_top;
+    }
+    // A kit's rows grow to fill the grid. Seven pads at keyboard height are a strip along
+    // the top of an empty canvas; seven pads at a sixth of the height each are a drum
+    // editor. The stored `key_height` stays the keyboard's zoom, untouched.
+    let key_h = if axis.pads() {
+        let fit = grid.height() / axis.len().max(1) as f32;
+        fit.clamp(app.piano_roll.key_height, PAD_ROW_MAX)
+    } else {
+        app.piano_roll.key_height
+    };
+    if axis.pads() && key_h * axis.len() as f32 <= grid.height() + 0.5 {
+        // Everything fits: pin the top row to the top so nothing scrolls off.
+        app.piano_roll.top_lane = max_top;
     }
     let v = &app.piano_roll;
     let geo = Geo {
         grid,
         px_per_beat: v.px_per_beat,
         scroll_beats: v.scroll_beats,
-        key_h: v.key_height,
-        top_pitch: v.top_pitch,
+        key_h,
+        top_lane: v.top_lane,
+        axis: &axis,
     };
 
     paint_grid(app, ui, &geo, &clip);
@@ -309,8 +491,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let p = ui.painter().with_clip_rect(grid);
     let visible_start = beats_to_ticks(geo.beats(grid.left())) - Ticks::beats(64);
     let visible_end = beats_to_ticks(geo.beats(grid.right()));
-    let lo_pitch = geo.pitch(grid.bottom()).floor() as i32 - 1;
-    let hi_pitch = geo.pitch(grid.top()).ceil() as i32 + 1;
+    let lo_lane = geo.lane(grid.bottom()).floor() as i32 - 1;
+    let hi_lane = geo.lane(grid.top()).ceil() as i32 + 1;
     let mut drawn = 0usize;
     // Notes small enough to need no corners and no outline go into one mesh instead of
     // one shape each. epaint anti-aliases every filled shape by expanding it into a
@@ -322,7 +504,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         if n.start > visible_end {
             break; // notes are sorted by start
         }
-        if n.end() < visible_start || (n.pitch as i32) < lo_pitch || (n.pitch as i32) > hi_pitch {
+        let Some(lane) = axis.lane_of(n.pitch) else {
+            continue;
+        };
+        if n.end() < visible_start || (lane as i32) < lo_lane || (lane as i32) > hi_lane {
             continue;
         }
         let r = geo.note_rect(n);
@@ -394,7 +579,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             p.with_clip_rect(r).text(
                 pos2(r.left() + 3.0, r.center().y),
                 Align2::LEFT_CENTER,
-                pitch_name(n.pitch),
+                axis.name(lane),
                 design::paint::ruler(),
                 if n.muted {
                     theme::p().text_dim
@@ -416,7 +601,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         for pending in app.recorder.pending() {
             let x0 = geo.x(ticks_to_beats(clip.content_of(pending.start)));
             let x1 = geo.x(ph_beats).max(x0 + 2.0);
-            let y0 = geo.y(pending.pitch as f32 + 1.0);
+            // A live note on a pitch this kit has no pad for has nowhere to be drawn. It
+            // is not lost: committing the take gives it a row of its own (`Axis::build`).
+            let Some(y0) = geo.y_of_pitch(pending.pitch) else {
+                continue;
+            };
             let r = Rect::from_min_max(pos2(x0, y0 + 1.0), pos2(x1, y0 + geo.key_h - 1.0));
             p.rect_filled(
                 r,
@@ -587,26 +776,35 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, clip: &cantus_core::Clip) {
     });
 }
 
-fn paint_grid(app: &CantusApp, ui: &egui::Ui, geo: &Geo, clip: &cantus_core::Clip) {
+fn paint_grid(app: &CantusApp, ui: &egui::Ui, geo: &Geo<'_>, clip: &cantus_core::Clip) {
     let p = ui.painter().with_clip_rect(geo.grid);
     let grid = geo.grid;
     p.rect_filled(grid, 0.0, theme::p().ink);
-    let lo = geo.pitch(grid.bottom()).floor().max(0.0) as i32;
-    let hi = geo.pitch(grid.top()).ceil().min(128.0) as i32;
-    for pitch in lo..hi {
-        let y1 = geo.y(pitch as f32);
+    let lo = geo.lane(grid.bottom()).floor().max(0.0) as i32;
+    let hi = (geo.lane(grid.top()).ceil() as i32).min(geo.axis.len() as i32);
+    for lane in lo..hi {
+        let y1 = geo.y(lane as f32);
         let y0 = y1 - geo.key_h;
         let r = Rect::from_min_max(pos2(grid.left(), y0), pos2(grid.right(), y1));
+        // A keyboard shades its accidentals; a kit has no accidentals, so its rows simply
+        // alternate. Striping a kit by `pitch % 12` would draw a piano's pattern across
+        // drums that have nothing to do with it.
+        let dark = if geo.axis.pads() {
+            lane % 2 == 1
+        } else {
+            is_black(geo.axis.pitch(lane as usize))
+        };
         p.rect_filled(
             r,
             0.0,
-            if is_black(pitch as u8) {
+            if dark {
                 theme::p().row_black
             } else {
                 theme::p().row_white
             },
         );
-        if pitch % 12 == 0 {
+        let octave = !geo.axis.pads() && geo.axis.pitch(lane as usize) % 12 == 0;
+        if octave {
             p.hline(grid.x_range(), y1, Stroke::new(1.0, theme::p().grid_strong));
         }
     }
@@ -658,15 +856,40 @@ fn paint_grid(app: &CantusApp, ui: &egui::Ui, geo: &Geo, clip: &cantus_core::Cli
     }
 }
 
-fn paint_keys(ui: &egui::Ui, geo: &Geo, keys: Rect) {
+fn paint_keys(ui: &egui::Ui, geo: &Geo<'_>, keys: Rect) {
     let p = ui.painter().with_clip_rect(keys);
     p.rect_filled(keys, 0.0, theme::p().panel);
-    let lo = geo.pitch(keys.bottom()).floor().max(0.0) as i32;
-    let hi = geo.pitch(keys.top()).ceil().min(128.0) as i32;
-    for pitch in lo..hi {
-        let y1 = geo.y(pitch as f32);
+    let lo = geo.lane(keys.bottom()).floor().max(0.0) as i32;
+    let hi = (geo.lane(keys.top()).ceil() as i32).min(geo.axis.len() as i32);
+    for lane in lo..hi {
+        let y1 = geo.y(lane as f32);
         let y0 = y1 - geo.key_h;
-        let black = is_black(pitch as u8);
+        let r = Rect::from_min_max(pos2(keys.left(), y0), pos2(keys.right(), y1));
+        if geo.axis.pads() {
+            // Named rows: no black keys and no shortened key — every pad is one full-width
+            // lane with its name in it, which is the whole point of asking the instrument.
+            p.rect_filled(
+                r.shrink2(vec2(0.0, 0.5)),
+                0.0,
+                if lane % 2 == 1 {
+                    theme::p().panel_raised
+                } else {
+                    theme::p().white_key
+                },
+            );
+            if geo.key_h >= 9.0 {
+                p.with_clip_rect(r).text(
+                    pos2(keys.left() + 5.0, r.center().y),
+                    Align2::LEFT_CENTER,
+                    geo.axis.name(lane as usize),
+                    design::paint::label(),
+                    theme::on_light_key(&theme::p()),
+                );
+            }
+            continue;
+        }
+        let pitch = geo.axis.pitch(lane as usize);
+        let black = is_black(pitch);
         let right = if black {
             keys.right() - 18.0
         } else {
@@ -686,9 +909,9 @@ fn paint_keys(ui: &egui::Ui, geo: &Geo, keys: Rect) {
             p.text(
                 pos2(keys.right() - 3.0, r.center().y),
                 Align2::RIGHT_CENTER,
-                pitch_name(pitch as u8),
+                pitch_name(pitch),
                 design::paint::ruler(),
-                theme::p().ink,
+                theme::on_light_key(&theme::p()),
             );
         }
     }
@@ -713,7 +936,13 @@ const MAX_PX_PER_BEAT: f32 = 800.0;
 /// gap, so the numbers stay separate at any zoom.
 const RULER_LABEL_GAP: f32 = 44.0;
 
-fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &cantus_core::Clip) {
+fn paint_ruler(
+    app: &CantusApp,
+    ui: &egui::Ui,
+    geo: &Geo<'_>,
+    ruler: Rect,
+    clip: &cantus_core::Clip,
+) {
     let p = ui.painter().with_clip_rect(ruler);
     p.rect_filled(ruler, 0.0, theme::p().panel);
     let ts = app.project().time_signature;
@@ -758,7 +987,7 @@ fn paint_ruler(app: &CantusApp, ui: &egui::Ui, geo: &Geo, ruler: Rect, clip: &ca
 fn velocity_lane(
     app: &mut CantusApp,
     ui: &egui::Ui,
-    geo: &Geo,
+    geo: &Geo<'_>,
     vel: Rect,
     resp: &egui::Response,
     clip: &cantus_core::Clip,
@@ -874,7 +1103,7 @@ fn velocity_lane(
 fn interact(
     app: &mut CantusApp,
     ui: &egui::Ui,
-    geo: &Geo,
+    geo: &Geo<'_>,
     resp: &egui::Response,
     ruler_resp: &egui::Response,
     clip: &cantus_core::Clip,
@@ -965,11 +1194,12 @@ fn interact(
                     None if !ctrl => {
                         let start = snap_floor(geo.tick_at(pos.x)).max(Ticks::ZERO);
                         let pitch = geo.pitch_at(pos.y);
-                        let length = if snapping {
-                            app.piano_roll.last_note_length.max(grid_ticks)
-                        } else {
-                            app.piano_roll.last_note_length
-                        };
+                        let length = drawn_note_length(
+                            geo.axis,
+                            snapping,
+                            grid_ticks,
+                            app.piano_roll.last_note_length,
+                        );
                         let note = app.bus.new_note(start, length, pitch, 100);
                         let id = note.id;
                         if app.exec(Command::InsertNotes {
@@ -1091,17 +1321,18 @@ fn interact(
                     if let Some(d) = app.piano_roll.drag.as_ref() {
                         let d_beats = (pos.x - d.press.x) / geo.px_per_beat;
                         let raw = beats_to_ticks(d_beats);
-                        let d_pitch = -((pos.y - d.press.y) / geo.key_h).round() as i32;
+                        // Rows, not semitones: on a kit one row up is the next pad.
+                        let d_rows = -((pos.y - d.press.y) / geo.key_h).round() as i32;
                         let notes: Vec<Note> = match d.kind {
                             DragKind::Move => {
                                 // Shift locks pitch, Ctrl locks time (FL convention).
                                 let dt = if ctrl { Ticks::ZERO } else { snap_round(raw) };
-                                let dp = if mods.shift { 0 } else { d_pitch };
+                                let dp = if mods.shift { 0 } else { d_rows };
                                 d.originals
                                     .iter()
                                     .map(|n| Note {
                                         start: (n.start + dt).max(Ticks::ZERO),
-                                        pitch: (n.pitch as i32 + dp).clamp(0, 127) as u8,
+                                        pitch: geo.axis.moved(n.pitch, dp),
                                         ..n.clone()
                                     })
                                     .collect()
@@ -1187,6 +1418,22 @@ fn interact(
     }
 }
 
+/// How long a note drawn by hand should be.
+///
+/// On a kit it is a fixed short mark, and deliberately not the grid: a drum has no
+/// note-off worth aiming at, so its length carries no musical information, and a note as
+/// long as the grid would tile the row into a solid block the moment somebody used a
+/// coarse grid. A 1/16 stays legible at every zoom and reads as a *hit*.
+fn drawn_note_length(axis: &Axis, snapping: bool, grid: Ticks, last: Ticks) -> Ticks {
+    if axis.pads() {
+        Ticks::SIXTEENTH.min(grid)
+    } else if snapping {
+        last.max(grid)
+    } else {
+        last
+    }
+}
+
 fn select_note(app: &mut CantusApp, id: NoteId, toggle: bool) {
     if toggle {
         if let Some(i) = app.selected_notes.iter().position(|n| *n == id) {
@@ -1204,7 +1451,7 @@ fn select_note(app: &mut CantusApp, id: NoteId, toggle: bool) {
 #[allow(clippy::too_many_arguments)]
 fn paint_cell(
     app: &mut CantusApp,
-    geo: &Geo,
+    geo: &Geo<'_>,
     clip: &cantus_core::Clip,
     track: TrackId,
     clip_id: ClipId,
@@ -1231,11 +1478,7 @@ fn paint_cell(
     if occupied {
         return;
     }
-    let length = if snapping {
-        grid_ticks
-    } else {
-        app.piano_roll.last_note_length
-    };
+    let length = drawn_note_length(geo.axis, snapping, grid_ticks, grid_ticks);
     let note = app.bus.new_note(start, length, pitch, 100);
     let key = MergeKey::of(&("paint", app.piano_roll.stroke));
     app.exec_merging(

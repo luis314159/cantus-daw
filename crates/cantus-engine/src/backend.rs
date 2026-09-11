@@ -8,7 +8,8 @@ use crate::effects::EffectUnit;
 use crate::messages::*;
 use crate::midi::MidiSender;
 use crate::processor::Processor;
-use cantus_core::{EffectId, Snapshot, Ticks, TrackId};
+use crate::samples::SampleCache;
+use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::collections::HashSet;
@@ -77,6 +78,8 @@ pub struct EngineHandle {
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
     known_effects: HashSet<EffectId>,
+    /// Every sample any snapshot has referenced, for the life of the session.
+    pub samples: SampleCache,
     note_inputs: Vec<NoteInput>,
 }
 
@@ -155,6 +158,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            samples: SampleCache::new(),
             note_inputs: Vec::new(),
         })
     }
@@ -179,6 +183,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            samples: SampleCache::new(),
             note_inputs: Vec::new(),
         }
     }
@@ -196,6 +201,20 @@ impl EngineHandle {
         if self.tx.push(msg).is_err() {
             self.send_failures += 1;
         }
+    }
+
+    /// Compile the project into a snapshot with its sample files attached.
+    ///
+    /// The one way the application should make a snapshot it means to *play* — here or
+    /// offline — because `Snapshot::compile` on its own leaves every sample pad silent.
+    /// Files that cannot be read are reported and the pad stays silent; a project must
+    /// never fail to play because a sample moved.
+    pub fn compile(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
+        let mut snapshot = Snapshot::compile(project, revision);
+        for (path, err) in self.samples.attach(&mut snapshot) {
+            log::warn!("sample {}: {err}", path.display());
+        }
+        Arc::new(snapshot)
     }
 
     /// Send a snapshot, first delivering units for any effect the engine does not have.

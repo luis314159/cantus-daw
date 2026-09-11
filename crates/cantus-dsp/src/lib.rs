@@ -10,6 +10,7 @@
 //! | [`filter`] | trapezoidal state-variable filter |
 //! | [`smoother`] | one-pole parameter smoothing |
 //! | [`firmus`] | the built-in subtractive polysynth |
+//! | [`pulsus`] | the built-in synthesized drum kit |
 //! | [`click`] | metronome click |
 //! | [`nulltest`] | render comparison harness |
 
@@ -24,6 +25,7 @@ pub mod filter;
 pub mod firmus;
 pub mod nulltest;
 pub mod osc;
+pub mod pulsus;
 pub mod reverb;
 pub mod smoother;
 
@@ -33,5 +35,6 @@ pub use env::{Adsr, Stage};
 pub use filter::{FilterMode, Svf};
 pub use firmus::{Firmus, FirmusSettings, MAX_VOICES};
 pub use osc::{PolyBlepOsc, Wave};
+pub use pulsus::{DrumVoice, PadSettings, Pulsus, SampleRef, MAX_DRUM_VOICES, MAX_PADS};
 pub use reverb::{Reverb, ReverbSettings};
 pub use smoother::Smoother;

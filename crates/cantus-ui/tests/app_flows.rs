@@ -4,7 +4,7 @@
 use cantus_core::*;
 use cantus_engine::EngineHandle;
 use cantus_ui::views;
-use cantus_ui::{starter_project, stress_project, CantusApp};
+use cantus_ui::{starter_project, stress_project, welcome_project, CantusApp};
 use std::time::{Duration, Instant};
 
 fn app(project: Project) -> CantusApp {
@@ -918,7 +918,7 @@ fn piano_roll_frame_cost_of(project: Project, px_per_beat: f32) -> (usize, f64, 
     let mut a = app(project);
     a.piano_roll.px_per_beat = px_per_beat;
     a.piano_roll.key_height = 10.0;
-    a.piano_roll.top_pitch = 100.0;
+    a.piano_roll.top_lane = 100.0;
     a.piano_roll.scroll_beats = 0.0;
 
     let ctx = ctx();
@@ -1754,4 +1754,1096 @@ fn the_clip_colour_key_cycles_through_the_palette_and_back_off() {
     // with the same key that reached it.
     a.run_action(cantus_ui::keymap::Action::ClipColorNext);
     assert_eq!(colour(&a), None);
+}
+
+// ---- the channel rack, and a piano roll that knows what a pad is ---------------------
+
+/// A project with a Pulsus kit on its only track, and an empty two-bar clip.
+fn kit_project() -> Project {
+    let mut p = Project::new("kit");
+    let mut t = p.make_track("Drums");
+    t.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+    let clip = p.make_clip("Beat", Ticks::ZERO, Ticks::beats(8));
+    t.clips.push(clip);
+    p.tracks.push(t);
+    p
+}
+
+fn kit_app() -> CantusApp {
+    let mut a = app(kit_project());
+    let t = a.project().tracks[0].id;
+    let c = a.project().tracks[0].clips[0].id;
+    a.select_clip(t, c);
+    a
+}
+
+/// What the engine would actually play: `(tick, pitch)` for every note-on.
+fn note_ons(a: &CantusApp) -> Vec<(i64, u8)> {
+    let snap = Snapshot::compile(a.project(), 0);
+    snap.tracks
+        .iter()
+        .flat_map(|t| t.events.iter())
+        .filter(|e| e.is_on())
+        .map(|e| (e.tick.0, e.pitch))
+        .collect()
+}
+
+#[test]
+fn a_kit_names_its_lanes_and_a_synth_does_not() {
+    let kit = kit_project();
+    let lanes = kit.tracks[0].instrument.lanes();
+    assert!(!lanes.is_chromatic(), "a kit must not be a keyboard");
+    assert_eq!(lanes.name(0), "Kick");
+    assert_eq!(lanes.pitch(0), Some(36));
+    assert_eq!(
+        kit.tracks[0].instrument.lane_name(42),
+        Some("Closed hat"),
+        "the instrument must name its own pitches"
+    );
+    assert_eq!(kit.tracks[0].instrument.lane_name(60), None);
+
+    let synth = starter_project();
+    assert!(synth.tracks[0].instrument.lanes().is_chromatic());
+    assert_eq!(synth.tracks[0].instrument.lane_name(60), None);
+}
+
+/// The piano roll must *show* the pad names, not merely be able to look them up. Asserting
+/// on the painted text is the only version of this that would fail if the view kept
+/// drawing a keyboard while the model happily answered questions nobody asked it.
+#[test]
+fn the_piano_roll_draws_pad_names_for_a_kit_and_note_names_for_a_synth() {
+    let painted = |mut a: CantusApp| {
+        let ctx = ctx();
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 700.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| views::piano_roll::show(&mut a, ui));
+            },
+        );
+        out.textures_delta.clear();
+        painted_text(&out.shapes)
+    };
+
+    let drums = painted(kit_app());
+    assert!(
+        drums.contains("Kick"),
+        "no pad names in the key strip: {drums}"
+    );
+    assert!(drums.contains("Closed hat"), "missing a pad: {drums}");
+    assert!(
+        !drums.contains("C4") && !drums.contains("C3"),
+        "a kit is still drawing a keyboard: {drums}"
+    );
+
+    let synth = painted(app(starter_project()));
+    assert!(
+        synth.contains("C4") || synth.contains("C5") || synth.contains("C3"),
+        "a synth stopped drawing its keyboard: {synth}"
+    );
+    assert!(!synth.contains("Kick"));
+}
+
+/// A clip may hold notes the kit has no pad for — a track that used to be a synth. Those
+/// must still have a row, or changing an instrument would make music *invisible*, which is
+/// indistinguishable from losing it.
+#[test]
+fn a_note_the_kit_cannot_play_still_gets_a_row() {
+    let mut p = kit_project();
+    let note = p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    p.tracks[0].clips[0].notes.push(note);
+    let clip = p.tracks[0].clips[0].clone();
+    let axis = views::piano_roll::Axis::build(&p.tracks[0].instrument, &clip);
+    let lane = axis
+        .lane_of(60)
+        .expect("a note with no pad must still have a row");
+    assert_eq!(
+        axis.name(lane),
+        "C4",
+        "the extra row is named as a keyboard would"
+    );
+    assert_eq!(axis.len(), PulsusParams::default().pads.len() + 1);
+}
+
+/// The rows are the same units the vertical keys move in. On a keyboard a row is a
+/// semitone; on a kit it is the next pad, and "an octave" is four pads — a row of a pad
+/// grid — because neither a semitone nor an octave names anything on a drum kit.
+#[test]
+fn transposing_on_a_kit_moves_by_pads_not_by_semitones() {
+    let mut a = kit_app();
+    let (t, c) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let note = a.bus.new_note(Ticks::ZERO, Ticks::SIXTEENTH, 36, 100);
+    let id = note.id;
+    assert!(a.exec(Command::InsertNotes {
+        track: t,
+        clip: c,
+        notes: vec![note]
+    }));
+    a.selected_notes = vec![id];
+
+    a.transpose_selection(1);
+    assert_eq!(
+        note_ons(&a),
+        vec![(0, 37)],
+        "one row up from the kick is the next pad, not pitch 37 by arithmetic accident"
+    );
+    a.transpose_selection(1);
+    assert_eq!(note_ons(&a), vec![(0, 38)], "and again: the snare");
+    // The octave keys move four pads, and the kit has seven, so from the snare (row 2)
+    // that is row 6.
+    a.transpose_selection(12);
+    let pads = PulsusParams::default().pads;
+    assert_eq!(
+        note_ons(&a),
+        vec![(0i64, pads[6].pitch)],
+        "the octave keys must move four pads on a kit"
+    );
+    // And back down again, exactly.
+    a.transpose_selection(-12);
+    a.transpose_selection(-1);
+    a.transpose_selection(-1);
+    assert_eq!(note_ons(&a), vec![(0, 36)], "the move is not reversible");
+}
+
+/// Drive the rack by pointer, through the geometry it publishes, and assert on
+/// `Snapshot::compile` — what the engine would play — rather than on the clip's fields.
+/// `lane` is a lane of the track's axis, or `None` for a melodic track's single row.
+fn click_step(a: &mut CantusApp, track: usize, lane: Option<usize>, step: usize, secondary: bool) {
+    let ctx = ctx();
+    let size = egui::vec2(1200.0, 500.0);
+    let show = |a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| views::channel_rack::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    // Lay it out, then ask it where the cell is. Recomputing the layout here would make
+    // the test break the day the toolbar grows a control.
+    show(a, &ctx, vec![]);
+    let geo = a.rack.geometry().expect("the rack drew a frame");
+    let row = match lane {
+        Some(l) => geo.row_for_lane(track, l),
+        None => geo.row_for_track(track),
+    }
+    .expect("the rack has a row for that lane");
+    let at = geo.cell(row, step).center();
+    let button = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: if secondary {
+            egui::PointerButton::Secondary
+        } else {
+            egui::PointerButton::Primary
+        },
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    show(a, &ctx, vec![egui::Event::PointerMoved(at)]);
+    show(a, &ctx, vec![egui::Event::PointerMoved(at), button(true)]);
+    show(a, &ctx, vec![egui::Event::PointerMoved(at), button(false)]);
+    show(a, &ctx, vec![]);
+}
+
+/// The decision the whole rack rests on: a step **is** a note. Switching one on has to
+/// change what the engine plays, and switching it off has to put the clip back exactly.
+#[test]
+fn a_step_is_a_note_and_switching_it_off_puts_the_clip_back() {
+    let mut a = kit_app();
+    let before = a.project().clone();
+    assert!(note_ons(&a).is_empty());
+
+    // Lane 0 of the kit is the kick — the lowest pad, drawn at the bottom.
+    let pads = PulsusParams::default().pads;
+    click_step(&mut a, 0, Some(0), 4, false);
+    assert_eq!(
+        note_ons(&a),
+        vec![(Ticks::SIXTEENTH.0 * 4, pads[0].pitch)],
+        "a step on the kick's row at step 4 is a kick a beat in"
+    );
+
+    click_step(&mut a, 0, Some(0), 4, true);
+    assert!(note_ons(&a).is_empty(), "right-click did not switch it off");
+    let mut now = a.project().clone();
+    now.next_id = before.next_id;
+    assert_eq!(now, before, "on then off is not the identity");
+
+    // ...and it is one undo step each way.
+    click_step(&mut a, 0, Some(0), 4, false);
+    a.undo();
+    assert!(note_ons(&a).is_empty(), "one step is not one undo step");
+}
+
+/// The rack and the piano roll are two editors for one clip, not two data models. Nothing
+/// is converted when the view changes, so the project after a round trip is byte-identical
+/// and the engine plays the same thing.
+#[test]
+fn switching_between_the_rack_and_the_piano_roll_converts_nothing() {
+    let mut a = kit_app();
+    click_step(&mut a, 0, Some(0), 0, false);
+    click_step(&mut a, 0, Some(0), 8, false);
+    let after_rack = a.project().clone();
+    let played = note_ons(&a);
+    assert_eq!(played.len(), 2);
+
+    // Draw a frame of the piano roll over the same clip, then a frame of the rack again.
+    let ctx = ctx();
+    let frame = |a: &mut CantusApp, which: bool| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 700.0),
+            )),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| {
+                    if which {
+                        views::piano_roll::show(a, ui)
+                    } else {
+                        views::channel_rack::show(a, ui)
+                    }
+                });
+        })
+        .textures_delta
+        .clear();
+    };
+    frame(&mut a, true);
+    frame(&mut a, false);
+    frame(&mut a, true);
+    assert_eq!(*a.project(), after_rack, "looking at a clip changed it");
+    assert_eq!(note_ons(&a), played);
+}
+
+/// A muted pad is silent and nothing else is, and the notes are still there — mute hides a
+/// pad, it does not delete it.
+#[test]
+fn muting_a_pad_silences_that_pad_alone() {
+    let mut a = kit_app();
+    let (t, c) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let pads = PulsusParams::default().pads;
+    let notes: Vec<_> = [0usize, 2, 3]
+        .iter()
+        .map(|i| {
+            a.bus
+                .new_note(Ticks::ZERO, Ticks::SIXTEENTH, pads[*i].pitch, 100)
+        })
+        .collect();
+    assert!(a.exec(Command::InsertNotes {
+        track: t,
+        clip: c,
+        notes
+    }));
+    assert_eq!(note_ons(&a).len(), 3);
+
+    assert!(a.exec(Command::SetInstrumentParam {
+        track: t,
+        param: InstrumentParam::Pulsus {
+            pad: 2,
+            field: PadField::Mute,
+        },
+        value: 1.0,
+    }));
+    let heard = note_ons(&a);
+    assert_eq!(
+        heard.len(),
+        2,
+        "muting one pad silenced {} of 3",
+        3 - heard.len()
+    );
+    assert!(!heard.iter().any(|(_, p)| *p == pads[2].pitch));
+    assert_eq!(
+        a.project().track(t).unwrap().clip(c).unwrap().notes.len(),
+        3,
+        "muting a pad deleted its notes"
+    );
+
+    a.undo();
+    assert_eq!(note_ons(&a).len(), 3, "unmuting did not bring the pad back");
+}
+
+/// Renaming a pad renames it everywhere at once, because the name lives in the kit — and
+/// the piano roll's row picks it up without being told.
+#[test]
+fn renaming_a_pad_renames_the_row_in_the_piano_roll() {
+    let mut a = kit_app();
+    let t = a.project().tracks[0].id;
+    assert!(a.exec(Command::SetPadName {
+        track: t,
+        pad: 0,
+        name: "Bombo".into(),
+    }));
+    let axis = a.note_axis();
+    assert_eq!(axis.name(0), "Bombo");
+    assert_eq!(
+        a.project().track(t).unwrap().instrument.lane_name(36),
+        Some("Bombo")
+    );
+    a.undo();
+    assert_eq!(a.note_axis().name(0), "Kick");
+}
+
+/// ADR 0011's rule, applied to the shape it was written for: pads × steps, every frame.
+///
+/// A 32-pad kit over 256 steps is 8 192 cells. Drawn one painter call each they would cost
+/// roughly ten times as much per item, so the guardrail is on the **shape count**: the
+/// whole grid has to arrive as a handful of shapes, one of which is a mesh, not as
+/// thousands. Asserting on shapes rather than on milliseconds keeps it honest on a loaded
+/// machine — a timing guardrail that fails when another build is running teaches people to
+/// re-run instead of read (round 9).
+#[test]
+fn the_channel_racks_grid_is_one_mesh() {
+    let mut p = Project::new("wide");
+    let mut t = p.make_track("Drums");
+    // A kit at the widest Pulsus allows.
+    let mut kit = PulsusParams::default();
+    while kit.pads.len() < 32 {
+        let mut pad = kit.pads[kit.pads.len() % 7].clone();
+        pad.pitch = 60 + kit.pads.len() as u8;
+        pad.name = format!("Pad {}", kit.pads.len());
+        kit.pads.push(pad);
+    }
+    kit.pads.sort_by_key(|p| p.pitch);
+    t.instrument = InstrumentSpec::Pulsus(kit);
+    let mut clip = p.make_clip("Long", Ticks::ZERO, Ticks::beats(64));
+    for i in 0..256i64 {
+        clip.notes
+            .push(p.make_note(Ticks::SIXTEENTH * i, Ticks::SIXTEENTH, 36, 100));
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+
+    let mut a = app(p);
+    let (tid, cid) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    a.select_clip(tid, cid);
+    a.rack.fit = false;
+    a.rack.step_w = 6.0;
+    a.rack.row_h = 14.0;
+
+    let ctx = ctx();
+    let mut out = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 900.0),
+            )),
+            ..Default::default()
+        },
+        |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| views::channel_rack::show(&mut a, ui));
+        },
+    );
+    out.textures_delta.clear();
+    let geo = a.rack.geometry().expect("the rack drew a frame");
+    assert!(
+        geo.rows.len() >= 33,
+        "the wide kit lost its rows: {}",
+        geo.rows.len()
+    );
+    assert!(
+        geo.steps >= 256,
+        "the long clip lost its steps: {}",
+        geo.steps
+    );
+
+    fn count(shape: &egui::Shape, rects: &mut usize, meshes: &mut usize) {
+        match shape {
+            egui::Shape::Rect(_) => *rects += 1,
+            egui::Shape::Mesh(_) => *meshes += 1,
+            egui::Shape::Vec(v) => v.iter().for_each(|s| count(s, rects, meshes)),
+            _ => {}
+        }
+    }
+    let (mut rects, mut meshes) = (0, 0);
+    for s in &out.shapes {
+        count(&s.shape, &mut rects, &mut meshes);
+    }
+    assert!(meshes >= 1, "the grid is not batched into a mesh at all");
+    // Generous, and still two orders of magnitude below one rectangle per cell.
+    assert!(
+        rects < 900,
+        "the grid is drawing {rects} rectangles: one per cell would be tens of thousands"
+    );
+}
+
+/// A muted pad still draws, a fine step grid still draws its lit steps: the level-of-detail
+/// rule may drop the empty cells, never the music.
+#[test]
+fn the_lit_steps_survive_the_level_of_detail_rule() {
+    let mut a = kit_app();
+    let (t, c) = (a.project().tracks[0].id, a.project().tracks[0].clips[0].id);
+    let notes: Vec<_> = (0..16i64)
+        .map(|i| {
+            a.bus
+                .new_note(Ticks::SIXTEENTH * i, Ticks::SIXTEENTH, 36, 100)
+        })
+        .collect();
+    assert!(a.exec(Command::InsertNotes {
+        track: t,
+        clip: c,
+        notes
+    }));
+
+    let triangles = |a: &mut CantusApp, step_w: f32| {
+        a.rack.fit = false;
+        a.rack.step_w = step_w;
+        let ctx = ctx();
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 600.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| views::channel_rack::show(a, ui));
+            },
+        );
+        out.textures_delta.clear();
+        let mut n = 0usize;
+        for prim in ctx.tessellate(out.shapes, 1.0) {
+            if let egui::epaint::Primitive::Mesh(m) = prim.primitive {
+                n += m.indices.len() / 3;
+            }
+        }
+        n
+    };
+    // Wide cells draw the empty ones too; narrow cells stop, which is the whole point.
+    let wide = triangles(&mut a, 30.0);
+    let narrow = triangles(&mut a, 3.5);
+    assert!(
+        narrow < wide,
+        "the level-of-detail rule is not doing anything: {narrow} against {wide}"
+    );
+    assert!(narrow > 0, "the narrow grid drew nothing at all");
+}
+
+// ---- the playlist: a time selection, and the shape of a track -----------------------
+
+/// A three-track project so track order and heights have something to be relative to.
+fn three_tracks() -> Project {
+    let mut p = starter_project();
+    for name in ["Second", "Third"] {
+        let mut t = p.make_track(name);
+        let clip = p.make_clip("c", Ticks::beats(4), Ticks::beats(4));
+        t.clips.push(clip);
+        p.tracks.push(t);
+    }
+    p
+}
+
+/// The ruler is two lanes. Dragging the lower one selects time; dragging the upper one
+/// sets the loop. Both are aimed through the geometry the view publishes.
+#[test]
+fn dragging_the_ruler_selects_time_and_dragging_the_loop_lane_sets_the_loop() {
+    let mut a = app(three_tracks());
+    let before_loop = a.project().loop_region.clone();
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let y = (g.loop_lane_bottom + g.body_top) * 0.5;
+            (egui::pos2(g.x(4.0), y), egui::pos2(g.x(12.0), y))
+        },
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(
+        a.time_selection,
+        Some((Ticks::beats(4), Ticks::beats(12))),
+        "dragging the selection lane did not select bars 2 to 4"
+    );
+    assert_eq!(
+        a.project().loop_region,
+        before_loop,
+        "a time selection must not move the loop"
+    );
+
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let y = (g.ruler_top + g.loop_lane_bottom) * 0.5;
+            (egui::pos2(g.x(8.0), y), egui::pos2(g.x(16.0), y))
+        },
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(
+        a.project().loop_region,
+        Some(LoopRegion {
+            start: Ticks::beats(8),
+            end: Ticks::beats(16)
+        }),
+        "dragging the loop lane did not set the loop"
+    );
+    assert_eq!(
+        a.time_selection,
+        Some((Ticks::beats(4), Ticks::beats(12))),
+        "setting the loop must not disturb the time selection"
+    );
+    // Dragging backwards selects the same range, and a zero-width drag selects nothing.
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let y = (g.loop_lane_bottom + g.body_top) * 0.5;
+            (egui::pos2(g.x(20.0), y), egui::pos2(g.x(16.0), y))
+        },
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(a.time_selection, Some((Ticks::beats(16), Ticks::beats(20))));
+    a.set_time_selection(Ticks::beats(3), Ticks::beats(3));
+    assert_eq!(
+        a.time_selection, None,
+        "an empty selection must be no selection"
+    );
+}
+
+/// What hangs off the selection today: the loop follows it, and the view zooms to it.
+#[test]
+fn loop_to_selection_and_zoom_to_selection_hang_off_the_time_selection() {
+    use cantus_ui::keymap::Action;
+    let mut a = app(three_tracks());
+    // Nothing selected: both are no-ops, not panics and not changes.
+    let before = a.project().clone();
+    a.run_action(Action::LoopToSelection);
+    a.run_action(Action::ZoomToSelection);
+    assert_eq!(*a.project(), before);
+
+    a.set_time_selection(Ticks::beats(8), Ticks::beats(24));
+    a.run_action(Action::LoopToSelection);
+    // The loop region is part of what a project *renders* while looping is on, so the
+    // snapshot is the thing to ask.
+    let snap = Snapshot::compile(a.project(), 0);
+    assert_eq!(
+        snap.loop_region,
+        Some(LoopRegion {
+            start: Ticks::beats(8),
+            end: Ticks::beats(24)
+        }),
+        "loop-to-selection must set the region *and* switch looping on"
+    );
+    a.undo();
+    assert_eq!(
+        Snapshot::compile(a.project(), 0).loop_region,
+        None,
+        "loop-to-selection must be one undo step"
+    );
+
+    // Zoom: after it, both ends of the selection are inside the drawn timeline.
+    run_frames(&mut a, 1);
+    a.run_action(Action::ZoomToSelection);
+    run_frames(&mut a, 1);
+    let g = a.arrangement.geometry().expect("timeline drawn");
+    let (x0, x1) = (g.x(8.0), g.x(24.0));
+    assert!(
+        x0 >= g.left - 1.0,
+        "selection start is off screen after zoom: {x0}"
+    );
+    assert!(
+        x1 <= g.left + g.width + 1.0,
+        "selection end is off screen: {x1}"
+    );
+    assert!(
+        (x1 - x0) > g.width * 0.8,
+        "zoom-to-selection did not fill the view: {} of {}",
+        x1 - x0,
+        g.width
+    );
+}
+
+/// Escape in the arrangement clears the time selection along with the clips.
+#[test]
+fn escape_in_the_arrangement_clears_the_time_selection() {
+    use cantus_ui::keymap::Action;
+    let mut a = app(three_tracks());
+    a.focus_arrangement();
+    a.set_time_selection(Ticks::ZERO, Ticks::beats(4));
+    a.run_action(Action::ClearSelection);
+    assert_eq!(a.time_selection, None);
+}
+
+/// A track's height is a project field, it is undoable, and it moves every row below it
+/// by exactly what the geometry says — headers and lanes from the same table.
+#[test]
+fn per_track_height_is_stored_undoable_and_moves_the_rows_below() {
+    let mut a = app(three_tracks());
+    run_frames(&mut a, 1);
+    let g0 = a.arrangement.geometry().unwrap();
+    assert_eq!(g0.rows.len(), 3);
+    let base = g0.rows[0].height;
+    let t0 = a.project().tracks[0].id;
+
+    assert!(a.exec(Command::SetTrackHeight {
+        id: t0,
+        height: 2.0
+    }));
+    run_frames(&mut a, 1);
+    let g1 = a.arrangement.geometry().unwrap();
+    assert!(
+        (g1.rows[0].height - base * 2.0).abs() <= 1.0,
+        "row 0 is {} for a height of 2 × {base}",
+        g1.rows[0].height
+    );
+    assert!(
+        (g1.rows[1].top - (g0.rows[1].top + base)).abs() <= 1.0,
+        "row 1 did not move down by the extra height"
+    );
+    assert_eq!(
+        g1.rows[2].height, g0.rows[2].height,
+        "other rows kept their height"
+    );
+
+    // Out-of-range values are clamped, not stored: a hand-edited file cannot make a
+    // two-pixel track.
+    assert!(a.exec(Command::SetTrackHeight {
+        id: t0,
+        height: 40.0
+    }));
+    assert_eq!(a.project().tracks[0].height, MAX_TRACK_HEIGHT);
+    a.undo();
+    a.undo();
+    assert_eq!(a.project().tracks[0].height, 1.0, "height is not undoable");
+
+    // And it survives the file.
+    assert!(a.exec(Command::SetTrackHeight {
+        id: t0,
+        height: 0.6
+    }));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tall.cantus");
+    a.save_to_path(&path);
+    a.new_project();
+    a.open(&path);
+    assert_eq!(
+        a.project().tracks[0].height,
+        0.6,
+        "height did not travel with the file"
+    );
+}
+
+/// Dragging the divider under a header resizes that track, through the same command.
+#[test]
+fn dragging_a_header_divider_resizes_the_track() {
+    let mut a = app(three_tracks());
+    let t0 = a.project().tracks[0].id;
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let x = g.left - 60.0; // in the header column
+            let y = g.rows[0].top + g.rows[0].height; // on the divider
+            (egui::pos2(x, y), egui::pos2(x, y + g.rows[0].height))
+        },
+        egui::Modifiers::NONE,
+    );
+    let h = a.project().track(t0).unwrap().height();
+    assert!(
+        (h - 2.0).abs() < 0.15,
+        "dragging the divider down by one row should double the track: got {h}"
+    );
+    // One gesture, one undo step.
+    a.undo();
+    assert_eq!(a.project().track(t0).unwrap().height, 1.0);
+}
+
+/// Dragging a header itself reorders the tracks, which the engine sees as a different
+/// track order in the snapshot.
+#[test]
+fn dragging_a_header_reorders_the_tracks() {
+    let mut a = app(three_tracks());
+    let before: Vec<TrackId> = a.project().tracks.iter().map(|t| t.id).collect();
+    drag_the_arrangement(
+        &mut a,
+        |g| {
+            let x = g.left - 60.0;
+            // From the middle of row 0 to the lower half of row 2: land after it.
+            (
+                egui::pos2(x, g.row_y(0)),
+                egui::pos2(x, g.rows[2].top + g.rows[2].height * 0.9),
+            )
+        },
+        egui::Modifiers::NONE,
+    );
+    let after: Vec<TrackId> = Snapshot::compile(a.project(), 0)
+        .tracks
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(
+        after,
+        vec![before[1], before[2], before[0]],
+        "the first track should now be last"
+    );
+    a.undo();
+    let undone: Vec<TrackId> = a.project().tracks.iter().map(|t| t.id).collect();
+    assert_eq!(undone, before);
+}
+
+#[test]
+fn ctrl_arrows_step_through_the_tracks() {
+    use cantus_ui::keymap::{Action, Binding, Keymap};
+    let mut a = app(three_tracks());
+    let ids: Vec<TrackId> = a.project().tracks.iter().map(|t| t.id).collect();
+    a.select_track(ids[0]);
+    a.run_action(Action::SelectNextTrack);
+    assert_eq!(a.selected_track, Some(ids[1]));
+    a.run_action(Action::SelectNextTrack);
+    a.run_action(Action::SelectNextTrack);
+    assert_eq!(
+        a.selected_track,
+        Some(ids[2]),
+        "stepping past the end stays put"
+    );
+    a.run_action(Action::SelectPrevTrack);
+    assert_eq!(a.selected_track, Some(ids[1]));
+    // And they are bound to Ctrl+arrows, which must not collide with the bare arrows.
+    let map = Keymap::default();
+    assert_eq!(
+        map.bindings_for(Action::SelectNextTrack),
+        &[Binding::cmd(egui::Key::ArrowDown)]
+    );
+    assert!(map
+        .bindings_for(Action::TransposeDown)
+        .contains(&Binding::key(egui::Key::ArrowDown)));
+}
+
+/// The header lost its mixer strip and the inspector gained it. Asserted on what is
+/// painted: a header that still drew a dB readout would pass any test on the model.
+#[test]
+fn the_fader_left_the_track_header_for_the_inspector() {
+    let mut a = app(three_tracks());
+    let t0 = a.project().tracks[0].id;
+    a.select_track(t0);
+    let ctx = ctx();
+    let paint = |a: &mut CantusApp, arrangement: bool| {
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 700.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| {
+                        if arrangement {
+                            views::arrangement::show(a, ui)
+                        } else {
+                            views::inspector::show(a, ui)
+                        }
+                    });
+            },
+        );
+        out.textures_delta.clear();
+        painted_text(&out.shapes)
+    };
+    let header = paint(&mut a, true);
+    assert!(
+        !header.contains("dB"),
+        "the track header is still drawing a fader readout: {header}"
+    );
+    let inspector = paint(&mut a, false);
+    assert!(
+        inspector.contains("Channel"),
+        "no channel strip in the inspector: {inspector}"
+    );
+    assert!(
+        inspector.contains("+0.0 dB") && inspector.contains("100%"),
+        "the inspector's strip is missing its readouts: {inspector}"
+    );
+}
+
+/// `None` is "derive from the instrument", and it must keep deriving after the instrument
+/// changes — which a stored value would not.
+#[test]
+fn a_track_icon_follows_the_instrument_until_one_is_chosen() {
+    let mut a = app(starter_project());
+    let t = a.project().tracks[0].id;
+    assert_eq!(a.project().tracks[0].icon(), TrackIcon::Synth);
+    let mut kit_track = a.project().tracks[0].clone();
+    kit_track.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+    assert_eq!(kit_track.icon(), TrackIcon::Drums);
+    assert!(a.exec(Command::SetTrackIcon {
+        id: t,
+        icon: Some(TrackIcon::Vocal)
+    }));
+    assert_eq!(a.project().tracks[0].icon(), TrackIcon::Vocal);
+    a.undo();
+    assert_eq!(a.project().tracks[0].icon(), TrackIcon::Synth);
+}
+
+/// Every arrangement action has a key, for the same reason every clip action does.
+#[test]
+fn every_arrangement_action_has_a_key_bound_to_it() {
+    use cantus_ui::keymap::{Action, Category, Keymap};
+    let map = Keymap::default();
+    let unbound: Vec<&str> = Action::ALL
+        .into_iter()
+        .filter(|a| a.category() == Category::Arrangement || a.category() == Category::View)
+        .filter(|a| map.bindings_for(*a).is_empty())
+        .map(|a| a.id())
+        .collect();
+    assert!(
+        unbound.is_empty(),
+        "arrangement or view actions with no shortcut: {unbound:?}"
+    );
+}
+
+// ---- the rack across every track --------------------------------------------------
+
+/// The rack lists every track. A melodic track is one row, a one-pad kit is one row, and a
+/// kit with several pads is a heading plus a row per pad — and the strip number on each is
+/// the track's position, which is the mixer strip it lands on today.
+#[test]
+fn the_rack_lists_every_track_and_expands_a_kit_into_its_pads() {
+    let mut a = app(welcome_project());
+    run_frames(&mut a, 1);
+    let ctx = ctx();
+    let mut out = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 700.0),
+            )),
+            ..Default::default()
+        },
+        |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| views::channel_rack::show(&mut a, ui));
+        },
+    );
+    out.textures_delta.clear();
+    let geo = a.rack.geometry().expect("the rack drew a frame");
+    // Keys (1 row), Kick (1), Snare (1), Hi-hat (heading + 2 pads) = 6.
+    assert_eq!(geo.rows.len(), 6, "{:?}", geo.rows);
+    assert_eq!(
+        geo.row_for_track(0),
+        Some(0),
+        "the keys track is one editable row"
+    );
+    assert_eq!(geo.row_for_track(1), Some(1));
+    assert_eq!(geo.row_for_track(2), Some(2));
+    assert_eq!(geo.rows[3].lane, None, "a two-pad kit gets a heading");
+    assert_eq!(
+        geo.row_for_lane(3, 1),
+        Some(4),
+        "the open hat is drawn above the closed"
+    );
+    assert_eq!(geo.row_for_lane(3, 0), Some(5));
+    let text = painted_text(&out.shapes);
+    for name in ["Keys", "Kick", "Snare", "Hi-hat", "Closed hat", "Open hat"] {
+        assert!(text.contains(name), "{name} is not in the rack: {text}");
+    }
+}
+
+/// A step on another track's row edits *that* track's clip in the pattern's window, and a
+/// step on a track with no clip there creates one — in one undo step.
+#[test]
+fn a_step_on_another_channel_edits_that_channel_and_creates_its_clip_if_needed() {
+    let mut a = app(welcome_project());
+    // Select the keys clip: the pattern is its window, two bars.
+    let keys = a.project().tracks[0].id;
+    let keys_clip = a.project().tracks[0].clips[0].id;
+    a.select_clip(keys, keys_clip);
+    let kick = a.project().tracks[1].id;
+    let before: Vec<_> = Snapshot::compile(a.project(), 0)
+        .track(kick)
+        .unwrap()
+        .events
+        .iter()
+        .filter(|e| e.is_on())
+        .map(|e| e.tick)
+        .collect();
+
+    // Step 2 of the kick's row: an off-beat kick that is not in the groove yet.
+    click_step(&mut a, 1, Some(0), 2, false);
+    let after: Vec<_> = Snapshot::compile(a.project(), 0)
+        .track(kick)
+        .unwrap()
+        .events
+        .iter()
+        .filter(|e| e.is_on())
+        .map(|e| e.tick)
+        .collect();
+    assert_eq!(
+        after.len(),
+        before.len() + 2,
+        "one new hit per repetition of the pattern"
+    );
+    assert!(after.contains(&(Ticks::SIXTEENTH * 2)));
+    assert_eq!(
+        a.selected_clip,
+        Some(keys_clip),
+        "editing another channel must not change the selection"
+    );
+
+    // A brand-new track has no clip in the window: the first step makes one.
+    a.add_track();
+    let fresh = a.project().tracks[4].id;
+    a.select_clip(keys, keys_clip);
+    assert!(a.project().track(fresh).unwrap().clips.is_empty());
+    click_step(&mut a, 4, None, 6, false);
+    let clips = &a.project().track(fresh).unwrap().clips;
+    assert_eq!(clips.len(), 1, "the first step should have created a clip");
+    assert_eq!(clips[0].start, Ticks::ZERO);
+    assert_eq!(
+        clips[0].content_length,
+        Some(Ticks::beats(8)),
+        "it repeats like the pattern"
+    );
+    let played: Vec<_> = Snapshot::compile(a.project(), 0)
+        .track(fresh)
+        .unwrap()
+        .events
+        .iter()
+        .filter(|e| e.is_on())
+        .map(|e| (e.tick, e.pitch))
+        .collect();
+    assert_eq!(
+        played[0],
+        (Ticks::SIXTEENTH * 6, 60),
+        "a melodic row's step is middle C"
+    );
+    a.undo();
+    assert!(
+        a.project().track(fresh).unwrap().clips.is_empty(),
+        "clip and note must be one undo step"
+    );
+}
+
+/// The project a session opens with plays a groove: kick, snare and hats on their own
+/// tracks, each landing on its own mixer strip, and it renders with headroom.
+#[test]
+fn the_welcome_project_opens_on_a_groove() {
+    let p = welcome_project();
+    assert_eq!(p.tracks.len(), 4);
+    let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["Keys", "Kick", "Snare", "Hi-hat"]);
+    for t in &p.tracks[1..] {
+        assert!(t.instrument.pulsus().is_some(), "{} is not a kit", t.name);
+        assert_eq!(t.icon(), TrackIcon::Drums);
+    }
+    assert!(p.loop_enabled, "the groove should loop out of the box");
+    let snap = Snapshot::compile(&p, 0);
+    for t in &snap.tracks {
+        assert!(!t.events.is_empty(), "{} is silent", t.name);
+    }
+    // The hats share a choke group, or the open hat would ring over the closed one.
+    let hats = p.tracks[3].instrument.pulsus().unwrap();
+    assert_eq!(hats.pads.len(), 2);
+    assert_eq!(hats.pads[0].choke, hats.pads[1].choke);
+    assert_ne!(hats.pads[0].choke, 0);
+
+    let rendered = cantus_engine::render(
+        std::sync::Arc::new(snap),
+        &cantus_engine::RenderOptions {
+            tail_seconds: 0.2,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        rendered.peak > 0.2,
+        "the groove is too quiet: {}",
+        rendered.peak
+    );
+    assert!(rendered.peak < 0.98, "the groove clips: {}", rendered.peak);
+}
+
+/// A track becomes a kit and back, keeping its notes; pads are added and removed; a file
+/// dropped on a pad makes it a sample pad — each of them one undo step.
+#[test]
+fn a_track_can_become_a_kit_and_its_pads_can_come_and_go() {
+    let mut a = app(starter_project());
+    let t = a.project().tracks[0].id;
+    let notes_before = note_ons(&a);
+    assert!(a.project().tracks[0].instrument.pulsus().is_none());
+
+    a.set_instrument(t, InstrumentSpec::Pulsus(PulsusParams::default()));
+    let kit = a.project().tracks[0].instrument.pulsus().unwrap();
+    assert_eq!(kit.pads.len(), 7);
+    assert_eq!(
+        kit.pads[0].name, "Kick",
+        "default pads are named in the interface language"
+    );
+    // The melody is still there, as rows the kit cannot play but the editor still shows.
+    assert_eq!(a.note_axis().len(), 7 + 4);
+    assert_eq!(
+        note_ons(&a),
+        notes_before,
+        "changing instrument must not move a note"
+    );
+
+    a.add_pad(t, PadVoice::Sample);
+    let kit = a.project().tracks[0].instrument.pulsus().unwrap();
+    assert_eq!(kit.pads.len(), 8);
+    assert_eq!(kit.pads[7].pitch, 51, "a new pad lands above the highest");
+    assert_eq!(kit.pads[7].voice, PadVoice::Sample);
+    assert_eq!(a.rack.selected_pad, 7, "the new pad is selected");
+
+    a.remove_pad(t, 7);
+    assert_eq!(
+        a.project().tracks[0]
+            .instrument
+            .pulsus()
+            .unwrap()
+            .pads
+            .len(),
+        7
+    );
+    a.undo();
+    assert_eq!(
+        a.project().tracks[0]
+            .instrument
+            .pulsus()
+            .unwrap()
+            .pads
+            .len(),
+        8
+    );
+    a.undo();
+    assert_eq!(
+        a.project().tracks[0]
+            .instrument
+            .pulsus()
+            .unwrap()
+            .pads
+            .len(),
+        7
+    );
+    a.undo();
+    assert!(
+        a.project().tracks[0].instrument.firmus().is_some(),
+        "back to the synth"
+    );
+
+    // A file on a pad: voice and path in one step.
+    a.set_instrument(t, InstrumentSpec::Pulsus(PulsusParams::default()));
+    a.set_pad_sample(t, 0, Some("C:/samples/kick.wav".into()));
+    let pad = &a.project().tracks[0].instrument.pulsus().unwrap().pads[0];
+    assert_eq!(pad.voice, PadVoice::Sample);
+    assert_eq!(pad.sample.as_deref(), Some("C:/samples/kick.wav"));
+    a.undo();
+    let pad = &a.project().tracks[0].instrument.pulsus().unwrap().pads[0];
+    assert_eq!(pad.voice, PadVoice::Kick);
+    assert_eq!(pad.sample, None, "voice and file must undo together");
 }

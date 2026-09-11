@@ -1,8 +1,12 @@
 //! The audio-thread processor. Owns every voice, buffer and queue it needs; after
 //! construction it never allocates, locks, logs or panics (ADR 0005).
 //!
-//! Signal flow per track: Firmus (mono) → **polarity** → insert effects (stereo) →
+//! Signal flow per track: instrument → **polarity** → insert effects (stereo) →
 //! **width** → gain/pan → master (**width → gain/pan → polarity**).
+//!
+//! Firmus renders mono and is copied into both channels; Pulsus renders **stereo**,
+//! because a pad carries its own pan and a kit is a dozen sources on one channel. From
+//! the polarity switch onwards the two are the same signal path.
 //!
 //! Polarity sits at the *input* of a channel, where a console's Ø switch is, so that what
 //! comes out of the strip is the whole channel inverted — inserts and all. On the master
@@ -12,8 +16,12 @@
 use crate::effects::EffectUnit;
 use crate::messages::*;
 use crate::transport::Transport;
-use cantus_core::{apply_width, InstrumentSpec, NoteEvent, PanLaw, Snapshot, TrackId};
-use cantus_dsp::{Click, Firmus, FirmusSettings, Wave};
+use cantus_core::{
+    apply_width, DrumPad, InstrumentSpec, NoteEvent, PadVoice, PanLaw, Snapshot, TrackId,
+};
+use cantus_dsp::{
+    Click, DrumVoice, Firmus, FirmusSettings, PadSettings, Pulsus, SampleRef, Wave, MAX_PADS,
+};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,10 +33,24 @@ const PENDING_GARBAGE: usize = 8;
 /// MIDI events drained per block at most.
 const MAX_MIDI_PER_BLOCK: usize = 512;
 
+/// Which of the slot's instruments is the live one.
+///
+/// A slot holds **both** engines rather than a boxed trait object, because switching a
+/// track's instrument must not allocate on the audio thread — and neither must the
+/// snapshot that carries the switch. It costs a few kilobytes per slot and buys a rule
+/// that cannot be broken by accident (ADR 0005).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum SlotInstrument {
+    Firmus,
+    Pulsus,
+}
+
 #[allow(clippy::vec_box)]
 struct TrackSlot {
     id: Option<TrackId>,
+    instrument: SlotInstrument,
     synth: Firmus,
+    drums: Pulsus,
     /// Insert chain in processing order; capacity fixed at construction.
     effects: Vec<Box<EffectUnit>>,
     bypass: [bool; MAX_EFFECTS_PER_TRACK],
@@ -43,10 +65,47 @@ struct TrackSlot {
 }
 
 impl TrackSlot {
+    fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
+        match self.instrument {
+            SlotInstrument::Firmus => self.synth.note_on(pitch, velocity, tag),
+            SlotInstrument::Pulsus => self.drums.note_on(pitch, velocity, tag),
+        }
+    }
+
+    fn note_off(&mut self, pitch: u8, tag: u64) {
+        match self.instrument {
+            SlotInstrument::Firmus => self.synth.note_off(pitch, tag),
+            SlotInstrument::Pulsus => self.drums.note_off(pitch, tag),
+        }
+    }
+
+    fn all_notes_off(&mut self) {
+        match self.instrument {
+            SlotInstrument::Firmus => self.synth.all_notes_off(),
+            SlotInstrument::Pulsus => self.drums.all_notes_off(),
+        }
+    }
+
+    /// Hard reset. Both engines, not just the live one: a slot that has just changed
+    /// instrument must not keep the other one's tail waiting to be heard again.
+    fn reset(&mut self) {
+        self.synth.reset();
+        self.drums.reset();
+    }
+
+    fn active_voices(&self) -> usize {
+        match self.instrument {
+            SlotInstrument::Firmus => self.synth.active_voices(),
+            SlotInstrument::Pulsus => self.drums.active_voices(),
+        }
+    }
+
     fn new(sample_rate: f32) -> Self {
         TrackSlot {
             id: None,
+            instrument: SlotInstrument::Firmus,
             synth: Firmus::new(sample_rate),
+            drums: Pulsus::new(sample_rate),
             effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
             bypass: [false; MAX_EFFECTS_PER_TRACK],
             next_event: 0,
@@ -180,7 +239,7 @@ impl Processor {
             self.stats.overruns += 1;
         }
         self.stats.blocks_processed += 1;
-        self.stats.active_voices = self.slots.iter().map(|s| s.synth.active_voices()).sum();
+        self.stats.active_voices = self.slots.iter().map(TrackSlot::active_voices).sum();
 
         // Report. If the UI is not draining, dropping these is harmless.
         let _ = self.tx.push(EngineEvent::Position {
@@ -227,7 +286,7 @@ impl Processor {
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::Panic => {
                     for s in &mut self.slots {
-                        s.synth.reset();
+                        s.reset();
                         for e in &mut s.effects {
                             e.reset();
                         }
@@ -251,7 +310,7 @@ impl Processor {
             0x80 | 0x90 => self.live_note(track, ev.data1, 0),
             0xB0 if ev.data1 == 123 || ev.data1 == 120 => {
                 if let Some(slot) = self.slot_for(track) {
-                    self.slots[slot].synth.all_notes_off();
+                    self.slots[slot].all_notes_off();
                 }
             }
             _ => {}
@@ -264,9 +323,9 @@ impl Processor {
             return;
         };
         if velocity > 0 {
-            self.slots[slot].synth.note_on(pitch, velocity, LIVE_TAG);
+            self.slots[slot].note_on(pitch, velocity, LIVE_TAG);
         } else {
-            self.slots[slot].synth.note_off(pitch, LIVE_TAG);
+            self.slots[slot].note_off(pitch, LIVE_TAG);
         }
         if self.recording && self.transport.is_playing() {
             let _ = self.tx.push(EngineEvent::NoteInput(NoteInput {
@@ -299,7 +358,7 @@ impl Processor {
                     let i =
                         free.unwrap_or_else(|| (0..MAX_TRACKS).find(|i| !used[*i]).unwrap_or(0));
                     used[i] = true;
-                    self.slots[i].synth.reset();
+                    self.slots[i].reset();
                     self.slots[i].id = Some(t.id);
                     i
                 }
@@ -312,12 +371,12 @@ impl Processor {
             s.width = t.width;
             s.phase_invert = t.phase_invert;
             s.audible = t.audible;
-            s.synth.set_settings(&to_settings(&t.instrument));
+            apply_instrument(s, &t.instrument, &t.samples);
         }
         // Slots whose track vanished: silence them, free them, return their effects.
         for (i, in_use) in used.iter().enumerate() {
             if !in_use && self.slots[i].id.is_some() {
-                self.slots[i].synth.all_notes_off();
+                self.slots[i].all_notes_off();
                 self.slots[i].id = None;
                 while let Some(e) = self.slots[i].effects.pop() {
                     self.dispose_effect(e);
@@ -432,7 +491,7 @@ impl Processor {
 
     fn release_all(&mut self) {
         for s in &mut self.slots {
-            s.synth.all_notes_off();
+            s.all_notes_off();
         }
     }
 
@@ -535,22 +594,46 @@ impl Processor {
                 let slot = self.track_to_slot[ti];
                 let s = &mut self.slots[slot];
                 let mono = &mut self.mono[..n];
-                mono.iter_mut().for_each(|x| *x = 0.0);
-                let has_signal = s.synth.process_add(mono);
+                let l = &mut self.buf_l[..n];
+                let r = &mut self.buf_r[..n];
+                // Firmus is mono and is copied into both channels; Pulsus writes stereo
+                // directly, because its pads are panned inside the instrument. Everything
+                // downstream of here is the same signal path for both.
+                let has_signal = match s.instrument {
+                    SlotInstrument::Firmus => {
+                        mono.iter_mut().for_each(|x| *x = 0.0);
+                        s.synth.process_add(mono)
+                    }
+                    SlotInstrument::Pulsus => {
+                        l.iter_mut().for_each(|x| *x = 0.0);
+                        r.iter_mut().for_each(|x| *x = 0.0);
+                        s.drums.process_add(l, r)
+                    }
+                };
                 if !has_signal && s.effects.is_empty() {
                     continue; // Idle: nothing to mix, nothing to meter.
                 }
-                let l = &mut self.buf_l[..n];
-                let r = &mut self.buf_r[..n];
                 // Polarity first: the console's Ø is an input-stage switch, so the whole
                 // channel — inserts included — comes out inverted.
-                if s.phase_invert {
-                    for x in mono.iter_mut() {
-                        *x = -*x;
+                match s.instrument {
+                    SlotInstrument::Firmus => {
+                        if s.phase_invert {
+                            for x in mono.iter_mut() {
+                                *x = -*x;
+                            }
+                        }
+                        l.copy_from_slice(mono);
+                        r.copy_from_slice(mono);
+                    }
+                    SlotInstrument::Pulsus => {
+                        if s.phase_invert {
+                            for (a, b) in l.iter_mut().zip(r.iter_mut()) {
+                                *a = -*a;
+                                *b = -*b;
+                            }
+                        }
                     }
                 }
-                l.copy_from_slice(mono);
-                r.copy_from_slice(mono);
                 for (i, e) in s.effects.iter_mut().enumerate() {
                     if !s.bypass[i] {
                         e.process(l, r);
@@ -646,15 +729,81 @@ impl Processor {
 #[inline]
 fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
     if ev.is_on() {
-        slot.synth.note_on(ev.pitch, ev.velocity, ev.note.0);
+        slot.note_on(ev.pitch, ev.velocity, ev.note.0);
     } else {
-        slot.synth.note_off(ev.pitch, ev.note.0);
+        slot.note_off(ev.pitch, ev.note.0);
     }
 }
 
-fn to_settings(spec: &InstrumentSpec) -> FirmusSettings {
+/// Point the slot at the instrument the snapshot says the track hosts, and hand it its
+/// parameters.
+///
+/// Switching instruments resets **both** engines rather than only the one being left:
+/// what is on the way out has to stop, and what is on the way in must not start from
+/// whatever state it was in when the track last used it.
+fn apply_instrument(
+    slot: &mut TrackSlot,
+    spec: &InstrumentSpec,
+    samples: &[Option<Arc<cantus_core::SampleData>>],
+) {
+    let wanted = match spec {
+        InstrumentSpec::Firmus(_) => SlotInstrument::Firmus,
+        InstrumentSpec::Pulsus(_) => SlotInstrument::Pulsus,
+    };
+    if slot.instrument != wanted {
+        slot.reset();
+        slot.instrument = wanted;
+    }
     match spec {
-        InstrumentSpec::Firmus(p) => FirmusSettings {
+        InstrumentSpec::Firmus(p) => slot.synth.set_settings(&to_settings(p)),
+        InstrumentSpec::Pulsus(k) => {
+            // Written into the kit's fixed table in place: this runs on the audio thread,
+            // once per snapshot, and must not allocate (ADR 0005).
+            slot.drums.set_pad_count(k.pads.len());
+            for (i, pad) in k.pads.iter().take(MAX_PADS).enumerate() {
+                slot.drums.set_pad(i, pad.pitch, &to_pad(pad));
+                // The snapshot carries the decoded audio (`SampleCache::attach`); this is
+                // an `Arc` clone per pad and nothing more.
+                let sample = samples.get(i).and_then(|s| s.as_ref()).map(|d| SampleRef {
+                    frames: d.frames.clone(),
+                    rate: d.rate as f32,
+                    channels: d.channels as usize,
+                });
+                slot.drums.set_sample(i, sample);
+            }
+        }
+    }
+}
+
+fn to_pad(pad: &DrumPad) -> PadSettings {
+    PadSettings {
+        voice: match pad.voice {
+            PadVoice::Kick => DrumVoice::Kick,
+            PadVoice::Snare => DrumVoice::Snare,
+            PadVoice::HiHat => DrumVoice::HiHat,
+            PadVoice::Sample => DrumVoice::Sample,
+        },
+        tune: pad.tune,
+        decay: pad.decay,
+        pitch_drop: pad.pitch_drop,
+        pitch_decay: pad.pitch_decay,
+        click: pad.click,
+        drive: pad.drive,
+        noise_decay: pad.noise_decay,
+        tone: pad.tone,
+        mix: pad.mix,
+        hp_cutoff: pad.hp_cutoff,
+        gain: cantus_core::db_to_linear(pad.level_db),
+        pan: pad.pan,
+        // A muted pad is already gone from the snapshot's events (`Snapshot::compile`),
+        // so nothing here has to know about it.
+        choke: pad.choke,
+    }
+}
+
+fn to_settings(p: &cantus_core::FirmusParams) -> FirmusSettings {
+    {
+        FirmusSettings {
             osc1_wave: wave(p.osc1_wave),
             osc2_wave: wave(p.osc2_wave),
             osc2_semitones: p.osc2_semitones,
@@ -673,7 +822,7 @@ fn to_settings(spec: &InstrumentSpec) -> FirmusSettings {
             filter_sustain: p.filter_sustain,
             filter_release_s: p.filter_release_s,
             gain_db: p.gain_db,
-        },
+        }
     }
 }
 

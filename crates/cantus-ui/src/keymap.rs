@@ -58,6 +58,11 @@ pub enum Action {
     Delete,
     Quantize,
     ClearSelection,
+    // Arrangement
+    LoopToSelection,
+    ZoomToSelection,
+    SelectPrevTrack,
+    SelectNextTrack,
     // Clips
     SplitClip,
     GlueClips,
@@ -84,6 +89,9 @@ pub enum Action {
     ToolPlayback,
     // View
     ToggleTypingPiano,
+    ViewPianoRoll,
+    ViewChannelRack,
+    ViewMixer,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -92,6 +100,7 @@ pub enum Category {
     Transport,
     File,
     Edit,
+    Arrangement,
     Clips,
     Notes,
     Tools,
@@ -99,10 +108,11 @@ pub enum Category {
 }
 
 impl Category {
-    pub const ALL: [Category; 7] = [
+    pub const ALL: [Category; 8] = [
         Category::Transport,
         Category::File,
         Category::Edit,
+        Category::Arrangement,
         Category::Clips,
         Category::Notes,
         Category::Tools,
@@ -114,6 +124,7 @@ impl Category {
             Category::Transport => "keymap.cat.transport",
             Category::File => "keymap.cat.file",
             Category::Edit => "keymap.cat.edit",
+            Category::Arrangement => "keymap.cat.arrangement",
             Category::Clips => "keymap.cat.clips",
             Category::Notes => "keymap.cat.notes",
             Category::Tools => "keymap.cat.tools",
@@ -123,7 +134,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 44] = [
+    pub const ALL: [Action; 51] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -146,6 +157,10 @@ impl Action {
         Action::Delete,
         Action::Quantize,
         Action::ClearSelection,
+        Action::LoopToSelection,
+        Action::ZoomToSelection,
+        Action::SelectPrevTrack,
+        Action::SelectNextTrack,
         Action::SplitClip,
         Action::GlueClips,
         Action::ToggleClipMute,
@@ -168,6 +183,9 @@ impl Action {
         Action::ToolSlice,
         Action::ToolPlayback,
         Action::ToggleTypingPiano,
+        Action::ViewPianoRoll,
+        Action::ViewChannelRack,
+        Action::ViewMixer,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -195,6 +213,10 @@ impl Action {
             Action::Delete => "delete",
             Action::Quantize => "quantize",
             Action::ClearSelection => "clear-selection",
+            Action::LoopToSelection => "loop-to-selection",
+            Action::ZoomToSelection => "zoom-to-selection",
+            Action::SelectPrevTrack => "select-prev-track",
+            Action::SelectNextTrack => "select-next-track",
             Action::SplitClip => "split-clip",
             Action::GlueClips => "glue-clips",
             Action::ToggleClipMute => "toggle-clip-mute",
@@ -217,6 +239,9 @@ impl Action {
             Action::ToolSlice => "tool-slice",
             Action::ToolPlayback => "tool-playback",
             Action::ToggleTypingPiano => "toggle-typing-piano",
+            Action::ViewPianoRoll => "view-piano-roll",
+            Action::ViewChannelRack => "view-channel-rack",
+            Action::ViewMixer => "view-mixer",
         }
     }
 
@@ -238,13 +263,16 @@ impl Action {
             NewProject | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
+            LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack => {
+                Category::Arrangement
+            }
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
             | ToolPlayback => Category::Tools,
-            ToggleTypingPiano => Category::View,
+            ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer => Category::View,
         }
     }
 }
@@ -471,6 +499,23 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleLoop, Binding::cmd(Key::L)),
         (ToggleMetronome, Binding::cmd(Key::M)),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
+        // FL's function keys for the three central views. They are the most widely known
+        // — every preset gets them, because arriving from anywhere else they are simply
+        // free keys, and a view you cannot reach from the keyboard is a view you forget
+        // is there.
+        // The time selection's two operations. Live puts loop-to-selection on `Ctrl+L`,
+        // which is ours for the loop *switch* — and a switch has to stay reachable when
+        // there is no selection, so the two cannot share a key. `Z` for zoom-to-selection
+        // is Live's, and it is the one most people arrive with.
+        (LoopToSelection, Binding::shift(Key::L)),
+        (ZoomToSelection, Binding::key(Key::Z)),
+        // `Ctrl` + the arrows, so they do not collide with nudging notes or clips: the
+        // modifier match is exact, so `Ctrl+ArrowUp` never fires `TransposeUp`.
+        (SelectPrevTrack, Binding::cmd(Key::ArrowUp)),
+        (SelectNextTrack, Binding::cmd(Key::ArrowDown)),
+        (ViewChannelRack, Binding::key(Key::F6)),
+        (ViewPianoRoll, Binding::key(Key::F7)),
+        (ViewMixer, Binding::key(Key::F9)),
         (NudgeLeft, Binding::key(Key::ArrowLeft)),
         (NudgeRight, Binding::key(Key::ArrowRight)),
         (NudgeLeftBar, Binding::shift(Key::ArrowLeft)),

@@ -302,6 +302,7 @@ pub fn view_tabs(app: &mut CantusApp, ui: &mut egui::Ui) {
     use crate::app::CentralView;
     for (view, key) in [
         (CentralView::PianoRoll, "view.piano_roll"),
+        (CentralView::ChannelRack, "view.channel_rack"),
         (CentralView::Mixer, "view.mixer"),
     ] {
         if ui.selectable_label(app.central == view, t(key)).clicked() {

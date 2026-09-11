@@ -24,12 +24,17 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(18) {
+    match rng.below(22) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
         1 => {
-            let t = project.make_track(format!("T{}", project.next_id));
+            let mut t = project.make_track(format!("T{}", project.next_id));
+            // Every third new track is a kit, so the pad commands below have something to
+            // act on and the two instrument variants are both exercised by the fuzz.
+            if rng.below(3) == 0 {
+                t.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+            }
             Command::InsertTrack {
                 index: rng.below(tracks as u64 + 1) as usize,
                 track: Box::new(t),
@@ -122,7 +127,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
             let param = FirmusParam::ALL[rng.below(FirmusParam::ALL.len() as u64) as usize];
             Command::SetInstrumentParam {
                 track: id,
-                param,
+                param: param.into(),
                 value: rng.f32(-100.0, 30_000.0),
             }
         }
@@ -246,6 +251,56 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 },
             }
         }
+        // Pulsus: pad parameters and pad names. `SetInstrumentParam` is deliberately
+        // aimed at *any* track, kit or not, so the "not applicable" path is exercised as
+        // well as the working one — a command that fails must leave nothing behind.
+        18..=19 if tracks > 0 => {
+            let ti = rng.below(tracks as u64) as usize;
+            let id = project.tracks[ti].id;
+            let pad = rng.below(9) as u8;
+            if rng.below(4) == 0 {
+                Command::SetPadName {
+                    track: id,
+                    pad,
+                    name: format!("Pad{}", rng.below(100)),
+                }
+            } else {
+                let field = PadField::ALL[rng.below(PadField::ALL.len() as u64) as usize];
+                Command::SetInstrumentParam {
+                    track: id,
+                    param: InstrumentParam::Pulsus { pad, field },
+                    value: rng.f32(-100.0, 30_000.0),
+                }
+            }
+        }
+        // Instruments come and go, and pads come and go inside them. `RemovePad` on a
+        // pitch that is not there and `InsertPad` on one that is both have to fail cleanly.
+        20 if tracks > 0 => {
+            let id = project.tracks[rng.below(tracks as u64) as usize].id;
+            let spec = if rng.below(2) == 0 {
+                InstrumentSpec::Firmus(FirmusParams::default())
+            } else {
+                InstrumentSpec::Pulsus(PulsusParams::of(vec![DrumPad::kick(), DrumPad::snare()]))
+            };
+            Command::SetInstrument {
+                track: id,
+                spec: Box::new(spec),
+            }
+        }
+        21 if tracks > 0 => {
+            let id = project.tracks[rng.below(tracks as u64) as usize].id;
+            let pitch = 35 + rng.below(6) as u8;
+            if rng.below(2) == 0 {
+                let mut pad = DrumPad::closed_hat();
+                pad.pitch = pitch;
+                Command::InsertPad {
+                    track: id,
+                    pad: Box::new(pad),
+                }
+            } else {
+                Command::RemovePad { track: id, pitch }
+            }
+        }
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -337,8 +392,21 @@ fn commands_serialize_roundtrip() {
             Command::SetTempo { bpm: 133.3 },
             Command::SetInstrumentParam {
                 track: TrackId(1),
-                param: FirmusParam::Cutoff,
+                param: FirmusParam::Cutoff.into(),
                 value: 800.0,
+            },
+            Command::SetInstrumentParam {
+                track: TrackId(1),
+                param: InstrumentParam::Pulsus {
+                    pad: 2,
+                    field: PadField::Decay,
+                },
+                value: 0.2,
+            },
+            Command::SetPadName {
+                track: TrackId(1),
+                pad: 2,
+                name: "Caja".into(),
             },
         ],
     };

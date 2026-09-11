@@ -41,6 +41,16 @@ pub struct TrackSnapshot {
     pub effects: Vec<EffectSlot>,
     /// Sorted by `(tick, off-before-on)`.
     pub events: Vec<NoteEvent>,
+    /// How many lanes the instrument offers. Carried so the meter and the stats can say
+    /// something about a kit without the audio thread reasoning about pads.
+    pub lane_count: usize,
+    /// Decoded audio for each pad of a kit, aligned with its pads; `None` for a pad that
+    /// is not a sample or whose file could not be read.
+    ///
+    /// **Empty after [`Snapshot::compile`].** This crate does no I/O, so the loader in the
+    /// engine fills it in before the snapshot is sent — the same snapshot then serves
+    /// real-time playback and offline render, which is what keeps the two bit-identical.
+    pub samples: Vec<Option<std::sync::Arc<crate::pads::SampleData>>>,
 }
 
 impl TrackSnapshot {
@@ -85,6 +95,8 @@ impl Snapshot {
                 instrument: t.instrument.clone(),
                 effects: t.effects.clone(),
                 events: compile_events(t),
+                lane_count: t.instrument.lanes().count(),
+                samples: Vec::new(),
             })
             .collect();
         Snapshot {
@@ -117,12 +129,28 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
     let mut events = Vec::new();
     // Reused across every note so compiling a project of 20 000 notes allocates once.
     let mut at = Vec::new();
+    // A muted *pad* is resolved here, exactly as a muted track is: the audio thread is
+    // handed a snapshot with the events already gone, rather than a kit it has to consult
+    // per note. One place decides what sounds.
+    let muted_pads = track.instrument.pulsus().map(|k| {
+        k.pads
+            .iter()
+            .filter(|p| p.muted)
+            .map(|p| p.pitch)
+            .collect::<Vec<_>>()
+    });
     for clip in &track.clips {
         if clip.muted {
             continue;
         }
         for n in &clip.notes {
             if n.muted {
+                continue;
+            }
+            if muted_pads
+                .as_ref()
+                .is_some_and(|pads| pads.contains(&n.pitch))
+            {
                 continue;
             }
             // Where the note is *heard*, which is not where it is stored: a clip is a

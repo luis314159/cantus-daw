@@ -45,6 +45,7 @@ pub fn panel_id(name: &str) -> Id {
 #[serde(rename_all = "snake_case")]
 pub enum Central {
     PianoRoll,
+    ChannelRack,
     Mixer,
 }
 

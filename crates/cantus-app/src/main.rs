@@ -16,6 +16,8 @@ fn main() -> anyhow::Result<()> {
             "--stress" => options.stress = true,
             "--locale" => options.locale = args.next(),
             "--mixer" => options.mixer = true,
+            "--rack" => options.rack = true,
+            "--track" => options.track = args.next().and_then(|s| s.parse().ok()),
             "--shortcuts" => options.shortcuts = true,
             "--settings" => options.settings = true,
             "--window" => {
@@ -29,7 +31,7 @@ fn main() -> anyhow::Result<()> {
             }
             "--help" | "-h" => {
                 println!(
-                    "cantus [--stress] [--locale en|es] [--mixer] [--shortcuts] [--settings] [--window W H] [project.cantus]"
+                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--window W H] [project.cantus]"
                 );
                 return Ok(());
             }

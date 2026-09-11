@@ -3,6 +3,7 @@
 
 use crate::design;
 use crate::theme;
+use cantus_core::TrackIcon;
 use egui::{pos2, vec2, Color32, Rect, Response, Sense, Shape, Stroke, StrokeKind};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -24,6 +25,7 @@ pub enum Icon {
     Loop,
     Metronome,
     Keyboard,
+    Zoom,
 }
 
 /// Paint `icon` centred in `rect` (designed for ~16 px, scales with the rect), over a
@@ -256,6 +258,18 @@ pub fn paint_on(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32, bg: C
                 color,
             );
         }
+        Icon::Zoom => {
+            // A magnifier: the glass off-centre, the handle to the corner.
+            let glass = pos2(c.x - h * 0.2, c.y - h * 0.2);
+            p.circle_stroke(glass, h * 0.6, thin);
+            p.line_segment(
+                [
+                    pos2(glass.x + h * 0.45, glass.y + h * 0.45),
+                    pos2(c.x + h * 0.95, c.y + h * 0.95),
+                ],
+                Stroke::new(thin.width * 1.4, color),
+            );
+        }
         Icon::Keyboard => {
             // A piano keyboard: three white keys with two black ones between them, the
             // smallest arrangement that still reads as a keyboard and not a grid.
@@ -303,6 +317,116 @@ pub fn paint_on(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32, bg: C
                 ],
                 thin,
             );
+        }
+    }
+}
+
+/// Paint a track's icon centred in `rect`.
+///
+/// Separate from [`Icon`] on purpose: those are *verbs* the toolbar can press, these are
+/// *nouns* a track is. Mixing them would put "Kick drum" in a list of things you can click.
+///
+/// Each of the six is drawn from the same half-height `h` so they sit at one weight beside
+/// each other, and each is chosen to be distinguishable at 14 px — which rules out, for
+/// instance, drawing a bass and a guitar as two slightly different guitars.
+pub fn paint_track_icon(p: &egui::Painter, rect: Rect, icon: TrackIcon, color: Color32) {
+    let c = rect.center();
+    let s = rect.height().min(rect.width()) * 0.5;
+    let h = s * 0.78;
+    let thin = Stroke::new((s * 0.16).max(1.0), color);
+    match icon {
+        TrackIcon::Drums => {
+            // A drum with two sticks crossed above it. The first draft was a circle with
+            // one diagonal through it, which at 14 px is the polarity Ø this app already
+            // uses on every channel strip — an icon must not be another icon's twin.
+            let head = Rect::from_center_size(pos2(c.x, c.y + h * 0.55), vec2(h * 1.9, h * 0.85));
+            p.rect_stroke(head, h * 0.42, thin, StrokeKind::Inside);
+            for dir in [-1.0f32, 1.0] {
+                p.line_segment(
+                    [
+                        pos2(c.x + dir * h * 0.95, c.y - h * 1.0),
+                        pos2(c.x - dir * h * 0.25, c.y + h * 0.15),
+                    ],
+                    thin,
+                );
+                p.circle_filled(
+                    pos2(c.x + dir * h * 0.95, c.y - h * 1.0),
+                    (s * 0.16).max(1.2),
+                    color,
+                );
+            }
+        }
+        TrackIcon::Keys => {
+            // Four white keys with two black stubs: unmistakably a keyboard even tiny.
+            let w = h * 2.0 / 4.0;
+            let top = c.y - h * 0.7;
+            let bottom = c.y + h * 0.9;
+            p.rect_stroke(
+                Rect::from_min_max(pos2(c.x - h, top), pos2(c.x + h, bottom)),
+                1.0,
+                thin,
+                StrokeKind::Inside,
+            );
+            for i in 1..4 {
+                let x = c.x - h + w * i as f32;
+                p.line_segment([pos2(x, top), pos2(x, bottom)], thin);
+            }
+            for i in [0usize, 2] {
+                let x = c.x - h + w * (i as f32 + 1.0);
+                p.rect_filled(
+                    Rect::from_min_max(pos2(x - w * 0.28, top), pos2(x + w * 0.28, c.y + h * 0.1)),
+                    0.0,
+                    color,
+                );
+            }
+        }
+        TrackIcon::Strings => {
+            // A body and a neck. Two circles rather than an outline, because an outlined
+            // guitar at 14 px is a grey smudge.
+            p.circle_stroke(pos2(c.x - h * 0.25, c.y + h * 0.45), h * 0.62, thin);
+            p.circle_filled(pos2(c.x - h * 0.25, c.y + h * 0.45), h * 0.18, color);
+            p.line_segment(
+                [
+                    pos2(c.x + h * 0.2, c.y - h * 0.05),
+                    pos2(c.x + h * 0.85, c.y - h * 0.95),
+                ],
+                thin,
+            );
+            p.line_segment(
+                [
+                    pos2(c.x + h * 0.6, c.y - h * 1.05),
+                    pos2(c.x + h * 1.0, c.y - h * 0.6),
+                ],
+                thin,
+            );
+        }
+        TrackIcon::Vocal => {
+            // A microphone: capsule, stem, foot.
+            let cap = Rect::from_center_size(pos2(c.x, c.y - h * 0.35), vec2(h * 0.8, h * 1.25));
+            p.rect_filled(cap, h * 0.4, color);
+            p.line_segment([pos2(c.x, c.y + h * 0.5), pos2(c.x, c.y + h)], thin);
+            p.line_segment(
+                [pos2(c.x - h * 0.55, c.y + h), pos2(c.x + h * 0.55, c.y + h)],
+                thin,
+            );
+        }
+        TrackIcon::Synth => {
+            // One cycle of a sine, which is what a synth track looks like in every DAW.
+            let n = 18;
+            let mut pts = Vec::with_capacity(n + 1);
+            for i in 0..=n {
+                let t = i as f32 / n as f32;
+                let x = c.x - h + 2.0 * h * t;
+                let y = c.y - (t * std::f32::consts::TAU).sin() * h * 0.72;
+                pts.push(pos2(x, y));
+            }
+            p.add(Shape::line(pts, thin));
+        }
+        TrackIcon::Fx => {
+            // A knob: a dial with a pointer, which reads as "something is being processed"
+            // rather than as any particular effect.
+            p.circle_stroke(c, h * 0.8, thin);
+            p.line_segment([c, pos2(c.x + h * 0.5, c.y - h * 0.62)], thin);
         }
     }
 }
