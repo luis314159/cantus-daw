@@ -9,21 +9,32 @@
 
 pub mod backend;
 pub mod effects;
+pub mod fx;
 pub mod messages;
 pub mod midi;
+pub mod pdc;
 pub mod processor;
 pub mod render;
 pub mod samples;
+pub mod stems;
 pub mod transport;
 
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
-pub use effects::EffectUnit;
+pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed};
+pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
 pub use messages::{
-    EngineEvent, EngineMessage, EngineStats, Meters, MidiEvent, NoteInput, MAX_BLOCK_FRAMES,
-    MAX_EFFECTS_PER_TRACK, MAX_TRACKS,
+    CaptureTarget, EngineEvent, EngineMessage, EngineStats, Meters, MidiEvent, NoteInput,
+    ANALYSER_SAMPLES, CAPTURE_SAMPLES, MAX_BLOCK_FRAMES, MAX_EFFECTS_PER_TRACK,
+    MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
 pub use midi::{list_ports, MidiInputs, MidiSender};
 pub use processor::Processor;
-pub use render::{render, render_to_wav, write_wav, RenderError, RenderOptions, Rendered};
+pub use render::{
+    render, render_to_wav, render_with_units, write_wav, RenderError, RenderOptions, Rendered,
+};
 pub use samples::{SampleCache, SampleStatus};
+pub use stems::{
+    render_stems, render_stems_to_folder, stem_file_name, Stem, StemOptions, StemSource, StemSpec,
+    StemsDone, StemsError,
+};
 pub use transport::Transport;

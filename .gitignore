@@ -6,3 +6,8 @@
 /tmp
 .DS_Store
 Thumbs.db
+
+# Third-party product screenshots gathered for design research. Kept locally, never
+# published with the source: they are FabFilter's images, not ours.
+/research/*/screenshots/
+/.playwright-mcp/

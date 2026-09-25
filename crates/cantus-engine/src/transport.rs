@@ -61,6 +61,14 @@ impl Transport {
         Ticks(self.position_f64().floor() as i64)
     }
 
+    /// Where the playhead was `back` samples ago, exactly as [`Self::position_f64`] said
+    /// then — or `None` if it has jumped since (a seek, a loop wrap, a tempo change).
+    #[inline]
+    pub fn position_back(&self, back: u64) -> Option<f64> {
+        (self.samples >= back)
+            .then(|| self.origin_tick + (self.samples - back) as f64 * self.ticks_per_sample())
+    }
+
     pub fn play(&mut self) {
         self.playing = true;
     }

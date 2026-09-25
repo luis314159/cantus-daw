@@ -544,6 +544,33 @@ pub fn on_light_key(pal: &Palette) -> Color32 {
     }
 }
 
+/// Text that reads on a fill of colour `c`, whatever the theme: whichever of the palette's
+/// `ink` and `text` contrasts more with it. A clip's title bar is its own colour, a mixer
+/// header is the track's, and neither knows which theme it is on.
+pub fn on_color(pal: &Palette, c: Color32) -> Color32 {
+    let l = luminance(c);
+    let contrast = |a: Color32| {
+        let la = luminance(a);
+        let (hi, lo) = if la > l { (la, l) } else { (l, la) };
+        (hi + 0.05) / (lo + 0.05)
+    };
+    if contrast(pal.ink) >= contrast(pal.text) {
+        pal.ink
+    } else {
+        pal.text
+    }
+}
+
+/// `base` moved `amount` of the way towards `color`, in gamma space.
+///
+/// This is how a track's colour gets onto its header, its lane and its channel button
+/// without painting them solid: FL colours everything at full strength, which is exactly
+/// why nothing in it stands out. A tint keeps the identity and leaves the accent free to
+/// mean *state*.
+pub fn tint(base: Color32, color: Color32, amount: f32) -> Color32 {
+    base.lerp_to_gamma(color, amount.clamp(0.0, 1.0))
+}
+
 // ---- theme file ---------------------------------------------------------------------
 
 pub fn load_file(path: &Path) -> Result<Theme, String> {

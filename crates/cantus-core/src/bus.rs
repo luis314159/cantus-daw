@@ -134,6 +134,10 @@ impl CommandBus {
         self.project.make_effect(kind)
     }
 
+    pub fn new_strip(&mut self, name: impl Into<String>) -> crate::model::MixerStrip {
+        self.project.make_strip(name)
+    }
+
     pub fn new_note(
         &mut self,
         start: crate::time::Ticks,

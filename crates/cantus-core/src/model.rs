@@ -29,6 +29,8 @@ id_type!(TrackId, "t");
 id_type!(ClipId, "c");
 id_type!(NoteId, "n");
 id_type!(EffectId, "fx");
+id_type!(StripId, "s");
+id_type!(GroupId, "g");
 
 /// MIDI-style note (0..=127). Middle C is 60.
 pub type Pitch = u8;
@@ -423,13 +425,230 @@ pub struct Track {
     #[serde(default)]
     pub icon: Option<TrackIcon>,
     pub instrument: InstrumentSpec,
-    /// Insert effects, processed in order after the instrument.
-    #[serde(default)]
-    pub effects: Vec<EffectSlot>,
     pub clips: Vec<Clip>,
-    /// Fader gain in decibels. 0 dB = unity, `-inf` is represented by [`MIN_GAIN_DB`].
+    /// The channel's own level, in decibels, **before** its mixer strip — FL's channel
+    /// volume. Unity by default; the strip's fader is the one a mix is balanced on.
     pub gain_db: f32,
-    /// -1.0 (hard left) ..= 1.0 (hard right).
+    /// The channel's own placement, −1..=1, before the strip. A *balance*, not the pan
+    /// law: the law is applied once, at the strip, and applying it twice was ADR 0012's
+    /// master-pan bug. Centre is exactly unity.
+    pub pan: f32,
+    /// The mixer strip this track feeds. `None` goes straight to the master.
+    ///
+    /// Several tracks may feed one strip — that is a bus, and it is what lets a kick and a
+    /// snare on their own tracks share one compressor. A new track takes the first strip
+    /// no other track is using, so the mixer fills in left to right.
+    #[serde(default)]
+    pub strip: Option<StripId>,
+    pub muted: bool,
+    pub soloed: bool,
+}
+
+/// A tap from one strip into another that does not replace the strip's output: the
+/// strip still goes where `output` says, and a copy at `level` goes to `to` as well.
+/// **Post-fader**: taken after the strip's gain, pan and mute, which is FL's default and
+/// what a reverb return wants — turn the source down and the reverb follows.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Send {
+    pub to: StripId,
+    /// Linear, 0…1. Unity sends the whole post-fader signal.
+    pub level: f32,
+    /// A send switched off keeps its level, so it can be switched back on where it was.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+impl Send {
+    pub fn new(to: StripId) -> Self {
+        Send {
+            to,
+            level: 1.0,
+            enabled: true,
+        }
+    }
+
+    /// What actually reaches the destination.
+    pub fn effective_level(&self) -> f32 {
+        if self.enabled {
+            self.level
+        } else {
+            0.0
+        }
+    }
+}
+
+/// How many sends a strip can carry. Every strip has this many preallocated on the audio
+/// thread, so it is a limit rather than a taste.
+pub const MAX_SENDS: usize = 16;
+
+/// How many inserts a strip can carry. FL's ten; the audio thread has that many units'
+/// worth of bookkeeping per strip preallocated.
+pub const MAX_INSERTS: usize = 10;
+
+/// One band of the strip's own equaliser.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EqBand {
+    pub freq_hz: f32,
+    /// Boost or cut, −18…+18. Zero is the identity for the band.
+    pub gain_db: f32,
+    /// Bell width (peak band) or shelf slope (shelving bands). 0.1…10, 0.71 by default.
+    pub q: f32,
+}
+
+/// Which number of a band a command sets.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EqField {
+    Freq,
+    Gain,
+    Q,
+}
+
+pub const EQ_MIN_HZ: f32 = 20.0;
+pub const EQ_MAX_HZ: f32 = 20_000.0;
+pub const EQ_MAX_GAIN_DB: f32 = 18.0;
+pub const EQ_MIN_Q: f32 = 0.1;
+pub const EQ_MAX_Q: f32 = 10.0;
+
+/// The three-band equaliser every strip carries, after its inserts and before its width
+/// and pan — where a console's channel EQ sits. Low and high bands are **shelves**, the
+/// middle is a **bell**: the shape a channel EQ has had since channels had them, and the
+/// one that does a tone correction in three moves instead of six.
+///
+/// All three at 0 dB is the identity, and the audio thread skips it entirely then, so a
+/// project that never touches the EQ renders exactly as it did before there was one.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StripEq {
+    pub bands: [EqBand; 3],
+}
+
+impl Default for StripEq {
+    fn default() -> Self {
+        StripEq {
+            bands: [
+                EqBand {
+                    freq_hz: 100.0,
+                    gain_db: 0.0,
+                    q: 0.71,
+                },
+                EqBand {
+                    freq_hz: 1_000.0,
+                    gain_db: 0.0,
+                    q: 0.71,
+                },
+                EqBand {
+                    freq_hz: 8_000.0,
+                    gain_db: 0.0,
+                    q: 0.71,
+                },
+            ],
+        }
+    }
+}
+
+impl StripEq {
+    /// Nothing to do: every band at 0 dB.
+    pub fn is_flat(&self) -> bool {
+        self.bands.iter().all(|b| b.gain_db == 0.0)
+    }
+
+    /// Set one number of one band, clamped to its range. `None` for a band that is not
+    /// there or a value that is not a number.
+    pub fn set(&mut self, band: usize, field: EqField, value: f32) -> Option<f32> {
+        if !value.is_finite() {
+            return None;
+        }
+        let b = self.bands.get_mut(band)?;
+        let v = match field {
+            EqField::Freq => {
+                b.freq_hz = value.clamp(EQ_MIN_HZ, EQ_MAX_HZ);
+                b.freq_hz
+            }
+            EqField::Gain => {
+                b.gain_db = value.clamp(-EQ_MAX_GAIN_DB, EQ_MAX_GAIN_DB);
+                b.gain_db
+            }
+            EqField::Q => {
+                b.q = value.clamp(EQ_MIN_Q, EQ_MAX_Q);
+                b.q
+            }
+        };
+        Some(v)
+    }
+
+    pub fn get(&self, band: usize, field: EqField) -> f32 {
+        let b = self.bands[band.min(2)];
+        match field {
+            EqField::Freq => b.freq_hz,
+            EqField::Gain => b.gain_db,
+            EqField::Q => b.q,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Where a strip sits on the desk. FL's three docks: the **left** and **right** ones are
+/// pinned — always on screen, whatever the scroll — and the **middle** one scrolls. A new
+/// project docks its last three strips on the right, which is where returns and buses
+/// live, so they stay in view while forty channels scroll past.
+///
+/// A view thing stored in the project, like a track's height: it changes nothing that
+/// renders, but a desk laid out by hand must travel with the file.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Dock {
+    Left,
+    #[default]
+    Middle,
+    Right,
+}
+
+impl Dock {
+    pub const ALL: [Dock; 3] = [Dock::Left, Dock::Middle, Dock::Right];
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Dock::Left => "mixer.dock.left",
+            Dock::Middle => "mixer.dock.middle",
+            Dock::Right => "mixer.dock.right",
+        }
+    }
+}
+
+/// How many strips a new project docks on the right.
+pub const DEFAULT_RIGHT_DOCK: usize = 3;
+
+/// A named, coloured group of strips: a separator on the desk with the group's name, which
+/// folds its members away when collapsed. A group is **how the desk is organised**, not how
+/// the signal flows — that is a bus (ADR 0014) — so it changes nothing that renders, and a
+/// strip can be in a group and feed any bus it likes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StripGroup {
+    pub id: GroupId,
+    pub name: String,
+    pub color: Color,
+    /// Members hidden behind the separator.
+    #[serde(default)]
+    pub collapsed: bool,
+}
+
+/// One channel of the mixer.
+///
+/// Strips exist **whether or not anything feeds them**, numbered from 1, the way a desk
+/// has channels before anything is plugged in: a project opens with sixteen, and more can
+/// be added. A track feeds a strip ([`Track::strip`]); a strip feeds the master or
+/// another strip ([`MixerStrip::output`]), which is what a bus is. The inserts, the width
+/// and the polarity live here, because they belong to the *channel of the mixer* and not
+/// to whichever instrument happens to be playing into it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MixerStrip {
+    pub id: StripId,
+    /// Empty means "unnamed": the mixer then shows the name of the first track feeding
+    /// the strip, or its number.
+    pub name: String,
+    pub gain_db: f32,
+    /// −1..=1, through the project's pan law.
     pub pan: f32,
     /// Stereo width. 0 is mono, 1 is as recorded, 2 is twice as wide.
     ///
@@ -442,9 +661,85 @@ pub struct Track {
     /// why two tracks together are quieter than either one alone.
     #[serde(default)]
     pub phase_invert: bool,
+    #[serde(default)]
     pub muted: bool,
+    /// Solo, FL's way: the soloed strip plays, and so does everything routed **into** it
+    /// and everything it is routed **to** — a soloed bus is heard with its inputs, and a
+    /// soloed channel is heard through its bus. Resolved in `Snapshot::compile`.
+    #[serde(default)]
     pub soloed: bool,
+    /// Swap left and right. An input-stage switch beside the polarity, as on FL's strip.
+    #[serde(default)]
+    pub swap_channels: bool,
+    /// The whole insert chain in or out, without touching each slot's own bypass — FL's
+    /// "disable all FX" lamp.
+    #[serde(default = "default_true")]
+    pub fx_enabled: bool,
+    /// Insert effects, in processing order. At most [`MAX_INSERTS`].
+    #[serde(default)]
+    pub effects: Vec<EffectSlot>,
+    /// The strip's own three-band EQ, after the inserts.
+    #[serde(default)]
+    pub eq: StripEq,
+    /// Where the strip's output goes: another strip, or the master when `None`. A strip
+    /// can never feed itself or anything that feeds it; the command refuses cycles.
+    #[serde(default)]
+    pub output: Option<StripId>,
+    /// Post-fader taps into other strips, besides `output`. One per destination; the
+    /// same cycle rule as `output`, since a send is a route too. At most [`MAX_SENDS`].
+    #[serde(default)]
+    pub sends: Vec<Send>,
+    /// A colour of the strip's own; `None` borrows the first feeding track's (or, failing
+    /// that, its group's).
+    #[serde(default)]
+    pub color: Option<Color>,
+    /// Which dock the strip sits in.
+    #[serde(default)]
+    pub dock: Dock,
+    /// The group whose separator the strip sits behind, if any.
+    #[serde(default)]
+    pub group: Option<GroupId>,
 }
+
+impl MixerStrip {
+    pub fn effect(&self, id: EffectId) -> Option<&EffectSlot> {
+        self.effects.iter().find(|e| e.id == id)
+    }
+
+    pub fn effect_mut(&mut self, id: EffectId) -> Option<&mut EffectSlot> {
+        self.effects.iter_mut().find(|e| e.id == id)
+    }
+
+    pub fn effect_index(&self, id: EffectId) -> Option<usize> {
+        self.effects.iter().position(|e| e.id == id)
+    }
+
+    pub fn send_to(&self, to: StripId) -> Option<&Send> {
+        self.sends.iter().find(|s| s.to == to)
+    }
+
+    pub fn send_to_mut(&mut self, to: StripId) -> Option<&mut Send> {
+        self.sends.iter_mut().find(|s| s.to == to)
+    }
+
+    /// Every strip this one feeds: its output and every send, enabled or not — a switched
+    /// off send is still a route for the purposes of ordering, so switching it on can
+    /// never change the processing order under the audio thread's feet.
+    pub fn feeds(&self) -> impl Iterator<Item = StripId> + '_ {
+        self.output
+            .into_iter()
+            .chain(self.sends.iter().map(|s| s.to))
+    }
+
+    /// The strips this one's effects are keyed from (their sidechains).
+    pub fn keys(&self) -> impl Iterator<Item = StripId> + '_ {
+        self.effects.iter().filter_map(|e| e.sidechain)
+    }
+}
+
+/// How many strips a new project opens with. Enough to give a full band a channel each
+/// and a few buses without asking; the mixer's `+` adds more.
+pub const DEFAULT_STRIPS: usize = 16;
 
 fn unit_width() -> f32 {
     1.0
@@ -503,18 +798,6 @@ impl Track {
     pub fn clip_mut(&mut self, id: ClipId) -> Option<&mut Clip> {
         self.clips.iter_mut().find(|c| c.id == id)
     }
-
-    pub fn effect(&self, id: EffectId) -> Option<&EffectSlot> {
-        self.effects.iter().find(|e| e.id == id)
-    }
-
-    pub fn effect_mut(&mut self, id: EffectId) -> Option<&mut EffectSlot> {
-        self.effects.iter_mut().find(|e| e.id == id)
-    }
-
-    pub fn effect_index(&self, id: EffectId) -> Option<usize> {
-        self.effects.iter().position(|e| e.id == id)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -559,6 +842,12 @@ pub struct Project {
     pub tempo_bpm: f64,
     pub time_signature: TimeSignature,
     pub tracks: Vec<Track>,
+    /// The mixer's channels, in the order the mixer shows them. See [`MixerStrip`].
+    #[serde(default)]
+    pub strips: Vec<MixerStrip>,
+    /// The desk's groups, in the order they were made. See [`StripGroup`].
+    #[serde(default)]
+    pub strip_groups: Vec<StripGroup>,
     pub master: Master,
     pub loop_region: Option<LoopRegion>,
     pub loop_enabled: bool,
@@ -573,11 +862,29 @@ pub struct Project {
 
 impl Default for Project {
     fn default() -> Self {
+        let mut p = Project::empty("Untitled");
+        for i in 0..DEFAULT_STRIPS {
+            let mut strip = p.make_strip("");
+            if i >= DEFAULT_STRIPS - DEFAULT_RIGHT_DOCK {
+                strip.dock = Dock::Right;
+            }
+            p.strips.push(strip);
+        }
+        p
+    }
+}
+
+impl Project {
+    /// A project with **no** strips. `Default` gives the sixteen a session opens with;
+    /// this is for migrations, which build the strips a file needs from what it holds.
+    pub fn empty(name: impl Into<String>) -> Self {
         Project {
-            name: "Untitled".to_string(),
+            name: name.into(),
             tempo_bpm: 120.0,
             time_signature: TimeSignature::default(),
             tracks: Vec::new(),
+            strips: Vec::new(),
+            strip_groups: Vec::new(),
             master: Master::default(),
             loop_region: Some(LoopRegion {
                 start: Ticks::ZERO,
@@ -589,9 +896,7 @@ impl Default for Project {
             next_id: 1,
         }
     }
-}
 
-impl Project {
     pub fn new(name: impl Into<String>) -> Self {
         Project {
             name: name.into(),
@@ -619,6 +924,215 @@ impl Project {
         self.tracks.iter().position(|t| t.id == id)
     }
 
+    pub fn strip(&self, id: StripId) -> Option<&MixerStrip> {
+        self.strips.iter().find(|s| s.id == id)
+    }
+
+    pub fn strip_mut(&mut self, id: StripId) -> Option<&mut MixerStrip> {
+        self.strips.iter_mut().find(|s| s.id == id)
+    }
+
+    pub fn strip_index(&self, id: StripId) -> Option<usize> {
+        self.strips.iter().position(|s| s.id == id)
+    }
+
+    /// The strip's number as the mixer shows it, from 1.
+    pub fn strip_number(&self, id: StripId) -> Option<usize> {
+        self.strip_index(id).map(|i| i + 1)
+    }
+
+    /// The first strip no track feeds, which is where a new track goes. Strips in the
+    /// middle of the desk are taken first: the pinned docks hold returns and buses, and a
+    /// new instrument landing on one of them would be a surprise.
+    pub fn first_free_strip(&self) -> Option<StripId> {
+        let free = |s: &&MixerStrip| !self.tracks.iter().any(|t| t.strip == Some(s.id));
+        self.strips
+            .iter()
+            .filter(|s| s.dock == Dock::Middle)
+            .find(free)
+            .or_else(|| self.strips.iter().find(free))
+            .map(|s| s.id)
+    }
+
+    pub fn strip_group(&self, id: GroupId) -> Option<&StripGroup> {
+        self.strip_groups.iter().find(|g| g.id == id)
+    }
+
+    pub fn strip_group_mut(&mut self, id: GroupId) -> Option<&mut StripGroup> {
+        self.strip_groups.iter_mut().find(|g| g.id == id)
+    }
+
+    /// The strips of a group, in desk order.
+    pub fn strips_in_group(&self, id: GroupId) -> impl Iterator<Item = &MixerStrip> {
+        self.strips.iter().filter(move |s| s.group == Some(id))
+    }
+
+    pub fn make_strip_group(&mut self, name: impl Into<String>, color: Color) -> StripGroup {
+        StripGroup {
+            id: GroupId(self.alloc_id()),
+            name: name.into(),
+            color,
+            collapsed: false,
+        }
+    }
+
+    /// The tracks feeding a strip, in track order.
+    pub fn tracks_on_strip(&self, id: StripId) -> impl Iterator<Item = &Track> {
+        self.tracks.iter().filter(move |t| t.strip == Some(id))
+    }
+
+    /// Would routing `strip` into `output` — as its output or as a send — close a loop?
+    /// Walks every route out of `output` (outputs and sends alike) and fails if it reaches
+    /// `strip`, which also covers a strip feeding itself.
+    pub fn routing_would_cycle(&self, strip: StripId, output: Option<StripId>) -> bool {
+        let Some(start) = output else {
+            return false;
+        };
+        let mut seen: Vec<StripId> = Vec::with_capacity(self.strips.len());
+        let mut stack = vec![start];
+        while let Some(id) = stack.pop() {
+            if id == strip {
+                return true;
+            }
+            if seen.contains(&id) {
+                continue;
+            }
+            seen.push(id);
+            stack.extend(self.downstream(id));
+        }
+        false
+    }
+
+    /// Every strip that has to be processed after `id`: the ones it feeds (output and
+    /// sends) and the ones whose effects are keyed from it. The edges of the processing
+    /// order.
+    pub fn downstream(&self, id: StripId) -> Vec<StripId> {
+        let mut out: Vec<StripId> = self
+            .strip(id)
+            .map(|s| s.feeds().collect())
+            .unwrap_or_default();
+        out.extend(
+            self.strips
+                .iter()
+                .filter(|s| s.keys().any(|k| k == id))
+                .map(|s| s.id),
+        );
+        out
+    }
+
+    /// The strips connected to `roots` by routing in either direction: everything that
+    /// feeds one of them (directly or through other strips) and everything one of them
+    /// feeds. This is what a solo keeps audible (FL's *solo with connected routes*), so
+    /// soloing a channel is heard through its bus and soloing a bus is heard with its
+    /// inputs. Returned as indices into `strips`.
+    pub fn connected_strips(&self, roots: impl Iterator<Item = StripId>) -> Vec<usize> {
+        let n = self.strips.len();
+        let mut marked = vec![false; n];
+        let mut stack: Vec<usize> = roots.filter_map(|r| self.strip_index(r)).collect();
+        // Downstream: follow outputs and sends.
+        let mut down = stack.clone();
+        while let Some(i) = down.pop() {
+            if marked[i] {
+                continue;
+            }
+            marked[i] = true;
+            for to in self.strips[i].feeds() {
+                if let Some(j) = self.strip_index(to) {
+                    down.push(j);
+                }
+            }
+        }
+        // Upstream: anything whose routes reach a marked strip.
+        let mut up_marked = vec![false; n];
+        while let Some(i) = stack.pop() {
+            if up_marked[i] {
+                continue;
+            }
+            up_marked[i] = true;
+            let id = self.strips[i].id;
+            for (j, s) in self.strips.iter().enumerate() {
+                if s.feeds().any(|to| to == id) {
+                    stack.push(j);
+                }
+            }
+        }
+        (0..n).filter(|i| marked[*i] || up_marked[*i]).collect()
+    }
+
+    pub fn any_strip_solo(&self) -> bool {
+        self.strips.iter().any(|s| s.soloed)
+    }
+
+    /// Whether each strip sounds, given mutes and solos: a muted strip never does; with a
+    /// solo somewhere, only the soloed strips and what they are connected to do. Indexed
+    /// like `strips`.
+    pub fn strip_audibility(&self) -> Vec<bool> {
+        let mut audible: Vec<bool> = self.strips.iter().map(|s| !s.muted).collect();
+        if self.any_strip_solo() {
+            let keep = self.connected_strips(self.strips.iter().filter(|s| s.soloed).map(|s| s.id));
+            for (i, a) in audible.iter_mut().enumerate() {
+                *a = *a && keep.contains(&i);
+            }
+        }
+        audible
+    }
+
+    /// Which strips send into `id`, by index.
+    pub fn senders_to(&self, id: StripId) -> impl Iterator<Item = &MixerStrip> {
+        self.strips
+            .iter()
+            .filter(move |s| s.sends.iter().any(|x| x.to == id))
+    }
+
+    /// The strips in processing order: every strip after all the strips that feed it,
+    /// so the audio thread can run them front to back and each bus sees its inputs
+    /// complete. Indices into `strips`. Strips caught in a cycle (which the commands
+    /// refuse, but a hand-edited file can hold) come last and feed the master.
+    pub fn strip_order(&self) -> Vec<usize> {
+        let n = self.strips.len();
+        let mut indegree = vec![0usize; n];
+        let edges: Vec<Vec<usize>> = self
+            .strips
+            .iter()
+            .map(|s| {
+                self.downstream(s.id)
+                    .into_iter()
+                    .filter_map(|o| self.strip_index(o))
+                    .collect()
+            })
+            .collect();
+        for e in &edges {
+            for out in e {
+                indegree[*out] += 1;
+            }
+        }
+        let mut order = Vec::with_capacity(n);
+        let mut ready: Vec<usize> = (0..n).filter(|i| indegree[*i] == 0).collect();
+        // Keep the mixer's own order among strips that are otherwise unordered, so the
+        // processing order is stable from one snapshot to the next.
+        ready.reverse();
+        while let Some(i) = ready.pop() {
+            order.push(i);
+            let mut newly = false;
+            for &out in &edges[i] {
+                indegree[out] -= 1;
+                if indegree[out] == 0 {
+                    ready.push(out);
+                    newly = true;
+                }
+            }
+            if newly {
+                ready.sort_unstable_by(|a, b| b.cmp(a));
+            }
+        }
+        for i in 0..n {
+            if !order.contains(&i) {
+                order.push(i);
+            }
+        }
+        order
+    }
+
     /// Timeline end: the end of the last clip, or zero if the project is empty.
     pub fn content_end(&self) -> Ticks {
         self.tracks
@@ -644,7 +1158,8 @@ impl Project {
         }
     }
 
-    /// Build a default track with a fresh id and the next palette colour.
+    /// Build a default track with a fresh id, the next palette colour, and the first free
+    /// mixer strip.
     pub fn make_track(&mut self, name: impl Into<String>) -> Track {
         let id = TrackId(self.alloc_id());
         let color = Color::PALETTE[self.tracks.len() % Color::PALETTE.len()];
@@ -655,14 +1170,34 @@ impl Project {
             height: 1.0,
             icon: None,
             instrument: InstrumentSpec::default(),
-            effects: Vec::new(),
             clips: Vec::new(),
+            gain_db: 0.0,
+            pan: 0.0,
+            strip: self.first_free_strip(),
+            muted: false,
+            soloed: false,
+        }
+    }
+
+    pub fn make_strip(&mut self, name: impl Into<String>) -> MixerStrip {
+        MixerStrip {
+            id: StripId(self.alloc_id()),
+            name: name.into(),
             gain_db: 0.0,
             pan: 0.0,
             width: 1.0,
             phase_invert: false,
             muted: false,
             soloed: false,
+            swap_channels: false,
+            fx_enabled: true,
+            effects: Vec::new(),
+            eq: StripEq::default(),
+            output: None,
+            sends: Vec::new(),
+            color: None,
+            dock: Dock::Middle,
+            group: None,
         }
     }
 
@@ -684,6 +1219,9 @@ impl Project {
         EffectSlot {
             id: EffectId(self.alloc_id()),
             bypass: false,
+            mix: 1.0,
+            sidechain: None,
+            midi_from: None,
             spec: crate::effect::EffectSpec::new(kind),
         }
     }
@@ -727,6 +1265,26 @@ pub fn linear_to_db(lin: f32) -> f32 {
 /// this is the shape, not the law, and a project decides which law applies to it.
 pub fn pan_gains(pan: f32) -> (f32, f32) {
     PanLaw::Minus3dB.gains(pan)
+}
+
+/// A **balance**: unity at the centre, the far channel tapered. For the master and for a
+/// track's own placement before its strip, where a signal is being *balanced* rather
+/// than *placed* and the pan law must not be applied a second time (ADR 0012). Centre
+/// returns exactly `(1, 1)`, so a control at its default touches no sample.
+pub fn balance_gains(pan: f32) -> (f32, f32) {
+    let p = if pan.is_finite() {
+        pan.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+    if p == 0.0 {
+        return (1.0, 1.0);
+    }
+    let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
+    (
+        (angle.cos() * std::f32::consts::SQRT_2).min(1.0),
+        (angle.sin() * std::f32::consts::SQRT_2).min(1.0),
+    )
 }
 
 /// MIDI pitch → frequency in Hz with A4 = 440 Hz.
@@ -884,6 +1442,195 @@ mod tests {
         let n = p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
         assert_ne!(t.id.0, c.id.0);
         assert_ne!(c.id.0, n.id.0);
-        assert_eq!(p.next_id, 4);
+        // Sixteen strips took the first ids.
+        assert_eq!(p.next_id, DEFAULT_STRIPS as u64 + 4);
+    }
+}
+
+#[cfg(test)]
+mod strip_tests {
+    use super::*;
+
+    /// The last three strips of a new desk are pinned on the right, and a new track never
+    /// lands on one while a middle strip is free.
+    #[test]
+    fn the_right_dock_holds_three_strips_that_new_tracks_leave_alone() {
+        let mut p = Project::default();
+        let docked: Vec<usize> = p
+            .strips
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.dock == Dock::Right)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(docked, vec![13, 14, 15]);
+        for n in 0..13 {
+            let t = p.make_track(format!("t{n}"));
+            assert_eq!(t.strip, Some(p.strips[n].id));
+            p.tracks.push(t);
+        }
+        // The middle is full: only now does a track take a docked strip.
+        let t = p.make_track("fourteenth");
+        assert_eq!(t.strip, Some(p.strips[13].id));
+    }
+
+    #[test]
+    fn a_new_project_has_numbered_strips_and_new_tracks_fill_them_in_order() {
+        let mut p = Project::default();
+        assert_eq!(p.strips.len(), DEFAULT_STRIPS);
+        let a = p.make_track("a");
+        p.tracks.push(a);
+        let b = p.make_track("b");
+        p.tracks.push(b);
+        assert_eq!(p.tracks[0].strip, Some(p.strips[0].id));
+        assert_eq!(p.tracks[1].strip, Some(p.strips[1].id));
+        assert_eq!(p.strip_number(p.strips[1].id), Some(2));
+    }
+
+    #[test]
+    fn strips_are_processed_after_everything_that_feeds_them() {
+        let mut p = Project::default();
+        // 1 → 3, 2 → 3, 3 → master, 4 → 1.
+        let (s1, s2, s3, s4) = (
+            p.strips[0].id,
+            p.strips[1].id,
+            p.strips[2].id,
+            p.strips[3].id,
+        );
+        p.strips[0].output = Some(s3);
+        p.strips[1].output = Some(s3);
+        p.strips[3].output = Some(s1);
+        let order = p.strip_order();
+        let pos = |id: StripId| order.iter().position(|i| p.strips[*i].id == id).unwrap();
+        assert!(pos(s4) < pos(s1), "4 feeds 1");
+        assert!(pos(s1) < pos(s3) && pos(s2) < pos(s3), "1 and 2 feed 3");
+        assert_eq!(order.len(), DEFAULT_STRIPS, "every strip is processed once");
+        assert!(
+            p.routing_would_cycle(s3, Some(s1)),
+            "3 → 1 would loop through 1 → 3"
+        );
+        assert!(
+            p.routing_would_cycle(s2, Some(s2)),
+            "a strip cannot feed itself"
+        );
+        assert!(
+            !p.routing_would_cycle(s2, Some(s4)),
+            "2 → 4 → 1 → 3 is a chain, not a loop"
+        );
+        assert!(!p.routing_would_cycle(s2, None));
+    }
+
+    /// A send is a route: it orders the strips and it can close a loop, exactly as an
+    /// output can, so the audio thread never meets a bus before its inputs.
+    #[test]
+    fn sends_order_strips_and_cannot_loop() {
+        let mut p = Project::default();
+        let (s1, s2, s3) = (p.strips[0].id, p.strips[1].id, p.strips[2].id);
+        // 1 → master, with a send into 3; 3 → 2.
+        p.strips[0].sends.push(Send::new(s3));
+        p.strips[2].output = Some(s2);
+        let order = p.strip_order();
+        let pos = |id: StripId| order.iter().position(|i| p.strips[*i].id == id).unwrap();
+        assert!(pos(s1) < pos(s3), "the send from 1 feeds 3");
+        assert!(pos(s3) < pos(s2));
+        assert!(p.routing_would_cycle(s2, Some(s1)), "2 → 1 ⇝ 3 → 2 loops");
+        assert!(
+            p.routing_would_cycle(s3, Some(s1)),
+            "a send back into its source loops"
+        );
+        assert!(p.routing_would_cycle(s2, Some(s3)), "2 → 3 → 2 loops");
+        assert!(!p.routing_would_cycle(s1, Some(s2)), "1 → 2 is fine");
+    }
+
+    /// Solo keeps the soloed strip, its inputs and its destinations; mute always wins.
+    #[test]
+    fn solo_keeps_the_connected_routes_and_nothing_else() {
+        let mut p = Project::default();
+        let (s1, s2, s3, s4, s5) = (
+            p.strips[0].id,
+            p.strips[1].id,
+            p.strips[2].id,
+            p.strips[3].id,
+            p.strips[4].id,
+        );
+        // 1 → 3 (bus), 2 → 3, 4 alone; 1 also sends into 5.
+        p.strips[0].output = Some(s3);
+        p.strips[1].output = Some(s3);
+        p.strips[0].sends.push(Send::new(s5));
+        assert!(
+            p.strip_audibility().iter().all(|a| *a),
+            "no solo: everything sounds"
+        );
+        p.strips[0].soloed = true;
+        let a = p.strip_audibility();
+        let idx = |id: StripId| [s1, s2, s3, s4, s5].iter().position(|x| *x == id).unwrap();
+        assert!(a[idx(s1)], "the soloed strip");
+        assert!(a[idx(s3)], "heard through its bus");
+        assert!(a[idx(s5)], "and through its send");
+        assert!(
+            !a[idx(s2)],
+            "a sibling into the same bus is not connected to 1"
+        );
+        assert!(!a[idx(s4)], "an unrelated strip is silent");
+        // Soloing the bus brings both inputs back.
+        p.strips[0].soloed = false;
+        p.strips[2].soloed = true;
+        let a = p.strip_audibility();
+        assert!(a[idx(s1)] && a[idx(s2)] && a[idx(s3)]);
+        assert!(!a[idx(s4)]);
+        // Mute wins over solo.
+        p.strips[1].muted = true;
+        assert!(!p.strip_audibility()[idx(s2)]);
+    }
+
+    /// A sidechain is a route: the key's strip is processed first, and a key that would
+    /// close a loop is a cycle like any other.
+    #[test]
+    fn a_sidechain_orders_the_strips_and_cannot_loop() {
+        let mut p = Project::default();
+        let (s1, s2, s3) = (p.strips[0].id, p.strips[1].id, p.strips[2].id);
+        // 2 → 3; the compressor on 1 is keyed from 3.
+        p.strips[1].output = Some(s3);
+        let mut comp = p.make_effect(crate::effect::EffectKind::Compressor);
+        comp.sidechain = Some(s3);
+        p.strips[0].effects.push(comp);
+        let order = p.strip_order();
+        let pos = |id: StripId| order.iter().position(|i| p.strips[*i].id == id).unwrap();
+        assert!(
+            pos(s3) < pos(s1),
+            "the key is processed before the compressor"
+        );
+        assert!(pos(s2) < pos(s3));
+        assert!(
+            p.routing_would_cycle(s1, Some(s3)),
+            "1 → 3 would loop: 3 keys 1, so 3 has to come first"
+        );
+        assert!(
+            p.routing_would_cycle(s1, Some(s2)),
+            "1 → 2 → 3 ⇢ 1 loops through the key as well"
+        );
+        assert!(
+            !p.routing_would_cycle(s3, Some(s1)),
+            "3 → 1 runs the same way as the key: no loop"
+        );
+    }
+
+    #[test]
+    fn the_eq_is_flat_by_default_and_clamps_what_it_is_given() {
+        let mut eq = StripEq::default();
+        assert!(eq.is_flat());
+        assert_eq!(eq.set(1, EqField::Gain, 40.0), Some(EQ_MAX_GAIN_DB));
+        assert!(!eq.is_flat());
+        assert_eq!(eq.set(0, EqField::Freq, 1.0), Some(EQ_MIN_HZ));
+        assert_eq!(eq.set(2, EqField::Q, f32::NAN), None);
+        assert_eq!(eq.set(3, EqField::Q, 1.0), None, "there are three bands");
+        assert_eq!(eq.get(2, EqField::Q), 0.71);
+    }
+
+    #[test]
+    fn balance_is_unity_at_the_centre() {
+        assert_eq!(balance_gains(0.0), (1.0, 1.0));
+        let (l, r) = balance_gains(-1.0);
+        assert!((l - 1.0).abs() < 1e-6 && r.abs() < 1e-6);
     }
 }

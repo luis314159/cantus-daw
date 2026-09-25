@@ -19,10 +19,18 @@ fn project_with_effects() -> Project {
     delay.spec.set("time_ms", 250.0).unwrap();
     delay.spec.set("mix", 0.5).unwrap();
     let reverb = p.make_effect(EffectKind::Reverb);
-    t.effects.push(delay);
-    t.effects.push(reverb);
+    let strip = t.strip.expect("strip");
     p.tracks.push(t);
+    let s = p.strip_mut(strip).unwrap();
+    s.effects.push(delay);
+    s.effects.push(reverb);
     p
+}
+
+/// The strip the lead feeds, where its inserts live.
+fn lead_strip(p: &mut Project) -> &mut MixerStrip {
+    let id = p.tracks[0].strip.unwrap();
+    p.strip_mut(id).unwrap()
 }
 
 fn processor() -> (
@@ -41,7 +49,7 @@ fn effect_chain_renders_block_size_independent_and_audibly_different() {
     let project = project_with_effects();
     let with_fx = Arc::new(Snapshot::compile(&project, 1));
     let mut dry_project = project.clone();
-    dry_project.tracks[0].effects.clear();
+    lead_strip(&mut dry_project).effects.clear();
     let dry = Arc::new(Snapshot::compile(&dry_project, 1));
 
     let mut opts = RenderOptions {
@@ -81,11 +89,11 @@ fn effect_chain_renders_block_size_independent_and_audibly_different() {
 fn bypass_removes_the_effect_from_the_signal() {
     let project = project_with_effects();
     let mut bypassed = project.clone();
-    for e in &mut bypassed.tracks[0].effects {
+    for e in &mut lead_strip(&mut bypassed).effects {
         e.bypass = true;
     }
     let mut dry = project.clone();
-    dry.tracks[0].effects.clear();
+    lead_strip(&mut dry).effects.clear();
     let opts = RenderOptions::default();
     let a = render(Arc::new(Snapshot::compile(&bypassed, 1)), &opts).unwrap();
     let b = render(Arc::new(Snapshot::compile(&dry, 1)), &opts).unwrap();
@@ -97,7 +105,7 @@ fn removed_effects_come_back_as_garbage_and_new_ones_are_claimed() {
     let project = project_with_effects();
     let (mut tx, mut rx, mut p) = processor();
     let snap = Arc::new(Snapshot::compile(&project, 1));
-    for slot in &project.tracks[0].effects {
+    for slot in &project.strips[0].effects {
         tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
             slot, 48_000.0,
         ))))
@@ -119,7 +127,7 @@ fn removed_effects_come_back_as_garbage_and_new_ones_are_claimed() {
 
     // Remove one effect: exactly one unit comes back.
     let mut fewer = project.clone();
-    let removed = fewer.tracks[0].effects.remove(0);
+    let removed = lead_strip(&mut fewer).effects.remove(0);
     tx.push(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
         &fewer, 2,
     ))))

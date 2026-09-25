@@ -1,27 +1,52 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-10 (round 12: Pulsus and a channel rack across every track, samples per pad, time selection, track shape) · **Phase:** 0/1 complete, Phase 2 (MIDI) and parts of 4 (mixer) and 8 (effects) done · **Tests:** 221 green + 1 real-device test (`--ignored`), clippy clean · **Code:** ~30 500 lines of Rust
+**Updated:** 2026-09-25 (round 17: **Cantus meets the market's DAWs** — it hosts CLAP and VST3 plug-ins behind one contract, with a crash-proof scanner; our seven effects ship as a separate CLAP/VST3 build, bit-identical to the native ones and proved by hosting them in Cantus itself; MIDI files, stems and DAWproject in and out; the playhead and recording follow the latency, bypass keeps it, an EQ allocates only what it uses, and a track's notes can play an effect; schema 15) · **Phase:** 0/1 complete, Phase 2 (MIDI), Phase 4 (mixer) all but external I/O, Phase 8 (effects) complete for the first family, plug-in hosting (5.8) begun · **Tests:** 689 green + 6 ignored (one real-device), clippy clean · **Code:** ~118 000 lines of Rust
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
-## The next session: buses, then what hangs off the selection, then swing
+## The next session: the instruments land, then what round 17 left
 
-Round 12 built both blocks the last handoff asked for — the kit, the rack, the time
-selection, the track shape — and then, on the user's direction, reshaped the rack into
-FL's: every track a channel, a drum per track, samples per pad, a groove on start-up.
-That leaves three threads, in this order:
+Round 17 did the user's "compatible with the market's DAWs" (its section is below). What
+is next, in order:
 
-**0. Buses and sends — the routing the channel rack now visibly lacks.** Every drum is its
-own track and its own mixer strip, and the rack prints the strip number on each row; what
-it cannot do yet is send the kick and the snare to *one* strip, or a group of tracks to a
-bus with a compressor on it. This is roadmap item 6 pulled forward, because the rack made
-the hole visible. The shape: a bus is a `Track` with no instrument and no clips;
-`Track.output: Output::{Master, Bus(TrackId)}`; the processor renders tracks in dependency
-order (a bus after everything routed to it), which is a topological sort done once per
-snapshot on the UI thread and stored in the snapshot as a play order; the mixer shows
-buses as strips with a different header; the rack's strip number becomes a picker. Cycles
-are refused by the command. Track groups in the arrangement are the **same tree** (the
-playlist plan's decision 3) — do not build a second one.
+**1. The instruments** belong to the other session, `daw-b0` (the user's split,
+2026-09-24): an instrument contract (ADR 0023, `InstrumentUnit`) and seven builders on
+`inst/*` branches in `C:\projects\daw-inst\`, to be merged into this tree by that session.
+Its native-instrument migration becomes **schema 16** (14 and 15 are round 17's). Hosted
+CLAP/VST3 instruments on tracks are an adapter from `cantus_host::AudioThread` to its
+`InstrumentUnit` — built on `cantus-host`, never a second host; the host contract already
+carries notes with ids, release velocity and per-note expressions.
+
+**2. What round 17 left**, the ones worth doing first:
+- *A whole-block strip stage.* Inserts run once per note-event segment, sometimes for a
+  single sample: legal for every plug-in standard, costly for hosted ones. Render tracks
+  per segment and strips once per block. Agree it with the instruments session first —
+  both edit `processor.rs`.
+- *The other six editors in plug-in windows.* Porta's real editor runs inside other DAWs
+  through `FxHost` (ADR 0020 §8); the rest is a mechanical port each, planned there.
+- *Hosting:* crash isolation for a plug-in that is already running (the scan is isolated,
+  a running plug-in is not); the plug-in window on macOS and Linux; per-plug-in DPI; CLAP
+  `render`, `tail`, `remote-controls`, `undo`; a VST3 `restart()` in the contract; the
+  generic editor's window should fit its content (it is sized like our big editors).
+- *Interchange:* AAF/OMF and audio in DAWproject wait for audio clips; exact tempo and
+  time-signature changes wait for a tempo track; MIDI clock and Ableton Link are written up
+  in ADR 0021, not built.
+- *The engine:* flush denormals (FTZ/DAZ) in the audio callback — the export build does,
+  and it made Sibilus 6 % faster without changing a sample; the compressor's and limiter's
+  histories line up with what is heard only when the effect is last in its path (the
+  engine would have to report each effect's input lag).
+- *Licence:* ADR 0001 made Cantus GPL "because of VST3"; the VST3 SDK has been MIT since
+  3.8, so `cantus-host` could be permissive. The user's decision.
+- The plug-in matrices' missing features (round 16's list, unchanged).
+
+Then the arrangement work that was next before the user's direction changed:
+
+Round 13 took the mixer the rest of the way to FL's strip on the user's direction (ADR
+0015; the round's own section is below): sends, solo, submixes, EQ, the slot mix, the
+multi-selection. The mixer is now blocked on things that are not the mixer's — audio input
+for FL's *external audio in*, an effect with a sidechain input for sidechain sends — so
+the order below stands, with the mixer's remainder folded into the audio-clips block.
+What is left, in order:
 
 **1. What hangs off the time selection.** It exists, it is visible as a column across every
 track, and today two things use it: loop-to-selection (`Shift+L`) and zoom-to-selection
@@ -40,9 +65,17 @@ afterwards and undoable by degree. That is a schema bump (8), a migration writin
 a control in the rack's toolbar. Small, and cheap now; expensive after people have
 projects with grooves in them.
 
-Then, in the order the playlist plan gives: **clip chrome and the header map** (the visual
-block — a title bar per clip, the track's content as a miniature behind its name), and
-**markers and time signatures**.
+**3. ~~Sends~~ — done (round 13, ADR 0015)**, with the remove-strip button, colours and
+names in the strip's menu. What the mixer still lacks from FL, and what each waits on:
+**external audio in / out** (an input path in the engine and the backend — it belongs to
+the audio-clips block, step 8 of the playlist plan, not to the mixer); **sidechain sends**
+(a send whose destination is an insert's second input — waits for the first effect that
+has one, a compressor); **plugin delay compensation** (no insert has latency yet);
+**compact / wide layouts and the meter-wave view** (pure UI, do them when the desk gets
+crowded).
+
+Then, in the order the playlist plan gives: **markers and time signatures** (clip chrome
+and the header map landed in the visual pass).
 
 The two plans below are kept as written, with each item marked as it landed, so the
 reasoning stays next to the result.
@@ -51,13 +84,13 @@ reasoning stays next to the result.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0013 | done |
-| `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, **pads and lanes**, **track height and icon** | done; 32 tests incl. 40-seed undo/redo invariant fuzz (now covering pad parameters, pad names and both instrument variants) |
-| `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, null-test harness | done; 33 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |
-| `cantus-engine`: transport, processor with insert chains, width / pan law / polarity, **two instruments per slot, stereo instrument path, sample cache**, hardware MIDI in, recording feedback, cpal backend, offline render | done; 16 null/behaviour tests (five for a kit) + 5 effect/MIDI tests + 6 unit tests + 1 real-device test |
-| `cantus-project`: versioned JSON (**schema 8**), SHA-256, migrations 0→1→…→8, atomic save, autosave, recovery, fixture corpus | done; 9 tests; fixtures `v1`–`v8.cantus` must always load |
+| Workspace, licenses, ADRs 0001–0022 | done |
+| `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, pads and lanes, track height and icon, mixer strips and routing, **sends, strip solo, EQ, slot mix, submixes** | done; 39 tests incl. 40-seed undo/redo invariant fuzz (pads, instruments, strips, sends, routes the commands refuse) |
+| `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, **RBJ biquads and the three-band channel EQ**, null-test harness | done; 37 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |
+| `cantus-engine`: transport, processor with mixer strips in dependency order, **post-fader sends, strip EQ, per-slot dry/wet, swap, FX switch**, insert chains on strips, width / pan law / polarity, two instruments per slot, stereo instrument path, sample cache, hardware MIDI in, recording feedback, cpal backend, offline render | done; 23 null/behaviour tests (five for a kit, one golden render, one for buses, five for sends / EQ / slot mix / swap / solo) + 5 effect/MIDI tests + 6 unit tests + 1 real-device test |
+| `cantus-project`: versioned JSON (**schema 12**), SHA-256, migrations 0→1→…→12, atomic save, autosave, recovery, fixture corpus | done; 10 tests; fixtures `v1`–`v12.cantus` must always load |
 | `cantus-ai`: `AiProvider`, tool catalogue (**+ add_effect**), permissions, command bridge | done (no live provider yet); 3 tests |
-| `cantus-ui`: transport, arrangement (clip editing, **time selection, per-track height, icons, reorder by drag**), piano roll (**lanes from the instrument**, 7 mouse tools, clipboard, nudge/transpose, slice, mute), **channel rack across every track**, mixer view, inspector (**channel strip, instrument picker, pad editor with samples**, effects rack), widgets (fader, bar), keyboard piano, MIDI recording, design system, named layouts, editable keymap, settings dialog, **welcome groove**, i18n EN/ES | done; 117 tests (headless egui frames, edit/undo flows, clip and step gestures through published geometry, kit lanes as painted, save→open→export, recording take, effects delivery, fader taper, type scale / spacing grid / bundled fonts / theme upgrade) |
+| `cantus-ui`: transport, arrangement (clip editing, **time selection, per-track height, icons, reorder by drag**), piano roll (**lanes from the instrument**, 7 mouse tools, clipboard, nudge/transpose, slice, mute), **channel rack across every track**, mixer as a desk (master left, numbered strips, routing, `+`, **sends, solo, EQ bars, peak dB, strip menu, multi-selection with ganged faders, submixes**), inspector (channel, route, strip with inserts, **EQ with its response drawn, sends, a mix per slot**, instrument picker, pad editor with samples), widgets (fader, bar), keyboard piano, MIDI recording, design system, named layouts, editable keymap, settings dialog, welcome groove, **clip chrome, header map, colour tints, button steps**, i18n EN/ES | done; 122 tests (headless egui frames, edit/undo flows, clip and step gestures through published geometry, kit lanes as painted, save→open→export, recording take, effects delivery, fader taper, type scale / spacing grid / bundled fonts / theme upgrade) |
 
 ## Verified by running (Windows 11, Realtek WASAPI 48 kHz)
 
@@ -104,6 +137,384 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Round 17: compatible with the market's DAWs (requested 2026-09-24)
+
+**The ask.** *Keep our plug-ins native so they perform well, but give whoever wants to take
+them out of our DAW the option, with the best performance possible — a separate build, or
+whatever is excellent. The other session handles the digital instruments; on our side, let
+us use external plug-ins — follow the standard. Attack the rest of the points with
+different agents.*
+
+**How it ran.** A snapshot commit of the working tree (no branch moved), a small scaffold
+first — `crates/cantus-host` with only the contract (`backend.rs`: `Backend`, `MainThread`,
+`AudioThread`, notes with ids and expressions, agreed with the instruments session) and a
+locale file per area — then five builders in worktrees on `r17/*` branches, merged back
+file by file. Coordinated throughout with the instruments session (`daw-b0`): a shared
+base, ADR numbers (0019–0022 here, 0023+ there), schema numbers, and a message before every
+merge that touched the engine or the format.
+
+| Branch | ADR | What it built |
+|---|---|---|
+| `r17/host` | 0019 | The CLAP backend (`clap-sys`), the scanner as a separate process with a cache and a *blocked* list, `HostedUnit` behind `FxUnit`, the session (`PluginHost`): load, restart, gestures as commands, state saved with the project, offline render; the plug-in list in the insert menu, a generic editor in the shared frame, the plug-in's own window on Windows, a plug-in manager in Settings; **schema 14** (an external slot; a missing plug-in is a wire and keeps its data) |
+| `r17/vst3` | 0019 | The VST3 backend (`vst3` 0.3, from the MIT 3.8 SDK): bundles and `moduleinfo.json`, separate and single-component controllers, lock-free parameter and event queues, controller edits as gestures, `.vstpreset` state, the HWND editor |
+| `r17/export` | 0020 | `crates/cantus-plugins`: our seven effects as **CLAP and VST3**, thin wrappers of our own over the engine's own units; stable parameter ids (a golden file), state = our `EffectSpec` JSON, latency, sidechain, soft bypass, FTZ; `cargo run -p xtask -- bundle [--v3]`; Porta's real editor in a plug-in window through the new `FxHost` |
+| `r17/interop` | 0021 | MIDI files in and out (types 0/1/2, drums on channel 10 as GM), **stems in one offline pass** (aligned whatever the latency), **DAWproject** in and out, validated against the official XSD; five File-menu entries, drop a `.mid` or `.dawproject` |
+| `r17/engine` | 0022 | EQ memory on demand (a zero-latency EQ 153 KB, was 4.3 MB); **soft bypass** keeps latency; the playhead, recording, the click and the mix recorder follow **what is heard**; **MIDI into effects** (`EffectSlot::midi_from`, **schema 15**) and Porta's MIDI trigger; Spatium measures low octaves through 96 dB/oct filters |
+
+**What the tests hold** (689 green): a hosted CLAP plug-in at 0 dB is bit-exact through the
+whole engine; with latency, an inverted twin cancels exactly; a gesture in a plug-in's
+window is one undo step; state round-trips; a plug-in that crashes or hangs while scanned
+is blocked and Cantus survives; VST3 likewise, with zero host-side allocation in
+`process` and 100 loads leaving nothing alive. Every exported plug-in, through CLAP and
+through VST3, is identical to the bit to the DSP called directly, at blocks 1…4096 and
+under automation; all seven pass `clap-validator` (built from source). MIDI export→import
+is exact; stems sum to the master exactly; DAWproject validates against the XSD and
+round-trips. A note heard on beat 2 is recorded on beat 2 at any latency; bypass toggles
+keep a twin cancelled; the audio thread allocates nothing (a counting allocator — which
+also found `eq_bands` building strings on the audio thread, fixed).
+
+**The round trip.** `crates/cantus-plugins/tests/hosted_in_cantus.rs` builds our effects
+as a `.clap` file, scans and loads it with Cantus's own host as it would a third party's,
+and compares each with the native insert: **all seven are bit-identical** and report the
+native latency. On the way it found a real defect: a state loaded after activation (what
+many hosts do) made the plug-in glide from its defaults — a pre-delay sweep at the top of
+the song. A state that arrives before the first sample is now where the effect starts.
+
+**At the merge** (by hand): the whole-file conflicts some old CRLF checkouts caused (the
+merge script now normalises line endings first); `effects.rs`, `processor.rs` (engine's
+soft-bypass insert loop with host's song position and gesture forwarding), `gate.rs`
+(export's `FxHost` editor with engine's MIDI-trigger row kept in the DAW-only part), the
+two schema-14 bumps split into 14 and 15, `EffectSlot`/`EffectSpec` literals the new
+fields broke, the exported EQ given room for linear phase at creation (inside another DAW
+nobody delivers memory on demand), and a UI test that failed on a Spanish system — the
+interface language is now per thread in tests (`i18n::default_thread_locale`), so tests
+neither depend on `LANG` nor race each other.
+
+**How to run it.** `cargo run --release -p cantus` (the DAW; `-- --locale es` in Spanish).
+`cargo run -p xtask -- bundle` writes `target/bundled/Cantus <Name>.clap` and `.vst3`
+(`--v3` for an x86-64-v3 build, 15–25 % faster on the heavy effects); copy them to
+`%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`.
+
+**Branches.** `r17/{host,vst3,export,interop,engine}` hold each part's history; everything is
+merged into the working tree, which is still uncommitted.
+
+## Round 16: seven plug-ins to FabFilter's bar, and delay compensation (requested 2026-09-24)
+
+**The ask.** *Fix the master volume, then put one agent on each plug-in to finish them and
+make sure they are of a quality equal to or better than FabFilter's.* Mid-round: *our DAW
+should be compatible with the DAWs on the market too — let's look at that at the end* (it
+is item 2 of the next session).
+
+**The master.** A centred master balance went through the pan law and came out at
+0.99999994, so a strip captured before the master and the master itself did not null.
+The master now uses `balance_gains`, which is exact unity at centre; the capture null test
+is exact (tolerance 0) and the golden render did not move.
+
+**How the round ran.** Everything a plug-in needs was scaffolded first so seven builders
+could work without touching each other (ADR 0018): the `FxUnit` contract, one module per
+layer per kind, a shared editor frame (header, presets, host-kept A/B), per-plug-in locale
+files, a software renderer for screenshots (`examples/shoot`). A snapshot of the working
+tree was committed on a side commit (no branch moved) and each agent got its own git
+worktree on an `fx/<name>` branch, a brief (the research report's *How we beat it*, null
+tests first, iterate on screenshots in both themes) and a list of files not to touch. The
+branches were merged back **file by file into the working tree** — `git merge-file` against
+the snapshot — because the user's changes are unstaged and `git apply --3way` needs the
+index. One conflict in the whole round (two telemetry arms in `effects.rs`) and one API
+drift (Spatium built an `aequalis::BandSettings` literal the EQ branch had extended). Three
+agents were cut off by a 600 s stream watchdog while writing very large files in one call;
+resumed with *write in pieces under ~300 lines, commit WIP early*, all finished.
+
+**The plug-ins** (each has `docs/plugins/<kind>.md`: decisions, what the tests hold, the
+feature matrix against the FabFilter product):
+
+| Plug-in | What it is | Numbers the tests hold |
+|---|---|---|
+| **Aequalis** (EQ) | 24 bands; zero-latency, natural-phase (64 samples) and linear-phase (four resolutions) modes; L/R and M/S bands together in one linear stage; dynamics in dB and ms above or below, keyed per band; auto gain measured on the signal; EQ match; spectrum grab, collisions against the key, piano axis, typed values (`2k`, `A4`) | natural phase within 0.036 dB / 1.1° of the analog prototype 20 Hz–20 kHz; linear phase within 0.004 dB (High) of the drawn curve; flat EQ is the input delayed by exactly its latency, every mode |
+| **Comprimo** (compressor) | nine styles, each a visible, editable detector; ratio to ∞ with click stops; key EQ of six bands; auto gain by loudness; listen Output/Wet/Key/Delta/Compare; oversampling 2×/4×; history in bars; reduction statistics; *Duck this strip from…* on the desk | a wire at 0 dB of reduction in every style; ∞:1 holds the threshold ±0.1 dB; a 10 ms attack measures 10 ±1 ms |
+| **Terminus** (limiter) | two stages with per-stage link; five styles; true peak; clipper; dither; loudness to BS.1770-4 (M, S, I, LRA, true peak); delivery profiles with a written verdict; a history in song time that seeks on click | true peak at most −0.019 dB re ceiling on inter-sample material pushed 18 dB (independent 32× check); EBU Tech 3341/3342 cases within tolerance |
+| **Spatium** (reverb) | 16-line FDN with decay fitted per frequency; 12 rooms morphed by Space; Room/Plate/Vintage/Spring; decay in seconds with target, engine and measured side by side; tail and spectrogram views; ducking keyed from any strip; freeze | octave-band T20 within 3.7 % of target over 5 settings × 7 octaves; echo density 1.00–1.01; L/R correlation 0.021 |
+| **Multiplex** (multiband) | up to 8 bands, each two-sided (compress and expand above and below); Dynamic, Split (Linkwitz–Riley) and Linear modes; thresholds dragged on the display; history lane per band; key from any strip with a free key range | the split at unity flat to 0.00023 dB with 8 bands; drawn = heard within 0.05 dB in every mode |
+| **Sibilus** (de-esser) | *Single vocal* detection that tells an *s* from a bright sound; wide, split-high and band-only processing (the split is linear-phase, as a difference); M/S; listen Trigger/Removed; Learn | cuts a sibilant burst 6.00 dB and a bright sawtooth or an 8 kHz sine 0.00 dB; a wire in all 24 mode combinations |
+| **Porta** (gate) | gate, expander, upward expander, ducker; six styles; adjustable hysteresis; lookahead at a fixed 10 ms; key filters on a spectrum; Learn; captured hits become a MIDI drum clip | hold exact to the sample; with 3 dB hysteresis one opening where none gives 20+; Clean opens 70 dB below a hard switch's click |
+
+Every plug-in holds the house rules: a bit-exact wire at settings that do nothing (or an
+exact delay of its reported latency), identical output at block sizes 1, 7, 64, 1000 and
+4096, determinism, both themes legible, both languages complete.
+
+**The host's part.**
+- **Delay compensation** (ADR 0018, `cantus_engine::pdc`): per edge, planned once per
+  snapshot on the audio thread; lines from a pool, kept while their delay is unchanged,
+  each ring exactly as long as its delay. A linear-phase EQ needs 16 896 samples and makes
+  every parallel path need as many, so **the pool grows on request**: the audio thread asks
+  (`EngineEvent::PdcNeed`), the backend allocates (`EngineMessage::PdcLines`), the audio
+  thread swaps them in for free short lines and returns those as garbage. An offline render
+  settles this before its first block (`Processor::settle`). Tests: a track and its inverted
+  twin through a latent strip cancel to exact silence (100 samples, and 16 884 — offline
+  from the first sample, live after one latency); a slot mix at 50 % around a latent effect
+  equals 100 %; a latent return lines up with the dry signal; a project with no latency is
+  untouched.
+- **Latency in the status bar** (`latency 2.1 ms`, the samples on hover, red when a path
+  could not be compensated).
+- **Every strip's gain reduction** in `Meters::strip_gr`, so the desk's reduction lane moves
+  with no editor open (test: `every_strip_reports_its_compressors_reduction_to_the_desk`).
+- Spatium's correlation meter turns red only below −0.5: a decorrelated tail swings either
+  side of zero, and red at any negative reading made a healthy reverb look broken.
+
+**Screenshots.** Each agent rendered its editor in both themes and iterated on it; the
+final shots are not in the repository (they are build output). Regenerate any of them with
+`cargo run -p cantus-ui --example shoot -- target/shots 1.0 <kind>` (`eq`, `compressor`,
+`limiter`, `space`, `multiband`, `deesser`, `gate`).
+
+**Branches.** The agents' branches `fx/eq`, `fx/compressor`, `fx/limiter`, `fx/space`,
+`fx/multiband`, `fx/deesser` and `fx/gate` and their worktrees under `C:\projects\daw-fx\`
+hold each plug-in's history; everything is merged into the working tree. They can be
+removed once the round is committed.
+
+## Round 15: the first plug-ins, the recorder, and a look at the interface (requested 2026-09-24)
+
+**The ask.** *Carry on with the new plan, and meanwhile put agents to research every
+product in FabFilter's Pro bundle, with screenshots of the official products, to make
+something better — better-looking, with the same features or more.*
+
+**Research.** Six agents ran in the background and wrote eight reports (`research/
+fabfilter/`, indexed in its README); about 85 official screenshots are saved locally and
+git-ignored, because they are FabFilter's images. The shared verdict: the benchmark wins on
+interaction, not DSP; its displays are often read-only, its styles opaque, its dynamics in
+percentages, its contrast low (knob bodies measured at 1.1–1.2:1), its undo local. Every
+one of those is something a native plug-in in the host can do better. One process note: a
+research agent reported that it scripted past a forum's bot check once before the
+permission system stopped it. The reports mark which opinions come from search excerpts.
+
+**Built** (ADR 0017):
+
+- **The house knob** (`widgets::knob`): every inspector parameter — Firmus, the pads, the
+  channel EQ, sends, slot mix, effect parameters — is a knob with an arc from its default,
+  fine drag, reset, arrows, and a right-click entry box. The settings dialog keeps egui's
+  sliders; it is a form, not an instrument.
+- **Meter ballistics**: instant rise, 24 dB/s fall, the view keeps drawing until every
+  meter has landed.
+- **The mix recorder**: a ● on every strip and on the master; a take is the post-fader
+  signal as 32-bit float WAV, written by a thread of its own from a lock-free ring; takes
+  are listed in the mixer toolbar and revealed in the file browser. The master take is the
+  output to the bit, never with the metronome (which now goes in after the master strip).
+- **Aequalis**: 24 bands with stable numbers, nine shapes, cuts 6–96 dB/oct, stereo/L/R/
+  M/S placement, dynamic bands in real units, output gain; matched filters (a 16 kHz bell
+  0.61 dB from analog where the bilinear design is 4.27 dB out); an analyser of the input
+  and output with 1/6-octave smoothing and a 4.5 dB/oct tilt; an editor where the display
+  is the control (double-click to create, shape by where; drag, wheel for Q or slope, Alt
+  to lock an axis or bypass, right-click menu, Delete), a cursor readout with frequency,
+  note and curve gain, and the selected band's numbers always on screen.
+- **Comprimo**: five styles that name their detector, soft knee, range, hold, auto and
+  program-dependent release, stereo link, a key high-pass, listen to key or delta, and a
+  **sidechain from any strip chosen inside the compressor** — which is also the mixer's
+  missing sidechain. The editor's threshold is a line you drag on the level history and a
+  point on the transfer curve; the ratio is the slope you drag; the knee is two marks.
+- **The desk**: faders grow with the panel (144 to 440 px) as a console's do; the strip's
+  switch row no longer overlaps at 96 px (the width's number moved to the bar's tooltip).
+- **`--editor eq|comp` and `--play`** at launch, and **`cantus_ui::raster`** with the
+  `shoot` example: the interface rendered to PNG on the CPU. This round's screenshots were
+  made that way because the machine's display was locked — and they are how the four
+  defects below were found.
+
+**What the tests and the screenshots found:**
+
+1. **The Butterworth Q formula used cosine.** Right for even orders, wrong for odd ones:
+   18 dB/oct had its corner at −7.8 dB. The slope test caught it.
+2. **"Matched is always better" was not true.** Measured against the same analog
+   prototype, matching wins everywhere except a high shelf above 0.35·fs, where the
+   bilinear design is closer (1.18 vs 1.81 dB). The first comparison was also unfair — the
+   channel EQ's shelf reads `q` as the RBJ slope S, not as Q. The test now compares the same
+   prototype both ways and records the numbers.
+3. **A knob rewrote its value every frame.** Position → value is exact only to a rounding
+   step on a log taper, so an untouched knob issued a command each frame. It now changes
+   only on a gesture, and a test holds it.
+4. **The screenshots**: the editor window came out translucent (the renderer's clock did
+   not advance, so the opening fade never finished), the analyser was a staircase in the
+   low end (interpolation added), a selected cut's fill drowned the display (fainter now),
+   the strip's switch row overlapped, and the faders left half the desk empty.
+
+Also found and deliberately left: the master's centred balance multiplies by 0.99999994
+rather than 1; the strip-capture test notes it, and fixing it is its own decision because
+it moves every existing render by one rounding step.
+
+**Not done in this round, and why:** lookahead, linear-phase EQ and the limiter wait for
+delay compensation (item 0a); spectral dynamics, EQ match and sketch wait for the fit
+engine the Pro-Q report proposes; the reverb, multiband, de-esser and gate wait for the
+dynamics-engine ADR; the instruments wait for their editor contract. None of these were
+started.
+
+## Round 14: docks and groups on the desk, and the plan for the next four blocks (requested 2026-09-23)
+
+**The ask.** *Carry on with the rest of the features*; a separator in the mixer with three
+channels pinned by default and more groups that can be made and coloured; and, as
+pending work, **FabFilter-class effects**, **professional instruments with their own
+interfaces**, **a recorder inside the mix**, and **an interface worthy of a first-rank
+product**.
+
+**Built** (ADR 0016): FL's three docks — left and right pinned, middle scrolling — with a
+new desk pinning its last three strips on the right; **strip groups** with a name, a
+colour and a fold, drawn as a separator column with the name running up it, members
+gathered into one run; *Dock to*, *Group* and *Route "track" here* in the strip menu;
+**density** (compact / normal / wide) and FL's **meter-wave** view (`Alt+W`), both
+preferences. Three tests paint the desk and read it back: the right dock is painted at
+900 px, a left-docked strip sits before strip 1, a folded group hides its members and
+keeps its separator, compact drops the send rows for a count.
+
+The one surprise: a folded group's separator paints its member count, and the first
+version of the fold test looked for the number `3` to be gone. The count is also a 3. The
+test now looks for the strips on either side of it.
+
+**What the mixer still lacks from FL**, unchanged from round 13 and blocked on other
+things: external audio in/out and record arm (an engine input path), sidechain sends (an
+effect with a sidechain input), PDC (an insert with latency).
+
+### Planned: the next four blocks
+
+These were asked for as *pending*, and each is large enough to be a round of its own. They
+are written as plans with the decisions to make first, in the style of the playlist and
+drums plans below, so that the next session starts from a decision rather than a blank.
+
+#### 1. A recorder in the mix
+
+FL's answer is Edison on the *Current* track; Reaper's is arming the master. **Decision:
+record the post-fader output of any strip, or of the master, to a WAV, from the strip
+itself.** A `●` on each strip and on the master.
+
+- Engine: a `Capture { strip: Option<StripId> }` message; the processor copies that
+  buffer, after the fader, into an `rtrb` ring of stereo frames preallocated for about
+  two seconds (ADR 0005: no allocation, no I/O on the audio thread). A disk thread drains
+  it into `hound`. An overrun is counted and reported, never blocks.
+- Offline equivalence: *render selection* and *record the master while playing* must
+  produce the same file when nothing live is played — a null test holds it.
+- UI: the take appears in a list under the mixer's toolbar (name, length, peak, *reveal*,
+  *drag to arrangement* once audio clips exist). This is also the first half of audio
+  recording: arm a strip that has an *input* and it becomes a recorder of the interface.
+
+#### 2. Effects of FabFilter's class
+
+The bar is not "more effects"; it is **the interface**: a large, direct-manipulation
+display where the thing you drag *is* the parameter, with the analyser behind it. Order,
+by how much a mix needs each:
+
+| Plug-in | Modelled on | What makes it first-rank |
+|---|---|---|
+| **Aequalis** (EQ) | Pro-Q | Up to 24 bands, every RBJ shape plus 6–96 dB/oct cuts, drag a dot for freq/gain and the wheel for Q; a real-time FFT behind the curve, pre and post; **dynamic EQ** per band; M/S and L/R per band; *EQ match*; linear-phase mode (latency → needs PDC). |
+| **Compressor** | Pro-C | Styles (clean, opto, bus, punch), knee, lookahead, **sidechain input with its own EQ** (this is the effect that unblocks sidechain sends), a scrolling level/gain-reduction graph. |
+| **Limiter** | Pro-L | True-peak, oversampled, lookahead, LUFS meters (short-term, integrated, range) — the master's last slot. |
+| **Reverb** | Pro-R | Decay by frequency drawn as a curve, space/character, a pre-delay synced to tempo. The current reverb becomes its engine. |
+| **Multiband** | Pro-MB | Crossovers dragged on the spectrum, per-band dynamics. |
+| **Saturation** | Saturn | Multiband drive with styles; a modulation matrix shared with the synth. |
+| **De-esser, gate, Timeless-style delay** | Pro-DS/G, Timeless | After the above. |
+
+Decisions to make first: **(a)** a generic *plug-in view* contract — an effect declares
+its parameters (it already does, `EffectParamInfo`) *and* optionally a custom editor
+drawn through one trait, so the inspector's sliders are the fallback and never the only
+UI; **(b)** an analyser tap: the audio thread publishes a spectrum-ready block per
+strip into a lock-free triple buffer, the FFT runs on the UI thread; **(c)** latency
+reporting and **PDC**, because linear-phase EQ and lookahead limiting need it; **(d)**
+oversampling as a shared DSP utility. Every one is null-tested at its defaults, as the
+channel EQ is.
+
+#### 3. Instruments with interfaces of their own
+
+Firmus and Pulsus are sound engines with slider panels. The step up is **Serum / Vital /
+Phase Plant for the synth and Battery / FPC for drums**:
+
+- **Firmus II** — wavetable oscillators with a 3D table view you can scrub, two filters
+  in series/parallel drawn as curves, drag-to-modulate (drag an LFO onto a knob), a
+  modulation matrix, macros, unison with detune/spread shown, a preset browser with tags.
+- **Pulsus II** — a pad grid with the waveform of each sample, layers and round-robin,
+  per-pad envelopes drawn, choke drawn as links, drag a file from the OS onto a pad.
+- **A sampler** (Kontakt-lite): zones on a keyboard × velocity map, loop points on the
+  waveform, time-stretch.
+- The keyboard at the bottom of every instrument shows what the modulation is doing.
+
+Decision first: the same *plug-in view* contract as the effects, so the instrument UI is
+a window or an inspector tab and nothing else in the app knows which.
+
+#### 4. The interface, at the level of a first-rank product
+
+Measured against Bitwig, Live 12 and FL 21 rather than described as "nicer":
+
+1. **One visual language across the four views.** The mixer, the rack and the
+   arrangement already share the plate, the tint and the fader; the piano roll and the
+   inspector still use egui's default sliders. Replace every default slider with the
+   house `Bar` / a new house **knob** (drag vertical, fine with Shift, double-click reset,
+   value on hover), so no screen looks like a debug panel.
+2. **Panels that dock, float and remember.** The mixer, rack and piano roll as tabs or
+   floating windows (egui_dock), with layouts saved per project and per user — FL's
+   window model without its overlap chaos.
+3. **A browser** on the left: samples (with preview on click), presets, plug-ins, project
+   files; drag onto a track, a pad or a strip.
+4. **Motion with meaning**: meters at 60 fps with ballistics (not raw peaks), selection
+   and drops animating over 120 ms, nothing else moving.
+5. **Density at every zoom**, the round-11 rule, applied to the mixer (a 64-strip desk
+   must be readable at 1366 px) and to the inspector.
+6. **A first-run and empty states** that teach: an empty strip says how to feed it, an
+   empty rack how to add a sound, the welcome groove as a real template picker.
+7. **Accessibility and keyboard**: every control reachable and announced (AccessKit is
+   in egui), the theme editor's AA check extended to the new surfaces.
+8. **A design review with screenshots**: the `run` skill's headless frame dumps, compared
+   per view before and after, so "better" is shown rather than claimed.
+
+Order: **1 and 4 first** (they are what makes it *feel* professional and they touch no
+model), then the recorder (small, and it opens audio recording), then Aequalis and the
+compressor with the plug-in view contract, then Firmus II.
+
+## Round 13: the rest of FL's mixer strip (requested 2026-09-20)
+
+**The ask.** *Implement FL Studio's mixer features first*, with [FL's mixer
+manual][fl-mixer] as the reference; then, narrowed: *sends and linking between channels,
+channel groups, the per-channel effects rack, the base channel EQ, and the link with the
+channel rack / instruments / external audio*. The decisions are ADR 0015; this is what was
+built, measured against FL's strip diagram, and what was learned.
+
+[fl-mixer]: https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/mixer.htm
+
+| FL's strip has | Now | Verdict |
+|---|---|---|
+| Send switch + level per destination, post-fader | `MixerStrip::sends`, a row per send with a level bar and an on/off, `+` to add; the strip menu's *send selected strips here* | **take.** Post-fader, one per destination, a route for ordering and cycles like an output |
+| Sidechain send | — | **blocked** on an effect with a sidechain input; the model needs nothing new for it |
+| Route selected to this track / create submix | the strip menu, on a `Ctrl`+click multi-selection; a submix is a new strip fed by the members | **take** — a group *is* a bus (ADR 0014's tree) |
+| Docks, separators, auto-colour group | — | **not this**: a grouping that changes what is seen but not what is heard is a second grouping |
+| Mute · **Solo** (Alt = with connected routes) | `M` `S`; solo is always the connected-routes kind | **take, differently**: the plain solo that silences a channel's own bus is a solo you cannot hear |
+| Invert phase · **Swap stereo** · stereo sep | `Ø` `⇄` width | **take** |
+| **Disable all FX** lamp | `FX`, lit when the chain is *out* | **take** |
+| Ten slots, each with **wet mix** and enable | ten, `EffectSlot::mix`, bypass | **take** |
+| **3-band EQ** with a curve | shelf–bell–shelf after the inserts; three bars on the strip, the curve and the numbers in the inspector | **take, differently**: a console's shape rather than three bells |
+| Latency comp / PDC | — | **blocked**: no insert has latency |
+| Record arm · **Audio input / output menus** | — | **blocked** on an audio input path; belongs to the audio-clips block |
+| Peak dB under the meter | yes, red once it touched 0 dBFS | **take** |
+| Alt+←/→ move track · F2 rename · rename/colour menu | `Alt+←/→`, the strip menu (rename, palette, follow the track) | **take** |
+| Ganged faders on a multi-selection | yes, one undo step | **take** |
+| Channel rack → mixer routing, `TRACK` auto-assign | the rack's channel button and the route picker, now with *first free strip* | **take** |
+| Compact / wide layouts, meter-wave view | — | later; pure UI |
+
+**What the tests found.** Two things, both about the audio thread:
+
+1. **A ringing EQ has to keep running over silence.** The strip loop skips a strip nothing
+   fed and nothing is ringing in — but it decided "ringing" by *has inserts*. With an EQ
+   engaged, a strip whose input fell silent mid-block was processed for the rest of that
+   block at one block size and not at another, so the EQ's state froze at different
+   samples and the next note met a different filter. Block 7 against block 512 disagreed
+   by 1.3 µ. `Biquad::is_quiet` (state exactly zero, which the denormal flush guarantees is
+   reached) is the fix: the strip runs while the EQ has anything in it, and skipping a
+   quiet one changes no sample. The lesson is the standing one — *skip only what is
+   provably the identity* — and it took a block-size test to make it precise.
+2. **Two clips at the same start were kept in insertion order.** The undo fuzz, with the
+   new commands changing its random walk, restored a project whose clip list compared
+   unequal: same clips, swapped. `sort_by_key(start)` is stable, and stability is history.
+   Clips sort by `(start, id)` now. This was a latent fault in round 11's clip code that
+   the earlier seeds never reached.
+
+Two smaller ones: a unity send into an empty strip is *not* exactly a second copy under a
+−3 dB pan law, because the return is a channel strip and places its signal through the law
+(centre = 0.707) — the test sets the 0 dB law so "exactly twice" is exact; and swap on a
+bus against panning the source the other way differs by 2 × 10⁻⁸, the pan law's `cos(π/2)`
+in `f32`.
+
+**Not done, and why:** see the table's *blocked* rows and ADR 0015's last consequence.
 
 ## Round 12: Pulsus and the channel rack, the time selection, the shape of a track
 
@@ -301,11 +712,51 @@ round-11 copy and threw away the session's test additions. Every patch had been 
 in the scratchpad, so they were replayed in order and the count came back; the habit of
 patching through scripts is what made that a ten-minute loss and not a day.
 
+### Round 12, third part: the mixer becomes a desk, and the three views get their look
+
+**Mixer strips (ADR 0014, schema 9).** On the user's direction — *many mixer channels,
+numbered, present even when empty, more on demand, Master on the left* — a `MixerStrip`
+is now a thing of its own. A project opens with sixteen; a track *feeds* a strip (the
+first free one when it is created); a strip feeds the master or another strip, which is a
+bus; the inserts, width and polarity live on the strip. The track keeps a level and a
+*balance* of its own, at unity — FL's channel volume — and the pan law is applied once, at
+the strip. Processing order is a topological sort computed in `Snapshot::compile` and read
+by the audio thread, whose strip buffers are all preallocated. The 8 → 9 migration moves
+each track's controls onto a strip of its own and **renders bit-identically**:
+`a_pre_strip_project_renders_exactly_as_it_did` pins a SHA-256 of `v5.cantus`'s render,
+recorded before the refactor. The undo fuzz runs every strip command, refused routes
+included. The mixer draws the master first, then every strip by number with the colour and
+name of what feeds it, `→ M`/`→ n` routing per strip, and `+` at the end; the inspector's
+*Channel* section grew a *Mixer* route picker and a strip section with the inserts; the
+rack's channel button shows the strip number and opens the picker.
+
+**The visual pass**, measured against the list in *the interface gap* below:
+
+- **Clip chrome**: every clip has a title bar in its colour with the name in whichever ink
+  reads on it, over a body that is a wash of the same colour carrying the note preview.
+  Below 22 px the bar goes and the name sits on the body; below 14 px wide the name goes
+  rather than smears.
+- **The header as a map**: a miniature of the track's clips across the whole piece, behind
+  the name, one mesh. **Colour identity**: header and lane tinted with the track's colour —
+  a few percent, more when selected — so a song is navigable by colour with nothing painted
+  solid. The loop brace is a bracket with end caps; the playhead has a marker in the ruler.
+- **The channel rack's steps are buttons**: rounded, a gloss over the upper half, a shadow
+  under, a hairline rim, two tones by beat, more air between them; velocity is how strongly
+  a button is lit, not its height. Above the level-of-detail threshold they are painted
+  shapes; below it they are the mesh quads they were, so a 32-pad kit over 512 steps still
+  costs what ADR 0011 says. The channel button is a tinted plate with the icon and the strip
+  number; the grid sits one step down the elevation scale so the keys stand off it.
+- **Mixer**: numbered, tinted header plates with the strip's colour along the top edge, the
+  same plate on the master, and the strip's inputs and insert count under the name.
+
+Two things this pass fixed that were bugs and not taste: the mixer's header text was in a
+raw `FontId::proportional(12.0)` and the canvas colour; and `theme::on_color` /
+`theme::tint` now exist so nobody guesses which ink reads on a colour again.
+
 ### What is not done, and why
 
-- **Buses and sends** — the "send several channels to one mixer channel" half of the ask.
-  Each drum has its own strip today; grouping them is the next block, designed above.
-- **Swing** (decision 4 of the drums plan) — not started; it is schema 9. See *The next
+- ~~**Sends**~~ — done in round 13 (ADR 0015).
+- **Swing** (decision 4 of the drums plan) — not started; it is schema 10. See *The next
   session*.
 - **What hangs off the selection beyond loop and zoom** — insert/delete space, ripple,
   quantize starts, render selection — is step 5 of the playlist plan and the next pull.
@@ -678,22 +1129,18 @@ is not a task and this list is.
 
 **What FL's playlist does better than ours, and why it works:**
 
-1. **Every clip has a title bar.** A darker strip across the top with a type icon and the
-   source name, separated from the content. It does three jobs at once: says what kind of
-   clip this is, gives a grab handle that is not the content, and keeps the name legible
-   over a busy waveform. Ours paints the name straight onto the body, so it competes with
-   the notes underneath.
+1. **Every clip has a title bar.** ~~Ours paints the name straight onto the body.~~
+   **Done (round 12, visual pass)**: a bar in the clip's colour with the name in an ink
+   that reads on it, over a wash body carrying the preview.
 2. **The clip body *is* the preview.** Notes, automation curves as filled areas, waveforms,
    spectra — a clip is recognisable without reading it. Ours draws a note miniature and
    nothing else, because there is nothing else yet.
-3. **The track header is a map, not a label.** FL draws a miniature of the whole track's
-   content behind the track name. You can find the chorus without scrolling.
-4. **Colour identity is total.** The track's colour tints the header, the clip title bar,
-   the body and the content, so you navigate a forty-track song by colour alone. Ours tints
-   the clip and a 4-px stripe on the header.
-5. **Density.** FL fits a name, mute/solo, a menu and a content preview into about 40 px of
-   track height. Ours uses 64 px for a name, M/S, a fader, a pan bar and a meter — which is
-   a *mixer strip* in a track header, and it is why only four tracks fit on screen.
+3. **The track header is a map, not a label.** **Done (round 12)**: a miniature of the
+   track's clips across the whole piece behind the name.
+4. **Colour identity is total.** **Done as a tint (round 12)**: header, lane, clip bar
+   and body all carry the track's colour, none of them painted solid.
+5. **Density.** **Done (round 12)**: 40-px headers, the strip controls moved to the
+   inspector and the mixer.
 6. **The scrollbar is a mini-map** of the entire song. It is the best orientation device in
    the playlist and it costs almost nothing once clips are already drawn as a mesh.
 7. **Time markers are chips in the ruler** with names, and a time selection is a translucent
@@ -1123,11 +1570,10 @@ Ordered plan, each step shippable on its own:
 
 ## Known gaps / next steps (in order)
 
-1. **Buses and sends**: route several tracks to one strip; the same tree as track groups.
-   See *The next session*.
-2. **What hangs off the time selection**: insert/delete space, ripple, quantize clip
-   starts, select clips in the selection, render the selection.
-3. **Swing as a clip property** (schema 9).
+1. **What hangs off the time selection**: insert/delete space, ripple, quantize clip
+   starts, select clips in the selection, render the selection. See *The next session*.
+2. **Swing as a clip property** (schema 10).
+3. **Sends**, a *remove strip* button, strip colours in the UI.
 4. The rest of the playlist plan, in the order it gives: clip chrome and the header map,
    markers and time signatures, the remaining structural editing, navigation (a mini-map
    scrollbar the channel rack should share), shared clip sources and the picker panel,
@@ -1218,7 +1664,21 @@ Ordered plan, each step shippable on its own:
 - **A parameter set changes exactly one field.** The command's inverse restores that
   field; anything else it touched is not undone. The fuzz catches this, but only after.
 - **The channel rack is a view over every track.** A "channel" is a `Track`; a new
-  per-channel feature (routing, sends) goes on `Track` and the rack shows it.
+  per-channel feature goes on `Track` and the rack shows it. What belongs to a *channel of
+  the mixer* — inserts, width, polarity, the fader a mix is balanced on — goes on
+  `MixerStrip` (ADR 0014); a track has a level and a balance of its own and a route.
+- **A snapshot carries its processing order.** `Snapshot::strip_order` is computed in
+  `compile`; the audio thread never sorts, searches, or allocates for routing. Anything
+  that adds a dependency between strips (sends) recomputes there.
+- **Colour on a surface is a tint, never a fill** (`theme::tint`); **text on a colour asks
+  `theme::on_color`**. The accent stays free to mean state.
+- **The rack's cells are buttons above the level-of-detail threshold and quads below it.**
+  The rounded, glossed, shadowed shape costs ~20 triangles; the rule is what keeps a
+  512-step pattern under budget, and the test on shape counts is what keeps the rule.
+- **A golden render guards a migration that claims to be identical.**
+  `a_pre_strip_project_renders_exactly_as_it_did` pins a hash of `v5.cantus`'s render;
+  a migration or a signal-path change that moves a sample fails it. Update the hash only
+  with a written reason.
 - **One instrument per track, both engines per slot.** `TrackSlot` holds a `Firmus` and a
   `Pulsus` preallocated and switches with a flag; a new instrument adds a field, never a
   `Box<dyn>` (ADR 0005). An instrument that pans inside itself renders stereo; everything

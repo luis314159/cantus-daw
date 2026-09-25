@@ -92,6 +92,12 @@ pub enum Action {
     ViewPianoRoll,
     ViewChannelRack,
     ViewMixer,
+    // Mixer
+    MoveStripLeft,
+    MoveStripRight,
+    ToggleStripSolo,
+    ToggleStripMute,
+    ToggleMeterWave,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -105,10 +111,11 @@ pub enum Category {
     Notes,
     Tools,
     View,
+    Mixer,
 }
 
 impl Category {
-    pub const ALL: [Category; 8] = [
+    pub const ALL: [Category; 9] = [
         Category::Transport,
         Category::File,
         Category::Edit,
@@ -117,6 +124,7 @@ impl Category {
         Category::Notes,
         Category::Tools,
         Category::View,
+        Category::Mixer,
     ];
 
     pub fn label_key(self) -> &'static str {
@@ -129,12 +137,13 @@ impl Category {
             Category::Notes => "keymap.cat.notes",
             Category::Tools => "keymap.cat.tools",
             Category::View => "keymap.cat.view",
+            Category::Mixer => "keymap.cat.mixer",
         }
     }
 }
 
 impl Action {
-    pub const ALL: [Action; 51] = [
+    pub const ALL: [Action; 56] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -186,6 +195,11 @@ impl Action {
         Action::ViewPianoRoll,
         Action::ViewChannelRack,
         Action::ViewMixer,
+        Action::MoveStripLeft,
+        Action::MoveStripRight,
+        Action::ToggleStripSolo,
+        Action::ToggleStripMute,
+        Action::ToggleMeterWave,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -242,6 +256,11 @@ impl Action {
             Action::ViewPianoRoll => "view-piano-roll",
             Action::ViewChannelRack => "view-channel-rack",
             Action::ViewMixer => "view-mixer",
+            Action::MoveStripLeft => "move-strip-left",
+            Action::MoveStripRight => "move-strip-right",
+            Action::ToggleStripSolo => "toggle-strip-solo",
+            Action::ToggleStripMute => "toggle-strip-mute",
+            Action::ToggleMeterWave => "toggle-meter-wave",
         }
     }
 
@@ -273,6 +292,8 @@ impl Action {
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
             | ToolPlayback => Category::Tools,
             ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer => Category::View,
+            MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
+            | ToggleMeterWave => Category::Mixer,
         }
     }
 }
@@ -317,6 +338,13 @@ impl Binding {
     pub fn shift(key: Key) -> Binding {
         Binding {
             shift: true,
+            ..Binding::key(key)
+        }
+    }
+
+    pub fn alt(key: Key) -> Binding {
+        Binding {
+            alt: true,
             ..Binding::key(key)
         }
     }
@@ -524,6 +552,13 @@ fn common() -> Vec<(Action, Binding)> {
         (TransposeDown, Binding::key(Key::ArrowDown)),
         (TransposeOctaveUp, Binding::shift(Key::ArrowUp)),
         (TransposeOctaveDown, Binding::shift(Key::ArrowDown)),
+        // FL's keys for moving a mixer track along the desk; `Alt` keeps them clear of
+        // the nudges. Solo and mute on a strip are in its menu and stay unbound: the
+        // letters belong to the tools and the typing piano.
+        (MoveStripLeft, Binding::alt(Key::ArrowLeft)),
+        (MoveStripRight, Binding::alt(Key::ArrowRight)),
+        // FL's `Alt+W`.
+        (ToggleMeterWave, Binding::alt(Key::W)),
     ]
 }
 

@@ -6,6 +6,23 @@ members = [
     "crates/cantus-engine",
     "crates/cantus-project",
     "crates/cantus-ai",
+    "crates/cantus-host",
+    "crates/cantus-test-plugins/clap-gain",
+    "crates/cantus-test-plugins/vst3",
+    "crates/cantus-ui",
+    "crates/cantus-app",
+    "crates/cantus-plugins",
+    "xtask",
+]
+# `cargo build` and `cargo run` at the root build the DAW only, as before: the exported
+# plug-ins (ADR 0020) are built on purpose, with `cargo run -p xtask -- bundle`.
+default-members = [
+    "crates/cantus-core",
+    "crates/cantus-dsp",
+    "crates/cantus-engine",
+    "crates/cantus-project",
+    "crates/cantus-ai",
+    "crates/cantus-host",
     "crates/cantus-ui",
     "crates/cantus-app",
 ]
@@ -25,11 +42,12 @@ cantus-dsp = { path = "crates/cantus-dsp" }
 cantus-engine = { path = "crates/cantus-engine" }
 cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
+cantus-host = { path = "crates/cantus-host" }
 cantus-ui = { path = "crates/cantus-ui" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 # The keymap is TOML, not JSON: it is a file people edit by hand, and it wants comments.
 toml = "0.9"
 
@@ -76,6 +94,16 @@ opt-level = 1
 opt-level = 3
 [profile.dev.package.cantus-engine]
 opt-level = 3
+
+# The exported plug-ins (ADR 0020): one codegen unit and whole-program LTO, because a
+# plug-in is one small hot loop called from someone else's process, and no unwinding
+# across the C ABI of a host.
+[profile.plugin]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = 0
 
 [profile.bench]
 inherits = "release"

@@ -1,0 +1,258 @@
+//! A plug-in's own editor in a native window of its own (ADR 0019).
+//!
+//! On Windows: a top-level window, owned by Cantus's main window so it stays above it, the
+//! plug-in's view embedded as its child (CLAP `win32`, VST3 `HWND`). The window follows the
+//! editor's size — the size the editor gives when it opens, and any resize it asks for —
+//! and, when the editor can be resized, offers the user's resizing to it. winit's message
+//! loop runs on the same thread and dispatches this window's messages with its own.
+//!
+//! A plug-in that can only float gets no window from us: it opens its own.
+//! Elsewhere (macOS, Linux) there is no embedding yet and opening fails with
+//! `Unsupported`.
+
+use crate::backend::{EditorSize, HostError, MainThread};
+use raw_window_handle::RawWindowHandle;
+
+#[cfg(windows)]
+pub use win32::PluginWindow;
+
+#[cfg(not(windows))]
+pub use other::PluginWindow;
+
+#[cfg(not(windows))]
+mod other {
+    use super::*;
+
+    /// No embedding on this system yet.
+    pub struct PluginWindow;
+
+    impl PluginWindow {
+        pub fn open(
+            _title: &str,
+            _owner: Option<RawWindowHandle>,
+            _main: &mut dyn MainThread,
+        ) -> Result<PluginWindow, HostError> {
+            Err(HostError::Unsupported("plug-in windows on this system"))
+        }
+        pub fn fit(&mut self, _size: EditorSize) {}
+        pub fn focus(&self) {}
+        pub fn closed(&self) -> bool {
+            true
+        }
+        pub fn take_resize(&mut self) -> Option<EditorSize> {
+            None
+        }
+        pub fn handle(&self) -> Option<isize> {
+            None
+        }
+    }
+}
+
+#[cfg(windows)]
+mod win32 {
+    use super::*;
+    use std::cell::Cell;
+    use std::num::NonZeroIsize;
+    use std::sync::Once;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows_sys::Win32::Graphics::Gdi::{GetStockObject, BLACK_BRUSH};
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetWindowLongPtrW,
+        LoadCursorW, RegisterClassW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
+        ShowWindow, CW_USEDEFAULT, GWLP_USERDATA, GWL_STYLE, IDC_ARROW, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE,
+        WNDCLASSW, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
+    };
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    const CLASS: &str = "CantusPluginWindow";
+
+    /// What the window procedure reports back to the frame loop.
+    #[derive(Default)]
+    struct Shared {
+        closed: Cell<bool>,
+        resize: Cell<Option<(u32, u32)>>,
+        /// Set while the host sizes the window itself, so that size is not offered back.
+        fitting: Cell<bool>,
+    }
+
+    unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+        let shared = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Shared;
+        if let Some(s) = shared.as_ref() {
+            match msg {
+                WM_CLOSE => {
+                    // Closed from the frame loop, after the editor is gone from it.
+                    s.closed.set(true);
+                    return 0;
+                }
+                WM_SIZE if !s.fitting.get() => {
+                    let (width, height) = ((l as u32) & 0xFFFF, ((l as u32) >> 16) & 0xFFFF);
+                    if width > 0 && height > 0 {
+                        s.resize.set(Some((width, height)));
+                    }
+                }
+                _ => {}
+            }
+        }
+        DefWindowProcW(hwnd, msg, w, l)
+    }
+
+    pub struct PluginWindow {
+        hwnd: HWND,
+        shared: Box<Shared>,
+        style: u32,
+    }
+
+    impl PluginWindow {
+        /// Create the window, embed the editor in it, size it to the editor, show it.
+        pub fn open(
+            title: &str,
+            owner: Option<RawWindowHandle>,
+            main: &mut dyn MainThread,
+        ) -> Result<PluginWindow, HostError> {
+            static REGISTER: Once = Once::new();
+            let class = wide(CLASS);
+            // SAFETY: plain Win32 calls on the UI thread with valid, NUL-terminated strings.
+            unsafe {
+                let instance = GetModuleHandleW(std::ptr::null());
+                REGISTER.call_once(|| {
+                    let wc = WNDCLASSW {
+                        style: 0,
+                        lpfnWndProc: Some(wndproc),
+                        cbClsExtra: 0,
+                        cbWndExtra: 0,
+                        hInstance: instance,
+                        hIcon: std::ptr::null_mut(),
+                        hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
+                        hbrBackground: GetStockObject(BLACK_BRUSH),
+                        lpszMenuName: std::ptr::null(),
+                        lpszClassName: class.as_ptr(),
+                    };
+                    RegisterClassW(&wc);
+                });
+                let owner_hwnd: HWND = match owner {
+                    Some(RawWindowHandle::Win32(h)) => h.hwnd.get() as HWND,
+                    _ => std::ptr::null_mut(),
+                };
+                let style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+                let name = wide(title);
+                let hwnd = CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    name.as_ptr(),
+                    style,
+                    CW_USEDEFAULT,
+                    CW_USEDEFAULT,
+                    640,
+                    480,
+                    owner_hwnd,
+                    std::ptr::null_mut(),
+                    instance,
+                    std::ptr::null(),
+                );
+                if hwnd.is_null() {
+                    return Err(HostError::Editor("could not create a window".into()));
+                }
+                let shared = Box::new(Shared::default());
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, &*shared as *const Shared as isize);
+                let mut window = PluginWindow {
+                    hwnd,
+                    shared,
+                    style,
+                };
+                let parent = RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
+                    NonZeroIsize::new(hwnd as isize).expect("checked non-null"),
+                ));
+                let size = main.open_editor(parent)?;
+                if main.editor_is_floating() {
+                    // The plug-in has a window of its own; ours stays hidden.
+                    return Ok(window);
+                }
+                if !main.editor_can_resize() {
+                    window.style = style & !(WS_THICKFRAME | WS_MAXIMIZEBOX);
+                    SetWindowLongPtrW(hwnd, GWL_STYLE, window.style as isize);
+                    SetWindowPos(
+                        hwnd,
+                        std::ptr::null_mut(),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    );
+                }
+                window.fit(size);
+                ShowWindow(hwnd, SW_SHOW);
+                Ok(window)
+            }
+        }
+
+        /// Size the window so its client area is `size`.
+        pub fn fit(&mut self, size: EditorSize) {
+            if size.width == 0 || size.height == 0 {
+                return;
+            }
+            let mut rect = RECT {
+                left: 0,
+                top: 0,
+                right: size.width as i32,
+                bottom: size.height as i32,
+            };
+            self.shared.fitting.set(true);
+            // SAFETY: our own window, on the UI thread.
+            unsafe {
+                AdjustWindowRectEx(&mut rect, self.style, 0, 0);
+                SetWindowPos(
+                    self.hwnd,
+                    std::ptr::null_mut(),
+                    0,
+                    0,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+            self.shared.fitting.set(false);
+        }
+
+        pub fn focus(&self) {
+            // SAFETY: our own window, on the UI thread.
+            unsafe {
+                ShowWindow(self.hwnd, SW_RESTORE);
+                SetForegroundWindow(self.hwnd);
+            }
+        }
+
+        /// The user pressed the window's close box.
+        pub fn closed(&self) -> bool {
+            self.shared.closed.get()
+        }
+
+        /// A size the user dragged the window to, once.
+        pub fn take_resize(&mut self) -> Option<EditorSize> {
+            self.shared
+                .resize
+                .take()
+                .map(|(width, height)| EditorSize { width, height })
+        }
+
+        /// The native window (`HWND`), for tests and diagnostics.
+        pub fn handle(&self) -> Option<isize> {
+            Some(self.hwnd as isize)
+        }
+    }
+
+    impl Drop for PluginWindow {
+        fn drop(&mut self) {
+            // SAFETY: our own window; the procedure stops reading `shared` first.
+            unsafe {
+                SetWindowLongPtrW(self.hwnd, GWLP_USERDATA, 0);
+                DestroyWindow(self.hwnd);
+            }
+        }
+    }
+}

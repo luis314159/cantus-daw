@@ -5,12 +5,16 @@
 
 #![forbid(unsafe_code)]
 
+pub mod dawproject;
 pub mod format;
+pub mod midi;
+pub mod report;
 pub mod store;
 
 pub use format::{
     parse, FormatError, LoadReport, ProjectFile, FILE_EXTENSION, FORMAT_ID, SCHEMA_VERSION,
 };
+pub use report::{Report, ReportItem, Severity};
 pub use store::{
     autosave, autosave_path, backup_path, load, recovery_candidates, save, Loaded, SaveReport,
     StoreError,

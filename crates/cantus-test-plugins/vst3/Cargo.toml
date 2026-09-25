@@ -1,0 +1,20 @@
+[package]
+name = "cantus-test-vst3"
+description = "Cantus DAW — minimal VST3 plug-ins built from source, for the host's tests (a gain with latency and a separate controller, a single-component pulse instrument)."
+license = "GPL-3.0-or-later"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# The cdylib is the plug-in. The rlib only lets `cantus-host` name this crate as a
+# dev-dependency, so the same cargo that builds the host's tests builds the plug-in too.
+crate-type = ["cdylib", "rlib"]
+test = false
+doctest = false
+
+[dependencies]
+vst3 = "0.3"

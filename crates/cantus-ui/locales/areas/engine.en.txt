@@ -1,0 +1,4 @@
+# engine — the round-17 engine work's strings. Every key here needs its twin in engine.es.txt.
+cmd.set_effect_midi_source = effect MIDI source
+space.table.cut = cut
+space.table.cut_tip = An octave whose tail was cut before it had fallen far enough to be measured (30 dB past where the measure starts) — the capture ended first: a new sound, or the four seconds the measure waits. ≈ marks a decay estimated from the part that was heard, with the energy after the cut added back; "cut" means too little was heard to estimate it. Let a longer tail ring out to measure it.

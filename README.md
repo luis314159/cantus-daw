@@ -60,10 +60,53 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   input** (every port is opened at start).
 - **MIDI recording** into the selected clip (press `R`): live take preview in the piano
   roll, loop-wrap aware, one undo step per take.
-- **Insert effects** per track — a tempo-free stereo delay (ping-pong, tone) and an
-  algorithmic reverb — plus a **mixer view** with console faders (a real cap, a read line
-  and a dB scale, on a taper that gives 6 dB per tenth of travel through the useful range),
-  pan and width bars that fill from their detent, peak-hold meters and a master strip.
+- **A mixer that is a desk** (ADR 0014): the master on the left, then sixteen numbered
+  strips — present whether or not anything feeds them, `+` for more. A track feeds a strip;
+  a strip feeds the master or another strip, which is a bus; the inserts — a tempo-free
+  stereo delay (ping-pong, tone) and an algorithmic reverb — plus width and polarity live on
+  the strip. Console faders (a real cap, a read line and a dB scale, on a taper that gives
+  6 dB per tenth of travel through the useful range), pan and width bars that fill from
+  their detent, peak-hold meters. Projects from before the strips render bit-identically
+  after migration, and a test holds the hash.
+- **The rest of FL's strip** (ADR 0015): **sends** — post-fader copies into other strips,
+  with a level and a switch each, the same cycle rule as a bus — **solo with connected
+  routes**, swap, an FX switch for the whole chain, a **three-band channel EQ** (shelf,
+  bell, shelf, drawn from the coefficients the audio thread runs), a dry/wet on every
+  insert slot, ten slots per strip, `Ctrl`+click multi-selection with **ganged faders**,
+  *route selected here*, *send selected here* and **create submix**, `Alt+←/→` to move a
+  strip. All of it null-tested: a strip with everything at its default renders as it did
+  before any of it existed.
+- **A family of seven plug-ins** (ADRs 0017, 0018), built after studying FabFilter's Pro
+  bundle (`research/fabfilter/`) to the same bar or higher, each with an editor where the
+  display is the control, presets, A/B, and notes with a feature matrix against the
+  product it answers (`docs/plugins/`):
+  **Aequalis** (EQ: 24 bands, zero-latency, natural- and linear-phase modes, dynamic bands
+  keyed per band, EQ match), **Comprimo** (compressor: nine styles as visible detectors,
+  key EQ, auto gain by loudness, oversampling), **Terminus** (limiter: two stages, true
+  peak, loudness to BS.1770 with delivery profiles, a history in song time), **Spatium**
+  (reverb: decay fitted per frequency and shown in seconds, measured against the target),
+  **Multiplex** (multiband: eight two-sided bands, three crossover modes), **Sibilus**
+  (de-esser that tells an *s* from a bright sound) and **Porta** (gate with hysteresis,
+  Learn, and hits to MIDI). Every one is a bit-exact wire at settings that do nothing, and
+  any strip can be the sidechain key of any of them.
+- **Plug-in delay compensation** (ADR 0018): per routing edge, so a strip sent both to the
+  master and to a latent return stays aligned on both paths; the pool of delay lines grows
+  on request without allocating on the audio thread; the total latency is in the status
+  bar. A **recorder** on every strip and on the master writes the post-fader signal to WAV.
+  Every parameter is a knob of our own.
+- **Works with the market's DAWs** (ADRs 0019–0022). Cantus **hosts CLAP and VST3
+  plug-ins** as inserts — scanned in a separate process, so a plug-in that crashes cannot
+  take Cantus with it; latency compensated, sidechain from any strip, every gesture in its
+  own window one undo step, its state saved with the project. Our seven effects also ship
+  as a **separate CLAP/VST3 build** for any other DAW (`cargo run -p xtask -- bundle`),
+  bit-identical to the native ones — proved by loading them in Cantus's own host. **MIDI
+  files**, **stems** (one offline pass, aligned whatever the latency) and **DAWproject**
+  go in and out. The playhead and recording follow what is heard, a bypassed latent
+  effect keeps its latency, and a track's notes can play an effect (Porta's MIDI trigger).
+- **Docks and groups** (ADR 0016): the left and right docks are pinned and the middle
+  scrolls, with three strips pinned on the right in a new project; groups with a name and
+  a colour fold their strips behind a separator; the desk is compact, normal or wide, and
+  `Alt+W` shows each strip's level as a scrolling wave.
 - One command bus for every mutation, with unlimited undo/redo, gesture merging and an
   audit log that records who did what — user, script, AI or MCP (ADR 0004).
 - Versioned JSON project files with SHA-256 integrity, schema migrations and atomic,
@@ -101,6 +144,7 @@ cargo run --release -p cantus -- --rack --track 1            # start in the chan
 cargo run -p cantus-ui --example render_kit -- out/          # every drum and the welcome groove as WAV
 cargo run --release -p cantus -- --shortcuts                 # open the shortcuts editor
 cargo run --release -p cantus -- --settings                  # open the settings dialog
+cargo run -p xtask -- bundle                                  # our effects as CLAP + VST3 (target/bundled/)
 ```
 
 Requires stable Rust 1.85 or newer. No system libraries are needed on Windows or macOS;

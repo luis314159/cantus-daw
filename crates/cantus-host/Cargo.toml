@@ -1,0 +1,54 @@
+[package]
+name = "cantus-host"
+description = "Cantus DAW — hosting plug-ins made to the market's standards (CLAP, VST3) behind one contract."
+# GPL like the application: the formats' SDKs and bindings are GPL-compatible, and a host
+# is part of the application, not a library others link into closed products.
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = ["vst3"]
+# The VST3 backend (`cantus_host::vst3`). Bindings generated from the VST 3.8 SDK headers,
+# which Steinberg publishes under the MIT licence (see src/vst3/README.md).
+vst3 = ["dep:vst3"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+raw-window-handle = "0.6"
+cantus-core.workspace = true
+cantus-engine.workspace = true
+rtrb.workspace = true
+# CLAP: the ABI as the official headers define it (MIT OR Apache-2.0), ADR 0019.
+clap-sys = "0.5"
+# Opening a plug-in's shared library (ISC); both formats.
+libloading = "0.8"
+# VST3 (feature `vst3`): bindings from the MIT-licensed VST 3.8 SDK headers.
+vst3 = { version = "0.3", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# The plug-in window: a top-level Win32 window the plug-in's editor is a child of.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+cantus-project.workspace = true
+tempfile = "3"
+# Built (as a DLL next to the test binaries) for the VST3 backend's tests; not linked.
+cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }
+
+[[bin]]
+name = "cantus-scan"
+path = "src/bin/cantus-scan.rs"

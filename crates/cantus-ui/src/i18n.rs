@@ -31,10 +31,38 @@ impl Locale {
         Locale::ALL.into_iter().find(|l| l.code() == code)
     }
 
-    fn source(self) -> &'static str {
+    /// The main table, then one file per plug-in (`locales/fx/`), so each plug-in's
+    /// strings are owned by its own file.
+    fn sources(self) -> &'static [&'static str] {
         match self {
-            Locale::En => include_str!("../locales/en.txt"),
-            Locale::Es => include_str!("../locales/es.txt"),
+            Locale::En => &[
+                include_str!("../locales/en.txt"),
+                include_str!("../locales/fx/eq.en.txt"),
+                include_str!("../locales/fx/compressor.en.txt"),
+                include_str!("../locales/fx/limiter.en.txt"),
+                include_str!("../locales/fx/space.en.txt"),
+                include_str!("../locales/fx/multiband.en.txt"),
+                include_str!("../locales/fx/deesser.en.txt"),
+                include_str!("../locales/fx/gate.en.txt"),
+                include_str!("../locales/areas/host.en.txt"),
+                include_str!("../locales/areas/export.en.txt"),
+                include_str!("../locales/areas/engine.en.txt"),
+                include_str!("../locales/areas/interop.en.txt"),
+            ],
+            Locale::Es => &[
+                include_str!("../locales/es.txt"),
+                include_str!("../locales/fx/eq.es.txt"),
+                include_str!("../locales/fx/compressor.es.txt"),
+                include_str!("../locales/fx/limiter.es.txt"),
+                include_str!("../locales/fx/space.es.txt"),
+                include_str!("../locales/fx/multiband.es.txt"),
+                include_str!("../locales/fx/deesser.es.txt"),
+                include_str!("../locales/fx/gate.es.txt"),
+                include_str!("../locales/areas/host.es.txt"),
+                include_str!("../locales/areas/export.es.txt"),
+                include_str!("../locales/areas/engine.es.txt"),
+                include_str!("../locales/areas/interop.es.txt"),
+            ],
         }
     }
 }
@@ -60,7 +88,13 @@ fn tables() -> &'static HashMap<Locale, Table> {
     TABLES.get_or_init(|| {
         Locale::ALL
             .into_iter()
-            .map(|l| (l, parse(l.source())))
+            .map(|l| {
+                let mut table = Table::new();
+                for source in l.sources() {
+                    table.extend(parse(source));
+                }
+                (l, table)
+            })
             .collect()
     })
 }
@@ -83,12 +117,35 @@ fn detect_system_locale() -> Locale {
     }
 }
 
-pub fn locale() -> Locale {
-    *current().read().unwrap()
+thread_local! {
+    /// The language this thread has chosen, over the process-wide one. The application
+    /// sets both from its one UI thread, so for it they never differ; tests run on many
+    /// threads at once, and each one keeps the language it asked for instead of racing
+    /// the others (and the machine's `LANG`).
+    static THIS_THREAD: std::cell::Cell<Option<Locale>> = const { std::cell::Cell::new(None) };
 }
 
+pub fn locale() -> Locale {
+    THIS_THREAD
+        .with(|l| l.get())
+        .unwrap_or_else(|| *current().read().unwrap())
+}
+
+/// Change the interface language: for the process, and for this thread.
 pub fn set_locale(locale: Locale) {
     *current().write().unwrap() = locale;
+    THIS_THREAD.with(|l| l.set(Some(locale)));
+}
+
+/// Give this thread `locale` unless it already chose one. For test helpers: a test that
+/// reads painted text gets English whatever the machine's `LANG`, and a test that switched
+/// to Spanish keeps it.
+pub fn default_thread_locale(locale: Locale) {
+    THIS_THREAD.with(|l| {
+        if l.get().is_none() {
+            l.set(Some(locale));
+        }
+    });
 }
 
 /// Look up a key. Falls back to English, then to the key itself (never panics: a missing

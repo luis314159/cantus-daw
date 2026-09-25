@@ -3,7 +3,9 @@
 //! Effects use a generic parameter model — a kind plus `key → f32` — so the UI, the command
 //! layer and the AI bridge treat every effect (and, later, every plugin) the same way.
 
-use crate::model::EffectId;
+pub use crate::external::{ExternalPlugin, PluginFormat, PluginState};
+use crate::fx;
+use crate::model::{EffectId, StripId, TrackId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -11,7 +13,28 @@ use std::collections::BTreeMap;
 pub enum EffectKind {
     Delay,
     Reverb,
+    /// Aequalis, the parametric EQ: [`EQ_BANDS`] bands addressed as `b{n}.{field}`.
+    Eq,
+    /// Comprimo, the compressor. Can be keyed from another strip ([`EffectSlot::sidechain`]).
+    Compressor,
+    /// Terminus, the limiter (`fx::limiter`).
+    Limiter,
+    /// Spatium, the reverb (`fx::space`). The older `Reverb` stays for the projects that
+    /// use it.
+    Space,
+    /// Multiplex, the multiband dynamics (`fx::multiband`).
+    Multiband,
+    /// Sibilus, the de-esser (`fx::deesser`).
+    DeEsser,
+    /// Porta, the gate and expander (`fx::gate`).
+    Gate,
+    /// A plug-in made to a market standard (CLAP, VST3), hosted (ADR 0019). What it is and
+    /// its parameters are in [`EffectSpec::external`]; `params` stays empty.
+    External,
 }
+
+pub use fx::compressor::COMPRESSOR_PARAMS;
+pub use fx::eq::{eq_key, BandField, EQ_BANDS, EQ_BAND_FIELDS};
 
 /// Display/range metadata for one effect parameter.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -27,7 +50,7 @@ pub struct EffectParamInfo {
 }
 
 #[allow(clippy::too_many_arguments)]
-const fn p(
+pub(crate) const fn p(
     key: &'static str,
     label_key: &'static str,
     min: f32,
@@ -120,12 +143,30 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 2] = [EffectKind::Delay, EffectKind::Reverb];
+    pub const ALL: [EffectKind; 9] = [
+        EffectKind::Eq,
+        EffectKind::Compressor,
+        EffectKind::Limiter,
+        EffectKind::Space,
+        EffectKind::Multiband,
+        EffectKind::DeEsser,
+        EffectKind::Gate,
+        EffectKind::Delay,
+        EffectKind::Reverb,
+    ];
 
     pub fn name_key(self) -> &'static str {
         match self {
             EffectKind::Delay => "effect.delay",
             EffectKind::Reverb => "effect.reverb",
+            EffectKind::Eq => fx::eq::NAME_KEY,
+            EffectKind::Compressor => fx::compressor::NAME_KEY,
+            EffectKind::Limiter => fx::limiter::NAME_KEY,
+            EffectKind::Space => fx::space::NAME_KEY,
+            EffectKind::Multiband => fx::multiband::NAME_KEY,
+            EffectKind::DeEsser => fx::deesser::NAME_KEY,
+            EffectKind::Gate => fx::gate::NAME_KEY,
+            EffectKind::External => crate::external::NAME_KEY,
         }
     }
 
@@ -133,6 +174,60 @@ impl EffectKind {
         match self {
             EffectKind::Delay => DELAY_PARAMS,
             EffectKind::Reverb => REVERB_PARAMS,
+            EffectKind::Eq => fx::eq::params(),
+            EffectKind::Compressor => fx::compressor::params(),
+            EffectKind::Limiter => fx::limiter::params(),
+            EffectKind::Space => fx::space::params(),
+            EffectKind::Multiband => fx::multiband::params(),
+            EffectKind::DeEsser => fx::deesser::params(),
+            EffectKind::Gate => fx::gate::params(),
+            // The plug-in's own, by its ids, in `EffectSpec::external`.
+            EffectKind::External => &[],
+        }
+    }
+
+    /// A kind with a large parameter space stores only what differs from the defaults,
+    /// so an EQ with two bands is a few lines in the project file and not three hundred.
+    pub fn sparse(self) -> bool {
+        match self {
+            EffectKind::Delay | EffectKind::Reverb => false,
+            EffectKind::Eq => fx::eq::SPARSE,
+            EffectKind::Compressor => fx::compressor::SPARSE,
+            EffectKind::Limiter => fx::limiter::SPARSE,
+            EffectKind::Space => fx::space::SPARSE,
+            EffectKind::Multiband => fx::multiband::SPARSE,
+            EffectKind::DeEsser => fx::deesser::SPARSE,
+            EffectKind::Gate => fx::gate::SPARSE,
+            EffectKind::External => true,
+        }
+    }
+
+    /// A kind with an editor of its own, rather than a row of knobs per parameter.
+    pub fn has_editor(self) -> bool {
+        !matches!(self, EffectKind::Delay | EffectKind::Reverb)
+    }
+
+    /// A kind whose detector can listen to another strip.
+    pub fn takes_sidechain(self) -> bool {
+        match self {
+            EffectKind::Delay | EffectKind::Reverb => false,
+            EffectKind::Eq => fx::eq::TAKES_SIDECHAIN,
+            EffectKind::Compressor => fx::compressor::TAKES_SIDECHAIN,
+            EffectKind::Limiter => fx::limiter::TAKES_SIDECHAIN,
+            EffectKind::Space => fx::space::TAKES_SIDECHAIN,
+            EffectKind::Multiband => fx::multiband::TAKES_SIDECHAIN,
+            EffectKind::DeEsser => fx::deesser::TAKES_SIDECHAIN,
+            EffectKind::Gate => fx::gate::TAKES_SIDECHAIN,
+            // Per plug-in, not per kind: `EffectSpec::takes_sidechain`.
+            EffectKind::External => false,
+        }
+    }
+
+    /// A kind that can hear a track's notes ([`EffectSlot::midi_from`]).
+    pub fn takes_notes(self) -> bool {
+        match self {
+            EffectKind::Gate => fx::gate::TAKES_NOTES,
+            _ => false,
         }
     }
 
@@ -147,16 +242,42 @@ impl EffectKind {
 pub struct EffectSpec {
     pub kind: EffectKind,
     pub params: BTreeMap<String, f32>,
+    /// The hosted plug-in, for [`EffectKind::External`]; `None` for every native kind, and
+    /// then not written, so a native effect's JSON is what it always was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external: Option<Box<ExternalPlugin>>,
 }
 
 impl EffectSpec {
     pub fn new(kind: EffectKind) -> Self {
-        let params = kind
-            .params()
-            .iter()
-            .map(|i| (i.key.to_string(), i.default))
-            .collect();
-        EffectSpec { kind, params }
+        let params = if kind.sparse() {
+            BTreeMap::new()
+        } else {
+            kind.params()
+                .iter()
+                .map(|i| (i.key.to_string(), i.default))
+                .collect()
+        };
+        EffectSpec {
+            kind,
+            params,
+            external: None,
+        }
+    }
+
+    /// A hosted plug-in's spec.
+    pub fn external(plugin: ExternalPlugin) -> Self {
+        EffectSpec {
+            kind: EffectKind::External,
+            params: BTreeMap::new(),
+            external: Some(Box::new(plugin)),
+        }
+    }
+
+    /// Whether this effect can be keyed from another strip: by kind for the native ones,
+    /// by what the scan found for a hosted plug-in (a second audio input).
+    pub fn takes_sidechain(&self) -> bool {
+        self.kind.takes_sidechain() || self.external.as_ref().is_some_and(|e| e.sidechain)
     }
 
     pub fn get(&self, key: &str) -> f32 {
@@ -185,6 +306,28 @@ pub struct EffectSlot {
     pub id: EffectId,
     pub bypass: bool,
     pub spec: EffectSpec,
+    /// The slot's own dry/wet, 0…1, outside the effect: at 1 the effect's output is what
+    /// leaves the slot, at 0 the slot is a wire. FL has this knob on every slot, and it
+    /// is what makes any effect a parallel one without a second strip. Unity is skipped
+    /// entirely on the audio thread, so an old file renders exactly as it did.
+    #[serde(default = "unit_mix")]
+    pub mix: f32,
+    /// The strip whose post-fader output this effect's detector listens to, instead of its
+    /// own input — a sidechain, chosen inside the effect with no send to set up. A route
+    /// like an output or a send: it orders the strips and it cannot close a loop.
+    #[serde(default)]
+    pub sidechain: Option<StripId>,
+    /// The track whose notes this effect hears — a gate opened by a MIDI part, chosen
+    /// inside the effect (ADR 0022). Not a route for audio: it orders nothing, and a track
+    /// that is removed simply stops sending (undoing the removal brings it back). The
+    /// track's own mute silences its instrument, not its notes. `None` (the default, and
+    /// every file before schema 14) sends nothing, and the effect renders as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midi_from: Option<TrackId>,
+}
+
+fn unit_mix() -> f32 {
+    1.0
 }
 
 #[cfg(test)]
@@ -202,6 +345,28 @@ mod tests {
             }
             assert!(s.set("nope", 1.0).is_none());
         }
+    }
+
+    #[test]
+    fn the_eq_names_its_bands_stably_and_stores_only_what_moved() {
+        let mut s = EffectSpec::new(EffectKind::Eq);
+        assert!(s.params.is_empty(), "a new EQ writes nothing");
+        assert_eq!(
+            EffectKind::Eq.params().len(),
+            EQ_BANDS * EQ_BAND_FIELDS.len() + fx::eq::EQ_GLOBALS.len()
+        );
+        assert_eq!(s.get("b23.freq"), 1_000.0);
+        assert_eq!(s.set("b3.gain", 40.0), Some(30.0));
+        assert_eq!(
+            s.set("b3.shape", 2.4),
+            Some(2.0),
+            "a shape is a whole number"
+        );
+        assert!(
+            s.set("b24.gain", 1.0).is_none(),
+            "there are 24 bands, 0 to 23"
+        );
+        assert_eq!(s.params.len(), 2);
     }
 
     #[test]

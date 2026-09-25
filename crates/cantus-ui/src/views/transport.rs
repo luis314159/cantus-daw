@@ -65,6 +65,7 @@ fn menus(app: &mut CantusApp, ui: &mut egui::Ui) {
             ui.close();
             app.export_dialog();
         }
+        views::interop::file_menu(app, ui);
         ui.separator();
         if ui.button(t("menu.quit")).clicked() {
             ui.close();

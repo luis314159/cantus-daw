@@ -16,10 +16,10 @@ use crate::views::{
     mixer::MixerView, piano_roll::PianoRollView,
 };
 use cantus_core::{
-    Clip, ClipId, Color, Command, CommandBus, EffectId, EffectKind, InstrumentSpec, MergeKey,
-    Origin, Project, Ticks, TrackId,
+    Clip, ClipId, Color, Command, CommandBus, Dock, EffectId, EffectKind, GroupId, InstrumentSpec,
+    MergeKey, Origin, Project, Send, StripId, Ticks, TrackId, MAX_GAIN_DB, MIN_GAIN_DB,
 };
-use cantus_engine::{EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
+use cantus_engine::{CaptureTarget, EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -91,6 +91,14 @@ pub struct CantusApp {
     /// Not in the project: a selection is not part of the piece, any more than which clip
     /// is highlighted is.
     pub time_selection: Option<(Ticks, Ticks)>,
+    /// The mixer strip the mixer and the inspector are showing. Follows the selected
+    /// track's strip when a track is selected, and can be chosen on its own for a strip
+    /// nothing feeds yet.
+    pub selected_strip: Option<StripId>,
+    /// The mixer's multi-selection (FL's Ctrl+Shift+click): the strips a ganged fader
+    /// move, a *route selected here* or a submix act on. Meaningful only while it holds
+    /// `selected_strip`; see [`Self::strip_selection`].
+    pub selected_strips: Vec<StripId>,
     pub selected_notes: Vec<cantus_core::NoteId>,
     /// Which half of the window the last edit gesture happened in. Cut, copy, paste,
     /// duplicate, delete and the arrow keys all mean different things depending on it, and
@@ -100,6 +108,21 @@ pub struct CantusApp {
     pub piano_roll: PianoRollView,
     pub rack: ChannelRackView,
     pub mixer: MixerView,
+    /// The mix recorder: takes of the master or of a strip, written to WAV (`takes`).
+    pub mix_recorder: crate::takes::MixRecorder,
+    /// The Aequalis editor window (`views::eq_editor`).
+    pub eq_editor: views::eq_editor::EqEditor,
+    /// The Comprimo editor window (`views::comp_editor`).
+    pub comp_editor: views::comp_editor::CompEditor,
+    /// Every other plug-in's editor, and the frame they share (`views::fx`).
+    pub fx: views::fx::FxEditors,
+    /// Moving work between Cantus and other DAWs: MIDI files, stems, DAWproject.
+    pub interop: views::interop::Interop,
+    /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
+    /// and the open project's instances.
+    pub plugins: cantus_host::PluginHost,
+    /// Where the recorder's samples are drained into each frame; reused, never shrunk.
+    capture_scratch: Vec<f32>,
     pub central: CentralView,
     pub recorder: Recorder,
     pub midi_port_names: Vec<String>,
@@ -233,6 +256,11 @@ impl CantusApp {
         app.theme_watcher = Some(theme::ThemeWatcher::new(theme_path.clone()));
         app.theme_path = theme_path;
         app.theme_ctx = Some(cc.egui_ctx.clone());
+        // Plug-in windows are owned by the main window, so they stay above it.
+        app.plugins.owner_window = {
+            use raw_window_handle::HasWindowHandle;
+            cc.window_handle().ok().map(|h| h.as_raw())
+        };
         if app.engine.is_live() {
             let inputs = MidiInputs::open_all(app.engine.midi_sender());
             app.midi_port_names = inputs.names.clone();
@@ -250,6 +278,8 @@ impl CantusApp {
             Some("no device".to_string())
         };
         let autosave_dir = directories_fallback().join("autosave");
+        let plugins =
+            cantus_host::PluginHost::new(Some(data_dir().join("plugins.json")), engine.sample_rate);
         let project = project.unwrap_or_else(|| {
             if stress {
                 stress_project()
@@ -265,12 +295,21 @@ impl CantusApp {
             selected_clip: None,
             selected_clips: Vec::new(),
             time_selection: None,
+            selected_strip: None,
+            selected_strips: Vec::new(),
             selected_notes: Vec::new(),
             focus: EditFocus::PianoRoll,
             arrangement: ArrangementView::default(),
             piano_roll: PianoRollView::default(),
             rack: ChannelRackView::default(),
             mixer: MixerView::default(),
+            mix_recorder: crate::takes::MixRecorder::default(),
+            eq_editor: views::eq_editor::EqEditor::default(),
+            comp_editor: views::comp_editor::CompEditor::default(),
+            fx: views::fx::FxEditors::default(),
+            interop: Default::default(),
+            plugins,
+            capture_scratch: Vec::new(),
             central: CentralView::PianoRoll,
             recorder: Recorder::new(),
             midi_port_names: Vec::new(),
@@ -384,6 +423,10 @@ impl CantusApp {
         let p = self.bus.project();
         self.selected_clips
             .retain(|(t, c)| p.track(*t).and_then(|t| t.clip(*c)).is_some());
+        self.selected_strips.retain(|s| p.strip(*s).is_some());
+        if self.selected_strip.is_some_and(|s| p.strip(s).is_none()) {
+            self.selected_strip = None;
+        }
         if self.selected_track.is_none() {
             self.select_first();
         }
@@ -498,6 +541,8 @@ impl CantusApp {
         match EngineHandle::start(&self.settings.audio.to_config()) {
             Ok(engine) => {
                 self.engine = engine;
+                // Hosted plug-ins load again, for the new engine and its rate.
+                self.plugins.reload_all(self.engine.sample_rate);
                 self.midi_inputs = None;
                 if self.engine.is_live() {
                     let inputs = MidiInputs::open_all(self.engine.midi_sender());
@@ -578,12 +623,571 @@ impl CantusApp {
 
     // ---- selection ------------------------------------------------------------------
 
+    /// Show a strip in the mixer and the inspector. If a track feeds it, that track is
+    /// selected too, so the inspector shows the instrument playing into the strip.
+    pub fn select_strip(&mut self, id: StripId) {
+        self.selected_strip = Some(id);
+        self.selected_strips.clear();
+        let track = self.project().tracks_on_strip(id).next().map(|t| t.id);
+        if let Some(t) = track {
+            self.select_track(t);
+            self.selected_strip = Some(id);
+        }
+    }
+
+    /// The strips a mixer operation acts on: the multi-selection while the selected strip
+    /// is part of it, else the selected strip alone.
+    pub fn strip_selection(&self) -> Vec<StripId> {
+        match self.selected_strip {
+            Some(s) if self.selected_strips.contains(&s) => self.selected_strips.clone(),
+            Some(s) => vec![s],
+            None => Vec::new(),
+        }
+    }
+
+    /// Ctrl+click on a strip: add it to the multi-selection, or take it out again.
+    pub fn toggle_strip_selected(&mut self, id: StripId) {
+        let mut multi = self.strip_selection();
+        match multi.iter().position(|s| *s == id) {
+            Some(i) => {
+                multi.remove(i);
+                if self.selected_strip == Some(id) {
+                    if let Some(first) = multi.first().copied() {
+                        self.select_strip(first);
+                    }
+                }
+            }
+            None => {
+                multi.push(id);
+                self.select_strip(id);
+            }
+        }
+        self.selected_strips = multi;
+    }
+
+    // ---- mixer: faders in a group, routing, sends, submixes -----------------------
+
+    /// A fader move from the mixer. With several strips selected, every one of them
+    /// moves by the same amount — FL's ganged faders — as one gesture and one undo step.
+    pub fn set_strip_gain(&mut self, id: StripId, gain_db: f32) {
+        let selection = self.strip_selection();
+        let Some(old) = self.project().strip(id).map(|s| s.gain_db) else {
+            return;
+        };
+        if selection.len() > 1 && selection.contains(&id) {
+            let delta = gain_db - old;
+            let commands: Vec<Command> = selection
+                .iter()
+                .filter_map(|s| {
+                    let current = self.project().strip(*s)?.gain_db;
+                    let target = if *s == id { gain_db } else { current + delta };
+                    Some(Command::SetStripGain {
+                        id: *s,
+                        gain_db: target.clamp(MIN_GAIN_DB, MAX_GAIN_DB),
+                    })
+                })
+                .collect();
+            self.exec_merging(
+                Command::Batch {
+                    label_key: "cmd.set_strip_gain".into(),
+                    commands,
+                },
+                MergeKey::of(&("sgain-gang", id.0)),
+            );
+        } else {
+            self.exec_merging(
+                Command::SetStripGain { id, gain_db },
+                MergeKey::of(&("sgain", id.0)),
+            );
+        }
+    }
+
+    /// Route every strip in `strips` into `target` (or the master), skipping the target
+    /// itself and any route that would loop. One undo step.
+    pub fn route_strips_to(&mut self, strips: &[StripId], target: Option<StripId>) -> bool {
+        let commands: Vec<Command> = strips
+            .iter()
+            .filter(|s| Some(**s) != target && !self.project().routing_would_cycle(**s, target))
+            .map(|s| Command::SetStripOutput {
+                id: *s,
+                output: target,
+            })
+            .collect();
+        if commands.is_empty() {
+            return false;
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.route_strips".into(),
+            commands,
+        })
+    }
+
+    /// Add a unity send from every strip in `strips` into `target`, skipping the target,
+    /// sends that already exist and routes that would loop. One undo step.
+    pub fn send_strips_to(&mut self, strips: &[StripId], target: StripId) -> bool {
+        let commands: Vec<Command> = strips
+            .iter()
+            .filter(|s| {
+                **s != target
+                    && self
+                        .project()
+                        .strip(**s)
+                        .is_some_and(|st| st.send_to(target).is_none())
+                    && !self.project().routing_would_cycle(**s, Some(target))
+            })
+            .map(|s| Command::SetStripSend {
+                id: *s,
+                send: Send::new(target),
+            })
+            .collect();
+        if commands.is_empty() {
+            return false;
+        }
+        self.exec(Command::Batch {
+            label_key: "cmd.route_strips".into(),
+            commands,
+        })
+    }
+
+    pub fn set_strip_send(&mut self, id: StripId, send: Send) {
+        self.exec_merging(
+            Command::SetStripSend { id, send },
+            MergeKey::of(&("send", id.0, send.to.0)),
+        );
+    }
+
+    pub fn remove_strip_send(&mut self, id: StripId, to: StripId) {
+        self.exec(Command::RemoveStripSend { id, to });
+    }
+
+    /// FL's *create submix*: a new strip right after the last of `strips`, fed by all of
+    /// them and going to the master — a group, in the one tree the mixer has (ADR 0014).
+    /// Selected afterwards, so the next thing typed is its name.
+    pub fn create_submix(&mut self, strips: &[StripId]) -> Option<StripId> {
+        let members: Vec<StripId> = strips
+            .iter()
+            .copied()
+            .filter(|s| self.project().strip(*s).is_some())
+            .collect();
+        if members.is_empty() {
+            return None;
+        }
+        let index = members
+            .iter()
+            .filter_map(|s| self.project().strip_index(*s))
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let strip = self.bus.new_strip(t("mixer.submix_name"));
+        let id = strip.id;
+        let mut commands = vec![Command::InsertStrip {
+            index,
+            strip: Box::new(strip),
+        }];
+        commands.extend(members.iter().map(|m| Command::SetStripOutput {
+            id: *m,
+            output: Some(id),
+        }));
+        if self.exec(Command::Batch {
+            label_key: "cmd.create_submix".into(),
+            commands,
+        }) {
+            self.select_strip(id);
+            Some(id)
+        } else {
+            None
+        }
+    }
+
+    /// Move a strip one place along the desk (`Alt+←/→`).
+    pub fn move_strip(&mut self, id: StripId, delta: i32) {
+        let Some(from) = self.project().strip_index(id) else {
+            return;
+        };
+        let len = self.project().strips.len() as i32;
+        let index = (from as i32 + delta).clamp(0, len - 1) as usize;
+        if index != from {
+            self.exec(Command::MoveStrip { id, index });
+        }
+    }
+
+    pub fn remove_strip(&mut self, id: StripId) {
+        if self.exec(Command::RemoveStrip { id }) {
+            if self.selected_strip == Some(id) {
+                self.selected_strip = None;
+            }
+            self.selected_strips.retain(|s| *s != id);
+        }
+    }
+
+    pub fn unmute_all_strips(&mut self) {
+        let commands: Vec<Command> = self
+            .project()
+            .strips
+            .iter()
+            .filter(|s| s.muted)
+            .map(|s| Command::SetStripMute {
+                id: s.id,
+                muted: false,
+            })
+            .collect();
+        if !commands.is_empty() {
+            self.exec(Command::Batch {
+                label_key: "cmd.unmute_strips".into(),
+                commands,
+            });
+        }
+    }
+
+    pub fn clear_strip_solos(&mut self) {
+        let commands: Vec<Command> = self
+            .project()
+            .strips
+            .iter()
+            .filter(|s| s.soloed)
+            .map(|s| Command::SetStripSolo {
+                id: s.id,
+                soloed: false,
+            })
+            .collect();
+        if !commands.is_empty() {
+            self.exec(Command::Batch {
+                label_key: "cmd.clear_strip_solos".into(),
+                commands,
+            });
+        }
+    }
+
+    // ---- mixer: docks and groups ---------------------------------------------------
+
+    /// Pin strips to a dock, or let them scroll. One undo step.
+    pub fn set_strips_dock(&mut self, strips: &[StripId], dock: Dock) {
+        let commands: Vec<Command> = strips
+            .iter()
+            .filter(|s| self.project().strip(**s).is_some_and(|st| st.dock != dock))
+            .map(|s| Command::SetStripDock { id: *s, dock })
+            .collect();
+        if !commands.is_empty() {
+            self.exec(Command::Batch {
+                label_key: "cmd.set_strip_dock".into(),
+                commands,
+            });
+        }
+    }
+
+    /// Commands that bring `members` together in desk order right after the first of
+    /// them, so a group reads as one run behind one separator, and into the first one's
+    /// dock. Moves are applied in order, each to the slot after the last, which keeps
+    /// every later index valid.
+    fn gather_commands(&self, members: &[StripId]) -> Vec<Command> {
+        let p = self.project();
+        let mut ordered: Vec<(usize, StripId)> = members
+            .iter()
+            .filter_map(|s| p.strip_index(*s).map(|i| (i, *s)))
+            .collect();
+        ordered.sort_unstable();
+        ordered.dedup();
+        let Some(&(first, head)) = ordered.first() else {
+            return Vec::new();
+        };
+        let dock = p.strip(head).map(|s| s.dock).unwrap_or_default();
+        let mut commands = Vec::new();
+        for (k, (_, id)) in ordered.iter().enumerate() {
+            commands.push(Command::MoveStrip {
+                id: *id,
+                index: first + k,
+            });
+            if p.strip(*id).is_some_and(|s| s.dock != dock) {
+                commands.push(Command::SetStripDock { id: *id, dock });
+            }
+        }
+        commands
+    }
+
+    /// A new group from `strips`: named, coloured with the next palette colour, members
+    /// gathered into one run. One undo step. Returns the group.
+    pub fn create_strip_group(&mut self, strips: &[StripId]) -> Option<GroupId> {
+        if strips.is_empty() {
+            return None;
+        }
+        let n = self.project().strip_groups.len();
+        let color = Color::PALETTE[(n + 3) % Color::PALETTE.len()];
+        let name = tf("mixer.group.default_name", &[("n", &(n + 1))]);
+        let id = GroupId(self.bus.alloc_id());
+        let group = cantus_core::StripGroup {
+            id,
+            name,
+            color,
+            collapsed: false,
+        };
+        let mut commands = vec![Command::InsertStripGroup {
+            index: n,
+            group: Box::new(group),
+        }];
+        commands.extend(self.gather_commands(strips));
+        commands.extend(strips.iter().map(|s| Command::SetStripGroup {
+            id: *s,
+            group: Some(id),
+        }));
+        self.exec(Command::Batch {
+            label_key: "cmd.insert_strip_group".into(),
+            commands,
+        })
+        .then_some(id)
+    }
+
+    /// Put strips into an existing group, gathered beside its other members.
+    pub fn add_strips_to_group(&mut self, strips: &[StripId], group: GroupId) {
+        let mut members: Vec<StripId> = self
+            .project()
+            .strips_in_group(group)
+            .map(|s| s.id)
+            .collect();
+        members.extend(
+            strips
+                .iter()
+                .filter(|s| !members.contains(s))
+                .copied()
+                .collect::<Vec<_>>(),
+        );
+        let mut commands = self.gather_commands(&members);
+        commands.extend(strips.iter().map(|s| Command::SetStripGroup {
+            id: *s,
+            group: Some(group),
+        }));
+        self.exec(Command::Batch {
+            label_key: "cmd.set_strip_group".into(),
+            commands,
+        });
+    }
+
+    pub fn remove_strips_from_group(&mut self, strips: &[StripId]) {
+        let commands: Vec<Command> = strips
+            .iter()
+            .map(|s| Command::SetStripGroup {
+                id: *s,
+                group: None,
+            })
+            .collect();
+        self.exec(Command::Batch {
+            label_key: "cmd.set_strip_group".into(),
+            commands,
+        });
+    }
+
+    /// Take every member out and remove the group: the strips stay where they are.
+    pub fn dissolve_strip_group(&mut self, group: GroupId) {
+        let mut commands: Vec<Command> = self
+            .project()
+            .strips_in_group(group)
+            .map(|s| Command::SetStripGroup {
+                id: s.id,
+                group: None,
+            })
+            .collect();
+        commands.push(Command::RemoveStripGroup { id: group });
+        self.exec(Command::Batch {
+            label_key: "cmd.remove_strip_group".into(),
+            commands,
+        });
+    }
+
+    /// `--editor eq|comp`: an effect on the selected track's strip, set up to show what its
+    /// editor does, with the editor open.
+    pub fn demo_editor(&mut self, kind: &str) {
+        let Some(strip) = self
+            .selected_track
+            .and_then(|t| self.project().track(t))
+            .and_then(|t| t.strip)
+        else {
+            return;
+        };
+        let kind = match kind {
+            "comp" | "compressor" => EffectKind::Compressor,
+            "limiter" => EffectKind::Limiter,
+            "space" | "reverb" => EffectKind::Space,
+            "multiband" => EffectKind::Multiband,
+            "deesser" => EffectKind::DeEsser,
+            "gate" => EffectKind::Gate,
+            _ => EffectKind::Eq,
+        };
+        self.add_effect(strip, kind);
+        let Some(effect) = self
+            .project()
+            .strip(strip)
+            .and_then(|s| s.effects.last())
+            .map(|e| e.id)
+        else {
+            return;
+        };
+        if kind == EffectKind::Eq {
+            use cantus_dsp::EqShape;
+            self.add_eq_band(strip, effect, EqShape::LowCut, 60.0, 0.0);
+            self.add_eq_band(strip, effect, EqShape::Bell, 320.0, -4.0);
+            self.add_eq_band(strip, effect, EqShape::Bell, 2_800.0, 5.0);
+            self.add_eq_band(strip, effect, EqShape::HighShelf, 9_000.0, 3.0);
+        } else if kind.param("thr").is_some() {
+            self.exec(Command::SetEffectParam {
+                strip,
+                effect,
+                key: "thr".into(),
+                value: -30.0,
+            });
+        }
+        views::fx::demo_setup(self, strip, effect, kind);
+        self.open_effect_editor(strip, effect);
+    }
+
+    // ---- the mix recorder ----------------------------------------------------------
+
+    /// Where takes go: beside the project when it has been saved, else the app's data
+    /// folder.
+    pub fn recordings_dir(&self) -> PathBuf {
+        match &self.path {
+            Some(p) => {
+                let stem = p
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "Cantus".into());
+                p.with_file_name(format!("{stem} {}", t("take.folder")))
+            }
+            None => directories_fallback().join("recordings"),
+        }
+    }
+
+    /// What a take of `target` is called.
+    pub fn capture_label(&self, target: CaptureTarget) -> String {
+        match target {
+            CaptureTarget::Off => String::new(),
+            CaptureTarget::Master => t("mixer.master"),
+            CaptureTarget::Strip(id) => {
+                let n = self.project().strip_number(id).unwrap_or(0);
+                let name = self.project().strip(id).map(|s| {
+                    if s.name.is_empty() {
+                        self.project()
+                            .tracks_on_strip(id)
+                            .next()
+                            .map(|t| t.name.clone())
+                            .unwrap_or_default()
+                    } else {
+                        s.name.clone()
+                    }
+                });
+                match name.filter(|n| !n.is_empty()) {
+                    Some(name) => format!("{} · {name}", tf("inspector.strip_n", &[("n", &n)])),
+                    None => tf("inspector.strip_n", &[("n", &n)]),
+                }
+            }
+        }
+    }
+
+    /// Whether the recorder is taking `target` right now.
+    pub fn capturing(&self, target: CaptureTarget) -> bool {
+        self.mix_recorder.is_recording() && self.engine.capture_target() == target
+    }
+
+    /// The ● on a strip or the master: start a take of it, or stop the one running. A
+    /// take of another target is stopped first — one take at a time.
+    pub fn toggle_capture(&mut self, target: CaptureTarget) {
+        let same = self.capturing(target);
+        self.stop_capture();
+        if same {
+            return;
+        }
+        if !self.engine.can_capture() {
+            self.set_error(t("take.no_device"));
+            return;
+        }
+        let label = self.capture_label(target);
+        let dir = self.recordings_dir();
+        match self
+            .mix_recorder
+            .start(&label, &dir, self.engine.sample_rate.round() as u32)
+        {
+            Ok(_) => {
+                self.engine.set_capture(target);
+                self.set_status(tf("take.started", &[("what", &label)]));
+            }
+            Err(e) => self.set_error(tf("take.failed", &[("error", &e)])),
+        }
+    }
+
+    pub fn stop_capture(&mut self) {
+        if !self.mix_recorder.is_recording() {
+            return;
+        }
+        self.engine.set_capture(CaptureTarget::Off);
+        self.pump_capture();
+        match self.mix_recorder.stop() {
+            Some(Ok(take)) => self.set_status(tf(
+                "take.saved",
+                &[
+                    ("what", &take.label),
+                    ("seconds", &format!("{:.1}", take.seconds)),
+                ],
+            )),
+            Some(Err(e)) => self.set_error(tf("take.failed", &[("error", &e)])),
+            None => {}
+        }
+    }
+
+    /// Move whatever the engine recorded since the last frame to the take's writer.
+    fn pump_capture(&mut self) {
+        self.capture_scratch.clear();
+        if self.engine.drain_capture(&mut self.capture_scratch) > 0 {
+            self.mix_recorder.pump(&self.capture_scratch);
+        }
+    }
+
+    pub fn toggle_strip_solo(&mut self, id: StripId) {
+        if let Some(on) = self.project().strip(id).map(|s| s.soloed) {
+            self.exec(Command::SetStripSolo { id, soloed: !on });
+        }
+    }
+
+    pub fn toggle_strip_mute(&mut self, id: StripId) {
+        if let Some(on) = self.project().strip(id).map(|s| s.muted) {
+            self.exec(Command::SetStripMute { id, muted: !on });
+        }
+    }
+
+    /// The strip the inspector's mixer section is about: the selected strip, else the
+    /// selected track's.
+    pub fn inspected_strip(&self) -> Option<StripId> {
+        self.selected_strip.or_else(|| {
+            self.selected_track
+                .and_then(|t| self.project().track(t))
+                .and_then(|t| t.strip)
+        })
+    }
+
+    /// Add a strip at the end of the desk and select it.
+    pub fn add_strip(&mut self) {
+        let strip = self.bus.new_strip("");
+        let id = strip.id;
+        let index = self.project().strips.len();
+        if self.exec(Command::InsertStrip {
+            index,
+            strip: Box::new(strip),
+        }) {
+            self.selected_strip = Some(id);
+        }
+    }
+
+    /// Route a track to a strip (or to the master), and follow it in the mixer.
+    pub fn route_track(&mut self, track: TrackId, strip: Option<StripId>) {
+        if self.exec(Command::SetTrackStrip { id: track, strip }) {
+            self.selected_strip = strip;
+        }
+    }
+
     pub fn select_track(&mut self, id: TrackId) {
         if self.selected_track != Some(id) {
             for ev in self.keyboard.release_all() {
                 self.apply_key_event(ev);
             }
             self.selected_track = Some(id);
+            self.selected_strip = self.project().track(id).and_then(|t| t.strip);
             self.selected_clip = self
                 .project()
                 .track(id)
@@ -1636,22 +2240,23 @@ impl CantusApp {
 
     // ---- effects --------------------------------------------------------------------
 
-    pub fn add_effect(&mut self, track: TrackId, kind: EffectKind) {
+    /// Add an insert to the end of a strip's chain.
+    pub fn add_effect(&mut self, strip: StripId, kind: EffectKind) {
         let slot = self.bus.new_effect(kind);
         let index = self
             .project()
-            .track(track)
-            .map(|t| t.effects.len())
+            .strip(strip)
+            .map(|s| s.effects.len())
             .unwrap_or(0);
         self.exec(Command::InsertEffect {
-            track,
+            strip,
             index,
             slot: Box::new(slot),
         });
     }
 
-    pub fn remove_effect(&mut self, track: TrackId, effect: EffectId) {
-        self.exec(Command::RemoveEffect { track, effect });
+    pub fn remove_effect(&mut self, strip: StripId, effect: EffectId) {
+        self.exec(Command::RemoveEffect { strip, effect });
     }
 
     // ---- recording ------------------------------------------------------------------
@@ -2031,7 +2636,9 @@ impl CantusApp {
     }
 
     pub fn save_to_path(&mut self, path: &Path) {
-        match cantus_project::save(self.project(), path, APP_VERSION) {
+        // Hosted plug-ins are asked for their state as it is now.
+        let project = self.plugins.project_for_save(self.bus.project());
+        match cantus_project::save(&project, path, APP_VERSION) {
             Ok(r) => {
                 self.path = Some(path.to_path_buf());
                 self.bus.mark_saved();
@@ -2050,8 +2657,9 @@ impl CantusApp {
         if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
             return;
         }
+        let project = self.plugins.project_for_save(self.bus.project());
         match cantus_project::autosave(
-            self.project(),
+            &project,
             self.path.as_deref(),
             &self.autosave_dir,
             APP_VERSION,
@@ -2092,11 +2700,20 @@ impl CantusApp {
             sample_rate: self.engine.sample_rate.round() as u32,
             ..Default::default()
         };
+        // Hosted plug-ins render through instances of their own, loaded here on the main
+        // thread with the live ones' state (ADR 0019).
+        let units = self
+            .plugins
+            .render_units(self.bus.project(), f64::from(opts.sample_rate));
         let (tx, rx) = mpsc::channel();
         std::thread::Builder::new()
             .name("cantus-export".into())
             .spawn(move || {
-                let result = cantus_engine::render_to_wav(snapshot, &opts, &path)
+                let result = cantus_engine::render_with_units(snapshot, &opts, units)
+                    .and_then(|r| {
+                        cantus_engine::write_wav(&r, &path)?;
+                        Ok(r)
+                    })
                     .map(|r| (path, r))
                     .map_err(|e| e.to_string());
                 let _ = tx.send(result);
@@ -2112,7 +2729,12 @@ impl CantusApp {
 
     pub fn poll_export(&mut self) {
         let Some(rx) = &self.export else { return };
-        match rx.try_recv() {
+        let result = rx.try_recv();
+        if !matches!(result, Err(mpsc::TryRecvError::Empty)) {
+            // The render is over: the plug-in instances it used go, on this thread.
+            self.plugins.finish_render();
+        }
+        match result {
             Ok(Ok((path, r))) => {
                 self.export = None;
                 let peak_db = cantus_core::linear_to_db(r.peak);
@@ -2144,7 +2766,39 @@ impl CantusApp {
         if rev != self.synced_revision {
             self.synced_revision = rev;
             let snapshot = self.engine.compile(self.bus.project(), rev);
+            // Hosted plug-ins' units reach the engine before the snapshot that holds them.
+            let notices = self.plugins.sync(self.bus.project(), &mut self.engine);
+            self.host_notices(notices);
             self.engine.set_snapshot(snapshot);
+        }
+    }
+
+    /// What the plug-in host has to say, on the status line.
+    fn host_notices(&mut self, notices: Vec<cantus_host::HostNotice>) {
+        use cantus_host::HostNotice;
+        for n in notices {
+            match n {
+                HostNotice::LoadFailed { name, error, .. } => self.set_error(tf(
+                    "host.load_failed",
+                    &[("name", &name), ("error", &error)],
+                )),
+                HostNotice::RestartFailed { error, .. } => {
+                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
+                }
+                HostNotice::ScanDone(r) => {
+                    // Plug-ins that were missing may be there now.
+                    self.synced_revision = u64::MAX;
+                    self.set_status(tf(
+                        "host.scan_done",
+                        &[
+                            ("found", &r.plugins),
+                            ("scanned", &r.scanned),
+                            ("blocked", &r.blocked),
+                        ],
+                    ));
+                }
+                HostNotice::WindowClosed(_) => {}
+            }
         }
     }
 
@@ -2290,6 +2944,30 @@ impl CantusApp {
             ViewPianoRoll => self.central = CentralView::PianoRoll,
             ViewChannelRack => self.central = CentralView::ChannelRack,
             ViewMixer => self.central = CentralView::Mixer,
+            MoveStripLeft => {
+                if let Some(id) = self.selected_strip {
+                    self.move_strip(id, -1);
+                }
+            }
+            MoveStripRight => {
+                if let Some(id) = self.selected_strip {
+                    self.move_strip(id, 1);
+                }
+            }
+            ToggleStripSolo => {
+                if let Some(id) = self.selected_strip {
+                    self.toggle_strip_solo(id);
+                }
+            }
+            ToggleStripMute => {
+                if let Some(id) = self.selected_strip {
+                    self.toggle_strip_mute(id);
+                }
+            }
+            ToggleMeterWave => {
+                self.settings.mixer_meter_wave = !self.settings.mixer_meter_wave;
+                self.store_settings();
+            }
         }
     }
 
@@ -2322,6 +3000,31 @@ impl CantusApp {
                             theme::p().text_dim
                         }),
                 );
+                // Plug-in latency is compensated, never silent: shown whenever there is
+                // some, in red when a path could not be given a delay line.
+                if s.latency_samples > 0 || s.pdc_unserved > 0 {
+                    ui.separator();
+                    let ms = s.latency_samples as f64 * 1000.0 / self.engine.sample_rate.max(1.0);
+                    let text = tf("status.latency", &[("ms", &format!("{ms:.1}"))]);
+                    let tip = if s.pdc_unserved > 0 {
+                        tf(
+                            "status.latency_unserved",
+                            &[("samples", &s.latency_samples), ("n", &s.pdc_unserved)],
+                        )
+                    } else {
+                        tf("status.latency_tip", &[("samples", &s.latency_samples)])
+                    };
+                    ui.label(
+                        egui::RichText::new(text)
+                            .text_style(design::caption())
+                            .color(if s.pdc_unserved > 0 {
+                                theme::p().danger
+                            } else {
+                                theme::p().text_dim
+                            }),
+                    )
+                    .on_hover_text(tip);
+                }
                 ui.separator();
                 ui.label(
                     egui::RichText::new(tf("status.midi", &[("n", &self.midi_port_names.len())]))
@@ -2666,6 +3369,11 @@ impl CantusApp {
                             .text_style(design::caption())
                             .color(theme::p().text_dim),
                     );
+
+                    // Plug-ins made to the market's standards (ADR 0019): last, since it
+                    // grows with what is installed.
+                    section(ui, "host.manager.title");
+                    views::plugins::manager(self, ui);
                 });
             });
 
@@ -2995,6 +3703,9 @@ impl CantusApp {
             }
             self.naming_layout = if close { None } else { Some(name) };
         }
+        views::eq_editor::window(self, ctx);
+        views::comp_editor::window(self, ctx);
+        views::fx::window(self, ctx);
         if self.show_settings {
             self.settings_dialog(ctx);
         }
@@ -3013,6 +3724,11 @@ impl eframe::App for CantusApp {
         let ctx = &ctx;
         let frame_start = Instant::now();
         self.engine.poll();
+        // Hosted plug-ins: their requests, restarts, and what their windows did.
+        let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
+        self.host_notices(notices);
+        self.pump_capture();
+        self.pump_analyser();
         self.poll_export();
         self.poll_recording();
         self.poll_theme();
@@ -3099,6 +3815,7 @@ impl eframe::App for CantusApp {
                 }
             });
         self.dialogs(ctx);
+        views::interop::frame(self, ctx);
         design::paint_focus_ring(ctx, &pal);
         self.layouts.end_frame();
 
@@ -3113,8 +3830,9 @@ impl eframe::App for CantusApp {
         }
         if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
             // Last line of defence: never lose work on close.
+            let project = self.plugins.project_for_save(self.bus.project());
             let _ = cantus_project::autosave(
-                self.project(),
+                &project,
                 self.path.as_deref(),
                 &self.autosave_dir,
                 APP_VERSION,
@@ -3133,6 +3851,12 @@ impl eframe::App for CantusApp {
                 100
             },
         ));
+        // A hosted plug-in expects its requests served soon (CLAP `request_callback`),
+        // and a scan's result shown when it lands: the frame loop is the main thread's
+        // pump, so it keeps turning while either is about.
+        if self.plugins.loaded_count() > 0 || self.plugins.scanning() {
+            ctx.request_repaint_after(Duration::from_millis(33));
+        }
     }
 }
 
@@ -3184,6 +3908,12 @@ fn captured_binding(ctx: &egui::Context) -> Option<crate::keymap::Binding> {
             _ => None,
         })
     })
+}
+
+/// Where the app keeps what is the user's and not a project's: presets, recordings with no
+/// project, autosaves.
+pub fn data_dir() -> PathBuf {
+    directories_fallback()
 }
 
 fn directories_fallback() -> PathBuf {

@@ -1,0 +1,149 @@
+# Spatium — owned by Spatium. Every key here needs its twin in space.es.txt.
+effect.space = Spatium reverb
+
+# Parameters
+fx.space.style = Style
+fx.space.space = Space
+fx.space.decay = Decay
+fx.space.predelay = Pre-delay
+fx.space.sync = Sync
+fx.space.distance = Distance
+fx.space.character = Character
+fx.space.bright = Brightness
+fx.space.width = Width
+fx.space.mix = Mix
+fx.space.freeze = Freeze
+fx.space.er = Early level
+fx.space.er_size = Early size
+fx.space.duck = Range
+fx.space.duck_thr = Threshold
+fx.space.duck_att = Attack
+fx.space.duck_rel = Release
+fx.space.deq_on = Decay curve
+fx.space.peq_on = Post EQ
+fx.space.peq_auto = Auto gain
+fx.space.band.used = Used
+fx.space.band.on = On
+fx.space.band.shape = Shape
+fx.space.band.freq = Frequency
+fx.space.band.mult = Decay
+fx.space.band.q = Width
+fx.space.band.gain = Gain
+fx.space.band.slope = Slope
+fx.space.band.place = Placement
+
+# Commands
+cmd.space_edit = reverb setting
+cmd.space_band_remove = remove reverb band
+
+# The rooms Space morphs through
+space.room.0 = Booth
+space.room.1 = Small room
+space.room.2 = Studio
+space.room.3 = Chamber
+space.room.4 = Club
+space.room.5 = Theatre
+space.room.6 = Church
+space.room.7 = Concert hall
+space.room.8 = Large hall
+space.room.9 = Arena
+space.room.10 = Cathedral
+space.room.11 = Vast space
+
+# Styles
+space.style.0 = Room
+space.style.0_tip = A natural space: sixteen modulated delay lines whose decay follows the curve, with early reflections
+space.style.1 = Plate
+space.style.1_tip = A plate: short, dense lines, no early reflections, a fast build-up and a bright, even tail
+space.style.2 = Vintage
+space.style.2_tip = An eighties digital unit: sparse reflections, deep modulation, a top that shimmers and stops at 9 kHz
+space.style.3 = Spring
+space.style.3_tip = A spring tank: three dispersive springs, each round trip a falling chirp, dark above 4.5 kHz
+space.freeze_tip = Hold what the reverb holds now, for as long as it stays on; nothing new comes in
+
+# Pre-delay sync
+space.sync.0 = Free
+space.sync.1 = 1/64
+space.sync.2 = 1/32
+space.sync.3 = 1/16 T
+space.sync.4 = 1/16
+space.sync.5 = 1/16 D
+space.sync.6 = 1/8 T
+space.sync.7 = 1/8
+space.sync.8 = 1/8 D
+space.sync.9 = 1/4 T
+space.sync.10 = 1/4
+space.sync.11 = 1/4 D
+space.sync_tip = Set the pre-delay to a note value at the project's tempo ({bpm} BPM); turning the knob frees it
+space.resync = Follow {bpm} BPM
+
+# Cards
+space.early = Early reflections
+space.off = off
+space.early_now = {db} dB, over {ms} ms
+space.early_off = No early reflections in this style
+space.band = Band
+space.band_hint = Double-click the display to add a band to the curve chosen above it; drag a handle to move it, the wheel for its width
+space.decay_band_n = Decay band {n}
+space.post_band_n = Post EQ band {n}
+space.dshape.0 = Bell
+space.dshape.1 = Low shelf
+space.dshape.2 = High shelf
+space.dshape.3 = Notch
+space.pshape.0 = Bell
+space.pshape.1 = Low shelf
+space.pshape.2 = High shelf
+space.pshape.3 = Low cut
+space.pshape.4 = High cut
+space.remove_band = Remove
+space.no_free_band = Every band on this curve is in use
+space.ducking = Ducking
+space.key_tip = What the ducking listens to: this strip's own input, or another strip after its fader, with no send to set up
+space.gr = {db} dB
+space.output = Output
+space.mono_warning = Wider than the room: check it in mono
+space.latency_none = No latency
+space.natural = room: {s}
+space.corr = Corr
+space.band_now = at {hz}: {s} (the room: {base})
+space.open_tip = Open the reverb
+
+# The curve display
+space.curve.decay = Decay curve
+space.curve.decay_tip = Double-click and drag edit the decay time per frequency
+space.curve.post = Post EQ
+space.curve.post_tip = Double-click and drag edit the tone of the reverb
+space.curve.decay_on = Curve
+space.curve.decay_on_tip = Bypass the drawn decay curve to hear the room without it
+space.curve.post_on = EQ
+space.curve.post_on_tip = Bypass the post EQ
+space.curve.auto = Auto gain
+space.curve.auto_tip = Keep the reverb's level as the post EQ changes its tone
+space.curve.empty = Double-click to shape the decay by frequency
+space.engine = engine
+space.table.curve = Curve (s)
+space.table.engine = Engine (s)
+space.table.measured = Measured (s)
+space.table.measured_hint = measured on the next tail that ends
+
+# The tail view
+space.tail = Tail
+space.tail.measured = measured {s}
+space.tail.pre = pre {ms}
+space.tail.early = early {ms}
+space.tail.envelope = Envelope
+space.tail.envelope_tip = The level over time: the model (lines and stems) and the last tail measured (filled)
+space.tail.spectrum = Spectrum
+space.tail.spectrum_tip = The last tail measured as a spectrum over time, with where the curve says each frequency is 30 and 60 dB down
+space.tail.spectrum_empty = Play something short: its tail is measured when it ends
+space.tail.spectrum_legend = curve: -30 dB solid, -60 dB dashed
+
+# Presets
+space.preset.vocal_plate = Vocal plate
+space.preset.drum_room = Drum room
+space.preset.concert_hall = Concert hall
+space.preset.cathedral = Cathedral
+space.preset.ducked_vocal = Ducked vocal
+space.preset.eighties_snare = Eighties snare
+space.preset.surf_spring = Surf spring
+space.preset.dark_tail = Dark tail

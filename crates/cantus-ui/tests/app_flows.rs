@@ -269,8 +269,8 @@ fn walk_the_mixer_with_arrows(
             Some(focused),
             "the control did not claim the arrow it owns, so focus walked away instead"
         );
-        // Only the first vertical fader is this track's; the next one belongs to the
-        // master strip and moves a different number.
+        // The first vertical fader on the desk is the master's, which is the number
+        // `gain` reads; the strips after it move different numbers.
         if vertical && !reached_a_fader {
             assert!(gain(a) > before, "an arrow key never reached the fader");
             reached_a_fader = true;
@@ -305,7 +305,7 @@ fn a_focused_fader_takes_the_arrow_keys_from_the_note_nudge() {
     let reached = walk_the_mixer_with_arrows(
         &ctx,
         &mut a,
-        |a| a.project().track(track).unwrap().gain_db,
+        |a| a.project().master.gain_db,
         |a| {
             assert_eq!(
                 pitches(a),
@@ -399,16 +399,29 @@ fn recording_turns_live_notes_into_one_undoable_take() {
 fn effects_are_added_and_delivered_to_the_engine() {
     let mut a = app(starter_project());
     let track = a.selected_track.unwrap();
-    a.add_effect(track, EffectKind::Delay);
-    a.add_effect(track, EffectKind::Reverb);
-    assert_eq!(a.project().track(track).unwrap().effects.len(), 2);
+    // Inserts live on the strip the track feeds.
+    let strip = a
+        .project()
+        .track(track)
+        .unwrap()
+        .strip
+        .expect("a new track has a strip");
+    assert_eq!(
+        a.inspected_strip(),
+        Some(strip),
+        "the inspector follows the track's strip"
+    );
+    a.add_effect(strip, EffectKind::Delay);
+    a.add_effect(strip, EffectKind::Reverb);
+    let fx_on = |a: &CantusApp| a.project().strip(strip).unwrap().effects.len();
+    assert_eq!(fx_on(&a), 2);
     a.sync_engine();
     assert_eq!(a.engine.known_effect_count(), 2);
-    let fx = a.project().track(track).unwrap().effects[0].id;
-    a.remove_effect(track, fx);
-    assert_eq!(a.project().track(track).unwrap().effects.len(), 1);
+    let fx = a.project().strip(strip).unwrap().effects[0].id;
+    a.remove_effect(strip, fx);
+    assert_eq!(fx_on(&a), 1);
     a.undo();
-    assert_eq!(a.project().track(track).unwrap().effects.len(), 2);
+    assert_eq!(fx_on(&a), 2);
     // Mixer view renders headless too.
     a.central = cantus_ui::app::CentralView::Mixer;
     run_frames(&mut a, 2);
@@ -1384,10 +1397,10 @@ fn the_pan_law_is_reachable_reversible_and_stored_in_the_project() {
 #[test]
 fn the_mixer_shows_pan_width_and_polarity() {
     let mut a = app(starter_project());
-    let id = a.project().tracks[0].id;
-    a.exec(Command::SetTrackPan { id, pan: -0.5 });
-    a.exec(Command::SetTrackWidth { id, width: 0.0 });
-    a.exec(Command::SetTrackPhaseInvert { id, invert: true });
+    let id = a.project().tracks[0].strip.unwrap();
+    a.exec(Command::SetStripPan { id, pan: -0.5 });
+    a.exec(Command::SetStripWidth { id, width: 0.0 });
+    a.exec(Command::SetStripPhaseInvert { id, invert: true });
     let ctx = ctx();
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -1407,6 +1420,60 @@ fn the_mixer_shows_pan_width_and_polarity() {
             "the mixer never painted {want:?}: {text}"
         );
     }
+    // The desk: the master first, then every strip by number, fed or not.
+    let m = text.find("Master").expect("a master strip");
+    let one = text.find("| 1 |").expect("strip 1");
+    assert!(m < one, "the master must be on the left: {text}");
+    assert!(
+        text.contains("| 16 |"),
+        "sixteen strips out of the box: {text}"
+    );
+}
+
+/// A track's route is a command, the mixer follows it, and a strip can be added at the
+/// end of the desk.
+#[test]
+fn tracks_are_routed_to_strips_and_strips_can_be_added() {
+    use cantus_ui::keymap::Action;
+    let mut a = app(three_tracks());
+    let p = a.project();
+    let (t0, t1) = (p.tracks[0].id, p.tracks[1].id);
+    let (s0, s1) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    assert_ne!(s0, s1, "new tracks take different strips");
+    assert_eq!(p.strip_number(s0), Some(1));
+    assert_eq!(p.strip_number(s1), Some(2));
+
+    // Route the second track onto the first's strip: a bus of two.
+    a.route_track(t1, Some(s0));
+    assert_eq!(a.project().track(t1).unwrap().strip, Some(s0));
+    assert_eq!(a.selected_strip, Some(s0), "the mixer follows the route");
+    let fed: Vec<TrackId> = a.project().tracks_on_strip(s0).map(|t| t.id).collect();
+    assert_eq!(fed, vec![t0, t1]);
+    // And what the engine sees agrees: both tracks point at strip index 0.
+    let snap = Snapshot::compile(a.project(), 0);
+    assert_eq!(snap.tracks[0].strip, Some(0));
+    assert_eq!(snap.tracks[1].strip, Some(0));
+
+    let before = a.project().strips.len();
+    a.add_strip();
+    assert_eq!(a.project().strips.len(), before + 1);
+    let new = a.project().strips.last().unwrap().id;
+    assert_eq!(a.selected_strip, Some(new));
+    a.undo();
+    assert_eq!(a.project().strips.len(), before);
+
+    // Selecting a strip nothing feeds shows it without moving the track selection;
+    // selecting a fed strip selects the first track on it.
+    let was = a.selected_track;
+    a.select_strip(s1);
+    assert_eq!(a.selected_strip, Some(s1));
+    assert_eq!(a.selected_track, was);
+    a.select_strip(s0);
+    assert_eq!(a.selected_track, Some(t0));
+    assert_eq!(a.selected_strip, Some(s0));
+    a.run_action(Action::SelectNextTrack);
+    assert_eq!(a.selected_track, Some(t1));
+    assert_eq!(a.selected_strip, Some(s0), "the strip follows the track");
 }
 
 /// Drive the arrangement with real pointer events: press at `from`, travel to `to` in a
@@ -2566,8 +2633,8 @@ fn the_fader_left_the_track_header_for_the_inspector() {
         "no channel strip in the inspector: {inspector}"
     );
     assert!(
-        inspector.contains("+0.0 dB") && inspector.contains("100%"),
-        "the inspector's strip is missing its readouts: {inspector}"
+        inspector.contains("+0.0 dB") && inspector.contains("Strip 1"),
+        "the inspector's channel is missing its level or its route: {inspector}"
     );
 }
 
@@ -2846,4 +2913,490 @@ fn a_track_can_become_a_kit_and_its_pads_can_come_and_go() {
     let pad = &a.project().tracks[0].instrument.pulsus().unwrap().pads[0];
     assert_eq!(pad.voice, PadVoice::Kick);
     assert_eq!(pad.sample, None, "voice and file must undo together");
+}
+
+/// Sends, routing of a selection, solo, EQ and the slot mix all reach the project through
+/// the app as commands — refused routes included — and the engine sees them resolved.
+#[test]
+fn sends_routing_solo_and_eq_go_through_the_app() {
+    let mut a = app(three_tracks());
+    let p = a.project();
+    let (s0, s1, s2) = (
+        p.tracks[0].strip.unwrap(),
+        p.tracks[1].strip.unwrap(),
+        p.tracks[2].strip.unwrap(),
+    );
+    let aux = p.strips[5].id;
+    // A send from strip 1 into an empty strip.
+    a.set_strip_send(s0, Send::new(aux));
+    a.end_gesture();
+    assert_eq!(a.project().strip(s0).unwrap().sends, vec![Send::new(aux)]);
+    // The engine sees it, and the aux is ordered after its source.
+    let snap = Snapshot::compile(a.project(), 0);
+    assert_eq!(snap.strips[0].sends, vec![(5, 1.0)]);
+    let pos = |i: usize| snap.strip_order.iter().position(|x| *x == i).unwrap();
+    assert!(
+        pos(0) < pos(5),
+        "a send orders the strips like an output does"
+    );
+    // A send back the other way would loop: refused, reported, nothing left behind.
+    a.set_strip_send(aux, Send::new(s0));
+    a.end_gesture();
+    assert!(a.project().strip(aux).unwrap().sends.is_empty());
+    // Switching a send off keeps its level; removing it takes it away.
+    a.set_strip_send(
+        s0,
+        Send {
+            to: aux,
+            level: 0.3,
+            enabled: false,
+        },
+    );
+    a.end_gesture();
+    assert!(Snapshot::compile(a.project(), 0).strips[0].sends.is_empty());
+    a.remove_strip_send(s0, aux);
+    assert!(a.project().strip(s0).unwrap().sends.is_empty());
+
+    // FL's *route selected to this track*, on a multi-selection: one undo step.
+    a.select_strip(s1);
+    a.toggle_strip_selected(s2);
+    assert_eq!(a.strip_selection(), vec![s1, s2]);
+    assert!(a.route_strips_to(&[s1, s2], Some(aux)));
+    assert_eq!(a.project().strip(s1).unwrap().output, Some(aux));
+    assert_eq!(a.project().strip(s2).unwrap().output, Some(aux));
+    a.undo();
+    assert_eq!(a.project().strip(s1).unwrap().output, None);
+    assert_eq!(a.project().strip(s2).unwrap().output, None);
+    assert!(a.send_strips_to(&[s1, s2], aux));
+    assert!(a.project().strip(s1).unwrap().send_to(aux).is_some());
+    assert!(a.project().strip(s2).unwrap().send_to(aux).is_some());
+
+    // Solo is resolved before the audio thread: the soloed strip and the strip its send
+    // reaches stay audible, the third strip does not.
+    a.toggle_strip_solo(s1);
+    let snap = Snapshot::compile(a.project(), 0);
+    assert!(!snap.strips[1].muted, "the soloed strip");
+    assert!(!snap.strips[5].muted, "its send's destination");
+    assert!(snap.strips[0].muted, "an unconnected strip");
+    a.clear_strip_solos();
+    assert!(!a.project().any_strip_solo());
+
+    // EQ, swap, FX switch and the slot mix.
+    a.exec(Command::SetStripEq {
+        id: s0,
+        band: 1,
+        field: EqField::Gain,
+        value: 6.0,
+    });
+    assert_eq!(a.project().strip(s0).unwrap().eq.bands[1].gain_db, 6.0);
+    a.add_effect(s0, EffectKind::Delay);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    a.exec(Command::SetEffectMix {
+        strip: s0,
+        effect: fx,
+        mix: 0.25,
+    });
+    assert_eq!(a.project().strip(s0).unwrap().effects[0].mix, 0.25);
+    a.exec(Command::SetStripFxEnabled {
+        id: s0,
+        enabled: false,
+    });
+    a.exec(Command::SetStripSwapChannels { id: s0, swap: true });
+    let snap = Snapshot::compile(a.project(), 0);
+    assert!(!snap.strips[0].fx_enabled && snap.strips[0].swap_channels);
+}
+
+/// A submix is FL's group in the mixer's one tree: a new strip right after the members,
+/// fed by them, going to the master — created and undone as one step. The desk is
+/// rearranged with the keyboard, and only an unused strip can be removed.
+#[test]
+fn a_submix_groups_the_selected_strips_and_strips_move_along_the_desk() {
+    use cantus_ui::keymap::Action;
+    let mut a = app(three_tracks());
+    let (s0, s1) = (
+        a.project().tracks[0].strip.unwrap(),
+        a.project().tracks[1].strip.unwrap(),
+    );
+    let before = a.project().strips.len();
+    let sub = a.create_submix(&[s0, s1]).expect("a submix");
+    assert_eq!(a.project().strips.len(), before + 1);
+    assert_eq!(
+        a.project().strip_number(sub),
+        Some(3),
+        "right after the last member"
+    );
+    assert_eq!(a.project().strip(s0).unwrap().output, Some(sub));
+    assert_eq!(a.project().strip(s1).unwrap().output, Some(sub));
+    assert_eq!(a.project().strip(sub).unwrap().output, None);
+    assert_eq!(a.selected_strip, Some(sub));
+    a.undo();
+    assert_eq!(a.project().strips.len(), before);
+    assert_eq!(a.project().strip(s0).unwrap().output, None);
+
+    a.select_strip(s0);
+    a.run_action(Action::MoveStripRight);
+    assert_eq!(a.project().strip_number(s0), Some(2));
+    assert_eq!(a.project().strip_number(s1), Some(1));
+    a.run_action(Action::MoveStripLeft);
+    assert_eq!(a.project().strip_number(s0), Some(1));
+    // The engine follows the numbering: the snapshot's strips are in desk order.
+    a.run_action(Action::MoveStripRight);
+    let snap = Snapshot::compile(a.project(), 0);
+    assert_eq!(snap.strips[1].id, s0);
+    assert_eq!(snap.tracks[0].strip, Some(1));
+    a.undo();
+
+    let empty = a.project().strips[10].id;
+    a.remove_strip(empty);
+    assert_eq!(a.project().strips.len(), before - 1);
+    a.remove_strip(s0);
+    assert_eq!(
+        a.project().strips.len(),
+        before - 1,
+        "a strip a track feeds cannot be removed"
+    );
+}
+
+/// Faders in a multi-selection move together, by the same amount, as one undo step.
+#[test]
+fn ganged_faders_move_together_as_one_undo_step() {
+    let mut a = app(three_tracks());
+    let (s0, s1, s2) = (
+        a.project().tracks[0].strip.unwrap(),
+        a.project().tracks[1].strip.unwrap(),
+        a.project().tracks[2].strip.unwrap(),
+    );
+    a.exec(Command::SetStripGain {
+        id: s1,
+        gain_db: -10.0,
+    });
+    a.select_strip(s0);
+    a.toggle_strip_selected(s1);
+    let gain = |a: &CantusApp, s: StripId| a.project().strip(s).unwrap().gain_db;
+    // Two frames of one drag.
+    a.set_strip_gain(s0, -3.0);
+    a.set_strip_gain(s0, -6.0);
+    a.end_gesture();
+    assert_eq!(gain(&a, s0), -6.0);
+    assert!((gain(&a, s1) + 16.0).abs() < 1e-5, "moved by the same 6 dB");
+    assert_eq!(gain(&a, s2), 0.0, "not selected, not moved");
+    a.undo();
+    assert_eq!(gain(&a, s0), 0.0);
+    assert_eq!(gain(&a, s1), -10.0, "the whole gesture was one step");
+    // A strip outside the selection moves alone.
+    a.set_strip_gain(s2, -2.0);
+    a.end_gesture();
+    assert_eq!(gain(&a, s0), 0.0);
+    assert_eq!(gain(&a, s2), -2.0);
+}
+
+/// The mixer paints the new controls: solo, swap, FX, the EQ bars, the sends.
+#[test]
+fn the_mixer_paints_solo_fx_eq_and_sends() {
+    let mut a = app(starter_project());
+    let s0 = a.project().tracks[0].strip.unwrap();
+    let aux = a.project().strips[3].id;
+    a.set_strip_send(s0, Send::new(aux));
+    a.end_gesture();
+    a.toggle_strip_solo(s0);
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 1000.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| views::mixer::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let text = painted_text(&out.shapes);
+    for want in ["| S |", "| FX |", "\u{21c4}", "SENDS", "Solo off"] {
+        assert!(
+            text.contains(want),
+            "the mixer never painted {want:?}: {text}"
+        );
+    }
+}
+
+/// Paint the mixer once at a given size and return the text it drew.
+fn paint_mixer(a: &mut CantusApp, width: f32) -> String {
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(width, 1000.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| views::mixer::show(a, ui));
+    });
+    out.textures_delta.clear();
+    painted_text(&out.shapes)
+}
+
+/// A new desk pins its last three strips on the right: they are painted even when the
+/// window is far too narrow for the middle, and they stay after the scrolling strips.
+#[test]
+fn the_right_dock_is_pinned_and_always_painted() {
+    let mut a = app(starter_project());
+    let text = paint_mixer(&mut a, 900.0);
+    for n in ["| 14 |", "| 15 |", "| 16 |"] {
+        assert!(text.contains(n), "docked strip {n} not painted: {text}");
+    }
+    assert!(
+        text.find("| 1 |").unwrap() < text.find("| 14 |").unwrap(),
+        "the middle comes before the right dock"
+    );
+    // Moving a strip to the left dock pins it beside the master, before strip 1.
+    let s5 = a.project().strips[4].id;
+    a.set_strips_dock(&[s5], Dock::Left);
+    let text = paint_mixer(&mut a, 900.0);
+    assert!(
+        text.find("| 5 |").unwrap() < text.find("| 1 |").unwrap(),
+        "a left-docked strip sits before the middle: {text}"
+    );
+    a.undo();
+    assert_eq!(a.project().strips[4].dock, Dock::Middle);
+}
+
+/// A group gathers its members into one run behind a separator, folds them away, and
+/// dissolves back into plain strips — each of those one undo step.
+#[test]
+fn groups_gather_fold_and_dissolve() {
+    let mut a = app(starter_project());
+    let ids: Vec<StripId> = a.project().strips.iter().map(|s| s.id).collect();
+    // Strips 2, 5 and 7 into a group: they become 2, 3, 4.
+    let g = a
+        .create_strip_group(&[ids[1], ids[4], ids[6]])
+        .expect("a group");
+    let p = a.project();
+    assert_eq!(p.strip_number(ids[1]), Some(2));
+    assert_eq!(p.strip_number(ids[4]), Some(3));
+    assert_eq!(p.strip_number(ids[6]), Some(4));
+    assert_eq!(p.strips_in_group(g).count(), 3);
+    let name = p.strip_group(g).unwrap().name.clone();
+    let text = paint_mixer(&mut a, 1600.0);
+    assert!(
+        text.contains(&name),
+        "the separator shows the group's name: {text}"
+    );
+    assert!(text.contains("| 3 |"));
+
+    // Fold: the members are gone from the desk, the separator stays.
+    a.exec(Command::SetStripGroupCollapsed {
+        id: g,
+        collapsed: true,
+    });
+    let text = paint_mixer(&mut a, 1600.0);
+    assert!(text.contains(&name));
+    // (The separator paints the member count, 3, so it is strips 2 and 4 that are
+    // looked for.)
+    assert!(!text.contains("| 2 |") && !text.contains("| 4 |"), "{text}");
+    assert!(
+        text.contains("| 5 |"),
+        "strips outside the group are still there"
+    );
+
+    // Dissolve: plain strips again, in the order the group left them.
+    a.dissolve_strip_group(g);
+    assert!(a.project().strip_groups.is_empty());
+    assert!(a.project().strips.iter().all(|s| s.group.is_none()));
+    assert_eq!(a.project().strip_number(ids[4]), Some(3));
+    a.undo();
+    assert_eq!(a.project().strips_in_group(g).count(), 3);
+    // Undo the fold and the creation: the desk is back as it was.
+    a.undo();
+    a.undo();
+    assert!(a.project().strip_groups.is_empty());
+    assert_eq!(a.project().strip_number(ids[4]), Some(5));
+}
+
+/// Compact drops the width bar, the EQ bars and the send rows; normal shows them.
+#[test]
+fn compact_density_shows_less_of_each_strip() {
+    use cantus_ui::settings::MixerDensity;
+    let mut a = app(starter_project());
+    let s0 = a.project().tracks[0].strip.unwrap();
+    let aux = a.project().strips[3].id;
+    a.set_strip_send(s0, Send::new(aux));
+    a.end_gesture();
+    let normal = paint_mixer(&mut a, 1600.0);
+    assert!(normal.contains("SENDS"));
+    a.settings.mixer_density = MixerDensity::Compact;
+    let compact = paint_mixer(&mut a, 1600.0);
+    assert!(!compact.contains("SENDS"), "{compact}");
+    assert!(
+        compact.contains("Sends 1"),
+        "the sends as a count: {compact}"
+    );
+    assert!(compact.contains("| 16 |"), "every strip is still there");
+}
+
+/// Aequalis through the app: a band made and removed is one undo step each, and undo
+/// leaves the effect's stored parameters exactly as they were — nothing, for a new EQ.
+#[test]
+fn eq_bands_are_made_and_removed_as_single_undo_steps() {
+    use cantus_dsp::EqShape;
+    let mut a = app(starter_project());
+    let s0 = a.project().tracks[0].strip.unwrap();
+    a.add_effect(s0, EffectKind::Eq);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    let spec = |a: &CantusApp| a.project().strip(s0).unwrap().effects[0].spec.clone();
+    assert!(spec(&a).params.is_empty(), "a new EQ stores nothing");
+
+    let b = a.add_eq_band(s0, fx, EqShape::Bell, 2_500.0, 4.5).unwrap();
+    assert_eq!(b, 0);
+    assert_eq!(spec(&a).get("b0.freq"), 2_500.0);
+    assert_eq!(spec(&a).get("b0.gain"), 4.5);
+    let lc = a.add_eq_band(s0, fx, EqShape::LowCut, 80.0, 0.0).unwrap();
+    assert_eq!(lc, 1, "the next free number");
+    assert_eq!(spec(&a).get("b1.slope"), 24.0);
+    let bands = cantus_engine::eq_bands(&spec(&a));
+    assert!(bands[0].active && bands[1].active && !bands[2].active);
+
+    // Removing band 0 frees its number without renumbering band 1.
+    a.remove_eq_band(s0, fx, 0);
+    assert!(spec(&a).params.keys().all(|k| !k.starts_with("b0.")));
+    assert_eq!(spec(&a).get("b1.freq"), 80.0);
+    a.undo();
+    assert_eq!(spec(&a).get("b0.gain"), 4.5, "undo brings the band back");
+    a.undo();
+    a.undo();
+    assert!(
+        spec(&a).params.is_empty(),
+        "undo leaves the map exactly as it was"
+    );
+
+    // The engine reads it: a band on, and the snapshot carries it.
+    a.add_eq_band(s0, fx, EqShape::HighShelf, 8_000.0, -3.0);
+    let snap = Snapshot::compile(a.project(), 0);
+    assert_eq!(snap.strips[0].effects[0].spec.get("b0.shape"), 2.0);
+}
+
+/// The editor window paints its display and the selected band's panel.
+#[test]
+fn the_eq_editor_paints_its_display_and_band_panel() {
+    use cantus_dsp::EqShape;
+    let mut a = app(starter_project());
+    let s0 = a.project().tracks[0].strip.unwrap();
+    a.add_effect(s0, EffectKind::Eq);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    a.add_eq_band(s0, fx, EqShape::Bell, 1_000.0, 6.0);
+    a.open_eq_editor(s0, fx);
+    let ctx = ctx();
+    let mut text = String::new();
+    for _ in 0..2 {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            cantus_ui::views::eq_editor::window(&mut a, ui.ctx());
+        });
+        out.textures_delta.clear();
+        text = painted_text(&out.shapes);
+    }
+    for want in [
+        "Aequalis EQ",
+        "Band 1",
+        "1.0 kHz",
+        "+6.0 dB",
+        "Bell",
+        "+18",
+        "1 of 24 bands",
+    ] {
+        assert!(
+            text.contains(want),
+            "the editor never painted {want:?}: {text}"
+        );
+    }
+    a.close_eq_editor();
+    assert!(a.eq_editor.open.is_none());
+}
+
+/// Comprimo through the app: the key is chosen from the desk, refused when it would loop,
+/// undone like anything else; the editor paints its displays and names its style.
+#[test]
+fn the_compressor_is_keyed_from_the_desk_and_its_editor_explains_itself() {
+    let mut a = app(three_tracks());
+    let (s0, s1) = (
+        a.project().tracks[0].strip.unwrap(),
+        a.project().tracks[1].strip.unwrap(),
+    );
+    a.add_effect(s0, EffectKind::Compressor);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    assert!(a.exec(Command::SetEffectSidechain {
+        strip: s0,
+        effect: fx,
+        source: Some(s1),
+    }));
+    assert_eq!(
+        a.project().strip(s0).unwrap().effects[0].sidechain,
+        Some(s1)
+    );
+    // The key runs from strip 2 to strip 1, so routing 2 into 1 goes the same way and is
+    // fine, while routing 1 into 2 would loop.
+    assert!(!a.exec(Command::SetStripOutput {
+        id: s0,
+        output: Some(s1),
+    }));
+    assert!(a.exec(Command::SetStripOutput {
+        id: s1,
+        output: Some(s0),
+    }));
+    a.undo();
+    a.undo();
+    assert_eq!(a.project().strip(s0).unwrap().effects[0].sidechain, None);
+    // A strip something is keyed from cannot be removed out from under the key.
+    let spare = a.project().strips[9].id;
+    a.exec(Command::SetEffectSidechain {
+        strip: s0,
+        effect: fx,
+        source: Some(spare),
+    });
+    a.remove_strip(spare);
+    assert!(
+        a.project().strip(spare).is_some(),
+        "a key's strip was removed"
+    );
+
+    a.open_effect_editor(s0, fx);
+    assert!(a.comp_editor.open.is_some() && a.eq_editor.open.is_none());
+    let ctx = ctx();
+    let mut text = String::new();
+    for _ in 0..2 {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            cantus_ui::views::comp_editor::window(&mut a, ui.ctx());
+        });
+        out.textures_delta.clear();
+        text = painted_text(&out.shapes);
+    }
+    for want in [
+        "Comprimo compressor",
+        "Opto",
+        "peak detector",
+        "Threshold",
+        "4.0:1",
+        "-18.0 dB",
+        "GR 0.0 dB",
+    ] {
+        assert!(
+            text.contains(want),
+            "the editor never painted {want:?}: {text}"
+        );
+    }
+    a.close_comp_editor();
 }

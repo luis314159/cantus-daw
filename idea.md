@@ -137,7 +137,8 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] Allocation-free, lock-free audio callback
 - [ ] Multi-backend support: ASIO (Windows), CoreAudio (macOS), JACK/ALSA/PipeWire (Linux), WASAPI
 - [ ] Sample rates up to 384kHz, 32-bit float internal (64-bit float option for mastering bus)
-- [ ] Latency reporting and automatic plugin delay compensation (PDC)
+- [x] Latency reporting and automatic plugin delay compensation (PDC) — **done** (round 16,
+      ADR 0018): per edge, lines grow on request, latency in the status bar
 - [ ] Per-track/per-plugin configurable oversampling
 - [ ] High-quality resampling engine (for warping, pitch, time-stretch)
 - [ ] Track freeze/bounce to free CPU
@@ -201,10 +202,23 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] **ARA 2 support** (so Melodyne, VocAlign etc. integrate natively rather than as insert effects)
 
 ### 5.6 Mixer
-- [ ] Unlimited tracks, buses, sends/returns
+- [ ] Unlimited tracks, buses, sends/returns — **buses done** (round 12, ADR 0014),
+      **sends, solo, submixes, channel EQ, slot mix done** (round 13, ADR 0015): numbered
+      mixer strips, a track feeds a strip, a strip feeds a strip, a strip sends into strips
 - [ ] Flexible routing matrix (sidechains, instrument multi-out, nested buses) — Reaper-level
-- [ ] Professional metering (LUFS, RMS, true peak, phase correlation, real-time spectrum)
-- [ ] Mix groups (VCA groups) and mix snapshots
+- [ ] Professional metering (LUFS, RMS, true peak, phase correlation, real-time spectrum) —
+      **inside the plug-ins** (round 16: Terminus measures BS.1770 loudness and true peak,
+      Spatium shows correlation, every editor has a spectrum); a master meter panel is open
+- [ ] Mix groups (VCA groups) and mix snapshots — **desk groups and docks done** (round 14,
+      ADR 0016); VCA and snapshots still open
+- [x] A recorder in the mix: record any strip's post-fader output, or the master, to a
+      WAV from the strip itself — **done** (round 15, ADR 0017)
+- [x] FabFilter-class effects with their own direct-manipulation interfaces — **done**
+      (rounds 15–16, ADRs 0017–0018): EQ, compressor, true-peak limiter, reverb, multiband,
+      de-esser, gate, each with notes and a feature matrix in `docs/plugins/`; saturation
+      and the gaps each matrix lists are open
+- [ ] Professional instruments with interfaces of their own: a wavetable synth with
+      drag-to-modulate, a drum sampler with layers, a zone sampler (plan in STATUS)
 - [ ] Automation of any parameter with curves (linear, exponential, S-curve)
 - [ ] Hardware insert support with automatic latency compensation (ping measurement)
 - [ ] External instrument routing (treat outboard synths as if they were plugins)
@@ -217,15 +231,20 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 - [ ] Audio-rate modulation where it makes musical sense
 
 ### 5.8 Plugin Architecture
-- [ ] Native **CLAP** host (priority — open, modern, Rust-friendly)
-- [ ] **VST3** support via bindings for existing-ecosystem compatibility
+- [x] Native **CLAP** host (priority — open, modern, Rust-friendly) — **done** for effects
+      (round 17, ADR 0019); hosted instruments go through the same crate (`cantus-host`)
+- [x] **VST3** support via bindings for existing-ecosystem compatibility — **done** (round 17,
+      the `vst3` crate from the MIT 3.8 SDK)
 - [ ] **AU** support on macOS (required for that market)
 - [ ] **LV2** support on Linux (required for that market)
 - [ ] Per-process sandboxing (total isolation, Bitwig-style)
-- [ ] Automatic, transparent plugin delay compensation
+- [x] Automatic, transparent plugin delay compensation — **done** for Cantus's own
+      effects (round 16, ADR 0018); hosted plug-ins will report into the same plan
 - [ ] 32-bit plugin bridging inside a 64-bit host (legacy compatibility)
-- [ ] In-house SDK for building native Rust instruments/effects
-- [ ] Plugin scanning that survives crashes (a bad plugin cannot brick startup)
+- [ ] In-house SDK for building native Rust instruments/effects — **our effects already ship
+      as CLAP/VST3** (round 17, ADR 0020, `crates/cantus-plugins`)
+- [x] Plugin scanning that survives crashes (a bad plugin cannot brick startup) — **done**
+      (round 17: a separate scanner process, a cache, a blocked list)
 
 ### 5.9 Native Instruments
 - [ ] Subtractive synth (oscillators, filters, classic envelopes)
@@ -279,14 +298,15 @@ This section deliberately sits *before* the feature list. If AI is designed as a
 
 ### 5.14 Interoperability & Migration (critical for adoption)
 This is one of the most underrated features in the entire document. A DAW that cannot ingest a user's existing work will not be adopted, no matter how good it is. Lowering the switching cost is a feature.
-- [ ] **Standard MIDI File** import/export (baseline, non-negotiable)
+- [x] **Standard MIDI File** import/export (baseline, non-negotiable) — **done** (round 17,
+      ADR 0021: types 0/1/2, tempo, drums on channel 10 as GM)
 - [ ] **AAF / OMF** import/export (the professional post-production interchange standard)
 - [ ] **Broadcast WAV** with embedded timestamps
 - [ ] **Stem/multitrack import** with automatic track naming and alignment
-- [ ] Read-only import of other DAWs' project formats where legally and technically feasible (documented formats first; reverse-engineered formats only where clearly lawful)
+- [ ] Read-only import of other DAWs' project formats where legally and technically feasible (documented formats first; reverse-engineered formats only where clearly lawful) — **DAWproject import and export done** (round 17, ADR 0021; validated against the official XSD)
 - [ ] **Preset import** for common formats where documented
 - [ ] Export presets targeting other DAWs (so collaborators are not locked out)
-- [ ] Track/clip drag & drop between the DAW and the OS file manager, both directions
+- [ ] Track/clip drag & drop between the DAW and the OS file manager, both directions — **in**: a dropped `.mid` or `.dawproject` is imported (round 17); **stems export** in one offline pass is done
 
 ### 5.15 Project, Data Safety & Collaboration
 - [ ] Open, versioned project format (RON/JSON + assets), version-control friendly (git-friendly, human-diffable)

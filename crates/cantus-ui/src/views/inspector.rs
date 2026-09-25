@@ -2,14 +2,15 @@
 
 use crate::app::CantusApp;
 use crate::design::{self, space, Elevation};
-use crate::i18n::t;
+use crate::i18n::{t, tf};
 use crate::theme;
-use crate::widgets::{bar, fader, Bar, Fader};
+use crate::widgets::{bar, fader, Bar, Fader, Knob};
 use cantus_core::{
-    Color, Command, DrumPad, EffectKind, EffectSlot, FirmusParam, InstrumentParam, MergeKey,
-    PadField, PadVoice, TrackId, Waveform,
+    Color, Command, DrumPad, EffectKind, EffectSlot, EqField, FirmusParam, InstrumentParam,
+    MergeKey, MixerStrip, PadField, PadVoice, Send, StripEq, StripId, TrackId, Waveform,
+    EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_INSERTS,
 };
-use egui::RichText;
+use egui::{pos2, vec2, Align2, RichText, Sense, Stroke, StrokeKind};
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -99,7 +100,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             pulsus(app, ui, id, &kit.pads);
             ui.add_space(space::S3);
             ui.separator();
-            effects(app, ui, id, &track.effects);
+            strip_section(app, ui);
             ui.add_space(space::S2);
             return;
         }
@@ -110,45 +111,55 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         section(ui, "inspector.oscillators");
         wave_combo(app, ui, id, FirmusParam::Osc1Wave, params.osc1_wave);
         wave_combo(app, ui, id, FirmusParam::Osc2Wave, params.osc2_wave);
-        for p in [
-            FirmusParam::Osc2Semitones,
-            FirmusParam::Osc2Detune,
-            FirmusParam::OscMix,
-        ] {
-            param_slider(app, ui, id, p, p.get(&params));
-        }
+        knob_row(ui, |ui| {
+            for p in [
+                FirmusParam::Osc2Semitones,
+                FirmusParam::Osc2Detune,
+                FirmusParam::OscMix,
+            ] {
+                param_slider(app, ui, id, p, p.get(&params));
+            }
+        });
         section(ui, "inspector.filter");
-        for p in [
-            FirmusParam::Cutoff,
-            FirmusParam::Resonance,
-            FirmusParam::FilterEnvAmount,
-            FirmusParam::KeyTrack,
-        ] {
-            param_slider(app, ui, id, p, p.get(&params));
-        }
+        knob_row(ui, |ui| {
+            for p in [
+                FirmusParam::Cutoff,
+                FirmusParam::Resonance,
+                FirmusParam::FilterEnvAmount,
+                FirmusParam::KeyTrack,
+            ] {
+                param_slider(app, ui, id, p, p.get(&params));
+            }
+        });
         section(ui, "inspector.amp_env");
-        for p in [
-            FirmusParam::AmpAttack,
-            FirmusParam::AmpDecay,
-            FirmusParam::AmpSustain,
-            FirmusParam::AmpRelease,
-        ] {
-            param_slider(app, ui, id, p, p.get(&params));
-        }
+        knob_row(ui, |ui| {
+            for p in [
+                FirmusParam::AmpAttack,
+                FirmusParam::AmpDecay,
+                FirmusParam::AmpSustain,
+                FirmusParam::AmpRelease,
+            ] {
+                param_slider(app, ui, id, p, p.get(&params));
+            }
+        });
         section(ui, "inspector.filter_env");
-        for p in [
-            FirmusParam::FilterAttack,
-            FirmusParam::FilterDecay,
-            FirmusParam::FilterSustain,
-            FirmusParam::FilterRelease,
-        ] {
-            param_slider(app, ui, id, p, p.get(&params));
-        }
+        knob_row(ui, |ui| {
+            for p in [
+                FirmusParam::FilterAttack,
+                FirmusParam::FilterDecay,
+                FirmusParam::FilterSustain,
+                FirmusParam::FilterRelease,
+            ] {
+                param_slider(app, ui, id, p, p.get(&params));
+            }
+        });
         section(ui, "inspector.output");
-        param_slider(app, ui, id, FirmusParam::Gain, params.gain_db);
+        knob_row(ui, |ui| {
+            param_slider(app, ui, id, FirmusParam::Gain, params.gain_db)
+        });
         ui.add_space(space::S3);
         ui.separator();
-        effects(app, ui, id, &track.effects);
+        strip_section(app, ui);
         ui.add_space(space::S2);
     });
 }
@@ -243,7 +254,8 @@ fn pulsus(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pads: &[DrumPad])
     });
     // Only the fields this voice actually has: a hi-hat has no pitch envelope, and a
     // slider that does nothing is worse than one that is missing.
-    for field in PadField::for_voice(pad.voice) {
+    let fields: Vec<PadField> = PadField::for_voice(pad.voice).collect();
+    for field in fields.iter().copied() {
         match field {
             PadField::Voice => {
                 voice_combo(app, ui, id, selected, pad.voice);
@@ -258,9 +270,24 @@ fn pulsus(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pads: &[DrumPad])
                 }
             }
             PadField::Choke => choke_combo(app, ui, id, selected, pad.choke),
-            _ => pad_slider(app, ui, id, selected, pad, field),
+            _ => {}
         }
     }
+    knob_row(ui, |ui| {
+        for field in fields.iter().copied() {
+            if !matches!(field, PadField::Voice | PadField::Mute | PadField::Choke) {
+                pad_slider(app, ui, id, selected, pad, field);
+            }
+        }
+    });
+}
+
+/// A row of knobs that wraps: the house layout for a group of parameters.
+fn knob_row(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = space::S1;
+        add(ui);
+    });
 }
 
 /// Which voice the pad is. Switching to *Sample* keeps whatever file the pad already had.
@@ -377,24 +404,18 @@ fn pad_slider(
 ) {
     let info = field.info(pad.voice);
     let mut v = field.get(pad);
-    let mut slider = egui::Slider::new(&mut v, info.min..=info.max)
-        .text(t(info.label_key))
-        .logarithmic(info.logarithmic);
-    if !info.unit.is_empty() {
-        slider = slider.suffix(format!(" {}", info.unit));
-    }
-    if info.stepped {
-        slider = slider.step_by(1.0);
-    }
-    let r = ui.add(slider);
+    let r = ui.add(
+        Knob::new(&mut v, info.min..=info.max, info.default)
+            .log(info.logarithmic)
+            .stepped(info.stepped)
+            .unit(info.unit)
+            .label(t(info.label_key)),
+    );
     if r.changed() {
         set_pad(app, id, pad_index, field, v, true);
     }
-    if r.drag_stopped() || r.lost_focus() {
+    if r.drag_stopped() || r.double_clicked() {
         app.end_gesture();
-    }
-    if r.double_clicked() {
-        set_pad(app, id, pad_index, field, info.default, false);
     }
 }
 
@@ -421,12 +442,11 @@ fn set_pad(
     }
 }
 
-/// The selected track's channel strip: gain, pan, width and polarity.
+/// The track's own channel: its level and balance before the mixer, and which strip it
+/// feeds. FL's channel volume and pan, and its mixer-track picker, in one place.
 ///
-/// This is what left the arrangement's track header. A header is for *which track*; a
-/// strip is for *how loud and where*, and it needs room — a scale beside the fader, a
-/// readout under the pan — that a 40-px row does not have and a panel does. It is the same
-/// set of controls the mixer draws, laid out for one track at a time.
+/// The fader with a scale, the width and the polarity are the *strip's*, further down:
+/// they belong to the channel of the mixer, not to whichever instrument plays into it.
 fn channel(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, track: &cantus_core::Track) {
     heading(ui, &t("inspector.channel"));
     let lane = ui.available_width() - space::S2;
@@ -474,7 +494,134 @@ fn channel(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, track: &cantus_c
         app.end_gesture();
     }
     ui.add_space(space::S1);
-    let mut width = track.width;
+    ui.horizontal(|ui| {
+        ui.label(t("track.route"));
+        route_picker(app, ui, id, track.strip);
+    });
+}
+
+/// Which strip a track feeds. The list is every strip by number, with its name when it
+/// has one, and the master.
+pub fn route_picker(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, current: Option<StripId>) {
+    let label = match current.and_then(|s| app.project().strip_number(s)) {
+        Some(n) => tf("track.route_strip", &[("n", &n)]),
+        None => t("mixer.master"),
+    };
+    let mut chosen: Option<Option<StripId>> = None;
+    egui::ComboBox::from_id_salt(("route", id.0))
+        .selected_text(label)
+        .show_ui(ui, |ui| {
+            if ui
+                .selectable_label(current.is_none(), t("mixer.master"))
+                .clicked()
+            {
+                chosen = Some(None);
+            }
+            // FL's `TRACK` button: the first strip nothing feeds, so a channel gets a
+            // strip of its own without anyone counting.
+            if let Some(free) = app.project().first_free_strip() {
+                if ui.selectable_label(false, t("track.route_free")).clicked() {
+                    chosen = Some(Some(free));
+                }
+            }
+            let strips: Vec<(StripId, usize, String)> = app
+                .project()
+                .strips
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (s.id, i + 1, s.name.clone()))
+                .collect();
+            for (sid, n, name) in strips {
+                let text = if name.is_empty() {
+                    tf("track.route_strip", &[("n", &n)])
+                } else {
+                    format!("{n} · {name}")
+                };
+                if ui.selectable_label(current == Some(sid), text).clicked() {
+                    chosen = Some(Some(sid));
+                }
+            }
+        });
+    if let Some(strip) = chosen {
+        if strip != current {
+            app.route_track(id, strip);
+        }
+    }
+}
+
+/// The mixer strip the inspector is about: its fader, pan, width, polarity, output and
+/// inserts — the same controls as the mixer's, for one strip at a time with room to
+/// breathe.
+fn strip_section(app: &mut CantusApp, ui: &mut egui::Ui) {
+    let Some(id) = app.inspected_strip() else {
+        heading(ui, &t("inspector.strip"));
+        ui.label(
+            RichText::new(t("inspector.strip_master"))
+                .text_style(design::caption())
+                .color(theme::p().text_dim),
+        );
+        return;
+    };
+    let Some(strip) = app.project().strip(id).cloned() else {
+        return;
+    };
+    let number = app.project().strip_number(id).unwrap_or(0);
+    let title = if strip.name.is_empty() {
+        tf("inspector.strip_n", &[("n", &number)])
+    } else {
+        format!(
+            "{} · {}",
+            tf("inspector.strip_n", &[("n", &number)]),
+            strip.name
+        )
+    };
+    heading(ui, &title);
+    let lane = ui.available_width() - space::S2;
+    let mut gain = strip.gain_db;
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(t("track.gain"))
+                .text_style(design::caption())
+                .color(theme::p().text_dim),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(RichText::new(fader::read_out(gain)).text_style(design::readout_small()));
+        });
+    });
+    let g = ui.add(Fader::new(&mut gain).horizontal(lane).name(&title));
+    if g.changed() {
+        app.exec_merging(
+            Command::SetStripGain { id, gain_db: gain },
+            MergeKey::of(&("sgain", id.0)),
+        );
+    }
+    if g.drag_stopped() {
+        app.end_gesture();
+    }
+    ui.add_space(space::S1);
+    let mut pan = strip.pan;
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(t("track.pan"))
+                .text_style(design::caption())
+                .color(theme::p().text_dim),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(RichText::new(bar::pan_text(pan)).text_style(design::readout_small()));
+        });
+    });
+    let pr = ui.add(Bar::pan(&mut pan).size(lane).name(t("track.pan")));
+    if pr.changed() {
+        app.exec_merging(
+            Command::SetStripPan { id, pan },
+            MergeKey::of(&("spans", id.0)),
+        );
+    }
+    if pr.drag_stopped() {
+        app.end_gesture();
+    }
+    ui.add_space(space::S1);
+    let mut width = strip.width;
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(t("track.width"))
@@ -488,21 +635,21 @@ fn channel(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, track: &cantus_c
     let wr = ui.add(Bar::width(&mut width).size(lane).name(t("track.width")));
     if wr.changed() {
         app.exec_merging(
-            Command::SetTrackWidth { id, width },
-            MergeKey::of(&("width", id.0)),
+            Command::SetStripWidth { id, width },
+            MergeKey::of(&("swidth", id.0)),
         );
     }
     if wr.drag_stopped() {
         app.end_gesture();
     }
     ui.horizontal(|ui| {
-        if crate::views::mixer::phase_button(ui, track.phase_invert).clicked() {
-            app.exec(Command::SetTrackPhaseInvert {
+        if crate::views::mixer::phase_button(ui, strip.phase_invert).clicked() {
+            app.exec(Command::SetStripPhaseInvert {
                 id,
-                invert: !track.phase_invert,
+                invert: !strip.phase_invert,
             });
         }
-        let is_mono = track.width <= 0.005;
+        let is_mono = strip.width <= 0.005;
         if ui
             .selectable_label(
                 is_mono,
@@ -511,12 +658,324 @@ fn channel(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, track: &cantus_c
             .on_hover_text(t("track.mono_tip"))
             .clicked()
         {
-            app.exec(Command::SetTrackWidth {
+            app.exec(Command::SetStripWidth {
                 id,
                 width: if is_mono { 1.0 } else { 0.0 },
             });
         }
+        let muted = strip.muted;
+        if ui
+            .selectable_label(
+                muted,
+                RichText::new(t("track.mute"))
+                    .text_style(design::caption())
+                    .color(if muted {
+                        theme::p().danger
+                    } else {
+                        theme::p().text_dim
+                    }),
+            )
+            .on_hover_text(t("mixer.mute_strip"))
+            .clicked()
+        {
+            app.exec(Command::SetStripMute { id, muted: !muted });
+        }
+        if ui
+            .selectable_label(
+                strip.soloed,
+                RichText::new(t("track.solo"))
+                    .text_style(design::caption())
+                    .color(if strip.soloed {
+                        theme::p().gold_bright
+                    } else {
+                        theme::p().text_dim
+                    }),
+            )
+            .on_hover_text(t("mixer.solo_strip"))
+            .clicked()
+        {
+            app.toggle_strip_solo(id);
+        }
+        if ui
+            .selectable_label(
+                strip.swap_channels,
+                RichText::new(t("mixer.swap"))
+                    .text_style(design::caption())
+                    .color(if strip.swap_channels {
+                        theme::p().gold_bright
+                    } else {
+                        theme::p().text_dim
+                    }),
+            )
+            .on_hover_text(t("mixer.swap_tip"))
+            .clicked()
+        {
+            app.exec(Command::SetStripSwapChannels {
+                id,
+                swap: !strip.swap_channels,
+            });
+        }
     });
+    eq_section(app, ui, &strip);
+    sends_section(app, ui, &strip);
+    ui.add_space(space::S2);
+    effects(app, ui, &strip);
+}
+
+/// The strip's three-band EQ: the response drawn, then each band's frequency, gain and
+/// Q. The curve is what the ear will meet; the numbers are how it is set exactly.
+fn eq_section(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
+    let id = strip.id;
+    ui.horizontal(|ui| {
+        section(ui, "inspector.eq");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if !strip.eq.is_flat() && ui.small_button(t("inspector.eq_reset")).clicked() {
+                let commands = (0..3u8)
+                    .map(|band| Command::SetStripEq {
+                        id,
+                        band,
+                        field: EqField::Gain,
+                        value: 0.0,
+                    })
+                    .collect();
+                app.exec(Command::Batch {
+                    label_key: "cmd.set_strip_eq".into(),
+                    commands,
+                });
+            }
+        });
+    });
+    eq_curve(ui, &strip.eq);
+    let names = [
+        "inspector.eq_band_low",
+        "inspector.eq_band_mid",
+        "inspector.eq_band_high",
+    ];
+    for (b, band) in strip.eq.bands.iter().enumerate() {
+        ui.label(
+            RichText::new(t(names[b]))
+                .text_style(design::caption())
+                .color(if band.gain_db != 0.0 {
+                    theme::p().gold_bright
+                } else {
+                    theme::p().text_dim
+                }),
+        );
+        knob_row(ui, |ui| {
+            eq_slider(app, ui, id, b as u8, EqField::Freq, band.freq_hz);
+            eq_slider(app, ui, id, b as u8, EqField::Gain, band.gain_db);
+            eq_slider(app, ui, id, b as u8, EqField::Q, band.q);
+        });
+    }
+}
+
+fn eq_slider(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    id: StripId,
+    band: u8,
+    field: EqField,
+    current: f32,
+) {
+    let (min, max, label, unit, log, default) = match field {
+        EqField::Freq => (
+            EQ_MIN_HZ,
+            EQ_MAX_HZ,
+            "inspector.eq_freq",
+            "Hz",
+            true,
+            StripEq::default().bands[band as usize].freq_hz,
+        ),
+        EqField::Gain => (
+            -EQ_MAX_GAIN_DB,
+            EQ_MAX_GAIN_DB,
+            "inspector.eq_gain",
+            "dB",
+            false,
+            0.0,
+        ),
+        EqField::Q => (EQ_MIN_Q, EQ_MAX_Q, "inspector.eq_q", "", true, 0.71),
+    };
+    let mut v = current;
+    let r = ui.add(
+        Knob::new(&mut v, min..=max, default)
+            .log(log)
+            .unit(unit)
+            .label(t(label)),
+    );
+    if r.changed() {
+        app.exec_merging(
+            Command::SetStripEq {
+                id,
+                band,
+                field,
+                value: v,
+            },
+            MergeKey::of(&("seq", id.0, band, field as u8)),
+        );
+    }
+    if r.drag_stopped() || r.double_clicked() {
+        app.end_gesture();
+    }
+}
+
+/// The EQ's magnitude response, 20 Hz to 20 kHz on a log axis, ±18 dB, with a datum at
+/// 0 dB and a mark at each band's frequency. Drawn from the same coefficients the audio
+/// thread runs (`cantus_dsp::ChannelEq`), so the picture cannot disagree with the sound.
+pub fn eq_curve(ui: &mut egui::Ui, eq: &StripEq) {
+    let pal = theme::p();
+    let width = ui.available_width() - space::S2;
+    let (rect, _) = ui.allocate_exact_size(vec2(width, space::GRID * 14.0), Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
+    let sr = 48_000.0;
+    let mut dsp = cantus_dsp::ChannelEq::default();
+    for (i, b) in eq.bands.iter().enumerate() {
+        dsp.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
+    }
+    let x_of = |hz: f32| {
+        let f = (hz.max(EQ_MIN_HZ) / EQ_MIN_HZ).ln() / (EQ_MAX_HZ / EQ_MIN_HZ).ln();
+        rect.left() + f * rect.width()
+    };
+    let y_of =
+        |db: f32| rect.center().y - (db / EQ_MAX_GAIN_DB).clamp(-1.0, 1.0) * rect.height() * 0.5;
+    // Datum and decade lines.
+    p.hline(rect.x_range(), y_of(0.0), Stroke::new(1.0, pal.grid_strong));
+    for hz in [100.0, 1_000.0, 10_000.0] {
+        p.vline(x_of(hz), rect.y_range(), Stroke::new(1.0, pal.grid));
+        p.text(
+            pos2(x_of(hz) + 2.0, rect.bottom() - 1.0),
+            Align2::LEFT_BOTTOM,
+            crate::views::mixer::hz_text(hz),
+            design::paint::caption(),
+            pal.text_dim,
+        );
+    }
+    let n = 96;
+    let points: Vec<egui::Pos2> = (0..=n)
+        .map(|i| {
+            let f = i as f32 / n as f32;
+            let hz = EQ_MIN_HZ * (EQ_MAX_HZ / EQ_MIN_HZ).powf(f);
+            pos2(x_of(hz), y_of(dsp.magnitude_db(sr, hz)))
+        })
+        .collect();
+    let tone = if eq.is_flat() {
+        pal.text_dim
+    } else {
+        pal.gold_bright
+    };
+    p.add(egui::Shape::line(points, Stroke::new(1.5, tone)));
+    for b in &eq.bands {
+        let c = pos2(x_of(b.freq_hz), y_of(b.gain_db));
+        p.circle_filled(c, 3.0, tone);
+    }
+    p.rect_stroke(
+        rect,
+        pal.corner_radius,
+        Stroke::new(1.0, pal.grid_strong),
+        StrokeKind::Inside,
+    );
+}
+
+/// The strip's sends, with room for a level slider each; the mixer has the same rows in
+/// a narrower form.
+fn sends_section(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
+    let id = strip.id;
+    ui.horizontal(|ui| {
+        section(ui, "inspector.sends");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let targets: Vec<(StripId, usize, String)> = app
+                .project()
+                .strips
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| {
+                    s.id != id
+                        && strip.send_to(s.id).is_none()
+                        && !app.project().routing_would_cycle(id, Some(s.id))
+                })
+                .map(|(i, s)| (s.id, i + 1, s.name.clone()))
+                .collect();
+            ui.menu_button(t("inspector.send_add"), |ui| {
+                if targets.is_empty() {
+                    ui.label(t("mixer.send_none"));
+                }
+                for (sid, n, name) in &targets {
+                    let text = if name.is_empty() {
+                        tf("mixer.send_to", &[("n", n)])
+                    } else {
+                        format!("{} · {name}", tf("mixer.send_to", &[("n", n)]))
+                    };
+                    if ui.button(text).clicked() {
+                        app.set_strip_send(id, Send::new(*sid));
+                        app.end_gesture();
+                        ui.close();
+                    }
+                }
+            })
+            .response
+            .on_hover_text(t("mixer.send_add"));
+        });
+    });
+    if strip.sends.is_empty() {
+        ui.label(
+            RichText::new(t("inspector.sends_none"))
+                .text_style(design::caption())
+                .color(theme::p().text_dim),
+        );
+    }
+    for send in &strip.sends {
+        let Some(n) = app.project().strip_number(send.to) else {
+            continue;
+        };
+        let name = app
+            .project()
+            .strip(send.to)
+            .map(|s| s.name.clone())
+            .unwrap_or_default();
+        Elevation::Card.frame(&theme::p()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let mut on = send.enabled;
+                if ui.checkbox(&mut on, "").changed() {
+                    app.set_strip_send(
+                        id,
+                        Send {
+                            enabled: on,
+                            ..*send
+                        },
+                    );
+                    app.end_gesture();
+                }
+                let label = if name.is_empty() {
+                    tf("mixer.send_to", &[("n", &n)])
+                } else {
+                    format!("{} · {name}", tf("mixer.send_to", &[("n", &n)]))
+                };
+                ui.label(RichText::new(label).text_style(design::strong()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(t("effect.remove_short"))
+                        .on_hover_text(t("mixer.send_remove"))
+                        .clicked()
+                    {
+                        app.remove_strip_send(id, send.to);
+                    }
+                });
+            });
+            let mut level = send.level;
+            let r = ui.add(
+                Knob::new(&mut level, 0.0..=1.0, 1.0)
+                    .unit("%")
+                    .label(t("track.gain")),
+            );
+            if r.changed() {
+                app.set_strip_send(id, Send { level, ..*send });
+            }
+            if r.drag_stopped() || r.double_clicked() {
+                app.end_gesture();
+            }
+        });
+    }
 }
 
 /// A panel heading: the accent colour carries the hierarchy, the semibold face carries
@@ -573,16 +1032,13 @@ fn param_slider(
 ) {
     let info = param.info();
     let mut v = current;
-    let mut slider = egui::Slider::new(&mut v, info.min..=info.max)
-        .text(t(info.label_key))
-        .logarithmic(info.logarithmic);
-    if !info.unit.is_empty() {
-        slider = slider.suffix(format!(" {}", info.unit));
-    }
-    if info.stepped {
-        slider = slider.step_by(1.0);
-    }
-    let r = ui.add(slider);
+    let r = ui.add(
+        Knob::new(&mut v, info.min..=info.max, info.default)
+            .log(info.logarithmic)
+            .stepped(info.stepped)
+            .unit(info.unit)
+            .label(t(info.label_key)),
+    );
     if r.changed() {
         app.exec_merging(
             Command::SetInstrumentParam {
@@ -593,30 +1049,47 @@ fn param_slider(
             MergeKey::of(&("param", id.0, param as u8)),
         );
     }
-    if r.drag_stopped() || r.lost_focus() {
+    if r.drag_stopped() || r.double_clicked() {
         app.end_gesture();
-    }
-    if r.double_clicked() {
-        app.exec(Command::SetInstrumentParam {
-            track: id,
-            param: param.into(),
-            value: info.default,
-        });
     }
 }
 
-fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectSlot]) {
+fn effects(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
+    let id = strip.id;
+    let slots: &[EffectSlot] = &strip.effects;
     ui.horizontal(|ui| {
         heading(ui, &t("inspector.effects"));
+        ui.label(
+            RichText::new(tf(
+                "inspector.effects_count",
+                &[("n", &slots.len()), ("max", &MAX_INSERTS)],
+            ))
+            .text_style(design::caption())
+            .color(theme::p().text_dim),
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.menu_button(t("effect.add"), |ui| {
-                for kind in EffectKind::ALL {
-                    if ui.button(t(kind.name_key())).clicked() {
-                        ui.close();
-                        app.add_effect(id, kind);
+            let full = slots.len() >= MAX_INSERTS;
+            ui.add_enabled_ui(!full, |ui| {
+                ui.menu_button(t("effect.add"), |ui| {
+                    for kind in EffectKind::ALL {
+                        if ui.button(t(kind.name_key())).clicked() {
+                            ui.close();
+                            app.add_effect(id, kind);
+                        }
                     }
-                }
+                    // Plug-ins made to the market's standards (ADR 0019).
+                    crate::views::plugins::insert_menu(app, ui, id);
+                })
+                .response
+                .on_disabled_hover_text(t("effect.full"));
             });
+            if !strip.fx_enabled {
+                ui.label(
+                    RichText::new(t("mixer.fx_off"))
+                        .text_style(design::caption())
+                        .color(theme::p().danger),
+                );
+            }
         });
     });
     let n = slots.len();
@@ -630,12 +1103,18 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
                     .changed()
                 {
                     app.exec(Command::SetEffectBypass {
-                        track: id,
+                        strip: id,
                         effect: slot.id,
                         bypass: !on,
                     });
                 }
-                ui.label(RichText::new(t(slot.spec.kind.name_key())).text_style(design::strong()));
+                if slot.spec.kind == EffectKind::External {
+                    crate::views::plugins::slot_title(app, ui, slot);
+                } else {
+                    ui.label(
+                        RichText::new(t(slot.spec.kind.name_key())).text_style(design::strong()),
+                    );
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .small_button(t("effect.remove_short"))
@@ -650,7 +1129,7 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
                         .clicked()
                     {
                         app.exec(Command::MoveEffect {
-                            track: id,
+                            strip: id,
                             effect: slot.id,
                             index: i + 1,
                         });
@@ -661,48 +1140,73 @@ fn effects(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, slots: &[EffectS
                         .clicked()
                     {
                         app.exec(Command::MoveEffect {
-                            track: id,
+                            strip: id,
                             effect: slot.id,
                             index: i - 1,
                         });
                     }
                 });
             });
-            for info in slot.spec.kind.params() {
-                let mut v = slot.spec.get(info.key);
-                let mut slider = egui::Slider::new(&mut v, info.min..=info.max)
-                    .text(t(info.label_key))
-                    .logarithmic(info.logarithmic);
-                if !info.unit.is_empty() {
-                    slider = slider.suffix(format!(" {}", info.unit));
-                }
-                if info.stepped {
-                    slider = slider.step_by(1.0);
-                }
-                let r = ui.add(slider);
-                if r.changed() {
-                    app.exec_merging(
-                        Command::SetEffectParam {
-                            track: id,
-                            effect: slot.id,
-                            key: info.key.to_string(),
-                            value: v,
-                        },
-                        MergeKey::of(&("fx", slot.id.0, info.key)),
-                    );
-                }
-                if r.drag_stopped() || r.lost_focus() {
-                    app.end_gesture();
-                }
-                if r.double_clicked() {
-                    app.exec(Command::SetEffectParam {
-                        track: id,
-                        effect: slot.id,
-                        key: info.key.to_string(),
-                        value: info.default,
-                    });
+            // An effect with an editor of its own shows what it does, and opens the editor;
+            // its parameters are not a row of knobs here.
+            if slot.spec.kind.has_editor() {
+                let preview = match slot.spec.kind {
+                    EffectKind::Compressor => crate::views::comp_editor::mini_curve(ui, &slot.spec),
+                    EffectKind::Eq => crate::views::eq_editor::mini_curve(ui, &slot.spec),
+                    EffectKind::External => crate::views::plugins::preview(app, ui, slot),
+                    _ => crate::views::fx::preview(ui, &slot.spec),
+                };
+                if preview.clicked() || ui.button(t("eq.open")).clicked() {
+                    app.open_effect_editor(id, slot.id);
                 }
             }
+            knob_row(ui, |ui| {
+                // The slot's own dry/wet, outside the effect: FL's knob beside every slot.
+                let mut mix = slot.mix;
+                let m = ui.add(
+                    Knob::new(&mut mix, 0.0..=1.0, 1.0)
+                        .unit("%")
+                        .label(t("effect.mix")),
+                );
+                if m.changed() {
+                    app.exec_merging(
+                        Command::SetEffectMix {
+                            strip: id,
+                            effect: slot.id,
+                            mix,
+                        },
+                        MergeKey::of(&("fxmix", slot.id.0)),
+                    );
+                }
+                if m.drag_stopped() || m.double_clicked() {
+                    app.end_gesture();
+                }
+                let own_editor = slot.spec.kind.has_editor();
+                for info in slot.spec.kind.params().iter().filter(|_| !own_editor) {
+                    let mut v = slot.spec.get(info.key);
+                    let r = ui.add(
+                        Knob::new(&mut v, info.min..=info.max, info.default)
+                            .log(info.logarithmic)
+                            .stepped(info.stepped)
+                            .unit(if info.key == "mix" { "%" } else { info.unit })
+                            .label(t(info.label_key)),
+                    );
+                    if r.changed() {
+                        app.exec_merging(
+                            Command::SetEffectParam {
+                                strip: id,
+                                effect: slot.id,
+                                key: info.key.to_string(),
+                                value: v,
+                            },
+                            MergeKey::of(&("fx", slot.id.0, info.key)),
+                        );
+                    }
+                    if r.drag_stopped() || r.double_clicked() {
+                        app.end_gesture();
+                    }
+                }
+            });
         });
     }
     if slots.is_empty() {

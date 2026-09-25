@@ -1,0 +1,64 @@
+[package]
+name = "cantus-plugins"
+description = "Cantus's seven effects as CLAP and VST3 plug-ins, for any other host (ADR 0020)."
+# GPL like the application it comes from; every dependency below is MIT or Apache-2.0.
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# `cdylib` is the plug-in; `rlib` is what the tests and the bundler link against.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# A development build carries all seven; the bundler builds each plug-in on its own with
+# `--no-default-features --features <name>`, so each binary holds one plug-in's code.
+default = ["all", "editor"]
+all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate"]
+# The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
+# baseview). Porta's is the first; the others show the host's generic interface.
+editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
+eq = []
+compressor = []
+limiter = []
+space = []
+multiband = []
+deesser = []
+gate = []
+
+[dependencies]
+cantus-core.workspace = true
+cantus-dsp.workspace = true
+cantus-engine.workspace = true
+serde_json.workspace = true
+rtrb.workspace = true
+clap-sys = "0.5"
+vst3 = "0.3"
+cantus-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+egui-baseview = { version = "0.7.2", default-features = false, features = ["opengl", "log"], optional = true }
+baseview = { version = "0.3.4", features = ["opengl"], optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi"] }
+
+[dev-dependencies]
+cantus-core.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+libloading = "0.8"
+# The round trip (tests/hosted_in_cantus.rs): our plug-ins loaded by Cantus's own host.
+cantus-host.workspace = true
+tempfile = "3"
+
+[target.'cfg(windows)'.dev-dependencies]
+# For the plug-in window example: a host window, and a capture of it.
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_System_LibraryLoader"] }
+
+[[example]]
+name = "editor_window"
+required-features = ["editor"]

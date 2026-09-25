@@ -235,14 +235,21 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
                 Some("reverb") => EffectKind::Reverb,
                 _ => return Err(BridgeError::BadArgument("kind")),
             };
+            // Inserts live on the strip the track feeds. A track routed straight to the
+            // master has nowhere to put one, which is reported rather than guessed.
+            let strip = bus
+                .project()
+                .track(track)
+                .and_then(|t| t.strip)
+                .ok_or(BridgeError::BadArgument("track has no mixer strip"))?;
             let slot = bus.new_effect(kind);
             let index = bus
                 .project()
-                .track(track)
-                .map(|t| t.effects.len())
+                .strip(strip)
+                .map(|s| s.effects.len())
                 .unwrap_or(0);
             Ok(Some(Command::InsertEffect {
-                track,
+                strip,
                 index,
                 slot: Box::new(slot),
             }))

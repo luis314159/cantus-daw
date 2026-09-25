@@ -39,6 +39,22 @@ pub enum CommandError {
     ParamNotApplicable(TrackId),
     #[error("effect {0} not found")]
     EffectNotFound(EffectId),
+    #[error("mixer strip {0} not found")]
+    StripNotFound(StripId),
+    #[error("routing {0} there would feed it back into itself")]
+    RoutingCycle(StripId),
+    #[error("mixer strip {0} is still in use")]
+    StripInUse(StripId),
+    #[error("mixer strip {0} has no room for another insert")]
+    TooManyInserts(StripId),
+    #[error("mixer strip {0} has no room for another send")]
+    TooManySends(StripId),
+    #[error("mixer strip {0} has no send there")]
+    SendNotFound(StripId),
+    #[error("mixer group {0} not found")]
+    GroupNotFound(GroupId),
+    #[error("mixer group {0} still has strips in it")]
+    GroupInUse(GroupId),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -111,14 +127,125 @@ pub enum Command {
         id: TrackId,
         pan: f32,
     },
-    /// 0 is mono, 1 as recorded, 2 twice as wide.
-    SetTrackWidth {
+    /// Which mixer strip the track feeds; `None` is the master.
+    SetTrackStrip {
         id: TrackId,
+        strip: Option<StripId>,
+    },
+
+    // --- mixer strips -----------------------------------------------------------------
+    /// Add a strip at `index` in the mixer's order. The `+` at the end of the mixer, and
+    /// the inverse of removing one.
+    InsertStrip {
+        index: usize,
+        strip: Box<MixerStrip>,
+    },
+    /// Remove a strip nothing feeds and nothing is routed to. Refused otherwise: a strip
+    /// that vanished under a track would silently reroute it to the master.
+    RemoveStrip {
+        id: StripId,
+    },
+    SetStripName {
+        id: StripId,
+        name: String,
+    },
+    SetStripGain {
+        id: StripId,
+        gain_db: f32,
+    },
+    SetStripPan {
+        id: StripId,
+        pan: f32,
+    },
+    /// 0 is mono, 1 as recorded, 2 twice as wide.
+    SetStripWidth {
+        id: StripId,
         width: f32,
     },
-    SetTrackPhaseInvert {
-        id: TrackId,
+    SetStripPhaseInvert {
+        id: StripId,
         invert: bool,
+    },
+    SetStripMute {
+        id: StripId,
+        muted: bool,
+    },
+    /// Where the strip's output goes. Refused if it would close a loop.
+    SetStripOutput {
+        id: StripId,
+        output: Option<StripId>,
+    },
+    SetStripColor {
+        id: StripId,
+        color: Option<Color>,
+    },
+    /// Solo with connected routes (see [`MixerStrip::soloed`]).
+    SetStripSolo {
+        id: StripId,
+        soloed: bool,
+    },
+    SetStripSwapChannels {
+        id: StripId,
+        swap: bool,
+    },
+    /// The whole insert chain in or out.
+    SetStripFxEnabled {
+        id: StripId,
+        enabled: bool,
+    },
+    /// One number of one band of the strip's EQ.
+    SetStripEq {
+        id: StripId,
+        band: u8,
+        field: EqField,
+        value: f32,
+    },
+    /// Add a send or change one: matched by destination. Refused if it would close a
+    /// loop, if the strip is the destination, or if the strip has no room for another.
+    SetStripSend {
+        id: StripId,
+        send: Send,
+    },
+    RemoveStripSend {
+        id: StripId,
+        to: StripId,
+    },
+    /// Move a strip to another place on the desk. Numbers follow the order; every route
+    /// is by id, so nothing else changes.
+    MoveStrip {
+        id: StripId,
+        index: usize,
+    },
+    /// Pin a strip left or right, or let it scroll with the middle of the desk.
+    SetStripDock {
+        id: StripId,
+        dock: Dock,
+    },
+    /// Put a strip behind a group's separator, or take it out (`None`).
+    SetStripGroup {
+        id: StripId,
+        group: Option<GroupId>,
+    },
+    InsertStripGroup {
+        index: usize,
+        group: Box<StripGroup>,
+    },
+    /// Remove a group nothing is in. Refused otherwise; the app takes the members out
+    /// first, in the same batch.
+    RemoveStripGroup {
+        id: GroupId,
+    },
+    SetStripGroupName {
+        id: GroupId,
+        name: String,
+    },
+    SetStripGroupColor {
+        id: GroupId,
+        color: Color,
+    },
+    SetStripGroupCollapsed {
+        id: GroupId,
+        collapsed: bool,
     },
     /// How tall the track is drawn, as a multiple of the base row. A view thing, and a
     /// command all the same: it is stored in the project, so it is undoable like the rest.
@@ -180,31 +307,77 @@ pub enum Command {
         path: Option<String>,
     },
 
-    // --- effects ----------------------------------------------------------------------
+    // --- effects: inserts live on mixer strips ----------------------------------------
     InsertEffect {
-        track: TrackId,
+        strip: StripId,
         index: usize,
         slot: Box<EffectSlot>,
     },
     RemoveEffect {
-        track: TrackId,
+        strip: StripId,
         effect: EffectId,
     },
     MoveEffect {
-        track: TrackId,
+        strip: StripId,
         effect: EffectId,
         index: usize,
     },
     SetEffectBypass {
-        track: TrackId,
+        strip: StripId,
         effect: EffectId,
         bypass: bool,
     },
     SetEffectParam {
-        track: TrackId,
+        strip: StripId,
         effect: EffectId,
         key: String,
         value: f32,
+    },
+    /// Take a parameter back to "never set": it reads as its default and is not written
+    /// to the file. The inverse of setting a parameter a sparse effect did not store, so
+    /// undo leaves the project exactly as it was, map and all.
+    ClearEffectParam {
+        strip: StripId,
+        effect: EffectId,
+        key: String,
+    },
+    /// Key an effect's detector from another strip, or back to its own input (`None`).
+    /// Refused for a kind that takes no key, for the effect's own strip, and for a key that
+    /// would close a loop.
+    SetEffectSidechain {
+        strip: StripId,
+        effect: EffectId,
+        source: Option<StripId>,
+    },
+    /// The slot's own dry/wet ([`EffectSlot::mix`]).
+    SetEffectMix {
+        strip: StripId,
+        effect: EffectId,
+        mix: f32,
+    },
+    /// One parameter of a hosted plug-in, by the plug-in's id, in its own range; `None`
+    /// takes the value out of the project (the plug-in's state decides it). Only for an
+    /// [`crate::EffectKind::External`] slot.
+    SetPluginParam {
+        strip: StripId,
+        effect: EffectId,
+        id: u32,
+        value: Option<f64>,
+    },
+    /// A hosted plug-in's whole state and parameter values at once: a preset loaded, the
+    /// other side of A/B, or a state the plug-in changed by itself.
+    SetPluginState {
+        strip: StripId,
+        effect: EffectId,
+        state: crate::external::PluginState,
+        params: std::collections::BTreeMap<u32, f64>,
+    },
+    /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
+    /// Refused for a kind that takes no notes and for a track that does not exist.
+    SetEffectMidiSource {
+        strip: StripId,
+        effect: EffectId,
+        source: Option<TrackId>,
     },
 
     // --- clips ------------------------------------------------------------------------
@@ -307,8 +480,37 @@ impl Command {
             SetTrackColor { .. } => "cmd.set_track_color",
             SetTrackGain { .. } => "cmd.set_track_gain",
             SetTrackPan { .. } => "cmd.set_track_pan",
-            SetTrackWidth { .. } => "cmd.set_track_width",
-            SetTrackPhaseInvert { .. } => "cmd.set_track_phase",
+            SetTrackStrip { .. } => "cmd.set_track_strip",
+            InsertStrip { .. } => "cmd.insert_strip",
+            RemoveStrip { .. } => "cmd.remove_strip",
+            SetStripName { .. } => "cmd.set_strip_name",
+            SetStripGain { .. } => "cmd.set_strip_gain",
+            SetStripPan { .. } => "cmd.set_strip_pan",
+            SetStripWidth { .. } => "cmd.set_track_width",
+            SetStripPhaseInvert { .. } => "cmd.set_track_phase",
+            SetStripMute { .. } => "cmd.set_strip_mute",
+            SetStripOutput { .. } => "cmd.set_strip_output",
+            SetStripColor { .. } => "cmd.set_strip_color",
+            SetStripSolo { .. } => "cmd.set_strip_solo",
+            SetStripSwapChannels { .. } => "cmd.set_strip_swap",
+            SetStripFxEnabled { .. } => "cmd.set_strip_fx_enabled",
+            SetStripEq { .. } => "cmd.set_strip_eq",
+            SetStripSend { .. } => "cmd.set_strip_send",
+            RemoveStripSend { .. } => "cmd.remove_strip_send",
+            MoveStrip { .. } => "cmd.move_strip",
+            SetStripDock { .. } => "cmd.set_strip_dock",
+            SetStripGroup { .. } => "cmd.set_strip_group",
+            InsertStripGroup { .. } => "cmd.insert_strip_group",
+            RemoveStripGroup { .. } => "cmd.remove_strip_group",
+            SetStripGroupName { .. } => "cmd.set_strip_group_name",
+            SetStripGroupColor { .. } => "cmd.set_strip_group_color",
+            SetStripGroupCollapsed { .. } => "cmd.set_strip_group_collapsed",
+            SetEffectMix { .. } => "cmd.set_effect_mix",
+            SetPluginParam { .. } => "cmd.set_plugin_param",
+            SetPluginState { .. } => "cmd.set_plugin_state",
+            ClearEffectParam { .. } => "cmd.set_effect_param",
+            SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
+            SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
             SetTrackHeight { .. } => "cmd.set_track_height",
             SetTrackIcon { .. } => "cmd.set_track_icon",
             SetTrackMute { .. } => "cmd.set_track_mute",
@@ -361,11 +563,88 @@ impl Command {
             | (SetTrackColor { id: a, .. }, SetTrackColor { id: b, .. })
             | (SetTrackGain { id: a, .. }, SetTrackGain { id: b, .. })
             | (SetTrackPan { id: a, .. }, SetTrackPan { id: b, .. })
-            | (SetTrackWidth { id: a, .. }, SetTrackWidth { id: b, .. })
-            | (SetTrackPhaseInvert { id: a, .. }, SetTrackPhaseInvert { id: b, .. })
+            | (SetTrackStrip { id: a, .. }, SetTrackStrip { id: b, .. })
             | (SetTrackMute { id: a, .. }, SetTrackMute { id: b, .. })
             | (SetTrackSolo { id: a, .. }, SetTrackSolo { id: b, .. }) => a == b,
             (SetTrackHeight { id: a, .. }, SetTrackHeight { id: b, .. }) => a == b,
+            (SetStripName { id: a, .. }, SetStripName { id: b, .. })
+            | (SetStripGain { id: a, .. }, SetStripGain { id: b, .. })
+            | (SetStripPan { id: a, .. }, SetStripPan { id: b, .. })
+            | (SetStripWidth { id: a, .. }, SetStripWidth { id: b, .. })
+            | (SetStripPhaseInvert { id: a, .. }, SetStripPhaseInvert { id: b, .. })
+            | (SetStripMute { id: a, .. }, SetStripMute { id: b, .. })
+            | (SetStripOutput { id: a, .. }, SetStripOutput { id: b, .. })
+            | (SetStripColor { id: a, .. }, SetStripColor { id: b, .. })
+            | (SetStripSolo { id: a, .. }, SetStripSolo { id: b, .. })
+            | (SetStripSwapChannels { id: a, .. }, SetStripSwapChannels { id: b, .. })
+            | (SetStripFxEnabled { id: a, .. }, SetStripFxEnabled { id: b, .. })
+            | (SetStripDock { id: a, .. }, SetStripDock { id: b, .. })
+            | (SetStripGroup { id: a, .. }, SetStripGroup { id: b, .. }) => a == b,
+            (SetStripGroupName { id: a, .. }, SetStripGroupName { id: b, .. })
+            | (SetStripGroupColor { id: a, .. }, SetStripGroupColor { id: b, .. })
+            | (SetStripGroupCollapsed { id: a, .. }, SetStripGroupCollapsed { id: b, .. }) => {
+                a == b
+            }
+            (
+                SetStripEq {
+                    id: a,
+                    band: ba,
+                    field: fa,
+                    ..
+                },
+                SetStripEq {
+                    id: b,
+                    band: bb,
+                    field: fb,
+                    ..
+                },
+            ) => a == b && ba == bb && fa == fb,
+            (SetStripSend { id: a, send: sa }, SetStripSend { id: b, send: sb }) => {
+                a == b && sa.to == sb.to
+            }
+            (
+                SetEffectMix {
+                    strip: a,
+                    effect: ea,
+                    ..
+                },
+                SetEffectMix {
+                    strip: b,
+                    effect: eb,
+                    ..
+                },
+            ) => a == b && ea == eb,
+            (
+                SetPluginParam {
+                    strip: a,
+                    effect: ea,
+                    id: ia,
+                    ..
+                },
+                SetPluginParam {
+                    strip: b,
+                    effect: eb,
+                    id: ib,
+                    ..
+                },
+            ) => a == b && ea == eb && ia == ib,
+            (
+                SetPluginState {
+                    strip: a,
+                    effect: ea,
+                    ..
+                },
+                SetPluginState {
+                    strip: b,
+                    effect: eb,
+                    ..
+                },
+            ) => a == b && ea == eb,
+            // A batch of the same shape — the ganged faders of a multi-selection — is one
+            // gesture too: every pair supersedes, so the batch does.
+            (Batch { commands: a, .. }, Batch { commands: b, .. }) => {
+                a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.supersedes(y))
+            }
             (
                 SetInstrumentParam {
                     track: a,
@@ -380,25 +659,25 @@ impl Command {
             ) => a == b && pa == pb,
             (
                 SetEffectBypass {
-                    track: a,
+                    strip: a,
                     effect: ea,
                     ..
                 },
                 SetEffectBypass {
-                    track: b,
+                    strip: b,
                     effect: eb,
                     ..
                 },
             ) => a == b && ea == eb,
             (
                 SetEffectParam {
-                    track: a,
+                    strip: a,
                     effect: ea,
                     key: ka,
                     ..
                 },
                 SetEffectParam {
-                    track: b,
+                    strip: b,
                     effect: eb,
                     key: kb,
                     ..
@@ -587,20 +866,290 @@ impl Command {
                 let old = std::mem::replace(&mut t.pan, pan.clamp(-1.0, 1.0));
                 Ok(SetTrackPan { id, pan: old })
             }
-            SetTrackWidth { id, width } => {
-                let width = clamp_width(width)?;
+            SetTrackStrip { id, strip } => {
+                if let Some(sid) = strip {
+                    if project.strip(sid).is_none() {
+                        return Err(CommandError::StripNotFound(sid));
+                    }
+                }
                 let t = project
                     .track_mut(id)
                     .ok_or(CommandError::TrackNotFound(id))?;
-                let old = std::mem::replace(&mut t.width, width);
-                Ok(SetTrackWidth { id, width: old })
+                let old = std::mem::replace(&mut t.strip, strip);
+                Ok(SetTrackStrip { id, strip: old })
             }
-            SetTrackPhaseInvert { id, invert } => {
-                let t = project
-                    .track_mut(id)
-                    .ok_or(CommandError::TrackNotFound(id))?;
-                let old = std::mem::replace(&mut t.phase_invert, invert);
-                Ok(SetTrackPhaseInvert { id, invert: old })
+
+            InsertStrip { index, strip } => {
+                let len = project.strips.len();
+                if index > len {
+                    return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                if project.strip(strip.id).is_some() {
+                    return Err(CommandError::DuplicateId(strip.id.0));
+                }
+                let id = strip.id;
+                project.strips.insert(index, *strip);
+                Ok(RemoveStrip { id })
+            }
+            RemoveStrip { id } => {
+                let index = project
+                    .strip_index(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let fed = project.tracks.iter().any(|t| t.strip == Some(id))
+                    || project.strips.iter().any(|s| s.feeds().any(|to| to == id))
+                    || project.strips.iter().any(|s| s.keys().any(|k| k == id));
+                if fed {
+                    return Err(CommandError::StripInUse(id));
+                }
+                let strip = project.strips.remove(index);
+                Ok(InsertStrip {
+                    index,
+                    strip: Box::new(strip),
+                })
+            }
+            SetStripName { id, name } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.name, name);
+                Ok(SetStripName { id, name: old })
+            }
+            SetStripGain { id, gain_db } => {
+                let gain_db = clamp_gain(gain_db)?;
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.gain_db, gain_db);
+                Ok(SetStripGain { id, gain_db: old })
+            }
+            SetStripPan { id, pan } => {
+                if !pan.is_finite() {
+                    return Err(CommandError::InvalidValue("pan".into()));
+                }
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.pan, pan.clamp(-1.0, 1.0));
+                Ok(SetStripPan { id, pan: old })
+            }
+            SetStripWidth { id, width } => {
+                let width = clamp_width(width)?;
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.width, width);
+                Ok(SetStripWidth { id, width: old })
+            }
+            SetStripPhaseInvert { id, invert } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.phase_invert, invert);
+                Ok(SetStripPhaseInvert { id, invert: old })
+            }
+            SetStripMute { id, muted } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.muted, muted);
+                Ok(SetStripMute { id, muted: old })
+            }
+            SetStripOutput { id, output } => {
+                if let Some(o) = output {
+                    if project.strip(o).is_none() {
+                        return Err(CommandError::StripNotFound(o));
+                    }
+                }
+                if project.strip(id).is_none() {
+                    return Err(CommandError::StripNotFound(id));
+                }
+                if project.routing_would_cycle(id, output) {
+                    return Err(CommandError::RoutingCycle(id));
+                }
+                let s = project.strip_mut(id).expect("checked above");
+                let old = std::mem::replace(&mut s.output, output);
+                Ok(SetStripOutput { id, output: old })
+            }
+            SetStripColor { id, color } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.color, color);
+                Ok(SetStripColor { id, color: old })
+            }
+            SetStripSolo { id, soloed } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.soloed, soloed);
+                Ok(SetStripSolo { id, soloed: old })
+            }
+            SetStripSwapChannels { id, swap } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.swap_channels, swap);
+                Ok(SetStripSwapChannels { id, swap: old })
+            }
+            SetStripFxEnabled { id, enabled } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.fx_enabled, enabled);
+                Ok(SetStripFxEnabled { id, enabled: old })
+            }
+            SetStripEq {
+                id,
+                band,
+                field,
+                value,
+            } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                if band as usize >= s.eq.bands.len() {
+                    return Err(CommandError::IndexOutOfRange {
+                        index: band as usize,
+                        len: s.eq.bands.len(),
+                    });
+                }
+                let old = s.eq.get(band as usize, field);
+                s.eq.set(band as usize, field, value)
+                    .ok_or_else(|| CommandError::InvalidValue("eq".into()))?;
+                Ok(SetStripEq {
+                    id,
+                    band,
+                    field,
+                    value: old,
+                })
+            }
+            SetStripSend { id, send } => {
+                if !send.level.is_finite() {
+                    return Err(CommandError::InvalidValue("send level".into()));
+                }
+                if project.strip(send.to).is_none() {
+                    return Err(CommandError::StripNotFound(send.to));
+                }
+                if project.strip(id).is_none() {
+                    return Err(CommandError::StripNotFound(id));
+                }
+                let existing = project.strip(id).and_then(|s| s.send_to(send.to)).copied();
+                // A send that is already there is a route already; only a *new* one can
+                // close a loop or run out of room.
+                if existing.is_none() {
+                    if project.routing_would_cycle(id, Some(send.to)) {
+                        return Err(CommandError::RoutingCycle(id));
+                    }
+                    if project.strip(id).map(|s| s.sends.len()).unwrap_or(0) >= MAX_SENDS {
+                        return Err(CommandError::TooManySends(id));
+                    }
+                }
+                let send = Send {
+                    level: send.level.clamp(0.0, 1.0),
+                    ..send
+                };
+                let s = project.strip_mut(id).expect("checked above");
+                match s.send_to_mut(send.to) {
+                    Some(slot) => {
+                        let old = std::mem::replace(slot, send);
+                        Ok(SetStripSend { id, send: old })
+                    }
+                    None => {
+                        s.sends.push(send);
+                        Ok(RemoveStripSend { id, to: send.to })
+                    }
+                }
+            }
+            RemoveStripSend { id, to } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let index = s
+                    .sends
+                    .iter()
+                    .position(|x| x.to == to)
+                    .ok_or(CommandError::SendNotFound(id))?;
+                let old = s.sends.remove(index);
+                Ok(SetStripSend { id, send: old })
+            }
+            MoveStrip { id, index } => {
+                let from = project
+                    .strip_index(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let len = project.strips.len();
+                if index >= len {
+                    return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                let s = project.strips.remove(from);
+                project.strips.insert(index, s);
+                Ok(MoveStrip { id, index: from })
+            }
+            SetStripDock { id, dock } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.dock, dock);
+                Ok(SetStripDock { id, dock: old })
+            }
+            SetStripGroup { id, group } => {
+                if let Some(g) = group {
+                    if project.strip_group(g).is_none() {
+                        return Err(CommandError::GroupNotFound(g));
+                    }
+                }
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.group, group);
+                Ok(SetStripGroup { id, group: old })
+            }
+            InsertStripGroup { index, group } => {
+                let len = project.strip_groups.len();
+                if index > len {
+                    return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                if project.strip_group(group.id).is_some() {
+                    return Err(CommandError::DuplicateId(group.id.0));
+                }
+                let id = group.id;
+                project.strip_groups.insert(index, *group);
+                Ok(RemoveStripGroup { id })
+            }
+            RemoveStripGroup { id } => {
+                let index = project
+                    .strip_groups
+                    .iter()
+                    .position(|g| g.id == id)
+                    .ok_or(CommandError::GroupNotFound(id))?;
+                if project.strips.iter().any(|s| s.group == Some(id)) {
+                    return Err(CommandError::GroupInUse(id));
+                }
+                let group = project.strip_groups.remove(index);
+                Ok(InsertStripGroup {
+                    index,
+                    group: Box::new(group),
+                })
+            }
+            SetStripGroupName { id, name } => {
+                let g = project
+                    .strip_group_mut(id)
+                    .ok_or(CommandError::GroupNotFound(id))?;
+                let old = std::mem::replace(&mut g.name, name);
+                Ok(SetStripGroupName { id, name: old })
+            }
+            SetStripGroupColor { id, color } => {
+                let g = project
+                    .strip_group_mut(id)
+                    .ok_or(CommandError::GroupNotFound(id))?;
+                let old = std::mem::replace(&mut g.color, color);
+                Ok(SetStripGroupColor { id, color: old })
+            }
+            SetStripGroupCollapsed { id, collapsed } => {
+                let g = project
+                    .strip_group_mut(id)
+                    .ok_or(CommandError::GroupNotFound(id))?;
+                let old = std::mem::replace(&mut g.collapsed, collapsed);
+                Ok(SetStripGroupCollapsed { id, collapsed: old })
             }
             SetTrackHeight { id, height } => {
                 let t = project
@@ -744,43 +1293,46 @@ impl Command {
                 })
             }
 
-            InsertEffect { track, index, slot } => {
+            InsertEffect { strip, index, slot } => {
                 let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
                 let len = t.effects.len();
                 if index > len {
                     return Err(CommandError::IndexOutOfRange { index, len });
+                }
+                if len >= MAX_INSERTS {
+                    return Err(CommandError::TooManyInserts(strip));
                 }
                 if t.effect(slot.id).is_some() {
                     return Err(CommandError::DuplicateId(slot.id.0));
                 }
                 let id = slot.id;
                 t.effects.insert(index, *slot);
-                Ok(RemoveEffect { track, effect: id })
+                Ok(RemoveEffect { strip, effect: id })
             }
-            RemoveEffect { track, effect } => {
+            RemoveEffect { strip, effect } => {
                 let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
                 let index = t
                     .effect_index(effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
                 let slot = t.effects.remove(index);
                 Ok(InsertEffect {
-                    track,
+                    strip,
                     index,
                     slot: Box::new(slot),
                 })
             }
             MoveEffect {
-                track,
+                strip,
                 effect,
                 index,
             } => {
                 let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
                 let from = t
                     .effect_index(effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
@@ -791,50 +1343,186 @@ impl Command {
                 let e = t.effects.remove(from);
                 t.effects.insert(index, e);
                 Ok(MoveEffect {
-                    track,
+                    strip,
                     effect,
                     index: from,
                 })
             }
             SetEffectBypass {
-                track,
+                strip,
                 effect,
                 bypass,
             } => {
                 let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
                 let e = t
                     .effect_mut(effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
                 let old = std::mem::replace(&mut e.bypass, bypass);
                 Ok(SetEffectBypass {
-                    track,
+                    strip,
                     effect,
                     bypass: old,
                 })
             }
             SetEffectParam {
-                track,
+                strip,
                 effect,
                 key,
                 value,
             } => {
                 let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
                 let e = t
                     .effect_mut(effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
-                let old = e.spec.get(&key);
+                let stored = e.spec.params.get(&key).copied();
                 e.spec
                     .set(&key, value)
                     .ok_or_else(|| CommandError::InvalidValue(format!("effect param {key}")))?;
-                Ok(SetEffectParam {
-                    track,
+                Ok(match stored {
+                    Some(old) => SetEffectParam {
+                        strip,
+                        effect,
+                        key,
+                        value: old,
+                    },
+                    None => ClearEffectParam { strip, effect, key },
+                })
+            }
+            SetEffectSidechain {
+                strip,
+                effect,
+                source,
+            } => {
+                if let Some(src) = source {
+                    if project.strip(src).is_none() {
+                        return Err(CommandError::StripNotFound(src));
+                    }
+                    if src == strip || project.routing_would_cycle(src, Some(strip)) {
+                        return Err(CommandError::RoutingCycle(strip));
+                    }
+                }
+                let t = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                if source.is_some() && !e.spec.takes_sidechain() {
+                    return Err(CommandError::InvalidValue("sidechain".into()));
+                }
+                let old = std::mem::replace(&mut e.sidechain, source);
+                Ok(SetEffectSidechain {
+                    strip,
                     effect,
-                    key,
+                    source: old,
+                })
+            }
+            SetEffectMidiSource {
+                strip,
+                effect,
+                source,
+            } => {
+                if let Some(src) = source {
+                    if project.track(src).is_none() {
+                        return Err(CommandError::TrackNotFound(src));
+                    }
+                }
+                let t = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                if source.is_some() && !e.spec.kind.takes_notes() {
+                    return Err(CommandError::InvalidValue("midi source".into()));
+                }
+                let old = std::mem::replace(&mut e.midi_from, source);
+                Ok(SetEffectMidiSource {
+                    strip,
+                    effect,
+                    source: old,
+                })
+            }
+            ClearEffectParam { strip, effect, key } => {
+                let t = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                if e.spec.kind.param(&key).is_none() {
+                    return Err(CommandError::InvalidValue(format!("effect param {key}")));
+                }
+                Ok(match e.spec.params.remove(&key) {
+                    Some(old) => SetEffectParam {
+                        strip,
+                        effect,
+                        key,
+                        value: old,
+                    },
+                    // Clearing what was never set is nothing, and its inverse is nothing.
+                    None => ClearEffectParam { strip, effect, key },
+                })
+            }
+            SetEffectMix { strip, effect, mix } => {
+                if !mix.is_finite() {
+                    return Err(CommandError::InvalidValue("mix".into()));
+                }
+                let t = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let e = t
+                    .effect_mut(effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let old = std::mem::replace(&mut e.mix, mix.clamp(0.0, 1.0));
+                Ok(SetEffectMix {
+                    strip,
+                    effect,
+                    mix: old,
+                })
+            }
+            SetPluginParam {
+                strip,
+                effect,
+                id,
+                value,
+            } => {
+                if value.is_some_and(|v| !v.is_finite()) {
+                    return Err(CommandError::InvalidValue("plug-in parameter".into()));
+                }
+                let plugin = external_mut(project, strip, effect)?;
+                let old = match value {
+                    Some(v) => plugin.params.insert(id, v),
+                    None => plugin.params.remove(&id),
+                };
+                Ok(SetPluginParam {
+                    strip,
+                    effect,
+                    id,
                     value: old,
+                })
+            }
+            SetPluginState {
+                strip,
+                effect,
+                state,
+                params,
+            } => {
+                if params.values().any(|v| !v.is_finite()) {
+                    return Err(CommandError::InvalidValue("plug-in parameter".into()));
+                }
+                let plugin = external_mut(project, strip, effect)?;
+                let old_state = std::mem::replace(&mut plugin.state, state);
+                let old_params = std::mem::replace(&mut plugin.params, params);
+                Ok(SetPluginState {
+                    strip,
+                    effect,
+                    state: old_state,
+                    params: old_params,
                 })
             }
             InsertClip { track, clip } => {
@@ -847,7 +1535,9 @@ impl Command {
                 }
                 let id = clip.id;
                 t.clips.push(*clip);
-                t.clips.sort_by_key(|c| c.start);
+                // By start, then by id: two clips at the same start must land in the same
+                // order whatever the history, or undo cannot restore a project exactly.
+                t.clips.sort_by_key(|c| (c.start, c.id));
                 Ok(RemoveClip { track, clip: id })
             }
             RemoveClip { track, clip } => {
@@ -881,7 +1571,7 @@ impl Command {
                 let (old_start, old_len) = (c.start, c.length);
                 c.start = start;
                 c.length = length;
-                t.clips.sort_by_key(|c| c.start);
+                t.clips.sort_by_key(|c| (c.start, c.id));
                 Ok(SetClipBounds {
                     track,
                     clip,
@@ -984,7 +1674,7 @@ impl Command {
                     return Err(CommandError::DuplicateId(clip.0));
                 }
                 dst.clips.push(moved);
-                dst.clips.sort_by_key(|c| c.start);
+                dst.clips.sort_by_key(|c| (c.start, c.id));
                 Ok(MoveClipToTrack {
                     from: to,
                     to: from,
@@ -1124,6 +1814,23 @@ fn clamp_width(width: f32) -> Result<f32, CommandError> {
     Ok(width.clamp(0.0, MAX_WIDTH))
 }
 
+/// The hosted plug-in in a slot, for the commands that only mean something there.
+fn external_mut(
+    project: &mut Project,
+    strip: StripId,
+    effect: EffectId,
+) -> Result<&mut crate::external::ExternalPlugin, CommandError> {
+    project
+        .strip_mut(strip)
+        .ok_or(CommandError::StripNotFound(strip))?
+        .effect_mut(effect)
+        .ok_or(CommandError::EffectNotFound(effect))?
+        .spec
+        .external
+        .as_deref_mut()
+        .ok_or_else(|| CommandError::InvalidValue("not a hosted plug-in".into()))
+}
+
 fn validate_clip(c: &Clip) -> Result<(), CommandError> {
     if c.start.is_negative() || c.length <= Ticks::ZERO {
         return Err(CommandError::InvalidValue("clip bounds".into()));
@@ -1258,5 +1965,54 @@ mod tests {
                 .map(|_| p.tempo_bpm),
             Some(999.0)
         );
+    }
+
+    /// Notes into an effect (ADR 0022): set and undone exactly; refused for a missing
+    /// track, a missing effect, and a kind that takes no notes — and a refusal changes
+    /// nothing.
+    #[test]
+    fn an_effect_hears_a_tracks_notes_and_undo_takes_it_back() {
+        let mut p = Project::new("midi fx");
+        let track = p.make_track("Drums");
+        let tid = track.id;
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(track),
+        }
+        .apply(&mut p)
+        .unwrap();
+        let strip = p.strips[0].id;
+        let gate = p.make_effect(crate::effect::EffectKind::Gate);
+        let eq = p.make_effect(crate::effect::EffectKind::Eq);
+        let (gid, eid) = (gate.id, eq.id);
+        p.strip_mut(strip).unwrap().effects.extend([gate, eq]);
+        let before = p.clone();
+        let inv = Command::SetEffectMidiSource {
+            strip,
+            effect: gid,
+            source: Some(tid),
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert_eq!(
+            p.strip(strip).unwrap().effect(gid).unwrap().midi_from,
+            Some(tid)
+        );
+        inv.apply(&mut p).unwrap();
+        assert_eq!(p, before, "undo restores the project exactly");
+        for (effect, source) in [
+            (gid, Some(TrackId(4242))),
+            (eid, Some(tid)),
+            (EffectId(4242), None),
+        ] {
+            assert!(Command::SetEffectMidiSource {
+                strip,
+                effect,
+                source
+            }
+            .apply(&mut p)
+            .is_err());
+            assert_eq!(p, before, "a refused command left something behind");
+        }
     }
 }

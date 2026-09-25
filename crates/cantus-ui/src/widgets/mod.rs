@@ -11,6 +11,9 @@
 //! - [`bar`]: a slider fills from its left end, so a pan at dead centre looks like a pan
 //!   at 3 %. A bipolar control has to fill from its detent outwards, because its meaning
 //!   is a direction and an amount, not a quantity.
+//! - [`knob`]: every other parameter. An instrument or an effect is a grid of values read
+//!   at a glance, and a rail with a number beside it is how a debug panel looks. The knob
+//!   draws its arc from the *default*, so a moved control says so.
 //!
 //! ## Widgets that own the arrow keys
 //!
@@ -25,9 +28,11 @@
 
 pub mod bar;
 pub mod fader;
+pub mod knob;
 
 pub use bar::Bar;
 pub use fader::Fader;
+pub use knob::Knob;
 
 use egui::{Context, Id};
 

@@ -64,6 +64,29 @@ impl AudioSettings {
     }
 }
 
+/// How much of each mixer strip is shown — FL's layout sizes, reduced to the three that
+/// differ in *what* is shown rather than by a few pixels. A preference, not project data:
+/// the same desk is compact on a laptop and wide on a studio screen.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MixerDensity {
+    /// Narrow strips: pan, switches, fader, meter, route. No width bar, EQ bars or sends.
+    Compact,
+    #[default]
+    Normal,
+    /// Wider strips, so every bar has more travel.
+    Wide,
+}
+
+impl MixerDensity {
+    pub fn label_key(self) -> &'static str {
+        match self {
+            MixerDensity::Compact => "mixer.density.compact",
+            MixerDensity::Normal => "mixer.density.normal",
+            MixerDensity::Wide => "mixer.density.wide",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -72,6 +95,9 @@ pub struct Settings {
     pub locale: Option<String>,
     pub autosave_seconds: u64,
     pub ui_scale: f32,
+    pub mixer_density: MixerDensity,
+    /// Show each strip's recent level as a scrolling envelope (FL's meter-wave view).
+    pub mixer_meter_wave: bool,
 }
 
 impl Default for Settings {
@@ -81,6 +107,8 @@ impl Default for Settings {
             locale: None,
             autosave_seconds: DEFAULT_AUTOSAVE_SECONDS,
             ui_scale: DEFAULT_UI_SCALE,
+            mixer_density: MixerDensity::Normal,
+            mixer_meter_wave: false,
         }
     }
 }
@@ -150,6 +178,8 @@ mod tests {
             locale: Some("es".into()),
             autosave_seconds: 30,
             ui_scale: 1.25,
+            mixer_density: MixerDensity::Compact,
+            mixer_meter_wave: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

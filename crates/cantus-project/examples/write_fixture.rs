@@ -8,14 +8,21 @@ fn main() {
     p.tempo_bpm = 96.0;
     p.loop_enabled = true;
     let mut t = p.make_track("Keys");
-    t.gain_db = -4.5;
-    t.pan = 0.25;
+    // Schema 9: the mixer has strips of its own. The Keys track feeds strip 1, which holds
+    // the fader, the pan and the delay; the track's own gain and pan stay at unity.
+    let strip1 = t.strip.expect("a new track takes the first free strip");
     let f = t.instrument.firmus_mut().expect("Firmus");
     f.cutoff_hz = 900.0;
     f.osc1_wave = Waveform::Square;
     let mut delay = p.make_effect(EffectKind::Delay);
     delay.spec.set("mix", 0.2).unwrap();
-    t.effects.push(delay);
+    {
+        let s = p.strip_mut(strip1).unwrap();
+        s.gain_db = -4.5;
+        s.pan = 0.25;
+        s.effects.push(delay);
+        s.name = "Keys bus".to_string();
+    }
     let mut c = p.make_clip("Intro", Ticks::beats(4), Ticks::beats(8));
     for (i, pitch) in [60u8, 64, 67, 71].iter().enumerate() {
         c.notes.push(p.make_note(
@@ -69,13 +76,104 @@ fn main() {
     bass.muted = true;
     bass.height = 0.5;
     bass.icon = Some(TrackIcon::Strings);
-    // Schema 5: the fixture uses width and polarity so migrations are tested against a
-    // file that actually sets them.
-    bass.width = 0.0;
-    bass.phase_invert = true;
+    // Schema 5's width and polarity now live on the bass's strip; and the bass's strip is
+    // routed into the drums' strip, so the file holds a bus.
+    let bass_strip = bass.strip.expect("strip");
+    let drums_strip = p.tracks[1].strip.expect("drums strip");
+    {
+        let s = p.strip_mut(bass_strip).unwrap();
+        s.width = 0.0;
+        s.phase_invert = true;
+        s.output = Some(drums_strip);
+    }
     p.master.pan = -0.25;
     p.master.width = 1.5;
     p.tracks.push(bass);
+    // Schema 10: a send from the Keys strip into an empty strip that carries a reverb —
+    // a return — with a slot at half dry/wet; a soloed, swapped strip with its FX off
+    // and a band of EQ on it. Every new field written, so the 9→10 migration and every
+    // later one are tested against a file that uses them.
+    let ret = p.strips[5].id;
+    let mut verb = p.make_effect(EffectKind::Reverb);
+    verb.mix = 0.5;
+    {
+        let r = p.strip_mut(ret).unwrap();
+        r.name = "Return".to_string();
+        r.effects.push(verb);
+        r.eq.set(0, EqField::Gain, -3.0);
+        r.eq.set(2, EqField::Freq, 6_000.0);
+    }
+    p.strip_mut(strip1).unwrap().sends.push(Send {
+        to: ret,
+        level: 0.4,
+        enabled: true,
+    });
+    p.strip_mut(strip1).unwrap().sends.push(Send {
+        to: drums_strip,
+        level: 1.0,
+        enabled: false,
+    });
+    {
+        let d = p.strip_mut(drums_strip).unwrap();
+        d.soloed = true;
+        d.swap_channels = true;
+        d.fx_enabled = false;
+    }
+    // Schema 11: the return docked on the left, and the Keys and Drums strips in a
+    // collapsed group of their own colour.
+    p.strip_mut(ret).unwrap().dock = Dock::Left;
+    let mut rhythm = p.make_strip_group("Rhythm", Color::PALETTE[3]);
+    rhythm.collapsed = true;
+    let gid = rhythm.id;
+    p.strip_groups.push(rhythm);
+    p.strip_mut(strip1).unwrap().group = Some(gid);
+    p.strip_mut(drums_strip).unwrap().group = Some(gid);
+    // Schema 12: an Aequalis with a bell, a low cut and a dynamic band on the Keys strip,
+    // and a Comprimo on it keyed from the Drums strip — a duck.
+    let mut eq = p.make_effect(EffectKind::Eq);
+    for (k, v) in [
+        ("b0.used", 1.0),
+        ("b0.freq", 2_500.0),
+        ("b0.gain", 3.0),
+        ("b1.used", 1.0),
+        ("b1.shape", 3.0),
+        ("b1.freq", 90.0),
+        ("b1.slope", 24.0),
+        ("b4.used", 1.0),
+        ("b4.freq", 6_000.0),
+        ("b4.gain", 0.5),
+        ("b4.dyn", 1.0),
+        ("b4.place", 3.0),
+    ] {
+        eq.spec.set(k, v).unwrap();
+    }
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.spec.set("thr", -30.0).unwrap();
+    comp.spec.set("style", 2.0).unwrap();
+    comp.sidechain = Some(drums_strip);
+    p.strip_mut(strip1).unwrap().effects.push(eq);
+    p.strip_mut(strip1).unwrap().effects.push(comp);
+    // Schema 14: a hosted plug-in (ADR 0019) on the return, keyed from the Drums strip,
+    // with a state and three parameter values. It is not installed anywhere — which is the
+    // point: the fixture proves a project with a missing plug-in opens, and keeps its data.
+    let mut hosted = ExternalPlugin::new(PluginFormat::Clap, "org.cantus.fixture.absent", "Absent");
+    hosted.vendor = "Cantus Fixtures".to_string();
+    hosted.sidechain = true;
+    hosted.state = PluginState::new(b"CTG1 opaque state \x00\x01\xfe\xff".to_vec());
+    hosted.params.insert(0, -6.25);
+    hosted.params.insert(1, 128.0);
+    hosted.params.insert(1024, 0.1 + 0.2);
+    let mut slot = p.make_effect(EffectKind::External);
+    slot.spec = EffectSpec::external(hosted);
+    slot.sidechain = Some(drums_strip);
+    slot.mix = 0.75;
+    p.strip_mut(ret).unwrap().effects.push(slot);
+    // Schema 15: a Porta on the Drums strip, opened by the Keys track's notes (ADR 0022).
+    let mut gate = p.make_effect(EffectKind::Gate);
+    gate.spec.set("trig", 1.0).unwrap();
+    gate.spec.set("vel", 12.0).unwrap();
+    gate.midi_from = Some(p.tracks[0].id);
+    p.strip_mut(drums_strip).unwrap().effects.push(gate);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

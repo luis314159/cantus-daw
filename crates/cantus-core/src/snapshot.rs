@@ -28,17 +28,15 @@ impl NoteEvent {
 pub struct TrackSnapshot {
     pub id: TrackId,
     pub name: String,
-    /// Linear gain (fader × instrument-independent).
+    /// The channel's own linear gain, before its strip.
     pub gain: f32,
+    /// The channel's own balance, before its strip. Not through the pan law.
     pub pan: f32,
-    /// 0 mono, 1 as recorded, 2 twice as wide.
-    pub width: f32,
-    pub phase_invert: bool,
     /// Mute/solo already resolved.
     pub audible: bool,
+    /// Index into [`Snapshot::strips`] of the strip this track feeds; `None` is master.
+    pub strip: Option<usize>,
     pub instrument: InstrumentSpec,
-    /// Insert chain in processing order (bypassed slots included, flagged).
-    pub effects: Vec<EffectSlot>,
     /// Sorted by `(tick, off-before-on)`.
     pub events: Vec<NoteEvent>,
     /// How many lanes the instrument offers. Carried so the meter and the stats can say
@@ -60,6 +58,31 @@ impl TrackSnapshot {
     }
 }
 
+/// One mixer strip, resolved for the audio thread.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StripSnapshot {
+    pub id: StripId,
+    pub gain: f32,
+    pub pan: f32,
+    pub width: f32,
+    pub phase_invert: bool,
+    pub swap_channels: bool,
+    /// Mute **and solo** already resolved: `true` means the strip is silent this
+    /// snapshot, whichever of the two made it so (`Project::strip_audibility`).
+    pub muted: bool,
+    /// The whole insert chain in or out.
+    pub fx_enabled: bool,
+    /// Insert chain in processing order (bypassed slots included, flagged).
+    pub effects: Vec<EffectSlot>,
+    /// The strip's own EQ, after the inserts.
+    pub eq: StripEq,
+    /// Index into [`Snapshot::strips`] of the strip this one feeds; `None` is master.
+    pub output: Option<usize>,
+    /// Post-fader sends as `(strip index, linear level)`, enabled ones only — a send that
+    /// is switched off, or at zero, is not carried at all.
+    pub sends: Vec<(usize, f32)>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Snapshot {
     pub revision: u64,
@@ -76,6 +99,11 @@ pub struct Snapshot {
     /// it reads two multipliers, the same as it always did.
     pub pan_law: PanLaw,
     pub tracks: Vec<TrackSnapshot>,
+    pub strips: Vec<StripSnapshot>,
+    /// Indices into `strips` in the order they must be processed: every strip after all
+    /// the strips that feed it (`Project::strip_order`). Computed here, once, so the audio
+    /// thread never sorts anything.
+    pub strip_order: Vec<usize>,
     pub content_end: Ticks,
 }
 
@@ -89,11 +117,9 @@ impl Snapshot {
                 name: t.name.clone(),
                 gain: db_to_linear(t.gain_db),
                 pan: t.pan,
-                width: t.width,
-                phase_invert: t.phase_invert,
                 audible: project.track_audible(t),
+                strip: t.strip.and_then(|s| project.strip_index(s)),
                 instrument: t.instrument.clone(),
-                effects: t.effects.clone(),
                 events: compile_events(t),
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
@@ -116,6 +142,36 @@ impl Snapshot {
             master_phase_invert: project.master.phase_invert,
             pan_law: project.pan_law,
             tracks,
+            strips: {
+                let audible = project.strip_audibility();
+                project
+                    .strips
+                    .iter()
+                    .zip(audible)
+                    .map(|(s, audible)| StripSnapshot {
+                        id: s.id,
+                        gain: db_to_linear(s.gain_db),
+                        pan: s.pan,
+                        width: s.width,
+                        phase_invert: s.phase_invert,
+                        swap_channels: s.swap_channels,
+                        muted: !audible,
+                        fx_enabled: s.fx_enabled,
+                        effects: s.effects.clone(),
+                        eq: s.eq,
+                        output: s.output.and_then(|o| project.strip_index(o)),
+                        sends: s
+                            .sends
+                            .iter()
+                            .filter(|x| x.effective_level() > 0.0)
+                            .filter_map(|x| {
+                                project.strip_index(x.to).map(|i| (i, x.effective_level()))
+                            })
+                            .collect(),
+                    })
+                    .collect()
+            },
+            strip_order: project.strip_order(),
             content_end: project.content_end(),
         }
     }
@@ -221,6 +277,33 @@ mod tests {
         assert_eq!(s.tracks[0].first_event_at_or_after(Ticks::beats(5)), 1);
         assert_eq!(s.content_end, Ticks::beats(6));
         assert_eq!(s.revision, 7);
+    }
+
+    /// A strip's solo reaches the snapshot as a mute on everything unconnected, and a
+    /// disabled send is not carried at all.
+    #[test]
+    fn strip_solo_and_sends_are_resolved_for_the_audio_thread() {
+        let mut p = Project::default();
+        let (s3, s5, s6) = (p.strips[2].id, p.strips[4].id, p.strips[5].id);
+        p.strips[0].output = Some(s3);
+        p.strips[0].soloed = true;
+        p.strips[0].sends.push(Send {
+            to: s5,
+            level: 0.5,
+            enabled: false,
+        });
+        p.strips[0].sends.push(Send {
+            to: s6,
+            level: 0.25,
+            enabled: true,
+        });
+        let s = Snapshot::compile(&p, 0);
+        assert!(
+            !s.strips[0].muted && !s.strips[2].muted,
+            "soloed, and its bus"
+        );
+        assert!(s.strips[1].muted, "an unconnected strip is silenced");
+        assert_eq!(s.strips[0].sends, vec![(5, 0.25)]);
     }
 
     #[test]

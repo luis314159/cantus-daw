@@ -1,0 +1,120 @@
+# Multiplex — de Multiplex. Cada clave necesita su gemela en multiband.en.txt.
+effect.multiband = Multiplex multibanda
+
+# Parámetros
+fx.mb.used = Banda en uso
+fx.mb.from = Empieza en
+fx.mb.on = Activa
+fx.mb.solo = Solo
+fx.mb.mute = Silencio
+fx.mb.thr = Umbral
+fx.mb.ratio = Relación
+fx.mb.range = Rango
+fx.mb.thr_lo = Umbral bajo
+fx.mb.ratio_lo = Relación baja
+fx.mb.range_lo = Rango bajo
+fx.mb.knee = Rodilla
+fx.mb.att = Ataque
+fx.mb.rel = Relajación
+fx.mb.la = Anticipación
+fx.mb.gain = Ganancia
+fx.mb.place = Estéreo
+fx.mb.key = Llave
+fx.mb.key_free = Llave de rango libre
+fx.mb.key_lo = Llave desde
+fx.mb.key_hi = Llave hasta
+fx.mb.mode = Modo
+fx.mb.slope = Pendiente
+fx.mb.out = Salida
+fx.mb.listen = Escuchar
+
+# Barra
+mb.mode.0 = Dinámico
+mb.mode.1 = División
+mb.mode.0_tip = Sin división: la entrada pasa por un estante por cruce que solo se mueve mientras se mueve una banda. Sin latencia, y la entrada al bit mientras ninguna banda actúa.
+mb.mode.1_tip = Una división real (Linkwitz–Riley): cada banda es una banda de la señal, y juntas suman plano. Un cable mientras ninguna banda puede actuar.
+mb.mode.2 = Lineal
+mb.mode.2_tip = Una división real con cruces de fase lineal: ningún giro de fase, y las bandas a la unidad son la entrada al bit, retrasada. Cuesta 48 ms de latencia a 48 kHz, que el programa compensa.
+mb.slope_tip = Pendiente de los cruces. En modo División, 6 dB/oct suma exactamente la entrada; las pendientes más fuertes separan más las bandas y giran más la fase en los cruces.
+mb.listen.0 = Salida
+mb.listen.1 = Delta
+mb.listen.2 = Llave
+mb.listen.0_tip = Lo que saca Multiplex.
+mb.listen.1_tip = Solo lo que cambian las bandas: lo que quitan, o lo que añaden en los modos hacia arriba.
+mb.listen.2_tip = Lo que oyen los detectores: la llave de cada banda por su filtro (solo las bandas en solo, si hay alguna).
+mb.latency = Latencia {ms} ms · {n} mtr
+mb.latency_none = Sin latencia
+mb.latency_tip = El retardo que añade Multiplex: la anticipación más larga de sus bandas. El programa lo compensa.
+mb.bands = {n} de {max} bandas
+mb.key = Sidechain
+mb.key_none = Ninguno
+mb.key_tip = Un canal cuya salida escuchan las bandas que lo piden, en vez de su propia entrada. Sin envío que preparar.
+mb.key_bands = {n} bandas lo escuchan
+mb.key_hint = Elige un canal para que las bandas respondan a otro sonido.
+mb.via_split = Se oye por la división
+mb.via_split_tip = Solo y silencio necesitan bandas reales, así que mientras uno está puesto el modo Dinámico se oye por la división.
+
+# Pantalla
+mb.axis_level = dBFS
+mb.flag_off = apagada
+mb.flag_solo = S
+mb.flag_mute = M
+mb.flag_mid = medio
+mb.flag_side = lados
+mb.flag_key = llave
+mb.empty = Doble clic sobre el espectro para dividirlo en bandas
+mb.quick = {n} bandas
+mb.no_room = No cabe una banda ahí: una banda mide al menos un tercio de octava, y hay ocho como mucho.
+mb.lanes_empty = Aquí se ve la ganancia de cada banda en el tiempo.
+mb.meter_in = Ent
+mb.meter_out = Sal
+mb.transfer_tip = Arrastra el punto lleno para el umbral, el anillo para el umbral bajo, y la curva más allá de cualquiera para su relación.
+
+# Panel de banda
+mb.band_n = Banda {n}
+mb.hint = Elige una banda, o haz doble clic sobre el espectro para crear una.
+mb.bypass_band = Anular banda
+mb.remove_band = Quitar banda
+mb.split_here = Dividir en {hz}
+mb.place.0 = Estéreo
+mb.place.1 = Medio
+mb.place.2 = Lados
+mb.place_tip = Qué parte de la imagen escucha la banda y sobre cuál actúa.
+mb.on_tip = Apagada: la banda conserva su sitio y no hace nada.
+mb.solo_tip = Oír solo esta banda (con las demás que estén en solo).
+mb.mute_tip = Quitar esta banda de la salida.
+mb.key_own = Su entrada
+mb.key_ext = Sidechain
+mb.key_band_tip = Lo que escucha el detector de esta banda.
+mb.key_free_tip = El detector oye el rango de Llave desde / Llave hasta, no el de la banda.
+mb.off = no
+mb.tip.thr = Por encima de este nivel actúa la relación. Arrastra la línea continua en la columna de la banda.
+mb.tip.ratio = Por encima del umbral: más de 1:1 comprime hacia abajo, menos de 1:1 expande hacia arriba.
+mb.tip.range = Lo más que mueve la ganancia la sección superior.
+mb.tip.thr_lo = Por debajo de este nivel actúa la relación baja. Arrastra la línea discontinua en la columna de la banda.
+mb.tip.ratio_lo = Por debajo del umbral bajo: más de 1:1 comprime hacia arriba (sube lo débil), menos de 1:1 expande hacia abajo (una puerta, con una relación baja).
+mb.tip.range_lo = Lo más que mueve la ganancia la sección inferior.
+mb.tip.knee = Con qué suavidad empieza a actuar cada umbral, en dB a su alrededor.
+mb.tip.att = Lo rápido que el detector sigue un nivel que sube, en milisegundos.
+mb.tip.rel = Lo rápido que el detector sigue un nivel que baja, en milisegundos.
+mb.tip.la = Cuánto mira hacia delante la banda. La latencia del efecto es la más larga de sus bandas.
+mb.tip.gain = La ganancia propia de la banda, hagan lo que hagan las dinámicas.
+mb.tip.key_lo = Dónde empieza el rango libre de la llave.
+mb.tip.key_hi = Dónde acaba el rango libre de la llave.
+
+# Inspector
+mb.preview_empty = Aún sin bandas
+mb.preview = {n} bandas · {mode}
+mb.open_tip = Abrir Multiplex
+
+# Presets
+mb.preset.glue = Pegamento de máster
+mb.preset.deharsh = Quitar aspereza
+mb.preset.low_end = Control de graves
+mb.preset.up_down = Arriba y abajo
+mb.preset.vocal = Suavizar voz
+mb.preset.punch = Pegada de batería
+
+# Deshacer
+cmd.mb_band_add = añadir banda multibanda
+cmd.mb_band_remove = quitar banda multibanda

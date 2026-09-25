@@ -1,0 +1,129 @@
+# interop — the round-17 interop work's strings. Every key here needs its twin in interop.es.txt.
+# Moving work between Cantus and other DAWs: MIDI files, stems, DAWproject (ADR 0021).
+
+cmd.import_midi = import MIDI
+
+interop.menu.import_midi = Import MIDI…
+interop.menu.export_midi = Export MIDI…
+interop.menu.export_stems = Export stems…
+interop.menu.import_dawproject = Import DAWproject…
+interop.menu.export_dawproject = Export DAWproject…
+
+interop.export = Export…
+interop.import = Import
+interop.cancel = Cancel
+interop.close = Close
+
+interop.midi_export.title = Export MIDI
+interop.midi_export.what = What to write
+interop.midi_export.song = The whole song
+interop.midi_export.track = The selected track ({name})
+interop.midi_export.clip = The selected clip ({name}), from its own start
+interop.midi_export.ppq = Resolution (ticks per quarter)
+interop.midi_export.ppq_hint = 960 holds every position exactly; a lower resolution rounds each note to its grid.
+interop.midi_export.note = A type 1 file with the tempo, the metre and the track names. Muted notes and clips are left out; kits go on channel 10.
+
+interop.midi_import.title = Import MIDI
+interop.midi_import.summary = {file} — type {format}, tracks: {tracks}, notes: {notes}, {bpm} BPM
+interop.midi_import.tempo_changes = Tempo changes in the file: {n}. A Cantus project has one tempo:
+interop.midi_import.keep_bars = Keep the bars: every note stays on its beat
+interop.midi_import.keep_time = Keep the timing: every note stays at its second
+interop.midi_import.apply_tempo = Set the project to {bpm} BPM in {sig}
+interop.midi_import.at = New tracks, one clip each, starting at bar {bar}.
+
+interop.track.drums = Drums
+interop.track.channel = Channel {n}
+interop.track.named_channel = {name} (ch {n})
+
+interop.stems.title = Export stems
+interop.stems.source = One file for
+interop.stems.strips = Every mixer strip, after its fader
+interop.stems.tracks = Every track, before its strip
+interop.stems.tail = Tail
+interop.stems.keep_silent = Write silent stems as well
+interop.stems.master = Add the master mix
+interop.stems.folder = Folder
+interop.stems.no_folder = none chosen
+interop.stems.choose = Choose…
+interop.stems.hint = One pass. Every file starts on the song's first beat, delay compensation included, and is named "NN Name.wav".
+interop.stems.start = Export
+interop.stems.stop = Stop
+interop.stems.progress = Exporting stems… {pct} %
+interop.stems.done = Stems exported to {folder} — files: {n}, silent and skipped: {silent}
+interop.stems.stopped = Stems export stopped; nothing was left behind
+interop.stems.unaligned = Some paths had no delay line, so some stems may be early.
+interop.stems.direct = Direct to master
+interop.stems.master_name = Master
+
+interop.status.exported = Exported {file}
+interop.status.export_failed = Could not export {file}: {error}
+interop.status.import_failed = Could not import {file}: {error}
+interop.status.midi_imported = Imported {file} — tracks: {tracks}, notes: {notes}
+interop.status.midi_empty = {file} has no notes to import
+interop.status.dawproject_imported = Imported {file} (Undo brings back the project you had)
+
+interop.drop.hint = Drop a MIDI file to add its tracks here, or a DAWproject to open it
+interop.drop.unsupported = Cannot import {file}: Cantus takes .mid and .dawproject files
+
+interop.report.title_import = Import report — {file}
+interop.report.title_export = Export report — {file}
+interop.report.dropped = Not carried
+interop.report.kept = Done
+interop.report.lossless = Everything was carried.
+
+interop.report.midi_read = Read a type {format} file — tracks: {tracks}, notes: {notes}.
+interop.report.format2 = A type 2 file holds separate patterns; they were placed side by side from the start.
+interop.report.smpte = The file counts time in SMPTE frames; notes were placed by seconds at {bpm} BPM.
+interop.report.tempo_changes = Tempo changes ({n}): Cantus has one tempo, so the notes kept their beats and the timing after each change differs.
+interop.report.tempo_retimed = Tempo changes ({n}): the notes were moved to keep their timing at one tempo.
+interop.report.metre_changes = Time signature changes ({n}): Cantus has one time signature.
+interop.report.controllers = Controller changes ({n}): volume, sustain, modulation…
+interop.report.pitch_bends = Pitch bends ({n})
+interop.report.pressure = Aftertouch ({n})
+interop.report.programs = Program changes ({n}): the tracks play Firmus, or Pulsus on channel 10
+interop.report.sysex = System exclusive messages ({n})
+interop.report.texts = Lyrics, markers and text events ({n})
+interop.report.key_signatures = Key signatures ({n})
+interop.report.unterminated = Notes with no end ({n}) were ended with their track.
+interop.report.zero_length = Notes with no length ({n}) were given a 64th.
+interop.report.tempo_set = The project is now at {bpm} BPM in {sig}.
+interop.report.tempo_kept = The file is at {file} BPM; the project stays at {bpm} BPM.
+interop.report.too_many_tracks = Tracks past the {max} the engine holds ({n})
+interop.report.pads_full = Drum sounds past the pads a kit holds ({n}); their notes are kept
+
+interop.report.x_empty_strips = Strips nothing feeds ({n}) were left out.
+interop.report.x_muted_notes = Muted notes ({n}): a DAWproject note cannot be muted
+interop.report.x_devices = Effects written as Cantus devices with their settings ({n}); other applications show them as placeholders.
+interop.report.x_pan = Pan is written as a position; the other application applies its own pan law.
+interop.report.x_width = Width on {name}
+interop.report.x_polarity = Polarity on {name}
+interop.report.x_swap = Left/right swap on {name}
+interop.report.x_fx_off = The switched-off insert chain on {name}
+interop.report.x_slot_mix = A slot's dry/wet on {name} (Cantus reads it back; others do not)
+interop.report.x_sidechain = The sidechain on {name} is kept for Cantus; other applications will not see it.
+interop.report.x_master_width = The master's width
+interop.report.x_master_polarity = The master's polarity
+
+interop.report.d_read = Read a file from {app} — tracks: {tracks}, clips: {clips}, notes: {notes}.
+interop.report.d_foreign = Every channel became a mixer strip; group tracks became buses.
+interop.report.d_instrument = The instrument {name} on {track}: plug-ins are not hosted yet, so the track plays a Cantus instrument
+interop.report.d_plugin = The plug-in {name} on {track}: plug-ins are not hosted yet
+interop.report.d_device = The device {name} on {track}
+interop.report.d_master_device = The device {name} on the master
+interop.report.d_vca = The VCA {name}
+interop.report.d_cycle = The output of {name}, which would have fed itself
+interop.report.d_send = A send from {name} with no destination Cantus can use
+interop.report.d_pre_sends = Pre-fader sends ({n}): they became post-fader
+interop.report.d_too_many_strips = Channels past the {max} strips the engine holds ({n})
+interop.report.d_too_many_tracks = Tracks past the {max} the engine holds ({n})
+interop.report.d_audio_clips = Audio clips ({n}): Cantus has no audio clips yet
+interop.report.d_automation = Automation lanes ({n})
+interop.report.d_markers = Markers ({n})
+interop.report.d_launcher = Clip launcher slots ({n})
+interop.report.d_scenes = Clip launcher scenes ({n})
+interop.report.d_expressions = Note expressions ({n})
+interop.report.d_references = Clips that refer to another clip ({n})
+interop.report.d_loop = The loop of the clip "{name}" does not start where the clip plays from; it was read as starting there
+interop.report.d_tempo_automation = The tempo automation: the project keeps the first tempo
+interop.report.d_metre_automation = The time signature changes: the project keeps the first
+interop.report.d_seconds = Some clips were placed in seconds and were read at {bpm} BPM.

@@ -13,8 +13,10 @@ pub mod icons;
 pub mod keyboard;
 pub mod keymap;
 pub mod layout;
+pub mod raster;
 pub mod recording;
 pub mod settings;
+pub mod takes;
 pub mod theme;
 pub mod views;
 pub mod widgets;
@@ -44,6 +46,11 @@ pub struct LaunchOptions {
     pub shortcuts: bool,
     /// Open the settings dialog at startup, for the same reason.
     pub settings: bool,
+    /// Put an effect with an editor (`eq` or `comp`) on the selected track's strip and open
+    /// its editor at startup — a look at an editor without driving the inspector.
+    pub editor: Option<String>,
+    /// Start the transport at startup, so meters and analysers have something to show.
+    pub play: bool,
 }
 
 /// Run the desktop application until the window closes.
@@ -70,6 +77,8 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     let track = options.track;
     let shortcuts = options.shortcuts;
     let settings = options.settings;
+    let editor = options.editor.clone();
+    let play = options.play;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(i18n::t("app.title"))
         .with_app_id("cantus")
@@ -100,6 +109,12 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
             }
             app.show_shortcuts = shortcuts;
             app.show_settings = settings;
+            if let Some(kind) = editor.as_deref() {
+                app.demo_editor(kind);
+            }
+            if play {
+                app.toggle_play();
+            }
             Ok(Box::new(app))
         }),
     )

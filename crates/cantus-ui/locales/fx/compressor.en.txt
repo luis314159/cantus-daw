@@ -1,0 +1,169 @@
+# Comprimo — new keys go here, with their twins in compressor.es.txt.
+# Keys here override the main table's of the same name.
+
+# Parameters
+fx.comp.key_hpf = High-pass
+fx.comp.look = Lookahead
+fx.comp.auto_gain = Auto gain
+fx.comp.dry = Dry
+fx.comp.mix = Mix
+fx.comp.in_gain = Input
+fx.comp.out_gain = Output
+fx.comp.os = Oversampling
+fx.comp.custom = Custom engine
+fx.comp.det_rms = Detector
+fx.comp.det_fb = Feedback
+fx.comp.det_prog = Program
+fx.comp.det_dual = Second stage
+fx.comp.det_curve = Release curve
+fx.comp.key_gain = Level
+fx.comp.key_eq = Key EQ
+fx.comp.sc.used = In use
+fx.comp.sc.on = On
+fx.comp.sc.shape = Shape
+fx.comp.sc.freq = Freq
+fx.comp.sc.gain = Gain
+fx.comp.sc.q = Q
+fx.comp.sc.slope = Slope
+
+# Styles
+comp.style.5 = Mastering
+comp.style.6 = Smooth
+comp.style.7 = Pumping
+comp.style.8 = Classic
+comp.release_dual = a second stage holds {pct} %
+comp.release_linear = {pct} % linear
+comp.custom_from = Custom (from {style})
+comp.engine = Engine
+comp.engine_tip = The five numbers a style is: its detector, feedback and release. Turn one to make the style your own.
+comp.engine_style = The style's own detector. Turn a knob to make it yours — the style becomes Custom and keeps its name as where it came from.
+comp.engine_custom = Your detector, started from the style. Pick a style above to go back to its own.
+comp.engine_back = Back to {style}
+comp.peak_short = Peak
+comp.curve_exp = Exp
+comp.curve_lin = Linear
+comp.det_rms_tip = What the detector measures: the peak, or the RMS over this window. A longer window hears loudness, not transients.
+comp.det_fb_tip = How much of the detector hears the already-reduced signal (feedback) instead of the key (feed-forward). Feedback is softer: the curve shows the ratio it really gives.
+comp.det_prog_tip = How much the release slows the longer and harder it has been working
+comp.det_dual_tip = A second, slower release stage that holds what has built up over time, while a lone transient comes back fast
+comp.det_curve_tip = The release's shape: exponential (fast, then slower) or linear in dB (a steady swell back)
+
+# The history, the scale, listening
+comp.history = History
+comp.speed.fast = Fast
+comp.speed.slow = Slow
+comp.speed.whole = Whole take
+comp.speed.fast_tip = A column a frame: about eight seconds across
+comp.speed.slow_tip = Four frames a column: about half a minute across
+comp.speed.whole_tip = Everything since the editor opened, squeezed to fit
+comp.grid = Bars
+comp.grid_tip = Bars and beats from the transport behind the history, so pumping reads against the beat
+comp.freeze = Freeze
+comp.freeze_tip = Stop the history to read it. It also stops by itself while the transport is stopped and silent.
+comp.live = Live
+comp.scale = Scale
+comp.frozen = Frozen — click to run
+comp.scrolled = {n} columns back — double-click for live
+comp.whole_state = Whole take · {n} frames a column
+comp.history_empty = Play to see the level and the reduction
+comp.readout = In {inp}  Out {out}  GR {gr} dB
+comp.listen = Hear
+comp.listen.3 = Wet
+comp.listen.1_tip = Hear what the detector hears: the key, after its level, high-pass and EQ
+comp.listen.2_tip = Hear only what the compression takes away (or adds, above 100 % mix)
+comp.listen.3_tip = Hear the compressed path alone, with its make-up and no dry signal
+comp.compare = Compare
+comp.compare_on = Compare {db} dB
+comp.compare_tip = Bypass at the same loudness: the input, raised or lowered to the output's measured short-term loudness, so louder cannot pass for better
+comp.latency_none = No latency
+comp.latency = Latency {ms} ms · {n} smp
+comp.latency_tip = What the lookahead and the oversampling delay the strip by. The host compensates it.
+comp.os.0 = 1×
+comp.os.1 = 2×
+comp.os.2 = 4×
+comp.os_tip = Run the gain stage and the detector at 2 or 4 times the rate: a fast gain change's sidebands are filtered instead of folding back, and the detector hears the peaks between samples. Adds 31 or 36 samples of latency.
+
+# The curve and the meters
+comp.effective = feedback: really {ratio}
+comp.transfer_tip = Drag the point for the threshold, the curve above it for the ratio (Shift: no click stops), the rings for the knee, the dashed floor for the range. Wheel: knee. Double-click: 4:1, 6 dB knee.
+comp.meter_in = IN
+comp.meter_gr = GR
+comp.meter_out = OUT
+comp.loudness = Loudness out
+comp.lufs_m = M
+comp.lufs_s = S
+comp.lufs_i = I
+comp.lufs_reset = Reset I
+comp.lufs_reset_tip = Start the integrated loudness over. It counts what played while this editor was open.
+comp.gr_stats = GR · 10 s
+comp.gr_avg = avg
+comp.gr_peak = peak
+comp.crest = Crest dB
+comp.crest_io = in→out
+
+# The knobs
+comp.auto = AUTO
+comp.note = Note
+comp.note_tip = Snap the release to a note value at the project's tempo
+comp.group.dynamics = Dynamics
+comp.group.time = Time
+comp.group.output = Output
+comp.tip.thr = Where compression starts. Also the dashed line on the history and the point on the curve.
+comp.tip.ratio = How much of the excess over the threshold is taken away. Clicks to 1.5, 2, 3, 4, 6, 8, 10, 20 and ∞; Shift for free.
+comp.tip.knee = How gradually compression starts, dB either side of the threshold
+comp.tip.range = The most it will take away
+comp.tip.att = How fast it takes hold
+comp.tip.rel = How fast it lets go. With auto release, how strongly the release follows the reduction.
+comp.tip.hold = How long it holds the reduction before letting go
+comp.tip.look = How far ahead the detector hears, so it catches the transient; the strip is delayed by as much
+comp.tip.makeup = The compressed path's gain. With auto gain on, it adds to what is measured.
+comp.tip.dry = The uncompressed signal mixed back in: parallel compression
+comp.tip.mix = How much of the gain change is applied: 0 % is a wire, 200 % doubles it
+comp.tip.in_gain = Gain into the compressor
+comp.tip.out_gain = Gain out of the compressor, after the dry signal
+comp.tip.key_gain = The key's level into the detector
+comp.tip.key_hpf = A gentle high-pass on the key, 6 dB/oct
+comp.tip.link = 0 %: each side on its own. 100 %: both follow the louder.
+comp.tip.auto_rel = The release follows how hard it is working: faster for small reductions, slower for large ones
+comp.tip.auto_gain = Makes up the loudness the compression takes: the input's and the compressed path's short-term loudness, measured and matched
+
+# The key
+comp.key_eq = Key EQ
+comp.key_eq_tip = The key's EQ in or out, with its bands kept
+comp.key_eq_title = Key EQ
+comp.key_eq_empty = Double-click to add a band: a cut at the edges, a bell anywhere else
+comp.key_band = Band {n}
+comp.key_band_none = Click a band's dot to see its numbers here; double-click the display to add one
+comp.band_on = On
+comp.bypassed = bypassed
+comp.key_spectrum_hint = Listen to the key to see its spectrum
+
+# The response graph
+comp.response = Response to a burst
+comp.response_times = attack {att} · release {rel} · {gr} dB
+comp.response_held = attack {att} · still held
+comp.response_none = no reduction at this setting
+comp.response_tip = The reduction for a step 12 dB over the threshold, held 400 ms, then 20 dB under — run through this compressor as set. The rings mark 63 % in and 63 % out.
+
+# The desk
+comp.duck.menu = Duck this strip from…
+comp.duck.hint = Adds a compressor keyed from the strip you pick
+comp.strip_gr = Compressor gain reduction {db} dB
+comp.strip_gr_idle = This strip has a compressor. Its reduction shows here while its editor is open.
+
+# Presets
+comp.preset.vocal = Vocal, even
+comp.preset.drum_bus = Drum bus
+comp.preset.parallel = Parallel smash
+comp.preset.glue = Mix glue
+comp.preset.master = Master, gentle
+comp.preset.duck = Ducking
+comp.preset.pump = Pumping
+comp.preset.bass = Bass, steady
+
+# Undo history
+cmd.comp_style = compressor style
+cmd.comp_engine = compressor engine
+cmd.comp_key_band = key EQ band
+cmd.comp_duck = duck from a strip
+cmd.comp_reset_curve = compressor curve

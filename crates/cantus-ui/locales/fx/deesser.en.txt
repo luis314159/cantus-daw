@@ -1,0 +1,85 @@
+# Sibilus — owned by Sibilus. Every key here needs its twin in deesser.es.txt.
+effect.deesser = Sibilus de-esser
+
+# Parameters
+fx.ds.mode = Detection
+fx.ds.proc = Processing
+fx.ds.thr = Threshold
+fx.ds.range = Range
+fx.ds.lo = Low edge
+fx.ds.hi = High edge
+fx.ds.att = Attack
+fx.ds.rel = Release
+fx.ds.look = Lookahead
+fx.ds.link = Link
+fx.ds.stereo = Stereo
+fx.ds.listen = Listen
+fx.ds.sens = Sensitivity
+
+# Choices
+ds.mode.0 = Single vocal
+ds.mode.0_tip = One voice: a classifier decides what in the band is sibilance — the band's share of the voice's energy, and how noise-like it is — so bright vowels and whistles are left alone whatever their level
+ds.mode.1 = Allround
+ds.mode.1_tip = Anything in the band over the threshold: mixes, drums, cymbals, or a high-frequency limiter
+ds.proc.0 = Wide band
+ds.proc.0_tip = Turns the whole signal down during sibilance — the most natural on a single voice. No latency without lookahead
+ds.proc.1 = Split high
+ds.proc.1_tip = Turns down only what is above the band's low edge, with a linear-phase split (2.6 ms of latency)
+ds.proc.2 = Split band
+ds.proc.2_tip = Turns down only the band itself, low edge to high edge, and leaves the air above it alone (2.6 ms of latency)
+ds.stereo.0 = L/R
+ds.stereo.0_tip = Left and right, each with its own detector, joined by Link
+ds.stereo.1 = M/S
+ds.stereo.1_tip = Mid and side, each with its own detector, joined by Link
+ds.stereo.2 = Mid
+ds.stereo.2_tip = Only the mid is detected and turned down; the side passes untouched
+ds.stereo.3 = Side
+ds.stereo.3_tip = Only the side is detected and turned down — panned backing vocals; the mid passes untouched
+ds.listen.0 = Output
+ds.listen.0_tip = The de-essed signal
+ds.listen.1 = Trigger
+ds.listen.1_tip = What the detector hears: the key through the detection band. Move the band until you hear only the "s"
+ds.listen.2 = Removed
+ds.listen.2_tip = What is taken away: input minus output. If you hear words in it, it is working too hard
+
+# The window
+ds.key = Key
+ds.key_own = Its own input
+ds.key_tip = What the detector listens to: this strip's own input, or another strip after its fader — the clean vocal keying a distorted copy, with no send to set up
+ds.learn = Learn threshold
+ds.learning = Listening… {n} sibilants — click to set
+ds.learn_tip = Play a passage, then click again: the threshold is set so the median sibilant is cut by half the Range and the loudest by all of it. One undo step
+ds.learn_none = Not enough sibilance heard to learn from: play a longer passage
+ds.learned_to = Threshold learned: {db} dB
+ds.learned = learned
+ds.latency = Latency {ms} ms
+ds.latency_zero = No latency
+ds.latency_tip = Delay this adds — lookahead, plus the linear-phase split — which the host compensates on every other path
+ds.off = Off
+ds.stats = {n} events · {rate} in the last 10 s · average cut {avg} dB · deepest {max} dB
+ds.stats_none = No de-essing yet
+ds.heavy = heavy: {avg} dB per event on average — consonants may start to lisp
+ds.lane.signal = SIGNAL
+ds.legend.left = what is left
+ds.legend.removed = removed
+ds.lane.cut = CUT
+ds.lane.detector = DETECTOR · band level
+ds.lane.sibilance = sibilance
+ds.threshold_line = Threshold {db} dB
+ds.cut_now = now {db} dB · peak {peak} dB
+ds.cut_curve = cut {db} dB (range {range} dB)
+ds.hover = {ago} s ago · in {in} dB · band {det} dB · cut {cut} dB
+ds.hover_conf =  · sibilance {conf}%
+ds.hover_hz =  · centre {hz}
+ds.paused = Paused {s} s back — double-click for live
+ds.live = Live — the wheel looks back
+ds.centre = centre {hz}
+ds.open_tip = Open the de-esser
+
+# Presets
+ds.preset.male = Male vocal
+ds.preset.female = Female vocal
+ds.preset.voiceover = Voice-over, split
+ds.preset.backing = Backing vocals, side only
+ds.preset.cymbals = Cymbals and hi-hats
+ds.preset.bus = Mix bus, high-frequency limiter

@@ -1,0 +1,4 @@
+# engine — the round-17 engine work's strings. Every key here needs its twin in engine.en.txt.
+cmd.set_effect_midi_source = fuente MIDI del efecto
+space.table.cut = cortada
+space.table.cut_tip = Una octava cuya cola se cortó antes de caer lo bastante para medirla (30 dB desde donde empieza la medida): la captura terminó antes, por un sonido nuevo o por los cuatro segundos que espera la medida. ≈ marca una caída estimada a partir de la parte que se oyó, sumando la energía que faltaba tras el corte; «cortada» significa que se oyó demasiado poco para estimarla. Deja sonar una cola más larga para medirla.

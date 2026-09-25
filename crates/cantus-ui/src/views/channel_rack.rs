@@ -51,7 +51,7 @@ use crate::widgets::{Bar, Fader};
 use cantus_core::{
     Clip, ClipId, Command, InstrumentParam, MergeKey, Note, NoteId, PadField, Pitch, Ticks, TrackId,
 };
-use egui::{pos2, vec2, Align2, PointerButton, Rect, Sense, Stroke, StrokeKind};
+use egui::{pos2, vec2, Align2, PointerButton, Rect, Sense, Stroke};
 
 /// Width of the channel column: a colour stripe, an icon, a strip number, a name, a mute,
 /// a level and a pan, none of them a four-pixel target.
@@ -423,26 +423,112 @@ fn zoom_and_scroll(
 /// Below the thresholds the cells stop being individually visible, so the empty ones stop
 /// being drawn at all — the column shading behind them says the same thing for the price
 /// of one rectangle per column — and a lit step becomes a plain quad instead of a
-/// velocity-height bar inside a frame.
+/// velocity-height bar inside a frame. The *relief* — the lighter top edge and darker
+/// bottom edge that make a step read as a button, the way FL's do — is two more quads per
+/// cell and is the first thing to go.
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct StepLod {
+    /// Draw the empty cells at all.
     cells: bool,
-    velocity: bool,
-    gap: f32,
+    /// Draw each cell as a **button** — rounded, with a gloss on its upper half and a
+    /// shadow under it — through the convenience painter. About twenty triangles per
+    /// cell against two, so this is only for when there are few enough cells that it
+    /// does not matter, which is also exactly when they are big enough to see.
+    buttons: bool,
+    /// Horizontal and vertical breathing room around a cell.
+    gap: egui::Vec2,
 }
 
 impl StepLod {
     const CELLS_ABOVE: f32 = 4.0;
-    const VELOCITY_ABOVE_W: f32 = 7.0;
-    const VELOCITY_ABOVE_H: f32 = 12.0;
+    const BUTTONS_ABOVE_W: f32 = 11.0;
+    const BUTTONS_ABOVE_H: f32 = 14.0;
+    /// Rounded shapes stop at this many cells on screen, whatever their size.
+    const BUTTONS_MAX_CELLS: usize = 1_200;
 
-    fn for_size(w: f32, h: f32) -> StepLod {
+    fn for_size(w: f32, h: f32, cells_on_screen: usize) -> StepLod {
+        let buttons = w >= Self::BUTTONS_ABOVE_W
+            && h >= Self::BUTTONS_ABOVE_H
+            && cells_on_screen <= Self::BUTTONS_MAX_CELLS;
         StepLod {
             cells: w >= Self::CELLS_ABOVE && h >= Self::CELLS_ABOVE,
-            velocity: w >= Self::VELOCITY_ABOVE_W && h >= Self::VELOCITY_ABOVE_H,
-            gap: if w >= 8.0 { 1.5 } else { 0.0 },
+            buttons,
+            gap: if buttons {
+                vec2((w * 0.12).clamp(1.5, 3.0), (h * 0.14).clamp(2.0, 4.0))
+            } else if w >= 8.0 {
+                vec2(1.5, 1.5)
+            } else {
+                egui::Vec2::ZERO
+            },
         }
     }
+}
+
+/// Paint one step.
+///
+/// As a **button** when the level of detail allows: a shadow a pixel below, a rounded body,
+/// a gloss over the upper half and a hairline edge — the shape FL's rack has always had,
+/// and the reason its steps read as things you press rather than squares on graph paper.
+/// Below the threshold it is one quad in the shared mesh, the same colour on screen.
+fn paint_step(
+    p: &egui::Painter,
+    mesh: &mut egui::Mesh,
+    r: Rect,
+    body: egui::Color32,
+    lit: bool,
+    pal: &theme::Palette,
+    lod: StepLod,
+) {
+    if !lod.buttons {
+        mesh.add_colored_rect(r, body);
+        return;
+    }
+    let radius = (r.width().min(r.height()) * 0.22).clamp(2.0, 5.0);
+    let rounding = egui::CornerRadius::same(radius as u8);
+    // Shadow: the button stands a pixel proud of the grid.
+    p.rect_filled(
+        r.translate(vec2(0.0, 1.0)),
+        rounding,
+        pal.text.gamma_multiply(if lit { 0.22 } else { 0.12 }),
+    );
+    p.rect_filled(r, rounding, body);
+    // Gloss: the upper half lifted towards white, fading out at the middle.
+    let gloss = Rect::from_min_max(r.min, pos2(r.right(), r.center().y));
+    p.rect_filled(
+        gloss,
+        egui::CornerRadius {
+            nw: radius as u8,
+            ne: radius as u8,
+            sw: 0,
+            se: 0,
+        },
+        pal.white_key.gamma_multiply(if lit { 0.22 } else { 0.30 }),
+    );
+    // A lit button also gets a brighter rim at the very top, which is what makes it look
+    // lit rather than merely coloured.
+    if lit {
+        p.rect_filled(
+            Rect::from_min_max(
+                r.min + vec2(radius, 0.0),
+                pos2(r.right() - radius, r.top() + 1.5),
+            ),
+            0.0,
+            pal.white_key.gamma_multiply(0.45),
+        );
+    }
+    p.rect_stroke(
+        r,
+        rounding,
+        Stroke::new(
+            1.0,
+            if lit {
+                theme::tint(body, pal.text, 0.35)
+            } else {
+                theme::tint(body, pal.text, 0.18)
+            },
+        ),
+        egui::StrokeKind::Inside,
+    );
 }
 
 fn paint_grid(
@@ -455,7 +541,9 @@ fn paint_grid(
 ) {
     let pal = theme::p();
     let p = ui.painter().with_clip_rect(grid);
-    p.rect_filled(grid, 0.0, pal.ink);
+    // One step down the elevation scale from the canvas, so the keys — which are the
+    // raised surface — stand off it in either theme.
+    p.rect_filled(grid, 0.0, theme::tint(pal.ink, pal.panel, 0.7));
 
     let first = geo.scroll_steps.floor().max(0.0) as usize;
     let visible = (grid.width() / geo.step_w).ceil() as usize + 2;
@@ -470,23 +558,39 @@ fn paint_grid(
         let x = geo.grid_left + (step as f32 - geo.scroll_steps) * geo.step_w;
         let strong = step % steps_per_bar == 0;
         let beat = step % steps_per_beat == 0;
-        if beat && (step / steps_per_beat) % 2 == 0 {
+        if beat && (step / steps_per_beat) % 2 == 1 {
             let col = Rect::from_min_size(
                 pos2(x, grid.top()),
                 vec2(geo.step_w * steps_per_beat as f32, grid.height()),
             );
-            p.rect_filled(col, 0.0, pal.row_white.gamma_multiply(0.35));
+            p.rect_filled(col, 0.0, pal.row_black.gamma_multiply(0.55));
         }
         if strong {
             p.vline(x, grid.y_range(), Stroke::new(1.0, pal.grid_bar));
-        } else if beat {
-            p.vline(x, grid.y_range(), Stroke::new(1.0, pal.grid));
         }
     }
+    // The playhead's column, under the cells rather than over them: a wash that says
+    // "this step" without hiding what the step is.
+    let pos = app.engine.position();
+    let folded = if pattern.repeats {
+        let d = (pos - pattern.start).0;
+        (d >= 0).then(|| pattern.start + Ticks(d.rem_euclid(pattern.window().0.max(1))))
+    } else {
+        Some(pos)
+    };
+    let playing_step = folded.and_then(|t| pattern.index_of(t));
+    if let Some(step) = playing_step {
+        let x = geo.grid_left + (step as f32 - geo.scroll_steps) * geo.step_w;
+        let col = Rect::from_min_size(pos2(x, grid.top()), vec2(geo.step_w, grid.height()));
+        p.rect_filled(col, 0.0, pal.gold.gamma_multiply(0.16));
+    }
 
-    // Every cell of the rows × steps grid goes into one mesh (ADR 0011).
+    // Every cell of the rows × steps grid goes into one mesh (ADR 0011) — unless there are
+    // few enough of them to afford drawing each as a rounded button, which is the case
+    // for any pattern a person is actually programming.
     let row_h = geo.rows.first().map(|r| r.height).unwrap_or(MIN_ROW_H);
-    let lod = StepLod::for_size(geo.step_w, row_h);
+    let editable_rows = geo.rows.iter().filter(|r| r.lane.is_some()).count();
+    let lod = StepLod::for_size(geo.step_w, row_h, editable_rows * (last - first));
     let mut cells = egui::Mesh::default();
     let mut at = Vec::new();
     for (ri, row) in geo.rows.iter().enumerate() {
@@ -502,8 +606,16 @@ fn paint_grid(
         };
         if lod.cells {
             for step in first..last {
-                let r = geo.cell(ri, step).shrink(lod.gap);
-                cells.add_colored_rect(r, pal.panel.gamma_multiply(0.9));
+                let r = geo.cell(ri, step).shrink2(lod.gap);
+                // Two tones by beat, the way FL's rack alternates its buttons in fours: the
+                // eye counts beats without reading the ruler.
+                let odd_beat = (step / steps_per_beat) % 2 == 1;
+                let body = if odd_beat {
+                    theme::tint(pal.panel_raised, pal.grid_strong, 0.7)
+                } else {
+                    pal.panel_raised
+                };
+                paint_step(&p, &mut cells, r, body, false, &pal, lod);
             }
         }
         let Some(track) = app.project().tracks.get(row.track) else {
@@ -525,21 +637,19 @@ fn paint_grid(
                 if step < first || step >= last {
                     continue;
                 }
-                let cell = geo.cell(ri, step).shrink(lod.gap);
+                let cell = geo.cell(ri, step).shrink2(lod.gap);
+                // Velocity is how *strongly* the button is lit: a ghost note is the colour
+                // faded halfway back to the key, a full hit is the colour outright. The
+                // button keeps its shape — a bar that changed height with velocity made the
+                // row look like a histogram, and a rack is not a histogram.
+                let strength = 0.45 + 0.55 * n.velocity as f32 / 127.0;
+                let key = pal.panel_raised;
                 let fill = if n.muted || clip.muted {
-                    pal.text_dim
+                    theme::tint(key, pal.text_dim, 0.6)
                 } else {
-                    color
+                    theme::tint(key, color, strength)
                 };
-                let lit = if lod.velocity {
-                    // Velocity is the height of the lit part — the graph editor's first
-                    // column, always on screen rather than behind a key.
-                    let h = cell.height() * (0.28 + 0.72 * n.velocity as f32 / 127.0);
-                    Rect::from_min_max(pos2(cell.left(), cell.bottom() - h), cell.max)
-                } else {
-                    cell
-                };
-                cells.add_colored_rect(lit, fill);
+                paint_step(&p, &mut cells, cell, fill, true, &pal, lod);
             }
         }
     }
@@ -589,23 +699,16 @@ fn paint_grid(
         Stroke::new(1.0, pal.grid_strong),
     );
 
-    // Playhead: which step is sounding. A repeating pattern folds the playhead into its
-    // window, so the marker keeps running round while the song plays on.
-    let pos = app.engine.position();
-    let folded = if pattern.repeats {
-        let d = (pos - pattern.start).0;
-        (d >= 0).then(|| pattern.start + Ticks(d.rem_euclid(pattern.window().0.max(1))))
-    } else {
-        Some(pos)
-    };
-    if let Some(step) = folded.and_then(|t| pattern.index_of(t)) {
+    // The playhead's marker in the header, over the column washed in below.
+    if let Some(step) = playing_step {
         let x = geo.grid_left + (step as f32 - geo.scroll_steps) * geo.step_w;
-        let col = Rect::from_min_size(pos2(x, grid.top()), vec2(geo.step_w, grid.height()));
-        p.rect_stroke(
-            col,
-            egui::CornerRadius::ZERO,
-            Stroke::new(1.5, pal.gold_bright),
-            StrokeKind::Inside,
+        hp.rect_filled(
+            Rect::from_min_max(
+                pos2(x, header.bottom() - 3.0),
+                pos2(x + geo.step_w, header.bottom()),
+            ),
+            0.0,
+            pal.gold_bright,
         );
     }
 }
@@ -650,7 +753,7 @@ fn channels(
             ),
         );
         match row.kind {
-            RowKind::Track => track_row(app, ui, strip, id, row.track, pattern, selected_track),
+            RowKind::Track => track_row(app, ui, strip, id, pattern, selected_track),
             RowKind::Pad => pad_row(app, ui, strip, id, row.lane.unwrap_or(0), pattern),
         }
     }
@@ -666,7 +769,6 @@ fn track_row(
     ui: &mut egui::Ui,
     strip: Rect,
     id: TrackId,
-    index: usize,
     pattern: Pattern,
     selected: bool,
 ) {
@@ -675,44 +777,51 @@ fn track_row(
         return;
     };
     let p = ui.painter();
-    p.rect_filled(
-        Rect::from_min_size(strip.min, vec2(5.0, strip.height())),
-        0.0,
-        theme::track_color(track.color),
+    let color = theme::track_color(track.color);
+    // The channel button: FL's coloured block, as a tint. It holds the icon and the
+    // number of the mixer strip the channel lands on — every track is its own strip today,
+    // and when buses arrive this is where the route will be chosen, so the eye already
+    // knows where to look.
+    let button = Rect::from_min_max(
+        pos2(strip.left() + 3.0, strip.top() + 3.0),
+        pos2(strip.left() + 50.0, strip.bottom() - 3.0),
     );
+    let button_fill = theme::tint(pal.panel_raised, color, if selected { 0.7 } else { 0.5 });
+    p.rect_filled(button, pal.corner_radius, button_fill);
+    p.rect_filled(
+        Rect::from_min_size(button.min, vec2(3.0, button.height())),
+        egui::CornerRadius {
+            nw: pal.corner_radius,
+            sw: pal.corner_radius,
+            ne: 0,
+            se: 0,
+        },
+        color,
+    );
+    let on_button = theme::on_color(&pal, button_fill);
     let icon = Rect::from_center_size(
-        pos2(strip.left() + 17.0, strip.center().y),
+        pos2(button.left() + 14.0, button.center().y),
         vec2(14.0, 14.0),
     );
-    icons::paint_track_icon(
-        p,
-        icon,
-        track.icon(),
-        if selected {
-            pal.gold_bright
-        } else {
-            pal.text_dim
-        },
-    );
-    // The mixer strip this channel lands on. Every track is its own strip today; when
-    // buses arrive this is where the route will be chosen, so it is already where the eye
-    // learns to look for it.
-    let strip_no = Rect::from_center_size(
-        pos2(strip.left() + 38.0, strip.center().y),
-        vec2(20.0, 16.0),
-    );
-    p.rect_filled(
-        strip_no,
-        pal.corner_radius,
-        pal.grid_strong.gamma_multiply(0.6),
-    );
+    icons::paint_track_icon(p, icon, track.icon(), on_button);
+    // The strip this channel feeds — a number, or `M` for the master — and the place to
+    // change it: click, and the route picker opens.
+    let strip_no = match track.strip.and_then(|s| app.project().strip_number(s)) {
+        Some(n) => n.to_string(),
+        None => "M".to_string(),
+    };
     p.text(
-        strip_no.center(),
-        Align2::CENTER_CENTER,
-        (index + 1).to_string(),
+        pos2(button.right() - 6.0, button.center().y),
+        Align2::RIGHT_CENTER,
+        strip_no,
         design::paint::ruler(),
-        pal.text_dim,
+        on_button,
     );
+    let route = ui.interact(button, ui.id().with(("route", id.0)), Sense::click());
+    let route = route.on_hover_text(t("track.route_tip"));
+    egui::Popup::menu(&route).show(|ui| {
+        crate::views::inspector::route_picker(app, ui, id, track.strip);
+    });
 
     let inner = Rect::from_min_max(
         pos2(strip.left() + 52.0, strip.top() + 1.0),

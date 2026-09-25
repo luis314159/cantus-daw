@@ -2,18 +2,40 @@
 //! (no heap allocation in the audio thread) and travels over `rtrb` SPSC ring buffers.
 
 use crate::effects::EffectUnit;
-use cantus_core::{Snapshot, Ticks, TrackId};
+use cantus_core::{EffectId, Snapshot, StripId, Ticks, TrackId};
 use std::sync::Arc;
 
 /// Hard limits that let the audio thread pre-allocate everything (ADR 0005).
 pub const MAX_TRACKS: usize = 64;
+/// Mixer strips the engine can hold, buffers preallocated for each.
+pub const MAX_STRIPS: usize = 64;
 pub const MAX_BLOCK_FRAMES: usize = 8192;
 /// Insert effects per track.
-pub const MAX_EFFECTS_PER_TRACK: usize = 8;
+pub const MAX_EFFECTS_PER_TRACK: usize = cantus_core::MAX_INSERTS;
+/// Sends per strip, preallocated on the audio thread like everything else.
+pub const MAX_SENDS_PER_STRIP: usize = cantus_core::MAX_SENDS;
 /// Effect units the engine can hold before a snapshot claims them.
 pub const MAX_PENDING_EFFECTS: usize = 256;
 /// Messages the engine drains per block at most; the rest wait for the next block.
 pub const MAX_MESSAGES_PER_BLOCK: usize = 256;
+/// The recorder's ring: interleaved stereo samples, four seconds at 48 kHz. The UI drains
+/// it every frame, so this is the slack for a UI that stalls, not a buffer that fills.
+pub const CAPTURE_SAMPLES: usize = 48_000 * 2 * 4;
+/// The analyser's ring: pairs of (input, output) mono samples of the effect being looked
+/// at. Half a second of slack at 48 kHz.
+pub const ANALYSER_SAMPLES: usize = 48_000;
+/// Bands an EQ reports its dynamic gain for.
+pub const METERED_EQ_BANDS: usize = cantus_core::EQ_BANDS;
+
+/// What the mix recorder is taking: nothing, the master (after its fader and polarity,
+/// before the metronome), or one strip after its fader.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum CaptureTarget {
+    #[default]
+    Off,
+    Master,
+    Strip(StripId),
+}
 
 /// A raw MIDI channel message (channel nibble kept in `status`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -49,6 +71,10 @@ pub enum EngineMessage {
     /// An effect instance for an id the engine has not seen yet. Must precede the
     /// snapshot that references it.
     AddEffect(Box<EffectUnit>),
+    /// A new instance for an id the engine already runs (a hosted plug-in restarted, or
+    /// taken out while it restarts): swapped in where the old one was, the old one stopped
+    /// and handed back, and delay compensation planned again for the new latency.
+    ReplaceEffect(Box<EffectUnit>),
     Play,
     Stop,
     /// Jump to an absolute position (works while playing or stopped).
@@ -69,8 +95,25 @@ pub enum EngineMessage {
     SetLiveTrack(Option<TrackId>),
     /// While recording, live notes are reported back as [`EngineEvent::NoteInput`].
     SetRecording(bool),
+    /// Start, switch or stop the mix recorder. Samples go into the capture ring the
+    /// processor was built with; without one this does nothing.
+    SetCapture(CaptureTarget),
+    /// Feed the analyser from this effect's input and output (the editor that is open), or
+    /// stop feeding it.
+    SetAnalyser(Option<EffectId>),
     /// Release every voice on every track immediately.
     Panic,
+    /// Longer delay-compensation lines, answering [`EngineEvent::PdcNeed`]. The engine
+    /// swaps them in for free short ones and sends those back as
+    /// [`EngineEvent::GarbageLines`].
+    PdcLines(Vec<crate::pdc::DelayLine>),
+    /// Memory for one effect, answering [`EngineEvent::EffectNeed`]. The effect switches to
+    /// the setting that needed it when it arrives; what it replaces comes back as
+    /// [`EngineEvent::GarbageMemory`].
+    EffectMemory {
+        effect: EffectId,
+        memory: crate::effects::EffectMemory,
+    },
 }
 
 /// Peak meters for one block. Track order matches the snapshot's track order.
@@ -78,7 +121,21 @@ pub enum EngineMessage {
 pub struct Meters {
     pub master: [f32; 2],
     pub track_count: usize,
+    /// Each track's own output, before its strip: what the arrangement header shows.
     pub tracks: [f32; MAX_TRACKS],
+    pub strip_count: usize,
+    /// Each strip after its fader: what the mixer shows.
+    pub strips: [f32; MAX_STRIPS],
+    /// Each strip's compressor gain reduction, dB (positive): the deepest of its working
+    /// compressors in the block, 0 without one.
+    pub strip_gr: [f32; MAX_STRIPS],
+    /// The analysed EQ's dynamic gain per band, dB.
+    pub eq_deltas: [f32; METERED_EQ_BANDS],
+    /// The analysed compressor's last block: input peak, output peak (linear), and gain
+    /// reduction (dB).
+    pub comp: [f32; 3],
+    /// The analysed plug-in's telemetry (`crate::fx::FxUnit::telemetry`).
+    pub fx: crate::fx::Telemetry,
 }
 
 impl Default for Meters {
@@ -87,6 +144,12 @@ impl Default for Meters {
             master: [0.0; 2],
             track_count: 0,
             tracks: [0.0; MAX_TRACKS],
+            strip_count: 0,
+            strips: [0.0; MAX_STRIPS],
+            strip_gr: [0.0; MAX_STRIPS],
+            eq_deltas: [0.0; METERED_EQ_BANDS],
+            comp: [0.0; 3],
+            fx: [0.0; crate::fx::TELEMETRY_LEN],
         }
     }
 }
@@ -107,9 +170,19 @@ pub struct EngineStats {
     pub dropped_events: u64,
     pub active_voices: usize,
     pub blocks_processed: u64,
+    /// Recorder samples dropped because the capture ring was full.
+    pub capture_overruns: u64,
+    /// Delay compensation: how far the output lags the engine's position, in samples —
+    /// the latency of the slowest path to the master. The position the engine reports as
+    /// heard (`EngineEvent::Position::heard`), the click and recorded notes all allow for
+    /// it (ADR 0022).
+    pub latency_samples: u64,
+    /// Edges that needed compensation and found no free delay line.
+    pub pdc_unserved: u64,
 }
 
-/// A live note the engine saw while recording, stamped with the transport position.
+/// A live note the engine saw while recording, stamped with the position being **heard**
+/// when it came in — where the player put it (ADR 0022).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NoteInput {
     pub track: TrackId,
@@ -121,9 +194,18 @@ pub struct NoteInput {
 
 /// Engine → UI.
 #[derive(Debug)]
+// `Meters` grew a strip array; boxing it would put an allocation on the audio thread
+// every block, which is the one thing this enum must never do. The ring buffer's slots
+// are sized for the largest variant once, at construction.
+#[allow(clippy::large_enum_variant)]
 pub enum EngineEvent {
     Position {
+        /// Where the engine is: what it is rendering now.
         tick: Ticks,
+        /// What is being **heard** now: `tick` less the output's latency
+        /// (`EngineStats::latency_samples`), held at the start point until the first sample
+        /// of a new start has come out (ADR 0022). What the user is shown.
+        heard: Ticks,
         playing: bool,
     },
     Meters(Meters),
@@ -133,4 +215,27 @@ pub enum EngineEvent {
     Garbage(Arc<Snapshot>),
     /// An effect instance no snapshot references any more.
     GarbageEffect(Box<EffectUnit>),
+    /// Delay compensation needs `count` lines able to delay `delay` samples; answer with
+    /// [`EngineMessage::PdcLines`] (`crate::pdc::lines_for`).
+    PdcNeed {
+        count: usize,
+        delay: usize,
+    },
+    /// Delay lines swapped out of the pool; the UI drops them.
+    GarbageLines(Vec<crate::pdc::DelayLine>),
+    /// A unit's own editor moved a parameter (a hosted plug-in's window): the host turns
+    /// these into commands, one undo step per gesture.
+    FxParam {
+        effect: EffectId,
+        event: crate::fx::FxParamEvent,
+    },
+    /// An effect's settings need memory it has not got (a linear-phase EQ's convolver);
+    /// answer with [`EngineMessage::EffectMemory`] (`crate::effects::EffectMemory::build`).
+    /// Until it arrives the effect keeps running its previous path.
+    EffectNeed {
+        effect: EffectId,
+        need: crate::effects::MemoryNeed,
+    },
+    /// Effect memory handed back; the UI drops it.
+    GarbageMemory(crate::effects::EffectMemory),
 }

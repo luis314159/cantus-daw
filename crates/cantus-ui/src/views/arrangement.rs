@@ -426,6 +426,10 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
     let base = app.arrangement.track_height;
     let rows = rows_of(app.project(), top.bottom(), base);
     let ids: Vec<TrackId> = app.project().tracks.iter().map(|t| t.id).collect();
+    // The map behind each header is drawn against the whole piece, ending on a bar so
+    // that four bars of music are not squeezed against the right edge.
+    let bar = app.project().time_signature.ticks_per_bar().0.max(1) as f32;
+    let song_len = ((app.project().content_end().0 as f32 / bar).ceil() * bar).max(bar);
     let mut to_delete = None;
     let pal = theme::p();
 
@@ -452,6 +456,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             None => continue,
         };
         let p = ui.painter();
+        let color = theme::track_color(track.color);
         let bg = if selected {
             pal.panel_raised
         } else if i % 2 == 0 {
@@ -459,14 +464,46 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         } else {
             pal.row_white
         };
-        p.rect_filled(row, 0.0, bg);
-        // The colour stripe is wider than it was and it is the grab handle for reordering,
-        // which is why it is worth the pixels: a header you can drag anywhere would fight
-        // with the name editor and the buttons.
+        // The header carries its track's colour as a tint, like the lane does, so the
+        // colour runs from the header across the song rather than stopping at a stripe.
+        p.rect_filled(
+            row,
+            0.0,
+            theme::tint(bg, color, if selected { 0.14 } else { 0.07 }),
+        );
+        // **The header as a map.** Every clip on the track, drawn to scale behind the
+        // name across the whole length of the piece — so the chorus can be found without
+        // scrolling, which is the best thing FL's headers do. Faint enough to sit behind
+        // text; one mesh for all of them (ADR 0011).
+        if song_len > 0.0 && !track.clips.is_empty() {
+            let mut map = egui::Mesh::default();
+            let map_rect = Rect::from_min_max(
+                pos2(
+                    row.left() + 8.0,
+                    row.bottom() - 5.0 - (row.height() * 0.3).clamp(4.0, 10.0),
+                ),
+                pos2(row.right() - 4.0, row.bottom() - 5.0),
+            );
+            for clip in &track.clips {
+                let x0 = map_rect.left() + clip.start.0 as f32 / song_len * map_rect.width();
+                let x1 = map_rect.left() + clip.end().0 as f32 / song_len * map_rect.width();
+                map.add_colored_rect(
+                    Rect::from_min_max(
+                        pos2(x0, map_rect.top()),
+                        pos2(x1.max(x0 + 1.0), map_rect.bottom()),
+                    ),
+                    color.gamma_multiply(if clip.muted { 0.18 } else { 0.42 }),
+                );
+            }
+            p.add(egui::Shape::Mesh(std::sync::Arc::new(map)));
+        }
+        // The colour stripe is the grab handle for reordering, which is why it is worth
+        // the pixels: a header you can drag anywhere would fight with the name editor
+        // and the buttons.
         p.rect_filled(
             Rect::from_min_size(row.min, vec2(6.0, row.height())),
             0.0,
-            theme::track_color(track.color),
+            color,
         );
         p.hline(
             row.x_range(),
@@ -907,19 +944,35 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         rows: rows.clone(),
     });
     let n_tracks = rows.len();
+    let lane_colors: Vec<(egui::Color32, bool)> = app
+        .project()
+        .tracks
+        .iter()
+        .map(|t| {
+            (
+                theme::track_color(t.color),
+                app.selected_track == Some(t.id),
+            )
+        })
+        .collect();
     for (i, r) in rows.iter().enumerate() {
         let row = Rect::from_min_max(
             pos2(rect.left(), r.top),
             pos2(rect.right(), r.top + r.height),
         );
+        // The lane carries a trace of its track's colour — a few percent, more when the
+        // track is selected — so a forty-track song is navigable by colour without a
+        // single lane being *painted*. That is FL's colour identity at our restraint.
+        let base = if i % 2 == 0 {
+            theme::p().row_black
+        } else {
+            theme::p().row_white
+        };
+        let (color, selected) = lane_colors.get(i).copied().unwrap_or((base, false));
         p.rect_filled(
             row,
             0.0,
-            if i % 2 == 0 {
-                theme::p().row_black
-            } else {
-                theme::p().row_white
-            },
+            theme::tint(base, color, if selected { 0.10 } else { 0.045 }),
         );
         p.hline(
             row.x_range(),
@@ -973,14 +1026,27 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         } else {
             0.3
         };
+        let gold = theme::p().gold.gamma_multiply(alpha);
+        // A bracket, not a bar: the ends are what get dragged, so they are the part with
+        // weight, and the span between them is a line.
         p.rect_filled(
             Rect::from_min_max(
-                pos2(x0, loop_lane.top() + 1.0),
-                pos2(x1, loop_lane.bottom() - 1.0),
+                pos2(x0, loop_lane.top() + 3.0),
+                pos2(x1, loop_lane.bottom() - 3.0),
             ),
             0.0,
-            theme::p().gold.gamma_multiply(alpha),
+            gold,
         );
+        for x in [x0, x1] {
+            p.rect_filled(
+                Rect::from_min_max(
+                    pos2(x - 1.5, loop_lane.top() + 1.0),
+                    pos2(x + 1.5, body_top),
+                ),
+                0.0,
+                gold,
+            );
+        }
     }
     // The time selection: a translucent column across **every** track, which is what makes
     // "this stretch of the song" a thing you can see rather than remember. It is drawn
@@ -1068,22 +1134,50 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                 pos2(x1.max(x0 + 2.0), row_y + row_h - inset),
             );
             let sel = selection.contains(&r);
+            let pal = theme::p();
+            // **Clip chrome.** A clip is a title bar over a body. The bar is the clip's
+            // colour at full strength and carries the name; the body is the same colour
+            // as a wash, and carries the preview. That is three jobs at once — what kind
+            // of clip this is, a grab area that is not the content, and a name that stays
+            // legible over the music — and it is the single thing FL's playlist does that
+            // ours did not. Below 22 px there is no room for a bar and the name sits on the
+            // body; below 14 px wide there is no room for a name and it is not drawn,
+            // rather than smeared.
+            let title_h = if body.height() >= 22.0 { 13.0 } else { 0.0 };
             // A muted clip keeps its colour but loses its weight: it is still that
             // track's clip, it just is not sounding.
-            let fill = if clip.muted {
-                0.15
+            let wash = if clip.muted {
+                0.10
             } else if sel {
-                0.55
+                0.34
             } else {
-                0.35
+                0.22
             };
-            p.rect_filled(body, CornerRadius::same(3), color.gamma_multiply(fill));
+            let radius = CornerRadius::same(3);
+            p.rect_filled(body, radius, theme::tint(pal.ink, color, wash));
+            let title = Rect::from_min_max(body.min, pos2(body.right(), body.top() + title_h));
+            if title_h > 0.0 {
+                p.rect_filled(
+                    title,
+                    CornerRadius {
+                        nw: 3,
+                        ne: 3,
+                        sw: 0,
+                        se: 0,
+                    },
+                    color.gamma_multiply(if clip.muted { 0.45 } else { 1.0 }),
+                );
+            }
             p.rect_stroke(
                 body,
-                CornerRadius::same(3),
+                radius,
                 Stroke::new(
                     if sel { 2.0 } else { 1.0 },
-                    if sel { theme::p().gold_bright } else { color },
+                    if sel {
+                        pal.gold_bright
+                    } else {
+                        color.gamma_multiply(0.8)
+                    },
                 ),
                 StrokeKind::Inside,
             );
@@ -1102,10 +1196,21 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                     (lo.min(n.pitch), hi.max(n.pitch))
                 });
                 let span = (hi - lo).max(12) as f32;
-                // Leave room for the name at the top, but never more than half the clip:
-                // on a short track the miniature would otherwise vanish entirely.
-                let name_h = (row_h * 0.35).clamp(4.0, 14.0);
-                let inner = body.shrink2(vec2(2.0, name_h));
+                // The preview fills the body under the title bar. When there is no bar
+                // the name sits over it, and a little headroom keeps the two apart.
+                let top_pad = if title_h > 0.0 { title_h + 2.0 } else { 3.0 };
+                let inner = Rect::from_min_max(
+                    pos2(body.left() + 2.0, body.top() + top_pad),
+                    pos2(body.right() - 2.0, body.bottom() - 2.0),
+                );
+                // The notes are the clip's colour pulled towards the text colour, which is
+                // legible on the wash in either theme; brightening a pastel on Paper gave
+                // white on white.
+                let note_color = if clip.muted {
+                    pal.text_dim
+                } else {
+                    theme::tint(color, pal.text, 0.45)
+                };
                 if inner.height() > 2.0 {
                     for n in &clip.notes {
                         shown.timeline_positions(n.start, &mut at);
@@ -1116,12 +1221,13 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                                 continue;
                             }
                             let ny = inner.bottom() - (n.pitch - lo) as f32 / span * inner.height();
+                            let half = (inner.height() / span * 0.5).clamp(1.0, 2.0);
                             minis.add_colored_rect(
                                 Rect::from_min_max(
-                                    pos2(nx0.max(body.left()), ny - 1.0),
-                                    pos2(nx1.min(body.right()).max(nx0 + 1.0), ny + 1.0),
+                                    pos2(nx0.max(body.left()), ny - half),
+                                    pos2(nx1.min(body.right()).max(nx0 + 1.0), ny + half),
                                 ),
-                                color.gamma_multiply(if clip.muted { 0.5 } else { 1.4 }),
+                                note_color,
                             );
                         }
                     }
@@ -1135,8 +1241,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
                     let x = view.x(ticks_to_beats(start + d));
                     p.vline(
                         x,
-                        body.y_range(),
-                        Stroke::new(1.0, theme::p().ink.gamma_multiply(0.5)),
+                        body.top() + title_h..=body.bottom(),
+                        Stroke::new(1.0, theme::tint(color, pal.text, 0.5).gamma_multiply(0.6)),
                     );
                     d += period;
                 }
@@ -1149,19 +1255,31 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             {
                 renaming = Some(body);
             } else {
-                let clip_p = p.with_clip_rect(body);
-                let label = if clip.muted {
-                    format!("{} ({})", clip.name, t("clip.muted_short"))
-                } else {
-                    clip.name.clone()
-                };
-                clip_p.text(
-                    pos2(body.left() + 5.0, body.top() + 3.0),
-                    Align2::LEFT_TOP,
-                    label,
-                    design::paint::label(),
-                    theme::p().text,
-                );
+                if body.width() >= 14.0 {
+                    let clip_p = p.with_clip_rect(body);
+                    let label = if clip.muted {
+                        format!("{} ({})", clip.name, t("clip.muted_short"))
+                    } else {
+                        clip.name.clone()
+                    };
+                    // On the bar the name takes whichever ink reads on the colour; on a
+                    // bare body it is the ordinary text colour.
+                    let (at, ink) = if title_h > 0.0 {
+                        (
+                            pos2(body.left() + 5.0, title.center().y),
+                            theme::on_color(&pal, color),
+                        )
+                    } else {
+                        (pos2(body.left() + 5.0, body.center().y), pal.text)
+                    };
+                    clip_p.text(
+                        at,
+                        Align2::LEFT_CENTER,
+                        label,
+                        design::paint::caption(),
+                        ink,
+                    );
+                }
             }
             let test = |pos: egui::Pos2| -> Option<Hit> {
                 if !body.contains(pos) {
@@ -1236,7 +1354,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
         );
     }
 
-    // Playhead.
+    // Playhead: the line down the lanes, and a marker in the ruler that can be found when
+    // the line is lost among the grid.
     let ph_x = view.x(ticks_to_beats(app.engine.position()));
     if ph_x >= rect.left() && ph_x <= rect.right() {
         p.vline(
@@ -1244,6 +1363,15 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, rect: Rect) {
             rect.y_range(),
             Stroke::new(1.5, theme::p().gold_bright),
         );
+        p.add(egui::Shape::convex_polygon(
+            vec![
+                pos2(ph_x - 5.0, body_top - 7.0),
+                pos2(ph_x + 5.0, body_top - 7.0),
+                pos2(ph_x, body_top),
+            ],
+            theme::p().gold_bright,
+            Stroke::NONE,
+        ));
     }
     if let Some(pos) = pointer {
         if pos.y < body_top && app.arrangement.drag.is_none() {

@@ -1,0 +1,85 @@
+# Sibilus — de Sibilus. Cada clave necesita su gemela en deesser.en.txt.
+effect.deesser = Sibilus de-esser
+
+# Parámetros
+fx.ds.mode = Detección
+fx.ds.proc = Proceso
+fx.ds.thr = Umbral
+fx.ds.range = Rango
+fx.ds.lo = Borde bajo
+fx.ds.hi = Borde alto
+fx.ds.att = Ataque
+fx.ds.rel = Liberación
+fx.ds.look = Anticipación
+fx.ds.link = Enlace
+fx.ds.stereo = Estéreo
+fx.ds.listen = Escuchar
+fx.ds.sens = Sensibilidad
+
+# Opciones
+ds.mode.0 = Voz sola
+ds.mode.0_tip = Una voz: un clasificador decide qué parte de la banda es sibilancia — la parte de la energía de la voz que cae en la banda, y cuánto se parece a ruido —, así que las vocales brillantes y los silbidos se respetan, sea cual sea su nivel
+ds.mode.1 = General
+ds.mode.1_tip = Todo lo que en la banda pase del umbral: mezclas, baterías, platillos, o un limitador de agudos
+ds.proc.0 = Banda completa
+ds.proc.0_tip = Baja toda la señal durante la sibilancia — lo más natural en una voz sola. Sin latencia si no hay anticipación
+ds.proc.1 = Dividir agudos
+ds.proc.1_tip = Baja solo lo que está por encima del borde bajo de la banda, con una división de fase lineal (2,6 ms de latencia)
+ds.proc.2 = Dividir banda
+ds.proc.2_tip = Baja solo la banda, del borde bajo al alto, y deja intacto el aire por encima (2,6 ms de latencia)
+ds.stereo.0 = I/D
+ds.stereo.0_tip = Izquierda y derecha, cada una con su detector, unidas por el enlace
+ds.stereo.1 = M/S
+ds.stereo.1_tip = Centro y lados, cada uno con su detector, unidos por el enlace
+ds.stereo.2 = Centro
+ds.stereo.2_tip = Solo se detecta y se baja el centro; los lados pasan intactos
+ds.stereo.3 = Lados
+ds.stereo.3_tip = Solo se detectan y se bajan los lados — coros paneados; el centro pasa intacto
+ds.listen.0 = Salida
+ds.listen.0_tip = La señal ya sin eses
+ds.listen.1 = Disparo
+ds.listen.1_tip = Lo que oye el detector: la clave a través de la banda de detección. Mueve la banda hasta oír solo la «s»
+ds.listen.2 = Quitado
+ds.listen.2_tip = Lo que se quita: entrada menos salida. Si en ello se oyen palabras, está trabajando de más
+
+# La ventana
+ds.key = Clave
+ds.key_own = Su propia entrada
+ds.key_tip = Lo que escucha el detector: la entrada de este canal, u otro canal tras su fader — la voz limpia controlando una copia distorsionada, sin envíos que preparar
+ds.learn = Aprender umbral
+ds.learning = Escuchando… {n} sibilantes — clic para fijar
+ds.learn_tip = Reproduce un pasaje y vuelve a hacer clic: el umbral queda donde la sibilante mediana se reduce la mitad del rango y las más fuertes, todo. Un solo paso de deshacer
+ds.learn_none = No se ha oído bastante sibilancia para aprender: reproduce un pasaje más largo
+ds.learned_to = Umbral aprendido: {db} dB
+ds.learned = aprendido
+ds.latency = Latencia {ms} ms
+ds.latency_zero = Sin latencia
+ds.latency_tip = El retardo que añade — la anticipación, más la división de fase lineal —, que el anfitrión compensa en los demás caminos
+ds.off = No
+ds.stats = {n} eventos · {rate} en los últimos 10 s · reducción media {avg} dB · máxima {max} dB
+ds.stats_none = Aún no ha quitado nada
+ds.heavy = demasiado: {avg} dB de media por evento — las consonantes pueden empezar a cecear
+ds.lane.signal = SEÑAL
+ds.legend.left = lo que queda
+ds.legend.removed = lo quitado
+ds.lane.cut = REDUCCIÓN
+ds.lane.detector = DETECTOR · nivel de la banda
+ds.lane.sibilance = sibilancia
+ds.threshold_line = Umbral {db} dB
+ds.cut_now = ahora {db} dB · pico {peak} dB
+ds.cut_curve = reducción {db} dB (rango {range} dB)
+ds.hover = hace {ago} s · entrada {in} dB · banda {det} dB · reducción {cut} dB
+ds.hover_conf =  · sibilancia {conf} %
+ds.hover_hz =  · centro {hz}
+ds.paused = En pausa, {s} s atrás — doble clic para volver al directo
+ds.live = En directo — la rueda mira atrás
+ds.centre = centro {hz}
+ds.open_tip = Abrir el de-esser
+
+# Preajustes
+ds.preset.male = Voz masculina
+ds.preset.female = Voz femenina
+ds.preset.voiceover = Locución, dividida
+ds.preset.backing = Coros, solo lados
+ds.preset.cymbals = Platillos y charles
+ds.preset.bus = Bus de mezcla, limitador de agudos

@@ -71,7 +71,10 @@ pub struct EngineHandle {
     pub device_name: String,
     pub sample_rate: f64,
     pub channels: usize,
+    /// What is being heard (ADR 0022): what [`Self::position`] returns.
     position: Ticks,
+    /// Where the engine is, ahead of what is heard by the output's latency.
+    engine_position: Ticks,
     playing: bool,
     meters: Meters,
     stats: EngineStats,
@@ -81,6 +84,15 @@ pub struct EngineHandle {
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
     note_inputs: Vec<NoteInput>,
+    /// The consumer end of the mix recorder's ring; `None` without an audio device.
+    capture: Option<Consumer<f32>>,
+    capture_target: CaptureTarget,
+    /// The consumer end of the analyser's ring.
+    analyser: Option<Consumer<f32>>,
+    /// The analysed compressor's meter, the maxima of every block since the last take.
+    comp_peak: [f32; 3],
+    /// What hosted plug-ins' own windows did since the last take (ADR 0019).
+    fx_params: Vec<(EffectId, crate::fx::FxParamEvent)>,
 }
 
 impl std::fmt::Debug for EngineHandle {
@@ -128,6 +140,10 @@ impl EngineHandle {
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        let (capture_tx, capture_rx) = RingBuffer::<f32>::new(CAPTURE_SAMPLES);
+        processor.attach_capture(capture_tx);
+        let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
+        processor.attach_analyser(analyser_tx);
 
         let stream = device
             .build_output_stream(
@@ -153,6 +169,7 @@ impl EngineHandle {
             sample_rate: sample_rate as f64,
             channels,
             position: Ticks::ZERO,
+            engine_position: Ticks::ZERO,
             playing: false,
             meters: Meters::default(),
             stats: EngineStats::default(),
@@ -160,7 +177,26 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             samples: SampleCache::new(),
             note_inputs: Vec::new(),
+            capture: Some(capture_rx),
+            capture_target: CaptureTarget::Off,
+            analyser: Some(analyser_rx),
+            comp_peak: [0.0; 3],
+            fx_params: Vec::new(),
         })
+    }
+
+    /// A handle and the processor behind it, with no audio device: the caller drives the
+    /// processor (`Processor::process`) wherever it likes — a test standing in for the
+    /// audio callback, so everything from the UI's side through the engine runs for real.
+    pub fn manual(sample_rate: f64) -> (Self, Processor) {
+        let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
+        let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
+        let processor = Processor::without_midi(sample_rate, rx_engine, tx_engine);
+        let mut handle = Self::dummy();
+        handle.tx = tx;
+        handle.rx = rx;
+        handle.sample_rate = sample_rate;
+        (handle, processor)
     }
 
     /// A handle with no audio device (headless / tests / no sound card). Messages are
@@ -178,6 +214,7 @@ impl EngineHandle {
             sample_rate: 48_000.0,
             channels: 2,
             position: Ticks::ZERO,
+            engine_position: Ticks::ZERO,
             playing: false,
             meters: Meters::default(),
             stats: EngineStats::default(),
@@ -185,7 +222,123 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             samples: SampleCache::new(),
             note_inputs: Vec::new(),
+            capture: None,
+            capture_target: CaptureTarget::Off,
+            analyser: None,
+            comp_peak: [0.0; 3],
+            fx_params: Vec::new(),
         }
+    }
+
+    /// Deliver a unit built elsewhere (a hosted plug-in, ADR 0019) for an effect id the
+    /// engine does not run yet. Call before [`Self::set_snapshot`] with the snapshot that
+    /// holds the slot, which then leaves it alone.
+    pub fn add_unit(&mut self, unit: EffectUnit) -> bool {
+        let id = unit.id;
+        if self
+            .tx
+            .push(EngineMessage::AddEffect(Box::new(unit)))
+            .is_ok()
+        {
+            self.known_effects.insert(id);
+            true
+        } else {
+            self.send_failures += 1;
+            false
+        }
+    }
+
+    /// Swap a new unit in for the one the engine runs with the same id; the old one comes
+    /// back as garbage and the id stays known.
+    pub fn replace_unit(&mut self, unit: EffectUnit) -> bool {
+        let id = unit.id;
+        if self
+            .tx
+            .push(EngineMessage::ReplaceEffect(Box::new(unit)))
+            .is_ok()
+        {
+            self.known_effects.insert(id);
+            true
+        } else {
+            self.send_failures += 1;
+            false
+        }
+    }
+
+    /// Whether the engine has (or is about to get) a unit for this effect.
+    pub fn knows_effect(&self, id: EffectId) -> bool {
+        self.known_effects.contains(&id)
+    }
+
+    /// What hosted plug-ins' own windows did since the last call, oldest first.
+    pub fn take_fx_params(&mut self) -> Vec<(EffectId, crate::fx::FxParamEvent)> {
+        std::mem::take(&mut self.fx_params)
+    }
+
+    /// The analysed compressor's input peak, output peak (linear) and gain reduction (dB),
+    /// the largest of every block since the last call. A frame reads one value however
+    /// many blocks went by, and a transient in any of them is kept.
+    pub fn take_comp_meter(&mut self) -> [f32; 3] {
+        std::mem::take(&mut self.comp_peak)
+    }
+
+    /// Point the analyser at an effect (the editor that is open), or at nothing.
+    pub fn set_analyser(&mut self, effect: Option<cantus_core::EffectId>) {
+        if let Some(a) = self.analyser.as_mut() {
+            while a.pop().is_ok() {}
+        }
+        self.send(EngineMessage::SetAnalyser(effect));
+    }
+
+    /// Move the analyser's (input, output) pairs into `out`. Called once a frame.
+    pub fn drain_analyser(&mut self, out: &mut Vec<f32>) -> usize {
+        let Some(a) = self.analyser.as_mut() else {
+            return 0;
+        };
+        let n = a.slots();
+        for _ in 0..n {
+            match a.pop() {
+                Ok(x) => out.push(x),
+                Err(_) => break,
+            }
+        }
+        n
+    }
+
+    /// Point the mix recorder at the master, a strip, or nothing. Whatever was waiting
+    /// in the ring from the last target is thrown away first, so a take never starts
+    /// with the tail of another.
+    pub fn set_capture(&mut self, target: CaptureTarget) {
+        if let Some(c) = self.capture.as_mut() {
+            while c.pop().is_ok() {}
+        }
+        self.capture_target = target;
+        self.send(EngineMessage::SetCapture(target));
+    }
+
+    pub fn capture_target(&self) -> CaptureTarget {
+        self.capture_target
+    }
+
+    /// Move every recorded sample (interleaved stereo) into `out`. Called once a frame.
+    pub fn drain_capture(&mut self, out: &mut Vec<f32>) -> usize {
+        let Some(c) = self.capture.as_mut() else {
+            return 0;
+        };
+        let n = c.slots();
+        out.reserve(n);
+        for _ in 0..n {
+            match c.pop() {
+                Ok(x) => out.push(x),
+                Err(_) => break,
+            }
+        }
+        n
+    }
+
+    /// Whether this handle can record at all (a real audio device is open).
+    pub fn can_capture(&self) -> bool {
+        self.capture.is_some()
     }
 
     pub fn is_live(&self) -> bool {
@@ -219,8 +372,8 @@ impl EngineHandle {
 
     /// Send a snapshot, first delivering units for any effect the engine does not have.
     pub fn set_snapshot(&mut self, snapshot: Arc<Snapshot>) {
-        for track in &snapshot.tracks {
-            for slot in &track.effects {
+        for strip in &snapshot.strips {
+            for slot in &strip.effects {
                 if !self.known_effects.contains(&slot.id) {
                     let unit = EffectUnit::new(slot, self.sample_rate as f32);
                     if self
@@ -248,6 +401,7 @@ impl EngineHandle {
 
     pub fn seek(&mut self, tick: Ticks) {
         self.position = tick;
+        self.engine_position = tick;
         self.send(EngineMessage::Seek(tick));
     }
 
@@ -282,18 +436,42 @@ impl EngineHandle {
         while let Ok(ev) = self.rx.pop() {
             n += 1;
             match ev {
-                EngineEvent::Position { tick, playing } => {
-                    self.position = tick;
+                EngineEvent::Position {
+                    tick,
+                    heard,
+                    playing,
+                } => {
+                    self.position = heard;
+                    self.engine_position = tick;
                     self.playing = playing;
                 }
-                EngineEvent::Meters(m) => self.meters = m,
+                EngineEvent::Meters(m) => {
+                    for (p, v) in self.comp_peak.iter_mut().zip(m.comp) {
+                        *p = p.max(v);
+                    }
+                    self.meters = m;
+                }
                 EngineEvent::Stats(s) => self.stats = s,
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
                 EngineEvent::Garbage(old) => drop(old),
                 EngineEvent::GarbageEffect(unit) => {
-                    self.known_effects.remove(&unit.id);
+                    // A replaced unit's id lives on in its successor.
+                    if !unit.replaced {
+                        self.known_effects.remove(&unit.id);
+                    }
                     drop(unit);
                 }
+                EngineEvent::FxParam { effect, event } => self.fx_params.push((effect, event)),
+                EngineEvent::PdcNeed { count, delay } => {
+                    let lines = crate::pdc::lines_for(count, delay);
+                    self.send(EngineMessage::PdcLines(lines));
+                }
+                EngineEvent::GarbageLines(lines) => drop(lines),
+                EngineEvent::EffectNeed { effect, need } => {
+                    let memory = crate::effects::EffectMemory::build(need, self.sample_rate as f32);
+                    self.send(EngineMessage::EffectMemory { effect, memory });
+                }
+                EngineEvent::GarbageMemory(memory) => drop(memory),
             }
         }
         n
@@ -304,8 +482,16 @@ impl EngineHandle {
         std::mem::take(&mut self.note_inputs)
     }
 
+    /// The position being **heard**: the engine's own less the output's latency (ADR
+    /// 0022). The transport readout, the playhead and anything placed "at the playhead"
+    /// read this, so what is shown is what is heard.
     pub fn position(&self) -> Ticks {
         self.position
+    }
+
+    /// Where the engine is rendering, ahead of [`Self::position`] by the latency.
+    pub fn engine_position(&self) -> Ticks {
+        self.engine_position
     }
 
     pub fn is_playing(&self) -> bool {

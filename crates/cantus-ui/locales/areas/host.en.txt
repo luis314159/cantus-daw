@@ -1,0 +1,64 @@
+# host — the round-17 host work's strings. Every key here needs its twin in host.es.txt.
+host.plugin = Plug-in
+cmd.set_plugin_param = plug-in parameter
+cmd.set_plugin_state = plug-in state
+
+# --- the insert menu ---
+host.menu.title = Plug-ins
+host.menu.search = Search plug-ins
+host.menu.by_vendor = By maker
+host.menu.by_category = By kind
+host.menu.none = No plug-ins found yet. Scan to look for CLAP plug-ins on this computer.
+host.menu.no_match = Nothing matches
+host.menu.no_vendor = Unknown maker
+host.menu.other = Other
+host.menu.tip = {vendor} · version {version}
+
+# --- slots ---
+host.missing = missing
+host.missing_tip = Not on this computer ({why}). The slot passes the sound through untouched, and its settings are kept and saved with the project. Install the plug-in from {vendor} and scan to bring it back.
+host.preview = {n} values · latency {latency} samples
+host.preview_missing = Not loaded
+host.load_failed = Could not load {name}: {error}
+host.restart_failed = A plug-in could not restart and passes the sound through: {error}
+host.scan_done = Plug-in scan finished: {found} usable, {scanned} files read, {blocked} blocked
+
+# --- the generic editor ---
+host.editor.latency = latency {samples} smp · {ms} ms
+host.editor.open_window = Open plug-in window
+host.editor.close_window = Close plug-in window
+host.editor.window_tip = The plug-in's own editor, in a window of its own
+host.editor.no_window = This plug-in has no editor of its own; its parameters are all here
+host.editor.window_failed = Could not open the plug-in's window: {error}
+host.editor.missing = {name} is not on this computer: {why}.
+host.editor.missing_kept = Its state and values are kept in the project exactly as they were, and saved with it.
+host.editor.filter = Filter parameters
+host.editor.count = {n} parameters
+host.editor.ungrouped = Parameters
+host.editor.key = Key: {strip}
+host.editor.key_none = Key: none
+host.editor.key_tip = The strip whose output feeds the plug-in's sidechain input
+host.preset.none = No saved states yet: save one below
+
+# --- the manager, in Settings ---
+host.manager.title = Plug-ins
+host.manager.scan = Scan for plug-ins
+host.manager.scan_tip = Read new and changed plug-in files; unchanged ones come from the cache
+host.manager.rescan_all = Rescan everything
+host.manager.rescan_all_tip = Read every file again, blocked ones included
+host.manager.scanning = Scanning…
+host.manager.summary = usable: {found} · blocked: {blocked}
+host.manager.folders = Folders
+host.manager.standard = standard
+host.manager.remove = Remove
+host.manager.folder_hint = Another folder to look in
+host.manager.add = Add
+host.manager.browse = Browse…
+host.manager.found = Found ({n})
+host.manager.not_effect = not an effect: not offered in inserts
+host.manager.blocked = Blocked
+host.manager.blocked_none = None: every plug-in file loaded cleanly.
+host.manager.blocked_hint = These crashed or hung while being read, so Cantus never loads them. Try again after updating one.
+host.manager.retry = Try again
+host.manager.retry_tip = Read this file again in a separate process
+host.manager.failed = {n} files were not plug-ins Cantus can use

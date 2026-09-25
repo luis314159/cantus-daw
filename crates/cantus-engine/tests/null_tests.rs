@@ -29,9 +29,12 @@ fn demo_project() -> Project {
     clip.notes
         .push(p.make_note(Ticks::beats(6), Ticks::beats(4), 55, 100));
     lead.clips.push(clip);
-    lead.pan = -0.3;
-    lead.gain_db = -3.0;
     p.tracks.push(lead);
+    {
+        let s = strip_of(&mut p, 0);
+        s.pan = -0.3;
+        s.gain_db = -3.0;
+    }
 
     let mut bass = p.make_track("Bass");
     let f = bass.instrument.firmus_mut().expect("Firmus");
@@ -49,13 +52,19 @@ fn demo_project() -> Project {
         clip.notes.push(n);
     }
     bass.clips.push(clip);
-    bass.pan = 0.2;
     p.tracks.push(bass);
+    strip_of(&mut p, 1).pan = 0.2;
     p
 }
 
 fn snapshot() -> Arc<Snapshot> {
     Arc::new(Snapshot::compile(&demo_project(), 1))
+}
+
+/// The strip a track feeds, to set the mixer controls that used to live on the track.
+fn strip_of(p: &mut Project, track: usize) -> &mut MixerStrip {
+    let id = p.tracks[track].strip.expect("track feeds a strip");
+    p.strip_mut(id).unwrap()
 }
 
 #[test]
@@ -282,9 +291,13 @@ fn width_at_unity_and_polarity_off_change_nothing() {
     let reference = render_of(&base);
 
     let mut explicit = base.clone();
+    for s in &mut explicit.strips {
+        s.width = 1.0;
+        s.phase_invert = false;
+    }
     for t in &mut explicit.tracks {
-        t.width = 1.0;
-        t.phase_invert = false;
+        t.gain_db = 0.0;
+        t.pan = 0.0;
     }
     explicit.master.width = 1.0;
     explicit.master.phase_invert = false;
@@ -313,7 +326,9 @@ fn a_track_against_its_inverted_copy_is_exactly_silence() {
     let mut b = a.clone();
     b.id = TrackId(p.alloc_id());
     b.name = "B".into();
-    b.phase_invert = true;
+    // Its own strip, with the flip on it: two tracks on one strip would sum before the Ø.
+    b.strip = Some(p.strips[1].id);
+    p.strips[1].phase_invert = true;
     // Same voices, same order, same everything: only the polarity differs.
     for (n, m) in a.clips[0].notes.iter().zip(b.clips[0].notes.iter_mut()) {
         m.id = n.id;
@@ -327,7 +342,7 @@ fn a_track_against_its_inverted_copy_is_exactly_silence() {
 
     // And with the flip removed, the same project is loud — so the test above is not
     // passing because nothing was playing.
-    p.tracks[1].phase_invert = false;
+    p.strips[1].phase_invert = false;
     assert!(peak(&render_of(&p)) > 0.05);
 }
 
@@ -338,10 +353,13 @@ fn width_zero_makes_a_track_mono() {
     let mut p = demo_project();
     // One track, panned centre so the pan law cannot re-separate the channels.
     p.tracks.truncate(1);
-    p.tracks[0].pan = 0.0;
-    p.tracks[0].width = 0.0;
     let delay = p.make_effect(EffectKind::Delay);
-    p.tracks[0].effects.push(delay);
+    {
+        let s = strip_of(&mut p, 0);
+        s.pan = 0.0;
+        s.width = 0.0;
+        s.effects.push(delay);
+    }
     // A stereo delay is what makes this test worth running: without one the source is
     // already mono and width would have nothing to collapse.
     let out = render_of(&p);
@@ -351,7 +369,7 @@ fn width_zero_makes_a_track_mono() {
     }
 
     // At width 1 the same project is genuinely stereo, so mono is doing something.
-    p.tracks[0].width = 1.0;
+    strip_of(&mut p, 0).width = 1.0;
     let stereo = render_of(&p);
     assert!(
         stereo.chunks_exact(2).any(|f| f[0] != f[1]),
@@ -387,8 +405,9 @@ fn the_pan_law_is_part_of_what_a_project_renders() {
     // A centred track is untouched by the law's *choice* only in the sense that all four
     // agree at the extremes; at the centre they differ by exactly their names.
     let mut centred = demo_project();
-    for t in &mut centred.tracks {
-        t.pan = 0.0;
+    // The law is applied at the strip, so it is the strips that are centred here.
+    for s in &mut centred.strips {
+        s.pan = 0.0;
     }
     centred.pan_law = PanLaw::ZeroDb;
     let flat = peak(&render_of(&centred));
@@ -727,4 +746,537 @@ fn a_sampled_pad_renders_the_same_everywhere_and_a_missing_file_is_silent() {
         0.0,
         "a missing sample must be exact silence",
     );
+}
+
+/// A project written before the mixer had strips must render **bit-identically** after
+/// the migration that gives it some. The hash is of the render as it was the day before
+/// the strips arrived; if it changes, either the migration moved a control or the signal
+/// path moved, and both are the kind of change you only hear in a finished mix.
+///
+/// `v5.cantus` on purpose: a synth with a delay and a panned, muted second track, and no
+/// kit — so a later change to a drum voice does not disturb this guard.
+#[test]
+fn a_pre_strip_project_renders_exactly_as_it_did() {
+    use sha2::{Digest, Sha256};
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../cantus-project/fixtures/v5.cantus");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let loaded = cantus_project::parse(&text, true).unwrap();
+    let snap = Arc::new(Snapshot::compile(&loaded.file.project, 1));
+    let r = render(
+        snap,
+        &RenderOptions {
+            tail_seconds: 0.5,
+            block_frames: 512,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut h = Sha256::new();
+    for s in &r.samples {
+        h.update(s.to_le_bytes());
+    }
+    let hex: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(
+        hex, GOLDEN_V5,
+        "v5.cantus no longer renders as it did (peak {})",
+        r.peak
+    );
+}
+
+/// Computed on 2026-09-10 from the render above, before the mixer strips existed.
+const GOLDEN_V5: &str = "d47497de29167fd194d899446e580602c8e655fb25c47c81a4c29672dee073b3";
+
+/// Buses: two tracks into one strip meet the strip's insert as a sum; a strip into a strip
+/// is multiplied through both faders; a muted strip is silence for everything behind it.
+#[test]
+fn strips_sum_their_inputs_chain_through_each_other_and_mute_as_one() {
+    let mut p = demo_project();
+    let (s_a, s_b) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    let bus = p.strips[2].id;
+    // Route both tracks' strips into a third, with a delay on it.
+    p.strips[0].output = Some(bus);
+    p.strips[1].output = Some(bus);
+    let delay = p.make_effect(EffectKind::Delay);
+    p.strip_mut(bus).unwrap().effects.push(delay);
+    p.strip_mut(bus).unwrap().gain_db = -6.0;
+    let both = render_of(&p);
+    assert!(peak(&both) > 0.05);
+
+    // Each track alone through the same bus; the delay is linear, so the two must sum to
+    // the render of both — the bus really is processing the *sum*.
+    let mut only_a = p.clone();
+    only_a.tracks[1].muted = true;
+    let mut only_b = p.clone();
+    only_b.tracks[0].muted = true;
+    let a = render_of(&only_a);
+    let b = render_of(&only_b);
+    let summed: Vec<f32> = a.iter().zip(&b).map(|(x, y)| x + y).collect();
+    assert_null(
+        &both,
+        &summed,
+        1e-5,
+        "a bus of two tracks is not the sum of the two",
+    );
+
+    // Muting the bus silences both, however loud their own strips are.
+    let mut muted = p.clone();
+    muted.strip_mut(bus).unwrap().muted = true;
+    assert_eq!(peak(&render_of(&muted)), 0.0, "a muted bus leaked");
+
+    // The chain multiplies: strip A at −6 into the bus at −6 is 12 dB down against A at 0
+    // into the bus at 0 — to the sample, since a gain is a multiplication and nothing else.
+    let mut quiet = only_a.clone();
+    quiet.strip_mut(s_a).unwrap().gain_db = 0.0;
+    quiet.strip_mut(bus).unwrap().gain_db = 0.0;
+    quiet.strip_mut(bus).unwrap().effects.clear();
+    let loud = render_of(&quiet);
+    quiet.strip_mut(s_a).unwrap().gain_db = -6.0;
+    quiet.strip_mut(bus).unwrap().gain_db = -6.0;
+    let down = render_of(&quiet);
+    let ratio = peak(&down) / peak(&loud);
+    assert!(
+        (ratio - 0.25119).abs() < 1e-3,
+        "two −6 dB stages gave ×{ratio}"
+    );
+    let _ = s_b;
+}
+
+/// A send is a post-fader copy: a strip sent at unity into an empty strip reaches the
+/// master twice, exactly — and because it is taken *after* the fader, turning the source
+/// down turns the send down with it. A send switched off, or at zero, touches nothing.
+#[test]
+fn sends_are_post_fader_copies_and_nothing_when_off() {
+    let mut p = demo_project();
+    p.tracks[1].muted = true; // One source, so the arithmetic is exact.
+                              // The aux is a channel strip like any other and places its signal through the pan
+                              // law; at 0 dB centre is unity, which is what makes "exactly twice" exact.
+    p.pan_law = PanLaw::ZeroDb;
+    let src = p.tracks[0].strip.unwrap();
+    let aux = p.strips[3].id;
+    p.strip_mut(src).unwrap().gain_db = -6.0;
+    let dry = render_of(&p);
+    assert!(peak(&dry) > 0.05);
+
+    let mut sent = p.clone();
+    sent.strip_mut(src).unwrap().sends.push(Send::new(aux));
+    let doubled = render_of(&sent);
+    let twice: Vec<f32> = dry.iter().map(|x| x + x).collect();
+    // To a rounding step: the copy meets the aux's own (unity) gain and pan before the
+    // sum, and the sum meets it in a different order.
+    assert_null(
+        &doubled,
+        &twice,
+        1e-6,
+        "a unity send into an empty strip is not a second copy",
+    );
+
+    // Half level: the copy at half. (Not bit-exact: `x + 0.5x` against `1.5x`.)
+    let mut half = p.clone();
+    half.strip_mut(src).unwrap().sends.push(Send {
+        to: aux,
+        level: 0.5,
+        enabled: true,
+    });
+    let one_and_a_half: Vec<f32> = dry.iter().map(|x| x * 1.5).collect();
+    assert_null(&render_of(&half), &one_and_a_half, 1e-6, "a send at 50 %");
+
+    // Off, or at zero: exactly the dry render.
+    let mut off = p.clone();
+    off.strip_mut(src).unwrap().sends.push(Send {
+        to: aux,
+        level: 1.0,
+        enabled: false,
+    });
+    assert_null(
+        &render_of(&off),
+        &dry,
+        0.0,
+        "a disabled send changed a sample",
+    );
+    let mut zero = p.clone();
+    zero.strip_mut(src).unwrap().sends.push(Send {
+        to: aux,
+        level: 0.0,
+        enabled: true,
+    });
+    assert_null(
+        &render_of(&zero),
+        &dry,
+        0.0,
+        "a send at zero changed a sample",
+    );
+
+    // A muted source sends nothing, however loud the send.
+    let mut muted = sent.clone();
+    muted.strip_mut(src).unwrap().muted = true;
+    assert_eq!(
+        peak(&render_of(&muted)),
+        0.0,
+        "a muted strip leaked through its send"
+    );
+
+    // The send sees the destination's insert: a delay on the aux is a delay on the copy
+    // and not on the direct path, which is what a send is for.
+    let mut wet = sent.clone();
+    let delay = wet.make_effect(EffectKind::Delay);
+    wet.strip_mut(aux).unwrap().effects.push(delay);
+    let with_delay = render_of(&wet);
+    assert!(
+        compare(&with_delay, &doubled).max_abs_diff > 1e-3,
+        "the aux's delay did not reach the send"
+    );
+}
+
+/// The strip's EQ at 0 dB is free — every band, whatever its frequency — and a band with
+/// gain on it moves the level of what sits under it.
+#[test]
+fn a_flat_eq_touches_nothing_and_a_boost_lifts_its_band() {
+    let mut p = demo_project();
+    let bass = p.tracks[1].strip.unwrap();
+    let reference = render_of(&p);
+
+    let mut flat = p.clone();
+    {
+        let eq = &mut flat.strip_mut(bass).unwrap().eq;
+        eq.set(0, EqField::Freq, 60.0);
+        eq.set(1, EqField::Freq, 3_000.0);
+        eq.set(2, EqField::Q, 2.0);
+    }
+    assert_null(
+        &render_of(&flat),
+        &reference,
+        0.0,
+        "a flat EQ changed a sample",
+    );
+
+    // Cut the low shelf hard under the bass (its fundamental and first harmonics sit
+    // under 400 Hz): the mix gets quieter. Boost it: louder.
+    p.tracks[0].muted = true;
+    p.strip_mut(bass).unwrap().eq.set(0, EqField::Freq, 400.0);
+    let alone = render_of(&p);
+    let mut cut = p.clone();
+    cut.strip_mut(bass).unwrap().eq.set(0, EqField::Gain, -18.0);
+    let mut boost = p.clone();
+    boost.strip_mut(bass).unwrap().eq.set(0, EqField::Gain, 6.0);
+    let (r0, rc, rb) = (
+        cantus_dsp::nulltest::rms(&alone),
+        cantus_dsp::nulltest::rms(&render_of(&cut)),
+        cantus_dsp::nulltest::rms(&render_of(&boost)),
+    );
+    assert!(rc < r0 * 0.5, "an 18 dB shelf cut left {rc} against {r0}");
+    assert!(rb > r0 * 1.2, "a 6 dB shelf boost gave {rb} against {r0}");
+    // And it is block-size independent like everything else on the thread.
+    let snap = Arc::new(Snapshot::compile(&boost, 1));
+    let mut opts = RenderOptions {
+        tail_seconds: 0.25,
+        block_frames: 512,
+        ..Default::default()
+    };
+    let big = render(snap.clone(), &opts).unwrap();
+    opts.block_frames = 7;
+    let small = render(snap, &opts).unwrap();
+    assert_null(&big.samples, &small.samples, 0.0, "EQ at block size 7");
+}
+
+/// A slot's dry/wet: at 100 % it is the effect, at 0 % it is a wire (to the bit), in
+/// between it is the crossfade. And the strip's FX switch takes the whole chain out.
+#[test]
+fn a_slot_mix_crossfades_and_the_fx_switch_removes_the_chain() {
+    let mut p = demo_project();
+    let s = p.tracks[0].strip.unwrap();
+    let dry = render_of(&p);
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("mix", 0.5).unwrap();
+    p.strip_mut(s).unwrap().effects.push(delay);
+    let wet = render_of(&p);
+    assert!(
+        compare(&wet, &dry).max_abs_diff > 1e-3,
+        "the delay did nothing"
+    );
+
+    let mut wire = p.clone();
+    wire.strip_mut(s).unwrap().effects[0].mix = 0.0;
+    assert_null(&render_of(&wire), &dry, 0.0, "a slot at 0 % is not a wire");
+
+    let mut half = p.clone();
+    half.strip_mut(s).unwrap().effects[0].mix = 0.5;
+    let blend: Vec<f32> = wet
+        .iter()
+        .zip(&dry)
+        .map(|(w, d)| w * 0.5 + d * 0.5)
+        .collect();
+    assert_null(
+        &render_of(&half),
+        &blend,
+        1e-6,
+        "a slot at 50 % is not the crossfade",
+    );
+
+    let mut off = p.clone();
+    off.strip_mut(s).unwrap().fx_enabled = false;
+    assert_null(&render_of(&off), &dry, 0.0, "FX off left the chain in");
+}
+
+/// Swap is an input-stage switch: a strip panned hard left, fed into a strip that swaps,
+/// comes out exactly where the same strip panned hard right would.
+#[test]
+fn swap_channels_mirrors_the_strip_before_its_inserts() {
+    let mut p = demo_project();
+    p.tracks[1].muted = true;
+    let src = p.tracks[0].strip.unwrap();
+    let bus = p.strips[3].id;
+    p.strip_mut(src).unwrap().output = Some(bus);
+    p.strip_mut(src).unwrap().pan = -1.0;
+    let mut swapped = p.clone();
+    swapped.strip_mut(bus).unwrap().swap_channels = true;
+    let mut right = p.clone();
+    right.strip_mut(src).unwrap().pan = 1.0;
+    assert_null(
+        &render_of(&swapped),
+        &render_of(&right),
+        1e-6,
+        "swap on the bus is not the mirror image",
+    );
+}
+
+/// Soloing a strip silences what is not connected to it and keeps its bus — and it is
+/// resolved before the audio thread, so the render is exactly the render with the other
+/// strips muted.
+#[test]
+fn a_soloed_strip_is_heard_through_its_bus_and_alone() {
+    let mut p = demo_project();
+    let (s_a, s_b) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    let bus = p.strips[2].id;
+    p.strip_mut(s_a).unwrap().output = Some(bus);
+    p.strip_mut(s_b).unwrap().output = Some(bus);
+    p.strip_mut(bus).unwrap().gain_db = -3.0;
+    let mut solo_a = p.clone();
+    solo_a.strip_mut(s_a).unwrap().soloed = true;
+    let mut mute_b = p.clone();
+    mute_b.strip_mut(s_b).unwrap().muted = true;
+    let soloed = render_of(&solo_a);
+    assert!(
+        peak(&soloed) > 0.05,
+        "the soloed strip was silenced with the rest"
+    );
+    assert_null(&soloed, &render_of(&mute_b), 0.0, "solo A is not mute B");
+    // Soloing the bus is everything: nothing outside it plays anyway.
+    let mut solo_bus = p.clone();
+    solo_bus.strip_mut(bus).unwrap().soloed = true;
+    assert_null(
+        &render_of(&solo_bus),
+        &render_of(&p),
+        0.0,
+        "solo on the bus",
+    );
+}
+
+/// Drive a processor with a capture ring attached, at irregular block sizes, and return
+/// what it played and what the recorder took.
+fn play_and_capture(
+    project: &Project,
+    target: CaptureTarget,
+    seconds: f64,
+) -> (Vec<f32>, Vec<f32>) {
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let (cap_tx, mut cap_rx) = rtrb::RingBuffer::<f32>::new(CAPTURE_SAMPLES);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    p.attach_capture(cap_tx);
+    let mut snap = Snapshot::compile(project, 1);
+    snap.loop_region = None;
+    tx.push(EngineMessage::SetSnapshot(Arc::new(snap))).unwrap();
+    tx.push(EngineMessage::SetCapture(target)).unwrap();
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let total = (seconds * 48_000.0) as usize;
+    let (mut out, mut took) = (Vec::new(), Vec::new());
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut i = 0;
+    while out.len() / 2 < total {
+        let n = sizes[i % sizes.len()].min(total - out.len() / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        p.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+        while let Ok(x) = cap_rx.pop() {
+            took.push(x);
+        }
+    }
+    (out, took)
+}
+
+/// The mix recorder on the master takes exactly what the master plays — to the bit, and
+/// never the metronome; on a strip, it takes the strip after its fader, silences included,
+/// so a take always has the length of the time it ran.
+#[test]
+fn the_mix_recorder_takes_exactly_what_leaves_the_fader() {
+    let mut p = demo_project();
+    let (out, took) = play_and_capture(&p, CaptureTarget::Master, 3.0);
+    assert!(peak(&out) > 0.05);
+    assert_null(&out, &took, 0.0, "the master take is not the master");
+
+    // With the metronome on, the output has clicks and the take does not: take the
+    // metronome-free render and the metronome-on take and they must match.
+    let mut clicking = p.clone();
+    clicking.metronome = true;
+    let (loud, took_clicking) = play_and_capture(&clicking, CaptureTarget::Master, 3.0);
+    assert!(
+        compare(&loud, &out).max_abs_diff > 1e-3,
+        "no click was heard"
+    );
+    assert_null(
+        &out,
+        &took_clicking,
+        0.0,
+        "the recorder heard the metronome",
+    );
+
+    // One strip: the only one sounding, through a master at its defaults, *is* the output
+    // — to the bit, because a master at its defaults touches no sample. (Until round 16 its
+    // centred balance was `cos(π/4)·√2` in f32, 0.99999994, and this took a tolerance.)
+    p.tracks[1].muted = true;
+    let s0 = p.tracks[0].strip.unwrap();
+    let (solo_out, strip_take) = play_and_capture(&p, CaptureTarget::Strip(s0), 3.0);
+    assert_eq!(strip_take.len(), solo_out.len(), "a strip take keeps time");
+    assert_null(
+        &solo_out,
+        &strip_take,
+        0.0,
+        "the strip take is not the strip",
+    );
+
+    // A strip nothing reaches records silence of the right length.
+    let empty = p.strips[9].id;
+    let (_, silence) = play_and_capture(&p, CaptureTarget::Strip(empty), 1.0);
+    assert_eq!(silence.len(), 48_000 * 2);
+    assert_eq!(peak(&silence), 0.0);
+
+    // Off takes nothing.
+    let (_, nothing) = play_and_capture(&p, CaptureTarget::Off, 1.0);
+    assert!(nothing.is_empty());
+}
+
+/// Aequalis on a strip: an EQ with no band touches no sample; an EQ with a static and a
+/// dynamic band renders identically at every block size, offline and in real time alike.
+#[test]
+fn an_eq_is_free_when_empty_and_block_size_independent_when_not() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let dry = render_of(&p);
+    let eq = p.make_effect(EffectKind::Eq);
+    p.strip_mut(s0).unwrap().effects.push(eq);
+    assert_null(&render_of(&p), &dry, 0.0, "an empty EQ changed a sample");
+
+    let spec = &mut p.strip_mut(s0).unwrap().effects[0].spec;
+    for (k, v) in [
+        ("b0.used", 1.0),
+        ("b0.shape", 0.0),
+        ("b0.freq", 800.0),
+        ("b0.gain", 6.0),
+        ("b0.q", 1.5),
+        ("b1.used", 1.0),
+        ("b1.shape", 3.0), // low cut
+        ("b1.freq", 120.0),
+        ("b1.slope", 24.0),
+        ("b2.used", 1.0),
+        ("b2.freq", 2_500.0),
+        ("b2.gain", 0.5),
+        ("b2.dyn", 1.0),
+        ("b2.thr", -40.0),
+        ("b2.range", -8.0),
+    ] {
+        spec.set(k, v).unwrap();
+    }
+    let snap = Arc::new(Snapshot::compile(&p, 1));
+    let mut opts = RenderOptions {
+        tail_seconds: 0.25,
+        block_frames: 512,
+        ..Default::default()
+    };
+    let reference = render(snap.clone(), &opts).unwrap();
+    assert!(
+        compare(&reference.samples, &dry).max_abs_diff > 1e-3,
+        "the EQ did nothing"
+    );
+    for block in [1usize, 7, 333, 4096] {
+        opts.block_frames = block;
+        let r = render(snap.clone(), &opts).unwrap();
+        assert_null(
+            &reference.samples,
+            &r.samples,
+            0.0,
+            &format!("EQ at block size {block}"),
+        );
+    }
+}
+
+/// Comprimo keyed from another strip: it ducks its own strip when the key is loud, it is
+/// silent-transparent when the key never crosses the threshold, and it is block-size
+/// independent — the key strip is processed first because the key is a route.
+#[test]
+fn a_compressor_keyed_from_another_strip_ducks_and_nothing_else() {
+    let mut p = demo_project();
+    let (lead, bass) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    // Bass goes to a strip *after* the lead's in the desk, so only the key orders them.
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.spec.set("thr", -40.0).unwrap();
+    comp.spec.set("ratio", 20.0).unwrap();
+    comp.spec.set("att", 0.5).unwrap();
+    comp.sidechain = Some(bass);
+    let mut only_lead = p.clone();
+    only_lead.strip_mut(bass).unwrap().gain_db = MIN_GAIN_DB; // the bass is silent at the master
+    let dry = render_of(&only_lead);
+    only_lead
+        .strip_mut(lead)
+        .unwrap()
+        .effects
+        .push(comp.clone());
+    let ducked = render_of(&only_lead);
+    // The key strip's fader is down, so its post-fader key is silence: no ducking.
+    assert_null(&ducked, &dry, 0.0, "a silent key ducked the lead");
+
+    // Key at unity, but the bass strip routed nowhere audible? Keep it audible, and
+    // compare the lead's contribution with and without the compressor: take the bass out
+    // of the master by sending its strip into an empty strip that is muted.
+    let mut keyed = p.clone();
+    let sink = keyed.strips[8].id;
+    keyed.strip_mut(bass).unwrap().output = Some(sink);
+    keyed.strip_mut(sink).unwrap().muted = true;
+    let lead_alone = render_of(&keyed);
+    keyed.strip_mut(lead).unwrap().effects.push(comp);
+    let lead_ducked = render_of(&keyed);
+    let (a, b) = (
+        cantus_dsp::nulltest::rms(&lead_alone),
+        cantus_dsp::nulltest::rms(&lead_ducked),
+    );
+    assert!(
+        b < a * 0.6,
+        "the bass key did not duck the lead: {b} vs {a}"
+    );
+
+    let snap = Arc::new(Snapshot::compile(&keyed, 1));
+    let pos = |id: StripId| {
+        let i = keyed.strip_index(id).unwrap();
+        snap.strip_order.iter().position(|x| *x == i).unwrap()
+    };
+    assert!(pos(bass) < pos(lead), "the key is processed first");
+    let mut opts = RenderOptions {
+        tail_seconds: 0.25,
+        block_frames: 512,
+        ..Default::default()
+    };
+    let reference = render(snap.clone(), &opts).unwrap();
+    for block in [1usize, 7, 1000] {
+        opts.block_frames = block;
+        let r = render(snap.clone(), &opts).unwrap();
+        assert_null(
+            &reference.samples,
+            &r.samples,
+            0.0,
+            &format!("keyed comp at {block}"),
+        );
+    }
 }

@@ -20,6 +20,8 @@ fn main() -> anyhow::Result<()> {
             "--track" => options.track = args.next().and_then(|s| s.parse().ok()),
             "--shortcuts" => options.shortcuts = true,
             "--settings" => options.settings = true,
+            "--editor" => options.editor = args.next(),
+            "--play" => options.play = true,
             "--window" => {
                 let w = args.next().and_then(|s| s.parse::<f32>().ok());
                 let h = args.next().and_then(|s| s.parse::<f32>().ok());
@@ -31,7 +33,7 @@ fn main() -> anyhow::Result<()> {
             }
             "--help" | "-h" => {
                 println!(
-                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--window W H] [project.cantus]"
+                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--editor eq|comp] [--play] [--window W H] [project.cantus]"
                 );
                 return Ok(());
             }

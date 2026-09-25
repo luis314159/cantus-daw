@@ -1,0 +1,64 @@
+# host — the round-17 host work's strings. Every key here needs its twin in host.en.txt.
+host.plugin = Plug-in
+cmd.set_plugin_param = parámetro del plug-in
+cmd.set_plugin_state = estado del plug-in
+
+# --- el menú de inserts ---
+host.menu.title = Plug-ins
+host.menu.search = Buscar plug-ins
+host.menu.by_vendor = Por fabricante
+host.menu.by_category = Por tipo
+host.menu.none = Aún no hay plug-ins. Busca los plug-ins CLAP de este equipo.
+host.menu.no_match = Nada coincide
+host.menu.no_vendor = Fabricante desconocido
+host.menu.other = Otros
+host.menu.tip = {vendor} · versión {version}
+
+# --- las ranuras ---
+host.missing = falta
+host.missing_tip = No está en este equipo ({why}). La ranura deja pasar el sonido intacto, y su configuración se conserva y se guarda con el proyecto. Instala el plug-in de {vendor} y busca de nuevo para recuperarlo.
+host.preview = {n} valores · latencia {latency} muestras
+host.preview_missing = Sin cargar
+host.load_failed = No se pudo cargar {name}: {error}
+host.restart_failed = Un plug-in no pudo reiniciarse y deja pasar el sonido: {error}
+host.scan_done = Búsqueda de plug-ins terminada: {found} utilizables, {scanned} archivos leídos, {blocked} bloqueados
+
+# --- el editor genérico ---
+host.editor.latency = latencia {samples} mst · {ms} ms
+host.editor.open_window = Abrir la ventana del plug-in
+host.editor.close_window = Cerrar la ventana del plug-in
+host.editor.window_tip = El editor propio del plug-in, en una ventana aparte
+host.editor.no_window = Este plug-in no tiene editor propio; todos sus parámetros están aquí
+host.editor.window_failed = No se pudo abrir la ventana del plug-in: {error}
+host.editor.missing = {name} no está en este equipo: {why}.
+host.editor.missing_kept = Su estado y sus valores se conservan en el proyecto tal como estaban, y se guardan con él.
+host.editor.filter = Filtrar parámetros
+host.editor.count = {n} parámetros
+host.editor.ungrouped = Parámetros
+host.editor.key = Llave: {strip}
+host.editor.key_none = Llave: ninguna
+host.editor.key_tip = El canal cuya salida alimenta la entrada de sidechain del plug-in
+host.preset.none = Aún no hay estados guardados: guarda uno abajo
+
+# --- el gestor, en Ajustes ---
+host.manager.title = Plug-ins
+host.manager.scan = Buscar plug-ins
+host.manager.scan_tip = Lee los archivos nuevos y los cambiados; los demás salen de la caché
+host.manager.rescan_all = Volver a leer todo
+host.manager.rescan_all_tip = Lee de nuevo todos los archivos, también los bloqueados
+host.manager.scanning = Buscando…
+host.manager.summary = utilizables: {found} · bloqueados: {blocked}
+host.manager.folders = Carpetas
+host.manager.standard = estándar
+host.manager.remove = Quitar
+host.manager.folder_hint = Otra carpeta donde buscar
+host.manager.add = Añadir
+host.manager.browse = Examinar…
+host.manager.found = Encontrados ({n})
+host.manager.not_effect = no es un efecto: no se ofrece en los inserts
+host.manager.blocked = Bloqueados
+host.manager.blocked_none = Ninguno: todos los archivos de plug-in cargaron sin problemas.
+host.manager.blocked_hint = Estos fallaron o se colgaron al leerlos, así que Cantus nunca los carga. Vuelve a intentarlo tras actualizar uno.
+host.manager.retry = Reintentar
+host.manager.retry_tip = Leer este archivo de nuevo en un proceso aparte
+host.manager.failed = {n} archivos no son plug-ins que Cantus pueda usar

@@ -155,52 +155,250 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 },
             ],
         },
-        13 if tracks > 0 => {
-            let id = project.tracks[rng.below(tracks as u64) as usize].id;
-            let kind = EffectKind::ALL[rng.below(2) as usize];
-            let slot = project.make_effect(kind);
-            let len = project.track(id).unwrap().effects.len();
+        // Inserts live on mixer strips. The strip is picked at random from all of them,
+        // fed or not: an insert on an empty strip has to be as reversible as any other.
+        13 => {
+            let strips = project.strips.len();
+            let id = project.strips[rng.below(strips as u64) as usize].id;
+            let kind = EffectKind::ALL[rng.below(EffectKind::ALL.len() as u64) as usize];
+            let mut slot = project.make_effect(kind);
+            if rng.below(4) == 0 {
+                // A hosted plug-in (ADR 0019): a record with a state and a value.
+                let mut plugin = ExternalPlugin::new(PluginFormat::Clap, "org.fuzz.plugin", "Fuzz");
+                plugin.sidechain = rng.below(2) == 1;
+                plugin.state = PluginState::new(vec![7; rng.below(5) as usize]);
+                plugin.params.insert(0, 0.5);
+                slot.spec = EffectSpec::external(plugin);
+            }
+            let len = project.strip(id).unwrap().effects.len();
             Command::InsertEffect {
-                track: id,
+                strip: id,
                 index: rng.below(len as u64 + 1) as usize,
                 slot: Box::new(slot),
             }
         }
-        14 if tracks > 0 => {
-            let t = &project.tracks[rng.below(tracks as u64) as usize];
-            match t
+        14 => {
+            let strips = project.strips.len();
+            let st = &project.strips[rng.below(strips as u64) as usize];
+            match st
                 .effects
-                .get(rng.below(t.effects.len().max(1) as u64) as usize)
+                .get(rng.below(st.effects.len().max(1) as u64) as usize)
             {
                 Some(e) => match rng.below(4) {
                     0 => Command::RemoveEffect {
-                        track: t.id,
+                        strip: st.id,
                         effect: e.id,
                     },
                     1 => Command::SetEffectBypass {
-                        track: t.id,
+                        strip: st.id,
                         effect: e.id,
                         bypass: rng.below(2) == 1,
                     },
                     2 => Command::MoveEffect {
-                        track: t.id,
+                        strip: st.id,
                         effect: e.id,
-                        index: rng.below(t.effects.len() as u64) as usize,
+                        index: rng.below(st.effects.len() as u64) as usize,
                     },
                     _ => {
+                        if rng.below(6) == 0 {
+                            // Keys: from any strip, itself and loops included, onto any
+                            // effect, kinds that take none included.
+                            return Command::SetEffectSidechain {
+                                strip: st.id,
+                                effect: e.id,
+                                source: (rng.below(3) != 0)
+                                    .then(|| project.strips[rng.below(strips as u64) as usize].id),
+                            };
+                        }
+                        if rng.below(8) == 0 {
+                            // Notes into effects: from any track, a missing one included,
+                            // onto any effect, kinds that take none included (ADR 0022).
+                            let source = match rng.below(4) {
+                                0 => None,
+                                1 => Some(TrackId(9_999)),
+                                _ if !project.tracks.is_empty() => Some(
+                                    project.tracks[rng.below(project.tracks.len() as u64) as usize]
+                                        .id,
+                                ),
+                                _ => None,
+                            };
+                            return Command::SetEffectMidiSource {
+                                strip: st.id,
+                                effect: e.id,
+                                source,
+                            };
+                        }
+                        if rng.below(3) == 0 {
+                            return Command::SetEffectMix {
+                                strip: st.id,
+                                effect: e.id,
+                                mix: rng.f32(-0.5, 1.5),
+                            };
+                        }
+                        if e.spec.kind == EffectKind::External || rng.below(20) == 0 {
+                            // A hosted plug-in's values by id — new, changed, forgotten —
+                            // and whole states; on a native slot both are refused.
+                            let id = rng.below(4) as u32;
+                            if rng.below(4) == 0 {
+                                let mut params = std::collections::BTreeMap::new();
+                                params.insert(id, f64::from(rng.f32(-2.0, 2.0)));
+                                return Command::SetPluginState {
+                                    strip: st.id,
+                                    effect: e.id,
+                                    state: PluginState::new(vec![
+                                        rng.below(256) as u8;
+                                        rng.below(8) as usize
+                                    ]),
+                                    params,
+                                };
+                            }
+                            return Command::SetPluginParam {
+                                strip: st.id,
+                                effect: e.id,
+                                id,
+                                value: (rng.below(5) != 0).then(|| f64::from(rng.f32(-2.0, 2.0))),
+                            };
+                        }
                         let infos = e.spec.kind.params();
                         let info = infos[rng.below(infos.len() as u64) as usize];
+                        if rng.below(5) == 0 {
+                            return Command::ClearEffectParam {
+                                strip: st.id,
+                                effect: e.id,
+                                key: info.key.to_string(),
+                            };
+                        }
                         Command::SetEffectParam {
-                            track: t.id,
+                            strip: st.id,
                             effect: e.id,
                             key: info.key.to_string(),
                             value: rng.f32(info.min - 1.0, info.max + 1.0),
                         }
                     }
                 },
-                None => Command::SetTrackMute {
-                    id: t.id,
-                    muted: rng.below(2) == 1,
+                // Strip controls and routing, including routes the command must refuse
+                // (cycles, a strip feeding itself) and removals it must refuse (a strip
+                // still fed): a refused command leaves nothing behind.
+                None => match rng.below(20) {
+                    // Docks and groups: a view of the desk, stored in the project, so as
+                    // reversible as anything that renders — refused removals included.
+                    15 => Command::SetStripDock {
+                        id: st.id,
+                        dock: Dock::ALL[rng.below(3) as usize],
+                    },
+                    16 => {
+                        let color = Color::PALETTE[rng.below(8) as usize];
+                        let g = project.make_strip_group("grp", color);
+                        Command::InsertStripGroup {
+                            index: rng.below(project.strip_groups.len() as u64 + 1) as usize,
+                            group: Box::new(g),
+                        }
+                    }
+                    17 => Command::SetStripGroup {
+                        id: st.id,
+                        group: project
+                            .strip_groups
+                            .get(rng.below(project.strip_groups.len() as u64 + 1) as usize)
+                            .map(|g| g.id),
+                    },
+                    18 => match project
+                        .strip_groups
+                        .get(rng.below(project.strip_groups.len().max(1) as u64) as usize)
+                    {
+                        Some(g) => match rng.below(4) {
+                            0 => Command::RemoveStripGroup { id: g.id },
+                            1 => Command::SetStripGroupName {
+                                id: g.id,
+                                name: format!("G{}", rng.below(100)),
+                            },
+                            2 => Command::SetStripGroupColor {
+                                id: g.id,
+                                color: Color::PALETTE[rng.below(8) as usize],
+                            },
+                            _ => Command::SetStripGroupCollapsed {
+                                id: g.id,
+                                collapsed: rng.below(2) == 1,
+                            },
+                        },
+                        None => Command::RemoveStripGroup { id: GroupId(9_999) },
+                    },
+                    19 => Command::SetStripDock {
+                        id: st.id,
+                        dock: Dock::Right,
+                    },
+                    8 => Command::SetStripSolo {
+                        id: st.id,
+                        soloed: rng.below(2) == 1,
+                    },
+                    9 => Command::SetStripSwapChannels {
+                        id: st.id,
+                        swap: rng.below(2) == 1,
+                    },
+                    10 => Command::SetStripFxEnabled {
+                        id: st.id,
+                        enabled: rng.below(2) == 1,
+                    },
+                    11 => Command::SetStripEq {
+                        id: st.id,
+                        band: rng.below(4) as u8,
+                        field: [EqField::Freq, EqField::Gain, EqField::Q][rng.below(3) as usize],
+                        value: rng.f32(-30.0, 30_000.0),
+                    },
+                    // Sends: new ones, changes to existing ones, ones that would loop, and
+                    // ones to the strip itself — every refusal path as well as the work.
+                    12 => Command::SetStripSend {
+                        id: st.id,
+                        send: Send {
+                            to: project.strips[rng.below(strips as u64) as usize].id,
+                            level: rng.f32(-0.2, 1.2),
+                            enabled: rng.below(4) != 0,
+                        },
+                    },
+                    13 => Command::RemoveStripSend {
+                        id: st.id,
+                        to: st
+                            .sends
+                            .get(rng.below(st.sends.len().max(1) as u64) as usize)
+                            .map(|s| s.to)
+                            .unwrap_or(project.strips[rng.below(strips as u64) as usize].id),
+                    },
+                    14 => Command::MoveStrip {
+                        id: st.id,
+                        index: rng.below(strips as u64 + 1) as usize,
+                    },
+                    0 => Command::SetStripGain {
+                        id: st.id,
+                        gain_db: rng.f32(-96.0, 12.0),
+                    },
+                    1 => Command::SetStripPan {
+                        id: st.id,
+                        pan: rng.f32(-1.0, 1.0),
+                    },
+                    2 => Command::SetStripWidth {
+                        id: st.id,
+                        width: rng.f32(0.0, 2.0),
+                    },
+                    3 => Command::SetStripMute {
+                        id: st.id,
+                        muted: rng.below(2) == 1,
+                    },
+                    4 => Command::SetStripOutput {
+                        id: st.id,
+                        output: (rng.below(3) != 0)
+                            .then(|| project.strips[rng.below(strips as u64) as usize].id),
+                    },
+                    5 if tracks > 0 => Command::SetTrackStrip {
+                        id: project.tracks[rng.below(tracks as u64) as usize].id,
+                        strip: (rng.below(4) != 0).then_some(st.id),
+                    },
+                    6 => {
+                        let strip = project.make_strip("bus");
+                        Command::InsertStrip {
+                            index: rng.below(strips as u64 + 1) as usize,
+                            strip: Box::new(strip),
+                        }
+                    }
+                    _ => Command::RemoveStrip { id: st.id },
                 },
             }
         }
@@ -342,7 +540,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
         }
         assert!(
-            applied > 90,
+            applied > 80,
             "seed {seed}: too few commands applied ({applied})"
         );
         assert!(bus.project().tracks.len() + 1 >= 2 || applied > 0);

@@ -70,6 +70,17 @@ impl Rendered {
 
 /// Render a snapshot to memory.
 pub fn render(snapshot: Arc<Snapshot>, opts: &RenderOptions) -> Result<Rendered, RenderError> {
+    render_with_units(snapshot, opts, Vec::new())
+}
+
+/// [`render`], with units built elsewhere for some of the effects — a hosted plug-in's
+/// instance for this render, loaded and activated on the main thread (ADR 0019). Every
+/// effect without one gets the unit the engine builds (a wire for a hosted plug-in).
+pub fn render_with_units(
+    snapshot: Arc<Snapshot>,
+    opts: &RenderOptions,
+    mut units: Vec<EffectUnit>,
+) -> Result<Rendered, RenderError> {
     let end = opts.end.unwrap_or(snapshot.content_end);
     if end <= opts.start && opts.end.is_none() {
         return Err(RenderError::Empty);
@@ -86,18 +97,40 @@ pub fn render(snapshot: Arc<Snapshot>, opts: &RenderOptions) -> Result<Rendered,
     snap.metronome = false;
     let snap = Arc::new(snap);
 
-    let effect_count: usize = snap.tracks.iter().map(|t| t.effects.len()).sum();
+    let effect_count: usize = snap.strips.iter().map(|s| s.effects.len()).sum();
     let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count);
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
 
-    for track in &snap.tracks {
-        for slot in &track.effects {
-            let unit = EffectUnit::new(slot, sr as f32);
+    for strip in &snap.strips {
+        for slot in &strip.effects {
+            let unit = match units.iter().position(|u| u.id == slot.id) {
+                Some(i) => units.swap_remove(i),
+                None => EffectUnit::new(slot, sr as f32),
+            };
             tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
         }
     }
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
+    // Delay compensation longer than the pool's start-up lines is asked for; answer it
+    // before the first block so the render is aligned from its first sample.
+    // The same for memory an effect's settings need (ADR 0022).
+    p.settle();
+    while let Ok(ev) = rx.pop() {
+        match ev {
+            EngineEvent::PdcNeed { count, delay } => {
+                tx.push(EngineMessage::PdcLines(crate::pdc::lines_for(count, delay)))
+                    .ok();
+                p.settle();
+            }
+            EngineEvent::EffectNeed { effect, need } => {
+                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                p.settle();
+            }
+            _ => {}
+        }
+    }
     tx.push(EngineMessage::Seek(opts.start)).ok();
     tx.push(EngineMessage::Play).ok();
 

@@ -1,0 +1,18 @@
+# export — the round-17 export work's strings. Every key here needs its twin in export.es.txt.
+
+# The exported plug-ins (ADR 0020): words a host shows in its own parameter list.
+export.off = Off
+export.on = On
+export.bits = {n} bit
+export.bypass = Bypass
+export.sidechain = Sidechain
+export.sidechain.own = Own input
+export.sidechain.external = Sidechain input
+export.param.in_group = {group} {name}
+export.group.band = Band {n}
+export.group.key_band = Key EQ band {n}
+export.group.decay_band = Decay curve band {n}
+export.group.post_band = Post EQ band {n}
+export.bus.input = Input
+export.bus.output = Output
+export.bus.sidechain = Sidechain

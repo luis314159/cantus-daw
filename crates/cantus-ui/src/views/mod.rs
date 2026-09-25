@@ -3,9 +3,14 @@
 
 pub mod arrangement;
 pub mod channel_rack;
+pub mod comp_editor;
+pub mod eq_editor;
+pub mod fx;
 pub mod inspector;
+pub mod interop;
 pub mod mixer;
 pub mod piano_roll;
+pub mod plugins;
 pub mod transport;
 
 use cantus_core::{Ticks, PPQ};

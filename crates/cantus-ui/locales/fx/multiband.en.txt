@@ -1,0 +1,120 @@
+# Multiplex — owned by Multiplex. Every key here needs its twin in multiband.es.txt.
+effect.multiband = Multiplex multiband
+
+# Parameters
+fx.mb.used = Band in use
+fx.mb.from = Starts at
+fx.mb.on = On
+fx.mb.solo = Solo
+fx.mb.mute = Mute
+fx.mb.thr = Threshold
+fx.mb.ratio = Ratio
+fx.mb.range = Range
+fx.mb.thr_lo = Low threshold
+fx.mb.ratio_lo = Low ratio
+fx.mb.range_lo = Low range
+fx.mb.knee = Knee
+fx.mb.att = Attack
+fx.mb.rel = Release
+fx.mb.la = Lookahead
+fx.mb.gain = Gain
+fx.mb.place = Stereo
+fx.mb.key = Key
+fx.mb.key_free = Free key range
+fx.mb.key_lo = Key from
+fx.mb.key_hi = Key to
+fx.mb.mode = Mode
+fx.mb.slope = Slope
+fx.mb.out = Output
+fx.mb.listen = Hear
+
+# Toolbar
+mb.mode.0 = Dynamic
+mb.mode.1 = Split
+mb.mode.0_tip = No split: the input goes through one shelf per crossover that moves only while a band moves. Zero latency, and the input to the bit while no band acts.
+mb.mode.1_tip = A true split (Linkwitz–Riley): each band is a band of the signal, and together they sum flat. A wire while no band can act.
+mb.mode.2 = Linear
+mb.mode.2_tip = A true split with linear-phase crossovers: no phase shift at all, and the bands at unity are the input to the bit, delayed. Costs 48 ms of latency at 48 kHz, which the host compensates.
+mb.slope_tip = Crossover slope. In Split mode, 6 dB/oct sums to the input exactly; steeper slopes separate the bands more and add phase shift at the crossovers.
+mb.listen.0 = Output
+mb.listen.1 = Delta
+mb.listen.2 = Key
+mb.listen.0_tip = What Multiplex puts out.
+mb.listen.1_tip = Only what the bands change: what is taken away, or added in the upward modes.
+mb.listen.2_tip = What the detectors hear: each band's key through its filter (only the soloed bands, if any are).
+mb.latency = Latency {ms} ms · {n} smp
+mb.latency_none = No latency
+mb.latency_tip = The delay Multiplex adds: the longest lookahead of any band. The host compensates it.
+mb.bands = {n} of {max} bands
+mb.key = Sidechain
+mb.key_none = None
+mb.key_tip = A strip whose output the bands that ask for it listen to, instead of their own input. No send to set up.
+mb.key_bands = {n} bands listen to it
+mb.key_hint = Pick a strip to key bands from another sound.
+mb.via_split = Heard through the split
+mb.via_split_tip = Solo and mute need real bands, so while one is on, Dynamic mode is heard through the split.
+
+# Display
+mb.axis_level = dBFS
+mb.flag_off = off
+mb.flag_solo = S
+mb.flag_mute = M
+mb.flag_mid = mid
+mb.flag_side = side
+mb.flag_key = key
+mb.empty = Double-click on the spectrum to split it into bands
+mb.quick = {n} bands
+mb.no_room = No room for a band there: a band is at least a third of an octave, and there are eight at most.
+mb.lanes_empty = Each band's gain over time shows here.
+mb.meter_in = In
+mb.meter_out = Out
+mb.transfer_tip = Drag the filled point for the threshold, the ring for the low threshold, and the curve beyond either for its ratio.
+
+# Band panel
+mb.band_n = Band {n}
+mb.hint = Select a band, or double-click on the spectrum to make one.
+mb.bypass_band = Bypass band
+mb.remove_band = Remove band
+mb.split_here = Split at {hz}
+mb.place.0 = Stereo
+mb.place.1 = Mid
+mb.place.2 = Side
+mb.place_tip = Which part of the image the band listens to and acts on.
+mb.on_tip = Off: the band keeps its place and does nothing.
+mb.solo_tip = Hear this band alone (with others that are soloed).
+mb.mute_tip = Take this band out of the output.
+mb.key_own = Own input
+mb.key_ext = Sidechain
+mb.key_band_tip = What this band's detector listens to.
+mb.key_free_tip = The detector hears the range set by Key from / Key to, not the band's own.
+mb.off = off
+mb.tip.thr = Above this level the ratio acts. Drag the solid line in the band's column.
+mb.tip.ratio = Above the threshold: more than 1:1 compresses downward, less than 1:1 expands upward.
+mb.tip.range = The most the upper section moves the gain.
+mb.tip.thr_lo = Below this level the low ratio acts. Drag the dashed line in the band's column.
+mb.tip.ratio_lo = Below the low threshold: more than 1:1 compresses upward (brings quiet parts up), less than 1:1 expands downward (a gate, at a low ratio).
+mb.tip.range_lo = The most the lower section moves the gain.
+mb.tip.knee = How gradually each threshold starts to act, in dB around it.
+mb.tip.att = How fast the detector follows a rising level, in milliseconds.
+mb.tip.rel = How fast the detector follows a falling level, in milliseconds.
+mb.tip.la = How far ahead the band looks. The device's latency is the longest of its bands'.
+mb.tip.gain = The band's own gain, whatever the dynamics do.
+mb.tip.key_lo = Where the free key range starts.
+mb.tip.key_hi = Where the free key range ends.
+
+# Inspector
+mb.preview_empty = No bands yet
+mb.preview = {n} bands · {mode}
+mb.open_tip = Open Multiplex
+
+# Presets
+mb.preset.glue = Mastering glue
+mb.preset.deharsh = De-harsh
+mb.preset.low_end = Low-end control
+mb.preset.up_down = Up and down
+mb.preset.vocal = Vocal smoother
+mb.preset.punch = Drum punch
+
+# Undo
+cmd.mb_band_add = add multiband band
+cmd.mb_band_remove = remove multiband band

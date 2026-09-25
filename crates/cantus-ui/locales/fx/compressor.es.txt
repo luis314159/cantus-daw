@@ -1,0 +1,169 @@
+# Comprimo — cada clave aquí tiene su gemela en compressor.en.txt.
+# Las claves de aquí sustituyen a las de la tabla principal con el mismo nombre.
+
+# Parámetros
+fx.comp.key_hpf = Paso alto
+fx.comp.look = Anticipación
+fx.comp.auto_gain = Ganancia auto.
+fx.comp.dry = Seca
+fx.comp.mix = Mezcla
+fx.comp.in_gain = Entrada
+fx.comp.out_gain = Salida
+fx.comp.os = Sobremuestreo
+fx.comp.custom = Motor propio
+fx.comp.det_rms = Detector
+fx.comp.det_fb = Realiment.
+fx.comp.det_prog = Programa
+fx.comp.det_dual = 2.ª etapa
+fx.comp.det_curve = Curva lib.
+fx.comp.key_gain = Nivel
+fx.comp.key_eq = EQ de la clave
+fx.comp.sc.used = En uso
+fx.comp.sc.on = Activa
+fx.comp.sc.shape = Forma
+fx.comp.sc.freq = Frec.
+fx.comp.sc.gain = Ganancia
+fx.comp.sc.q = Q
+fx.comp.sc.slope = Pendiente
+
+# Estilos
+comp.style.5 = Mastering
+comp.style.6 = Suave
+comp.style.7 = Bombeo
+comp.style.8 = Clásico
+comp.release_dual = una segunda etapa sostiene el {pct} %
+comp.release_linear = {pct} % lineal
+comp.custom_from = Propio (desde {style})
+comp.engine = Motor
+comp.engine_tip = Los cinco números que es un estilo: su detector, su realimentación y su liberación. Gira uno para hacer tuyo el estilo.
+comp.engine_style = El detector propio del estilo. Gira un control para hacerlo tuyo: el estilo pasa a Propio y guarda su nombre como origen.
+comp.engine_custom = Tu detector, empezado desde el estilo. Elige un estilo arriba para volver al suyo.
+comp.engine_back = Volver a {style}
+comp.peak_short = Pico
+comp.curve_exp = Exp.
+comp.curve_lin = Lineal
+comp.det_rms_tip = Qué mide el detector: el pico, o el RMS en esta ventana. Una ventana larga oye sonoridad, no transitorios.
+comp.det_fb_tip = Cuánto del detector oye la señal ya reducida (realimentación) en vez de la clave (feed-forward). La realimentación es más suave: la curva muestra el ratio que da de verdad.
+comp.det_prog_tip = Cuánto se alarga la liberación cuanto más tiempo y más fuerte ha trabajado
+comp.det_dual_tip = Una segunda etapa de liberación, más lenta, que sostiene lo acumulado con el tiempo, mientras un transitorio suelto vuelve rápido
+comp.det_curve_tip = La forma de la liberación: exponencial (rápida y luego más lenta) o lineal en dB (una subida constante)
+
+# El historial, la escala, la escucha
+comp.history = Historial
+comp.speed.fast = Rápido
+comp.speed.slow = Lento
+comp.speed.whole = Toma entera
+comp.speed.fast_tip = Una columna por fotograma: unos ocho segundos de ancho
+comp.speed.slow_tip = Cuatro fotogramas por columna: medio minuto de ancho
+comp.speed.whole_tip = Todo desde que se abrió el editor, comprimido para caber
+comp.grid = Compases
+comp.grid_tip = Compases y tiempos del transporte detrás del historial, para leer el bombeo contra el pulso
+comp.freeze = Congelar
+comp.freeze_tip = Detén el historial para leerlo. También se detiene solo con el transporte parado y en silencio.
+comp.live = En vivo
+comp.scale = Escala
+comp.frozen = Congelado: clic para seguir
+comp.scrolled = {n} columnas atrás: doble clic para volver
+comp.whole_state = Toma entera · {n} fotogramas por columna
+comp.history_empty = Reproduce para ver el nivel y la reducción
+comp.readout = Ent. {inp}  Sal. {out}  RG {gr} dB
+comp.listen = Oír
+comp.listen.3 = Húmeda
+comp.listen.1_tip = Oír lo que oye el detector: la clave, después de su nivel, su paso alto y su EQ
+comp.listen.2_tip = Oír solo lo que la compresión quita (o añade, por encima del 100 % de mezcla)
+comp.listen.3_tip = Oír solo el camino comprimido, con su compensación y sin señal seca
+comp.compare = Comparar
+comp.compare_on = Comparar {db} dB
+comp.compare_tip = Bypass a la misma sonoridad: la entrada, subida o bajada a la sonoridad de corto plazo medida en la salida, para que más fuerte no pase por mejor
+comp.latency_none = Sin latencia
+comp.latency = Latencia {ms} ms · {n} m.
+comp.latency_tip = Lo que la anticipación y el sobremuestreo retrasan el canal. El programa lo compensa.
+comp.os.0 = 1×
+comp.os.1 = 2×
+comp.os.2 = 4×
+comp.os_tip = La etapa de ganancia y el detector a 2 o 4 veces la frecuencia: las bandas laterales de un cambio de ganancia rápido se filtran en vez de replegarse, y el detector oye los picos entre muestras. Añade 31 o 36 muestras de latencia.
+
+# La curva y los medidores
+comp.effective = realimentación: en realidad {ratio}
+comp.transfer_tip = Arrastra el punto para el umbral, la curva por encima para el ratio (Mayús: sin topes), los anillos para la rodilla, el suelo discontinuo para el rango. Rueda: rodilla. Doble clic: 4:1, rodilla de 6 dB.
+comp.meter_in = ENT
+comp.meter_gr = RG
+comp.meter_out = SAL
+comp.loudness = Sonoridad salida
+comp.lufs_m = M
+comp.lufs_s = S
+comp.lufs_i = I
+comp.lufs_reset = Reiniciar I
+comp.lufs_reset_tip = Empieza de nuevo la sonoridad integrada. Cuenta lo que sonó con este editor abierto.
+comp.gr_stats = RG · 10 s
+comp.gr_avg = media
+comp.gr_peak = pico
+comp.crest = Cresta dB
+comp.crest_io = ent.→sal.
+
+# Los controles
+comp.auto = AUTO
+comp.note = Nota
+comp.note_tip = Ajusta la liberación a una figura al tempo del proyecto
+comp.group.dynamics = Dinámica
+comp.group.time = Tiempo
+comp.group.output = Salida
+comp.tip.thr = Dónde empieza la compresión. También la línea discontinua del historial y el punto de la curva.
+comp.tip.ratio = Cuánto del exceso sobre el umbral se quita. Topes en 1,5, 2, 3, 4, 6, 8, 10, 20 e ∞; Mayús para libre.
+comp.tip.knee = Qué tan gradual empieza la compresión, en dB a cada lado del umbral
+comp.tip.range = Lo más que quitará
+comp.tip.att = Qué tan rápido actúa
+comp.tip.rel = Qué tan rápido suelta. Con liberación auto., cuánto sigue la liberación a la reducción.
+comp.tip.hold = Cuánto sostiene la reducción antes de soltar
+comp.tip.look = Cuánto antes oye el detector, para atrapar el transitorio; el canal se retrasa lo mismo
+comp.tip.makeup = La ganancia del camino comprimido. Con ganancia auto., se suma a lo medido.
+comp.tip.dry = La señal sin comprimir mezclada de nuevo: compresión en paralelo
+comp.tip.mix = Cuánto del cambio de ganancia se aplica: 0 % es un cable, 200 % lo duplica
+comp.tip.in_gain = Ganancia a la entrada del compresor
+comp.tip.out_gain = Ganancia a la salida del compresor, después de la señal seca
+comp.tip.key_gain = El nivel de la clave hacia el detector
+comp.tip.key_hpf = Un paso alto suave en la clave, 6 dB/oct
+comp.tip.link = 0 %: cada lado por su cuenta. 100 %: los dos siguen al más fuerte.
+comp.tip.auto_rel = La liberación sigue lo que trabaja: más rápida con poca reducción, más lenta con mucha
+comp.tip.auto_gain = Compensa la sonoridad que quita la compresión: mide y empareja la sonoridad de corto plazo de la entrada y del camino comprimido
+
+# La clave
+comp.key_eq = EQ de la clave
+comp.key_eq_tip = La EQ de la clave dentro o fuera, conservando sus bandas
+comp.key_eq_title = EQ de la clave
+comp.key_eq_empty = Doble clic para añadir una banda: un corte en los extremos, una campana en el resto
+comp.key_band = Banda {n}
+comp.key_band_none = Haz clic en el punto de una banda para ver aquí sus números; doble clic en la pantalla para añadir una
+comp.band_on = Activa
+comp.bypassed = en bypass
+comp.key_spectrum_hint = Escucha la clave para ver su espectro
+
+# La gráfica de respuesta
+comp.response = Respuesta a una ráfaga
+comp.response_times = ataque {att} · liberación {rel} · {gr} dB
+comp.response_held = ataque {att} · aún sostenida
+comp.response_none = sin reducción con este ajuste
+comp.response_tip = La reducción ante un escalón 12 dB sobre el umbral, sostenido 400 ms, y luego 20 dB por debajo, pasado por este compresor tal como está. Los anillos marcan el 63 % al entrar y al salir.
+
+# La mesa
+comp.duck.menu = Atenuar este canal desde…
+comp.duck.hint = Añade un compresor con la clave del canal que elijas
+comp.strip_gr = Reducción del compresor {db} dB
+comp.strip_gr_idle = Este canal tiene un compresor. Su reducción se ve aquí mientras su editor está abierto.
+
+# Presets
+comp.preset.vocal = Voz, pareja
+comp.preset.drum_bus = Bus de batería
+comp.preset.parallel = Paralelo a fondo
+comp.preset.glue = Cohesión de mezcla
+comp.preset.master = Máster, suave
+comp.preset.duck = Atenuación
+comp.preset.pump = Bombeo
+comp.preset.bass = Bajo, estable
+
+# Historial de deshacer
+cmd.comp_style = estilo del compresor
+cmd.comp_engine = motor del compresor
+cmd.comp_key_band = banda de EQ de la clave
+cmd.comp_duck = atenuar desde un canal
+cmd.comp_reset_curve = curva del compresor

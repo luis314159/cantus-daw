@@ -10,9 +10,12 @@ repository.workspace = true
 
 [dependencies]
 cantus-core.workspace = true
+cantus-dsp.workspace = true
 cantus-engine.workspace = true
 cantus-project.workspace = true
 cantus-ai.workspace = true
+cantus-host.workspace = true
+raw-window-handle = "0.6"
 egui.workspace = true
 eframe.workspace = true
 rfd.workspace = true
@@ -21,7 +24,7 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+hound.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
-hound.workspace = true

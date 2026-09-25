@@ -1,0 +1,14 @@
+[package]
+name = "xtask"
+description = "Cantus's build tasks: `cargo run -p xtask -- bundle` makes the CLAP and VST3 bundles (ADR 0020)."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cantus-plugins = { path = "../crates/cantus-plugins", default-features = false }
+serde_json.workspace = true

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- A test fixture for Cantus's DAWproject import (ADR 0021): the format's own README
+     example (Bitwig Studio 5.0) with a group, a return, built-in devices, automation,
+     markers, a tempo change, a drum part in seconds and a scene added. -->
+<Project version="1.0">
+  <Application name="Bitwig Studio" version="5.0"/>
+  <Transport>
+    <Tempo max="666.000000" min="20.000000" unit="bpm" value="149.000000" id="id0" name="Tempo"/>
+    <TimeSignature denominator="4" numerator="4" id="id1"/>
+  </Transport>
+  <Structure>
+    <Track contentType="notes" loaded="true" id="id2" name="Bass" color="#a2eabf">
+      <Channel audioChannels="2" destination="id15" role="regular" solo="false" id="id3">
+        <Devices>
+          <ClapPlugin deviceID="org.surge-synth-team.surge-xt" deviceName="Surge XT" deviceRole="instrument" loaded="true" id="id7" name="Surge XT">
+            <Parameters/>
+            <Enabled value="true" id="id8" name="On/Off"/>
+            <State path="plugins/d19b1f6e-bbb6-42fe-a6c9-54b41d97a05d.clap-preset"/>
+          </ClapPlugin>
+          <Equalizer deviceName="EQ+" deviceRole="audioFX" id="id40">
+            <Band type="lowShelf"><Freq unit="hertz" value="120"/><Gain unit="decibel" value="-3"/><Q unit="linear" value="0.7"/></Band>
+            <Band type="bell"><Freq unit="hertz" value="900"/><Gain unit="decibel" value="2.5"/><Q unit="linear" value="1.4"/></Band>
+          </Equalizer>
+          <Compressor deviceName="Compressor" deviceRole="audioFX" id="id41"/>
+        </Devices>
+        <Mute value="false" id="id6" name="Mute"/>
+        <Pan max="1.000000" min="0.000000" unit="normalized" value="0.250000" id="id5" name="Pan"/>
+        <Sends>
+          <Send destination="id52" type="pre" id="id53"><Volume unit="linear" value="0.5" id="id54"/></Send>
+        </Sends>
+        <Volume max="2.000000" min="0.000000" unit="linear" value="0.500000" id="id4" name="Volume"/>
+      </Channel>
+    </Track>
+    <Track contentType="audio" loaded="true" id="id9" name="Drumloop" color="#b53bba">
+      <Channel audioChannels="2" destination="id15" role="regular" solo="false" id="id10">
+        <Mute value="true" id="id13" name="Mute"/>
+        <Volume max="2.000000" min="0.000000" unit="linear" value="0.177125" id="id11" name="Volume"/>
+      </Channel>
+    </Track>
+    <Track contentType="tracks" loaded="true" id="id30" name="Drums group" color="#336699">
+      <Channel audioChannels="2" destination="id15" role="submix" id="id31">
+        <Volume unit="linear" value="1.0" id="id32"/>
+      </Channel>
+      <Track contentType="notes" loaded="true" id="id33" name="Kit">
+        <Channel audioChannels="2" role="regular" id="id34">
+          <Volume unit="decibel" value="-6" id="id35"/>
+        </Channel>
+      </Track>
+    </Track>
+    <Track contentType="audio" loaded="true" id="id50" name="FX Reverb">
+      <Channel audioChannels="2" destination="id15" role="effect" id="id52">
+        <Volume unit="linear" value="1.0" id="id51"/>
+      </Channel>
+    </Track>
+    <Track contentType="audio notes" loaded="true" id="id14" name="Master">
+      <Channel audioChannels="2" role="master" solo="false" id="id15">
+        <Mute value="false" id="id18" name="Mute"/>
+        <Pan max="1.000000" min="0.000000" unit="normalized" value="0.500000" id="id17" name="Pan"/>
+        <Volume max="2.000000" min="0.000000" unit="linear" value="0.500000" id="id16" name="Volume"/>
+      </Channel>
+    </Track>
+  </Structure>
+  <Arrangement id="id19">
+    <Lanes timeUnit="beats" id="id20">
+      <Lanes track="id2" id="id21">
+        <Clips id="id22">
+          <Clip time="0.0" duration="8.0" playStart="0.0">
+            <Notes id="id23">
+              <Note time="0.000000" duration="0.250000" channel="0" key="65" vel="0.787402" rel="0.787402"/>
+              <Note time="1.000000" duration="0.250000" channel="0" key="65" vel="0.787402" rel="0.787402"/>
+              <Note time="4.000000" duration="0.250000" channel="0" key="65" vel="0.787402" rel="0.787402"/>
+              <Note time="5.000000" duration="0.250000" channel="0" key="65" vel="0.787402" rel="0.787402"/>
+              <Note time="0.500000" duration="0.250000" channel="0" key="64" vel="0.787402" rel="0.787402"/>
+              <Note time="4.500000" duration="0.250000" channel="0" key="64" vel="0.787402" rel="0.787402"/>
+              <Note time="1.500000" duration="2.500000" channel="0" key="53" vel="0.787402" rel="0.787402"/>
+              <Note time="5.500000" duration="0.250000" channel="0" key="53" vel="0.787402" rel="0.787402"/>
+              <Note time="6.000000" duration="2.000000" channel="0" key="53" vel="0.787402" rel="0.787402"/>
+            </Notes>
+          </Clip>
+          <Clip time="8.0" duration="8.0" playStart="1.0" loopStart="0.0" loopEnd="4.0" name="Loopy">
+            <Notes id="id60"><Note time="1.0" duration="0.5" channel="0" key="60" vel="0.5"/></Notes>
+          </Clip>
+        </Clips>
+        <Points id="id61" unit="normalized"><Target parameter="id4"/><RealPoint time="0" value="0.5"/><RealPoint time="4" value="1"/></Points>
+      </Lanes>
+      <Lanes track="id9" id="id24">
+        <Clips id="id25">
+          <Clip time="0.0" duration="8.0" playStart="0.0" name="Drumfunk3 170bpm">
+            <Clips id="id26">
+              <Clip time="0.0" duration="8.0" contentTimeUnit="beats" playStart="0.0">
+                <Warps contentTimeUnit="seconds" timeUnit="beats" id="id28">
+                  <Audio algorithm="stretch" channels="2" duration="2.823541666666667" sampleRate="48000" id="id27">
+                    <File path="audio/Drumfunk3 170bpm.wav"/>
+                  </Audio>
+                  <Warp time="0.0" contentTime="0.0"/>
+                  <Warp time="8.0" contentTime="2.823541666666667"/>
+                </Warps>
+              </Clip>
+            </Clips>
+          </Clip>
+        </Clips>
+      </Lanes>
+      <Lanes track="id33" id="id70" timeUnit="seconds">
+        <Clips id="id71">
+          <Clip time="2.0" duration="2.0" contentTimeUnit="seconds">
+            <Notes id="id72">
+              <Note time="0" duration="0.1" channel="9" key="36" vel="1.0"/>
+              <Note time="0.5" duration="0.1" channel="9" key="49" vel="0.8"/>
+            </Notes>
+          </Clip>
+        </Clips>
+      </Lanes>
+    </Lanes>
+    <Markers id="id80"><Marker time="0" name="Intro"/><Marker time="16" name="Verse"/></Markers>
+    <TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="149"/><RealPoint time="32" value="120"/></TempoAutomation>
+  </Arrangement>
+  <Scenes>
+    <Scene id="id95" name="Scene 1"><Lanes id="id96"/></Scene>
+  </Scenes>
+</Project>

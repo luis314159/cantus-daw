@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 8;
+pub const SCHEMA_VERSION: u32 = 15;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -186,6 +186,13 @@ static MIGRATIONS: &[Migration] = &[
     migrate_5_to_6,
     migrate_6_to_7,
     migrate_7_to_8,
+    migrate_8_to_9,
+    migrate_9_to_10,
+    migrate_10_to_11,
+    migrate_11_to_12,
+    migrate_12_to_13,
+    migrate_13_to_14,
+    migrate_14_to_15,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -394,6 +401,125 @@ fn migrate_7_to_8(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 9 gave the mixer **strips of its own**. Before it, a track *was* a mixer
+/// channel: its inserts, width and polarity lived on the track. Now a track feeds a strip
+/// and the strip holds those; several tracks can feed one strip, and a strip can feed
+/// another.
+///
+/// The migration makes one strip per track, in track order, and **moves** the track's
+/// fader, pan, width, polarity and inserts onto it, leaving the track's own gain and pan at
+/// unity. That is what keeps the render bit-identical: the signal meets exactly the same
+/// operations in exactly the same order, with two multiplications by 1.0 in front of them
+/// (`a_pre_strip_project_renders_exactly_as_it_did` holds the hash). Then it pads the
+/// mixer to its default sixteen strips, so an old project opens with the same desk a new
+/// one does.
+fn migrate_8_to_9(value: &mut Value) -> Result<(), String> {
+    let project = value.get_mut("project").ok_or("missing project")?;
+    let mut next_id = project
+        .get("next_id")
+        .and_then(Value::as_u64)
+        .ok_or("missing next_id")?;
+    let mut strips: Vec<Value> = Vec::new();
+    let tracks = project
+        .get_mut("tracks")
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks.iter_mut() {
+        let obj = t.as_object_mut().ok_or("track is not an object")?;
+        let id = next_id;
+        next_id += 1;
+        let take = |obj: &mut serde_json::Map<String, Value>, key: &str, default: Value| {
+            obj.remove(key).unwrap_or(default)
+        };
+        let gain = take(obj, "gain_db", Value::from(0.0));
+        let pan = take(obj, "pan", Value::from(0.0));
+        let width = take(obj, "width", Value::from(1.0));
+        let phase = take(obj, "phase_invert", Value::Bool(false));
+        let effects = take(obj, "effects", Value::Array(Vec::new()));
+        obj.insert("gain_db".into(), Value::from(0.0));
+        obj.insert("pan".into(), Value::from(0.0));
+        obj.insert("strip".into(), Value::from(id));
+        strips.push(serde_json::json!({
+            "id": id,
+            "name": "",
+            "gain_db": gain,
+            "pan": pan,
+            "width": width,
+            "phase_invert": phase,
+            "muted": false,
+            "effects": effects,
+            "output": Value::Null,
+            "color": Value::Null,
+        }));
+    }
+    while strips.len() < cantus_core::DEFAULT_STRIPS {
+        let id = next_id;
+        next_id += 1;
+        strips.push(serde_json::json!({
+            "id": id,
+            "name": "",
+            "gain_db": 0.0,
+            "pan": 0.0,
+            "width": 1.0,
+            "phase_invert": false,
+            "muted": false,
+            "effects": [],
+            "output": Value::Null,
+            "color": Value::Null,
+        }));
+    }
+    project["strips"] = Value::Array(strips);
+    project["next_id"] = Value::from(next_id);
+    Ok(())
+}
+
+/// Schema 10: the strip grew sends, solo, swap, an FX switch and a three-band EQ, and an
+/// insert slot grew its own dry/wet. Every one of them has a serde default that is the
+/// identity — no sends, not soloed, not swapped, FX on, EQ flat, mix at unity — so the
+/// migration writes nothing, and the null tests hold that a strip with all of them at
+/// their defaults renders exactly as a schema-9 strip did.
+fn migrate_9_to_10(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 11: strips gained a dock and a group, and the project a list of groups. An old
+/// desk opens exactly as it was laid out — every strip in the scrolling middle, no groups
+/// — so the migration writes nothing. (A *new* project docks three strips on the right;
+/// doing that to an old one would move strips the user placed.)
+fn migrate_10_to_11(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 12: Aequalis and Comprimo arrived, a slot can be keyed from another strip
+/// (`sidechain`), and a sparse effect stores only the parameters that moved. Nothing old
+/// has any of these — no EQ or compressor existed, and a missing `sidechain` is "its own
+/// input" — so the migration writes nothing.
+fn migrate_11_to_12(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 13: five effect kinds arrived — the limiter, the new reverb, the multiband, the
+/// de-esser and the gate. No old file holds one, so the migration writes nothing.
+fn migrate_12_to_13(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 14: an insert slot can hold a hosted plug-in (ADR 0019) — `EffectKind::External`
+/// with an `external` record: format, id, name, vendor, whether it has a sidechain input,
+/// its state (base64) and its parameter values by the plug-in's ids. A native effect's
+/// spec writes no `external` at all, so no old file changes shape and the migration writes
+/// nothing; the number is what makes an older build refuse a file that holds one.
+fn migrate_13_to_14(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 15: an insert slot can hear a track's notes (`midi_from`, ADR 0022). A missing
+/// `midi_from` is "no track" — the effect hears nothing and renders as before — so the
+/// migration writes nothing.
+fn migrate_14_to_15(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -514,8 +640,15 @@ mod tests {
                 "{name} migrated to the wrong pan law — its panned tracks would move"
             );
             for t in &r.file.project.tracks {
-                assert_eq!(t.width, 1.0, "{name}: width must migrate to unity");
-                assert!(!t.phase_invert, "{name}: polarity must migrate to normal");
+                let strip = t
+                    .strip
+                    .and_then(|s| r.file.project.strip(s))
+                    .expect("every migrated track feeds a strip");
+                assert_eq!(strip.width, 1.0, "{name}: width must migrate to unity");
+                assert!(
+                    !strip.phase_invert,
+                    "{name}: polarity must migrate to normal"
+                );
             }
             assert_eq!(r.file.project.master.pan, 0.0, "{name}: master pan");
             assert_eq!(r.file.project.master.width, 1.0, "{name}: master width");
@@ -534,5 +667,101 @@ mod tests {
             parse(r#"{"format":"other"}"#, true),
             Err(FormatError::WrongFormat(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod strip_migration_tests {
+    use super::*;
+
+    /// The strips migration moves a track's mixer controls onto its strip and leaves the
+    /// track at unity — checked on every fixture older than schema 9.
+    #[test]
+    fn old_tracks_hand_their_mixer_controls_to_a_strip() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("cantus") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let r = parse(&text, true).unwrap();
+            if r.migrated_from.unwrap_or(SCHEMA_VERSION) >= 9 {
+                continue;
+            }
+            let p = &r.file.project;
+            assert!(p.strips.len() >= cantus_core::DEFAULT_STRIPS);
+            // The Keys track was written at −4.5 dB, pan 0.25, with a delay.
+            let keys = &p.tracks[0];
+            assert_eq!(
+                keys.gain_db, 0.0,
+                "the track's own gain is unity after migration"
+            );
+            assert_eq!(keys.pan, 0.0);
+            let strip = p.strip(keys.strip.unwrap()).unwrap();
+            assert_eq!(strip.gain_db, -4.5);
+            assert_eq!(strip.pan, 0.25);
+            // Inserts arrived in schema 2, so the oldest fixture has none to move.
+            let expected = if r.migrated_from.unwrap_or(0) >= 2 {
+                1
+            } else {
+                0
+            };
+            assert_eq!(
+                strip.effects.len(),
+                expected,
+                "the delay moved to the strip"
+            );
+            assert_eq!(p.strip_number(strip.id), Some(1), "track 1 feeds strip 1");
+            // Ids stay unique: every strip id is above every id the file already used.
+            let mut ids: Vec<u64> = p.strips.iter().map(|s| s.id.0).collect();
+            ids.extend(p.tracks.iter().map(|t| t.id.0));
+            let n = ids.len();
+            ids.sort_unstable();
+            ids.dedup();
+            assert_eq!(ids.len(), n, "{}: an id was reused", path.display());
+            checked += 1;
+        }
+        assert!(checked >= 1);
+    }
+}
+
+#[cfg(test)]
+mod hosted_plugin_tests {
+    use super::*;
+
+    /// The schema-14 fixture holds a hosted plug-in that is installed nowhere: the project
+    /// opens, and the slot's record — state bytes, values to the bit — is what was written.
+    #[test]
+    fn a_missing_hosted_plugin_opens_with_its_data_intact() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("v14.cantus");
+        let text = std::fs::read_to_string(&path).expect("the v14 fixture");
+        let r = parse(&text, true).expect("opens");
+        let slot = r
+            .file
+            .project
+            .strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .find(|e| e.spec.kind == cantus_core::EffectKind::External)
+            .expect("a hosted slot");
+        let plugin = slot.spec.external.as_deref().expect("its record");
+        assert_eq!(plugin.id, "org.cantus.fixture.absent");
+        assert_eq!(plugin.format, cantus_core::PluginFormat::Clap);
+        assert!(plugin.sidechain);
+        assert!(slot.sidechain.is_some());
+        assert_eq!(slot.mix, 0.75);
+        assert_eq!(plugin.state.bytes(), b"CTG1 opaque state \x00\x01\xfe\xff");
+        assert_eq!(plugin.params[&0], -6.25);
+        assert_eq!(plugin.params[&1024].to_bits(), (0.1f64 + 0.2).to_bits());
+        // Written back, it is the same file content.
+        let again = ProjectFile::wrap(r.file.project.clone(), "test")
+            .unwrap()
+            .to_json()
+            .unwrap();
+        assert_eq!(parse(&again, true).unwrap().file.project, r.file.project);
     }
 }

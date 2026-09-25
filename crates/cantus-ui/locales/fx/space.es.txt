@@ -1,0 +1,149 @@
+# Spatium — de Spatium. Cada clave necesita su gemela en space.en.txt.
+effect.space = Spatium reverb
+
+# Parámetros
+fx.space.style = Estilo
+fx.space.space = Espacio
+fx.space.decay = Decaimiento
+fx.space.predelay = Pre-retardo
+fx.space.sync = Sincronía
+fx.space.distance = Distancia
+fx.space.character = Carácter
+fx.space.bright = Brillo
+fx.space.width = Anchura
+fx.space.mix = Mezcla
+fx.space.freeze = Congelar
+fx.space.er = Nivel temprano
+fx.space.er_size = Tamaño temprano
+fx.space.duck = Rango
+fx.space.duck_thr = Umbral
+fx.space.duck_att = Ataque
+fx.space.duck_rel = Liberación
+fx.space.deq_on = Curva de decaimiento
+fx.space.peq_on = EQ posterior
+fx.space.peq_auto = Ganancia automática
+fx.space.band.used = En uso
+fx.space.band.on = Activa
+fx.space.band.shape = Forma
+fx.space.band.freq = Frecuencia
+fx.space.band.mult = Decaimiento
+fx.space.band.q = Anchura
+fx.space.band.gain = Ganancia
+fx.space.band.slope = Pendiente
+fx.space.band.place = Ubicación
+
+# Comandos
+cmd.space_edit = ajuste de la reverb
+cmd.space_band_remove = quitar banda de la reverb
+
+# Las salas por las que pasa Espacio
+space.room.0 = Cabina
+space.room.1 = Sala pequeña
+space.room.2 = Estudio
+space.room.3 = Cámara
+space.room.4 = Club
+space.room.5 = Teatro
+space.room.6 = Iglesia
+space.room.7 = Sala de conciertos
+space.room.8 = Sala grande
+space.room.9 = Estadio
+space.room.10 = Catedral
+space.room.11 = Espacio inmenso
+
+# Estilos
+space.style.0 = Sala
+space.style.0_tip = Un espacio natural: dieciséis líneas de retardo moduladas cuyo decaimiento sigue la curva, con reflexiones tempranas
+space.style.1 = Placa
+space.style.1_tip = Una placa: líneas cortas y densas, sin reflexiones tempranas, arranque rápido y una cola brillante y pareja
+space.style.2 = Vintage
+space.style.2_tip = Una unidad digital de los ochenta: reflexiones escasas, modulación profunda, agudos que brillan y se cortan en 9 kHz
+space.style.3 = Muelle
+space.style.3_tip = Un tanque de muelles: tres muelles dispersivos, cada vuelta un chirrido descendente, oscuro por encima de 4,5 kHz
+space.freeze_tip = Retener lo que la reverb contiene ahora, mientras siga activo; no entra nada nuevo
+
+# Sincronía del pre-retardo
+space.sync.0 = Libre
+space.sync.1 = 1/64
+space.sync.2 = 1/32
+space.sync.3 = 1/16 T
+space.sync.4 = 1/16
+space.sync.5 = 1/16 P
+space.sync.6 = 1/8 T
+space.sync.7 = 1/8
+space.sync.8 = 1/8 P
+space.sync.9 = 1/4 T
+space.sync.10 = 1/4
+space.sync.11 = 1/4 P
+space.sync_tip = Poner el pre-retardo a un valor de nota al tempo del proyecto ({bpm} BPM); girar la perilla lo libera
+space.resync = Seguir {bpm} BPM
+
+# Tarjetas
+space.early = Reflexiones tempranas
+space.off = apagado
+space.early_now = {db} dB, en {ms} ms
+space.early_off = Este estilo no tiene reflexiones tempranas
+space.band = Banda
+space.band_hint = Doble clic en la pantalla para añadir una banda a la curva elegida encima; arrastra un punto para moverla, la rueda para su anchura
+space.decay_band_n = Banda de decaimiento {n}
+space.post_band_n = Banda del EQ posterior {n}
+space.dshape.0 = Campana
+space.dshape.1 = Estante grave
+space.dshape.2 = Estante agudo
+space.dshape.3 = Muesca
+space.pshape.0 = Campana
+space.pshape.1 = Estante grave
+space.pshape.2 = Estante agudo
+space.pshape.3 = Corte de graves
+space.pshape.4 = Corte de agudos
+space.remove_band = Quitar
+space.no_free_band = Todas las bandas de esta curva están en uso
+space.ducking = Atenuación
+space.key_tip = Lo que escucha la atenuación: la entrada de esta tira u otra tira después de su fader, sin envío que configurar
+space.gr = {db} dB
+space.output = Salida
+space.mono_warning = Más ancho que la sala: compruébalo en mono
+space.latency_none = Sin latencia
+space.natural = sala: {s}
+space.corr = Corr
+space.band_now = en {hz}: {s} (la sala: {base})
+space.open_tip = Abrir la reverb
+
+# La pantalla de la curva
+space.curve.decay = Curva de decaimiento
+space.curve.decay_tip = El doble clic y el arrastre editan el tiempo de decaimiento por frecuencia
+space.curve.post = EQ posterior
+space.curve.post_tip = El doble clic y el arrastre editan el tono de la reverb
+space.curve.decay_on = Curva
+space.curve.decay_on_tip = Omitir la curva dibujada para oír la sala sin ella
+space.curve.post_on = EQ
+space.curve.post_on_tip = Omitir el EQ posterior
+space.curve.auto = Ganancia automática
+space.curve.auto_tip = Mantener el nivel de la reverb mientras el EQ posterior cambia su tono
+space.curve.empty = Doble clic para dar forma al decaimiento por frecuencia
+space.engine = motor
+space.table.curve = Curva (s)
+space.table.engine = Motor (s)
+space.table.measured = Medido (s)
+space.table.measured_hint = se mide en la próxima cola que termine
+
+# La vista de la cola
+space.tail = Cola
+space.tail.measured = medido {s}
+space.tail.pre = pre {ms}
+space.tail.early = tempranas {ms}
+space.tail.envelope = Envolvente
+space.tail.envelope_tip = El nivel en el tiempo: el modelo (líneas y trazos) y la última cola medida (relleno)
+space.tail.spectrum = Espectro
+space.tail.spectrum_tip = La última cola medida como espectro en el tiempo, con dónde la curva dice que cada frecuencia baja 30 y 60 dB
+space.tail.spectrum_empty = Toca algo breve: su cola se mide cuando termina
+space.tail.spectrum_legend = curva: -30 dB continua, -60 dB a trazos
+
+# Presets
+space.preset.vocal_plate = Placa para voz
+space.preset.drum_room = Sala de batería
+space.preset.concert_hall = Sala de conciertos
+space.preset.cathedral = Catedral
+space.preset.ducked_vocal = Voz con atenuación
+space.preset.eighties_snare = Caja de los ochenta
+space.preset.surf_spring = Muelle surf
+space.preset.dark_tail = Cola oscura

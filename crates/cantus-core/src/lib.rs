@@ -12,6 +12,8 @@
 pub mod bus;
 pub mod command;
 pub mod effect;
+pub mod external;
+pub mod fx;
 pub mod instrument;
 pub mod model;
 pub mod pads;
@@ -20,16 +22,21 @@ pub mod time;
 
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
 pub use command::{Command, CommandError, Origin};
-pub use effect::{EffectKind, EffectParamInfo, EffectSlot, EffectSpec};
+pub use effect::{
+    eq_key, EffectKind, EffectParamInfo, EffectSlot, EffectSpec, ExternalPlugin, PluginFormat,
+    PluginState, EQ_BANDS, EQ_BAND_FIELDS,
+};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,
 };
 pub use model::{
-    apply_width, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz, Clip, ClipId,
-    ClipWindow, Color, EffectId, LoopRegion, Master, Note, NoteId, PanLaw, Pitch, Project, Track,
-    TrackIcon, TrackId, Velocity, MAX_GAIN_DB, MAX_TRACK_HEIGHT, MAX_WIDTH, MIN_GAIN_DB,
-    MIN_TRACK_HEIGHT,
+    apply_width, balance_gains, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz,
+    Clip, ClipId, ClipWindow, Color, Dock, EffectId, EqBand, EqField, GroupId, LoopRegion, Master,
+    MixerStrip, Note, NoteId, PanLaw, Pitch, Project, Send, StripEq, StripGroup, StripId, Track,
+    TrackIcon, TrackId, Velocity, DEFAULT_RIGHT_DOCK, DEFAULT_STRIPS, EQ_MAX_GAIN_DB, EQ_MAX_HZ,
+    EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MAX_TRACK_HEIGHT,
+    MAX_WIDTH, MIN_GAIN_DB, MIN_TRACK_HEIGHT,
 };
 pub use pads::{DrumPad, Lanes, PadField, PadParamInfo, PadVoice, PulsusParams, SampleData};
-pub use snapshot::{NoteEvent, Snapshot, TrackSnapshot};
+pub use snapshot::{NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use time::{Ticks, TimeSignature, PPQ};
