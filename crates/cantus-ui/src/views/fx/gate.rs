@@ -22,22 +22,28 @@
 //!
 //! Every drag and knob turn is one step of the project's undo.
 
+use super::canvas::{self, Ink};
+use super::controls::{self, Size};
+use super::frame;
 use super::host::{DawHost, FxHost, KeySource, KeyTarget};
 use super::FactoryPreset;
 use crate::app::CantusApp;
-use crate::design::{self, space};
+use crate::design::space;
 use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
+use crate::kit::band;
+use crate::kit::hint::{self, Caps};
+use crate::kit::menu::Item;
+use crate::kit::shell::Grid;
+use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
+use crate::kit::{with_brush, Fill, Style};
 use cantus_core::{
-    Command, EffectId, EffectSlot, EffectSpec, InstrumentSpec, PulsusParams, StripId, Ticks,
+    Command, EffectId, EffectKind, EffectSpec, InstrumentSpec, PulsusParams, StripId, Ticks,
     TrackId,
 };
-use cantus_dsp::porta::{self, telemetry, Column, GateSettings, Mode, Phase, Style};
-use egui::{
-    pos2, vec2, Align2, Color32, Mesh, Pos2, Rect, RichText, Sense, Shape, Stroke, StrokeKind,
-};
+use cantus_dsp::porta::{self, telemetry, Column, GateSettings, Mode, Phase, Style as GateStyle};
+use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 
 /// The level scale of the history and the transfer curve, dB.
 const LO_DB: f32 = -80.0;
@@ -47,7 +53,7 @@ pub const HISTORY: usize = 800;
 const F_LO: f32 = 20.0;
 const F_HI: f32 = 20_000.0;
 
-/// Factory presets: a label key and the parameters it sets (`views::fx::presets_menu`).
+/// Factory presets: a label key and the parameters it sets (the device frame's preset list).
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     (
         "preset.gate.kick",
@@ -218,7 +224,25 @@ pub struct State {
     /// Where the last frame drew the history's plot and the transfer curve, and the dB
     /// range both span — published so a test can aim a drag at a line.
     pub geometry: Option<Geometry>,
+    /// The device frame: the preset, its lists.
+    pub chrome: frame::Chrome,
+    chips: frame::ChipText,
+    /// What the chosen style is, in words, per style and language: two lines.
+    words: Option<(usize, crate::i18n::Locale, String, String)>,
+    /// "Hits 12", per count.
+    hits_label: Option<(usize, String)>,
+    /// The kit's pads (pitch, name), read once.
+    pads: Option<Vec<(u8, String)>>,
+    /// The key's source as the host said it, per host revision.
+    key: Option<(u64, Option<KeySource>)>,
+    /// The analysed input, reused.
+    scratch: Vec<f32>,
+    /// What the tap held when it was last analysed (length, newest, oldest).
+    analysed: Option<Pair3>,
 }
+
+/// A cheap signature of the tap's contents.
+type Pair3 = (usize, Option<(u32, u32)>, Option<(u32, u32)>);
 
 /// The displays as the last frame laid them out.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -458,7 +482,7 @@ impl CantusApp {
 }
 
 /// What a style is, in words — the answer to "what does Guitar mean?".
-pub fn style_words(style: Style) -> String {
+pub fn style_words(style: GateStyle) -> String {
     let s = style.spec();
     let mode = match s.mode {
         Mode::Down => t("gate.words.down"),
@@ -486,60 +510,82 @@ pub fn style_words(style: Style) -> String {
     out
 }
 
-fn db_text(v: f32) -> String {
-    format!("{v:+.1} dB")
-}
+/// `+1.5 dB`.
+struct Db(f32);
 
-fn ratio_text(r: f32) -> String {
-    if r >= porta::INFINITE_RATIO {
-        "\u{221e}:1".into()
-    } else {
-        format!("{r:.1}:1")
+impl std::fmt::Display for Db {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:+.1} dB", self.0)
     }
 }
 
-fn range_text(r: f32) -> String {
-    if r >= porta::INFINITE_RANGE {
-        "\u{221e}".into()
-    } else {
-        format!("{r:.0} dB")
+/// `4.0:1`, or `∞:1`.
+struct Ratio(f32);
+
+impl std::fmt::Display for Ratio {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 >= porta::INFINITE_RATIO {
+            f.write_str("\u{221e}:1")
+        } else {
+            write!(f, "{:.1}:1", self.0)
+        }
     }
 }
 
-fn phase_name(p: Phase) -> String {
-    t(match p {
+/// `40 dB`, or `∞`.
+struct Range(f32);
+
+impl std::fmt::Display for Range {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 >= porta::INFINITE_RANGE {
+            f.write_str("\u{221e}")
+        } else {
+            write!(f, "{:.0} dB", self.0)
+        }
+    }
+}
+
+fn phase_key(p: Phase) -> &'static str {
+    match p {
         Phase::Open => "gate.phase.open",
         Phase::Hold => "gate.phase.hold",
         Phase::Release => "gate.phase.release",
         Phase::Closed => "gate.phase.closed",
-    })
+    }
 }
 
-/// The lane's colour for a phase; hold is also hatched and release is also paler, so the
-/// colour is never the only cue.
-fn phase_color(p: Phase) -> Option<Color32> {
-    let pal = theme::p();
+/// The lane's colour for a phase in these inks; hold is also hatched and release is also
+/// paler, so the colour is never the only cue.
+fn phase_ink(p: Phase, ink: &Ink) -> Option<Color32> {
     match p {
-        Phase::Open => Some(pal.ok),
-        Phase::Hold => Some(pal.ok.gamma_multiply(0.75)),
-        Phase::Release => Some(pal.ok.gamma_multiply(0.35)),
+        Phase::Open => Some(ink.ok),
+        Phase::Hold => Some(Ink::a(ink.ok, 0.75)),
+        Phase::Release => Some(Ink::a(ink.ok, 0.35)),
         Phase::Closed => None,
     }
 }
 
+/// The key card's column of switches, at 100 %: wide enough for "Removed" in a third.
+const KEY_COLUMN: f32 = 172.0;
+
+const STYLE_KEYS: [&str; 6] = [
+    "gate.style.0",
+    "gate.style.1",
+    "gate.style.2",
+    "gate.style.3",
+    "gate.style.4",
+    "gate.style.5",
+];
+
 /// Porta's editor in Cantus's own window: the host is the project (every drag one undo
-/// step, the key any strip of the desk, hits a MIDI clip).
-pub fn body(
+/// step, the key any strip of the desk, hits a MIDI clip, the gate played by a track's
+/// notes).
+pub fn framed(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     strip: StripId,
     effect: EffectId,
-    slot: &EffectSlot,
-) {
-    // Cantus only: the gate played by a track's notes (ADR 0022). The source is a track of
-    // the project, so this row lives here, outside the editor a plug-in window shares.
-    let s = cantus_engine::fx::gate::settings(&slot.spec);
-    trigger_row(app, ui, strip, effect, slot, &s);
+) -> frame::Out {
     let mut st = std::mem::take(&mut app.fx.gate);
     if st.effect != Some(effect) {
         let pitch = st.hit_pitch;
@@ -549,324 +595,397 @@ pub fn body(
             ..State::default()
         };
     }
-    let mut host = DawHost::with_spec(app, strip, effect, slot.spec.clone(), "gate");
-    editor(&mut host, &mut st, ui);
+    st.chrome.reset_for(effect.0);
+    let out = editor(&mut DawHost::new(app, strip, effect, "gate"), &mut st, ui);
     app.fx.gate = st;
+    out
 }
 
 /// Porta's editor on any host (ADR 0020): Cantus's window, or a plug-in window inside
-/// another DAW. Everything it needs from the host goes through [`FxHost`].
-pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) {
+/// another DAW — the device frame and the gate inside it. Everything it needs from the
+/// host goes through [`FxHost`].
+pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame::Out {
     let transport = host.transport();
     let tel = host.telemetry();
     st.ingest(&tel, transport.playing_at, transport.ticks_per_second);
-    let spec = host.spec().clone();
-    let s = cantus_engine::fx::gate::settings(&spec);
-    style_row(host, ui, &s);
-    key_row(host, st, ui, &s, &tel);
-    ui.add_space(space::S1);
-    let knobs_h = space::GRID * 26.0;
-    let strip_h = space::GRID * 14.0;
-    let h = (ui.available_height() - knobs_h - strip_h - space::S4).max(space::GRID * 40.0);
-    ui.horizontal(|ui| {
-        let w = (ui.available_width() - h - space::S2).max(space::GRID * 60.0);
-        history(host, st, ui, &s, &tel, vec2(w, h));
-        transfer(host, st, ui, &s, &tel, h);
-    });
-    ui.add_space(space::S1);
     let sr = if tel[telemetry::SAMPLE_RATE] > 0.0 {
         tel[telemetry::SAMPLE_RATE]
     } else {
-        48_000.0
+        host.sample_rate()
     };
-    key_strip(host, st, ui, &s, sr, vec2(ui.available_width(), strip_h));
-    ui.add_space(space::S2);
-    knobs(host, ui, &spec, &s);
-}
-
-fn caption(ui: &mut egui::Ui, key: &str) {
-    ui.label(
-        RichText::new(t(key))
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
-    );
-}
-
-/// The styles, and what the chosen one is, in words.
-fn style_row(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &GateSettings) {
-    ui.horizontal(|ui| {
-        caption(ui, "fx.gate.style");
-        for style in Style::ALL {
-            if ui
-                .selectable_label(
-                    s.style == style,
-                    t(&format!("gate.style.{}", style.index())),
-                )
-                .on_hover_text(style_words(style))
-                .clicked()
-            {
-                host.set("style", style.index() as f32, None);
-            }
-        }
-        ui.label(
-            RichText::new(style_words(s.style))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
+    let gs = cantus_engine::fx::gate::settings(host.spec());
+    // With lookahead on, the gate delays its audio by a fixed amount, whatever the knob.
+    let latency = if gs.lookahead_ms <= 0.0 {
+        0.0
+    } else if tel[telemetry::LATENCY] > 0.0 {
+        tel[telemetry::LATENCY]
+    } else {
+        porta::LOOKAHEAD_MAX_MS * 0.001 * sr
+    };
+    let mut chips = std::mem::take(&mut st.chips);
+    let chip = [chips.latency(latency, sr)];
+    let meter = st.history.back().map(|c| frame::Levels {
+        level: [c.c.output_db; 2],
+        hold: [c.c.output_db; 2],
     });
+    let look = frame::Look {
+        kind: EffectKind::Gate,
+        chips: &chip,
+        meter,
+        more: &[],
+    };
+    let mut chrome = std::mem::take(&mut st.chrome);
+    let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
+        body_ui(host, st, ui, s, body, &tel, sr)
+    });
+    st.chrome = chrome;
+    st.chips = chips;
+    out
 }
 
-/// The key's source, what to hear, learning, hits, and the latency.
-fn key_row(
+/// The gate inside the frame: the style row, the displays, the cells.
+fn body_ui(
     host: &mut dyn FxHost,
     st: &mut State,
     ui: &mut egui::Ui,
-    s: &GateSettings,
+    s: &Style,
+    body: Rect,
     tel: &[f32; 64],
+    sr: f32,
 ) {
-    ui.horizontal(|ui| {
-        caption(ui, "gate.key");
-        match host.key_source() {
-            // In Cantus: any strip of the desk, chosen here.
-            Some(KeySource::Strips {
-                current,
-                label,
-                options,
-            }) => {
-                egui::ComboBox::from_id_salt("gate-key")
-                    .selected_text(label)
-                    .width(space::GRID * 40.0)
-                    .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(current.is_none(), t("gate.key_own"))
-                            .clicked()
-                        {
-                            host.set_key_source(KeyTarget::Strip(None));
-                        }
-                        for (id, text) in options {
-                            if ui.selectable_label(current == Some(id), text).clicked() {
-                                host.set_key_source(KeyTarget::Strip(Some(id)));
-                            }
-                        }
-                    })
-                    .response
-                    .on_hover_text(t("gate.key_tip"));
+    let k = s.k;
+    let gs = cantus_engine::fx::gate::settings(host.spec());
+    let daw = host.makes_clips();
+    let mut g = Grid::new(body, s);
+    let area = g.rest();
+    let gap = s.d(4.0);
+    let row1 = (band::TITLE + 8.0 + 66.0 + 8.0) * k;
+    let row3 = controls::card_height(Size::L) * k;
+    let row2 = (area.height() - row1 - row3 - 2.0 * gap).max(160.0 * k);
+
+    // Row 1: the style and what it is; what opens the gate (Cantus); learning and hits.
+    let fr1: &[f32] = if daw {
+        &[0.52, 0.20, 0.28]
+    } else {
+        &[0.72, 0.28]
+    };
+    let r1: Vec<Rect> = g.row(row1, fr1).collect();
+    style_card(host, st, ui, s, r1[0], &gs);
+    if daw {
+        trigger_card(host, ui, s, r1[1], &gs);
+    }
+    learn_card(host, st, ui, s, r1[r1.len() - 1]);
+
+    // Row 2: the history over the key strip, and the transfer curve beside them.
+    let side = (row2 - band::TITLE * k).min(area.width() * 0.42);
+    let lf = (area.width() - side - gap) / (area.width() - gap);
+    let r2: Vec<Rect> = g.row(row2, &[lf, 1.0 - lf]).collect();
+    let key_h = (band::TITLE + 64.0) * k;
+    let hist_r = Rect::from_min_max(r2[0].min, pos2(r2[0].right(), r2[0].bottom() - key_h - gap));
+    let key_r = Rect::from_min_max(pos2(r2[0].left(), hist_r.bottom() + gap), r2[0].max);
+    let disp = |r: Rect| (r.height() / k - band::TITLE - 1.0).max(20.0);
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        hist_r,
+        Src::Key("gate.card.level"),
+        None,
+        Some(disp(hist_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                history(host, st, ui, s, &gs, tel, d);
             }
-            // In another DAW: the host routes a sidechain; the detector is switched to it.
-            Some(KeySource::Switch(on)) => {
-                if ui
-                    .selectable_label(!on, t("gate.key_own"))
-                    .on_hover_text(t("gate.key_tip"))
-                    .clicked()
-                {
-                    host.set_key_source(KeyTarget::Switch(false));
-                }
-                if ui
-                    .selectable_label(on, t("export.sidechain.external"))
-                    .on_hover_text(t("gate.key_tip"))
-                    .clicked()
-                {
-                    host.set_key_source(KeyTarget::Switch(true));
-                }
+        },
+    );
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        key_r,
+        Src::Key("gate.card.key_filter"),
+        None,
+        Some(disp(key_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                key_strip(host, st, ui, s, &gs, sr, d);
             }
-            None => {}
-        }
-        ui.separator();
-        caption(ui, "gate.hear");
-        let removed = if s.style.spec().mode == Mode::Up {
-            "gate.hear.2up"
+        },
+    );
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        r2[1],
+        Src::Key("gate.card.transfer"),
+        None,
+        Some(disp(r2[1])),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                transfer(host, st, ui, s, &gs, tel, d);
+            }
+        },
+    );
+
+    // Row 3: the cells.
+    let w = [
+        controls::cells_width(&[Size::L, Size::M, Size::M, Size::M, Size::M]) + 16.0,
+        controls::cells_width(&[Size::M; 4]) + 16.0,
+        KEY_COLUMN + 4.0 + controls::cells_width(&[Size::M; 2]) + 16.0,
+    ];
+    let sum: f32 = w.iter().sum();
+    let fr3 = [w[0] / sum, w[1] / sum, w[2] / sum];
+    let r3: Vec<Rect> = g.row(row3, &fr3).collect();
+    detect_card(host, ui, s, r3[0], &gs);
+    time_card(host, ui, s, r3[1]);
+    key_card(host, st, ui, s, r3[2], &gs);
+}
+
+/// The styles, as one segmented control, and what the chosen one is, in words.
+fn style_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    gs: &GateSettings,
+) {
+    let lang = crate::i18n::locale();
+    let idx = gs.style.index();
+    if st.words.as_ref().is_none_or(|w| w.0 != idx || w.1 != lang) {
+        let spec = gs.style.spec();
+        let mode = t(match spec.mode {
+            Mode::Down => "gate.words.down",
+            Mode::Up => "gate.words.up",
+            Mode::Duck => "gate.words.duck",
+        });
+        let detector = if spec.rms_ms > 0.0 {
+            tf("gate.words.rms", &[("ms", &format!("{:.0}", spec.rms_ms))])
         } else {
-            "gate.hear.2"
-        };
-        for (i, key) in ["gate.hear.0", "gate.hear.1", removed].iter().enumerate() {
-            let on = s.listen as usize == i;
-            if ui
-                .selectable_label(on, t(key))
-                .on_hover_text(t(&format!("{key}_tip")))
-                .clicked()
-            {
-                host.set("listen", i as f32, None);
-            }
-        }
-        ui.separator();
-        // Learn: gather while on; set the thresholds when switched off.
-        let learning = st.learning.is_some();
-        let learn_text = match &st.learning {
-            Some(v) => tf(
-                "gate.learning",
-                &[(
-                    "s",
-                    &format!("{:.1}", v.len() as f32 * porta::COLUMN_MS * 0.001),
-                )],
-            ),
-            None => t("gate.learn"),
-        };
-        if ui
-            .selectable_label(learning, learn_text)
-            .on_hover_text(t("gate.learn_tip"))
-            .clicked()
-        {
-            if learning {
-                finish_learning(host, st);
-            } else {
-                st.learning = Some(Vec::new());
-            }
-        }
-        // Hits into a MIDI clip: only a DAW can make one.
-        if host.makes_clips() {
-            ui.separator();
-            let capturing = st.capturing;
-            let n = st.hits.len();
-            if ui
-                .selectable_label(capturing, tf("gate.hits", &[("n", &n)]))
-                .on_hover_text(t("gate.hits_tip"))
-                .clicked()
-            {
-                st.capturing = !capturing;
-            }
-            let kit = PulsusParams::default();
-            let pitch = hit_pitch(st);
-            let pad_name = kit
-                .pads
-                .iter()
-                .find(|p| p.pitch == pitch)
-                .map(|p| p.name.clone())
-                .unwrap_or_else(|| pitch.to_string());
-            egui::ComboBox::from_id_salt("gate-pad")
-                .selected_text(pad_name)
-                .width(space::GRID * 22.0)
-                .show_ui(ui, |ui| {
-                    for pad in &kit.pads {
-                        if ui.selectable_label(pad.pitch == pitch, &pad.name).clicked() {
-                            st.hit_pitch = Some(pad.pitch);
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(t("gate.pad_tip"));
-            if ui
-                .add_enabled(n > 0, egui::Button::new(t("gate.to_clip")))
-                .on_hover_text(t("gate.to_clip_tip"))
-                .clicked()
-            {
-                hits_to_clip(host, st);
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let latency = tel[telemetry::LATENCY];
-            let sr = tel[telemetry::SAMPLE_RATE];
-            let text = if s.lookahead_ms > 0.0 {
-                let ms = if sr > 0.0 {
-                    latency / sr * 1000.0
-                } else {
-                    porta::LOOKAHEAD_MAX_MS
-                };
-                tf("gate.latency", &[("ms", &format!("{ms:.1}"))])
-            } else {
-                t("gate.no_latency")
-            };
-            ui.label(
-                RichText::new(text)
-                    .text_style(design::mono_small())
-                    .color(theme::p().text_dim),
+            tf(
+                "gate.words.peak",
+                &[("ms", &format!("{:.0}", spec.peak_fall_ms))],
             )
-            .on_hover_text(t("gate.latency_tip"));
+        };
+        let mut shape = t(if spec.shape < 0.05 {
+            "gate.words.lines"
+        } else {
+            "gate.words.curve"
+        });
+        if spec.follow {
+            shape.push_str(" \u{b7} ");
+            shape.push_str(&t("gate.words.follow"));
+        }
+        st.words = Some((idx, lang, format!("{mode} \u{b7} {detector}"), shape));
+    }
+    controls::card(ui, s, rect, Src::Key("fx.gate.style"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        controls::column(ui, s, w, |ui| {
+            let labels = STYLE_KEYS.map(Src::Key);
+            let r = controls::segmented(ui, s, idx, &labels, frame::tr("fx.gate.style"), w);
+            if let Some(i) = r {
+                host.set("style", i as f32, None);
+            }
+            if let Some((_, _, a, b)) = &st.words {
+                for line in [a.as_str(), b.as_str()] {
+                    let (lr, _) = ui.allocate_exact_size(vec2(w * s.k, s.d(16.0)), Sense::hover());
+                    with_brush(ui.painter(), |bb| {
+                        let t = Text::new(line, Role::Body, s.t.text_dim)
+                            .align(Align2::LEFT_CENTER)
+                            .policy(Policy::Elide(Elide::End));
+                        let _ = ktext::paint(bb, lr, &t, s.tk());
+                    });
+                }
+            }
         });
     });
 }
 
 /// What opens the gate — the key's level or a track's notes (ADR 0022) — and, played by
-/// notes, which track.
-fn trigger_row(
-    app: &mut CantusApp,
+/// notes, which track. Cantus only: the source is a track of the project.
+fn trigger_card(
+    host: &mut dyn FxHost,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &GateSettings,
+    s: &Style,
+    rect: Rect,
+    gs: &GateSettings,
 ) {
-    ui.horizontal(|ui| {
-        caption(ui, "fx.gate.trig");
-        for (i, key) in ["gate.trig.0", "gate.trig.1"].iter().enumerate() {
-            if ui
-                .selectable_label(s.midi == (i == 1), t(key))
-                .on_hover_text(t("gate.trig_tip"))
-                .clicked()
-            {
-                app.set_fx_param(strip, effect, "trig", i as f32, false);
+    controls::card(ui, s, rect, Src::Key("fx.gate.trig"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        controls::column(ui, s, w, |ui| {
+            let labels = [Src::Key("gate.trig.0"), Src::Key("gate.trig.1")];
+            if let Some(i) = controls::segmented(
+                ui,
+                s,
+                gs.midi as usize,
+                &labels,
+                frame::tr("fx.gate.trig"),
+                w,
+            ) {
+                host.set("trig", i as f32, None);
             }
-        }
-        if s.midi {
-            midi_source(app, ui, strip, effect, slot);
-        }
+            if !gs.midi {
+                return;
+            }
+            let Some((app, strip, effect)) = host.daw() else {
+                return;
+            };
+            let current = app
+                .project()
+                .strip(strip)
+                .and_then(|x| x.effect(effect))
+                .and_then(|e| e.midi_from);
+            let name = current
+                .and_then(|id| app.project().track(id))
+                .map(|t| t.name.as_str())
+                .filter(|n| !n.is_empty());
+            let id = ui.id().with(("gate-midi", effect.0));
+            let value = name.unwrap_or(frame::tr("gate.midi_none"));
+            let at = controls::field(ui, s, id, value, frame::tr("gate.midi_tip"), w);
+            if let Some(at) = at {
+                let tracks: Vec<(TrackId, String)> = app
+                    .project()
+                    .tracks
+                    .iter()
+                    .map(|t| (t.id, t.name.clone()))
+                    .collect();
+                let mut items = vec![frame::radio(Src::Key("gate.midi_none"), current.is_none())];
+                items.extend(
+                    tracks
+                        .iter()
+                        .map(|(tid, n)| frame::radio(Src::Str(n), current == Some(*tid))),
+                );
+                if let Some(i) = controls::list(ui, s, id, at, w, &items) {
+                    let source = if i == 0 { None } else { Some(tracks[i - 1].0) };
+                    if source != current {
+                        app.exec(Command::SetEffectMidiSource {
+                            strip,
+                            effect,
+                            source,
+                        });
+                    }
+                }
+            }
+            if current.is_none() {
+                controls::caption(ui, s, Src::Key("gate.midi_waiting"), w);
+            }
+        });
     });
 }
 
-/// The track whose notes play the gate (`EffectSlot::midi_from`, ADR 0022): one command,
-/// one undo step. With none chosen the gate stays shut, and says so.
-fn midi_source(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    caption(ui, "gate.midi_from");
-    let current = slot.midi_from;
-    let name = |app: &CantusApp, id: TrackId| {
-        app.project()
-            .track(id)
-            .map(|t| t.name.clone())
-            .filter(|n| !n.is_empty())
-    };
-    let label = current
-        .and_then(|id| name(app, id))
-        .unwrap_or_else(|| t("gate.midi_none"));
-    let tracks: Vec<(TrackId, String)> = app
-        .project()
-        .tracks
-        .iter()
-        .map(|t| (t.id, t.name.clone()))
-        .collect();
-    let mut chosen = None;
-    egui::ComboBox::from_id_salt(("gate-midi", effect.0))
-        .selected_text(label)
-        .width(space::GRID * 30.0)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(current.is_none(), t("gate.midi_none"))
-                .clicked()
-            {
-                chosen = Some(None);
-            }
-            for (id, text) in &tracks {
-                if ui
-                    .selectable_label(current == Some(*id), text.as_str())
-                    .clicked()
-                {
-                    chosen = Some(Some(*id));
+/// Learn the thresholds from a passage; keep the openings as hits; write them to a clip.
+fn learn_card(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, rect: Rect) {
+    controls::card(ui, s, rect, Src::Key("gate.card.learn"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        let half = (w - 4.0) * 0.5;
+        controls::column(ui, s, w, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = s.d(4.0);
+                // Learn: gather while on; set the thresholds when switched off.
+                let learning = st.learning.is_some();
+                let r = match &st.learning {
+                    Some(v) => {
+                        let text = tf(
+                            "gate.learning",
+                            &[(
+                                "s",
+                                &format!("{:.1}", v.len() as f32 * porta::COLUMN_MS * 0.001),
+                            )],
+                        );
+                        controls::key(
+                            ui,
+                            s,
+                            Src::Str(&text),
+                            frame::tr("gate.learn_tip"),
+                            half,
+                            true,
+                        )
+                    }
+                    None => controls::key(
+                        ui,
+                        s,
+                        Src::Key("gate.learn"),
+                        frame::tr("gate.learn_tip"),
+                        half,
+                        false,
+                    ),
+                };
+                if r.clicked() {
+                    if learning {
+                        finish_learning(host, st);
+                    } else {
+                        st.learning = Some(Vec::new());
+                    }
                 }
+                // Hits into a MIDI clip: only a DAW can make one.
+                if host.makes_clips() {
+                    let n = st.hits.len();
+                    if st.hits_label.as_ref().is_none_or(|h| h.0 != n) {
+                        st.hits_label = Some((n, tf("gate.hits", &[("n", &n)])));
+                    }
+                    let label = st.hits_label.as_ref().map_or("", |h| h.1.as_str());
+                    if controls::led(
+                        ui,
+                        s,
+                        st.capturing,
+                        Src::Str(label),
+                        frame::tr("gate.hits_tip"),
+                        half,
+                    )
+                    .clicked()
+                    {
+                        st.capturing = !st.capturing;
+                    }
+                }
+            });
+            if !host.makes_clips() {
+                return;
             }
-        })
-        .response
-        .on_hover_text(t("gate.midi_tip"));
-    if let Some(source) = chosen.filter(|s| *s != current) {
-        app.exec(Command::SetEffectMidiSource {
-            strip,
-            effect,
-            source,
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = s.d(4.0);
+                let pads = st.pads.get_or_insert_with(|| {
+                    PulsusParams::default()
+                        .pads
+                        .iter()
+                        .map(|p| (p.pitch, p.name.clone()))
+                        .collect()
+                });
+                let pitch = st
+                    .hit_pitch
+                    .or_else(|| pads.first().map(|p| p.0))
+                    .unwrap_or(36);
+                let pad = pads
+                    .iter()
+                    .find(|p| p.0 == pitch)
+                    .map_or("", |p| p.1.as_str());
+                let id = ui.id().with("gate-pad");
+                if let Some(at) = controls::field(ui, s, id, pad, frame::tr("gate.pad_tip"), half) {
+                    let items: Vec<Item<'_>> = pads
+                        .iter()
+                        .map(|(p, n)| frame::radio(Src::Str(n), *p == pitch))
+                        .collect();
+                    if let Some(i) = controls::list(ui, s, id, at, half, &items) {
+                        st.hit_pitch = pads.get(i).map(|p| p.0);
+                    }
+                }
+                let n = st.hits.len();
+                ui.add_enabled_ui(n > 0, |ui| {
+                    if controls::key(
+                        ui,
+                        s,
+                        Src::Key("gate.to_clip"),
+                        frame::tr("gate.to_clip_tip"),
+                        half,
+                        false,
+                    )
+                    .clicked()
+                    {
+                        hits_to_clip(host, st);
+                    }
+                });
+            });
         });
-    }
-    if current.is_none() {
-        ui.label(
-            RichText::new(t("gate.midi_waiting"))
-                .text_style(design::caption())
-                .color(theme::p().danger),
-        );
-    }
+    });
 }
 
-/// The level history: input as a dim fill, output over it in the device colour, the key as
+/// The level history: input as a dim fill, output over it in the device's hue, the key as
 /// a line, the gain change hanging from the top, the phase lane at the bottom, and the
 /// open and close thresholds as lines you drag.
 #[allow(clippy::too_many_arguments)]
@@ -874,18 +993,20 @@ fn history(
     host: &mut dyn FxHost,
     st: &mut State,
     ui: &mut egui::Ui,
-    s: &GateSettings,
+    s: &Style,
+    gs: &GateSettings,
     tel: &[f32; 64],
-    size: egui::Vec2,
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    // A header strip for the legend and the readout, the plot, the phase lane.
-    let lane_h = space::S3;
-    let head_h = space::S4 + space::S1;
-    let head = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + head_h));
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let resp = ui.interact(rect, ui.id().with("gate-history"), Sense::click_and_drag());
+    // A strip at the top for the legend and the readout, the plot, the phase lane.
+    let lane_h = 12.0 * k;
+    let head_h = 20.0 * k;
     let plot = Rect::from_min_max(
-        pos2(rect.left(), head.bottom()),
+        pos2(rect.left(), rect.top() + head_h),
         pos2(rect.right(), rect.bottom() - lane_h - 1.0),
     );
     let lane = Rect::from_min_max(pos2(rect.left(), rect.bottom() - lane_h), rect.max);
@@ -896,247 +1017,315 @@ fn history(
         transfer: Rect::NOTHING,
     });
     geo.history = plot;
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    for g in [-12.0f32, -24.0, -36.0, -48.0, -60.0, -72.0] {
-        p.hline(plot.x_range(), y(g), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(plot.left() + 3.0, y(g) - 1.0),
-            Align2::LEFT_BOTTOM,
-            format!("{g:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
     let hist = &st.history;
     let dx = plot.width() / HISTORY as f32;
     let x0 = plot.right() - dx * hist.len() as f32;
     let x_of = |i: usize| x0 + dx * (i as f32 + 0.5);
-    // Seconds ago along the bottom; bar lines while the song plays.
-    for sec in 1..=((HISTORY as f32 * porta::COLUMN_MS * 0.001) as usize) {
-        let x = plot.right() - sec as f32 / (porta::COLUMN_MS * 0.001) * dx;
-        p.vline(x, plot.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(x + 2.0, plot.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            format!("\u{2212}{sec} s"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    let bar = host.transport().ticks_per_bar.max(1);
-    let mut prev: Option<i64> = None;
-    for (i, c) in hist.iter().enumerate() {
-        if let (Some(tk), Some(pt)) = (c.tick, prev) {
-            if tk.div_euclid(bar) != pt.div_euclid(bar) && tk > pt {
-                let x = x_of(i);
-                p.vline(x, plot.y_range(), Stroke::new(1.0, pal.grid_strong));
-                p.text(
-                    pos2(x + 2.0, plot.top() + 2.0),
-                    Align2::LEFT_TOP,
-                    format!("{}", tk.div_euclid(bar) + 1),
-                    design::paint::ruler(),
-                    pal.text_dim,
-                );
-            }
-        }
-        prev = c.tick;
-    }
-    // The hysteresis band, then the fills.
-    let (ty, cy) = (y(s.threshold_db), y(s.close_db()));
-    p.rect_filled(
-        Rect::from_x_y_ranges(plot.x_range(), ty..=cy),
-        0.0,
-        pal.gold.gamma_multiply(0.08),
-    );
-    let fill = |value: &dyn Fn(&Column) -> f32, color: Color32| {
-        let mut m = Mesh::default();
-        for (i, c) in hist.iter().enumerate() {
-            let x = x_of(i);
-            let base = m.vertices.len() as u32;
-            m.colored_vertex(pos2(x, y(value(&c.c))), color);
-            m.colored_vertex(pos2(x, plot.bottom()), color);
-            if i > 0 {
-                m.add_triangle(base - 2, base - 1, base);
-                m.add_triangle(base - 1, base, base + 1);
-            }
-        }
-        m
-    };
-    p.add(fill(&|c| c.input_db, pal.text_dim.gamma_multiply(0.22)));
-    p.add(fill(&|c| c.output_db, pal.gold.gamma_multiply(0.35)));
-    let line = |value: &dyn Fn(&Column) -> f32| -> Vec<Pos2> {
-        hist.iter()
-            .enumerate()
-            .map(|(i, c)| pos2(x_of(i), y(value(&c.c))))
-            .collect()
-    };
-    if hist.len() > 1 {
-        p.add(Shape::line(
-            line(&|c| c.output_db),
-            Stroke::new(1.25, pal.gold),
-        ));
-        p.add(Shape::line(
-            line(&|c| c.key_db),
-            Stroke::new(1.25, pal.text.gamma_multiply(0.9)),
-        ));
-    }
-    // The gain change, from the top: 0 at the top, the whole swing a third of the way down.
-    let swing = s.swing_db().max(1.0);
-    let gy = |g: f32| plot.top() + (g.abs() / swing).clamp(0.0, 1.0) * plot.height() * 0.33;
-    if hist.len() > 1 {
-        let pts: Vec<Pos2> = hist
-            .iter()
-            .enumerate()
-            .map(|(i, c)| pos2(x_of(i), gy(c.c.gain_db)))
-            .collect();
-        p.add(Shape::line(pts, Stroke::new(1.5, pal.danger)));
-    }
-    // Its scale, past the dB labels: the whole swing.
-    let full = if s.style.spec().mode == Mode::Up {
-        format!("{} +{:.0} dB", t("gate.gain"), s.swing_db())
-    } else {
-        format!("{} \u{2212}{}", t("gate.gain"), range_text(s.range_db))
-    };
-    p.hline(
-        plot.left() + space::S8..=plot.left() + space::S8 + space::S3,
-        gy(swing),
-        Stroke::new(1.0, pal.danger),
-    );
-    plate_text(
-        &p,
-        pos2(plot.left() + space::S8 + space::S4, gy(swing)),
-        Align2::LEFT_CENTER,
-        full,
-        pal.danger,
-    );
-    // The phase lane: colour and pattern per run.
-    p.rect_filled(lane, 0.0, pal.panel);
-    let mut i = 0;
-    while i < hist.len() {
-        let ph = hist[i].c.phase;
-        let mut j = i;
-        while j < hist.len() && hist[j].c.phase == ph {
-            j += 1;
-        }
-        if let Some(color) = phase_color(ph) {
-            let r =
-                Rect::from_x_y_ranges(x_of(i) - dx * 0.5..=x_of(j - 1) + dx * 0.5, lane.y_range());
-            p.rect_filled(r, 0.0, color);
-            if ph == Phase::Hold {
-                let lp = p.with_clip_rect(r);
-                let mut x = r.left() - lane.height();
-                while x < r.right() {
-                    lp.line_segment(
-                        [pos2(x, lane.bottom()), pos2(x + lane.height(), lane.top())],
-                        Stroke::new(1.0, pal.panel),
-                    );
-                    x += 4.0;
-                }
-            }
-        }
-        i = j;
-    }
-    // The thresholds: open solid, close dashed; brighter when near or held.
+    let (ty, cy) = (y(gs.threshold_db), y(gs.close_db()));
     let hover = resp.hover_pos();
-    let near_open = hover.is_some_and(|pt| plot.contains(pt) && (pt.y - ty).abs() < 6.0);
+    let near_open = hover.is_some_and(|pt| plot.contains(pt) && (pt.y - ty).abs() < 6.0 * k);
     let near_close =
-        !near_open && hover.is_some_and(|pt| plot.contains(pt) && (pt.y - cy).abs() < 6.0);
+        !near_open && hover.is_some_and(|pt| plot.contains(pt) && (pt.y - cy).abs() < 6.0 * k);
     let drag = st.drag;
     let open_hot = near_open || matches!(drag, Some(Grab::Open { .. }));
     let close_hot = near_close || drag == Some(Grab::Close);
-    p.hline(
-        plot.x_range(),
-        ty,
-        Stroke::new(if open_hot { 2.5 } else { 1.5 }, pal.gold),
-    );
-    p.add(Shape::dashed_line(
-        &[pos2(plot.left(), cy), pos2(plot.right(), cy)],
-        Stroke::new(if close_hot { 2.0 } else { 1.0 }, pal.gold),
-        6.0,
-        4.0,
-    ));
-    plate_text(
-        &p,
-        pos2(plot.right() - space::S2, ty - 2.0),
-        Align2::RIGHT_BOTTOM,
-        format!("{} {}", t("gate.open"), db_text(s.threshold_db)),
-        pal.gold,
-    );
-    plate_text(
-        &p,
-        pos2(plot.right() - space::S2, cy + 2.0),
-        Align2::RIGHT_TOP,
-        format!("{} {}", t("gate.close"), db_text(s.close_db())),
-        pal.gold,
-    );
-    // Now: the key, the gain, the phase.
-    let phase = Phase::from_code(tel[telemetry::PHASE].max(0.0) as u32);
-    let now = format!(
-        "{} {}   {} {}   {}",
-        t("gate.key"),
-        db_text(tel[telemetry::LEVEL].max(-120.0)),
-        t("gate.gain"),
-        db_text(tel[telemetry::GAIN]),
-        phase_name(phase),
-    );
-    p.rect_filled(head, 0.0, pal.panel);
-    p.hline(
-        head.x_range(),
-        head.bottom(),
-        Stroke::new(1.0, pal.grid_strong),
-    );
-    p.text(
-        pos2(head.right() - space::S2, head.center().y),
-        Align2::RIGHT_CENTER,
-        now,
-        design::paint::ruler(),
-        pal.text,
-    );
-    // The legend, so the lane is read without a colour.
-    legend(
-        &p,
-        pos2(head.left() + space::S2, head.center().y - space::S2 + 1.0),
-    );
-    // Hover: what happened at that moment.
-    if let Some(pt) = hover.filter(|pt| rect.contains(*pt)) {
-        let i = ((pt.x - x0) / dx).floor();
-        if i >= 0.0 && (i as usize) < hist.len() {
-            let c = hist[i as usize].c;
-            let ago = (hist.len() - i as usize) as f32 * porta::COLUMN_MS * 0.001;
-            p.vline(pt.x, plot.y_range(), Stroke::new(1.0, pal.grid_strong));
-            plate_text(
-                &p,
-                pos2(plot.left() + space::S2, plot.bottom() - space::S4),
+    let swing = gs.swing_db().max(1.0);
+    let gy = |g: f32| plot.top() + (g.abs() / swing).clamp(0.0, 1.0) * plot.height() * 0.33;
+    let bar = host.transport().ticks_per_bar.max(1);
+    let mut pts = [Pos2::ZERO; HISTORY];
+    let n = hist.len().min(HISTORY);
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        let px = b.px();
+        for g in [-12.0f32, -24.0, -36.0, -48.0, -60.0, -72.0] {
+            b.hline(plot.left(), plot.right(), b.snap_mid(y(g)), px, ink.grid);
+        }
+        // Seconds ago; bar lines while the song plays.
+        let secs = (HISTORY as f32 * porta::COLUMN_MS * 0.001) as usize;
+        for sec in 1..=secs {
+            let x = plot.right() - sec as f32 / (porta::COLUMN_MS * 0.001) * dx;
+            b.vline(b.snap_mid(x), plot.top(), plot.bottom(), px, ink.grid);
+        }
+        let mut prev: Option<i64> = None;
+        for (i, c) in hist.iter().enumerate() {
+            if let (Some(tk_), Some(pt)) = (c.tick, prev) {
+                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                    b.vline(
+                        b.snap_mid(x_of(i)),
+                        plot.top(),
+                        plot.bottom(),
+                        px,
+                        ink.grid_strong,
+                    );
+                }
+            }
+            prev = c.tick;
+        }
+        // The hysteresis band, then the fills.
+        b.rect(
+            Rect::from_x_y_ranges(plot.x_range(), ty..=cy),
+            Fill::Solid(ink.fill(0.25)),
+        );
+        let line = |value: &dyn Fn(&Column) -> f32, pts: &mut [Pos2; HISTORY]| {
+            for (i, c) in hist.iter().enumerate().take(n) {
+                pts[i] = pos2(x_of(i), y(value(&c.c)));
+            }
+        };
+        if n > 1 {
+            line(&|c| c.input_db, &mut pts);
+            b.area(&pts[..n], plot.bottom(), Ink::a(ink.dim, 0.18));
+            line(&|c| c.output_db, &mut pts);
+            b.area(&pts[..n], plot.bottom(), ink.fill(1.0));
+            b.polyline(&pts[..n], 1.25 * k, ink.hue);
+            line(&|c| c.key_db, &mut pts);
+            b.polyline(&pts[..n], 1.25 * k, Ink::a(ink.text, 0.85));
+            // The gain change, from the top: 0 at the top, the whole swing a third down.
+            for (i, c) in hist.iter().enumerate().take(n) {
+                pts[i] = pos2(x_of(i), gy(c.c.gain_db));
+            }
+            b.polyline(&pts[..n], 1.5 * k, ink.danger);
+        }
+        // Its scale: the whole swing.
+        let sx = plot.left() + 32.0 * k;
+        b.hline(sx, sx + 12.0 * k, b.snap_mid(gy(swing)), px, ink.danger);
+        // The phase lane: colour and pattern per run.
+        b.rect(b.snap_rect(lane), Fill::Solid(s.t.deck_title));
+        let mut i = 0;
+        while i < n {
+            let ph = hist[i].c.phase;
+            let mut j = i;
+            while j < n && hist[j].c.phase == ph {
+                j += 1;
+            }
+            if let Some(color) = phase_ink(ph, &ink) {
+                let r = Rect::from_x_y_ranges(
+                    x_of(i) - dx * 0.5..=x_of(j - 1) + dx * 0.5,
+                    lane.y_range(),
+                );
+                b.rect(r, Fill::Solid(color));
+                if ph == Phase::Hold {
+                    canvas::hatch(b, r, 4.0 * k, px, s.t.deck_title);
+                }
+            }
+            i = j;
+        }
+        // The thresholds: open solid, close dashed; heavier when near or held.
+        b.hline(
+            plot.left(),
+            plot.right(),
+            ty,
+            if open_hot { 2.5 } else { 1.5 } * k,
+            ink.hue,
+        );
+        canvas::dashed(
+            b,
+            pos2(plot.left(), cy),
+            pos2(plot.right(), cy),
+            if close_hot { 2.0 } else { 1.0 } * k,
+            ink.hue,
+            6.0 * k,
+            4.0 * k,
+        );
+        // The words last, so nothing is painted over them.
+        let micro =
+            |b: &mut crate::kit::Brush, at: Pos2, align: Align2, args: std::fmt::Arguments<'_>| {
+                // Axis words sit over the fills: on plates, so they always read.
+                canvas::putf(
+                    b,
+                    at,
+                    align,
+                    Role::Micro,
+                    ink.dim,
+                    tk,
+                    Some(ink.plate),
+                    args,
+                )
+            };
+        for g in [-12.0f32, -24.0, -36.0, -48.0, -60.0, -72.0] {
+            micro(
+                b,
+                pos2(plot.left() + 3.0 * k, y(g) - 1.0),
                 Align2::LEFT_BOTTOM,
-                format!(
-                    "\u{2212}{ago:.2} s   {} {}   {} {}   {}   \u{2192} {:.1} dB",
-                    t("gate.key"),
-                    db_text(c.key_db),
-                    t("gate.gain"),
-                    db_text(c.gain_db),
-                    phase_name(c.phase),
-                    d_of(pt.y),
-                ),
-                pal.text,
+                format_args!("{g:.0}"),
             );
         }
-    }
-    if hist.is_empty() {
-        p.text(
-            plot.center(),
-            Align2::CENTER_CENTER,
-            t("gate.empty"),
-            design::paint::empty_state(),
-            pal.text_dim,
+        for sec in 1..=secs {
+            let x = plot.right() - sec as f32 / (porta::COLUMN_MS * 0.001) * dx;
+            micro(
+                b,
+                pos2(x + 2.0 * k, plot.bottom() - 2.0 * k),
+                Align2::LEFT_BOTTOM,
+                format_args!("\u{2212}{sec} s"),
+            );
+        }
+        let mut prev: Option<i64> = None;
+        for (i, c) in hist.iter().enumerate() {
+            if let (Some(tk_), Some(pt)) = (c.tick, prev) {
+                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                    micro(
+                        b,
+                        pos2(x_of(i) + 2.0 * k, plot.top() + 2.0 * k),
+                        Align2::LEFT_TOP,
+                        format_args!("{}", tk_.div_euclid(bar) + 1),
+                    );
+                }
+            }
+            prev = c.tick;
+        }
+        let gain = frame::tr("gate.gain");
+        let plate = Some(ink.plate);
+        let swing_at = pos2(sx + 16.0 * k, gy(swing));
+        if gs.style.spec().mode == Mode::Up {
+            canvas::tag(
+                b,
+                swing_at,
+                Align2::LEFT_CENTER,
+                gain,
+                ink.danger,
+                tk,
+                plate,
+                format_args!("+{:.0} dB", gs.swing_db()),
+            );
+        } else {
+            canvas::tag(
+                b,
+                swing_at,
+                Align2::LEFT_CENTER,
+                gain,
+                ink.danger,
+                tk,
+                plate,
+                format_args!("\u{2212}{}", Range(gs.range_db)),
+            );
+        }
+        canvas::tag(
+            b,
+            pos2(plot.right() - 8.0 * k, ty - 3.0 * k),
+            Align2::RIGHT_BOTTOM,
+            frame::tr("gate.open"),
+            ink.hue,
+            tk,
+            plate,
+            format_args!("{}", Db(gs.threshold_db)),
         );
-    }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
+        canvas::tag(
+            b,
+            pos2(plot.right() - 8.0 * k, cy + 3.0 * k),
+            Align2::RIGHT_TOP,
+            frame::tr("gate.close"),
+            ink.hue,
+            tk,
+            plate,
+            format_args!("{}", Db(gs.close_db())),
+        );
+        // The head: the legend, so the lane reads without colour; what is happening now,
+        // right to left: the phase, the gain, the key.
+        let mid = rect.top() + head_h * 0.5;
+        legend(b, pos2(rect.left() + 8.0 * k, mid), s, &ink);
+        let phase = Phase::from_code(tel[telemetry::PHASE].max(0.0) as u32);
+        let r = canvas::put_key(
+            b,
+            pos2(rect.right() - 8.0 * k, mid),
+            Align2::RIGHT_CENTER,
+            phase_key(phase),
+            Role::Micro,
+            ink.text,
+            tk,
+        );
+        let r = canvas::tag(
+            b,
+            pos2(r.left() - 12.0 * k, mid),
+            Align2::RIGHT_CENTER,
+            gain,
+            ink.text,
+            tk,
+            None,
+            format_args!("{}", Db(tel[telemetry::GAIN])),
+        );
+        canvas::tag(
+            b,
+            pos2(r.left() - 12.0 * k, mid),
+            Align2::RIGHT_CENTER,
+            frame::tr("gate.key"),
+            ink.text,
+            tk,
+            None,
+            format_args!("{}", Db(tel[telemetry::LEVEL].max(-120.0))),
+        );
+        // Hover: what happened at that moment, left to right on one plate each.
+        if let Some(pt) = hover.filter(|pt| rect.contains(*pt)) {
+            let i = ((pt.x - x0) / dx).floor();
+            if i >= 0.0 && (i as usize) < n {
+                let c = hist[i as usize].c;
+                let ago = (n - i as usize) as f32 * porta::COLUMN_MS * 0.001;
+                b.vline(
+                    b.snap_mid(pt.x),
+                    plot.top(),
+                    plot.bottom(),
+                    px,
+                    ink.grid_strong,
+                );
+                let y = plot.bottom() - 16.0 * k;
+                let mut x = plot.left() + 8.0 * k;
+                let gap = 10.0 * k;
+                let r = canvas::tag(
+                    b,
+                    pos2(x, y),
+                    Align2::LEFT_BOTTOM,
+                    "",
+                    ink.text,
+                    tk,
+                    plate,
+                    format_args!("\u{2212}{ago:.2} s"),
+                );
+                x = r.right() + gap;
+                let r = canvas::tag(
+                    b,
+                    pos2(x, y),
+                    Align2::LEFT_BOTTOM,
+                    frame::tr("gate.key"),
+                    ink.text,
+                    tk,
+                    plate,
+                    format_args!("{}", Db(c.key_db)),
+                );
+                x = r.right() + gap;
+                let r = canvas::tag(
+                    b,
+                    pos2(x, y),
+                    Align2::LEFT_BOTTOM,
+                    gain,
+                    ink.text,
+                    tk,
+                    plate,
+                    format_args!("{}", Db(c.gain_db)),
+                );
+                x = r.right() + gap;
+                let r = canvas::tag(
+                    b,
+                    pos2(x, y),
+                    Align2::LEFT_BOTTOM,
+                    frame::tr(phase_key(c.phase)),
+                    ink.text,
+                    tk,
+                    plate,
+                    format_args!("\u{2192} {:.1} dB", d_of(pt.y)),
+                );
+                let _ = r;
+            }
+        }
+        if n == 0 {
+            canvas::put_key(
+                b,
+                plot.center(),
+                Align2::CENTER_CENTER,
+                "gate.empty",
+                Role::Body,
+                ink.dim,
+                tk,
+            );
+        }
+    });
 
     // Gestures.
     if resp.drag_started() {
@@ -1144,7 +1333,8 @@ fn history(
         // pointer has already moved off the line.
         let alone = ui.input(|i| i.modifiers.alt);
         let at = ui.input(|i| i.pointer.press_origin()).or(hover);
-        let on = |line: f32| at.is_some_and(|pt| plot.contains(pt) && (pt.y - line).abs() < 6.0);
+        let on =
+            |line: f32| at.is_some_and(|pt| plot.contains(pt) && (pt.y - line).abs() < 6.0 * k);
         st.drag = if on(ty) {
             Some(Grab::Open { alone })
         } else if on(cy) {
@@ -1155,7 +1345,7 @@ fn history(
     }
     if let (Some(g), Some(pt)) = (st.drag, resp.interact_pointer_pos()) {
         if resp.dragged() {
-            drag_threshold(host, s, g, d_of(pt.y));
+            drag_threshold(host, gs, g, d_of(pt.y));
         }
     }
     if resp.drag_stopped() {
@@ -1172,7 +1362,14 @@ fn history(
     if near_open || near_close || drag.is_some() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
     }
-    resp.on_hover_text(t("gate.history_tip"));
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("gate.card.level"),
+            frame::tr("gate.history_tip"),
+            Caps::NONE,
+        );
+    }
 }
 
 /// Move a threshold to `db`: the open line carries the close line with it (Alt: alone);
@@ -1195,42 +1392,31 @@ fn drag_threshold(host: &mut dyn FxHost, s: &GateSettings, g: Grab, db: f32) {
     }
 }
 
-/// Canvas text on a plate of the panel colour, so it reads over the history's fills.
-fn plate_text(p: &egui::Painter, at: Pos2, align: Align2, text: String, color: Color32) {
-    let pal = theme::p();
-    let galley = p.layout_no_wrap(text, design::paint::ruler(), color);
-    let rect = align.anchor_size(at, galley.size());
-    p.rect_filled(rect.expand(1.5), 2.0, pal.panel.gamma_multiply(0.85));
-    p.galley(rect.min, galley, color);
-}
-
-fn legend(p: &egui::Painter, at: Pos2) {
-    let pal = theme::p();
+/// The phases' swatches and names, so the lane reads without its colours.
+fn legend(b: &mut crate::kit::Brush, at: Pos2, s: &Style, ink: &Ink) {
+    let k = s.k;
     let mut x = at.x;
     for ph in [Phase::Open, Phase::Hold, Phase::Release] {
-        let r = Rect::from_min_size(pos2(x, at.y + 1.0), vec2(space::S3, space::S2));
-        if let Some(c) = phase_color(ph) {
-            p.rect_filled(r, 1.0, c);
+        let r = b.snap_rect(Rect::from_min_size(
+            pos2(x, at.y - 3.0 * k),
+            vec2(12.0 * k, 6.0 * k),
+        ));
+        if let Some(c) = phase_ink(ph, ink) {
+            b.rect(r, Fill::Solid(c));
         }
         if ph == Phase::Hold {
-            let lp = p.with_clip_rect(r);
-            let mut hx = r.left() - r.height();
-            while hx < r.right() {
-                lp.line_segment(
-                    [pos2(hx, r.bottom()), pos2(hx + r.height(), r.top())],
-                    Stroke::new(1.0, pal.panel),
-                );
-                hx += 4.0;
-            }
+            canvas::hatch(b, r, 4.0 * k, b.px(), s.t.deck_title);
         }
-        let g = p.text(
-            pos2(r.right() + space::S1, at.y),
-            Align2::LEFT_TOP,
-            phase_name(ph),
-            design::paint::caption(),
-            pal.text_dim,
+        let lr = canvas::put_key(
+            b,
+            pos2(r.right() + 4.0 * k, at.y),
+            Align2::LEFT_CENTER,
+            phase_key(ph),
+            Role::Micro,
+            ink.dim,
+            s.tk(),
         );
-        x = g.right() + space::S3;
+        x = lr.right().max(r.right()) + 10.0 * k;
     }
 }
 
@@ -1242,18 +1428,22 @@ fn transfer(
     host: &mut dyn FxHost,
     st: &mut State,
     ui: &mut egui::Ui,
-    s: &GateSettings,
+    s: &Style,
+    gs: &GateSettings,
     tel: &[f32; 64],
-    side: f32,
+    outer: Rect,
 ) {
-    let pal = theme::p();
-    let (outer, resp) = ui.allocate_exact_size(vec2(side, side), Sense::click_and_drag());
-    // The same header strip as the history's, for the curve's numbers.
-    let head = Rect::from_min_max(
-        outer.min,
-        pos2(outer.right(), outer.top() + space::S4 + space::S1),
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let resp = ui.interact(
+        outer,
+        ui.id().with("gate-transfer"),
+        Sense::click_and_drag(),
     );
-    let rect = Rect::from_min_max(pos2(outer.left(), head.bottom()), outer.max);
+    // A strip at the top for the curve's numbers, as the history's.
+    let head_h = 20.0 * k;
+    let rect = Rect::from_min_max(pos2(outer.left(), outer.top() + head_h), outer.max);
     let hi = 12.0;
     let span = hi - LO_DB;
     let x = |d: f32| rect.left() + ((d - LO_DB) / span).clamp(0.0, 1.0) * rect.width();
@@ -1263,114 +1453,127 @@ fn transfer(
     if let Some(geo) = st.geometry.as_mut() {
         geo.transfer = rect;
     }
-    let p = ui.painter_at(outer);
-    p.rect_filled(outer, pal.corner_radius, theme::recess(&pal));
-    p.rect_filled(head, 0.0, pal.panel);
-    p.hline(
-        head.x_range(),
-        head.bottom(),
-        Stroke::new(1.0, pal.grid_strong),
-    );
-    for g in [-72.0f32, -60.0, -48.0, -36.0, -24.0, -12.0, 0.0] {
-        p.hline(rect.x_range(), y(g), Stroke::new(1.0, pal.grid));
-        p.vline(x(g), rect.y_range(), Stroke::new(1.0, pal.grid));
-        if g > -72.0 {
-            p.text(
-                pos2(x(g) + 2.0, rect.bottom() - 2.0),
-                Align2::LEFT_BOTTOM,
-                format!("{g:.0}"),
-                design::paint::ruler(),
-                pal.text_dim,
-            );
-            p.text(
-                pos2(rect.left() + 2.0, y(g) - 1.0),
-                Align2::LEFT_BOTTOM,
-                format!("{g:.0}"),
-                design::paint::ruler(),
-                pal.text_dim,
-            );
-        }
-    }
-    p.line_segment(
-        [pos2(x(LO_DB), y(LO_DB)), pos2(x(hi), y(hi))],
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let curve = |open: bool| -> Vec<Pos2> {
-        (0..=184)
-            .map(|i| {
-                let d = LO_DB + span * i as f32 / 184.0;
-                pos2(x(d), y(porta::transfer_db(d, s, open)))
-            })
-            .collect()
-    };
-    let mode = s.style.spec().mode;
-    if mode != Mode::Up && s.hysteresis_db > 0.0 {
-        p.add(Shape::dashed_line(
-            &curve(true),
-            Stroke::new(1.5, pal.gold.gamma_multiply(0.7)),
-            5.0,
-            4.0,
-        ));
-    }
-    p.add(Shape::line(curve(false), Stroke::new(2.5, pal.gold)));
-    // Handles: open and close points, the floor.
+    let mode = gs.style.spec().mode;
     let open_pt = pos2(
-        x(s.threshold_db),
-        y(porta::transfer_db(s.threshold_db, s, false)),
+        x(gs.threshold_db),
+        y(porta::transfer_db(gs.threshold_db, gs, false)),
     );
     let close_pt = pos2(
-        x(s.close_db()),
-        y(porta::transfer_db(s.close_db(), s, true)),
+        x(gs.close_db()),
+        y(porta::transfer_db(gs.close_db(), gs, true)),
     );
     // The floor: where the gate lands when it shuts, under the threshold (kept inside the
     // display; dragging past the bottom goes on to ∞).
     let floor_pt = pos2(
-        x(s.threshold_db),
-        y(s.threshold_db - s.swing_db()).min(rect.bottom() - 5.0),
+        x(gs.threshold_db),
+        y(gs.threshold_db - gs.swing_db()).min(rect.bottom() - 5.0 * k),
     );
-    p.circle_filled(open_pt, 6.0, pal.gold);
-    if mode != Mode::Up {
-        p.circle_stroke(close_pt, 5.0, Stroke::new(2.0, pal.gold));
-    }
-    if mode == Mode::Down {
-        p.rect_filled(
-            Rect::from_center_size(floor_pt, vec2(9.0, 9.0)),
-            1.0,
-            pal.gold,
+    with_brush(&ui.painter_at(outer), |b| {
+        canvas::ground_b(b, outer, &ink, s.hue_tok);
+        let px = b.px();
+        for g in [-72.0f32, -60.0, -48.0, -36.0, -24.0, -12.0, 0.0] {
+            b.hline(rect.left(), rect.right(), b.snap_mid(y(g)), px, ink.grid);
+            b.vline(b.snap_mid(x(g)), rect.top(), rect.bottom(), px, ink.grid);
+        }
+        b.segment(
+            pos2(x(LO_DB), y(LO_DB)),
+            pos2(x(hi), y(hi)),
+            px,
+            ink.grid_strong,
+            false,
         );
-    }
-    // Where the key is now.
-    let level = tel[telemetry::LEVEL];
-    if level > LO_DB {
-        let out = level + tel[telemetry::GAIN].max(-120.0);
-        p.circle_filled(pos2(x(level), y(out)), 4.0, pal.danger);
-    }
-    p.text(
-        pos2(head.left() + space::S2, head.center().y),
-        Align2::LEFT_CENTER,
-        format!(
-            "{} {}  \u{b7}  {} {}  \u{b7}  {} {:.0} dB",
-            t("fx.gate.ratio"),
-            ratio_text(s.ratio),
-            t("fx.gate.range"),
-            range_text(s.range_db),
-            t("fx.gate.knee"),
-            s.knee_db
-        ),
-        design::paint::ruler(),
-        pal.text,
-    );
-    p.rect_stroke(
-        outer,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
+        let mut pts = [Pos2::ZERO; 185];
+        let curve = |open: bool, pts: &mut [Pos2; 185]| {
+            for (i, p) in pts.iter_mut().enumerate() {
+                let d = LO_DB + span * i as f32 / 184.0;
+                *p = pos2(x(d), y(porta::transfer_db(d, gs, open)));
+            }
+        };
+        if mode != Mode::Up && gs.hysteresis_db > 0.0 {
+            curve(true, &mut pts);
+            for w in pts.windows(2).step_by(2) {
+                b.segment(w[0], w[1], 1.5 * k, Ink::a(ink.hue, 0.7), false);
+            }
+        }
+        curve(false, &mut pts);
+        b.polyline(&pts, 2.5 * k, ink.hue);
+        // Handles: open and close points, the floor.
+        b.circle(open_pt, 6.0 * k, Fill::Solid(ink.hue));
+        if mode != Mode::Up {
+            b.circle_stroke(close_pt, 5.0 * k, 2.0 * k, ink.hue);
+        }
+        if mode == Mode::Down {
+            b.rect(
+                b.snap_rect(Rect::from_center_size(floor_pt, vec2(9.0, 9.0) * k)),
+                Fill::Solid(ink.hue),
+            );
+        }
+        // Where the key is now.
+        let level = tel[telemetry::LEVEL];
+        if level > LO_DB {
+            let out = level + tel[telemetry::GAIN].max(-120.0);
+            b.circle(pos2(x(level), y(out)), 4.0 * k, Fill::Solid(ink.danger));
+        }
+        for g in [-60.0f32, -48.0, -36.0, -24.0, -12.0, 0.0] {
+            canvas::putf(
+                b,
+                pos2(x(g) + 2.0 * k, rect.bottom() - 2.0 * k),
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{g:.0}"),
+            );
+            canvas::putf(
+                b,
+                pos2(rect.left() + 2.0 * k, y(g) - 1.0),
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{g:.0}"),
+            );
+        }
+        // The curve's numbers, left to right.
+        let mid = outer.top() + head_h * 0.5;
+        let r = canvas::tag(
+            b,
+            pos2(outer.left() + 8.0 * k, mid),
+            Align2::LEFT_CENTER,
+            frame::tr("fx.gate.ratio"),
+            ink.text,
+            tk,
+            None,
+            format_args!("{}", Ratio(gs.ratio)),
+        );
+        let r = canvas::tag(
+            b,
+            pos2(r.right() + 12.0 * k, mid),
+            Align2::LEFT_CENTER,
+            frame::tr("fx.gate.range"),
+            ink.text,
+            tk,
+            None,
+            format_args!("{}", Range(gs.range_db)),
+        );
+        canvas::tag(
+            b,
+            pos2(r.right() + 12.0 * k, mid),
+            Align2::LEFT_CENTER,
+            frame::tr("fx.gate.knee"),
+            ink.text,
+            tk,
+            None,
+            format_args!("{:.0} dB", gs.knee_db),
+        );
+    });
 
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin());
         if let Some(pt) = origin.or(resp.interact_pointer_pos()) {
-            let near = |q: Pos2| pt.distance(q) < 9.0;
+            let near = |q: Pos2| pt.distance(q) < 9.0 * k;
             let d = dx_of(pt.x);
             st.drag = if near(open_pt) {
                 Some(Grab::Open {
@@ -1380,8 +1583,8 @@ fn transfer(
                 Some(Grab::Close)
             } else if mode == Mode::Down && near(floor_pt) {
                 Some(Grab::Range)
-            } else if (mode == Mode::Down && d < s.threshold_db)
-                || (mode == Mode::Up && d > s.threshold_db)
+            } else if (mode == Mode::Down && d < gs.threshold_db)
+                || (mode == Mode::Up && d > gs.threshold_db)
             {
                 Some(Grab::Ratio)
             } else {
@@ -1393,19 +1596,19 @@ fn transfer(
         if resp.dragged() {
             match g {
                 Grab::Open { .. } | Grab::Close => {
-                    drag_threshold(host, s, g, dx_of(pt.x));
+                    drag_threshold(host, gs, g, dx_of(pt.x));
                 }
                 Grab::Range => {
-                    let r = (s.threshold_db - dy_of(pt.y)).clamp(0.0, 100.0);
+                    let r = (gs.threshold_db - dy_of(pt.y)).clamp(0.0, 100.0);
                     host.set("range", r, Some("range"));
                 }
                 Grab::Ratio => {
                     // The pointer is a point the curve should pass through: below the
                     // threshold (Upward: above) the output moves `ratio` dB per dB.
-                    let over_in = dx_of(pt.x) - s.threshold_db;
-                    let over_out = dy_of(pt.y) - s.threshold_db;
+                    let over_in = dx_of(pt.x) - gs.threshold_db;
+                    let over_out = dy_of(pt.y) - gs.threshold_db;
                     let ratio = if over_in.abs() < 0.5 {
-                        s.ratio
+                        gs.ratio
                     } else {
                         (over_out / over_in).clamp(1.0, 100.0)
                     };
@@ -1419,7 +1622,14 @@ fn transfer(
         st.drag = None;
         host.end_gesture();
     }
-    resp.on_hover_text(t("gate.transfer_tip"));
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("gate.card.transfer"),
+            frame::tr("gate.transfer_tip"),
+            Caps::NONE,
+        );
+    }
 }
 
 /// The key's filters, dragged on a spectrum of what comes in.
@@ -1428,134 +1638,179 @@ fn key_strip(
     host: &mut dyn FxHost,
     st: &mut State,
     ui: &mut egui::Ui,
-    s: &GateSettings,
+    s: &Style,
+    gs: &GateSettings,
     sr: f32,
-    size: egui::Vec2,
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let resp = ui.interact(
+        rect,
+        ui.id().with("gate-key-strip"),
+        Sense::click_and_drag(),
+    );
     let lx = |hz: f32| rect.left() + (hz / F_LO).ln() / (F_HI / F_LO).ln() * rect.width();
     let hz_of =
         |px: f32| F_LO * (F_HI / F_LO).powf(((px - rect.left()) / rect.width()).clamp(0.0, 1.0));
     let (top_db, bot_db) = (18.0f32, -48.0f32);
     let y =
         |d: f32| rect.top() + ((top_db - d) / (top_db - bot_db)).clamp(0.0, 1.0) * rect.height();
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    for f in [
-        50.0f32, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
-    ] {
-        p.vline(lx(f), rect.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(lx(f) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            crate::widgets::knob::readout(f, "Hz"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    // 0 dB, for the response to sit on.
-    p.add(Shape::dashed_line(
-        &[pos2(rect.left(), y(0.0)), pos2(rect.right(), y(0.0))],
-        Stroke::new(1.0, pal.grid_strong),
-        3.0,
-        3.0,
-    ));
     // What comes in (the effect's input), behind.
     {
         let an = st
             .spectrum
             .get_or_insert_with(|| cantus_dsp::SpectrumAnalyser::new(4096));
         let pairs = host.pairs();
-        let take = pairs.len().min(an.size());
-        let mut buf = Vec::with_capacity(take * 2);
-        for (a, b) in pairs.iter().skip(pairs.len() - take) {
-            buf.push(*a);
-            buf.push(*b);
+        // Only when the tap brought something new: the analysis is the costliest thing
+        // the editor does, and an editor at rest must cost next to nothing.
+        let sig = (
+            pairs.len(),
+            pairs.back().map(|p| (p.0.to_bits(), p.1.to_bits())),
+            pairs.front().map(|p| (p.0.to_bits(), p.1.to_bits())),
+        );
+        if st.analysed != Some(sig) {
+            st.analysed = Some(sig);
+            let take = pairs.len().min(an.size());
+            st.scratch.clear();
+            for (a, b) in pairs.iter().skip(pairs.len() - take) {
+                st.scratch.push(*a);
+                st.scratch.push(*b);
+            }
+            an.push(&st.scratch);
+            an.compute();
         }
-        an.push(&buf);
-        an.compute();
     }
     let any_pairs = !host.pairs().is_empty();
-    if let Some(an) = st.spectrum.as_ref().filter(|a| a.has_data() || any_pairs) {
-        let mut m = Mesh::default();
-        let n = 160;
-        let dim = pal.text_dim.gamma_multiply(0.22);
-        for i in 0..=n {
-            let hz = F_LO * (F_HI / F_LO).powf(i as f32 / n as f32);
-            // The spectrum sits on its own scale: 0 dBFS at the top, −96 at the bottom.
-            let level = an.level_db(0, sr, hz, 1.0 / 6.0);
-            let py = rect.top() + ((0.0 - level) / 96.0).clamp(0.0, 1.0) * rect.height();
-            let base = m.vertices.len() as u32;
-            m.colored_vertex(pos2(lx(hz), py), dim);
-            m.colored_vertex(pos2(lx(hz), rect.bottom()), dim);
-            if i > 0 {
-                m.add_triangle(base - 2, base - 1, base);
-                m.add_triangle(base - 1, base, base + 1);
+    let (lo, hi) = (
+        if gs.hpf_on() { gs.hpf_hz } else { F_LO },
+        if gs.lpf_on() { gs.lpf_hz } else { F_HI },
+    );
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        let px = b.px();
+        for f in [
+            50.0f32, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
+        ] {
+            b.vline(b.snap_mid(lx(f)), rect.top(), rect.bottom(), px, ink.grid);
+        }
+        // 0 dB, for the response to sit on.
+        canvas::dashed(
+            b,
+            pos2(rect.left(), y(0.0)),
+            pos2(rect.right(), y(0.0)),
+            px,
+            ink.grid_strong,
+            3.0 * k,
+            3.0 * k,
+        );
+        if let Some(an) = st.spectrum.as_ref().filter(|a| a.has_data() || any_pairs) {
+            let mut pts = [Pos2::ZERO; 161];
+            for (i, p) in pts.iter_mut().enumerate() {
+                let hz = F_LO * (F_HI / F_LO).powf(i as f32 / 160.0);
+                // The spectrum sits on its own scale: 0 dBFS at the top, −96 at the bottom.
+                let level = an.level_db(0, sr, hz, 1.0 / 6.0);
+                *p = pos2(
+                    lx(hz),
+                    rect.top() + ((0.0 - level) / 96.0).clamp(0.0, 1.0) * rect.height(),
+                );
+            }
+            b.area(&pts, rect.bottom(), Ink::a(ink.dim, 0.22));
+        }
+        // The pass band, lit; the response drawn over it.
+        b.rect(
+            Rect::from_x_y_ranges(lx(lo)..=lx(hi), rect.y_range()),
+            Fill::Solid(ink.fill(0.22)),
+        );
+        let mut pts = [Pos2::ZERO; 201];
+        for (i, p) in pts.iter_mut().enumerate() {
+            let hz = F_LO * (F_HI / F_LO).powf(i as f32 / 200.0);
+            *p = pos2(lx(hz), y(porta::key_filter_db(gs, sr, hz)));
+        }
+        b.polyline(&pts, 2.0 * k, ink.hue);
+        // The handles: triangles at the corners.
+        for (hz, on) in [(lo, gs.hpf_on()), (hi, gs.lpf_on())] {
+            let cx = lx(hz);
+            let by = rect.bottom() - 1.0;
+            b.vline(
+                b.snap_mid(cx),
+                rect.top() + 4.0 * k,
+                by - 10.0 * k,
+                px,
+                Ink::a(ink.hue, if on { 0.6 } else { 0.3 }),
+            );
+            let tri = [
+                pos2(cx, by - 10.0 * k),
+                pos2(cx - 6.0 * k, by),
+                pos2(cx + 6.0 * k, by),
+            ];
+            if on {
+                b.polygon(&tri, ink.hue);
+            } else {
+                b.polyline(&[tri[0], tri[1], tri[2], tri[0]], 1.5 * k, ink.hue);
             }
         }
-        p.add(m);
-    }
-    // The pass band, lit; the response drawn over it.
-    let (lo, hi) = (
-        if s.hpf_on() { s.hpf_hz } else { F_LO },
-        if s.lpf_on() { s.lpf_hz } else { F_HI },
-    );
-    p.rect_filled(
-        Rect::from_x_y_ranges(lx(lo)..=lx(hi), rect.y_range()),
-        0.0,
-        pal.gold.gamma_multiply(0.08),
-    );
-    let curve: Vec<Pos2> = (0..=200)
-        .map(|i| {
-            let hz = F_LO * (F_HI / F_LO).powf(i as f32 / 200.0);
-            pos2(lx(hz), y(porta::key_filter_db(s, sr, hz)))
-        })
-        .collect();
-    p.add(Shape::line(curve, Stroke::new(2.0, pal.gold)));
-    // The handles: triangles at the corners, labelled.
-    let handle = |hz: f32, on: bool, key: &str, right: bool| {
-        let cx = lx(hz);
-        let by = rect.bottom() - 1.0;
-        p.vline(
-            cx,
-            rect.top() + space::S1..=by - 10.0,
-            Stroke::new(1.0, pal.gold.gamma_multiply(if on { 0.6 } else { 0.3 })),
-        );
-        let tri = vec![pos2(cx, by - 10.0), pos2(cx - 6.0, by), pos2(cx + 6.0, by)];
-        if on {
-            p.add(Shape::convex_polygon(tri, pal.gold, Stroke::NONE));
-        } else {
-            p.add(Shape::closed_line(tri, Stroke::new(1.5, pal.gold)));
+        // The frequencies, then the handles' names — last, over everything.
+        let mut ruler = canvas::Ruler::new();
+        for f in [
+            50.0f32, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
+        ] {
+            let at = pos2(lx(f) + 2.0 * k, rect.bottom() - 2.0 * k);
+            if !ruler.fits(at.x, 4.0 * k) {
+                continue;
+            }
+            let r = canvas::putf(
+                b,
+                at,
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{}", Hz(f)),
+            );
+            ruler.placed(r);
         }
-        let text = if on {
-            format!("{} {}", t(key), crate::widgets::knob::readout(hz, "Hz"))
-        } else {
-            format!("{} {}", t(key), t("gate.off"))
-        };
-        p.text(
-            pos2(
-                if right { cx - 4.0 } else { cx + 4.0 },
-                rect.top() + space::S1,
-            ),
-            if right {
+        for (hz, on, key, right) in [
+            (lo, gs.hpf_on(), "gate.hp", false),
+            (hi, gs.lpf_on(), "gate.lp", true),
+        ] {
+            let cx = lx(hz);
+            let at = pos2(
+                if right { cx - 5.0 * k } else { cx + 5.0 * k },
+                rect.top() + 3.0 * k,
+            );
+            let align = if right {
                 Align2::RIGHT_TOP
             } else {
                 Align2::LEFT_TOP
-            },
-            text,
-            design::paint::ruler(),
-            pal.text,
-        );
-    };
-    handle(lo, s.hpf_on(), "gate.hp", false);
-    handle(hi, s.lpf_on(), "gate.lp", true);
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
+            };
+            if on {
+                canvas::tag(
+                    b,
+                    at,
+                    align,
+                    frame::tr(key),
+                    ink.text,
+                    tk,
+                    Some(ink.plate),
+                    format_args!("{}", Hz(hz)),
+                );
+            } else {
+                canvas::tag(
+                    b,
+                    at,
+                    align,
+                    frame::tr(key),
+                    ink.dim,
+                    tk,
+                    Some(ink.plate),
+                    format_args!("{}", frame::tr("gate.off")),
+                );
+            }
+        }
+    });
 
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin());
@@ -1591,180 +1846,240 @@ fn key_strip(
     if resp.double_clicked() {
         host.set_many(&[("hpf", 20.0), ("lpf", 20_000.0)], "cmd.gate_key_reset");
     }
-    resp.on_hover_text(t("gate.key_strip_tip"));
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("gate.card.key_filter"),
+            frame::tr("gate.key_strip_tip"),
+            Caps::NONE,
+        );
+    }
 }
 
-/// The knobs, in three labelled groups: detect, time, key.
-fn knobs(host: &mut dyn FxHost, ui: &mut egui::Ui, spec: &EffectSpec, s: &GateSettings) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S1;
-        // Played by notes, the level's knobs mean nothing; the velocity's does.
-        let detect: &[&str] = if s.midi {
-            &["range", "vel"]
+/// `1.2 kHz`, `350 Hz`, as the knobs print them.
+struct Hz(f32);
+
+impl std::fmt::Display for Hz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 >= 1_000.0 {
+            write!(f, "{:.1} kHz", self.0 / 1_000.0)
         } else {
-            &["thr", "hyst", "ratio", "range", "knee"]
-        };
-        let groups: [(&str, &[&str]); 3] = [
-            ("gate.group.detect", detect),
-            ("gate.group.time", &["att", "hold", "rel", "look"]),
-            ("gate.group.key", &["hpf", "lpf"]),
-        ];
-        for (gi, (title, keys)) in groups.iter().enumerate() {
-            if gi > 0 {
-                ui.add_space(space::S2);
-                ui.separator();
-                ui.add_space(space::S2);
-            }
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(t(title))
-                        .text_style(design::caption())
-                        .color(pal.text_dim),
-                );
-                ui.horizontal(|ui| {
-                    for key in keys.iter() {
-                        knob(host, ui, spec, key);
-                    }
-                    if *title == "gate.group.key" {
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(t("fx.gate.key_slope"))
-                                    .text_style(design::caption())
-                                    .color(pal.text_dim),
-                            );
-                            ui.horizontal(|ui| {
-                                for slope in [12.0f32, 24.0, 48.0] {
-                                    if ui
-                                        .selectable_label(
-                                            s.key_slope == slope,
-                                            format!("{slope:.0}"),
-                                        )
-                                        .on_hover_text(t("gate.slope_tip"))
-                                        .clicked()
-                                    {
-                                        host.set("key_slope", slope, None);
-                                    }
-                                }
-                            });
-                        });
-                    }
-                });
-            });
+            write!(f, "{:.0} Hz", self.0)
+        }
+    }
+}
+
+// ---- the cells ----------------------------------------------------------------------------
+
+fn ratio_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{}", Ratio(v));
+}
+
+fn range_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{}", Range(v));
+}
+
+fn db1_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{v:.1} dB");
+}
+
+fn att_pill(v: f32, b: &mut String) {
+    if v < 1.0 {
+        let _ = write!(b, "{v:.2} ms");
+    } else {
+        controls::write_readout(v, "ms", b);
+    }
+}
+
+fn look_pill(v: f32, b: &mut String) {
+    if v <= 0.0 {
+        b.push_str(frame::tr("gate.off"));
+    } else {
+        let _ = write!(b, "{v:.1} ms");
+    }
+}
+
+fn hpf_pill(v: f32, b: &mut String) {
+    if v <= 20.5 {
+        b.push_str(frame::tr("gate.off"));
+    } else {
+        controls::write_readout(v, "Hz", b);
+    }
+}
+
+fn lpf_pill(v: f32, b: &mut String) {
+    if v >= 19_999.0 {
+        b.push_str(frame::tr("gate.off"));
+    } else {
+        controls::write_readout(v, "Hz", b);
+    }
+}
+
+/// When the gate opens and how far: the threshold (the device's primary parameter, a
+/// larger knob), the hysteresis, ratio, range and knee. Played by notes, the level's knobs
+/// mean nothing; the velocity's does.
+fn detect_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, gs: &GateSettings) {
+    controls::card(ui, s, rect, Src::Key("gate.group.detect"), None, |ui, _| {
+        if gs.midi {
+            controls::param_with(ui, s, host, "range", Size::M, Some(&range_pill));
+            controls::param_with(ui, s, host, "vel", Size::M, Some(&db1_pill));
+        } else {
+            controls::param(ui, s, host, "thr", Size::L);
+            controls::param_with(ui, s, host, "hyst", Size::M, Some(&db1_pill));
+            controls::param_with(ui, s, host, "ratio", Size::M, Some(&ratio_pill));
+            controls::param_with(ui, s, host, "range", Size::M, Some(&range_pill));
+            controls::param(ui, s, host, "knee", Size::M);
         }
     });
 }
 
-fn knob(host: &mut dyn FxHost, ui: &mut egui::Ui, spec: &EffectSpec, key: &str) {
-    let Some(info) = spec.kind.param(key) else {
-        return;
-    };
-    let mut v = spec.get(key);
-    let k = Knob::new(&mut v, info.min..=info.max, info.default)
-        .diameter(space::GRID * 11.0)
-        .log(info.logarithmic)
-        .stepped(info.stepped)
-        .unit(info.unit)
-        .label(t(info.label_key));
-    let k = match key {
-        "ratio" => k.format(ratio_text),
-        "range" => k.format(range_text),
-        "hpf" => k.format(|x| {
-            if x <= 20.5 {
-                t("gate.off")
+/// How fast it opens, holds and closes, and how far it looks ahead.
+fn time_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
+    controls::card(ui, s, rect, Src::Key("gate.group.time"), None, |ui, _| {
+        controls::param_with(ui, s, host, "att", Size::M, Some(&att_pill));
+        controls::param(ui, s, host, "hold", Size::M);
+        controls::param(ui, s, host, "rel", Size::M);
+        controls::param_with(ui, s, host, "look", Size::M, Some(&look_pill));
+    });
+}
+
+/// The key: where it comes from, what to hear, its filters and their slope.
+fn key_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    gs: &GateSettings,
+) {
+    controls::card(ui, s, rect, Src::Key("gate.group.key"), None, |ui, _| {
+        let w = KEY_COLUMN;
+        controls::column(ui, s, w, |ui| {
+            key_source(host, st, ui, s, w);
+            let removed = if gs.style.spec().mode == Mode::Up {
+                "gate.hear.2up"
             } else {
-                crate::widgets::knob::readout(x, "Hz")
+                "gate.hear.2"
+            };
+            let labels = [
+                Src::Key("gate.hear.0"),
+                Src::Key("gate.hear.1"),
+                Src::Key(removed),
+            ];
+            controls::segmented_param(ui, s, host, "listen", &labels, w);
+            let slopes = [Src::Str("12"), Src::Str("24"), Src::Str("48")];
+            let now = [12.0f32, 24.0, 48.0]
+                .iter()
+                .position(|v| (gs.key_slope - v).abs() < 0.5)
+                .unwrap_or(1);
+            if let Some(i) =
+                controls::segmented(ui, s, now, &slopes, frame::tr("gate.slope_tip"), w)
+            {
+                host.set("key_slope", [12.0, 24.0, 48.0][i], None);
             }
-        }),
-        "lpf" => k.format(|x| {
-            if x >= 19_999.0 {
-                t("gate.off")
-            } else {
-                crate::widgets::knob::readout(x, "Hz")
-            }
-        }),
-        "look" => k.format(|x| {
-            if x <= 0.0 {
-                t("gate.off")
-            } else {
-                format!("{x:.1} ms")
-            }
-        }),
-        "hyst" | "vel" => k.format(|x| format!("{x:.1} dB")),
-        "att" => k.format(|x| {
-            if x < 1.0 {
-                format!("{x:.2} ms")
-            } else {
-                crate::widgets::knob::readout(x, "ms")
-            }
-        }),
-        _ => k,
-    };
-    let mut r = ui.add(k);
-    if key == "vel" {
-        r = r.on_hover_text(t("gate.vel_tip"));
+        });
+        controls::param_with(ui, s, host, "hpf", Size::M, Some(&hpf_pill));
+        controls::param_with(ui, s, host, "lpf", Size::M, Some(&lpf_pill));
+    });
+}
+
+/// Where the detector's key comes from: any strip of the desk (Cantus), or the plug-in's
+/// sidechain input, switched on (another DAW routes it).
+fn key_source(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, w: f32) {
+    let rev = host.revision();
+    if st.key.as_ref().is_none_or(|(r, _)| *r != rev) {
+        st.key = Some((rev, host.key_source()));
     }
-    if r.changed() {
-        host.set(key, v, Some(key));
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        host.end_gesture();
+    match st.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+        Some(KeySource::Strips {
+            current,
+            label,
+            options,
+        }) => {
+            let current = *current;
+            let id = ui.id().with("gate-key");
+            let at = controls::field(ui, s, id, label, frame::tr("gate.key_tip"), w);
+            if let Some(at) = at {
+                let mut items = vec![frame::radio(Src::Key("gate.key_own"), current.is_none())];
+                items.extend(
+                    options
+                        .iter()
+                        .map(|(sid, text)| frame::radio(Src::Str(text), current == Some(*sid))),
+                );
+                if let Some(i) = controls::list(ui, s, id, at, w.max(180.0), &items) {
+                    let target = if i == 0 {
+                        None
+                    } else {
+                        options.get(i - 1).map(|o| o.0)
+                    };
+                    drop(items);
+                    host.set_key_source(KeyTarget::Strip(target));
+                }
+            }
+        }
+        Some(KeySource::Switch(on)) => {
+            let on = *on;
+            let labels = [Src::Key("gate.key.own"), Src::Key("gate.key.sidechain")];
+            if let Some(i) =
+                controls::segmented(ui, s, on as usize, &labels, frame::tr("gate.key_tip"), w)
+            {
+                host.set_key_source(KeyTarget::Switch(i == 1));
+            }
+        }
+        None => {}
     }
 }
 
 /// The inspector's picture: the transfer curve and the settings in one line.
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
-    let pal = theme::p();
-    let s = cantus_engine::fx::gate::settings(spec);
+    let st = Style::current().function(frame::hue_of(EffectKind::Gate));
+    let ink = Ink::of(&st);
+    let gs = cantus_engine::fx::gate::settings(spec);
     let h = space::GRID * 14.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
     let sq = Rect::from_min_size(rect.min, vec2(h, h)).shrink(space::S1);
     let x = |d: f32| sq.left() + ((d - LO_DB) / -LO_DB).clamp(0.0, 1.0) * sq.width();
     let y = |d: f32| sq.bottom() - ((d - LO_DB) / -LO_DB).clamp(0.0, 1.0) * sq.height();
-    p.line_segment(
-        [pos2(x(LO_DB), y(LO_DB)), pos2(x(0.0), y(0.0))],
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let pts: Vec<Pos2> = (0..=80)
-        .map(|i| {
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, st.hue_tok);
+        b.segment(
+            pos2(x(LO_DB), y(LO_DB)),
+            pos2(x(0.0), y(0.0)),
+            b.px(),
+            ink.grid_strong,
+            false,
+        );
+        let mut pts = [Pos2::ZERO; 81];
+        for (i, p) in pts.iter_mut().enumerate() {
             let d = LO_DB * (1.0 - i as f32 / 80.0);
-            pos2(x(d), y(porta::transfer_db(d, &s, false)))
-        })
-        .collect();
-    p.add(Shape::line(pts, Stroke::new(1.5, pal.gold)));
-    let line = format!(
-        "{} {:.0} \u{b7} {} {:.0} dB \u{b7} {} \u{b7} {} \u{b7} {}",
-        t("gate.open"),
-        s.threshold_db,
-        t("gate.close"),
-        s.close_db(),
-        ratio_text(s.ratio),
-        range_text(s.range_db),
-        t(&format!("gate.style.{}", s.style.index())),
-    );
-    p.text(
-        pos2(sq.right() + space::S2, rect.center().y),
-        Align2::LEFT_CENTER,
-        line,
-        design::paint::ruler(),
-        pal.text,
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(
-            1.0,
-            if resp.hovered() {
-                pal.gold
-            } else {
-                pal.grid_strong
-            },
-        ),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("gate.open_tip"))
+            *p = pos2(x(d), y(porta::transfer_db(d, &gs, false)));
+        }
+        b.polyline(&pts, 1.5, ink.hue);
+        let words = Rect::from_min_max(pos2(sq.right() + space::S2, rect.top()), rect.max);
+        canvas::line_in(
+            b,
+            words,
+            Role::Body,
+            ink.text,
+            st.tk(),
+            format_args!(
+                "{} {:.0} \u{b7} {} {:.0} dB \u{b7} {} \u{b7} {} \u{b7} {}",
+                frame::tr("gate.open"),
+                gs.threshold_db,
+                frame::tr("gate.close"),
+                gs.close_db(),
+                Ratio(gs.ratio),
+                Range(gs.range_db),
+                frame::tr(STYLE_KEYS[gs.style.index().min(5)]),
+            ),
+        );
+        let edge = if resp.hovered() { ink.hue } else { ink.edge };
+        canvas::edge_b(b, rect, &Ink { edge, ..ink });
+    });
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), frame::tr("gate.open_tip"), "", Caps::NONE);
+    }
+    resp
 }
 
 /// The settings `--editor gate` and the screenshot tool open it with: a snare mic, its
@@ -1821,7 +2136,7 @@ pub fn demo_signal(seconds: f32, sr: f32) -> Vec<f32> {
             let body = (snare + ghost)
                 * (-tg * 18.0).exp()
                 * ((std::f32::consts::TAU * 190.0 * tg).sin() * 0.6 + noise() * 0.5);
-            let kick = if bar_beat % 2 == 0 {
+            let kick = if bar_beat.is_multiple_of(2) {
                 0.02 * (-t * 12.0).exp() * (std::f32::consts::TAU * 55.0 * t).sin()
             } else {
                 0.0

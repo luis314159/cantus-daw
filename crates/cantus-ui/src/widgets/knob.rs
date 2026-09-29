@@ -76,6 +76,9 @@ pub struct Knob<'a> {
     /// Turns the value into its readout. `None`: the number with `unit`.
     format: Option<Box<dyn Fn(f32) -> String + 'a>>,
     unit: String,
+    /// Modulation arriving at this control: (depth as a fraction of the travel, −1…1,
+    /// colour of its source), drawn as bands outside the track (ADR 0023).
+    rings: Vec<(f32, egui::Color32)>,
 }
 
 impl<'a> Knob<'a> {
@@ -93,6 +96,7 @@ impl<'a> Knob<'a> {
             label: String::new(),
             format: None,
             unit: String::new(),
+            rings: Vec::new(),
         }
     }
 
@@ -130,6 +134,13 @@ impl<'a> Knob<'a> {
         self.format = Some(Box::new(f));
         self
     }
+
+    /// Show a modulation range: `depth` of the travel (−1…1) from the value, in `color`.
+    /// Several rings stack outwards.
+    pub fn ring(mut self, depth: f32, color: egui::Color32) -> Self {
+        self.rings.push((depth, color));
+        self
+    }
 }
 
 /// The readout of a number: no more digits than a musician reads. `1.2 kHz`, `350 Hz`,
@@ -153,6 +164,7 @@ impl Widget for Knob<'_> {
             label,
             format,
             unit,
+            rings,
         } = self;
         let text_h = 12.0;
         let width = (diameter + 20.0).max(diameter);
@@ -264,6 +276,21 @@ impl Widget for Knob<'_> {
             // The value arc runs from the default, so an untouched knob shows nothing and
             // a moved one shows which way and how far.
             let pv = pos_of(v, min, max, taper);
+            // Modulation: a band per source, from the value to where the source can take
+            // it, outside the track so the value arc stays readable.
+            for (i, (depth, color)) in rings.iter().enumerate() {
+                let to = (pv + depth).clamp(0.0, 1.0);
+                if (to - pv).abs() > 0.002 {
+                    painter.add(Shape::line(
+                        arc(
+                            angle(pv.min(to)),
+                            angle(pv.max(to)),
+                            r + 1.0 + 3.0 * i as f32,
+                        ),
+                        Stroke::new(2.0, *color),
+                    ));
+                }
+            }
             let pd = pos_of(default, min, max, taper);
             let active = response.dragged() || response.has_focus();
             if (pv - pd).abs() > 0.002 {
@@ -280,12 +307,15 @@ impl Widget for Knob<'_> {
                 body_r,
                 Stroke::new(
                     if active { 1.5 } else { 1.0 },
+                    // The edge at rest is text_dim: the boundary of a control must reach 3:1
+                    // against its surface (research/instruments/family.md §6.5, V1), and
+                    // grid_bar measured 1.7–2.0:1 in the shipped themes.
                     if active {
                         pal.gold
                     } else if response.hovered() {
-                        pal.text_dim
+                        pal.text
                     } else {
-                        pal.grid_bar
+                        pal.text_dim
                     },
                 ),
             );

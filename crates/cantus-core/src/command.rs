@@ -6,7 +6,7 @@
 use crate::effect::EffectSlot;
 use crate::instrument::{InstrumentParam, InstrumentSpec};
 use crate::model::*;
-use crate::pads::DrumPad;
+use crate::pads::{DrumPad, PadId, PadLayer};
 use crate::time::{clamp_bpm, Ticks, TimeSignature};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -274,14 +274,16 @@ pub enum Command {
         spec: Box<InstrumentSpec>,
     },
     /// Add a pad to a kit. Pads are kept sorted by pitch and a pitch can hold one pad, so
-    /// this fails rather than shadowing an existing one.
+    /// this fails rather than shadowing an existing one; an id already in the kit fails
+    /// too, and a pad with no id (0) is given the kit's next one.
     InsertPad {
         track: TrackId,
         pad: Box<DrumPad>,
     },
+    /// Remove a pad, by identity.
     RemovePad {
         track: TrackId,
-        pitch: Pitch,
+        pad: PadId,
     },
     /// Set one parameter of whatever instrument the track hosts.
     ///
@@ -296,15 +298,41 @@ pub enum Command {
     /// every clip on the track at once — which is the point of a pad having a name at all.
     SetPadName {
         track: TrackId,
-        pad: u8,
+        pad: PadId,
         name: String,
     },
     /// Point a pad at a sample file (or at none). The pad's voice is set separately, so a
     /// pad can hold on to its file while it is switched back to a synthesized voice.
     SetPadSample {
         track: TrackId,
-        pad: u8,
+        pad: PadId,
         path: Option<String>,
+    },
+    /// Replace a pad's sample layers (Pulsus II): adding, removing and editing a layer are
+    /// all this one command, whose inverse is the list as it was.
+    SetPadLayers {
+        track: TrackId,
+        pad: PadId,
+        layers: Vec<PadLayer>,
+    },
+    /// Set one number of a native instrument (ADR 0023). Setting a key that was never
+    /// stored has "clear it" as its inverse, so undo returns the map to exactly what it was.
+    SetInstrumentValue {
+        track: TrackId,
+        key: String,
+        value: f32,
+    },
+    /// Take a native instrument's number back to "never set": it reads as its default and
+    /// is not written to the file.
+    ClearInstrumentValue {
+        track: TrackId,
+        key: String,
+    },
+    /// Set or remove one text value of a native instrument: a sample's path, a name.
+    SetInstrumentText {
+        track: TrackId,
+        key: String,
+        text: Option<String>,
     },
 
     // --- effects: inserts live on mixer strips ----------------------------------------
@@ -521,6 +549,9 @@ impl Command {
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
             SetPadName { .. } => "cmd.set_pad_name",
             SetPadSample { .. } => "cmd.set_pad_sample",
+            SetPadLayers { .. } => "cmd.set_pad_layers",
+            SetInstrumentValue { .. } | ClearInstrumentValue { .. } => "cmd.set_instrument_value",
+            SetInstrumentText { .. } => "cmd.set_instrument_text",
             InsertEffect { .. } => "cmd.insert_effect",
             RemoveEffect { .. } => "cmd.remove_effect",
             MoveEffect { .. } => "cmd.move_effect",
@@ -657,6 +688,23 @@ impl Command {
                     ..
                 },
             ) => a == b && pa == pb,
+            // A layer knob dragged: every frame replaces the same pad's list.
+            (
+                SetPadLayers {
+                    track: a, pad: pa, ..
+                },
+                SetPadLayers {
+                    track: b, pad: pb, ..
+                },
+            ) => a == b && pa == pb,
+            (
+                SetInstrumentValue {
+                    track: a, key: ka, ..
+                },
+                SetInstrumentValue {
+                    track: b, key: kb, ..
+                },
+            ) => a == b && ka == kb,
             (
                 SetEffectBypass {
                     strip: a,
@@ -1209,6 +1257,64 @@ impl Command {
                 })
             }
 
+            SetInstrumentValue { track, key, value } => {
+                let n = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?
+                    .instrument
+                    .native_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let stored = n.params.get(&key).copied();
+                n.set(&key, value)
+                    .ok_or_else(|| CommandError::InvalidValue(format!("instrument value {key}")))?;
+                Ok(match stored {
+                    Some(old) => SetInstrumentValue {
+                        track,
+                        key,
+                        value: old,
+                    },
+                    None => ClearInstrumentValue { track, key },
+                })
+            }
+            ClearInstrumentValue { track, key } => {
+                let n = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?
+                    .instrument
+                    .native_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                if n.kind.param(&key).is_none() {
+                    return Err(CommandError::InvalidValue(format!(
+                        "instrument value {key}"
+                    )));
+                }
+                Ok(match n.clear(&key) {
+                    Some(old) => SetInstrumentValue {
+                        track,
+                        key,
+                        value: old,
+                    },
+                    // Clearing what was never set is nothing, and its inverse is nothing.
+                    None => ClearInstrumentValue { track, key },
+                })
+            }
+            SetInstrumentText { track, key, text } => {
+                let n = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?
+                    .instrument
+                    .native_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let old = n
+                    .set_text(&key, text)
+                    .map_err(|()| CommandError::InvalidValue(format!("instrument text {key}")))?;
+                Ok(SetInstrumentText {
+                    track,
+                    key,
+                    text: old,
+                })
+            }
+
             SetInstrument { track, spec } => {
                 let t = project
                     .track_mut(track)
@@ -1231,13 +1337,19 @@ impl Command {
                 if kit.index_of_pitch(pad.pitch).is_some() {
                     return Err(CommandError::DuplicateId(pad.pitch as u64));
                 }
-                let pitch = pad.pitch;
-                let at = kit.pads.partition_point(|p| p.pitch < pitch);
-                kit.pads.insert(at, *pad);
-                Ok(RemovePad { track, pitch })
+                let mut pad = *pad;
+                if pad.id.0 == 0 {
+                    pad.id = kit.next_id();
+                } else if kit.index_of(pad.id).is_some() {
+                    return Err(CommandError::DuplicateId(pad.id.0 as u64));
+                }
+                let id = pad.id;
+                let at = kit.pads.partition_point(|p| p.pitch < pad.pitch);
+                kit.pads.insert(at, pad);
+                Ok(RemovePad { track, pad: id })
             }
 
-            RemovePad { track, pitch } => {
+            RemovePad { track, pad: id } => {
                 let t = project
                     .track_mut(track)
                     .ok_or(CommandError::TrackNotFound(track))?;
@@ -1246,7 +1358,7 @@ impl Command {
                     .pulsus_mut()
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let at = kit
-                    .index_of_pitch(pitch)
+                    .index_of(id)
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let pad = kit.pads.remove(at);
                 Ok(InsertPad {
@@ -1264,7 +1376,7 @@ impl Command {
                     .pulsus_mut()
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let slot = kit
-                    .pad_mut(pad as usize)
+                    .by_id_mut(pad)
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let old = std::mem::replace(&mut slot.name, name);
                 Ok(SetPadName {
@@ -1283,13 +1395,34 @@ impl Command {
                     .pulsus_mut()
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let slot = kit
-                    .pad_mut(pad as usize)
+                    .by_id_mut(pad)
                     .ok_or(CommandError::ParamNotApplicable(track))?;
                 let old = std::mem::replace(&mut slot.sample, path);
                 Ok(SetPadSample {
                     track,
                     pad,
                     path: old,
+                })
+            }
+
+            SetPadLayers { track, pad, layers } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let slot = kit
+                    .by_id_mut(pad)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let mut layers = layers;
+                layers.truncate(crate::pads::MAX_LAYERS);
+                let old = std::mem::replace(&mut slot.layers, layers);
+                Ok(SetPadLayers {
+                    track,
+                    pad,
+                    layers: old,
                 })
             }
 

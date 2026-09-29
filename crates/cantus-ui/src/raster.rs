@@ -159,6 +159,21 @@ impl Canvas {
                         ]
                     })
                     .collect();
+                // The top-left fill rule, as a GPU applies it: a pixel whose centre lies
+                // exactly on an edge belongs to the triangle only if that edge is a top
+                // or a left one. Without it, a pixel on the edge two triangles share is
+                // blended twice, which shows as a seam wherever a mesh is translucent.
+                let top_left = |i: usize| {
+                    let (a, b) = (p[(i + 1) % 3], p[(i + 2) % 3]);
+                    let (dx, dy) = if area > 0.0 {
+                        (b.0 - a.0, b.1 - a.1)
+                    } else {
+                        (a.0 - b.0, a.1 - b.1)
+                    };
+                    (dy == 0.0 && dx > 0.0) || dy < 0.0
+                };
+                let tl = [top_left(0), top_left(1), top_left(2)];
+                const ON_EDGE: f32 = 1e-6;
                 for y in miny.max(0)..maxy.min(self.height as i64) {
                     for x in minx.max(0)..maxx.min(self.width as i64) {
                         let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
@@ -169,8 +184,10 @@ impl Canvas {
                             ((p[1].0 - px) * (p[2].1 - py) - (p[2].0 - px) * (p[1].1 - py)) / area;
                         let w1 =
                             ((p[2].0 - px) * (p[0].1 - py) - (p[0].0 - px) * (p[2].1 - py)) / area;
-                        let w2 = 1.0 - w0 - w1;
-                        if w0 < -1e-4 || w1 < -1e-4 || w2 < -1e-4 {
+                        let w2 =
+                            ((p[0].0 - px) * (p[1].1 - py) - (p[1].0 - px) * (p[0].1 - py)) / area;
+                        let inside = |w: f32, i: usize| w > ON_EDGE || (w >= -ON_EDGE && tl[i]);
+                        if !(inside(w0, 0) && inside(w1, 1) && inside(w2, 2)) {
                             continue;
                         }
                         let u = w0 * v[0].uv.x + w1 * v[1].uv.x + w2 * v[2].uv.x;

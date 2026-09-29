@@ -75,6 +75,11 @@ pub enum EngineMessage {
     /// taken out while it restarts): swapped in where the old one was, the old one stopped
     /// and handed back, and delay compensation planned again for the new latency.
     ReplaceEffect(Box<EffectUnit>),
+    /// A native instrument's unit for one track (ADR 0023). Must precede the snapshot in
+    /// which that track hosts that kind.
+    AddInstrument(Box<crate::inst::NativeUnit>),
+    /// Report this track's instrument telemetry in `Meters::inst` (its editor is open).
+    SetInstrumentProbe(Option<TrackId>),
     Play,
     Stop,
     /// Jump to an absolute position (works while playing or stopped).
@@ -136,6 +141,8 @@ pub struct Meters {
     pub comp: [f32; 3],
     /// The analysed plug-in's telemetry (`crate::fx::FxUnit::telemetry`).
     pub fx: crate::fx::Telemetry,
+    /// The probed track's instrument telemetry (`crate::inst::InstrumentUnit::telemetry`).
+    pub inst: crate::inst::Telemetry,
 }
 
 impl Default for Meters {
@@ -150,6 +157,7 @@ impl Default for Meters {
             eq_deltas: [0.0; METERED_EQ_BANDS],
             comp: [0.0; 3],
             fx: [0.0; crate::fx::TELEMETRY_LEN],
+            inst: [0.0; crate::inst::TELEMETRY_LEN],
         }
     }
 }
@@ -215,6 +223,8 @@ pub enum EngineEvent {
     Garbage(Arc<Snapshot>),
     /// An effect instance no snapshot references any more.
     GarbageEffect(Box<EffectUnit>),
+    /// A native instrument's unit the engine no longer uses.
+    GarbageInstrument(Box<crate::inst::NativeUnit>),
     /// Delay compensation needs `count` lines able to delay `delay` samples; answer with
     /// [`EngineMessage::PdcLines`] (`crate::pdc::lines_for`).
     PdcNeed {

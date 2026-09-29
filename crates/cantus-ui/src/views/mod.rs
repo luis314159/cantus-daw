@@ -1,17 +1,37 @@
 //! The views. Each is a plain function `show(app, ui)`; state that must survive between
 //! frames lives in a small struct owned by `CantusApp`.
+//!
+//! The window is a workspace (ADR 0024 §5): every view is a tab of the dock
+//! ([`workspace`]), under the toolbar ([`transport`]) and over the status bar
+//! ([`workspace_status`]).
 
+pub mod appearance;
+pub mod appearance_file;
+pub mod appearance_panels;
 pub mod arrangement;
 pub mod channel_rack;
+pub mod clips_chrome;
 pub mod comp_editor;
 pub mod eq_editor;
 pub mod fx;
+pub mod hint;
 pub mod inspector;
+pub mod inst;
 pub mod interop;
 pub mod mixer;
 pub mod piano_roll;
 pub mod plugins;
+pub mod pulsus_editor;
 pub mod transport;
+pub mod workspace;
+pub mod workspace_device;
+pub mod workspace_frame;
+pub mod workspace_settings;
+pub mod workspace_skin;
+pub mod workspace_status;
+pub mod workspace_style;
+pub mod workspace_ticker;
+pub mod workspace_widgets;
 
 use cantus_core::{Ticks, PPQ};
 

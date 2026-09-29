@@ -118,3 +118,32 @@ mb.preset.punch = Pegada de batería
 # Deshacer
 cmd.mb_band_add = añadir banda multibanda
 cmd.mb_band_remove = quitar banda multibanda
+
+# La ventana en el marco del dispositivo (ADR 0024)
+mb.band = Banda
+mb.display = Bandas
+mb.display_tip = Arrastra una línea para un umbral, un punto para la ganancia, un cruce para moverlo · doble clic divide una banda · clic derecho, su menú · [ ] recorren las bandas, Supr quita una
+mb.card.transfer = Transferencia
+mb.key_off = Sin sidechain
+mb.quick_tip = Empezar con tantas bandas, repartidas con criterio musical
+mb.tip.out = El nivel a la salida, tras todas las bandas.
+fx.mb.thr.short = UMBR
+fx.mb.ratio.short = REL
+fx.mb.range.short = RANGO
+fx.mb.thr_lo.short = UMB B
+fx.mb.ratio_lo.short = REL B
+fx.mb.range_lo.short = RNG B
+fx.mb.knee.short = RODIL
+fx.mb.att.short = ATQ
+fx.mb.rel.short = RELAJ
+fx.mb.la.short = ANTIC
+fx.mb.gain.short = GAN
+fx.mb.key_lo.short = DESDE
+fx.mb.key_hi.short = HASTA
+fx.mb.key_free.short = LLAVE LIBRE
+fx.mb.mute.short = SIL
+fx.mb.out.short = SAL
+mb.key_own.short = Propia
+mb.key_ext.short = Sidechain
+mb.mode.0.short = Dinám.
+mb.mode.1.short = Divis.

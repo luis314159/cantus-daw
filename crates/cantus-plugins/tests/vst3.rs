@@ -461,11 +461,11 @@ fn porta_offers_its_editor_as_a_vst3_view_and_the_others_do_not() {
     for kind in kinds() {
         let v = V3::new(kind);
         let view = unsafe { v.controller.createView(c"editor".as_ptr()) };
-        if kind != EffectKind::Gate {
+        if !cantus_plugins::editor::has_editor(kind) {
             assert!(view.is_null(), "{kind:?} has no editor of its own yet");
             continue;
         }
-        let view = unsafe { ComPtr::from_raw(view) }.expect("Porta's view");
+        let view = unsafe { ComPtr::from_raw(view) }.expect("its editor's view");
         unsafe {
             assert_eq!(view.isPlatformTypeSupported(c"HWND".as_ptr()), kResultTrue);
             assert_eq!(
@@ -474,7 +474,14 @@ fn porta_offers_its_editor_as_a_vst3_view_and_the_others_do_not() {
             );
             let mut rect: ViewRect = std::mem::zeroed();
             assert_eq!(view.getSize(&mut rect), kResultOk);
-            assert!(rect.right - rect.left >= 1060 && rect.bottom - rect.top >= 720);
+            // The device frame's designed size for the kind (ADR 0024 §8), at least.
+            let (w, h) = cantus_plugins::editor::size(kind);
+            assert!(
+                (rect.right - rect.left) as f64 >= w && (rect.bottom - rect.top) as f64 >= h,
+                "{kind:?}: {} × {}",
+                rect.right - rect.left,
+                rect.bottom - rect.top
+            );
         }
     }
 }

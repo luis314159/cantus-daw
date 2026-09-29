@@ -1,46 +1,38 @@
-//! Named window layouts: how big each panel is, and which of them are showing.
+//! Named window layouts: which areas are where, how big, and which are showing.
 //!
 //! A DAW is used in phases — arranging, editing notes, mixing — and each wants a different
 //! shape of window. Rather than making the user drag the same splitters back and forth,
 //! Cantus lets them name a shape and return to it.
 //!
-//! While the app runs, egui remembers a resized panel's size in its own memory, keyed by
-//! the panel's [`Id`]. That is the right default: a splitter the user drags should stay
-//! where they put it. This module leaves it alone except at two moments:
+//! Since ADR 0024 §5 the window is a dock ([`crate::views::workspace`]): every area is a tab
+//! that can be dragged, split, stacked or floated. A layout keeps
 //!
-//! - **capture**: read the sizes back out of egui ([`PanelState::load`]) to save a layout.
-//! - **apply**: impose a layout's sizes for exactly one frame.
+//! - **the dock's tree**, as `egui_dock` serialises it (device editors left out: those are
+//!   opened by the project, not by a layout);
+//! - **the inspector's width and the arrangement's height in points**, imposed on the frame
+//!   after the layout is applied, so a layout means the same thing in a bigger window;
+//! - the older fields — which panels show, which editor is in front — kept up to date,
+//!   so a layout file stays readable by the release before the dock.
 //!
-//! Applying is the awkward half. egui 0.36 exposes no setter for [`PanelState`], and
-//! `Panel::default_size` only applies when the panel has no stored size. `Panel::exact_size`
-//! does work unconditionally — it pins the size range to a single point — so
-//! [`Layouts::forced`] hands the app an exact size for one frame, egui records it, and from
-//! the next frame the panel is resizable again from there.
+//! **Migration.** A layout written before the dock has no tree. It becomes the default
+//! dock with its hidden panels taken out and its central view in front, and its sizes are
+//! imposed as before ([`Layout::dock_state`]).
 //!
-//! Note for anyone extending the tests below: a bare `egui::Context` does not keep panel
-//! sizes between frames the way eframe's does, so the tests assert what a forced frame
-//! produces and leave "a dragged size stays put" to be checked by running the app.
-//!
-//! eframe is built here without its `persistence` feature, so egui does not carry panel
-//! sizes across restarts. The layouts file is what makes them survive: the app captures the
-//! current layout on exit and forces it on startup.
+//! eframe is built without its `persistence` feature, so the layouts file is what carries
+//! the window's shape across restarts: the app captures the current layout on exit and
+//! applies it on startup.
 
-use crate::design::space;
-use egui::containers::panel::PanelState;
-use egui::{Context, Id};
+use crate::views::workspace::{default_dock, Pane, Workspace, INSPECTOR_W};
+use egui::Rect;
+use egui_dock::{DockState, Node};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// The resizable panels a layout describes. The `Id` is the one `app` gives the panel, and
-/// also the key egui files its remembered size under.
+/// The panels the older layouts described, by name.
 pub const INSPECTOR: &str = "inspector";
 pub const ARRANGEMENT: &str = "arrangement";
 
-pub fn panel_id(name: &str) -> Id {
-    Id::new(name)
-}
-
-/// Which view fills the centre of the window.
+/// Which editor is in front in the lower zone.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Central {
@@ -49,17 +41,30 @@ pub enum Central {
     Mixer,
 }
 
+impl Central {
+    pub fn pane(self) -> Pane {
+        match self {
+            Central::PianoRoll => Pane::PianoRoll,
+            Central::ChannelRack => Pane::ChannelRack,
+            Central::Mixer => Pane::Mixer,
+        }
+    }
+}
+
 /// One named arrangement of the window.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Layout {
     pub name: String,
-    /// Width of the inspector panel, in points.
+    /// Width of the inspector, in points.
     pub inspector: f32,
-    /// Height of the arrangement panel, in points.
+    /// Height of the arrangement, in points; 0 keeps the dock's own share.
     pub arrangement: f32,
     pub show_inspector: bool,
     pub show_arrangement: bool,
     pub central: Central,
+    /// The dock's tree. `None` in a layout from before the dock.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dock: Option<serde_json::Value>,
 }
 
 impl Layout {
@@ -69,32 +74,53 @@ impl Layout {
             // The key i18n string is resolved at display time, so the stored name stays
             // stable when the user switches language.
             name: DEFAULT_NAME.to_string(),
-            inspector: space::GRID * 76.0,
-            arrangement: space::GRID * 65.0,
+            inspector: INSPECTOR_W,
+            arrangement: 0.0,
             show_inspector: true,
             show_arrangement: true,
-            central: Central::PianoRoll,
+            central: Central::Mixer,
+            dock: dock_to_value(&default_dock()),
         }
     }
 
-    /// Read the live panel sizes out of egui, keeping everything else from `self`.
-    ///
-    /// A panel that is hidden has no state to read, so its stored size is kept rather than
-    /// collapsing to zero — otherwise hiding a panel and saving would lose its width.
-    pub fn capture(&self, ctx: &Context) -> Layout {
-        let size = |name: &str, shown: bool, current: f32| -> f32 {
-            if !shown {
-                return current;
-            }
-            PanelState::load(ctx, panel_id(name))
-                .map(|s| s.size())
-                .map(|v| if name == INSPECTOR { v.x } else { v.y })
-                .filter(|v| *v > 0.0)
-                .unwrap_or(current)
-        };
+    /// The dock this layout describes — its own tree, or, for a layout from before the
+    /// dock (or a tree that no longer reads), the default dock shaped by its old fields.
+    pub fn dock_state(&self) -> DockState<Pane> {
+        if let Some(d) = self
+            .dock
+            .as_ref()
+            .and_then(|v| serde_json::from_value::<DockState<Pane>>(v.clone()).ok())
+            .filter(|d| d.iter_all_tabs().next().is_some())
+        {
+            return d;
+        }
+        self.migrate()
+    }
+
+    /// The default dock with this old layout's panels hidden and its central view in front.
+    pub fn migrate(&self) -> DockState<Pane> {
+        let mut ws = Workspace::with_dock(default_dock());
+        if !self.show_inspector {
+            ws.hide(Pane::Inspector);
+        }
+        if !self.show_arrangement {
+            ws.hide(Pane::Arrangement);
+        }
+        ws.reveal(self.central.pane());
+        ws.dock
+    }
+
+    /// This layout with the workspace's shape folded in: its tree, the sizes laid out
+    /// last frame, which areas show and which editor is in front.
+    pub fn capture(&self, ws: &Workspace, central: Central) -> Layout {
+        let (inspector, arrangement) = ws.measured_sizes();
         Layout {
-            inspector: size(INSPECTOR, self.show_inspector, self.inspector),
-            arrangement: size(ARRANGEMENT, self.show_arrangement, self.arrangement),
+            inspector: inspector.unwrap_or(self.inspector),
+            arrangement: arrangement.unwrap_or(self.arrangement),
+            show_inspector: ws.contains(Pane::Inspector),
+            show_arrangement: ws.contains(Pane::Arrangement),
+            central,
+            dock: dock_to_value(&ws.dock),
             ..self.clone()
         }
     }
@@ -126,6 +152,37 @@ impl Layout {
     }
 }
 
+/// The dock as a layout file keeps it: device editors left out, and the rects egui_dock
+/// fills in every frame zeroed (an unlaid-out rect is infinite, which JSON cannot hold).
+pub fn dock_to_value(d: &DockState<Pane>) -> Option<serde_json::Value> {
+    let mut d = d.filter_tabs(|p| !matches!(p, Pane::Device(_)));
+    // Filtering drops the windows that held only devices, and with them the index a
+    // focus may have pointed at: focus the main surface's first leaf instead.
+    let first = d
+        .main_surface()
+        .iter()
+        .position(|n| n.is_leaf())
+        .map(egui_dock::NodeIndex);
+    if let Some(node) = first {
+        d.set_focused_node_and_surface(egui_dock::NodePath {
+            surface: egui_dock::SurfaceIndex::main(),
+            node,
+        });
+    }
+    for (_, node) in d.iter_all_nodes_mut() {
+        match node {
+            Node::Leaf(l) => {
+                l.rect = Rect::ZERO;
+                l.viewport = Rect::ZERO;
+                l.scroll = 0.0;
+            }
+            Node::Horizontal(s) | Node::Vertical(s) => s.rect = Rect::ZERO,
+            Node::Empty => {}
+        }
+    }
+    serde_json::to_value(&d).ok()
+}
+
 /// The stored name of the built-in layout. Never shown raw — see [`Layout::display_name`].
 pub const DEFAULT_NAME: &str = "@default";
 
@@ -135,9 +192,9 @@ pub struct Layouts {
     pub current: Layout,
     #[serde(default)]
     pub saved: Vec<Layout>,
-    /// Frames left in which the panel sizes are imposed rather than read. One is enough;
-    /// the field exists so `apply` can be called from a menu and take effect on the next
-    /// frame, whenever that is.
+    /// Frames left in which the current layout is to be imposed on the workspace. One is
+    /// enough; the field exists so `apply` can be called from a menu and take effect on the
+    /// next frame, whenever that is.
     #[serde(skip)]
     forcing: u8,
 }
@@ -154,8 +211,8 @@ impl Default for Layouts {
 
 impl Layouts {
     /// Save the current shape under `name`, replacing a layout of the same name.
-    pub fn save_as(&mut self, name: &str, ctx: &Context) {
-        let mut layout = self.current.capture(ctx);
+    pub fn save_as(&mut self, name: &str, ws: &Workspace, central: Central) {
+        let mut layout = self.current.capture(ws, central);
         layout.name = name.to_string();
         match self.saved.iter_mut().find(|l| l.name == name) {
             Some(existing) => *existing = layout.clone(),
@@ -174,20 +231,25 @@ impl Layouts {
         true
     }
 
-    /// Impose the current layout's sizes on the next frame.
+    /// Impose the current layout on the next frame.
     pub fn force(&mut self) {
         self.forcing = 1;
     }
 
-    /// The size the app must pin `panel` to this frame, if a layout is being applied.
-    /// `None` means "leave it to egui and the user".
+    /// Whether the current layout is to be imposed this frame.
+    pub fn is_forcing(&self) -> bool {
+        self.forcing > 0
+    }
+
+    /// The size the current layout imposes on `panel` this frame, if it is being applied.
+    /// `None` means "leave it to the dock and the user".
     pub fn forced(&self, panel: &str) -> Option<f32> {
         (self.forcing > 0)
             .then(|| self.current.size_of(panel))
             .flatten()
     }
 
-    /// Call once per frame, after the panels are laid out.
+    /// Call once per frame, after the layout has been imposed.
     pub fn end_frame(&mut self) {
         self.forcing = self.forcing.saturating_sub(1);
     }
@@ -205,10 +267,10 @@ impl Layouts {
         self.force();
     }
 
-    /// Fold the live panel sizes into `current`, so what gets written to disk is what the
+    /// Fold the workspace's shape into `current`, so what gets written to disk is what the
     /// user is actually looking at.
-    pub fn sync(&mut self, ctx: &Context) {
-        self.current = self.current.capture(ctx);
+    pub fn sync(&mut self, ws: &Workspace, central: Central) {
+        self.current = self.current.capture(ws, central);
     }
 
     pub fn load(path: &Path) -> Layouts {
@@ -236,154 +298,67 @@ pub fn layouts_path(dir: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    fn ctx() -> Context {
-        let ctx = Context::default();
-        crate::design::install_style(&ctx);
-        ctx
-    }
+    /// A layouts file as the release before the dock wrote it.
+    const OLD: &str = r#"{
+      "current": {"name": "Mixing", "inspector": 320.0, "arrangement": 200.0,
+                  "show_inspector": false, "show_arrangement": true, "central": "mixer"},
+      "saved": [{"name": "Mixing", "inspector": 320.0, "arrangement": 200.0,
+                 "show_inspector": false, "show_arrangement": true, "central": "mixer"},
+                {"name": "Notes", "inspector": 300.0, "arrangement": 180.0,
+                 "show_inspector": true, "show_arrangement": false, "central": "piano_roll"}]
+    }"#;
 
-    fn input() -> egui::RawInput {
-        egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1200.0, 800.0),
-            )),
-            ..Default::default()
-        }
-    }
-
-    /// One frame laid out the way `app` lays the real window out: each panel pinned when
-    /// `layouts` says so, resizable otherwise.
-    fn frame(ctx: &Context, layouts: &mut Layouts) {
-        let forced_inspector = layouts.forced(INSPECTOR);
-        let forced_arrangement = layouts.forced(ARRANGEMENT);
-        let (show_i, show_a) = (
-            layouts.current.show_inspector,
-            layouts.current.show_arrangement,
+    #[test]
+    fn an_old_layouts_file_loads_and_migrates_to_the_dock() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = layouts_path(dir.path());
+        std::fs::write(&path, OLD).unwrap();
+        let l = Layouts::load(&path);
+        assert_eq!(l.current.name, "Mixing");
+        assert!(l.current.dock.is_none(), "an old file has no tree");
+        let d = l.current.dock_state();
+        let ws = Workspace::with_dock(d);
+        assert!(
+            !ws.contains(Pane::Inspector),
+            "its hidden inspector stays hidden"
         );
-        ctx.run_ui(input(), |ui| {
-            if show_i {
-                let p = egui::Panel::right(panel_id(INSPECTOR));
-                match forced_inspector {
-                    Some(w) => p.exact_size(w),
-                    None => p.resizable(true).min_size(240.0),
-                }
-                .show(ui, |ui| {
-                    ui.label("i");
-                });
-            }
-            if show_a {
-                let p = egui::Panel::top(panel_id(ARRANGEMENT));
-                match forced_arrangement {
-                    Some(h) => p.exact_size(h),
-                    None => p.resizable(true).min_size(120.0),
-                }
-                .show(ui, |ui| {
-                    ui.label("a");
-                });
-            }
-            egui::CentralPanel::default().show(ui, |ui| {
-                ui.label("c");
-            });
-        })
-        .textures_delta
-        .clear();
-        layouts.end_frame();
-    }
-
-    /// The size egui actually laid the panel out at, straight from its own state — not
-    /// through [`Layout::capture`], which falls back to the layout's own value.
-    fn actual(ctx: &Context, panel: &str) -> Option<f32> {
-        PanelState::load(ctx, panel_id(panel)).map(|s| {
-            if panel == INSPECTOR {
-                s.size().x
-            } else {
-                s.size().y
-            }
-        })
-    }
-
-    #[test]
-    fn a_forced_frame_lays_the_panels_out_at_the_layouts_sizes() {
-        let ctx = ctx();
-        let mut layouts = Layouts::default();
-        layouts.current.inspector = 320.0;
-        layouts.current.arrangement = 260.0;
-        layouts.force();
-        frame(&ctx, &mut layouts);
-
-        assert_eq!(actual(&ctx, INSPECTOR), Some(320.0));
-        assert_eq!(actual(&ctx, ARRANGEMENT), Some(260.0));
-        // And the force is spent, so the user can drag again.
-        assert_eq!(layouts.forced(INSPECTOR), None);
-    }
-
-    #[test]
-    fn capture_reports_what_egui_laid_out_not_what_was_asked_for() {
-        let ctx = ctx();
-        let mut layouts = Layouts::default();
-        layouts.current.inspector = 288.0;
-        layouts.current.arrangement = 200.0;
-        layouts.force();
-        frame(&ctx, &mut layouts);
-
-        let captured = layouts.current.capture(&ctx);
-        assert_eq!(Some(captured.inspector), actual(&ctx, INSPECTOR));
-        assert_eq!(Some(captured.arrangement), actual(&ctx, ARRANGEMENT));
-    }
-
-    #[test]
-    fn hidden_panels_keep_their_stored_size() {
-        let ctx = ctx();
-        let mut layouts = Layouts::default();
-        layouts.current.inspector = 320.0;
-        layouts.force();
-        frame(&ctx, &mut layouts);
-
-        // Hide the inspector: it is not on screen, so its width must come from the layout
-        // rather than from whatever egui last laid out.
-        layouts.current.show_inspector = false;
-        layouts.current.inspector = 288.0;
-        frame(&ctx, &mut layouts);
-        assert_eq!(layouts.current.capture(&ctx).inspector, 288.0);
+        assert!(ws.contains(Pane::Arrangement));
+        assert!(ws.is_visible(Pane::Mixer), "its central view is in front");
+        let notes = Workspace::with_dock(l.saved[1].dock_state());
+        assert!(!notes.contains(Pane::Arrangement));
+        assert!(notes.is_visible(Pane::PianoRoll));
+        assert!(notes.contains(Pane::Inspector));
     }
 
     #[test]
     fn layouts_are_named_saved_switched_and_reset() {
-        let ctx = ctx();
         let mut layouts = Layouts::default();
-        layouts.current.inspector = 320.0;
-        layouts.force();
-        frame(&ctx, &mut layouts);
-
-        layouts.save_as("Mixing", &ctx);
+        let mut ws = Workspace::default();
+        ws.hide(Pane::Inspector);
+        layouts.save_as("Mixing", &ws, Central::Mixer);
         assert_eq!(layouts.saved.len(), 1);
         assert_eq!(layouts.current.name, "Mixing");
-        assert_eq!(layouts.saved[0].inspector, 320.0);
-
+        assert!(!layouts.saved[0].show_inspector);
         // Saving the same name again replaces rather than duplicates.
-        layouts.save_as("Mixing", &ctx);
+        layouts.save_as("Mixing", &ws, Central::Mixer);
         assert_eq!(layouts.saved.len(), 1);
 
         assert!(!layouts.apply_named("Nope"));
         assert!(layouts.apply_named("Mixing"));
-        assert_eq!(
-            layouts.forced(INSPECTOR),
-            Some(320.0),
-            "switching layouts must impose the switched-to sizes"
-        );
+        assert!(layouts.is_forcing(), "switching layouts must impose it");
+        let back = Workspace::with_dock(layouts.current.dock_state());
+        assert!(!back.contains(Pane::Inspector));
+        layouts.end_frame();
+        assert!(!layouts.is_forcing());
 
         layouts.reset();
         assert_eq!(layouts.current.name, DEFAULT_NAME);
-        assert_eq!(
-            layouts.current.inspector,
-            Layout::default_layout().inspector
-        );
         assert_eq!(layouts.saved.len(), 1, "reset keeps the saved layouts");
-        assert!(
-            layouts.forced(INSPECTOR).is_some(),
-            "reset must impose the default sizes"
-        );
+        assert!(layouts.is_forcing(), "reset must impose the default");
+        let d = Workspace::with_dock(layouts.current.dock_state());
+        for p in [Pane::Arrangement, Pane::Inspector, Pane::Mixer] {
+            assert!(d.contains(p), "the default dock holds {p:?}");
+        }
 
         layouts.delete("Mixing");
         assert!(layouts.saved.is_empty());
@@ -391,10 +366,8 @@ mod tests {
 
     #[test]
     fn deleting_the_layout_in_use_falls_back_to_the_default_name() {
-        let ctx = ctx();
         let mut layouts = Layouts::default();
-        frame(&ctx, &mut layouts);
-        layouts.save_as("Mixing", &ctx);
+        layouts.save_as("Mixing", &Workspace::default(), Central::Mixer);
         layouts.delete("Mixing");
         assert_eq!(layouts.current.name, DEFAULT_NAME);
     }
@@ -407,18 +380,37 @@ mod tests {
         assert_eq!(Layouts::load(&path), Layouts::default());
 
         let mut layouts = Layouts::default();
-        layouts.current.central = Central::Mixer;
-        layouts.current.show_arrangement = false;
+        let mut ws = Workspace::default();
+        ws.toggle_float(Pane::Mixer);
+        ws.hide(Pane::Arrangement);
+        layouts.sync(&ws, Central::Mixer);
         layouts.saved.push(Layout {
             name: "Tracking".into(),
             ..Layout::default_layout()
         });
         layouts.save(&path).unwrap();
-        assert_eq!(Layouts::load(&path), layouts);
+        let back = Layouts::load(&path);
+        assert_eq!(back, layouts);
+        let ws = Workspace::with_dock(back.current.dock_state());
+        assert!(
+            ws.is_floating(Pane::Mixer),
+            "a floating area stays floating"
+        );
+        assert!(!ws.contains(Pane::Arrangement));
 
         // A corrupt file must not stop the app from opening.
         std::fs::write(&path, "{ not json").unwrap();
         assert_eq!(Layouts::load(&path), Layouts::default());
+    }
+
+    #[test]
+    fn device_tabs_are_not_saved() {
+        let mut ws = Workspace::default();
+        ws.reveal(Pane::Device(42));
+        assert!(ws.contains(Pane::Device(42)));
+        let v = dock_to_value(&ws.dock).unwrap();
+        let back: DockState<Pane> = serde_json::from_value(v).unwrap();
+        assert!(back.find_tab(&Pane::Device(42)).is_none());
     }
 
     #[test]

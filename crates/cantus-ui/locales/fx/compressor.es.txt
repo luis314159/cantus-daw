@@ -99,7 +99,7 @@ comp.gr_stats = RG · 10 s
 comp.gr_avg = media
 comp.gr_peak = pico
 comp.crest = Cresta dB
-comp.crest_io = ent.→sal.
+comp.crest_io = e→s
 
 # Los controles
 comp.auto = AUTO
@@ -140,7 +140,7 @@ comp.key_spectrum_hint = Escucha la clave para ver su espectro
 
 # La gráfica de respuesta
 comp.response = Respuesta a una ráfaga
-comp.response_times = ataque {att} · liberación {rel} · {gr} dB
+comp.response_times = ataque {att} · lib. {rel} · {gr} dB
 comp.response_held = ataque {att} · aún sostenida
 comp.response_none = sin reducción con este ajuste
 comp.response_tip = La reducción ante un escalón 12 dB sobre el umbral, sostenido 400 ms, y luego 20 dB por debajo, pasado por este compresor tal como está. Los anillos marcan el 63 % al entrar y al salir.
@@ -167,3 +167,33 @@ cmd.comp_engine = motor del compresor
 cmd.comp_key_band = banda de EQ de la clave
 cmd.comp_duck = atenuar desde un canal
 cmd.comp_reset_curve = curva del compresor
+
+# El marco del dispositivo (ADR 0024): títulos de tarjetas, palabras de las pantallas, la línea de ayuda
+comp.card.transfer = Transferencia
+comp.card.meters = Medidores
+comp.read_in = Ent.
+comp.read_out = Sal.
+comp.gr = RG
+comp.max = máx.
+comp.remove_band = Quitar
+comp.history_tip = Arrastra la línea discontinua para el umbral. Clic para congelar, doble clic para volver en vivo; la rueda retrocede; pasa el puntero para leer cualquier momento.
+comp.key_eq_display_tip = Doble clic para añadir una banda (un corte en los extremos, una campana en el resto); arrastra un punto; la rueda ajusta la Q (la pendiente de un corte); Alt+clic pone una banda en bypass; clic derecho para su menú; Supr la quita.
+comp.key_band_step = La banda mostrada: ‹ y › recorren las bandas en uso
+comp.key_band_menu = El menú de la banda: su forma, bypass, quitar
+
+# Formas cortas, para etiquetas más anchas que su celda
+fx.comp.look.short = Antic.
+fx.comp.key_hpf.short = P. alto
+fx.comp.link.short = Enlace
+fx.comp.det_rms.short = Det.
+fx.comp.det_fb.short = Realim.
+fx.comp.det_prog.short = Prog.
+fx.comp.det_dual.short = 2.ª
+fx.comp.det_curve.short = Curva
+fx.comp.auto_rel.short = Lib. auto.
+fx.comp.auto_gain.short = Gan. auto.
+comp.speed.whole.short = Entera
+comp.band_on.short = Act.
+fx.comp.rel.short = Lib.
+fx.comp.makeup.short = Comp.
+comp.key_from = Escucha

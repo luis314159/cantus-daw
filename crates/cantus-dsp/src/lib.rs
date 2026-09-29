@@ -22,15 +22,22 @@
 #![allow(clippy::should_implement_trait)]
 
 pub mod aequalis;
+pub mod calor;
 pub mod click;
 pub mod comprimo;
 pub mod delay;
 pub mod env;
 pub mod eq;
+pub mod exemplar;
 pub mod filter;
 pub mod firmus;
+pub mod gravis;
+pub mod lamina;
+pub mod modmatrix;
+pub mod modulus;
 pub mod multiplex;
 pub mod nulltest;
+pub mod organum;
 pub mod osc;
 pub mod porta;
 pub mod pulsus;
@@ -40,6 +47,9 @@ pub mod smoother;
 pub mod spatium;
 pub mod spectrum;
 pub mod terminus;
+pub mod unda;
+pub mod va;
+pub mod voices;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

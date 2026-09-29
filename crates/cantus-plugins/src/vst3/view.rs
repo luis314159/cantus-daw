@@ -43,10 +43,8 @@ impl View {
             return (w as i32, h as i32);
         }
         let s = scale();
-        (
-            (editor::SIZE.0 * s).round() as i32,
-            (editor::SIZE.1 * s).round() as i32,
-        )
+        let (w, h) = editor::size(self.shared.desc.kind);
+        ((w * s).round() as i32, (h * s).round() as i32)
     }
 }
 

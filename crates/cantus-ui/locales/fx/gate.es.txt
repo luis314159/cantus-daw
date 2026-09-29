@@ -102,3 +102,21 @@ gate.midi_none = elige una pista
 gate.midi_tip = La pista cuyas notas tocan la puerta. Su propio sonido puede quedarse en silencio: silenciar una pista apaga su instrumento, no sus notas.
 gate.vel_tip = Cuánto menos abre la puerta la nota más suave que la más fuerte; con 0 dB todas las notas la abren del todo.
 gate.midi_waiting = ninguna pista elegida: la puerta sigue cerrada
+
+# El marco del kit (ronda 18)
+gate.card.level = Nivel
+gate.card.key_filter = Filtro de clave
+gate.card.transfer = Transferencia
+gate.card.learn = Aprender y golpes
+fx.gate.hyst.short = HIST
+fx.gate.look.short = ANTIC
+fx.gate.vel.short = VEL
+fx.gate.rel.short = LIB
+fx.gate.hold.short = RET
+fx.gate.ratio.short = REL
+fx.gate.att.short = ATQ
+fx.gate.thr.short = UMB
+fx.gate.hpf.short = PA
+fx.gate.lpf.short = PB
+gate.key.own = Propia
+gate.key.sidechain = Sidechain

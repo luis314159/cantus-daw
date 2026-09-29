@@ -164,6 +164,10 @@ pub fn install_fonts(ctx: &Context) {
         MONO_STRONG,
         include_bytes!("../assets/fonts/IBMPlexMono-Medium.ttf"),
     );
+    // ADR 0024 §3: the condensed UI face, which is what lets FL's labels fit.
+    for (key, bytes) in role::FACES {
+        add(key, bytes);
+    }
 
     // egui's defaults left in place after ours act as the fallback chain.
     let fallback: Vec<String> = fonts
@@ -182,7 +186,144 @@ pub fn install_fonts(ctx: &Context) {
     fonts
         .families
         .insert(family_mono_strong(), chain(MONO_STRONG));
+    for (key, _) in role::FACES {
+        fonts
+            .families
+            .insert(FontFamily::Name((*key).into()), chain(key));
+    }
     ctx.set_fonts(fonts);
+}
+
+/// The type roles of ADR 0024 §3 — **roles, and only roles**. Every text the kit paints
+/// names one; the size, weight, case and tracking come from here, and a test bans
+/// `FontId::new` anywhere but this file.
+///
+/// | Role | Size | Face | Case |
+/// |---|---|---|---|
+/// | `Micro` | 8.5 | Condensed SemiBold | CAPS +0.4 |
+/// | `Label` | 11 | Condensed Medium | CAPS +0.5 in devices |
+/// | `Body` | 12.5 | Condensed Regular | as named |
+/// | `Control` | 12 | Condensed Medium | Title |
+/// | `Title` | 13 | Condensed Medium | Title |
+/// | `Section` | 11 | Condensed SemiBold | CAPS +0.8 |
+/// | `Value` | 12 | Mono Medium | — |
+/// | `Hero` | 18 | Mono Medium | — |
+/// | `Display` | 26 | Mono Regular | — |
+/// | `Placeholder` | 12.5 | Condensed Italic | as named |
+pub mod role {
+    use super::{family_mono_strong, FontFamily, FontId};
+
+    pub(super) const COND: &str = "cond";
+    pub(super) const COND_MEDIUM: &str = "cond-medium";
+    pub(super) const COND_SEMIBOLD: &str = "cond-semibold";
+    pub(super) const COND_ITALIC: &str = "cond-italic";
+
+    /// The bundled IBM Plex Sans Condensed faces (SIL OFL 1.1, the same licence and
+    /// family as the other Plex files in `assets/fonts`).
+    pub(super) const FACES: &[(&str, &[u8])] = &[
+        (
+            COND,
+            include_bytes!("../assets/fonts/IBMPlexSansCondensed-Regular.ttf"),
+        ),
+        (
+            COND_MEDIUM,
+            include_bytes!("../assets/fonts/IBMPlexSansCondensed-Medium.ttf"),
+        ),
+        (
+            COND_SEMIBOLD,
+            include_bytes!("../assets/fonts/IBMPlexSansCondensed-SemiBold.ttf"),
+        ),
+        (
+            COND_ITALIC,
+            include_bytes!("../assets/fonts/IBMPlexSansCondensed-Italic.ttf"),
+        ),
+    ];
+
+    /// What a piece of text is. The kit asks for a role, never a size.
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+    pub enum Role {
+        /// Captions under tiny controls.
+        Micro,
+        /// Knob and fader names, strip names.
+        Label,
+        /// Slot names, list rows, menus.
+        Body,
+        /// Buttons, segmented, menu fields, tabs.
+        Control,
+        /// Panel and window titles.
+        Title,
+        /// Section bands, card titles.
+        Section,
+        /// Value pills and wells: digits that must not move.
+        Value,
+        /// One hero readout per device.
+        Hero,
+        /// The transport clock.
+        Display,
+        /// "Slot 5": what an empty place is called.
+        Placeholder,
+    }
+
+    impl Role {
+        pub const ALL: [Role; 10] = [
+            Role::Micro,
+            Role::Label,
+            Role::Body,
+            Role::Control,
+            Role::Title,
+            Role::Section,
+            Role::Value,
+            Role::Hero,
+            Role::Display,
+            Role::Placeholder,
+        ];
+
+        /// Size in points at 100 %.
+        pub fn size(self) -> f32 {
+            match self {
+                Role::Micro => 8.5,
+                Role::Label | Role::Section => 11.0,
+                Role::Body | Role::Placeholder => 12.5,
+                Role::Control | Role::Value => 12.0,
+                Role::Title => 13.0,
+                Role::Hero => 18.0,
+                Role::Display => 26.0,
+            }
+        }
+
+        pub fn family(self) -> FontFamily {
+            let name = |n: &str| FontFamily::Name(n.into());
+            match self {
+                Role::Micro | Role::Section => name(COND_SEMIBOLD),
+                Role::Label | Role::Control | Role::Title => name(COND_MEDIUM),
+                Role::Body => name(COND),
+                Role::Placeholder => name(COND_ITALIC),
+                Role::Value | Role::Hero => family_mono_strong(),
+                Role::Display => FontFamily::Monospace,
+            }
+        }
+
+        /// The font at the per-window scale `k` (1.0 = 100 %).
+        pub fn font(self, k: f32) -> FontId {
+            FontId::new(self.size() * k, self.family())
+        }
+
+        /// Extra space between letters, in points at 100 %, for roles set in caps.
+        pub fn tracking(self) -> f32 {
+            match self {
+                Role::Micro => 0.4,
+                Role::Label => 0.5,
+                Role::Section => 0.8,
+                _ => 0.0,
+            }
+        }
+
+        /// Whether the role is set in capitals (labels only inside devices; the caller
+        /// decides that with `Label`'s own flag).
+        pub fn caps(self) -> bool {
+            matches!(self, Role::Micro | Role::Section)
+        }
+    }
 }
 
 /// Fonts for text painted straight onto a canvas with a [`Painter`](egui::Painter) —

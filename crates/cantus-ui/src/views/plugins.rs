@@ -12,13 +12,17 @@
 //! - **The plug-in manager** in Settings: folders, rescans, and the blocked list.
 
 use crate::app::CantusApp;
-use crate::design::{self, space as grid};
 use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
-use cantus_core::{Command, EffectId, EffectSlot, EffectSpec, MergeKey, PluginState, StripId};
+use crate::kit::band;
+use crate::kit::shell::{self, Grid};
+use crate::kit::text::Src;
+use crate::kit::Style;
+use crate::views::fx::controls::{self, Size};
+use cantus_core::{
+    Command, EffectId, EffectKind, EffectSlot, EffectSpec, MergeKey, PluginState, StripId,
+};
 use cantus_host::{ParamInfo, PluginInfo};
-use egui::{RichText, Sense};
+use egui::Sense;
 use std::collections::{BTreeMap, HashMap};
 
 /// The interface's own state for hosted plug-ins.
@@ -32,28 +36,23 @@ pub struct State {
     pub filter: String,
     /// The other side of A/B for each hosted effect that has one — its state and values —
     /// and whether B is the side showing.
-    ab: HashMap<EffectId, (PluginState, BTreeMap<u32, f64>, bool)>,
-    /// The name being typed for a user preset.
-    preset_name: String,
+    pub(crate) ab: HashMap<EffectId, (PluginState, BTreeMap<u32, f64>, bool)>,
     /// A folder being typed in the manager.
     pub folder: String,
+    /// The generic editor's own state.
+    pub(crate) editor: Editor,
 }
 
-/// A small outlined tag: the plug-in's format.
+/// A small outlined tag: the plug-in's format, in a readout well.
 pub fn badge(ui: &mut egui::Ui, text: &str) -> egui::Response {
-    let pal = theme::p();
-    egui::Frame::new()
-        .stroke(egui::Stroke::new(1.0, pal.grid_strong))
-        .corner_radius(pal.corner_radius)
-        .inner_margin(egui::Margin::symmetric(grid::S1 as i8, 0))
-        .show(ui, |ui| {
-            ui.label(
-                RichText::new(text)
-                    .text_style(design::mono_small())
-                    .color(pal.text_dim),
-            )
-        })
-        .response
+    let s = Style::current();
+    let w = crate::kit::text::measure(
+        ui.ctx(),
+        &crate::kit::text::Text::new(text, crate::kit::text::Role::Body, s.t.text_dim),
+        s.tk(),
+    )
+    .x + 16.0;
+    controls::readout(ui, &s, text, false, "", w)
 }
 
 /// The words of a plug-in's features that say what it is ("equalizer", "reverb"), without
@@ -83,83 +82,80 @@ fn category(p: &PluginInfo) -> String {
         .unwrap_or_else(|| t("host.menu.other"))
 }
 
-fn plugin_row(ui: &mut egui::Ui, p: &PluginInfo) -> bool {
-    ui.horizontal(|ui| {
-        let clicked = ui
-            .button(&p.name)
-            .on_hover_text(tf(
-                "host.menu.tip",
-                &[("vendor", &p.vendor), ("version", &p.version)],
-            ))
-            .clicked();
-        badge(ui, cantus_host::to_project_format(p.format).badge());
-        clicked
-    })
-    .inner
-}
-
-/// The plug-ins part of a strip's insert menu.
+/// The plug-ins part of a strip's insert menu: a search field, vendor | category, and the
+/// plug-ins as the kit's menu rows — each group under a band, each plug-in's format at
+/// the row's right.
 pub fn insert_menu(app: &mut CantusApp, ui: &mut egui::Ui, strip: StripId) {
-    let pal = theme::p();
-    ui.separator();
-    ui.label(
-        RichText::new(t("host.menu.title"))
-            .text_style(design::caption())
-            .color(pal.text_dim),
-    );
+    let s = Style::current();
+    let width = 300.0;
+    band_title(ui, &s, "host.menu.title", width);
     let effects: Vec<PluginInfo> = app.plugins.db.effects().into_iter().cloned().collect();
     if effects.is_empty() {
-        ui.label(
-            RichText::new(t("host.menu.none"))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
+        controls::line(ui, &s, &t("host.menu.none"), s.t.text_dim, width);
         let scanning = app.plugins.scanning();
-        if ui
-            .add_enabled(!scanning, egui::Button::new(t("host.manager.scan")))
+        ui.add_enabled_ui(!scanning, |ui| {
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.scan"),
+                &t("host.manager.scan_tip"),
+                120.0,
+                scanning,
+            )
             .clicked()
-        {
-            app.plugins.start_scan(false);
-        }
+            {
+                app.plugins.start_scan(false);
+            }
+        });
         return;
     }
     let state = &mut app.fx.hosted;
-    ui.add(
-        egui::TextEdit::singleline(&mut state.search)
-            .hint_text(t("host.menu.search"))
-            .desired_width(grid::GRID * 48.0),
+    controls::text_field(
+        ui,
+        &s,
+        ui.id().with("host-search"),
+        &mut state.search,
+        &t("host.menu.search"),
+        width,
     );
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut state.by_category, false, t("host.menu.by_vendor"));
-        ui.selectable_value(&mut state.by_category, true, t("host.menu.by_category"));
-    });
+    let labels = [
+        Src::Key("host.menu.by_vendor"),
+        Src::Key("host.menu.by_category"),
+    ];
+    if let Some(i) = controls::segmented(
+        ui,
+        &s,
+        state.by_category as usize,
+        &labels,
+        &t("host.menu.title"),
+        width,
+    ) {
+        state.by_category = i == 1;
+    }
     let query = state.search.trim().to_lowercase();
     let by_category = state.by_category;
-    let mut chosen: Option<PluginInfo> = None;
+    // The rows: the matches, or every plug-in under its group's band.
+    let mut rows: Vec<(Option<usize>, String, &'static str)> = Vec::new();
     if !query.is_empty() {
-        let found: Vec<&PluginInfo> = effects
-            .iter()
-            .filter(|p| {
-                p.name.to_lowercase().contains(&query)
-                    || p.vendor.to_lowercase().contains(&query)
-                    || p.features.iter().any(|f| f.to_lowercase().contains(&query))
-            })
-            .collect();
-        if found.is_empty() {
-            ui.label(
-                RichText::new(t("host.menu.no_match"))
-                    .text_style(design::caption())
-                    .color(pal.text_dim),
-            );
-        }
-        for p in found {
-            if plugin_row(ui, p) {
-                chosen = Some(p.clone());
+        for (i, p) in effects.iter().enumerate() {
+            if p.name.to_lowercase().contains(&query)
+                || p.vendor.to_lowercase().contains(&query)
+                || p.features.iter().any(|f| f.to_lowercase().contains(&query))
+            {
+                rows.push((
+                    Some(i),
+                    p.name.clone(),
+                    cantus_host::to_project_format(p.format).badge(),
+                ));
             }
         }
+        if rows.is_empty() {
+            controls::line(ui, &s, &t("host.menu.no_match"), s.t.text_dim, width);
+            return;
+        }
     } else {
-        let mut groups: BTreeMap<String, Vec<&PluginInfo>> = BTreeMap::new();
-        for p in &effects {
+        let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, p) in effects.iter().enumerate() {
             let key = if by_category {
                 category(p)
             } else if p.vendor.is_empty() {
@@ -167,22 +163,63 @@ pub fn insert_menu(app: &mut CantusApp, ui: &mut egui::Ui, strip: StripId) {
             } else {
                 p.vendor.clone()
             };
-            groups.entry(key).or_default().push(p);
+            groups.entry(key).or_default().push(i);
         }
         for (group, list) in groups {
-            ui.menu_button(format!("{group} ({})", list.len()), |ui| {
-                for p in list {
-                    if plugin_row(ui, p) {
-                        chosen = Some(p.clone());
-                    }
-                }
-            });
+            rows.push((None, format!("{group} ({})", list.len()), ""));
+            for i in list {
+                let p = &effects[i];
+                rows.push((
+                    Some(i),
+                    p.name.clone(),
+                    cantus_host::to_project_format(p.format).badge(),
+                ));
+            }
         }
     }
+    let items: Vec<crate::kit::menu::Item<'_>> = rows
+        .iter()
+        .map(|(i, name, badge)| match i {
+            None => crate::kit::menu::Item::Band(Src::Str(name)),
+            Some(_) => crate::kit::menu::Item::Action {
+                label: Src::Str(name),
+                check: crate::kit::menu::Check::None,
+                shortcut: Some(badge),
+                submenu: false,
+                enabled: true,
+            },
+        })
+        .collect();
+    let mut chosen: Option<PluginInfo> = None;
+    egui::ScrollArea::vertical()
+        .max_height(360.0)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            let (_, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
+            if let Some(i) = clicks.clicked {
+                chosen = rows[i].0.map(|n| effects[n].clone());
+            }
+        });
     if let Some(p) = chosen {
         ui.close();
         app.add_plugin(strip, &p);
     }
+}
+
+/// A section band with a title, `width` wide.
+fn band_title(ui: &mut egui::Ui, s: &Style, key: &str, width: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, band::BAND), Sense::hover());
+    crate::kit::with_brush(ui.painter(), |b| {
+        band::section(
+            b,
+            rect,
+            s,
+            crate::kit::State::REST,
+            Src::Key(key),
+            None,
+            false,
+        )
+    });
 }
 
 impl CantusApp {
@@ -247,43 +284,47 @@ impl CantusApp {
 /// A slot's title in the inspector: the plug-in's name, its format, and *missing* when it
 /// is not on this computer.
 pub fn slot_title(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) {
-    let pal = theme::p();
+    let s = Style::current();
     let Some(p) = slot.spec.external.as_deref() else {
-        ui.label(RichText::new(t(slot.spec.kind.name_key())).text_style(design::strong()));
+        let name = t(slot.spec.kind.name_key());
+        controls::line(ui, &s, &name, s.t.text, 160.0);
         return;
     };
-    ui.label(RichText::new(&p.name).text_style(design::strong()))
-        .on_hover_text(&p.vendor);
+    let w = crate::kit::text::measure(
+        ui.ctx(),
+        &crate::kit::text::Text::new(&p.name, crate::kit::text::Role::Body, s.t.text),
+        s.tk(),
+    )
+    .x
+    .min(200.0)
+        + 4.0;
+    controls::line(ui, &s, &p.name, s.t.text, w);
     badge(ui, p.format.badge());
     if let Some(why) = app.plugins.missing(slot.id) {
-        ui.label(
-            RichText::new(t("host.missing"))
-                .text_style(design::caption())
-                .color(pal.danger),
-        )
-        .on_hover_text(tf(
-            "host.missing_tip",
-            &[("vendor", &p.vendor), ("why", &why)],
-        ));
+        let word = t("host.missing");
+        let r = ui.scope(|ui| controls::line(ui, &s, &word, s.t.danger, 80.0));
+        if r.response.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                &word,
+                &tf("host.missing_tip", &[("vendor", &p.vendor), ("why", &why)]),
+                crate::kit::hint::Caps::NONE,
+            );
+        }
     }
 }
 
 /// The inspector's picture of a hosted plug-in: how many values it holds, and its latency.
 pub fn preview(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) -> egui::Response {
-    let pal = theme::p();
+    let s = Style::current();
     let n = slot.spec.external.as_deref().map_or(0, |p| p.params.len());
     let text = match app.plugins.hosted(slot.id) {
         Some(h) => tf("host.preview", &[("n", &n), ("latency", &h.latency())]),
         None => t("host.preview_missing"),
     };
-    ui.add(
-        egui::Label::new(
-            RichText::new(text)
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        )
-        .sense(Sense::click()),
-    )
+    let w = ui.available_width();
+    let r = controls::readout(ui, &s, &text, false, "", w);
+    ui.interact(r.rect, r.id.with("open"), Sense::click())
 }
 
 /// Every hosted slot's spec, for code that has only a spec (the frame's preview).
@@ -295,265 +336,431 @@ pub fn is_hosted(spec: &EffectSpec) -> bool {
 
 /// The value a parameter shows: the project's, or the plug-in's own when the project holds
 /// none for it.
-fn shown_value(app: &CantusApp, slot: &EffectSlot, p: &ParamInfo) -> f64 {
-    slot.spec
-        .external
+fn shown_value(
+    spec: &EffectSpec,
+    hosted: Option<&cantus_host::session::Hosted>,
+    p: &ParamInfo,
+) -> f64 {
+    spec.external
         .as_deref()
         .and_then(|e| e.params.get(&p.id).copied())
-        .or_else(|| {
-            app.plugins
-                .hosted(slot.id)
-                .and_then(|h| h.param_value(p.id))
-        })
+        .or_else(|| hosted.and_then(|h| h.param_value(p.id)))
         .unwrap_or(p.default)
 }
 
-/// One parameter as a house knob, its value in the plug-in's own words.
-fn param_knob(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    slot: &EffectSlot,
-    p: &ParamInfo,
-) {
-    let value = shown_value(app, slot, p);
-    let (lo, hi) = (p.min.min(p.max), p.max.max(p.min));
-    if hi <= lo {
-        // A parameter with no range (a read-out): its name and its text.
-        let text = app
-            .plugins
-            .hosted(slot.id)
-            .and_then(|h| h.param_text(p.id, value))
-            .unwrap_or_else(|| format!("{value:.2}"));
-        ui.label(
-            RichText::new(format!("{}: {text}", p.name))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        return;
-    }
-    let mut v = value as f32;
-    let r = {
-        let hosted = app.plugins.hosted(slot.id);
-        let id = p.id;
-        let knob = Knob::new(&mut v, lo as f32..=hi as f32, p.default as f32)
-            .diameter(grid::GRID * 11.0)
-            .stepped(p.stepped)
-            .label(p.name.clone())
-            .format(move |x| {
-                hosted
-                    .and_then(|h| h.param_text(id, f64::from(x)))
-                    .unwrap_or_else(|| format!("{x:.2}"))
-            });
-        ui.add_enabled(!p.read_only && hi > lo, knob)
-    };
-    if r.changed() {
-        app.set_plugin_param(strip, slot.id, p.id, f64::from(v), true);
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
-    }
+/// The parameters' groups: a title and the indices of the parameters in it.
+type Groups = Vec<(String, Vec<usize>)>;
+
+/// What the editor keeps between frames: the groups as laid out for the filter, and each
+/// parameter's text in the plug-in's own words for the value it was asked about.
+#[derive(Debug, Default)]
+pub struct Editor {
+    /// (effect, parameter count, filter) the groups were made for, and the groups: a title
+    /// and the indices of the parameters in it.
+    groups: Option<(EffectId, usize, String, Groups)>,
+    /// Parameter id → (value bits, the plug-in's text for it).
+    texts: HashMap<u32, (u64, String)>,
+    /// "CLAP · Vendor", per effect.
+    badge: Option<(EffectId, String)>,
+    /// Where each group's card goes, reused.
+    layout: Vec<egui::Rect>,
+    /// The key field's words, and what they were made for.
+    #[allow(clippy::type_complexity)]
+    key_label: Option<((Option<StripId>, u64, crate::i18n::Locale), String)>,
+    /// The height the editor wants at 100 %, from what it laid out last frame.
+    pub(crate) wanted: Option<f32>,
 }
 
-/// The body of a hosted plug-in's editor inside the shared frame.
-pub fn body(
+/// The generic editor of a hosted plug-in, in the device frame (ADR 0024 §8): the frame's
+/// header carries the plug-in's name, its saved states as presets, A/B of whole states,
+/// the undo of this device and the bypass; the body its parameters, grouped as the plug-in
+/// groups them, each a cell with the plug-in's own text for its value.
+pub fn framed(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     strip: StripId,
     effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let pal = theme::p();
-    let Some(record) = slot.spec.external.as_deref() else {
-        return;
-    };
-    // What it is, what it costs, and its own window.
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(&record.name).text_style(design::strong()));
-        badge(ui, record.format.badge());
-        ui.label(
-            RichText::new(&record.vendor)
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        if let Some(h) = app.plugins.hosted(effect) {
-            ui.label(
-                RichText::new(tf(
-                    "host.editor.latency",
-                    &[
-                        ("samples", &h.latency()),
-                        (
-                            "ms",
-                            &format!(
-                                "{:.1}",
-                                h.latency() as f64 * 1000.0 / app.engine.sample_rate
-                            ),
-                        ),
-                    ],
-                ))
-                .text_style(design::mono_small())
-                .color(pal.text_dim),
-            );
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let (has_editor, open) = app
-                .plugins
-                .hosted(effect)
-                .map_or((false, false), |h| (h.has_editor(), h.window_open()));
-            let text = if open {
-                t("host.editor.close_window")
-            } else {
-                t("host.editor.open_window")
-            };
-            let button = ui
-                .add_enabled(has_editor, egui::Button::new(text).selected(open))
-                .on_hover_text(t("host.editor.window_tip"))
-                .on_disabled_hover_text(t("host.editor.no_window"));
-            if button.clicked() {
-                app.toggle_plugin_window(effect);
-            }
-            if record.sidechain {
-                key_menu(app, ui, strip, effect, slot);
-            }
-        });
-    });
-    if let Some(why) = app.plugins.missing(effect) {
-        ui.add_space(grid::S2);
-        ui.label(
-            RichText::new(tf(
-                "host.editor.missing",
-                &[("name", &record.name), ("why", &why)],
-            ))
-            .color(pal.danger),
-        );
-        ui.label(
-            RichText::new(t("host.editor.missing_kept"))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        return;
-    }
-    let params: Vec<ParamInfo> = app
-        .plugins
-        .hosted(effect)
-        .map(|h| h.params.clone())
-        .unwrap_or_default();
-    ui.add_space(grid::S1);
-    ui.horizontal(|ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut app.fx.hosted.filter)
-                .hint_text(t("host.editor.filter"))
-                .desired_width(grid::GRID * 48.0),
-        );
-        ui.label(
-            RichText::new(tf("host.editor.count", &[("n", &params.len())]))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-    });
-    ui.add_space(grid::S1);
-    let filter = app.fx.hosted.filter.trim().to_lowercase();
-    // Grouped as the plug-in groups them, in its order.
-    let mut groups: Vec<(String, Vec<ParamInfo>)> = Vec::new();
-    for p in params.into_iter().filter(|p| !p.hidden) {
-        if !filter.is_empty() && !p.name.to_lowercase().contains(&filter) {
-            continue;
-        }
-        match groups.iter_mut().find(|(g, _)| *g == p.group) {
-            Some((_, list)) => list.push(p),
-            None => groups.push((p.group.clone(), vec![p])),
-        }
-    }
-    // Each group a card, the cards flowing left to right and wrapping; a group too large
-    // for one row takes the width and wraps its own knobs.
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let full = ui.available_width() - grid::S6;
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(grid::S2, grid::S2);
-                for (group, list) in &groups {
-                    let title = if group.is_empty() {
-                        t("host.editor.ungrouped")
-                    } else {
-                        group.replace('/', " \u{203a} ")
-                    };
-                    let width = (list.len() as f32 * grid::GRID * 16.0)
-                        .max(grid::GRID * 24.0)
-                        .min(full);
-                    design::Elevation::Card.frame(&pal).show(ui, |ui| {
-                        ui.set_width(width);
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(title.to_uppercase())
-                                    .text_style(design::caption())
-                                    .color(pal.text_dim),
-                            );
-                            ui.horizontal_wrapped(|ui| {
-                                for p in list {
-                                    param_knob(app, ui, strip, slot, p);
-                                }
-                            });
-                        });
-                    });
+) -> crate::views::fx::frame::Out {
+    use crate::views::fx::{frame, host::DawHost};
+    let mut chrome = std::mem::take(&mut app.fx.chrome);
+    chrome.reset_for(effect.0);
+    let mut chips = std::mem::take(&mut app.fx.chips);
+    let mut ed = std::mem::take(&mut app.fx.hosted.editor);
+    if ed.badge.as_ref().is_none_or(|b| b.0 != effect) {
+        let words = app
+            .project()
+            .strip(strip)
+            .and_then(|s| s.effect(effect))
+            .and_then(|e| e.spec.external.as_deref())
+            .map(|p| {
+                if p.vendor.is_empty() {
+                    p.format.badge().to_string()
+                } else {
+                    format!("{} \u{b7} {}", p.format.badge(), p.vendor)
                 }
-            });
-        });
-}
-
-/// Which strip keys the plug-in's sidechain input.
-fn key_menu(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let current = slot.sidechain;
-    let label = match current {
-        Some(k) if app.project().strip(k).is_some() => tf(
-            "host.editor.key",
-            &[(
-                "strip",
-                &app.capture_label(cantus_engine::CaptureTarget::Strip(k)),
-            )],
-        ),
-        _ => t("host.editor.key_none"),
+            })
+            .unwrap_or_default();
+        ed.badge = Some((effect, words));
+    }
+    let latency = app.plugins.hosted(effect).map_or(0, |h| h.latency()) as f32;
+    let sr = (app.engine.sample_rate as f32).max(1.0);
+    let badge = ed.badge.take();
+    let chip = [
+        badge.as_ref().map_or("", |b| b.1.as_str()),
+        chips.latency(latency, sr),
+    ];
+    let look = frame::Look {
+        kind: EffectKind::External,
+        chips: &chip,
+        meter: None,
+        more: &[],
     };
-    egui::ComboBox::from_id_salt(("host-key", effect.0))
-        .selected_text(label)
-        .width(grid::GRID * 40.0)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(current.is_none(), t("host.editor.key_none"))
-                .clicked()
-            {
-                app.exec(Command::SetEffectSidechain {
-                    strip,
-                    effect,
-                    source: None,
-                });
-            }
-            let options: Vec<StripId> = app
-                .project()
-                .strips
-                .iter()
-                .map(|x| x.id)
-                .filter(|id| *id != strip && !app.project().routing_would_cycle(*id, Some(strip)))
-                .collect();
-            for id in options {
-                let text = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-                if ui.selectable_label(current == Some(id), text).clicked() {
-                    app.exec(Command::SetEffectSidechain {
-                        strip,
-                        effect,
-                        source: Some(id),
-                    });
-                }
+    let out = {
+        let mut host = DawHost::new(app, strip, effect, "plugin");
+        frame::show(ui, &mut host, &mut chrome, &look, |ui, s, body, host| {
+            if let Some((app, strip, effect)) = host.daw() {
+                body_ui(app, &mut ed, ui, s, body, strip, effect);
             }
         })
-        .response
-        .on_hover_text(t("host.editor.key_tip"));
+    };
+    ed.badge = badge;
+    app.fx.hosted.editor = ed;
+    app.fx.chips = chips;
+    app.fx.chrome = chrome;
+    out
+}
+
+/// The height the open generic editor wants at 100 %, from what it laid out last frame
+/// (the window fits its parameters).
+pub fn wanted_height(app: &CantusApp) -> Option<f32> {
+    app.fx.hosted.editor.wanted
+}
+
+/// What a cell asked for this frame, applied once the drawing is done.
+enum Change {
+    Set(u32, f64, bool),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn body_ui(
+    app: &mut CantusApp,
+    ed: &mut Editor,
+    ui: &mut egui::Ui,
+    s: &Style,
+    body: egui::Rect,
+    strip: StripId,
+    effect: EffectId,
+) {
+    let k = s.k;
+    let mut g = Grid::new(body, s);
+    let Some(sidechain) = app
+        .project()
+        .strip(strip)
+        .and_then(|x| x.effect(effect))
+        .and_then(|e| e.spec.external.as_deref())
+        .map(|p| p.sidechain)
+    else {
+        return;
+    };
+    // The plug-in: its own window, its key, the filter.
+    let top = g.full((band::TITLE + 8.0 + controls::ROW + 8.0) * k);
+    controls::card(ui, s, top, Src::Key("fx.hosted.card"), None, |ui, cr| {
+        let w = cr.body.width() / k;
+        let (has_editor, open) = app
+            .plugins
+            .hosted(effect)
+            .map_or((false, false), |h| (h.has_editor(), h.window_open()));
+        let label = if open {
+            "host.editor.close_window"
+        } else {
+            "host.editor.open_window"
+        };
+        let tip = if has_editor {
+            frame_tr("host.editor.window_tip")
+        } else {
+            frame_tr("host.editor.no_window")
+        };
+        ui.add_enabled_ui(has_editor, |ui| {
+            if controls::key(ui, s, Src::Key(label), tip, 170.0, open).clicked() {
+                app.toggle_plugin_window(effect);
+            }
+        });
+        if sidechain {
+            key_field(app, ed, ui, s, strip, effect, 190.0);
+        }
+        let filter_w = (w - 170.0 - if sidechain { 194.0 } else { 0.0 } - 120.0 - 16.0).max(80.0);
+        controls::text_field(
+            ui,
+            s,
+            ui.id().with(("host-filter", effect.0)),
+            &mut app.fx.hosted.filter,
+            frame_tr("host.editor.filter"),
+            filter_w,
+        );
+        let n = app.plugins.hosted(effect).map_or(0, |h| h.params.len());
+        controls::count(ui, s, "host.editor.count", n, 116.0);
+    });
+    if let Some(why) = app.plugins.missing(effect) {
+        let rest = g.rest();
+        controls::card(ui, s, rest, Src::Key("host.missing"), None, |ui, cr| {
+            let w = cr.body.width() / k;
+            controls::column(ui, s, w, |ui| {
+                let name = app
+                    .project()
+                    .strip(strip)
+                    .and_then(|x| x.effect(effect))
+                    .and_then(|e| e.spec.external.as_deref())
+                    .map_or("", |p| p.name.as_str());
+                let line = tf("host.editor.missing", &[("name", &name), ("why", &why)]);
+                controls::line(ui, s, &line, s.t.danger, w);
+                controls::line(ui, s, frame_tr("host.editor.missing_kept"), s.t.text_dim, w);
+            });
+        });
+        return;
+    }
+    // The groups, made again only when the parameters or the filter change.
+    let count = app.plugins.hosted(effect).map_or(0, |h| h.params.len());
+    let typed = app.fx.hosted.filter.as_str();
+    let stale = ed
+        .groups
+        .as_ref()
+        .is_none_or(|(e, n, f, _)| *e != effect || *n != count || f != typed);
+    if stale {
+        let raw = typed.to_string();
+        let filter = typed.trim().to_lowercase();
+        let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
+        if let Some(h) = app.plugins.hosted(effect) {
+            for (i, p) in h.params.iter().enumerate() {
+                if p.hidden || (!filter.is_empty() && !p.name.to_lowercase().contains(&filter)) {
+                    continue;
+                }
+                match groups.iter_mut().find(|(g, _)| *g == p.group) {
+                    Some((_, list)) => list.push(i),
+                    None => groups.push((p.group.clone(), vec![i])),
+                }
+            }
+        }
+        for (title, _) in groups.iter_mut() {
+            *title = if title.is_empty() {
+                t("host.editor.ungrouped")
+            } else {
+                title.replace('/', " \u{203a} ")
+            };
+        }
+        ed.groups = Some((effect, count, raw, groups));
+    }
+    let Some((_, _, _, groups)) = ed.groups.as_ref() else {
+        return;
+    };
+    // Cards flow left to right and wrap; a group wider than the body wraps its cells.
+    let area = g.rest();
+    let cell = crate::kit::cell::size(Size::M) * k;
+    let gap = s.d(4.0);
+    let pitch = cell.x + gap;
+    let pad = 16.0 * k;
+    let per_row_max = ((area.width() - pad) / pitch).floor().max(1.0) as usize;
+    let mut layout = std::mem::take(&mut ed.layout);
+    layout.clear();
+    let (mut x, mut y, mut row_h) = (0.0f32, 0.0f32, 0.0f32);
+    for (_, list) in groups {
+        let per_row = list.len().clamp(1, per_row_max);
+        let rows = list.len().div_ceil(per_row).max(1);
+        let w = (pad + per_row as f32 * pitch - gap)
+            .max(150.0 * k)
+            .min(area.width());
+        let h = (band::TITLE + 8.0) * k + rows as f32 * (cell.y + gap) - gap + 8.0 * k;
+        if x > 0.0 && x + w > area.width() + 0.5 {
+            x = 0.0;
+            y += row_h + gap;
+            row_h = 0.0;
+        }
+        layout.push(egui::Rect::from_min_size(
+            egui::pos2(x, y),
+            egui::vec2(w, h),
+        ));
+        x += w + gap;
+        row_h = row_h.max(h);
+    }
+    let total = y + row_h;
+    // The window fits what it holds: the frame, the plug-in's card, the groups.
+    let wanted_h =
+        (shell::HEADER + shell::FOOTER + 16.0 + band::TITLE + 16.0 + controls::ROW + 4.0)
+            + total / k;
+    ed.wanted = Some(wanted_h.clamp(300.0, 760.0));
+    let mut changes: Vec<Change> = Vec::new();
+    let hosted = app.plugins.hosted(effect);
+    let spec = app
+        .bus
+        .project()
+        .strip(strip)
+        .and_then(|x| x.effect(effect))
+        .map(|e| &e.spec);
+    let texts = &mut ed.texts;
+    let mut area_ui = ui.new_child(egui::UiBuilder::new().max_rect(area));
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(&mut area_ui, |ui| {
+            let (origin, _) =
+                ui.allocate_exact_size(egui::vec2(area.width(), total), Sense::hover());
+            for ((title, list), r) in groups.iter().zip(&layout) {
+                let r = r.translate(origin.min.to_vec2());
+                if !ui.is_rect_visible(r) {
+                    continue;
+                }
+                controls::card(ui, s, r, Src::Str(title), None, |ui, cr| {
+                    let Some(h) = hosted else {
+                        return;
+                    };
+                    // Whole cells per row, rows top to bottom.
+                    let per_row = ((cr.body.width() + gap) / pitch).floor().max(1.0) as usize;
+                    for (row, chunk) in list.chunks(per_row).enumerate() {
+                        let rr = egui::Rect::from_min_size(
+                            cr.body.min + egui::vec2(0.0, row as f32 * (cell.y + gap)),
+                            egui::vec2(cr.body.width(), cell.y),
+                        );
+                        let mut row_ui = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(rr)
+                                .layout(egui::Layout::left_to_right(egui::Align::Min)),
+                        );
+                        let ui = &mut row_ui;
+                        ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+                        for &i in chunk {
+                            let Some(p) = h.params.get(i) else {
+                                continue;
+                            };
+                            let (Some(spec), true) = (spec, p.max != p.min) else {
+                                continue;
+                            };
+                            let value = shown_value(spec, Some(h), p);
+                            let (lo, hi) = (p.min.min(p.max), p.max.max(p.min));
+                            // The plug-in's words for the value, asked once per value.
+                            let bits = value.to_bits();
+                            let entry = texts.entry(p.id).or_insert((u64::MAX, String::new()));
+                            if entry.0 != bits {
+                                entry.0 = bits;
+                                entry.1 = h
+                                    .param_text(p.id, value)
+                                    .unwrap_or_else(|| format!("{value:.2}"));
+                            }
+                            let text = entry.1.as_str();
+                            let fmt = |_: f32, b: &mut String| b.push_str(text);
+                            let out = ui
+                                .add_enabled_ui(!p.read_only, |ui| {
+                                    controls::Cell::new(
+                                        value as f32,
+                                        lo as f32..=hi as f32,
+                                        p.default as f32,
+                                    )
+                                    .stepped(p.stepped)
+                                    .label(Src::Str(&p.name))
+                                    .name(&p.name)
+                                    .format(&fmt)
+                                    .show(ui, s)
+                                })
+                                .inner;
+                            if let Some(v) = out.changed {
+                                changes.push(Change::Set(p.id, f64::from(v), false));
+                            }
+                            if out.done {
+                                changes.push(Change::Set(p.id, f64::NAN, true));
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    ed.layout = layout;
+    for c in changes {
+        match c {
+            Change::Set(id, v, done) => {
+                if done {
+                    app.end_gesture();
+                } else {
+                    app.set_plugin_param(strip, effect, id, v, true);
+                }
+            }
+        }
+    }
+}
+
+fn frame_tr(key: &'static str) -> &'static str {
+    crate::views::fx::frame::tr(key)
+}
+
+/// Which strip keys the plug-in's sidechain input: a menu field of the desk's strips.
+fn key_field(
+    app: &mut CantusApp,
+    ed: &mut Editor,
+    ui: &mut egui::Ui,
+    s: &Style,
+    strip: StripId,
+    effect: EffectId,
+    width: f32,
+) {
+    let current = app
+        .project()
+        .strip(strip)
+        .and_then(|x| x.effect(effect))
+        .and_then(|e| e.sidechain)
+        .filter(|k| app.project().strip(*k).is_some());
+    // The field's words, made when the key, the project or the language changes.
+    let stamp = (current, app.bus.revision(), crate::i18n::locale());
+    if ed.key_label.as_ref().is_none_or(|(k, _)| *k != stamp) {
+        let words = match current {
+            Some(k) => tf(
+                "host.editor.key",
+                &[(
+                    "strip",
+                    &app.capture_label(cantus_engine::CaptureTarget::Strip(k)),
+                )],
+            ),
+            None => t("host.editor.key_none"),
+        };
+        ed.key_label = Some((stamp, words));
+    }
+    let label = ed.key_label.as_ref().map_or("", |(_, w)| w.as_str());
+    let id = ui.id().with(("host-key", effect.0));
+    let Some(at) = controls::field(ui, s, id, label, frame_tr("host.editor.key_tip"), width) else {
+        return;
+    };
+    let options: Vec<(StripId, String)> = app
+        .project()
+        .strips
+        .iter()
+        .map(|x| x.id)
+        .filter(|id| *id != strip && !app.project().routing_would_cycle(*id, Some(strip)))
+        .map(|id| {
+            (
+                id,
+                app.capture_label(cantus_engine::CaptureTarget::Strip(id)),
+            )
+        })
+        .collect();
+    let mut items = vec![crate::views::fx::frame::radio(
+        Src::Key("host.editor.key_none"),
+        current.is_none(),
+    )];
+    items.extend(
+        options
+            .iter()
+            .map(|(id, text)| crate::views::fx::frame::radio(Src::Str(text), current == Some(*id))),
+    );
+    if let Some(i) = controls::list(ui, s, id, at, width.max(200.0), &items) {
+        let source = if i == 0 {
+            None
+        } else {
+            options.get(i - 1).map(|o| o.0)
+        };
+        drop(items);
+        if source != current {
+            app.exec(Command::SetEffectSidechain {
+                strip,
+                effect,
+                source,
+            });
+        }
+    }
 }
 
 impl CantusApp {
@@ -590,7 +797,7 @@ impl CantusApp {
 // ---- A/B and presets, kept by the host ------------------------------------------------
 
 /// Switch between A and B: the showing side is kept, the other one applied — one command.
-fn toggle_ab(app: &mut CantusApp, strip: StripId, effect: EffectId) {
+pub(crate) fn toggle_ab(app: &mut CantusApp, strip: StripId, effect: EffectId) {
     let Some(current) = app.plugins.capture(effect) else {
         return;
     };
@@ -627,12 +834,12 @@ pub fn preset_dir(plugin_id: &str) -> std::path::PathBuf {
 
 /// A saved state, as a preset file.
 #[derive(serde::Serialize, serde::Deserialize)]
-struct PresetFile {
-    state: PluginState,
-    params: BTreeMap<u32, f64>,
+pub(crate) struct PresetFile {
+    pub state: PluginState,
+    pub params: BTreeMap<u32, f64>,
 }
 
-fn presets(plugin_id: &str) -> Vec<(String, std::path::PathBuf)> {
+pub(crate) fn presets(plugin_id: &str) -> Vec<(String, std::path::PathBuf)> {
     let mut out = Vec::new();
     if let Ok(dir) = std::fs::read_dir(preset_dir(plugin_id)) {
         for e in dir.flatten() {
@@ -650,90 +857,7 @@ fn presets(plugin_id: &str) -> Vec<(String, std::path::PathBuf)> {
     out
 }
 
-/// The frame's header for a hosted plug-in: presets as saved states, and A/B.
-pub fn header_controls(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let Some(record) = slot.spec.external.as_deref() else {
-        return;
-    };
-    let loaded = app.plugins.hosted(effect).is_some();
-    let plugin_id = record.id.clone();
-    ui.add_enabled_ui(loaded, |ui| {
-        ui.menu_button(t("preset.menu"), |ui| {
-            let list = presets(&plugin_id);
-            if list.is_empty() {
-                ui.label(
-                    RichText::new(t("host.preset.none"))
-                        .text_style(design::caption())
-                        .color(theme::p().text_dim),
-                );
-            }
-            for (name, path) in list {
-                if ui.button(&name).clicked() {
-                    let file = std::fs::read_to_string(&path)
-                        .ok()
-                        .and_then(|t| serde_json::from_str::<PresetFile>(&t).ok());
-                    if let Some(f) = file {
-                        app.set_plugin_state(strip, effect, f.state, f.params);
-                    }
-                    ui.close();
-                }
-            }
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut app.fx.hosted.preset_name)
-                        .hint_text(t("preset.name"))
-                        .desired_width(grid::GRID * 36.0),
-                );
-                if ui.button(t("preset.save")).clicked() {
-                    let name = app.fx.hosted.preset_name.trim().to_string();
-                    match save_preset(app, effect, &plugin_id, &name) {
-                        Ok(()) => {
-                            app.set_status(tf("preset.saved", &[("name", &name)]));
-                            app.fx.hosted.preset_name.clear();
-                            ui.close();
-                        }
-                        Err(e) => app.set_error(e),
-                    }
-                }
-            });
-        });
-        let on_b = app.fx.hosted.ab.get(&effect).is_some_and(|x| x.2);
-        if ui
-            .selectable_label(!on_b, "A")
-            .on_hover_text(t("ab.tip"))
-            .clicked()
-            && on_b
-        {
-            toggle_ab(app, strip, effect);
-        }
-        if ui
-            .selectable_label(on_b, "B")
-            .on_hover_text(t("ab.tip"))
-            .clicked()
-            && !on_b
-        {
-            toggle_ab(app, strip, effect);
-        }
-        if ui
-            .small_button(t("ab.copy"))
-            .on_hover_text(t("ab.copy_tip"))
-            .clicked()
-        {
-            if let Some((state, params)) = app.plugins.capture(effect) {
-                app.fx.hosted.ab.insert(effect, (state, params, on_b));
-            }
-        }
-    });
-}
-
-fn save_preset(
+pub(crate) fn save_preset(
     app: &mut CantusApp,
     effect: EffectId,
     plugin_id: &str,
@@ -759,32 +883,42 @@ fn save_preset(
 
 // ---- the plug-in manager, in Settings -------------------------------------------------
 
-/// Folders, rescans, what was found, and the blocked list.
+/// Folders, rescans, what was found, and the blocked list — in the kit's parts: action
+/// keys for the verbs, section bands for the lists, boxed lines for what they hold.
 pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let pal = theme::p();
-    let dim = |s: String| {
-        RichText::new(s)
-            .text_style(design::caption())
-            .color(pal.text_dim)
-    };
+    let s = Style::current();
+    let width = ui.available_width().max(360.0);
     let found = app.plugins.db.plugins().len();
     let blocked = app.plugins.db.blocked().len();
     ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
         let scanning = app.plugins.scanning();
-        if ui
-            .add_enabled(!scanning, egui::Button::new(t("host.manager.scan")))
-            .on_hover_text(t("host.manager.scan_tip"))
+        ui.add_enabled_ui(!scanning, |ui| {
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.scan"),
+                &t("host.manager.scan_tip"),
+                110.0,
+                false,
+            )
             .clicked()
-        {
-            app.plugins.start_scan(false);
-        }
-        if ui
-            .add_enabled(!scanning, egui::Button::new(t("host.manager.rescan_all")))
-            .on_hover_text(t("host.manager.rescan_all_tip"))
+            {
+                app.plugins.start_scan(false);
+            }
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.rescan_all"),
+                &t("host.manager.rescan_all_tip"),
+                130.0,
+                false,
+            )
             .clicked()
-        {
-            app.plugins.start_scan(true);
-        }
+            {
+                app.plugins.start_scan(true);
+            }
+        });
         let status = if scanning {
             t("host.manager.scanning")
         } else {
@@ -793,25 +927,35 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
                 &[("found", &found), ("blocked", &blocked)],
             )
         };
-        ui.label(dim(status));
+        controls::line(ui, &s, &status, s.t.text_dim, (width - 260.0).max(120.0));
     });
-    ui.add_space(grid::S2);
-    ui.label(RichText::new(t("host.manager.folders")).text_style(design::strong()));
+    ui.add_space(8.0);
+    band_title(ui, &s, "host.manager.folders", width);
     let standard: Vec<std::path::PathBuf> = cantus_host::backends()
         .iter()
         .flat_map(|b| b.search_paths())
         .collect();
+    let standard_word = t("host.manager.standard");
     for f in &standard {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(f.display().to_string()).text_style(design::mono_small()));
-            ui.label(dim(t("host.manager.standard")));
+            controls::line(ui, &s, &f.display().to_string(), s.t.text, width - 130.0);
+            controls::line(ui, &s, &standard_word, s.t.text_dim, 120.0);
         });
     }
     let mut remove = None;
     for f in &app.plugins.db.folders {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(f.display().to_string()).text_style(design::mono_small()));
-            if ui.small_button(t("host.manager.remove")).clicked() {
+            controls::line(ui, &s, &f.display().to_string(), s.t.text, width - 130.0);
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.remove"),
+                &t("host.manager.remove"),
+                110.0,
+                false,
+            )
+            .clicked()
+            {
                 remove = Some(f.clone());
             }
         });
@@ -820,20 +964,41 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
         app.plugins.remove_folder(&f);
     }
     ui.horizontal(|ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut app.fx.hosted.folder)
-                .hint_text(t("host.manager.folder_hint"))
-                .desired_width(grid::GRID * 64.0),
+        ui.spacing_mut().item_spacing.x = 6.0;
+        controls::text_field(
+            ui,
+            &s,
+            ui.id().with("host-folder"),
+            &mut app.fx.hosted.folder,
+            &t("host.manager.folder_hint"),
+            (width - 250.0).max(160.0),
         );
         let typed = app.fx.hosted.folder.trim().to_string();
-        if ui
-            .add_enabled(!typed.is_empty(), egui::Button::new(t("host.manager.add")))
+        ui.add_enabled_ui(!typed.is_empty(), |ui| {
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.add"),
+                &t("host.manager.add"),
+                110.0,
+                false,
+            )
             .clicked()
+            {
+                app.plugins.add_folder(std::path::PathBuf::from(&typed));
+                app.fx.hosted.folder.clear();
+            }
+        });
+        if controls::key(
+            ui,
+            &s,
+            Src::Key("host.manager.browse"),
+            &t("host.manager.browse"),
+            120.0,
+            false,
+        )
+        .clicked()
         {
-            app.plugins.add_folder(std::path::PathBuf::from(&typed));
-            app.fx.hosted.folder.clear();
-        }
-        if ui.button(t("host.manager.browse")).clicked() {
             if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                 app.plugins.add_folder(dir);
             }
@@ -841,25 +1006,22 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
     });
     // What the scans found.
     let found_list: Vec<PluginInfo> = app.plugins.db.plugins().into_iter().cloned().collect();
-    ui.add_space(grid::S2);
-    egui::CollapsingHeader::new(
-        RichText::new(tf("host.manager.found", &[("n", &found_list.len())]))
-            .text_style(design::strong()),
-    )
-    .id_salt("host-found")
-    .default_open(true)
-    .show(ui, |ui| {
-        for p in &found_list {
-            ui.horizontal(|ui| {
-                ui.label(&p.name);
-                badge(ui, cantus_host::to_project_format(p.format).badge());
-                ui.label(dim(format!("{} · {}", p.vendor, p.version)));
-                if p.kind != cantus_host::PluginKind::Effect {
-                    ui.label(dim(t("host.manager.not_effect")));
-                }
-            });
-        }
-    });
+    ui.add_space(8.0);
+    let title = tf("host.manager.found", &[("n", &found_list.len())]);
+    band_title_text(ui, &s, &title, width);
+    let not_effect = t("host.manager.not_effect");
+    for p in &found_list {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            controls::line(ui, &s, &p.name, s.t.text, (width * 0.4).max(140.0));
+            badge(ui, cantus_host::to_project_format(p.format).badge());
+            let who = format!("{} \u{b7} {}", p.vendor, p.version);
+            controls::line(ui, &s, &who, s.t.text_dim, (width * 0.3).max(100.0));
+            if p.kind != cantus_host::PluginKind::Effect {
+                controls::line(ui, &s, &not_effect, s.t.text_dim, 120.0);
+            }
+        });
+    }
     let blocked: Vec<(std::path::PathBuf, String)> = app
         .plugins
         .db
@@ -873,26 +1035,35 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
             (e.path.clone(), why)
         })
         .collect();
-    ui.add_space(grid::S2);
-    ui.label(RichText::new(t("host.manager.blocked")).text_style(design::strong()));
-    if blocked.is_empty() {
-        ui.label(dim(t("host.manager.blocked_none")));
+    ui.add_space(8.0);
+    band_title(ui, &s, "host.manager.blocked", width);
+    let hint = if blocked.is_empty() {
+        t("host.manager.blocked_none")
     } else {
-        ui.label(dim(t("host.manager.blocked_hint")));
-    }
+        t("host.manager.blocked_hint")
+    };
+    controls::line(ui, &s, &hint, s.t.text_dim, width);
     let mut retry = None;
     for (path, why) in &blocked {
         ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(path.display().to_string())
-                    .text_style(design::mono_small())
-                    .color(pal.danger),
+            ui.spacing_mut().item_spacing.x = 6.0;
+            controls::line(
+                ui,
+                &s,
+                &path.display().to_string(),
+                s.t.danger,
+                (width * 0.45).max(160.0),
             );
-            ui.label(dim(why.clone()));
-            if ui
-                .small_button(t("host.manager.retry"))
-                .on_hover_text(t("host.manager.retry_tip"))
-                .clicked()
+            controls::line(ui, &s, why, s.t.text_dim, (width * 0.35).max(120.0));
+            if controls::key(
+                ui,
+                &s,
+                Src::Key("host.manager.retry"),
+                &t("host.manager.retry_tip"),
+                90.0,
+                false,
+            )
+            .clicked()
             {
                 retry = Some(path.clone());
             }
@@ -903,8 +1074,25 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
     }
     let failed = app.plugins.db.failed().len();
     if failed > 0 {
-        ui.label(dim(tf("host.manager.failed", &[("n", &failed)])));
+        let line = tf("host.manager.failed", &[("n", &failed)]);
+        controls::line(ui, &s, &line, s.t.text_dim, width);
     }
+}
+
+/// A section band with a title already in words.
+fn band_title_text(ui: &mut egui::Ui, s: &Style, title: &str, width: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, band::BAND), Sense::hover());
+    crate::kit::with_brush(ui.painter(), |b| {
+        band::section(
+            b,
+            rect,
+            s,
+            crate::kit::State::REST,
+            Src::Str(title),
+            None,
+            false,
+        )
+    });
 }
 
 // ---- screenshots ------------------------------------------------------------------------

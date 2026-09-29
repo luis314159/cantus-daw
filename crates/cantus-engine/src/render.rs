@@ -98,8 +98,10 @@ pub fn render_with_units(
     let snap = Arc::new(snap);
 
     let effect_count: usize = snap.strips.iter().map(|s| s.effects.len()).sum();
-    let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count);
-    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
+    let instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    let (mut tx, rx_engine) =
+        RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
+    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
 
     for strip in &snap.strips {
@@ -110,6 +112,9 @@ pub fn render_with_units(
             };
             tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
         }
+    }
+    for unit in instruments {
+        tx.push(EngineMessage::AddInstrument(unit)).ok();
     }
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     // Delay compensation longer than the pool's start-up lines is asked for; answer it

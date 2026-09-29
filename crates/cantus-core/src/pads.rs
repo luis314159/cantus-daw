@@ -8,42 +8,88 @@
 //! That is what makes drum mode a property of the *kit* rather than a mode the user has
 //! to remember to switch on — and it is what a sampler with named zones will want later,
 //! for nothing.
+//!
+//! ## Pulsus II
+//!
+//! A kit carries a **model version** ([`PulsusParams::version`]). A kit written before
+//! Pulsus II has none in its file and loads as **model 1**, which renders bit-identically
+//! to the Pulsus that wrote it — including the two defects Pulsus II fixes (noise seeded
+//! from a hit count that a seek resets, and a kick 52 cents sharp of F1). A kit made now
+//! is model 2 ([`PULSUS_MODEL`]). Every field Pulsus II added reads from an old file as a
+//! value that changes no sample, so an old kit can use the new sections without being
+//! upgraded; upgrading is one command and changes only what the version says it does.
+//!
+//! Pads have a stable [`PadId`]: the rack, the commands and the lanes address a pad by
+//! identity, so inserting a lower pad no longer renumbers the ones above it.
 
-use crate::model::{pitch_name, Pitch};
+use crate::model::{pitch_name, Pitch, StripId};
 use serde::{Deserialize, Serialize};
 
-/// What makes a pad's sound: one of Pulsus's three synthesized shapes, or a sample.
+#[path = "pads_field.rs"]
+mod field;
+#[path = "pads_kit.rs"]
+mod kit;
+pub use field::{KitField, PadField, PadParamInfo};
+pub use kit::FactoryKit;
+
+/// The model a kit made today is. Model 1 is the Pulsus of rounds 12–16, kept so old
+/// projects sound exactly as they did.
+pub const PULSUS_MODEL: u8 = 2;
+/// The most sample layers a pad holds; the engine preallocates this many per pad.
+pub const MAX_LAYERS: usize = 16;
+/// Choke groups a kit can use (0 is none).
+pub const CHOKE_GROUPS: u8 = 16;
+
+/// A pad's identity inside its kit: never reused while the kit lives, never renumbered
+/// when a pad is added below it. Zero means "not yet assigned" and is fixed up on load.
+#[derive(
+    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
+#[serde(transparent)]
+pub struct PadId(pub u16);
+
+/// What makes a pad's sound: one of Pulsus's synthesized voices, or a sample.
 ///
-/// The kit ships more pads than shapes: the toms and the rim are the snare's shape at
-/// different tunings and mixes, which is a *preset*, not a fourth voice. Saying so is
-/// worth more than pretending otherwise, and it is why adding a tom costs no DSP.
+/// The first four are Pulsus I's and keep their indices, because [`PadField::Voice`] is a
+/// stepped index and old projects store it. A voice has one or more **models**
+/// ([`PadVoice::models`]): the Pulsus kick, the 808 and the 909 are three models of one
+/// voice, so a kit keeps its flat field table and a model switch is one undoable number.
 ///
-/// `Sample` is a voice like the other three rather than a second instrument, so a kit can
-/// mix a synthesized kick with a sampled snare, and the rack, the inspector, the choke
-/// groups and the mute all work the same way for both. The file itself is
-/// [`DrumPad::sample`]; the voice only says that it is used.
+/// `Sample` is a voice like the others rather than a second instrument, so a kit can mix a
+/// synthesized kick with a sampled snare, and the rack, the inspector, the choke groups
+/// and the mute all work the same way for both.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PadVoice {
     Kick,
     Snare,
+    /// Pulsus I's hi-hat; in Pulsus II the **metal** voice: hat, 808 cymbal, 808 cowbell
+    /// and a modal cymbal. The variant keeps its name so old files read.
     HiHat,
     Sample,
+    /// Band-passed noise re-triggered a few times, then a room tail.
+    Clap,
+    /// A modal resonator bank: toms, congas, bongos, bars, woodblocks, plates, bells.
+    Tom,
 }
 
 impl PadVoice {
-    pub const ALL: [PadVoice; 4] = [
+    pub const ALL: [PadVoice; 6] = [
         PadVoice::Kick,
         PadVoice::Snare,
         PadVoice::HiHat,
         PadVoice::Sample,
+        PadVoice::Clap,
+        PadVoice::Tom,
     ];
 
     pub fn label_key(self) -> &'static str {
         match self {
             PadVoice::Kick => "pad.voice.kick",
             PadVoice::Snare => "pad.voice.snare",
-            PadVoice::HiHat => "pad.voice.hihat",
+            PadVoice::HiHat => "pulsus.voice.metal",
             PadVoice::Sample => "pad.voice.sample",
+            PadVoice::Clap => "pulsus.voice.clap",
+            PadVoice::Tom => "pulsus.voice.tom",
         }
     }
 
@@ -53,11 +99,157 @@ impl PadVoice {
             PadVoice::Snare => 1,
             PadVoice::HiHat => 2,
             PadVoice::Sample => 3,
+            PadVoice::Clap => 4,
+            PadVoice::Tom => 5,
         }
     }
 
     pub fn from_index(i: usize) -> PadVoice {
-        PadVoice::ALL[i.min(3)]
+        PadVoice::ALL[i.min(PadVoice::ALL.len() - 1)]
+    }
+
+    /// The models of this voice, as label keys; index 0 is the default (for the first
+    /// three voices, Pulsus I's own shape).
+    pub fn models(self) -> &'static [&'static str] {
+        match self {
+            PadVoice::Kick => &[
+                "pulsus.model.pulsus",
+                "pulsus.model.kick808",
+                "pulsus.model.kick909",
+            ],
+            PadVoice::Snare => &["pulsus.model.pulsus", "pulsus.model.modal"],
+            PadVoice::HiHat => &[
+                "pulsus.model.hat",
+                "pulsus.model.cymbal808",
+                "pulsus.model.cowbell808",
+                "pulsus.model.cymbal_modal",
+            ],
+            PadVoice::Sample => &["pulsus.model.sampler"],
+            PadVoice::Clap => &["pulsus.model.clap"],
+            PadVoice::Tom => &["pulsus.model.modal"],
+        }
+    }
+}
+
+/// How a pad chooses among layers that share a velocity zone.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum RoundRobin {
+    /// Every layer of the zone sounds (a stack).
+    #[default]
+    Off,
+    /// In order, by the hit's ordinal on the track: survives a seek by construction.
+    Cycle,
+    /// Seeded from the kit's seed, the pad and the hit.
+    Random,
+    /// Random, never the same layer twice in a row (FPC's "avoid previous").
+    NoRepeat,
+}
+
+impl RoundRobin {
+    pub const ALL: [RoundRobin; 4] = [
+        RoundRobin::Off,
+        RoundRobin::Cycle,
+        RoundRobin::Random,
+        RoundRobin::NoRepeat,
+    ];
+
+    pub fn index(self) -> usize {
+        RoundRobin::ALL.iter().position(|r| *r == self).unwrap_or(0)
+    }
+
+    pub fn from_index(i: usize) -> RoundRobin {
+        RoundRobin::ALL[i.min(3)]
+    }
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            RoundRobin::Off => "pulsus.rr.off",
+            RoundRobin::Cycle => "pulsus.rr.cycle",
+            RoundRobin::Random => "pulsus.rr.random",
+            RoundRobin::NoRepeat => "pulsus.rr.no_repeat",
+        }
+    }
+}
+
+/// One sample layer of a pad: a file and where in velocity it plays.
+///
+/// Layers with the **same** velocity range form one zone, and the pad's
+/// [`RoundRobin`] picks among them; adjacent zones cross-fade over `xfade` velocity units,
+/// equal-power, centred on the boundary between them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PadLayer {
+    pub sample: String,
+    #[serde(default = "d_vel_lo")]
+    pub vel_lo: u8,
+    #[serde(default = "d_vel_hi")]
+    pub vel_hi: u8,
+    /// Width of the cross-fade at each edge of the zone, in velocity units.
+    #[serde(default)]
+    pub xfade: u8,
+    /// Semitones, on top of the pad's tune.
+    #[serde(default)]
+    pub tune: f32,
+    /// dB.
+    #[serde(default)]
+    pub level_db: f32,
+    /// −1..=1, on top of the pad's pan.
+    #[serde(default)]
+    pub pan: f32,
+    /// Where playback starts, ms into the file.
+    #[serde(default)]
+    pub start_ms: f32,
+    #[serde(default)]
+    pub reverse: bool,
+}
+
+fn d_vel_lo() -> u8 {
+    1
+}
+fn d_vel_hi() -> u8 {
+    127
+}
+
+impl PadLayer {
+    pub fn new(sample: impl Into<String>) -> PadLayer {
+        PadLayer {
+            sample: sample.into(),
+            vel_lo: 1,
+            vel_hi: 127,
+            xfade: 0,
+            tune: 0.0,
+            level_db: 0.0,
+            pan: 0.0,
+            start_ms: 0.0,
+            reverse: false,
+        }
+    }
+
+    /// The layer's gain at a velocity (1…127): 1 inside its zone, an equal-power fade over
+    /// `xfade` units centred half a unit outside each inner edge, 0 beyond.
+    pub fn velocity_gain(&self, velocity: f32) -> f32 {
+        let lo = self.vel_lo.min(self.vel_hi) as f32 - 0.5;
+        let hi = self.vel_lo.max(self.vel_hi) as f32 + 0.5;
+        let w = self.xfade as f32;
+        let fade = |d: f32| -> f32 {
+            // d: distance inside the edge; −w/2 → 0, +w/2 → 1.
+            if w <= 0.0 {
+                return if d >= 0.0 { 1.0 } else { 0.0 };
+            }
+            let t = (d / w + 0.5).clamp(0.0, 1.0);
+            (t * std::f32::consts::FRAC_PI_2).sin()
+        };
+        // The ends of the velocity scale have nothing to cross-fade with.
+        let fade_in = if self.vel_lo.min(self.vel_hi) <= 1 {
+            1.0
+        } else {
+            fade(velocity - lo)
+        };
+        let fade_out = if self.vel_lo.max(self.vel_hi) >= 127 {
+            1.0
+        } else {
+            fade(hi - velocity)
+        };
+        fade_in * fade_out
     }
 }
 
@@ -83,67 +275,143 @@ impl SampleData {
 
 /// One drum in a kit.
 ///
-/// Flat rather than a per-voice enum on purpose: every field is a plain `f32` the command
+/// Flat rather than a per-voice enum on purpose: every field is a plain number the command
 /// bus can set and undo without knowing which shape the pad is, and
 /// [`PadField::applies_to`] is what keeps the inspector from offering a hi-hat a pitch
-/// envelope. A union would move that filter into three `match` arms in the command path,
-/// where it would be load-bearing instead of cosmetic.
+/// envelope. A union would move that filter into `match` arms in the command path, where
+/// it would be load-bearing instead of cosmetic.
+///
+/// Every field Pulsus II added is read from an old file as [`DrumPad::default`]'s value,
+/// which is the value that changes no sample (`#[serde(default)]` on the struct).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DrumPad {
+    /// Identity inside the kit ([`PadId`]); assigned on load when a file has none.
+    pub id: PadId,
     /// The note that plays this pad. General MIDI's drum map, so a drum controller and
     /// an imported MIDI file both land where a musician expects.
     pub pitch: Pitch,
-    /// The pad's name, which travels **in the kit**: renaming it once renames it in every
-    /// clip and every project that uses this kit.
+    /// The pad's name, which travels **in the kit**.
     pub name: String,
     pub voice: PadVoice,
     /// Semitones, tuning the whole voice at once.
     pub tune: f32,
     /// Main amplitude decay to −60 dB, seconds.
     pub decay: f32,
-    /// Kick: how far the pitch falls, semitones.
+    /// Kick: how far the pitch falls, semitones (the 909's tune depth, the 808's sweep).
     pub pitch_drop: f32,
     /// Kick: how fast it falls, seconds.
     pub pitch_decay: f32,
-    /// Kick: level of the click transient.
+    /// Kick: level of the click transient (the 909's attack, the 808's pulse).
     pub click: f32,
-    /// Kick: soft saturation. Zero is exactly clean.
+    /// Soft saturation. Zero is exactly clean. Model 1 kits saturate only the kick.
     pub drive: f32,
     /// Snare: the noise's own decay, seconds.
     pub noise_decay: f32,
-    /// Where the voice's noise or partials sit, Hz. The kick's click high-pass, the
-    /// snare's noise band-pass, the hi-hat's band-pass.
+    /// Where the voice's noise or partials sit, Hz.
     pub tone: f32,
-    /// Snare: 0 is all body, 1 is all noise.
+    /// Snare: 0 is all body, 1 is all noise ("snappy").
     pub mix: f32,
-    /// Hi-hat: the high-pass after the band-pass, Hz.
+    /// Metal: the high-pass after the band-pass, Hz.
     pub hp_cutoff: f32,
     /// The pad's own level trim. 0 dB is the pad as the kit was balanced.
     pub level_db: f32,
-    /// The pad's place in the kit's stereo image, −1..=1. Not the track's pan: a kit is a
-    /// dozen sources on one channel, and spreading them is part of the instrument.
+    /// The pad's place in the kit's stereo image, −1..=1.
     pub pan: f32,
-    /// Choke group; 0 is none. Triggering a pad silences sounding voices in the same
-    /// group — without it an open hat is never cut by a closed one, and the kit stops
-    /// being a kit.
+    /// Choke group, 0 is none, 1…16.
     pub choke: u8,
     /// A muted pad keeps its notes and its place in the rack; it just does not sound.
-    /// Resolved when the snapshot is compiled, like a muted track.
-    #[serde(default)]
     pub muted: bool,
-    /// The file a [`PadVoice::Sample`] pad plays. Kept as the path it was given, so a
-    /// project points at the musician's sample library rather than copying it; a file
-    /// that cannot be found makes the pad silent and the inspector say so, never a
-    /// project that will not open.
-    #[serde(default)]
+    /// The file a [`PadVoice::Sample`] pad with no layers plays.
     pub sample: Option<String>,
+
+    // ---- Pulsus II ------------------------------------------------------------------
+    /// Which model of the voice ([`PadVoice::models`]).
+    pub model: u8,
+    /// Sample layers; on a synthesized pad they sound with the synth (a body plus a
+    /// sampled click). On a sample pad they replace `sample`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<PadLayer>,
+    pub round_robin: RoundRobin,
+    /// Where the pad is heard: `None` is the kit's own strip. The engine's multi-out is
+    /// not wired yet (see `docs/instruments/pulsus.md`, "the hook").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<StripId>,
+    /// Amplitude envelope: attack and hold, ms, before the decay; and the decay's curve
+    /// (0 exponential, 1 linear, −1 faster than exponential).
+    pub attack_ms: f32,
+    pub hold_ms: f32,
+    pub curve: f32,
+    /// Pitch envelope of the voices that have no sweep of their own: semitones and ms.
+    pub pitch_env: f32,
+    pub pitch_env_ms: f32,
+    /// Filter: 0 off, 1 low-pass, 2 high-pass, 3 band-pass; cutoff Hz; resonance 0…1;
+    /// envelope amount in semitones of cutoff, following the amplitude envelope.
+    pub filter: u8,
+    pub cutoff: f32,
+    pub resonance: f32,
+    pub filter_env: f32,
+    /// Transient shaper, dB: the first milliseconds, and what follows.
+    pub trans_attack: f32,
+    pub trans_sustain: f32,
+    /// 0 soft, 1 tape, 2 clip (all 2× oversampled), 3 raw (not oversampled: grit).
+    pub drive_mode: u8,
+    /// Start phase of a synthesized body, degrees (0 is click-free, 90 a hard click).
+    pub phase: f32,
+    /// Velocity: → level (%; 100 is Pulsus I's curve), → tone (%; 50 is Pulsus I's),
+    /// → pitch (semitones at 127), → decay (%).
+    pub vel_level: f32,
+    pub vel_tone: f32,
+    pub vel_pitch: f32,
+    pub vel_decay: f32,
+    /// How long a choked voice takes to reach −60 dB, ms.
+    pub choke_fade_ms: f32,
+    /// A note-off chokes the pad's own sounding hit (a held pedal, a muted cymbal).
+    pub choke_on_off: bool,
+    /// Voices this pad may hold at once; 0 is no limit.
+    pub polyphony: u8,
+    /// Metal: follows the hi-hat pedal (the kit's controller) once one has arrived.
+    pub pedal: bool,
+    /// Metal: 0 closed … 1 open; the decay moves to `open_decay` as it opens.
+    pub openness: f32,
+    pub open_decay: f32,
+    /// 808 kick: how far the pitch sags as the resonator rings down.
+    pub sigh: f32,
+    /// Modal snare: how strongly the wires follow the head.
+    pub wires: f32,
+    /// Modal: material (0 membrane, 1 bar, 2 wood, 3 plate, 4 bell), mode count, the
+    /// high modes' extra damping, strike position centre → edge, mallet hardness,
+    /// tension glide (semitones), and shell/air loading of a membrane.
+    pub material: u8,
+    pub modes: u8,
+    pub damping: f32,
+    pub position: f32,
+    pub hardness: f32,
+    pub glide: f32,
+    pub shell: f32,
+    /// 808 cymbal: low band ↔ high band.
+    pub band_mix: f32,
+    /// Modal cymbal: how long the shimmer takes to swell, ms.
+    pub swell_ms: f32,
+    /// Clap: how many hands, how far apart (ms), and the band's Q.
+    pub bursts: u8,
+    pub spacing_ms: f32,
+    pub q: f32,
+}
+
+impl Default for DrumPad {
+    fn default() -> Self {
+        DrumPad::new(36, "", PadVoice::Kick)
+    }
 }
 
 impl DrumPad {
     /// A pad with the kick's numbers, on `pitch`, called `name`. The named constructors
-    /// below are the shipped sounds; this is the blank they start from.
+    /// (`pads_kit.rs`) are the shipped sounds; this is the blank they start from. Every
+    /// Pulsus II field is at the value that changes no sample.
     pub fn new(pitch: Pitch, name: &str, voice: PadVoice) -> DrumPad {
         DrumPad {
+            id: PadId(0),
             pitch,
             name: name.to_string(),
             voice,
@@ -152,7 +420,8 @@ impl DrumPad {
             pitch_drop: 15.5,
             pitch_decay: 0.04,
             click: 0.35,
-            drive: 0.2,
+            // Only a kick saturates by default: from model 2 on, drive reaches every voice.
+            drive: if voice == PadVoice::Kick { 0.2 } else { 0.0 },
             noise_decay: 0.2,
             tone: 1_800.0,
             mix: 0.5,
@@ -162,298 +431,160 @@ impl DrumPad {
             choke: 0,
             muted: false,
             sample: None,
+            model: 0,
+            layers: Vec::new(),
+            round_robin: RoundRobin::Off,
+            output: None,
+            attack_ms: 0.0,
+            hold_ms: 0.0,
+            curve: 0.0,
+            pitch_env: 0.0,
+            pitch_env_ms: 50.0,
+            filter: 0,
+            cutoff: 1_000.0,
+            resonance: 0.1,
+            filter_env: 0.0,
+            trans_attack: 0.0,
+            trans_sustain: 0.0,
+            drive_mode: 0,
+            phase: 0.0,
+            vel_level: 100.0,
+            vel_tone: 50.0,
+            vel_pitch: 0.0,
+            vel_decay: 0.0,
+            choke_fade_ms: 4.0,
+            choke_on_off: false,
+            polyphony: 0,
+            pedal: false,
+            openness: 0.0,
+            open_decay: 1.2,
+            sigh: 0.3,
+            wires: 0.5,
+            material: 0,
+            modes: 12,
+            damping: 0.5,
+            position: 0.3,
+            hardness: 0.5,
+            glide: 1.0,
+            shell: 0.5,
+            band_mix: 0.5,
+            swell_ms: 40.0,
+            bursts: 4,
+            spacing_ms: 10.0,
+            q: 2.0,
+        }
+    }
+
+    /// The model index, clamped to the models this voice has.
+    pub fn model_index(&self) -> usize {
+        (self.model as usize).min(self.voice.models().len() - 1)
+    }
+}
+
+/// Kit-wide settings of Pulsus II.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct KitSettings {
+    /// Seeds the noise, round robin and every other choice a hit makes (with the pad and
+    /// the note), so two renders of one kit agree and a different seed differs.
+    pub seed: u32,
+    /// The hi-hat pedal's controller number (CC4) and whether it is reversed (some e-kit
+    /// pedals send 127 for closed).
+    pub hat_cc: u8,
+    pub hat_invert: bool,
+}
+
+impl Default for KitSettings {
+    fn default() -> Self {
+        KitSettings {
+            seed: 1,
+            hat_cc: 4,
+            hat_invert: false,
         }
     }
 }
 
-/// An addressable field of a pad — the "plugin parameter id" of a drum.
-///
-/// The ranges and defaults depend on the pad's voice ([`PadField::info`]): a hi-hat's tone
-/// lives around 9 kHz and a snare's around 2 kHz, and offering both the same slider would
-/// make one of them unusable.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PadField {
-    /// Which voice the pad is, as an index into [`PadVoice::ALL`] — a stepped parameter
-    /// like Firmus's waveform selector, so switching a pad from a synthesized snare to a
-    /// sample is one undoable command like everything else.
-    Voice,
-    Level,
-    Pan,
-    Choke,
-    Mute,
-    Tune,
-    Decay,
-    PitchDrop,
-    PitchDecay,
-    Click,
-    Drive,
-    NoiseDecay,
-    Tone,
-    Mix,
-    HpCutoff,
-}
-
-/// Display and range metadata for a pad field, for a particular voice.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct PadParamInfo {
-    pub field: PadField,
-    pub label_key: &'static str,
-    pub min: f32,
-    pub max: f32,
-    pub default: f32,
-    pub unit: &'static str,
-    pub logarithmic: bool,
-    pub stepped: bool,
-}
-
-impl PadField {
-    pub const ALL: [PadField; 15] = [
-        PadField::Voice,
-        PadField::Level,
-        PadField::Pan,
-        PadField::Choke,
-        PadField::Mute,
-        PadField::Tune,
-        PadField::Decay,
-        PadField::PitchDrop,
-        PadField::PitchDecay,
-        PadField::Click,
-        PadField::Drive,
-        PadField::NoiseDecay,
-        PadField::Tone,
-        PadField::Mix,
-        PadField::HpCutoff,
-    ];
-
-    /// Does this voice have this field at all? The inspector and the channel rack both
-    /// ask, so a hi-hat is never offered a pitch envelope it does not have.
-    pub fn applies_to(self, voice: PadVoice) -> bool {
-        use PadField::*;
-        match self {
-            Voice | Level | Pan | Choke | Mute | Tune | Decay => true,
-            PitchDrop | PitchDecay | Click | Drive => voice == PadVoice::Kick,
-            NoiseDecay | Mix => voice == PadVoice::Snare,
-            Tone => voice != PadVoice::Sample,
-            HpCutoff => voice == PadVoice::HiHat,
-        }
-    }
-
-    /// Every field this voice actually has, in the order an inspector should show them.
-    pub fn for_voice(voice: PadVoice) -> impl Iterator<Item = PadField> {
-        PadField::ALL
-            .into_iter()
-            .filter(move |f| f.applies_to(voice))
-    }
-
-    pub fn info(self, voice: PadVoice) -> PadParamInfo {
-        use PadField::*;
-        let i = |label_key, min, max, default, unit, logarithmic, stepped| PadParamInfo {
-            field: self,
-            label_key,
-            min,
-            max,
-            default,
-            unit,
-            logarithmic,
-            stepped,
-        };
-        match self {
-            Voice => i("pad.voice", 0.0, 3.0, voice.index() as f32, "", false, true),
-            Level => i("pad.level", -24.0, 12.0, 0.0, "dB", false, false),
-            Pan => i("pad.pan", -1.0, 1.0, 0.0, "", false, false),
-            // Zero is "no group", so the range starts there and the numbers above it are
-            // names, not amounts.
-            Choke => i("pad.choke", 0.0, 8.0, 0.0, "", false, true),
-            Mute => i("pad.mute", 0.0, 1.0, 0.0, "", false, true),
-            Tune => i("pad.tune", -24.0, 24.0, 0.0, "st", false, false),
-            Decay => match voice {
-                PadVoice::Kick => i("pad.decay", 0.02, 2.0, 0.36, "s", true, false),
-                PadVoice::Snare => i("pad.decay", 0.01, 1.5, 0.13, "s", true, false),
-                PadVoice::HiHat => i("pad.decay", 0.01, 2.0, 0.06, "s", true, false),
-                // A sample plays to its end by default; the decay is there to shorten
-                // one, so its default is longer than any drum hit.
-                PadVoice::Sample => i("pad.decay", 0.02, 8.0, 4.0, "s", true, false),
-            },
-            PitchDrop => i("pad.pitch_drop", 0.0, 36.0, 15.5, "st", false, false),
-            PitchDecay => i("pad.pitch_decay", 0.005, 0.4, 0.04, "s", true, false),
-            Click => i("pad.click", 0.0, 1.0, 0.35, "", false, false),
-            Drive => i("pad.drive", 0.0, 1.0, 0.2, "", false, false),
-            NoiseDecay => i("pad.noise_decay", 0.01, 2.0, 0.19, "s", true, false),
-            Tone => match voice {
-                PadVoice::Kick => i("pad.tone", 300.0, 8_000.0, 1_800.0, "Hz", true, false),
-                PadVoice::Snare | PadVoice::Sample => {
-                    i("pad.tone", 300.0, 8_000.0, 1_900.0, "Hz", true, false)
-                }
-                PadVoice::HiHat => i("pad.tone", 2_000.0, 16_000.0, 9_500.0, "Hz", true, false),
-            },
-            Mix => i("pad.mix", 0.0, 1.0, 0.55, "", false, false),
-            HpCutoff => i(
-                "pad.hp_cutoff",
-                1_000.0,
-                16_000.0,
-                7_000.0,
-                "Hz",
-                true,
-                false,
-            ),
-        }
-    }
-
-    pub fn get(self, pad: &DrumPad) -> f32 {
-        use PadField::*;
-        match self {
-            Voice => pad.voice.index() as f32,
-            Level => pad.level_db,
-            Pan => pad.pan,
-            Choke => pad.choke as f32,
-            Mute => pad.muted as u8 as f32,
-            Tune => pad.tune,
-            Decay => pad.decay,
-            PitchDrop => pad.pitch_drop,
-            PitchDecay => pad.pitch_decay,
-            Click => pad.click,
-            Drive => pad.drive,
-            NoiseDecay => pad.noise_decay,
-            Tone => pad.tone,
-            Mix => pad.mix,
-            HpCutoff => pad.hp_cutoff,
-        }
-    }
-
-    /// Set the field, clamping to its legal range. Returns the value actually stored, so
-    /// the command bus records what happened rather than what was asked for.
-    pub fn set(self, pad: &mut DrumPad, value: f32) -> f32 {
-        use PadField::*;
-        let info = self.info(pad.voice);
-        let v = if value.is_finite() {
-            value.clamp(info.min, info.max)
-        } else {
-            info.default
-        };
-        let v = if info.stepped { v.round() } else { v };
-        match self {
-            // Only the voice. A first version also moved the decay to the new voice's
-            // default, and the undo fuzz caught it within a minute: the inverse command
-            // restores the *voice*, not the decay it dragged along, so undo was not exact.
-            // A decay outside the new voice's range is clamped by the engine and shown
-            // pinned by the slider, which is a small cost and an honest one.
-            Voice => pad.voice = PadVoice::from_index(v as usize),
-            Level => pad.level_db = v,
-            Pan => pad.pan = v,
-            Choke => pad.choke = v as u8,
-            Mute => pad.muted = v >= 0.5,
-            Tune => pad.tune = v,
-            Decay => pad.decay = v,
-            PitchDrop => pad.pitch_drop = v,
-            PitchDecay => pad.pitch_decay = v,
-            Click => pad.click = v,
-            Drive => pad.drive = v,
-            NoiseDecay => pad.noise_decay = v,
-            Tone => pad.tone = v,
-            Mix => pad.mix = v,
-            HpCutoff => pad.hp_cutoff = v,
-        }
-        v
-    }
-}
-
-impl DrumPad {
-    /// The shipped kick, on General MIDI 36.
-    pub fn kick() -> DrumPad {
-        let mut kick = DrumPad::new(36, "Kick", PadVoice::Kick);
-        kick.tone = 2_400.0;
-        kick
-    }
-
-    /// The shipped rim (GM 37): the snare shape, short and high.
-    pub fn rim() -> DrumPad {
-        let mut rim = DrumPad::new(37, "Rim", PadVoice::Snare);
-        rim.tune = 14.0;
-        rim.decay = 0.035;
-        rim.mix = 0.25;
-        rim.tone = 3_200.0;
-        rim.noise_decay = 0.03;
-        rim.level_db = -5.0;
-        rim
-    }
-
-    /// The shipped snare, on GM 38.
-    pub fn snare() -> DrumPad {
-        let mut snare = DrumPad::new(38, "Snare", PadVoice::Snare);
-        snare.decay = 0.13;
-        snare.noise_decay = 0.19;
-        snare.tone = 1_900.0;
-        snare.mix = 0.55;
-        snare
-    }
-
-    /// The shipped closed hat (GM 42), in choke group 1 with the open one.
-    pub fn closed_hat() -> DrumPad {
-        let mut closed = DrumPad::new(42, "Closed hat", PadVoice::HiHat);
-        closed.decay = 0.055;
-        closed.tone = 9_500.0;
-        closed.choke = 1;
-        closed.level_db = -3.0;
-        closed
-    }
-
-    /// The shipped low tom (GM 45): the snare shape, all body, tuned down.
-    pub fn low_tom() -> DrumPad {
-        let mut tom = DrumPad::new(45, "Low tom", PadVoice::Snare);
-        tom.tune = -9.0;
-        tom.decay = 0.42;
-        tom.mix = 0.06;
-        tom.level_db = -2.0;
-        tom
-    }
-
-    /// The shipped open hat (GM 46), in choke group 1 with the closed one.
-    pub fn open_hat() -> DrumPad {
-        let mut open = DrumPad::new(46, "Open hat", PadVoice::HiHat);
-        open.decay = 0.42;
-        open.tone = 9_500.0;
-        open.choke = 1;
-        open.level_db = -4.0;
-        open
-    }
-
-    /// The shipped high tom (GM 50).
-    pub fn high_tom() -> DrumPad {
-        let mut tom = DrumPad::new(50, "High tom", PadVoice::Snare);
-        tom.tune = -1.0;
-        tom.decay = 0.32;
-        tom.mix = 0.06;
-        tom.level_db = -2.0;
-        tom
-    }
-}
-
-/// Parameters of **Pulsus**, the built-in synthesized drum kit.
+/// Parameters of **Pulsus**, the built-in drum kit.
 ///
 /// The pads are kept **sorted by pitch**, which is the order a note editor draws its lanes
 /// in and the order a channel rack lists its rows in. One order, decided once, so the two
 /// views can never disagree about which row is which.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "KitFile")]
 pub struct PulsusParams {
+    /// The model: 1 is Pulsus I (what a file with no version was written by), 2 is
+    /// Pulsus II. See the module documentation for what it changes.
+    pub version: u8,
     pub pads: Vec<DrumPad>,
+    pub kit: KitSettings,
+}
+
+/// What a kit looks like on disk: `version` is absent from the files Pulsus I wrote.
+#[derive(Deserialize)]
+struct KitFile {
+    #[serde(default = "pulsus_one")]
+    version: u8,
+    pads: Vec<DrumPad>,
+    #[serde(default)]
+    kit: KitSettings,
+}
+
+fn pulsus_one() -> u8 {
+    1
+}
+
+impl From<KitFile> for PulsusParams {
+    fn from(f: KitFile) -> Self {
+        let mut k = PulsusParams {
+            version: f.version.max(1),
+            pads: f.pads,
+            kit: f.kit,
+        };
+        k.assign_ids();
+        k
+    }
 }
 
 impl PulsusParams {
-    /// A kit of exactly these pads, sorted by pitch.
+    /// A kit of exactly these pads, sorted by pitch, with ids for any that have none.
     ///
     /// `single(DrumPad::kick())` is how a drum becomes **its own track** — with its own
     /// mixer strip, its own inserts and its own place in the channel rack — which is the
-    /// arrangement FL's channel rack is built around and the one a musician who wants to
-    /// route the kick and the snare differently needs. The seven-pad default is the other
+    /// arrangement FL's channel rack is built around. The seven-pad default is the other
     /// arrangement: one track, one strip, every drum inside it. Both are the same type.
     pub fn of(mut pads: Vec<DrumPad>) -> PulsusParams {
         pads.sort_by_key(|p| p.pitch);
         pads.dedup_by_key(|p| p.pitch);
-        PulsusParams { pads }
+        let mut k = PulsusParams {
+            version: PULSUS_MODEL,
+            pads,
+            kit: KitSettings::default(),
+        };
+        k.assign_ids();
+        k
     }
 
     pub fn single(pad: DrumPad) -> PulsusParams {
-        PulsusParams { pads: vec![pad] }
+        PulsusParams::of(vec![pad])
+    }
+
+    /// Give every pad with no id, or a repeated one, the next free id — in pitch order,
+    /// so an old file always gets the same ids.
+    pub fn assign_ids(&mut self) {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut next = self.pads.iter().map(|p| p.id.0).max().unwrap_or(0);
+        for pad in &mut self.pads {
+            if pad.id.0 == 0 || !seen.insert(pad.id) {
+                next = next.saturating_add(1);
+                pad.id = PadId(next);
+                seen.insert(pad.id);
+            }
+        }
+    }
+
+    /// The id a new pad should take: one above every id the kit holds.
+    pub fn next_id(&self) -> PadId {
+        PadId(self.pads.iter().map(|p| p.id.0).max().unwrap_or(0) + 1)
     }
 
     pub fn pad(&self, index: usize) -> Option<&DrumPad> {
@@ -467,15 +598,45 @@ impl PulsusParams {
     pub fn index_of_pitch(&self, pitch: Pitch) -> Option<usize> {
         self.pads.iter().position(|p| p.pitch == pitch)
     }
+
+    pub fn index_of(&self, id: PadId) -> Option<usize> {
+        self.pads.iter().position(|p| p.id == id)
+    }
+
+    pub fn by_id(&self, id: PadId) -> Option<&DrumPad> {
+        self.pads.iter().find(|p| p.id == id)
+    }
+
+    pub fn by_id_mut(&mut self, id: PadId) -> Option<&mut DrumPad> {
+        self.pads.iter_mut().find(|p| p.id == id)
+    }
+
+    /// Every layer file the kit plays, in the order the engine attaches them after the
+    /// pads' own samples: every pad's layers, in pad order.
+    pub fn layer_paths(&self) -> impl Iterator<Item = &str> {
+        self.pads
+            .iter()
+            .flat_map(|p| p.layers.iter().take(MAX_LAYERS).map(|l| l.sample.as_str()))
+    }
+
+    /// What upgrading this kit to the current model changes besides the version: the
+    /// drive a model 1 kit stored on voices that did not use it, which model 2 would now
+    /// hear. `(pad, field, value)`, for the caller to send as commands.
+    pub fn upgrade_edits(&self) -> Vec<(PadId, PadField, f32)> {
+        if self.version >= PULSUS_MODEL {
+            return Vec::new();
+        }
+        self.pads
+            .iter()
+            .filter(|p| p.voice != PadVoice::Kick && p.drive != 0.0)
+            .map(|p| (p.id, PadField::Drive, 0.0))
+            .collect()
+    }
 }
 
 impl Default for PulsusParams {
-    /// The shipped kit, on the General MIDI drum map.
-    ///
-    /// Three shapes, seven pads: the toms and the rim are the snare shape retuned, which
-    /// is why they cost nothing. The two hats share **choke group 1**, which is the whole
-    /// reason the group exists — a closed hat that does not stop an open one is not a
-    /// hi-hat.
+    /// The shipped kit, on the General MIDI drum map: seven pads, the two hats sharing
+    /// choke group 1. [`PulsusParams::studio`] is the full Pulsus II kit.
     fn default() -> Self {
         PulsusParams::of(vec![
             DrumPad::kick(),
@@ -493,15 +654,12 @@ impl Default for PulsusParams {
 ///
 /// The plan for this asked for `lanes() -> Option<&[Pitch]>`. It is this instead, because
 /// an editor needs three things and a slice of pitches is only one of them: lane → pitch,
-/// pitch → lane, and lane → name. Handing back the slice would push the other two, and the
-/// keyboard fallback for all three, into every call site — which is where the "is this a
-/// drum or a piano" branch would then live, in as many copies as there are views.
+/// pitch → lane, and lane → name.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Lanes<'a> {
     /// A keyboard: 128 lanes, one per pitch, named `C4`, `F#2` and so on.
     Chromatic,
-    /// One lane per pad, ascending by pitch. A sampler with named zones adds a variant
-    /// here and no editor changes, which is the point of the type.
+    /// One lane per pad, ascending by pitch.
     Pads(&'a [DrumPad]),
 }
 
@@ -518,12 +676,20 @@ impl Lanes<'_> {
         }
     }
 
-    /// The pitch a lane plays, counting from the **bottom** — lane 0 is the lowest, which
-    /// is where a kick sits on a kit and where C-1 sits on a keyboard.
+    /// The pitch a lane plays, counting from the **bottom**.
     pub fn pitch(&self, lane: usize) -> Option<Pitch> {
         match self {
             Lanes::Chromatic => (lane < 128).then_some(lane as Pitch),
             Lanes::Pads(p) => p.get(lane).map(|p| p.pitch),
+        }
+    }
+
+    /// The pad a lane is, by identity: what a view keeps when it wants to follow the pad
+    /// through an insert below it.
+    pub fn pad_id(&self, lane: usize) -> Option<PadId> {
+        match self {
+            Lanes::Chromatic => None,
+            Lanes::Pads(p) => p.get(lane).map(|p| p.id),
         }
     }
 
@@ -532,6 +698,14 @@ impl Lanes<'_> {
         match self {
             Lanes::Chromatic => Some(pitch as usize),
             Lanes::Pads(p) => p.iter().position(|p| p.pitch == pitch),
+        }
+    }
+
+    /// Which lane a pad is on, by identity.
+    pub fn lane_of_pad(&self, id: PadId) -> Option<usize> {
+        match self {
+            Lanes::Chromatic => None,
+            Lanes::Pads(p) => p.iter().position(|p| p.id == id),
         }
     }
 
@@ -548,104 +722,5 @@ impl Lanes<'_> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_shipped_kit_is_sorted_by_pitch_and_chokes_its_hats() {
-        let kit = PulsusParams::default();
-        assert!(
-            kit.pads.windows(2).all(|w| w[0].pitch < w[1].pitch),
-            "pads must be sorted by pitch and unique: the rack and the piano roll both \
-             draw them in this order"
-        );
-        let closed = kit.pads.iter().find(|p| p.pitch == 42).expect("closed hat");
-        let open = kit.pads.iter().find(|p| p.pitch == 46).expect("open hat");
-        assert_ne!(closed.choke, 0, "the hats must share a choke group");
-        assert_eq!(closed.choke, open.choke);
-        // Nothing else may join that group by accident: a kick cut by a hat is a bug you
-        // would blame on the sequencer for a week.
-        for pad in &kit.pads {
-            if pad.pitch != 42 && pad.pitch != 46 {
-                assert_eq!(pad.choke, 0, "{} is in a choke group", pad.name);
-            }
-        }
-    }
-
-    #[test]
-    fn every_pad_field_round_trips_and_clamps() {
-        for voice in PadVoice::ALL {
-            let mut pad = DrumPad::new(36, "p", voice);
-            for field in PadField::for_voice(voice) {
-                let info = field.info(voice);
-                assert!(
-                    info.min <= info.default && info.default <= info.max,
-                    "{field:?}"
-                );
-                if field == PadField::Voice {
-                    // Setting the voice changes which ranges apply, so it is checked on
-                    // its own: the index round-trips and out-of-range clamps to the last.
-                    assert_eq!(field.set(&mut pad, 99.0), 3.0);
-                    assert_eq!(pad.voice, PadVoice::Sample);
-                    let back = voice.index() as f32;
-                    assert_eq!(field.set(&mut pad, back), back);
-                    assert_eq!(pad.voice, voice);
-                    continue;
-                }
-                assert_eq!(field.set(&mut pad, info.max + 1_000.0), info.max);
-                assert_eq!(field.get(&pad), info.max);
-                assert_eq!(field.set(&mut pad, f32::NAN), info.default);
-                assert_eq!(field.get(&pad), info.default);
-            }
-        }
-    }
-
-    /// Every shipped pad must sit inside the ranges its own voice declares, or the
-    /// inspector would show a slider already pinned to an end stop.
-    #[test]
-    fn the_shipped_kit_stays_inside_its_own_ranges() {
-        for pad in PulsusParams::default().pads {
-            for field in PadField::for_voice(pad.voice) {
-                let info = field.info(pad.voice);
-                let v = field.get(&pad);
-                assert!(
-                    v >= info.min && v <= info.max,
-                    "{}: {field:?} is {v}, outside {}..{}",
-                    pad.name,
-                    info.min,
-                    info.max
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn chromatic_lanes_are_the_keyboard_they_replaced() {
-        let l = Lanes::Chromatic;
-        assert!(l.is_chromatic());
-        assert_eq!(l.count(), 128);
-        for pitch in 0u8..128 {
-            assert_eq!(l.lane_of(pitch), Some(pitch as usize));
-            assert_eq!(l.pitch(pitch as usize), Some(pitch));
-            assert_eq!(l.name(pitch as usize), crate::model::pitch_name(pitch));
-        }
-        assert_eq!(l.pitch(128), None);
-    }
-
-    #[test]
-    fn pad_lanes_name_the_drum_and_ignore_pitches_the_kit_has_no_pad_for() {
-        let kit = PulsusParams::default();
-        let l = Lanes::Pads(&kit.pads);
-        assert!(!l.is_chromatic());
-        assert_eq!(l.count(), kit.pads.len());
-        assert_eq!(l.pitch(0), Some(36));
-        assert_eq!(l.name(0), "Kick");
-        assert_eq!(l.lane_of(38).map(|i| l.name(i)).as_deref(), Some("Snare"));
-        assert_eq!(l.lane_of(60), None, "middle C is not a drum");
-        // Lane and pitch are inverses wherever both exist.
-        for lane in 0..l.count() {
-            let pitch = l.pitch(lane).unwrap();
-            assert_eq!(l.lane_of(pitch), Some(lane));
-        }
-    }
-}
+#[path = "pads_tests.rs"]
+mod tests;

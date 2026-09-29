@@ -1,0 +1,59 @@
+# The native instruments' shared frame and modulation model (ADR 0023).
+# Each instrument's own strings are in locales/inst/<kind>.en.txt.
+
+cmd.set_instrument_value = Set instrument value
+cmd.set_instrument_text = Set instrument text
+cmd.connect_modulation = Connect modulation
+cmd.remove_modulation = Remove modulation
+
+inst.gain = Gain
+inst.view.play = Play
+inst.view.edit = Edit
+inst.view.matrix = Matrix
+inst.macros = MACROS
+inst.macro_n = Macro {n}
+inst.modulation = MODULATION
+inst.preview = {name} · {n} values changed
+inst.voices = Voices {n} / {of}
+inst.stolen = {n} stolen
+inst.open_editor = Open editor
+inst.open_editor_tip = The instrument's own window: Play, Edit and the modulation Matrix
+
+mod.macro = Macro
+mod.amount = Depth
+mod.curve = Curve
+mod.on = On
+mod.slot = #
+mod.source = Source
+mod.target = Target
+mod.add = + Connection
+mod.remove = Remove this connection
+mod.empty = No connections yet. Drag a source onto a knob, or add one here.
+mod.full = Every modulation slot is in use.
+mod.drag_tip = Drag onto a knob to modulate it
+mod.curve.linear = Linear
+mod.curve.exp = Exponential
+mod.curve.log = Logarithmic
+mod.curve.s = S-curve
+mod.curve.steps = Steps
+mod.src.env = Envelope
+mod.src.lfo = LFO
+mod.src.vel = Velocity
+mod.src.relvel = Release velocity
+mod.src.key = Key
+mod.src.rnd = Random per note
+mod.src.mpe_bend = MPE pitch bend
+mod.src.mpe_press = MPE pressure
+mod.src.mpe_slide = MPE slide
+mod.src.macro = Macro
+mod.src.mw = Mod wheel
+mod.src.at = Aftertouch
+mod.src.pb = Pitch bend
+mod.src.expr = Expression
+mod.src.sus = Sustain pedal
+
+# The shell (ADR 0024 §8)
+inst.preset.init = Init
+inst.more.keyboard = Keyboard
+inst.more.macros = Macros
+inst.more.mods = Modulation

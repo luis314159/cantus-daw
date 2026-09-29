@@ -6,12 +6,14 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod boot;
 pub mod clips;
 pub mod design;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
 pub mod keymap;
+pub mod kit;
 pub mod layout;
 pub mod raster;
 pub mod recording;
@@ -51,72 +53,64 @@ pub struct LaunchOptions {
     pub editor: Option<String>,
     /// Start the transport at startup, so meters and analysers have something to show.
     pub play: bool,
+    /// The splash's logo and the window's icon, baked into the executable at build time
+    /// (`crates/cantus-app/build.rs`). Without them the splash renders the logo itself.
+    pub art: Option<boot::Art>,
+}
+
+impl LaunchOptions {
+    /// What the flags ask of the application once it is open.
+    pub fn apply_flags(&self, app: &mut CantusApp) {
+        if self.mixer {
+            app.show_central(app::CentralView::Mixer);
+        }
+        if self.rack {
+            app.show_central(app::CentralView::ChannelRack);
+        }
+        if let Some(id) = self
+            .track
+            .and_then(|i| app.project().tracks.get(i).map(|t| t.id))
+        {
+            app.select_track(id);
+        }
+        app.show_shortcuts = self.shortcuts;
+        app.show_settings = self.settings;
+        if let Some(kind) = self.editor.as_deref() {
+            app.demo_editor(kind);
+        }
+        if self.play {
+            app.toggle_play();
+        }
+    }
 }
 
 /// Run the desktop application until the window closes.
+///
+/// The window opens as the splash (ADR 0024 §12) — 520 × 320, no decorations, centred —
+/// and becomes the main window once everything is in (`boot`).
 pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
-    // An explicit `--locale` wins over the stored preference; the app applies whichever
-    // it is given.
-    let locale_from_flag = options.locale.as_deref().and_then(i18n::Locale::from_code);
-    if let Some(l) = locale_from_flag {
+    // An explicit `--locale` wins over the stored preference; the title is drawn in it.
+    if let Some(l) = options.locale.as_deref().and_then(i18n::Locale::from_code) {
         i18n::set_locale(l);
     }
-    let project = match &options.project {
-        Some(path) => match cantus_project::load(path, true) {
-            Ok(l) => Some(l.project),
-            Err(e) => {
-                log::error!("could not open {}: {e}", path.display());
-                None
-            }
-        },
-        None => None,
-    };
-    let stress = options.stress;
-    let mixer = options.mixer;
-    let rack = options.rack;
-    let track = options.track;
-    let shortcuts = options.shortcuts;
-    let settings = options.settings;
-    let editor = options.editor.clone();
-    let play = options.play;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(i18n::t("app.title"))
         .with_app_id("cantus")
-        .with_min_inner_size([960.0, 600.0]);
-    viewport = match options.window {
-        Some((w, h)) => viewport.with_inner_size([w, h]),
-        None => viewport
-            .with_inner_size([1280.0, 800.0])
-            .with_maximized(true),
-    };
+        .with_inner_size(boot::SIZE)
+        .with_decorations(false)
+        .with_resizable(false);
+    if let Some(icon) = boot::icon(options.art.as_ref()) {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
     let native = eframe::NativeOptions {
         viewport,
+        centered: true,
         ..Default::default()
     };
     eframe::run_native(
         "Cantus",
         native,
-        Box::new(move |cc| {
-            let mut app = CantusApp::new(cc, project, stress, locale_from_flag);
-            if mixer {
-                app.central = app::CentralView::Mixer;
-            }
-            if rack {
-                app.central = app::CentralView::ChannelRack;
-            }
-            if let Some(id) = track.and_then(|i| app.project().tracks.get(i).map(|t| t.id)) {
-                app.select_track(id);
-            }
-            app.show_shortcuts = shortcuts;
-            app.show_settings = settings;
-            if let Some(kind) = editor.as_deref() {
-                app.demo_editor(kind);
-            }
-            if play {
-                app.toggle_play();
-            }
-            Ok(Box::new(app))
-        }),
+        Box::new(move |cc| Ok(Box::new(boot::Shell::Booting(boot::Boot::new(cc, options))))),
     )
     .map_err(|e| anyhow::anyhow!("{e}"))
 }

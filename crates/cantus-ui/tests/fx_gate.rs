@@ -93,23 +93,31 @@ fn the_editor_paints_its_displays_and_says_what_the_style_is() {
     let (mut a, _, _) = with_gate();
     cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Gate);
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    // Labels and section names are set in capitals, and a label wider than its cell
+    // takes its short form (the full name is on the help line).
+    // A value's unit is set a hair apart, not after a space ("-40.0 dB" paints as
+    // "-40.0" and "dB"): compare without spaces.
+    let lower = text.to_lowercase().replace(' ', "");
     for want in [
         "Classic",
         "Ducking",
         "peak detector, lets go over 10 ms",
-        "Open -40.0 dB",
-        "Close -44.0 dB",
+        "Open",
+        "-40.0dB",
+        "Close",
+        "-44.0dB",
         "Removed",
         "Learn",
         "Threshold",
-        "Hysteresis",
-        "Lookahead",
+        "Hyst",
+        "Look",
         "No latency",
         "DETECT",
         "hold",
         "release",
     ] {
-        assert!(text.contains(want), "missing {want:?} in {text}");
+        let want = want.replace(' ', "").to_lowercase();
+        assert!(lower.contains(&want), "missing {want:?} in {text}");
     }
     assert!(
         a.fx.gate.history.len() > 700,

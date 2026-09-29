@@ -778,6 +778,7 @@ impl Track {
         self.icon.unwrap_or(match &self.instrument {
             InstrumentSpec::Pulsus(_) => TrackIcon::Drums,
             InstrumentSpec::Firmus(_) => TrackIcon::Synth,
+            InstrumentSpec::Native(n) => n.kind.icon(),
         })
     }
 

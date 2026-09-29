@@ -14,6 +14,7 @@ pub mod command;
 pub mod effect;
 pub mod external;
 pub mod fx;
+pub mod inst;
 pub mod instrument;
 pub mod model;
 pub mod pads;
@@ -26,6 +27,7 @@ pub use effect::{
     eq_key, EffectKind, EffectParamInfo, EffectSlot, EffectSpec, ExternalPlugin, PluginFormat,
     PluginState, EQ_BANDS, EQ_BAND_FIELDS,
 };
+pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,
 };
@@ -37,6 +39,9 @@ pub use model::{
     EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MAX_TRACK_HEIGHT,
     MAX_WIDTH, MIN_GAIN_DB, MIN_TRACK_HEIGHT,
 };
-pub use pads::{DrumPad, Lanes, PadField, PadParamInfo, PadVoice, PulsusParams, SampleData};
+pub use pads::{
+    DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,
+    PulsusParams, RoundRobin, SampleData, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
+};
 pub use snapshot::{NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use time::{Ticks, TimeSignature, PPQ};

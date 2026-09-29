@@ -1,0 +1,13 @@
+# effects: the round-18 effects work's strings. Every key here needs its twin in effects.es.txt.
+
+# The device frame (views/fx/frame.rs)
+fx.frame.context = Insert {n} · {strip}
+fx.frame.close = Close
+fx.frame.copy_a = Copy A to B
+fx.frame.copy_b = Copy B to A
+fx.frame.reset = Default settings
+fx.frame.save = Save as a preset…
+fx.frame.no_latency = No latency
+fx.frame.no_oversampling = No oversampling
+fx.frame.section_on = Switch this section on or off
+fx.hosted.card = Plug-in

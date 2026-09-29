@@ -971,7 +971,7 @@ impl Comprimo {
 
             // Auto gain and the compare gain glide toward their measurements, a step every
             // `MATCH_STEP` samples of the stream.
-            if self.hop_pos % MATCH_STEP == 0 {
+            if self.hop_pos.is_multiple_of(MATCH_STEP) {
                 let goal = if self.s.auto_gain {
                     self.auto_target
                 } else {

@@ -30,8 +30,8 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
-authors = ["Luis Angel Almazan Lopez"]
+rust-version = "1.95"
+authors = ["Luis Ángel Almazán <https://lalmazan.com>"]
 repository = "https://github.com/lalmazan/cantus"
 homepage = "https://github.com/lalmazan/cantus"
 

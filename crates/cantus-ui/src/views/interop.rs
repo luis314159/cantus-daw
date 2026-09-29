@@ -9,7 +9,7 @@
 use crate::app::CantusApp;
 use crate::design::{self, space};
 use crate::i18n::{t, tf};
-use crate::theme;
+
 use cantus_core::{Command, InstrumentSpec, Project, Ticks};
 use cantus_engine::{stem_file_name, RenderOptions, StemOptions, StemSource, StemSpec, StemsDone};
 use cantus_project::{dawproject, midi, Report, Severity};
@@ -50,6 +50,9 @@ pub struct MidiExportDialog {
 
 /// The resolutions offered, in ticks per quarter note.
 pub const PPQ_CHOICES: [u16; 5] = [96, 192, 480, 960, 1920];
+
+/// The tails a stem export offers after the music ends, in seconds.
+const TAILS: [f32; 8] = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0, 30.0];
 
 #[derive(Clone, Debug)]
 pub struct MidiImportDialog {
@@ -362,12 +365,232 @@ fn dialog(title: String) -> egui::Window<'static> {
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
 }
 
+/// A dialog's explanation: long-form text, wrapped, in the dim text colour — the one place
+/// a sentence belongs (ADR 0024 §3: Plex Sans for dialogs and help).
 fn hint(ui: &mut egui::Ui, text: String) {
     ui.label(
         egui::RichText::new(text)
             .text_style(design::caption())
-            .color(theme::p().text_dim),
+            .color(crate::kit::Style::current().t.text_dim),
     );
+}
+
+/// A paragraph of a report: wrapped, in the text colour or dimmed.
+fn para(ui: &mut egui::Ui, text: String, dim: bool) {
+    let t = crate::kit::Style::current().t;
+    ui.label(
+        egui::RichText::new(text)
+            .text_style(egui::TextStyle::Body)
+            .color(if dim { t.text_dim } else { t.text }),
+    );
+}
+
+/// The dialogs' parts, drawn with the kit: a band over each group of rows, choices and
+/// switches as lamps beside their words, fields as wells, buttons as caps.
+mod form {
+    use crate::kit::light::{self, RaisedOpts};
+    use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
+    use crate::kit::{band, led, well, with_brush, State, Style, Tok};
+    use egui::{Align2, Rect, Response, Sense, Ui, Vec2};
+
+    /// The narrowest a dialog's rows are.
+    const WIDTH: f32 = 300.0;
+
+    fn row(ui: &mut Ui, h: f32, sense: Sense) -> (Rect, Response, Style) {
+        let s = Style::current();
+        let w = ui.available_width().max(WIDTH);
+        let (r, resp) = ui.allocate_exact_size(Vec2::new(w, s.s(h)), sense);
+        (r, resp, s)
+    }
+
+    /// A band naming the group of rows under it.
+    pub fn band(ui: &mut Ui, key: &str) {
+        let (r, _, s) = row(ui, band::BAND, Sense::hover());
+        with_brush(ui.painter(), |b| {
+            band::section(b, r, &s, State::REST, Src::Key(key), None, false)
+        });
+    }
+
+    /// One choice of several, or a switch: a lamp beside its words, lit when `on`.
+    /// Returns whether it was clicked.
+    pub fn choice(ui: &mut Ui, on: bool, enabled: bool, label: &str) -> bool {
+        let sense = if enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        };
+        let (r, resp, s) = row(ui, 22.0, sense);
+        let hovered = enabled && resp.hovered();
+        with_brush(ui.painter(), |b| {
+            b.register(
+                r,
+                "choice",
+                &[Tok::Led, Tok::Text, Tok::TextDim, Tok::Panel],
+                &[],
+            );
+            if hovered {
+                b.rrect(
+                    r,
+                    s.r(2.0),
+                    crate::kit::Fill::Solid(crate::kit::color::shade(
+                        s.t.panel,
+                        if s.t.dark { 0.04 } else { -0.04 },
+                    )),
+                );
+            }
+            let c = egui::pos2(r.left() + s.s(12.0), r.center().y);
+            led::paint(
+                b,
+                c,
+                s.s(11.0),
+                on,
+                &s,
+                Tok::Led,
+                Tok::Panel,
+                if enabled { 1.0 } else { 0.45 },
+            );
+            let ink = if !enabled {
+                s.t.placeholder
+            } else if on {
+                s.t.text
+            } else {
+                s.t.text_dim
+            };
+            let tr = Rect::from_min_max(egui::pos2(c.x + s.s(12.0), r.top()), r.max);
+            let t = Text::new(label, Role::Body, ink)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::Middle));
+            let _ = text::paint(b, tr, &t, s.tk());
+        });
+        enabled && resp.clicked()
+    }
+
+    /// A caption in its cell and a value in a well beside it; `field` adds ▾ (it opens a
+    /// list). Returns the well's response.
+    pub fn value(ui: &mut Ui, caption: &str, value: &str, field: bool) -> Response {
+        let (r, _, s) = row(ui, 26.0, Sense::hover());
+        let cap = Rect::from_min_size(r.min, Vec2::new(r.width() * 0.4, r.height()));
+        let well_r = Rect::from_min_max(
+            egui::pos2(cap.right() + s.s(6.0), r.top() + s.s(2.0)),
+            r.max - Vec2::new(0.0, s.s(2.0)),
+        );
+        let resp = ui.interact(
+            well_r,
+            ui.id().with(("form-value", caption)),
+            if field {
+                Sense::click()
+            } else {
+                Sense::hover()
+            },
+        );
+        let st = State::of(&resp, false);
+        with_brush(ui.painter(), |b| {
+            b.register(cap, "caption", &[Tok::TextDim], &[]);
+            let t = Text::new(caption, Role::Label, s.t.text_dim)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
+            let _ = text::paint(b, cap, &t, s.tk());
+            if field {
+                well::menu_field(b, well_r, &s, st, value, false);
+            } else {
+                well::readout(b, well_r, &s, st, value, false);
+            }
+        });
+        resp
+    }
+
+    /// A push button: a cap with its word; `primary` wears the highlight.
+    pub fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool) -> bool {
+        let s = Style::current();
+        let t = Text::new(label, Role::Control, s.t.text);
+        let w = text::measure(ui.ctx(), &t, s.tk()).x + s.s(28.0);
+        let sense = if enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        };
+        let (r, resp) = ui.allocate_exact_size(Vec2::new(w.max(s.s(76.0)), s.s(26.0)), sense);
+        let mut st = State::of(&resp, false);
+        st.disabled = !enabled;
+        with_brush(ui.painter(), |b| {
+            b.register(
+                r,
+                "button",
+                &[
+                    Tok::PanelRaised,
+                    Tok::Highlight,
+                    Tok::HighlightGlyph,
+                    Tok::Text,
+                ],
+                &[],
+            );
+            let base = if primary {
+                s.t.highlight
+            } else {
+                s.t.panel_raised
+            };
+            let base = if st.active {
+                crate::kit::color::shade(base, -0.03)
+            } else if st.hovered {
+                crate::kit::color::shade(base, 0.04)
+            } else {
+                base
+            };
+            light::raised(
+                b,
+                r,
+                s.r(3.0),
+                base,
+                RaisedOpts {
+                    drop: !st.active,
+                    k: s.k,
+                    alpha: st.alpha(),
+                    depth: s.t.depth,
+                    ..Default::default()
+                },
+            );
+            let ink = if primary {
+                s.t.highlight_glyph
+            } else {
+                s.t.text
+            };
+            let t = Text::new(label, Role::Control, ink.gamma_multiply(st.alpha()))
+                .policy(Policy::Elide(Elide::End));
+            let _ = text::paint(b, r.shrink2(Vec2::new(s.s(8.0), 0.0)), &t, s.tk());
+        });
+        enabled && resp.clicked()
+    }
+
+    /// How far a job has got: a well filling with the selection colour, the percentage in it.
+    pub fn progress(ui: &mut Ui, f: f32) {
+        let (r, _, s) = row(ui, 22.0, Sense::hover());
+        let mut pct = String::with_capacity(6);
+        {
+            use std::fmt::Write as _;
+            let _ = write!(pct, "{:.0} %", f.clamp(0.0, 1.0) * 100.0);
+        }
+        with_brush(ui.painter(), |b| {
+            well::paint(b, r, &s, State::REST, None);
+            let fill =
+                Rect::from_min_size(r.min, Vec2::new(r.width() * f.clamp(0.0, 1.0), r.height()))
+                    .shrink(s.s(2.0));
+            b.register(r, "progress", &[Tok::Well, Tok::Selection, Tok::Text], &[]);
+            b.rrect(
+                fill,
+                s.r(1.5),
+                crate::kit::Fill::Solid(crate::kit::color::with_alpha(s.t.selection, 0.55)),
+            );
+            let t = Text::new(&pct, Role::Value, s.t.text);
+            let _ = text::paint(b, r, &t, s.tk());
+        });
+    }
+
+    /// A row of buttons, right-aligned, the way a dialog ends.
+    pub fn buttons<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+        ui.add_space(8.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add)
+            .inner
+    }
 }
 
 fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
@@ -385,41 +608,58 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
         .map(|c| c.name.clone());
     let (mut export, mut close) = (false, false);
     dialog(t("interop.midi_export.title")).show(ctx, |ui| {
-        ui.label(egui::RichText::new(t("interop.midi_export.what")).text_style(design::strong()));
-        ui.radio_value(&mut d.scope, MidiScope::Song, t("interop.midi_export.song"));
-        ui.add_enabled_ui(track_name.is_some(), |ui| {
-            let name = track_name.clone().unwrap_or_default();
-            ui.radio_value(
-                &mut d.scope,
-                MidiScope::Track,
-                tf("interop.midi_export.track", &[("name", &name)]),
-            );
-        });
-        ui.add_enabled_ui(clip_name.is_some(), |ui| {
-            let name = clip_name.clone().unwrap_or_default();
-            ui.radio_value(
-                &mut d.scope,
-                MidiScope::Clip,
-                tf("interop.midi_export.clip", &[("name", &name)]),
-            );
-        });
+        form::band(ui, "interop.midi_export.what");
+        if form::choice(
+            ui,
+            d.scope == MidiScope::Song,
+            true,
+            &t("interop.midi_export.song"),
+        ) {
+            d.scope = MidiScope::Song;
+        }
+        let name = track_name.clone().unwrap_or_default();
+        if form::choice(
+            ui,
+            d.scope == MidiScope::Track,
+            track_name.is_some(),
+            &tf("interop.midi_export.track", &[("name", &name)]),
+        ) {
+            d.scope = MidiScope::Track;
+        }
+        let name = clip_name.clone().unwrap_or_default();
+        if form::choice(
+            ui,
+            d.scope == MidiScope::Clip,
+            clip_name.is_some(),
+            &tf("interop.midi_export.clip", &[("name", &name)]),
+        ) {
+            d.scope = MidiScope::Clip;
+        }
         ui.add_space(space::S2);
-        ui.horizontal(|ui| {
-            ui.label(t("interop.midi_export.ppq"));
-            egui::ComboBox::from_id_salt("interop.ppq")
-                .selected_text(d.ppq.to_string())
-                .show_ui(ui, |ui| {
-                    for p in PPQ_CHOICES {
-                        ui.selectable_value(&mut d.ppq, p, p.to_string());
-                    }
+        let field = form::value(ui, &t("interop.midi_export.ppq"), &d.ppq.to_string(), true);
+        egui::Popup::menu(&field)
+            .frame(egui::Frame::NONE)
+            .show(|ui| {
+                use crate::kit::menu::{Check, Item};
+                use crate::kit::text::Src;
+                let labels = PPQ_CHOICES.map(|p| p.to_string());
+                let items: [Item<'_>; 5] = std::array::from_fn(|i| Item::Action {
+                    label: Src::Str(&labels[i]),
+                    check: Check::Radio(PPQ_CHOICES[i] == d.ppq),
+                    shortcut: None,
+                    submenu: false,
+                    enabled: true,
                 });
-        });
+                if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 160.0).1.clicked {
+                    d.ppq = PPQ_CHOICES[i];
+                    ui.close();
+                }
+            });
         hint(ui, t("interop.midi_export.ppq_hint"));
         hint(ui, t("interop.midi_export.note"));
-        ui.add_space(space::S2);
-        ui.horizontal(|ui| {
-            export = ui.button(t("interop.export")).clicked();
-            close = ui.button(t("interop.cancel")).clicked();
+        form::buttons(ui, |ui| {
+            close = form::button(ui, &t("interop.cancel"), false, true);
+            export = form::button(ui, &t("interop.export"), true, true);
         });
     });
     app.interop.midi_export = (!close && !export).then_some(d.clone());
@@ -468,23 +708,26 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         ));
         ui.add_space(space::S2);
         if let Some(n) = &changes {
-            ui.label(tf("interop.midi_import.tempo_changes", &[("n", n)]));
-            ui.radio_value(&mut d.keep_time, false, t("interop.midi_import.keep_bars"));
-            ui.radio_value(&mut d.keep_time, true, t("interop.midi_import.keep_time"));
+            hint(ui, tf("interop.midi_import.tempo_changes", &[("n", n)]));
+            if form::choice(ui, !d.keep_time, true, &t("interop.midi_import.keep_bars")) {
+                d.keep_time = false;
+            }
+            if form::choice(ui, d.keep_time, true, &t("interop.midi_import.keep_time")) {
+                d.keep_time = true;
+            }
             ui.add_space(space::S2);
         }
-        ui.checkbox(
-            &mut d.apply_tempo,
-            tf(
-                "interop.midi_import.apply_tempo",
-                &[("bpm", &p.tempo_bpm), ("sig", &sig)],
-            ),
+        let apply = tf(
+            "interop.midi_import.apply_tempo",
+            &[("bpm", &p.tempo_bpm), ("sig", &sig)],
         );
+        if form::choice(ui, d.apply_tempo, true, &apply) {
+            d.apply_tempo = !d.apply_tempo;
+        }
         hint(ui, tf("interop.midi_import.at", &[("bar", &bar)]));
-        ui.add_space(space::S2);
-        ui.horizontal(|ui| {
-            import = ui.button(t("interop.import")).clicked();
-            close = ui.button(t("interop.cancel")).clicked();
+        form::buttons(ui, |ui| {
+            close = form::button(ui, &t("interop.cancel"), false, true);
+            import = form::button(ui, &t("interop.import"), true, true);
         });
     });
     if import {
@@ -676,56 +919,67 @@ fn stems_window(app: &mut CantusApp, ctx: &egui::Context) {
         .map(|j| j.progress.load(Ordering::Relaxed) as f32 / 1000.0);
     let (mut start, mut stop, mut close, mut choose) = (false, false, false, false);
     dialog(t("interop.stems.title")).show(ctx, |ui| {
-        ui.add_enabled_ui(!busy, |ui| {
-            ui.label(egui::RichText::new(t("interop.stems.source")).text_style(design::strong()));
-            ui.radio_value(&mut d.tracks, false, t("interop.stems.strips"));
-            ui.radio_value(&mut d.tracks, true, t("interop.stems.tracks"));
-            ui.add_space(space::S2);
-            ui.horizontal(|ui| {
-                ui.label(t("interop.stems.tail"));
-                ui.add(
-                    egui::DragValue::new(&mut d.tail_seconds)
-                        .range(0.0..=30.0)
-                        .speed(0.1)
-                        .suffix(" s"),
-                );
-            });
-            ui.checkbox(&mut d.keep_silent, t("interop.stems.keep_silent"));
-            ui.checkbox(&mut d.master, t("interop.stems.master"));
-            ui.add_space(space::S2);
-            ui.horizontal(|ui| {
-                ui.label(t("interop.stems.folder"));
-                let shown = d
-                    .folder
-                    .as_ref()
-                    .map(|f| f.display().to_string())
-                    .unwrap_or_else(|| t("interop.stems.no_folder"));
-                ui.label(
-                    egui::RichText::new(shown)
-                        .text_style(design::mono_small())
-                        .color(theme::p().text_dim),
-                );
-                choose = ui.button(t("interop.stems.choose")).clicked();
-            });
-            hint(ui, t("interop.stems.hint"));
-        });
-        if let Some(f) = pct {
-            ui.add_space(space::S2);
-            ui.add(egui::ProgressBar::new(f).show_percentage());
+        let on = !busy;
+        form::band(ui, "interop.stems.source");
+        if form::choice(ui, !d.tracks, on, &t("interop.stems.strips")) {
+            d.tracks = false;
+        }
+        if form::choice(ui, d.tracks, on, &t("interop.stems.tracks")) {
+            d.tracks = true;
         }
         ui.add_space(space::S2);
-        ui.horizontal(|ui| {
+        let tail = form::value(
+            ui,
+            &t("interop.stems.tail"),
+            &format!("{:.1} s", d.tail_seconds),
+            on,
+        );
+        if on {
+            egui::Popup::menu(&tail)
+                .frame(egui::Frame::NONE)
+                .show(|ui| {
+                    use crate::kit::menu::{Check, Item};
+                    use crate::kit::text::Src;
+                    let labels = TAILS.map(|s| format!("{s:.1} s"));
+                    let items: [Item<'_>; TAILS.len()] = std::array::from_fn(|i| Item::Action {
+                        label: Src::Str(&labels[i]),
+                        check: Check::Radio((TAILS[i] - d.tail_seconds).abs() < 1e-3),
+                        shortcut: None,
+                        submenu: false,
+                        enabled: true,
+                    });
+                    if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 160.0).1.clicked {
+                        d.tail_seconds = TAILS[i];
+                        ui.close();
+                    }
+                });
+        }
+        if form::choice(ui, d.keep_silent, on, &t("interop.stems.keep_silent")) {
+            d.keep_silent = !d.keep_silent;
+        }
+        if form::choice(ui, d.master, on, &t("interop.stems.master")) {
+            d.master = !d.master;
+        }
+        ui.add_space(space::S2);
+        let shown = d
+            .folder
+            .as_ref()
+            .map(|f| f.display().to_string())
+            .unwrap_or_else(|| t("interop.stems.no_folder"));
+        form::value(ui, &t("interop.stems.folder"), &shown, false);
+        hint(ui, t("interop.stems.hint"));
+        if let Some(f) = pct {
+            ui.add_space(space::S2);
+            form::progress(ui, f);
+        }
+        form::buttons(ui, |ui| {
             if busy {
-                stop = ui.button(t("interop.stems.stop")).clicked();
-                close = ui.button(t("interop.close")).clicked();
+                close = form::button(ui, &t("interop.close"), false, true);
+                stop = form::button(ui, &t("interop.stems.stop"), true, true);
             } else {
-                start = ui
-                    .add_enabled(
-                        d.folder.is_some(),
-                        egui::Button::new(t("interop.stems.start")),
-                    )
-                    .clicked();
-                close = ui.button(t("interop.cancel")).clicked();
+                close = form::button(ui, &t("interop.cancel"), false, true);
+                start = form::button(ui, &t("interop.stems.start"), true, d.folder.is_some());
+                choose = form::button(ui, &t("interop.stems.choose"), false, true);
             }
         });
     });
@@ -835,7 +1089,6 @@ fn report_window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some(w) = &app.interop.report else {
         return;
     };
-    let pal = theme::p();
     let mut close = false;
     egui::Window::new(w.title.clone())
         .collapsible(false)
@@ -854,35 +1107,23 @@ fn report_window(app: &mut CantusApp, ctx: &egui::Context) {
                 .max_height(space::GRID * 90.0)
                 .show(ui, |ui| {
                     if dropped.is_empty() {
-                        ui.label(t("interop.report.lossless"));
+                        para(ui, t("interop.report.lossless"), false);
                     } else {
-                        ui.label(
-                            egui::RichText::new(t("interop.report.dropped"))
-                                .text_style(design::strong())
-                                .color(pal.danger),
-                        );
+                        form::band(ui, "interop.report.dropped");
                         for item in dropped {
-                            ui.label(format!("\u{2022} {}", report_line(item)));
+                            para(ui, format!("\u{2022} {}", report_line(item)), false);
                         }
                     }
                     if !kept.is_empty() {
                         ui.add_space(space::S3);
-                        ui.label(
-                            egui::RichText::new(t("interop.report.kept"))
-                                .text_style(design::strong())
-                                .color(pal.text_dim),
-                        );
+                        form::band(ui, "interop.report.kept");
                         for item in kept {
-                            ui.label(
-                                egui::RichText::new(format!("\u{2022} {}", report_line(item)))
-                                    .color(pal.text_dim),
-                            );
+                            para(ui, format!("\u{2022} {}", report_line(item)), true);
                         }
                     }
                 });
-            ui.add_space(space::S2);
-            close = ui.button(t("interop.close")).clicked()
-                || ui.input(|i| i.key_pressed(egui::Key::Escape));
+            let clicked = form::buttons(ui, |ui| form::button(ui, &t("interop.close"), true, true));
+            close = clicked || ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
     if close {
         app.interop.report = None;
@@ -950,7 +1191,8 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
 
 /// While a file is dragged over the window: say what dropping it does.
 fn paint_drop_hint(app: &CantusApp, ctx: &egui::Context) {
-    let pal = theme::p();
+    use crate::kit::text::{self, Elide, Policy, Role, Text};
+    use crate::kit::{color::with_alpha, light, Fill, Style, Tok};
     let rect = app
         .arrangement
         .geometry()
@@ -968,17 +1210,24 @@ fn paint_drop_hint(app: &CantusApp, ctx: &egui::Context) {
         egui::Order::Foreground,
         egui::Id::new("interop.drop"),
     ));
-    painter.rect_stroke(
-        rect.shrink(space::S1),
-        space::S1,
-        egui::Stroke::new(2.0, pal.gold),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        t("interop.drop.hint"),
-        design::paint::empty_state(),
-        pal.gold,
-    );
+    // Where it lands, in the selection colour (ADR 0024 §10: a drag shows where it
+    // lands), and what dropping does on a plate of its own over it.
+    let s = Style::current();
+    crate::kit::with_brush(&painter, |b| {
+        b.register(
+            rect,
+            "drop_target",
+            &[Tok::Selection, Tok::Panel, Tok::Text],
+            &[],
+        );
+        let r = rect.shrink(space::S1);
+        b.rrect(r, s.r(3.0), Fill::Solid(with_alpha(s.t.selection, 0.10)));
+        b.rrect_stroke(r, s.r(3.0), 2.0, s.t.selection);
+        let tx =
+            Text::key("interop.drop.hint", Role::Title, s.t.text).policy(Policy::Elide(Elide::End));
+        let w = text::measure(b.ctx(), &tx, s.tk()).x.min(r.width() - 40.0);
+        let plate = egui::Rect::from_center_size(r.center(), egui::vec2(w + 32.0, s.s(34.0)));
+        light::raised(b, plate, s.r(3.0), s.t.panel, light::RaisedOpts::default());
+        let _ = text::paint(b, plate.shrink2(egui::vec2(16.0, 0.0)), &tx, s.tk());
+    });
 }

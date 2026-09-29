@@ -1,0 +1,77 @@
+# workspace: the round-18 workspace work's strings. Every key here needs its twin in workspace.en.txt.
+
+# --- las áreas de la ventana (ADR 0024 §5) ---
+workspace.pane.arrangement = Arreglo
+workspace.pane.piano_roll = Piano roll
+workspace.pane.channel_rack = Rack de canales
+workspace.pane.mixer = Mezclador
+workspace.pane.inspector = Inspector
+workspace.pane.device = Dispositivo
+workspace.toggle.arrangement = Mostrar u ocultar el arreglo
+workspace.toggle.piano_roll = Mostrar u ocultar el piano roll
+workspace.toggle.channel_rack = Mostrar u ocultar el rack de canales
+workspace.toggle.mixer = Mostrar u ocultar el mezclador
+workspace.toggle.inspector = Mostrar u ocultar el inspector
+workspace.toggle.lower = Mostrar u ocultar los editores bajo el arreglo
+workspace.menu.float = Flotar en su propia ventana
+workspace.menu.dock = Acoplarlo de nuevo
+workspace.menu.hide = Ocultar
+workspace.close = Cerrar
+workspace.close_floating = Cerrar las ventanas flotantes
+workspace.mixer.hint = Flechas: moverse entre canales · M silenciar · S solo · Alt+flechas mueven el canal
+workspace.splash.files = Leyendo tus ajustes…
+workspace.clip = Satura
+workspace.tempo = Tempo
+
+# --- el zoom de la interfaz (ADR 0024 §11) ---
+workspace.zoom_in = Acercar la interfaz
+workspace.zoom_out = Alejar la interfaz
+workspace.zoom_reset = Interfaz al 100 %
+workspace.zoom_now = Interfaz al {pct} %
+
+# --- los nombres de las teclas (F5, I, F12, Ctrl +/−/0, Ctrl+Shift+I); F6, F7 y F9 ahora también alternan ---
+action.view-arrangement = Mostrar u ocultar el arreglo
+action.view-piano-roll = Mostrar u ocultar el piano roll
+action.view-channel-rack = Mostrar u ocultar el rack de canales
+action.view-mixer = Mostrar u ocultar el mezclador
+action.toggle-inspector = Mostrar u ocultar el inspector
+action.close-floating = Cerrar las ventanas flotantes de dispositivos
+action.zoom-in = Acercar la interfaz
+action.zoom-out = Alejar la interfaz
+action.zoom-reset = Interfaz al 100 %
+action.pick-element = Elegir un elemento para cambiar su color
+action.toggle-device-keyboard = Mostrar u ocultar el teclado del instrumento
+
+# --- la página de apariencia (ADR 0024 §2) ---
+workspace.appearance.tab.look = Aspecto
+workspace.appearance.tab.colours = Colores
+workspace.appearance.tab.themes = Temas y logo
+workspace.appearance.undo = Deshacer el último cambio del aspecto
+workspace.appearance.redo = Rehacer
+workspace.appearance.keep = Quedarse con este
+workspace.appearance.base_dark = Tema del modo oscuro
+workspace.appearance.base_light = Tema del modo claro
+workspace.appearance.editing = Los cambios de abajo se aplican al modo {mode} ({theme})
+workspace.appearance.adjust = Ajustar todo el tema
+workspace.appearance.form = Forma
+workspace.appearance.roles = Colores con significado
+workspace.appearance.picked = Los colores del elemento «{part}» que elegiste
+workspace.appearance.show_all = Mostrar todos los colores
+workspace.appearance.none_found = Ningún color con ese nombre
+workspace.appearance.save = Guardar lo que ves como tema
+workspace.appearance.yours = Tus temas
+workspace.appearance.presets = Temas incluidos con Cantus
+workspace.appearance.no_themes = Ninguno aún: guarda el aspecto de arriba para crear uno
+workspace.appearance.copy_of = Copia de {name}
+workspace.appearance.imported = Importado «{name}»
+workspace.appearance.exported = Guardado en {path}
+
+# --- short forms of the appearance and settings knobs' labels (the Abbreviate policy) ---
+theme.knobs.saturation.short = SAT
+theme.knobs.brightness.short = BRILLO
+theme.knobs.contrast.short = CONTR
+theme.form.roundness.short = REDOND
+theme.form.text_size.short = TEXTO
+theme.form.depth.short = PROF
+workspace.appearance.theme_name = Nombre del tema
+workspace.autosave.cell = Tiempo

@@ -75,7 +75,26 @@ pub struct Theme {
     pub meter_low: String,
     pub meter_high: String,
     pub meter_clip: String,
+    /// FL's theme knobs (ADR 0024 §2): Hue, Saturation, Brightness, Contrast and Text
+    /// shift the whole ladder at once. Absent in older files, and all zero there, so an
+    /// old file loads exactly as it did.
+    #[serde(default, skip_serializing_if = "ThemeKnobs::is_neutral")]
+    pub knobs: ThemeKnobs,
+    /// The component kit's tokens (ADR 0024 §4), hex by stable key (`mixer.fader_cap`).
+    /// Absent in files written before the kit: they are then derived from the colours
+    /// above; any token a file leaves out is derived the same way.
+    #[serde(default, skip_serializing_if = "KitMap::is_empty")]
+    pub kit: KitMap,
+    /// Depth, roundness, density and text size.
+    #[serde(default, skip_serializing_if = "Form::is_default")]
+    pub form: Form,
+    /// The logo and its tint.
+    #[serde(default, skip_serializing_if = "LogoChoice::is_default")]
+    pub logo: LogoChoice,
 }
+
+use crate::kit::logo::LogoChoice;
+pub use crate::kit::tokens::{Form, KitMap, ThemeKnobs};
 
 fn default_true() -> bool {
     true
@@ -111,8 +130,39 @@ pub fn to_hex(c: Color32) -> String {
 }
 
 impl Theme {
-    /// Convert to a palette. Unparseable colours fall back to the default theme's.
+    /// Convert to a palette, with the theme knobs applied to the neutral ladder.
+    /// Unparseable colours fall back to the default theme's.
     pub fn palette(&self) -> Palette {
+        let p = self.base_palette();
+        if self.knobs.is_neutral() {
+            return p;
+        }
+        let k = &self.knobs;
+        let mid = crate::kit::color::Hsl::of(p.panel).l;
+        let s = |c| k.surface(c, mid);
+        let mut out = Palette {
+            ink: s(p.ink),
+            panel: s(p.panel),
+            panel_raised: s(p.panel_raised),
+            grid: s(p.grid),
+            grid_strong: s(p.grid_strong),
+            grid_bar: s(p.grid_bar),
+            row_black: s(p.row_black),
+            row_white: s(p.row_white),
+            text: k.text(p.text),
+            text_dim: k.text(p.text_dim),
+            ..p
+        };
+        use crate::kit::color::ensure_contrast;
+        for bg in [out.panel, out.panel_raised, out.ink] {
+            out.text = ensure_contrast(out.text, bg, 4.5);
+        }
+        out.text_dim = ensure_contrast(out.text_dim, out.panel, 4.5);
+        out
+    }
+
+    /// The palette exactly as the file writes it, before the knobs.
+    pub fn base_palette(&self) -> Palette {
         let d = ink_and_gold_palette();
         let c = |s: &str, fallback: Color32| parse_hex(s).unwrap_or(fallback);
         Palette {
@@ -191,7 +241,22 @@ impl Theme {
             meter_low: to_hex(p.meter_low),
             meter_high: to_hex(p.meter_high),
             meter_clip: to_hex(p.meter_clip),
+            knobs: ThemeKnobs::default(),
+            kit: KitMap::new(),
+            form: Form::default(),
+            logo: LogoChoice::default(),
         }
+    }
+
+    /// This theme carrying the kit's tokens explicitly (the shipped presets do).
+    pub fn with_kit(mut self, tokens: &crate::kit::tokens::Tokens) -> Theme {
+        self.kit = crate::kit::tokens::to_map(tokens);
+        self
+    }
+
+    /// The component kit's tokens for this theme (ADR 0024 §2).
+    pub fn kit_tokens(&self) -> crate::kit::tokens::Tokens {
+        crate::kit::tokens::Tokens::for_theme(self)
     }
 }
 
@@ -370,32 +435,77 @@ pub const fn parchment_palette() -> Palette {
     }
 }
 
+/// **Slate**, derived from FL Studio's default theme (ADR 0024 §2): a hue-locked slate
+/// ladder at L 15–49 %, light saturated accents on small things. These are the colours
+/// today's views read; the kit's richer set is [`kit::tokens::Tokens::slate`]. Where a
+/// view paints an accent or a warning *as text*, the values here are the lighter ones
+/// that still reach 4.5:1 on the mid-grey chrome (FL's own orange manages 3.9:1).
+///
+/// [`kit::tokens::Tokens::slate`]: crate::kit::tokens::Tokens::slate
+pub const fn slate_palette() -> Palette {
+    Palette {
+        ink: rgb(0x1f, 0x28, 0x2d),
+        panel: rgb(0x4e, 0x58, 0x5e),
+        panel_raised: rgb(0x60, 0x6b, 0x71),
+        grid: rgb(0x39, 0x4b, 0x56),
+        grid_strong: rgb(0x2e, 0x40, 0x4b),
+        grid_bar: rgb(0x1a, 0x2c, 0x37),
+        text: rgb(0xee, 0xf1, 0xef),
+        text_dim: rgb(0xcd, 0xd3, 0xd9),
+        gold: rgb(0xf5, 0xc9, 0x6a),
+        gold_bright: rgb(0xff, 0xd9, 0x7a),
+        focus: rgb(0x3f, 0xc3, 0xff),
+        shadow: Color32::from_rgba_premultiplied(0, 0, 0, 0x80),
+        selection: rgb(0xc3, 0xff, 0x5a),
+        danger: rgb(0xff, 0xbf, 0xad),
+        ok: rgb(0x8d, 0xef, 0x11),
+        black_key: rgb(0x2a, 0x2e, 0x33),
+        white_key: rgb(0xda, 0xde, 0xe6),
+        row_black: rgb(0x37, 0x49, 0x54),
+        row_white: rgb(0x3e, 0x4f, 0x5a),
+        meter_low: rgb(0xc4, 0xfc, 0x55),
+        meter_high: rgb(0xff, 0xdf, 0x5a),
+        meter_clip: rgb(0xff, 0x8d, 0x3e),
+        corner_radius: 2,
+        dark: true,
+    }
+}
+
+pub fn slate() -> Theme {
+    Theme::from_palette("Slate", &slate_palette()).with_kit(&crate::kit::tokens::Tokens::slate())
+}
+
 pub fn paper() -> Theme {
-    Theme::from_palette("Paper", &paper_palette())
+    Theme::from_palette("Paper", &paper_palette()).with_kit(&crate::kit::tokens::Tokens::paper())
 }
 
 pub fn ink_and_gold() -> Theme {
     Theme::from_palette("Ink & Gold", &ink_and_gold_palette())
+        .with_kit(&crate::kit::tokens::Tokens::ink_and_gold())
 }
 
 pub fn parchment() -> Theme {
     Theme::from_palette("Parchment", &parchment_palette())
+        .with_kit(&crate::kit::tokens::Tokens::parchment())
 }
 
 /// A named theme preset: i18n key + constructor.
 pub type Preset = (&'static str, fn() -> Theme);
 
-pub const PRESETS: [Preset; 3] = [
+pub const PRESETS: [Preset; 4] = [
     ("theme.paper", paper),
     ("theme.parchment", parchment),
     ("theme.ink_gold", ink_and_gold),
+    ("theme.slate", slate),
 ];
 
 /// What a fresh install starts with, and the fallback whenever a theme file cannot be
 /// read. Light: a DAW is looked at in daylight as often as in a dark studio, and a white
 /// ground is the one that does not assume which.
+/// The theme a new installation starts with: Slate, the FL-derived dark theme
+/// (ADR 0024 §2). Paper stays one click away, and "follow the system" too.
 pub fn default_theme() -> Theme {
-    paper()
+    slate()
 }
 
 fn current() -> &'static RwLock<Palette> {
@@ -412,6 +522,7 @@ pub fn p() -> Palette {
 pub fn apply(theme: &Theme, ctx: &egui::Context) {
     let pal = theme.palette();
     *current().write().unwrap() = pal;
+    crate::kit::tokens::install(theme.kit_tokens());
     ctx.set_theme(if pal.dark {
         egui::Theme::Dark
     } else {
@@ -722,12 +833,15 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_light() {
+    fn the_default_theme_is_slate() {
+        // ADR 0024 §2: the default is Slate, FL's hue-locked dark ladder; Paper is the
+        // light option.
         let d = default_theme().palette();
-        assert!(!d.dark, "the shipped default is a light theme");
+        assert!(d.dark, "the shipped default is a dark theme");
+        assert_eq!(default_theme().name, slate().name);
         assert!(
-            luminance(d.ink) > 0.9,
-            "the canvas should be white, got {}",
+            luminance(d.ink) < 0.1,
+            "the canvas should be dark, got {}",
             to_hex(d.ink)
         );
     }

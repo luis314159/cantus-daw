@@ -219,29 +219,39 @@ fn a_crossover_and_a_threshold_are_dragged_on_the_display() {
     );
 }
 
+/// Painted text as the kit sets it: card titles and labels in capitals, a value's unit a
+/// hair apart from its number without the space — so compare lowercased, spaces removed.
+fn norm(s: &str) -> String {
+    s.to_lowercase().replace([' ', '\u{a0}'], "")
+}
+
 #[test]
 fn the_editor_paints_its_display_and_band_panel() {
     let (mut a, s0, fx) = with_multiband();
     a.open_effect_editor(s0, fx);
     // Empty: an invitation, and quick starts.
-    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let text = norm(&paint_editors(&mut a, egui::vec2(1400.0, 900.0)));
     for want in [
         "Multiplex multiband",
         "Double-click",
         "3 bands",
         "No latency",
     ] {
-        assert!(text.contains(want), "empty editor lacks {want:?}: {text}");
+        assert!(
+            text.contains(&norm(want)),
+            "empty editor lacks {want:?}: {text}"
+        );
     }
     mb::demo_setup(&mut a, s0, fx);
     mb::demo_feed(&mut a);
     assert!(a.fx.multiband.history_len() > 100, "the demo fed a history");
-    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let text = norm(&paint_editors(&mut a, egui::vec2(1400.0, 900.0)));
     for want in [
         "4 of 8 bands",
         "Band 3",
-        "Threshold",
-        "Low ratio",
+        // The cells' labels take their short forms; the full names are on the help line.
+        "Thresh",
+        "Lo rat",
         "150 Hz",
         "2.6 kHz",
         "4.0:1",
@@ -253,7 +263,7 @@ fn the_editor_paints_its_display_and_band_panel() {
         "side",
     ] {
         assert!(
-            text.contains(want),
+            text.contains(&norm(want)),
             "the editor never painted {want:?}: {text}"
         );
     }

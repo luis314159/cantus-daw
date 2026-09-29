@@ -171,8 +171,11 @@ fn stress_project_renders_within_budget() {
 #[test]
 fn the_mixer_draws_faders_with_a_scale_and_a_readout() {
     // The mixer was the one view `run_frames` never touched, and the fader is most of
-    // what it is made of. This renders it and reads back the text it painted.
+    // what it is made of. This renders it and reads back the text it painted: the dB
+    // scale, printed once in the legend (ADR 0024 §6), and — from Wide up — each
+    // fader's value.
     let mut a = app(starter_project());
+    views::mixer::set_width_mode(&mut a, views::mixer::layout::WidthMode::Wide);
     let ctx = ctx();
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -186,7 +189,14 @@ fn the_mixer_draws_faders_with_a_scale_and_a_readout() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    for want in ["+12", "-12", "-30", "-60", "-\u{221e}", "+0.0 dB"] {
+    for want in [
+        "+12",
+        "\u{2212}12",
+        "\u{2212}30",
+        "\u{2212}60",
+        "\u{2212}\u{221e}",
+        "+0.0",
+    ] {
         assert!(
             text.contains(want),
             "the mixer never painted {want:?}: {text}"
@@ -318,7 +328,7 @@ fn a_focused_fader_takes_the_arrow_keys_from_the_note_nudge() {
 }
 
 #[test]
-fn transport_icons_are_painted_as_shapes() {
+fn the_toolbar_is_drawn_by_the_kit() {
     let mut a = app(starter_project());
     let ctx = ctx();
     let input = egui::RawInput {
@@ -332,20 +342,20 @@ fn transport_icons_are_painted_as_shapes() {
         egui::Panel::top(egui::Id::new("t")).show(ui, |ui| views::transport::show(&mut a, ui));
     });
     out.textures_delta.clear();
-    let paths = out
+    // The keys, wells and panels are the kit's meshes (ADR 0024 §1): no stock shapes.
+    let meshes = out
         .shapes
         .iter()
-        .filter(|s| matches!(s.shape, egui::Shape::Path(_)))
+        .filter(|s| matches!(s.shape, egui::Shape::Mesh(_)))
         .count();
-    eprintln!(
-        "transport frame: {} shapes, {} paths",
-        out.shapes.len(),
-        paths
-    );
-    assert!(
-        paths >= 2,
-        "play and to-start triangles must be painted (found {paths})"
-    );
+    assert!(meshes >= 1, "the toolbar paints through the kit's brush");
+    let text = painted_text(&out.shapes);
+    for expected in ["FILE", "VIEW", "1.1.000", "120.0"] {
+        assert!(
+            text.contains(expected),
+            "the toolbar did not paint {expected:?}; painted: {text}"
+        );
+    }
 }
 
 #[test]
@@ -522,15 +532,19 @@ fn note_editing_operations() {
 
 #[test]
 fn layouts_are_saved_switched_and_reset_through_the_app() {
+    use cantus_ui::app::CentralView;
     use cantus_ui::layout;
+    use cantus_ui::views::workspace::Pane;
 
     let mut a = app(starter_project());
     let dir = tempfile::tempdir().unwrap();
     // Never write to the user's real configuration directory from a test.
     a.layouts_path = layout::layouts_path(dir.path());
+    a.settings_path = dir.path().join("settings.json");
+    a.appearance_path = dir.path().join("appearance.json");
     let ctx = ctx();
 
-    // Lay the window out once so the panels have sizes to capture.
+    // Lay the whole window out, as the application does, so the dock has sizes to capture.
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -539,52 +553,45 @@ fn layouts_are_saved_switched_and_reset_through_the_app() {
         ..Default::default()
     };
     let frame = |a: &mut CantusApp| {
-        let forced = a.layouts.forced(layout::INSPECTOR);
-        let show = a.layouts.current.show_inspector;
-        let mut drew_inspector = false;
-        ctx.run_ui(input.clone(), |ui| {
-            if show {
-                drew_inspector = true;
-                let p = egui::Panel::right(layout::panel_id(layout::INSPECTOR));
-                match forced {
-                    Some(w) => p.exact_size(w),
-                    None => p.resizable(true).min_size(240.0),
-                }
-                .show(ui, |ui| views::inspector::show(a, ui));
-            }
-            egui::CentralPanel::default().show(ui, |ui| views::piano_roll::show(a, ui));
-        })
-        .textures_delta
-        .clear();
-        a.layouts.end_frame();
-        drew_inspector
+        ctx.run_ui(input.clone(), |ui| a.frame(ui))
+            .textures_delta
+            .clear();
     };
+    frame(&mut a);
+    assert!(
+        a.workspace.is_visible(Pane::Inspector),
+        "the inspector shows by default"
+    );
 
-    a.layouts.current.inspector = 320.0;
-    a.layouts.force();
-    assert!(frame(&mut a), "the inspector shows by default");
-
-    // Save the shape under a name, switch the central view, then come back to it.
-    a.central = cantus_ui::app::CentralView::Mixer;
+    // Give the inspector a width and put the piano roll in front, then save that shape.
+    a.workspace.impose_sizes(320.0, 0.0);
+    a.show_central(CentralView::PianoRoll);
+    frame(&mut a);
+    frame(&mut a);
     a.save_layout_as("Mixing", &ctx);
     assert!(a.layouts_path.exists(), "saving a layout writes the file");
 
     a.reset_layout();
-    assert_eq!(a.central, cantus_ui::app::CentralView::PianoRoll);
+    assert_eq!(a.central, CentralView::Mixer);
     assert_eq!(a.layouts.current.name, layout::DEFAULT_NAME);
+    frame(&mut a);
+    assert!(a.workspace.is_visible(Pane::Mixer));
 
     a.apply_layout("Mixing");
-    assert_eq!(a.central, cantus_ui::app::CentralView::Mixer);
-    assert_eq!(
-        a.layouts.forced(layout::INSPECTOR),
-        Some(320.0),
-        "switching back must restore the saved width"
-    );
+    assert_eq!(a.central, CentralView::PianoRoll);
     frame(&mut a);
+    frame(&mut a);
+    assert!(a.workspace.is_visible(Pane::PianoRoll));
+    let (width, _) = a.workspace.measured_sizes();
+    assert!(
+        (width.expect("the inspector is laid out") - 320.0).abs() < 2.0,
+        "switching back must restore the saved width, got {width:?}"
+    );
 
-    // Hiding a panel really stops it being drawn.
-    a.layouts.current.show_inspector = false;
-    assert!(!frame(&mut a), "a hidden panel must not be laid out");
+    // Hiding an area really takes it out of the window (I, or the toolbar's key).
+    a.toggle_pane(Pane::Inspector);
+    frame(&mut a);
+    assert!(!a.workspace.contains(Pane::Inspector));
 
     // And everything survives a round trip through the file.
     a.store_layouts(&ctx);
@@ -592,6 +599,117 @@ fn layouts_are_saved_switched_and_reset_through_the_app() {
     assert_eq!(reloaded.saved.len(), 1);
     assert_eq!(reloaded.saved[0].name, "Mixing");
     assert!(!reloaded.current.show_inspector);
+}
+
+#[test]
+fn the_function_keys_toggle_the_areas_and_the_window_keeps_drawing() {
+    use cantus_ui::views::workspace::Pane;
+    let mut a = app(welcome_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.settings_path = dir.path().join("settings.json");
+    a.appearance_path = dir.path().join("appearance.json");
+    let ctx = ctx();
+    let none = egui::Modifiers::default();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1280.0, 720.0),
+        )),
+        ..Default::default()
+    };
+    ctx.run_ui(input.clone(), |ui| a.frame(ui))
+        .textures_delta
+        .clear();
+    // F9 hides the mixer that shows, F9 again brings it back.
+    assert!(a.workspace.is_visible(Pane::Mixer));
+    press(&ctx, &mut a, egui::Key::F9, none);
+    assert!(!a.workspace.contains(Pane::Mixer));
+    press(&ctx, &mut a, egui::Key::F9, none);
+    assert!(a.workspace.is_visible(Pane::Mixer));
+    // F7 brings the piano roll to the front of the lower zone.
+    press(&ctx, &mut a, egui::Key::F7, none);
+    assert!(a.workspace.is_visible(Pane::PianoRoll));
+    // F5 and I take the arrangement and the inspector out and back.
+    press(&ctx, &mut a, egui::Key::F5, none);
+    press(&ctx, &mut a, egui::Key::I, none);
+    assert!(!a.workspace.contains(Pane::Arrangement));
+    assert!(!a.workspace.contains(Pane::Inspector));
+    ctx.run_ui(input.clone(), |ui| a.frame(ui))
+        .textures_delta
+        .clear();
+    press(&ctx, &mut a, egui::Key::F5, none);
+    press(&ctx, &mut a, egui::Key::I, none);
+    assert!(a.workspace.is_visible(Pane::Arrangement));
+    assert!(a.workspace.is_visible(Pane::Inspector));
+    // While the typing piano plays, the bare I is a note's neighbour and stays the
+    // piano's; Alt+I still reaches the inspector.
+    a.keyboard_piano = true;
+    press(&ctx, &mut a, egui::Key::I, none);
+    assert!(
+        a.workspace.is_visible(Pane::Inspector),
+        "I stays with the piano"
+    );
+    let alt = egui::Modifiers {
+        alt: true,
+        ..Default::default()
+    };
+    press(&ctx, &mut a, egui::Key::I, alt);
+    assert!(!a.workspace.contains(Pane::Inspector), "Alt+I always works");
+    a.keyboard_piano = false;
+    press(&ctx, &mut a, egui::Key::I, alt);
+    ctx.run_ui(input, |ui| a.frame(ui)).textures_delta.clear();
+}
+
+#[test]
+fn an_idle_window_asks_for_no_frames() {
+    // ADR 0024 §13: one ticker asks for frames while something moves, none when idle.
+    use cantus_ui::views::workspace_ticker as ticker;
+    let mut a = app(welcome_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.settings_path = dir.path().join("settings.json");
+    a.appearance_path = dir.path().join("appearance.json");
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1280.0, 720.0),
+        )),
+        ..Default::default()
+    };
+    // egui and the views settle over the first frames (fonts, layouts, first sizes).
+    for _ in 0..4 {
+        ctx.run_ui(input.clone(), |ui| a.frame(ui))
+            .textures_delta
+            .clear();
+    }
+    // A saved project: no autosave falls due while it sits there.
+    a.bus.mark_saved();
+    let revision = a.bus.revision();
+    // Then idle frames: the ticker asks for nothing, frame after frame. (egui's own
+    // repaints — a logo landing from its worker — are egui's, not a steady tick.)
+    let before = ticker::requests(&ctx);
+    for _ in 0..3 {
+        ctx.run_ui(input.clone(), |ui| a.frame(ui))
+            .textures_delta
+            .clear();
+        let tick = ticker::last(&ctx);
+        assert!(tick.idle(), "nothing moves, yet the ticker asked: {tick:?}");
+    }
+    assert_eq!(
+        ticker::requests(&ctx),
+        before,
+        "an idle frame must ask for no repaint"
+    );
+    assert_eq!(a.bus.revision(), revision, "an idle frame changes nothing");
+    // Playing asks for frames at no more than 60 Hz.
+    a.toggle_play();
+    let mut out = ctx.run_ui(input, |ui| a.frame(ui));
+    out.textures_delta.clear();
+    a.stop();
+    let tick = ticker::last(&ctx);
+    if a.engine.is_live() || tick.has(ticker::Reason::Playback) {
+        assert!(tick.requested.is_some_and(|d| d >= ticker::FRAME));
+    }
 }
 
 /// Feed one key press through a frame, exactly as a keyboard would.
@@ -761,19 +879,19 @@ fn every_dialog_renders_what_it_should_say() {
         );
     }
 
-    // The colour editor is tall enough to scroll the sections above out of view, so it
-    // gets its own frame rather than being asserted alongside them.
+    // The appearance page is tall enough to scroll the sections above out of view, so it
+    // gets its own frame rather than being asserted alongside them: its colours tab.
     a.show_theme_editor = true;
+    a.appearance_page.tab = cantus_ui::views::appearance::Tab::Colours;
     ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()))
         .textures_delta
         .clear();
     let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    // Not every token: there are twenty-two and the rest are below the fold, which is what
-    // a scroll area is for. `theme::tests::every_colour_in_a_theme_is_editable_in_the_dialog`
-    // is what guarantees none of them is missing.
-    for expected in ["SURFACES", "Canvas", "Focus ring"] {
+    // Not every token: there are sixty-one and the rest are below the fold, which is what
+    // a scroll area is for.
+    for expected in ["SURFACES", "Deepest ground", "surface.ink"] {
         assert!(
             text.contains(expected),
             "the colour editor did not paint {expected:?}; painted:
@@ -1396,6 +1514,9 @@ fn the_pan_law_is_reachable_reversible_and_stored_in_the_project() {
 
 #[test]
 fn the_mixer_shows_pan_width_and_polarity() {
+    // The desk carries values and icons, not words (ADR 0024 §6): the pan, the width and
+    // the polarity are read through the hint bar (tests/mixer_desk.rs hovers them); here,
+    // the desk's order and its numbers.
     let mut a = app(starter_project());
     let id = a.project().tracks[0].strip.unwrap();
     a.exec(Command::SetStripPan { id, pan: -0.5 });
@@ -1414,14 +1535,13 @@ fn the_mixer_shows_pan_width_and_polarity() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    for want in ["L50", "0%", "Mono", "\u{d8}", "-3"] {
-        assert!(
-            text.contains(want),
-            "the mixer never painted {want:?}: {text}"
-        );
-    }
+    // The pan law, on the master.
+    assert!(
+        text.contains("-3"),
+        "the mixer never painted the pan law: {text}"
+    );
     // The desk: the master first, then every strip by number, fed or not.
-    let m = text.find("Master").expect("a master strip");
+    let m = text.find("MASTER").expect("a master strip");
     let one = text.find("| 1 |").expect("strip 1");
     assert!(m < one, "the master must be on the left: {text}");
     assert!(
@@ -1707,7 +1827,7 @@ fn clip_editing_is_visible_in_the_menu_bar() {
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
     assert!(
-        text.contains("Clip"),
+        text.contains("CLIP"),
         "the menu bar has no Clip menu: {text}"
     );
 }
@@ -1732,26 +1852,28 @@ fn the_arrangement_toolbar_is_a_row_of_icons_with_a_grid_picker() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    for want in ["Arrangement", "Grid", "1 bar", "Snap", "1 selected"] {
+    // The snap switch is an LED button, whose word is set in capitals (ADR 0024 §4).
+    for want in ["Arrangement", "Grid", "1 bar", "SNAP", "1 selected"] {
         assert!(
             text.contains(want),
             "the toolbar never painted {want:?}: {text}"
         );
     }
-    // The buttons themselves are painted shapes, not text: count the icon-sized
-    // interactive rects instead, so the test fails if the row silently loses one.
-    let buttons = out
+    // The keys are the kit's toolbar keys: each is painted as a mesh of its own inside the
+    // toolbar's strip. Count them, so the test fails if the row silently loses one.
+    let keys = out
         .shapes
         .iter()
         .filter(|s| {
-            matches!(&s.shape, egui::Shape::Rect(r)
-                if (r.rect.width() - cantus_ui::design::ICON_BUTTON.x).abs() < 0.5
-                    && (r.rect.height() - cantus_ui::design::ICON_BUTTON.y).abs() < 0.5)
+            matches!(&s.shape, egui::Shape::Mesh(m)
+                if !m.vertices.is_empty()
+                    && m.vertices.iter().all(|v| v.pos.y <= 36.0)
+                    && m.vertices.iter().any(|v| v.pos.y >= 4.0))
         })
         .count();
     assert!(
-        buttons >= 1,
-        "no icon buttons were painted in the arrangement toolbar"
+        keys >= 8,
+        "the arrangement toolbar lost its keys: {keys} meshes in its strip"
     );
 }
 
@@ -2121,7 +2243,7 @@ fn muting_a_pad_silences_that_pad_alone() {
     assert!(a.exec(Command::SetInstrumentParam {
         track: t,
         param: InstrumentParam::Pulsus {
-            pad: 2,
+            pad: pads[2].id,
             field: PadField::Mute,
         },
         value: 1.0,
@@ -2152,7 +2274,7 @@ fn renaming_a_pad_renames_the_row_in_the_piano_roll() {
     let t = a.project().tracks[0].id;
     assert!(a.exec(Command::SetPadName {
         track: t,
-        pad: 0,
+        pad: PadId(1),
         name: "Bombo".into(),
     }));
     let axis = a.note_axis();
@@ -2628,12 +2750,16 @@ fn the_fader_left_the_track_header_for_the_inspector() {
         "the track header is still drawing a fader readout: {header}"
     );
     let inspector = paint(&mut a, false);
+    // The track's own level, named as the track's so it never reads as the strip's
+    // fader a second time (ADR 0024 §7).
     assert!(
-        inspector.contains("Channel"),
-        "no channel strip in the inspector: {inspector}"
+        inspector.contains(&cantus_ui::i18n::t("inspector.track_level")),
+        "no track level in the inspector: {inspector}"
     );
+    // A value's unit is set after its digits in a smaller face (ADR 0024 §3), so the
+    // galley holds "+0.0" and "dB" without the space between them.
     assert!(
-        inspector.contains("+0.0 dB") && inspector.contains("Strip 1"),
+        inspector.contains("+0.0") && inspector.contains("Strip 1"),
         "the inspector's channel is missing its level or its route: {inspector}"
     );
 }
@@ -3112,7 +3238,8 @@ fn the_mixer_paints_solo_fx_eq_and_sends() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    for want in ["| S |", "| FX |", "\u{21c4}", "SENDS", "Solo off"] {
+    // The rows are named once, in the legend; "Solo off" shows while a strip is soloed.
+    for want in ["| SENDS |", "| FX \u{b7} RECORD |", "| EQ |", "SOLO OFF"] {
         assert!(
             text.contains(want),
             "the mixer never painted {want:?}: {text}"
@@ -3214,24 +3341,21 @@ fn groups_gather_fold_and_dissolve() {
     assert_eq!(a.project().strip_number(ids[4]), Some(5));
 }
 
-/// Compact drops the width bar, the EQ bars and the send rows; normal shows them.
+/// Compact shows the strip's rows; Wide adds each fader's value; Extra large the insert
+/// slots — and every strip stays on the desk.
 #[test]
-fn compact_density_shows_less_of_each_strip() {
-    use cantus_ui::settings::MixerDensity;
+fn width_modes_show_more_of_each_strip() {
+    use cantus_ui::views::mixer::layout::WidthMode;
     let mut a = app(starter_project());
-    let s0 = a.project().tracks[0].strip.unwrap();
-    let aux = a.project().strips[3].id;
-    a.set_strip_send(s0, Send::new(aux));
-    a.end_gesture();
-    let normal = paint_mixer(&mut a, 1600.0);
-    assert!(normal.contains("SENDS"));
-    a.settings.mixer_density = MixerDensity::Compact;
     let compact = paint_mixer(&mut a, 1600.0);
-    assert!(!compact.contains("SENDS"), "{compact}");
-    assert!(
-        compact.contains("Sends 1"),
-        "the sends as a count: {compact}"
-    );
+    assert!(compact.contains("| SENDS |"));
+    assert!(!compact.contains("| VALUE |"), "{compact}");
+    views::mixer::set_width_mode(&mut a, WidthMode::Wide);
+    let wide = paint_mixer(&mut a, 1600.0);
+    assert!(wide.contains("| VALUE |"), "{wide}");
+    views::mixer::set_width_mode(&mut a, WidthMode::Xl);
+    let xl = paint_mixer(&mut a, 1600.0);
+    assert!(xl.contains("| INSERTS |"), "{xl}");
     assert!(compact.contains("| 16 |"), "every strip is still there");
 }
 
@@ -3302,6 +3426,8 @@ fn the_eq_editor_paints_its_display_and_band_panel() {
         out.textures_delta.clear();
         text = painted_text(&out.shapes);
     }
+    // The frame sets the name in capitals, and a value's unit a hair from its number.
+    let norm = |s: &str| s.to_lowercase().replace(' ', "");
     for want in [
         "Aequalis EQ",
         "Band 1",
@@ -3312,7 +3438,7 @@ fn the_eq_editor_paints_its_display_and_band_panel() {
         "1 of 24 bands",
     ] {
         assert!(
-            text.contains(want),
+            norm(&text).contains(&norm(want)),
             "the editor never painted {want:?}: {text}"
         );
     }
@@ -3384,6 +3510,9 @@ fn the_compressor_is_keyed_from_the_desk_and_its_editor_explains_itself() {
         out.textures_delta.clear();
         text = painted_text(&out.shapes);
     }
+    // The device frame sets names and labels in capitals, and a value's unit is set a
+    // hair apart in a smaller face (no space in the painted text).
+    let lower = text.to_lowercase().replace(' ', "");
     for want in [
         "Comprimo compressor",
         "Opto",
@@ -3394,7 +3523,7 @@ fn the_compressor_is_keyed_from_the_desk_and_its_editor_explains_itself() {
         "GR 0.0 dB",
     ] {
         assert!(
-            text.contains(want),
+            lower.contains(&want.to_lowercase().replace(' ', "")),
             "the editor never painted {want:?}: {text}"
         );
     }

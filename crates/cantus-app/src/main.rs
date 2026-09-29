@@ -1,5 +1,6 @@
 //! Cantus — the application binary. All logic lives in `cantus-ui` and below; this file
-//! only parses arguments and starts the app.
+//! only parses arguments, hands over the art baked in at build time (`build.rs`: the
+//! splash's logo and the window's icon), and starts the app.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -7,9 +8,14 @@
 use cantus_ui::LaunchOptions;
 use std::path::PathBuf;
 
+include!(concat!(env!("OUT_DIR"), "/baked.rs"));
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    let mut options = LaunchOptions::default();
+    let mut options = LaunchOptions {
+        art: Some(ART),
+        ..Default::default()
+    };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {

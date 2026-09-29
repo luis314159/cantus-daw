@@ -527,7 +527,7 @@ impl Processor {
         let mut s = 0usize;
         let mut next = 0usize;
         while s < n {
-            if self.pos % GRID == 0 {
+            if self.pos.is_multiple_of(GRID) {
                 while next < events.len() && events[next].offset as usize <= s {
                     self.apply(&events[next]);
                     next += 1;

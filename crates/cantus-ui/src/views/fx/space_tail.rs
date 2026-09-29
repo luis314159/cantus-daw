@@ -5,24 +5,28 @@
 //! and at 125 Hz and 8 kHz (dashed), and the **measured** envelope of the last event that
 //! went through the reverb (filled). Handles: the pre-delay, the end of the reflections'
 //! window (their size), their level, and the decay (the −30 dB point of the 1 kHz line).
+//! Their words go last, on plates, and step aside for one another (audit #22).
 //!
-//! The measurement runs here, on the UI thread, from the engine's analyser pairs: the dry
+//! The measurement runs here, on the UI thread, from the host's analyser pairs: the dry
 //! part is subtracted back out (the mix law is known), an event is found in the input,
 //! and when its tail has fallen 35 dB (or four seconds have passed) the tail is measured
 //! the way the DSP tests measure it — octave bands, Schroeder's backward integration, T20.
 
-use super::{seconds, View};
-use crate::app::CantusApp;
-use crate::design::{self, space};
-use crate::i18n::{t, tf};
-use crate::theme;
+use super::super::canvas::{self, Ink};
+use super::super::frame;
+use super::super::host::FxHost;
+use super::super::multiband::{choice, dashed_poly, with_fmt};
+use super::{Secs, State, View, G_TAIL};
+use crate::kit::hint::{self, Caps};
+use crate::kit::text::{Role, Src, Text};
+use crate::kit::{with_brush, Brush, Fill, Style as Look};
 use cantus_dsp::spatium::measure::{band_decay, decay as measure_decay, envelope_db};
 use cantus_dsp::spatium::model::{
     diffusion, er_level_db, er_pattern, late_gap_ms, late_level_db, room_at, Style, ER_OFF_DB,
-    ER_SIZE_MAX,
+    ER_SIZE_MAX, ER_TAPS,
 };
 use cantus_dsp::spatium::OCTAVES;
-use egui::{pos2, vec2, Align2, Pos2, Rect, Sense, Stroke, StrokeKind};
+use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
 use std::collections::VecDeque;
 
 /// Seconds of audio kept for measuring.
@@ -252,8 +256,9 @@ struct Model {
     late_on: f32,
     /// The late field's level at its onset, dB (same scale as `bins`).
     late_db: f32,
-    /// The early reflections: time (s) and level (dB), both sides.
-    stems: Vec<(f32, f32)>,
+    /// The early reflections: time (s) and level (dB), both sides; `stems` of them.
+    stem: [(f32, f32); 2 * ER_TAPS],
+    stems: usize,
     /// The loudest reflection's level, dB (the level handle sits there).
     er_top: Option<f32>,
     /// The late field's decay at 125 Hz, 1 kHz and 8 kHz, seconds.
@@ -280,7 +285,8 @@ fn model(view: &View) -> Model {
         s.er_size.clamp(0.25, ER_SIZE_MAX),
         s.character,
     );
-    let mut stems = Vec::new();
+    let mut stem = [(0.0f32, 0.0f32); 2 * ER_TAPS];
+    let mut stems = 0;
     let mut er_top = None;
     if let (Some(db), false) = (
         er_level_db(s.style, s.distance, s.er_db),
@@ -289,17 +295,18 @@ fn model(view: &View) -> Model {
         let lin = 10f32.powf(db / 20.0);
         let bin = BIN_MS * 0.001 * fs;
         for side in 0..2 {
-            for k in 0..pattern.count {
+            for k in 0..pattern.count.min(ER_TAPS) {
                 let g = pattern.gain[side][k] * lin * 0.5_f32.sqrt();
                 let level = 10.0 * (g * g / bin).max(1e-20).log10();
-                stems.push((pre + pattern.t_ms[side][k] * 0.001, level));
+                stem[stems] = (pre + pattern.t_ms[side][k] * 0.001, level);
+                stems += 1;
             }
         }
-        er_top = stems.iter().map(|s| s.1).reduce(f32::max);
+        er_top = stem[..stems].iter().map(|s| s.1).reduce(f32::max);
     }
     // Normalise to the loudest thing drawn.
     let top = er_top.unwrap_or(f32::MIN).max(late_db);
-    for s in &mut stems {
+    for s in &mut stem[..stems] {
         s.1 -= top;
     }
     late_db -= top;
@@ -308,151 +315,293 @@ fn model(view: &View) -> Model {
         er_end: pre + pattern.window_ms * 0.001,
         late_on,
         late_db,
+        stem,
         stems,
         er_top: er_top.map(|t| t - top),
         decays,
     }
 }
 
-pub fn display(app: &mut CantusApp, ui: &mut egui::Ui, view: &View, size: egui::Vec2) {
-    let pal = theme::p();
-    let m = model(view);
-    let t_max = nice_span(m.late_on + 0.75 * m.decays[1]);
-    // A title row the size of the curve display's header, so the two displays line up.
-    let head = ui.spacing().interact_size.y;
-    let measured = app.fx.space.capture.measured.clone();
-    // The one number the view adds to the knobs: the decay the last tail really had.
-    let summary = match measured.as_ref().and_then(|m| m.broadband) {
-        Some(b) => tf("space.tail.measured", &[("s", &seconds(b))]),
-        None => String::new(),
-    };
-    let mut spectrum = app.fx.space.tail_spectrum;
-    ui.allocate_ui_with_layout(
-        vec2(size.x, head),
-        egui::Layout::left_to_right(egui::Align::Center),
-        |ui| {
-            ui.label(
-                egui::RichText::new(t("space.tail"))
-                    .text_style(design::strong())
-                    .color(pal.text),
-            );
-            if ui
-                .selectable_label(!spectrum, t("space.tail.envelope"))
-                .on_hover_text(t("space.tail.envelope_tip"))
-                .clicked()
-            {
-                spectrum = false;
-            }
-            if ui
-                .selectable_label(spectrum, t("space.tail.spectrum"))
-                .on_hover_text(t("space.tail.spectrum_tip"))
-                .clicked()
-            {
-                spectrum = true;
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    egui::RichText::new(summary)
-                        .text_style(design::mono_small())
-                        .color(pal.text_dim),
-                );
-            });
-        },
-    );
-    app.fx.space.tail_spectrum = spectrum;
-    let h = size.y - head - ui.spacing().item_spacing.y;
-    let (rect, resp) = ui.allocate_exact_size(vec2(size.x, h), Sense::click_and_drag());
-    let geo = Geo { rect, t_max };
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    if spectrum {
-        spectrum_view(&p, &geo, view, &m, measured.as_ref());
-        p.rect_stroke(
-            rect,
-            pal.corner_radius,
-            Stroke::new(1.0, pal.grid_strong),
-            StrokeKind::Inside,
-        );
-        return;
+/// The head, where the view's switch sits, at 100 %.
+const HEAD: f32 = 28.0;
+
+const VIEW_LABELS: [Src<'static>; 2] = [
+    Src::Key("space.tail.envelope"),
+    Src::Key("space.tail.spectrum"),
+];
+const VIEW_TIPS: [&str; 2] = ["space.tail.envelope_tip", "space.tail.spectrum_tip"];
+
+/// Labels that must not land on one another: each is moved aside when it would.
+struct Placer {
+    rects: [Rect; 12],
+    n: usize,
+}
+
+impl Placer {
+    fn new() -> Placer {
+        Placer {
+            rects: [Rect::NOTHING; 12],
+            n: 0,
+        }
     }
 
-    // Grid: time ticks, dB every 12.
-    let step = match t_max {
+    /// Where a label of `size` anchored at `at` by `align` can go inside `bounds`: there,
+    /// or moved down or up by its height until it touches nothing placed before.
+    fn place(&mut self, at: Pos2, align: Align2, size: egui::Vec2, bounds: Rect, gap: f32) -> Rect {
+        let first = align.anchor_size(at, size);
+        let step = size.y + gap;
+        let mut best = first;
+        for dy in [0.0, step, -step, 2.0 * step, -2.0 * step, 3.0 * step] {
+            let mut r = first.translate(vec2(0.0, dy));
+            // Kept inside the view.
+            let dx = (bounds.left() - r.left()).max(0.0) + (bounds.right() - r.right()).min(0.0);
+            let dy2 = (bounds.top() - r.top()).max(0.0) + (bounds.bottom() - r.bottom()).min(0.0);
+            r = r.translate(vec2(dx, dy2));
+            if !self.rects[..self.n]
+                .iter()
+                .any(|p| p.expand(gap).intersects(r))
+            {
+                best = r;
+                break;
+            }
+        }
+        if self.n < self.rects.len() {
+            self.rects[self.n] = best;
+            self.n += 1;
+        }
+        best
+    }
+}
+
+/// A word on the view, placed where it touches no other, on a plate.
+#[allow(clippy::too_many_arguments)]
+fn label(
+    b: &mut Brush,
+    placer: &mut Placer,
+    bounds: Rect,
+    at: Pos2,
+    align: Align2,
+    color: Color32,
+    ink: &Ink,
+    k: f32,
+    args: std::fmt::Arguments<'_>,
+) {
+    with_fmt(args, |text| {
+        let t = Text::new(text, Role::Label, color).caps(false);
+        let size = crate::kit::text::measure(b.ctx(), &t, k);
+        let r = placer.place(at, align, size, bounds.shrink(2.0 * k), 3.0 * k);
+        b.rrect(
+            b.snap_rect(r.expand2(vec2(3.0 * k, 1.0 * k))),
+            2.0 * k,
+            Fill::Solid(ink.plate),
+        );
+        let _ = crate::kit::text::paint(b, r.expand(1.0), &t, k);
+    });
+}
+
+/// The time ticks' step for a span.
+fn tick_step(t_max: f32) -> f32 {
+    match t_max {
         x if x <= 0.5 => 0.05,
         x if x <= 1.0 => 0.1,
         x if x <= 3.0 => 0.25,
         x if x <= 5.0 => 0.5,
         _ => 1.0,
-    };
-    let mut tt = step;
-    while tt < t_max - 1e-4 {
-        p.vline(geo.x(tt), rect.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(geo.x(tt) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            seconds(tt),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        tt += step;
     }
-    for db in [-12.0f32, -24.0, -36.0, -48.0, -60.0] {
-        p.hline(rect.x_range(), geo.y(db), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(rect.right() - 3.0, geo.y(db) - 1.0),
-            Align2::RIGHT_BOTTOM,
-            format!("{db:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
+}
 
-    // The measured envelope of the last event, filled from the floor.
-    if let Some(ms) = &measured {
-        let mut mesh = egui::Mesh::default();
-        let fill = pal
-            .text_dim
-            .gamma_multiply(if pal.dark { 0.35 } else { 0.25 });
-        let mut line = Vec::new();
+pub fn display(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Look,
+    view: &View,
+    rect: Rect,
+) {
+    let k = s.k;
+    let m = model(view);
+    let t_max = nice_span(m.late_on + 0.75 * m.decays[1]);
+    let head = Rect::from_min_size(rect.min, vec2(rect.width(), HEAD * k));
+    let plot = Rect::from_min_max(pos2(rect.left(), head.bottom()), rect.max);
+    let geo = Geo { rect: plot, t_max };
+    let resp = ui.interact(plot, ui.id().with("space-tail"), Sense::click_and_drag());
+    let pointer = resp.hover_pos();
+    let handles = handles(view, &geo, &m);
+    let spectrum = st.tail_spectrum;
+    // The measured envelope's points, into a buffer kept between frames.
+    st.tail_pts.clear();
+    if let Some(ms) = st.capture.measured.as_ref().filter(|_| !spectrum) {
         for (i, d) in ms.envelope_db.iter().enumerate() {
             let tt = i as f32 * BIN_MS * 0.001;
             if tt > t_max {
                 break;
             }
-            let pt = pos2(geo.x(tt), geo.y(*d));
-            line.push(pt);
-            let base = mesh.vertices.len() as u32;
-            mesh.colored_vertex(pt, fill);
-            mesh.colored_vertex(pos2(pt.x, rect.bottom()), fill);
-            if i > 0 {
-                mesh.add_triangle(base - 2, base - 1, base);
-                mesh.add_triangle(base - 1, base, base + 1);
-            }
+            st.tail_pts.push(pos2(geo.x(tt), geo.y(*d)));
         }
-        p.add(mesh);
-        p.add(egui::Shape::line(line, Stroke::new(1.0, pal.text_dim)));
-        // Where the input stopped.
-        let x = geo.x(ms.input_ms * 0.001);
-        p.vline(
-            x,
-            rect.y_range(),
-            Stroke::new(1.0, pal.text_dim.gamma_multiply(0.6)),
+    }
+    with_brush(&ui.painter_at(rect), |b| {
+        let ink = Ink::of(s);
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(head.bottom()),
+            b.px(),
+            ink.edge,
+        );
+        if spectrum {
+            spectrum_view(b, &geo, s, view, &m, st.capture.measured.as_ref());
+        } else {
+            envelope_view(b, &geo, s, view, &m, st, &handles, pointer);
+        }
+        // The one number the view adds to the knobs: the decay the last tail really had.
+        if let Some(bb) = st.capture.measured.as_ref().and_then(|x| x.broadband) {
+            canvas::putf(
+                b,
+                pos2(head.right() - 8.0 * k, head.center().y),
+                Align2::RIGHT_CENTER,
+                Role::Label,
+                ink.dim,
+                s.tk(),
+                None,
+                format_args!("{} {}", frame::tr("space.tail.measured_word"), Secs(bb)),
+            );
+        }
+    });
+    // The switch, in the head.
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(head.shrink2(vec2(6.0 * k, 3.0 * k)))
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    if let Some(i) = choice(
+        &mut child,
+        s,
+        spectrum as usize,
+        &VIEW_LABELS,
+        &VIEW_TIPS,
+        frame::tr("space.tail"),
+        176.0,
+    ) {
+        st.tail_spectrum = i == 1;
+    }
+    if !spectrum {
+        tail_gestures(host, st, ui, k, view, &geo, &m, &handles, &resp);
+    }
+    if resp.hovered() && st.time_drag.is_none() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("space.tail"),
+            frame::tr(if spectrum {
+                "space.tail.spectrum_tip"
+            } else {
+                "space.tail.envelope_tip"
+            }),
+            Caps::NONE,
         );
     }
+}
 
-    // The pre-delay, shaded; the reflections' window, bracketed.
-    let pre_rect = Rect::from_min_max(rect.min, pos2(geo.x(m.pre), rect.bottom()));
-    p.rect_filled(pre_rect, 0.0, pal.grid.gamma_multiply(0.6));
-    // One hairline per reflection with a dot on top: dense patterns stay a comb, not a
-    // block.
-    let er_color = pal.gold.gamma_multiply(if pal.dark { 0.6 } else { 0.7 });
-    for (tt, db) in &m.stems {
-        let top = pos2(geo.x(*tt), geo.y(*db));
-        p.line_segment(
-            [pos2(top.x, rect.bottom()), top],
-            Stroke::new(1.0, er_color),
+/// The four handles on the time axis: what each is, where it sits.
+fn handles(view: &View, geo: &Geo, m: &Model) -> ([(Grab, Pos2); 4], usize) {
+    // The time handles sit low, where the tail is quiet, clear of the reflections.
+    let top = geo.rect.bottom() - geo.rect.height().min(260.0) * 0.26;
+    let er_on = m.er_top.is_some() && view.s.er_db > ER_OFF_DB;
+    let t30 = m.late_on + m.decays[1] * 0.5;
+    let mut out = [(Grab::Predelay, Pos2::ZERO); 4];
+    let mut n = 0;
+    out[n] = (Grab::Predelay, pos2(geo.x(m.pre), top));
+    n += 1;
+    if er_on {
+        out[n] = (
+            Grab::ErSize,
+            pos2(geo.x(m.er_end), top + geo.rect.height() * 0.08),
         );
-        p.circle_filled(top, 1.75, pal.gold);
+        n += 1;
+        let first = m.stem[..m.stems]
+            .iter()
+            .map(|s| s.0)
+            .fold(f32::MAX, f32::min);
+        out[n] = (
+            Grab::ErLevel,
+            pos2(
+                geo.x(first),
+                geo.y(m.er_top.unwrap_or(0.0)).max(geo.rect.top() + 12.0),
+            ),
+        );
+        n += 1;
+    }
+    out[n] = (Grab::Decay, pos2(geo.x(t30), geo.y(m.late_db - 30.0)));
+    n += 1;
+    (out, n)
+}
+
+/// The envelope: the grid, the last tail measured, the pre-delay, the reflections, the
+/// late field's lines, the handles — and last, every word.
+#[allow(clippy::too_many_arguments)]
+fn envelope_view(
+    b: &mut Brush,
+    geo: &Geo,
+    s: &Look,
+    view: &View,
+    m: &Model,
+    st: &State,
+    handles: &([(Grab, Pos2); 4], usize),
+    pointer: Option<Pos2>,
+) {
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let rect = geo.rect;
+    let px = b.px();
+    let t_max = geo.t_max;
+    // Grid: time ticks, dB every 12.
+    let step = tick_step(t_max);
+    let mut tt = step;
+    while tt < t_max - 1e-4 {
+        b.vline(
+            b.snap_mid(geo.x(tt)),
+            rect.top(),
+            rect.bottom(),
+            px,
+            ink.grid,
+        );
+        tt += step;
+    }
+    for db in [-12.0f32, -24.0, -36.0, -48.0, -60.0] {
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(geo.y(db)),
+            px,
+            ink.grid,
+        );
+    }
+    // The measured envelope of the last event, filled from the floor.
+    if st.tail_pts.len() > 1 {
+        b.area(
+            &st.tail_pts,
+            rect.bottom(),
+            Ink::a(ink.dim, if ink.dark { 0.30 } else { 0.22 }),
+        );
+        b.polyline(&st.tail_pts, px.max(k), ink.dim);
+    }
+    if let Some(ms) = &st.capture.measured {
+        // Where the input stopped.
+        let x = b.snap_mid(geo.x(ms.input_ms * 0.001));
+        b.vline(x, rect.top(), rect.bottom(), px, Ink::a(ink.dim, 0.6));
+    }
+    // The pre-delay, shaded.
+    b.rect(
+        Rect::from_min_max(rect.min, pos2(geo.x(m.pre), rect.bottom())),
+        Fill::Solid(Ink::a(ink.grid_strong, 0.5)),
+    );
+    // One hairline per reflection with a dot on top: dense patterns stay a comb.
+    let er = Ink::a(ink.hue, if ink.dark { 0.6 } else { 0.7 });
+    for (t, db) in &m.stem[..m.stems] {
+        let top = pos2(geo.x(*t), geo.y(*db));
+        b.segment(pos2(top.x, rect.bottom()), top, px.max(k), er, false);
+        b.circle(top, 1.75 * k, Fill::Solid(ink.hue));
     }
     // The late field: its build-up (diffusion smears the onset), then its decay per band.
     let diff = diffusion(
@@ -462,225 +611,468 @@ pub fn display(app: &mut CantusApp, ui: &mut egui::Ui, view: &View, size: egui::
         view.s.character,
     );
     let rise = 0.004 + 0.03 * diff;
-    let late_line = |decay: f32| -> Vec<Pos2> {
-        (0..=120)
-            .map(|i| {
-                let tt = m.late_on + (t_max - m.late_on).max(0.0) * i as f32 / 120.0;
-                let dt = tt - m.late_on;
-                let build = 10.0 * (1.0 - (-dt / rise).exp()).max(1e-6).log10();
-                pos2(geo.x(tt), geo.y(m.late_db + build - 60.0 * dt / decay))
-            })
-            .collect()
+    let late_line = |decay: f32, pts: &mut [Pos2; 121]| {
+        for (i, p) in pts.iter_mut().enumerate() {
+            let tt = m.late_on + (t_max - m.late_on).max(0.0) * i as f32 / 120.0;
+            let dt = tt - m.late_on;
+            let build = 10.0 * (1.0 - (-dt / rise).exp()).max(1e-6).log10();
+            *p = pos2(geo.x(tt), geo.y(m.late_db + build - 60.0 * dt / decay));
+        }
     };
+    let mut pts = [Pos2::ZERO; 121];
     for (i, d) in m.decays.iter().enumerate() {
-        let pts = late_line(*d);
+        late_line(*d, &mut pts);
         if i == 1 {
-            p.add(egui::Shape::line(pts, Stroke::new(2.5, pal.gold)));
+            b.polyline(&pts, 2.5 * k, ink.hue);
         } else {
-            p.add(egui::Shape::dashed_line(
-                &pts,
-                Stroke::new(1.0, pal.gold),
-                5.0,
-                4.0,
-            ));
-            // The band's name where its line crosses −40 dB (or at the view's end), clear
-            // of the time ticks along the bottom.
-            let at = (m.late_on + d * (m.late_db + 40.0).max(1.0) / 60.0).min(t_max * 0.92);
-            let db = m.late_db - 60.0 * (at - m.late_on) / d;
-            let right = geo.x(at) > rect.right() - space::GRID * 14.0;
-            p.text(
-                pos2(
-                    geo.x(at) + if right { -3.0 } else { 3.0 },
-                    geo.y(db.max(FLOOR_DB + 8.0)) - 2.0,
+            dashed_poly(b, &pts, k, ink.hue, 5.0 * k, 4.0 * k);
+        }
+    }
+    // The pre-delay and the window's end are lines across the view, not only points.
+    let line = Ink::a(ink.hue, 0.7);
+    b.vline(
+        b.snap_mid(geo.x(m.pre)),
+        rect.top(),
+        rect.bottom(),
+        px,
+        line,
+    );
+    let er_on = m.er_top.is_some() && view.s.er_db > ER_OFF_DB;
+    if er_on {
+        canvas::dashed(
+            b,
+            pos2(geo.x(m.er_end), rect.top()),
+            pos2(geo.x(m.er_end), rect.bottom()),
+            px,
+            line,
+            4.0 * k,
+            3.0 * k,
+        );
+    }
+    // The handles: diamonds, a shape no other mark on the view has.
+    let (list, n) = handles;
+    let held = st.time_drag;
+    for (grab, c) in &list[..*n] {
+        let hot = held == Some(*grab) || pointer.is_some_and(|pt| pt.distance(*c) < 10.0 * k);
+        let r = if hot { 6.5 } else { 5.0 } * k;
+        let d = |r: f32| {
+            [
+                *c + vec2(0.0, -r),
+                *c + vec2(r, 0.0),
+                *c + vec2(0.0, r),
+                *c + vec2(-r, 0.0),
+            ]
+        };
+        b.polygon(&d(r + k), crate::kit::color::on_fill(ink.hue));
+        b.polygon(&d(r), ink.hue);
+    }
+    if let Some(pt) = pointer {
+        b.vline(
+            b.snap_mid(pt.x),
+            rect.top(),
+            rect.bottom(),
+            px,
+            Ink::a(ink.dim, 0.5),
+        );
+    }
+
+    // ---- the words, last ----
+    let mut ruler = canvas::Ruler::new();
+    let mut tt = step;
+    while tt < t_max - 1e-4 {
+        let x = geo.x(tt) + 2.0 * k;
+        if ruler.fits(x, 6.0 * k) {
+            let r = canvas::putf(
+                b,
+                pos2(x, rect.bottom() - 2.0 * k),
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{}", Secs(tt)),
+            );
+            ruler.placed(r);
+        }
+        tt += step;
+    }
+    for db in [-12.0f32, -24.0, -36.0, -48.0, -60.0] {
+        canvas::putf(
+            b,
+            pos2(rect.right() - 3.0 * k, geo.y(db) - 1.0),
+            Align2::RIGHT_BOTTOM,
+            Role::Micro,
+            ink.dim,
+            tk,
+            None,
+            format_args!("{db:.0}"),
+        );
+    }
+    let mut placer = Placer::new();
+    // The frequency ticks along the bottom are placed first, so nothing lands on them.
+    placer.place(
+        pos2(rect.left(), rect.bottom()),
+        Align2::LEFT_BOTTOM,
+        vec2(rect.width(), 14.0 * k),
+        rect,
+        0.0,
+    );
+    let words = rect.shrink(2.0 * k);
+    for (grab, c) in &list[..*n] {
+        let right = c.x < rect.right() - 90.0 * k;
+        let (at, align) = if right {
+            (*c + vec2(9.0 * k, 0.0), Align2::LEFT_CENTER)
+        } else {
+            (*c - vec2(9.0 * k, 0.0), Align2::RIGHT_CENTER)
+        };
+        let color = ink.text;
+        match grab {
+            Grab::Predelay => label(
+                b,
+                &mut placer,
+                words,
+                at,
+                align,
+                color,
+                &ink,
+                tk,
+                format_args!(
+                    "{} {}",
+                    frame::tr("space.tail.pre_word"),
+                    Secs(view.s.predelay_ms * 0.001)
                 ),
-                if right {
-                    Align2::RIGHT_BOTTOM
-                } else {
-                    Align2::LEFT_BOTTOM
-                },
-                if i == 0 { "125 Hz" } else { "8 kHz" },
-                design::paint::ruler(),
-                pal.text,
+            ),
+            Grab::ErSize => label(
+                b,
+                &mut placer,
+                words,
+                at,
+                align,
+                color,
+                &ink,
+                tk,
+                format_args!(
+                    "{} {}",
+                    frame::tr("space.tail.early_word"),
+                    Secs(m.er_end - m.pre)
+                ),
+            ),
+            Grab::ErLevel => label(
+                b,
+                &mut placer,
+                words,
+                at,
+                align,
+                color,
+                &ink,
+                tk,
+                format_args!("{:+.1} dB", view.s.er_db),
+            ),
+            Grab::Decay => label(
+                b,
+                &mut placer,
+                words,
+                at,
+                align,
+                color,
+                &ink,
+                tk,
+                format_args!("{}", Secs(m.decays[1])),
+            ),
+        }
+    }
+    // The bands' names where their lines cross −40 dB (or at the view's end).
+    for (i, d) in m.decays.iter().enumerate() {
+        if i == 1 {
+            continue;
+        }
+        let at = (m.late_on + d * (m.late_db + 40.0).max(1.0) / 60.0).min(t_max * 0.92);
+        let db = m.late_db - 60.0 * (at - m.late_on) / d;
+        let x = geo.x(at);
+        let right = x > rect.right() - 60.0 * k;
+        let p = pos2(
+            x + if right { -3.0 * k } else { 3.0 * k },
+            geo.y(db.max(-58.0)) - 2.0 * k,
+        );
+        let align = if right {
+            Align2::RIGHT_BOTTOM
+        } else {
+            Align2::LEFT_BOTTOM
+        };
+        if i == 0 {
+            label(
+                b,
+                &mut placer,
+                words,
+                p,
+                align,
+                ink.text,
+                &ink,
+                tk,
+                format_args!("125 Hz"),
+            );
+        } else {
+            label(
+                b,
+                &mut placer,
+                words,
+                p,
+                align,
+                ink.text,
+                &ink,
+                tk,
+                format_args!("8 kHz"),
             );
         }
     }
-    tail_handles(app, ui, view, &geo, &m, &resp);
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
+    if let Some(pt) = pointer {
+        canvas::putf(
+            b,
+            pos2(rect.right() - 8.0 * k, rect.top() + 4.0 * k),
+            Align2::RIGHT_TOP,
+            Role::Label,
+            ink.text,
+            tk,
+            Some(ink.plate),
+            format_args!(
+                "{}  \u{b7}  {:.1} dB",
+                Secs(geo.t(pt.x).max(0.0)),
+                geo.db(pt.y)
+            ),
+        );
+    }
 }
 
-/// The four handles on the time axis, their labels, and their drags. Every drag is one
-/// undo step; dragging the pre-delay frees it from the tempo.
-fn tail_handles(
-    app: &mut CantusApp,
+/// The handles' drags. Every drag is one step; dragging the pre-delay frees it from the
+/// tempo.
+#[allow(clippy::too_many_arguments)]
+fn tail_gestures(
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
+    k: f32,
     view: &View,
     geo: &Geo,
     m: &Model,
+    handles: &([(Grab, Pos2); 4], usize),
     resp: &egui::Response,
 ) {
-    let pal = theme::p();
-    let p = ui.painter_at(geo.rect);
-    // The time handles sit low, where the tail is quiet, clear of the reflections.
-    let top = geo.rect.bottom() - space::GRID * 16.0;
-    let er_on = m.er_top.is_some() && view.s.er_db > ER_OFF_DB;
-    let t30 = m.late_on + m.decays[1] * 0.5;
-    let mut handles: Vec<(Grab, Pos2, String)> = vec![(
-        Grab::Predelay,
-        pos2(geo.x(m.pre), top),
-        tf(
-            "space.tail.pre",
-            &[(
-                "ms",
-                &crate::widgets::knob::readout(view.s.predelay_ms, "ms"),
-            )],
-        ),
-    )];
-    if er_on {
-        handles.push((
-            Grab::ErSize,
-            pos2(geo.x(m.er_end), top + space::GRID * 5.0),
-            tf(
-                "space.tail.early",
-                &[(
-                    "ms",
-                    &crate::widgets::knob::readout((m.er_end - m.pre) * 1_000.0, "ms"),
-                )],
-            ),
-        ));
-        let first = m.stems.iter().map(|s| s.0).fold(f32::MAX, f32::min);
-        handles.push((
-            Grab::ErLevel,
-            pos2(
-                geo.x(first),
-                geo.y(m.er_top.unwrap_or(0.0))
-                    .max(geo.rect.top() + space::S3),
-            ),
-            format!("{:+.1} dB", view.s.er_db),
-        ));
-    }
-    handles.push((
-        Grab::Decay,
-        pos2(geo.x(t30), geo.y(m.late_db - 30.0)),
-        seconds(m.decays[1]),
-    ));
-    let pointer = resp.hover_pos();
-    let near = |c: Pos2| pointer.is_some_and(|pt| pt.distance(c) < 10.0);
-    let held = app.fx.space.time_drag;
-    // The pre-delay and the window's end are lines across the view, not only points.
-    p.vline(
-        geo.x(m.pre),
-        geo.rect.y_range(),
-        Stroke::new(1.0, pal.gold.gamma_multiply(0.7)),
-    );
-    if er_on {
-        p.add(egui::Shape::dashed_line(
-            &[
-                pos2(geo.x(m.er_end), geo.rect.top()),
-                pos2(geo.x(m.er_end), geo.rect.bottom()),
-            ],
-            Stroke::new(1.0, pal.gold.gamma_multiply(0.7)),
-            4.0,
-            3.0,
-        ));
-    }
-    for (grab, c, label) in &handles {
-        let hot = held == Some(*grab) || near(*c);
-        let r = if hot { 6.5 } else { 5.0 };
-        // A diamond: a shape no other mark on the view has.
-        let pts = vec![
-            *c + vec2(0.0, -r),
-            *c + vec2(r, 0.0),
-            *c + vec2(0.0, r),
-            *c + vec2(-r, 0.0),
-        ];
-        p.add(egui::Shape::convex_polygon(
-            pts,
-            pal.gold,
-            Stroke::new(1.0, theme::on_color(&pal, pal.gold)),
-        ));
-        let right = c.x < geo.rect.right() - space::GRID * 18.0;
-        p.text(
-            *c + vec2(if right { 9.0 } else { -9.0 }, 0.0),
-            if right {
-                Align2::LEFT_CENTER
-            } else {
-                Align2::RIGHT_CENTER
-            },
-            label,
-            design::paint::ruler(),
-            pal.text,
-        );
-    }
-    if let Some(pt) = pointer {
-        p.text(
-            pos2(geo.rect.right() - space::S2, geo.rect.bottom() - space::S4),
-            Align2::RIGHT_BOTTOM,
-            format!(
-                "{}  \u{b7}  {:.1} dB",
-                seconds(geo.t(pt.x).max(0.0)),
-                geo.db(pt.y)
-            ),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-
-    // ---- gestures ------------------------------------------------------------------
+    let (list, n) = handles;
     if resp.drag_started() {
-        if let Some(pt) = resp.interact_pointer_pos() {
-            app.fx.space.time_drag = handles
+        if let Some(pt) = ui
+            .input(|i| i.pointer.press_origin())
+            .or(resp.interact_pointer_pos())
+        {
+            st.time_drag = list[..*n]
                 .iter()
-                .map(|(g, c, _)| (*g, c.distance(pt)))
-                .filter(|(_, d)| *d < 12.0)
+                .map(|(g, c)| (*g, c.distance(pt)))
+                .filter(|(_, d)| *d < 12.0 * k)
                 .min_by(|a, b| a.1.total_cmp(&b.1))
                 .map(|(g, _)| g);
         }
     }
-    if let (Some(grab), Some(pt)) = (app.fx.space.time_drag, resp.interact_pointer_pos()) {
+    if let (Some(grab), Some(pt)) = (st.time_drag, resp.interact_pointer_pos()) {
         if resp.dragged() {
             let tt = geo.t(pt.x).max(0.0);
             let room = room_at(view.s.space);
-            let fields: Vec<(String, f32)> = match grab {
-                Grab::Predelay => vec![
-                    ("predelay".into(), (tt * 1_000.0).clamp(0.0, 500.0)),
-                    ("sync".into(), 0.0),
-                ],
-                Grab::ErSize => vec![(
-                    "er_size".into(),
-                    ((tt - m.pre) * 1_000.0 / room.er_end_ms).clamp(0.25, ER_SIZE_MAX),
-                )],
+            match grab {
+                Grab::Predelay => host.apply(
+                    &[
+                        ("predelay", Some((tt * 1_000.0).clamp(0.0, 500.0))),
+                        ("sync", Some(0.0)),
+                    ],
+                    "cmd.space_edit",
+                    Some(G_TAIL),
+                ),
+                Grab::ErSize => host.apply(
+                    &[(
+                        "er_size",
+                        Some(((tt - m.pre) * 1_000.0 / room.er_end_ms).clamp(0.25, ER_SIZE_MAX)),
+                    )],
+                    "cmd.space_edit",
+                    Some(G_TAIL),
+                ),
                 Grab::ErLevel => {
                     let top = m.er_top.unwrap_or(0.0);
-                    vec![(
-                        "er".into(),
-                        (view.s.er_db + geo.db(pt.y) - top).clamp(ER_OFF_DB + 0.5, 12.0),
-                    )]
+                    host.apply(
+                        &[(
+                            "er",
+                            Some((view.s.er_db + geo.db(pt.y) - top).clamp(ER_OFF_DB + 0.5, 12.0)),
+                        )],
+                        "cmd.space_edit",
+                        Some(G_TAIL),
+                    )
                 }
                 Grab::Decay => {
                     let want = (2.0 * (tt - m.late_on)).max(0.05);
-                    vec![(
-                        "decay".into(),
-                        (view.s.decay_s * want / m.decays[1]).clamp(0.1, 30.0),
-                    )]
+                    host.apply(
+                        &[(
+                            "decay",
+                            Some((view.s.decay_s * want / m.decays[1]).clamp(0.1, 30.0)),
+                        )],
+                        "cmd.space_edit",
+                        Some(G_TAIL),
+                    )
                 }
-            };
-            app.set_space_params(view.strip, view.effect, &fields, true);
+            }
         }
     }
     if resp.drag_stopped() {
-        app.fx.space.time_drag = None;
-        app.end_gesture();
+        st.time_drag = None;
+        host.end_gesture();
     }
-    if handles.iter().any(|(_, c, _)| near(*c)) || app.fx.space.time_drag.is_some() {
+    let near = resp
+        .hover_pos()
+        .is_some_and(|pt| list[..*n].iter().any(|(_, c)| c.distance(pt) < 10.0 * k));
+    if near || st.time_drag.is_some() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("space.tail"),
+            frame::tr("space.tail.handles_tip"),
+            Caps::NONE,
+        );
     }
 }
 
+/// The tail as a spectrogram: time across, frequency up, the measured level as the
+/// strength of the device's hue (one hue, so it reads in both themes and in grey). Over
+/// it, where the curve says each frequency should be 30 dB down (thin) and 60 dB down
+/// (dashed), counted from the late field's onset: if the engine does what it is told, the
+/// colour fades out along the dashed line.
+fn spectrum_view(
+    b: &mut Brush,
+    geo: &Geo,
+    s: &Look,
+    view: &View,
+    m: &Model,
+    ms: Option<&Measured>,
+) {
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let rect = geo.rect;
+    let y_of = |row: f32| rect.bottom() - row / WF_ROWS as f32 * rect.height();
+    let y_hz = |hz: f32| y_of((hz / WF_LO).ln() / (WF_HI / WF_LO).ln() * WF_ROWS as f32);
+    if let Some(ms) = ms {
+        let cols = ms.wf_frames;
+        // At most one column per pixel: neighbouring frames merge to their loudest.
+        let per = ((cols as f32 * WF_HOP / geo.t_max) / rect.width())
+            .ceil()
+            .max(1.0) as usize;
+        let mut f = 0;
+        while f < cols {
+            let t0 = f as f32 * WF_HOP;
+            if t0 > geo.t_max {
+                break;
+            }
+            let x0 = geo.x(t0);
+            let x1 = geo.x((f + per) as f32 * WF_HOP);
+            for row in 0..WF_ROWS {
+                let db = (f..(f + per).min(cols))
+                    .map(|c| ms.waterfall[c * WF_ROWS + row])
+                    .fold(f32::MIN, f32::max);
+                let a = ((db + 60.0) / 60.0).clamp(0.0, 1.0).powf(1.4);
+                if a <= 0.01 {
+                    continue;
+                }
+                let r = Rect::from_min_max(
+                    pos2(x0, y_of(row as f32 + 1.0)),
+                    pos2(x1.max(x0 + 1.0), y_of(row as f32)),
+                );
+                b.rect(
+                    r,
+                    Fill::Solid(Ink::a(ink.hue, a * if ink.dark { 0.95 } else { 0.85 })),
+                );
+            }
+            f += per;
+        }
+    }
+    // Frequency lines.
+    for hz in [100.0f32, 1_000.0, 10_000.0] {
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(y_hz(hz)),
+            b.px(),
+            ink.grid_strong,
+        );
+    }
+    // Where the curve says the tail is 30 and 60 dB down, per frequency.
+    let curve = view.s.target_curve();
+    let mut pts = [Pos2::ZERO; 61];
+    for (drop, dashed) in [(0.5f32, false), (1.0, true)] {
+        for (i, p) in pts.iter_mut().enumerate() {
+            let row = i as f32 / 60.0 * WF_ROWS as f32;
+            let hz = wf_row_hz(row);
+            *p = pos2(geo.x(m.late_on + curve.t60(hz) * drop), y_of(row));
+        }
+        if dashed {
+            dashed_poly(b, &pts, 1.5 * k, ink.text, 6.0 * k, 4.0 * k);
+        } else {
+            b.polyline(&pts, k, ink.text);
+        }
+    }
+    // The words, last.
+    for hz in [100.0f32, 1_000.0, 10_000.0] {
+        canvas::putf(
+            b,
+            pos2(rect.left() + 3.0 * k, y_hz(hz) - 1.0),
+            Align2::LEFT_BOTTOM,
+            Role::Micro,
+            ink.text,
+            tk,
+            Some(ink.plate),
+            format_args!("{}", super::Hz(hz)),
+        );
+    }
+    canvas::put_key(
+        b,
+        pos2(rect.right() - 8.0 * k, rect.top() + 4.0 * k),
+        Align2::RIGHT_TOP,
+        "space.tail.spectrum_legend",
+        Role::Label,
+        ink.text,
+        tk,
+    );
+    let step = if geo.t_max <= 1.0 {
+        0.1
+    } else if geo.t_max <= 3.0 {
+        0.5
+    } else {
+        1.0
+    };
+    let mut ruler = canvas::Ruler::new();
+    let mut tt = step;
+    while tt < geo.t_max - 1e-4 {
+        let x = geo.x(tt) + 2.0 * k;
+        if ruler.fits(x, 6.0 * k) {
+            let r = canvas::putf(
+                b,
+                pos2(x, rect.bottom() - 2.0 * k),
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{}", Secs(tt)),
+            );
+            ruler.placed(r);
+        }
+        tt += step;
+    }
+    if ms.is_none() {
+        canvas::put_key(
+            b,
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "space.tail.spectrum_empty",
+            Role::Body,
+            ink.dim,
+            tk,
+        );
+    }
+}
 /// Rows of the measured waterfall: log-spaced bands from 50 Hz to 16 kHz.
 pub const WF_ROWS: usize = 40;
 const WF_LO: f32 = 50.0;
@@ -724,115 +1116,4 @@ pub fn waterfall(seg: &[f32], sample_rate: f32, max_s: f32) -> (usize, Vec<f32>)
     let peak = out.iter().copied().fold(f32::MIN, f32::max);
     out.iter_mut().for_each(|d| *d -= peak);
     (frames, out)
-}
-
-/// The tail as a spectrogram: time across, frequency up, the measured level as the
-/// strength of the device colour (one hue, so it reads in both themes and in grey). Over
-/// it, where the curve says each frequency should be 30 dB down (thin) and 60 dB down
-/// (dashed), counted from the late field's onset: if the engine does what it is told, the
-/// colour fades out along the dashed line.
-fn spectrum_view(p: &egui::Painter, geo: &Geo, view: &View, m: &Model, ms: Option<&Measured>) {
-    let pal = theme::p();
-    let rect = geo.rect;
-    let y_of = |row: f32| rect.bottom() - row / WF_ROWS as f32 * rect.height();
-    let y_hz = |hz: f32| y_of((hz / WF_LO).ln() / (WF_HI / WF_LO).ln() * WF_ROWS as f32);
-    if let Some(ms) = ms {
-        let cols = ms.wf_frames;
-        // At most one column per pixel: neighbouring frames merge to their loudest.
-        let per = ((cols as f32 * WF_HOP / geo.t_max) / rect.width())
-            .ceil()
-            .max(1.0) as usize;
-        let mut mesh = egui::Mesh::default();
-        let mut f = 0;
-        while f < cols {
-            let t0 = f as f32 * WF_HOP;
-            if t0 > geo.t_max {
-                break;
-            }
-            let x0 = geo.x(t0);
-            let x1 = geo.x((f + per) as f32 * WF_HOP);
-            for row in 0..WF_ROWS {
-                let db = (f..(f + per).min(cols))
-                    .map(|k| ms.waterfall[k * WF_ROWS + row])
-                    .fold(f32::MIN, f32::max);
-                let a = ((db + 60.0) / 60.0).clamp(0.0, 1.0).powf(1.4);
-                if a <= 0.01 {
-                    continue;
-                }
-                let c = pal
-                    .gold
-                    .gamma_multiply(a * if pal.dark { 0.95 } else { 0.85 });
-                let r = Rect::from_min_max(
-                    pos2(x0, y_of(row as f32 + 1.0)),
-                    pos2(x1.max(x0 + 1.0), y_of(row as f32)),
-                );
-                mesh.add_colored_rect(r, c);
-            }
-            f += per;
-        }
-        p.add(mesh);
-    } else {
-        p.text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            t("space.tail.spectrum_empty"),
-            design::paint::empty_state(),
-            pal.text_dim,
-        );
-    }
-    // Frequency lines and labels.
-    for hz in [100.0f32, 1_000.0, 10_000.0] {
-        let y = y_hz(hz);
-        p.hline(rect.x_range(), y, Stroke::new(1.0, pal.grid_strong));
-        p.text(
-            pos2(rect.left() + 3.0, y - 1.0),
-            Align2::LEFT_BOTTOM,
-            crate::widgets::knob::readout(hz, "Hz"),
-            design::paint::ruler(),
-            pal.text,
-        );
-    }
-    // Where the curve says the tail is 30 and 60 dB down, per frequency.
-    let curve = view.s.target_curve();
-    for (drop, dashed) in [(0.5f32, false), (1.0, true)] {
-        let pts: Vec<Pos2> = (0..=60)
-            .map(|i| {
-                let row = i as f32 / 60.0 * WF_ROWS as f32;
-                let hz = wf_row_hz(row);
-                pos2(geo.x(m.late_on + curve.t60(hz) * drop), y_of(row))
-            })
-            .collect();
-        let stroke = Stroke::new(if dashed { 1.5 } else { 1.0 }, pal.text);
-        if dashed {
-            p.add(egui::Shape::dashed_line(&pts, stroke, 6.0, 4.0));
-        } else {
-            p.add(egui::Shape::line(pts, stroke));
-        }
-    }
-    p.text(
-        pos2(rect.right() - space::S2, rect.top() + space::S2),
-        Align2::RIGHT_TOP,
-        t("space.tail.spectrum_legend"),
-        design::paint::ruler(),
-        pal.text,
-    );
-    // Time ticks.
-    let step = if geo.t_max <= 1.0 {
-        0.1
-    } else if geo.t_max <= 3.0 {
-        0.5
-    } else {
-        1.0
-    };
-    let mut tt = step;
-    while tt < geo.t_max - 1e-4 {
-        p.text(
-            pos2(geo.x(tt) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            seconds(tt),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        tt += step;
-    }
 }

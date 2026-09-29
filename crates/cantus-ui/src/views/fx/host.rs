@@ -12,7 +12,7 @@
 //! | the key (sidechain) | any strip of the desk, chosen here | the host routes it; the editor offers the plug-in's *Sidechain* switch |
 //! | tempo and transport | the song | what the host said in its last block, if anything |
 //! | DAW-only actions (hits → a MIDI clip) | yes | `None`: the button is not shown |
-//! | the theme | `theme::p()`, as everywhere | the same palette, applied to the plug-in window's context |
+//! | the look | the kit's tokens, as everywhere | the same theme, applied to the plug-in window's context |
 
 use cantus_core::{EffectSpec, StripId};
 use cantus_engine::Telemetry;
@@ -92,6 +92,156 @@ pub trait FxHost {
     fn makes_clips(&self) -> bool {
         false
     }
+
+    // ---- editing several parameters at once ------------------------------------------
+
+    /// Several changes as one step: `Some(v)` sets a key, `None` clears it back to its
+    /// default (a sparse kind forgets it). With `gesture`, every call carrying the same
+    /// number folds into one step — a drag of several bands at once.
+    fn apply(&mut self, edits: &[(&str, Option<f32>)], label_key: &str, gesture: Option<u64>) {
+        let _ = gesture;
+        let kind = self.spec().kind;
+        let values: Vec<(&str, f32)> = edits
+            .iter()
+            .map(|(k, v)| {
+                let v = v.unwrap_or_else(|| kind.param(k).map_or(0.0, |i| i.default));
+                (*k, v)
+            })
+            .collect();
+        self.set_many(&values, label_key);
+    }
+
+    /// Replace every parameter with `params` (a preset, the other side of A/B): what it
+    /// names is set, everything else goes back to its default. One step.
+    fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
+        let spec = self.spec();
+        let kind = spec.kind;
+        let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
+        for info in kind.params() {
+            let now = spec.get(info.key);
+            match params.get(info.key) {
+                Some(v) if *v != now || !spec.params.contains_key(info.key) => {
+                    edits.push((info.key, Some(*v)))
+                }
+                Some(_) => {}
+                None if spec.params.contains_key(info.key) || now != info.default => {
+                    edits.push((info.key, None))
+                }
+                None => {}
+            }
+        }
+        if !edits.is_empty() {
+            self.apply(&edits, label_key, None);
+        }
+    }
+
+    // ---- the device frame (ADR 0024 §8) ----------------------------------------------
+
+    /// Where the device sits, for the header: "Insert 3 · Keys". Empty when the host has
+    /// no desk.
+    fn context(&self) -> String {
+        String::new()
+    }
+    /// `Some(true)` when the device is bypassed; `None` when the host keeps no bypass.
+    fn bypassed(&self) -> Option<bool> {
+        None
+    }
+    fn set_bypassed(&mut self, _bypassed: bool) {}
+    /// The host's undo, filtered to this device: (can undo, can redo). `None`: the host
+    /// keeps its own history (a DAW hosting the plug-in), so the header shows none.
+    fn history(&self) -> Option<(bool, bool)> {
+        None
+    }
+    fn undo(&mut self) {}
+    fn redo(&mut self) {}
+    /// A/B: whether B is the side showing; `None` when the host offers no compare.
+    fn ab(&self) -> Option<bool> {
+        None
+    }
+    /// Switch sides: the showing one is kept, the other applied — one step.
+    fn toggle_ab(&mut self) {}
+    /// Copy the showing side onto the other one.
+    fn copy_ab(&mut self) {}
+    /// Whether the user's own presets can be saved here (a folder of the DAW's).
+    fn user_presets(&self) -> bool {
+        false
+    }
+    /// The sample rate the unit runs at, for displays that design filters.
+    fn sample_rate(&self) -> f32 {
+        48_000.0
+    }
+    /// The name of a strip of the desk (a key's source), where there is a desk.
+    fn strip_label(&self, _strip: StripId) -> String {
+        String::new()
+    }
+    /// A number that changes whenever the host's state might have (the project's
+    /// revision), so the frame can keep what it formats until then.
+    fn revision(&self) -> u64 {
+        0
+    }
+    /// The device's own name, when it is not its kind's (a hosted plug-in's).
+    fn name(&self) -> Option<String> {
+        None
+    }
+    /// The presets the header offers, read when its list opens: the kind's factory
+    /// presets, then the user's where the host keeps a folder.
+    fn presets(&self) -> Vec<super::frame::Entry> {
+        super::frame::read_presets(self.spec().kind, self.user_presets())
+    }
+    /// Load one of [`FxHost::presets`]: one step.
+    fn load_preset(&mut self, preset: &super::frame::Entry) {
+        self.load(&preset.params, "cmd.fx_preset");
+    }
+    /// Save the values as the user's preset `name`.
+    fn save_preset(&mut self, name: &str) -> Result<(), String> {
+        let spec = self.spec();
+        super::save_user_preset(spec.kind, name, &spec.params)
+    }
+    /// Cantus itself, for what only the DAW has (a track's notes playing the gate, the
+    /// strips of the desk): the app, the strip and the effect. `None` in a plug-in window.
+    fn daw(&mut self) -> Option<(&mut crate::app::CantusApp, StripId, cantus_core::EffectId)> {
+        None
+    }
+    /// Take the analyser pairs that came since the last call, oldest first, into `out` —
+    /// for an editor that measures the stream as it comes (Spatium's tail). Cantus hands
+    /// over its tap's queue; a host with nothing to give leaves `out` as it is.
+    fn take_pairs(&mut self, out: &mut Vec<(f32, f32)>) {
+        if let Some((app, _, _)) = self.daw() {
+            out.extend(app.fx.pairs.drain(..));
+        }
+    }
+
+    // ---- what only some units report -------------------------------------------------
+
+    /// The EQ's dynamic bands: how far each moved in the last block, dB (Cantus's engine
+    /// meters them). `None` where the host has no such meter.
+    fn eq_deltas(&self) -> Option<[f32; cantus_core::EQ_BANDS]> {
+        None
+    }
+
+    /// Move the analyser tap's newest (input, output) pairs, interleaved, into `out`, for
+    /// a display that keeps its own analyser (the EQ's). `false` when the host has no such
+    /// stream: the display reads [`FxHost::pairs`] instead.
+    fn drain_analyser(&mut self, _out: &mut Vec<f32>) -> bool {
+        false
+    }
+}
+
+/// Whether a command changes the effect `effect` (the header's undo is this device's).
+pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> bool {
+    use cantus_core::Command as C;
+    match cmd {
+        C::SetEffectParam { effect: e, .. }
+        | C::ClearEffectParam { effect: e, .. }
+        | C::SetEffectBypass { effect: e, .. }
+        | C::SetEffectSidechain { effect: e, .. }
+        | C::SetEffectMidiSource { effect: e, .. }
+        | C::SetEffectMix { effect: e, .. }
+        | C::SetPluginParam { effect: e, .. }
+        | C::SetPluginState { effect: e, .. } => *e == effect,
+        C::Batch { commands, .. } => commands.iter().any(|c| touches(c, effect)),
+        _ => false,
+    }
 }
 
 /// Cantus as an editor's host: the project, the engine and the desk.
@@ -102,24 +252,49 @@ pub struct DawHost<'a> {
     spec: EffectSpec,
     /// What the editor's gestures are merged under (`MergeKey`): its kind's name.
     tag: &'static str,
+    /// The project's revision the spec was read at, when it came from [`DawHost::new`]:
+    /// it goes back to the app's cache when the host is dropped.
+    cached_at: Option<u64>,
+}
+
+impl Drop for DawHost<'_> {
+    fn drop(&mut self) {
+        if let Some(rev) = self.cached_at {
+            // An empty stand-in: a new map allocates nothing.
+            let empty = EffectSpec {
+                kind: self.spec.kind,
+                params: Default::default(),
+                external: None,
+            };
+            let spec = std::mem::replace(&mut self.spec, empty);
+            self.app.fx.spec_cache = Some((rev, self.effect, spec));
+        }
+    }
 }
 
 impl<'a> DawHost<'a> {
     /// The host for one effect, its spec read from the project (a new spec of the
-    /// kind if the effect is gone).
+    /// kind if the effect is gone). The copy is kept between frames while the project
+    /// does not change, so an editor at rest copies nothing.
     pub fn new(
         app: &'a mut crate::app::CantusApp,
         strip: StripId,
         effect: cantus_core::EffectId,
         tag: &'static str,
     ) -> DawHost<'a> {
-        let spec = app
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-            .unwrap_or_else(|| EffectSpec::new(cantus_core::EffectKind::Gate));
-        DawHost::with_spec(app, strip, effect, spec, tag)
+        let rev = app.bus.revision();
+        let spec = match app.fx.spec_cache.take() {
+            Some((r, e, spec)) if r == rev && e == effect => spec,
+            _ => app
+                .project()
+                .strip(strip)
+                .and_then(|s| s.effect(effect))
+                .map(|e| e.spec.clone())
+                .unwrap_or_else(|| EffectSpec::new(cantus_core::EffectKind::Gate)),
+        };
+        let mut host = DawHost::with_spec(app, strip, effect, spec, tag);
+        host.cached_at = Some(rev);
+        host
     }
 
     /// The host for one effect whose spec the caller already has.
@@ -136,6 +311,7 @@ impl<'a> DawHost<'a> {
             effect,
             spec,
             tag,
+            cached_at: None,
         }
     }
 }
@@ -254,6 +430,226 @@ impl FxHost for DawHost<'_> {
     }
 
     fn makes_clips(&self) -> bool {
+        true
+    }
+
+    fn apply(&mut self, edits: &[(&str, Option<f32>)], label_key: &str, gesture: Option<u64>) {
+        use cantus_core::Command as C;
+        let (strip, effect) = (self.strip, self.effect);
+        let commands: Vec<C> = edits
+            .iter()
+            .map(|(k, v)| match v {
+                Some(value) => C::SetEffectParam {
+                    strip,
+                    effect,
+                    key: k.to_string(),
+                    value: *value,
+                },
+                None => C::ClearEffectParam {
+                    strip,
+                    effect,
+                    key: k.to_string(),
+                },
+            })
+            .collect();
+        if commands.is_empty() {
+            return;
+        }
+        let cmd = C::Batch {
+            label_key: label_key.into(),
+            commands,
+        };
+        match gesture {
+            Some(g) => {
+                self.app.exec_merging(
+                    cmd,
+                    cantus_core::MergeKey::of(&(self.tag, self.effect.0, "apply", g)),
+                );
+            }
+            None => {
+                self.app.exec(cmd);
+            }
+        }
+    }
+
+    fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
+        self.app
+            .apply_fx_params(self.strip, self.effect, params, label_key);
+    }
+
+    fn context(&self) -> String {
+        let project = self.app.project();
+        let slot = project
+            .strip(self.strip)
+            .and_then(|s| s.effects.iter().position(|e| e.id == self.effect))
+            .map_or(1, |i| i + 1);
+        crate::i18n::tf(
+            "fx.frame.context",
+            &[
+                ("n", &slot),
+                (
+                    "strip",
+                    &self
+                        .app
+                        .capture_label(cantus_engine::CaptureTarget::Strip(self.strip)),
+                ),
+            ],
+        )
+    }
+
+    fn bypassed(&self) -> Option<bool> {
+        self.app
+            .project()
+            .strip(self.strip)
+            .and_then(|s| s.effect(self.effect))
+            .map(|e| e.bypass)
+    }
+
+    fn set_bypassed(&mut self, bypass: bool) {
+        self.app.exec(cantus_core::Command::SetEffectBypass {
+            strip: self.strip,
+            effect: self.effect,
+            bypass,
+        });
+    }
+
+    fn history(&self) -> Option<(bool, bool)> {
+        let bus = &self.app.bus;
+        let undo = bus
+            .history()
+            .last()
+            .is_some_and(|e| touches(&e.command, self.effect));
+        // The bus keeps no public redo list: the step on top of it is this device's while
+        // nothing has changed the project since this device's own undo.
+        let redo = bus.can_redo() && self.app.fx.redo_mark == Some((self.effect, bus.revision()));
+        Some((undo, redo))
+    }
+
+    fn undo(&mut self) {
+        if self.history().is_some_and(|h| h.0) {
+            self.app.undo();
+            self.app.fx.redo_mark = Some((self.effect, self.app.bus.revision()));
+        }
+    }
+
+    fn redo(&mut self) {
+        if self.history().is_some_and(|h| h.1) {
+            self.app.redo();
+            let more = self.app.bus.can_redo();
+            self.app.fx.redo_mark = more.then(|| (self.effect, self.app.bus.revision()));
+        }
+    }
+
+    fn ab(&self) -> Option<bool> {
+        if self.spec.external.is_some() {
+            // A hosted plug-in compares whole states (`views::plugins`).
+            return Some(self.app.fx.hosted.ab.get(&self.effect).is_some_and(|x| x.2));
+        }
+        Some(self.app.fx.on_b(self.effect))
+    }
+
+    fn toggle_ab(&mut self) {
+        if self.spec.external.is_some() {
+            crate::views::plugins::toggle_ab(self.app, self.strip, self.effect);
+            return;
+        }
+        self.app.toggle_ab(self.strip, self.effect);
+    }
+
+    fn copy_ab(&mut self) {
+        if self.spec.external.is_some() {
+            let on_b = self.ab() == Some(true);
+            if let Some((state, params)) = self.app.plugins.capture(self.effect) {
+                self.app
+                    .fx
+                    .hosted
+                    .ab
+                    .insert(self.effect, (state, params, on_b));
+            }
+            return;
+        }
+        let params = self.spec.params.clone();
+        self.app.copy_ab(self.effect, &params);
+    }
+
+    fn name(&self) -> Option<String> {
+        self.spec.external.as_deref().map(|p| p.name.clone())
+    }
+
+    fn presets(&self) -> Vec<super::frame::Entry> {
+        match self.spec.external.as_deref() {
+            // A hosted plug-in's presets are its saved states.
+            Some(p) => crate::views::plugins::presets(&p.id)
+                .into_iter()
+                .map(|(name, path)| super::frame::Entry {
+                    name,
+                    params: Default::default(),
+                    factory: false,
+                    file: Some(path),
+                })
+                .collect(),
+            None => super::frame::read_presets(self.spec.kind, true),
+        }
+    }
+
+    fn load_preset(&mut self, preset: &super::frame::Entry) {
+        match &preset.file {
+            Some(path) => {
+                let file = std::fs::read_to_string(path).ok().and_then(|t| {
+                    serde_json::from_str::<crate::views::plugins::PresetFile>(&t).ok()
+                });
+                if let Some(f) = file {
+                    self.app
+                        .set_plugin_state(self.strip, self.effect, f.state, f.params);
+                }
+            }
+            None => self.load(&preset.params, "cmd.fx_preset"),
+        }
+    }
+
+    fn save_preset(&mut self, name: &str) -> Result<(), String> {
+        match self.spec.external.as_deref().map(|p| p.id.clone()) {
+            Some(id) => crate::views::plugins::save_preset(self.app, self.effect, &id, name),
+            None => super::save_user_preset(self.spec.kind, name, &self.spec.params),
+        }
+    }
+
+    fn user_presets(&self) -> bool {
+        true
+    }
+
+    fn sample_rate(&self) -> f32 {
+        let sr = self.app.engine.sample_rate as f32;
+        if sr > 1_000.0 {
+            sr
+        } else {
+            48_000.0
+        }
+    }
+
+    fn strip_label(&self, strip: StripId) -> String {
+        self.app
+            .capture_label(cantus_engine::CaptureTarget::Strip(strip))
+    }
+
+    fn revision(&self) -> u64 {
+        self.app.bus.revision()
+    }
+
+    fn daw(&mut self) -> Option<(&mut crate::app::CantusApp, StripId, cantus_core::EffectId)> {
+        Some((&mut *self.app, self.strip, self.effect))
+    }
+
+    fn eq_deltas(&self) -> Option<[f32; cantus_core::EQ_BANDS]> {
+        let d = &self.app.engine.meters().eq_deltas;
+        let mut out = [0.0; cantus_core::EQ_BANDS];
+        let n = out.len().min(d.len());
+        out[..n].copy_from_slice(&d[..n]);
+        Some(out)
+    }
+
+    fn drain_analyser(&mut self, out: &mut Vec<f32>) -> bool {
+        self.app.engine.drain_analyser(out);
         true
     }
 }

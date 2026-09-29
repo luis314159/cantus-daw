@@ -320,7 +320,7 @@ impl ColumnLoudness {
         self.ring[self.pos] = energy.max(0.0);
         self.pos = (self.pos + 1) % SHORT_COLUMNS;
         self.seen += 1;
-        let step = self.seen % STEP_COLUMNS as u64 == 0;
+        let step = self.seen.is_multiple_of(STEP_COLUMNS as u64);
         if self.seen >= MOMENTARY_COLUMNS as u64 {
             let m = self.mean_of_last(MOMENTARY_COLUMNS);
             self.momentary = lufs(m);

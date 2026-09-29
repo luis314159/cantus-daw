@@ -467,12 +467,12 @@ fn is_prime(n: u32) -> bool {
     if n < 2 {
         return false;
     }
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         return n == 2;
     }
     let mut d = 3;
     while d * d <= n {
-        if n % d == 0 {
+        if n.is_multiple_of(d) {
             return false;
         }
         d += 2;
@@ -534,7 +534,7 @@ const PERMUTE: [usize; LINES] = [5, 12, 1, 9, 14, 3, 7, 0, 10, 15, 6, 2, 13, 8, 
 
 /// Entry `j` of row `r` of the 16×16 Sylvester–Hadamard matrix.
 fn hadamard_entry(r: usize, j: usize) -> f32 {
-    if (r & j).count_ones() % 2 == 0 {
+    if (r & j).count_ones().is_multiple_of(2) {
         1.0
     } else {
         -1.0

@@ -5,7 +5,7 @@
 //! reason about sounds without linking the DSP crate.
 
 use crate::model::Pitch;
-use crate::pads::{Lanes, PadField, PulsusParams};
+use crate::pads::{KitField, Lanes, PadField, PadId, PulsusParams};
 use serde::{Deserialize, Serialize};
 
 /// Oscillator waveform. Stored by name so project files stay readable.
@@ -379,12 +379,14 @@ impl FirmusParam {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum InstrumentParam {
     Firmus(FirmusParam),
-    /// A field of one pad of a kit, addressed by the pad's **index**, which is its row in
-    /// the channel rack and its lane in the piano roll (pads are sorted by pitch).
+    /// A field of one pad of a kit, addressed by the pad's **identity** ([`PadId`]), so an
+    /// edit, an automation lane or an undo step keeps its pad when a lower one is added.
     Pulsus {
-        pad: u8,
+        pad: PadId,
         field: PadField,
     },
+    /// A kit-wide field of Pulsus II: its model, seed and hi-hat pedal.
+    PulsusKit(KitField),
 }
 
 impl From<FirmusParam> for InstrumentParam {
@@ -403,6 +405,9 @@ pub enum InstrumentSpec {
     /// cannot read a project containing one, and the version number is what makes it say
     /// so instead of failing in some more confusing way.
     Pulsus(PulsusParams),
+    /// A native instrument whose model is `key → f32` plus text (ADR 0023): Unda, Calor,
+    /// Modulus, Exemplar, Gravis, Lamina, Organum. Its arrival is schema 16.
+    Native(crate::inst::NativeSpec),
 }
 
 impl Default for InstrumentSpec {
@@ -440,10 +445,25 @@ impl InstrumentSpec {
         }
     }
 
+    pub fn native(&self) -> Option<&crate::inst::NativeSpec> {
+        match self {
+            InstrumentSpec::Native(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    pub fn native_mut(&mut self) -> Option<&mut crate::inst::NativeSpec> {
+        match self {
+            InstrumentSpec::Native(n) => Some(n),
+            _ => None,
+        }
+    }
+
     pub fn name_key(&self) -> &'static str {
         match self {
             InstrumentSpec::Firmus(_) => "instrument.firmus",
             InstrumentSpec::Pulsus(_) => "instrument.pulsus",
+            InstrumentSpec::Native(n) => n.kind.name_key(),
         }
     }
 
@@ -454,7 +474,7 @@ impl InstrumentSpec {
     /// called `F#2` when it plays a closed hat is a lane the musician has to translate.
     pub fn lane_name(&self, pitch: Pitch) -> Option<&str> {
         match self {
-            InstrumentSpec::Firmus(_) => None,
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) => None,
             InstrumentSpec::Pulsus(p) => p
                 .pads
                 .iter()
@@ -466,7 +486,7 @@ impl InstrumentSpec {
     /// The rows a note editor should draw for this instrument.
     pub fn lanes(&self) -> Lanes<'_> {
         match self {
-            InstrumentSpec::Firmus(_) => Lanes::Chromatic,
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) => Lanes::Chromatic,
             InstrumentSpec::Pulsus(p) => Lanes::Pads(&p.pads),
         }
     }
@@ -478,8 +498,11 @@ impl InstrumentSpec {
         match (self, param) {
             (InstrumentSpec::Firmus(p), InstrumentParam::Firmus(f)) => Some(f.set(p, value)),
             (InstrumentSpec::Pulsus(p), InstrumentParam::Pulsus { pad, field }) => {
-                let pad = p.pad_mut(pad as usize)?;
+                let pad = p.by_id_mut(pad)?;
                 Some(field.set(pad, value))
+            }
+            (InstrumentSpec::Pulsus(p), InstrumentParam::PulsusKit(field)) => {
+                Some(field.set(p, value))
             }
             _ => None,
         }
@@ -489,8 +512,9 @@ impl InstrumentSpec {
         match (self, param) {
             (InstrumentSpec::Firmus(p), InstrumentParam::Firmus(f)) => Some(f.get(p)),
             (InstrumentSpec::Pulsus(p), InstrumentParam::Pulsus { pad, field }) => {
-                Some(field.get(p.pad(pad as usize)?))
+                Some(field.get(p.by_id(pad)?))
             }
+            (InstrumentSpec::Pulsus(p), InstrumentParam::PulsusKit(field)) => Some(field.get(p)),
             _ => None,
         }
     }

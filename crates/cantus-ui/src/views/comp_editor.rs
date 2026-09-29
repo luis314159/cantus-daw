@@ -10,7 +10,7 @@
 //!   the knee is two marks; the range is the dashed floor under the curve; the wheel over
 //!   the curve widens the knee.
 //! - **Styles are visible detectors.** Each names its detector in words, and the engine
-//!   drawer shows the five numbers behind it — peak or RMS window, feedback, program
+//!   card shows the five numbers behind it — peak or RMS window, feedback, program
 //!   release, a second release stage, the release curve. Editing one makes the style
 //!   "Custom (from …)". A **response graph** draws what the detector does to a burst, with
 //!   the attack and release it measures.
@@ -25,24 +25,49 @@
 //!   transport; frozen when the transport stops; scroll back with the wheel; hover to read
 //!   input, output and reduction at any moment.
 //!
-//! Every drag and knob turn is one step of the project's undo.
+//! **The look** (ADR 0024 §8): the device frame's header and footer (presets, A/B, undo,
+//! bypass, the latency and oversampling chips, the output meter), and a body of cards in
+//! the dynamics hue — the style, the three displays, the knobs as cells (the threshold is
+//! the one XL knob: it is where the compressor starts working, the line on the history
+//! and the point on the curve), and the key in the tone hue.
+//!
+//! **Any host** (ADR 0020): [`editor`] draws on an [`FxHost`]; [`framed`] is Cantus's
+//! (the project, every drag one undo step). What only Cantus has — the engine's
+//! per-frame meter, the analyser tap it drains, a demo's stand-in clock — goes through
+//! `host.daw()`; in a plug-in window the history reads the unit's telemetry and the tap
+//! the plug-in keeps.
 
 use crate::app::CantusApp;
-use crate::design::{self, space};
-use crate::i18n::{t, tf};
-use crate::theme;
+use crate::i18n::{t, tf, Locale};
+use crate::kit::cell::{self, CellLook, Control};
+use crate::kit::hint::{self, Caps};
+use crate::kit::knob::{KnobLook, START, SWEEP};
+use crate::kit::menu::Item;
+use crate::kit::shell::Grid;
+use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
+use crate::kit::{band, with_brush, Function, Style};
+use crate::views::fx::controls::{self, Size};
+use crate::views::fx::frame;
+use crate::views::fx::host::{DawHost, FxHost, KeySource, KeyTarget};
 use crate::views::fx::FactoryPreset;
-use crate::widgets::Knob;
-use cantus_core::fx::compressor::{key_band_key, KEY_BANDS, KEY_BAND_FIELDS};
-use cantus_core::{Command, EffectId, EffectKind, EffectSlot, EffectSpec, MergeKey, StripId};
-use cantus_dsp::aequalis::{design as design_band, Coefs, MAX_SECTIONS};
+use cantus_core::fx::compressor::{KEY_BANDS, KEY_BAND_FIELDS};
+use cantus_core::{Command, EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::comprimo::{
-    effective_gain_reduction_db, loudness, step_response, tele, CompSettings, Listen, StepResponse,
-    Style, StyleSpec, RATIO_INF,
+    loudness, tele, CompSettings, Listen, StepResponse, Style as CompStyle, StyleSpec, RATIO_INF,
 };
 use cantus_dsp::{EqShape, SpectrumAnalyser};
-use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, RichText, Sense, Stroke, StrokeKind};
+use egui::{pos2, vec2, Align2, Pos2, Rect, Sense};
+use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::fmt::Write as _;
+use std::sync::Arc;
+
+mod desk;
+mod history;
+mod key;
+mod transfer;
+
+pub use desk::{demo_feed, demo_setup, duck_menu, mini_curve, strip_gr_meter};
 
 /// Columns of history kept: at a frame a column, a little over a minute.
 const HISTORY_MAX: usize = 4096;
@@ -52,6 +77,8 @@ const VISIBLE: usize = 480;
 const SLOW_FRAMES: u32 = 4;
 /// The scales the displays and meters can show, dB.
 pub const RANGES: [f32; 5] = [24.0, 36.0, 48.0, 60.0, 72.0];
+/// The scales as the field prints them.
+const RANGE_TEXT: [&str; 5] = ["24 dB", "36 dB", "48 dB", "60 dB", "72 dB"];
 /// The ratio's click stops; the last is ∞.
 pub const RATIO_STOPS: [f32; 10] = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0, 20.0, RATIO_INF];
 /// How close to a stop (as a share of the knob's travel) a ratio snaps to it.
@@ -68,6 +95,65 @@ const WHEEL_GESTURE_S: f64 = 0.5;
 /// draws the same curve for a sixth of the work.
 const RESPONSE_SR: f32 = 16_000.0;
 const RESPONSE_POINTS: usize = 220;
+/// The analyser's length, pairs.
+const ANALYSER_N: usize = 4096;
+/// Gesture numbers for [`FxHost::apply`]: the engine card, and a key band (plus its
+/// number).
+const ENGINE_GESTURE: u64 = 0xC0_0001;
+const BAND_GESTURE: u64 = 0xC0_0100;
+
+// The body's rows at 100 % (ADR 0024 §8: cards on the device ground, 4-pt gutters).
+/// The style card: the styles and what the chosen one is.
+const STYLE_H: f32 = 84.0;
+/// The top row with the engine card open beside the styles.
+const ENGINE_H: f32 = 126.0;
+/// The key's row: its source and knobs, its EQ, the response graph.
+const KEY_ROW: f32 = 150.0;
+/// The meters card beside the transfer curve.
+const METERS_W: f32 = 212.0;
+/// The engine card's column of words before its cells.
+const ENGINE_COLUMN: f32 = 120.0;
+/// The key card's column (its source) before its cells.
+const KEY_COLUMN: f32 = 150.0;
+/// The strip at the top of the history display that holds its controls.
+const HISTORY_HEAD: f32 = 30.0;
+/// The strip at the top of the transfer display with the curve's numbers.
+const TRANSFER_HEAD: f32 = 20.0;
+
+/// The styles' names.
+const STYLE_KEYS: [&str; 9] = [
+    "comp.style.0",
+    "comp.style.1",
+    "comp.style.2",
+    "comp.style.3",
+    "comp.style.4",
+    "comp.style.5",
+    "comp.style.6",
+    "comp.style.7",
+    "comp.style.8",
+];
+/// What to hear, in the order the segmented control shows it: (the `listen` value, its
+/// name).
+const LISTEN_ORDER: [(usize, &str); 5] = [
+    (0, "comp.listen.0"),
+    (3, "comp.listen.3"),
+    (1, "comp.listen.1"),
+    (2, "comp.listen.2"),
+    (4, "comp.compare"),
+];
+const OS_KEYS: [&str; 3] = ["comp.os.0", "comp.os.1", "comp.os.2"];
+/// Aequalis's shape names, by index.
+const SHAPE_KEYS: [&str; 9] = [
+    "eq.shape.0",
+    "eq.shape.1",
+    "eq.shape.2",
+    "eq.shape.3",
+    "eq.shape.4",
+    "eq.shape.5",
+    "eq.shape.6",
+    "eq.shape.7",
+    "eq.shape.8",
+];
 
 /// Factory presets: a label key and the parameters it sets (`views::fx::presets_menu`).
 /// What a preset does not name goes back to its default.
@@ -188,6 +274,15 @@ pub enum Speed {
     Whole,
 }
 
+impl Speed {
+    const ALL: [Speed; 3] = [Speed::Fast, Speed::Slow, Speed::Whole];
+    const KEYS: [&'static str; 3] = ["comp.speed.fast", "comp.speed.slow", "comp.speed.whole"];
+
+    fn index(self) -> usize {
+        Speed::ALL.iter().position(|s| *s == self).unwrap_or(0)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Grab {
     Threshold,
@@ -208,6 +303,13 @@ struct Column {
 }
 
 impl Column {
+    const SILENT: Column = Column {
+        inp: -120.0,
+        out: -120.0,
+        gr: 0.0,
+        tick: None,
+    };
+
     /// The louder and the deeper of two columns: how columns fold together.
     fn fold(self, o: Column) -> Column {
         Column {
@@ -226,7 +328,32 @@ struct DemoClock {
     step: f64,
 }
 
-/// What the editor remembers between frames.
+/// A string kept until what it says changes.
+type Cached<K> = Option<(K, String)>;
+
+/// `slot`'s string, made again by `make` when `key` is not the one it was made for.
+fn cached<K: PartialEq>(slot: &mut Cached<K>, key: K, make: impl FnOnce() -> String) -> &str {
+    if slot.as_ref().is_none_or(|(k, _)| *k != key) {
+        *slot = Some((key, make()));
+    }
+    slot.as_ref().map_or("", |(_, s)| s.as_str())
+}
+
+/// The editor's words that are not fixed, formatted when what they say changes.
+#[derive(Debug, Default)]
+struct Words {
+    /// Per (host revision, language): the style line, the style's name as shown
+    /// ("Custom (from Punch)"), the base's segment label ("Punch*"), "Back to Punch".
+    style: Option<((u64, Locale), [String; 4])>,
+    scrolled: Cached<(usize, Locale)>,
+    whole: Cached<(u32, Locale)>,
+    effective: Cached<(u64, Locale)>,
+    /// The response graph's measured line, made with the response.
+    response: Cached<Locale>,
+    band: Cached<(usize, Locale)>,
+}
+/// What the editor remembers between frames (Cantus keeps it in `app.comp_editor`; a
+/// plug-in window keeps its own).
 pub struct CompEditor {
     pub open: Option<(StripId, EffectId)>,
     history: VecDeque<Column>,
@@ -243,7 +370,7 @@ pub struct CompEditor {
     scroll: usize,
     /// The dB span of the displays and meters.
     pub range_db: f32,
-    /// The engine drawer.
+    /// The engine card.
     pub engine_open: bool,
     drag: Option<Grab>,
     /// The operating point on the transfer curve, from the last frame's meter.
@@ -255,7 +382,8 @@ pub struct CompEditor {
     /// The key EQ's selected band.
     key_band: Option<usize>,
     key_drag: Option<usize>,
-    analyser: SpectrumAnalyser,
+    /// The key's spectrum, made when the first pairs arrive.
+    analyser: Option<SpectrumAnalyser>,
     scratch: Vec<f32>,
     /// Momentary loudness blocks of the output since the last reset, for the integrated
     /// reading (BS.1770's gating runs over these).
@@ -266,12 +394,30 @@ pub struct CompEditor {
     demo: Option<DemoClock>,
     /// Where the last frame drew the displays, for tests that drive them.
     geometry: CompGeometry,
-    /// The height the rows under the displays took in the last frame.
-    below: f32,
     /// The UI clock, and when the wheel last moved something (a burst is one undo step).
     clock: f64,
     wheel_at: Option<f64>,
+    /// The device frame: the preset, its lists.
+    pub chrome: frame::Chrome,
+    chip_latency: frame::ChipText,
+    chip_os: frame::ChipText,
+    words: Words,
+    /// The key's source as the host said it, per host revision.
+    key: Option<(u64, Option<KeySource>)>,
+    /// Points of the curves being drawn, reused.
+    pts: Vec<Pos2>,
+    /// The key EQ's curve at its display points, per host revision.
+    key_curve: Option<(u64, [f32; KEY_POINTS])>,
+    /// The key band's menu, open at a point (from its ⋯ or a right-click on a dot).
+    band_menu: Option<(Pos2, Rect)>,
+    /// The ratio as dragged on its knob, before the click stops pull it.
+    ratio_drag: Option<f32>,
+    /// Ticks in a bar and in a beat, for the history's grid.
+    beats: (i64, i64),
 }
+
+/// The editor's state on any host: [`editor`] draws it.
+pub type State = CompEditor;
 
 /// Where the editor drew its displays in the last frame: tests aim their gestures with it
 /// instead of mirroring the layout.
@@ -317,10 +463,11 @@ impl std::fmt::Debug for CompEditor {
 }
 
 impl Default for CompEditor {
+    /// Nothing allocates here: the app swaps the editor out and back every frame.
     fn default() -> Self {
         CompEditor {
             open: None,
-            history: VecDeque::with_capacity(HISTORY_MAX),
+            history: VecDeque::new(),
             pending: None,
             whole_frames: 1,
             speed: Speed::Fast,
@@ -331,25 +478,29 @@ impl Default for CompEditor {
             engine_open: false,
             drag: None,
             now: (-120.0, -120.0),
-            live: Column {
-                inp: -120.0,
-                out: -120.0,
-                gr: 0.0,
-                tick: None,
-            },
+            live: Column::SILENT,
             hold: [0.0; 3],
             key_band: None,
             key_drag: None,
-            analyser: SpectrumAnalyser::new(4096),
+            analyser: None,
             scratch: Vec::new(),
             blocks: Vec::new(),
             last_hops: 0.0,
             response: None,
             demo: None,
             geometry: CompGeometry::default(),
-            below: 0.0,
             clock: 0.0,
             wheel_at: None,
+            chrome: frame::Chrome::default(),
+            chip_latency: frame::ChipText::default(),
+            chip_os: frame::ChipText::default(),
+            words: Words::default(),
+            key: None,
+            pts: Vec::new(),
+            key_curve: None,
+            band_menu: None,
+            ratio_drag: None,
+            beats: (4 * cantus_core::PPQ, cantus_core::PPQ),
         }
     }
 }
@@ -364,10 +515,17 @@ fn db(lin: f32) -> f32 {
 
 /// `4.0:1`, `∞:1`.
 pub fn ratio_text(r: f32) -> String {
+    let mut s = String::new();
+    ratio_pill(r, &mut s);
+    s
+}
+
+/// `4.0:1`, `∞:1`, written into `out`.
+fn ratio_pill(r: f32, out: &mut String) {
     if r >= RATIO_INF - 0.05 {
-        "\u{221e}:1".to_string()
+        out.push_str("\u{221e}:1");
     } else {
-        format!("{r:.1}:1")
+        let _ = write!(out, "{r:.1}:1");
     }
 }
 
@@ -382,12 +540,16 @@ pub fn snap_ratio(r: f32) -> f32 {
         .unwrap_or(r)
 }
 
-/// A dB reading with a sign, or a dash for "nothing measured".
-fn lufs_text(v: f32) -> String {
-    if v <= loudness::SILENCE + 1.0 || !v.is_finite() {
-        "\u{2014}".to_string()
-    } else {
-        format!("{v:.1}")
+/// A loudness reading, or a dash for "nothing measured".
+struct Lufs(f32);
+
+impl std::fmt::Display for Lufs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 <= loudness::SILENCE + 1.0 || !self.0.is_finite() {
+            f.write_str("\u{2014}")
+        } else {
+            write!(f, "{:.1}", self.0)
+        }
     }
 }
 
@@ -427,23 +589,26 @@ impl CompEditor {
             self.pending = Some((acc, n));
             return;
         }
-        if self.history.len() == HISTORY_MAX {
+        if self.history.len() >= HISTORY_MAX {
             if self.speed == Speed::Whole {
                 // The whole take no longer fits: fold every pair of columns into one and
-                // take twice as many frames per column from now on.
-                let old: Vec<Column> = self.history.drain(..).collect();
-                for pair in old.chunks(2) {
-                    let c = pair
-                        .iter()
-                        .copied()
-                        .reduce(Column::fold)
-                        .unwrap_or_default();
-                    self.history.push_back(c);
+                // take twice as many frames per column from now on — in place.
+                let n = self.history.len();
+                for i in 0..n / 2 {
+                    let c = self.history[2 * i].fold(self.history[2 * i + 1]);
+                    self.history[i] = c;
                 }
+                if n % 2 == 1 {
+                    self.history[n / 2] = self.history[n - 1];
+                }
+                self.history.truncate(n.div_ceil(2));
                 self.whole_frames = self.whole_frames.saturating_mul(2);
             } else {
                 self.history.pop_front();
             }
+        }
+        if self.history.capacity() == 0 {
+            self.history.reserve_exact(HISTORY_MAX);
         }
         self.history.push_back(acc);
     }
@@ -498,28 +663,31 @@ impl CompEditor {
     pub fn columns(&self) -> (usize, u32) {
         (self.history.len(), self.whole_frames)
     }
-}
 
+    /// Start over for a newly opened effect: the history, the meters, the loudness, the
+    /// key's spectrum.
+    fn restart(&mut self) {
+        self.history.clear();
+        self.pending = None;
+        self.whole_frames = 1;
+        self.scroll = 0;
+        self.hold = [-120.0, 0.0, -120.0];
+        self.live = Column::SILENT;
+        self.blocks.clear();
+        self.last_hops = 0.0;
+        self.analyser = None;
+        self.response = None;
+        self.key_band = None;
+        self.band_menu = None;
+        self.key = None;
+        self.key_curve = None;
+    }
+}
 impl CantusApp {
     pub fn open_comp_editor(&mut self, strip: StripId, effect: EffectId) {
         let ed = &mut self.comp_editor;
         ed.open = Some((strip, effect));
-        ed.history.clear();
-        ed.pending = None;
-        ed.whole_frames = 1;
-        ed.scroll = 0;
-        ed.hold = [-120.0, 0.0, -120.0];
-        ed.live = Column {
-            inp: -120.0,
-            out: -120.0,
-            gr: 0.0,
-            tick: None,
-        };
-        ed.blocks.clear();
-        ed.last_hops = 0.0;
-        ed.analyser = SpectrumAnalyser::new(4096);
-        ed.response = None;
-        ed.key_band = None;
+        ed.restart();
         self.engine.set_analyser(Some(effect));
     }
 
@@ -560,74 +728,9 @@ impl CantusApp {
         }
     }
 
-    fn set_comp(&mut self, strip: StripId, effect: EffectId, key: &str, value: f32, gesture: bool) {
-        let cmd = Command::SetEffectParam {
-            strip,
-            effect,
-            key: key.to_string(),
-            value,
-        };
-        if gesture {
-            self.exec_merging(cmd, MergeKey::of(&("comp", effect.0, key)));
-        } else {
-            self.exec(cmd);
-        }
-    }
-
-    /// Set several parameters as one command; a gesture (`merge`) folds frame after frame
-    /// into one undo step.
-    fn set_comp_many(
-        &mut self,
-        strip: StripId,
-        effect: EffectId,
-        values: &[(String, f32)],
-        label_key: &str,
-        merge: Option<MergeKey>,
-    ) {
-        let commands: Vec<Command> = values
-            .iter()
-            .map(|(k, v)| Command::SetEffectParam {
-                strip,
-                effect,
-                key: k.clone(),
-                value: *v,
-            })
-            .collect();
-        if commands.is_empty() {
-            return;
-        }
-        let cmd = Command::Batch {
-            label_key: label_key.into(),
-            commands,
-        };
-        match merge {
-            Some(key) => self.exec_merging(cmd, key),
-            None => self.exec(cmd),
-        };
-    }
-
     /// Forget a key-EQ band: every field it stored goes, as one command.
     pub fn remove_key_band(&mut self, strip: StripId, effect: EffectId, band: usize) {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let commands: Vec<Command> = KEY_BAND_FIELDS
-            .iter()
-            .map(|f| key_band_key(band, f.0))
-            .filter(|k| spec.params.contains_key(k))
-            .map(|key| Command::ClearEffectParam { strip, effect, key })
-            .collect();
-        if !commands.is_empty() {
-            self.exec(Command::Batch {
-                label_key: "cmd.comp_key_band".into(),
-                commands,
-            });
-        }
+        remove_band(&mut DawHost::new(self, strip, effect, "comp"), band);
         if self.comp_editor.key_band == Some(band) {
             self.comp_editor.key_band = None;
         }
@@ -678,17 +781,20 @@ impl CantusApp {
     /// strip has no compressor, `Some(None)` when it has one the engine does not report.
     pub fn comp_gr_on_strip(&self, strip: StripId) -> Option<Option<f32>> {
         let s = self.project().strip(strip)?;
-        let comps: Vec<EffectId> = s
+        let working = |id: EffectId| {
+            s.effects
+                .iter()
+                .any(|e| e.id == id && e.spec.kind == EffectKind::Compressor && !e.bypass)
+        };
+        if !s
             .effects
             .iter()
-            .filter(|e| e.spec.kind == EffectKind::Compressor && !e.bypass)
-            .map(|e| e.id)
-            .collect();
-        if comps.is_empty() {
+            .any(|e| e.spec.kind == EffectKind::Compressor && !e.bypass)
+        {
             return None;
         }
         Some(match self.comp_editor.open {
-            Some((st, fx)) if st == strip && comps.contains(&fx) => {
+            Some((st, fx)) if st == strip && working(fx) => {
                 let t = self.fx_telemetry();
                 (t[tele::SAMPLE_RATE] > 0.0).then_some(t[tele::GR])
             }
@@ -700,9 +806,61 @@ impl CantusApp {
             }
         })
     }
+
+    /// Pick a style: its own detector, leaving any custom engine — one step of undo.
+    pub fn set_comp_style(&mut self, strip: StripId, effect: EffectId, style: CompStyle) {
+        set_style(&mut DawHost::new(self, strip, effect, "comp"), style);
+    }
+
+    /// Set one of the engine's numbers. The first move away from a style starts from the
+    /// style's own numbers and switches the engine to custom, in the same step of undo; a
+    /// gesture folds frame after frame into it.
+    pub fn set_comp_engine(
+        &mut self,
+        strip: StripId,
+        effect: EffectId,
+        key: &str,
+        value: f32,
+        gesture: bool,
+    ) {
+        set_engine(
+            &mut DawHost::new(self, strip, effect, "comp"),
+            key,
+            value,
+            gesture,
+        );
+    }
 }
 
-/// The engine drawer's five keys and a detector's numbers for them.
+// ---- what the editor does, on any host ----------------------------------------------------
+
+/// The key of field `f` of key band `b` (`sc2.freq`), as the parameter table keeps it:
+/// nothing is formatted.
+fn band_key(b: usize, f: usize) -> &'static str {
+    let infos = cantus_core::fx::compressor::params();
+    let fields = KEY_BAND_FIELDS.len();
+    let base = infos.len() - KEY_BANDS * fields;
+    infos[base + b.min(KEY_BANDS - 1) * fields + f.min(fields - 1)].key
+}
+
+/// The fields of a key band, by their place in `KEY_BAND_FIELDS`.
+const F_USED: usize = 0;
+const F_ON: usize = 1;
+const F_SHAPE: usize = 2;
+const F_FREQ: usize = 3;
+const F_GAIN: usize = 4;
+const F_Q: usize = 5;
+const F_SLOPE: usize = 6;
+
+/// Pick a style: its own detector, leaving any custom engine — one step.
+pub fn set_style(host: &mut dyn FxHost, style: CompStyle) {
+    host.set_many(
+        &[("style", style.index() as f32), ("custom", 0.0)],
+        "cmd.comp_style",
+    );
+}
+
+/// The engine's five keys and a detector's numbers for them.
 fn engine_values(d: &StyleSpec) -> [(&'static str, f32); 5] {
     [
         ("det_rms", d.rms_ms.max(0.1)),
@@ -713,56 +871,47 @@ fn engine_values(d: &StyleSpec) -> [(&'static str, f32); 5] {
     ]
 }
 
-impl CantusApp {
-    /// Pick a style: its own detector, leaving any custom engine — one step of undo.
-    pub fn set_comp_style(&mut self, strip: StripId, effect: EffectId, style: Style) {
-        self.set_comp_many(
-            strip,
-            effect,
-            &[
-                ("style".into(), style.index() as f32),
-                ("custom".into(), 0.0),
-            ],
-            "cmd.comp_style",
-            None,
-        );
+/// Set one of the engine's numbers: the first move away from a style starts from the
+/// style's own numbers and makes the engine custom, in the same step; a gesture folds
+/// frame after frame into it.
+pub fn set_engine(host: &mut dyn FxHost, key: &str, value: f32, gesture: bool) {
+    let cs = cantus_engine::comp_settings(host.spec());
+    let g = gesture.then_some(ENGINE_GESTURE);
+    if cs.engine.is_none() {
+        let v = engine_values(&cs.detector());
+        let edits = [
+            ("custom", Some(1.0)),
+            (v[0].0, Some(v[0].1)),
+            (v[1].0, Some(v[1].1)),
+            (v[2].0, Some(v[2].1)),
+            (v[3].0, Some(v[3].1)),
+            (v[4].0, Some(v[4].1)),
+            (key, Some(value)),
+        ];
+        host.apply(&edits, "cmd.comp_engine", g);
+    } else {
+        host.apply(&[(key, Some(value))], "cmd.comp_engine", g);
     }
+}
 
-    /// Set one of the engine drawer's numbers. The first move away from a style starts
-    /// from the style's own numbers and switches the engine to custom, in the same step
-    /// of undo; a gesture folds frame after frame into it.
-    pub fn set_comp_engine(
-        &mut self,
-        strip: StripId,
-        effect: EffectId,
-        key: &str,
-        value: f32,
-        gesture: bool,
-    ) {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let s = cantus_engine::comp_settings(&spec);
-        let mut values: Vec<(String, f32)> = Vec::new();
-        if s.engine.is_none() {
-            values.push(("custom".into(), 1.0));
-            for (k, x) in engine_values(&s.detector()) {
-                values.push((k.into(), x));
-            }
+/// Forget a key-EQ band: every field it stored goes back to nothing, as one step.
+pub fn remove_band(host: &mut dyn FxHost, b: usize) {
+    let mut edits: [(&str, Option<f32>); 7] = [("", None); 7];
+    let mut n = 0;
+    for f in 0..KEY_BAND_FIELDS.len().min(7) {
+        let k = band_key(b, f);
+        if host.spec().params.contains_key(k) {
+            edits[n] = (k, None);
+            n += 1;
         }
-        values.push((key.into(), value));
-        let merge = gesture.then(|| MergeKey::of(&("comp-engine", effect.0, key.to_string())));
-        self.set_comp_many(strip, effect, &values, "cmd.comp_engine", merge);
+    }
+    if n > 0 {
+        host.apply(&edits[..n], "cmd.comp_key_band", None);
     }
 }
 
 /// What a style's detector is, in words — the answer to "what does Opto mean?".
-pub fn style_words(style: Style) -> String {
+pub fn style_words(style: CompStyle) -> String {
     detector_words(&style.spec())
 }
 
@@ -803,7 +952,7 @@ pub fn detector_words(s: &StyleSpec) -> String {
 
 /// The style's name as shown: its own, or "Custom (from Opto)".
 pub fn style_name(s: &CompSettings) -> String {
-    let base = t(&format!("comp.style.{}", s.style.index()));
+    let base = t(STYLE_KEYS[s.style.index().min(8)]);
     if s.engine.is_some() {
         tf("comp.custom_from", &[("style", &base)])
     } else {
@@ -824,1238 +973,727 @@ impl Tele {
         self.0[i]
     }
 }
+// ---- the window ---------------------------------------------------------------------------
 
+/// The open Comprimo's window, drawn every frame while one is open.
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect)) = app.comp_editor.open else {
         return;
     };
-    let Some(slot) = app
+    if app
         .project()
         .strip(strip)
         .and_then(|s| s.effect(effect))
-        .cloned()
-    else {
+        .is_none()
+    {
         app.close_comp_editor();
         return;
-    };
+    }
     if app.comp_editor.demo.is_some() && app.fx.injected.is_none() {
         demo_feed(app);
     }
-    app.comp_editor.clock = ctx.input(|i| i.time);
-    pump(app);
-    ctx.request_repaint();
-
-    let s = cantus_engine::comp_settings(&slot.spec);
-    let tel = Tele(app.fx_telemetry());
-    let strip_name = app.capture_label(cantus_engine::CaptureTarget::Strip(strip));
-    let mut open = true;
-    egui::Window::new(format!("{} \u{2014} {strip_name}", t("effect.compressor")))
-        .id(egui::Id::new(("comp-editor", effect.0)))
-        .open(&mut open)
-        .default_size([1180.0, 860.0])
-        .min_size([760.0, 560.0])
-        .resizable(true)
-        .collapsible(false)
-        .show(ctx, |ui| body(app, ui, strip, effect, &slot, &s, &tel));
+    let mut pos = app.fx.pos;
+    let open = crate::views::fx::open_window(
+        ctx,
+        egui::Id::new(("fx-editor", effect.0)),
+        &mut pos,
+        EffectKind::Compressor,
+        |ui| framed(app, ui, strip, effect),
+    );
+    app.fx.pos = pos;
     if !open {
         app.close_comp_editor();
     }
 }
 
-/// Once a frame: the engine's meter into the history, the analyser tap into the key's
-/// spectrum, new loudness blocks into the integrated reading.
-fn pump(app: &mut CantusApp) {
-    // A real engine reporting ends a demo (`--editor comp` with a device): its numbers win.
-    if app.comp_editor.demo.is_some() && app.engine.meters().fx[tele::SAMPLE_RATE] > 0.0 {
-        app.comp_editor.demo = None;
-        app.fx.injected = None;
+/// Comprimo's editor in Cantus's own window: the host is the project (every drag one undo
+/// step, the key any strip of the desk).
+pub fn framed(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    strip: StripId,
+    effect: EffectId,
+) -> frame::Out {
+    let mut st = std::mem::take(&mut app.comp_editor);
+    st.chrome.reset_for(effect.0);
+    let out = editor(&mut DawHost::new(app, strip, effect, "comp"), &mut st, ui);
+    app.comp_editor = st;
+    out
+}
+
+/// Comprimo's editor on any host (ADR 0020): Cantus's window, or a plug-in window inside
+/// another DAW — the device frame and the compressor inside it.
+pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame::Out {
+    st.clock = ui.input(|i| i.time);
+    // A wheel burst is one step of undo: sealed half a second after the last notch.
+    if st.wheel_at.is_some_and(|t| st.clock - t > WHEEL_GESTURE_S) {
+        st.wheel_at = None;
+        host.end_gesture();
     }
-    // A wheel burst is one step of undo: seal it half a second after the last notch.
-    let now = app.comp_editor.clock;
-    if app
-        .comp_editor
-        .wheel_at
-        .is_some_and(|t| now - t > WHEEL_GESTURE_S)
-    {
-        app.comp_editor.wheel_at = None;
-        app.end_gesture();
-    }
-    let [inp, out, gr] = app.engine.take_comp_meter();
-    let playing = app.engine.is_playing();
-    let tick = playing.then(|| app.engine.position().raw());
-    let tel = Tele(app.fx_telemetry());
-    let demo = app.comp_editor.demo.is_some();
-    let ed = &mut app.comp_editor;
-    let col = Column {
-        inp: db(inp),
-        out: db(out),
-        gr,
-        tick,
+    pump(host, st);
+    let tel = Tele(host.telemetry());
+    let cs = cantus_engine::comp_settings(host.spec());
+    let sr = if tel.live() {
+        tel.get(tele::SAMPLE_RATE)
+    } else {
+        host.sample_rate()
     };
+    // The latency the lookahead and the oversampling cost, always in view: the research's
+    // most repeated complaint is latency that appears silently.
+    let latency =
+        cs.lookahead_samples(sr) + cantus_dsp::comprimo::oversample::latency(cs.oversample);
+    let mut lat = std::mem::take(&mut st.chip_latency);
+    let mut os = std::mem::take(&mut st.chip_os);
+    let chips = [
+        lat.latency(latency as f32, sr),
+        os.oversampling(cs.oversample as u32),
+    ];
+    let meter = frame::Levels {
+        level: [st.live.out; 2],
+        hold: [st.hold[2]; 2],
+    };
+    let look = frame::Look {
+        kind: EffectKind::Compressor,
+        chips: &chips,
+        meter: Some(meter),
+        more: &[],
+    };
+    let mut chrome = std::mem::take(&mut st.chrome);
+    let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
+        body_ui(host, st, ui, s, body, &tel, &cs)
+    });
+    st.chrome = chrome;
+    st.chip_latency = lat;
+    st.chip_os = os;
+    out
+}
+
+/// Once a frame: the meter into the history, the analyser's pairs into the key's
+/// spectrum, new loudness blocks into the integrated reading.
+fn pump(host: &mut dyn FxHost, st: &mut State) {
+    let tel = Tele(host.telemetry());
+    let playing_at = host.transport().playing_at;
+    let playing = playing_at.is_some();
+    st.scratch.clear();
+    let [inp, out, gr] = match host.daw() {
+        Some((app, _, _)) => {
+            // A real engine reporting ends a demo (`--editor comp` with a device).
+            if st.demo.is_some() && app.engine.meters().fx[tele::SAMPLE_RATE] > 0.0 {
+                st.demo = None;
+                app.fx.injected = None;
+            }
+            let ts = app.project().time_signature;
+            st.beats = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
+            app.engine.drain_analyser(&mut st.scratch);
+            // The largest of every block since the last frame.
+            app.engine.take_comp_meter()
+        }
+        None => {
+            // A plug-in window: the unit's last block, and the tap the plug-in keeps.
+            let pairs = host.pairs();
+            let take = pairs.len().min(ANALYSER_N);
+            for (a, b) in pairs.iter().skip(pairs.len() - take) {
+                st.scratch.push(*a);
+                st.scratch.push(*b);
+            }
+            let bar = host.transport().ticks_per_bar.max(1);
+            st.beats = (bar, cantus_core::PPQ);
+            if tel.live() {
+                [
+                    tel.get(tele::IN_PEAK),
+                    tel.get(tele::OUT_PEAK),
+                    tel.get(tele::GR),
+                ]
+            } else {
+                [0.0; 3]
+            }
+        }
+    };
+    let demo = st.demo.is_some();
     if !demo {
-        ed.meter(col);
+        let col = Column {
+            inp: db(inp),
+            out: db(out),
+            gr,
+            tick: playing_at,
+        };
+        st.meter(col);
         // Frozen by hand, or stopped and silent: the picture of the last take stays.
         let silent = inp < 1e-5 && gr <= 0.0;
-        if !ed.frozen && !(silent && !playing) {
-            ed.push(col);
+        if !st.frozen && !(silent && !playing) {
+            st.push(col);
         }
         if inp > 0.0 {
-            ed.now = (db(inp), db(inp) - gr);
+            st.now = (db(inp), db(inp) - gr);
         }
     }
     // The held peaks fall at 12 dB/s (about 0.2 dB a frame); reduction at the same rate.
-    ed.hold[0] = (ed.hold[0] - 0.2).max(-120.0);
-    ed.hold[1] = (ed.hold[1] - 0.2).max(0.0);
-    ed.hold[2] = (ed.hold[2] - 0.2).max(-120.0);
-    let mut pairs = std::mem::take(&mut ed.scratch);
-    pairs.clear();
-    app.engine.drain_analyser(&mut pairs);
-    if !pairs.is_empty() {
-        app.comp_editor.analyser.push(&pairs);
-        app.comp_editor.analyser.compute();
+    st.hold[0] = (st.hold[0] - 0.2).max(-120.0);
+    st.hold[1] = (st.hold[1] - 0.2).max(0.0);
+    st.hold[2] = (st.hold[2] - 0.2).max(-120.0);
+    if !st.scratch.is_empty() {
+        let an = st
+            .analyser
+            .get_or_insert_with(|| SpectrumAnalyser::new(ANALYSER_N));
+        an.push(&st.scratch);
+        an.compute();
     }
-    app.comp_editor.scratch = pairs;
     // The loudness blocks: the telemetry carries the last eight with a step counter, so
     // a slow frame loses none. Integrated loudness counts what played.
-    let ed = &mut app.comp_editor;
     if tel.live() {
         let hops = tel.get(tele::HOPS);
-        if hops < ed.last_hops {
-            ed.last_hops = 0.0; // the engine was reset
+        if hops < st.last_hops {
+            st.last_hops = 0.0; // the engine was reset
         }
-        let new = ((hops - ed.last_hops) as usize).min(cantus_dsp::comprimo::BLOCKS_REPORTED);
-        if (playing || demo) && ed.last_hops > 0.0 {
+        let new = ((hops - st.last_hops) as usize).min(cantus_dsp::comprimo::BLOCKS_REPORTED);
+        if (playing || demo) && st.last_hops > 0.0 {
             for i in (0..new).rev() {
-                ed.blocks.push(tel.get(tele::BLOCKS + i));
+                st.blocks.push(tel.get(tele::BLOCKS + i));
             }
         }
-        ed.last_hops = hops;
+        st.last_hops = hops;
     }
 }
 
-/// The height of the knob rows and of the key row under the displays.
-const CONTROLS_H: f32 = space::GRID * 28.0;
-const KEY_H: f32 = space::GRID * 36.0;
-/// The meters and numbers beside the transfer curve.
-const METERS_W: f32 = space::GRID * 54.0;
+/// The widths of a row's cards, as the grid's fractions: `N` rects `h` tall.
+fn row<const N: usize>(g: &mut Grid, h: f32, widths: [f32; N]) -> [Rect; N] {
+    let sum: f32 = widths.iter().sum::<f32>().max(1.0);
+    let fr: [f32; N] = std::array::from_fn(|i| widths[i] / sum);
+    let mut it = g.row(h, &fr);
+    std::array::from_fn(|_| it.next().unwrap_or(Rect::NOTHING))
+}
 
-fn body(
-    app: &mut CantusApp,
+/// The compressor inside the frame: the style (and the engine), the three displays, the
+/// knobs, the key.
+fn body_ui(
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &CompSettings,
+    s: &Style,
+    body: Rect,
     tel: &Tele,
+    cs: &CompSettings,
 ) {
-    // The family's frame: the strip, presets, A/B, and the bypass.
-    crate::views::fx::header(app, ui, strip, effect, slot);
-    ui.add_space(space::S1);
-    style_row(app, ui, strip, effect, s);
-    if app.comp_editor.engine_open {
-        ui.add_space(space::S1);
-        engine_row(app, ui, strip, effect, s);
+    // Every card, row and column below shares one of two styles made once per look.
+    let parent = ui.style().clone();
+    let sp = styles(&parent, s);
+    ui.set_style(sp[0].clone());
+    body_cards(host, st, ui, s, body, tel, cs);
+    ui.set_style(parent);
+}
+
+/// [`body_ui`]'s cards, on the shared style.
+fn body_cards(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    body: Rect,
+    tel: &Tele,
+    cs: &CompSettings,
+) {
+    let k = s.k;
+    let mut g = Grid::new(body, s);
+    let area = g.rest();
+    let gap = s.d(4.0);
+    let w = area.width() - 2.0 * gap;
+    let row_a = if st.engine_open { ENGINE_H } else { STYLE_H } * k;
+    let row_c = (controls::card_height(Size::XL) + 6.0) * k;
+    let row_d = KEY_ROW * k;
+    let row_b = (area.height() - row_a - row_c - row_d - 3.0 * gap).max(120.0 * k);
+
+    // Row A: the styles and what the chosen one is; the engine beside them when open.
+    if st.engine_open {
+        let engine_w = (ENGINE_COLUMN + 4.0 + controls::cells_width(&[Size::M; 5]) + 16.0) * k;
+        let [a, b] = row(&mut g, row_a, [area.width() - engine_w - gap, engine_w]);
+        style_card(host, st, ui, s, a, cs);
+        engine_card(host, st, ui, s, b, cs);
+    } else {
+        let a = g.full(row_a);
+        style_card(host, st, ui, s, a, cs);
     }
-    ui.add_space(space::S1);
-    toolbar(app, ui, strip, effect, s, tel);
-    ui.add_space(space::S1);
-    // The rows under the displays keep their height; the displays take what is left.
-    // The rows are measured as drawn (last frame), so a row that grows never pushes the
-    // window taller frame after frame.
-    let fixed = app
-        .comp_editor
-        .below
-        .max(CONTROLS_H + KEY_H + space::S2 * 3.0);
-    let h = (ui.available_height() - fixed).max(space::GRID * 40.0);
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S2;
-        let w = (ui.available_width() - h - METERS_W - space::S2 * 2.0).max(space::GRID * 40.0);
-        history_display(app, ui, strip, effect, s, vec2(w, h));
-        transfer_display(app, ui, strip, effect, s, tel, h);
-        meters_panel(app, ui, s, tel, vec2(METERS_W, h));
-    });
-    let top = ui.cursor().top();
-    ui.add_space(space::S2);
-    controls(app, ui, strip, effect, &slot.spec, s);
-    ui.add_space(space::S2);
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S2;
-        key_section(app, ui, strip, effect, slot, s);
-        let rest = ui.available_width();
-        let response_w = (rest * 0.36).clamp(space::GRID * 56.0, space::GRID * 80.0);
-        let eq_w = (rest - response_w - space::S2).max(space::GRID * 40.0);
-        key_eq_panel(app, ui, strip, effect, slot, s, vec2(eq_w, KEY_H));
-        response_graph(app, ui, s, vec2(response_w, KEY_H));
-    });
-    app.comp_editor.below = ui.cursor().top() - top + space::S2;
-}
 
-/// Text on a small plate of the panel colour, so it reads over a busy display.
-fn plate_text(p: &egui::Painter, at: Pos2, align: Align2, text: String, color: Color32) {
-    let pal = theme::p();
-    let galley = p.layout_no_wrap(text, design::paint::ruler(), color);
-    let rect = align.anchor_size(at, galley.size());
-    p.rect_filled(
-        rect.expand(space::S1 * 0.5),
-        pal.corner_radius,
-        pal.panel.gamma_multiply(0.92),
+    // Row B: the history, the transfer curve (square), the meters and the numbers.
+    let title = (band::TITLE + 1.0) * k;
+    let side = (row_b - title - TRANSFER_HEAD * k).clamp(80.0 * k, w * 0.4);
+    let meters_w = METERS_W * k;
+    let [hr, tr, mr] = row(
+        &mut g,
+        row_b,
+        [(w - side - meters_w).max(80.0 * k), side, meters_w],
     );
-    p.galley(rect.min, galley, color);
-}
-
-/// A small caption in the dim text colour.
-fn caption(ui: &mut egui::Ui, key: &str) {
-    ui.label(
-        RichText::new(t(key))
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
+    let disp = |r: Rect| (r.height() / k - band::TITLE - 1.0).max(20.0);
+    controls::card_with(
+        ui,
+        s,
+        hr,
+        Src::Key("comp.history"),
+        None,
+        Some(disp(hr)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                history::show(host, st, ui, s, cs, d);
+            }
+        },
     );
+    controls::card_with(
+        ui,
+        s,
+        tr,
+        Src::Key("comp.card.transfer"),
+        None,
+        Some(disp(tr)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                transfer::show(host, st, ui, s, cs, tel, d);
+            }
+        },
+    );
+    controls::card_with(
+        ui,
+        s,
+        mr,
+        Src::Key("comp.card.meters"),
+        None,
+        Some(disp(mr)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                transfer::meters(st, ui, s, cs, tel, d);
+            }
+        },
+    );
+
+    // Row C: the knobs — dynamics (the threshold, XL), time, output.
+    let wd = controls::cells_width(&[Size::XL, Size::M, Size::M, Size::M]) + 16.0;
+    let wt = controls::cells_width(&[Size::M; 4]) + 16.0;
+    let wo = controls::cells_width(&[Size::M; 5]) + 16.0;
+    let spare = (w / k - wd - wt - wo).max(0.0);
+    let [dr, tir, or] = row(
+        &mut g,
+        row_c,
+        [wd + spare * 0.25, wt + spare * 0.25, wo + spare * 0.5],
+    );
+    dynamics_card(host, st, ui, s, dr);
+    time_card(host, ui, s, tir, cs);
+    output_card(host, ui, s, or, cs);
+
+    // Row D: the key (tone hue): its source and knobs, its EQ; the response to a burst.
+    let wk = KEY_COLUMN + 4.0 + controls::cells_width(&[Size::M; 3]) + 16.0;
+    let wr = (w / k - wk - 500.0).clamp(200.0, 320.0);
+    let [kr, er, rr] = row(&mut g, row_d, [wk, w / k - wk - wr, wr]);
+    key::key_card(host, st, ui, s, kr);
+    key::key_eq_card(host, st, ui, s, cs, er);
+    key::response_card(st, ui, s, cs, rr);
+}
+// ---- the style and the engine -------------------------------------------------------------
+
+/// Refresh the style's words when the settings or the language changed.
+fn style_words_for(st: &mut State, rev: u64, cs: &CompSettings) {
+    let key = (rev, crate::i18n::locale());
+    if st.words.style.as_ref().is_some_and(|(k, _)| *k == key) {
+        return;
+    }
+    let base = t(STYLE_KEYS[cs.style.index().min(8)]);
+    let name = style_name(cs);
+    let det = detector_words(&cs.detector());
+    let line = if cs.engine.is_some() {
+        format!("{name} \u{b7} {det}")
+    } else {
+        det
+    };
+    let star = format!("{base}*");
+    let back = tf("comp.engine_back", &[("style", &base)]);
+    st.words.style = Some((key, [line, name, star, back]));
 }
 
-/// The styles as a segmented row; the one in force is filled. The detector it means is
-/// spelled out beside it, and the engine drawer opens from the right.
-fn style_row(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &CompSettings,
-) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        caption(ui, "fx.comp.style");
-        for style in Style::ALL {
-            let on = s.style == style && s.engine.is_none();
-            let label = t(&format!("comp.style.{}", style.index()));
-            let text = if s.style == style && s.engine.is_some() {
-                // The base of a custom engine keeps a mark, so "from where" is visible.
-                RichText::new(format!("{label}*")).italics()
-            } else {
-                RichText::new(label)
-            };
-            if ui
-                .selectable_label(on, text)
-                .on_hover_text(style_words(style))
-                .clicked()
-            {
-                app.set_comp_style(strip, effect, style);
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let open = app.comp_editor.engine_open;
-            if ui
-                .selectable_label(open, t("comp.engine"))
-                .on_hover_text(t("comp.engine_tip"))
-                .clicked()
-            {
-                app.comp_editor.engine_open = !open;
-            }
-            let words = detector_words(&s.detector());
-            let text = if s.engine.is_some() {
-                RichText::new(format!("{} \u{b7} {words}", style_name(s))).color(pal.gold)
-            } else {
-                RichText::new(words).color(pal.text_dim)
-            };
-            ui.add(egui::Label::new(text.text_style(design::caption())).truncate());
+/// A line of words in a box, elided at its end; hovering it puts the whole line on the
+/// help line.
+fn words_line(ui: &mut egui::Ui, s: &Style, text: &str, color: egui::Color32, name: &str, w: f32) {
+    let (rect, resp) = ui.allocate_exact_size(vec2(w * s.k, s.d(18.0)), Sense::hover());
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), name, text, Caps::NONE);
+    }
+    if ui.is_rect_visible(rect) {
+        with_brush(ui.painter(), |b| {
+            let t = Text::new(text, Role::Body, color)
+                .caps(false)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
+            let _ = ktext::paint(b, rect, &t, s.tk());
         });
-    });
+    }
 }
 
-/// The engine drawer: the five numbers a style is, as knobs. Turning one makes the style
-/// "Custom (from …)", starting from the style's own numbers — one undo step per gesture.
-fn engine_row(
-    app: &mut CantusApp,
+/// The styles, as one segmented control (a custom engine's base keeps a mark, so "from
+/// where" is visible), the engine's switch, and what the detector in force is, in words.
+fn style_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &CompSettings,
+    s: &Style,
+    rect: Rect,
+    cs: &CompSettings,
 ) {
-    let pal = theme::p();
-    let current = engine_values(&s.detector());
-    egui::Frame::NONE
-        .fill(pal.panel_raised)
-        .stroke(Stroke::new(1.0, pal.grid_strong))
-        .corner_radius(pal.corner_radius)
-        .inner_margin(egui::Margin::same(space::S2 as i8))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
+    style_words_for(st, host.revision(), cs);
+    let idx = cs.style.index().min(8);
+    let custom = cs.engine.is_some();
+    let engine_open = st.engine_open;
+    let mut open_engine = false;
+    let mut pick = None;
+    let Some((_, [line, _, star, _])) = st.words.style.as_ref() else {
+        return;
+    };
+    controls::card(ui, s, rect, Src::Key("fx.comp.style"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        let top = ((cr.body.height() / s.k - 44.0) * 0.5).max(0.0);
+        col(ui, s, w, false, |ui| {
+            ui.add_space(top * s.k);
             ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(space::GRID * 56.0);
-                    ui.label(RichText::new(style_name(s)).text_style(design::strong()));
-                    ui.label(
-                        RichText::new(t(if s.engine.is_some() {
-                            "comp.engine_custom"
-                        } else {
-                            "comp.engine_style"
-                        }))
-                        .text_style(design::caption())
-                        .color(pal.text_dim),
-                    );
-                    if s.engine.is_some()
-                        && ui
-                            .button(tf(
-                                "comp.engine_back",
-                                &[("style", &t(&format!("comp.style.{}", s.style.index())))],
-                            ))
-                            .clicked()
-                    {
-                        app.set_comp(strip, effect, "custom", 0.0, false);
+                gap_x(ui, s);
+                let led_w = if engine_open { 0.0 } else { 104.0 };
+                let seg_w = if engine_open { w } else { w - led_w - 4.0 };
+                let labels: [Src<'_>; 9] = std::array::from_fn(|i| {
+                    if custom && i == idx {
+                        Src::Str(star.as_str())
+                    } else {
+                        Src::Key(STYLE_KEYS[i])
                     }
                 });
-                for (key, value) in current {
-                    let Some(info) = EffectKind::Compressor.param(key) else {
-                        continue;
-                    };
-                    let mut v = value;
-                    let knob = Knob::new(&mut v, info.min..=info.max, info.default)
-                        .diameter(space::GRID * 10.0)
-                        .log(info.logarithmic)
-                        .unit(info.unit)
-                        .label(t(info.label_key));
-                    let knob = match key {
-                        "det_rms" => knob.format(|x| {
-                            if x <= 0.1 {
-                                t("comp.peak_short")
-                            } else {
-                                crate::widgets::knob::readout(x, "ms")
-                            }
-                        }),
-                        "det_prog" => knob.format(|x| format!("\u{d7}{x:.1}")),
-                        "det_curve" => knob.format(|x| {
-                            if x <= 0.005 {
-                                t("comp.curve_exp")
-                            } else if x >= 0.995 {
-                                t("comp.curve_lin")
-                            } else {
-                                format!("{:.0}% {}", x * 100.0, t("comp.curve_lin"))
-                            }
-                        }),
-                        _ => knob,
-                    };
-                    let r = ui.add(knob).on_hover_text(t(&format!("comp.{key}_tip")));
-                    if r.changed() {
-                        app.set_comp_engine(strip, effect, key, v, true);
-                    }
-                    if r.drag_stopped() || r.double_clicked() {
-                        app.end_gesture();
-                    }
-                }
-            });
-        });
-}
-
-/// Over the displays: how the history moves and what scale it shows, and — at the right —
-/// what you hear, the equal-loudness compare, and the latency the lookahead costs.
-fn toolbar(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &CompSettings,
-    tel: &Tele,
-) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        caption(ui, "comp.history");
-        for (speed, key) in [
-            (Speed::Fast, "comp.speed.fast"),
-            (Speed::Slow, "comp.speed.slow"),
-            (Speed::Whole, "comp.speed.whole"),
-        ] {
-            if ui
-                .selectable_label(app.comp_editor.speed == speed, t(key))
-                .on_hover_text(t(&format!("{key}_tip")))
-                .clicked()
-            {
-                app.comp_editor.set_speed(speed);
-            }
-        }
-        let ed = &mut app.comp_editor;
-        if ui
-            .selectable_label(ed.grid, t("comp.grid"))
-            .on_hover_text(t("comp.grid_tip"))
-            .clicked()
-        {
-            ed.grid = !ed.grid;
-        }
-        if ui
-            .selectable_label(ed.frozen, t("comp.freeze"))
-            .on_hover_text(t("comp.freeze_tip"))
-            .clicked()
-        {
-            ed.frozen = !ed.frozen;
-        }
-        if ed.scroll > 0 && ui.button(t("comp.live")).clicked() {
-            ed.scroll = 0;
-        }
-        ui.separator();
-        caption(ui, "comp.scale");
-        let mut range = ed.range_db;
-        egui::ComboBox::from_id_salt(("comp-scale", effect.0))
-            .selected_text(format!("{range:.0} dB"))
-            .width(space::GRID * 18.0)
-            .show_ui(ui, |ui| {
-                for r in RANGES {
-                    ui.selectable_value(&mut range, r, format!("{r:.0} dB"));
-                }
-            });
-        ed.range_db = range;
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // The latency the lookahead costs, always in view: the research's most
-            // repeated complaint is latency that appears silently.
-            let sr = if tel.live() {
-                tel.get(tele::SAMPLE_RATE)
-            } else {
-                DISPLAY_SR
-            };
-            let samples =
-                s.lookahead_samples(sr) + cantus_dsp::comprimo::oversample::latency(s.oversample);
-            let ms = samples as f32 / sr * 1_000.0;
-            let badge = if samples == 0 {
-                t("comp.latency_none")
-            } else {
-                tf(
-                    "comp.latency",
-                    &[("ms", &format!("{ms:.1}")), ("n", &samples.to_string())],
-                )
-            };
-            ui.label(
-                RichText::new(badge)
-                    .text_style(design::mono_small())
-                    .color(if samples == 0 { pal.text_dim } else { pal.gold }),
-            )
-            .on_hover_text(t("comp.latency_tip"));
-            let os = cantus_dsp::comprimo::oversample::FACTORS
-                .iter()
-                .position(|f| *f == s.oversample)
-                .unwrap_or(0);
-            let mut pick = os;
-            egui::ComboBox::from_id_salt(("comp-os", effect.0))
-                .selected_text(t(&format!("comp.os.{os}")))
-                .width(space::GRID * 12.0)
-                .show_ui(ui, |ui| {
-                    for i in 0..3 {
-                        ui.selectable_value(&mut pick, i, t(&format!("comp.os.{i}")));
-                    }
-                })
-                .response
-                .on_hover_text(t("comp.os_tip"));
-            if pick != os {
-                app.set_comp(strip, effect, "os", pick as f32, false);
-            }
-            caption(ui, "fx.comp.os");
-            ui.separator();
-            let comparing = s.listen == Listen::Compare;
-            let label = if comparing && tel.live() {
-                tf(
-                    "comp.compare_on",
-                    &[("db", &format!("{:+.1}", tel.get(tele::COMPARE)))],
-                )
-            } else {
-                t("comp.compare")
-            };
-            if ui
-                .selectable_label(comparing, label)
-                .on_hover_text(t("comp.compare_tip"))
-                .clicked()
-            {
-                let to = if comparing {
-                    Listen::Normal
-                } else {
-                    Listen::Compare
-                };
-                app.set_comp(strip, effect, "listen", to.index() as f32, false);
-            }
-            ui.separator();
-            for listen in [Listen::Delta, Listen::Key, Listen::Wet, Listen::Normal] {
-                let key = format!("comp.listen.{}", listen.index());
-                if ui
-                    .selectable_label(s.listen == listen, t(&key))
-                    .on_hover_text(t(&format!("{key}_tip")))
+                // A custom engine lights no style: clicking its base goes back to it.
+                let selected = if custom { labels.len() } else { idx };
+                pick = controls::segmented(
+                    ui,
+                    s,
+                    selected,
+                    &labels,
+                    frame::tr("fx.comp.style"),
+                    seg_w,
+                );
+                if !engine_open
+                    && controls::led(
+                        ui,
+                        s,
+                        false,
+                        Src::Key("comp.engine"),
+                        frame::tr("comp.engine_tip"),
+                        led_w,
+                    )
                     .clicked()
                 {
-                    app.set_comp(strip, effect, "listen", listen.index() as f32, false);
+                    open_engine = true;
                 }
-            }
-            caption(ui, "comp.listen");
+            });
+            let color = if custom { s.hue } else { s.t.text_dim };
+            words_line(ui, s, line, color, frame::tr("fx.comp.style"), w);
         });
+    });
+    if let Some(i) = pick {
+        set_style(host, CompStyle::ALL[i.min(8)]);
+    }
+    if open_engine {
+        st.engine_open = true;
+    }
+}
+
+fn rms_pill(x: f32, b: &mut String) {
+    if x <= 0.1 {
+        b.push_str(frame::tr("comp.peak_short"));
+    } else {
+        controls::write_readout(x, "ms", b);
+    }
+}
+
+fn prog_pill(x: f32, b: &mut String) {
+    let _ = write!(b, "\u{d7}{x:.1}");
+}
+
+fn curve_pill(x: f32, b: &mut String) {
+    if x <= 0.005 {
+        b.push_str(frame::tr("comp.curve_exp"));
+    } else if x >= 0.995 {
+        b.push_str(frame::tr("comp.curve_lin"));
+    } else {
+        let _ = write!(b, "{:.0}%", x * 100.0);
+    }
+}
+
+/// The engine: the five numbers a style is, as cells. Turning one makes the style "Custom
+/// (from …)", starting from the style's own numbers — one undo step per gesture. Its lamp
+/// closes the card.
+fn engine_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    cs: &CompSettings,
+) {
+    let custom = cs.engine.is_some();
+    let Some((_, [_, name, _, back])) = st.words.style.as_ref() else {
+        return;
+    };
+    let mut go_back = false;
+    let (_, lamp) = controls::card(ui, s, rect, Src::Key("comp.engine"), Some(true), |ui, _| {
+        let explain = frame::tr(if custom {
+            "comp.engine_custom"
+        } else {
+            "comp.engine_style"
+        });
+        col(ui, s, ENGINE_COLUMN, false, |ui| {
+            let spare = (ui.available_height() / s.k - if custom { 44.0 } else { 18.0 }) * 0.5;
+            ui.add_space(spare.max(0.0) * s.k);
+            let color = if custom { s.hue } else { s.t.text };
+            words_line(ui, s, name, color, explain, ENGINE_COLUMN);
+            if custom
+                && controls::key(ui, s, Src::Str(back), explain, ENGINE_COLUMN, false).clicked()
+            {
+                go_back = true;
+            }
+        });
+        for (key, value) in engine_values(&cs.detector()) {
+            let Some(info) = EffectKind::Compressor.param(key) else {
+                continue;
+            };
+            let fmt: Pill<'_> = match key {
+                "det_rms" => Some(&rms_pill),
+                "det_prog" => Some(&prog_pill),
+                "det_curve" => Some(&curve_pill),
+                _ => None,
+            };
+            let mut c = controls::Cell::param(info, value).size(Size::M);
+            if let Some(f) = fmt {
+                c = c.format(f);
+            }
+            let out = c.show(ui, s);
+            if let Some(v) = out.changed {
+                set_engine(host, key, v, true);
+            }
+            if out.done {
+                host.end_gesture();
+            }
+        }
+    });
+    if go_back {
+        host.set("custom", 0.0, None);
+    }
+    if lamp {
+        st.engine_open = false;
+    }
+}
+// ---- the knobs ----------------------------------------------------------------------------
+
+fn db1_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{v:.1} dB");
+}
+
+fn range_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{v:.0} dB");
+}
+
+fn att_pill(v: f32, b: &mut String) {
+    if v < 1.0 {
+        let _ = write!(b, "{v:.2} ms");
+    } else {
+        controls::write_readout(v, "ms", b);
+    }
+}
+
+fn off_or(v: f32, off: bool, unit: &str, b: &mut String) {
+    if off {
+        b.push_str(frame::tr("comp.off"));
+    } else {
+        controls::write_readout(v, unit, b);
+    }
+}
+
+fn look_pill(v: f32, b: &mut String) {
+    off_or(v, v <= 0.005, "ms", b);
+}
+
+fn dry_pill(v: f32, b: &mut String) {
+    off_or(v, v <= cantus_dsp::comprimo::DRY_OFF_DB + 0.05, "dB", b);
+}
+
+fn hpf_pill(v: f32, b: &mut String) {
+    off_or(v, v <= 20.5, "Hz", b);
+}
+
+/// The height a column of rows takes at 100 %, and the space that centres it in `ui`.
+fn centre(ui: &mut egui::Ui, s: &Style, content: f32) {
+    let spare = (ui.available_height() / s.k - content) * 0.5;
+    if spare > 0.0 {
+        ui.add_space(spare * s.k);
+    }
+}
+
+/// The height of an M cell at 100 %.
+const CELL_M: f32 = 86.0;
+
+/// A row exactly `h` points tall (at 100 %), its items centred on it: a caption beside a
+/// switch lines up with the switch, and no row grows by egui's minimum row height.
+fn hrow<R>(ui: &mut egui::Ui, s: &Style, h: f32, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let w = ui.available_width();
+    ui.allocate_ui_with_layout(
+        vec2(w, s.d(h)),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_height(s.d(h));
+            gap_x(ui, s);
+            f(ui)
+        },
+    )
+    .inner
+}
+
+thread_local! {
+    /// The body's two styles — the parent's with the kit's 4 × 4-pt gaps (a card's body,
+    /// a row) and 4 × 5 (a column) — kept until the look changes, so no `Ui` clones its
+    /// style every frame (a clone of egui's style is a dozen allocations).
+    static SPACED: RefCell<Option<Spaced>> = const { RefCell::new(None) };
+}
+
+/// The parent style and scale they were made for, and the two styles.
+type Spaced = (Arc<egui::Style>, u32, [Arc<egui::Style>; 2]);
+
+/// A cell's value formatter.
+type Pill<'a> = Option<&'a dyn Fn(f32, &mut String)>;
+
+/// The two styles for `parent` at the device's scale (made when either changed).
+fn styles(parent: &Arc<egui::Style>, s: &Style) -> [Arc<egui::Style>; 2] {
+    SPACED.with(|c| {
+        let mut c = c.borrow_mut();
+        let fresh = c.as_ref().is_some_and(|(p, k, _)| {
+            *k == s.k.to_bits() && (Arc::ptr_eq(p, parent) || **p == **parent)
+        });
+        if !fresh {
+            let make = |y: f32| {
+                let mut st = (**parent).clone();
+                st.spacing.item_spacing = vec2(s.d(4.0), s.d(y));
+                Arc::new(st)
+            };
+            *c = Some((parent.clone(), s.k.to_bits(), [make(4.0), make(5.0)]));
+        }
+        match c.as_ref() {
+            Some((_, _, sp)) => sp.clone(),
+            None => [parent.clone(), parent.clone()],
+        }
+    })
+}
+
+/// The shared style: 0 — 4 × 4-pt gaps, 1 — 4 × 5.
+fn spaced(ui: &egui::Ui, i: usize) -> Arc<egui::Style> {
+    SPACED.with(|c| match c.borrow().as_ref() {
+        Some((_, _, sp)) => sp[i.min(1)].clone(),
+        None => ui.style().clone(),
+    })
+}
+
+/// A column of switches inside a card's body (as `controls::column`, on the shared
+/// style): 5-pt gaps, or 4 when `tight`.
+fn col<R>(
+    ui: &mut egui::Ui,
+    s: &Style,
+    width: f32,
+    tight: bool,
+    f: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let style = spaced(ui, if tight { 0 } else { 1 });
+    ui.allocate_ui_with_layout(
+        vec2(width * s.k, ui.available_height()),
+        egui::Layout::top_down(egui::Align::Min),
+        |ui| {
+            ui.set_style(style);
+            f(ui)
+        },
+    )
+    .inner
+}
+
+/// The kit's 4-pt gap between the items of a row, set only when it is not already.
+pub(super) fn gap_x(ui: &mut egui::Ui, s: &Style) {
+    if ui.spacing().item_spacing.x != s.d(4.0) {
+        ui.spacing_mut().item_spacing.x = s.d(4.0);
+    }
+}
+
+/// The ratio, with its click stops: the knob lands on 1.5, 2, 3, 4, 6, 8, 10, 20 and ∞
+/// when near them (Shift: free), and the stops are ticks around it.
+fn ratio_cell(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style) {
+    let spec = host.spec();
+    let Some(info) = spec.kind.param("ratio") else {
+        return;
+    };
+    // While dragged, the knob follows the pointer and the value follows the stops.
+    let shown = st.ratio_drag.unwrap_or(spec.get("ratio"));
+    let out = controls::Cell::param(info, shown)
+        .size(Size::M)
+        .format(&ratio_pill)
+        .show(ui, s);
+    if let Some(v) = out.changed {
+        let free = ui.input(|i| i.modifiers.shift);
+        st.ratio_drag = out.resp.dragged().then_some(v);
+        host.set("ratio", if free { v } else { snap_ratio(v) }, Some("ratio"));
+    }
+    if out.done {
+        st.ratio_drag = None;
+        host.end_gesture();
+    }
+    if !ui.is_rect_visible(out.resp.rect) {
+        return;
+    }
+    let look = CellLook {
+        control: Control::Knob(KnobLook::new(Size::M, 0.0, 0.0)),
+        value: "",
+        label: Src::Str(""),
+    };
+    let c = cell::rects(out.resp.rect, s, &look).control.center();
+    let r = s.s(Size::M.diameter()) * 0.5;
+    with_brush(ui.painter(), |b| {
+        let px = b.px();
+        let color = s.t.knob_track;
+        for stop in RATIO_STOPS {
+            let a = START + SWEEP * (stop.ln() / RATIO_INF.ln());
+            let d = vec2(a.cos(), a.sin());
+            b.segment(
+                c + d * (r + s.s(1.5)),
+                c + d * (r + s.s(4.0)),
+                px,
+                color,
+                false,
+            );
+        }
     });
 }
 
-/// The level history: input as a dim fill, output as a line, gain reduction hanging from
-/// the top in the danger colour, all on one dB scale; bars and beats behind; the
-/// threshold as a dashed line you drag. Click to freeze, wheel to scroll back, hover to
-/// read any moment.
-fn history_display(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &CompSettings,
-    size: egui::Vec2,
-) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    let range = app.comp_editor.range_db;
-    app.comp_editor.geometry.history = Some(rect);
-    app.comp_editor.geometry.range_db = range;
-    let y = |d: f32| rect.top() + (-d / range).clamp(0.0, 1.0) * rect.height();
-    let d_of = |py: f32| -(py - rect.top()) / rect.height() * range;
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let step = if range <= 36.0 { 6.0 } else { 12.0 };
-    let mut g = -step;
-    while g > -range {
-        p.hline(rect.x_range(), y(g), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(rect.left() + 3.0, y(g) - 1.0),
-            Align2::LEFT_BOTTOM,
-            format!("{g:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        g -= step;
-    }
-    let ed = &app.comp_editor;
-    let (a, b) = ed.visible();
-    let cols = b - a;
-    let slots = if ed.speed == Speed::Whole {
-        cols.max(2)
-    } else {
-        VISIBLE
-    };
-    let dx = rect.width() / slots as f32;
-    let x_of = |i: usize| rect.right() - dx * (cols - i) as f32;
-    let col = |i: usize| ed.history[a + i];
-    // Bars and beats from the transport, behind everything.
-    if ed.grid {
-        let ts = app.project().time_signature;
-        let (bar_len, beat_len) = (ts.ticks_per_bar().0, ts.ticks_per_beat().0);
-        for i in 1..cols {
-            let (Some(p0), Some(p1)) = (col(i - 1).tick, col(i).tick) else {
-                continue;
-            };
-            let x = x_of(i);
-            if p1.div_euclid(bar_len) != p0.div_euclid(bar_len) {
-                p.vline(x, rect.y_range(), Stroke::new(1.0, pal.grid_bar));
-                p.text(
-                    pos2(x + 2.0, rect.bottom() - 2.0),
-                    Align2::LEFT_BOTTOM,
-                    format!("{}", p1.div_euclid(bar_len) + 1),
-                    design::paint::ruler(),
-                    pal.text_dim,
-                );
-            } else if p1.div_euclid(beat_len) != p0.div_euclid(beat_len) {
-                p.vline(x, rect.y_range(), Stroke::new(1.0, pal.grid));
-            }
-        }
-    }
-    let fill_alpha = if pal.dark { 0.35 } else { 0.2 };
-    let dim = pal.text_dim.gamma_multiply(fill_alpha);
-    let red = pal.danger.gamma_multiply(fill_alpha + 0.1);
-    let mut fill = egui::Mesh::default();
-    let mut gr_mesh = egui::Mesh::default();
-    let mut out_line = Vec::with_capacity(cols);
-    let mut gr_line = Vec::with_capacity(cols);
-    for i in 0..cols {
-        let c = col(i);
-        let x = x_of(i);
-        let base = fill.vertices.len() as u32;
-        fill.colored_vertex(pos2(x, y(c.inp)), dim);
-        fill.colored_vertex(pos2(x, rect.bottom()), dim);
-        let gy = y(-c.gr);
-        gr_mesh.colored_vertex(pos2(x, rect.top()), red);
-        gr_mesh.colored_vertex(pos2(x, gy), red);
-        if i > 0 {
-            fill.add_triangle(base - 2, base - 1, base);
-            fill.add_triangle(base - 1, base, base + 1);
-            gr_mesh.add_triangle(base - 2, base - 1, base);
-            gr_mesh.add_triangle(base - 1, base, base + 1);
-        }
-        out_line.push(pos2(x, y(c.out)));
-        gr_line.push(pos2(x, gy));
-    }
-    p.add(fill);
-    p.add(gr_mesh);
-    if out_line.len() > 1 {
-        p.add(egui::Shape::line(out_line, Stroke::new(1.5, pal.text)));
-        p.add(egui::Shape::line(gr_line, Stroke::new(1.5, pal.danger)));
-    }
-    // The threshold: a dashed line, brighter while held.
-    let ty = y(s.threshold_db);
-    let held = app.comp_editor.drag == Some(Grab::Threshold);
-    let near = resp.hover_pos().is_some_and(|pt| (pt.y - ty).abs() < 6.0);
-    p.add(egui::Shape::dashed_line(
-        &[pos2(rect.left(), ty), pos2(rect.right(), ty)],
-        Stroke::new(if held || near { 2.0 } else { 1.0 }, pal.gold),
-        6.0,
-        4.0,
-    ));
-    plate_text(
-        &p,
-        pos2(rect.right() - space::S2, ty - 3.0),
-        Align2::RIGHT_BOTTOM,
-        format!("{:+.1} dB", s.threshold_db),
-        pal.gold,
-    );
-    let ed = &app.comp_editor;
-    let last_gr = ed.history.back().map(|h| h.gr).unwrap_or(0.0);
-    let max_gr = (a..b).map(|i| ed.history[i].gr).fold(0.0f32, f32::max);
-    plate_text(
-        &p,
-        pos2(rect.right() - space::S2, rect.bottom() - space::S2),
-        Align2::RIGHT_BOTTOM,
-        format!(
-            "{}   {}",
-            tf("comp.gr_now", &[("db", &format!("{last_gr:.1}"))]),
-            tf("comp.gr_max", &[("db", &format!("{max_gr:.1}"))])
-        ),
-        pal.danger,
-    );
-    // What the history is doing, when it is not simply running.
-    let state = if ed.frozen {
-        Some(t("comp.frozen"))
-    } else if ed.scroll > 0 {
-        Some(tf("comp.scrolled", &[("n", &ed.scroll.to_string())]))
-    } else if ed.speed == Speed::Whole {
-        Some(tf(
-            "comp.whole_state",
-            &[("n", &ed.whole_frames.to_string())],
-        ))
-    } else {
-        None
-    };
-    if let Some(state) = state {
-        p.text(
-            pos2(rect.left() + space::S6, rect.top() + space::S2),
-            Align2::LEFT_TOP,
-            state,
-            design::paint::caption(),
-            pal.gold,
-        );
-    }
-    if cols == 0 {
-        p.text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            t("comp.history_empty"),
-            design::paint::empty_state(),
-            pal.text_dim,
-        );
-    }
-    // Hover: read any moment.
-    if let Some(pt) = resp.hover_pos() {
-        if !near && cols > 0 && app.comp_editor.drag.is_none() {
-            let i = (((pt.x - x_of(0)) / dx).round().max(0.0) as usize).min(cols - 1);
-            let c = col(i);
-            p.vline(x_of(i), rect.y_range(), Stroke::new(1.0, pal.grid_bar));
-            let mut text = tf(
-                "comp.readout",
-                &[
-                    ("inp", &format!("{:.1}", c.inp.max(-99.9))),
-                    ("out", &format!("{:.1}", c.out.max(-99.9))),
-                    ("gr", &format!("{:.1}", c.gr)),
-                ],
-            );
-            if let Some(tick) = c.tick {
-                let (bar, beat, _) = app.project().time_signature.bbt(cantus_core::Ticks(tick));
-                text.push_str(&format!("  \u{b7}  {bar}.{beat}"));
-            }
-            let at = pos2(
-                (pt.x + space::S3).min(rect.right() - space::GRID * 60.0),
-                rect.top() + space::S6,
-            );
-            let galley = p.layout_no_wrap(text, design::paint::ruler(), pal.text);
-            let plate = Rect::from_min_size(at, galley.size()).expand(space::S1);
-            p.rect_filled(plate, pal.corner_radius, pal.panel_raised);
-            p.rect_stroke(
-                plate,
-                pal.corner_radius,
-                Stroke::new(1.0, pal.grid_strong),
-                StrokeKind::Inside,
-            );
-            p.galley(at, galley, pal.text);
-        }
-    }
-    p.rect_stroke(
+/// When it starts and how much: the threshold (the device's primary parameter, the one XL
+/// knob), the ratio with its stops, the knee, the range — and the oversampling, which runs
+/// the gain stage and the detector faster.
+fn dynamics_card(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, rect: Rect) {
+    controls::card(
+        ui,
+        s,
         rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
+        Src::Key("comp.group.dynamics"),
+        None,
+        |ui, _| {
+            controls::param(ui, s, host, "thr", Size::XL);
+            let w = controls::cells_width(&[Size::M; 3]);
+            col(ui, s, w, false, |ui| {
+                centre(ui, s, 86.0 + 5.0 + controls::ROW);
+                hrow(ui, s, CELL_M, |ui| {
+                    ratio_cell(host, st, ui, s);
+                    controls::param_with(ui, s, host, "knee", Size::M, Some(&db1_pill));
+                    controls::param_with(ui, s, host, "range", Size::M, Some(&range_pill));
+                });
+                hrow(ui, s, controls::ROW, |ui| {
+                    let cap = 92.0;
+                    controls::caption(ui, s, Src::Key("fx.comp.os"), cap);
+                    let labels = OS_KEYS.map(Src::Key);
+                    controls::segmented_param(ui, s, host, "os", &labels, w - cap - 4.0);
+                });
+            });
+        },
     );
-
-    // The wheel scrolls back through what was kept (not in Whole, which shows it all).
-    if resp.hovered() && app.comp_editor.speed != Speed::Whole {
-        let wheel = ui.input(|i| i.smooth_scroll_delta.y + i.smooth_scroll_delta.x);
-        if wheel != 0.0 {
-            let ed = &mut app.comp_editor;
-            let max = ed.history.len().saturating_sub(VISIBLE);
-            let by = (wheel / dx).round() as i64;
-            ed.scroll = (ed.scroll as i64 + by).clamp(0, max as i64) as usize;
-        }
-    }
-    if resp.clicked() && !near {
-        app.comp_editor.frozen = !app.comp_editor.frozen;
-    }
-    if resp.double_clicked() {
-        app.comp_editor.frozen = false;
-        app.comp_editor.scroll = 0;
-    }
-    // What a drag grabs is decided where the press began: by the time egui calls it a
-    // drag, the pointer has already moved.
-    let origin = ui.input(|i| i.pointer.press_origin());
-    if resp.drag_started() && origin.is_some_and(|o| (o.y - ty).abs() < 6.0) {
-        app.comp_editor.drag = Some(Grab::Threshold);
-    }
-    if app.comp_editor.drag == Some(Grab::Threshold) {
-        if let Some(pt) = resp.interact_pointer_pos() {
-            if resp.dragged() {
-                app.set_comp(strip, effect, "thr", d_of(pt.y).clamp(-80.0, 0.0), true);
-            }
-        }
-    }
-    if resp.drag_stopped() {
-        app.comp_editor.drag = None;
-        app.end_gesture();
-    }
-    if near {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-    }
-}
-
-/// The transfer curve: input level across, output level up, on the history's scale.
-/// Drag the threshold point, the slope above it (the ratio, with click stops; Shift for
-/// free), the knee marks, or the dashed range floor; the wheel widens the knee. A
-/// feedback detector's curve is drawn as it really settles, with the set curve dashed
-/// behind it.
-fn transfer_display(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &CompSettings,
-    tel: &Tele,
-    side: f32,
-) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(vec2(side, side), Sense::click_and_drag());
-    app.comp_editor.geometry.transfer = Some(rect);
-    let lo = -app.comp_editor.range_db;
-    let x = |d: f32| rect.left() + ((d - lo) / -lo).clamp(0.0, 1.0) * rect.width();
-    let y = |d: f32| rect.bottom() - ((d - lo) / -lo).clamp(0.0, 1.0) * rect.height();
-    let dx_of = |px: f32| lo + (px - rect.left()) / rect.width() * -lo;
-    let dy_of = |py: f32| lo + (rect.bottom() - py) / rect.height() * -lo;
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let step = if -lo <= 36.0 { 6.0 } else { 12.0 };
-    let mut g = -step;
-    while g > lo {
-        p.hline(rect.x_range(), y(g), Stroke::new(1.0, pal.grid));
-        p.vline(x(g), rect.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(x(g) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            format!("{g:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        p.text(
-            pos2(rect.left() + 2.0, y(g) - 1.0),
-            Align2::LEFT_BOTTOM,
-            format!("{g:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        g -= step;
-    }
-    // 1:1, for reference.
-    p.line_segment(
-        [pos2(x(lo), y(lo)), pos2(x(0.0), y(0.0))],
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let mix = s.mix;
-    let out_of = |d: f32| d - mix * effective_gain_reduction_db(d, s);
-    let fb = s.detector().feedback;
-    let n = 120;
-    let at = |i: usize| lo + -lo * i as f32 / n as f32;
-    if fb > 0.0 || mix != 1.0 {
-        // The curve as set, behind the one that really happens.
-        let set: Vec<Pos2> = (0..=n)
-            .map(|i| {
-                pos2(
-                    x(at(i)),
-                    y(at(i) - cantus_dsp::comprimo::gain_reduction_db(at(i), s)),
-                )
-            })
-            .collect();
-        p.add(egui::Shape::dashed_line(
-            &set,
-            Stroke::new(1.0, pal.gold),
-            4.0,
-            3.0,
-        ));
-    }
-    // The range floor: the curve never falls further below 1:1 than this.
-    let floor_shown = s.range_db < -lo;
-    if floor_shown {
-        let r = s.range_db * mix.max(0.01);
-        let held = app.comp_editor.drag == Some(Grab::Range);
-        p.add(egui::Shape::dashed_line(
-            &[pos2(x(lo + r), y(lo)), pos2(x(0.0), y(-r))],
-            Stroke::new(if held { 2.0 } else { 1.0 }, pal.danger),
-            3.0,
-            3.0,
-        ));
-    }
-    let curve: Vec<Pos2> = (0..=n).map(|i| pos2(x(at(i)), y(out_of(at(i))))).collect();
-    p.add(egui::Shape::line(curve, Stroke::new(2.5, pal.gold)));
-    // The knee marks and the threshold point.
-    let t_pt = pos2(x(s.threshold_db), y(out_of(s.threshold_db)));
-    let k_lo = s.threshold_db - s.knee_db * 0.5;
-    let k_hi = s.threshold_db + s.knee_db * 0.5;
-    let k_pts = [
-        pos2(x(k_lo), y(out_of(k_lo))),
-        pos2(x(k_hi), y(out_of(k_hi))),
-    ];
-    for k in k_pts {
-        p.circle_stroke(k, 4.0, Stroke::new(1.5, pal.gold));
-    }
-    p.circle_filled(t_pt, 6.0, pal.gold);
-    // Where the key is now, on the input axis, and the operating point.
-    if tel.live() {
-        let key = tel.get(tele::KEY_LEVEL);
-        if key > lo {
-            let kx = x(key);
-            p.line_segment(
-                [pos2(kx, rect.bottom()), pos2(kx, rect.bottom() - space::S3)],
-                Stroke::new(3.0, pal.selection),
-            );
-        }
-    }
-    let (ni, no) = app.comp_editor.now;
-    if ni > lo {
-        p.circle_filled(pos2(x(ni), y(no)), 4.0, pal.danger);
-    }
-    let mut lines = vec![format!(
-        "{}  {}  \u{b7}  {} {:.1} dB",
-        t("fx.comp.ratio"),
-        ratio_text(s.ratio),
-        t("fx.comp.knee"),
-        s.knee_db
-    )];
-    if fb > 0.0 && s.ratio > 1.0 {
-        let over = 12.0;
-        let g = effective_gain_reduction_db(s.threshold_db + over, s);
-        let eff = if over - g > 0.01 {
-            over / (over - g)
-        } else {
-            RATIO_INF
-        };
-        lines.push(tf("comp.effective", &[("ratio", &ratio_text(eff))]));
-    }
-    for (i, line) in lines.into_iter().enumerate() {
-        plate_text(
-            &p,
-            pos2(
-                rect.left() + space::S2,
-                rect.top() + space::S2 + i as f32 * 14.0,
-            ),
-            Align2::LEFT_TOP,
-            line,
-            pal.text,
-        );
-    }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-
-    let shift = ui.input(|i| i.modifiers.shift);
-    if resp.drag_started() {
-        if let Some(pt) = ui.input(|i| i.pointer.press_origin()) {
-            let near = |q: Pos2| pt.distance(q) < 9.0;
-            let over_floor = floor_shown && {
-                let (di, dout) = (dx_of(pt.x), dy_of(pt.y));
-                ((di - dout) - s.range_db * mix).abs() < -lo * 9.0 / rect.width()
-            };
-            app.comp_editor.drag = if near(t_pt) {
-                Some(Grab::Threshold)
-            } else if near(k_pts[0]) || near(k_pts[1]) {
-                Some(Grab::Knee)
-            } else if over_floor {
-                Some(Grab::Range)
-            } else if dx_of(pt.x) > s.threshold_db {
-                Some(Grab::Ratio)
-            } else {
-                None
-            };
-        }
-    }
-    if let (Some(g), Some(pt)) = (app.comp_editor.drag, resp.interact_pointer_pos()) {
-        if resp.dragged() {
-            match g {
-                Grab::Threshold => {
-                    app.set_comp(strip, effect, "thr", dx_of(pt.x).clamp(-80.0, 0.0), true)
-                }
-                Grab::Knee => {
-                    let k = ((dx_of(pt.x) - s.threshold_db).abs() * 2.0).clamp(0.0, 72.0);
-                    app.set_comp(strip, effect, "knee", k, true);
-                }
-                Grab::Range => {
-                    let r = ((dx_of(pt.x) - dy_of(pt.y)) / mix.max(0.01)).clamp(0.0, 60.0);
-                    app.set_comp(strip, effect, "range", r, true);
-                }
-                Grab::Ratio => {
-                    // The pointer is a point the curve should pass through: its input
-                    // level over the threshold, and its output over the threshold.
-                    let over_in = (dx_of(pt.x) - s.threshold_db).max(0.5);
-                    let over_out = (dy_of(pt.y) - s.threshold_db).clamp(0.0, over_in);
-                    let ratio = if over_out < 0.01 {
-                        RATIO_INF
-                    } else {
-                        (over_in / over_out).clamp(1.0, RATIO_INF)
-                    };
-                    let ratio = if shift { ratio } else { snap_ratio(ratio) };
-                    app.set_comp(strip, effect, "ratio", ratio, true);
-                }
-            }
-        }
-    }
-    if resp.drag_stopped() {
-        app.comp_editor.drag = None;
-        app.end_gesture();
-    }
-    // The wheel over the curve: the knee, one step of undo per burst.
-    if resp.hovered() {
-        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-        if wheel != 0.0 {
-            let fine = if shift { 0.2 } else { 1.0 };
-            let k = (s.knee_db + wheel * 0.1 * fine).clamp(0.0, 72.0);
-            app.set_comp(strip, effect, "knee", k, true);
-            app.comp_editor.wheel_at = Some(app.comp_editor.clock);
-        }
-    }
-    if resp.double_clicked() {
-        app.set_comp_many(
-            strip,
-            effect,
-            &[("ratio".into(), 4.0), ("knee".into(), 6.0)],
-            "cmd.comp_reset_curve",
-            None,
-        );
-    }
-    resp.on_hover_text(t("comp.transfer_tip"));
-}
-
-/// Input, reduction and output meters with their held peaks, the output's loudness drawn
-/// on its meter, and the numbers: loudness momentary / short-term / integrated, ten
-/// seconds of reduction, the crest factor in and out, the auto gain in force.
-fn meters_panel(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    s: &CompSettings,
-    tel: &Tele,
-    size: egui::Vec2,
-) {
-    let pal = theme::p();
-    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    let p = ui.painter_at(rect.expand(1.0));
-    let range = app.comp_editor.range_db;
-    let ed = &app.comp_editor;
-    let last = ed.live;
-    let bar_w = space::GRID * 3.0;
-    let col_w = space::GRID * 9.0;
-    let top = rect.top() + space::S6;
-    let bottom = rect.bottom() - space::S4;
-    let y = |d: f32| top + (-d / range).clamp(0.0, 1.0) * (bottom - top);
-    let meters = [
-        ("comp.meter_in", last.inp, ed.hold[0], false),
-        ("comp.meter_gr", last.gr, ed.hold[1], true),
-        ("comp.meter_out", last.out, ed.hold[2], false),
-    ];
-    for (i, (label, v, hold, reduction)) in meters.into_iter().enumerate() {
-        let mid = rect.left() + (i as f32 + 0.5) * col_w;
-        let well = Rect::from_min_max(
-            pos2(mid - bar_w * 0.5, top),
-            pos2(mid + bar_w * 0.5, bottom),
-        );
-        p.rect_filled(well, 2.0, theme::recess(&pal));
-        let (bar, color) = if reduction {
-            (
-                Rect::from_min_max(well.min, pos2(well.right(), y(-v))),
-                pal.danger,
-            )
-        } else {
-            (
-                Rect::from_min_max(pos2(well.left(), y(v)), well.max),
-                theme::meter_color(10f32.powf(v / 20.0)),
-            )
-        };
-        p.rect_filled(bar.shrink(1.0), 1.0, color);
-        let hy = if reduction { y(-hold) } else { y(hold) };
-        p.hline(well.x_range(), hy, Stroke::new(1.5, color));
-        p.rect_stroke(
-            well,
-            2.0,
-            Stroke::new(1.0, pal.grid_strong),
-            StrokeKind::Inside,
-        );
-        p.text(
-            pos2(well.center().x, rect.top()),
-            Align2::CENTER_TOP,
-            t(label),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-        let held = if reduction {
-            format!("{:.1}", -hold.max(0.0))
-        } else if hold <= -99.0 {
-            "-\u{221e}".to_string()
-        } else {
-            format!("{hold:.1}")
-        };
-        p.text(
-            pos2(well.center().x, bottom + 2.0),
-            Align2::CENTER_TOP,
-            held,
-            design::paint::ruler(),
-            if !reduction && hold >= 0.0 {
-                pal.danger
-            } else {
-                pal.text
-            },
-        );
-        // The output's short-term loudness, on its own meter: a tick in the ok colour.
-        if i == 2 && tel.live() {
-            let lu = tel.get(tele::OUT_S);
-            if lu > -range {
-                p.line_segment(
-                    [
-                        pos2(well.left() - 3.0, y(lu)),
-                        pos2(well.right() + 3.0, y(lu)),
-                    ],
-                    Stroke::new(2.0, pal.ok),
-                );
-            }
-        }
-    }
-    // The numbers, in a column to the right of the meters.
-    let nx = rect.left() + 3.0 * col_w + space::S2;
-    let right = rect.right();
-    let mut row = rect.top();
-    let line_h = 14.0;
-    let heading = |p: &egui::Painter, key: &str, row: &mut f32| {
-        *row += 4.0;
-        p.text(
-            pos2(nx, *row),
-            Align2::LEFT_TOP,
-            t(key),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-        *row += line_h;
-    };
-    let pair = |p: &egui::Painter, label: String, value: String, color: Color32, row: &mut f32| {
-        p.text(
-            pos2(nx, *row),
-            Align2::LEFT_TOP,
-            label,
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-        p.text(
-            pos2(right, *row),
-            Align2::RIGHT_TOP,
-            value,
-            design::paint::ruler(),
-            color,
-        );
-        *row += line_h;
-    };
-    let live = tel.live();
-    let v = |i: usize| if live { tel.get(i) } else { loudness::SILENCE };
-    heading(&p, "comp.loudness", &mut row);
-    pair(
-        &p,
-        t("comp.lufs_m"),
-        lufs_text(v(tele::OUT_M)),
-        pal.text,
-        &mut row,
-    );
-    pair(
-        &p,
-        t("comp.lufs_s"),
-        lufs_text(v(tele::OUT_S)),
-        pal.ok,
-        &mut row,
-    );
-    let integrated = ed.integrated();
-    pair(
-        &p,
-        t("comp.lufs_i"),
-        lufs_text(integrated),
-        pal.text,
-        &mut row,
-    );
-    let reset_at = row;
-    row += line_h + 2.0;
-    heading(&p, "comp.gr_stats", &mut row);
-    let (avg, peak) = if live {
-        (tel.get(tele::GR_AVG), tel.get(tele::GR_PEAK))
-    } else {
-        (0.0, 0.0)
-    };
-    pair(
-        &p,
-        t("comp.gr_avg"),
-        format!("{avg:.1}"),
-        pal.danger,
-        &mut row,
-    );
-    pair(
-        &p,
-        t("comp.gr_peak"),
-        format!("{peak:.1}"),
-        pal.danger,
-        &mut row,
-    );
-    heading(&p, "comp.crest", &mut row);
-    let (ci, co) = if live {
-        (tel.get(tele::CREST_IN), tel.get(tele::CREST_OUT))
-    } else {
-        (0.0, 0.0)
-    };
-    pair(
-        &p,
-        t("comp.crest_io"),
-        format!("{ci:.1}\u{2192}{co:.1}"),
-        pal.text,
-        &mut row,
-    );
-    if s.auto_gain {
-        heading(&p, "fx.comp.auto_gain", &mut row);
-        let g = if live { tel.get(tele::AUTO_GAIN) } else { 0.0 };
-        pair(&p, String::new(), format!("{g:+.1} dB"), pal.gold, &mut row);
-    }
-    let reset = Rect::from_min_size(pos2(nx, reset_at), vec2(right - nx, line_h + 2.0));
-    if ui
-        .put(
-            reset,
-            egui::Button::new(RichText::new(t("comp.lufs_reset")).text_style(design::caption()))
-                .small(),
-        )
-        .on_hover_text(t("comp.lufs_reset_tip"))
-        .clicked()
-    {
-        app.comp_editor.reset_loudness();
-    }
-}
-
-/// Knob size in the editor: 40 px, the grid's M-to-L step.
-const KNOB_D: f32 = space::GRID * 10.0;
-
-/// A knob bound to one of Comprimo's parameters, with its readout in the parameter's own
-/// words (∞:1, Off, %), the ratio's click stops, and one undo step per gesture.
-fn comp_knob(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
-    key: &str,
-) -> egui::Response {
-    let Some(info) = EffectKind::Compressor.param(key) else {
-        return ui.label(key);
-    };
-    let mut v = spec.get(key);
-    let knob = Knob::new(&mut v, info.min..=info.max, info.default)
-        .diameter(KNOB_D)
-        .log(info.logarithmic)
-        .stepped(info.stepped)
-        .unit(info.unit)
-        .label(t(info.label_key));
-    let knob = match key {
-        "ratio" => knob.format(ratio_text),
-        "key_hpf" => knob.format(|x| {
-            if x <= 20.5 {
-                t("comp.off")
-            } else {
-                crate::widgets::knob::readout(x, "Hz")
-            }
-        }),
-        "dry" => knob.format(|x| {
-            if x <= cantus_dsp::comprimo::DRY_OFF_DB + 0.05 {
-                t("comp.off")
-            } else {
-                crate::widgets::knob::readout(x, "dB")
-            }
-        }),
-        "look" => knob.format(|x| {
-            if x <= 0.005 {
-                t("comp.off")
-            } else {
-                crate::widgets::knob::readout(x, "ms")
-            }
-        }),
-        _ => knob,
-    };
-    let r = ui.add(knob).on_hover_text(t(&format!("comp.tip.{key}")));
-    if r.changed() {
-        let shift = ui.input(|i| i.modifiers.shift);
-        let v = if key == "ratio" && !shift {
-            snap_ratio(v)
-        } else {
-            v
-        };
-        app.set_comp(strip, effect, key, v, true);
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
-    }
-    if key == "ratio" {
-        // The click stops, as ticks around the knob: where the ratio will land.
-        let pal = theme::p();
-        let c = pos2(r.rect.center().x, r.rect.top() + KNOB_D * 0.5 + 1.0);
-        let radius = KNOB_D * 0.5;
-        for stop in RATIO_STOPS {
-            let pos = stop.ln() / RATIO_INF.ln();
-            let a = 0.75 * std::f32::consts::PI + 1.5 * std::f32::consts::PI * pos;
-            let (sn, cs) = a.sin_cos();
-            ui.painter().line_segment(
-                [
-                    pos2(c.x + (radius + 1.0) * cs, c.y + (radius + 1.0) * sn),
-                    pos2(c.x + (radius + 4.0) * cs, c.y + (radius + 4.0) * sn),
-                ],
-                Stroke::new(1.0, pal.grid_bar),
-            );
-        }
-    }
-    r
-}
-
-/// The word AUTO under a knob, lit when on — the benchmark's cue, kept.
-fn auto_chip(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    key: &str,
-    on: bool,
-) {
-    let text = RichText::new(t("comp.auto"))
-        .text_style(design::caption())
-        .strong();
-    if ui
-        .selectable_label(on, text)
-        .on_hover_text(t(&format!("comp.tip.{key}")))
-        .clicked()
-    {
-        app.set_comp(strip, effect, key, if on { 0.0 } else { 1.0 }, false);
-    }
 }
 
 /// Note values a release snaps to, in quarter notes: the name and the length.
@@ -2071,1097 +1709,173 @@ const NOTES: [(&str, f32); 9] = [
     ("1/1", 4.0),
 ];
 
-/// The release as a note value at the project's tempo: the nearest one is named under the
-/// knob, and the menu snaps to any — a snap, not a mode, so the release stays in ms.
-fn note_menu(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    rel_ms: f32,
-) {
-    let quarter_ms = 60_000.0 / (app.project().tempo_bpm as f32).max(1.0);
+/// The release as a note value at the tempo: the nearest one is named in the field, and
+/// its list snaps to any — a snap, not a mode, so the release stays in ms.
+fn note_field(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, w: f32, rel_ms: f32) {
+    let bpm = host.transport().ticks_per_second / cantus_core::PPQ as f64 * 60.0;
+    let quarter_ms = 60_000.0 / (bpm as f32).max(1.0);
     let near = NOTES
         .iter()
         .find(|(_, q)| ((q * quarter_ms) / rel_ms - 1.0).abs() < 0.03)
-        .map(|(n, _)| n.to_string());
-    let label =
-        RichText::new(near.clone().unwrap_or_else(|| t("comp.note"))).text_style(design::caption());
-    ui.menu_button(label, |ui| {
-        caption(ui, "comp.note_tip");
-        for (name, q) in NOTES {
-            let ms = q * quarter_ms;
-            if !(5.0..=5_000.0).contains(&ms) {
-                continue;
-            }
-            let text = format!("{name}   {}", crate::widgets::knob::readout(ms, "ms"));
-            if ui
-                .selectable_label(near.as_deref() == Some(name), text)
-                .clicked()
-            {
-                app.set_comp(strip, effect, "rel", ms, false);
-                ui.close();
-            }
-        }
-    })
-    .response
-    .on_hover_text(t("comp.note_tip"));
-}
-
-/// A captioned group of controls.
-fn group(ui: &mut egui::Ui, key: &str, add: impl FnOnce(&mut egui::Ui)) {
-    ui.vertical(|ui| {
-        caption(ui, key);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = space::S1;
-            add(ui);
-        });
-    });
-}
-
-/// The knobs, in three groups: dynamics, time, output.
-fn controls(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
-    s: &CompSettings,
-) {
-    ui.allocate_ui(vec2(ui.available_width(), CONTROLS_H), |ui| {
-        ui.horizontal_top(|ui| {
-            group(ui, "comp.group.dynamics", |ui| {
-                for key in ["thr", "ratio", "knee", "range"] {
-                    comp_knob(app, ui, strip, effect, spec, key);
-                }
-            });
-            ui.separator();
-            group(ui, "comp.group.time", |ui| {
-                comp_knob(app, ui, strip, effect, spec, "att");
-                ui.vertical(|ui| {
-                    comp_knob(app, ui, strip, effect, spec, "rel");
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = space::S1;
-                        auto_chip(app, ui, strip, effect, "auto_rel", s.auto_release);
-                        note_menu(app, ui, strip, effect, s.release_ms);
-                    });
-                });
-                for key in ["hold", "look"] {
-                    comp_knob(app, ui, strip, effect, spec, key);
-                }
-            });
-            ui.separator();
-            group(ui, "comp.group.output", |ui| {
-                ui.vertical(|ui| {
-                    comp_knob(app, ui, strip, effect, spec, "makeup");
-                    auto_chip(app, ui, strip, effect, "auto_gain", s.auto_gain);
-                });
-                for key in ["dry", "mix", "in_gain", "out_gain"] {
-                    comp_knob(app, ui, strip, effect, spec, key);
-                }
-            });
-        });
-    });
-}
-
-/// The key: where it comes from, its level, its high-pass, the stereo link, and the EQ's
-/// switch.
-fn key_section(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &CompSettings,
-) {
-    ui.allocate_ui(vec2(space::GRID * 62.0, KEY_H), |ui| {
-        ui.vertical(|ui| {
-            ui.set_width(space::GRID * 62.0);
-            caption(ui, "comp.key");
-            let current = slot.sidechain;
-            let label = match current.and_then(|k| app.project().strip_number(k)) {
-                Some(n) => app.capture_label(cantus_engine::CaptureTarget::Strip(
-                    app.project().strips[n - 1].id,
-                )),
-                None => t("comp.key_own"),
-            };
-            egui::ComboBox::from_id_salt(("comp-key", effect.0))
-                .selected_text(label)
-                .width(space::GRID * 58.0)
-                .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(current.is_none(), t("comp.key_own"))
-                        .clicked()
-                    {
-                        app.exec(Command::SetEffectSidechain {
-                            strip,
-                            effect,
-                            source: None,
-                        });
-                    }
-                    let options: Vec<StripId> = app
-                        .project()
-                        .strips
-                        .iter()
-                        .map(|x| x.id)
-                        .filter(|id| {
-                            *id != strip && !app.project().routing_would_cycle(*id, Some(strip))
-                        })
-                        .collect();
-                    for id in options {
-                        let text = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-                        if ui.selectable_label(current == Some(id), text).clicked() {
-                            app.exec(Command::SetEffectSidechain {
-                                strip,
-                                effect,
-                                source: Some(id),
-                            });
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(t("comp.key_tip"));
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = space::S1;
-                for key in ["key_gain", "key_hpf", "link"] {
-                    comp_knob(app, ui, strip, effect, &slot.spec, key);
-                }
-            });
-            let mut eq_in = s.key_eq;
-            if ui
-                .toggle_value(&mut eq_in, t("comp.key_eq"))
-                .on_hover_text(t("comp.key_eq_tip"))
-                .changed()
-            {
-                app.set_comp(
-                    strip,
-                    effect,
-                    "key_eq",
-                    if eq_in { 1.0 } else { 0.0 },
-                    false,
-                );
-            }
-        });
-    });
-}
-
-/// The key EQ: its display, and under it the selected band's numbers as fields you can
-/// type into — so every band is reachable from the keyboard, and its state is on screen.
-#[allow(clippy::too_many_arguments)]
-fn key_eq_panel(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &CompSettings,
-    size: egui::Vec2,
-) {
-    ui.allocate_ui(size, |ui| {
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = space::S1;
-            let display = vec2(size.x, size.y - space::ROW - space::S1);
-            key_eq_display(app, ui, strip, effect, slot, s, display);
-            key_band_row(app, ui, strip, effect, slot);
-        });
-    });
-}
-
-/// The selected key band: shape, frequency, gain, Q or slope, on/off, remove.
-fn key_band_row(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let bands = key_bands(&slot.spec);
-    ui.horizontal(|ui| {
-        ui.set_height(space::ROW);
-        let Some(b) = app.comp_editor.key_band.filter(|b| bands[*b].used) else {
-            caption(ui, "comp.key_band_none");
-            return;
-        };
-        let v = bands[b];
-        let key = |f: &str| key_band_key(b, f);
-        let pal = theme::p();
-        ui.label(
-            RichText::new(tf("comp.key_band", &[("n", &(b + 1).to_string())]))
-                .text_style(design::strong())
-                .color(crate::views::eq_editor::band_color(b)),
-        );
-        let mut shape = v.shape.index();
-        egui::ComboBox::from_id_salt(("comp-key-shape", effect.0, b))
-            .selected_text(t(&format!("eq.shape.{shape}")))
-            .width(space::GRID * 22.0)
-            .show_ui(ui, |ui| {
-                for sh in EqShape::ALL {
-                    ui.selectable_value(
-                        &mut shape,
-                        sh.index(),
-                        t(&format!("eq.shape.{}", sh.index())),
-                    );
-                }
-            });
-        if shape != v.shape.index() {
-            app.set_comp(strip, effect, &key("shape"), shape as f32, false);
-        }
-        let mut field = |ui: &mut egui::Ui,
-                         f: &str,
-                         value: f32,
-                         range: std::ops::RangeInclusive<f32>,
-                         suffix: &str,
-                         speed: f64,
-                         log: bool| {
-            let mut x = value;
-            let r = ui.add(
-                egui::DragValue::new(&mut x)
-                    .range(range)
-                    .speed(speed)
-                    .suffix(suffix)
-                    .max_decimals(if log { 0 } else { 2 }),
-            );
-            if r.changed() {
-                app.set_comp_many(
-                    strip,
-                    effect,
-                    &[(key(f), x)],
-                    "cmd.comp_key_band",
-                    Some(MergeKey::of(&(
-                        "comp-key-field",
-                        effect.0,
-                        b,
-                        f.to_string(),
-                    ))),
-                );
-            }
-            if r.drag_stopped() || r.lost_focus() {
-                app.end_gesture();
-            }
-        };
-        field(
-            ui,
-            "freq",
-            v.freq,
-            20.0..=20_000.0,
-            " Hz",
-            (v.freq as f64 * 0.01).max(0.1),
-            true,
-        );
-        if v.shape.has_gain() {
-            field(ui, "gain", v.gain, -30.0..=30.0, " dB", 0.1, false);
-        }
-        if v.shape.has_slope() {
-            field(ui, "slope", v.slope, 6.0..=96.0, " dB/oct", 1.0, true);
-        } else {
-            field(ui, "q", v.q, 0.1..=18.0, " Q", 0.01, false);
-        }
-        let mut on = v.on;
-        if ui
-            .toggle_value(&mut on, t("comp.band_on"))
-            .on_hover_text(t("eq.bypass_band"))
-            .changed()
-        {
-            app.set_comp(strip, effect, &key("on"), if on { 1.0 } else { 0.0 }, false);
-        }
-        if ui
-            .button(RichText::new(t("eq.remove_band")).color(pal.danger))
-            .clicked()
-        {
-            app.remove_key_band(strip, effect, b);
-        }
-    });
-}
-
-/// One key-EQ band as the editor reads it from the spec.
-#[derive(Copy, Clone, Debug)]
-struct KeyBandView {
-    used: bool,
-    on: bool,
-    shape: EqShape,
-    freq: f32,
-    gain: f32,
-    q: f32,
-    slope: f32,
-}
-
-fn key_bands(spec: &EffectSpec) -> [KeyBandView; KEY_BANDS] {
-    std::array::from_fn(|b| {
-        let g = |f: &str| spec.get(&key_band_key(b, f));
-        KeyBandView {
-            used: g("used") >= 0.5,
-            on: g("on") >= 0.5,
-            shape: EqShape::from_index(g("shape").round().max(0.0) as usize),
-            freq: g("freq"),
-            gain: g("gain"),
-            q: g("q"),
-            slope: (g("slope") / 6.0).round().clamp(1.0, 16.0) * 6.0,
-        }
-    })
-}
-
-/// The key EQ's curve at `hz`: every band in use and on, as the detector hears it.
-fn key_curve_db(bands: &[KeyBandView], hz: f32) -> f32 {
-    let mut c = [Coefs::IDENTITY; MAX_SECTIONS];
-    bands
-        .iter()
-        .filter(|b| b.used && b.on)
-        .map(|b| {
-            let n = design_band(b.shape, DISPLAY_SR, b.freq, b.gain, b.q, b.slope, &mut c);
-            c[..n]
-                .iter()
-                .map(|x| x.magnitude_db(DISPLAY_SR, hz))
-                .sum::<f32>()
-        })
-        .sum()
-}
-
-/// `① Low cut · 120 Hz · 24 dB/oct`.
-fn key_band_words(b: usize, v: &KeyBandView) -> String {
-    let mut parts = vec![
-        tf("comp.key_band", &[("n", &(b + 1).to_string())]),
-        t(&format!("eq.shape.{}", v.shape.index())),
-        crate::widgets::knob::readout(v.freq, "Hz"),
-    ];
-    if v.shape.has_gain() {
-        parts.push(format!("{:+.1} dB", v.gain));
-    }
-    if v.shape.has_slope() {
-        parts.push(format!("{:.0} dB/oct", v.slope));
-    } else {
-        parts.push(format!("Q {:.2}", v.q));
-    }
-    if !v.on {
-        parts.push(t("comp.bypassed"));
-    }
-    parts.join(" \u{b7} ")
-}
-
-/// The key's EQ: Aequalis's shapes and design on the detector, drawn over the key's
-/// spectrum. Double-click to add a band (a cut at the edges, a bell elsewhere), drag a dot,
-/// the wheel for Q (slope on a cut), Alt+click to bypass, right-click for its menu,
-/// Delete to remove it.
-fn key_eq_display(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &CompSettings,
-    size: egui::Vec2,
-) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    app.comp_editor.geometry.key_eq = Some(rect);
-    let span = (KEY_HI_HZ / KEY_LO_HZ).ln();
-    let x_of = |hz: f32| rect.left() + (hz / KEY_LO_HZ).ln() / span * rect.width();
-    let hz_of =
-        |px: f32| KEY_LO_HZ * (span * ((px - rect.left()) / rect.width()).clamp(0.0, 1.0)).exp();
-    let y_of = |d: f32| rect.center().y - (d / KEY_DB).clamp(-1.0, 1.0) * rect.height() * 0.45;
-    let db_of = |py: f32| (rect.center().y - py) / (rect.height() * 0.45) * KEY_DB;
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    for hz in [
-        50.0f32, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0,
-    ] {
-        p.vline(x_of(hz), rect.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(x_of(hz) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            crate::widgets::knob::readout(hz, "Hz")
-                .replace(" Hz", "")
-                .replace(".0", ""),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    for d in [-12.0f32, 12.0] {
-        p.hline(rect.x_range(), y_of(d), Stroke::new(1.0, pal.grid));
-    }
-    p.hline(rect.x_range(), y_of(0.0), Stroke::new(1.0, pal.grid_bar));
-    let bands = key_bands(&slot.spec);
-    // The key's spectrum: its own input when the key is this strip; the key itself (the
-    // output) while you listen to it. A key from another strip is not tapped otherwise.
-    let sr = DISPLAY_SR;
-    let an = &app.comp_editor.analyser;
-    let internal = slot.sidechain.is_none();
-    let source = if s.listen == Listen::Key {
-        Some(1)
-    } else if internal {
-        Some(0)
-    } else {
-        None
+        .map(|(n, _)| *n);
+    let id = ui.id().with("comp-note");
+    let value = near.unwrap_or(frame::tr("comp.note"));
+    let Some(at) = controls::field(ui, s, id, value, frame::tr("comp.note_tip"), w) else {
+        return;
     };
-    let spec_y = |d: f32| rect.bottom() - ((d + 90.0) / 90.0).clamp(0.0, 1.0) * rect.height();
-    if let (Some(which), true) = (source, an.has_data()) {
-        let pts: Vec<Pos2> = (0..KEY_POINTS)
-            .map(|i| {
-                let hz = KEY_LO_HZ * (span * i as f32 / (KEY_POINTS - 1) as f32).exp();
-                let mut d = an.level_db(which, sr, hz, 1.0 / 6.0);
-                // Tilted 4.5 dB/octave about 1 kHz, as the EQ's analyser: music reads
-                // level.
-                d += 4.5 * (hz / 1_000.0).log2();
-                pos2(x_of(hz), spec_y(d))
-            })
-            .collect();
-        let fill = pal
-            .text_dim
-            .gamma_multiply(if pal.dark { 0.3 } else { 0.15 });
-        let mut mesh = egui::Mesh::default();
-        for (i, pt) in pts.iter().enumerate() {
-            let base = mesh.vertices.len() as u32;
-            mesh.colored_vertex(*pt, fill);
-            mesh.colored_vertex(pos2(pt.x, rect.bottom()), fill);
-            if i > 0 {
-                mesh.add_triangle(base - 2, base - 1, base);
-                mesh.add_triangle(base - 1, base, base + 1);
-            }
-        }
-        p.add(mesh);
-        if which == 0 && s.key_eq {
-            // What the detector hears: the input through the EQ.
-            let heard: Vec<Pos2> = pts
-                .iter()
-                .map(|pt| {
-                    let hz = hz_of(pt.x);
-                    let d = (rect.bottom() - pt.y) / rect.height() * 90.0 - 90.0;
-                    pos2(pt.x, spec_y(d + key_curve_db(&bands, hz)))
-                })
-                .collect();
-            p.add(egui::Shape::line(heard, Stroke::new(1.0, pal.text_dim)));
-        }
-    }
-    // The curve.
-    let curve: Vec<Pos2> = (0..KEY_POINTS)
-        .map(|i| {
-            let hz = KEY_LO_HZ * (span * i as f32 / (KEY_POINTS - 1) as f32).exp();
-            pos2(x_of(hz), y_of(key_curve_db(&bands, hz)))
+    // The rows exist only while the list is open.
+    let rows: Vec<(String, f32, bool)> = NOTES
+        .iter()
+        .map(|(name, q)| (*name, q * quarter_ms))
+        .filter(|(_, ms)| (5.0..=5_000.0).contains(ms))
+        .map(|(name, ms)| {
+            let mut text = format!("{name}   ");
+            controls::write_readout(ms, "ms", &mut text);
+            (text, ms, near == Some(name))
         })
         .collect();
-    if s.key_eq {
-        p.add(egui::Shape::line(curve, Stroke::new(2.0, pal.gold)));
-    } else {
-        p.add(egui::Shape::dashed_line(
-            &curve,
-            Stroke::new(1.0, pal.gold),
-            5.0,
-            4.0,
-        ));
-    }
-    // The dots, numbered: a band keeps its number for life.
-    let dot = |v: &KeyBandView| {
-        pos2(
-            x_of(v.freq.clamp(KEY_LO_HZ, KEY_HI_HZ)),
-            y_of(if v.shape.has_gain() { v.gain } else { 0.0 }),
-        )
-    };
-    let hit = |pt: Pos2| {
-        (0..KEY_BANDS)
-            .filter(|b| bands[*b].used)
-            .map(|b| (b, dot(&bands[b]).distance(pt)))
-            .filter(|(_, d)| *d < 10.0)
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(b, _)| b)
-    };
-    let hovered = resp.hover_pos().and_then(hit);
-    let pressed_on = ui.input(|i| i.pointer.press_origin()).and_then(hit);
-    for (b, v) in bands.iter().enumerate() {
-        if !v.used {
-            continue;
+    let items: Vec<Item<'_>> = rows
+        .iter()
+        .map(|(text, _, on)| frame::radio(Src::Str(text), *on))
+        .collect();
+    if let Some(i) = controls::list(ui, s, id, at, w.max(170.0), &items) {
+        if let Some((_, ms, _)) = rows.get(i) {
+            host.set("rel", *ms, None);
         }
-        let c = crate::views::eq_editor::band_color(b);
-        let at = dot(v);
-        let selected = app.comp_editor.key_band == Some(b);
-        let r = if selected || hovered == Some(b) {
-            8.0
-        } else {
-            7.0
-        };
-        if v.on {
-            p.circle_filled(at, r, c);
-        } else {
-            p.circle_stroke(at, r, Stroke::new(1.5, c));
-        }
-        if selected {
-            p.circle_stroke(at, r + 2.0, Stroke::new(1.5, pal.text));
-        }
-        p.text(
-            at,
-            Align2::CENTER_CENTER,
-            format!("{}", b + 1),
-            design::paint::ruler(),
-            if v.on { theme::on_color(&pal, c) } else { c },
-        );
     }
-    // Words: the state, and the selected band's numbers.
-    let head = if s.key_eq {
-        t("comp.key_eq_title")
-    } else {
-        format!("{} \u{b7} {}", t("comp.key_eq_title"), t("comp.bypassed"))
-    };
-    p.text(
-        rect.left_top() + vec2(space::S2, space::S1),
-        Align2::LEFT_TOP,
-        head,
-        design::paint::caption(),
-        if s.key_eq { pal.text } else { pal.text_dim },
-    );
-    if !bands.iter().any(|b| b.used) {
-        p.text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            t("comp.key_eq_empty"),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-    }
-    if source.is_none() {
-        p.text(
-            rect.right_top() + vec2(-space::S2, space::S1),
-            Align2::RIGHT_TOP,
-            t("comp.key_spectrum_hint"),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-    }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-    key_eq_gestures(
-        app,
+}
+
+/// How fast it takes hold and lets go: attack, release (auto, and snapped to a note),
+/// hold, lookahead.
+fn time_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, cs: &CompSettings) {
+    controls::card(ui, s, rect, Src::Key("comp.group.time"), None, |ui, cr| {
+        let w = (cr.body.width() / s.k).min(controls::cells_width(&[Size::M; 4]) + 40.0);
+        col(ui, s, w, false, |ui| {
+            centre(ui, s, 86.0 + 5.0 + controls::ROW);
+            hrow(ui, s, CELL_M, |ui| {
+                controls::param_with(ui, s, host, "att", Size::M, Some(&att_pill));
+                controls::param(ui, s, host, "rel", Size::M);
+                controls::param(ui, s, host, "hold", Size::M);
+                controls::param_with(ui, s, host, "look", Size::M, Some(&look_pill));
+            });
+            hrow(ui, s, controls::ROW, |ui| {
+                let half = (controls::cells_width(&[Size::M; 4]) - 4.0) * 0.5;
+                controls::led_param(ui, s, host, "auto_rel", Src::Key("fx.comp.auto_rel"), half);
+                note_field(host, ui, s, half, cs.release_ms);
+            });
+        });
+    });
+}
+
+/// The output, in the output hue: make-up (and auto gain), the dry signal, the mix, the
+/// gains in and out — and what to hear.
+fn output_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, cs: &CompSettings) {
+    let so = s.function(Function::Output);
+    let s = &so;
+    controls::card(
         ui,
-        &resp,
-        strip,
-        effect,
-        &bands,
-        (hovered, pressed_on),
-        (hz_of, db_of),
+        s,
+        rect,
+        Src::Key("comp.group.output"),
+        None,
+        |ui, cr| {
+            let w = cr.body.width() / s.k;
+            col(ui, s, w, true, |ui| {
+                centre(ui, s, 86.0 + 4.0 + 20.0 + 4.0 + controls::ROW);
+                hrow(ui, s, CELL_M, |ui| {
+                    controls::param(ui, s, host, "makeup", Size::M);
+                    controls::param_with(ui, s, host, "dry", Size::M, Some(&dry_pill));
+                    controls::param(ui, s, host, "mix", Size::M);
+                    controls::param(ui, s, host, "in_gain", Size::M);
+                    controls::param(ui, s, host, "out_gain", Size::M);
+                });
+                hrow(ui, s, 20.0, |ui| {
+                    controls::led_param(
+                        ui,
+                        s,
+                        host,
+                        "auto_gain",
+                        Src::Key("fx.comp.auto_gain"),
+                        controls::cells_width(&[Size::M; 2]),
+                    );
+                });
+                hrow(ui, s, controls::ROW, |ui| {
+                    let cap = 40.0;
+                    controls::caption(ui, s, Src::Key("comp.listen"), cap);
+                    let now = cs.listen.index();
+                    let sel = LISTEN_ORDER
+                        .iter()
+                        .position(|(v, _)| *v == now)
+                        .unwrap_or(0);
+                    let labels = LISTEN_ORDER.map(|(_, k)| Src::Key(k));
+                    if let Some(i) = controls::segmented(
+                        ui,
+                        s,
+                        sel,
+                        &labels,
+                        frame::tr("fx.comp.listen"),
+                        w - cap - 4.0,
+                    ) {
+                        host.set("listen", LISTEN_ORDER[i].0 as f32, None);
+                    }
+                });
+            });
+        },
     );
 }
 
-/// The key EQ's gestures: select, Alt+click to bypass, double-click to add, drag, wheel,
-/// Delete, and the band's menu.
-#[allow(clippy::too_many_arguments)]
-fn key_eq_gestures<H, D>(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    resp: &egui::Response,
-    strip: StripId,
-    effect: EffectId,
-    bands: &[KeyBandView; KEY_BANDS],
-    (hovered, pressed_on): (Option<usize>, Option<usize>),
-    (hz_of, db_of): (H, D),
-) where
-    H: Fn(f32) -> f32,
-    D: Fn(f32) -> f32,
-{
-    let key = |b: usize, f: &str| key_band_key(b, f);
-    let (alt, shift) = ui.input(|i| (i.modifiers.alt, i.modifiers.shift));
-    if resp.clicked() {
-        match hovered {
-            Some(b) if alt => {
-                let on = if bands[b].on { 0.0 } else { 1.0 };
-                app.set_comp(strip, effect, &key(b, "on"), on, false);
-            }
-            Some(b) => app.comp_editor.key_band = Some(b),
-            None => app.comp_editor.key_band = None,
-        }
+/// Where the detector's key comes from: any strip of the desk (Cantus), or the plug-in's
+/// sidechain input, switched on (another DAW routes it).
+fn key_source(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, w: f32) {
+    let rev = host.revision();
+    if st.key.as_ref().is_none_or(|(r, _)| *r != rev) {
+        st.key = Some((rev, host.key_source()));
     }
-    if resp.secondary_clicked() {
-        if let Some(b) = hovered {
-            app.comp_editor.key_band = Some(b);
-        }
-    }
-    if resp.double_clicked() && hovered.is_none() {
-        let free = (0..KEY_BANDS).find(|b| !bands[*b].used);
-        if let (Some(b), Some(pt)) = (free, resp.interact_pointer_pos()) {
-            let frac = (pt.x - resp.rect.left()) / resp.rect.width();
-            let shape = if frac < 0.12 {
-                EqShape::LowCut
-            } else if frac > 0.88 {
-                EqShape::HighCut
+    let mut target = None;
+    match st.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+        Some(KeySource::Strips {
+            current,
+            label,
+            options,
+        }) => {
+            let current = *current;
+            let id = ui.id().with("comp-key");
+            let value = if current.is_none() {
+                frame::tr("comp.key_own")
             } else {
-                EqShape::Bell
+                label.as_str()
             };
-            let mut values = vec![
-                (key(b, "used"), 1.0),
-                (key(b, "on"), 1.0),
-                (key(b, "shape"), shape.index() as f32),
-                (key(b, "freq"), hz_of(pt.x).clamp(KEY_LO_HZ, KEY_HI_HZ)),
-            ];
-            if shape.has_gain() {
-                values.push((key(b, "gain"), db_of(pt.y).clamp(-30.0, 30.0)));
-            } else {
-                values.push((key(b, "slope"), 24.0));
-            }
-            app.set_comp_many(strip, effect, &values, "cmd.comp_key_band", None);
-            app.comp_editor.key_band = Some(b);
-        }
-    }
-    if resp.drag_started() {
-        app.comp_editor.key_drag = pressed_on;
-        if pressed_on.is_some() {
-            app.comp_editor.key_band = pressed_on;
-        }
-    }
-    if let (Some(b), Some(pt)) = (app.comp_editor.key_drag, resp.interact_pointer_pos()) {
-        if resp.dragged() {
-            let mut values = vec![(key(b, "freq"), hz_of(pt.x).clamp(KEY_LO_HZ, KEY_HI_HZ))];
-            if bands[b].shape.has_gain() {
-                values.push((key(b, "gain"), db_of(pt.y).clamp(-30.0, 30.0)));
-            }
-            app.set_comp_many(
-                strip,
-                effect,
-                &values,
-                "cmd.comp_key_band",
-                Some(MergeKey::of(&("comp-key", effect.0, b))),
-            );
-        }
-    }
-    if resp.drag_stopped() {
-        app.comp_editor.key_drag = None;
-        app.end_gesture();
-    }
-    // The wheel: Q, or the slope of a cut in 6 dB steps.
-    if let Some(b) = hovered
-        .or(app.comp_editor.key_band)
-        .filter(|b| bands[*b].used)
-    {
-        let wheel = if resp.hovered() {
-            ui.input(|i| i.smooth_scroll_delta.y)
-        } else {
-            0.0
-        };
-        if wheel != 0.0 {
-            let v = bands[b];
-            let merge = Some(MergeKey::of(&("comp-key-wheel", effect.0, b)));
-            if v.shape.has_slope() {
-                let slope = (v.slope + 6.0 * wheel.signum()).clamp(6.0, 96.0);
-                app.set_comp_many(
-                    strip,
-                    effect,
-                    &[(key(b, "slope"), slope)],
-                    "cmd.comp_key_band",
-                    merge,
+            if let Some(at) = controls::field(ui, s, id, value, frame::tr("comp.key_tip"), w) {
+                let mut items = vec![frame::radio(Src::Key("comp.key_own"), current.is_none())];
+                items.extend(
+                    options
+                        .iter()
+                        .map(|(sid, text)| frame::radio(Src::Str(text), current == Some(*sid))),
                 );
-            } else {
-                let fine = if shift { 0.2 } else { 1.0 };
-                let q = (v.q * (wheel * 0.004 * fine).exp()).clamp(0.1, 18.0);
-                app.set_comp_many(
-                    strip,
-                    effect,
-                    &[(key(b, "q"), q)],
-                    "cmd.comp_key_band",
-                    merge,
-                );
-            }
-            app.comp_editor.wheel_at = Some(app.comp_editor.clock);
-        }
-    }
-    let delete =
-        ui.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
-    if delete && resp.hovered() {
-        if let Some(b) = app.comp_editor.key_band {
-            app.remove_key_band(strip, effect, b);
-        }
-    }
-    resp.context_menu(|ui| {
-        let Some(b) = app.comp_editor.key_band.filter(|b| bands[*b].used) else {
-            ui.label(t("comp.key_eq_empty"));
-            return;
-        };
-        ui.label(RichText::new(key_band_words(b, &bands[b])).text_style(design::caption()));
-        ui.separator();
-        for shape in EqShape::ALL {
-            if ui
-                .selectable_label(
-                    bands[b].shape == shape,
-                    t(&format!("eq.shape.{}", shape.index())),
-                )
-                .clicked()
-            {
-                app.set_comp(strip, effect, &key(b, "shape"), shape.index() as f32, false);
-                ui.close();
-            }
-        }
-        ui.separator();
-        if ui
-            .selectable_label(!bands[b].on, t("eq.bypass_band"))
-            .clicked()
-        {
-            let on = if bands[b].on { 0.0 } else { 1.0 };
-            app.set_comp(strip, effect, &key(b, "on"), on, false);
-            ui.close();
-        }
-        if ui.button(t("eq.remove_band")).clicked() {
-            app.remove_key_band(strip, effect, b);
-            ui.close();
-        }
-    });
-}
-
-/// How this compressor answers a burst: the reduction over time for a step 12 dB over
-/// the threshold held 400 ms, then 20 dB under it — run through the real DSP with the
-/// settings as they are, with the attack and release it measures. It is what "attack"
-/// means in this style, drawn.
-fn response_graph(app: &mut CantusApp, ui: &mut egui::Ui, s: &CompSettings, size: egui::Vec2) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::hover());
-    let stale = app
-        .comp_editor
-        .response
-        .as_ref()
-        .is_none_or(|(c, _)| c != s);
-    if stale {
-        app.comp_editor.response = Some((*s, step_response(s, RESPONSE_SR, RESPONSE_POINTS)));
-    }
-    let Some((_, r)) = &app.comp_editor.response else {
-        return;
-    };
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let plot = Rect::from_min_max(
-        rect.min + vec2(space::S2, space::S8 + space::S2),
-        rect.max - vec2(space::S2, space::S4),
-    );
-    let x = |ms: f32| plot.left() + (ms / r.length_ms).clamp(0.0, 1.0) * plot.width();
-    let scale = (r.settled_db * 1.3).max(6.0);
-    let y = |gr: f32| plot.top() + (gr / scale).clamp(0.0, 1.0) * plot.height();
-    // The burst, as a band behind the curve.
-    let burst = Rect::from_x_y_ranges(x(r.rise_ms)..=x(r.fall_ms), plot.y_range());
-    p.rect_filled(
-        burst,
-        0.0,
-        pal.text_dim
-            .gamma_multiply(if pal.dark { 0.18 } else { 0.1 }),
-    );
-    for ms in [0.0f32, 250.0, 500.0, 750.0, 1_000.0] {
-        p.vline(x(ms), plot.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(x(ms) + 2.0, rect.bottom() - 2.0),
-            Align2::LEFT_BOTTOM,
-            format!("{ms:.0}"),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    p.hline(
-        plot.x_range(),
-        y(r.settled_db),
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let dt = r.length_ms / r.gr_db.len() as f32;
-    let pts: Vec<Pos2> = r
-        .gr_db
-        .iter()
-        .enumerate()
-        .map(|(i, g)| pos2(x(i as f32 * dt), y(*g)))
-        .collect();
-    let mut mesh = egui::Mesh::default();
-    let red = pal
-        .danger
-        .gamma_multiply(if pal.dark { 0.35 } else { 0.25 });
-    for (i, pt) in pts.iter().enumerate() {
-        let base = mesh.vertices.len() as u32;
-        mesh.colored_vertex(pos2(pt.x, plot.top()), red);
-        mesh.colored_vertex(*pt, red);
-        if i > 0 {
-            mesh.add_triangle(base - 2, base - 1, base);
-            mesh.add_triangle(base - 1, base, base + 1);
-        }
-    }
-    p.add(mesh);
-    p.add(egui::Shape::line(pts, Stroke::new(1.5, pal.danger)));
-    // The measured points: 63 % in, 63 % out.
-    if let Some(a) = r.attack_ms {
-        let at = pos2(x(r.step_ms + a), y(r.settled_db * 0.632));
-        p.circle_stroke(at, 3.5, Stroke::new(1.5, pal.text));
-    }
-    if let Some(rel) = r.release_ms {
-        let at = pos2(x(r.drop_ms + rel), y(r.settled_db * 0.368));
-        p.circle_stroke(at, 3.5, Stroke::new(1.5, pal.text));
-    }
-    p.text(
-        rect.left_top() + vec2(space::S2, space::S1),
-        Align2::LEFT_TOP,
-        t("comp.response"),
-        design::paint::caption(),
-        pal.text,
-    );
-    let measured = match (r.attack_ms, r.release_ms) {
-        (Some(a), Some(rel)) => tf(
-            "comp.response_times",
-            &[
-                ("att", &crate::widgets::knob::readout(a, "ms")),
-                ("rel", &crate::widgets::knob::readout(rel, "ms")),
-                ("gr", &format!("{:.1}", r.settled_db)),
-            ],
-        ),
-        (Some(a), None) => tf(
-            "comp.response_held",
-            &[("att", &crate::widgets::knob::readout(a, "ms"))],
-        ),
-        _ => t("comp.response_none"),
-    };
-    p.text(
-        rect.left_top() + vec2(space::S2, space::S1 + 13.0),
-        Align2::LEFT_TOP,
-        measured,
-        design::paint::ruler(),
-        pal.danger,
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("comp.response_tip"));
-}
-
-/// A small, read-only transfer curve for the inspector's effect card, with the numbers
-/// that matter at rest: threshold, ratio, style, and the auto gain and lookahead if on.
-pub fn mini_curve(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
-    let pal = theme::p();
-    let s = cantus_engine::comp_settings(spec);
-    let h = space::GRID * 14.0;
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let lo = -60.0f32;
-    let sq = Rect::from_min_size(rect.min, vec2(h, h));
-    let x = |d: f32| sq.left() + ((d - lo) / -lo) * sq.width();
-    let y = |d: f32| sq.bottom() - ((d - lo) / -lo).clamp(0.0, 1.0) * sq.height();
-    p.line_segment(
-        [pos2(x(lo), y(lo)), pos2(x(0.0), y(0.0))],
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let pts: Vec<Pos2> = (0..=60)
-        .map(|i| {
-            let d = lo + -lo * i as f32 / 60.0;
-            pos2(x(d), y(d - s.mix * effective_gain_reduction_db(d, &s)))
-        })
-        .collect();
-    p.add(egui::Shape::line(pts, Stroke::new(1.5, pal.gold)));
-    let mut words = format!(
-        "{:+.0} dB \u{b7} {} \u{b7} {}",
-        s.threshold_db,
-        ratio_text(s.ratio),
-        style_name(&s)
-    );
-    if s.auto_gain {
-        words.push_str(&format!(" \u{b7} {}", t("comp.auto")));
-    }
-    if s.lookahead_ms > 0.0 {
-        words.push_str(&format!(" \u{b7} {:.1} ms", s.lookahead_ms));
-    }
-    p.text(
-        pos2(sq.right() + space::S2, rect.center().y),
-        Align2::LEFT_CENTER,
-        words,
-        design::paint::ruler(),
-        pal.text,
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(
-            1.0,
-            if resp.hovered() {
-                pal.gold
-            } else {
-                pal.grid_strong
-            },
-        ),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("comp.open_tip"))
-}
-
-/// The strip menu's "Duck this strip from…": a submenu of the strips that can key it
-/// (never one that would close a loop); choosing one adds a Comprimo keyed from it, set
-/// to duck, in one step of undo, and opens its editor.
-pub fn duck_menu(app: &mut CantusApp, ui: &mut egui::Ui, strip: StripId) {
-    ui.menu_button(t("comp.duck.menu"), |ui| {
-        caption(ui, "comp.duck.hint");
-        let options: Vec<StripId> = app
-            .project()
-            .strips
-            .iter()
-            .map(|x| x.id)
-            .filter(|id| *id != strip && !app.project().routing_would_cycle(*id, Some(strip)))
-            .collect();
-        for id in options {
-            let name = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-            if ui.button(name).clicked() {
-                if let Some(effect) = app.duck_strip_from(strip, id) {
-                    app.open_effect_editor(strip, effect);
+                if let Some(i) = controls::list(ui, s, id, at, w.max(180.0), &items) {
+                    let to = if i == 0 {
+                        None
+                    } else {
+                        options.get(i - 1).map(|o| o.0)
+                    };
+                    target = Some(KeyTarget::Strip(to));
                 }
-                ui.close();
             }
         }
-    });
-}
-
-/// A strip's gain-reduction lane on the desk, beside its level meter: shown on a strip
-/// that carries a Comprimo, hanging from the top in the danger colour over 0–24 dB (ticks
-/// every 6 dB), so a strip that is working reads at a glance and the faders stay in line.
-pub fn strip_gr_meter(app: &CantusApp, ui: &mut egui::Ui, strip: StripId, height: f32) {
-    let Some(gr) = app.comp_gr_on_strip(strip) else {
-        return;
-    };
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(vec2(space::GRID * 1.5, height), Sense::hover());
-    let p = ui.painter();
-    p.rect_filled(rect, 1.0, theme::recess(&pal));
-    if let Some(g) = gr {
-        let h = (g / 24.0).clamp(0.0, 1.0) * rect.height();
-        if h > 0.5 {
-            p.rect_filled(
-                Rect::from_min_size(rect.min, vec2(rect.width(), h)).shrink(0.5),
-                0.5,
-                pal.danger,
-            );
-        }
-    }
-    for db in [6.0f32, 12.0, 18.0] {
-        let y = rect.top() + db / 24.0 * rect.height();
-        p.hline(rect.x_range(), y, Stroke::new(1.0, pal.grid_bar));
-    }
-    p.rect_stroke(
-        rect,
-        1.0,
-        Stroke::new(1.0, pal.danger.gamma_multiply(0.6)),
-        StrokeKind::Inside,
-    );
-    let tip = match gr {
-        Some(g) => tf("comp.strip_gr", &[("db", &format!("{g:.1}"))]),
-        None => t("comp.strip_gr_idle"),
-    };
-    resp.on_hover_text(tip);
-}
-
-/// `--editor comp` and the screenshots: a compressor doing a job — a Punch style gently
-/// customised, lookahead, auto gain, and a key that ignores the low end — with the engine
-/// drawer open, so every part of the editor has something to show.
-pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
-    let values: Vec<(String, f32)> = [
-        ("style", 1.0),
-        ("thr", -26.0),
-        ("ratio", 4.0),
-        ("knee", 9.0),
-        ("att", 6.0),
-        ("rel", 140.0),
-        ("hold", 4.0),
-        ("look", 2.0),
-        ("auto_gain", 1.0),
-        ("custom", 1.0),
-        ("det_rms", 0.1),
-        ("det_fb", 0.4),
-        ("det_prog", 0.0),
-        ("det_dual", 0.35),
-        ("det_curve", 0.0),
-        ("sc0.used", 1.0),
-        ("sc0.shape", EqShape::LowCut.index() as f32),
-        ("sc0.freq", 90.0),
-        ("sc0.slope", 24.0),
-        ("sc1.used", 1.0),
-        ("sc1.freq", 2_500.0),
-        ("sc1.gain", 4.0),
-        ("sc1.q", 1.2),
-    ]
-    .iter()
-    .map(|(k, v)| (k.to_string(), *v))
-    .collect();
-    app.set_comp_many(strip, effect, &values, "cmd.fx_preset", None);
-    let ed = &mut app.comp_editor;
-    ed.engine_open = true;
-    // A stand-in transport: a beat every 30 frames, as the screenshot's drum loop.
-    ed.demo = Some(DemoClock {
-        tick: 0.0,
-        step: cantus_core::PPQ as f64 / 30.0,
-    });
-}
-
-/// What a playing engine would report, for screenshots and tests with no engine: the
-/// real DSP run over a drum loop with the effect's settings — its telemetry, its
-/// loudness blocks, the analyser's pairs, and (when nothing has been fed yet) the history.
-pub fn demo_feed(app: &mut CantusApp) {
-    let Some((strip, effect)) = app.comp_editor.open else {
-        return;
-    };
-    let Some(spec) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .map(|e| e.spec.clone())
-    else {
-        return;
-    };
-    let mut c = cantus_dsp::Comprimo::new(DISPLAY_SR);
-    c.set(&cantus_engine::comp_settings(&spec));
-    let frame = 800;
-    let mut seed = 5u32;
-    let mut noise = move || {
-        seed ^= seed << 13;
-        seed ^= seed >> 17;
-        seed ^= seed << 5;
-        (seed as f32 / u32::MAX as f32) * 2.0 - 1.0
-    };
-    let fill_history = app.comp_editor.history.is_empty();
-    let mut pairs = Vec::with_capacity(8_192 * 2);
-    let mut last_hops = 0.0;
-    let frames = 600;
-    for f in 0..frames {
-        let mut l = Vec::with_capacity(frame);
-        for i in 0..frame {
-            // A kick every 30 frames, a snare between, hats, and a bass line under it.
-            let n = f * frame + i;
-            let beat = (n % (30 * frame)) as f32 / DISPLAY_SR;
-            let kick = (-beat * 18.0).exp() * (std::f32::consts::TAU * 55.0 * beat).sin();
-            let off = ((n + 15 * frame) % (30 * frame)) as f32 / DISPLAY_SR;
-            let snare = if (n / (30 * frame)) % 2 == 1 {
-                (-off * 25.0).exp() * noise() * 0.6
-            } else {
-                0.0
-            };
-            let hat =
-                (-(((n % (15 * frame / 2)) as f32) / DISPLAY_SR) * 60.0).exp() * noise() * 0.15;
-            let bass = 0.12 * (std::f32::consts::TAU * 82.0 * n as f32 / DISPLAY_SR).sin();
-            l.push(0.8 * kick + snare + hat + bass);
-        }
-        let dry = l.clone();
-        let mut r = l.clone();
-        c.process(&mut l, &mut r, None);
-        let m = c.meter();
-        if fill_history {
-            app.comp_editor.feed(m.input, m.output, m.gr_db);
-        }
-        let tel = c.telemetry();
-        let hops = tel[tele::HOPS];
-        let new = ((hops - last_hops) as usize).min(cantus_dsp::comprimo::BLOCKS_REPORTED);
-        for i in (0..new).rev() {
-            app.comp_editor.blocks.push(tel[tele::BLOCKS + i]);
-        }
-        last_hops = hops;
-        if f >= frames - 11 {
-            for (a, b) in dry.iter().zip(&l) {
-                pairs.push(*a);
-                pairs.push(*b);
+        Some(KeySource::Switch(on)) => {
+            let labels = [
+                Src::Key("comp.key_own"),
+                Src::Key("export.sidechain.external"),
+            ];
+            if let Some(i) =
+                controls::segmented(ui, s, *on as usize, &labels, frame::tr("comp.key_tip"), w)
+            {
+                target = Some(KeyTarget::Switch(i == 1));
             }
         }
+        None => {}
     }
-    app.comp_editor.analyser.push(&pairs);
-    app.comp_editor.analyser.compute();
-    // The bell on the key is selected, so its numbers are on screen.
-    if app.comp_editor.key_band.is_none() {
-        app.comp_editor.key_band = Some(1);
+    if let Some(t) = target {
+        host.set_key_source(t);
     }
-    let m = c.meter();
-    app.comp_editor.now = (db(m.input), db(m.input) - m.gr_db);
-    app.fx.injected = Some(c.telemetry());
 }

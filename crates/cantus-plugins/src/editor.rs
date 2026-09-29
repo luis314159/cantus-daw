@@ -1,20 +1,22 @@
 //! The plug-ins' own editors — the DAW's, running in the host's window (ADR 0020).
 //!
-//! The editor is the one Cantus draws (`cantus_ui::views::fx::gate::editor`), written
-//! against [`FxHost`] instead of the app. Here the host is [`PluginHost`]: the plug-in's
-//! values, its own telemetry and analyser tap (lock-free, from the audio thread), and the
-//! host's gestures through an [`EditSink`] the format layer provides. The window is egui
-//! 0.36 in a child of the host's window, through baseview and egui-baseview (OpenGL).
+//! The editor is the one Cantus draws (`cantus_ui::views::fx::Editor`: the effect's
+//! editor in its device frame, ADR 0024 §8), written against [`FxHost`] instead of the
+//! app. Here the host is [`PluginHost`]: the plug-in's values, its own telemetry and
+//! analyser tap (lock-free, from the audio thread), the host's gestures through an
+//! [`EditSink`] the format layer provides, the standards' bypass for the frame's lamp, and
+//! A/B kept here. The window is egui 0.36 in a child of the host's window, through
+//! baseview and egui-baseview (OpenGL).
 //!
-//! Porta's editor is the first; the other six show the host's generic interface until
-//! their editors move onto [`FxHost`] the same way (the plan is in ADR 0020).
+//! A kind whose editor has not moved onto [`FxHost`] shows the host's generic interface
+//! (the plan is in ADR 0020 §8).
 
 pub use crate::instance::Edit;
 use crate::instance::{Shared, PAIRS};
 use cantus_core::{EffectKind, EffectSpec};
 use cantus_engine::Telemetry;
-use cantus_ui::views::fx::gate;
 use cantus_ui::views::fx::host::{FxHost, KeySource, KeyTarget, Transport};
+use cantus_ui::views::fx::Editor as FxEditor;
 use egui_baseview::baseview::dpi::{LogicalSize, Size};
 use egui_baseview::baseview::{self, Window};
 use egui_baseview::{EguiWindow, EguiWindowSettings, Frame};
@@ -26,12 +28,16 @@ use std::num::NonZeroIsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-/// The editor's size in logical pixels: the DAW's editor window's default.
-pub const SIZE: (f64, f64) = (1060.0, 720.0);
+/// The editor's size in logical pixels: the device frame's designed size for the kind
+/// (ADR 0024 §8), as in the DAW at 100 %.
+pub fn size(kind: EffectKind) -> (f64, f64) {
+    let s = cantus_ui::views::fx::frame::designed_size(kind);
+    (s.x as f64, s.y as f64)
+}
 
 /// Whether a kind has its own editor in the exported plug-in yet.
 pub fn has_editor(kind: EffectKind) -> bool {
-    kind == EffectKind::Gate
+    FxEditor::of(kind).is_some()
 }
 
 /// Where the editor's edits go: CLAP's output events, VST3's component handler.
@@ -48,6 +54,12 @@ pub struct PluginHost {
     sink: Box<dyn EditSink>,
     /// Parameters inside an open gesture.
     active: Vec<u32>,
+    /// Bumped whenever a value changes (the editor's own edits, the host's automation, a
+    /// state load): the frame keeps what it formats until then.
+    revision: u64,
+    /// The other side of A/B (the plug-in's values), and whether B is the side showing.
+    other: Option<Vec<f32>>,
+    on_b: bool,
 }
 
 impl PluginHost {
@@ -60,12 +72,34 @@ impl PluginHost {
             rx,
             sink,
             active: Vec::new(),
+            revision: 0,
+            other: None,
+            on_b: false,
         }
     }
 
-    /// Before each frame: the values as they are now, and what the tap brought.
+    /// Before each frame: the values as they are now, and what the tap brought. The spec
+    /// holds every key, so a changed value is a write into its entry — nothing allocates.
     pub fn refresh(&mut self) {
-        self.spec = self.shared.spec();
+        let table = self.shared.table;
+        let mut changed = false;
+        for p in &table.params[..table.spec_count] {
+            let v = self.shared.value(p.index);
+            match self.spec.params.get_mut(p.key) {
+                Some(old) if *old != v => {
+                    *old = v;
+                    changed = true;
+                }
+                Some(_) => {}
+                None => {
+                    self.spec.params.insert(p.key.to_string(), v);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.revision += 1;
+        }
         if let Some(rx) = self.rx.as_mut() {
             while let Ok(p) = rx.pop() {
                 if self.pairs.len() == PAIRS {
@@ -82,6 +116,7 @@ impl PluginHost {
 
     /// A value from the editor: shown at once, and sent to the host inside a gesture.
     fn edit(&mut self, index: u32, value: f32, gesture: bool) {
+        self.revision += 1;
         let v = self.shared.show_value(index as usize, value as f64);
         if !self.active.contains(&index) {
             self.sink.edit(Edit::Begin(index));
@@ -124,6 +159,19 @@ impl FxHost for PluginHost {
         }
     }
 
+    /// Several keys at once; inside a gesture (a drag of several bands) each stays open
+    /// until the pointer lets go, so the host records one gesture per parameter. A cleared
+    /// key goes back to its default.
+    fn apply(&mut self, edits: &[(&str, Option<f32>)], _label_key: &str, gesture: Option<u64>) {
+        for (k, v) in edits {
+            let Some(p) = self.shared.table.by_key(k) else {
+                continue;
+            };
+            let value = v.unwrap_or(p.default);
+            self.edit(p.index as u32, value, gesture.is_some());
+        }
+    }
+
     fn end_gesture(&mut self) {
         for i in std::mem::take(&mut self.active) {
             self.sink.edit(Edit::End(i));
@@ -154,12 +202,68 @@ impl FxHost for PluginHost {
             self.edit(i, if on { 1.0 } else { 0.0 }, false);
         }
     }
+
+    fn bypassed(&self) -> Option<bool> {
+        Some(self.shared.value(self.shared.table.bypass) >= 0.5)
+    }
+
+    fn set_bypassed(&mut self, bypassed: bool) {
+        let i = self.shared.table.bypass as u32;
+        self.edit(i, if bypassed { 1.0 } else { 0.0 }, false);
+    }
+
+    fn ab(&self) -> Option<bool> {
+        Some(self.on_b)
+    }
+
+    /// Switch sides: the showing values are kept, the other side's sent to the host, each
+    /// changed parameter as a gesture of its own.
+    fn toggle_ab(&mut self) {
+        let table = self.shared.table;
+        let now: Vec<f32> = (0..table.spec_count)
+            .map(|i| self.shared.value(i))
+            .collect();
+        let other = self.other.take().unwrap_or_else(|| now.clone());
+        for (i, (a, b)) in now.iter().zip(&other).enumerate() {
+            if a != b {
+                self.edit(table.params[i].index as u32, *b, false);
+            }
+        }
+        self.other = Some(now);
+        self.on_b = !self.on_b;
+    }
+
+    fn copy_ab(&mut self) {
+        let table = self.shared.table;
+        self.other = Some(
+            (0..table.spec_count)
+                .map(|i| self.shared.value(i))
+                .collect(),
+        );
+    }
+
+    fn sample_rate(&self) -> f32 {
+        let sr = self.shared.sample_rate();
+        if sr > 1_000.0 {
+            sr
+        } else {
+            48_000.0
+        }
+    }
+
+    fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    fn take_pairs(&mut self, out: &mut Vec<(f32, f32)>) {
+        out.extend(self.pairs.drain(..));
+    }
 }
 
 /// The editor inside egui-baseview's window.
 struct App {
     host: PluginHost,
-    state: gate::State,
+    editor: FxEditor,
 }
 
 impl egui_baseview::App for App {
@@ -183,14 +287,8 @@ impl egui_baseview::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut Frame) {
         self.host.refresh();
-        let pal = cantus_ui::theme::p();
-        egui::Frame::new()
-            .fill(pal.panel)
-            .inner_margin(cantus_ui::design::space::S3)
-            .show(ui, |ui| {
-                ui.set_min_size(ui.available_size());
-                gate::editor(&mut self.host, &mut self.state, ui);
-            });
+        // The device frame fills the window: its header is the plug-in's title bar.
+        let _ = self.editor.show(&mut self.host, ui);
         // The meters and history move with the audio: about 30 frames a second.
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(33));
@@ -226,21 +324,22 @@ impl Editor {
         sink: Box<dyn EditSink>,
         parent: RawWindowHandle,
     ) -> Result<Editor, String> {
-        if !has_editor(shared.desc.kind) {
+        let Some(editor) = FxEditor::of(shared.desc.kind) else {
             return Err("no editor".into());
-        }
+        };
+        let (w, h) = size(shared.desc.kind);
         let settings = EguiWindowSettings::new()
             .with_title(shared.desc.full_name)
             .with_size(Size::Logical(LogicalSize {
-                width: SIZE.0,
-                height: SIZE.1,
+                width: w,
+                height: h,
             }))
             .with_resizable(false)
             .with_parent(&Parent(parent));
         shared.editor_open.store(true, Ordering::Release);
         let app = App {
             host: PluginHost::new(shared.clone(), sink),
-            state: gate::State::default(),
+            editor,
         };
         match EguiWindow::create(settings, app) {
             Ok(window) => {

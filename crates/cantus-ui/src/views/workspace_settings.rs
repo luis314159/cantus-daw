@@ -1,0 +1,473 @@
+//! The settings window, in the kit's look (ADR 0024 §3's row grammar): section bands, and
+//! label | value rows of 24 pt with the label right-aligned in a fixed column and every
+//! value in a well, a menu field or a segmented control.
+//!
+//! Audio changes are deliberately *not* applied as they are chosen: reopening the device
+//! on every choice would stutter the sound. The window keeps a pending choice and applies
+//! it when *Apply* is pressed.
+
+use super::workspace_widgets as w;
+use crate::app::CantusApp;
+use crate::i18n::{t, tf, Locale};
+use crate::kit::glyph::Glyph;
+use crate::kit::knob::KnobSize;
+use crate::kit::light::{self, RaisedOpts};
+use crate::kit::menu::{Check, Item};
+use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
+use crate::kit::widgets::{menu_field, menu_list, segmented, Param};
+use crate::kit::{with_brush, Fill, Style};
+use crate::settings::{
+    AudioSettings, BUFFER_SIZES, MAX_AUTOSAVE_SECONDS, MIN_AUTOSAVE_SECONDS, SAMPLE_RATES,
+    UI_SCALES,
+};
+use egui::{Align2, Context, Id, Order, Pos2, Rect, Sense, Ui, Vec2};
+use std::fmt::Write as _;
+
+/// The label column's width, in points.
+const LABEL_W: f32 = 140.0;
+
+/// Which of the audio lists is open.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum List {
+    Device,
+    Rate,
+    Buffer,
+}
+
+/// The window's own state.
+#[derive(Default)]
+pub struct Page {
+    /// The audio choice not yet applied.
+    pending: Option<AudioSettings>,
+    list: Option<(List, Pos2)>,
+}
+
+/// The settings window.
+pub fn window(app: &mut CantusApp, ctx: &Context) {
+    let mut open = app.show_settings;
+    let s = Style::current();
+    let screen = ctx.content_rect();
+    // Below the toolbar, clear of the status bar.
+    let size = Vec2::new(560.0, 660.0).min(screen.size() - Vec2::new(40.0, 100.0));
+    egui::Window::new("cantus-settings")
+        .id(Id::new("cantus-settings"))
+        .title_bar(false)
+        .frame(egui::Frame::NONE)
+        .resizable(true)
+        .default_size(size)
+        .min_size(Vec2::new(420.0, 320.0).min(size))
+        .default_pos(Pos2::new(
+            screen.center().x - size.x * 0.5,
+            screen.top() + 64.0,
+        ))
+        .constrain(true)
+        .show(ctx, |ui| {
+            let rect = ui.max_rect();
+            frame(ui, rect, &s);
+            let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
+            if title(ui, header, &s, Glyph::Gear, "settings.title") {
+                open = false;
+            }
+            let body = Rect::from_min_max(
+                Pos2::new(rect.left() + 12.0 * s.k, header.bottom() + 8.0 * s.k),
+                Pos2::new(rect.right() - 6.0 * s.k, rect.bottom() - 10.0 * s.k),
+            );
+            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
+            egui::ScrollArea::vertical()
+                .id_salt("cantus-settings-body")
+                .auto_shrink([false, false])
+                .show(&mut child, |ui| {
+                    ui.set_width(body.width() - 14.0 * s.k);
+                    ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
+                    audio(app, ui);
+                    midi(app, ui);
+                    look(app, ui);
+                    saving(app, ui);
+                    w::band(ui, Src::Key("host.manager.title"));
+                    super::plugins::manager(app, ui);
+                });
+        });
+    lists(app, ctx);
+    app.show_settings = open;
+    if !open {
+        app.settings_page.pending = None;
+        app.settings_page.list = None;
+    }
+}
+
+/// A floating window's face: a soft shadow and the raised panel.
+pub fn frame(ui: &Ui, rect: Rect, s: &Style) {
+    with_brush(ui.painter(), |b| {
+        b.rrect_soft(
+            rect.translate(Vec2::new(0.0, 4.0)),
+            s.r(6.0) + 4.0,
+            Fill::Solid(crate::kit::color::with_alpha(s.t.shadow, 0.9)),
+            16.0,
+        );
+        light::raised(
+            b,
+            rect,
+            s.r(6.0),
+            s.t.panel,
+            RaisedOpts {
+                drop: false,
+                k: s.k,
+                depth: s.t.depth,
+                ..Default::default()
+            },
+        );
+    });
+}
+
+/// A floating window's title row: a glyph, the title, ✕. Returns whether ✕ was clicked.
+pub fn title(ui: &mut Ui, rect: Rect, s: &Style, g: Glyph, key: &str) -> bool {
+    let k = s.k;
+    with_brush(ui.painter(), |b| {
+        let r = b.snap_rect(rect);
+        b.hline(
+            r.left() + 1.0,
+            r.right() - 1.0,
+            r.bottom() - b.px() * 0.5,
+            b.px(),
+            crate::kit::color::shade(s.t.panel, -0.16),
+        );
+        let gr = Rect::from_center_size(
+            Pos2::new(r.left() + 18.0 * k, r.center().y),
+            Vec2::splat(14.0 * k),
+        );
+        crate::kit::glyph::paint(b, gr, g, s.t.text_dim);
+        let tr = Rect::from_min_max(
+            Pos2::new(gr.right() + 8.0 * k, r.top()),
+            Pos2::new(r.right() - 40.0 * k, r.bottom()),
+        );
+        let _ = text::paint(
+            b,
+            tr,
+            &Text::key(key, Role::Title, s.t.text)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
+    });
+    let keys = Rect::from_min_max(
+        Pos2::new(rect.right() - 36.0 * k, rect.top() + 4.0 * k),
+        Pos2::new(rect.right() - 8.0 * k, rect.bottom() - 4.0 * k),
+    );
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(keys)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    w::glyph_key(&mut child, Glyph::Close, false, 22.0, &t("workspace.close")).clicked()
+}
+
+/// A dim line in a box.
+fn note(ui: &mut Ui, s: &str, warn: bool) {
+    let st = Style::current();
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0 * st.k), Sense::hover());
+    with_brush(ui.painter(), |b| {
+        let _ = text::paint(
+            b,
+            rect,
+            &Text::new(
+                s,
+                Role::Label,
+                if warn { st.t.danger } else { st.t.text_dim },
+            )
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
+            st.tk(),
+        );
+    });
+}
+
+fn default_or<T: std::fmt::Display>(v: Option<T>, unit: &str) -> String {
+    match v {
+        Some(v) => format!("{v}{unit}"),
+        None => t("settings.default"),
+    }
+}
+
+fn audio(app: &mut CantusApp, ui: &mut Ui) {
+    let s = Style::current();
+    let k = s.k;
+    w::band(ui, Src::Key("settings.audio"));
+    let pending = app
+        .settings_page
+        .pending
+        .clone()
+        .unwrap_or_else(|| app.settings.audio.clone());
+    let fw = |ui: &Ui| (ui.available_width() / k - 8.0).max(120.0);
+    let rows = [
+        (
+            List::Device,
+            "settings.device",
+            pending
+                .device
+                .clone()
+                .unwrap_or_else(|| t("settings.default")),
+        ),
+        (
+            List::Rate,
+            "settings.sample_rate",
+            default_or(pending.sample_rate, " Hz"),
+        ),
+        (
+            List::Buffer,
+            "settings.buffer",
+            match (
+                pending.buffer_frames,
+                pending.block_latency_ms(app.engine.sample_rate),
+            ) {
+                (Some(b), Some(ms)) => format!("{b} · ≈ {ms:.1} ms"),
+                (b, _) => default_or(b, ""),
+            },
+        ),
+    ];
+    for (list, key, value) in rows {
+        ui.horizontal(|ui| {
+            w::row_label(ui, key, LABEL_W, 24.0);
+            let width = fw(ui);
+            let open = app.settings_page.list.is_some_and(|(l, _)| l == list);
+            let (resp, clicks) = menu_field(ui, &value, false, open, &t(key), width);
+            if clicks.open {
+                app.settings_page.list = if open {
+                    None
+                } else {
+                    Some((list, resp.rect.left_bottom()))
+                };
+            }
+        });
+    }
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 24.0);
+        let changed = pending != app.settings.audio;
+        if w::button(ui, Src::Key("settings.apply"), 90.0, changed).clicked() {
+            app.settings.audio = pending.clone();
+            app.settings_page.pending = None;
+            app.restart_audio();
+        }
+        let running = if app.engine.is_live() {
+            tf(
+                "settings.audio_now",
+                &[
+                    ("device", &app.engine.device_name),
+                    ("rate", &(app.engine.sample_rate as u32)),
+                ],
+            )
+        } else {
+            t("status.no_audio")
+        };
+        note(ui, &running, false);
+    });
+    if let Some(e) = app.audio_error().map(str::to_string) {
+        note(ui, &e, true);
+    }
+}
+
+fn midi(app: &mut CantusApp, ui: &mut Ui) {
+    w::band(ui, Src::Key("settings.midi"));
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 24.0);
+        if w::button(ui, Src::Key("settings.rescan_midi"), 0.0, true).clicked() {
+            app.rescan_midi();
+        }
+        note(
+            ui,
+            &tf("status.midi", &[("n", &app.midi_port_names.len())]),
+            false,
+        );
+    });
+    if app.midi_port_names.is_empty() {
+        note(ui, &t("settings.no_midi"), false);
+    }
+    let names = app.midi_port_names.clone();
+    for name in names {
+        ui.horizontal(|ui| {
+            w::row_label(ui, "", LABEL_W, 18.0);
+            note(ui, &name, false);
+        });
+    }
+}
+
+fn look(app: &mut CantusApp, ui: &mut Ui) {
+    let s = Style::current();
+    let k = s.k;
+    w::band(ui, Src::Key("settings.appearance"));
+    ui.horizontal(|ui| {
+        w::row_label(ui, "menu.language", LABEL_W, 24.0);
+        let mut sel = Locale::ALL
+            .iter()
+            .position(|l| *l == crate::i18n::locale())
+            .unwrap_or(0);
+        let labels: Vec<Src<'_>> = Locale::ALL
+            .iter()
+            .map(|l| Src::Str(l.native_name()))
+            .collect();
+        let width = (ui.available_width() / k - 8.0).max(160.0);
+        if segmented(ui, &mut sel, &labels, &t("menu.language"), width).changed() {
+            app.set_locale(Locale::ALL[sel]);
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "settings.ui_scale", LABEL_W, 24.0);
+        const LABELS: [&str; 9] = ["75", "90", "100", "110", "125", "150", "175", "190", "200"];
+        let now = app.settings.ui_scale();
+        let mut sel = UI_SCALES
+            .iter()
+            .enumerate()
+            .min_by(|a, b| (a.1 - now).abs().total_cmp(&(b.1 - now).abs()))
+            .map_or(2, |(i, _)| i);
+        let labels: Vec<Src<'_>> = LABELS.iter().map(|l| Src::Str(l)).collect();
+        let width = (ui.available_width() / k - 8.0).max(200.0);
+        if segmented(ui, &mut sel, &labels, &t("settings.ui_scale"), width).changed() {
+            let ctx = ui.ctx().clone();
+            app.apply_ui_scale(&ctx, UI_SCALES[sel]);
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "settings.colours", LABEL_W, 24.0);
+        if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {
+            app.show_theme_editor = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "keymap.title", LABEL_W, 24.0);
+        if w::button(ui, Src::Key("settings.edit_shortcuts"), 0.0, true).clicked() {
+            app.show_shortcuts = true;
+        }
+    });
+}
+
+fn saving(app: &mut CantusApp, ui: &mut Ui) {
+    w::band(ui, Src::Key("settings.saving"));
+    let mut secs = app.settings.autosave_seconds as f32;
+    let before = secs;
+    ui.horizontal(|ui| {
+        w::row_label(ui, "settings.autosave", LABEL_W, 70.0);
+        let name = t("settings.autosave");
+        Param::new(
+            &mut secs,
+            MIN_AUTOSAVE_SECONDS as f32..=MAX_AUTOSAVE_SECONDS as f32,
+            crate::settings::DEFAULT_AUTOSAVE_SECONDS as f32,
+        )
+        .format(|v, b| {
+            let v = v.round() as u64;
+            let _ = if v >= 60 && v.is_multiple_of(60) {
+                write!(b, "{} min", v / 60)
+            } else {
+                write!(b, "{v} s")
+            };
+        })
+        .log(true)
+        .size(KnobSize::S)
+        .cell(Src::Key("workspace.autosave.cell"))
+        .name(&name)
+        .show(ui);
+    });
+    note(ui, &t("settings.autosave_hint"), false);
+    // Whole seconds, and a round number once past a minute.
+    let snapped = if secs >= 60.0 {
+        (secs / 30.0).round() * 30.0
+    } else {
+        (secs / 5.0).round() * 5.0
+    };
+    if (secs - before).abs() > f32::EPSILON && snapped as u64 != app.settings.autosave_seconds {
+        app.settings.autosave_seconds = snapped as u64;
+        app.store_settings();
+    }
+}
+
+/// The audio lists: the devices, the rates, the buffer sizes.
+fn lists(app: &mut CantusApp, ctx: &Context) {
+    let Some((list, at)) = app.settings_page.list else {
+        return;
+    };
+    let s = Style::current();
+    let mut pending = app
+        .settings_page
+        .pending
+        .clone()
+        .unwrap_or_else(|| app.settings.audio.clone());
+    let default = t("settings.default");
+    let (labels, current): (Vec<String>, usize) = match list {
+        List::Device => {
+            let devices = cantus_engine::output_devices();
+            let mut v = vec![default.clone()];
+            let mut cur = 0;
+            for (i, d) in devices.iter().enumerate() {
+                if pending.device.as_deref() == Some(d.name.as_str()) {
+                    cur = i + 1;
+                }
+                v.push(if d.is_default {
+                    format!("{} ({default})", d.name)
+                } else {
+                    d.name.clone()
+                });
+            }
+            (v, cur)
+        }
+        List::Rate => {
+            let mut v = vec![default.clone()];
+            v.extend(SAMPLE_RATES.iter().map(|r| format!("{r} Hz")));
+            let cur = pending
+                .sample_rate
+                .and_then(|r| SAMPLE_RATES.iter().position(|x| *x == r))
+                .map_or(0, |i| i + 1);
+            (v, cur)
+        }
+        List::Buffer => {
+            let mut v = vec![default.clone()];
+            v.extend(BUFFER_SIZES.iter().map(|b| b.to_string()));
+            let cur = pending
+                .buffer_frames
+                .and_then(|b| BUFFER_SIZES.iter().position(|x| *x == b))
+                .map_or(0, |i| i + 1);
+            (v, cur)
+        }
+    };
+    let items: Vec<Item<'_>> = labels
+        .iter()
+        .enumerate()
+        .map(|(i, l)| Item::Action {
+            label: Src::Str(l),
+            check: Check::Radio(i == current),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        })
+        .collect();
+    let mut chosen = None;
+    let area = egui::Area::new(Id::new("cantus-settings-list"))
+        .order(Order::Foreground)
+        .fixed_pos(at)
+        .constrain(true)
+        .show(ctx, |ui| {
+            let (_, c) = menu_list(ui, &items, 280.0 * s.k);
+            chosen = c.clicked;
+        });
+    if let Some(i) = chosen {
+        match list {
+            List::Device => {
+                pending.device = if i == 0 {
+                    None
+                } else {
+                    cantus_engine::output_devices()
+                        .get(i - 1)
+                        .map(|d| d.name.clone())
+                };
+            }
+            List::Rate => pending.sample_rate = i.checked_sub(1).map(|i| SAMPLE_RATES[i]),
+            List::Buffer => pending.buffer_frames = i.checked_sub(1).map(|i| BUFFER_SIZES[i]),
+        }
+        app.settings_page.pending = Some(pending);
+    }
+    let outside = ctx.input(|i| i.pointer.any_pressed())
+        && !ctx
+            .pointer_interact_pos()
+            .is_some_and(|p| area.response.rect.contains(p));
+    if chosen.is_some() || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        app.settings_page.list = None;
+    }
+}

@@ -1,1219 +1,744 @@
-//! Inspector: master gain, selected track settings and the instrument's parameters.
+//! The inspector (ADR 0024 §7): the selected channel's whole strip as a **signal-flow
+//! sheet**, in the kit's look.
+//!
+//! - **It follows what was clicked last**: a strip on the desk shows that channel; a
+//!   track header shows the track with its channel below; a clip or notes show them,
+//!   above their track's channel. The title row says which — "Mixer – Keys", the context
+//!   part dimmed (FL).
+//! - **Top to bottom, the signal's own order**: input → inserts as tiles (▸ opens a mini
+//!   view of the effect without its editor) → the strip EQ as a display that is a
+//!   control → sends → routing and delay compensation → output; the channel's fader,
+//!   pan and meter pinned at the bottom (Bitwig), so a channel can be mixed without the
+//!   desk.
+//! - **One row grammar** (`inspector_sheet`): label | value rows of 24 pt, labels
+//!   right-aligned in a fixed column, every value in a well; what does not apply is
+//!   dimmed, never hidden.
+//! - **Resizable and collapsible**: 280 pt by default, 220–420 by dragging its edge, a
+//!   snap at 280, right-click resets, double-click (or the chevron) collapses it to a
+//!   24-pt rail. The host (a dock) reads [`desired_width`] to size itself.
+//!
+//! Performance: rows are painted through one brush; values are formatted when they
+//! change (`Fmt`), lists are built when their menu opens, curves when their settings
+//! move.
+
+#[path = "inspector_channel.rs"]
+mod channel;
+#[path = "inspector_eq.rs"]
+mod eq;
+#[path = "inspector_menus.rs"]
+mod menus;
+#[path = "inspector_mini.rs"]
+mod mini;
+#[path = "inspector_pads.rs"]
+mod pads;
+#[path = "inspector_pinned.rs"]
+mod pinned;
+#[path = "inspector_sends.rs"]
+mod sends;
+#[path = "inspector_sheet.rs"]
+mod sheet;
+#[path = "inspector_track.rs"]
+mod track;
 
 use crate::app::CantusApp;
-use crate::design::{self, space, Elevation};
-use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::{bar, fader, Bar, Fader, Knob};
-use cantus_core::{
-    Color, Command, DrumPad, EffectKind, EffectSlot, EqField, FirmusParam, InstrumentParam,
-    MergeKey, MixerStrip, PadField, PadVoice, Send, StripEq, StripId, TrackId, Waveform,
-    EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_INSERTS,
-};
-use egui::{pos2, vec2, Align2, RichText, Sense, Stroke, StrokeKind};
+use crate::kit::color::shade;
+use crate::kit::glyph::{self, Glyph};
+use crate::kit::hint::{self, Caps};
+use crate::kit::text::{self, Elide, Policy, Role, Text};
+use crate::kit::{cache, Brush, Fill, State, Style};
+use cantus_core::{ClipId, Command, EffectId, MergeKey, StripId, TrackId};
+use egui::{pos2, Align2, Id, Rect, Sense, Vec2};
+pub use menus::MenuId;
+use sheet::{Fmt, Sheet};
+
+/// The default width, and where a drag snaps.
+pub const WIDTH: f32 = 280.0;
+pub const MIN_WIDTH: f32 = 220.0;
+pub const MAX_WIDTH: f32 = 420.0;
+/// The collapsed panel.
+pub const RAIL: f32 = 24.0;
+/// How close a drag must come to [`WIDTH`] to land on it.
+const SNAP: f32 = 10.0;
+const TITLE: f32 = 28.0;
+const PINNED: f32 = 150.0;
+
+/// What the inspector is about.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Subject {
+    /// A strip chosen on the desk: its channel alone.
+    Strip(StripId),
+    /// A track header: the track, then its channel.
+    Track(TrackId),
+    /// A clip: the clip, then its track's channel.
+    Clip(TrackId, ClipId),
+    /// Notes in the piano roll: them, then their track's channel.
+    Notes(TrackId, ClipId),
+    /// Nothing selected: the master.
+    Master,
+}
+
+/// A list the inspector has open, and the field it hangs from.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MenuOpen {
+    pub id: MenuId,
+    pub anchor: Rect,
+}
+
+/// What a row asks for; run after painting, when the project is no longer borrowed.
+#[derive(Clone, Debug)]
+pub enum Act {
+    Exec(Command),
+    Merge(Command, MergeKey),
+    EndGesture,
+    StripGain(StripId, f32),
+    ToggleSolo(StripId),
+    SelectTrack(TrackId),
+    OpenEditor(StripId, EffectId),
+    OpenInstrument(TrackId),
+    OpenPulsus(TrackId, cantus_core::PadId),
+    SelectPad(usize),
+    LoadSample(TrackId, usize),
+    RemovePad(TrackId, usize),
+    Flat(StripId),
+}
+
+/// The inspector's own state: what it follows, its size, and what it keeps between
+/// frames so that nothing is rebuilt that has not changed.
+pub struct Inspector {
+    /// What was clicked last, as the selection calls report it ([`Inspector::follow`]).
+    follow: Option<Subject>,
+    /// The notes selection last seen (count, first id), to notice a new one.
+    notes_seen: (usize, u64),
+    /// The subject shown last frame (the text cache is cleared when it changes).
+    shown: Option<Subject>,
+    /// The width asked for (points); the host sizes its dock from [`desired_width`].
+    pub width: f32,
+    pub collapsed: bool,
+    /// The host's width last frame: a change there is the dock's divider being dragged.
+    host_seen: f32,
+    brush: Brush,
+    fmt: Fmt,
+    acts: Vec<Act>,
+    menu: Option<MenuOpen>,
+    /// The list open last frame, and the frame it opened in (the click that opened it
+    /// is not a click outside it).
+    menu_seen: Option<MenuId>,
+    menu_pass: u64,
+    /// A native instrument's spec, copied when the project changes (its strip is drawn
+    /// by the instrument's editor, which needs the application too).
+    native: Option<(u64, TrackId, cantus_core::NativeSpec)>,
+    /// Where the scrollbar asked the sheet to be.
+    scroll_to: Option<f32>,
+    chan: channel::Chan,
+    pin: pinned::Meter,
+}
+
+impl Default for Inspector {
+    fn default() -> Self {
+        Inspector {
+            follow: None,
+            notes_seen: (0, 0),
+            shown: None,
+            width: WIDTH,
+            collapsed: false,
+            host_seen: f32::NAN,
+            brush: Brush::default(),
+            fmt: Fmt::default(),
+            acts: Vec::new(),
+            menu: None,
+            menu_seen: None,
+            menu_pass: 0,
+            native: None,
+            scroll_to: None,
+            chan: channel::Chan::default(),
+            pin: pinned::Meter::default(),
+        }
+    }
+}
+
+impl std::fmt::Debug for Inspector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Inspector")
+            .field("follow", &self.follow)
+            .field("width", &self.width)
+            .field("collapsed", &self.collapsed)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Inspector {
+    /// Say what was clicked last. The selection calls (`select_strip`, `select_track`,
+    /// `select_clip`) report here, so the inspector knows a strip click from a track
+    /// click even when both leave the same things selected.
+    pub fn follow(&mut self, s: Subject) {
+        self.follow = Some(s);
+    }
+
+    /// Open or close an insert's mini view (its tile's ▸).
+    pub fn toggle_mini(&mut self, e: EffectId) {
+        match self.chan.open.iter().position(|x| *x == e) {
+            Some(i) => {
+                self.chan.open.remove(i);
+            }
+            None => self.chan.open.push(e),
+        }
+    }
+
+    /// Collapse to the rail, or open again (the I key's action).
+    pub fn toggle_collapsed(&mut self) {
+        self.collapsed = !self.collapsed;
+    }
+
+    /// Set the width as a drag would: kept in 220–420, snapped to 280 when near it.
+    pub fn set_width(&mut self, w: f32) {
+        let w = w.clamp(MIN_WIDTH, MAX_WIDTH);
+        self.width = if (w - WIDTH).abs() < SNAP { WIDTH } else { w };
+    }
+
+    /// A sheet over `ui` that paints through this inspector's brush.
+    fn sheet<'a>(&'a mut self, ui: &'a mut egui::Ui, s: &Style, col: f32) -> Sheet<'a> {
+        Sheet {
+            ui,
+            b: &mut self.brush,
+            fmt: &mut self.fmt,
+            acts: &mut self.acts,
+            menu: &mut self.menu,
+            s: *s,
+            col,
+        }
+    }
+}
+
+/// The width the host should give the inspector: its own, or the rail's.
+pub fn desired_width(app: &CantusApp) -> f32 {
+    if app.inspector.collapsed {
+        RAIL
+    } else {
+        app.inspector.width
+    }
+}
+
+/// The subject: what was clicked last, when the selection still agrees with it; else
+/// what the selection says.
+pub fn subject(app: &CantusApp) -> Subject {
+    let p = app.project();
+    let track_ok = |t: TrackId| app.selected_track == Some(t) && p.track(t).is_some();
+    let clip_ok = |t: TrackId, c: ClipId| {
+        track_ok(t)
+            && app.selected_clip == Some(c)
+            && p.track(t).is_some_and(|x| x.clip(c).is_some())
+    };
+    let notes = !app.selected_notes.is_empty();
+    match app.inspector.follow {
+        Some(Subject::Strip(s)) if app.selected_strip == Some(s) && p.strip(s).is_some() => {
+            return Subject::Strip(s)
+        }
+        Some(Subject::Track(t)) if track_ok(t) => return Subject::Track(t),
+        Some(Subject::Clip(t, c) | Subject::Notes(t, c)) if clip_ok(t, c) => {
+            return if notes {
+                Subject::Notes(t, c)
+            } else {
+                Subject::Clip(t, c)
+            };
+        }
+        _ => {}
+    }
+    if let (Some(t), Some(c)) = (app.selected_track, app.selected_clip) {
+        if notes && clip_ok(t, c) {
+            return Subject::Notes(t, c);
+        }
+    }
+    // A strip that the selected track does not feed was chosen on its own.
+    if let Some(s) = app.selected_strip.filter(|s| p.strip(*s).is_some()) {
+        let fed = app
+            .selected_track
+            .and_then(|t| p.track(t))
+            .is_some_and(|t| t.strip == Some(s));
+        if !fed {
+            return Subject::Strip(s);
+        }
+    }
+    if let Some(t) = app.selected_track.filter(|t| p.track(*t).is_some()) {
+        return Subject::Track(t);
+    }
+    Subject::Master
+}
+
+/// The strip a subject's channel sheet is about, if it has one.
+pub fn strip_of(app: &CantusApp, s: Subject) -> Option<StripId> {
+    let p = app.project();
+    match s {
+        Subject::Strip(id) => Some(id),
+        Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => {
+            p.track(t).and_then(|t| t.strip)
+        }
+        Subject::Master => None,
+    }
+}
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.add_space(space::S1);
-        heading(ui, &t("inspector.master"));
-        let mut master = app.project().master.gain_db;
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(t("track.gain"))
-                    .text_style(design::caption())
-                    .color(theme::p().text_dim),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new(fader::read_out(master)).text_style(design::readout_small()),
-                );
-            });
-        });
-        // The inspector scrolls vertically, so this one does not take the wheel.
-        let r = ui.add(
-            Fader::new(&mut master)
-                .horizontal(ui.available_width() - space::S2)
-                .name(t("inspector.master")),
-        );
-        if r.changed() {
-            app.exec_merging(
-                Command::SetMasterGain { gain_db: master },
-                MergeKey::of(&"master"),
-            );
-        }
-        if r.drag_stopped() {
-            app.end_gesture();
-        }
-        ui.separator();
-
-        let Some(id) = app.selected_track else {
-            ui.label(RichText::new(t("track.no_selection")).color(theme::p().text_dim));
-            return;
-        };
-        let Some(track) = app.project().track(id).cloned() else {
-            return;
-        };
-
-        ui.add_space(space::S1);
-        ui.label(RichText::new(&track.name).heading());
-        ui.horizontal(|ui| {
-            ui.label(t("track.color"));
-            for c in Color::PALETTE {
-                let (rect, resp) =
-                    ui.allocate_exact_size(egui::vec2(space::S4, space::S4), egui::Sense::click());
-                let selected = c == track.color;
-                let pal = theme::p();
-                ui.painter()
-                    .rect_filled(rect, pal.corner_radius, theme::track_color(c));
-                // Selected reads as a ring in the text colour; hover only lifts the edge,
-                // so the two states never look alike.
-                let edge = if selected {
-                    Some(egui::Stroke::new(2.0, pal.text))
-                } else if resp.hovered() {
-                    Some(egui::Stroke::new(1.0, pal.text_dim))
-                } else {
-                    None
-                };
-                if let Some(stroke) = edge {
-                    ui.painter().rect_stroke(
-                        rect,
-                        pal.corner_radius,
-                        stroke,
-                        egui::StrokeKind::Inside,
-                    );
-                }
-                if resp.clicked() {
-                    app.exec(Command::SetTrackColor { id, color: c });
-                }
+    let mut st = std::mem::take(&mut app.inspector);
+    // A new notes selection is a click on notes.
+    let sig = (
+        app.selected_notes.len(),
+        app.selected_notes.first().map_or(0, |n| n.0),
+    );
+    if sig != st.notes_seen {
+        st.notes_seen = sig;
+        if sig.0 > 0 {
+            if let (Some(t), Some(c)) = (app.selected_track, app.selected_clip) {
+                st.follow = Some(Subject::Notes(t, c));
             }
-        });
-        ui.separator();
-        channel(app, ui, id, &track);
-        ui.separator();
-        ui.horizontal(|ui| {
-            heading(ui, &t("inspector.title"));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                instrument_combo(app, ui, id, &track.instrument);
-            });
-        });
-        if let Some(kit) = track.instrument.pulsus().cloned() {
-            pulsus(app, ui, id, &kit.pads);
-            ui.add_space(space::S3);
-            ui.separator();
-            strip_section(app, ui);
-            ui.add_space(space::S2);
-            return;
-        }
-        let Some(params) = track.instrument.firmus().cloned() else {
-            return;
-        };
-
-        section(ui, "inspector.oscillators");
-        wave_combo(app, ui, id, FirmusParam::Osc1Wave, params.osc1_wave);
-        wave_combo(app, ui, id, FirmusParam::Osc2Wave, params.osc2_wave);
-        knob_row(ui, |ui| {
-            for p in [
-                FirmusParam::Osc2Semitones,
-                FirmusParam::Osc2Detune,
-                FirmusParam::OscMix,
-            ] {
-                param_slider(app, ui, id, p, p.get(&params));
-            }
-        });
-        section(ui, "inspector.filter");
-        knob_row(ui, |ui| {
-            for p in [
-                FirmusParam::Cutoff,
-                FirmusParam::Resonance,
-                FirmusParam::FilterEnvAmount,
-                FirmusParam::KeyTrack,
-            ] {
-                param_slider(app, ui, id, p, p.get(&params));
-            }
-        });
-        section(ui, "inspector.amp_env");
-        knob_row(ui, |ui| {
-            for p in [
-                FirmusParam::AmpAttack,
-                FirmusParam::AmpDecay,
-                FirmusParam::AmpSustain,
-                FirmusParam::AmpRelease,
-            ] {
-                param_slider(app, ui, id, p, p.get(&params));
-            }
-        });
-        section(ui, "inspector.filter_env");
-        knob_row(ui, |ui| {
-            for p in [
-                FirmusParam::FilterAttack,
-                FirmusParam::FilterDecay,
-                FirmusParam::FilterSustain,
-                FirmusParam::FilterRelease,
-            ] {
-                param_slider(app, ui, id, p, p.get(&params));
-            }
-        });
-        section(ui, "inspector.output");
-        knob_row(ui, |ui| {
-            param_slider(app, ui, id, FirmusParam::Gain, params.gain_db)
-        });
-        ui.add_space(space::S3);
-        ui.separator();
-        strip_section(app, ui);
-        ui.add_space(space::S2);
-    });
-}
-
-/// Which instrument the track hosts. Switching keeps the clips: a note is a pitch on
-/// either, and the lanes follow the instrument.
-fn instrument_combo(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: TrackId,
-    current: &cantus_core::InstrumentSpec,
-) {
-    use cantus_core::{FirmusParams, InstrumentSpec, PulsusParams};
-    let is_kit = current.pulsus().is_some();
-    egui::ComboBox::from_id_salt(("instrument", id.0))
-        .selected_text(t(current.name_key()))
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(!is_kit, t("instrument.firmus"))
-                .clicked()
-                && is_kit
-            {
-                app.set_instrument(id, InstrumentSpec::Firmus(FirmusParams::default()));
-            }
-            if ui
-                .selectable_label(is_kit, t("instrument.pulsus"))
-                .clicked()
-                && !is_kit
-            {
-                app.set_instrument(id, InstrumentSpec::Pulsus(PulsusParams::default()));
-            }
-        });
-}
-
-/// The kit: a row of pad buttons, then the parameters of the one that is selected.
-///
-/// One pad at a time rather than all of them. Seven pads with nine parameters each is
-/// sixty-three sliders, which is not an inspector, it is a wall — and the pad you are
-/// working on is the one the channel rack already knows about, so the two panels agree
-/// without either of them having to be told.
-fn pulsus(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pads: &[DrumPad]) {
-    section(ui, "inspector.pads");
-    ui.horizontal_wrapped(|ui| {
-        let selected = app.rack.selected_pad;
-        for (i, pad) in pads.iter().enumerate() {
-            let is = i == selected;
-            let mut text = RichText::new(&pad.name).text_style(design::caption());
-            if pad.muted {
-                // A muted pad is dimmed rather than hidden: it is still in the kit, and
-                // hunting for a pad that vanished when you muted it is its own bug report.
-                text = text.color(theme::p().text_dim);
-            }
-            if ui.selectable_label(is, text).clicked() {
-                app.rack.selected_pad = i;
-            }
-        }
-        // Add a pad of each shape, or a sample. This is how a kit becomes the musician's
-        // rather than ours.
-        ui.menu_button(t("pad.add"), |ui| {
-            for voice in PadVoice::ALL {
-                if ui.button(t(voice.label_key())).clicked() {
-                    ui.close();
-                    app.add_pad(id, voice);
-                }
-            }
-        });
-    });
-    if pads.is_empty() {
-        ui.label(
-            RichText::new(t("pad.none_yet"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        return;
-    }
-    let selected = app.rack.selected_pad.min(pads.len() - 1);
-    app.rack.selected_pad = selected;
-    let pad = &pads[selected];
-    ui.add_space(space::S1);
-    heading(ui, &format!("{} · {}", pad.name, t(pad.voice.label_key())));
-    ui.horizontal(|ui| {
-        section(ui, "inspector.pad_sound");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .small_button(t("pad.remove"))
-                .on_hover_text(t("pad.remove_tip"))
-                .clicked()
-            {
-                app.remove_pad(id, selected);
-            }
-        });
-    });
-    // Only the fields this voice actually has: a hi-hat has no pitch envelope, and a
-    // slider that does nothing is worse than one that is missing.
-    let fields: Vec<PadField> = PadField::for_voice(pad.voice).collect();
-    for field in fields.iter().copied() {
-        match field {
-            PadField::Voice => {
-                voice_combo(app, ui, id, selected, pad.voice);
-                if pad.voice == PadVoice::Sample {
-                    sample_row(app, ui, id, selected, pad);
-                }
-            }
-            PadField::Mute => {
-                let mut muted = pad.muted;
-                if ui.checkbox(&mut muted, t("pad.mute")).changed() {
-                    set_pad(app, id, selected, field, muted as u8 as f32, false);
-                }
-            }
-            PadField::Choke => choke_combo(app, ui, id, selected, pad.choke),
-            _ => {}
         }
     }
-    knob_row(ui, |ui| {
-        for field in fields.iter().copied() {
-            if !matches!(field, PadField::Voice | PadField::Mute | PadField::Choke) {
-                pad_slider(app, ui, id, selected, pad, field);
+    app.inspector.follow = st.follow;
+    st.frame(app, ui);
+    // A selection call made while the rows acted landed on the placeholder: keep it.
+    let late = app.inspector.follow;
+    app.inspector = st;
+    if late.is_some() && late != app.inspector.follow {
+        app.inspector.follow = late;
+    }
+}
+
+impl Inspector {
+    fn frame(&mut self, app: &mut CantusApp, ui: &mut egui::Ui) {
+        let s = Style::current();
+        let full = ui.available_rect_before_wrap();
+        ui.allocate_rect(full, Sense::hover());
+        // The host's divider moved (or this is the first frame): take its width, within
+        // the range and the snap. A host narrower than the rail is the rail's own.
+        let host = full.width();
+        if self.host_seen.is_nan() || (host - self.host_seen).abs() > 0.5 {
+            if !self.collapsed && host > RAIL + 1.0 {
+                self.set_width(host);
             }
+            self.host_seen = host;
         }
-    });
-}
-
-/// A row of knobs that wraps: the house layout for a group of parameters.
-fn knob_row(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S1;
-        add(ui);
-    });
-}
-
-/// Which voice the pad is. Switching to *Sample* keeps whatever file the pad already had.
-fn voice_combo(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pad: usize, current: PadVoice) {
-    ui.horizontal(|ui| {
-        ui.label(t("pad.voice"));
-        egui::ComboBox::from_id_salt(("voice", id.0, pad))
-            .selected_text(t(current.label_key()))
-            .show_ui(ui, |ui| {
-                for v in PadVoice::ALL {
-                    if ui
-                        .selectable_label(v == current, t(v.label_key()))
-                        .clicked()
-                        && v != current
-                    {
-                        set_pad(app, id, pad, PadField::Voice, v.index() as f32, false);
-                    }
-                }
-            });
-    });
-}
-
-/// The sample a pad plays: its file name, whether it loaded, and a button to choose one.
-///
-/// The status comes from the engine's cache, so what is shown is what will *sound*: a path
-/// the project remembers but the disk no longer has says so here, instead of a pad that is
-/// mysteriously quiet.
-fn sample_row(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pad: usize, drum: &DrumPad) {
-    use cantus_engine::SampleStatus;
-    ui.horizontal(|ui| {
-        ui.label(t("pad.sample"));
-        let pal = theme::p();
-        match drum.sample.as_deref() {
-            None => {
-                ui.label(RichText::new(t("pad.sample_none")).color(pal.text_dim));
-            }
-            Some(path) => {
-                let name = std::path::Path::new(path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path.to_string());
-                match app.engine.samples.status(std::path::Path::new(path)) {
-                    SampleStatus::Loaded {
-                        rate,
-                        channels,
-                        frames,
-                    } => {
-                        let secs = frames as f32 / rate.max(1) as f32;
-                        ui.label(RichText::new(name).text_style(design::strong()))
-                            .on_hover_text(path);
-                        ui.label(
-                            RichText::new(format!(
-                                "{secs:.2} s · {rate} Hz · {}",
-                                if channels >= 2 { "stereo" } else { "mono" }
-                            ))
-                            .text_style(design::mono_small())
-                            .color(pal.text_dim),
-                        );
-                    }
-                    SampleStatus::Failed(err) => {
-                        ui.label(RichText::new(name).color(pal.danger))
-                            .on_hover_text(format!("{}\n{err}", t("pad.sample_missing")));
-                    }
-                    SampleStatus::Unknown => {
-                        ui.label(RichText::new(name).color(pal.text_dim));
-                    }
-                }
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(t("pad.sample_load")).clicked() {
-                app.load_pad_sample(id, pad);
-            }
-        });
-    });
-}
-
-/// The choke group, as a named list rather than a number line.
-///
-/// It is an *identity*, not a quantity: group 2 is not twice group 1, and a slider would
-/// invite dragging through the groups looking for the right one.
-fn choke_combo(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, pad: usize, current: u8) {
-    ui.horizontal(|ui| {
-        ui.label(t("pad.choke"));
-        let label = if current == 0 {
-            t("pad.none")
+        let w = if self.collapsed {
+            RAIL * s.k
         } else {
-            crate::i18n::tf("pad.group", &[("n", &current)])
+            self.width.min(full.width())
         };
-        egui::ComboBox::from_id_salt(("choke", id.0, pad))
-            .selected_text(label)
-            .show_ui(ui, |ui| {
-                for g in 0u8..=4 {
-                    let label = if g == 0 {
-                        t("pad.none")
-                    } else {
-                        crate::i18n::tf("pad.group", &[("n", &g)])
-                    };
-                    if ui.selectable_label(g == current, label).clicked() && g != current {
-                        set_pad(app, id, pad, PadField::Choke, g as f32, false);
-                    }
-                }
-            });
-    });
-}
-
-fn pad_slider(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: TrackId,
-    pad_index: usize,
-    pad: &DrumPad,
-    field: PadField,
-) {
-    let info = field.info(pad.voice);
-    let mut v = field.get(pad);
-    let r = ui.add(
-        Knob::new(&mut v, info.min..=info.max, info.default)
-            .log(info.logarithmic)
-            .stepped(info.stepped)
-            .unit(info.unit)
-            .label(t(info.label_key)),
-    );
-    if r.changed() {
-        set_pad(app, id, pad_index, field, v, true);
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
-    }
-}
-
-fn set_pad(
-    app: &mut CantusApp,
-    id: TrackId,
-    pad: usize,
-    field: PadField,
-    value: f32,
-    merging: bool,
-) {
-    let cmd = Command::SetInstrumentParam {
-        track: id,
-        param: InstrumentParam::Pulsus {
-            pad: pad as u8,
-            field,
-        },
-        value,
-    };
-    if merging {
-        app.exec_merging(cmd, MergeKey::of(&("pad", id.0, pad, field)));
-    } else {
-        app.exec(cmd);
-    }
-}
-
-/// The track's own channel: its level and balance before the mixer, and which strip it
-/// feeds. FL's channel volume and pan, and its mixer-track picker, in one place.
-///
-/// The fader with a scale, the width and the polarity are the *strip's*, further down:
-/// they belong to the channel of the mixer, not to whichever instrument plays into it.
-fn channel(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, track: &cantus_core::Track) {
-    heading(ui, &t("inspector.channel"));
-    let lane = ui.available_width() - space::S2;
-    let mut gain = track.gain_db;
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("track.gain"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(fader::read_out(gain)).text_style(design::readout_small()));
-        });
-    });
-    let g = ui.add(Fader::new(&mut gain).horizontal(lane).name(&track.name));
-    if g.changed() {
-        app.exec_merging(
-            Command::SetTrackGain { id, gain_db: gain },
-            MergeKey::of(&("gain", id.0)),
-        );
-    }
-    if g.drag_stopped() {
-        app.end_gesture();
-    }
-    ui.add_space(space::S1);
-    let mut pan = track.pan;
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("track.pan"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(bar::pan_text(pan)).text_style(design::readout_small()));
-        });
-    });
-    let pr = ui.add(Bar::pan(&mut pan).size(lane).name(t("track.pan")));
-    if pr.changed() {
-        app.exec_merging(
-            Command::SetTrackPan { id, pan },
-            MergeKey::of(&("pan", id.0)),
-        );
-    }
-    if pr.drag_stopped() {
-        app.end_gesture();
-    }
-    ui.add_space(space::S1);
-    ui.horizontal(|ui| {
-        ui.label(t("track.route"));
-        route_picker(app, ui, id, track.strip);
-    });
-}
-
-/// Which strip a track feeds. The list is every strip by number, with its name when it
-/// has one, and the master.
-pub fn route_picker(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, current: Option<StripId>) {
-    let label = match current.and_then(|s| app.project().strip_number(s)) {
-        Some(n) => tf("track.route_strip", &[("n", &n)]),
-        None => t("mixer.master"),
-    };
-    let mut chosen: Option<Option<StripId>> = None;
-    egui::ComboBox::from_id_salt(("route", id.0))
-        .selected_text(label)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(current.is_none(), t("mixer.master"))
-                .clicked()
-            {
-                chosen = Some(None);
-            }
-            // FL's `TRACK` button: the first strip nothing feeds, so a channel gets a
-            // strip of its own without anyone counting.
-            if let Some(free) = app.project().first_free_strip() {
-                if ui.selectable_label(false, t("track.route_free")).clicked() {
-                    chosen = Some(Some(free));
-                }
-            }
-            let strips: Vec<(StripId, usize, String)> = app
-                .project()
-                .strips
-                .iter()
-                .enumerate()
-                .map(|(i, s)| (s.id, i + 1, s.name.clone()))
-                .collect();
-            for (sid, n, name) in strips {
-                let text = if name.is_empty() {
-                    tf("track.route_strip", &[("n", &n)])
-                } else {
-                    format!("{n} · {name}")
-                };
-                if ui.selectable_label(current == Some(sid), text).clicked() {
-                    chosen = Some(Some(sid));
-                }
-            }
-        });
-    if let Some(strip) = chosen {
-        if strip != current {
-            app.route_track(id, strip);
+        let rect = Rect::from_min_max(pos2(full.right() - w, full.top()), full.max);
+        let painter = ui.painter_at(full);
+        self.brush.begin(ui.ctx());
+        if rect.left() > full.left() + 0.5 {
+            // Room the host gave beyond the panel's width: the workspace's ground.
+            let gap = Rect::from_min_max(full.min, pos2(rect.left(), full.bottom()));
+            self.brush.rect(gap, Fill::Solid(s.t.ink));
         }
-    }
-}
-
-/// The mixer strip the inspector is about: its fader, pan, width, polarity, output and
-/// inserts — the same controls as the mixer's, for one strip at a time with room to
-/// breathe.
-fn strip_section(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let Some(id) = app.inspected_strip() else {
-        heading(ui, &t("inspector.strip"));
-        ui.label(
-            RichText::new(t("inspector.strip_master"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        return;
-    };
-    let Some(strip) = app.project().strip(id).cloned() else {
-        return;
-    };
-    let number = app.project().strip_number(id).unwrap_or(0);
-    let title = if strip.name.is_empty() {
-        tf("inspector.strip_n", &[("n", &number)])
-    } else {
-        format!(
-            "{} · {}",
-            tf("inspector.strip_n", &[("n", &number)]),
-            strip.name
-        )
-    };
-    heading(ui, &title);
-    let lane = ui.available_width() - space::S2;
-    let mut gain = strip.gain_db;
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("track.gain"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(fader::read_out(gain)).text_style(design::readout_small()));
-        });
-    });
-    let g = ui.add(Fader::new(&mut gain).horizontal(lane).name(&title));
-    if g.changed() {
-        app.exec_merging(
-            Command::SetStripGain { id, gain_db: gain },
-            MergeKey::of(&("sgain", id.0)),
-        );
-    }
-    if g.drag_stopped() {
-        app.end_gesture();
-    }
-    ui.add_space(space::S1);
-    let mut pan = strip.pan;
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("track.pan"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(bar::pan_text(pan)).text_style(design::readout_small()));
-        });
-    });
-    let pr = ui.add(Bar::pan(&mut pan).size(lane).name(t("track.pan")));
-    if pr.changed() {
-        app.exec_merging(
-            Command::SetStripPan { id, pan },
-            MergeKey::of(&("spans", id.0)),
-        );
-    }
-    if pr.drag_stopped() {
-        app.end_gesture();
-    }
-    ui.add_space(space::S1);
-    let mut width = strip.width;
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("track.width"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(bar::width_text(width)).text_style(design::readout_small()));
-        });
-    });
-    let wr = ui.add(Bar::width(&mut width).size(lane).name(t("track.width")));
-    if wr.changed() {
-        app.exec_merging(
-            Command::SetStripWidth { id, width },
-            MergeKey::of(&("swidth", id.0)),
-        );
-    }
-    if wr.drag_stopped() {
-        app.end_gesture();
-    }
-    ui.horizontal(|ui| {
-        if crate::views::mixer::phase_button(ui, strip.phase_invert).clicked() {
-            app.exec(Command::SetStripPhaseInvert {
-                id,
-                invert: !strip.phase_invert,
-            });
+        let subject = subject(app);
+        if self.shown != Some(subject) {
+            self.shown = Some(subject);
+            self.fmt.clear();
+            self.menu = None;
         }
-        let is_mono = strip.width <= 0.005;
-        if ui
-            .selectable_label(
-                is_mono,
-                RichText::new(t("track.mono")).text_style(design::caption()),
-            )
-            .on_hover_text(t("track.mono_tip"))
-            .clicked()
+        if self.collapsed {
+            self.rail(app, ui, rect, &s, subject);
+            self.brush.flush(&painter);
+            return;
+        }
+        self.brush.rect(rect, Fill::Solid(s.t.panel));
+        self.edge(ui, rect, &s);
+        let title = Rect::from_min_size(rect.min, Vec2::new(rect.width(), s.s(TITLE)));
+        self.title(app, ui, title, &s, subject);
+        let pin_h = s.s(PINNED).min((rect.height() - title.height()) * 0.5);
+        let pin = Rect::from_min_max(pos2(rect.left(), rect.bottom() - pin_h), rect.max);
+        let body = Rect::from_min_max(
+            pos2(rect.left(), title.bottom()),
+            pos2(rect.right(), pin.top()),
+        );
+        // FL's inspector column: the tiles sit on the lighter ground behind them.
+        self.brush.rect(body, Fill::Solid(s.t.panel_light));
+        self.brush.flush(&painter);
+
+        self.acts.clear();
+        // The sheet scrolls under a kit scrollbar that is always there (ADR 0024 §10).
+        let lane = Rect::from_min_max(
+            pos2(body.right() - s.s(7.0), body.top() + s.s(2.0)),
+            pos2(body.right() - s.s(1.0), body.bottom() - s.s(2.0)),
+        );
+        let area = Rect::from_min_max(body.min, pos2(lane.left() - s.s(1.0), body.bottom()));
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(area)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(area.intersect(ui.clip_rect()));
+        let mut scroll = egui::ScrollArea::vertical()
+            .id_salt("inspector-sheet")
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+        if let Some(y) = self.scroll_to.take() {
+            scroll = scroll.vertical_scroll_offset(y);
+        }
+        let out = scroll.show(&mut child, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            self.body(app, ui, &s, subject);
+        });
+        let content = out.content_size.y.max(1.0);
+        let len = (out.inner_rect.height() / content).min(1.0);
+        let mut start = out.state.offset.y / content;
+        let bar =
+            crate::kit::widgets::scrollbar(ui, lane, Id::new("inspector-scroll"), &mut start, len);
+        if bar.dragged() {
+            self.scroll_to = Some(start * content);
+        }
+        self.brush.begin(ui.ctx());
+        pinned::show(self, app, ui, pin, &s, subject);
+        self.brush.flush(&painter);
+        menus::show(self, app, ui, &s);
+        let acts = std::mem::take(&mut self.acts);
+        for a in acts.iter().cloned() {
+            apply(app, a);
+        }
+        self.acts = acts;
+    }
+
+    /// Everything between the title and the pinned strip, in the signal's order.
+    fn body(&mut self, app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, subject: Subject) {
+        let painter = ui.painter().clone();
+        self.brush.begin(ui.ctx());
+        let w = ui.available_width();
+        let col = (w * 0.36).clamp(84.0, 120.0);
+        let strip = strip_of(app, subject);
+        // What sits above the channel: the track, the clip or the notes.
         {
-            app.exec(Command::SetStripWidth {
-                id,
-                width: if is_mono { 1.0 } else { 0.0 },
-            });
-        }
-        let muted = strip.muted;
-        if ui
-            .selectable_label(
-                muted,
-                RichText::new(t("track.mute"))
-                    .text_style(design::caption())
-                    .color(if muted {
-                        theme::p().danger
-                    } else {
-                        theme::p().text_dim
-                    }),
-            )
-            .on_hover_text(t("mixer.mute_strip"))
-            .clicked()
-        {
-            app.exec(Command::SetStripMute { id, muted: !muted });
-        }
-        if ui
-            .selectable_label(
-                strip.soloed,
-                RichText::new(t("track.solo"))
-                    .text_style(design::caption())
-                    .color(if strip.soloed {
-                        theme::p().gold_bright
-                    } else {
-                        theme::p().text_dim
-                    }),
-            )
-            .on_hover_text(t("mixer.solo_strip"))
-            .clicked()
-        {
-            app.toggle_strip_solo(id);
-        }
-        if ui
-            .selectable_label(
-                strip.swap_channels,
-                RichText::new(t("mixer.swap"))
-                    .text_style(design::caption())
-                    .color(if strip.swap_channels {
-                        theme::p().gold_bright
-                    } else {
-                        theme::p().text_dim
-                    }),
-            )
-            .on_hover_text(t("mixer.swap_tip"))
-            .clicked()
-        {
-            app.exec(Command::SetStripSwapChannels {
-                id,
-                swap: !strip.swap_channels,
-            });
-        }
-    });
-    eq_section(app, ui, &strip);
-    sends_section(app, ui, &strip);
-    ui.add_space(space::S2);
-    effects(app, ui, &strip);
-}
-
-/// The strip's three-band EQ: the response drawn, then each band's frequency, gain and
-/// Q. The curve is what the ear will meet; the numbers are how it is set exactly.
-fn eq_section(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
-    let id = strip.id;
-    ui.horizontal(|ui| {
-        section(ui, "inspector.eq");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if !strip.eq.is_flat() && ui.small_button(t("inspector.eq_reset")).clicked() {
-                let commands = (0..3u8)
-                    .map(|band| Command::SetStripEq {
-                        id,
-                        band,
-                        field: EqField::Gain,
-                        value: 0.0,
-                    })
-                    .collect();
-                app.exec(Command::Batch {
-                    label_key: "cmd.set_strip_eq".into(),
-                    commands,
-                });
+            let mut sh = self.sheet(ui, s, col);
+            match subject {
+                Subject::Track(t) => track::rows(&mut sh, app, t),
+                Subject::Clip(t, c) => track::clip(&mut sh, app, t, c),
+                Subject::Notes(t, c) => track::notes(&mut sh, app, t, c),
+                _ => {}
             }
-        });
-    });
-    eq_curve(ui, &strip.eq);
-    let names = [
-        "inspector.eq_band_low",
-        "inspector.eq_band_mid",
-        "inspector.eq_band_high",
-    ];
-    for (b, band) in strip.eq.bands.iter().enumerate() {
-        ui.label(
-            RichText::new(t(names[b]))
-                .text_style(design::caption())
-                .color(if band.gain_db != 0.0 {
-                    theme::p().gold_bright
-                } else {
-                    theme::p().text_dim
+        }
+        self.brush.flush(&painter);
+        if let Subject::Track(t) = subject {
+            // The instrument's section may hold the instrument editor's own widgets:
+            // it flushes the brush around them so they paint under nothing of ours.
+            track::instrument(self, app, ui, s, col, t);
+        }
+        self.brush.begin(ui.ctx());
+        let mut chan = std::mem::take(&mut self.chan);
+        {
+            let mut sh = self.sheet(ui, s, col);
+            channel::show(&mut sh, &mut chan, app, subject, strip);
+            sh.ui.add_space(s.d(10.0));
+        }
+        self.chan = chan;
+        self.brush.flush(&painter);
+    }
+
+    /// The panel's left edge: drag to resize (220–420, snapping at 280), right-click to
+    /// reset, double-click to collapse.
+    fn edge(&mut self, ui: &mut egui::Ui, rect: Rect, s: &Style) {
+        let grip = Rect::from_min_max(rect.min, pos2(rect.left() + s.s(5.0), rect.bottom()));
+        let r = ui.interact(grip, Id::new("inspector-edge"), Sense::click_and_drag());
+        if r.drag_started() {
+            ui.data_mut(|d| d.insert_temp(Id::new("inspector-edge-raw"), self.width));
+        }
+        if r.dragged() {
+            // The raw width follows the pointer; the snap applies to what is shown, so
+            // a drag passes through 280 instead of sticking to it.
+            let dx = r.drag_delta().x;
+            let width = self.width;
+            let raw = ui.data_mut(|d| {
+                let v = d.get_temp_mut_or_insert_with(Id::new("inspector-edge-raw"), || width);
+                *v -= dx;
+                *v
+            });
+            self.set_width(raw);
+        }
+        if r.secondary_clicked() {
+            self.width = WIDTH;
+        }
+        if r.double_clicked() {
+            self.collapsed = true;
+        }
+        if r.hovered() || r.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            let name = self.fmt.tr("inspector.edge_tip");
+            hint::set_text(ui.ctx(), name, "", Caps::NONE);
+        }
+        let st = State::of(&r, false);
+        let line = if st.hovered || st.active {
+            s.t.focus
+        } else {
+            shade(s.t.panel, -0.16)
+        };
+        let px = self.brush.px();
+        self.brush
+            .vline(rect.left() + px * 0.5, rect.top(), rect.bottom(), px, line);
+    }
+
+    /// The title row: ▸ (the panel's menu), "Mixer – Keys" with the context dimmed, and a
+    /// chevron that collapses the panel to its rail.
+    fn title(
+        &mut self,
+        app: &CantusApp,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        s: &Style,
+        subject: Subject,
+    ) {
+        let b = &mut self.brush;
+        let t = &s.t;
+        b.register(
+            rect,
+            "title_row",
+            &[
+                crate::kit::Tok::Panel,
+                crate::kit::Tok::Text,
+                crate::kit::Tok::TextDim,
+            ],
+            &[],
+        );
+        b.rect(
+            b.snap_rect(rect),
+            Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.01)),
+        );
+        b.hline(
+            rect.left(),
+            rect.right(),
+            rect.bottom() - b.px() * 0.5,
+            b.px(),
+            shade(t.panel, -0.15),
+        );
+        let menu = Rect::from_center_size(
+            pos2(rect.left() + s.s(14.0), rect.center().y),
+            Vec2::splat(s.s(20.0)),
+        );
+        let mr = ui.interact(menu, Id::new("inspector-title-menu"), Sense::click());
+        glyph::paint(
+            b,
+            menu.shrink(s.s(4.0)),
+            Glyph::Menu,
+            if mr.hovered() { t.text } else { t.text_dim },
+        );
+        if mr.clicked() {
+            self.menu = match self.menu {
+                Some(m) if m.id == MenuId::Panel => None,
+                _ => Some(MenuOpen {
+                    id: MenuId::Panel,
+                    anchor: menu,
                 }),
+            };
+        }
+        let fold = Rect::from_center_size(
+            pos2(rect.right() - s.s(14.0), rect.center().y),
+            Vec2::splat(s.s(20.0)),
         );
-        knob_row(ui, |ui| {
-            eq_slider(app, ui, id, b as u8, EqField::Freq, band.freq_hz);
-            eq_slider(app, ui, id, b as u8, EqField::Gain, band.gain_db);
-            eq_slider(app, ui, id, b as u8, EqField::Q, band.q);
-        });
+        let fr = ui.interact(fold, Id::new("inspector-title-fold"), Sense::click());
+        glyph::paint(
+            b,
+            fold.shrink(s.s(5.0)),
+            Glyph::Next,
+            if fr.hovered() { t.text } else { t.text_dim },
+        );
+        if fr.hovered() {
+            let name = self.fmt.tr("inspector.collapse");
+            hint::set_text(ui.ctx(), name, "", Caps::NONE);
+        }
+        if fr.clicked() {
+            self.collapsed = true;
+        }
+        let area = Rect::from_min_max(
+            pos2(menu.right() + s.s(4.0), rect.top()),
+            pos2(fold.left() - s.s(4.0), rect.bottom()),
+        );
+        let ctx_key = context_key(subject);
+        let name = subject_name(&mut self.fmt, app, subject);
+        let ctx_t = Text::key(ctx_key, Role::Title, t.text_dim).align(Align2::LEFT_CENTER);
+        let cw = text::measure(b.ctx(), &ctx_t, s.tk())
+            .x
+            .min(area.width() * 0.45);
+        let _ = text::paint(
+            b,
+            Rect::from_min_size(area.min, Vec2::new(cw + 1.0, area.height())),
+            &ctx_t,
+            s.tk(),
+        );
+        let dash = Text::new("\u{2013}", Role::Title, t.text_dim).align(Align2::CENTER_CENTER);
+        let dx = area.left() + cw + s.s(4.0);
+        let _ = text::paint(
+            b,
+            Rect::from_min_size(pos2(dx, area.top()), Vec2::new(s.s(8.0), area.height())),
+            &dash,
+            s.tk(),
+        );
+        let nt = Text::new(name, Role::Title, t.text)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::Middle));
+        let _ = text::paint(
+            b,
+            Rect::from_min_max(pos2(dx + s.s(12.0), area.top()), area.max),
+            &nt,
+            s.tk(),
+        );
+    }
+
+    /// The collapsed panel: a 24-pt rail with the chevron that opens it and the subject's
+    /// name on its side. A click anywhere on it opens the panel again.
+    fn rail(
+        &mut self,
+        app: &CantusApp,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        s: &Style,
+        subject: Subject,
+    ) {
+        let r = ui.interact(rect, Id::new("inspector-rail"), Sense::click());
+        let b = &mut self.brush;
+        let t = &s.t;
+        b.register(
+            rect,
+            "rail",
+            &[crate::kit::Tok::Panel, crate::kit::Tok::Text],
+            &[],
+        );
+        b.rect(
+            rect,
+            Fill::Solid(if r.hovered() {
+                shade(t.panel, 0.03)
+            } else {
+                t.panel
+            }),
+        );
+        b.vline(
+            rect.left() + b.px() * 0.5,
+            rect.top(),
+            rect.bottom(),
+            b.px(),
+            shade(t.panel, -0.16),
+        );
+        let chev = Rect::from_center_size(
+            pos2(rect.center().x, rect.top() + s.s(14.0)),
+            Vec2::splat(s.s(12.0)),
+        );
+        glyph::paint(
+            b,
+            chev,
+            Glyph::Prev,
+            if r.hovered() { t.text } else { t.text_dim },
+        );
+        let name = subject_name(&mut self.fmt, app, subject);
+        let label = Rect::from_min_max(
+            pos2(rect.left(), chev.bottom() + s.s(8.0)),
+            pos2(rect.right(), rect.bottom() - s.s(8.0)),
+        );
+        let nt = Text::new(name, Role::Label, t.text_dim)
+            .align(Align2::CENTER_TOP)
+            .policy(Policy::Rotate90(Elide::End));
+        let _ = text::paint(b, label, &nt, s.tk());
+        if r.hovered() {
+            let name = self.fmt.tr("inspector.expand");
+            hint::set_text(ui.ctx(), name, "", Caps::NONE);
+        }
+        if r.clicked() {
+            self.collapsed = false;
+        }
     }
 }
 
-fn eq_slider(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: StripId,
-    band: u8,
-    field: EqField,
-    current: f32,
-) {
-    let (min, max, label, unit, log, default) = match field {
-        EqField::Freq => (
-            EQ_MIN_HZ,
-            EQ_MAX_HZ,
-            "inspector.eq_freq",
-            "Hz",
-            true,
-            StripEq::default().bands[band as usize].freq_hz,
-        ),
-        EqField::Gain => (
-            -EQ_MAX_GAIN_DB,
-            EQ_MAX_GAIN_DB,
-            "inspector.eq_gain",
-            "dB",
-            false,
-            0.0,
-        ),
-        EqField::Q => (EQ_MIN_Q, EQ_MAX_Q, "inspector.eq_q", "", true, 0.71),
-    };
-    let mut v = current;
-    let r = ui.add(
-        Knob::new(&mut v, min..=max, default)
-            .log(log)
-            .unit(unit)
-            .label(t(label)),
-    );
-    if r.changed() {
-        app.exec_merging(
-            Command::SetStripEq {
-                id,
-                band,
-                field,
-                value: v,
-            },
-            MergeKey::of(&("seq", id.0, band, field as u8)),
-        );
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
+/// The dimmed first half of the title: which kind of thing is shown.
+fn context_key(s: Subject) -> &'static str {
+    match s {
+        Subject::Strip(_) | Subject::Master => "kit.mixer.title",
+        Subject::Track(_) => "inspector.ctx.track",
+        Subject::Clip(..) => "inspector.ctx.clip",
+        Subject::Notes(..) => "inspector.ctx.notes",
     }
 }
 
-/// The EQ's magnitude response, 20 Hz to 20 kHz on a log axis, ±18 dB, with a datum at
-/// 0 dB and a mark at each band's frequency. Drawn from the same coefficients the audio
-/// thread runs (`cantus_dsp::ChannelEq`), so the picture cannot disagree with the sound.
-pub fn eq_curve(ui: &mut egui::Ui, eq: &StripEq) {
-    let pal = theme::p();
-    let width = ui.available_width() - space::S2;
-    let (rect, _) = ui.allocate_exact_size(vec2(width, space::GRID * 14.0), Sense::hover());
-    let p = ui.painter();
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let sr = 48_000.0;
-    let mut dsp = cantus_dsp::ChannelEq::default();
-    for (i, b) in eq.bands.iter().enumerate() {
-        dsp.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
+/// The subject's name: a strip's own, else the first track feeding it, else its number.
+fn subject_name<'f>(fmt: &'f mut Fmt, app: &CantusApp, s: Subject) -> &'f str {
+    let p = app.project();
+    let stamp = app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60);
+    let key = cache::key(("insp-subject", s));
+    match s {
+        Subject::Strip(id) => fmt.get(key, stamp, |b| strip_label(app, id, b)),
+        Subject::Track(t) => fmt.get(key, stamp, |b| {
+            if let Some(t) = p.track(t) {
+                b.push_str(&t.name)
+            }
+        }),
+        Subject::Clip(t, c) | Subject::Notes(t, c) => fmt.get(key, stamp, |b| {
+            if let Some(c) = p.track(t).and_then(|t| t.clip(c)) {
+                b.push_str(&c.name)
+            }
+        }),
+        Subject::Master => fmt.get(key, stamp, |b| b.push_str(&crate::i18n::t("mixer.master"))),
     }
-    let x_of = |hz: f32| {
-        let f = (hz.max(EQ_MIN_HZ) / EQ_MIN_HZ).ln() / (EQ_MAX_HZ / EQ_MIN_HZ).ln();
-        rect.left() + f * rect.width()
+}
+
+/// How a strip is named: its own name, else the first track feeding it, else "Strip n".
+pub(crate) fn strip_label(app: &CantusApp, id: StripId, b: &mut String) {
+    let p = app.project();
+    let Some(strip) = p.strip(id) else {
+        return;
     };
-    let y_of =
-        |db: f32| rect.center().y - (db / EQ_MAX_GAIN_DB).clamp(-1.0, 1.0) * rect.height() * 0.5;
-    // Datum and decade lines.
-    p.hline(rect.x_range(), y_of(0.0), Stroke::new(1.0, pal.grid_strong));
-    for hz in [100.0, 1_000.0, 10_000.0] {
-        p.vline(x_of(hz), rect.y_range(), Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(x_of(hz) + 2.0, rect.bottom() - 1.0),
-            Align2::LEFT_BOTTOM,
-            crate::views::mixer::hz_text(hz),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-    }
-    let n = 96;
-    let points: Vec<egui::Pos2> = (0..=n)
-        .map(|i| {
-            let f = i as f32 / n as f32;
-            let hz = EQ_MIN_HZ * (EQ_MAX_HZ / EQ_MIN_HZ).powf(f);
-            pos2(x_of(hz), y_of(dsp.magnitude_db(sr, hz)))
-        })
-        .collect();
-    let tone = if eq.is_flat() {
-        pal.text_dim
+    if !strip.name.is_empty() {
+        b.push_str(&strip.name);
+    } else if let Some(t) = p.tracks_on_strip(id).next() {
+        b.push_str(&t.name);
     } else {
-        pal.gold_bright
-    };
-    p.add(egui::Shape::line(points, Stroke::new(1.5, tone)));
-    for b in &eq.bands {
-        let c = pos2(x_of(b.freq_hz), y_of(b.gain_db));
-        p.circle_filled(c, 3.0, tone);
+        let n = p.strip_number(id).unwrap_or(0);
+        b.push_str(&crate::i18n::tf("inspector.strip_n", &[("n", &n)]));
     }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
 }
 
-/// The strip's sends, with room for a level slider each; the mixer has the same rows in
-/// a narrower form.
-fn sends_section(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
-    let id = strip.id;
-    ui.horizontal(|ui| {
-        section(ui, "inspector.sends");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let targets: Vec<(StripId, usize, String)> = app
-                .project()
-                .strips
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| {
-                    s.id != id
-                        && strip.send_to(s.id).is_none()
-                        && !app.project().routing_would_cycle(id, Some(s.id))
+/// Run what the rows asked for.
+fn apply(app: &mut CantusApp, a: Act) {
+    match a {
+        Act::Exec(c) => {
+            app.exec(c);
+        }
+        Act::Merge(c, k) => {
+            app.exec_merging(c, k);
+        }
+        Act::EndGesture => app.end_gesture(),
+        Act::StripGain(id, db) => app.set_strip_gain(id, db),
+        Act::ToggleSolo(id) => app.toggle_strip_solo(id),
+        Act::SelectTrack(t) => app.select_track(t),
+        Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
+        Act::OpenInstrument(t) => app.open_inst_editor(t),
+        Act::OpenPulsus(t, pad) => {
+            app.pulsus.selected = Some(pad);
+            crate::views::pulsus_editor::open(app, t);
+        }
+        Act::SelectPad(i) => app.rack.selected_pad = i,
+        Act::LoadSample(t, pad) => app.load_pad_sample(t, pad),
+        Act::RemovePad(t, pad) => app.remove_pad(t, pad),
+        Act::Flat(id) => {
+            let commands = (0..3u8)
+                .map(|band| Command::SetStripEq {
+                    id,
+                    band,
+                    field: cantus_core::EqField::Gain,
+                    value: 0.0,
                 })
-                .map(|(i, s)| (s.id, i + 1, s.name.clone()))
                 .collect();
-            ui.menu_button(t("inspector.send_add"), |ui| {
-                if targets.is_empty() {
-                    ui.label(t("mixer.send_none"));
-                }
-                for (sid, n, name) in &targets {
-                    let text = if name.is_empty() {
-                        tf("mixer.send_to", &[("n", n)])
-                    } else {
-                        format!("{} · {name}", tf("mixer.send_to", &[("n", n)]))
-                    };
-                    if ui.button(text).clicked() {
-                        app.set_strip_send(id, Send::new(*sid));
-                        app.end_gesture();
-                        ui.close();
-                    }
-                }
-            })
-            .response
-            .on_hover_text(t("mixer.send_add"));
-        });
+            app.exec(Command::Batch {
+                label_key: "cmd.set_strip_eq".into(),
+                commands,
+            });
+        }
+    }
+}
+
+/// Which strip a track feeds, as a menu field (the channel rack's row uses it too).
+pub fn route_picker(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, current: Option<StripId>) {
+    menus::route_picker(app, ui, id, current);
+}
+
+/// The strip EQ's picture for another view: the same display the inspector draws.
+pub fn eq_curve(ui: &mut egui::Ui, eq: &cantus_core::StripEq) {
+    let w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 112.0), Sense::hover());
+    let s = Style::current().function(crate::kit::Function::Tone);
+    let mut curve = eq::EqCurve::default();
+    crate::kit::with_brush(ui.painter(), |b| {
+        eq::eq_display(b, rect, &s, eq, &mut curve, None, None)
     });
-    if strip.sends.is_empty() {
-        ui.label(
-            RichText::new(t("inspector.sends_none"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-    }
-    for send in &strip.sends {
-        let Some(n) = app.project().strip_number(send.to) else {
-            continue;
-        };
-        let name = app
-            .project()
-            .strip(send.to)
-            .map(|s| s.name.clone())
-            .unwrap_or_default();
-        Elevation::Card.frame(&theme::p()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let mut on = send.enabled;
-                if ui.checkbox(&mut on, "").changed() {
-                    app.set_strip_send(
-                        id,
-                        Send {
-                            enabled: on,
-                            ..*send
-                        },
-                    );
-                    app.end_gesture();
-                }
-                let label = if name.is_empty() {
-                    tf("mixer.send_to", &[("n", &n)])
-                } else {
-                    format!("{} · {name}", tf("mixer.send_to", &[("n", &n)]))
-                };
-                ui.label(RichText::new(label).text_style(design::strong()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button(t("effect.remove_short"))
-                        .on_hover_text(t("mixer.send_remove"))
-                        .clicked()
-                    {
-                        app.remove_strip_send(id, send.to);
-                    }
-                });
-            });
-            let mut level = send.level;
-            let r = ui.add(
-                Knob::new(&mut level, 0.0..=1.0, 1.0)
-                    .unit("%")
-                    .label(t("track.gain")),
-            );
-            if r.changed() {
-                app.set_strip_send(id, Send { level, ..*send });
-            }
-            if r.drag_stopped() || r.double_clicked() {
-                app.end_gesture();
-            }
-        });
-    }
-}
-
-/// A panel heading: the accent colour carries the hierarchy, the semibold face carries
-/// the weight, so neither has to shout.
-fn heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new(text).heading().color(theme::p().gold));
-}
-
-/// A group label inside a panel — one step quieter than a heading.
-fn section(ui: &mut egui::Ui, key: &str) {
-    ui.add_space(space::S2);
-    ui.label(
-        RichText::new(t(key).to_uppercase())
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
-    );
-}
-
-fn wave_combo(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: TrackId,
-    param: FirmusParam,
-    current: Waveform,
-) {
-    ui.horizontal(|ui| {
-        ui.label(t(param.info().label_key));
-        egui::ComboBox::from_id_salt(("wave", id.0, param as u8))
-            .selected_text(t(current.label_key()))
-            .show_ui(ui, |ui| {
-                for w in Waveform::ALL {
-                    if ui
-                        .selectable_label(w == current, t(w.label_key()))
-                        .clicked()
-                        && w != current
-                    {
-                        app.exec(Command::SetInstrumentParam {
-                            track: id,
-                            param: param.into(),
-                            value: w.index() as f32,
-                        });
-                    }
-                }
-            });
-    });
-}
-
-fn param_slider(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: TrackId,
-    param: FirmusParam,
-    current: f32,
-) {
-    let info = param.info();
-    let mut v = current;
-    let r = ui.add(
-        Knob::new(&mut v, info.min..=info.max, info.default)
-            .log(info.logarithmic)
-            .stepped(info.stepped)
-            .unit(info.unit)
-            .label(t(info.label_key)),
-    );
-    if r.changed() {
-        app.exec_merging(
-            Command::SetInstrumentParam {
-                track: id,
-                param: param.into(),
-                value: v,
-            },
-            MergeKey::of(&("param", id.0, param as u8)),
-        );
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
-    }
-}
-
-fn effects(app: &mut CantusApp, ui: &mut egui::Ui, strip: &MixerStrip) {
-    let id = strip.id;
-    let slots: &[EffectSlot] = &strip.effects;
-    ui.horizontal(|ui| {
-        heading(ui, &t("inspector.effects"));
-        ui.label(
-            RichText::new(tf(
-                "inspector.effects_count",
-                &[("n", &slots.len()), ("max", &MAX_INSERTS)],
-            ))
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let full = slots.len() >= MAX_INSERTS;
-            ui.add_enabled_ui(!full, |ui| {
-                ui.menu_button(t("effect.add"), |ui| {
-                    for kind in EffectKind::ALL {
-                        if ui.button(t(kind.name_key())).clicked() {
-                            ui.close();
-                            app.add_effect(id, kind);
-                        }
-                    }
-                    // Plug-ins made to the market's standards (ADR 0019).
-                    crate::views::plugins::insert_menu(app, ui, id);
-                })
-                .response
-                .on_disabled_hover_text(t("effect.full"));
-            });
-            if !strip.fx_enabled {
-                ui.label(
-                    RichText::new(t("mixer.fx_off"))
-                        .text_style(design::caption())
-                        .color(theme::p().danger),
-                );
-            }
-        });
-    });
-    let n = slots.len();
-    for (i, slot) in slots.iter().enumerate() {
-        Elevation::Card.frame(&theme::p()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let mut on = !slot.bypass;
-                if ui
-                    .checkbox(&mut on, "")
-                    .on_hover_text(t("effect.bypass"))
-                    .changed()
-                {
-                    app.exec(Command::SetEffectBypass {
-                        strip: id,
-                        effect: slot.id,
-                        bypass: !on,
-                    });
-                }
-                if slot.spec.kind == EffectKind::External {
-                    crate::views::plugins::slot_title(app, ui, slot);
-                } else {
-                    ui.label(
-                        RichText::new(t(slot.spec.kind.name_key())).text_style(design::strong()),
-                    );
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button(t("effect.remove_short"))
-                        .on_hover_text(t("effect.remove"))
-                        .clicked()
-                    {
-                        app.remove_effect(id, slot.id);
-                    }
-                    if ui
-                        .add_enabled(i + 1 < n, egui::Button::new(t("effect.down_short")).small())
-                        .on_hover_text(t("effect.down"))
-                        .clicked()
-                    {
-                        app.exec(Command::MoveEffect {
-                            strip: id,
-                            effect: slot.id,
-                            index: i + 1,
-                        });
-                    }
-                    if ui
-                        .add_enabled(i > 0, egui::Button::new(t("effect.up_short")).small())
-                        .on_hover_text(t("effect.up"))
-                        .clicked()
-                    {
-                        app.exec(Command::MoveEffect {
-                            strip: id,
-                            effect: slot.id,
-                            index: i - 1,
-                        });
-                    }
-                });
-            });
-            // An effect with an editor of its own shows what it does, and opens the editor;
-            // its parameters are not a row of knobs here.
-            if slot.spec.kind.has_editor() {
-                let preview = match slot.spec.kind {
-                    EffectKind::Compressor => crate::views::comp_editor::mini_curve(ui, &slot.spec),
-                    EffectKind::Eq => crate::views::eq_editor::mini_curve(ui, &slot.spec),
-                    EffectKind::External => crate::views::plugins::preview(app, ui, slot),
-                    _ => crate::views::fx::preview(ui, &slot.spec),
-                };
-                if preview.clicked() || ui.button(t("eq.open")).clicked() {
-                    app.open_effect_editor(id, slot.id);
-                }
-            }
-            knob_row(ui, |ui| {
-                // The slot's own dry/wet, outside the effect: FL's knob beside every slot.
-                let mut mix = slot.mix;
-                let m = ui.add(
-                    Knob::new(&mut mix, 0.0..=1.0, 1.0)
-                        .unit("%")
-                        .label(t("effect.mix")),
-                );
-                if m.changed() {
-                    app.exec_merging(
-                        Command::SetEffectMix {
-                            strip: id,
-                            effect: slot.id,
-                            mix,
-                        },
-                        MergeKey::of(&("fxmix", slot.id.0)),
-                    );
-                }
-                if m.drag_stopped() || m.double_clicked() {
-                    app.end_gesture();
-                }
-                let own_editor = slot.spec.kind.has_editor();
-                for info in slot.spec.kind.params().iter().filter(|_| !own_editor) {
-                    let mut v = slot.spec.get(info.key);
-                    let r = ui.add(
-                        Knob::new(&mut v, info.min..=info.max, info.default)
-                            .log(info.logarithmic)
-                            .stepped(info.stepped)
-                            .unit(if info.key == "mix" { "%" } else { info.unit })
-                            .label(t(info.label_key)),
-                    );
-                    if r.changed() {
-                        app.exec_merging(
-                            Command::SetEffectParam {
-                                strip: id,
-                                effect: slot.id,
-                                key: info.key.to_string(),
-                                value: v,
-                            },
-                            MergeKey::of(&("fx", slot.id.0, info.key)),
-                        );
-                    }
-                    if r.drag_stopped() || r.double_clicked() {
-                        app.end_gesture();
-                    }
-                }
-            });
-        });
-    }
-    if slots.is_empty() {
-        ui.label(
-            RichText::new(t("effect.none"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-    }
 }

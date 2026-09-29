@@ -33,6 +33,8 @@ pub enum SampleStatus {
 pub struct SampleCache {
     loaded: HashMap<PathBuf, Arc<SampleData>>,
     failed: HashMap<PathBuf, String>,
+    /// Exemplar's octave mip-maps of loaded files (never evicted either).
+    mips: crate::inst::sampler::MipCache,
 }
 
 impl SampleCache {
@@ -49,7 +51,10 @@ impl SampleCache {
         if let Some(e) = self.failed.get(path) {
             return Err(e.clone());
         }
-        match decode_wav(path) {
+        // AIFF, FLAC and Ogg by extension (Exemplar's decoders); everything else as WAV.
+        let decoded =
+            crate::inst::sampler::decode::decode(path).unwrap_or_else(|| decode_wav(path));
+        match decoded {
             Ok(data) => {
                 let data = Arc::new(data);
                 self.loaded.insert(path.to_path_buf(), data.clone());
@@ -87,16 +92,42 @@ impl SampleCache {
     pub fn attach(&mut self, snapshot: &mut Snapshot) -> Vec<(PathBuf, String)> {
         let mut errors = Vec::new();
         for track in &mut snapshot.tracks {
+            // A native instrument's assets, by key (ADR 0023).
+            track.assets = match track.instrument.native() {
+                Some(n) => {
+                    let mut assets: Vec<_> = n
+                        .assets()
+                        .map(|(key, path)| {
+                            let path = Path::new(path);
+                            let audio = match self.load(path) {
+                                Ok(data) => Some(data),
+                                Err(e) => {
+                                    errors.push((path.to_path_buf(), e));
+                                    None
+                                }
+                            };
+                            (key.to_string(), audio)
+                        })
+                        .collect();
+                    if n.kind == cantus_core::InstrumentKind::Sampler {
+                        crate::inst::sampler::attach_mips(n, &mut assets, &mut self.mips);
+                    }
+                    assets
+                }
+                None => Vec::new(),
+            };
             let Some(kit) = track.instrument.pulsus() else {
                 track.samples.clear();
                 continue;
             };
+            // One per pad, then every pad's layers in pad order (Pulsus II).
             track.samples = kit
                 .pads
                 .iter()
-                .map(|pad| {
-                    let path = pad.sample.as_deref()?;
-                    let path = Path::new(path);
+                .map(|pad| pad.sample.as_deref())
+                .chain(kit.layer_paths().map(Some))
+                .map(|path| {
+                    let path = Path::new(path?);
                     match self.load(path) {
                         Ok(data) => Some(data),
                         Err(e) => {

@@ -215,30 +215,37 @@ so the DAW's editor and its tests (`crates/cantus-ui/tests/fx_*.rs`) are unchang
 the exported build (feature `editor`, on for Porta's bundle) the same function runs in
 a CLAP plug-in window — and in a VST3 `IPlugView` — egui 0.36 through **egui-baseview
 0.7.2** and **baseview 0.3.4** (both MIT OR Apache-2.0, crates.io, OpenGL), as a child
-of the host's `HWND`, sized from the system's DPI (1060 × 720 logical pixels), repainting
+of the host's `HWND`, sized from the system's DPI (the device frame's designed size for the
+kind, in logical pixels — 1060 × 720 before round 18), repainting
 at about 30 frames a second while the meters move. The editor's words follow the same
 language rule as the parameters. Porta's binary grows from about 1 MB to 6.7 MB with it,
 because the editor still lives in `cantus-ui` with the rest of the DAW's interface (step
 5 below).
 
-**The plan for the other six**, in the order the work is smallest:
+**The plan for the other six** (written with Porta), and where it stands after round 18:
 
-1. Terminus, Sibilus, Multiplex and Spatium already sit behind `views::fx`'s frame and
-   use the app for the same handful of things Porta did (`set_*`, `set_*_many`,
-   `end_gesture`, `fx_telemetry`, `fx.pairs`, the project's tempo). Each is the same
-   mechanical change: `app, strip, effect` → `host`, `app.fx.<kind>` → `state`, a
-   `body` adapter, and an `editor` entry. `has_editor` in `cantus-plugins` gains the kind.
-2. Comprimo and Aequalis predate the frame and keep their own windows and larger state
-   (the EQ's analyser, match, collisions against a keyed strip): the same change, plus
-   `FxHost::key_source` for the EQ's key spectrum.
+1. *(Done in round 18.)* Terminus, Sibilus, Multiplex and Spatium moved onto the trait
+   the way Porta did (`app, strip, effect` → `host`, `app.fx.<kind>` → the editor's own
+   state, a `framed` adapter for the DAW and an `editor` entry for any host).
+2. *(Done in round 18.)* Comprimo and Aequalis too, with the few things only the engine
+   reports (the EQ's dynamic deltas, the compressor's meter channel) as provided methods
+   of `FxHost` that a plug-in host may leave empty; what only Cantus can do (a track's
+   notes, another strip's spectrum) goes through `FxHost::daw`, `None` in a plug-in window,
+   where that part is hidden. The seven share one entry, `views::fx::Editor` (`of(kind)`,
+   `show(host, ui)`), and `cantus_plugins::editor::has_editor` reads it.
 3. *(Done with Porta.)* The VST3 view is an `IPlugView` (`vst3/view.rs`) whose
    `attached(parent, "HWND")` opens the same `Editor` with a sink that calls the
    component handler (`beginEdit`/`performEdit`/`endEdit`); a new kind's editor needs
-   nothing here beyond `has_editor`.
-4. What a plug-in host adds: the host's transport (CLAP's transport event, VST3's
-   `ProcessContext`) into `FxHost::transport`; presets and A/B inside the plug-in (the
-   DAW keeps them host-side, ADR 0018; a host does not); resizing (`can_resize`,
-   egui re-lays out) and CLAP's `set_scale`.
+   nothing here.
+4. What a plug-in host adds. *(Done in round 18:)* every editor now draws the device
+   frame of ADR 0024 §8 — its header is the plug-in window's title bar — so presets (the
+   factory's) and A/B live inside the plug-in (`PluginHost` keeps the other side and sends
+   a switch as the standards' gestures), and the bypass lamp drives the standards' bypass
+   parameter; the window opens at the frame's designed size for the kind (1040 × 640 for
+   Aequalis and Multiplex, 1000 × 640 for the others). *(Still to do:)* the host's
+   transport (CLAP's transport event, VST3's `ProcessContext`) into `FxHost::transport`;
+   resizing (`can_resize`, CLAP's `set_scale`) so the frame's size menu can grow the host's
+   window — today it scales the content inside a window of fixed size.
 5. When the editors leave `cantus-ui` for a crate of their own (`cantus-fx-ui`: editors,
    widgets, theme — the other session's standards research proposes the same), the
    exported build stops compiling the rest of the DAW's interface.

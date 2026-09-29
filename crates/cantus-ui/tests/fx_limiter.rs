@@ -50,6 +50,9 @@ fn play_sine(a: &mut CantusApp, dbfs: f32, secs: f32) {
 fn the_editor_paints_its_parts_at_rest() {
     let (mut a, _, _) = with_limiter();
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    // Labels and section names are set in capitals, and a label wider than its cell
+    // takes its short form (the full name is on the help line): "LOOK", "LINK T".
+    let lower = text.to_lowercase();
     for want in [
         "Clean",
         "Punch",
@@ -63,15 +66,15 @@ fn the_editor_paints_its_parts_at_rest() {
         "True peak max",
         "Spotify",
         "gain reduction",
-        "Lookahead",
-        "Link transients",
-        "Link release",
+        "Look",
+        "Link t",
+        "Link r",
         "Dither",
         "1:1",
         "Match",
     ] {
         assert!(
-            text.contains(want),
+            lower.contains(&want.to_lowercase()),
             "the editor never painted {want:?}: {text}"
         );
     }

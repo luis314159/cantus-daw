@@ -92,6 +92,21 @@ pub enum Action {
     ViewPianoRoll,
     ViewChannelRack,
     ViewMixer,
+    /// Show or hide the arrangement (FL's F5).
+    ViewArrangement,
+    /// Show or hide the inspector (I).
+    ToggleInspector,
+    /// Close every floating device window (F12).
+    CloseFloating,
+    /// The interface's zoom: Ctrl +, Ctrl −, Ctrl 0 (ADR 0024 §11).
+    ZoomIn,
+    ZoomOut,
+    ZoomReset,
+    /// "Pick an element": click anything to recolour what it is painted with.
+    PickElement,
+    /// Show or hide the keyboard card of the instrument whose editor is in front (K in the
+    /// device shell; Alt+K from anywhere, so it never takes a note from the typing piano).
+    ToggleDeviceKeyboard,
     // Mixer
     MoveStripLeft,
     MoveStripRight,
@@ -143,7 +158,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 56] = [
+    pub const ALL: [Action; 64] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -195,6 +210,14 @@ impl Action {
         Action::ViewPianoRoll,
         Action::ViewChannelRack,
         Action::ViewMixer,
+        Action::ViewArrangement,
+        Action::ToggleInspector,
+        Action::CloseFloating,
+        Action::ZoomIn,
+        Action::ZoomOut,
+        Action::ZoomReset,
+        Action::PickElement,
+        Action::ToggleDeviceKeyboard,
         Action::MoveStripLeft,
         Action::MoveStripRight,
         Action::ToggleStripSolo,
@@ -256,6 +279,14 @@ impl Action {
             Action::ViewPianoRoll => "view-piano-roll",
             Action::ViewChannelRack => "view-channel-rack",
             Action::ViewMixer => "view-mixer",
+            Action::ViewArrangement => "view-arrangement",
+            Action::ToggleInspector => "toggle-inspector",
+            Action::CloseFloating => "close-floating",
+            Action::ZoomIn => "zoom-in",
+            Action::ZoomOut => "zoom-out",
+            Action::ZoomReset => "zoom-reset",
+            Action::PickElement => "pick-element",
+            Action::ToggleDeviceKeyboard => "toggle-device-keyboard",
             Action::MoveStripLeft => "move-strip-left",
             Action::MoveStripRight => "move-strip-right",
             Action::ToggleStripSolo => "toggle-strip-solo",
@@ -291,7 +322,9 @@ impl Action {
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
             | ToolPlayback => Category::Tools,
-            ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer => Category::View,
+            ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer | ViewArrangement
+            | ToggleInspector | CloseFloating | ZoomIn | ZoomOut | ZoomReset | PickElement
+            | ToggleDeviceKeyboard => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave => Category::Mixer,
         }
@@ -541,9 +574,31 @@ fn common() -> Vec<(Action, Binding)> {
         // modifier match is exact, so `Ctrl+ArrowUp` never fires `TransposeUp`.
         (SelectPrevTrack, Binding::cmd(Key::ArrowUp)),
         (SelectNextTrack, Binding::cmd(Key::ArrowDown)),
+        (ViewArrangement, Binding::key(Key::F5)),
         (ViewChannelRack, Binding::key(Key::F6)),
         (ViewPianoRoll, Binding::key(Key::F7)),
         (ViewMixer, Binding::key(Key::F9)),
+        // The workspace (ADR 0024 §5, §10, §11): I shows and hides the inspector, F12
+        // closes the floating device windows (FL), Ctrl +/−/0 zoom the whole interface,
+        // Ctrl+Shift+I picks an element to recolour (the browser's inspector key).
+        //
+        // Bare letters yield to the typing piano while it plays (`Keymap::pressed`), so
+        // every bare letter here also has a modifier form that always works: Alt+I for
+        // the inspector, Alt+K for an instrument's keyboard card. The piano itself never
+        // reads a key held with a modifier (`KeyboardPiano::poll`).
+        (ToggleInspector, Binding::key(Key::I)),
+        (ToggleInspector, Binding::alt(Key::I)),
+        (ToggleDeviceKeyboard, Binding::alt(Key::K)),
+        (CloseFloating, Binding::key(Key::F12)),
+        (ZoomIn, Binding::cmd(Key::Plus)),
+        (ZoomIn, Binding::cmd(Key::Equals)),
+        (ZoomOut, Binding::cmd(Key::Minus)),
+        (ZoomReset, Binding::cmd(Key::Num0)),
+        (PickElement, Binding::cmd_shift(Key::I)),
+        // M and S act on the selected strip (FL's mixer keys); they are bare letters, so
+        // the typing piano takes them while it plays.
+        (ToggleStripMute, Binding::key(Key::M)),
+        (ToggleStripSolo, Binding::key(Key::S)),
         (NudgeLeft, Binding::key(Key::ArrowLeft)),
         (NudgeRight, Binding::key(Key::ArrowRight)),
         (NudgeLeftBar, Binding::shift(Key::ArrowLeft)),
@@ -804,10 +859,33 @@ impl Keymap {
                 }
             }
         }
-        Ok(Keymap {
+        let mut map = Keymap {
             preset: file.preset.unwrap_or_else(|| CUSTOM.to_string()),
             bindings,
-        })
+        };
+        if file.version.unwrap_or(1) < 2 {
+            map.fill_in(&NEW_IN_V2);
+        }
+        Ok(map)
+    }
+
+    /// Give `actions` the bindings their preset has for them (Cantus's for a custom map),
+    /// wherever the key is not taken. Leaves the preset name alone.
+    fn fill_in(&mut self, actions: &[Action]) {
+        let source = Preset::from_id(&self.preset)
+            .unwrap_or(Preset::Cantus)
+            .keymap();
+        for action in actions {
+            if self.bindings.contains_key(action) {
+                continue;
+            }
+            for b in source.bindings_for(*action) {
+                let taken = self.bindings.values().any(|list| list.contains(b));
+                if !taken {
+                    self.bindings.entry(*action).or_default().push(*b);
+                }
+            }
+        }
     }
 
     pub fn to_toml(&self) -> String {
@@ -816,7 +894,10 @@ impl Keymap {
         out.push_str("# A shortcut is a key plus modifiers, e.g. \"Ctrl+Shift+S\" or \"Space\".\n");
         out.push_str("# Modifiers are Ctrl, Shift and Alt; on macOS Ctrl means Cmd.\n");
         out.push_str("# An action may have several shortcuts. Delete a line to unbind it.\n\n");
-        out.push_str(&format!("preset = {:?}\n\n[bindings]\n", self.preset));
+        out.push_str(&format!(
+            "preset = {:?}\nversion = {FILE_VERSION}\n\n[bindings]\n",
+            self.preset
+        ));
         // Grouped by category, in the order the shortcuts dialog shows them, so a hand
         // edit lands near the shortcuts it belongs with.
         for category in Category::ALL {
@@ -847,9 +928,31 @@ pub const CUSTOM: &str = "custom";
 #[derive(Serialize, Deserialize)]
 struct KeymapFile {
     preset: Option<String>,
+    /// Absent in files written before round 18.
+    #[serde(default)]
+    version: Option<u32>,
     #[serde(default)]
     bindings: BTreeMap<String, Vec<String>>,
 }
+
+/// The file format. Version 2 added the workspace's actions (round 18).
+pub const FILE_VERSION: u32 = 2;
+
+/// Actions added in version 2: a file written before them gets the preset's bindings for
+/// them, where those keys are still free — an old file never mentions them, and "no line"
+/// would otherwise mean "unbound" for good.
+const NEW_IN_V2: [Action; 10] = [
+    Action::ViewArrangement,
+    Action::ToggleInspector,
+    Action::CloseFloating,
+    Action::ZoomIn,
+    Action::ZoomOut,
+    Action::ZoomReset,
+    Action::PickElement,
+    Action::ToggleDeviceKeyboard,
+    Action::ToggleStripMute,
+    Action::ToggleStripSolo,
+];
 
 fn is_letter(key: Key) -> bool {
     matches!(
@@ -1078,6 +1181,82 @@ mod tests {
             Keymap::default(),
             "a broken file is fine"
         );
+    }
+
+    #[test]
+    fn a_file_from_before_the_workspace_gets_its_keys_where_they_are_free() {
+        // Round 17's file: no version, no F5, and M given to something else by the user.
+        let map = Keymap::from_toml(
+            r#"
+            preset = "cantus"
+            [bindings]
+            play-pause = ["Space"]
+            panic = ["M"]
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            map.bindings_for(Action::ViewArrangement),
+            [Binding::key(Key::F5)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ToggleInspector),
+            [Binding::key(Key::I), Binding::alt(Key::I)]
+        );
+        assert!(
+            map.bindings_for(Action::ToggleStripMute).is_empty(),
+            "the user's M is theirs"
+        );
+        assert!(map.conflicts().is_empty());
+        // A file of this version is taken as it is: a missing line means unbound.
+        let now = Keymap::from_toml(&map.to_toml()).unwrap();
+        assert_eq!(now, map);
+        let mut edited = map.clone();
+        edited.bindings.remove(&Action::ViewArrangement);
+        let back = Keymap::from_toml(&edited.to_toml()).unwrap();
+        assert!(back.bindings_for(Action::ViewArrangement).is_empty());
+    }
+
+    #[test]
+    fn the_workspace_keys_never_take_a_note_from_the_typing_piano() {
+        // The piano plays the bare letters (and ; and '): a workspace action on a bare
+        // letter must be suppressed while it plays, and must also have a form with a
+        // modifier, which the piano never reads.
+        use Action::*;
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            for action in [
+                ViewArrangement,
+                ViewChannelRack,
+                ViewPianoRoll,
+                ViewMixer,
+                ToggleInspector,
+                CloseFloating,
+                ZoomIn,
+                ZoomOut,
+                ZoomReset,
+                PickElement,
+                ToggleDeviceKeyboard,
+            ] {
+                let list = map.bindings_for(action);
+                assert!(
+                    !list.is_empty(),
+                    "{} leaves {action:?} unbound",
+                    preset.id()
+                );
+                assert!(
+                    list.iter().any(|b| !(b.is_bare() && is_letter(b.key))),
+                    "{} gives {action:?} only bare letters, which the piano takes",
+                    preset.id()
+                );
+                for b in list {
+                    assert!(
+                        !matches!(b.key, Key::Semicolon | Key::Quote) || !b.is_bare(),
+                        "{action:?} on a piano key"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

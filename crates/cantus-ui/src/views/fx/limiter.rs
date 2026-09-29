@@ -19,25 +19,40 @@
 //!   listening). Gain reduction has a lane and a scale of its own, so it is never lost
 //!   behind the waveform.
 //! - **Delivery profiles** set the target and the ceiling together and say their rule in a
-//!   sentence; the verdict is written, not only coloured.
+//!   sentence; the verdict is written, with a lamp or a warning shape, not only coloured.
 //! - **Styles say what they are** (`style_words`), and the latency — which the benchmark
-//!   hides — is always on screen, with a warning when the attack is short enough to clip.
+//!   hides — is always on screen (the footer's chip), with a warning when the attack is
+//!   short enough to clip.
+//!
+//! The editor runs on any [`FxHost`] (ADR 0020): in Cantus the song view knows the
+//! arrangement's time selection and a peak label moves the playhead; in a plug-in window
+//! the history is stamped with what the host's transport says, and those two are not
+//! offered.
 
+use super::canvas::{self, Ink};
+use super::controls::{self, Size};
+use super::frame;
+use super::host::{DawHost, FxHost, KeySource, KeyTarget};
 use super::FactoryPreset;
 use crate::app::CantusApp;
-use crate::design::{self, space};
+use crate::design::space;
 use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
-use cantus_core::{Command, EffectId, EffectSlot, EffectSpec, StripId, Ticks, PPQ};
+use crate::kit::band;
+use crate::kit::hint::{self, Caps};
+use crate::kit::shell::Grid;
+use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
+use crate::kit::{well, with_brush, Brush, Fill, Function, State as KitState, Style};
+use cantus_core::{Command, EffectId, EffectKind, EffectSpec, StripId, Ticks, PPQ};
 use cantus_dsp::terminus::loudness::{energy_of, ColumnLoudness, Histogram};
 use cantus_dsp::terminus::{
     latency_of, transfer_db, Column, LimSettings, LimStyle, Monitor, Terminus, DITHER_BITS,
     T_COLUMNS, T_GR_L, T_GR_R, T_LATENCY, T_MATCH, T_OUT_L, T_OUT_R, T_RATE, T_SEQ, T_WRAP,
 };
 use cantus_engine::fx::limiter::settings;
-use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, RichText, Sense, Shape, Stroke, StrokeKind};
+use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
+use std::fmt::Write as _;
 
 /// Columns of live history kept: a minute.
 const LIVE_MAX: usize = 6_000;
@@ -129,6 +144,56 @@ enum Grab {
     Pan,
 }
 
+/// A run of pixels [x0, x1) and the history it shows.
+#[derive(Copy, Clone, Debug)]
+struct Strip {
+    x0: f32,
+    x1: f32,
+    col: Col,
+}
+
+/// Words the editor formats only when what they say changes.
+#[derive(Debug, Default)]
+struct Words {
+    /// The style's use and its engine in words: (style, language).
+    style: Option<(usize, crate::i18n::Locale)>,
+    style_use: String,
+    style_engine: String,
+    /// Where the engine's words break onto their second line (per box width).
+    style_split: Option<(u32, usize)>,
+    /// The verdict: what it was worked out from, whether it passes, its words, and where
+    /// its second line starts (per box width).
+    verdict: Option<(VerdictKey, bool)>,
+    verdict_text: String,
+    verdict_split: Option<(u32, usize)>,
+    /// The profile's rule, and where its lines break (per box width).
+    rule: Option<(Option<usize>, crate::i18n::Locale)>,
+    rule_text: String,
+    rule_split: Option<(u32, [usize; 2])>,
+    /// "Dither: 16 bit", "Shaping: Flat": (dither, shape, language).
+    fields: Option<(usize, usize, crate::i18n::Locale)>,
+    dither: String,
+    shape: String,
+    /// "Trigger: Bus 2", per host revision and language.
+    trigger: Option<(u64, crate::i18n::Locale)>,
+    trigger_text: String,
+    /// The key's source as the host said it, per host revision.
+    key: Option<(u64, Option<KeySource>)>,
+    /// The hover readout of the history: which pixel run, and its words.
+    hover: Option<(u32, u32, crate::i18n::Locale)>,
+    hover_text: String,
+}
+
+/// What a verdict depends on, rounded to what it prints.
+type VerdictKey = (
+    Option<i64>,
+    i32,
+    u32,
+    u32,
+    Option<usize>,
+    crate::i18n::Locale,
+);
+
 /// What the editor remembers between frames.
 #[derive(Debug)]
 pub struct State {
@@ -172,6 +237,16 @@ pub struct State {
     sel_sum: Option<(u64, (i64, i64), Summary)>,
     /// Where the last frame put things, for tests that click and drag.
     pub geometry: Option<Geometry>,
+    /// The device frame: the preset, its lists.
+    pub chrome: frame::Chrome,
+    chips: frame::ChipText,
+    words: Words,
+    /// Scratch kept between frames, so drawing the history allocates nothing: the pixel
+    /// runs, the peak candidates and those labelled, and the points of a line.
+    strips: Vec<Strip>,
+    cands: Vec<(usize, f32)>,
+    peaks: Vec<(usize, f32)>,
+    pts: Vec<Pos2>,
 }
 
 /// Where the display put its handles in the last frame.
@@ -219,6 +294,13 @@ impl Default for State {
             song_sum: None,
             sel_sum: None,
             geometry: None,
+            chrome: frame::Chrome::default(),
+            chips: frame::ChipText::default(),
+            words: Words::default(),
+            strips: Vec::new(),
+            cands: Vec::new(),
+            peaks: Vec::new(),
+            pts: Vec::new(),
         }
     }
 }
@@ -393,6 +475,27 @@ impl State {
         self.sel_sum = Some((self.song_rev, sel, s));
         s
     }
+
+    /// The meters' ballistics for this frame: peaks fall at 20 dB/s, reduction at 30, and
+    /// a held peak lets go after two seconds.
+    fn ballistics(&mut self, tel: &[f32], now: f64, dt: f32) {
+        let outs = [tel[T_OUT_L], tel[T_OUT_R]];
+        let grs = [tel[T_GR_L], tel[T_GR_R]];
+        for ch in 0..2 {
+            self.meter_out[ch] = outs[ch].max(self.meter_out[ch] - 20.0 * dt);
+            self.meter_gr[ch] = grs[ch].max(self.meter_gr[ch] - 30.0 * dt);
+            if outs[ch] >= self.hold[ch].0 || now - self.hold[ch].1 > 2.0 {
+                self.hold[ch] = (outs[ch], now);
+            }
+        }
+    }
+
+    /// The held peaks and maxima start again (a click on the meters).
+    fn reset_holds(&mut self) {
+        self.max_tp = f32::NEG_INFINITY;
+        self.max_gr = 0.0;
+        self.hold = [(-160.0, 0.0); 2];
+    }
 }
 
 // ---- delivery profiles ------------------------------------------------------------------
@@ -447,6 +550,15 @@ pub const PROFILES: [Profile; 5] = [
         tolerance: 2.0,
         streaming: false,
     },
+];
+
+/// Each profile's rule, in a sentence.
+const RULE_KEYS: [&str; 5] = [
+    "lim.profile.spotify_rule",
+    "lim.profile.apple_rule",
+    "lim.profile.youtube_rule",
+    "lim.profile.ebu_rule",
+    "lim.profile.atsc_rule",
 ];
 
 /// The profile a target and ceiling are, if any (the first match: Spotify before YouTube).
@@ -577,6 +689,30 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
 
 // ---- words ----------------------------------------------------------------------------
 
+const STYLE_KEYS: [&str; 5] = [
+    "lim.style.0",
+    "lim.style.1",
+    "lim.style.2",
+    "lim.style.3",
+    "lim.style.4",
+];
+
+const STYLE_USE_KEYS: [&str; 5] = [
+    "lim.style.0_use",
+    "lim.style.1_use",
+    "lim.style.2_use",
+    "lim.style.3_use",
+    "lim.style.4_use",
+];
+
+const MONITOR_KEYS: [&str; 3] = ["lim.monitor.0", "lim.monitor.1", "lim.monitor.2"];
+const MONITOR_TIPS: [&str; 3] = [
+    "lim.monitor.0_tip",
+    "lim.monitor.1_tip",
+    "lim.monitor.2_tip",
+];
+const SHAPE_KEYS: [&str; 3] = ["lim.shape.0", "lim.shape.1", "lim.shape.2"];
+
 /// What a style's engine is, in words — the answer to "what does Loud do?".
 pub fn style_words(style: LimStyle) -> String {
     let s = style.spec();
@@ -619,20 +755,44 @@ pub fn style_words(style: LimStyle) -> String {
     out
 }
 
-fn fmt_db(v: f32) -> String {
-    if v <= -150.0 || !v.is_finite() {
-        "\u{2212}\u{221e}".to_string()
-    } else {
-        format!("{v:+.1}").replace('-', "\u{2212}")
+/// A level with a real minus sign, one decimal: `+7.5`, `−1.0`, `−∞`.
+struct Db(f32);
+
+impl std::fmt::Display for Db {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.0;
+        if !v.is_finite() || v <= -150.0 {
+            f.write_str("\u{2212}\u{221e}")
+        } else if v < -0.049 {
+            write!(f, "\u{2212}{:.1}", -v)
+        } else {
+            write!(f, "+{:.1}", v.abs())
+        }
     }
 }
 
-fn fmt_lufs(v: f64) -> String {
-    if v.is_finite() {
-        format!("{v:.1}").replace('-', "\u{2212}")
-    } else {
-        "\u{2014}".to_string()
+/// A loudness without its unit, one decimal: `−11.2`, or a dash before there is one.
+struct Lufs(f64);
+
+impl std::fmt::Display for Lufs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.0;
+        if !v.is_finite() {
+            f.write_str("\u{2014}")
+        } else if v < -0.049 {
+            write!(f, "\u{2212}{:.1}", -v)
+        } else {
+            write!(f, "{v:.1}")
+        }
     }
+}
+
+fn fmt_db(v: f32) -> String {
+    Db(v).to_string()
+}
+
+fn fmt_lufs(v: f64) -> String {
+    Lufs(v).to_string()
 }
 
 // ---- geometry -------------------------------------------------------------------------
@@ -666,202 +826,320 @@ const LEVEL_TICKS: [f32; 7] = [-3.0, -6.0, -9.0, -12.0, -18.0, -24.0, -30.0];
 /// The reduction lane's lines, dB.
 const GR_TICKS: [f32; 3] = [3.0, 6.0, 9.0];
 
-/// Ruler text on a small plate, so it reads over the history.
-fn plate(
-    p: &egui::Painter,
-    at: Pos2,
-    align: Align2,
-    text: String,
-    color: Color32,
-    bg: Color32,
-) -> Rect {
-    let galley = p.layout_no_wrap(text, design::paint::ruler(), color);
-    let r = align.anchor_size(at, galley.size());
-    let back = r.expand2(vec2(3.0, 1.0));
-    p.rect_filled(back, 2.0, bg);
-    p.galley(r.min, galley, color);
-    back
+/// The history's and the meters' lanes in a display of `rect`: a head strip for the
+/// selectors and numbers, the reduction lane, the levels, the time axis. Both displays
+/// sit in one row, so their lanes line up and the target reads across.
+#[derive(Copy, Clone, Debug)]
+struct Lanes {
+    head: Rect,
+    gr: Rect,
+    levels: Rect,
+    axis: Rect,
 }
 
-/// Translucent fills read differently on white and on ink: lighter on light themes.
-fn fill(c: Color32, dark: bool, amount: f32) -> Color32 {
-    c.gamma_multiply(if dark { amount } else { amount * 0.7 })
+fn lanes(rect: Rect, k: f32) -> Lanes {
+    let head = Rect::from_min_size(rect.min, vec2(rect.width(), 28.0 * k));
+    let axis_h = 16.0 * k;
+    let top = head.bottom();
+    let gr_h = ((rect.bottom() - top - axis_h) * 0.2).round();
+    let gr = Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + gr_h));
+    let levels = Rect::from_min_max(
+        pos2(rect.left(), gr.bottom() + 1.0),
+        pos2(rect.right(), rect.bottom() - axis_h),
+    );
+    let axis = Rect::from_min_max(pos2(rect.left(), levels.bottom()), rect.max);
+    Lanes {
+        head,
+        gr,
+        levels,
+        axis,
+    }
 }
 
-// ---- the body -------------------------------------------------------------------------
+/// Where the song is, for the song view: the playhead, the arrangement's time selection
+/// (Cantus only), the bar and beat, the tempo.
+#[derive(Copy, Clone, Debug)]
+struct SongCtx {
+    playhead: f64,
+    sel: Option<(i64, i64)>,
+    bar: i64,
+    beat: i64,
+    bpm: f64,
+    /// A peak label can move the playhead (Cantus owns the timeline; a plug-in does not).
+    can_seek: bool,
+}
 
-pub fn body(
+fn song_ctx(host: &mut dyn FxHost, st: &State) -> SongCtx {
+    let tr = host.transport();
+    let bpm = tr.ticks_per_second / PPQ as f64 * 60.0;
+    if let Some((app, _, _)) = host.daw() {
+        let ts = app.project().time_signature;
+        return SongCtx {
+            playhead: app.engine.position().0 as f64,
+            sel: app.time_selection.map(|(a, b)| (a.0, b.0)),
+            bar: ts.ticks_per_bar().0.max(1),
+            beat: ts.ticks_per_beat().0.max(1),
+            bpm,
+            can_seek: true,
+        };
+    }
+    SongCtx {
+        playhead: tr.playing_at.unwrap_or(st.last_tick) as f64,
+        sel: None,
+        bar: tr.ticks_per_bar.max(1),
+        beat: (tr.ticks_per_bar / 4).max(1),
+        bpm,
+        can_seek: false,
+    }
+}
+
+// ---- the frame ------------------------------------------------------------------------
+
+/// The meters' display, the loudness card, the output card, at 100 %.
+const METERS_W: f32 = 132.0;
+const LOUD_W: f32 = 276.0;
+const OUT_W: f32 = 448.0;
+/// A boxed line of words.
+const LINE: f32 = 16.0;
+/// A label | value row, and its value's well.
+const ROW_H: f32 = 18.0;
+const WELL_W: f32 = 112.0;
+/// The limiter's cells: the gain and the ceiling (larger: its two primary parameters, and the
+/// ceiling's pill says dBTP), then the rest.
+const LIM_CELLS: [Size; 9] = [
+    Size::L,
+    Size::L,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+];
+
+thread_local! {
+    /// The state [`framed`] leaves in the app while the editor borrows its own: made once
+    /// and swapped in and out, so a frame builds no new state (its loudness meter and
+    /// histograms are boxed).
+    static SPARE: RefCell<Option<State>> = const { RefCell::new(None) };
+    /// A value formatted for a well, reused.
+    static FMT: RefCell<String> = RefCell::new(String::with_capacity(48));
+}
+
+/// Run `f` with `args` formatted into the reused buffer.
+fn with_fmt<R>(args: std::fmt::Arguments<'_>, f: impl FnOnce(&str) -> R) -> R {
+    FMT.with(|c| match c.try_borrow_mut() {
+        Ok(mut buf) => {
+            buf.clear();
+            let _ = buf.write_fmt(args);
+            f(&buf)
+        }
+        Err(_) => f(&std::fmt::format(args)),
+    })
+}
+
+/// Terminus in Cantus's own window: the host is the project (every drag one undo step,
+/// the trigger any strip of the desk, a peak label moves the playhead).
+pub fn framed(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     strip: StripId,
     effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let s = settings(&slot.spec);
-    let target = slot.spec.get("target");
+) -> frame::Out {
+    let spare = SPARE.with(|c| c.borrow_mut().take()).unwrap_or_default();
+    let mut st = std::mem::replace(&mut app.fx.limiter, spare);
     // Another limiter's editor was open before: its history is not this one's.
-    if app.fx.limiter.effect.is_some_and(|e| e != effect) {
-        app.fx.limiter = State::default();
+    if st.effect.is_some_and(|e| e != effect) {
+        st = State::default();
     }
-    app.fx.limiter.effect = Some(effect);
-    // What the engine published since the last frame.
-    let tel = app.fx_telemetry();
-    let playing = app.engine.is_playing();
-    let position = app.engine.position();
-    let bpm = app.project().tempo_bpm;
-    app.fx.limiter.ingest(&tel, playing, position, bpm);
+    st.effect = Some(effect);
+    st.chrome.reset_for(effect.0);
+    let out = editor(
+        &mut DawHost::new(app, strip, effect, "limiter"),
+        &mut st,
+        ui,
+    );
+    let spare = std::mem::replace(&mut app.fx.limiter, st);
+    SPARE.with(|c| *c.borrow_mut() = Some(spare));
+    out
+}
+
+/// Terminus's editor on any host (ADR 0020): the device frame and the limiter inside it.
+/// Everything it needs from the host goes through [`FxHost`].
+pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame::Out {
+    let transport = host.transport();
+    let tel = host.telemetry();
+    let bpm = transport.ticks_per_second / PPQ as f64 * 60.0;
+    let at = transport.playing_at;
+    st.ingest(&tel, at.is_some(), Ticks(at.unwrap_or(0)), bpm);
     let now = ui.input(|i| i.time);
     let dt = ui.input(|i| i.stable_dt).clamp(0.0, 0.1);
-    {
-        let st = &mut app.fx.limiter;
-        let outs = [tel[T_OUT_L], tel[T_OUT_R]];
-        let grs = [tel[T_GR_L], tel[T_GR_R]];
-        for ch in 0..2 {
-            // Peak ballistics: instant attack, 20 dB/s fall; reduction falls at 30 dB/s.
-            st.meter_out[ch] = outs[ch].max(st.meter_out[ch] - 20.0 * dt);
-            st.meter_gr[ch] = grs[ch].max(st.meter_gr[ch] - 30.0 * dt);
-            if outs[ch] >= st.hold[ch].0 || now - st.hold[ch].1 > 2.0 {
-                st.hold[ch] = (outs[ch], now);
-            }
-        }
-    }
+    st.ballistics(&tel, now, dt);
+    let ls = settings(host.spec());
     let rate = if tel[T_RATE] > 0.0 {
         tel[T_RATE]
     } else {
-        48_000.0
+        host.sample_rate()
     };
+    let mut chips = std::mem::take(&mut st.chips);
+    let chip = [chips.latency(latency_of(&ls, rate) as f32, rate)];
+    let meter = Some(frame::Levels {
+        level: st.meter_out,
+        hold: [st.hold[0].0, st.hold[1].0],
+    });
+    let look = frame::Look {
+        kind: EffectKind::Limiter,
+        chips: &chip,
+        meter,
+        more: &[],
+    };
+    let mut chrome = std::mem::take(&mut st.chrome);
+    let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
+        body_ui(host, st, ui, s, body, &tel, &ls)
+    });
+    st.chrome = chrome;
+    st.chips = chips;
+    out
+}
 
-    display_bar(app, ui, &s, rate);
-    let controls_h = space::GRID * 40.0;
-    let h = (ui.available_height() - controls_h).max(space::GRID * 50.0);
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S1;
-        let panel_w = space::GRID * 46.0;
-        let meters_w = space::GRID * 30.0;
-        let w =
-            (ui.available_width() - panel_w - meters_w - space::S2 * 2.0).max(space::GRID * 60.0);
-        history(app, ui, strip, effect, &s, target, vec2(w, h));
-        meters(app, ui, &s, target, vec2(meters_w, h), strip, effect);
-        ui.add_space(space::S1);
-        ui.allocate_ui_with_layout(
-            vec2(panel_w, h),
-            egui::Layout::top_down(egui::Align::Min),
-            |ui| {
-                ui.set_width(panel_w);
-                loudness_panel(app, ui, strip, effect, &s, target);
-            },
+/// A row of the grid as an array: no list is built per frame.
+fn row_of<const N: usize>(g: &mut Grid, h: f32, fracs: &[f32; N]) -> [Rect; N] {
+    let mut it = g.row(h, fracs);
+    std::array::from_fn(|_| it.next().unwrap_or(Rect::NOTHING))
+}
+
+/// The limiter inside the frame: the history, the meters and the loudness on top; the
+/// style and the output below them; the cells and the delivery at the bottom.
+fn body_ui(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    body: Rect,
+    tel: &[f32; 64],
+    ls: &LimSettings,
+) {
+    let k = s.k;
+    let song = song_ctx(host, st);
+    let target = host.spec().get("target");
+    if st.view == View::Song && st.follow {
+        st.song_start = song.playhead - st.song_len * 0.85;
+    }
+    let so = s.function(Function::Output);
+    let mut g = Grid::new(body, s);
+    let area = g.rest();
+    let gap = s.d(4.0);
+    let row3 = controls::card_height(Size::L) * k;
+    let row2 = (band::TITLE + 8.0 + controls::ROW + 5.0 + 3.0 * LINE + 8.0) * k;
+    let row1 = (area.height() - row2 - row3 - 2.0 * gap).max(200.0 * k);
+
+    // Row 1: the history, the meters beside it, the loudness.
+    let w = area.width() - 2.0 * gap;
+    let (mw, lw) = (METERS_W * k, LOUD_W * k);
+    let [hist_r, met_r, loud_r] = row_of(&mut g, row1, &[(w - mw - lw) / w, mw / w, lw / w]);
+    let disp = |r: Rect| (r.height() / k - band::TITLE - 1.0).max(20.0);
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        hist_r,
+        Src::Key("lim.card.history"),
+        None,
+        Some(disp(hist_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                history(host, st, ui, s, ls, target, &song, tel, d);
+            }
+        },
+    );
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        met_r,
+        Src::Key("lim.card.meters"),
+        None,
+        Some(disp(met_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                meters(host, st, ui, s, ls, target, d);
+            }
+        },
+    );
+    let (_, _) = controls::card(
+        ui,
+        &so,
+        loud_r,
+        Src::Key("lim.card.loudness"),
+        None,
+        |ui, cr| loudness(st, ui, &so, cr.body, ls, target, &song),
+    );
+
+    // Row 2: the style and what it is; what goes out and what you hear.
+    let w = area.width() - gap;
+    let ow = OUT_W * k;
+    let [style_r, out_r] = row_of(&mut g, row2, &[(w - ow) / w, ow / w]);
+    style_card(host, st, ui, s, style_r, ls);
+    output_card(host, st, ui, &so, out_r, ls, tel);
+
+    // Row 3: the limiter's cells; the delivery target.
+    let cw = (controls::cells_width(&LIM_CELLS) + 16.0) * k;
+    let [lim_r, del_r] = row_of(&mut g, row3, &[cw / w, (w - cw) / w]);
+    limiter_card(host, ui, s, lim_r, ls);
+    delivery_card(host, st, ui, &so, del_r, ls, target);
+}
+
+/// The help line for whatever `r` covers: its name and what it does.
+fn tip(ui: &egui::Ui, hovered: bool, name: &str, what: &str) {
+    if hovered {
+        hint::set_text(ui.ctx(), name, what, Caps::NONE);
+    }
+}
+
+/// Where the second line of `text` starts, when its first must fit `width` points:
+/// after the last space that fits, or the whole text when it fits or cannot break.
+fn break_at(ctx: &egui::Context, text: &str, role: Role, k: f32, width: f32) -> usize {
+    let fits = |s: &str| {
+        let t = Text::new(s, role, Color32::PLACEHOLDER).caps(false);
+        ktext::measure(ctx, &t, k).x <= width
+    };
+    if fits(text) {
+        return text.len();
+    }
+    let mut best = None;
+    for (i, _) in text.match_indices(' ') {
+        if fits(&text[..i]) {
+            best = Some(i + 1);
+        } else {
+            break;
+        }
+    }
+    best.unwrap_or(text.len())
+}
+
+/// Lines of words in a box, left-aligned, each elided at the end if it still does not fit.
+fn lines_in(b: &mut Brush, rect: Rect, lines: &[&str], color: Color32, k: f32) {
+    let h = rect.height() / lines.len().max(1) as f32;
+    for (i, line) in lines.iter().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let r = Rect::from_min_size(
+            pos2(rect.left(), rect.top() + h * i as f32),
+            vec2(rect.width(), h),
         );
-    });
-    ui.add_space(space::S1);
-    style_row(app, ui, strip, effect, &s);
-    knob_row(app, ui, strip, effect, &slot.spec, &s);
-    delivery_row(app, ui, strip, effect, slot, &s, &tel);
+        let t = Text::new(line, Role::Body, color)
+            .caps(false)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let _ = ktext::paint(b, r, &t, k);
+    }
 }
 
-/// Above the display: which view, its span or follow, freeze, and the latency.
-fn display_bar(app: &mut CantusApp, ui: &mut egui::Ui, s: &LimSettings, rate: f32) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        let st = &mut app.fx.limiter;
-        if ui
-            .selectable_label(st.view == View::Live, t("lim.view.live"))
-            .on_hover_text(t("lim.view.live_tip"))
-            .clicked()
-        {
-            st.view = View::Live;
-        }
-        if ui
-            .selectable_label(st.view == View::Song, t("lim.view.song"))
-            .on_hover_text(t("lim.view.song_tip"))
-            .clicked()
-        {
-            st.view = View::Song;
-        }
-        ui.separator();
-        match st.view {
-            View::Live => {
-                for secs in [6.0, 20.0, 60.0] {
-                    if ui
-                        .selectable_label(st.span_s == secs, format!("{secs:.0} s"))
-                        .clicked()
-                    {
-                        st.span_s = secs;
-                    }
-                }
-                let mut frozen = st.frozen_at.is_some();
-                if ui
-                    .toggle_value(&mut frozen, t("lim.freeze"))
-                    .on_hover_text(t("lim.freeze_tip"))
-                    .changed()
-                {
-                    st.frozen_at = frozen.then_some(st.total);
-                }
-            }
-            View::Song => {
-                ui.toggle_value(&mut st.follow, t("lim.follow"))
-                    .on_hover_text(t("lim.follow_tip"));
-                if ui
-                    .button(t("lim.whole_song"))
-                    .on_hover_text(t("lim.whole_song_tip"))
-                    .clicked()
-                {
-                    if let (Some((&a, _)), Some((&b, _))) =
-                        (st.song.first_key_value(), st.song.last_key_value())
-                    {
-                        st.follow = false;
-                        st.song_start = (a * BUCKET) as f64;
-                        st.song_len = (((b - a + 1) * BUCKET) as f64).max(PPQ as f64 * 4.0);
-                    }
-                }
-                if ui
-                    .button(t("lim.forget_song"))
-                    .on_hover_text(t("lim.forget_song_tip"))
-                    .clicked()
-                {
-                    st.song.clear();
-                    st.song_rev += 1;
-                }
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let lat = latency_of(s, rate);
-            ui.label(
-                RichText::new(tf(
-                    "lim.latency",
-                    &[
-                        ("ms", &format!("{:.2}", lat as f32 / rate * 1000.0)),
-                        ("n", &lat),
-                    ],
-                ))
-                .text_style(design::mono_small())
-                .color(pal.text),
-            )
-            .on_hover_text(t("lim.latency_tip"));
-            let ramp_ms = s.lookahead_ms * s.style.spec().ramp;
-            if ramp_ms < 0.1 {
-                ui.label(
-                    RichText::new(t("lim.near_clip"))
-                        .text_style(design::caption())
-                        .color(pal.danger),
-                )
-                .on_hover_text(t("lim.near_clip_tip"));
-            }
-        });
-    });
-}
+// ---- the history ------------------------------------------------------------------------
 
-/// A run of pixels [x0, x1) and the history it shows.
-#[derive(Copy, Clone, Debug)]
-struct Strip {
-    x0: f32,
-    x1: f32,
-    col: Col,
-}
-
-/// The history as pixel strips, for either view.
-fn strips(app: &CantusApp, r: Rect) -> Vec<Strip> {
-    let st = &app.fx.limiter;
-    let mut out = Vec::new();
+/// The history as pixel runs, for either view, into `out`.
+fn fill_strips(st: &State, r: Rect, out: &mut Vec<Strip>) {
+    out.clear();
     match st.view {
         View::Live => {
             let n = (st.span_s * 100.0) as usize;
@@ -921,20 +1199,28 @@ fn strips(app: &CantusApp, r: Rect) -> Vec<Strip> {
         }
     }
     out.retain(|s| s.x1 > r.left() && s.x0 < r.right());
-    out
 }
 
-/// The largest reductions, spaced apart: (strip index, reduction).
-fn peak_labels(strips: &[Strip], min_gap: f32, max: usize) -> Vec<(usize, f32)> {
-    let mut cands: Vec<(usize, f32)> = strips
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| s.col.gr_db >= 0.3)
-        .map(|(i, s)| (i, s.col.gr_db))
-        .collect();
-    cands.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let mut out: Vec<(usize, f32)> = Vec::new();
-    for (i, g) in cands {
+/// The largest reductions, spaced apart: (strip index, reduction), into `out`.
+fn peak_labels(
+    strips: &[Strip],
+    min_gap: f32,
+    max: usize,
+    cands: &mut Vec<(usize, f32)>,
+    out: &mut Vec<(usize, f32)>,
+) {
+    cands.clear();
+    out.clear();
+    cands.extend(
+        strips
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.col.gr_db >= 0.3)
+            .map(|(i, s)| (i, s.col.gr_db)),
+    );
+    // In place (a stable sort would allocate); ties keep their order in time.
+    cands.sort_unstable_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+    for &(i, g) in cands.iter() {
         let x = strips[i].x0;
         if out
             .iter()
@@ -946,463 +1232,638 @@ fn peak_labels(strips: &[Strip], min_gap: f32, max: usize) -> Vec<(usize, f32)> 
             }
         }
     }
-    out
 }
 
-/// The history: a gain-reduction lane on top, levels under it, time along the bottom.
+/// A caps word and a number on plates, anchored at `at` by `align` (the pair reads left
+/// to right): "CEILING −1.0 dBTP". Returns the rect of both, or nothing when it would
+/// start left of `min_left`.
+#[allow(clippy::too_many_arguments)]
+fn tagged(
+    b: &mut Brush,
+    at: Pos2,
+    align: Align2,
+    word: &str,
+    color: Color32,
+    k: f32,
+    plate: Option<Color32>,
+    min_left: f32,
+    args: std::fmt::Arguments<'_>,
+) -> Rect {
+    let wt = Text::new(word, Role::Micro, color).caps(true);
+    let ws = ktext::measure(b.ctx(), &wt, k);
+    let gap = 4.0 * k;
+    // Where the whole pair goes: measure the number, then place both.
+    let (vs, _) = with_fmt(args, |v| {
+        let t = Text::new(v, Role::Value, color).caps(false);
+        (ktext::measure(b.ctx(), &t, k), ())
+    });
+    let size = vec2(ws.x + gap + vs.x, ws.y.max(vs.y));
+    let r = align.anchor_size(at, size);
+    if r.left() < min_left {
+        return Rect::NOTHING;
+    }
+    let w = canvas::put(
+        b,
+        pos2(r.left(), r.center().y),
+        Align2::LEFT_CENTER,
+        &wt,
+        k,
+        plate,
+    );
+    let v = canvas::putf(
+        b,
+        pos2(r.right(), r.center().y),
+        Align2::RIGHT_CENTER,
+        Role::Value,
+        color,
+        k,
+        plate,
+        args,
+    );
+    w.union(v)
+}
+
+/// The history: a head with the view's selectors, a gain-reduction lane, the levels
+/// under it with the ceiling, the target and the gain strip, and time along the bottom.
+#[allow(clippy::too_many_arguments)]
 fn history(
-    app: &mut CantusApp,
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &LimSettings,
+    s: &Style,
+    ls: &LimSettings,
     target: f32,
-    size: egui::Vec2,
+    song: &SongCtx,
+    tel: &[f32; 64],
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    let axis_h = space::GRID * 4.0;
-    let gr_h = (rect.height() * 0.2).round();
-    let gr_r = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + gr_h));
-    let lv = Rect::from_min_max(
-        pos2(rect.left(), gr_r.bottom() + 1.0),
-        pos2(rect.right(), rect.bottom() - axis_h),
-    );
-    let axis = Rect::from_min_max(pos2(rect.left(), lv.bottom()), rect.max);
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    p.hline(
-        rect.x_range(),
-        gr_r.bottom(),
-        Stroke::new(1.0, pal.grid_strong),
-    );
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let loud_c = s.t.hue(Function::Output);
+    let ln = lanes(rect, k);
+    let (gr_r, lv, axis) = (ln.gr, ln.levels, ln.axis);
+    let plot = Rect::from_min_max(gr_r.min, rect.max);
+    let resp = ui.interact(plot, ui.id().with("lim-history"), Sense::click_and_drag());
 
-    // Song view follows the playhead unless the user took the view.
-    let bar = app.project().time_signature.ticks_per_bar().0;
-    let beat = app.project().time_signature.ticks_per_beat().0;
-    let position = app.engine.position().0 as f64;
-    {
-        let st = &mut app.fx.limiter;
-        if st.view == View::Song && st.follow {
-            st.song_start = position - st.song_len * 0.85;
-        }
-    }
-
-    // Grid lines; their numbers go on top of the history, on plates.
-    for g in LEVEL_TICKS {
-        p.hline(lv.x_range(), y_of(g, lv), Stroke::new(1.0, pal.grid));
-    }
-    for g in GR_TICKS {
-        p.hline(gr_r.x_range(), y_gr(g, gr_r), Stroke::new(1.0, pal.grid));
-    }
-
-    // Song view: bar lines, the time selection, the ruler.
-    let view = app.fx.limiter.view;
-    let (song_start, song_len) = (app.fx.limiter.song_start, app.fx.limiter.song_len);
-    let x_of_tick = |tk: f64| lv.left() + ((tk - song_start) / song_len) as f32 * lv.width();
+    let view = st.view;
+    let (song_start, song_len) = (st.song_start, st.song_len.max(1.0));
+    let x_of_tick = |tk_: f64| lv.left() + ((tk_ - song_start) / song_len) as f32 * lv.width();
     let tick_at = |x: f32| song_start + ((x - lv.left()) / lv.width()) as f64 * song_len;
-    if view == View::Song {
-        if let Some((a, b)) = app.time_selection {
-            let (x0, x1) = (x_of_tick(a.0 as f64), x_of_tick(b.0 as f64));
-            let sel =
-                Rect::from_x_y_ranges(x0.max(rect.left())..=x1.min(rect.right()), rect.y_range());
-            if sel.width() > 0.0 {
-                p.rect_filled(sel, 0.0, pal.selection.gamma_multiply(0.10));
-            }
-        }
-        let px_per_bar = bar as f32 / song_len as f32 * lv.width();
-        let every = (60.0 / px_per_bar.max(1.0)).ceil().max(1.0) as i64;
-        let first = (song_start as i64).div_euclid(bar);
-        let last = ((song_start + song_len) as i64).div_euclid(bar) + 1;
-        for b in first..=last {
-            let x = x_of_tick((b * bar) as f64);
-            if x < rect.left() || x > rect.right() {
-                continue;
-            }
-            let strong = b % every == 0;
-            p.vline(
-                x,
-                rect.top()..=lv.bottom(),
-                Stroke::new(1.0, if strong { pal.grid_strong } else { pal.grid }),
-            );
-            if strong {
-                p.text(
-                    pos2(x + 2.0, axis.center().y),
-                    Align2::LEFT_CENTER,
-                    format!("{}", b + 1),
-                    design::paint::ruler(),
-                    pal.text_dim,
-                );
-            }
-            if px_per_bar > 80.0 {
-                for k in 1..(bar / beat.max(1)) {
-                    let xb = x_of_tick((b * bar + k * beat) as f64);
-                    p.vline(
-                        xb,
-                        lv.bottom()..=lv.bottom() + 3.0,
-                        Stroke::new(1.0, pal.grid_strong),
-                    );
-                }
-            }
-        }
-    } else {
-        // Live: seconds ago.
-        let span = app.fx.limiter.span_s;
-        let step = if span <= 6.0 {
-            1.0
-        } else if span <= 20.0 {
-            5.0
-        } else {
-            10.0
-        };
-        let mut sec = 0.0;
-        while sec <= span {
-            let x = lv.right() - sec / span * lv.width();
-            p.vline(
-                x,
-                lv.bottom()..=lv.bottom() + 3.0,
-                Stroke::new(1.0, pal.grid_strong),
-            );
-            let label = if sec == 0.0 {
-                t("lim.now")
-            } else {
-                format!("\u{2212}{sec:.0} s")
-            };
-            p.text(
-                pos2(x - 2.0, axis.center().y),
-                Align2::RIGHT_CENTER,
-                label,
-                design::paint::ruler(),
-                pal.text_dim,
-            );
-            sec += step;
-        }
-    }
 
-    // The history.
-    let all = strips(app, lv);
-    let mut m_in = egui::Mesh::default();
-    let mut m_out = egui::Mesh::default();
-    let mut m_gr = egui::Mesh::default();
-    let mut m_clip = egui::Mesh::default();
-    let c_in = fill(pal.text_dim, pal.dark, if pal.dark { 0.30 } else { 0.55 });
-    let c_out = fill(pal.selection, pal.dark, 0.55);
-    let c_gr = fill(pal.danger, pal.dark, 0.85);
-    let c_clip = pal.meter_high;
-    let mut lines: Vec<Vec<Pos2>> = vec![Vec::new()];
-    let mut gr_line: Vec<Vec<Pos2>> = vec![Vec::new()];
-    let mut last_x1 = f32::NEG_INFINITY;
-    for sp in &all {
-        let (x0, x1) = (sp.x0.max(lv.left()), sp.x1.min(lv.right()));
-        if x1 <= x0 {
-            continue;
-        }
-        let c = &sp.col;
-        m_in.add_colored_rect(
-            Rect::from_min_max(pos2(x0, y_of(c.input_db, lv)), pos2(x1, lv.bottom())),
-            c_in,
-        );
-        m_out.add_colored_rect(
-            Rect::from_min_max(pos2(x0, y_of(c.output_db, lv)), pos2(x1, lv.bottom())),
-            c_out,
-        );
-        if c.gr_db > 0.01 {
-            m_gr.add_colored_rect(
-                Rect::from_min_max(pos2(x0, gr_r.top()), pos2(x1, y_gr(c.gr_db, gr_r))),
-                c_gr,
-            );
-        }
-        if c.clip_db > 0.05 {
-            let h = (2.0 + c.clip_db * 3.0).min(space::GRID * 3.0);
-            m_clip.add_colored_rect(
-                Rect::from_min_max(pos2(x0, lv.top()), pos2(x1, lv.top() + h)),
-                c_clip,
-            );
-        }
-        // A gap in the song breaks the lines.
-        if sp.x0 > last_x1 + 1.5 {
-            lines.push(Vec::new());
-            gr_line.push(Vec::new());
-        }
-        last_x1 = sp.x1;
-        let xm = (x0 + x1) * 0.5;
-        if c.short_term.is_finite() && c.short_term > LOW_DB {
-            lines
-                .last_mut()
-                .unwrap()
-                .push(pos2(xm, y_of(c.short_term, lv)));
-        } else if !lines.last().unwrap().is_empty() {
-            lines.push(Vec::new());
-        }
-        gr_line
-            .last_mut()
-            .unwrap()
-            .push(pos2(xm, y_gr(c.gr_db, gr_r)));
-    }
-    p.add(m_in);
-    p.add(m_out);
-    p.add(m_gr);
-    p.add(m_clip);
-    for l in gr_line.into_iter().filter(|l| l.len() > 1) {
-        p.add(Shape::line(l, Stroke::new(1.0, pal.danger)));
-    }
-    for l in lines.into_iter().filter(|l| l.len() > 1) {
-        p.add(Shape::line(l, Stroke::new(1.5, pal.gold)));
-    }
-    let bg = theme::recess(&pal).gamma_multiply(0.85);
-    for g in LEVEL_TICKS {
-        plate(
-            &p,
-            pos2(lv.right() - space::S1, y_of(g, lv)),
-            Align2::RIGHT_CENTER,
-            format!("{g:.0}").replace('-', "\u{2212}"),
-            pal.text_dim,
-            bg,
-        );
-    }
-    for g in GR_TICKS {
-        plate(
-            &p,
-            pos2(gr_r.right() - space::S1, y_gr(g, gr_r)),
-            Align2::RIGHT_CENTER,
-            format!("\u{2212}{g:.0}"),
-            pal.text_dim,
-            bg,
-        );
-    }
-    plate(
-        &p,
-        pos2(gr_r.right() - space::GRID * 8.0, gr_r.top() + 2.0),
-        Align2::RIGHT_TOP,
-        t("lim.gr_lane"),
-        pal.text_dim,
-        bg,
-    );
-
-    // The ceiling, the target and the gain handle.
-    let held = app.fx.limiter.drag;
+    // The ceiling, the target and the gain handle, and which of them is under the pointer.
+    let held = st.drag;
     let hover = resp.hover_pos();
-    let cy = y_of(s.ceiling_db, lv);
+    let cy = y_of(ls.ceiling_db, lv);
     let ty = y_of(target, lv);
-    let handle = Rect::from_min_max(
-        lv.left_top(),
-        pos2(lv.left() + space::GRID * 10.0, lv.bottom()),
-    );
+    let handle = Rect::from_min_max(lv.left_top(), pos2(lv.left() + 40.0 * k, lv.bottom()));
     let near = |y: f32| {
-        hover.is_some_and(|h| lv.contains(h) && (h.y - y).abs() < 5.0 && !handle.contains(h))
+        hover.is_some_and(|h| lv.contains(h) && (h.y - y).abs() < 5.0 * k && !handle.contains(h))
     };
     let ceiling_hot = held == Some(Grab::Ceiling) || (held.is_none() && near(cy));
     let target_hot = held == Some(Grab::Target) || (held.is_none() && !ceiling_hot && near(ty));
-    p.add(Shape::dashed_line(
-        &[pos2(lv.left(), cy), pos2(lv.right(), cy)],
-        Stroke::new(if ceiling_hot { 2.0 } else { 1.2 }, pal.gold),
-        6.0,
-        4.0,
-    ));
-    let unit = if s.true_peak { "dBTP" } else { "dB" };
-    plate(
-        &p,
-        pos2(lv.right() - space::GRID * 8.0, cy - 2.0),
-        Align2::RIGHT_BOTTOM,
-        format!("{} {} {unit}", t("fx.lim.ceiling"), fmt_db(s.ceiling_db)),
-        pal.gold,
-        bg,
-    );
-    p.add(Shape::dashed_line(
-        &[pos2(lv.left(), ty), pos2(lv.right(), ty)],
-        Stroke::new(if target_hot { 2.0 } else { 1.0 }, pal.ok),
-        2.0,
-        4.0,
-    ));
-    plate(
-        &p,
-        pos2(handle.right() + space::S2, ty + 3.0),
-        Align2::LEFT_TOP,
-        tf("lim.target_line", &[("lufs", &fmt_lufs(target as f64))]),
-        pal.ok,
-        bg,
-    );
-    // The gain handle: a strip on the left edge filled to the gain, its value on it.
     let gain_hot = matches!(held, Some(Grab::Gain { .. }))
         || (held.is_none() && hover.is_some_and(|h| handle.contains(h)));
-    let gf = s.gain_db / 30.0;
-    p.rect_filled(handle, 0.0, fill(pal.panel_raised, pal.dark, 0.9));
-    let gtop = handle.bottom() - gf * handle.height();
-    p.rect_filled(
-        Rect::from_min_max(pos2(handle.left(), gtop), handle.max),
-        0.0,
-        fill(pal.danger, pal.dark, if gain_hot { 0.5 } else { 0.3 }),
-    );
-    p.vline(
-        handle.right(),
-        handle.y_range(),
-        Stroke::new(1.0, pal.grid_strong),
-    );
-    plate(
-        &p,
-        pos2(handle.center().x, (gtop - 3.0).max(handle.top() + 14.0)),
-        Align2::CENTER_BOTTOM,
-        format!("+{:.1}", s.gain_db),
-        pal.text,
-        bg,
-    );
-    p.text(
-        pos2(handle.center().x, handle.bottom() - 2.0),
-        Align2::CENTER_BOTTOM,
-        t("fx.lim.gain"),
-        design::paint::caption(),
-        pal.text_dim,
-    );
 
-    // The playhead (song view).
-    if view == View::Song {
-        let x = x_of_tick(position);
-        if x >= rect.left() && x <= rect.right() {
-            p.vline(
-                x,
-                rect.top()..=lv.bottom(),
-                Stroke::new(1.5, pal.gold_bright),
-            );
-        }
-    }
-
-    // Peak labels: the largest reductions, as tags you can click to go there.
-    let labels = peak_labels(&all, space::GRID * 22.0, 6);
-    let mut label_hits: Vec<(Rect, Option<i64>)> = Vec::new();
-    for (i, g) in &labels {
-        let sp = all[*i];
-        let x = ((sp.x0 + sp.x1) * 0.5).clamp(lv.left() + 24.0, lv.right() - 24.0);
-        let y = (y_gr(*g, gr_r) + 3.0)
-            .min(gr_r.bottom() - 16.0)
-            .max(gr_r.top() + 2.0);
-        let text = format!("\u{2212}{g:.1} dB");
-        let galley = p.layout_no_wrap(text, design::paint::ruler(), pal.text);
-        let tag = Rect::from_center_size(
-            pos2(x, y + galley.size().y * 0.5 + 2.0),
-            galley.size() + vec2(8.0, 4.0),
-        );
-        let hot = hover.is_some_and(|h| tag.contains(h)) && sp.col.tick.is_some();
-        p.rect_filled(
-            tag,
-            pal.corner_radius,
-            if hot {
-                pal.gold_bright
-            } else {
-                pal.panel_raised
-            },
-        );
-        p.rect_stroke(
-            tag,
-            pal.corner_radius,
-            Stroke::new(1.0, pal.danger),
-            StrokeKind::Inside,
-        );
-        p.galley(tag.min + vec2(4.0, 2.0), galley, pal.text);
-        label_hits.push((tag, sp.col.tick));
-    }
-
-    // Hover: what was there, at that moment.
-    if let Some(h) = hover.filter(|h| lv.contains(*h) || gr_r.contains(*h)) {
-        if held.is_none() && !handle.contains(h) {
-            if let Some(sp) = all
-                .iter()
-                .find(|sp| h.x >= sp.x0 && h.x < sp.x1.max(sp.x0 + 1.0))
-            {
-                p.vline(
-                    h.x,
-                    rect.top()..=lv.bottom(),
-                    Stroke::new(1.0, pal.text_dim),
-                );
-                let when = match sp.col.tick {
-                    Some(tick) => {
-                        let (b, bt, _) = app.project().time_signature.bbt(Ticks(tick));
-                        format!("{b}.{bt}")
-                    }
-                    None => format!(
-                        "\u{2212}{:.2} s",
-                        (lv.right() - h.x) / lv.width() * app.fx.limiter.span_s
-                    ),
-                };
-                let c = sp.col;
-                let text = tf(
-                    "lim.hover",
-                    &[
-                        ("when", &when),
-                        ("inp", &fmt_db(c.input_db)),
-                        ("out", &fmt_db(c.output_db)),
-                        ("gr", &format!("{:.1}", c.gr_db)),
-                        ("s", &fmt_lufs(c.short_term as f64)),
-                    ],
-                );
-                let galley = p.layout_no_wrap(text, design::paint::ruler(), pal.text);
-                let at = pos2(
-                    (h.x + 8.0).min(lv.right() - galley.size().x - 6.0),
-                    lv.top() + 4.0,
-                );
-                let bg = Rect::from_min_size(at - vec2(3.0, 2.0), galley.size() + vec2(6.0, 4.0));
-                p.rect_filled(bg, pal.corner_radius, pal.panel_raised);
-                p.rect_stroke(
-                    bg,
-                    pal.corner_radius,
-                    Stroke::new(1.0, pal.grid_strong),
-                    StrokeKind::Inside,
-                );
-                p.galley(at, galley, pal.text);
-            }
-        }
-    }
-
-    // Empty and frozen states.
-    if all.is_empty() {
-        let key = if view == View::Song {
-            "lim.empty_song"
-        } else {
-            "lim.empty_live"
-        };
-        p.text(
-            lv.center(),
-            Align2::CENTER_CENTER,
-            t(key),
-            design::paint::empty_state(),
-            pal.text_dim,
-        );
-    }
-    if view == View::Live && app.fx.limiter.frozen_at.is_some() {
-        p.text(
-            pos2(lv.center().x, gr_r.top() + 3.0),
-            Align2::CENTER_TOP,
-            t("lim.frozen"),
-            design::paint::label(),
-            pal.gold,
-        );
-    }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-
-    app.fx.limiter.geometry = Some(Geometry {
+    let mut strips = std::mem::take(&mut st.strips);
+    fill_strips(st, lv, &mut strips);
+    let (mut cands, mut peaks) = (std::mem::take(&mut st.cands), std::mem::take(&mut st.peaks));
+    peak_labels(&strips, 88.0 * k, 6, &mut cands, &mut peaks);
+    let mut pts = std::mem::take(&mut st.pts);
+    let mut geo = st.geometry.take().unwrap_or(Geometry {
         levels: lv,
         ceiling_y: cy,
         target_y: ty,
         gain_handle: handle,
-        labels: label_hits.clone(),
+        labels: Vec::new(),
     });
+    geo.levels = lv;
+    geo.ceiling_y = cy;
+    geo.target_y = ty;
+    geo.gain_handle = handle;
+    geo.labels.clear();
+
+    // The hover readout's words, when the pointer is over a new run.
+    let hovered_strip = hover
+        .filter(|h| {
+            (lv.contains(*h) || gr_r.contains(*h)) && held.is_none() && !handle.contains(*h)
+        })
+        .and_then(|h| {
+            strips
+                .iter()
+                .find(|sp| h.x >= sp.x0 && h.x < sp.x1.max(sp.x0 + 1.0))
+                .map(|sp| (h, *sp))
+        });
+    if let Some((h, sp)) = hovered_strip {
+        let lang = crate::i18n::locale();
+        let key = (sp.x0.to_bits(), sp.x1.to_bits(), lang);
+        if st.words.hover != Some(key) {
+            let when = match sp.col.tick {
+                Some(tick) => format!(
+                    "{}.{}",
+                    tick.div_euclid(song.bar) + 1,
+                    tick.rem_euclid(song.bar) / song.beat + 1
+                ),
+                None => format!(
+                    "\u{2212}{:.2} s",
+                    (lv.right() - h.x) / lv.width() * st.span_s
+                ),
+            };
+            let c = sp.col;
+            // En spaces, so the readout keeps one face (a plain space starts a unit).
+            st.words.hover_text = tf(
+                "lim.hover",
+                &[
+                    ("when", &when),
+                    ("inp", &fmt_db(c.input_db)),
+                    ("out", &fmt_db(c.output_db)),
+                    ("gr", &format!("{:.1}", c.gr_db)),
+                    ("s", &fmt_lufs(c.short_term as f64)),
+                ],
+            )
+            .replace(' ', "\u{2002}");
+            st.words.hover = Some(key);
+        }
+    }
+
+    let frozen = view == View::Live && st.frozen_at.is_some();
+    let near_clip = ls.lookahead_ms * ls.style.spec().ramp < 0.1;
+    let matching = ls.monitor == Monitor::Match;
+    // The selectors' extent in the head, so the head's own words stay clear of them.
+    let head_left = ln.head.left() + 6.0 * k;
+    let selectors_right = head_left
+        + k * match view {
+            View::Live => 112.0 + 4.0 + 120.0 + 4.0 + 84.0,
+            View::Song => 112.0 + 4.0 + 84.0 + 4.0 + 96.0 + 4.0 + 76.0,
+        };
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        b.register(
+            rect,
+            "loudness",
+            LOUD_TOKENS,
+            &[Some(Function::Output.tok())],
+        );
+        let px = b.px();
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(ln.head.bottom()),
+            px,
+            ink.grid,
+        );
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(gr_r.bottom() + 0.5),
+            px,
+            ink.grid_strong,
+        );
+        for g in LEVEL_TICKS {
+            b.hline(lv.left(), lv.right(), b.snap_mid(y_of(g, lv)), px, ink.grid);
+        }
+        for g in GR_TICKS {
+            b.hline(
+                gr_r.left(),
+                gr_r.right(),
+                b.snap_mid(y_gr(g, gr_r)),
+                px,
+                ink.grid,
+            );
+        }
+
+        // Time: the selection and the bars (song), or seconds ago (live).
+        if view == View::Song {
+            if let Some((a, bb)) = song.sel {
+                let (x0, x1) = (x_of_tick(a as f64), x_of_tick(bb as f64));
+                let sel = Rect::from_x_y_ranges(
+                    x0.max(lv.left())..=x1.min(lv.right()),
+                    gr_r.top()..=lv.bottom(),
+                );
+                if sel.width() > 0.0 {
+                    b.rect(sel, Fill::Solid(Ink::a(s.t.selection, 0.12)));
+                }
+            }
+            let px_per_bar = song.bar as f32 / song_len as f32 * lv.width();
+            let every = (60.0 * k / px_per_bar.max(1.0)).ceil().max(1.0) as i64;
+            let first = (song_start as i64).div_euclid(song.bar);
+            let last = ((song_start + song_len) as i64).div_euclid(song.bar) + 1;
+            for bar in first..=last {
+                let x = x_of_tick((bar * song.bar) as f64);
+                if x < lv.left() || x > lv.right() {
+                    continue;
+                }
+                let strong = bar % every == 0;
+                b.vline(
+                    b.snap_mid(x),
+                    gr_r.top(),
+                    lv.bottom(),
+                    px,
+                    if strong { ink.grid_strong } else { ink.grid },
+                );
+                if px_per_bar > 80.0 * k {
+                    for n in 1..(song.bar / song.beat) {
+                        let xb = x_of_tick((bar * song.bar + n * song.beat) as f64);
+                        b.vline(
+                            b.snap_mid(xb),
+                            lv.bottom(),
+                            lv.bottom() + 3.0 * k,
+                            px,
+                            ink.grid_strong,
+                        );
+                    }
+                }
+            }
+        } else {
+            let span = st.span_s;
+            let step = live_step(span);
+            let mut sec = 0.0;
+            while sec <= span {
+                let x = lv.right() - sec / span * lv.width();
+                b.vline(
+                    b.snap_mid(x),
+                    lv.bottom(),
+                    lv.bottom() + 3.0 * k,
+                    px,
+                    ink.grid_strong,
+                );
+                sec += step;
+            }
+        }
+
+        // The history: input behind, output over it in the device's hue, the reduction
+        // hanging in its lane, the clipper's work along the top.
+        let c_in = Ink::a(ink.dim, if ink.dark { 0.30 } else { 0.28 });
+        let c_out = Ink::a(ink.hue, if ink.dark { 0.42 } else { 0.34 });
+        let c_gr = Ink::a(ink.danger, if ink.dark { 0.70 } else { 0.55 });
+        for sp in &strips {
+            let (x0, x1) = (sp.x0.max(lv.left()), sp.x1.min(lv.right()));
+            if x1 <= x0 {
+                continue;
+            }
+            let c = &sp.col;
+            b.rect(
+                Rect::from_min_max(pos2(x0, y_of(c.input_db, lv)), pos2(x1, lv.bottom())),
+                Fill::Solid(c_in),
+            );
+            b.rect(
+                Rect::from_min_max(pos2(x0, y_of(c.output_db, lv)), pos2(x1, lv.bottom())),
+                Fill::Solid(c_out),
+            );
+            if c.gr_db > 0.01 {
+                b.rect(
+                    Rect::from_min_max(pos2(x0, gr_r.top()), pos2(x1, y_gr(c.gr_db, gr_r))),
+                    Fill::Solid(c_gr),
+                );
+            }
+            if c.clip_db > 0.05 {
+                let h = (2.0 + c.clip_db * 3.0).min(12.0) * k;
+                b.rect(
+                    Rect::from_min_max(pos2(x0, lv.top()), pos2(x1, lv.top() + h)),
+                    Fill::Solid(s.t.meter_high),
+                );
+            }
+        }
+        // The reduction's edge and the short-term loudness, broken where the song has a
+        // gap (and the loudness where it has none yet).
+        for loudness in [false, true] {
+            pts.clear();
+            let mut last_x1 = f32::NEG_INFINITY;
+            let (w, color) = if loudness {
+                (1.5 * k, loud_c)
+            } else {
+                (1.0 * k, ink.danger)
+            };
+            for sp in &strips {
+                let (x0, x1) = (sp.x0.max(lv.left()), sp.x1.min(lv.right()));
+                if x1 <= x0 {
+                    continue;
+                }
+                let c = &sp.col;
+                let gap_here = sp.x0 > last_x1 + 1.5;
+                last_x1 = sp.x1;
+                let xm = (x0 + x1) * 0.5;
+                let y = if loudness {
+                    (c.short_term.is_finite() && c.short_term > LOW_DB)
+                        .then(|| y_of(c.short_term, lv))
+                } else {
+                    Some(y_gr(c.gr_db, gr_r))
+                };
+                if gap_here || y.is_none() {
+                    if pts.len() > 1 {
+                        b.polyline(&pts, w, color);
+                    }
+                    pts.clear();
+                }
+                if let Some(y) = y {
+                    pts.push(pos2(xm, y));
+                }
+            }
+            if pts.len() > 1 {
+                b.polyline(&pts, w, color);
+            }
+        }
+
+        // The ceiling (the device's hue) and the target (the loudness's), dashed.
+        canvas::dashed(
+            b,
+            pos2(lv.left(), cy),
+            pos2(lv.right(), cy),
+            if ceiling_hot { 2.0 } else { 1.25 } * k,
+            ink.hue,
+            6.0 * k,
+            4.0 * k,
+        );
+        canvas::dashed(
+            b,
+            pos2(handle.right(), ty),
+            pos2(lv.right(), ty),
+            if target_hot { 2.0 } else { 1.25 } * k,
+            loud_c,
+            2.0 * k,
+            3.0 * k,
+        );
+        // The gain handle: a strip on the left edge filled to the gain.
+        let gtop = handle.bottom() - ls.gain_db / 30.0 * handle.height();
+        b.rect(
+            b.snap_rect(handle),
+            Fill::Solid(Ink::a(s.t.deck_title, 0.88)),
+        );
+        b.rect(
+            Rect::from_min_max(pos2(handle.left(), gtop), handle.max),
+            Fill::Solid(Ink::a(ink.hue, if gain_hot { 0.55 } else { 0.35 })),
+        );
+        b.vline(
+            b.snap_mid(handle.right()),
+            handle.top(),
+            handle.bottom(),
+            px,
+            ink.grid_strong,
+        );
+        // The playhead (song view).
+        if view == View::Song {
+            let x = x_of_tick(song.playhead);
+            if x >= lv.left() && x <= lv.right() {
+                b.vline(
+                    b.snap_mid(x),
+                    gr_r.top(),
+                    lv.bottom(),
+                    1.5 * k,
+                    s.t.highlight,
+                );
+            }
+        }
+        if let Some((h, _)) = hovered_strip {
+            b.vline(b.snap_mid(h.x), gr_r.top(), lv.bottom(), px, ink.dim);
+        }
+
+        // ---- the words, last: nothing is painted over them ----
+        let plate = Some(ink.plate);
+        let micro = |b: &mut Brush, at: Pos2, align: Align2, args: std::fmt::Arguments<'_>| {
+            canvas::putf(b, at, align, Role::Micro, ink.dim, tk, plate, args)
+        };
+        for g in LEVEL_TICKS {
+            micro(
+                b,
+                pos2(lv.right() - 4.0 * k, y_of(g, lv)),
+                Align2::RIGHT_CENTER,
+                format_args!("\u{2212}{:.0}", -g),
+            );
+        }
+        for g in GR_TICKS {
+            micro(
+                b,
+                pos2(gr_r.right() - 4.0 * k, y_gr(g, gr_r)),
+                Align2::RIGHT_CENTER,
+                format_args!("\u{2212}{g:.0}"),
+            );
+        }
+        let lane = canvas::put(
+            b,
+            pos2(gr_r.right() - 26.0 * k, gr_r.top() + 3.0 * k),
+            Align2::RIGHT_TOP,
+            &Text::key("lim.gr_lane", Role::Micro, ink.dim),
+            tk,
+            plate,
+        );
+        let unit = if ls.true_peak { "dBTP" } else { "dB" };
+        // Above its line, or under it when the line is too near the lane.
+        let (cy_at, c_align) = if cy - lv.top() > 20.0 * k {
+            (cy - 3.0 * k, Align2::RIGHT_BOTTOM)
+        } else {
+            (cy + 3.0 * k, Align2::RIGHT_TOP)
+        };
+        tagged(
+            b,
+            pos2(lv.right() - 28.0 * k, cy_at),
+            c_align,
+            frame::tr("fx.lim.ceiling"),
+            ink.hue,
+            tk,
+            plate,
+            handle.right() + 4.0 * k,
+            format_args!("{} {unit}", Db(ls.ceiling_db)),
+        );
+        let (ty_at, t_align) = if lv.bottom() - ty > 20.0 * k {
+            (ty + 3.0 * k, Align2::LEFT_TOP)
+        } else {
+            (ty - 3.0 * k, Align2::LEFT_BOTTOM)
+        };
+        tagged(
+            b,
+            pos2(handle.right() + 8.0 * k, ty_at),
+            t_align,
+            frame::tr("fx.lim.target"),
+            loud_c,
+            tk,
+            plate,
+            f32::NEG_INFINITY,
+            format_args!("{} LUFS", Lufs(target as f64)),
+        );
+        canvas::putf(
+            b,
+            pos2(handle.center().x, (gtop - 3.0 * k).max(lv.top() + 16.0 * k)),
+            Align2::CENTER_BOTTOM,
+            Role::Value,
+            ink.text,
+            tk,
+            plate,
+            format_args!("+{:.1}", ls.gain_db),
+        );
+        let caption = Rect::from_min_max(
+            pos2(handle.left() + 1.0 * k, handle.bottom() - 14.0 * k),
+            pos2(handle.right() - 1.0 * k, handle.bottom() - 2.0 * k),
+        );
+        let t = Text::key("fx.lim.gain", Role::Micro, ink.dim)
+            .caps(true)
+            .policy(Policy::Abbreviate);
+        let _ = ktext::paint(b, caption, &t, tk);
+
+        // The time axis: bars (song) or seconds ago (live), none running into another.
+        let mut ruler = canvas::Ruler::new();
+        if view == View::Song {
+            let px_per_bar = song.bar as f32 / song_len as f32 * lv.width();
+            let every = (60.0 * k / px_per_bar.max(1.0)).ceil().max(1.0) as i64;
+            let first = (song_start as i64).div_euclid(song.bar);
+            let last = ((song_start + song_len) as i64).div_euclid(song.bar) + 1;
+            for bar in first..=last {
+                let x = x_of_tick((bar * song.bar) as f64);
+                if x < lv.left() || x > lv.right() - 12.0 * k || bar % every != 0 {
+                    continue;
+                }
+                let at = pos2(x + 2.0 * k, axis.center().y);
+                if !ruler.fits(at.x, 6.0 * k) {
+                    continue;
+                }
+                let r = micro(b, at, Align2::LEFT_CENTER, format_args!("{}", bar + 1));
+                ruler.placed(r);
+            }
+        } else {
+            let span = st.span_s;
+            let step = live_step(span);
+            let mut sec = (span / step).floor() * step;
+            while sec >= step {
+                let x = lv.right() - sec / span * lv.width();
+                let at = pos2(x + 2.0 * k, axis.center().y);
+                if x >= lv.left() && ruler.fits(at.x, 6.0 * k) {
+                    let r = micro(
+                        b,
+                        at,
+                        Align2::LEFT_CENTER,
+                        format_args!("\u{2212}{sec:.0} s"),
+                    );
+                    ruler.placed(r);
+                }
+                sec -= step;
+            }
+            let now_t = Text::key("lim.now", Role::Micro, ink.dim);
+            let w = ktext::measure(b.ctx(), &now_t, tk).x;
+            if ruler.fits(lv.right() - 2.0 * k - w, 6.0 * k) {
+                canvas::put(
+                    b,
+                    pos2(lv.right() - 2.0 * k, axis.center().y),
+                    Align2::RIGHT_CENTER,
+                    &now_t,
+                    tk,
+                    None,
+                );
+            }
+        }
+
+        // Peak labels: the largest reductions, as tags you click to go there — kept in
+        // the lane, clear of its scale and its name, and of each other.
+        let lane_x1 = gr_r.right() - 26.0 * k;
+        for &(i, g) in &peaks {
+            let sp = strips[i];
+            with_fmt(format_args!("\u{2212}{g:.1} dB"), |text| {
+                let t = Text::new(text, Role::Value, ink.text).caps(false);
+                let size = ktext::measure(b.ctx(), &t, tk) + vec2(8.0, 4.0) * k;
+                let x = ((sp.x0 + sp.x1) * 0.5)
+                    .clamp(gr_r.left() + 4.0 * k + size.x * 0.5, lane_x1 - size.x * 0.5);
+                let y = (y_gr(g, gr_r) + 3.0 * k)
+                    .min(gr_r.bottom() - 2.0 * k - size.y)
+                    .max(gr_r.top() + 2.0 * k);
+                let tag = b.snap_rect(Rect::from_min_size(pos2(x - size.x * 0.5, y), size));
+                if tag.intersects(lane.expand(2.0 * k))
+                    || geo.labels.iter().any(|(r, _)| r.intersects(tag))
+                {
+                    return;
+                }
+                let hot = song.can_seek
+                    && sp.col.tick.is_some()
+                    && hover.is_some_and(|h| tag.contains(h));
+                let fill = if hot {
+                    Ink::a(ink.danger, 0.30)
+                } else {
+                    ink.plate
+                };
+                b.rrect(tag, 3.0 * k, Fill::Solid(fill));
+                b.rrect_stroke(tag, 3.0 * k, px, ink.danger);
+                let _ = ktext::paint(b, tag, &t.policy(Policy::Elide(Elide::End)), tk);
+                geo.labels.push((tag, sp.col.tick));
+            });
+        }
+
+        // The head's right end: a warning, the match gain, a frozen picture.
+        let mut x = ln.head.right() - 8.0 * k;
+        let cy_head = ln.head.center().y;
+        if near_clip {
+            let t = Text::key("lim.near_clip", Role::Label, ink.danger).caps(false);
+            let w = ktext::measure(b.ctx(), &t, tk).x;
+            if x - w > selectors_right + 8.0 * k {
+                let r = canvas::put(b, pos2(x, cy_head), Align2::RIGHT_CENTER, &t, tk, plate);
+                x = r.left() - 10.0 * k;
+            }
+        }
+        if matching {
+            let r = tagged(
+                b,
+                pos2(x, cy_head),
+                Align2::RIGHT_CENTER,
+                frame::tr("lim.monitor.2"),
+                ink.text,
+                tk,
+                plate,
+                selectors_right + 8.0 * k,
+                format_args!("{} dB", Db(tel[T_MATCH])),
+            );
+            if r.is_positive() {
+                x = r.left() - 10.0 * k;
+            }
+        }
+        if frozen {
+            let t = Text::key("lim.frozen", Role::Label, ink.hue).caps(false);
+            let w = ktext::measure(b.ctx(), &t, tk).x;
+            if x - w > selectors_right + 8.0 * k {
+                canvas::put(b, pos2(x, cy_head), Align2::RIGHT_CENTER, &t, tk, plate);
+            }
+        }
+
+        // Empty: what to do.
+        if strips.is_empty() {
+            let key = if view == View::Song {
+                "lim.empty_song"
+            } else {
+                "lim.empty_live"
+            };
+            canvas::put(
+                b,
+                lv.center(),
+                Align2::CENTER_CENTER,
+                &Text::key(key, Role::Body, ink.dim).caps(false),
+                tk,
+                None,
+            );
+        }
+
+        // Hover: what was there, at that moment — last, over everything.
+        if let Some((h, _)) = hovered_strip {
+            let t = Text::new(&st.words.hover_text, Role::Value, ink.text).caps(false);
+            let w = ktext::measure(b.ctx(), &t, tk).x;
+            let at = pos2(
+                (h.x + 8.0 * k)
+                    .min(lv.right() - w - 6.0 * k)
+                    .max(lv.left() + 4.0 * k),
+                lv.top() + 4.0 * k,
+            );
+            canvas::put(b, at, Align2::LEFT_TOP, &t, tk, Some(s.t.deck_title));
+        }
+    });
+
+    // The head: which view, and its span or follow, freeze and the song's keys.
+    head_controls(st, ui, s, ln.head, head_left);
 
     // ---- gestures ----
     let alt = ui.input(|i| i.modifiers.alt);
     if resp.drag_started() {
         let origin = ui.input(|i| i.pointer.press_origin());
         if let Some(h) = origin.or(resp.interact_pointer_pos()) {
-            let st = &mut app.fx.limiter;
-            st.drag_from = (s.gain_db, s.ceiling_db);
+            st.drag_from = (ls.gain_db, ls.ceiling_db);
             st.drag = if handle.contains(h) {
                 Some(Grab::Gain { alt })
-            } else if (h.y - cy).abs() < 6.0 {
+            } else if (h.y - cy).abs() < 6.0 * k {
                 Some(Grab::Ceiling)
-            } else if (h.y - ty).abs() < 6.0 {
+            } else if (h.y - ty).abs() < 6.0 * k {
                 Some(Grab::Target)
             } else if st.view == View::Song {
                 Some(Grab::Pan)
@@ -1412,47 +1873,32 @@ fn history(
         }
     }
     if resp.dragged() {
-        match (app.fx.limiter.drag, resp.interact_pointer_pos()) {
+        match (st.drag, resp.interact_pointer_pos()) {
             (Some(Grab::Ceiling), Some(h)) => {
                 let v = (db_at(h.y, lv) * 10.0).round() / 10.0;
-                app.set_fx_param(strip, effect, "ceiling", v.clamp(-30.0, 0.0), true);
+                host.set("ceiling", v.clamp(-30.0, 0.0), Some("ceiling"));
             }
             (Some(Grab::Target), Some(h)) => {
                 let v = (db_at(h.y, lv) * 10.0).round() / 10.0;
-                app.set_fx_param(strip, effect, "target", v.clamp(-36.0, -5.0), true);
+                host.set("target", v.clamp(-36.0, -5.0), Some("target"));
             }
             (Some(Grab::Gain { alt }), Some(_)) => {
                 let fine = ui.input(|i| i.modifiers.shift);
                 let dy = resp.drag_delta().y;
                 let per_px = 30.0 / handle.height() * if fine { 0.2 } else { 1.0 };
-                let g = (s.gain_db - dy * per_px).clamp(0.0, 30.0);
-                let key = cantus_core::MergeKey::of(&("lim-gain", effect.0));
-                app.exec_merging(
-                    Command::SetEffectParam {
-                        strip,
-                        effect,
-                        key: "gain".into(),
-                        value: g,
-                    },
-                    key,
-                );
+                let g = (ls.gain_db - dy * per_px).clamp(0.0, 30.0);
+                host.set("gain", g, Some("lim-gain"));
                 if alt {
                     // Alt: the ceiling moves the other way, so what you hear stays level.
-                    let (g0, c0) = app.fx.limiter.drag_from;
-                    let c = (c0 - (g - g0)).clamp(-30.0, 0.0);
-                    app.exec_merging(
-                        Command::SetEffectParam {
-                            strip,
-                            effect,
-                            key: "ceiling".into(),
-                            value: c,
-                        },
-                        key,
+                    let (g0, c0) = st.drag_from;
+                    host.set(
+                        "ceiling",
+                        (c0 - (g - g0)).clamp(-30.0, 0.0),
+                        Some("lim-gain"),
                     );
                 }
             }
             (Some(Grab::Pan), _) => {
-                let st = &mut app.fx.limiter;
                 st.follow = false;
                 st.song_start -= resp.drag_delta().x as f64 / lv.width() as f64 * st.song_len;
             }
@@ -1460,18 +1906,19 @@ fn history(
         }
     }
     if resp.drag_stopped() {
-        app.fx.limiter.drag = None;
-        app.end_gesture();
+        st.drag = None;
+        host.end_gesture();
     }
-    if resp.clicked() {
+    if resp.clicked() && song.can_seek {
         if let Some(h) = resp.interact_pointer_pos() {
-            if let Some((_, Some(tick))) = label_hits.iter().find(|(r, _)| r.contains(h)) {
-                app.seek(Ticks(*tick));
+            if let Some((_, Some(tick))) = geo.labels.iter().find(|(r, _)| r.contains(h)) {
+                if let Some((app, _, _)) = host.daw() {
+                    app.seek(Ticks(*tick));
+                }
             }
         }
     }
     if resp.double_clicked() {
-        let st = &mut app.fx.limiter;
         match st.view {
             View::Song => st.follow = true,
             View::Live => st.frozen_at = None,
@@ -1480,7 +1927,6 @@ fn history(
     // Wheel: in the song view, scroll; with Ctrl, zoom about the pointer.
     if resp.hovered() && view == View::Song {
         let (scroll, zoom) = ui.input(|i| (i.smooth_scroll_delta, i.zoom_delta()));
-        let st = &mut app.fx.limiter;
         if zoom != 1.0 {
             let anchor = hover
                 .map(|h| tick_at(h.x))
@@ -1497,784 +1943,1360 @@ fn history(
     }
     if ceiling_hot || target_hot || gain_hot {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-    } else if label_hits
-        .iter()
-        .any(|(r, t)| t.is_some() && hover.is_some_and(|h| r.contains(h)))
+    } else if song.can_seek
+        && geo
+            .labels
+            .iter()
+            .any(|(r, t)| t.is_some() && hover.is_some_and(|h| r.contains(h)))
     {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    resp.on_hover_text(t("lim.display_tip"));
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("lim.card.history"),
+            frame::tr("lim.display_tip"),
+            Caps::NONE,
+        );
+    }
+    st.geometry = Some(geo);
+    st.strips = strips;
+    st.cands = cands;
+    st.peaks = peaks;
+    st.pts = pts;
 }
 
-/// Meters beside the display: reduction per channel in the lane, output true peak per
-/// channel and the three loudness scales on the level area's scale, with the target.
+/// The tokens the history's loudness and clip marks paint with, beside the display's.
+const LOUD_TOKENS: &[crate::kit::Tok] = &[
+    crate::kit::Tok::MeterHigh,
+    crate::kit::Tok::Selection,
+    crate::kit::Tok::Highlight,
+    crate::kit::Tok::DeckTitle,
+];
+
+/// The step of the live view's seconds.
+fn live_step(span: f32) -> f32 {
+    if span <= 6.0 {
+        1.0
+    } else if span <= 20.0 {
+        5.0
+    } else {
+        10.0
+    }
+}
+
+/// The spans of the live view.
+const SPANS: [f32; 3] = [6.0, 20.0, 60.0];
+
+/// The head of the history: Live | Song, then the live view's span and freeze, or the
+/// song view's follow, fit and forget.
+fn head_controls(st: &mut State, ui: &mut egui::Ui, s: &Style, head: Rect, left: f32) {
+    let k = s.k;
+    let r = Rect::from_min_max(
+        pos2(left, head.top()),
+        pos2(head.right() - 6.0 * k, head.bottom()),
+    );
+    let mut h = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(r)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    h.spacing_mut().item_spacing.x = s.d(4.0);
+    let views = [Src::Key("lim.view.live"), Src::Key("lim.view.song")];
+    let now = (st.view == View::Song) as usize;
+    let r =
+        h.scope(|ui| controls::segmented(ui, s, now, &views, frame::tr("lim.view.live"), 112.0));
+    if let Some(i) = r.inner {
+        st.view = if i == 0 { View::Live } else { View::Song };
+    }
+    let tip_key = if st.view == View::Song {
+        "lim.view.song_tip"
+    } else {
+        "lim.view.live_tip"
+    };
+    tip(
+        &h,
+        r.response.contains_pointer(),
+        frame::tr("lim.card.history"),
+        frame::tr(tip_key),
+    );
+    match st.view {
+        View::Live => {
+            let spans = [Src::Str("6 s"), Src::Str("20 s"), Src::Str("60 s")];
+            let now = SPANS.iter().position(|v| *v == st.span_s).unwrap_or(0);
+            if let Some(i) =
+                controls::segmented(&mut h, s, now, &spans, frame::tr("lim.span"), 120.0)
+            {
+                st.span_s = SPANS[i];
+            }
+            let frozen = st.frozen_at.is_some();
+            let r = controls::led(
+                &mut h,
+                s,
+                frozen,
+                Src::Key("lim.freeze"),
+                frame::tr("lim.freeze"),
+                84.0,
+            );
+            if r.clicked() {
+                st.frozen_at = if frozen { None } else { Some(st.total) };
+            }
+            tip(
+                &h,
+                r.hovered(),
+                frame::tr("lim.freeze"),
+                frame::tr("lim.freeze_tip"),
+            );
+        }
+        View::Song => {
+            let r = controls::led(
+                &mut h,
+                s,
+                st.follow,
+                Src::Key("lim.follow"),
+                frame::tr("lim.follow"),
+                84.0,
+            );
+            if r.clicked() {
+                st.follow = !st.follow;
+            }
+            tip(
+                &h,
+                r.hovered(),
+                frame::tr("lim.follow"),
+                frame::tr("lim.follow_tip"),
+            );
+            let r = controls::key(
+                &mut h,
+                s,
+                Src::Key("lim.whole_song"),
+                frame::tr("lim.whole_song"),
+                96.0,
+                false,
+            );
+            if r.clicked() {
+                if let (Some((&a, _)), Some((&b, _))) =
+                    (st.song.first_key_value(), st.song.last_key_value())
+                {
+                    st.follow = false;
+                    st.song_start = (a * BUCKET) as f64;
+                    st.song_len = (((b - a + 1) * BUCKET) as f64).max(PPQ as f64 * 4.0);
+                }
+            }
+            tip(
+                &h,
+                r.hovered(),
+                frame::tr("lim.whole_song"),
+                frame::tr("lim.whole_song_tip"),
+            );
+            let r = controls::key(
+                &mut h,
+                s,
+                Src::Key("lim.forget_song"),
+                frame::tr("lim.forget_song"),
+                76.0,
+                false,
+            );
+            if r.clicked() {
+                st.song.clear();
+                st.song_rev += 1;
+            }
+            tip(
+                &h,
+                r.hovered(),
+                frame::tr("lim.forget_song"),
+                frame::tr("lim.forget_song_tip"),
+            );
+        }
+    }
+}
+
+// ---- the meters -------------------------------------------------------------------------
+
+/// Meters beside the history, on its lanes: reduction per channel in the lane, output
+/// true peak per channel and the three loudness bars on the level scale, with the target.
+/// Click to reset the held peaks; drag the target.
 #[allow(clippy::too_many_arguments)]
 fn meters(
-    app: &mut CantusApp,
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    s: &LimSettings,
+    s: &Style,
+    ls: &LimSettings,
     target: f32,
-    size: egui::Vec2,
-    strip: StripId,
-    effect: EffectId,
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    let axis_h = space::GRID * 4.0;
-    let gr_h = (rect.height() * 0.2).round();
-    let gr_r = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + gr_h));
-    let lv = Rect::from_min_max(
-        pos2(rect.left(), gr_r.bottom() + 1.0),
-        pos2(rect.right(), rect.bottom() - axis_h),
-    );
-    let st = &app.fx.limiter;
-    let bw = (rect.width() - space::S1 * 9.0) / 6.0;
-    let col_x = |i: usize| {
-        rect.left()
-            + space::S1
-            + i as f32 * (bw + space::S1)
-            + if i >= 2 { space::S1 * 2.0 } else { 0.0 }
-    };
-    // Reduction: L R, hanging from the top.
-    for ch in 0..2 {
-        let x = col_x(ch);
-        let bar = Rect::from_min_max(
-            pos2(x, gr_r.top() + 12.0),
-            pos2(x + bw, gr_r.bottom() - 2.0),
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let loud_c = s.t.hue(Function::Output);
+    let ln = lanes(rect, k);
+    let (gr_r, lv, axis) = (ln.gr, ln.levels, ln.axis);
+    let plot = Rect::from_min_max(gr_r.min, rect.max);
+    let resp = ui.interact(plot, ui.id().with("lim-meters"), Sense::click_and_drag());
+    let pad = 4.0 * k;
+    let bw = ((rect.width() - pad * 9.0) / 6.0).max(1.0);
+    let col_x =
+        |i: usize| rect.left() + pad + i as f32 * (bw + pad) + if i >= 2 { pad * 2.0 } else { 0.0 };
+    let ty = y_of(target, lv);
+    let cy = y_of(ls.ceiling_db, lv);
+    let loud_x = col_x(3) - 2.0 * k;
+    let on_target = |h: Pos2| h.x >= loud_x && (h.y - ty).abs() < 6.0 * k;
+    let near_target = resp.hover_pos().is_some_and(on_target);
+    let tp_over = st.max_tp > ls.ceiling_db + 0.005;
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        b.register(
+            rect,
+            "meters",
+            METER_TOKENS,
+            &[Some(Function::Output.tok())],
         );
-        p.rect_filled(bar, 0.0, fill(pal.grid, pal.dark, 1.0));
-        let y = bar.top() + (st.meter_gr[ch] / GR_SPAN).clamp(0.0, 1.0) * bar.height();
-        p.rect_filled(
-            Rect::from_min_max(bar.min, pos2(bar.right(), y)),
-            0.0,
-            pal.danger,
+        let px = b.px();
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(ln.head.bottom()),
+            px,
+            ink.grid,
         );
-    }
-    p.text(
-        pos2(col_x(0), gr_r.top() + 1.0),
-        Align2::LEFT_TOP,
-        format!("\u{2212}{:.1}", st.max_gr),
-        design::paint::ruler(),
-        pal.danger,
-    );
-    // Output true peak: L R, with the held peak.
-    for ch in 0..2 {
-        let x = col_x(ch);
-        let bar = Rect::from_min_max(pos2(x, lv.top()), pos2(x + bw, lv.bottom()));
-        p.rect_filled(bar, 0.0, fill(pal.grid, pal.dark, 1.0));
-        let v = st.meter_out[ch];
-        let color = if v > s.ceiling_db + 0.005 {
-            pal.meter_clip
-        } else if v > -6.0 {
-            pal.meter_high
-        } else {
-            pal.meter_low
-        };
-        if v > LOW_DB {
-            p.rect_filled(
-                Rect::from_min_max(pos2(x, y_of(v, lv)), bar.max),
-                0.0,
-                color,
+        let lane = Ink::a(ink.grid, 1.0);
+        // Reduction: L R, hanging from the top.
+        for ch in 0..2 {
+            let x = col_x(ch);
+            let bar = b.snap_rect(Rect::from_min_max(
+                pos2(x, gr_r.top() + 4.0 * k),
+                pos2(x + bw, gr_r.bottom() - 2.0 * k),
+            ));
+            b.rect(bar, Fill::Solid(lane));
+            let y = bar.top() + (st.meter_gr[ch] / GR_SPAN).clamp(0.0, 1.0) * bar.height();
+            b.rect(
+                Rect::from_min_max(bar.min, pos2(bar.right(), y)),
+                Fill::Solid(ink.danger),
             );
         }
-        let hy = y_of(st.hold[ch].0, lv);
-        if st.hold[ch].0 > LOW_DB {
-            p.hline(bar.x_range(), hy, Stroke::new(2.0, pal.text));
+        // Output true peak: L R, with the held peak.
+        for ch in 0..2 {
+            let x = col_x(ch);
+            let bar = b.snap_rect(Rect::from_min_max(
+                pos2(x, lv.top()),
+                pos2(x + bw, lv.bottom()),
+            ));
+            b.rect(bar, Fill::Solid(lane));
+            let v = st.meter_out[ch];
+            let color = if v > ls.ceiling_db + 0.005 {
+                s.t.meter_clip
+            } else if v > -6.0 {
+                s.t.meter_high
+            } else {
+                s.t.meter_low
+            };
+            if v > LOW_DB {
+                b.rect(
+                    Rect::from_min_max(pos2(bar.left(), y_of(v, lv)), bar.max),
+                    Fill::Solid(color),
+                );
+            }
+            if st.hold[ch].0 > LOW_DB {
+                let hy = y_of(st.hold[ch].0, lv);
+                b.rect(
+                    Rect::from_min_max(
+                        pos2(bar.left(), hy - 1.0 * k),
+                        pos2(bar.right(), hy + 1.0 * k),
+                    ),
+                    Fill::Solid(ink.text),
+                );
+            }
         }
-        p.text(
-            pos2(bar.center().x, lv.bottom() + 2.0),
-            Align2::CENTER_TOP,
-            if ch == 0 { "L" } else { "R" },
-            design::paint::caption(),
-            pal.text_dim,
-        );
-    }
-    // Loudness: momentary, short-term, integrated.
-    let loud = &st.loud;
-    let vals = [
-        ("M", loud.momentary),
-        ("S", loud.short_term),
-        ("I", loud.integrated().unwrap_or(f64::NEG_INFINITY)),
-    ];
-    for (k, (label, v)) in vals.iter().enumerate() {
-        let x = col_x(3 + k);
-        let bar = Rect::from_min_max(pos2(x, lv.top()), pos2(x + bw, lv.bottom()));
-        p.rect_filled(bar, 0.0, fill(pal.grid, pal.dark, 1.0));
-        if v.is_finite() && (*v as f32) > LOW_DB {
-            let v = *v as f32;
-            p.rect_filled(
-                Rect::from_min_max(pos2(x, y_of(v.min(target), lv)), bar.max),
-                0.0,
-                pal.gold,
-            );
-            if v > target {
-                // What is over the target, hatched in the danger colour.
-                let over =
-                    Rect::from_min_max(pos2(x, y_of(v, lv)), pos2(bar.right(), y_of(target, lv)));
-                p.rect_filled(over, 0.0, fill(pal.danger, pal.dark, 0.35));
-                let mut yy = over.top();
-                while yy < over.bottom() {
-                    p.line_segment(
-                        [
-                            pos2(over.left(), (yy + bw).min(over.bottom())),
-                            pos2(over.right(), yy),
-                        ],
-                        Stroke::new(1.0, pal.danger),
+        // Loudness: momentary, short-term, integrated; over the target hatched as well
+        // as coloured.
+        let loud = &st.loud;
+        let vals = [
+            loud.momentary,
+            loud.short_term,
+            loud.integrated().unwrap_or(f64::NEG_INFINITY),
+        ];
+        for (i, v) in vals.iter().enumerate() {
+            let x = col_x(3 + i);
+            let bar = b.snap_rect(Rect::from_min_max(
+                pos2(x, lv.top()),
+                pos2(x + bw, lv.bottom()),
+            ));
+            b.rect(bar, Fill::Solid(lane));
+            if v.is_finite() && (*v as f32) > LOW_DB {
+                let v = *v as f32;
+                b.rect(
+                    Rect::from_min_max(pos2(bar.left(), y_of(v.min(target), lv)), bar.max),
+                    Fill::Solid(loud_c),
+                );
+                if v > target {
+                    let over = Rect::from_min_max(
+                        pos2(bar.left(), y_of(v, lv)),
+                        pos2(bar.right(), y_of(target, lv)),
                     );
-                    yy += 4.0;
+                    b.rect(over, Fill::Solid(Ink::a(ink.danger, 0.35)));
+                    canvas::hatch(b, over, 4.0 * k, px, ink.danger);
                 }
             }
         }
-        p.text(
-            pos2(bar.center().x, lv.bottom() + 2.0),
-            Align2::CENTER_TOP,
-            *label,
-            design::paint::caption(),
-            pal.text_dim,
+        // The target across the loudness bars (drag it); the ceiling across the output.
+        b.hline(
+            loud_x,
+            col_x(5) + bw + 2.0 * k,
+            ty,
+            if near_target || st.drag == Some(Grab::Target) {
+                3.0
+            } else {
+                2.0
+            } * k,
+            loud_c,
         );
-    }
-    // The target across the loudness bars: drag it.
-    let ty = y_of(target, lv);
-    let tx = col_x(3) - 2.0..=col_x(5) + bw + 2.0;
-    p.hline(tx, ty, Stroke::new(2.0, pal.ok));
-    // The ceiling across the output bars.
-    let cy = y_of(s.ceiling_db, lv);
-    p.hline(
-        col_x(0) - 2.0..=col_x(1) + bw + 2.0,
-        cy,
-        Stroke::new(1.0, pal.gold),
-    );
-    // Max true peak above the output bars; click the meter to reset what it holds.
-    let tp_over = st.max_tp > s.ceiling_db + 0.005;
-    p.text(
-        pos2(col_x(0), lv.top() - 1.0),
-        Align2::LEFT_BOTTOM,
-        fmt_db(st.max_tp),
-        design::paint::ruler(),
-        if tp_over { pal.danger } else { pal.text },
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-    let near_target = resp
-        .hover_pos()
-        .is_some_and(|h| h.x >= col_x(3) - 2.0 && (h.y - ty).abs() < 6.0);
-    if near_target || app.fx.limiter.drag == Some(Grab::Target) {
+        b.hline(
+            col_x(0) - 2.0 * k,
+            col_x(1) + bw + 2.0 * k,
+            cy,
+            1.0 * k,
+            ink.hue,
+        );
+        // The words: the deepest reduction and the highest true peak held, the lanes'
+        // names along the bottom.
+        let plate = Some(ink.plate);
+        tagged(
+            b,
+            pos2(rect.left() + 4.0 * k, ln.head.center().y),
+            Align2::LEFT_CENTER,
+            frame::tr("lim.gr_short"),
+            ink.danger,
+            tk,
+            None,
+            f32::NEG_INFINITY,
+            format_args!("\u{2212}{:.1}", st.max_gr),
+        );
+        let _ = canvas::putf(
+            b,
+            pos2(rect.right() - 4.0 * k, ln.head.center().y),
+            Align2::RIGHT_CENTER,
+            Role::Value,
+            if tp_over { ink.danger } else { ink.text },
+            tk,
+            plate,
+            format_args!("{}", Db(st.max_tp)),
+        );
+        for (i, name) in ["L", "R", "", "M", "S", "I"].iter().enumerate() {
+            if name.is_empty() {
+                continue;
+            }
+            let x = col_x(i);
+            let t = Text::new(name, Role::Micro, ink.dim).caps(true);
+            canvas::put(
+                b,
+                pos2(x + bw * 0.5, axis.center().y),
+                Align2::CENTER_CENTER,
+                &t,
+                tk,
+                None,
+            );
+        }
+    });
+    if near_target || st.drag == Some(Grab::Target) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
     }
     let pressed_on_target = ui
         .input(|i| i.pointer.press_origin())
-        .is_some_and(|h| h.x >= col_x(3) - 2.0 && (h.y - ty).abs() < 6.0);
+        .is_some_and(on_target);
     if resp.drag_started() && pressed_on_target {
-        app.fx.limiter.drag = Some(Grab::Target);
+        st.drag = Some(Grab::Target);
     }
-    if resp.dragged() && app.fx.limiter.drag == Some(Grab::Target) {
+    if resp.dragged() && st.drag == Some(Grab::Target) {
         if let Some(h) = resp.interact_pointer_pos() {
             let v = (db_at(h.y, lv) * 10.0).round() / 10.0;
-            app.set_fx_param(strip, effect, "target", v.clamp(-36.0, -5.0), true);
+            host.set("target", v.clamp(-36.0, -5.0), Some("target"));
         }
     }
     if resp.drag_stopped() {
-        app.fx.limiter.drag = None;
-        app.end_gesture();
+        st.drag = None;
+        host.end_gesture();
     }
     if resp.clicked() {
-        app.fx.limiter.max_tp = f32::NEG_INFINITY;
-        app.fx.limiter.max_gr = 0.0;
-        app.fx.limiter.hold = [(-160.0, 0.0); 2];
+        st.reset_holds();
     }
-    resp.on_hover_text(t("lim.meters_tip"));
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("lim.card.meters"),
+            frame::tr("lim.meters_tip"),
+            Caps::NONE,
+        );
+    }
 }
 
-/// A verdict drawn as a shape and words: a filled disc for a pass, a hollow triangle for a
-/// miss — never colour alone.
-fn verdict_line(ui: &mut egui::Ui, pass: bool, text: &str) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        let (r, _) = ui.allocate_exact_size(vec2(space::S3, space::S3), Sense::hover());
-        let c = r.center();
-        if pass {
-            ui.painter().circle_filled(c, 4.5, pal.ok);
-        } else {
-            let pts = vec![
-                pos2(c.x, c.y - 5.0),
-                pos2(c.x + 5.0, c.y + 4.0),
-                pos2(c.x - 5.0, c.y + 4.0),
-            ];
-            ui.painter()
-                .add(Shape::closed_line(pts, Stroke::new(1.5, pal.danger)));
+/// The tokens the meters paint with, beside the display's.
+const METER_TOKENS: &[crate::kit::Tok] = &[
+    crate::kit::Tok::MeterLow,
+    crate::kit::Tok::MeterHigh,
+    crate::kit::Tok::MeterClip,
+];
+
+// ---- the loudness card ------------------------------------------------------------------
+
+/// A label | value row: the name at the left in caps (abbreviated when it must be), the
+/// value in a well at the right, in `role`. Returns the row's response.
+#[allow(clippy::too_many_arguments)]
+fn value_row(
+    ui: &mut egui::Ui,
+    s: &Style,
+    w: f32,
+    h: f32,
+    label: Src<'_>,
+    role: Role,
+    color: Color32,
+    value: std::fmt::Arguments<'_>,
+) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(w * s.k, h * s.k), Sense::hover());
+    if ui.is_rect_visible(rect) {
+        with_brush(ui.painter(), |b| {
+            let well_r = Rect::from_min_max(
+                pos2(
+                    rect.right() - (WELL_W * s.k).min(rect.width() * 0.5),
+                    rect.top(),
+                ),
+                rect.max,
+            );
+            label_left(b, s, rect, well_r.left(), label);
+            well::paint(b, well_r, s, KitState::REST, None);
+            with_fmt(value, |v| {
+                let t = Text::new(v, role, color)
+                    .caps(false)
+                    .align(Align2::RIGHT_CENTER)
+                    .policy(Policy::Elide(Elide::End));
+                let _ = ktext::paint(b, well_r.shrink2(vec2(6.0 * s.k, 0.0)), &t, s.tk());
+            });
+        });
+    }
+    resp
+}
+
+/// A row's name, left, up to `right` (less a gap).
+fn label_left(b: &mut Brush, s: &Style, rect: Rect, right: f32, label: Src<'_>) {
+    let lr = Rect::from_min_max(rect.min, pos2(right - 6.0 * s.k, rect.bottom()));
+    let t = Text {
+        src: label,
+        role: Role::Label,
+        caps: true,
+        align: Align2::LEFT_CENTER,
+        policy: Policy::Abbreviate,
+        color: s.t.label,
+    };
+    let _ = ktext::paint(b, lr, &t, s.tk());
+}
+
+/// `2.0 LU`, or a dash.
+struct Lu(Option<f64>);
+
+impl std::fmt::Display for Lu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(v) => write!(f, "{v:.1} LU"),
+            None => f.write_str("\u{2014}"),
         }
-        ui.add(
-            egui::Label::new(
-                RichText::new(text)
-                    .text_style(design::caption())
-                    .color(if pass { pal.ok } else { pal.text }),
-            )
-            .wrap(),
+    }
+}
+
+/// The loudness since the reset: the integrated number and its verdict, the other
+/// readings, reset / pause / on play, and the song and the selection as measured from
+/// the history.
+fn loudness(
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    body: Rect,
+    ls: &LimSettings,
+    target: f32,
+    song: &SongCtx,
+) {
+    let k = s.k;
+    let w = body.width() / k;
+    let profile = PROFILES
+        .iter()
+        .position(|p| (p.target - target).abs() < 0.05 && (p.ceiling - ls.ceiling_db).abs() < 0.05);
+    let integrated = st.loud.integrated();
+    // The verdict's words, when what it says changes.
+    let lang = crate::i18n::locale();
+    let key: VerdictKey = (
+        integrated.map(|v| (v * 20.0).round() as i64),
+        (st.max_tp.max(-1_000.0) * 200.0).round() as i32,
+        target.to_bits(),
+        ls.ceiling_db.to_bits(),
+        profile,
+        lang,
+    );
+    if st.words.verdict.map(|v| v.0) != Some(key) {
+        let (pass, text) = verdict(
+            integrated,
+            st.max_tp,
+            target,
+            ls.ceiling_db,
+            profile.map(|i| &PROFILES[i]),
         );
+        st.words.verdict = Some((key, pass));
+        st.words.verdict_text = text;
+        st.words.verdict_split = None;
+    }
+    let pass = st.words.verdict.is_some_and(|v| v.1);
+    controls::column(ui, s, w, |ui| {
+        ui.spacing_mut().item_spacing.y = s.d(2.0);
+        let r = value_row(
+            ui,
+            s,
+            w,
+            28.0,
+            Src::Key("lim.integrated"),
+            Role::Hero,
+            s.t.text,
+            format_args!("{} LUFS", Lufs(integrated.unwrap_or(f64::NEG_INFINITY))),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.integrated"),
+            frame::tr("lim.integrated_tip"),
+        );
+
+        // The verdict: a lamp when it passes, a warning shape when it does not — never
+        // the colour alone — and its words on up to two lines.
+        // One line when the words fit on one: the rows below keep their room.
+        let words_w = w * k - 20.0 * k;
+        let ww = words_w.round() as u32;
+        if st.words.verdict_split.is_none_or(|(at, _)| at != ww) {
+            let split = break_at(
+                ui.ctx(),
+                &st.words.verdict_text,
+                Role::Body,
+                s.tk(),
+                words_w,
+            );
+            st.words.verdict_split = Some((ww, split));
+        }
+        let split = st.words.verdict_split.map_or(0, |v| v.1);
+        let text = &st.words.verdict_text;
+        let lines = if split >= text.len() { 1.0 } else { 2.0 };
+        let (rect, resp) = ui.allocate_exact_size(vec2(w * k, lines * LINE * k), Sense::hover());
+        let words = Rect::from_min_max(pos2(rect.left() + 20.0 * k, rect.top()), rect.max);
+        let (l1, l2) = text.split_at(split.min(text.len()));
+        with_brush(ui.painter(), |b| {
+            let c = pos2(rect.left() + 8.0 * k, rect.top() + LINE * 0.5 * k);
+            match (integrated.is_some(), pass) {
+                (true, true) => band::lamp(b, c, s, true, s.t.meter_low, 1.0),
+                (false, _) => band::lamp(b, c, s, false, s.t.meter_low, 1.0),
+                (true, false) => {
+                    let r = 5.5 * k;
+                    let tri = [
+                        pos2(c.x, c.y - r),
+                        pos2(c.x + r, c.y + r * 0.8),
+                        pos2(c.x - r, c.y + r * 0.8),
+                        pos2(c.x, c.y - r),
+                    ];
+                    b.polyline(&tri, 1.5 * k, s.t.danger);
+                }
+            }
+            if l2.is_empty() {
+                lines_in(b, words, &[l1.trim_end()], s.t.text, s.tk());
+            } else {
+                lines_in(b, words, &[l1.trim_end(), l2], s.t.text, s.tk());
+            }
+        });
+        let name = profile.map_or(frame::tr("lim.profile.custom"), |i| {
+            frame::tr(PROFILES[i].key)
+        });
+        tip(ui, resp.hovered(), name, &st.words.verdict_text);
+
+        let tp_over = st.max_tp > ls.ceiling_db + 0.005;
+        let loud = &st.loud;
+        let r = value_row(
+            ui,
+            s,
+            w,
+            ROW_H,
+            Src::Key("lim.short_term"),
+            Role::Value,
+            s.t.text,
+            format_args!("{} LUFS", Lufs(loud.short_term)),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.short_term"),
+            frame::tr("lim.short_term_tip"),
+        );
+        let r = value_row(
+            ui,
+            s,
+            w,
+            ROW_H,
+            Src::Key("lim.momentary"),
+            Role::Value,
+            s.t.text,
+            format_args!("{} LUFS", Lufs(loud.momentary)),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.momentary"),
+            frame::tr("lim.momentary_tip"),
+        );
+        let r = value_row(
+            ui,
+            s,
+            w,
+            ROW_H,
+            Src::Key("lim.range"),
+            Role::Value,
+            s.t.text,
+            format_args!("{}", Lu(loud.range())),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.range"),
+            frame::tr("lim.range_tip"),
+        );
+        let r = value_row(
+            ui,
+            s,
+            w,
+            ROW_H,
+            Src::Key("lim.true_peak"),
+            Role::Value,
+            if tp_over { s.t.danger } else { s.t.text },
+            format_args!("{} dBTP", Db(st.max_tp)),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.true_peak"),
+            frame::tr("lim.true_peak_tip"),
+        );
+        let r = value_row(
+            ui,
+            s,
+            w,
+            ROW_H,
+            Src::Key("lim.max_ms"),
+            Role::Value,
+            s.t.text,
+            // Thin spaces: the pair keeps one face (a plain space starts a unit).
+            format_args!(
+                "{}\u{2009}/\u{2009}{}",
+                Lufs(loud.max_momentary),
+                Lufs(loud.max_short_term)
+            ),
+        );
+        tip(
+            ui,
+            r.hovered(),
+            frame::tr("lim.max_ms"),
+            frame::tr("lim.max_ms_tip"),
+        );
+
+        // Reset, pause, and reset on play.
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = s.d(4.0);
+            // The two keys take less than the LED, whose words are longer.
+            let third = (w - 8.0) * 0.28;
+            let led_w = w - 8.0 - 2.0 * third;
+            let r = controls::key(
+                ui,
+                s,
+                Src::Key("lim.reset"),
+                frame::tr("lim.reset"),
+                third,
+                false,
+            );
+            if r.clicked() {
+                st.reset_loudness();
+            }
+            tip(
+                ui,
+                r.hovered(),
+                frame::tr("lim.reset"),
+                frame::tr("lim.reset_tip"),
+            );
+            let pause = if st.paused { "lim.resume" } else { "lim.pause" };
+            let r = controls::key(ui, s, Src::Key(pause), frame::tr(pause), third, st.paused);
+            if r.clicked() {
+                st.paused = !st.paused;
+            }
+            tip(
+                ui,
+                r.hovered(),
+                frame::tr(pause),
+                frame::tr("lim.pause_tip"),
+            );
+            let r = controls::led(
+                ui,
+                s,
+                st.auto_reset,
+                Src::Key("lim.auto_reset"),
+                frame::tr("lim.auto_reset"),
+                led_w,
+            );
+            if r.clicked() {
+                st.auto_reset = !st.auto_reset;
+            }
+            tip(
+                ui,
+                r.hovered(),
+                frame::tr("lim.auto_reset"),
+                frame::tr("lim.auto_reset_tip"),
+            );
+        });
+
+        // The song as last heard, and the time selection — from the history in song time.
+        if !st.song.is_empty() {
+            let ceiling = ls.ceiling_db;
+            let sum = st.song_summary(song.bpm, song.bar);
+            summary_rows(ui, s, w, "lim.song", &sum, ceiling);
+            if let Some(sel) = song.sel {
+                let sum = st.selection_summary(sel, song.bpm, song.bar);
+                summary_rows(ui, s, w, "lim.selection", &sum, ceiling);
+            }
+        }
     });
 }
 
-fn reading(ui: &mut egui::Ui, label: &str, value: String, color: Color32) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(label)
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(
-                RichText::new(value)
-                    .text_style(design::mono_small())
-                    .color(color),
+/// A stretch of the song, measured: its name and integrated loudness, then its bars, its
+/// range and its true peak.
+fn summary_rows(
+    ui: &mut egui::Ui,
+    s: &Style,
+    w: f32,
+    key: &'static str,
+    sum: &Summary,
+    ceiling: f32,
+) {
+    let k = s.k;
+    let r = value_row(
+        ui,
+        s,
+        w,
+        ROW_H,
+        Src::Key(key),
+        Role::Value,
+        s.t.text,
+        format_args!("{} LUFS", Lufs(sum.integrated.unwrap_or(f64::NEG_INFINITY))),
+    );
+    tip(ui, r.hovered(), frame::tr(key), frame::tr("lim.song_tip"));
+    let (rect, resp) = ui.allocate_exact_size(vec2(w * k, ROW_H * k), Sense::hover());
+    if ui.is_rect_visible(rect) {
+        with_brush(ui.painter(), |b| {
+            let tp_w = (WELL_W * k).min(rect.width() * 0.5);
+            let lra_w = 64.0 * k;
+            let tp_r = Rect::from_min_max(pos2(rect.right() - tp_w, rect.top()), rect.max);
+            let lra_r = Rect::from_min_max(
+                pos2(tp_r.left() - 4.0 * k - lra_w, rect.top()),
+                pos2(tp_r.left() - 4.0 * k, rect.bottom()),
             );
+            // "Bars 1–12", dim: it names the rows above and beside.
+            with_fmt(
+                format_args!(
+                    "{} {}\u{2013}{}",
+                    frame::tr("lim.bars"),
+                    sum.bars.0,
+                    sum.bars.1
+                ),
+                |v| {
+                    let lr =
+                        Rect::from_min_max(rect.min, pos2(lra_r.left() - 6.0 * k, rect.bottom()));
+                    let t = Text::new(v, Role::Label, s.t.text_dim)
+                        .caps(true)
+                        .align(Align2::LEFT_CENTER)
+                        .policy(Policy::Elide(Elide::End));
+                    let _ = ktext::paint(b, lr, &t, s.tk());
+                },
+            );
+            let value = |b: &mut Brush, r: Rect, color: Color32, args: std::fmt::Arguments<'_>| {
+                well::paint(b, r, s, KitState::REST, None);
+                with_fmt(args, |v| {
+                    let t = Text::new(v, Role::Value, color)
+                        .caps(false)
+                        .align(Align2::RIGHT_CENTER)
+                        .policy(Policy::Elide(Elide::End));
+                    let _ = ktext::paint(b, r.shrink2(vec2(6.0 * k, 0.0)), &t, s.tk());
+                });
+            };
+            value(b, lra_r, s.t.text, format_args!("{}", Lu(sum.range)));
+            let tp_c = if sum.max_tp > ceiling + 0.005 {
+                s.t.danger
+            } else {
+                s.t.text
+            };
+            value(b, tp_r, tp_c, format_args!("{} dBTP", Db(sum.max_tp)));
+        });
+    }
+    tip(
+        ui,
+        resp.hovered(),
+        frame::tr(key),
+        frame::tr("lim.song_tip"),
+    );
+}
+
+// ---- the cards --------------------------------------------------------------------------
+
+/// The styles, as one segmented control, and what the chosen one is for and does, in
+/// two boxed lines (the whole of each on the help line).
+fn style_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    ls: &LimSettings,
+) {
+    let lang = crate::i18n::locale();
+    let idx = ls.style.index().min(STYLE_KEYS.len() - 1);
+    if st.words.style != Some((idx, lang)) {
+        st.words.style_use = t(STYLE_USE_KEYS[idx]);
+        st.words.style_engine = style_words(ls.style);
+        st.words.style = Some((idx, lang));
+        st.words.style_split = None;
+    }
+    let _ = controls::card(ui, s, rect, Src::Key("fx.lim.style"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        controls::column(ui, s, w, |ui| {
+            let labels = STYLE_KEYS.map(Src::Key);
+            let r = ui
+                .scope(|ui| controls::segmented(ui, s, idx, &labels, frame::tr("fx.lim.style"), w));
+            if let Some(i) = r.inner {
+                host.set("style", i as f32, None);
+            }
+            tip(
+                ui,
+                r.response.contains_pointer(),
+                frame::tr(STYLE_KEYS[idx]),
+                &st.words.style_use,
+            );
+            ui.spacing_mut().item_spacing.y = 0.0;
+            // What the style is for, then what its engine does, on up to two lines.
+            let name = frame::tr(STYLE_KEYS[idx]);
+            let (lr, resp) = ui.allocate_exact_size(vec2(w * s.k, s.s(LINE)), Sense::hover());
+            with_brush(ui.painter(), |b| {
+                lines_in(b, lr, &[st.words.style_use.as_str()], s.t.text, s.tk())
+            });
+            tip(ui, resp.hovered(), name, &st.words.style_use);
+            let (lr, resp) = ui.allocate_exact_size(vec2(w * s.k, s.s(2.0 * LINE)), Sense::hover());
+            let ww = lr.width().round() as u32;
+            let text = &st.words.style_engine;
+            if st.words.style_split.is_none_or(|(at, _)| at != ww) {
+                let a = break_at(ui.ctx(), text, Role::Body, s.tk(), lr.width());
+                st.words.style_split = Some((ww, a));
+            }
+            let a = st.words.style_split.map_or(0, |v| v.1).min(text.len());
+            with_brush(ui.painter(), |b| {
+                lines_in(
+                    b,
+                    lr,
+                    &[text[..a].trim_end(), &text[a..]],
+                    s.t.text_dim,
+                    s.tk(),
+                )
+            });
+            tip(ui, resp.hovered(), name, text);
         });
     });
 }
 
-/// The loudness panel: the delivery profile and its rule, the readings, the verdict, and
-/// the song and selection measured from the history.
-fn loudness_panel(
-    app: &mut CantusApp,
+/// What goes out and what you hear: true peak, the DC filter, Δ, the monitor; dither and
+/// its shaping; what triggers the limiting.
+#[allow(clippy::too_many_arguments)]
+fn output_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &LimSettings,
-    target: f32,
+    s: &Style,
+    rect: Rect,
+    ls: &LimSettings,
+    tel: &[f32; 64],
 ) {
-    let pal = theme::p();
-    ui.spacing_mut().item_spacing.y = 2.0;
-    // The profile.
-    let current = profile_of(target, s.ceiling_db);
-    let name = current
-        .map(|p| t(p.key))
-        .unwrap_or_else(|| t("lim.profile.custom"));
-    egui::ComboBox::from_id_salt(("lim-profile", effect.0))
-        .selected_text(name)
-        .width(ui.available_width())
-        .show_ui(ui, |ui| {
-            for pr in &PROFILES {
-                let label = format!(
-                    "{}  {} LUFS \u{b7} {} dBTP",
-                    t(pr.key),
-                    fmt_lufs(pr.target as f64),
-                    fmt_db(pr.ceiling)
-                );
-                if ui.selectable_label(current == Some(pr), label).clicked() {
-                    app.exec(Command::Batch {
-                        label_key: "cmd.lim_profile".into(),
-                        commands: [("target", pr.target), ("ceiling", pr.ceiling), ("tp", 1.0)]
-                            .into_iter()
-                            .map(|(k, v)| Command::SetEffectParam {
-                                strip,
-                                effect,
-                                key: k.into(),
-                                value: v,
-                            })
-                            .collect(),
-                    });
-                }
-            }
-        })
-        .response
-        .on_hover_text(t("lim.profile_tip"));
-    let rule = match current {
-        Some(pr) => t(&format!("{}_rule", pr.key)),
-        None => t("lim.profile.custom_rule"),
-    };
-    ui.add(
-        egui::Label::new(
-            RichText::new(rule)
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        )
-        .wrap(),
-    );
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("fx.lim.target"))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        let mut v = target;
-        let r = ui.add(
-            egui::DragValue::new(&mut v)
-                .range(-36.0..=-5.0)
-                .speed(0.1)
-                .fixed_decimals(1)
-                .suffix(" LUFS"),
-        );
-        if r.changed() {
-            app.set_fx_param(strip, effect, "target", v, true);
-        }
-        if r.drag_stopped() || r.lost_focus() {
-            app.end_gesture();
-        }
-    });
-    ui.add_space(space::S1);
-
-    // The big number: integrated since the reset.
-    let st = &app.fx.limiter;
-    let integrated = st.loud.integrated();
-    ui.label(
-        RichText::new(t("lim.integrated"))
-            .text_style(design::caption())
-            .color(pal.text_dim),
-    );
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(
-                integrated
-                    .map(fmt_lufs)
-                    .unwrap_or_else(|| "\u{2014}".into()),
-            )
-            .text_style(design::readout())
-            .color(pal.text),
-        );
-        ui.label(
-            RichText::new("LUFS")
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-    });
-    let (pass, words) = verdict(integrated, st.max_tp, target, s.ceiling_db, current);
-    verdict_line(ui, pass, &words);
-    ui.add_space(space::S1);
-    let lufs_s = |v: f64| format!("{} LUFS", fmt_lufs(v));
-    reading(
-        ui,
-        &t("lim.short_term"),
-        lufs_s(st.loud.short_term),
-        pal.text,
-    );
-    reading(ui, &t("lim.momentary"), lufs_s(st.loud.momentary), pal.text);
-    reading(
-        ui,
-        &t("lim.range"),
-        st.loud
-            .range()
-            .map(|r| format!("{r:.1} LU"))
-            .unwrap_or_else(|| "\u{2014}".into()),
-        pal.text,
-    );
-    let tp_over = st.max_tp > s.ceiling_db + 0.005;
-    reading(
-        ui,
-        &t("lim.true_peak"),
-        format!("{} dBTP", fmt_db(st.max_tp)),
-        if tp_over { pal.danger } else { pal.text },
-    );
-    reading(
-        ui,
-        &t("lim.max_ms"),
-        format!(
-            "{} / {}",
-            fmt_lufs(st.loud.max_momentary),
-            fmt_lufs(st.loud.max_short_term)
-        ),
-        pal.text,
-    );
-    ui.horizontal(|ui| {
-        let st = &mut app.fx.limiter;
-        if ui
-            .small_button(t("lim.reset"))
-            .on_hover_text(t("lim.reset_tip"))
-            .clicked()
-        {
-            st.reset_loudness();
-        }
-        let label = if st.paused {
-            t("lim.resume")
+    let lang = crate::i18n::locale();
+    let shape = host.spec().get("shape").round().clamp(0.0, 2.0) as usize;
+    let bits = |i: usize| {
+        if i == 0 {
+            t("lim.off")
         } else {
-            t("lim.pause")
-        };
-        if ui.small_button(label).clicked() {
-            st.paused = !st.paused;
+            tf("lim.bits", &[("n", &DITHER_BITS[i])])
         }
-        ui.checkbox(&mut st.auto_reset, t("lim.auto_reset"))
-            .on_hover_text(t("lim.auto_reset_tip"));
-    });
-
-    // The song as last heard, and the time selection — from the history in song time.
-    let bpm = app.project().tempo_bpm;
-    let bar = app.project().time_signature.ticks_per_bar().0;
-    let sel = app.time_selection.map(|(a, b)| (a.0, b.0));
-    if !app.fx.limiter.song.is_empty() {
-        ui.add_space(space::S1);
-        let sum = app.fx.limiter.song_summary(bpm, bar);
-        summary(ui, &t("lim.song"), &sum, s.ceiling_db);
-        if let Some(sel) = sel {
-            let sum = app.fx.limiter.selection_summary(sel, bpm, bar);
-            summary(ui, &t("lim.selection"), &sum, s.ceiling_db);
-        }
-    }
-}
-
-fn summary(ui: &mut egui::Ui, title: &str, s: &Summary, ceiling: f32) {
-    let pal = theme::p();
-    ui.label(
-        RichText::new(tf(
-            "lim.summary_title",
-            &[("what", &title), ("from", &s.bars.0), ("to", &s.bars.1)],
-        ))
-        .text_style(design::caption())
-        .color(pal.text_dim),
-    )
-    .on_hover_text(t("lim.song_tip"));
-    let i = s
-        .integrated
-        .map(|v| format!("{} LUFS", fmt_lufs(v)))
-        .unwrap_or_else(|| "\u{2014}".into());
-    let lra = s
-        .range
-        .map(|v| format!("{v:.1} LU"))
-        .unwrap_or_else(|| "\u{2014}".into());
-    ui.label(
-        RichText::new(format!("{i} \u{b7} {lra}"))
-            .text_style(design::mono_small())
-            .color(pal.text),
-    );
-    ui.label(
-        RichText::new(tf("lim.summary_tp", &[("db", &fmt_db(s.max_tp))]))
-            .text_style(design::mono_small())
-            .color(if s.max_tp > ceiling + 0.005 {
-                pal.danger
-            } else {
-                pal.text
-            }),
-    );
-}
-
-/// The styles, and what the chosen one is in words.
-fn style_row(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &LimSettings,
-) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(t("fx.lim.style"))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        for style in LimStyle::ALL {
-            let key = format!("lim.style.{}", style.index());
-            if ui
-                .selectable_label(s.style == style, t(&key))
-                .on_hover_text(format!(
-                    "{}\n{}",
-                    t(&format!("{key}_use")),
-                    style_words(style)
-                ))
-                .clicked()
-            {
-                app.set_fx_param(strip, effect, "style", style.index() as f32, false);
-            }
-        }
-        ui.add(
-            egui::Label::new(
-                RichText::new(format!(
-                    "{} \u{2014} {}",
-                    t(&format!("lim.style.{}_use", s.style.index())),
-                    style_words(s.style)
-                ))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-            )
-            .truncate(),
-        );
-    });
-}
-
-/// Every parameter with a range, as the house knob.
-fn knob_row(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
-    s: &LimSettings,
-) {
-    let tp = s.true_peak;
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S1;
-        for key in [
-            "gain", "ceiling", "look", "att", "rel", "link_t", "link_r", "knee", "clip",
-        ] {
-            let Some(info) = spec.kind.param(key) else {
-                continue;
-            };
-            let mut v = spec.get(key);
-            let knob = Knob::new(&mut v, info.min..=info.max, info.default)
-                .diameter(space::GRID * 11.0)
-                .log(info.logarithmic)
-                .unit(info.unit)
-                .label(t(info.label_key));
-            let knob = match key {
-                "ceiling" => knob
-                    .format(move |x| format!("{} {}", fmt_db(x), if tp { "dBTP" } else { "dB" })),
-                "gain" => knob.format(|x| format!("+{x:.1} dB")),
-                "knee" => knob.format(|x| {
-                    if x < 0.05 {
-                        t("lim.hard")
-                    } else {
-                        format!("{x:.1} dB")
-                    }
-                }),
-                "clip" => knob.format(|x| {
-                    if x <= 0.0 {
-                        t("lim.off")
-                    } else {
-                        format!("{:.0}%", x * 100.0)
-                    }
-                }),
-                "look" => knob.format(|x| format!("{x:.2} ms")),
-                _ => knob,
-            };
-            let r = ui
-                .add(knob)
-                .on_hover_text(t(&format!("{}_tip", info.label_key)));
-            if r.changed() {
-                app.set_fx_param(strip, effect, key, v, true);
-            }
-            if r.drag_stopped() || r.double_clicked() {
-                app.end_gesture();
-            }
-        }
-    });
-}
-
-/// Delivery: true peak, DC, dither and its shaping, what to monitor, the trigger.
-fn delivery_row(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &LimSettings,
-    tel: &[f32],
-) {
-    let pal = theme::p();
-    let caption = |ui: &mut egui::Ui, key: &str| {
-        ui.label(
-            RichText::new(t(key))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
     };
-    ui.horizontal(|ui| {
-        let mut tp = s.true_peak;
-        if ui
-            .toggle_value(&mut tp, t("fx.lim.tp"))
-            .on_hover_text(t("fx.lim.tp_tip"))
-            .changed()
-        {
-            app.set_fx_param(strip, effect, "tp", if tp { 1.0 } else { 0.0 }, false);
-        }
-        let mut dc = s.dc_filter;
-        if ui
-            .toggle_value(&mut dc, t("fx.lim.dc"))
-            .on_hover_text(t("fx.lim.dc_tip"))
-            .changed()
-        {
-            app.set_fx_param(strip, effect, "dc", if dc { 1.0 } else { 0.0 }, false);
-        }
-        ui.separator();
-        caption(ui, "fx.lim.dither");
-        let bits_label = |i: usize| {
-            if i == 0 {
-                t("lim.off")
-            } else {
-                tf("lim.bits", &[("n", &DITHER_BITS[i])])
-            }
+    if st.words.fields != Some((ls.dither, shape, lang)) {
+        st.words.dither = tf("lim.dither_field", &[("v", &bits(ls.dither))]);
+        st.words.shape = tf("lim.shape_field", &[("v", &t(SHAPE_KEYS[shape]))]);
+        st.words.fields = Some((ls.dither, shape, lang));
+    }
+    let rev = host.revision();
+    if st.words.key.as_ref().is_none_or(|(r, _)| *r != rev) {
+        st.words.key = Some((rev, host.key_source()));
+    }
+    if st.words.trigger != Some((rev, lang)) {
+        let src = match st.words.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+            Some(KeySource::Strips {
+                current: Some(_),
+                label,
+                ..
+            }) => label.clone(),
+            _ => t("lim.trigger_own"),
         };
-        egui::ComboBox::from_id_salt(("lim-dither", effect.0))
-            .selected_text(bits_label(s.dither))
-            .width(space::GRID * 16.0)
-            .show_ui(ui, |ui| {
-                for i in 0..DITHER_BITS.len() {
-                    if ui.selectable_label(s.dither == i, bits_label(i)).clicked() {
-                        app.set_fx_param(strip, effect, "dither", i as f32, false);
+        st.words.trigger_text = tf("lim.trigger_field", &[("src", &src)]);
+        st.words.trigger = Some((rev, lang));
+    }
+    let _ = controls::card(ui, s, rect, Src::Key("lim.card.output"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        controls::column(ui, s, w, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = s.d(4.0);
+                for (key, label, width, tip_key) in [
+                    ("tp", "fx.lim.tp", 96.0, "fx.lim.tp_tip"),
+                    ("dc", "fx.lim.dc", 96.0, "fx.lim.dc_tip"),
+                    ("delta", "fx.lim.delta", 44.0, "fx.lim.delta_tip"),
+                ] {
+                    let r = controls::led_param(ui, s, host, key, Src::Key(label), width);
+                    tip(ui, r.hovered(), frame::tr(label), frame::tr(tip_key));
+                }
+                let labels = MONITOR_KEYS.map(Src::Key);
+                let mw = (w - 96.0 - 96.0 - 44.0 - 12.0).max(60.0);
+                let r =
+                    ui.scope(|ui| controls::segmented_param(ui, s, host, "monitor", &labels, mw));
+                let now = (host.spec().get("monitor").round().clamp(0.0, 2.0)) as usize;
+                if r.response.contains_pointer() {
+                    // The match gain, when matching, goes with what the mode does.
+                    if ls.monitor == Monitor::Match {
+                        hint::set(
+                            ui.ctx(),
+                            frame::tr("fx.lim.monitor"),
+                            Caps::NONE,
+                            false,
+                            |b| {
+                                write!(
+                                    b,
+                                    "{} dB  \u{b7}  {}",
+                                    Db(tel[T_MATCH]),
+                                    frame::tr(MONITOR_TIPS[2])
+                                )
+                            },
+                        );
+                    } else {
+                        tip(
+                            ui,
+                            true,
+                            frame::tr("fx.lim.monitor"),
+                            frame::tr(MONITOR_TIPS[now]),
+                        );
                     }
                 }
-            })
-            .response
-            .on_hover_text(t("fx.lim.dither_tip"));
-        ui.add_enabled_ui(s.dither > 0, |ui| {
-            let shape = slot.spec.get("shape").round() as usize;
-            egui::ComboBox::from_id_salt(("lim-shape", effect.0))
-                .selected_text(t(&format!("lim.shape.{shape}")))
-                .width(space::GRID * 22.0)
-                .show_ui(ui, |ui| {
-                    for i in 0..3 {
-                        if ui
-                            .selectable_label(shape == i, t(&format!("lim.shape.{i}")))
-                            .on_hover_text(t(&format!("lim.shape.{i}_tip")))
-                            .clicked()
-                        {
-                            app.set_fx_param(strip, effect, "shape", i as f32, false);
+            });
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = s.d(4.0);
+                let (dw, sw) = (120.0, 132.0);
+                let tw = (w - dw - sw - 8.0).max(60.0);
+                // Dither: off, or a word length.
+                let id = ui.id().with("lim-dither");
+                let r = ui.scope(|ui| {
+                    controls::field(ui, s, id, &st.words.dither, frame::tr("fx.lim.dither"), dw)
+                });
+                if let Some(at) = r.inner {
+                    let names: Vec<String> = (0..DITHER_BITS.len()).map(bits).collect();
+                    let items: Vec<_> = names
+                        .iter()
+                        .enumerate()
+                        .map(|(i, n)| frame::radio(Src::Str(n), ls.dither == i))
+                        .collect();
+                    if let Some(i) = controls::list(ui, s, id, at, dw, &items) {
+                        host.set("dither", i as f32, None);
+                    }
+                }
+                tip(
+                    ui,
+                    r.response.contains_pointer(),
+                    frame::tr("fx.lim.dither"),
+                    frame::tr("fx.lim.dither_tip"),
+                );
+                // Its shaping, when it dithers.
+                ui.add_enabled_ui(ls.dither > 0, |ui| {
+                    let id = ui.id().with("lim-shape");
+                    let r = ui.scope(|ui| {
+                        controls::field(ui, s, id, &st.words.shape, frame::tr("fx.lim.shape"), sw)
+                    });
+                    if let Some(at) = r.inner {
+                        let items: [_; 3] = std::array::from_fn(|i| {
+                            frame::radio(Src::Key(SHAPE_KEYS[i]), shape == i)
+                        });
+                        if let Some(i) = controls::list(ui, s, id, at, sw.max(180.0), &items) {
+                            host.set("shape", i as f32, None);
                         }
                     }
-                })
-                .response
-                .on_hover_text(t("fx.lim.shape_tip"));
+                    tip(
+                        ui,
+                        r.response.contains_pointer(),
+                        frame::tr("fx.lim.shape"),
+                        frame::tr(SHAPE_TIPS[shape]),
+                    );
+                });
+                trigger(host, st, ui, s, tw);
+            });
         });
-        ui.separator();
-        caption(ui, "fx.lim.monitor");
-        for (i, key) in ["lim.monitor.0", "lim.monitor.1", "lim.monitor.2"]
-            .iter()
-            .enumerate()
-        {
-            let on = matches!(
-                (i, s.monitor),
-                (0, Monitor::Normal) | (1, Monitor::Unity) | (2, Monitor::Match)
-            );
-            if ui
-                .selectable_label(on, t(key))
-                .on_hover_text(t(&format!("{key}_tip")))
-                .clicked()
-            {
-                app.set_fx_param(strip, effect, "monitor", i as f32, false);
-            }
-        }
-        if s.monitor == Monitor::Match {
-            ui.label(
-                RichText::new(format!("{} dB", fmt_db(tel[T_MATCH])))
-                    .text_style(design::mono_small())
-                    .color(pal.text),
-            );
-        }
-        let mut delta = s.delta;
-        if ui
-            .toggle_value(&mut delta, t("fx.lim.delta"))
-            .on_hover_text(t("fx.lim.delta_tip"))
-            .changed()
-        {
-            app.set_fx_param(strip, effect, "delta", if delta { 1.0 } else { 0.0 }, false);
-        }
-        ui.separator();
-        caption(ui, "lim.trigger");
-        let current = slot.sidechain;
-        let label = match current {
-            Some(k) => app.capture_label(cantus_engine::CaptureTarget::Strip(k)),
-            None => t("lim.trigger_own"),
-        };
-        egui::ComboBox::from_id_salt(("lim-key", effect.0))
-            .selected_text(label)
-            .width(space::GRID * 30.0)
-            .show_ui(ui, |ui| {
-                if ui
-                    .selectable_label(current.is_none(), t("lim.trigger_own"))
-                    .clicked()
-                {
-                    app.exec(Command::SetEffectSidechain {
-                        strip,
-                        effect,
-                        source: None,
-                    });
+    });
+}
+
+const SHAPE_TIPS: [&str; 3] = ["lim.shape.0_tip", "lim.shape.1_tip", "lim.shape.2_tip"];
+
+/// What triggers the limiting: any strip of the desk (Cantus), or the plug-in's
+/// sidechain input, switched on (another DAW routes it).
+fn trigger(host: &mut dyn FxHost, st: &State, ui: &mut egui::Ui, s: &Style, w: f32) {
+    let words = &st.words;
+    match words.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+        Some(KeySource::Strips {
+            current, options, ..
+        }) => {
+            let current = *current;
+            let id = ui.id().with("lim-trigger");
+            let r = ui.scope(|ui| {
+                controls::field(ui, s, id, &words.trigger_text, frame::tr("lim.trigger"), w)
+            });
+            if let Some(at) = r.inner {
+                let mut items = vec![frame::radio(Src::Key("lim.trigger_own"), current.is_none())];
+                items.extend(
+                    options
+                        .iter()
+                        .map(|(sid, text)| frame::radio(Src::Str(text), current == Some(*sid))),
+                );
+                if let Some(i) = controls::list(ui, s, id, at, w.max(180.0), &items) {
+                    let target = if i == 0 {
+                        None
+                    } else {
+                        options.get(i - 1).map(|o| o.0)
+                    };
+                    drop(items);
+                    host.set_key_source(KeyTarget::Strip(target));
                 }
-                let options: Vec<StripId> = app
-                    .project()
-                    .strips
-                    .iter()
-                    .map(|x| x.id)
-                    .filter(|id| {
-                        *id != strip && !app.project().routing_would_cycle(*id, Some(strip))
-                    })
-                    .collect();
-                for id in options {
-                    let text = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-                    if ui.selectable_label(current == Some(id), text).clicked() {
-                        app.exec(Command::SetEffectSidechain {
-                            strip,
-                            effect,
-                            source: Some(id),
-                        });
+            }
+            tip(
+                ui,
+                r.response.contains_pointer(),
+                frame::tr("lim.trigger"),
+                frame::tr("lim.trigger_tip"),
+            );
+        }
+        Some(KeySource::Switch(on)) => {
+            let labels = [
+                Src::Key("lim.trigger_own"),
+                Src::Key("export.sidechain.external"),
+            ];
+            let r = ui.scope(|ui| {
+                controls::segmented(ui, s, *on as usize, &labels, frame::tr("lim.trigger"), w)
+            });
+            if let Some(i) = r.inner {
+                host.set_key_source(KeyTarget::Switch(i == 1));
+            }
+            tip(
+                ui,
+                r.response.contains_pointer(),
+                frame::tr("lim.trigger"),
+                frame::tr("lim.trigger_tip"),
+            );
+        }
+        None => {}
+    }
+}
+
+/// How a cell writes its value into its pill, when not in the parameter's own unit.
+type Pill<'a> = Option<&'a dyn Fn(f32, &mut String)>;
+
+/// A cell whose help line also says what the parameter does.
+fn cell(
+    ui: &mut egui::Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &'static str,
+    size: Size,
+    format: Pill<'_>,
+) {
+    let r = controls::param_with(ui, s, host, key, size, format);
+    if !(r.hovered() && !r.dragged()) {
+        return;
+    }
+    let spec = host.spec();
+    let Some(info) = spec.kind.param(key) else {
+        return;
+    };
+    let v = spec.get(key);
+    let what = frame::tr(tip_of(key));
+    hint::set(
+        ui.ctx(),
+        frame::tr(info.label_key),
+        Caps::PARAM,
+        false,
+        |b| {
+            match format {
+                Some(f) => f(v, b),
+                None => controls::write_readout(v, info.unit, b),
+            }
+            b.push_str("  \u{b7}  ");
+            b.push_str(what);
+            Ok(())
+        },
+    );
+}
+
+/// What each cell's parameter does, for the help line.
+fn tip_of(key: &str) -> &'static str {
+    match key {
+        "gain" => "fx.lim.gain_tip",
+        "ceiling" => "fx.lim.ceiling_tip",
+        "look" => "fx.lim.look_tip",
+        "att" => "fx.lim.att_tip",
+        "rel" => "fx.lim.rel_tip",
+        "link_t" => "fx.lim.link_t_tip",
+        "link_r" => "fx.lim.link_r_tip",
+        "knee" => "fx.lim.knee_tip",
+        "clip" => "fx.lim.clip_tip",
+        _ => "fx.lim.target_tip",
+    }
+}
+
+fn gain_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "+{v:.1} dB");
+}
+
+fn ceiling_pill(v: f32, tp: bool, b: &mut String) {
+    let _ = write!(b, "{} {}", Db(v), if tp { "dBTP" } else { "dB" });
+}
+
+fn look_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{v:.2} ms");
+}
+
+fn knee_pill(v: f32, b: &mut String) {
+    if v < 0.05 {
+        b.push_str(frame::tr("lim.hard"));
+    } else {
+        let _ = write!(b, "{v:.1} dB");
+    }
+}
+
+fn clip_pill(v: f32, b: &mut String) {
+    if v <= 0.0 {
+        b.push_str(frame::tr("lim.off"));
+    } else {
+        let _ = write!(b, "{:.0}%", v * 100.0);
+    }
+}
+
+fn target_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{} LUFS", Lufs(v as f64));
+}
+
+/// The limiter: the gain it drives with (the primary parameter, larger), the ceiling,
+/// the two stages' timing, the knee and the clipper, and each stage's stereo link.
+fn limiter_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, ls: &LimSettings) {
+    let tp = ls.true_peak;
+    let _ = controls::card(ui, s, rect, Src::Key("lim.card.limiter"), None, |ui, _| {
+        cell(ui, s, host, "gain", LIM_CELLS[0], Some(&gain_pill));
+        let ceiling = move |v: f32, b: &mut String| ceiling_pill(v, tp, b);
+        cell(ui, s, host, "ceiling", LIM_CELLS[1], Some(&ceiling));
+        cell(ui, s, host, "look", Size::M, Some(&look_pill));
+        cell(ui, s, host, "att", Size::M, None);
+        cell(ui, s, host, "rel", Size::M, None);
+        cell(ui, s, host, "knee", Size::M, Some(&knee_pill));
+        cell(ui, s, host, "clip", Size::M, Some(&clip_pill));
+        cell(ui, s, host, "link_t", Size::M, None);
+        cell(ui, s, host, "link_r", Size::M, None);
+    });
+}
+
+/// The delivery: the loudness target (a cell), the profile that sets target and ceiling
+/// together (a menu field), and the profile's rule in a sentence.
+#[allow(clippy::too_many_arguments)]
+fn delivery_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    ls: &LimSettings,
+    target: f32,
+) {
+    let k = s.k;
+    let lang = crate::i18n::locale();
+    let profile = PROFILES
+        .iter()
+        .position(|p| (p.target - target).abs() < 0.05 && (p.ceiling - ls.ceiling_db).abs() < 0.05);
+    if st.words.rule != Some((profile, lang)) {
+        st.words.rule_text = t(profile.map_or("lim.profile.custom_rule", |i| RULE_KEYS[i]));
+        st.words.rule = Some((profile, lang));
+        st.words.rule_split = None;
+    }
+    let _ = controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("lim.card.delivery"),
+        None,
+        |ui, cr| {
+            cell(ui, s, host, "target", Size::L, Some(&target_pill));
+            let w = (cr.body.width() / k - crate::kit::cell::size(Size::L).x - 4.0).max(60.0);
+            controls::column(ui, s, w, |ui| {
+                ui.spacing_mut().item_spacing.y = s.d(3.0);
+                let id = ui.id().with("lim-profile");
+                let name = profile.map_or(frame::tr("lim.profile.custom"), |i| {
+                    frame::tr(PROFILES[i].key)
+                });
+                let r = ui
+                    .scope(|ui| controls::field(ui, s, id, name, frame::tr("cmd.lim_profile"), w));
+                if let Some(at) = r.inner {
+                    let names: Vec<String> = PROFILES
+                        .iter()
+                        .map(|p| {
+                            format!(
+                                "{}  {} LUFS \u{b7} {} dBTP",
+                                t(p.key),
+                                Lufs(p.target as f64),
+                                Db(p.ceiling)
+                            )
+                        })
+                        .collect();
+                    let items: Vec<_> = names
+                        .iter()
+                        .enumerate()
+                        .map(|(i, n)| frame::radio(Src::Str(n), profile == Some(i)))
+                        .collect();
+                    if let Some(i) = controls::list(ui, s, id, at, w.max(260.0), &items) {
+                        let p = PROFILES[i];
+                        host.set_many(
+                            &[("target", p.target), ("ceiling", p.ceiling), ("tp", 1.0)],
+                            "cmd.lim_profile",
+                        );
                     }
                 }
-            })
-            .response
-            .on_hover_text(t("lim.trigger_tip"));
-    });
+                tip(
+                    ui,
+                    r.response.contains_pointer(),
+                    frame::tr("cmd.lim_profile"),
+                    frame::tr("lim.profile_tip"),
+                );
+                // The rule, on up to three lines.
+                let (lr, resp) =
+                    ui.allocate_exact_size(vec2(w * k, 3.0 * LINE * k), Sense::hover());
+                let ww = lr.width().round() as u32;
+                if st.words.rule_split.is_none_or(|(at, _)| at != ww) {
+                    let text = &st.words.rule_text;
+                    let a = break_at(ui.ctx(), text, Role::Body, s.tk(), lr.width());
+                    let b = a + break_at(ui.ctx(), &text[a..], Role::Body, s.tk(), lr.width());
+                    st.words.rule_split = Some((ww, [a, b]));
+                }
+                let [a, b] = st.words.rule_split.map_or([0, 0], |v| v.1);
+                let text = &st.words.rule_text;
+                let (a, b) = (a.min(text.len()), b.min(text.len()).max(a.min(text.len())));
+                with_brush(ui.painter(), |br| {
+                    lines_in(
+                        br,
+                        lr,
+                        &[text[..a].trim_end(), text[a..b].trim_end(), &text[b..]],
+                        s.t.text_dim,
+                        s.tk(),
+                    )
+                });
+                tip(ui, resp.hovered(), name, text);
+            });
+        },
+    );
 }
 
 // ---- the inspector's picture ----------------------------------------------------------
 
+/// The inspector's picture: the static curve (a flat top at the ceiling is what a limiter
+/// is), and the settings in two lines.
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
-    let pal = theme::p();
+    let st = Style::current().function(frame::hue_of(EffectKind::Limiter));
+    let ink = Ink::of(&st);
     let s = settings(spec);
     let h = space::GRID * 14.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    // The static curve: input level across, output up, with the gain applied — a flat top
-    // at the ceiling is what a limiter is.
     let sq = Rect::from_min_size(rect.min, vec2(h, h)).shrink(space::S1);
     let lo = -36.0f32;
     let x = |d: f32| sq.left() + (d - lo) / -lo * sq.width();
     let y = |d: f32| sq.bottom() - ((d - lo) / -lo).clamp(0.0, 1.0) * sq.height();
-    p.line_segment(
-        [pos2(x(lo), y(lo)), pos2(x(0.0), y(0.0))],
-        Stroke::new(1.0, pal.grid_bar),
-    );
-    let pts: Vec<Pos2> = (0..=48)
-        .map(|i| {
-            let d = lo + -lo * i as f32 / 48.0;
-            pos2(x(d), y(transfer_db(d + s.gain_db, s.ceiling_db, s.knee_db)))
-        })
-        .collect();
-    p.add(Shape::line(pts, Stroke::new(1.5, pal.selection)));
-    p.hline(sq.x_range(), y(s.ceiling_db), Stroke::new(1.0, pal.gold));
     let lat = latency_of(&s, 48_000.0) as f32 / 48.0;
     let unit = if s.true_peak { "dBTP" } else { "dB" };
-    p.text(
-        pos2(sq.right() + space::S2, rect.center().y - 7.0),
-        Align2::LEFT_CENTER,
-        format!(
-            "{} \u{b7} +{:.1} dB \u{2192} {} {unit}",
-            t(&format!("lim.style.{}", s.style.index())),
-            s.gain_db,
-            fmt_db(s.ceiling_db)
-        ),
-        design::paint::ruler(),
-        pal.text,
-    );
-    let profile = profile_of(spec.get("target"), s.ceiling_db)
-        .map(|p| t(p.key))
-        .unwrap_or_else(|| format!("{} LUFS", fmt_lufs(spec.get("target") as f64)));
-    p.text(
-        pos2(sq.right() + space::S2, rect.center().y + 7.0),
-        Align2::LEFT_CENTER,
-        tf(
-            "lim.preview_line",
-            &[("target", &profile), ("ms", &format!("{lat:.1}"))],
-        ),
-        design::paint::ruler(),
-        pal.text_dim,
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(
-            1.0,
-            if resp.hovered() {
-                pal.gold
-            } else {
-                pal.grid_strong
-            },
-        ),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("lim.open_tip"))
+    let target = spec.get("target");
+    let profile = profile_of(target, s.ceiling_db);
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, st.hue_tok);
+        b.segment(
+            pos2(x(lo), y(lo)),
+            pos2(x(0.0), y(0.0)),
+            b.px(),
+            ink.grid_strong,
+            false,
+        );
+        let mut pts = [Pos2::ZERO; 49];
+        for (i, p) in pts.iter_mut().enumerate() {
+            let d = lo + -lo * i as f32 / 48.0;
+            *p = pos2(x(d), y(transfer_db(d + s.gain_db, s.ceiling_db, s.knee_db)));
+        }
+        b.polyline(&pts, 1.5, ink.hue);
+        let (cy, px) = (b.snap_mid(y(s.ceiling_db)), b.px());
+        canvas::dashed(
+            b,
+            pos2(sq.left(), cy),
+            pos2(sq.right(), cy),
+            px,
+            ink.hue,
+            4.0,
+            3.0,
+        );
+        let words = Rect::from_min_max(pos2(sq.right() + space::S2, rect.top()), rect.max);
+        let (l1, l2) = (
+            Rect::from_min_max(words.min, pos2(words.right(), words.center().y)),
+            Rect::from_min_max(pos2(words.left(), words.center().y), words.max),
+        );
+        let style = frame::tr(STYLE_KEYS[s.style.index().min(STYLE_KEYS.len() - 1)]);
+        canvas::line_in(
+            b,
+            l1,
+            Role::Label,
+            ink.text,
+            st.tk(),
+            format_args!(
+                "{style} \u{b7} +{:.1} dB \u{2192} {} {unit}",
+                s.gain_db,
+                Db(s.ceiling_db)
+            ),
+        );
+        let latency = frame::tr("lim.latency_word");
+        match profile {
+            Some(p) => canvas::line_in(
+                b,
+                l2,
+                Role::Label,
+                ink.dim,
+                st.tk(),
+                format_args!("{} \u{b7} {latency} {lat:.1} ms", frame::tr(p.key)),
+            ),
+            None => canvas::line_in(
+                b,
+                l2,
+                Role::Label,
+                ink.dim,
+                st.tk(),
+                format_args!("{} LUFS \u{b7} {latency} {lat:.1} ms", Lufs(target as f64)),
+            ),
+        }
+        let edge = if resp.hovered() { ink.hue } else { ink.edge };
+        canvas::edge_b(b, rect, &Ink { edge, ..ink });
+    });
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), frame::tr("lim.open_tip"), "", Caps::NONE);
+    }
+    resp
 }
 
 // ---- demo -----------------------------------------------------------------------------

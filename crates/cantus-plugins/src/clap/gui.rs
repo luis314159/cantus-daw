@@ -266,10 +266,8 @@ mod imp {
             .map(Editor::physical_size);
         let (pw, ph) = open.unwrap_or_else(|| {
             let s = scale();
-            (
-                (editor::SIZE.0 * s).round() as u32,
-                (editor::SIZE.1 * s).round() as u32,
-            )
+            let (w, h) = editor::size(inst.shared.desc.kind);
+            ((w * s).round() as u32, (h * s).round() as u32)
         });
         *w = pw;
         *h = ph;

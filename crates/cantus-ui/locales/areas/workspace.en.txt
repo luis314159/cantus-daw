@@ -1,0 +1,77 @@
+# workspace: the round-18 workspace work's strings. Every key here needs its twin in workspace.es.txt.
+
+# --- the areas of the window (ADR 0024 §5) ---
+workspace.pane.arrangement = Arrangement
+workspace.pane.piano_roll = Piano roll
+workspace.pane.channel_rack = Channel rack
+workspace.pane.mixer = Mixer
+workspace.pane.inspector = Inspector
+workspace.pane.device = Device
+workspace.toggle.arrangement = Show or hide the arrangement
+workspace.toggle.piano_roll = Show or hide the piano roll
+workspace.toggle.channel_rack = Show or hide the channel rack
+workspace.toggle.mixer = Show or hide the mixer
+workspace.toggle.inspector = Show or hide the inspector
+workspace.toggle.lower = Show or hide the editors below the arrangement
+workspace.menu.float = Float in its own window
+workspace.menu.dock = Dock it back
+workspace.menu.hide = Hide
+workspace.close = Close
+workspace.close_floating = Close floating windows
+workspace.mixer.hint = Arrows: move between strips · M mute · S solo · Alt+arrows move the strip
+workspace.splash.files = Reading your settings…
+workspace.clip = Clip
+workspace.tempo = Tempo
+
+# --- the interface's zoom (ADR 0024 §11) ---
+workspace.zoom_in = Zoom the interface in
+workspace.zoom_out = Zoom the interface out
+workspace.zoom_reset = Interface at 100 %
+workspace.zoom_now = Interface at {pct} %
+
+# --- the keys' names (F5, I, F12, Ctrl +/−/0, Ctrl+Shift+I); F6, F7 and F9 toggle now too ---
+action.view-arrangement = Show or hide the arrangement
+action.view-piano-roll = Show or hide the piano roll
+action.view-channel-rack = Show or hide the channel rack
+action.view-mixer = Show or hide the mixer
+action.toggle-inspector = Show or hide the inspector
+action.close-floating = Close the floating device windows
+action.zoom-in = Zoom the interface in
+action.zoom-out = Zoom the interface out
+action.zoom-reset = Interface at 100 %
+action.pick-element = Pick an element to recolour
+action.toggle-device-keyboard = Show or hide the instrument's keyboard
+
+# --- the appearance page (ADR 0024 §2) ---
+workspace.appearance.tab.look = Look
+workspace.appearance.tab.colours = Colours
+workspace.appearance.tab.themes = Themes and logo
+workspace.appearance.undo = Undo the last change to the look
+workspace.appearance.redo = Redo
+workspace.appearance.keep = Keep this one
+workspace.appearance.base_dark = Dark mode's theme
+workspace.appearance.base_light = Light mode's theme
+workspace.appearance.editing = Changes below apply to {mode} mode ({theme})
+workspace.appearance.adjust = Adjust the whole theme
+workspace.appearance.form = Form
+workspace.appearance.roles = Colours with a meaning
+workspace.appearance.picked = The colours of the {part} you picked
+workspace.appearance.show_all = Show every colour
+workspace.appearance.none_found = No colour by that name
+workspace.appearance.save = Save what you see as a theme
+workspace.appearance.yours = Your themes
+workspace.appearance.presets = Themes that come with Cantus
+workspace.appearance.no_themes = None yet: save the look above to make one
+workspace.appearance.copy_of = {name} copy
+workspace.appearance.imported = Imported “{name}”
+workspace.appearance.exported = Saved to {path}
+
+# --- short forms of the appearance and settings knobs' labels (the Abbreviate policy) ---
+theme.knobs.saturation.short = SAT
+theme.knobs.brightness.short = BRIGHT
+theme.knobs.contrast.short = CONTR
+theme.form.roundness.short = ROUND
+theme.form.text_size.short = TEXT
+theme.form.depth.short = DEPTH
+workspace.appearance.theme_name = Theme name
+workspace.autosave.cell = Time

@@ -25,11 +25,17 @@ fn spec(a: &cantus_ui::CantusApp, s: StripId, fx: EffectId) -> EffectSpec {
         .clone()
 }
 
+/// Painted text as the kit sets it: card titles and labels in capitals, a value's unit a
+/// hair apart from its number without the space — so compare lowercased, spaces removed.
+fn norm(s: &str) -> String {
+    s.to_lowercase().replace([' ', '\u{a0}'], "")
+}
+
 #[test]
 fn the_editor_paints_its_displays_and_numbers() {
     let (mut a, s0, fx) = with_reverb();
     a.open_effect_editor(s0, fx);
-    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let text = norm(&paint_editors(&mut a, egui::vec2(1400.0, 900.0)));
     for want in [
         "Decay curve",
         "Post EQ",
@@ -42,7 +48,7 @@ fn the_editor_paints_its_displays_and_numbers() {
         "Church",
         "1.60 s",
     ] {
-        assert!(text.contains(want), "missing {want:?} in: {text}");
+        assert!(text.contains(&norm(want)), "missing {want:?} in: {text}");
     }
 }
 
@@ -74,7 +80,7 @@ fn the_demo_measures_a_tail_near_the_curve() {
             "{hz} Hz: measured {got} s for {want} s"
         );
     }
-    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let text = norm(&paint_editors(&mut a, egui::vec2(1400.0, 900.0)));
     assert!(
         text.contains("measured"),
         "the tail view names the measurement: {text}"
@@ -134,9 +140,9 @@ fn the_spectrum_view_draws_the_measured_tail() {
     let rows = cantus_ui::views::fx::space::WF_ROWS;
     let col = |f: usize| m.waterfall[f * rows..(f + 1) * rows].iter().sum::<f32>();
     assert!(col(m.wf_frames - 1) < col(30) - 20.0 * rows as f32);
-    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let text = norm(&paint_editors(&mut a, egui::vec2(1400.0, 900.0)));
     assert!(
-        text.contains("-60 dB"),
+        text.contains(&norm("-60 dB")),
         "the legend names the curve's lines: {text}"
     );
 }

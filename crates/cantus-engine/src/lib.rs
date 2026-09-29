@@ -10,10 +10,12 @@
 pub mod backend;
 pub mod effects;
 pub mod fx;
+pub mod inst;
 pub mod messages;
 pub mod midi;
 pub mod pdc;
 pub mod processor;
+pub mod pulsus_kit;
 pub mod render;
 pub mod samples;
 pub mod stems;
@@ -22,6 +24,7 @@ pub mod transport;
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
 pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed};
 pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
+pub use inst::{Controller, InstrumentUnit, NativeUnit, NoteExpression, NoteOn};
 pub use messages::{
     CaptureTarget, EngineEvent, EngineMessage, EngineStats, Meters, MidiEvent, NoteInput,
     ANALYSER_SAMPLES, CAPTURE_SAMPLES, MAX_BLOCK_FRAMES, MAX_EFFECTS_PER_TRACK,

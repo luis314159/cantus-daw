@@ -25,9 +25,31 @@ pub const MAX_AUTOSAVE_SECONDS: u64 = 600;
 
 /// How much bigger or smaller everything is drawn. egui scales fonts and the spacing grid
 /// together, so the layout keeps its proportions rather than only the text growing.
-pub const MIN_UI_SCALE: f32 = 0.7;
+pub const MIN_UI_SCALE: f32 = 0.75;
 pub const MAX_UI_SCALE: f32 = 2.0;
 pub const DEFAULT_UI_SCALE: f32 = 1.0;
+/// The steps Ctrl + and Ctrl − walk through (ADR 0024 §11).
+pub const UI_SCALES: [f32; 9] = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 1.9, 2.0];
+
+/// The zoom step after `now`, going up or down; a scale between steps goes to the nearest
+/// step in that direction.
+pub fn ui_scale_step(now: f32, up: bool) -> f32 {
+    let eps = 1e-3;
+    if up {
+        UI_SCALES
+            .iter()
+            .copied()
+            .find(|s| *s > now + eps)
+            .unwrap_or(MAX_UI_SCALE)
+    } else {
+        UI_SCALES
+            .iter()
+            .rev()
+            .copied()
+            .find(|s| *s < now - eps)
+            .unwrap_or(MIN_UI_SCALE)
+    }
+}
 
 /// Sample rates worth offering. `None` means "whatever the device prefers", which is the
 /// right default: it is the one setting guaranteed to work.
@@ -235,6 +257,28 @@ mod tests {
             DEFAULT_UI_SCALE,
             "NaN must not escape the clamp"
         );
+    }
+
+    #[test]
+    fn the_zoom_steps_walk_seventy_five_to_two_hundred_percent() {
+        assert_eq!(ui_scale_step(1.0, true), 1.1);
+        assert_eq!(ui_scale_step(1.0, false), 0.9);
+        assert_eq!(
+            ui_scale_step(1.3, false),
+            1.25,
+            "between steps: the nearest below"
+        );
+        assert_eq!(
+            ui_scale_step(2.0, true),
+            MAX_UI_SCALE,
+            "the top stays the top"
+        );
+        assert_eq!(ui_scale_step(0.75, false), MIN_UI_SCALE);
+        let mut s = 1.0;
+        for _ in 0..20 {
+            s = ui_scale_step(s, true);
+        }
+        assert_eq!(s, 2.0);
     }
 
     #[test]

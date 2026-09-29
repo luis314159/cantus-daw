@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(22) {
+    match rng.below(23) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -455,12 +455,38 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         18..=19 if tracks > 0 => {
             let ti = rng.below(tracks as u64) as usize;
             let id = project.tracks[ti].id;
-            let pad = rng.below(9) as u8;
-            if rng.below(4) == 0 {
+            // Ids 1…9: a kit of two or seven pads has some of them and not others.
+            let pad = PadId(1 + rng.below(9) as u16);
+            let roll = rng.below(8);
+            if roll == 0 {
                 Command::SetPadName {
                     track: id,
                     pad,
                     name: format!("Pad{}", rng.below(100)),
+                }
+            } else if roll == 1 {
+                // Pulsus II: a pad's layers replaced, emptied or re-zoned.
+                let n = rng.below(4) as usize;
+                let layers = (0..n)
+                    .map(|i| {
+                        let mut l = PadLayer::new(format!("l{i}.wav"));
+                        l.vel_lo = 1 + rng.below(64) as u8;
+                        l.xfade = rng.below(20) as u8;
+                        l.tune = rng.f32(-12.0, 12.0);
+                        l
+                    })
+                    .collect();
+                Command::SetPadLayers {
+                    track: id,
+                    pad,
+                    layers,
+                }
+            } else if roll == 2 {
+                let field = KitField::ALL[rng.below(KitField::ALL.len() as u64) as usize];
+                Command::SetInstrumentParam {
+                    track: id,
+                    param: InstrumentParam::PulsusKit(field),
+                    value: rng.f32(-10.0, 70_000.0),
                 }
             } else {
                 let field = PadField::ALL[rng.below(PadField::ALL.len() as u64) as usize];
@@ -475,10 +501,17 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // pitch that is not there and `InsertPad` on one that is both have to fail cleanly.
         20 if tracks > 0 => {
             let id = project.tracks[rng.below(tracks as u64) as usize].id;
-            let spec = if rng.below(2) == 0 {
-                InstrumentSpec::Firmus(FirmusParams::default())
-            } else {
-                InstrumentSpec::Pulsus(PulsusParams::of(vec![DrumPad::kick(), DrumPad::snare()]))
+            let spec = match rng.below(3) {
+                0 => InstrumentSpec::Firmus(FirmusParams::default()),
+                1 => InstrumentSpec::Pulsus(PulsusParams::of(vec![
+                    DrumPad::kick(),
+                    DrumPad::snare(),
+                ])),
+                _ => {
+                    let kinds = InstrumentKind::ALL;
+                    let kind = kinds[rng.below(kinds.len() as u64) as usize];
+                    InstrumentSpec::Native(NativeSpec::new(kind))
+                }
             };
             Command::SetInstrument {
                 track: id,
@@ -496,7 +529,44 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     pad: Box::new(pad),
                 }
             } else {
-                Command::RemovePad { track: id, pitch }
+                let pad = PadId(1 + rng.below(9) as u16);
+                Command::RemovePad { track: id, pad }
+            }
+        }
+        // Native instruments (ADR 0023): numbers set and cleared, texts set and removed,
+        // on any track — so the refused paths (not a native instrument, a key the kind
+        // does not have) are walked as well as the working ones.
+        22 if tracks > 0 => {
+            let track = project.tracks[rng.below(tracks as u64) as usize].id;
+            const NUMBERS: [&str; 6] =
+                ["gain", "macro1", "macro8", "mod1.amt", "mod2.curve", "nope"];
+            const TEXTS: [&str; 6] = [
+                "mod1.src",
+                "mod1.dst",
+                "macro2.name",
+                "sample",
+                "mod9.via",
+                "bad",
+            ];
+            match rng.below(3) {
+                0 => Command::SetInstrumentValue {
+                    track,
+                    key: NUMBERS[rng.below(6) as usize].to_string(),
+                    value: rng.f32(-60.0, 20.0),
+                },
+                1 => Command::ClearInstrumentValue {
+                    track,
+                    key: NUMBERS[rng.below(6) as usize].to_string(),
+                },
+                _ => Command::SetInstrumentText {
+                    track,
+                    key: TEXTS[rng.below(6) as usize].to_string(),
+                    text: if rng.below(3) == 0 {
+                        None
+                    } else {
+                        Some(format!("t{}", rng.below(10)))
+                    },
+                },
             }
         }
         _ => Command::SetProjectName {
@@ -596,15 +666,20 @@ fn commands_serialize_roundtrip() {
             Command::SetInstrumentParam {
                 track: TrackId(1),
                 param: InstrumentParam::Pulsus {
-                    pad: 2,
+                    pad: PadId(2),
                     field: PadField::Decay,
                 },
                 value: 0.2,
             },
             Command::SetPadName {
                 track: TrackId(1),
-                pad: 2,
+                pad: PadId(2),
                 name: "Caja".into(),
+            },
+            Command::SetPadLayers {
+                track: TrackId(1),
+                pad: PadId(2),
+                layers: vec![PadLayer::new("snare.wav")],
             },
         ],
     };

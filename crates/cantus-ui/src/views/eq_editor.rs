@@ -1,23 +1,25 @@
-//! The Aequalis editor: the EQ's own window, where the display *is* the control.
+//! The Aequalis editor: the EQ in its device frame (ADR 0024 §8), where the display *is*
+//! the control.
 //!
 //! What the research on the benchmark EQ said users value, and what this does about it
 //! (`research/fabfilter/pro-q.md`, "How we beat it"; `docs/plugins/eq.md` has the matrix):
 //!
-//! - **The display is the instrument.** Double-click to make a band — its shape follows
-//!   where you clicked (cuts at the edges, shelves near them, a notch at the floor, a bell
-//!   anywhere else) — or press on the curve and pull. Drag a dot (every selected dot moves
-//!   with it, relatively), drag a rectangle to select several, the wheel for Q (slope on a
-//!   cut; `Ctrl` for gain, `Alt` for the dynamic range), `Shift` for fine, `Alt` to lock the
-//!   axis the drag started on, `Alt`+click to bypass, double-click a dot to type exact
-//!   values (`2k`, `A4`, `C#2+13`, `2x`), right-click for the band's menu.
+//! - **The display is the instrument**, and takes most of the window. Double-click to make
+//!   a band — its shape follows where you clicked (cuts at the edges, shelves near them, a
+//!   notch at the floor, a bell anywhere else) — or press on the curve and pull. Drag a dot
+//!   (every selected dot moves with it, relatively), drag a rectangle to select several,
+//!   the wheel for Q (slope on a cut; `Ctrl` for gain, `Alt` for the dynamic range),
+//!   `Shift` for fine, `Alt` to lock the axis the drag started on, `Alt`+click to bypass,
+//!   double-click a dot to type exact values (`2k`, `A4`, `C#2+13`, `2x`), right-click for
+//!   the band's menu.
 //! - **The axes are controls too.** Drag the frequency axis up or down to zoom around the
 //!   pointer, sideways to pan, double-click to reset; the dB range widens itself when a
 //!   band is dragged past it; a piano replaces the axis on request, and then a drag moves in
 //!   semitones.
-//! - **State is visible at rest.** The processing mode and its latency, the analyser's
-//!   sources and freeze, the key strip, the auditioned band: all visible chips, not hover
-//!   panels. The selected band's numbers are on a plate beside its dot and in the panel
-//!   under the display.
+//! - **State is visible at rest.** The processing mode, the key strip, EQ match, the piano
+//!   and the range sit inside the display, top-left; the latency is the footer's chip; the
+//!   selected band's numbers are on a plate beside its dot and in its card under the
+//!   display, with its dynamics, the output and the analyser in cards beside it.
 //! - **Dynamics in real units** (threshold, range, ratio, attack and release in dB and ms),
 //!   in both directions, from the band or from the key strip, with the last seconds of the
 //!   band's movement drawn against its threshold — which you drag.
@@ -26,11 +28,13 @@
 //! - **Keyboard**: 1–9 and 0 select bands, Tab steps, arrows nudge (semitones and dB),
 //!   `[`/`]` change Q (or the slope), Delete removes, B bypasses, S auditions, D makes a band
 //!   dynamic, Enter types values, Esc backs out.
-//! - **Every gesture is one step of the project's undo**, the multi-band drag included.
+//! - **Every gesture is one step of the host's undo**, the multi-band drag included.
 //!
-//! The curve is drawn from the same design the audio thread runs (`cantus_dsp::aequalis`),
-//! in the mode it runs; the spectra come from the engine's analyser tap on this effect's
-//! input and output, and the key's from the unit's telemetry.
+//! Everything goes through the editor's [`FxHost`], so the same editor runs in Cantus (the
+//! project's undo, the desk's strips as keys, the engine's meters) and in the exported
+//! plug-in's window. The curve is drawn from the same design the audio thread runs
+//! (`cantus_dsp::aequalis`), in the mode it runs; the spectra come from the analyser tap on
+//! this effect's input and output, and the key's from the unit's telemetry.
 
 #[path = "eq_editor_display.rs"]
 mod display;
@@ -40,21 +44,24 @@ mod panel;
 pub mod parse;
 
 use crate::app::CantusApp;
-use crate::design::{self, space};
-use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
-use cantus_core::{
-    eq_key, Command, EffectId, EffectSlot, MergeKey, StripId, EQ_BANDS, EQ_BAND_FIELDS,
-};
+use crate::i18n::{t, tf, Locale};
+use crate::kit::text::Src;
+use crate::kit::{Function, Style};
+use crate::views::fx::canvas::{self, Ink};
+use crate::views::fx::frame;
+use crate::views::fx::host::{DawHost, FxHost, KeySource};
+use cantus_core::fx::eq::EQ_BAND_FIELDS;
+use cantus_core::{EffectId, EffectKind, EffectParamInfo, EffectSpec, StripId, EQ_BANDS};
 use cantus_dsp::aequalis::fit::{Fit, FitOptions};
 use cantus_dsp::aequalis::{self, latency_of, Mode, Resolution};
 use cantus_dsp::{BandSettings, EqShape, Placement, SpectrumAnalyser};
-use egui::{pos2, vec2, Align2, Color32, Pos2, RichText, Sense, Stroke, StrokeKind};
+use egui::{pos2, vec2, Color32, Pos2, Rect, Sense};
 use std::collections::{BTreeSet, VecDeque};
+use std::fmt::Write as _;
+use std::time::Instant;
 
 /// Points across the display at which curves and spectra are evaluated.
-const POINTS: usize = 320;
+const POINTS: usize = 256;
 /// Columns of dynamics history kept: one a frame, about six seconds.
 const HISTORY: usize = 360;
 /// The dB ranges the display offers; a drag past the range steps up through them.
@@ -62,6 +69,78 @@ pub const RANGES: [f32; 5] = [3.0, 6.0, 12.0, 18.0, 30.0];
 /// The frequency view the display opens on, and how far it can zoom out.
 pub const VIEW: (f32, f32) = (20.0, 20_000.0);
 const VIEW_LIMITS: (f32, f32) = (10.0, 24_000.0);
+
+/// The row of cards under the display, at 100 %: tall enough for a column of four
+/// switches beside the cells, short enough that the display keeps over 70 % of the body.
+const ROW_H: f32 = 140.0;
+/// The band card's width at 100 %: three cells and a column of switches.
+const BAND_W: f32 = 340.0;
+/// The output card's: two cells and a column.
+const OUTPUT_W: f32 = 216.0;
+/// The analyser card at its narrowest: its switches in two columns.
+const ANALYSER_W_S: f32 = 212.0;
+/// The dynamics card at its narrowest: five small cells and a little history.
+const DYNAMICS_W_MIN: f32 = 370.0;
+
+const SHAPE_KEYS: [&str; 9] = [
+    "eq.shape.0",
+    "eq.shape.1",
+    "eq.shape.2",
+    "eq.shape.3",
+    "eq.shape.4",
+    "eq.shape.5",
+    "eq.shape.6",
+    "eq.shape.7",
+    "eq.shape.8",
+];
+const PLACE_KEYS: [&str; 5] = [
+    "eq.place.0",
+    "eq.place.1",
+    "eq.place.2",
+    "eq.place.3",
+    "eq.place.4",
+];
+const MODE_KEYS: [&str; 3] = ["eq.mode.0", "eq.mode.1", "eq.mode.2"];
+const RES_KEYS: [&str; 4] = ["eq.res.0", "eq.res.1", "eq.res.2", "eq.res.3"];
+const AN_RES_KEYS: [&str; 4] = ["eq.an.res.0", "eq.an.res.1", "eq.an.res.2", "eq.an.res.3"];
+const SPEED_KEYS: [&str; 5] = [
+    "eq.an.speed.0",
+    "eq.an.speed.1",
+    "eq.an.speed.2",
+    "eq.an.speed.3",
+    "eq.an.speed.4",
+];
+/// Band numbers as the dots print them.
+const DIGITS: [&str; EQ_BANDS] = [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17",
+    "18", "19", "20", "21", "22", "23", "24",
+];
+
+/// The parameter key of `field` of `band` (`b3.gain`), as the parameter table holds it:
+/// a `&'static str`, so reading or writing a band never builds a string.
+pub(crate) fn bkey(band: usize, field: &str) -> &'static str {
+    binfo(band, field).key
+}
+
+/// The parameter description of `field` of `band`.
+pub(crate) fn binfo(band: usize, field: &str) -> &'static EffectParamInfo {
+    let fi = EQ_BAND_FIELDS
+        .iter()
+        .position(|f| f.0 == field)
+        .unwrap_or(0);
+    let all = cantus_core::fx::eq::params();
+    &all[(band.min(EQ_BANDS - 1) * EQ_BAND_FIELDS.len() + fi).min(all.len() - 1)]
+}
+
+/// Whether band `band` exists (it may still be bypassed).
+fn used(spec: &EffectSpec, band: usize) -> bool {
+    spec.get(bkey(band, "used")) >= 0.5
+}
+
+/// The first band number not in use.
+fn free_band(spec: &EffectSpec) -> Option<usize> {
+    (0..EQ_BANDS).find(|b| !used(spec, *b))
+}
 
 /// Factory presets: a label key and the parameters it sets (`views::fx::presets_menu`).
 /// Anything a preset does not name goes back to its default, so each is a complete EQ.
@@ -264,6 +343,8 @@ impl Default for AnalyserView {
 
 impl AnalyserView {
     pub const FALL: [f32; 5] = [120.0, 72.0, 36.0, 18.0, 9.0];
+    pub const RANGES: [f32; 3] = [60.0, 90.0, 120.0];
+    pub const TILTS: [f32; 4] = [0.0, 3.0, 4.5, 6.0];
 
     pub fn fft_size(&self) -> usize {
         1024 << self.resolution.min(3)
@@ -368,16 +449,94 @@ impl MatchState {
             ..FitOptions::default()
         }
     }
+
+    /// Fit again when the options changed, and every half second of listening.
+    fn refit(&mut self, sr: f32) {
+        let stamp = self.frames / 30 * 1_000
+            + self.budget * 7
+            + (self.amount * 100.0) as usize * 131
+            + (self.max_boost * 10.0) as usize * 17
+            + (self.max_cut * 10.0) as usize * 19;
+        if stamp != self.fitted_at {
+            self.fitted_at = stamp;
+            self.fit = self
+                .target()
+                .map(|target| aequalis::fit::fit(&target, &self.options(), sr));
+        }
+    }
 }
 
-/// What the editor remembers between frames.
+/// A line of words formatted once per change of what it says (and of the language), so
+/// an editor at rest formats nothing.
+#[derive(Debug)]
+struct Said<K> {
+    key: Option<(K, Locale)>,
+    text: String,
+}
+
+impl<K> Default for Said<K> {
+    fn default() -> Self {
+        Said {
+            key: None,
+            text: String::new(),
+        }
+    }
+}
+
+impl<K: PartialEq + Copy> Said<K> {
+    fn get(&mut self, key: K, make: impl FnOnce(&mut String)) -> &str {
+        let lang = crate::i18n::locale();
+        if self.key != Some((key, lang)) {
+            self.key = Some((key, lang));
+            self.text.clear();
+            make(&mut self.text);
+        }
+        &self.text
+    }
+}
+
+/// The footer's chips.
+#[derive(Debug, Default)]
+struct Chips {
+    /// (latency samples, sample rate).
+    latency: Said<(usize, u32)>,
+    /// Bands in use.
+    bands: Said<usize>,
+}
+
+/// The words the cards and the display's controls print, kept until they change.
+#[derive(Debug, Default)]
+struct Words {
+    /// "Band 5", "Band 5 +2": (band, others selected).
+    title: Said<(usize, usize)>,
+    /// "High · Medium · 90 dB · 4.5 dB/oct".
+    analyser: Said<(usize, usize, u32, u32)>,
+    /// "±18 dB".
+    range: Said<u32>,
+    /// The auto gain in force, "−8.7 dB" (tenths).
+    auto: Said<i32>,
+    /// "12.3 s heard" (tenths of a second).
+    heard: Said<usize>,
+    /// The fit's verdict: (bands, RMS and worst error in tenths of a dB).
+    result: Said<(usize, i32, i32)>,
+    /// "Match to Strip 2 · Kick", per host revision.
+    match_title: Said<u64>,
+}
+
+/// What the editor remembers between frames. Cantus keeps one in `CantusApp::eq_editor`;
+/// the exported plug-in's window keeps its own (`views::fx::Editor`). Making one allocates
+/// nothing — the analyser and the caches grow on first use — so Cantus can take it out
+/// of the app for the length of a frame.
 #[derive(Debug)]
 pub struct EqEditor {
-    /// The EQ being edited, if the window is open.
+    /// The EQ being edited, if the window is open (Cantus).
     pub open: Option<(StripId, EffectId)>,
+    /// The bands as the host's parameters make them, and the host revision they were read
+    /// at: read once per change, not by every part of the editor every frame.
+    bands_at: Option<(u64, [cantus_dsp::BandSettings; aequalis::MAX_BANDS])>,
     /// The selected bands.
     pub selection: BTreeSet<usize>,
-    /// The band whose controls the panel shows: the last one clicked.
+    /// The band whose card is shown: the last one clicked.
     pub primary: Option<usize>,
     /// The display's gain range, ± dB.
     pub range_db: f32,
@@ -386,105 +545,115 @@ pub struct EqEditor {
     /// A piano instead of the frequency axis; drags move in semitones.
     pub piano: bool,
     pub show: AnalyserView,
-    analyser: SpectrumAnalyser,
+    analyser: Option<SpectrumAnalyser>,
+    /// Interleaved pairs drained from the host, reused.
     scratch: Vec<f32>,
     /// The drawn spectra per display point, dB on the analyser scale (tilted).
-    pre: Vec<f32>,
-    post: Vec<f32>,
-    key: Vec<f32>,
-    last: std::time::Instant,
+    pre: [f32; POINTS],
+    post: [f32; POINTS],
+    key: [f32; POINTS],
+    last: Option<Instant>,
     drag: Option<display::Drag>,
     rubber: Option<(Pos2, Pos2)>,
     axis: Option<display::AxisDrag>,
     pub typing: Option<Typing>,
     /// Per frame: each band's dynamic gain change and its detector's level, dB.
     history: VecDeque<([f32; EQ_BANDS], [f32; EQ_BANDS])>,
-    /// Numbers each gesture's merge key, so a gesture is one undo step and the next is
-    /// another.
+    /// Numbers each gesture, so a gesture is one undo step (the host merges what carries
+    /// the same number) and the next is another.
     gesture: u64,
-    nudge_at: Option<std::time::Instant>,
+    nudge_at: Option<Instant>,
     pub matching: Option<MatchState>,
-    /// Telemetry injected by demos and tests, read instead of the engine's.
+    /// Telemetry injected by demos and tests, read instead of the host's.
     pub injected: Option<[f32; 64]>,
-    /// Each band's curve across the display, kept while nothing it depends on changes.
-    curves: Vec<Option<display::CachedCurve>>,
-    /// When the last wheel turn or key nudge landed: a burst within 500 ms is one step.
-    burst_at: Option<std::time::Instant>,
+    /// Each band's curves across the display, kept while nothing they depend on changes.
+    curves: display::Curves,
+    /// Scratch for what the display computes each frame.
+    buf: display::Buf,
+    /// When the last wheel turn landed: a burst within 500 ms is one step.
+    burst_at: Option<Instant>,
     /// Where the plot was drawn last frame, and the view it was drawn with — so tests and
     /// tools can aim at what is on screen instead of mirroring the layout.
-    pub plot: Option<egui::Rect>,
+    pub plot: Option<Rect>,
     plot_view: (f32, f32),
+    /// The open right-click menu.
+    menu: Option<display::Menu>,
+    /// The threshold being dragged on the dynamics history.
+    hist_drag: bool,
+    /// The key's source as the host said it, per host revision.
+    key_source: Option<(u64, Option<KeySource>)>,
+    /// The device frame: the preset, its lists.
+    pub chrome: frame::Chrome,
+    chips: Chips,
+    words: Words,
 }
 
 impl Default for EqEditor {
     fn default() -> Self {
         EqEditor {
             open: None,
+            bands_at: None,
             selection: BTreeSet::new(),
             primary: None,
             range_db: 18.0,
             view: VIEW,
             piano: false,
             show: AnalyserView::default(),
-            analyser: SpectrumAnalyser::new(4096),
+            analyser: None,
             scratch: Vec::new(),
-            pre: vec![-200.0; POINTS],
-            post: vec![-200.0; POINTS],
-            key: vec![-200.0; POINTS],
-            last: std::time::Instant::now(),
+            pre: [-200.0; POINTS],
+            post: [-200.0; POINTS],
+            key: [-200.0; POINTS],
+            last: None,
             drag: None,
             rubber: None,
             axis: None,
             typing: None,
-            history: VecDeque::with_capacity(HISTORY),
+            history: VecDeque::new(),
             gesture: 0,
             nudge_at: None,
             matching: None,
             injected: None,
-            curves: vec![None; EQ_BANDS + 2],
+            curves: display::Curves::default(),
+            buf: display::Buf::default(),
             burst_at: None,
             plot: None,
             plot_view: VIEW,
+            menu: None,
+            hist_drag: false,
+            key_source: None,
+            chrome: frame::Chrome::default(),
+            chips: Chips::default(),
+            words: Words::default(),
         }
     }
 }
 
-/// A chip: framed whether it is on or off, filled when on — so a switch that is off still
-/// reads as a switch, and its state is a fill, not a hover (`research/fabfilter/family.md`
-/// 7.2).
-pub(crate) fn chip(ui: &mut egui::Ui, on: bool, text: impl Into<String>) -> egui::Response {
-    ui.add(egui::Button::selectable(on, text.into()).frame_when_inactive(true))
-}
-
-/// A chip bound to a switch.
-pub(crate) fn toggle(
-    ui: &mut egui::Ui,
-    value: &mut bool,
-    text: impl Into<String>,
-) -> egui::Response {
-    let mut r = chip(ui, *value, text);
-    if r.clicked() {
-        *value = !*value;
-        r.mark_changed();
-    }
-    r
-}
-
 /// A colour per band number, from the track palette: a band keeps its colour for life.
 pub fn band_color(band: usize) -> Color32 {
-    theme::track_color(cantus_core::Color::PALETTE[band % cantus_core::Color::PALETTE.len()])
-}
-
-/// `1.2 kHz`, `85 Hz`.
-fn hz_label(hz: f32) -> String {
-    crate::widgets::knob::readout(hz, "Hz")
+    crate::theme::track_color(cantus_core::Color::PALETTE[band % cantus_core::Color::PALETTE.len()])
 }
 
 impl EqEditor {
+    /// The analyser, made at its size the first time it is needed.
+    fn analyser(&mut self) -> &mut SpectrumAnalyser {
+        let n = self.show.fft_size();
+        if self.analyser.as_ref().is_none_or(|a| a.size() != n) {
+            self.analyser = Some(SpectrumAnalyser::new(n));
+        }
+        self.analyser
+            .get_or_insert_with(|| SpectrumAnalyser::new(n))
+    }
+
+    fn has_data(&self) -> bool {
+        self.analyser.as_ref().is_some_and(|a| a.has_data())
+    }
+
     /// Feed the analyser (input, output) pairs directly — what the engine's tap does, for
     /// screenshots and tests with no engine.
     pub fn feed(&mut self, pairs: &[f32]) {
-        self.analyser.push(pairs);
+        self.analyser().push(pairs);
+        self.buf.fresh = true;
     }
 
     /// Add one frame of dynamics history directly (demos and tests).
@@ -496,7 +665,7 @@ impl EqEditor {
     }
 
     /// Where band `band`'s dot was drawn last frame.
-    pub fn dot_pos(&self, spec: &cantus_core::EffectSpec, band: usize) -> Option<Pos2> {
+    pub fn dot_pos(&self, spec: &EffectSpec, band: usize) -> Option<Pos2> {
         let rect = self.plot?;
         let bands = cantus_engine::eq_bands(spec);
         Some(display::Geo::new(rect, self.range_db, self.plot_view).dot(bands.get(band)?))
@@ -509,15 +678,17 @@ impl EqEditor {
         Some(pos2(g.x(hz), g.y(db)))
     }
 
-    /// Select exactly `bands`; the first becomes the one the panel shows.
+    /// Select exactly `bands`; the first becomes the one the card shows.
     pub fn select(&mut self, bands: &[usize]) {
-        self.selection = bands.iter().copied().collect();
+        self.selection.clear();
+        self.selection.extend(bands.iter().copied());
         self.primary = bands.first().copied();
     }
 
-    fn next_gesture(&mut self, effect: EffectId) -> MergeKey {
+    /// A new gesture's number.
+    fn next_gesture(&mut self) -> u64 {
         self.gesture += 1;
-        MergeKey::of(&("eq-gesture", effect.0, self.gesture))
+        self.gesture
     }
 
     /// The range that fits `gain`: the current one, or the next step up.
@@ -531,29 +702,287 @@ impl EqEditor {
             .find(|r| *r >= gain.abs())
             .unwrap_or(30.0)
     }
+
+    /// Forget selections, a typing box and a menu for bands that no longer exist (undo,
+    /// presets, A/B).
+    fn tidy(&mut self, spec: &EffectSpec) {
+        self.selection.retain(|b| used(spec, *b));
+        if self.primary.is_some_and(|p| !used(spec, p)) {
+            self.primary = self.selection.iter().next().copied();
+        }
+        if self.typing.as_ref().is_some_and(|t| !used(spec, t.band)) {
+            self.typing = None;
+        }
+    }
+
+    /// What the host brought since the last frame: the analyser's pairs and one column of
+    /// dynamics history.
+    fn take_audio(&mut self, host: &mut dyn FxHost, tel: &[f32; 64]) {
+        let mut pairs = std::mem::take(&mut self.scratch);
+        pairs.clear();
+        if host.drain_analyser(&mut pairs) {
+            if !pairs.is_empty() {
+                self.analyser().push(&pairs);
+                self.buf.fresh = true;
+            }
+        } else {
+            // A host that keeps the tap's recent pairs: the analyser's window is the last
+            // of them, whatever came before — read again only when they moved on.
+            let n = self.show.fft_size();
+            let recent = host.pairs();
+            let tail = recent
+                .back()
+                .map_or((0, 0, 0), |p| (recent.len(), p.0.to_bits(), p.1.to_bits()));
+            if tail != self.buf.tail {
+                self.buf.tail = tail;
+                let skip = recent.len().saturating_sub(n);
+                for (a, b) in recent.iter().skip(skip) {
+                    pairs.push(*a);
+                    pairs.push(*b);
+                }
+                if !pairs.is_empty() {
+                    self.analyser().push(&pairs);
+                    self.buf.fresh = true;
+                }
+            }
+        }
+        self.scratch = pairs;
+        if self.injected.is_none() {
+            if let Some(d) = host.eq_deltas() {
+                let mut levels = [-200.0; EQ_BANDS];
+                levels.copy_from_slice(
+                    &tel[aequalis::telemetry::LEVEL..aequalis::telemetry::LEVEL + EQ_BANDS],
+                );
+                self.feed_history(d, levels);
+            }
+        }
+    }
 }
 
+// ---- editing bands through the host ------------------------------------------------------
+//
+// Every change is one call of `FxHost::apply`: one undo step in Cantus, one gesture per
+// parameter in another DAW. A gesture's number folds a drag (or a burst of wheel turns or
+// key presses) into one step.
+
 /// The fields a new band of `shape` is created with.
-fn new_band_fields(shape: EqShape, freq: f32, gain: f32) -> Vec<(&'static str, f32)> {
-    let mut fields = vec![
-        ("used", 1.0),
-        ("shape", shape.index() as f32),
-        ("freq", freq),
-    ];
+fn new_band_fields(shape: EqShape, freq: f32, gain: f32) -> ([(&'static str, f32); 6], usize) {
+    let mut f = [("", 0.0); 6];
+    let mut n = 0;
+    let mut push = |k: &'static str, v: f32| {
+        f[n] = (k, v);
+        n += 1;
+    };
+    push("used", 1.0);
+    push("shape", shape.index() as f32);
+    push("freq", freq);
     if shape.has_gain() {
-        fields.push(("gain", gain));
+        push("gain", gain);
     }
     if matches!(
         shape,
         EqShape::LowShelf | EqShape::HighShelf | EqShape::TiltShelf
-    ) {
-        fields.push(("q", 0.71));
+    ) || shape.has_slope()
+    {
+        push("q", 0.71);
     }
     if shape.has_slope() {
-        fields.push(("q", 0.71));
-        fields.push(("slope", 24.0));
+        push("slope", 24.0);
     }
-    fields
+    (f, n)
+}
+
+/// Set fields of one band as one step (or folded into gesture `gesture`).
+fn set_band(host: &mut dyn FxHost, band: usize, fields: &[(&str, f32)], gesture: Option<u64>) {
+    let edits: Vec<(&str, Option<f32>)> = fields
+        .iter()
+        .map(|(f, v)| (bkey(band, f), Some(*v)))
+        .collect();
+    host.apply(&edits, "cmd.eq_band", gesture);
+}
+
+/// Make a band at the first free number, with `extra` fields, and select it.
+#[allow(clippy::too_many_arguments)]
+fn add_band(
+    host: &mut dyn FxHost,
+    st: &mut EqEditor,
+    shape: EqShape,
+    freq: f32,
+    gain: f32,
+    extra: &[(&'static str, f32)],
+    gesture: Option<u64>,
+) -> Option<usize> {
+    let band = free_band(host.spec())?;
+    let (fields, n) = new_band_fields(shape, freq, gain);
+    let mut edits: Vec<(&str, Option<f32>)> = Vec::with_capacity(n + extra.len());
+    for (f, v) in fields[..n].iter().chain(extra) {
+        let key = bkey(band, f);
+        match edits.iter_mut().find(|e| e.0 == key) {
+            Some(e) => e.1 = Some(*v),
+            None => edits.push((key, Some(*v))),
+        }
+    }
+    host.apply(&edits, "cmd.eq_band", gesture);
+    st.select(&[band]);
+    Some(band)
+}
+
+/// Remove bands: every field they stored goes, so their numbers are free and the file
+/// forgets them. Removing the auditioned band ends the audition, in the same step.
+fn remove_bands(host: &mut dyn FxHost, st: &mut EqEditor, bands: &[usize]) {
+    let solo = host.spec().get("solo").round() as usize;
+    let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
+    for &band in bands {
+        edits.extend(EQ_BAND_FIELDS.iter().map(|f| (bkey(band, f.0), None)));
+        if solo == band + 1 {
+            edits.push(("solo", None));
+        }
+    }
+    host.apply(&edits, "cmd.eq_band_remove", None);
+    for b in bands {
+        st.selection.remove(b);
+    }
+    if st.primary.is_some_and(|p| bands.contains(&p)) {
+        st.primary = st.selection.iter().next().copied();
+    }
+}
+
+/// Audition one band (the region it acts on, alone), or stop auditioning.
+fn set_solo(host: &mut dyn FxHost, band: Option<usize>) {
+    host.set("solo", band.map_or(0.0, |b| b as f32 + 1.0), None);
+}
+
+/// Split a band into a pair: the band itself on L (or M), a copy on R (or S). One step.
+/// Returns the copy's number.
+fn split(host: &mut dyn FxHost, st: &mut EqEditor, band: usize, mid_side: bool) -> Option<usize> {
+    let spec = host.spec();
+    let copy = free_band(spec)?;
+    let (a, b) = if mid_side {
+        (Placement::Mid, Placement::Side)
+    } else {
+        (Placement::Left, Placement::Right)
+    };
+    let mut edits: Vec<(&str, Option<f32>)> = vec![(bkey(band, "place"), Some(a.index() as f32))];
+    for (field, ..) in EQ_BAND_FIELDS {
+        if let Some(v) = spec.params.get(bkey(band, field)) {
+            let v = if *field == "place" {
+                b.index() as f32
+            } else {
+                *v
+            };
+            edits.push((bkey(copy, field), Some(v)));
+        }
+    }
+    if !spec.params.contains_key(bkey(band, "place")) {
+        edits.push((bkey(copy, "place"), Some(b.index() as f32)));
+    }
+    host.apply(&edits, "cmd.eq_split", None);
+    st.select(&[band, copy]);
+    Some(copy)
+}
+
+/// Put a fit's bands on the EQ, at free numbers, as one step.
+fn apply_fit(host: &mut dyn FxHost, st: &mut EqEditor, fit: &Fit) -> Vec<usize> {
+    let spec = host.spec();
+    let mut free = (0..EQ_BANDS).filter(|b| !used(spec, *b));
+    let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
+    let mut made = Vec::new();
+    for b in &fit.bands {
+        let Some(n) = free.next() else { break };
+        let (fields, count) = new_band_fields(b.shape, b.freq, b.gain_db);
+        for (f, v) in fields[..count].iter().filter(|(f, _)| *f != "q") {
+            edits.push((bkey(n, f), Some(*v)));
+        }
+        edits.push((bkey(n, "q"), Some(b.q)));
+        made.push(n);
+    }
+    host.apply(&edits, "cmd.eq_match", None);
+    st.select(&made);
+    made
+}
+
+/// Move the selected bands by `semitones` and `db`, as one step — or folded into a run of
+/// key presses less than 600 ms apart.
+fn nudge(host: &mut dyn FxHost, st: &mut EqEditor, semitones: f32, db: f32) {
+    let now = Instant::now();
+    let merge = st
+        .nudge_at
+        .is_some_and(|t| now.duration_since(t).as_millis() < 600);
+    st.nudge_at = Some(now);
+    if !merge {
+        host.end_gesture();
+        st.next_gesture();
+    }
+    let spec = host.spec();
+    let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
+    let mut widest = 0.0f32;
+    for &b in &st.selection {
+        let f = spec.get(bkey(b, "freq"));
+        let shape = EqShape::from_index(spec.get(bkey(b, "shape")) as usize);
+        edits.push((
+            bkey(b, "freq"),
+            Some((f * 2f32.powf(semitones / 12.0)).clamp(10.0, 30_000.0)),
+        ));
+        if shape.has_gain() {
+            let g = (spec.get(bkey(b, "gain")) + db).clamp(-30.0, 30.0);
+            widest = widest.max(g.abs());
+            edits.push((bkey(b, "gain"), Some(g)));
+        }
+    }
+    st.range_db = st.range_for(widest);
+    host.apply(&edits, "cmd.eq_band", Some(st.gesture));
+}
+
+/// Multiply the selected bands' Q by `factor` (cuts: step the slope instead).
+fn scale_q(host: &mut dyn FxHost, st: &EqEditor, factor: f32) {
+    let spec = host.spec();
+    let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
+    for &b in &st.selection {
+        let shape = EqShape::from_index(spec.get(bkey(b, "shape")) as usize);
+        if shape.has_slope() {
+            let s = spec.get(bkey(b, "slope"));
+            let s = (s + if factor > 1.0 { 6.0 } else { -6.0 }).clamp(6.0, 96.0);
+            edits.push((bkey(b, "slope"), Some(s)));
+        } else {
+            let q = (spec.get(bkey(b, "q")) * factor).clamp(0.025, 40.0);
+            edits.push((bkey(b, "q"), Some(q)));
+        }
+    }
+    host.apply(&edits, "cmd.eq_band", None);
+}
+
+/// Flip a switch-like field (`on`, `dyn`) on every selected band, all to the same new
+/// value (the opposite of the primary band's).
+fn toggle_selection(host: &mut dyn FxHost, st: &EqEditor, field: &str) {
+    let Some(first) = st.primary.or(st.selection.first().copied()) else {
+        return;
+    };
+    let to = if host.spec().get(bkey(first, field)) >= 0.5 {
+        0.0
+    } else {
+        1.0
+    };
+    let edits: Vec<(&str, Option<f32>)> = st
+        .selection
+        .iter()
+        .map(|b| (bkey(*b, field), Some(to)))
+        .collect();
+    host.apply(&edits, "cmd.eq_band", None);
+}
+
+/// Every selected band to the next placement (stereo → L → R → M → S).
+fn cycle_placement(host: &mut dyn FxHost, st: &EqEditor) {
+    let Some(first) = st.primary.or(st.selection.first().copied()) else {
+        return;
+    };
+    let now = host.spec().get(bkey(first, "place")).round().max(0.0) as usize;
+    let next = (now + 1) % Placement::ALL.len();
+    let edits: Vec<(&str, Option<f32>)> = st
+        .selection
+        .iter()
+        .map(|b| (bkey(*b, "place"), Some(next as f32)))
+        .collect();
+    host.apply(&edits, "cmd.eq_band", None);
 }
 
 impl CantusApp {
@@ -564,6 +993,7 @@ impl CantusApp {
         ed.open = Some((strip, effect));
         ed.typing = None;
         ed.drag = None;
+        ed.menu = None;
         ed.matching = None;
         ed.history.clear();
         ed.pre.fill(-200.0);
@@ -574,7 +1004,7 @@ impl CantusApp {
             .project()
             .strip(strip)
             .and_then(|s| s.effect(effect))
-            .and_then(|e| (0..EQ_BANDS).find(|b| e.spec.get(&eq_key(*b, "used")) >= 0.5));
+            .and_then(|e| (0..EQ_BANDS).find(|b| used(&e.spec, *b)));
         self.eq_editor.select(first.as_slice());
         self.engine.set_analyser(Some(effect));
     }
@@ -595,7 +1025,8 @@ impl CantusApp {
         }
     }
 
-    /// Move the analyser's samples into the editor. Called once a frame.
+    /// Move the analyser's samples into the open plug-in editor. Called once a frame.
+    /// (The EQ's own analyser drains through its host, in [`editor`].)
     pub(crate) fn pump_analyser(&mut self) {
         if self.fx.open.is_some() {
             let mut pairs = std::mem::take(&mut self.eq_editor.scratch);
@@ -603,106 +1034,20 @@ impl CantusApp {
             self.engine.drain_analyser(&mut pairs);
             self.pump_fx_pairs(&pairs);
             self.eq_editor.scratch = pairs;
-            return;
-        }
-        if self.eq_editor.open.is_none() {
-            return;
-        }
-        let ed = &mut self.eq_editor;
-        ed.scratch.clear();
-        self.engine.drain_analyser(&mut ed.scratch);
-        if !ed.scratch.is_empty() {
-            ed.analyser.push(&ed.scratch);
         }
     }
 
-    /// The open EQ's telemetry: injected (demos, tests) or the engine's.
-    fn eq_telemetry(&self) -> [f32; 64] {
-        self.eq_editor
-            .injected
-            .unwrap_or_else(|| self.engine.meters().fx)
-    }
-
-    /// The sample rate the display designs at: the engine's.
-    fn eq_sample_rate(&self) -> f32 {
-        let sr = self.engine.sample_rate as f32;
-        if sr > 1_000.0 {
-            sr
-        } else {
-            48_000.0
-        }
-    }
-
-    /// Run commands as one step; with a gesture key, merged into the gesture's step.
-    fn eq_exec(&mut self, label: &str, commands: Vec<Command>, gesture: Option<MergeKey>) {
-        if commands.is_empty() {
-            return;
-        }
-        let cmd = Command::Batch {
-            label_key: label.into(),
-            commands,
-        };
-        match gesture {
-            Some(key) => {
-                self.exec_merging(cmd, key);
-            }
-            None => {
-                self.exec(cmd);
-            }
-        }
-    }
-
-    fn band_cmds(
-        strip: StripId,
-        effect: EffectId,
-        band: usize,
-        fields: &[(&str, f32)],
-    ) -> Vec<Command> {
-        fields
-            .iter()
-            .map(|(f, v)| Command::SetEffectParam {
-                strip,
-                effect,
-                key: eq_key(band, f),
-                value: *v,
-            })
-            .collect()
-    }
-
-    /// Set fields of one band as one command; a gesture merges frame to frame.
-    fn set_band(
+    /// Run `f` on the EQ's editor state with the project as its host.
+    fn with_eq<R>(
         &mut self,
         strip: StripId,
         effect: EffectId,
-        band: usize,
-        fields: &[(&str, f32)],
-        gesture: bool,
-    ) {
-        let key = gesture.then(|| {
-            let names: Vec<&str> = fields.iter().map(|(f, _)| *f).collect();
-            MergeKey::of(&("eq", effect.0, band, names))
-        });
-        self.eq_exec(
-            "cmd.eq_band",
-            Self::band_cmds(strip, effect, band, fields),
-            key,
-        );
-    }
-
-    /// Set one global parameter of the EQ (mode, output, …).
-    fn set_eq_global(&mut self, strip: StripId, effect: EffectId, key: &str, value: f32) {
-        self.exec(Command::SetEffectParam {
-            strip,
-            effect,
-            key: key.into(),
-            value,
-        });
-    }
-
-    /// The first band number not in use.
-    fn free_band(&self, strip: StripId, effect: EffectId) -> Option<usize> {
-        let spec = &self.project().strip(strip)?.effect(effect)?.spec;
-        (0..EQ_BANDS).find(|b| spec.get(&eq_key(*b, "used")) < 0.5)
+        f: impl FnOnce(&mut dyn FxHost, &mut EqEditor) -> R,
+    ) -> R {
+        let mut st = std::mem::take(&mut self.eq_editor);
+        let r = f(&mut DawHost::new(self, strip, effect, "eq"), &mut st);
+        self.eq_editor = st;
+        r
     }
 
     /// Make a band at the first free number. Returns it.
@@ -714,31 +1059,9 @@ impl CantusApp {
         freq: f32,
         gain: f32,
     ) -> Option<usize> {
-        self.add_eq_band_with(strip, effect, shape, freq, gain, &[], None)
-    }
-
-    /// Make a band with extra fields, as one step (or as the start of a gesture).
-    #[allow(clippy::too_many_arguments)]
-    fn add_eq_band_with(
-        &mut self,
-        strip: StripId,
-        effect: EffectId,
-        shape: EqShape,
-        freq: f32,
-        gain: f32,
-        extra: &[(&'static str, f32)],
-        gesture: Option<MergeKey>,
-    ) -> Option<usize> {
-        let band = self.free_band(strip, effect)?;
-        let mut fields = new_band_fields(shape, freq, gain);
-        fields.extend_from_slice(extra);
-        self.eq_exec(
-            "cmd.eq_band",
-            Self::band_cmds(strip, effect, band, &fields),
-            gesture,
-        );
-        self.eq_editor.select(&[band]);
-        Some(band)
+        self.with_eq(strip, effect, |h, st| {
+            add_band(h, st, shape, freq, gain, &[], None)
+        })
     }
 
     /// Remove a band: every field it stored goes, so the number is free and the file
@@ -749,41 +1072,12 @@ impl CantusApp {
 
     /// Remove several bands as one undo step.
     pub fn remove_eq_bands(&mut self, strip: StripId, effect: EffectId, bands: &[usize]) {
-        let solo = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.get("solo").round() as usize)
-            .unwrap_or(0);
-        let mut commands: Vec<Command> = Vec::new();
-        for band in bands {
-            commands.extend(EQ_BAND_FIELDS.iter().map(|f| Command::ClearEffectParam {
-                strip,
-                effect,
-                key: eq_key(*band, f.0),
-            }));
-            // Removing the auditioned band ends the audition.
-            if solo == band + 1 {
-                commands.push(Command::ClearEffectParam {
-                    strip,
-                    effect,
-                    key: "solo".into(),
-                });
-            }
-        }
-        self.eq_exec("cmd.eq_band_remove", commands, None);
-        let ed = &mut self.eq_editor;
-        for b in bands {
-            ed.selection.remove(b);
-        }
-        if ed.primary.is_some_and(|p| bands.contains(&p)) {
-            ed.primary = ed.selection.iter().next().copied();
-        }
+        self.with_eq(strip, effect, |h, st| remove_bands(h, st, bands));
     }
 
     /// Audition one band (the region it acts on, alone), or stop auditioning.
     pub fn set_eq_solo(&mut self, strip: StripId, effect: EffectId, band: Option<usize>) {
-        self.set_eq_global(strip, effect, "solo", band.map_or(0.0, |b| b as f32 + 1.0));
+        self.with_eq(strip, effect, |h, _| set_solo(h, band));
     }
 
     /// Split a band into a pair: the band itself on L (or M), a copy on R (or S). One undo
@@ -795,637 +1089,279 @@ impl CantusApp {
         band: usize,
         mid_side: bool,
     ) -> Option<usize> {
-        let spec = self.project().strip(strip)?.effect(effect)?.spec.clone();
-        let copy = self.free_band(strip, effect)?;
-        let (a, b) = if mid_side {
-            (Placement::Mid, Placement::Side)
-        } else {
-            (Placement::Left, Placement::Right)
-        };
-        let mut commands = Self::band_cmds(strip, effect, band, &[("place", a.index() as f32)]);
-        for (key, ..) in EQ_BAND_FIELDS {
-            let k = eq_key(band, key);
-            if let Some(v) = spec.params.get(&k) {
-                let v = if *key == "place" {
-                    b.index() as f32
-                } else {
-                    *v
-                };
-                commands.push(Command::SetEffectParam {
-                    strip,
-                    effect,
-                    key: eq_key(copy, key),
-                    value: v,
-                });
-            }
-        }
-        if !spec.params.contains_key(&eq_key(band, "place")) {
-            commands.push(Command::SetEffectParam {
-                strip,
-                effect,
-                key: eq_key(copy, "place"),
-                value: b.index() as f32,
-            });
-        }
-        self.eq_exec("cmd.eq_split", commands, None);
-        self.eq_editor.select(&[band, copy]);
-        Some(copy)
+        self.with_eq(strip, effect, |h, st| split(h, st, band, mid_side))
     }
 
     /// Put a fit's bands on the EQ, at free numbers, as one undo step.
     pub fn apply_eq_fit(&mut self, strip: StripId, effect: EffectId, fit: &Fit) -> Vec<usize> {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return Vec::new();
-        };
-        let mut free = (0..EQ_BANDS).filter(|b| spec.get(&eq_key(*b, "used")) < 0.5);
-        let mut commands = Vec::new();
-        let mut made = Vec::new();
-        for b in &fit.bands {
-            let Some(n) = free.next() else { break };
-            let mut fields = new_band_fields(b.shape, b.freq, b.gain_db);
-            fields.retain(|(k, _)| *k != "q");
-            fields.push(("q", b.q));
-            commands.extend(Self::band_cmds(strip, effect, n, &fields));
-            made.push(n);
-        }
-        self.eq_exec("cmd.eq_match", commands, None);
-        self.eq_editor.select(&made);
-        made
-    }
-
-    /// Move the selected bands by `semitones` and `db`, as one step (or merged into a run
-    /// of key presses).
-    fn eq_nudge_selection(&mut self, strip: StripId, effect: EffectId, semitones: f32, db: f32) {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let now = std::time::Instant::now();
-        let merge = self
-            .eq_editor
-            .nudge_at
-            .is_some_and(|t| now.duration_since(t).as_millis() < 600);
-        self.eq_editor.nudge_at = Some(now);
-        if !merge {
-            self.end_gesture();
-            self.eq_editor.gesture += 1;
-        }
-        let key = MergeKey::of(&("eq-nudge", effect.0, self.eq_editor.gesture));
-        let mut commands = Vec::new();
-        let mut widest = 0.0f32;
-        for b in self.eq_editor.selection.clone() {
-            let f = spec.get(&eq_key(b, "freq"));
-            let shape = EqShape::from_index(spec.get(&eq_key(b, "shape")) as usize);
-            let mut fields = vec![(
-                "freq",
-                (f * 2f32.powf(semitones / 12.0)).clamp(10.0, 30_000.0),
-            )];
-            if shape.has_gain() {
-                let g = (spec.get(&eq_key(b, "gain")) + db).clamp(-30.0, 30.0);
-                widest = widest.max(g.abs());
-                fields.push(("gain", g));
-            }
-            commands.extend(Self::band_cmds(strip, effect, b, &fields));
-        }
-        self.eq_editor.range_db = self.eq_editor.range_for(widest);
-        self.eq_exec("cmd.eq_band", commands, Some(key));
-    }
-
-    /// Multiply the selected bands' Q by `factor` (cuts: step the slope instead).
-    fn eq_scale_selection_q(&mut self, strip: StripId, effect: EffectId, factor: f32) {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let mut commands = Vec::new();
-        for b in self.eq_editor.selection.clone() {
-            let shape = EqShape::from_index(spec.get(&eq_key(b, "shape")) as usize);
-            if shape.has_slope() {
-                let s = spec.get(&eq_key(b, "slope"));
-                let s = (s + if factor > 1.0 { 6.0 } else { -6.0 }).clamp(6.0, 96.0);
-                commands.extend(Self::band_cmds(strip, effect, b, &[("slope", s)]));
-            } else {
-                let q = (spec.get(&eq_key(b, "q")) * factor).clamp(0.025, 40.0);
-                commands.extend(Self::band_cmds(strip, effect, b, &[("q", q)]));
-            }
-        }
-        self.eq_exec("cmd.eq_band", commands, None);
-    }
-
-    /// Flip a switch-like field (`on`, `dyn`) on every selected band, all to the same new
-    /// value (the opposite of the primary band's).
-    fn eq_toggle_selection(&mut self, strip: StripId, effect: EffectId, field: &str) {
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let Some(first) = self
-            .eq_editor
-            .primary
-            .or(self.eq_editor.selection.first().copied())
-        else {
-            return;
-        };
-        let to = if spec.get(&eq_key(first, field)) >= 0.5 {
-            0.0
-        } else {
-            1.0
-        };
-        let mut commands = Vec::new();
-        for b in self.eq_editor.selection.clone() {
-            commands.extend(Self::band_cmds(strip, effect, b, &[(field, to)]));
-        }
-        self.eq_exec("cmd.eq_band", commands, None);
+        self.with_eq(strip, effect, |h, st| apply_fit(h, st, fit))
     }
 }
 
-/// The editor window, drawn every frame while one is open.
+// ---- the window --------------------------------------------------------------------------
+
+/// The editor window, drawn every frame while one is open: the device frame, where every
+/// editor goes (`views::fx::open_window`).
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect)) = app.eq_editor.open else {
         return;
     };
-    let Some(slot) = app
+    if app
         .project()
         .strip(strip)
         .and_then(|s| s.effect(effect))
-        .cloned()
-    else {
+        .is_none()
+    {
         app.close_eq_editor();
         return;
-    };
-    // Drop selections of bands that no longer exist (undo, presets, A/B).
-    let used = |b: &usize| slot.spec.get(&eq_key(*b, "used")) >= 0.5;
-    app.eq_editor.selection.retain(used);
-    if app.eq_editor.primary.is_some_and(|p| !used(&p)) {
-        app.eq_editor.primary = app.eq_editor.selection.iter().next().copied();
     }
-    if app
-        .eq_editor
-        .typing
-        .as_ref()
-        .is_some_and(|t| !used(&t.band))
-    {
-        app.eq_editor.typing = None;
-    }
-    // One column of dynamics history a frame.
-    let tel = app.eq_telemetry();
-    if app.eq_editor.injected.is_none() {
-        let deltas = app.engine.meters().eq_deltas;
-        let mut d = [0.0; EQ_BANDS];
-        d.copy_from_slice(&deltas[..EQ_BANDS]);
-        let mut levels = [-200.0; EQ_BANDS];
-        levels.copy_from_slice(
-            &tel[aequalis::telemetry::LEVEL..aequalis::telemetry::LEVEL + EQ_BANDS],
-        );
-        app.eq_editor.feed_history(d, levels);
-    }
-    let strip_name = app.capture_label(cantus_engine::CaptureTarget::Strip(strip));
-    let mut open = true;
-    egui::Window::new(format!("{} \u{2014} {strip_name}", t("effect.eq")))
-        .id(egui::Id::new(("eq-editor", effect.0)))
-        .open(&mut open)
-        .default_size([1120.0, 720.0])
-        .min_size([640.0, 480.0])
-        .resizable(true)
-        .collapsible(false)
-        .show(ctx, |ui| {
-            header(app, ui, strip, effect, &slot);
-            ui.add_space(space::S1);
-            toolbar(app, ui, strip, effect, &slot, &tel);
-            ui.add_space(space::S1);
-            let bands = cantus_engine::eq_bands(&slot.spec);
-            let panel_h = space::GRID * 36.0;
-            let display_h = (ui.available_height() - panel_h).max(space::GRID * 44.0);
-            display::display(app, ui, strip, effect, &slot, &bands, &tel, display_h);
-            ui.add_space(space::S2);
-            if app.eq_editor.matching.is_some() {
-                panel::match_panel(app, ui, strip, effect, &slot, &tel);
-            } else {
-                panel::band_panel(app, ui, strip, effect, &slot, &bands, &tel);
-            }
-        });
-    ctx.request_repaint();
+    let mut pos = app.fx.pos;
+    let open = crate::views::fx::open_window(
+        ctx,
+        egui::Id::new(("fx-editor", effect.0)),
+        &mut pos,
+        EffectKind::Eq,
+        |ui| framed(app, ui, strip, effect),
+    );
+    app.fx.pos = pos;
     if !open {
         app.close_eq_editor();
     }
 }
 
-/// Top bar: which strip, presets, A/B, the band count, the output.
-fn header(
+/// Aequalis in Cantus's own window: the host is the project (every gesture one undo step,
+/// the key any strip of the desk, the engine's meters).
+pub fn framed(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     strip: StripId,
     effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        let (chip, _) = ui.allocate_exact_size(vec2(space::S3, space::S3), Sense::hover());
-        let color = app
-            .project()
-            .tracks_on_strip(strip)
-            .next()
-            .map(|t| theme::track_color(t.color))
-            .unwrap_or(pal.gold);
-        ui.painter().rect_filled(chip, pal.corner_radius, color);
-        let number = app.project().strip_number(strip).unwrap_or(0);
-        ui.label(
-            RichText::new(tf("inspector.strip_n", &[("n", &number)])).text_style(design::strong()),
-        );
-        ui.separator();
-        crate::views::fx::presets_menu(app, ui, strip, effect, slot);
-        crate::views::fx::ab_bar(app, ui, strip, effect, slot);
-        ui.separator();
-        let used = (0..EQ_BANDS)
-            .filter(|b| slot.spec.get(&eq_key(*b, "used")) >= 0.5)
-            .count();
-        ui.label(
-            RichText::new(tf("eq.bands", &[("n", &used), ("max", &EQ_BANDS)]))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let mut on = !slot.bypass;
-            if toggle(ui, &mut on, t("eq.active"))
-                .on_hover_text(t("effect.bypass"))
-                .changed()
-            {
-                app.exec(Command::SetEffectBypass {
-                    strip,
-                    effect,
-                    bypass: !on,
-                });
-            }
-            for key in ["out", "scale"] {
-                let info = slot.spec.kind.param(key).copied();
-                let Some(info) = info else { continue };
-                let mut v = slot.spec.get(key);
-                let knob = Knob::new(&mut v, info.min..=info.max, info.default)
-                    .diameter(space::GRID * 6.0)
-                    .unit(info.unit)
-                    .label(t(info.label_key));
-                let r = ui.add(knob).on_hover_text(t(&format!("eq.{key}_tip")));
-                if r.changed() {
-                    app.exec_merging(
-                        Command::SetEffectParam {
-                            strip,
-                            effect,
-                            key: key.into(),
-                            value: v,
-                        },
-                        MergeKey::of(&("eq-global", effect.0, key)),
-                    );
-                }
-                if r.drag_stopped() || r.double_clicked() {
-                    app.end_gesture();
-                }
-            }
-            let mut auto = slot.spec.get("auto") >= 0.5;
-            if toggle(ui, &mut auto, t("fx.eq.auto"))
-                .on_hover_text(t("eq.auto_tip"))
-                .changed()
-            {
-                app.set_eq_global(strip, effect, "auto", if auto { 1.0 } else { 0.0 });
-            }
-        });
-    });
+) -> frame::Out {
+    let mut st = std::mem::take(&mut app.eq_editor);
+    st.chrome.reset_for(effect.0);
+    let out = editor(&mut DawHost::new(app, strip, effect, "eq"), &mut st, ui);
+    app.eq_editor = st;
+    out
 }
 
-/// The strip of chips under the header: processing mode and latency, the analyser's
-/// sources and options, the key strip, EQ match, and the display's own options. Every
-/// state is visible here at rest.
-fn toolbar(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    tel: &[f32; 64],
-) {
-    let pal = theme::p();
-    let sr = app.eq_sample_rate();
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = space::S1;
-        // Processing mode, as a segmented control, and the latency it costs.
-        let mode = Mode::from_index(slot.spec.get("mode").round() as usize);
-        for m in Mode::ALL {
-            if chip(ui, mode == m, t(&format!("eq.mode.{}", m.index())))
-                .on_hover_text(t(&format!("eq.mode.{}_tip", m.index())))
-                .clicked()
-                && mode != m
-            {
-                app.set_eq_global(strip, effect, "mode", m.index() as f32);
-            }
-        }
-        let res = Resolution::from_index(slot.spec.get("lp_res").round() as usize);
-        if mode == Mode::LinearPhase {
-            egui::ComboBox::from_id_salt(("eq-res", effect.0))
-                .selected_text(t(&format!("eq.res.{}", res.index())))
-                .width(space::GRID * 22.0)
-                .show_ui(ui, |ui| {
-                    for r in Resolution::ALL {
-                        let lat = latency_of(Mode::LinearPhase, r, sr);
-                        let text = format!(
-                            "{} \u{b7} {:.0} ms",
-                            t(&format!("eq.res.{}", r.index())),
-                            lat as f32 / sr * 1_000.0
-                        );
-                        if ui.selectable_label(res == r, text).clicked() {
-                            app.set_eq_global(strip, effect, "lp_res", r.index() as f32);
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(t("eq.res_tip"));
-        }
-        latency_badge(ui, latency_of(mode, res, sr), sr);
-        ui.separator();
-        // The analyser: sources, then what it does.
-        let ed = &mut app.eq_editor;
-        ui.label(
-            RichText::new(t("eq.analyser"))
-                .text_style(design::caption())
-                .color(pal.text_dim),
-        );
-        let key_on = tel[aequalis::telemetry::KEY_ON] >= 0.5 || slot.sidechain.is_some();
-        toggle(ui, &mut ed.show.pre, t("eq.an.pre")).on_hover_text(t("eq.an.pre_tip"));
-        toggle(ui, &mut ed.show.post, t("eq.an.post")).on_hover_text(t("eq.an.post_tip"));
-        ui.add_enabled_ui(key_on, |ui| {
-            toggle(ui, &mut ed.show.key, t("eq.an.key"))
-                .on_hover_text(t("eq.an.key_tip"))
-                .on_disabled_hover_text(t("eq.an.no_key"));
-        });
-        toggle(ui, &mut ed.show.freeze, t("eq.an.freeze")).on_hover_text(t("eq.an.freeze_tip"));
-        toggle(ui, &mut ed.show.grab, t("eq.an.grab")).on_hover_text(t("eq.an.grab_tip"));
-        ui.add_enabled_ui(key_on, |ui| {
-            toggle(ui, &mut ed.show.collisions, t("eq.an.collisions"))
-                .on_hover_text(t("eq.an.collisions_tip"))
-                .on_disabled_hover_text(t("eq.an.no_key"));
-        });
-        analyser_menu(app, ui);
-        ui.separator();
-        key_picker(app, ui, strip, effect, slot);
-        let matching = app.eq_editor.matching.is_some();
-        if chip(ui, matching, t("eq.match"))
-            .on_hover_text(t("eq.match_tip"))
-            .clicked()
-        {
-            app.eq_editor.matching = if matching {
-                None
+/// Aequalis on any host (ADR 0020): the device frame, the display and the cards. Everything
+/// it needs goes through [`FxHost`].
+pub fn editor(host: &mut dyn FxHost, st: &mut EqEditor, ui: &mut egui::Ui) -> frame::Out {
+    st.tidy(host.spec());
+    let tel = st.injected.unwrap_or_else(|| host.telemetry());
+    st.take_audio(host, &tel);
+    let sr = host.sample_rate();
+    let spec = host.spec();
+    let mode = Mode::from_index(spec.get("mode").round() as usize);
+    let res = Resolution::from_index(spec.get("lp_res").round() as usize);
+    let latency = latency_of(mode, res, sr);
+    let count = (0..EQ_BANDS).filter(|b| used(spec, *b)).count();
+    let mut chips = std::mem::take(&mut st.chips);
+    let chip = [
+        chips.latency.get((latency, sr.round() as u32), |s| {
+            if latency == 0 {
+                s.push_str(&t("eq.latency_none"));
             } else {
-                Some(MatchState::default())
-            };
-        }
-        ui.separator();
-        let ed = &mut app.eq_editor;
-        toggle(ui, &mut ed.piano, t("eq.piano")).on_hover_text(t("eq.piano_tip"));
-        egui::ComboBox::from_id_salt(("eq-range", effect.0))
-            .selected_text(format!("\u{b1}{:.0} dB", ed.range_db))
-            .width(space::GRID * 18.0)
-            .show_ui(ui, |ui| {
-                for r in RANGES {
-                    ui.selectable_value(&mut ed.range_db, r, format!("\u{b1}{r:.0} dB"));
-                }
-            })
-            .response
-            .on_hover_text(t("eq.range_tip"));
+                s.push_str(&tf(
+                    "eq.latency",
+                    &[
+                        ("ms", &format!("{:.1}", latency as f32 / sr * 1_000.0)),
+                        ("n", &latency),
+                    ],
+                ));
+            }
+        }),
+        chips.bands.get(count, |s| {
+            s.push_str(&tf("eq.bands", &[("n", &count), ("max", &EQ_BANDS)]))
+        }),
+    ];
+    let more = [
+        frame::action(Src::Key("eq.select_all")),
+        frame::action(Src::Key("eq.reset_view")),
+    ];
+    let look = frame::Look {
+        kind: EffectKind::Eq,
+        chips: &chip,
+        meter: None,
+        more: &more,
+    };
+    let mut chrome = std::mem::take(&mut st.chrome);
+    let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
+        body_ui(host, st, ui, s, body, &tel, sr)
     });
-}
-
-/// "Latency 53.3 ms · 2560 smp", or "No latency" — always on screen, never a surprise.
-fn latency_badge(ui: &mut egui::Ui, samples: usize, sr: f32) {
-    let pal = theme::p();
-    let (text, color) = if samples == 0 {
-        (t("eq.latency_none"), pal.text_dim)
-    } else {
-        (
-            tf(
-                "eq.latency",
-                &[
-                    ("ms", &format!("{:.1}", samples as f32 / sr * 1_000.0)),
-                    ("n", &samples),
-                ],
-            ),
-            pal.text,
-        )
-    };
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text, design::paint::ruler(), color);
-    let size = galley.size() + vec2(space::S3, space::S1 * 1.5);
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::hover());
-    let p = ui.painter();
-    p.rect(
-        rect,
-        pal.corner_radius,
-        if samples == 0 {
-            Color32::TRANSPARENT
-        } else {
-            theme::recess(&pal)
-        },
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
-    p.galley(rect.center() - galley.size() * 0.5, galley, color);
-    resp.on_hover_text(t("eq.latency_tip"));
-}
-
-fn analyser_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let ed = &mut app.eq_editor;
-    let s = ed.show;
-    let summary = format!(
-        "{} \u{b7} {} \u{b7} {:.0} dB \u{b7} {:.1} dB/oct",
-        t(&format!("eq.an.res.{}", s.resolution)),
-        t(&format!("eq.an.speed.{}", s.speed)),
-        s.range_db,
-        s.tilt
-    );
-    ui.menu_button(summary, |ui| {
-        ui.label(
-            RichText::new(t("eq.an.resolution"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        for r in 0..4 {
-            ui.radio_value(
-                &mut ed.show.resolution,
-                r,
-                format!("{} \u{b7} {}", t(&format!("eq.an.res.{r}")), 1024 << r),
-            );
+    st.chrome = chrome;
+    st.chips = chips;
+    match out.more {
+        Some(0) => {
+            let spec = host.spec();
+            st.selection = (0..EQ_BANDS).filter(|b| used(spec, *b)).collect();
+            st.primary = st.selection.iter().next().copied();
         }
-        ui.separator();
-        ui.label(
-            RichText::new(t("eq.an.speed"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        for sp in 0..5 {
-            ui.radio_value(&mut ed.show.speed, sp, t(&format!("eq.an.speed.{sp}")));
-        }
-        ui.separator();
-        ui.label(
-            RichText::new(t("eq.an.range"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        for r in [60.0, 90.0, 120.0] {
-            ui.radio_value(&mut ed.show.range_db, r, format!("{r:.0} dB"));
-        }
-        ui.separator();
-        ui.label(
-            RichText::new(t("eq.an.tilt"))
-                .text_style(design::caption())
-                .color(theme::p().text_dim),
-        );
-        for tl in [0.0, 3.0, 4.5, 6.0] {
-            ui.radio_value(&mut ed.show.tilt, tl, format!("{tl:.1} dB/oct"));
-        }
-    })
-    .response
-    .on_hover_text(t("eq.an.settings_tip"));
-    if ed.analyser.size() != ed.show.fft_size() {
-        ed.analyser = SpectrumAnalyser::new(ed.show.fft_size());
+        Some(1) => st.view = VIEW,
+        _ => {}
     }
+    out
 }
 
-/// The key strip: whose output the key-listening bands, the external spectrum, the
-/// collisions and EQ match hear. Chosen here, from the desk, with no send to set up.
-fn key_picker(
-    app: &mut CantusApp,
+/// The body: the display over most of it, then one row of cards — the selected band's
+/// (with its dynamics beside it when it has them, or the analyser's), and the output's at
+/// the right. While EQ match is open its card takes the band cards' place.
+fn body_ui(
+    host: &mut dyn FxHost,
+    st: &mut EqEditor,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
+    s: &Style,
+    body: Rect,
+    tel: &[f32; 64],
+    sr: f32,
 ) {
-    let pal = theme::p();
-    ui.label(
-        RichText::new(t("eq.key"))
-            .text_style(design::caption())
-            .color(pal.text_dim),
-    );
-    let current = slot.sidechain;
-    let label = match current {
-        Some(k) => app.capture_label(cantus_engine::CaptureTarget::Strip(k)),
-        None => t("eq.key_none"),
+    let k = s.k;
+    let mut g = crate::kit::shell::Grid::new(body, s);
+    let area = g.rest();
+    let gap = s.d(4.0);
+    let row_h = ROW_H * k;
+    let disp = g.full((area.height() - row_h - gap).max(120.0 * k));
+    let mut words = std::mem::take(&mut st.words);
+    display::show(host, st, ui, s, disp, tel, sr, &mut words);
+    let row = g.full(row_h);
+    // The row, left to right: the band (or EQ match in its place), its dynamics when it
+    // has them, the analyser, the output. The dynamics and match cards take what is left;
+    // the analyser folds into two columns beside them, and, on a window too narrow for
+    // four cards, gives way to the dynamics.
+    let dynamic = st.matching.is_none()
+        && st
+            .primary
+            .filter(|p| used(host.spec(), *p))
+            .is_some_and(|p| {
+                let spec = host.spec();
+                spec.get(bkey(p, "dyn")) >= 0.5
+                    && EqShape::from_index(spec.get(bkey(p, "shape")).round() as usize).has_gain()
+            });
+    let out_w = OUTPUT_W * k;
+    let band_w = BAND_W * k;
+    let an_min = ANALYSER_W_S * k;
+    let fixed = if dynamic {
+        band_w + out_w + an_min + DYNAMICS_W_MIN * k + 3.0 * gap
+    } else {
+        0.0
     };
-    egui::ComboBox::from_id_salt(("eq-key", effect.0))
-        .selected_text(label)
-        .width(space::GRID * 36.0)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(current.is_none(), t("eq.key_none"))
-                .clicked()
-            {
-                app.exec(Command::SetEffectSidechain {
-                    strip,
-                    effect,
-                    source: None,
-                });
-            }
-            let options: Vec<StripId> = app
-                .project()
-                .strips
-                .iter()
-                .map(|x| x.id)
-                .filter(|id| *id != strip && !app.project().routing_would_cycle(*id, Some(strip)))
-                .collect();
-            for id in options {
-                let text = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-                if ui.selectable_label(current == Some(id), text).clicked() {
-                    app.exec(Command::SetEffectSidechain {
-                        strip,
-                        effect,
-                        source: Some(id),
-                    });
+    let show_analyser = !dynamic || fixed <= row.width() + 0.5;
+    let span = move |x0: f32, x1: f32| {
+        Rect::from_min_max(pos2(x0, row.top()), pos2(x1.max(x0), row.bottom()))
+    };
+    let right = Rect::from_min_max(pos2(row.right() - out_w, row.top()), row.max);
+    if st.matching.is_some() {
+        let an = Rect::from_min_max(
+            pos2(right.left() - gap - an_min, row.top()),
+            pos2(right.left() - gap, row.bottom()),
+        );
+        let m = Rect::from_min_max(row.min, pos2(an.left() - gap, row.bottom()));
+        panel::match_card(host, st, &mut words, ui, s, m, tel, sr);
+        panel::analyser_card(st, &mut words, ui, s, an, tel);
+    } else {
+        let left = span(row.left(), row.left() + band_w);
+        panel::band_card(host, st, &mut words, ui, s, left);
+        let end = right.left() - gap;
+        match st.primary {
+            Some(p) if dynamic => {
+                let an_x = if show_analyser {
+                    end - an_min
+                } else {
+                    end + gap
+                };
+                let d = span(left.right() + gap, an_x - gap);
+                panel::dynamics_card(host, st, ui, s, d, p);
+                if show_analyser {
+                    panel::analyser_card(st, &mut words, ui, s, span(an_x, end), tel);
                 }
             }
-        })
-        .response
-        .on_hover_text(t("eq.key_tip"));
+            _ => {
+                let an = span(left.right() + gap, end);
+                panel::analyser_card(st, &mut words, ui, s, an, tel);
+            }
+        }
+    }
+    panel::output_card(host, st, &mut words, ui, s, right, tel);
+    st.words = words;
 }
 
 /// A small, read-only picture of an EQ's curve, for the inspector's effect card: the curve
 /// as the mode realises it, the dots, and the mode's latency when it has one.
-pub fn mini_curve(ui: &mut egui::Ui, spec: &cantus_core::EffectSpec) -> egui::Response {
-    let pal = theme::p();
+pub fn mini_curve(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
+    const N: usize = POINTS / 2;
+    let s = Style::current().function(Function::Tone);
+    let ink = Ink::of(&s);
     let width = ui.available_width();
-    let (rect, resp) = ui.allocate_exact_size(vec2(width, space::GRID * 14.0), Sense::click());
-    let geo = display::Geo::new(rect, 18.0, VIEW);
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
-    p.hline(
-        rect.x_range(),
-        geo.y(0.0),
-        Stroke::new(1.0, pal.grid_strong),
+    let (rect, resp) = ui.allocate_exact_size(
+        vec2(width, crate::design::space::GRID * 14.0),
+        Sense::click(),
     );
+    let geo = display::Geo::new(rect, 18.0, VIEW);
     let bands = cantus_engine::eq_bands(spec);
     let mode = Mode::from_index(spec.get("mode").round() as usize);
     let sr = 48_000.0;
-    let n = POINTS / 2;
-    let hz: Vec<f32> = (0..n).map(|k| geo.hz_at(k, n)).collect();
-    let mut total = vec![0.0f32; n];
-    let mut one = vec![0.0f32; n];
+    let mut hz = [0.0f32; N];
+    for (i, h) in hz.iter_mut().enumerate() {
+        *h = geo.hz_at(i, N);
+    }
+    let mut total = [0.0f32; N];
+    let mut one = [0.0f32; N];
     for b in bands.iter().filter(|b| b.active) {
         aequalis::band_curve_db(b, mode, sr, &hz, &mut one);
         for (t, o) in total.iter_mut().zip(&one) {
             *t += o;
         }
     }
-    let pts: Vec<Pos2> = hz
-        .iter()
-        .zip(&total)
-        .map(|(f, db)| pos2(geo.x(*f), geo.y(*db)))
-        .collect();
-    p.add(egui::Shape::line(pts, Stroke::new(1.5, pal.gold)));
-    for (i, b) in bands.iter().enumerate().filter(|(_, b)| b.active) {
-        p.circle_filled(geo.dot(b), 3.0, band_color(i));
+    let mut pts = [Pos2::ZERO; N];
+    for (i, p) in pts.iter_mut().enumerate() {
+        *p = pos2(geo.x(hz[i]), geo.y(total[i]));
     }
-    if mode != Mode::ZeroLatency {
-        let res = Resolution::from_index(spec.get("lp_res").round() as usize);
-        let lat = latency_of(mode, res, sr);
-        p.text(
-            pos2(rect.right() - space::S2, rect.top() + space::S1),
-            Align2::RIGHT_TOP,
-            format!(
-                "{} \u{b7} {:.1} ms",
-                t(&format!("eq.mode.{}", mode.index())),
-                lat as f32 / sr * 1_000.0
-            ),
-            design::paint::ruler(),
-            pal.text_dim,
+    crate::kit::with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(geo.y(0.0)),
+            b.px(),
+            ink.grid_strong,
+        );
+        b.area(&pts, geo.y(0.0), ink.fill(0.6));
+        b.polyline(&pts, 1.5, ink.hue);
+        for (i, band) in bands.iter().enumerate() {
+            if band.active && used(spec, i) {
+                b.dot(geo.dot(band), 3.0, band_color(i));
+            }
+        }
+        if mode != Mode::ZeroLatency {
+            let res = Resolution::from_index(spec.get("lp_res").round() as usize);
+            let lat = latency_of(mode, res, sr);
+            canvas::putf(
+                b,
+                pos2(rect.right() - 6.0, rect.top() + 4.0),
+                egui::Align2::RIGHT_TOP,
+                crate::kit::text::Role::Micro,
+                ink.dim,
+                1.0,
+                Some(ink.plate),
+                format_args!(
+                    "{} \u{b7} {:.1} ms",
+                    frame::tr(MODE_KEYS[mode.index().min(2)]),
+                    lat as f32 / sr * 1_000.0
+                ),
+            );
+        }
+        let edge = if resp.hovered() { ink.hue } else { ink.edge };
+        canvas::edge_b(b, rect, &Ink { edge, ..ink });
+    });
+    if resp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            frame::tr("eq.open_tip"),
+            "",
+            crate::kit::hint::Caps::NONE,
         );
     }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(
-            1.0,
-            if resp.hovered() {
-                pal.gold
-            } else {
-                pal.grid_strong
-            },
-        ),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("eq.open_tip"))
+    resp
 }
 
 // ---- demo --------------------------------------------------------------------------------
@@ -1433,31 +1369,35 @@ pub fn mini_curve(ui: &mut egui::Ui, spec: &cantus_core::EffectSpec) -> egui::Re
 /// `--editor eq` and the screenshots: on top of the four bands the app's demo makes, a
 /// dynamic de-esser band, a side-only shelf, a key strip, and a two-band selection.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
-    app.add_eq_band_with(
-        strip,
-        effect,
-        EqShape::Bell,
-        6_200.0,
-        0.001,
-        &[
-            ("q", 3.0),
-            ("dyn", 1.0),
-            ("thr", -34.0),
-            ("range", -7.0),
-            ("att", 2.0),
-            ("rel", 90.0),
-        ],
-        None,
-    );
-    app.add_eq_band_with(
-        strip,
-        effect,
-        EqShape::HighShelf,
-        14_000.0,
-        -2.5,
-        &[("place", 4.0)],
-        None,
-    );
+    app.with_eq(strip, effect, |h, st| {
+        add_band(
+            h,
+            st,
+            EqShape::Bell,
+            6_200.0,
+            0.001,
+            &[
+                ("q", 3.0),
+                ("dyn", 1.0),
+                ("thr", -34.0),
+                ("range", -7.0),
+                ("att", 2.0),
+                ("rel", 90.0),
+            ],
+            None,
+        );
+    });
+    app.with_eq(strip, effect, |h, st| {
+        add_band(
+            h,
+            st,
+            EqShape::HighShelf,
+            14_000.0,
+            -2.5,
+            &[("place", 4.0)],
+            None,
+        );
+    });
     let other = app
         .project()
         .tracks
@@ -1465,14 +1405,20 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
         .filter_map(|t| t.strip)
         .find(|s| *s != strip);
     if let Some(key) = other {
-        app.exec(Command::SetEffectSidechain {
+        app.exec(cantus_core::Command::SetEffectSidechain {
             strip,
             effect,
             source: Some(key),
         });
     }
     app.eq_editor.show.collisions = true;
-    app.set_eq_global(strip, effect, "mode", Mode::NaturalPhase.index() as f32);
+    app.set_fx_param(
+        strip,
+        effect,
+        "mode",
+        Mode::NaturalPhase.index() as f32,
+        false,
+    );
 }
 
 fn demo_noise(seed: &mut u32) -> f32 {
@@ -1558,9 +1504,26 @@ pub fn demo_feed(app: &mut CantusApp) {
         }
     }
     app.eq_editor.injected = Some(eq.telemetry());
-    // The dynamic band in the panel, with the bell at 2.8 kHz selected beside it.
-    let dynamic = (0..EQ_BANDS).find(|b| slot.spec.get(&eq_key(*b, "dyn")) >= 0.5);
+    // The dynamic band in its card, with the bell at 2.8 kHz selected beside it.
+    let dynamic = (0..EQ_BANDS).find(|b| slot.spec.get(bkey(*b, "dyn")) >= 0.5);
     if let Some(d) = dynamic {
         app.eq_editor.select(&[d, 2]);
+    }
+}
+
+/// The bands the host's parameters make, read once per host revision (a host that keeps
+/// no revision, 0, is read every time).
+pub(crate) fn bands_of(
+    st: &mut EqEditor,
+    host: &dyn FxHost,
+) -> [cantus_dsp::BandSettings; aequalis::MAX_BANDS] {
+    let rev = host.revision();
+    match st.bands_at {
+        Some((r, b)) if r == rev && rev != 0 => b,
+        _ => {
+            let b = cantus_engine::eq_bands(host.spec());
+            st.bands_at = Some((rev, b));
+            b
+        }
     }
 }

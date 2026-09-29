@@ -1,0 +1,26 @@
+# views: the round-18 views work's strings. Every key here needs its twin in views.es.txt.
+
+# --- the editing views' chrome (arrangement, piano roll, channel rack) ---
+views.nav.hbar = Scroll through time · drag an end of the bar to zoom · double-click: show everything
+views.nav.vbar = Scroll the rows · drag an end of the bar to change their height · double-click: show every row
+arrangement.menu = Arrangement menu
+arrangement.grid_tip = What clips snap to when they are dragged (Ctrl while dragging: no snap)
+arrangement.snap_tip = Snap clips to the grid
+
+# --- theme tokens the editing views add (the colour editor lists them) ---
+kit.group.editor = Editors
+kit.token.editor.row_white = Row (white key)
+kit.token.editor.row_black = Row (black key) and lanes
+kit.token.editor.playhead = Playhead
+pianoroll.menu = Piano roll menu
+pianoroll.grid_tip = What notes snap to (Alt while dragging: no snap)
+pianoroll.snap_tip = Snap notes to the grid
+pianoroll.zoom_notes = Zoom to the selected notes (all of them when none is selected)
+pianoroll.keys_tip = Click a key to hear it
+pianoroll.split_tip = Drag to resize the velocity lane · right-click: reset · double-click: toggle
+pianoroll.velocity_tip = Drag a stem up or down to change the velocity of its note (and the selection)
+rack.menu = Channel rack menu
+rack.fit = Fit the pattern to the width
+rack.bars = bars {from}–{to}
+rack.grid_tip = What one step is worth
+pianoroll.velocity.short = Vel.

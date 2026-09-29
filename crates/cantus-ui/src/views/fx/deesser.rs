@@ -14,29 +14,42 @@
 //!   bottom — level over the line *and* sibilant is what makes it cut. At the right edge, a
 //!   histogram of where the sibilants peaked: what **Learn** sets the threshold from.
 //!
-//! Under the lanes, the **detection band is two edges dragged on the spectrum** of the
-//! input (drag the middle to move both), with the cut the processing makes drawn over it
-//! live; beside it, the knobs, every one keyboard-reachable. The wheel scrolls the history
-//! back; a double-click returns to live. Every drag and knob turn is one undo step.
+//! Over the lanes, the guard rails against over-de-essing, as readouts: events, events in
+//! the last 10 s, the average and the deepest cut, and a warning past 6 dB. Under them,
+//! the **detection band is two edges dragged on the spectrum** of the input (drag the
+//! middle to move both), with the cut the processing makes drawn over it live; beside it,
+//! the switches and the cells, every one keyboard-reachable. The wheel scrolls the
+//! history back; a double-click returns to live. Every drag and turn is one undo step.
+//!
+//! The editor runs on any [`FxHost`] (ADR 0020): in Cantus the key is any strip of the
+//! desk; in a plug-in window the host routes the sidechain and the editor switches to it.
 
+use super::canvas::{self, Ink};
+use super::controls::{self, Cell, Size};
+use super::frame;
+use super::host::{DawHost, FxHost, KeySource, KeyTarget};
 use super::FactoryPreset;
 use crate::app::CantusApp;
-use crate::design::{self, space};
+use crate::design::space;
 use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
-use cantus_core::{Command, EffectId, EffectSlot, EffectSpec, MergeKey, StripId};
+use crate::kit::hint::{self, Caps};
+use crate::kit::shell::Grid;
+use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
+use crate::kit::{band, with_brush, Brush, Fill, Style};
+use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::sibilus::{
     self as ds, Column, DeessSettings, Detection, Listen, Processing, Sibilus,
 };
 use cantus_dsp::SpectrumAnalyser;
 use cantus_engine::fx::deesser as tele;
-use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, RichText, Sense, Shape, Stroke, StrokeKind};
+use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
+use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 
 /// Columns of history kept: about 30 s at 48 kHz.
 pub const HISTORY_COLS: usize = 2_800;
-/// Pixels per column on screen.
+/// Points per column on screen, at 100 %.
 const PX: f32 = 2.0;
 /// The detector lane's scale, dB.
 const DET_LO_DB: f32 = -60.0;
@@ -128,6 +141,21 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ),
 ];
 
+/// The choices' words and what each does, by index.
+const MODE_KEYS: [&str; 2] = ["ds.mode.0", "ds.mode.1"];
+const MODE_TIPS: [&str; 2] = ["ds.mode.0_tip", "ds.mode.1_tip"];
+const PROC_KEYS: [&str; 3] = ["ds.proc.0", "ds.proc.1", "ds.proc.2"];
+const PROC_TIPS: [&str; 3] = ["ds.proc.0_tip", "ds.proc.1_tip", "ds.proc.2_tip"];
+const STEREO_KEYS: [&str; 4] = ["ds.stereo.0", "ds.stereo.1", "ds.stereo.2", "ds.stereo.3"];
+const STEREO_TIPS: [&str; 4] = [
+    "ds.stereo.0_tip",
+    "ds.stereo.1_tip",
+    "ds.stereo.2_tip",
+    "ds.stereo.3_tip",
+];
+const LISTEN_KEYS: [&str; 3] = ["ds.listen.0", "ds.listen.1", "ds.listen.2"];
+const LISTEN_TIPS: [&str; 3] = ["ds.listen.0_tip", "ds.listen.1_tip", "ds.listen.2_tip"];
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Grab {
     Threshold,
@@ -142,7 +170,7 @@ enum Grab {
 }
 
 /// Where the displays are, published for tests: drags aim at these.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Geometry {
     pub signal: Rect,
     pub cut: Rect,
@@ -187,6 +215,21 @@ fn point_hz(i: usize) -> f32 {
     SPEC_LO_HZ * (SPEC_HI_HZ / SPEC_LO_HZ).powf(i as f32 / (POINTS - 1) as f32)
 }
 
+/// Words the editor formats only when what they say changes.
+#[derive(Debug, Default)]
+struct Words {
+    /// The key's source as the host said it, per host revision, and the field's words.
+    key: Option<(u64, Option<KeySource>)>,
+    key_for: Option<(u64, crate::i18n::Locale)>,
+    key_text: String,
+    /// Learn's key: (learning, sibilants heard, language).
+    learn: Option<(bool, usize, crate::i18n::Locale)>,
+    learn_text: String,
+    /// The hover readout: which column, and its words.
+    hover: Option<(usize, usize, crate::i18n::Locale)>,
+    hover_text: String,
+}
+
 /// What the editor remembers between frames.
 #[derive(Debug)]
 pub struct State {
@@ -214,7 +257,19 @@ pub struct State {
     /// The threshold Learn last set, drawn beside the line while it stands.
     pub learned: Option<f32>,
     pub geo: Geometry,
+    /// The device frame: the preset, its lists.
+    pub chrome: frame::Chrome,
+    chips: frame::ChipText,
+    words: Words,
+    /// Scratch kept between frames: the analysed pairs, a line's points.
+    scratch: Vec<f32>,
+    pts: Vec<Pos2>,
+    /// What the tap held when it was last analysed (length, newest, oldest): the analysis
+    /// runs only when the tap brought something new.
+    analysed: Option<Pair3>,
 }
+
+type Pair3 = (usize, Option<(u32, u32)>, Option<(u32, u32)>);
 
 impl Default for State {
     fn default() -> Self {
@@ -237,6 +292,12 @@ impl Default for State {
             learn_cols: Vec::new(),
             learned: None,
             geo: Geometry::default(),
+            chrome: frame::Chrome::default(),
+            chips: frame::ChipText::default(),
+            words: Words::default(),
+            scratch: Vec::new(),
+            pts: Vec::new(),
+            analysed: None,
         }
     }
 }
@@ -273,6 +334,12 @@ impl State {
 /// detector level.
 pub fn event_peaks(cols: &[Column], voice: bool) -> Vec<f32> {
     let mut peaks = Vec::new();
+    runs(cols.iter(), voice, |p| peaks.push(p));
+    peaks
+}
+
+/// Each event's peak in `cols`, to `f` — as [`event_peaks`], without a list.
+fn runs<'a>(cols: impl Iterator<Item = &'a Column>, voice: bool, mut f: impl FnMut(f32)) {
     let mut run: Option<f32> = None;
     for c in cols {
         let inside = if voice {
@@ -284,16 +351,15 @@ pub fn event_peaks(cols: &[Column], voice: bool) -> Vec<f32> {
             (true, Some(p)) => run = Some(p.max(c.det_db)),
             (true, None) => run = Some(c.det_db),
             (false, Some(p)) => {
-                peaks.push(p);
+                f(p);
                 run = None;
             }
             (false, None) => {}
         }
     }
     if let Some(p) = run {
-        peaks.push(p);
+        f(p);
     }
-    peaks
 }
 
 /// **Learn**: the threshold from a passage. The median sibilant gets half the Range, the
@@ -340,48 +406,55 @@ pub fn learn_threshold(cols: &[Column], voice: bool, range_db: f32) -> Option<f3
     Some((median - range_db.max(0.0) * 0.5).clamp(DET_LO_DB, 0.0))
 }
 
+/// Start listening for a threshold, or stop and set it: one step of the host's undo.
+pub fn learn(host: &mut dyn FxHost, st: &mut State) {
+    if !st.learning {
+        st.learning = true;
+        st.learn_cols.clear();
+        return;
+    }
+    st.learning = false;
+    let cols = std::mem::take(&mut st.learn_cols);
+    let s = tele::settings(host.spec());
+    match learn_threshold(&cols, s.detection == Detection::Voice, s.range_db) {
+        Some(thr) => {
+            host.set("thr", thr, None);
+            st.learned = Some(thr);
+            host.status(tf("ds.learned_to", &[("db", &format!("{thr:.1}"))]));
+        }
+        None => host.status(t("ds.learn_none")),
+    }
+}
+
+thread_local! {
+    /// The state [`framed`] leaves in the app while the editor borrows its own: made once
+    /// and swapped in and out, so a frame builds no new state (its analyser allocates).
+    static SPARE: RefCell<Option<State>> = const { RefCell::new(None) };
+}
+
+/// Run `f` on the app with the de-esser's state taken out of it (the host borrows the
+/// app; the editor its state).
+fn with_state<R>(app: &mut CantusApp, f: impl FnOnce(&mut CantusApp, &mut State) -> R) -> R {
+    let spare = SPARE.with(|c| c.borrow_mut().take()).unwrap_or_default();
+    let mut st = std::mem::replace(&mut app.fx.deesser, spare);
+    let r = f(app, &mut st);
+    let spare = std::mem::replace(&mut app.fx.deesser, st);
+    SPARE.with(|c| *c.borrow_mut() = Some(spare));
+    r
+}
+
 impl CantusApp {
     /// Start listening for a threshold, or stop and set it: one undo step.
     pub fn deesser_learn(&mut self, strip: StripId, effect: EffectId) {
-        let st = &mut self.fx.deesser;
-        if !st.learning {
-            st.learning = true;
-            st.learn_cols.clear();
-            return;
-        }
-        st.learning = false;
-        let cols = std::mem::take(&mut st.learn_cols);
-        let Some(spec) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.clone())
-        else {
-            return;
-        };
-        let s = tele::settings(&spec);
-        match learn_threshold(&cols, s.detection == Detection::Voice, s.range_db) {
-            Some(thr) => {
-                self.set_fx_param(strip, effect, "thr", thr, false);
-                self.fx.deesser.learned = Some(thr);
-                self.set_status(tf("ds.learned_to", &[("db", &format!("{thr:.1}"))]));
-            }
-            None => self.set_status(t("ds.learn_none")),
-        }
+        with_state(self, |app, st| {
+            learn(&mut DawHost::new(app, strip, effect, "deesser"), st)
+        });
     }
 }
 
 /// Bring in the columns the engine measured since the last frame.
-fn pump(app: &mut CantusApp, effect: EffectId) {
-    let tel = app.fx_telemetry();
-    let h = tele::header(&tel);
-    let st = &mut app.fx.deesser;
-    if st.effect != Some(effect) {
-        *st = State {
-            effect: Some(effect),
-            ..State::default()
-        };
-    }
+fn pump(st: &mut State, tel: &cantus_engine::Telemetry) {
+    let h = tele::header(tel);
     if h.chunk == 0 || h.sample_rate <= 0.0 {
         return;
     }
@@ -405,7 +478,7 @@ fn pump(app: &mut CantusApp, effect: EffectId) {
         });
     }
     for index in from.max(held)..h.seq {
-        if let Some(c) = tele::column(&tel, h.seq, index) {
+        if let Some(c) = tele::column(tel, h.seq, index) {
             st.push(c);
         }
     }
@@ -413,17 +486,23 @@ fn pump(app: &mut CantusApp, effect: EffectId) {
 }
 
 /// The spectrum of what the analyser tap brought, and the split's shape for the settings.
-fn update_spectrum(app: &mut CantusApp, s: &DeessSettings) {
-    let fx = &mut app.fx;
-    let st = &mut fx.deesser;
+fn update_spectrum(st: &mut State, pairs: &VecDeque<(f32, f32)>, s: &DeessSettings) {
     let n = st.analyser.size();
-    if fx.pairs.len() >= n {
-        let mut buf = Vec::with_capacity(2 * n);
-        for (a, b) in fx.pairs.iter().skip(fx.pairs.len() - n) {
-            buf.push(*a);
-            buf.push(*b);
+    let sig = (
+        pairs.len(),
+        pairs.back().map(|p| (p.0.to_bits(), p.1.to_bits())),
+        pairs.front().map(|p| (p.0.to_bits(), p.1.to_bits())),
+    );
+    // Only when the tap brought something new: the analysis is the costliest thing the
+    // editor does, and an editor at rest must cost next to nothing.
+    if pairs.len() >= n && st.analysed != Some(sig) {
+        st.analysed = Some(sig);
+        st.scratch.clear();
+        for (a, b) in pairs.iter().skip(pairs.len() - n) {
+            st.scratch.push(*a);
+            st.scratch.push(*b);
         }
-        st.analyser.push(&buf);
+        st.analyser.push(&st.scratch);
         st.analyser.compute();
         for i in 0..POINTS {
             let hz = point_hz(i);
@@ -441,723 +520,385 @@ fn update_spectrum(app: &mut CantusApp, s: &DeessSettings) {
             listen: Listen::Normal,
             ..*s
         });
-        st.cut_amp = (0..POINTS)
-            .map(|i| d.split_amplitude(point_hz(i)))
-            .collect();
+        for (i, a) in st.cut_amp.iter_mut().enumerate() {
+            *a = d.split_amplitude(point_hz(i));
+        }
         st.cut_for = Some(key);
     }
 }
 
-pub fn body(
+/// Runs of columns cut by more than an event's worth that have ended — the events the
+/// readouts count, so a run still going is not counted twice.
+fn closed_events<'a>(cols: impl Iterator<Item = &'a Column>) -> usize {
+    let mut n = 0;
+    let mut inside = false;
+    for c in cols {
+        let now = c.gr_db > ds::EVENT_ON_DB;
+        if inside && !now {
+            n += 1;
+        }
+        inside = now;
+    }
+    n
+}
+
+/// `4.5 kHz`, `350 Hz`.
+struct Hz(f32);
+
+impl std::fmt::Display for Hz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 >= 1_000.0 {
+            write!(f, "{:.1} kHz", self.0 / 1_000.0)
+        } else {
+            write!(f, "{:.0} Hz", self.0)
+        }
+    }
+}
+
+/// An axis mark: `500 Hz`, `1 kHz`, `20 kHz`.
+struct HzMark(f32);
+
+impl std::fmt::Display for HzMark {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 >= 1_000.0 {
+            write!(f, "{:.0} kHz", self.0 / 1_000.0)
+        } else {
+            write!(f, "{:.0} Hz", self.0)
+        }
+    }
+}
+
+/// A level with a real minus sign, one decimal: `−38.0`, `+0.0`.
+struct Signed(f32);
+
+impl std::fmt::Display for Signed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0 < -0.049 {
+            write!(f, "\u{2212}{:.1}", -self.0)
+        } else {
+            write!(f, "+{:.1}", self.0.abs())
+        }
+    }
+}
+
+// ---- the frame ------------------------------------------------------------------------
+
+/// The right of the lanes kept for their scales, at 100 %.
+const GUTTER: f32 = 40.0;
+/// The cells: the threshold (the primary parameter, larger), then the rest.
+const DS_CELLS: [Size; 9] = [
+    Size::L,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+    Size::M,
+];
+
+/// Sibilus in Cantus's own window: the host is the project (every drag one undo step, the
+/// key any strip of the desk).
+pub fn framed(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     strip: StripId,
     effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let s = tele::settings(&slot.spec);
-    pump(app, effect);
-    update_spectrum(app, &s);
-    controls(app, ui, strip, effect, slot, &s);
-    ui.add_space(space::S1);
-    status_row(app, ui, &s);
-    ui.add_space(space::S1);
-    let bottom_h = space::GRID * 44.0;
-    // Everything below asks for exactly what is left, spacing included, so a resizable
-    // window does not creep taller frame by frame.
-    let spacing = ui.spacing().item_spacing.y;
-    let hist_h = (ui.available_height() - bottom_h - space::S2 - 3.0 * spacing)
-        .floor()
-        .max(space::GRID * 40.0);
-    let width = ui.available_width();
-    history(app, ui, strip, effect, &s, vec2(width, hist_h));
-    ui.add_space(space::S2);
-    ui.horizontal_top(|ui| {
-        let knobs_w = space::GRID * 84.0;
-        let spec_w = (ui.available_width() - knobs_w - space::S3).max(space::GRID * 60.0);
-        spectrum(app, ui, strip, effect, &s, vec2(spec_w, bottom_h));
-        ui.add_space(space::S2);
-        knobs(app, ui, strip, effect, &slot.spec);
-    });
+) -> frame::Out {
+    with_state(app, |app, st| {
+        if st.effect != Some(effect) {
+            *st = State {
+                effect: Some(effect),
+                ..State::default()
+            };
+        }
+        st.chrome.reset_for(effect.0);
+        editor(&mut DawHost::new(app, strip, effect, "deesser"), st, ui)
+    })
 }
 
-/// A row of choices; returns the one clicked.
-fn segmented(ui: &mut egui::Ui, current: usize, keys: &[&str]) -> Option<usize> {
-    let mut out = None;
-    ui.scope(|ui| {
-        ui.spacing_mut().item_spacing.x = 1.0;
-        for (i, key) in keys.iter().enumerate() {
-            if ui
-                .selectable_label(i == current, t(key))
-                .on_hover_text(t(&format!("{key}_tip")))
-                .clicked()
-            {
-                out = Some(i);
-            }
+/// Sibilus's editor on any host (ADR 0020): the device frame and the de-esser inside it.
+/// Everything it needs from the host goes through [`FxHost`].
+pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame::Out {
+    let tel = host.telemetry();
+    pump(st, &tel);
+    let dss = tele::settings(host.spec());
+    update_spectrum(st, host.pairs(), &dss);
+    let sr = if st.sr > 1_000.0 {
+        st.sr
+    } else {
+        host.sample_rate()
+    };
+    let mut chips = std::mem::take(&mut st.chips);
+    let chip = [chips.latency(ds::latency_for(&dss, sr) as f32, sr)];
+    let meter = st.history.back().map(|c| {
+        let db = if c.output > 1e-6 {
+            20.0 * c.output.log10()
+        } else {
+            -160.0
+        };
+        frame::Levels {
+            level: [db; 2],
+            hold: [db; 2],
         }
     });
+    let look = frame::Look {
+        kind: EffectKind::DeEsser,
+        chips: &chip,
+        meter,
+        more: &[],
+    };
+    let mut chrome = std::mem::take(&mut st.chrome);
+    let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
+        body_ui(host, st, ui, s, body, &dss)
+    });
+    st.chrome = chrome;
+    st.chips = chips;
     out
 }
 
-fn caption(ui: &mut egui::Ui, key: &str) {
-    ui.label(
-        RichText::new(t(key))
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
+/// The de-esser inside the frame: the lanes on top; the spectrum, the switches and the
+/// cells under them.
+fn body_ui(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    body: Rect,
+    dss: &DeessSettings,
+) {
+    let k = s.k;
+    let mut g = Grid::new(body, s);
+    let area = g.rest();
+    let gap = s.d(4.0);
+    let sw_h = (band::TITLE + 8.0 + 3.0 * controls::ROW + 10.0 + 8.0) * k;
+    let cells_h = controls::card_height(Size::L) * k;
+    let low_h = sw_h + gap + cells_h;
+    let hist_h = (area.height() - low_h - gap).max(160.0 * k);
+    let hist_r = g.full(hist_h);
+    let low = g.rest();
+    let cw = (controls::cells_width(&DS_CELLS) + 16.0) * k;
+    let right = Rect::from_min_max(pos2(low.right() - cw, low.top()), low.max);
+    let spec_r = Rect::from_min_max(low.min, pos2(right.left() - gap, low.bottom()));
+    let half = (right.width() - gap) * 0.5;
+    let det_r = Rect::from_min_size(right.min, vec2(half, sw_h));
+    let key_r = Rect::from_min_size(pos2(right.right() - half, right.top()), vec2(half, sw_h));
+    let cells_r = Rect::from_min_max(pos2(right.left(), det_r.bottom() + gap), right.max);
+    let disp = |r: Rect| (r.height() / k - band::TITLE - 1.0).max(20.0);
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        hist_r,
+        Src::Key("ds.card.history"),
+        None,
+        Some(disp(hist_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                history(host, st, ui, s, dss, d);
+            }
+        },
     );
-}
-
-/// Mode, processing, stereo and listening: every state visible at rest.
-fn controls(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-    s: &DeessSettings,
-) {
-    ui.horizontal_wrapped(|ui| {
-        caption(ui, "fx.ds.mode");
-        if let Some(i) = segmented(ui, s.detection.index(), &["ds.mode.0", "ds.mode.1"]) {
-            app.set_fx_param(strip, effect, "mode", i as f32, false);
-        }
-        ui.separator();
-        caption(ui, "fx.ds.proc");
-        if let Some(i) = segmented(
-            ui,
-            s.processing.index(),
-            &["ds.proc.0", "ds.proc.1", "ds.proc.2"],
-        ) {
-            app.set_fx_param(strip, effect, "proc", i as f32, false);
-        }
-        ui.separator();
-        caption(ui, "fx.ds.stereo");
-        if let Some(i) = segmented(
-            ui,
-            s.stereo.index(),
-            &["ds.stereo.0", "ds.stereo.1", "ds.stereo.2", "ds.stereo.3"],
-        ) {
-            app.set_fx_param(strip, effect, "stereo", i as f32, false);
-        }
-    });
-    ui.horizontal_wrapped(|ui| {
-        caption(ui, "ds.key");
-        key_picker(app, ui, strip, effect, slot);
-        ui.separator();
-        caption(ui, "fx.ds.listen");
-        if let Some(i) = segmented(
-            ui,
-            s.listen.index(),
-            &["ds.listen.0", "ds.listen.1", "ds.listen.2"],
-        ) {
-            app.set_fx_param(strip, effect, "listen", i as f32, false);
-        }
-        ui.separator();
-        let learning = app.fx.deesser.learning;
-        let label = if learning {
-            let heard =
-                event_peaks(&app.fx.deesser.learn_cols, s.detection == Detection::Voice).len();
-            tf("ds.learning", &[("n", &heard)])
-        } else {
-            t("ds.learn")
-        };
-        // A button, not a choice: it starts listening, and a second press sets the line.
-        let text = RichText::new(format!("\u{25ce} {label}"));
-        if ui
-            .add(egui::Button::new(text).selected(learning))
-            .on_hover_text(t("ds.learn_tip"))
-            .clicked()
-        {
-            app.deesser_learn(strip, effect);
-        }
-    });
-}
-
-/// The key: this strip's own input, or any other strip after its fader.
-fn key_picker(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let current = slot.sidechain;
-    let label = match current {
-        Some(k) if app.project().strip(k).is_some() => {
-            app.capture_label(cantus_engine::CaptureTarget::Strip(k))
-        }
-        _ => t("ds.key_own"),
-    };
-    egui::ComboBox::from_id_salt(("ds-key", effect.0))
-        .selected_text(label)
-        .width(space::GRID * 40.0)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(current.is_none(), t("ds.key_own"))
-                .clicked()
-            {
-                app.exec(Command::SetEffectSidechain {
-                    strip,
-                    effect,
-                    source: None,
-                });
+    let (_, _) = controls::card_with(
+        ui,
+        s,
+        spec_r,
+        Src::Key("ds.card.band"),
+        None,
+        Some(disp(spec_r)),
+        |ui, cr| {
+            if let Some(d) = cr.display {
+                spectrum(host, st, ui, s, dss, d);
             }
-            let options: Vec<StripId> = app
-                .project()
-                .strips
-                .iter()
-                .map(|x| x.id)
-                .filter(|id| *id != strip && !app.project().routing_would_cycle(*id, Some(strip)))
-                .collect();
-            for id in options {
-                let text = app.capture_label(cantus_engine::CaptureTarget::Strip(id));
-                if ui.selectable_label(current == Some(id), text).clicked() {
-                    app.exec(Command::SetEffectSidechain {
-                        strip,
-                        effect,
-                        source: Some(id),
-                    });
-                }
-            }
-        })
-        .response
-        .on_hover_text(t("ds.key_tip"));
+        },
+    );
+    detection_card(host, ui, s, det_r);
+    key_card(host, st, ui, s, key_r, dss);
+    cells_card(host, ui, s, cells_r, dss);
 }
 
-/// Events, how hard it works, and the latency — the guard rails against over-de-essing.
-fn status_row(app: &CantusApp, ui: &mut egui::Ui, s: &DeessSettings) {
-    let pal = theme::p();
-    let st = &app.fx.deesser;
-    let e = st.events;
-    // Events in the last 10 s of history.
-    let recent = (10.0 / st.col_s()) as usize;
-    let tail: Vec<Column> = st
-        .history
-        .iter()
-        .skip(st.history.len().saturating_sub(recent))
-        .copied()
-        .collect();
-    let rate = closed_events(&tail);
-    let sr = st.sr;
-    let paused = (st.scroll > 0).then(|| st.scroll as f32 * st.col_s());
-    ui.horizontal(|ui| {
-        let text = if e.count == 0 {
-            t("ds.stats_none")
-        } else {
-            tf(
-                "ds.stats",
-                &[
-                    ("n", &e.count),
-                    ("rate", &rate),
-                    ("avg", &format!("{:.1}", e.mean_gr_db)),
-                    ("max", &format!("{:.1}", e.max_gr_db)),
-                ],
-            )
-        };
-        ui.label(
-            RichText::new(text)
-                .text_style(design::mono_small())
-                .color(pal.text_dim),
-        );
-        if e.count > 0 && e.mean_gr_db > HEAVY_DB {
-            ui.label(
-                RichText::new(format!(
-                    "\u{26a0} {}",
-                    tf("ds.heavy", &[("avg", &format!("{:.1}", e.mean_gr_db))])
-                ))
-                .text_style(design::caption())
-                .color(pal.danger),
-            );
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let lat = ds::latency_for(s, sr);
-            let text = if lat == 0 {
-                t("ds.latency_zero")
-            } else {
-                tf(
-                    "ds.latency",
-                    &[("ms", &format!("{:.1}", lat as f32 * 1_000.0 / sr))],
-                )
-            };
-            ui.label(
-                RichText::new(text)
-                    .text_style(design::mono_small())
-                    .color(pal.text),
-            )
-            .on_hover_text(t("ds.latency_tip"));
-            ui.separator();
-            // Live or paused, said at rest.
-            let (text, color) = match paused {
-                Some(back) => (tf("ds.paused", &[("s", &format!("{back:.1}"))]), pal.gold),
-                None => (t("ds.live"), pal.text_dim),
-            };
-            ui.label(
-                RichText::new(text)
-                    .text_style(design::caption())
-                    .color(color),
-            );
-        });
-    });
-}
-
-/// Pixels right of the lanes for their scales, so no number is printed over the data.
-const GUTTER: f32 = 40.0;
-
-/// A line of text on a plate, legible over whatever is drawn under it.
-fn plate(
-    p: &egui::Painter,
-    pos: Pos2,
-    align: Align2,
-    text: String,
-    font: egui::FontId,
-    color: Color32,
-) -> Rect {
-    let pal = theme::p();
-    let galley = p.layout_no_wrap(text, font, color);
-    let r = align.anchor_size(pos, galley.size() + vec2(6.0, 2.0));
-    p.rect_filled(r, 2.0, pal.panel_raised.gamma_multiply(0.88));
-    p.galley(r.min + vec2(3.0, 1.0), galley, color);
-    r
-}
-
-/// A band between two edges, one point per column, coloured per column: the smooth
-/// outline of the history rather than a staircase. `(x, top, bottom, colour)`.
-fn band_strip(p: &egui::Painter, pts: &[(f32, f32, f32, Color32)]) {
-    let mut mesh = egui::Mesh::default();
-    for (k, &(x, y0, y1, c)) in pts.iter().enumerate() {
-        let base = mesh.vertices.len() as u32;
-        mesh.colored_vertex(pos2(x, y0), c);
-        mesh.colored_vertex(pos2(x, y1), c);
-        if k > 0 {
-            mesh.add_triangle(base - 2, base - 1, base);
-            mesh.add_triangle(base - 1, base, base + 1);
-        }
+/// The help line for what the pointer is on: its name and what it does.
+fn tip(ui: &egui::Ui, hovered: bool, name: &str, what: &str) {
+    if hovered {
+        hint::set_text(ui.ctx(), name, what, Caps::NONE);
     }
-    p.add(mesh);
+}
+
+thread_local! {
+    /// A value formatted for a readout, reused.
+    static FMT: RefCell<String> = RefCell::new(String::with_capacity(48));
+}
+
+/// Run `f` with `args` formatted into the reused buffer.
+fn with_fmt<R>(args: std::fmt::Arguments<'_>, f: impl FnOnce(&str) -> R) -> R {
+    FMT.with(|c| match c.try_borrow_mut() {
+        Ok(mut buf) => {
+            buf.clear();
+            let _ = buf.write_fmt(args);
+            f(&buf)
+        }
+        Err(_) => f(&std::fmt::format(args)),
+    })
+}
+
+/// A caps word and a number on plates, anchored at `at` by `align` (the pair reads left
+/// to right): "THRESHOLD −38.0 dB". Returns the rect of both, or nothing when it would
+/// start left of `min_left`.
+#[allow(clippy::too_many_arguments)]
+fn tagged(
+    b: &mut Brush,
+    at: Pos2,
+    align: Align2,
+    word: &str,
+    color: Color32,
+    k: f32,
+    plate: Option<Color32>,
+    min_left: f32,
+    args: std::fmt::Arguments<'_>,
+) -> Rect {
+    let wt = Text::new(word, Role::Micro, color).caps(true);
+    let ws = ktext::measure(b.ctx(), &wt, k);
+    let gap = 4.0 * k;
+    let vs = with_fmt(args, |v| {
+        let t = Text::new(v, Role::Value, color).caps(false);
+        ktext::measure(b.ctx(), &t, k)
+    });
+    let size = vec2(ws.x + gap + vs.x, ws.y.max(vs.y));
+    let r = align.anchor_size(at, size);
+    if r.left() < min_left {
+        return Rect::NOTHING;
+    }
+    let w = canvas::put(
+        b,
+        pos2(r.left(), r.center().y),
+        Align2::LEFT_CENTER,
+        &wt,
+        k,
+        plate,
+    );
+    let v = canvas::putf(
+        b,
+        pos2(r.right(), r.center().y),
+        Align2::RIGHT_CENTER,
+        Role::Value,
+        color,
+        k,
+        plate,
+        args,
+    );
+    w.union(v)
 }
 
 /// Hatching for what was taken away: short diagonals across `[y0, y1]` in a column at
-/// `x`, on a 6 px pitch that lines up from column to column.
-fn hatch(shapes: &mut Vec<Shape>, x: f32, y0: f32, y1: f32, stroke: Stroke) {
+/// `x`, `pitch` apart and lined up from column to column.
+#[allow(clippy::too_many_arguments)]
+fn hatch_col(b: &mut Brush, x: f32, y0: f32, y1: f32, col_w: f32, pitch: f32, w: f32, c: Color32) {
     if y1 - y0 < 2.0 {
         return;
     }
-    let pitch = 6.0;
     let mut y = y0 - (y0 + x).rem_euclid(pitch) + pitch;
     while y < y1 {
-        let top = (y - PX).max(y0);
-        shapes.push(Shape::line_segment(
-            [pos2(x, y), pos2(x + (y - top), top)],
-            stroke,
-        ));
+        let top = (y - col_w).max(y0);
+        b.segment(pos2(x, y), pos2(x + (y - top), top), w, c, false);
         y += pitch;
     }
 }
 
-/// Runs of columns cut by more than an event's worth that have ended — the events the
-/// status row counts, so a run still going is not counted twice.
-fn closed_events(cols: &[Column]) -> usize {
-    let n = event_peaks(cols, false).len();
-    if cols.last().is_some_and(|c| c.gr_db > ds::EVENT_ON_DB) {
-        n.saturating_sub(1)
-    } else {
-        n
-    }
-}
+// ---- the history ------------------------------------------------------------------------
 
-/// The colours of the history, per theme: green is what de-essing did.
-struct Ink {
+/// The colours of the history: green is what de-essing did.
+struct Greens {
     dim: Color32,
     left: Color32,
     taken: Color32,
-    hatch: Stroke,
+    hatch: Color32,
     bar: Color32,
 }
 
-impl Ink {
-    fn new(pal: &theme::Palette) -> Ink {
-        Ink {
-            dim: pal
-                .text_dim
-                .gamma_multiply(if pal.dark { 0.35 } else { 0.26 }),
-            left: pal.ok.gamma_multiply(if pal.dark { 0.8 } else { 0.62 }),
-            taken: pal.ok.gamma_multiply(if pal.dark { 0.3 } else { 0.22 }),
-            hatch: Stroke::new(1.0, pal.ok.gamma_multiply(0.75)),
-            bar: pal.ok.gamma_multiply(if pal.dark { 0.9 } else { 0.75 }),
+impl Greens {
+    fn of(ink: &Ink) -> Greens {
+        let d = ink.dark;
+        Greens {
+            dim: Ink::a(ink.dim, if d { 0.35 } else { 0.26 }),
+            left: Ink::a(ink.ok, if d { 0.8 } else { 0.62 }),
+            taken: Ink::a(ink.ok, if d { 0.3 } else { 0.22 }),
+            hatch: Ink::a(ink.ok, 0.75),
+            bar: Ink::a(ink.ok, if d { 0.9 } else { 0.75 }),
         }
     }
 }
 
-/// The signal lane's legend: a swatch of what is left and one of what was removed.
-fn legend(p: &egui::Painter, at: Pos2, ink: &Ink) {
-    let pal = theme::p();
-    let font = design::paint::caption();
-    let left = t("ds.legend.left");
-    let removed = t("ds.legend.removed");
-    let g1 = p.layout_no_wrap(left, font.clone(), pal.text);
-    let g2 = p.layout_no_wrap(removed, font, pal.text);
-    let sw = 10.0;
-    let w = sw + 4.0 + g1.size().x + 10.0 + sw + 4.0 + g2.size().x + 6.0;
-    let h = g1.size().y.max(sw) + 4.0;
-    let r = Rect::from_min_size(pos2(at.x, at.y - h), vec2(w, h));
-    p.rect_filled(r, 2.0, pal.panel_raised.gamma_multiply(0.88));
-    let mut x = r.left() + 3.0;
-    let cy = r.center().y;
-    let s1 = Rect::from_center_size(pos2(x + sw * 0.5, cy), vec2(sw, sw));
-    p.rect_filled(s1, 1.0, ink.left);
-    x += sw + 4.0;
-    let w1 = g1.size().x;
-    p.galley(pos2(x, cy - g1.size().y * 0.5), g1, pal.text);
-    x += w1 + 10.0;
-    let s2 = Rect::from_center_size(pos2(x + sw * 0.5, cy), vec2(sw, sw));
-    p.rect_filled(s2, 1.0, ink.taken);
-    let mut shapes = Vec::new();
-    hatch(&mut shapes, s2.left(), s2.top(), s2.bottom(), ink.hatch);
-    hatch(
-        &mut shapes,
-        s2.left() + PX * 2.0,
-        s2.top(),
-        s2.bottom(),
-        ink.hatch,
-    );
-    hatch(
-        &mut shapes,
-        s2.left() + PX * 4.0,
-        s2.top(),
-        s2.bottom(),
-        ink.hatch,
-    );
-    p.extend(shapes);
-    x += sw + 4.0;
-    p.galley(pos2(x, cy - g2.size().y * 0.5), g2, pal.text);
-}
-
-/// The three lanes.
+/// The lanes: a head with the readouts that guard against over-de-essing, then the
+/// signal, the cut and the detector, their scales in a gutter at the right.
 fn history(
-    app: &mut CantusApp,
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &DeessSettings,
-    size: egui::Vec2,
+    s: &Style,
+    dss: &DeessSettings,
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let ink = Ink::new(&pal);
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    let gap = space::S1;
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let gr = Greens::of(&ink);
+    let head = Rect::from_min_size(rect.min, vec2(rect.width(), 24.0 * k));
+    let lanes = Rect::from_min_max(pos2(rect.left(), head.bottom()), rect.max);
+    let gap = 4.0 * k;
     let wave = Rect::from_min_max(
-        rect.min,
-        pos2(rect.right(), rect.top() + (rect.height() * 0.44).round()),
+        lanes.min,
+        pos2(lanes.right(), lanes.top() + (lanes.height() * 0.44).round()),
     );
     let cut = Rect::from_min_max(
-        pos2(rect.left(), wave.bottom() + gap),
+        pos2(lanes.left(), wave.bottom() + gap),
         pos2(
-            rect.right(),
-            wave.bottom() + gap + (rect.height() * 0.14).round(),
+            lanes.right(),
+            wave.bottom() + gap + (lanes.height() * 0.14).round(),
         ),
     );
-    let det = Rect::from_min_max(pos2(rect.left(), cut.bottom() + gap), rect.max);
-    app.fx.deesser.geo.signal = wave;
-    app.fx.deesser.geo.cut = cut;
-    app.fx.deesser.geo.detector = det;
-    let geo = app.fx.deesser.geo;
-    let voice = s.detection == Detection::Voice;
-    let right = rect.right() - GUTTER;
-
-    let p = ui.painter_at(rect);
-    for lane in [wave, cut, det] {
-        p.rect_filled(lane, pal.corner_radius, theme::recess(&pal));
-    }
+    let det = Rect::from_min_max(pos2(lanes.left(), cut.bottom() + gap), lanes.max);
+    st.geo.signal = wave;
+    st.geo.cut = cut;
+    st.geo.detector = det;
+    let geo = st.geo;
+    let resp = ui.interact(lanes, ui.id().with("ds-history"), Sense::click_and_drag());
+    let voice = dss.detection == Detection::Voice;
+    let right = lanes.right() - GUTTER * k;
+    let px = PX * k;
 
     // Wheel: look back; double-click: live.
     if resp.hovered() {
         let d = ui.input(|i| i.smooth_scroll_delta);
-        let step = (d.y + d.x) / PX;
+        let step = (d.y + d.x) / px;
         if step != 0.0 {
-            let st = &mut app.fx.deesser;
             let max = st.history.len().saturating_sub(1);
             st.scroll = (st.scroll as f32 + step).round().clamp(0.0, max as f32) as usize;
         }
     }
     if resp.double_clicked() {
-        app.fx.deesser.scroll = 0;
+        st.scroll = 0;
     }
 
-    let st = &app.fx.deesser;
-    let cols = ((right - rect.left()) / PX).floor() as usize;
+    let cols = ((right - lanes.left()) / px).floor() as usize;
     let end = st.history.len().saturating_sub(st.scroll);
     let start = end.saturating_sub(cols);
     // The centre of column `i`.
-    let x_of = |i: usize| right - (end - i) as f32 * PX + PX * 0.5;
-    let visible: Vec<Column> = st.history.range(start..end).copied().collect();
-    let xs: Vec<f32> = (start..end).map(x_of).collect();
-
-    // ---- Signal: the input mirrored, green where de-essed ----
-    let centre = wave.center().y;
-    let half = wave.height() * 0.5 - 2.0;
-    // The square root of the amplitude: a vowel keeps its shape (a dB scale flattens
-    // everything loud into a slab) and a quiet "s" is still visible (a linear one loses it).
-    let amp = |lin: f32| lin.clamp(0.0, 1.0).sqrt() * half;
-    p.hline(
-        wave.left()..=right,
-        centre,
-        Stroke::new(1.0, pal.grid_strong),
-    );
-    let active = |c: &Column| c.gr_db >= 0.5;
-    let outer: Vec<_> = visible
-        .iter()
-        .zip(&xs)
-        .map(|(c, x)| {
-            let h = amp(c.input);
-            let col = if active(c) { ink.taken } else { ink.dim };
-            (*x, centre - h, centre + h, col)
-        })
-        .collect();
-    band_strip(&p, &outer);
-    let inner: Vec<_> = visible
-        .iter()
-        .zip(&xs)
-        .map(|(c, x)| {
-            if active(c) {
-                let h = amp(c.output).min(amp(c.input));
-                (*x, centre - h, centre + h, ink.left)
-            } else {
-                (*x, centre, centre, Color32::TRANSPARENT)
-            }
-        })
-        .collect();
-    band_strip(&p, &inner);
-    let mut hatches = Vec::new();
-    for (c, x) in visible.iter().zip(&xs) {
-        if active(c) {
-            let (hi, lo) = (amp(c.input), amp(c.output).min(amp(c.input)));
-            let x = x - PX * 0.5;
-            hatch(&mut hatches, x, centre - hi, centre - lo, ink.hatch);
-            hatch(&mut hatches, x, centre + lo, centre + hi, ink.hatch);
-        }
-    }
-    p.extend(hatches);
-    for (db, label) in [(0.0f32, "0"), (-12.0, "\u{2212}12")] {
-        let y = centre - amp(10f32.powf(db / 20.0));
-        p.hline(right..=right + 3.0, y, Stroke::new(1.0, pal.text_dim));
-        p.text(
-            pos2(rect.right() - 3.0, y),
-            if db == 0.0 {
-                Align2::RIGHT_TOP
-            } else {
-                Align2::RIGHT_CENTER
-            },
-            label,
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    plate(
-        &p,
-        wave.left_top() + vec2(space::S1, space::S1),
-        Align2::LEFT_TOP,
-        t("ds.lane.signal"),
-        design::paint::caption(),
-        pal.text_dim,
-    );
-    legend(
-        &p,
-        pos2(wave.left() + space::S1, wave.bottom() - space::S1),
-        &ink,
-    );
-
-    // ---- Cut: the reduction hanging from the top, on the Range's scale ----
-    let scale = (s.range_db.max(6.0) / 6.0).ceil() * 6.0;
-    let depth = |gr: f32| cut.top() + 1.0 + (gr / scale).clamp(0.0, 1.0) * (cut.height() - 2.0);
-    let bars: Vec<_> = visible
-        .iter()
-        .zip(&xs)
-        .map(|(c, x)| (*x, cut.top() + 1.0, depth(c.gr_db), ink.bar))
-        .collect();
-    band_strip(&p, &bars);
-    let range_y = depth(s.range_db);
-    p.add(Shape::dashed_line(
-        &[pos2(cut.left(), range_y), pos2(right, range_y)],
-        Stroke::new(1.0, pal.ok),
-        4.0,
-        4.0,
-    ));
-    for (y, label) in [
-        (cut.top() + 1.0, "0".to_string()),
-        (cut.bottom() - 1.0, format!("\u{2212}{scale:.0}")),
-    ] {
-        p.text(
-            pos2(rect.right() - 3.0, y),
-            if y < cut.center().y {
-                Align2::RIGHT_TOP
-            } else {
-                Align2::RIGHT_BOTTOM
-            },
-            label,
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    let now_gr = st.history.back().map(|c| c.gr_db).unwrap_or(0.0);
-    let peak_gr = visible.iter().map(|c| c.gr_db).fold(0.0f32, f32::max);
-    let r = plate(
-        &p,
-        cut.left_top() + vec2(space::S1, space::S1 * 0.5),
-        Align2::LEFT_TOP,
-        t("ds.lane.cut"),
-        design::paint::caption(),
-        pal.text_dim,
-    );
-    plate(
-        &p,
-        pos2(r.right() + space::S1, r.top()),
-        Align2::LEFT_TOP,
-        tf(
-            "ds.cut_now",
-            &[
-                ("db", &format!("{now_gr:.1}")),
-                ("peak", &format!("{peak_gr:.1}")),
-            ],
-        ),
-        design::paint::ruler(),
-        pal.text,
-    );
-
-    // ---- Detector: the band level, the threshold you drag, why it cut ----
-    for db in [-12.0f32, -24.0, -36.0, -48.0] {
-        let y = geo.detector_y(db);
-        p.hline(det.left()..=right, y, Stroke::new(1.0, pal.grid));
-        p.text(
-            pos2(rect.right() - 3.0, y),
-            Align2::RIGHT_CENTER,
-            format!("\u{2212}{:.0}", -db),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    let ty = geo.detector_y(s.threshold_db);
-    let fill = |conf: f32| {
-        pal.gold
-            .gamma_multiply(if voice { 0.1 + 0.5 * conf } else { 0.45 })
-    };
-    let over: Vec<_> = visible
-        .iter()
-        .zip(&xs)
-        .map(|(c, x)| {
-            let y = geo.detector_y(c.det_db).min(ty);
-            (*x, y, ty, fill(c.conf))
-        })
-        .collect();
-    band_strip(&p, &over);
-    if voice {
-        // The classifier: as tall as it is sure, along the bottom.
-        let rib = space::S3;
-        let conf: Vec<_> = visible
-            .iter()
-            .zip(&xs)
-            .map(|(c, x)| {
-                (
-                    *x,
-                    det.bottom() - 1.0 - c.conf.clamp(0.0, 1.0) * rib,
-                    det.bottom() - 1.0,
-                    pal.gold.gamma_multiply(0.8),
-                )
-            })
-            .collect();
-        band_strip(&p, &conf);
-    }
-    let trace: Vec<Pos2> = visible
-        .iter()
-        .zip(&xs)
-        .map(|(c, x)| pos2(*x, geo.detector_y(c.det_db)))
-        .collect();
-    if trace.len() > 1 {
-        p.add(Shape::line(trace, Stroke::new(1.25, pal.text)));
-    }
-    // Where the sibilants peaked: a histogram against the scale, 3 dB a bin.
-    let peaks = event_peaks(&visible, voice);
-    if !peaks.is_empty() {
-        let mut bins = [0usize; 20];
-        for pk in &peaks {
-            let b = ((pk - DET_LO_DB) / 3.0).floor();
-            if (0.0..20.0).contains(&b) {
-                bins[b as usize] += 1;
-            }
-        }
-        let most = bins.iter().copied().max().unwrap_or(1).max(1) as f32;
-        let hist_w = space::GRID * 8.0;
-        for (b, n) in bins.iter().enumerate() {
-            if *n == 0 {
-                continue;
-            }
-            let lo = DET_LO_DB + b as f32 * 3.0;
-            let r = Rect::from_min_max(
-                pos2(
-                    right - *n as f32 / most * hist_w,
-                    geo.detector_y(lo + 3.0) + 1.0,
-                ),
-                pos2(right, geo.detector_y(lo) - 1.0),
-            );
-            p.rect_filled(r, 1.0, pal.ok.gamma_multiply(0.45));
-            p.rect_stroke(r, 1.0, Stroke::new(1.0, pal.ok), StrokeKind::Inside);
-        }
-    }
-    // The threshold: a dashed line, brighter while held or near.
-    let held = app.fx.deesser.drag == Some(Grab::Threshold);
-    let near = resp
-        .hover_pos()
-        .is_some_and(|pt| det.contains(pt) && (pt.y - ty).abs() < 8.0);
-    p.add(Shape::dashed_line(
-        &[pos2(det.left(), ty), pos2(right, ty)],
-        Stroke::new(if held || near { 2.0 } else { 1.25 }, pal.gold),
-        6.0,
-        4.0,
-    ));
-    let mut label = tf(
-        "ds.threshold_line",
-        &[("db", &format!("{:.1}", s.threshold_db))],
-    );
-    if st
-        .learned
-        .is_some_and(|v| (v - s.threshold_db).abs() < 0.05)
-    {
-        label = format!("{label}  \u{b7}  {}", t("ds.learned"));
-    }
-    plate(
-        &p,
-        pos2(det.left() + space::S1, ty - 2.0),
-        Align2::LEFT_BOTTOM,
-        label,
-        design::paint::ruler(),
-        pal.gold,
-    );
-    plate(
-        &p,
-        det.left_top() + vec2(space::S1, space::S1 * 0.5),
-        Align2::LEFT_TOP,
-        t("ds.lane.detector"),
-        design::paint::caption(),
-        pal.text_dim,
-    );
-    if voice {
-        plate(
-            &p,
-            pos2(det.left() + space::S1, det.bottom() - space::S3 - 2.0),
-            Align2::LEFT_BOTTOM,
-            t("ds.lane.sibilance"),
-            design::paint::caption(),
-            pal.text_dim,
-        );
-    }
-
-    // Hover: what happened in that column, in real units.
-    let col_s = st.col_s();
-    if let Some(pt) = resp.hover_pos() {
-        let back = ((right - pt.x) / PX).floor();
-        if !held && pt.x < right && back >= 0.0 && (back as usize) < end - start {
-            let i = end - 1 - back as usize;
+    let x_of = |i: usize| right - (end - i) as f32 * px + px * 0.5;
+    let ty = geo.detector_y(dss.threshold_db);
+    let held = st.drag == Some(Grab::Threshold);
+    let hover = resp.hover_pos();
+    let near = hover.is_some_and(|pt| det.contains(pt) && (pt.y - ty).abs() < 8.0 * k);
+    // The hovered column, and its words when it is a new one.
+    let hovered = hover.and_then(|pt| {
+        let back = ((right - pt.x) / px).floor();
+        (!held && pt.x < right && back >= 0.0 && (back as usize) < end - start)
+            .then(|| (pt, end - 1 - back as usize))
+    });
+    if let Some((_, i)) = hovered {
+        let lang = crate::i18n::locale();
+        let key = (i, st.last_seq.unwrap_or(0) as usize, lang);
+        if st.words.hover != Some(key) {
             let c = st.history[i];
-            p.vline(pt.x, rect.y_range(), Stroke::new(1.0, pal.grid_bar));
             let db = |lin: f32| {
                 if lin > 1e-6 {
                     format!("{:.1}", 20.0 * lin.log10())
@@ -1170,7 +911,7 @@ fn history(
                 &[
                     (
                         "ago",
-                        &format!("{:.2}", (end - 1 - i + st.scroll) as f32 * col_s),
+                        &format!("{:.2}", (end - 1 - i + st.scroll) as f32 * st.col_s()),
                     ),
                     ("in", &db(c.input)),
                     ("det", &format!("{:.1}", c.det_db.max(-120.0))),
@@ -1178,304 +919,843 @@ fn history(
                 ],
             );
             if voice {
-                text.push(' ');
                 text.push_str(&tf(
                     "ds.hover_conf",
                     &[("conf", &format!("{:.0}", c.conf * 100.0))],
                 ));
             }
             if c.gr_db >= ds::EVENT_ON_DB && c.hz > 0.0 {
-                text.push(' ');
-                text.push_str(&tf("ds.hover_hz", &[("hz", &hz_text(c.hz))]));
+                text.push_str(&tf("ds.hover_hz", &[("hz", &Hz(c.hz))]));
             }
-            let (x, align) = if pt.x + 360.0 < right {
-                (pt.x + space::S2, Align2::LEFT_TOP)
-            } else {
-                (pt.x - space::S2, Align2::RIGHT_TOP)
-            };
-            plate(
-                &p,
-                pos2(x, wave.top() + space::S6),
-                align,
-                text,
-                design::paint::ruler(),
-                pal.text,
-            );
+            // En spaces: the readout keeps one face (a plain space starts a unit).
+            st.words.hover_text = text.replace(' ', "\u{2002}");
+            st.words.hover = Some(key);
         }
     }
-    for lane in [wave, cut, det] {
-        p.rect_stroke(
-            lane,
-            pal.corner_radius,
-            Stroke::new(1.0, pal.grid_strong),
-            StrokeKind::Inside,
+    let e = st.events;
+    let recent = (10.0 / st.col_s()) as usize;
+    let rate = closed_events(st.history.range(st.history.len().saturating_sub(recent)..));
+    let paused = (st.scroll > 0).then(|| st.scroll as f32 * st.col_s());
+    let now_gr = st.history.back().map(|c| c.gr_db).unwrap_or(0.0);
+    let learned = st
+        .learned
+        .is_some_and(|v| (v - dss.threshold_db).abs() < 0.05);
+
+    let mut pts = std::mem::take(&mut st.pts);
+    let hist = &st.history;
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        let bpx = b.px();
+        b.hline(
+            rect.left(),
+            rect.right(),
+            b.snap_mid(head.bottom()),
+            bpx,
+            ink.grid,
         );
-    }
+        for y in [wave.bottom() + gap * 0.5, cut.bottom() + gap * 0.5] {
+            b.hline(
+                rect.left(),
+                rect.right(),
+                b.snap_mid(y),
+                bpx,
+                ink.grid_strong,
+            );
+        }
+        b.vline(
+            b.snap_mid(right),
+            lanes.top(),
+            lanes.bottom(),
+            bpx,
+            ink.grid,
+        );
+
+        // ---- Signal: the input mirrored, green where de-essed ----
+        let centre = wave.center().y;
+        let half = wave.height() * 0.5 - 2.0 * k;
+        // The square root of the amplitude: a vowel keeps its shape (a dB scale flattens
+        // everything loud into a slab) and a quiet "s" is still visible (a linear one
+        // loses it).
+        let amp = |lin: f32| lin.clamp(0.0, 1.0).sqrt() * half;
+        let active = |c: &Column| c.gr_db >= 0.5;
+        b.hline(wave.left(), right, b.snap_mid(centre), bpx, ink.grid_strong);
+        // ---- Cut: the reduction hanging from the top, on the Range's scale ----
+        let scale = (dss.range_db.max(6.0) / 6.0).ceil() * 6.0;
+        let top = cut.top() + 1.0 * k;
+        let depth = |g: f32| top + (g / scale).clamp(0.0, 1.0) * (cut.height() - 2.0 * k);
+        // ---- Detector: the band level, the threshold you drag, why it cut ----
+        for db in [-12.0f32, -24.0, -36.0, -48.0] {
+            b.hline(
+                det.left(),
+                right,
+                b.snap_mid(geo.detector_y(db)),
+                bpx,
+                ink.grid,
+            );
+        }
+        let over = |conf: f32| Ink::a(ink.hue, if voice { 0.1 + 0.5 * conf } else { 0.45 });
+        let rib = 12.0 * k;
+        let mut peak_gr = 0.0f32;
+        let mut prev: Option<(f32, &Column)> = None;
+        pts.clear();
+        for (j, c) in hist.range(start..end).enumerate() {
+            let x = x_of(start + j);
+            peak_gr = peak_gr.max(c.gr_db);
+            pts.push(pos2(x, geo.detector_y(c.det_db)));
+            let Some((x0, p)) = prev else {
+                prev = Some((x, c));
+                continue;
+            };
+            let (h0, h1) = (amp(p.input), amp(c.input));
+            let outer = if active(c) { gr.taken } else { gr.dim };
+            b.area(
+                &[pos2(x0, centre - h0), pos2(x, centre - h1)],
+                centre,
+                outer,
+            );
+            b.area(
+                &[pos2(x0, centre + h0), pos2(x, centre + h1)],
+                centre,
+                outer,
+            );
+            if active(c) {
+                let i0 = if active(p) {
+                    amp(p.output).min(h0)
+                } else {
+                    0.0
+                };
+                let i1 = amp(c.output).min(h1);
+                b.area(
+                    &[pos2(x0, centre - i0), pos2(x, centre - i1)],
+                    centre,
+                    gr.left,
+                );
+                b.area(
+                    &[pos2(x0, centre + i0), pos2(x, centre + i1)],
+                    centre,
+                    gr.left,
+                );
+                let xl = x - px * 0.5;
+                let pitch = 6.0 * k;
+                hatch_col(b, xl, centre - h1, centre - i1, px, pitch, bpx, gr.hatch);
+                hatch_col(b, xl, centre + i1, centre + h1, px, pitch, bpx, gr.hatch);
+            }
+            b.area(
+                &[pos2(x0, depth(p.gr_db)), pos2(x, depth(c.gr_db))],
+                top,
+                gr.bar,
+            );
+            let (d0, d1) = (
+                geo.detector_y(p.det_db).min(ty),
+                geo.detector_y(c.det_db).min(ty),
+            );
+            b.area(&[pos2(x0, d0), pos2(x, d1)], ty, over(c.conf));
+            if voice {
+                // The classifier: as tall as it is sure, along the bottom.
+                let base = det.bottom() - 1.0 * k;
+                b.area(
+                    &[
+                        pos2(x0, base - p.conf.clamp(0.0, 1.0) * rib),
+                        pos2(x, base - c.conf.clamp(0.0, 1.0) * rib),
+                    ],
+                    base,
+                    Ink::a(ink.hue, 0.8),
+                );
+            }
+            prev = Some((x, c));
+        }
+        if pts.len() > 1 {
+            b.polyline(&pts, 1.25 * k, ink.text);
+        }
+        let range_y = depth(dss.range_db);
+        canvas::dashed(
+            b,
+            pos2(cut.left(), range_y),
+            pos2(right, range_y),
+            bpx,
+            ink.ok,
+            4.0 * k,
+            4.0 * k,
+        );
+        // Where the sibilants peaked: a histogram against the scale, 3 dB a bin.
+        let mut bins = [0usize; 20];
+        runs(hist.range(start..end), voice, |pk| {
+            let bin = ((pk - DET_LO_DB) / 3.0).floor();
+            if (0.0..20.0).contains(&bin) {
+                bins[bin as usize] += 1;
+            }
+        });
+        let most = bins.iter().copied().max().unwrap_or(1).max(1) as f32;
+        let hist_w = 32.0 * k;
+        for (bin, n) in bins.iter().enumerate() {
+            if *n == 0 {
+                continue;
+            }
+            let lo = DET_LO_DB + bin as f32 * 3.0;
+            let r = Rect::from_min_max(
+                pos2(
+                    right - *n as f32 / most * hist_w,
+                    geo.detector_y(lo + 3.0) + 1.0,
+                ),
+                pos2(right, geo.detector_y(lo) - 1.0),
+            );
+            b.rrect(r, 1.0 * k, Fill::Solid(Ink::a(ink.ok, 0.45)));
+            b.rrect_stroke(r, 1.0 * k, bpx, ink.ok);
+        }
+        // The threshold: a dashed line, heavier while held or near.
+        canvas::dashed(
+            b,
+            pos2(det.left(), ty),
+            pos2(right, ty),
+            if held || near { 2.0 } else { 1.25 } * k,
+            ink.hue,
+            6.0 * k,
+            4.0 * k,
+        );
+        if let Some((pt, _)) = hovered {
+            b.vline(
+                b.snap_mid(pt.x),
+                lanes.top(),
+                lanes.bottom(),
+                bpx,
+                ink.grid_strong,
+            );
+        }
+
+        // ---- the words, last ----
+        let plate = Some(ink.plate);
+        let micro = |b: &mut Brush, at: Pos2, align: Align2, args: std::fmt::Arguments<'_>| {
+            canvas::putf(b, at, align, Role::Micro, ink.dim, tk, None, args)
+        };
+        let gx = lanes.right() - 4.0 * k;
+        for (db, align) in [(0.0f32, Align2::RIGHT_TOP), (-12.0, Align2::RIGHT_CENTER)] {
+            let y = centre - amp(10f32.powf(db / 20.0));
+            b.hline(right, right + 3.0 * k, b.snap_mid(y), bpx, ink.dim);
+            if db == 0.0 {
+                micro(b, pos2(gx, y), align, format_args!("0"));
+            } else {
+                micro(b, pos2(gx, y), align, format_args!("\u{2212}{:.0}", -db));
+            }
+        }
+        micro(b, pos2(gx, top), Align2::RIGHT_TOP, format_args!("0"));
+        micro(
+            b,
+            pos2(gx, cut.bottom() - 1.0 * k),
+            Align2::RIGHT_BOTTOM,
+            format_args!("\u{2212}{scale:.0}"),
+        );
+        for db in [-12.0f32, -24.0, -36.0, -48.0] {
+            micro(
+                b,
+                pos2(gx, geo.detector_y(db)),
+                Align2::RIGHT_CENTER,
+                format_args!("\u{2212}{:.0}", -db),
+            );
+        }
+        let lane_label = |b: &mut Brush, at: Pos2, align: Align2, key: &str| {
+            canvas::put(
+                b,
+                at,
+                align,
+                &Text::key(key, Role::Micro, ink.dim),
+                tk,
+                plate,
+            )
+        };
+        lane_label(
+            b,
+            wave.left_top() + vec2(6.0, 4.0) * k,
+            Align2::LEFT_TOP,
+            "ds.lane.signal",
+        );
+        legend(
+            b,
+            pos2(wave.left() + 6.0 * k, wave.bottom() - 4.0 * k),
+            s,
+            &ink,
+            &gr,
+        );
+        let cl = lane_label(
+            b,
+            cut.left_top() + vec2(6.0, 3.0) * k,
+            Align2::LEFT_TOP,
+            "ds.lane.cut",
+        );
+        let r = tagged(
+            b,
+            pos2(cl.right() + 10.0 * k, cl.center().y),
+            Align2::LEFT_CENTER,
+            frame::tr("ds.tag.now"),
+            ink.text,
+            tk,
+            plate,
+            f32::NEG_INFINITY,
+            format_args!("{now_gr:.1} dB"),
+        );
+        tagged(
+            b,
+            pos2(r.right() + 10.0 * k, cl.center().y),
+            Align2::LEFT_CENTER,
+            frame::tr("ds.tag.peak"),
+            ink.text,
+            tk,
+            plate,
+            f32::NEG_INFINITY,
+            format_args!("{peak_gr:.1} dB"),
+        );
+        let dl = lane_label(
+            b,
+            det.left_top() + vec2(6.0, 3.0) * k,
+            Align2::LEFT_TOP,
+            "ds.lane.detector",
+        );
+        if voice {
+            lane_label(
+                b,
+                pos2(det.left() + 6.0 * k, det.bottom() - rib - 3.0 * k),
+                Align2::LEFT_BOTTOM,
+                "ds.lane.sibilance",
+            );
+        }
+        // The threshold's tag: over its line, or under it when the lane's name is there.
+        let word = frame::tr("fx.ds.thr");
+        let paint_thr = |b: &mut Brush, at: Pos2, align: Align2| {
+            let r = tagged(
+                b,
+                at,
+                align,
+                word,
+                ink.hue,
+                tk,
+                plate,
+                f32::NEG_INFINITY,
+                format_args!("{} dB", Signed(dss.threshold_db)),
+            );
+            if learned {
+                canvas::put(
+                    b,
+                    pos2(r.right() + 6.0 * k, r.center().y),
+                    Align2::LEFT_CENTER,
+                    &Text::key("ds.learned", Role::Micro, ink.hue),
+                    tk,
+                    plate,
+                );
+            }
+        };
+        let above = ty - 3.0 * k - 16.0 * k > dl.bottom() + 2.0 * k;
+        if above {
+            paint_thr(
+                b,
+                pos2(det.left() + 6.0 * k, ty - 3.0 * k),
+                Align2::LEFT_BOTTOM,
+            );
+        } else {
+            paint_thr(
+                b,
+                pos2(dl.right() + 10.0 * k, ty + 3.0 * k),
+                Align2::LEFT_TOP,
+            );
+        }
+
+        // ---- the head: the guard rails, and live or paused ----
+        let hy = head.center().y;
+        let live_r = match paused {
+            Some(back) => tagged(
+                b,
+                pos2(head.right() - 8.0 * k, hy),
+                Align2::RIGHT_CENTER,
+                frame::tr("ds.tag.paused"),
+                ink.hue,
+                tk,
+                None,
+                f32::NEG_INFINITY,
+                format_args!("\u{2212}{back:.1} s"),
+            ),
+            None => canvas::put(
+                b,
+                pos2(head.right() - 8.0 * k, hy),
+                Align2::RIGHT_CENTER,
+                &Text::key("ds.tag.live", Role::Micro, ink.dim),
+                tk,
+                None,
+            ),
+        };
+        let mut x = head.left() + 8.0 * k;
+        if e.count == 0 {
+            let r = Rect::from_min_max(
+                pos2(x, head.top()),
+                pos2(live_r.left() - 12.0 * k, head.bottom()),
+            );
+            let t = Text::key("ds.stats_none", Role::Body, ink.dim)
+                .caps(false)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
+            let _ = ktext::paint(b, r, &t, tk);
+        } else {
+            let heavy = e.mean_gr_db > HEAVY_DB;
+            let next = |b: &mut Brush,
+                        x: &mut f32,
+                        word: &str,
+                        color: Color32,
+                        args: std::fmt::Arguments<'_>| {
+                let r = tagged(
+                    b,
+                    pos2(*x, hy),
+                    Align2::LEFT_CENTER,
+                    word,
+                    color,
+                    tk,
+                    None,
+                    f32::NEG_INFINITY,
+                    args,
+                );
+                *x = r.right() + 14.0 * k;
+            };
+            next(
+                b,
+                &mut x,
+                frame::tr("ds.tag.events"),
+                ink.text,
+                format_args!("{}", e.count),
+            );
+            next(
+                b,
+                &mut x,
+                frame::tr("ds.tag.recent"),
+                ink.text,
+                format_args!("{rate}"),
+            );
+            next(
+                b,
+                &mut x,
+                frame::tr("ds.tag.avg"),
+                if heavy { ink.danger } else { ink.text },
+                format_args!("{:.1} dB", e.mean_gr_db),
+            );
+            next(
+                b,
+                &mut x,
+                frame::tr("ds.tag.max"),
+                ink.text,
+                format_args!("{:.1} dB", e.max_gr_db),
+            );
+            if heavy {
+                // A warning shape as well as the colour, and what it means.
+                let c = pos2(x + 6.0 * k, hy);
+                let r = 5.5 * k;
+                b.polyline(
+                    &[
+                        pos2(c.x, c.y - r),
+                        pos2(c.x + r, c.y + r * 0.8),
+                        pos2(c.x - r, c.y + r * 0.8),
+                        pos2(c.x, c.y - r),
+                    ],
+                    1.5 * k,
+                    ink.danger,
+                );
+                let lr = Rect::from_min_max(
+                    pos2(x + 16.0 * k, head.top()),
+                    pos2(live_r.left() - 12.0 * k, head.bottom()),
+                );
+                let t = Text::key("ds.heavy_short", Role::Body, ink.danger)
+                    .caps(false)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End));
+                let _ = ktext::paint(b, lr, &t, tk);
+            }
+        }
+
+        // Hover: what happened in that column, in real units — last, over everything.
+        if let Some((pt, _)) = hovered {
+            let t = Text::new(&st.words.hover_text, Role::Value, ink.text).caps(false);
+            let w = ktext::measure(b.ctx(), &t, tk).x;
+            let x = if pt.x + 12.0 * k + w < right {
+                pt.x + 8.0 * k
+            } else {
+                (pt.x - 8.0 * k - w).max(lanes.left() + 4.0 * k)
+            };
+            canvas::put(
+                b,
+                pos2(x, wave.top() + 22.0 * k),
+                Align2::LEFT_TOP,
+                &t,
+                tk,
+                Some(s.t.deck_title),
+            );
+        }
+    });
+    st.pts = pts;
 
     // The threshold is dragged where the events are. What is grabbed is decided where the
     // button went down, not where the pointer is once the drag is recognised.
     let pressed_near = ui
         .input(|i| i.pointer.press_origin())
-        .is_some_and(|pt| det.contains(pt) && (pt.y - ty).abs() < 8.0);
+        .is_some_and(|pt| det.contains(pt) && (pt.y - ty).abs() < 8.0 * k);
     if resp.drag_started() && pressed_near {
-        app.fx.deesser.drag = Some(Grab::Threshold);
+        st.drag = Some(Grab::Threshold);
     }
-    if app.fx.deesser.drag == Some(Grab::Threshold) && resp.dragged() {
+    if st.drag == Some(Grab::Threshold) && resp.dragged() {
         if let Some(pt) = resp.interact_pointer_pos() {
             let v = geo.detector_db(pt.y).clamp(DET_LO_DB, 0.0);
-            app.set_fx_param(strip, effect, "thr", v, true);
+            host.set("thr", v, Some("thr"));
         }
     }
-    if resp.drag_stopped() && app.fx.deesser.drag == Some(Grab::Threshold) {
-        app.fx.deesser.drag = None;
-        app.end_gesture();
+    if resp.drag_stopped() && st.drag == Some(Grab::Threshold) {
+        st.drag = None;
+        host.end_gesture();
     }
     if near || held {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
     }
-}
-
-fn hz_text(hz: f32) -> String {
-    if hz >= 1_000.0 {
-        format!("{:.1} kHz", hz / 1_000.0)
-    } else {
-        format!("{hz:.0} Hz")
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("ds.card.history"),
+            frame::tr(if paused.is_some() {
+                "ds.paused_tip"
+            } else {
+                "ds.history_tip"
+            }),
+            Caps::NONE,
+        );
     }
 }
 
-/// Set the band's edges as one gesture: both keys under one merge key, so a drag is one
-/// undo step even when it moves both.
-fn set_band(
-    app: &mut CantusApp,
-    strip: StripId,
-    effect: EffectId,
-    lo: Option<f32>,
-    hi: Option<f32>,
-) {
+/// The signal lane's legend: a swatch of what is left and one of what was removed.
+fn legend(b: &mut Brush, at: Pos2, s: &Style, ink: &Ink, gr: &Greens) {
+    let k = s.k;
+    let tk = s.tk();
+    let left = Text::key("ds.legend.left", Role::Micro, ink.text);
+    let removed = Text::key("ds.legend.removed", Role::Micro, ink.text);
+    let (w1, w2) = (
+        ktext::measure(b.ctx(), &left, tk),
+        ktext::measure(b.ctx(), &removed, tk),
+    );
+    let sw = 10.0 * k;
+    let w = sw + 4.0 * k + w1.x + 10.0 * k + sw + 4.0 * k + w2.x + 6.0 * k;
+    let h = w1.y.max(sw) + 4.0 * k;
+    let r = Rect::from_min_size(pos2(at.x, at.y - h), vec2(w, h));
+    b.rrect(b.snap_rect(r), 2.0 * k, Fill::Solid(ink.plate));
+    let cy = r.center().y;
+    let mut x = r.left() + 3.0 * k;
+    let s1 = Rect::from_center_size(pos2(x + sw * 0.5, cy), vec2(sw, sw));
+    b.rect(b.snap_rect(s1), Fill::Solid(gr.left));
+    x += sw + 4.0 * k;
+    let _ = ktext::paint(
+        b,
+        Rect::from_min_size(pos2(x, r.top()), vec2(w1.x + 1.0, r.height())),
+        &left.align(Align2::LEFT_CENTER),
+        tk,
+    );
+    x += w1.x + 10.0 * k;
+    let s2 = Rect::from_center_size(pos2(x + sw * 0.5, cy), vec2(sw, sw));
+    b.rect(b.snap_rect(s2), Fill::Solid(gr.taken));
+    let px = b.px();
+    canvas::hatch(b, s2, 4.0 * k, px, gr.hatch);
+    x += sw + 4.0 * k;
+    let _ = ktext::paint(
+        b,
+        Rect::from_min_size(pos2(x, r.top()), vec2(w2.x + 1.0, r.height())),
+        &removed.align(Align2::LEFT_CENTER),
+        tk,
+    );
+}
+
+// ---- the spectrum -----------------------------------------------------------------------
+
+/// Set the band's edges as one gesture: both keys in one gesture, so a drag is one undo
+/// step even when it moves both.
+fn set_band(host: &mut dyn FxHost, lo: Option<f32>, hi: Option<f32>) {
     for (key, v) in [("lo", lo), ("hi", hi)] {
         if let Some(v) = v {
-            app.exec_merging(
-                Command::SetEffectParam {
-                    strip,
-                    effect,
-                    key: key.into(),
-                    value: v,
-                },
-                MergeKey::of(&("ds-band", effect.0)),
-            );
+            host.set(key, v, Some("ds-band"));
         }
     }
 }
 
 /// The detection band on the spectrum: drag its edges, or its middle to move it.
 fn spectrum(
-    app: &mut CantusApp,
+    host: &mut dyn FxHost,
+    st: &mut State,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    s: &DeessSettings,
-    size: egui::Vec2,
+    s: &Style,
+    dss: &DeessSettings,
+    rect: Rect,
 ) {
-    let pal = theme::p();
-    let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    app.fx.deesser.geo.spectrum = rect;
-    let geo = app.fx.deesser.geo;
-    let st = &app.fx.deesser;
-    let (lo, hi) = ds::band_edges(s.lo_hz, s.hi_hz, st.sr);
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
+    let k = s.k;
+    let tk = s.tk();
+    let ink = Ink::of(s);
+    let resp = ui.interact(rect, ui.id().with("ds-spectrum"), Sense::click_and_drag());
+    st.geo.spectrum = rect;
+    let geo = st.geo;
+    let (lo, hi) = ds::band_edges(dss.lo_hz, dss.hi_hz, st.sr);
     let y_spec = |db: f32| {
         let f = ((db - SPEC_FLOOR_DB) / -SPEC_FLOOR_DB).clamp(0.0, 1.0);
         rect.bottom() - f * rect.height()
     };
-    // The band, behind everything.
-    let band = Rect::from_min_max(
-        pos2(geo.spectrum_x(lo), rect.top()),
-        pos2(geo.spectrum_x(hi), rect.bottom()),
-    );
-    p.rect_filled(band, 0.0, pal.gold.gamma_multiply(0.10));
-    for hz in [500.0f32, 1_000.0, 2_000.0, 5_000.0, 10_000.0, 20_000.0] {
-        let x = geo.spectrum_x(hz);
-        p.vline(x, rect.y_range(), Stroke::new(1.0, pal.grid));
-        // The last mark sits on the right edge: its label goes inside.
-        let (at, align) = if hz >= SPEC_HI_HZ {
-            (x - 3.0, Align2::RIGHT_BOTTOM)
-        } else {
-            (x + 3.0, Align2::LEFT_BOTTOM)
-        };
-        p.text(
-            pos2(at, rect.bottom() - 2.0),
-            align,
-            hz_text(hz).replace(".0 ", " "),
-            design::paint::ruler(),
-            pal.text_dim,
-        );
-    }
-    // The input as a fill, glowing where the band is; the output as a line.
-    let mut outside = egui::Mesh::default();
-    let mut inside = egui::Mesh::default();
-    let dim = pal
-        .text_dim
-        .gamma_multiply(if pal.dark { 0.22 } else { 0.18 });
-    let glow = pal.gold.gamma_multiply(if pal.dark { 0.55 } else { 0.4 });
-    for i in 1..POINTS {
-        let (h0, h1) = (point_hz(i - 1), point_hz(i));
-        let (x0, x1) = (geo.spectrum_x(h0), geo.spectrum_x(h1));
-        let (y0, y1) = (y_spec(st.spec_in[i - 1]), y_spec(st.spec_in[i]));
-        let (m, c) = if h1 > lo && h0 < hi {
-            (&mut inside, glow)
-        } else {
-            (&mut outside, dim)
-        };
-        let base = m.vertices.len() as u32;
-        m.colored_vertex(pos2(x0, y0), c);
-        m.colored_vertex(pos2(x0, rect.bottom()), c);
-        m.colored_vertex(pos2(x1, y1), c);
-        m.colored_vertex(pos2(x1, rect.bottom()), c);
-        m.add_triangle(base, base + 1, base + 2);
-        m.add_triangle(base + 1, base + 2, base + 3);
-    }
-    p.add(outside);
-    p.add(inside);
-    let line: Vec<Pos2> = (0..POINTS)
-        .map(|i| pos2(geo.spectrum_x(point_hz(i)), y_spec(st.spec_out[i])))
-        .collect();
-    p.add(Shape::line(
-        line,
-        Stroke::new(1.25, pal.text_dim.gamma_multiply(0.9)),
-    ));
-
     // The cut the processing makes: at the full Range, dashed; live, solid. On its own
     // scale, half again the Range, so a 6 dB cut is a dip you can see.
-    let cut_top = rect.top() + space::S6 + space::S1;
+    let cut_top = rect.top() + 32.0 * k;
     let cut_h = rect.height() * 0.4;
-    let cut_scale = (s.range_db * 1.5).max(9.0);
+    let cut_scale = (dss.range_db * 1.5).max(9.0);
     let y_cut = |db: f32| cut_top + (-db / cut_scale).clamp(0.0, 1.0) * cut_h;
-    for (db, strong) in [(0.0, true), (-s.range_db, false)] {
-        let y = y_cut(db);
-        p.hline(
-            rect.x_range(),
-            y,
-            Stroke::new(1.0, pal.ok.gamma_multiply(if strong { 0.35 } else { 0.2 })),
-        );
-        p.text(
-            pos2(rect.right() - 3.0, y - 1.0),
-            Align2::RIGHT_BOTTOM,
-            if strong {
-                "0 dB".to_string()
-            } else {
-                format!("\u{2212}{:.0} dB", s.range_db)
-            },
-            design::paint::ruler(),
-            pal.ok,
-        );
-    }
-    let response = |gr: f32, i: usize| {
-        let g = 10f32.powf(-gr / 20.0);
+    let response = |g_db: f32, i: usize| {
+        let g = 10f32.powf(-g_db / 20.0);
         let a = st.cut_amp[i];
         20.0 * (1.0 + (g - 1.0) * a).abs().max(1e-4).log10()
     };
-    let full: Vec<Pos2> = (0..POINTS)
-        .map(|i| pos2(geo.spectrum_x(point_hz(i)), y_cut(response(s.range_db, i))))
-        .collect();
-    p.add(Shape::dashed_line(
-        &full,
-        Stroke::new(1.0, pal.ok.gamma_multiply(0.8)),
-        4.0,
-        3.0,
-    ));
     let now = st.history.back().map(|c| c.gr_db).unwrap_or(0.0);
-    let live: Vec<Pos2> = (0..POINTS)
-        .map(|i| pos2(geo.spectrum_x(point_hz(i)), y_cut(response(now, i))))
-        .collect();
-    p.add(Shape::line(live, Stroke::new(2.0, pal.ok)));
-    plate(
-        &p,
-        pos2(rect.left() + space::S1, cut_top + 3.0),
-        Align2::LEFT_TOP,
-        tf(
-            "ds.cut_curve",
-            &[
-                ("db", &format!("{now:.1}")),
-                ("range", &format!("{:.1}", s.range_db)),
-            ],
-        ),
-        design::paint::ruler(),
-        pal.ok,
-    );
-
-    // The last event's centre.
-    if st.events.count > 0 && st.events.last_hz > SPEC_LO_HZ {
-        let x = geo.spectrum_x(st.events.last_hz);
-        let y = rect.bottom() - space::S4;
-        p.add(Shape::convex_polygon(
-            vec![pos2(x, y - 7.0), pos2(x - 5.0, y), pos2(x + 5.0, y)],
-            pal.ok,
-            Stroke::NONE,
-        ));
-        plate(
-            &p,
-            pos2(x, y - 9.0),
-            Align2::CENTER_BOTTOM,
-            tf("ds.centre", &[("hz", &hz_text(st.events.last_hz))]),
-            design::paint::ruler(),
-            pal.ok,
-        );
-    }
-
-    // The edges and their grips.
-    let drag = app.fx.deesser.drag;
+    let drag = st.drag;
     let hover = resp.hover_pos();
-    let near_x = |x: f32| hover.is_some_and(|pt| (pt.x - x).abs() < 7.0);
-    for (hz, grab, align) in [
-        (lo, Grab::Lo, Align2::LEFT_TOP),
-        (hi, Grab::Hi, Align2::RIGHT_TOP),
-    ] {
-        let x = geo.spectrum_x(hz);
-        let active = drag == Some(grab) || (drag.is_none() && near_x(x));
-        p.vline(
-            x,
-            rect.y_range(),
-            Stroke::new(if active { 2.5 } else { 1.5 }, pal.gold),
+    let grab_w = 7.0 * k;
+    let near_x = |x: f32| hover.is_some_and(|pt| (pt.x - x).abs() < grab_w);
+    let (xl, xh) = (geo.spectrum_x(lo), geo.spectrum_x(hi));
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, s.hue_tok);
+        let bpx = b.px();
+        // The band, behind everything.
+        b.rect(
+            Rect::from_x_y_ranges(xl..=xh, rect.y_range()),
+            Fill::Solid(Ink::a(ink.hue, 0.10)),
         );
-        let grip = Rect::from_center_size(pos2(x, rect.top() + 10.0), vec2(8.0, 16.0));
-        p.rect_filled(grip, 2.0, if active { pal.gold_bright } else { pal.gold });
-        let dx = if align == Align2::LEFT_TOP { 7.0 } else { -7.0 };
-        p.text(
-            pos2(x + dx, rect.top() + 3.0),
-            align,
-            hz_text(hz),
-            design::paint::ruler(),
-            pal.gold,
+        for hz in [500.0f32, 1_000.0, 2_000.0, 5_000.0, 10_000.0] {
+            b.vline(
+                b.snap_mid(geo.spectrum_x(hz)),
+                rect.top(),
+                rect.bottom(),
+                bpx,
+                ink.grid,
+            );
+        }
+        // The input as a fill, glowing where the band is; the output as a line.
+        let dim = Ink::a(ink.dim, if ink.dark { 0.22 } else { 0.18 });
+        let glow = Ink::a(ink.hue, if ink.dark { 0.55 } else { 0.4 });
+        for i in 1..POINTS {
+            let (h0, h1) = (point_hz(i - 1), point_hz(i));
+            let c = if h1 > lo && h0 < hi { glow } else { dim };
+            b.area(
+                &[
+                    pos2(geo.spectrum_x(h0), y_spec(st.spec_in[i - 1])),
+                    pos2(geo.spectrum_x(h1), y_spec(st.spec_in[i])),
+                ],
+                rect.bottom(),
+                c,
+            );
+        }
+        let mut line = [Pos2::ZERO; POINTS];
+        for (i, p) in line.iter_mut().enumerate() {
+            *p = pos2(geo.spectrum_x(point_hz(i)), y_spec(st.spec_out[i]));
+        }
+        b.polyline(&line, 1.25 * k, Ink::a(ink.dim, 0.9));
+        for (db, strong) in [(0.0, true), (-dss.range_db, false)] {
+            b.hline(
+                rect.left(),
+                rect.right(),
+                b.snap_mid(y_cut(db)),
+                bpx,
+                Ink::a(ink.ok, if strong { 0.35 } else { 0.2 }),
+            );
+        }
+        // The cut's lines: lime on slate, a darker lime where the ground is pale.
+        let ok_l = crate::kit::color::ensure_contrast(ink.ok, ink.ground, 3.0);
+        for (i, p) in line.iter_mut().enumerate() {
+            *p = pos2(
+                geo.spectrum_x(point_hz(i)),
+                y_cut(response(dss.range_db, i)),
+            );
+        }
+        for w in line.windows(2).step_by(2) {
+            b.segment(w[0], w[1], 1.0 * k, Ink::a(ok_l, 0.8), false);
+        }
+        for (i, p) in line.iter_mut().enumerate() {
+            *p = pos2(geo.spectrum_x(point_hz(i)), y_cut(response(now, i)));
+        }
+        b.polyline(&line, 2.0 * k, ok_l);
+        // The last event's centre.
+        let centre = (st.events.count > 0 && st.events.last_hz > SPEC_LO_HZ)
+            .then(|| geo.spectrum_x(st.events.last_hz));
+        let ey = rect.bottom() - 18.0 * k;
+        if let Some(x) = centre {
+            b.polygon(
+                &[
+                    pos2(x, ey - 7.0 * k),
+                    pos2(x - 5.0 * k, ey),
+                    pos2(x + 5.0 * k, ey),
+                ],
+                ink.ok,
+            );
+        }
+        // The edges and their grips.
+        for (x, grab) in [(xl, Grab::Lo), (xh, Grab::Hi)] {
+            let hot = drag == Some(grab) || (drag.is_none() && near_x(x));
+            b.vline(
+                b.snap_mid(x),
+                rect.top(),
+                rect.bottom(),
+                if hot { 2.5 } else { 1.5 } * k,
+                ink.hue,
+            );
+            let grip = Rect::from_center_size(pos2(x, rect.top() + 10.0 * k), vec2(8.0, 16.0) * k);
+            b.rrect(
+                grip,
+                2.0 * k,
+                Fill::Solid(if hot { ink.text } else { ink.hue }),
+            );
+        }
+        if let Some(pt) = hover {
+            b.vline(
+                b.snap_mid(pt.x),
+                rect.top(),
+                rect.bottom(),
+                bpx,
+                ink.grid_strong,
+            );
+        }
+
+        // ---- the words, last ----
+        let plate = Some(ink.plate);
+        let mut ruler = canvas::Ruler::new();
+        for hz in [500.0f32, 1_000.0, 2_000.0, 5_000.0, 10_000.0] {
+            let at = pos2(geo.spectrum_x(hz) + 3.0 * k, rect.bottom() - 2.0 * k);
+            if !ruler.fits(at.x, 6.0 * k) {
+                continue;
+            }
+            let r = canvas::putf(
+                b,
+                at,
+                Align2::LEFT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                // On a plate: the band's edges may cross it.
+                plate,
+                format_args!("{}", HzMark(hz)),
+            );
+            ruler.placed(r);
+        }
+        // The last mark sits on the right edge: its label goes inside.
+        if ruler.fits(rect.right() - 40.0 * k, 6.0 * k) {
+            canvas::putf(
+                b,
+                pos2(rect.right() - 3.0 * k, rect.bottom() - 2.0 * k),
+                Align2::RIGHT_BOTTOM,
+                Role::Micro,
+                ink.dim,
+                tk,
+                None,
+                format_args!("{}", HzMark(SPEC_HI_HZ)),
+            );
+        }
+        // The cut's scale, and what it is now.
+        // Lime on paper needs a darker lime to be read.
+        let ok_c = crate::kit::color::ensure_contrast(ink.ok, ink.ground, 4.5);
+        canvas::putf(
+            b,
+            pos2(rect.right() - 3.0 * k, y_cut(0.0) - 1.0 * k),
+            Align2::RIGHT_BOTTOM,
+            Role::Micro,
+            ok_c,
+            tk,
+            plate,
+            format_args!("0 dB"),
         );
-    }
-    if let Some(pt) = hover {
-        // The frequency under the pointer, beside the pointer.
-        p.vline(pt.x, rect.y_range(), Stroke::new(1.0, pal.grid_bar));
-        plate(
-            &p,
-            pos2(pt.x + 4.0, rect.bottom() - space::S6),
-            Align2::LEFT_BOTTOM,
-            hz_text(geo.spectrum_hz(pt.x)),
-            design::paint::ruler(),
-            pal.text,
+        canvas::putf(
+            b,
+            pos2(rect.right() - 3.0 * k, y_cut(-dss.range_db) - 1.0 * k),
+            Align2::RIGHT_BOTTOM,
+            Role::Micro,
+            ok_c,
+            tk,
+            plate,
+            format_args!("\u{2212}{:.0} dB", dss.range_db),
         );
-    }
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(1.0, pal.grid_strong),
-        StrokeKind::Inside,
-    );
+        let r = tagged(
+            b,
+            pos2(rect.left() + 6.0 * k, cut_top + 4.0 * k),
+            Align2::LEFT_TOP,
+            frame::tr("ds.tag.cut"),
+            ok_c,
+            tk,
+            plate,
+            f32::NEG_INFINITY,
+            format_args!("{now:.1} dB"),
+        );
+        tagged(
+            b,
+            pos2(r.left(), r.bottom() + 4.0 * k),
+            Align2::LEFT_TOP,
+            frame::tr("fx.ds.range"),
+            ok_c,
+            tk,
+            plate,
+            f32::NEG_INFINITY,
+            format_args!("{:.1} dB", dss.range_db),
+        );
+        if let Some(x) = centre {
+            tagged(
+                b,
+                pos2(x, ey - 9.0 * k),
+                Align2::CENTER_BOTTOM,
+                frame::tr("ds.tag.centre"),
+                ok_c,
+                tk,
+                plate,
+                f32::NEG_INFINITY,
+                format_args!("{}", Hz(st.events.last_hz)),
+            );
+        }
+        // The edges' frequencies at the top, beside their grips; a second row when the
+        // band is too narrow for both.
+        let lo_r = canvas::putf(
+            b,
+            pos2(xl + grab_w, rect.top() + 3.0 * k),
+            Align2::LEFT_TOP,
+            Role::Value,
+            ink.hue,
+            tk,
+            plate,
+            format_args!("{}", Hz(lo)),
+        );
+        let hi_t = with_fmt(format_args!("{}", Hz(hi)), |v| {
+            ktext::measure(b.ctx(), &Text::new(v, Role::Value, ink.hue).caps(false), tk).x
+        });
+        let hi_y = if xh - grab_w - hi_t < lo_r.right() + 6.0 * k {
+            lo_r.bottom() + 4.0 * k
+        } else {
+            rect.top() + 3.0 * k
+        };
+        canvas::putf(
+            b,
+            pos2(xh - grab_w, hi_y),
+            Align2::RIGHT_TOP,
+            Role::Value,
+            ink.hue,
+            tk,
+            plate,
+            format_args!("{}", Hz(hi)),
+        );
+        if let Some(pt) = hover {
+            // The frequency under the pointer, beside the pointer.
+            canvas::putf(
+                b,
+                pos2(pt.x + 4.0 * k, rect.bottom() - 30.0 * k),
+                Align2::LEFT_BOTTOM,
+                Role::Value,
+                ink.text,
+                tk,
+                Some(s.t.deck_title),
+                format_args!("{}", Hz(geo.spectrum_hz(pt.x))),
+            );
+        }
+    });
 
     // Drag: an edge, or the middle.
     if resp.drag_started() {
         // Where the button went down decides what is held.
         if let Some(pt) = ui.input(|i| i.pointer.press_origin()) {
-            let (xl, xh) = (geo.spectrum_x(lo), geo.spectrum_x(hi));
-            app.fx.deesser.drag = if (pt.x - xl).abs() < 7.0 {
+            st.drag = if (pt.x - xl).abs() < grab_w {
                 Some(Grab::Lo)
-            } else if (pt.x - xh).abs() < 7.0 {
+            } else if (pt.x - xh).abs() < grab_w {
                 Some(Grab::Hi)
             } else if pt.x > xl && pt.x < xh {
                 Some(Grab::Band {
@@ -1489,82 +1769,256 @@ fn spectrum(
         }
     }
     let sixth = 2f32.powf(1.0 / 6.0);
-    if let (Some(g), Some(pt)) = (app.fx.deesser.drag, resp.interact_pointer_pos()) {
+    if let (Some(g), Some(pt)) = (st.drag, resp.interact_pointer_pos()) {
         if resp.dragged() {
             let hz = geo.spectrum_hz(pt.x);
             match g {
-                Grab::Lo => set_band(
-                    app,
-                    strip,
-                    effect,
-                    Some(hz.clamp(ds::MIN_HZ, hi / sixth)),
-                    None,
-                ),
-                Grab::Hi => set_band(
-                    app,
-                    strip,
-                    effect,
-                    None,
-                    Some(hz.clamp(lo * sixth, ds::MAX_HZ)),
-                ),
+                Grab::Lo => set_band(host, Some(hz.clamp(ds::MIN_HZ, hi / sixth)), None),
+                Grab::Hi => set_band(host, None, Some(hz.clamp(lo * sixth, ds::MAX_HZ))),
                 Grab::Band { lo, hi, at_hz } => {
                     let r = (hz / at_hz).clamp(ds::MIN_HZ / lo, ds::MAX_HZ / hi);
-                    set_band(app, strip, effect, Some(lo * r), Some(hi * r));
+                    set_band(host, Some(lo * r), Some(hi * r));
                 }
                 Grab::Threshold => {}
             }
         }
     }
-    if resp.drag_stopped() && app.fx.deesser.drag.is_some() {
-        app.fx.deesser.drag = None;
-        app.end_gesture();
+    if resp.drag_stopped() && st.drag.is_some() {
+        st.drag = None;
+        host.end_gesture();
     }
     if resp.double_clicked() {
-        set_band(app, strip, effect, Some(5_000.0), Some(12_000.0));
-        app.end_gesture();
+        set_band(host, Some(5_000.0), Some(12_000.0));
+        host.end_gesture();
     }
-    if hover.is_some_and(|pt| {
-        (pt.x - geo.spectrum_x(lo)).abs() < 7.0 || (pt.x - geo.spectrum_x(hi)).abs() < 7.0
-    }) {
+    if near_x(xl) || near_x(xh) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+    }
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            frame::tr("ds.card.band"),
+            frame::tr("ds.band_tip"),
+            Caps::NONE,
+        );
     }
 }
 
-/// One knob bound to a parameter, with the de-esser's readouts.
-fn knob(
-    app: &mut CantusApp,
+// ---- the cards --------------------------------------------------------------------------
+
+/// A segmented control on a parameter, its help line saying what the chosen word does.
+fn choice(
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
-    key: &str,
-    diameter: f32,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &'static str,
+    labels: &[&'static str],
+    tips: &[&'static str],
+    w: f32,
 ) {
+    let srcs: [Src<'_>; 4] =
+        std::array::from_fn(|i| Src::Key(labels.get(i).copied().unwrap_or("")));
+    let r = ui.scope(|ui| controls::segmented_param(ui, s, host, key, &srcs[..labels.len()], w));
+    let now = (host.spec().get(key).round().max(0.0) as usize).min(tips.len() - 1);
+    let name = host
+        .spec()
+        .kind
+        .param(key)
+        .map_or("", |i| frame::tr(i.label_key));
+    tip(
+        ui,
+        r.response.contains_pointer(),
+        name,
+        frame::tr(tips[now]),
+    );
+}
+
+/// How it detects and what it turns down: the mode, the processing, the stereo.
+fn detection_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
+    let _ = controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("ds.card.detection"),
+        None,
+        |ui, cr| {
+            let w = cr.body.width() / s.k;
+            controls::column(ui, s, w, |ui| {
+                choice(ui, s, host, "mode", &MODE_KEYS, &MODE_TIPS, w);
+                choice(ui, s, host, "proc", &PROC_KEYS, &PROC_TIPS, w);
+                choice(ui, s, host, "stereo", &STEREO_KEYS, &STEREO_TIPS, w);
+            });
+        },
+    );
+}
+
+/// What the detector hears (the key), what you hear, and Learn.
+fn key_card(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    dss: &DeessSettings,
+) {
+    let lang = crate::i18n::locale();
+    let rev = host.revision();
+    if st.words.key.as_ref().is_none_or(|(r, _)| *r != rev) {
+        st.words.key = Some((rev, host.key_source()));
+    }
+    if st.words.key_for != Some((rev, lang)) {
+        st.words.key_text = match st.words.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+            Some(KeySource::Strips {
+                current: Some(_),
+                label,
+                ..
+            }) => label.clone(),
+            _ => t("ds.key_own"),
+        };
+        st.words.key_for = Some((rev, lang));
+    }
+    // Learn's words: what it will do, or how many sibilants it has heard.
+    let voice = dss.detection == Detection::Voice;
+    let heard = if st.learning {
+        let mut n = 0;
+        runs(st.learn_cols.iter(), voice, |_| n += 1);
+        n
+    } else {
+        0
+    };
+    if st.words.learn != Some((st.learning, heard, lang)) {
+        st.words.learn_text = if st.learning {
+            tf("ds.learning", &[("n", &heard)])
+        } else {
+            t("ds.learn")
+        };
+        st.words.learn = Some((st.learning, heard, lang));
+    }
+    let _ = controls::card(ui, s, rect, Src::Key("ds.card.key"), None, |ui, cr| {
+        let w = cr.body.width() / s.k;
+        controls::column(ui, s, w, |ui| {
+            key_source(host, st, ui, s, w);
+            choice(ui, s, host, "listen", &LISTEN_KEYS, &LISTEN_TIPS, w);
+            // A key, not a choice: it starts listening, and a second press sets the line.
+            let r = controls::key(
+                ui,
+                s,
+                Src::Str(&st.words.learn_text),
+                frame::tr("ds.learn"),
+                w,
+                st.learning,
+            );
+            if r.clicked() {
+                learn(host, st);
+            }
+            tip(
+                ui,
+                r.hovered(),
+                frame::tr("ds.learn"),
+                frame::tr("ds.learn_tip"),
+            );
+        });
+    });
+}
+
+/// Where the detector's key comes from: any strip of the desk (Cantus), or the plug-in's
+/// sidechain input, switched on (another DAW routes it).
+fn key_source(host: &mut dyn FxHost, st: &State, ui: &mut egui::Ui, s: &Style, w: f32) {
+    let words = &st.words;
+    match words.key.as_ref().and_then(|(_, k)| k.as_ref()) {
+        Some(KeySource::Strips {
+            current, options, ..
+        }) => {
+            let current = *current;
+            let id = ui.id().with("ds-key");
+            let r =
+                ui.scope(|ui| controls::field(ui, s, id, &words.key_text, frame::tr("ds.key"), w));
+            if let Some(at) = r.inner {
+                let mut items = vec![frame::radio(Src::Key("ds.key_own"), current.is_none())];
+                items.extend(
+                    options
+                        .iter()
+                        .map(|(sid, text)| frame::radio(Src::Str(text), current == Some(*sid))),
+                );
+                if let Some(i) = controls::list(ui, s, id, at, w.max(180.0), &items) {
+                    let target = if i == 0 {
+                        None
+                    } else {
+                        options.get(i - 1).map(|o| o.0)
+                    };
+                    drop(items);
+                    host.set_key_source(KeyTarget::Strip(target));
+                }
+            }
+            tip(
+                ui,
+                r.response.contains_pointer(),
+                frame::tr("ds.key"),
+                frame::tr("ds.key_tip"),
+            );
+        }
+        Some(KeySource::Switch(on)) => {
+            let labels = [
+                Src::Key("ds.key_own"),
+                Src::Key("export.sidechain.external"),
+            ];
+            let r = ui.scope(|ui| {
+                controls::segmented(ui, s, *on as usize, &labels, frame::tr("ds.key"), w)
+            });
+            if let Some(i) = r.inner {
+                host.set_key_source(KeyTarget::Switch(i == 1));
+            }
+            tip(
+                ui,
+                r.response.contains_pointer(),
+                frame::tr("ds.key"),
+                frame::tr("ds.key_tip"),
+            );
+        }
+        None => {}
+    }
+}
+
+fn db_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{} dB", Signed(v));
+}
+
+fn range_pill(v: f32, b: &mut String) {
+    let _ = write!(b, "{v:.1} dB");
+}
+
+fn look_pill(v: f32, b: &mut String) {
+    if v < 0.5 {
+        b.push_str(frame::tr("ds.off"));
+    } else {
+        let _ = write!(b, "{v:.0} ms");
+    }
+}
+
+/// How a cell writes its value into its pill, when not in the parameter's own unit.
+type Pill<'a> = Option<&'a dyn Fn(f32, &mut String)>;
+
+/// One cell on a parameter; the band's edges keep their order, as the display does.
+fn ds_cell(
+    ui: &mut egui::Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &'static str,
+    size: Size,
+    format: Pill<'_>,
+) {
+    let spec = host.spec();
     let Some(info) = spec.kind.param(key) else {
         return;
     };
-    let mut v = spec.get(key);
-    let k = Knob::new(&mut v, info.min..=info.max, info.default)
-        .diameter(diameter)
-        .log(info.logarithmic)
-        .stepped(info.stepped)
-        .unit(info.unit)
-        .label(t(info.label_key));
-    let k = match key {
-        "look" => k.format(|x| {
-            if x < 0.5 {
-                t("ds.off")
-            } else {
-                format!("{x:.0} ms")
-            }
-        }),
-        _ => k,
-    };
-    let r = ui.add(k);
-    if r.changed() {
+    let mut c = Cell::param(info, spec.get(key)).size(size);
+    if let Some(f) = format {
+        c = c.format(f);
+    }
+    let out = c.show(ui, s);
+    if let Some(mut v) = out.changed {
         if matches!(key, "lo" | "hi") {
-            // Keep the pair ordered, as the display does.
-            let other = spec.get(if key == "lo" { "hi" } else { "lo" });
+            let other = host.spec().get(if key == "lo" { "hi" } else { "lo" });
             let sixth = 2f32.powf(1.0 / 6.0);
             v = if key == "lo" {
                 v.min(other / sixth)
@@ -1572,110 +2026,117 @@ fn knob(
                 v.max(other * sixth)
             };
         }
-        app.set_fx_param(strip, effect, key, v, true);
+        host.set(key, v, Some(key));
     }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
+    if out.done {
+        host.end_gesture();
     }
 }
 
-fn knobs(
-    app: &mut CantusApp,
+/// The cells: the threshold (the primary parameter, larger) and the range; the band's
+/// edges; attack, release and lookahead; the stereo link; the classifier's sensitivity.
+fn cells_card(
+    host: &mut dyn FxHost,
     ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
+    s: &Style,
+    rect: Rect,
+    dss: &DeessSettings,
 ) {
-    let voice = spec.get("mode") < 0.5;
-    ui.vertical(|ui| {
-        ui.spacing_mut().item_spacing = vec2(space::S1, space::S1);
-        ui.horizontal(|ui| {
-            for key in ["thr", "range"] {
-                knob(app, ui, strip, effect, spec, key, space::GRID * 14.0);
-            }
-            ui.add_space(space::S2);
-            for key in ["lo", "hi"] {
-                knob(app, ui, strip, effect, spec, key, space::GRID * 9.0);
-            }
-        });
-        ui.horizontal(|ui| {
-            for key in ["att", "rel", "look", "link"] {
-                knob(app, ui, strip, effect, spec, key, space::GRID * 9.0);
-            }
-            ui.add_enabled_ui(voice, |ui| {
-                knob(app, ui, strip, effect, spec, "sens", space::GRID * 9.0);
-            });
+    let voice = dss.detection == Detection::Voice;
+    let _ = controls::card(ui, s, rect, Src::Key("ds.card.cells"), None, |ui, _| {
+        ds_cell(ui, s, host, "thr", DS_CELLS[0], Some(&db_pill));
+        ds_cell(ui, s, host, "range", Size::M, Some(&range_pill));
+        ds_cell(ui, s, host, "lo", Size::M, None);
+        ds_cell(ui, s, host, "hi", Size::M, None);
+        ds_cell(ui, s, host, "att", Size::M, None);
+        ds_cell(ui, s, host, "rel", Size::M, None);
+        ds_cell(ui, s, host, "look", Size::M, Some(&look_pill));
+        ds_cell(ui, s, host, "link", Size::M, None);
+        ui.add_enabled_ui(voice, |ui| {
+            ds_cell(ui, s, host, "sens", Size::M, None);
         });
     });
 }
 
+// ---- the inspector's picture ----------------------------------------------------------
+
 /// The inspector's picture: the band on a frequency axis and the settings in words.
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
-    let pal = theme::p();
+    let st = Style::current().function(frame::hue_of(EffectKind::DeEsser));
+    let ink = Ink::of(&st);
     let s = tele::settings(spec);
     let (rect, resp) = ui.allocate_exact_size(
         vec2(ui.available_width(), space::GRID * 14.0),
         Sense::click(),
     );
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, pal.corner_radius, theme::recess(&pal));
     let axis = Rect::from_min_max(
         pos2(rect.left() + space::S2, rect.bottom() - space::S6),
         pos2(rect.right() - space::S2, rect.bottom() - space::S2),
     );
     let x = |hz: f32| axis.left() + (hz / 1_000.0).ln() / (20.0f32).ln() * axis.width();
     let (lo, hi) = ds::band_edges(s.lo_hz, s.hi_hz, DEFAULT_SR);
-    p.hline(
-        axis.x_range(),
-        axis.bottom(),
-        Stroke::new(1.0, pal.grid_strong),
-    );
-    let band = Rect::from_min_max(pos2(x(lo), axis.top()), pos2(x(hi), axis.bottom()));
-    p.rect_filled(band, 1.0, pal.gold.gamma_multiply(0.35));
-    p.rect_stroke(band, 1.0, Stroke::new(1.0, pal.gold), StrokeKind::Inside);
-    for hz in [1_000.0f32, 5_000.0, 10_000.0, 20_000.0] {
-        p.vline(
-            x(hz),
-            axis.bottom() - 3.0..=axis.bottom(),
-            Stroke::new(1.0, pal.text_dim),
+    with_brush(&ui.painter_at(rect), |b| {
+        canvas::ground_b(b, rect, &ink, st.hue_tok);
+        let px = b.px();
+        b.hline(
+            axis.left(),
+            axis.right(),
+            b.snap_mid(axis.bottom()),
+            px,
+            ink.grid_strong,
         );
+        let band = Rect::from_min_max(pos2(x(lo), axis.top()), pos2(x(hi), axis.bottom()));
+        b.rrect(band, 1.0, Fill::Solid(Ink::a(ink.hue, 0.35)));
+        b.rrect_stroke(band, 1.0, px, ink.hue);
+        for hz in [1_000.0f32, 5_000.0, 10_000.0, 20_000.0] {
+            b.vline(
+                b.snap_mid(x(hz)),
+                axis.bottom() - 3.0,
+                axis.bottom(),
+                px,
+                ink.dim,
+            );
+        }
+        let words = Rect::from_min_max(
+            pos2(rect.left() + space::S2, rect.top() + space::S1),
+            pos2(rect.right() - space::S2, axis.top() - space::S1),
+        );
+        let (l1, l2) = (
+            Rect::from_min_max(words.min, pos2(words.right(), words.center().y)),
+            Rect::from_min_max(pos2(words.left(), words.center().y), words.max),
+        );
+        canvas::line_in(
+            b,
+            l1,
+            Role::Label,
+            ink.text,
+            st.tk(),
+            format_args!(
+                "{:+.0} dB \u{b7} {:.0} dB \u{b7} {} \u{b7} {}",
+                s.threshold_db,
+                s.range_db,
+                frame::tr(MODE_KEYS[s.detection.index().min(1)]),
+                frame::tr(PROC_KEYS[s.processing.index().min(2)]),
+            ),
+        );
+        canvas::line_in(
+            b,
+            l2,
+            Role::Label,
+            ink.hue,
+            st.tk(),
+            format_args!("{}\u{2013}{}", Hz(lo), Hz(hi)),
+        );
+        let edge = if resp.hovered() { ink.hue } else { ink.edge };
+        canvas::edge_b(b, rect, &Ink { edge, ..ink });
+    });
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), frame::tr("ds.open_tip"), "", Caps::NONE);
     }
-    let words = format!(
-        "{:+.0} dB \u{b7} {:.0} dB \u{b7} {} \u{b7} {}",
-        s.threshold_db,
-        s.range_db,
-        t(&format!("ds.mode.{}", s.detection.index())),
-        t(&format!("ds.proc.{}", s.processing.index())),
-    );
-    p.text(
-        pos2(rect.left() + space::S2, rect.top() + space::S2),
-        Align2::LEFT_TOP,
-        words,
-        design::paint::ruler(),
-        pal.text,
-    );
-    p.text(
-        pos2(rect.right() - space::S2, rect.top() + space::S2),
-        Align2::RIGHT_TOP,
-        format!("{}\u{2013}{}", hz_text(lo), hz_text(hi)),
-        design::paint::ruler(),
-        pal.gold,
-    );
-    p.rect_stroke(
-        rect,
-        pal.corner_radius,
-        Stroke::new(
-            1.0,
-            if resp.hovered() {
-                pal.gold
-            } else {
-                pal.grid_strong
-            },
-        ),
-        StrokeKind::Inside,
-    );
-    resp.on_hover_text(t("ds.open_tip"))
+    resp
 }
+
+// ---- demo -----------------------------------------------------------------------------
 
 /// The settings `--editor deesser` and the screenshot tool open it with.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {

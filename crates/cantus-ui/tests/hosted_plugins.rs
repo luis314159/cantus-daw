@@ -87,15 +87,18 @@ fn the_generic_editor_shows_the_plugins_parameters_in_its_own_words() {
     };
     assert!(a.plugins.hosted(effect).is_some(), "loaded");
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
-    assert!(text.contains("Cantus Test Gain"), "{text}");
-    assert!(text.contains("Gain"), "{text}");
-    assert!(text.contains("Latency"), "{text}");
+    // The frame's header sets the name in capitals, and the cells their labels.
+    let lower = text.to_lowercase();
+    assert!(lower.contains("cantus test gain"), "{text}");
+    assert!(text.contains("GAIN"), "{text}");
+    assert!(lower.contains("latency"), "{text}");
+    // The pill sets the unit a hair apart from the number, not after a space.
     assert!(
-        text.contains("-4.5 dB"),
+        text.replace(' ', "").contains("-4.5dB"),
         "the plug-in's own text for the value: {text}"
     );
     assert!(
-        !text.contains("Gesture"),
+        !lower.contains("gesture"),
         "a hidden parameter is not shown: {text}"
     );
     assert!(

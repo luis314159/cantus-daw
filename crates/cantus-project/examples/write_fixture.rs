@@ -58,6 +58,25 @@ fn main() {
     // fixture also proves that a missing sample never stops a project from opening.
     kit.pads[1].voice = PadVoice::Sample;
     kit.pads[1].sample = Some("samples/rim.wav".to_string());
+    // Schema 17: Pulsus II — the kit is model 2 (what a new kit is), with a seed, and its
+    // kick holds two sample layers in one velocity zone chosen in turn. The files do not
+    // exist, on purpose: a missing layer is silence, never a project that will not open.
+    kit.kit.seed = 17;
+    kit.pads[0].round_robin = RoundRobin::Cycle;
+    kit.pads[0].layers = ["samples/kick-a.wav", "samples/kick-b.wav"]
+        .iter()
+        .map(|s| PadLayer {
+            sample: s.to_string(),
+            vel_lo: 1,
+            vel_hi: 127,
+            xfade: 0,
+            tune: 0.0,
+            level_db: 0.0,
+            pan: 0.0,
+            start_ms: 0.0,
+            reverse: false,
+        })
+        .collect();
     drums.instrument = InstrumentSpec::Pulsus(kit);
     // Schema 7: a track that is taller than the rest and carries an icon it did not have
     // to derive, so both fields are exercised by a real file.
@@ -174,6 +193,18 @@ fn main() {
     gate.spec.set("vel", 12.0).unwrap();
     gate.midi_from = Some(p.tracks[0].id);
     p.strip_mut(drums_strip).unwrap().effects.push(gate);
+    // Schema 16: a native instrument (ADR 0023), stored sparsely — a number moved from its
+    // default, a macro with a name, and a modulation connection from it.
+    let mut organ = p.make_track("Organ");
+    let mut n = NativeSpec::new(InstrumentKind::Organ);
+    n.set("gain", -3.0).unwrap();
+    n.set("macro1", 0.5).unwrap();
+    n.set_text("macro1.name", Some("Drive".into())).unwrap();
+    n.set_text("mod1.src", Some("macro1".into())).unwrap();
+    n.set_text("mod1.dst", Some("gain".into())).unwrap();
+    n.set("mod1.amt", 0.25).unwrap();
+    organ.instrument = InstrumentSpec::Native(n);
+    p.tracks.push(organ);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

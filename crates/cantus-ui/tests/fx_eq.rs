@@ -2,6 +2,9 @@
 //! selection and a relative multi-band drag, typed values, keyboard editing, split, the
 //! audition, EQ match — each one step of the project's undo, and the chips that keep the
 //! mode, the latency and the analyser visible at rest.
+//!
+//! The kit sets labels in capitals and a value's unit a hair from its number, so painted
+//! words are compared case-insensitively and without spaces ([`has`]).
 
 mod support;
 use cantus_core::*;
@@ -11,6 +14,12 @@ use cantus_ui::CantusApp;
 use support::*;
 
 const SIZE: egui::Vec2 = egui::vec2(1400.0, 900.0);
+
+/// Whether the painted `text` says `want`, whatever the case and the spacing.
+fn has(text: &str, want: &str) -> bool {
+    let norm = |s: &str| s.to_lowercase().replace(' ', "");
+    norm(text).contains(&norm(want))
+}
 
 fn spec(a: &CantusApp, s: StripId) -> EffectSpec {
     a.project().strip(s).unwrap().effects[0].spec.clone()
@@ -94,24 +103,28 @@ fn the_chips_show_mode_latency_and_analyser_at_rest() {
         "Medium",
         "Latency 96.0 ms",
         "4608",
-        "In",
-        "Out",
+        "Pre",
+        "Post",
         "Freeze",
         "Grab",
+        "Collisions",
         "Match",
         "Piano",
-        "Presets",
+        "Default",
         "Band 1",
+        "Output",
+        "Scale",
+        "Auto",
         "1 of 24 bands",
     ] {
         assert!(
-            text.contains(want),
+            has(&text, want),
             "the editor never painted {want:?}: {text}"
         );
     }
     a.set_fx_param(s0, fx, "mode", 0.0, false);
     let text = paint_editors(&mut a, SIZE);
-    assert!(text.contains("No latency"));
+    assert!(has(&text, "No latency"));
 }
 
 /// A rectangle dragged over the background selects the dots inside it; dragging one of
@@ -254,7 +267,7 @@ fn double_clicking_a_dot_types_its_values() {
     assert_eq!(typing.band, 0);
     // Let the first box take focus, type into all three, press Enter.
     let text = frame(&ctx, &mut a, vec![]);
-    assert!(text.contains("Set"), "the boxes paint a Set button: {text}");
+    assert!(has(&text, "Set"), "the boxes paint a Set button: {text}");
     if let Some(t) = a.eq_editor.typing.as_mut() {
         t.fields = ["A4".into(), "2x".into(), "3".into()];
     }
@@ -298,7 +311,7 @@ fn the_audition_is_one_command_and_ends_with_the_editor() {
     a.set_eq_solo(s0, fx, Some(0));
     assert_eq!(spec(&a, s0).get("solo"), 1.0);
     let text = paint_editors(&mut a, SIZE);
-    assert!(text.contains("solo"), "the auditioned dot says so: {text}");
+    assert!(has(&text, "solo"), "the auditioned dot says so: {text}");
     // Removing the auditioned band ends the audition in the same step.
     a.remove_eq_band(s0, fx, 0);
     assert_eq!(spec(&a, s0).get("solo"), 0.0);
@@ -336,7 +349,7 @@ fn a_match_becomes_editable_bands_in_one_step() {
     // The match panel paints, and says what it needs.
     a.eq_editor.matching = Some(Default::default());
     let text = paint_editors(&mut a, SIZE);
-    assert!(text.contains("Choose a key strip"), "{text}");
+    assert!(has(&text, "Choose a key strip"), "{text}");
 }
 
 #[test]
@@ -384,8 +397,9 @@ fn the_demo_paints_in_both_themes() {
         cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Eq);
         let text = frame(&ctx, &mut a, vec![]);
         let text = text + &frame(&ctx, &mut a, vec![]);
-        for want in ["Dynamic", "Above", "Key strip", "Threshold"] {
-            assert!(text.contains(want), "{want:?} missing: {text}");
+        // The history's key switch is narrow: it says its `.short`, "Key".
+        for want in ["Dynamic", "Above", "Key", "Threshold"] {
+            assert!(has(&text, want), "{want:?} missing: {text}");
         }
     }
 }

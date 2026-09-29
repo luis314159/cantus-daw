@@ -9,10 +9,10 @@ use crate::messages::*;
 use crate::midi::MidiSender;
 use crate::processor::Processor;
 use crate::samples::SampleCache;
-use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
+use cantus_core::{EffectId, InstrumentKind, Project, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -81,6 +81,9 @@ pub struct EngineHandle {
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
     known_effects: HashSet<EffectId>,
+    /// For each track hosting a native instrument, the kind and serial of the unit the
+    /// engine holds (or has been sent) for it.
+    known_instruments: HashMap<TrackId, (InstrumentKind, u64)>,
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
     note_inputs: Vec<NoteInput>,
@@ -175,6 +178,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            known_instruments: HashMap::new(),
             samples: SampleCache::new(),
             note_inputs: Vec::new(),
             capture: Some(capture_rx),
@@ -220,6 +224,7 @@ impl EngineHandle {
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
+            known_instruments: HashMap::new(),
             samples: SampleCache::new(),
             note_inputs: Vec::new(),
             capture: None,
@@ -388,7 +393,32 @@ impl EngineHandle {
                 }
             }
         }
+        // Native instruments: a track that no longer hosts one (or is gone) forgets its
+        // unit — the engine hands it back as the snapshot lands — and a track that needs one
+        // it has not been sent gets it first.
+        self.known_instruments.retain(|track, (kind, _)| {
+            snapshot
+                .tracks
+                .iter()
+                .any(|t| t.id == *track && t.instrument.native().map(|n| n.kind) == Some(*kind))
+        });
+        let units = crate::inst::units_for(&snapshot, self.sample_rate as f32, |track, kind| {
+            self.known_instruments.get(&track).map(|k| k.0) == Some(kind)
+        });
+        for unit in units {
+            let (track, kind, serial) = (unit.track, unit.kind, unit.serial);
+            if self.tx.push(EngineMessage::AddInstrument(unit)).is_ok() {
+                self.known_instruments.insert(track, (kind, serial));
+            } else {
+                self.send_failures += 1;
+            }
+        }
         self.send(EngineMessage::SetSnapshot(snapshot));
+    }
+
+    /// Ask for one track's instrument telemetry (its editor is open), or for none.
+    pub fn set_instrument_probe(&mut self, track: Option<TrackId>) {
+        self.send(EngineMessage::SetInstrumentProbe(track));
     }
 
     pub fn play(&mut self) {
@@ -462,6 +492,14 @@ impl EngineHandle {
                     drop(unit);
                 }
                 EngineEvent::FxParam { effect, event } => self.fx_params.push((effect, event)),
+                EngineEvent::GarbageInstrument(unit) => {
+                    // Only forget it if it is the unit we think the engine holds: a unit
+                    // replaced long ago can come back after its successor was sent.
+                    if self.known_instruments.get(&unit.track).map(|k| k.1) == Some(unit.serial) {
+                        self.known_instruments.remove(&unit.track);
+                    }
+                    drop(unit);
+                }
                 EngineEvent::PdcNeed { count, delay } => {
                     let lines = crate::pdc::lines_for(count, delay);
                     self.send(EngineMessage::PdcLines(lines));
@@ -512,5 +550,9 @@ impl EngineHandle {
 
     pub fn known_effect_count(&self) -> usize {
         self.known_effects.len()
+    }
+
+    pub fn known_instrument_count(&self) -> usize {
+        self.known_instruments.len()
     }
 }

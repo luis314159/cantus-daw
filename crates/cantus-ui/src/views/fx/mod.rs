@@ -1,34 +1,36 @@
-//! The plug-in family's editors, and the frame they share.
+//! The plug-in family's editors, and the frame they share (ADR 0017, ADR 0020, ADR 0024 §8).
 //!
-//! Every plug-in's editor is a module here that owns its own display (`body`), its small
-//! read-only picture for the inspector (`preview`), its factory presets, and the demo set-up
-//! the screenshot tool uses. What they share is in this file, so it is written once:
+//! Every plug-in's editor is a module here (Aequalis and Comprimo are `views::eq_editor`
+//! and `views::comp_editor`) that owns its display, its small read-only picture for the
+//! inspector (`preview`), its factory presets, and the demo set-up the screenshot tool
+//! uses. What they share is written once:
 //!
-//! - **The frame** — one window per open editor, and a header with the strip it sits on
-//!   (colour and name), the presets menu, A/B, and the bypass. `research/fabfilter/
-//!   family.md` rule 1: one frame, fixed positions.
+//! - **The device frame** ([`frame`]): the kit's shell — the header is the title bar, with
+//!   the presets, A/B, the device's undo, the bypass, ⋯ and the size; the footer is the
+//!   help line with the latency chip — wired to the editor's host.
+//! - **Where editors go on screen**: [`open_window`], the one function that decides it.
+//! - **The controls** ([`controls`]) and **the displays' paint** ([`canvas`]), all through
+//!   the kit, at the device's scale and in its hue.
+//! - **The host** ([`host`]): every editor asks [`host::FxHost`] for what it needs, so the
+//!   same editor runs in Cantus and in the exported plug-ins' windows ([`Editor`]).
 //! - **A/B** kept by the host: switching is one command, so it is one step of the project's
-//!   undo, like everything else (rule 3).
-//! - **Presets**: the plug-in's factory list plus the user's own, saved as JSON under the
-//!   app's data folder, per kind.
-//! - **A parameter knob** bound to a key, with the house gestures and one undo step per
-//!   gesture.
+//!   undo, like everything else. **Presets**: the kind's factory list plus the user's own,
+//!   saved as JSON under the app's data folder, per kind.
 //! - **What the engine reports** for the open editor: the analyser's (input, output) pairs
 //!   and the unit's telemetry (`Meters::fx`).
-//!
-//! The Aequalis and Comprimo editors predate this module and keep their own windows; they
-//! use the shared [`ab_bar`] and [`presets_menu`] from here.
 
 use crate::app::CantusApp;
-use crate::design::{self, space as grid};
-use crate::i18n::{t, tf};
-use crate::theme;
-use crate::widgets::Knob;
-use cantus_core::{Command, EffectId, EffectKind, EffectSlot, EffectSpec, MergeKey, StripId};
-use egui::{vec2, RichText, Sense};
+use crate::i18n::t;
+use cantus_core::{Command, EffectId, EffectKind, EffectSpec, MergeKey, StripId};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 
+/// What the displays paint with: tokens, and measured words on plates.
+pub mod canvas;
+/// The kit's controls at the device's scale and hue, bound to the host's parameters.
+pub mod controls;
 pub mod deesser;
+/// The device frame: the kit's shell wired to the host, and where editors go on screen.
+pub mod frame;
 pub mod gate;
 /// What an editor needs from whatever runs it: Cantus, or a plug-in host (ADR 0020).
 pub mod host;
@@ -55,8 +57,6 @@ pub struct FxEditors {
     /// The other side of A/B for each effect that has one: its parameters, and whether B
     /// is the one showing.
     ab: HashMap<EffectId, (BTreeMap<String, f32>, bool)>,
-    /// The name being typed for a user preset.
-    preset_name: String,
     pub limiter: limiter::State,
     pub space: space::State,
     pub multiband: multiband::State,
@@ -64,6 +64,18 @@ pub struct FxEditors {
     pub gate: gate::State,
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
+    /// The open editor's frame: its preset, its lists.
+    pub chrome: frame::Chrome,
+    /// Where the floating editor sits (every effect's editor opens where the last was).
+    pub pos: Option<egui::Pos2>,
+    /// The footer's chips, formatted when they change.
+    pub chips: frame::ChipText,
+    /// The open effect's parameters as the host read them, and the project revision they
+    /// were read at: an editor at rest copies nothing (`host::DawHost::new`).
+    pub(crate) spec_cache: Option<(u64, EffectId, EffectSpec)>,
+    /// The step a device's own undo put on the redo list, and the revision after it: its
+    /// redo is offered while nothing else has changed the project.
+    pub(crate) redo_mark: Option<(EffectId, u64)>,
 }
 
 impl FxEditors {
@@ -281,225 +293,140 @@ pub fn factory_presets(kind: EffectKind) -> &'static [FactoryPreset] {
     }
 }
 
-/// The presets menu: factory presets, the user's, and "save as…".
-pub fn presets_menu(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let kind = slot.spec.kind;
-    ui.menu_button(t("preset.menu"), |ui| {
-        let factory = factory_presets(kind);
-        if !factory.is_empty() {
-            ui.label(
-                RichText::new(t("preset.factory"))
-                    .text_style(design::caption())
-                    .color(theme::p().text_dim),
-            );
-        }
-        for (label, params) in factory {
-            if ui.button(t(label)).clicked() {
-                let map = params.iter().map(|(k, v)| (k.to_string(), *v)).collect();
-                app.apply_fx_params(strip, effect, &map, "cmd.fx_preset");
-                ui.close();
-            }
-        }
-        let user = user_presets(kind);
-        if !user.is_empty() {
-            ui.separator();
-            ui.label(
-                RichText::new(t("preset.user"))
-                    .text_style(design::caption())
-                    .color(theme::p().text_dim),
-            );
-        }
-        for (name, params) in user {
-            if ui.button(&name).clicked() {
-                app.apply_fx_params(strip, effect, &params, "cmd.fx_preset");
-                ui.close();
-            }
-        }
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut app.fx.preset_name)
-                    .hint_text(t("preset.name"))
-                    .desired_width(grid::GRID * 36.0),
-            );
-            if ui.button(t("preset.save")).clicked() {
-                match save_user_preset(kind, &app.fx.preset_name, &slot.spec.params) {
-                    Ok(()) => {
-                        app.set_status(tf("preset.saved", &[("name", &app.fx.preset_name)]));
-                        app.fx.preset_name.clear();
-                        ui.close();
-                    }
-                    Err(e) => app.set_error(e),
-                }
-            }
-        });
-    });
+/// **Where every effect editor goes on screen** (ADR 0024 §5, §8) — the one function
+/// that decides it. Today each editor is a floating window of its own
+/// ([`frame::place`]), sized by its kind's design and scale, with no egui title bar;
+/// when the workspace's docks exist, this is the line that makes it a dock tab, and no
+/// editor changes.
+pub fn open_window(
+    ctx: &egui::Context,
+    id: egui::Id,
+    pos: &mut Option<egui::Pos2>,
+    kind: EffectKind,
+    add: impl FnOnce(&mut egui::Ui) -> frame::Out,
+) -> bool {
+    open_window_sized(ctx, id, pos, kind, frame::designed_size(kind), add)
 }
 
-/// A and B, and "copy to the other side". Host-kept: switching is one undo step.
-pub fn ab_bar(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let on_b = app.fx.on_b(effect);
-    if ui
-        .selectable_label(!on_b, "A")
-        .on_hover_text(t("ab.tip"))
-        .clicked()
-        && on_b
-    {
-        app.toggle_ab(strip, effect);
+/// [`open_window`] at a size of the editor's own at 100 % (a hosted plug-in's generic
+/// editor fits its parameters).
+pub fn open_window_sized(
+    ctx: &egui::Context,
+    id: egui::Id,
+    pos: &mut Option<egui::Pos2>,
+    kind: EffectKind,
+    designed: egui::Vec2,
+    add: impl FnOnce(&mut egui::Ui) -> frame::Out,
+) -> bool {
+    let size = designed * frame::shell_of(kind).scale(ctx);
+    let at = frame::position(ctx, *pos, size);
+    let mut out = frame::Out::default();
+    frame::place(ctx, id, at, size, |ui| out = add(ui));
+    *pos = Some(at + out.moved);
+    // Meters and histories move with the audio: at most 60 frames a second.
+    ctx.request_repaint_after(std::time::Duration::from_millis(16));
+    !out.close
+}
+
+/// One of the effect editors that run on any [`host::FxHost`], with its state — for a
+/// host that shows one editor on its own: the exported plug-in's window (ADR 0020).
+pub enum Editor {
+    Gate(Box<gate::State>),
+    Multiband(Box<multiband::State>),
+    Space(Box<space::State>),
+    Limiter(Box<limiter::State>),
+    DeEsser(Box<deesser::State>),
+    Comp(Box<crate::views::comp_editor::State>),
+    Eq(Box<crate::views::eq_editor::EqEditor>),
+}
+
+impl Editor {
+    /// The editor of `kind`, if it runs on [`host::FxHost`].
+    pub fn of(kind: EffectKind) -> Option<Editor> {
+        match kind {
+            EffectKind::Gate => Some(Editor::Gate(Box::default())),
+            EffectKind::Multiband => Some(Editor::Multiband(Box::default())),
+            EffectKind::Space => Some(Editor::Space(Box::default())),
+            EffectKind::Limiter => Some(Editor::Limiter(Box::default())),
+            EffectKind::DeEsser => Some(Editor::DeEsser(Box::default())),
+            EffectKind::Compressor => Some(Editor::Comp(Box::default())),
+            EffectKind::Eq => Some(Editor::Eq(Box::default())),
+            _ => None,
+        }
     }
-    if ui
-        .selectable_label(on_b, "B")
-        .on_hover_text(t("ab.tip"))
-        .clicked()
-        && !on_b
-    {
-        app.toggle_ab(strip, effect);
-    }
-    if ui
-        .small_button(t("ab.copy"))
-        .on_hover_text(t("ab.copy_tip"))
-        .clicked()
-    {
-        app.copy_ab(effect, &slot.spec.params);
+
+    /// The editor in its device frame, filling `ui`.
+    pub fn show(&mut self, host: &mut dyn host::FxHost, ui: &mut egui::Ui) -> frame::Out {
+        match self {
+            Editor::Gate(st) => gate::editor(host, st, ui),
+            Editor::Multiband(st) => multiband::editor(host, st, ui),
+            Editor::Space(st) => space::editor(host, st, ui),
+            Editor::Limiter(st) => limiter::editor(host, st, ui),
+            Editor::DeEsser(st) => deesser::editor(host, st, ui),
+            Editor::Comp(st) => crate::views::comp_editor::editor(host, st, ui),
+            Editor::Eq(st) => crate::views::eq_editor::editor(host, st, ui),
+        }
     }
 }
 
-/// A knob bound to one parameter of an effect: range, taper, unit and label come from the
-/// parameter's own description; a drag is one undo step.
-pub fn param_knob(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    spec: &EffectSpec,
-    key: &str,
-) -> egui::Response {
-    let Some(info) = spec.kind.param(key) else {
-        return ui.label(key);
-    };
-    let mut v = spec.get(key);
-    let r = ui.add(
-        Knob::new(&mut v, info.min..=info.max, info.default)
-            .diameter(grid::GRID * 11.0)
-            .log(info.logarithmic)
-            .stepped(info.stepped)
-            .unit(info.unit)
-            .label(t(info.label_key)),
-    );
-    if r.changed() {
-        app.set_fx_param(strip, effect, key, v, true);
-    }
-    if r.drag_stopped() || r.double_clicked() {
-        app.end_gesture();
-    }
-    r
-}
-
-/// The window for the open editor, drawn every frame while one is open.
+/// The window of the open editor (Porta, Terminus, Spatium, Multiplex, Sibilus, a hosted
+/// plug-in), drawn every frame while one is open.
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect, kind)) = app.fx.open else {
         return;
     };
-    let Some(slot) = app
+    if app
         .project()
         .strip(strip)
         .and_then(|s| s.effect(effect))
-        .cloned()
-    else {
+        .is_none()
+    {
         app.close_fx_editor();
         return;
-    };
-    let strip_name = app.capture_label(cantus_engine::CaptureTarget::Strip(strip));
-    let mut open = true;
-    // A hosted plug-in is called by its own name.
-    let name = slot
-        .spec
-        .external
-        .as_deref()
-        .map_or_else(|| t(kind.name_key()), |p| p.name.clone());
-    egui::Window::new(format!("{name} \u{2014} {strip_name}"))
-        .id(egui::Id::new(("fx-editor", effect.0)))
-        .open(&mut open)
-        .default_size([980.0, 620.0])
-        .min_size([560.0, 400.0])
-        .resizable(true)
-        .collapsible(false)
-        .show(ctx, |ui| {
-            header(app, ui, strip, effect, &slot);
-            ui.add_space(grid::S1);
-            match kind {
-                EffectKind::Limiter => limiter::body(app, ui, strip, effect, &slot),
-                EffectKind::Space => space::body(app, ui, strip, effect, &slot),
-                EffectKind::Multiband => multiband::body(app, ui, strip, effect, &slot),
-                EffectKind::DeEsser => deesser::body(app, ui, strip, effect, &slot),
-                EffectKind::Gate => gate::body(app, ui, strip, effect, &slot),
-                EffectKind::External => crate::views::plugins::body(app, ui, strip, effect, &slot),
-                _ => {}
+    }
+    let open = match kind {
+        EffectKind::Gate
+        | EffectKind::Multiband
+        | EffectKind::Space
+        | EffectKind::Limiter
+        | EffectKind::DeEsser
+        | EffectKind::External => {
+            let mut pos = app.fx.pos;
+            let mut designed = frame::designed_size(kind);
+            if let Some(h) = app
+                .fx
+                .hosted
+                .editor
+                .wanted
+                .filter(|_| kind == EffectKind::External)
+            {
+                designed.y = h;
             }
-        });
-    ctx.request_repaint();
+            let open = open_window_sized(
+                ctx,
+                egui::Id::new(("fx-editor", effect.0)),
+                &mut pos,
+                kind,
+                designed,
+                |ui| match kind {
+                    EffectKind::Gate => gate::framed(app, ui, strip, effect),
+                    EffectKind::Multiband => multiband::framed(app, ui, strip, effect),
+                    EffectKind::Space => space::framed(app, ui, strip, effect),
+                    EffectKind::Limiter => limiter::framed(app, ui, strip, effect),
+                    EffectKind::DeEsser => deesser::framed(app, ui, strip, effect),
+                    _ => crate::views::plugins::framed(app, ui, strip, effect),
+                },
+            );
+            app.fx.pos = pos;
+            open
+        }
+        // Every other kind has no editor of its own (Aequalis and Comprimo have their
+        // windows in `views::eq_editor` and `views::comp_editor`).
+        _ => false,
+    };
     if !open {
         app.close_fx_editor();
     }
-}
-
-/// The shared header: the strip it sits on, presets, A/B, bypass.
-pub fn header(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    let pal = theme::p();
-    ui.horizontal(|ui| {
-        let (chip, _) = ui.allocate_exact_size(vec2(grid::S3, grid::S3), Sense::hover());
-        let color = app
-            .project()
-            .tracks_on_strip(strip)
-            .next()
-            .map(|t| theme::track_color(t.color))
-            .unwrap_or(pal.gold);
-        ui.painter().rect_filled(chip, pal.corner_radius, color);
-        ui.label(
-            RichText::new(app.capture_label(cantus_engine::CaptureTarget::Strip(strip)))
-                .text_style(design::strong()),
-        );
-        ui.separator();
-        if slot.spec.kind == EffectKind::External {
-            // Presets are saved states, and A/B switches whole states (`views::plugins`).
-            crate::views::plugins::header_controls(app, ui, strip, effect, slot);
-        } else {
-            presets_menu(app, ui, strip, effect, slot);
-            ab_bar(app, ui, strip, effect, slot);
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let mut on = !slot.bypass;
-            if ui
-                .toggle_value(&mut on, t("eq.active"))
-                .on_hover_text(t("effect.bypass"))
-                .changed()
-            {
-                app.exec(Command::SetEffectBypass {
-                    strip,
-                    effect,
-                    bypass: !on,
-                });
-            }
-        });
-    });
 }
 
 /// The inspector's picture of an effect with an editor behind this module.
@@ -510,7 +437,11 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Multiband => multiband::preview(ui, spec),
         EffectKind::DeEsser => deesser::preview(ui, spec),
         EffectKind::Gate => gate::preview(ui, spec),
-        _ => ui.label(t(spec.kind.name_key())),
+        _ => {
+            let s = crate::kit::Style::current();
+            let name = frame::tr(spec.kind.name_key());
+            controls::readout(ui, &s, name, false, name, ui.available_width())
+        }
     }
 }
 
@@ -541,19 +472,4 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}
     }
-}
-
-/// The generic body a scaffolded editor starts with: a knob per parameter.
-pub fn knobs_for_every_param(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    strip: StripId,
-    effect: EffectId,
-    slot: &EffectSlot,
-) {
-    ui.horizontal_wrapped(|ui| {
-        for info in slot.spec.kind.params() {
-            param_knob(app, ui, strip, effect, &slot.spec, info.key);
-        }
-    });
 }

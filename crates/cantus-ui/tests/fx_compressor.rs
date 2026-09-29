@@ -111,18 +111,27 @@ fn the_editor_paints_every_part_with_a_demo_running() {
     comp_editor::demo_setup(&mut a, s0, fx);
     a.open_effect_editor(s0, fx);
     let text = paint_editors(&mut a, SIZE);
+    // Labels and section names are set in capitals, and a label wider than its cell takes
+    // its short form (the full name is on the help line); a value's unit is set a hair
+    // apart in a smaller face (no space in the painted text).
+    let lower = text.to_lowercase().replace(' ', "");
+    let second_stage = cantus_ui::i18n::t("fx.comp.det_dual.short");
+    let lookahead = cantus_ui::i18n::t("fx.comp.look.short");
+    // The header's preset well, where the presets menu used to be.
+    let presets = cantus_ui::i18n::t("shell.preset.none");
     for want in [
         "Comprimo compressor",
         "Punch",
         "Mastering",
         "Custom (from Punch)",
         "Engine",
-        "Second stage",
+        &second_stage,
         "Hear",
         "Wet",
         "Delta",
         "Compare",
         "Latency 2.0 ms",
+        "Oversampling",
         "Loudness out",
         "GR · 10 s",
         "Crest dB",
@@ -130,12 +139,15 @@ fn the_editor_paints_every_part_with_a_demo_running() {
         "Key EQ",
         "Band 2",
         "Dynamics",
-        "Lookahead",
+        &lookahead,
         "AUTO",
         "Whole take",
-        "Presets",
+        &presets,
     ] {
-        assert!(text.contains(want), "never painted {want:?}: {text}");
+        assert!(
+            lower.contains(&want.to_lowercase().replace(' ', "")),
+            "never painted {want:?}: {text}"
+        );
     }
     // The measured numbers are there: a loudness, and the response's attack.
     assert!(text.contains("attack "), "{text}");
@@ -154,6 +166,7 @@ fn it_speaks_spanish_everywhere() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
     let text = paint_editors(&mut a, SIZE);
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let lower = text.to_lowercase();
     for want in [
         "Motor",
         "Oír",
@@ -161,7 +174,10 @@ fn it_speaks_spanish_everywhere() {
         "Respuesta a una ráfaga",
         "EQ de la clave",
     ] {
-        assert!(text.contains(want), "never painted {want:?}: {text}");
+        assert!(
+            lower.contains(&want.to_lowercase()),
+            "never painted {want:?}: {text}"
+        );
     }
     assert!(
         !text.contains("comp."),
@@ -334,9 +350,8 @@ fn the_desk_shows_gain_reduction_on_a_compressor_strip() {
     let _turn = turn();
     let (mut a, s0, _fx) = with_comp();
     let ctx = ctx();
-    // How many filled rectangles in the danger colour the desk paints: the lane's bar.
+    // How many gain-reduction lanes the desk shows filling.
     let red_bars = |a: &mut CantusApp| {
-        let danger = cantus_ui::theme::p().danger;
         let mut n = 0;
         for i in 0..2 {
             let input = egui::RawInput {
@@ -348,11 +363,7 @@ fn the_desk_shows_gain_reduction_on_a_compressor_strip() {
                 egui::CentralPanel::default().show(ui, |ui| cantus_ui::views::mixer::show(a, ui));
             });
             out.textures_delta.clear();
-            n = out
-                .shapes
-                .iter()
-                .filter(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == danger))
-                .count();
+            n = a.mixer.gr_lanes_filling();
         }
         n
     };

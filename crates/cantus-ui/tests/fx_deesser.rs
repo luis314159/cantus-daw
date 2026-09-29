@@ -11,6 +11,12 @@ use support::*;
 
 const SIZE: egui::Vec2 = egui::vec2(1400.0, 900.0);
 
+/// Painted text as the tests read it: labels are set in capitals, a value's unit is set
+/// apart from its number without a space, and minus signs are real ones.
+fn norm(s: &str) -> String {
+    s.to_lowercase().replace(' ', "").replace('\u{2212}', "-")
+}
+
 /// The locale is global: these tests take turns, so one painting in Spanish never meets
 /// another reading English.
 fn turn() -> std::sync::MutexGuard<'static, ()> {
@@ -106,7 +112,8 @@ fn the_editor_paints_its_state_in_real_units() {
     let text = paint_editors(&mut a, SIZE);
     for needle in [
         "Sibilus de-esser",
-        "Threshold -38.0 dB",
+        "Threshold",
+        "-38.0 dB",
         "Single vocal",
         "Split band",
         "Latency 7.6 ms",
@@ -120,7 +127,10 @@ fn the_editor_paints_its_state_in_real_units() {
         "centre",
         "Live",
     ] {
-        assert!(text.contains(needle), "missing {needle:?} in: {text}");
+        assert!(
+            norm(&text).contains(&norm(needle)),
+            "missing {needle:?} in: {text}"
+        );
     }
 }
 
@@ -238,7 +248,7 @@ fn learn_sets_the_threshold_from_a_passage() {
     assert_eq!(a.fx.deesser.learned, Some(-19.0));
     let text = paint_editors(&mut a, SIZE);
     assert!(
-        text.contains("learned"),
+        norm(&text).contains("learned"),
         "the learned threshold is marked: {text}"
     );
     a.undo();
@@ -298,6 +308,9 @@ fn the_editor_speaks_spanish() {
     let text = paint_editors(&mut a, SIZE);
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     for needle in ["Umbral", "Voz sola", "Dividir banda", "SEÑAL", "DETECTOR"] {
-        assert!(text.contains(needle), "missing {needle:?}: {text}");
+        assert!(
+            norm(&text).contains(&norm(needle)),
+            "missing {needle:?}: {text}"
+        );
     }
 }

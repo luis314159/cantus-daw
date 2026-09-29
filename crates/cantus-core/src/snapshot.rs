@@ -16,6 +16,10 @@ pub struct NoteEvent {
     pub pitch: Pitch,
     pub velocity: u8,
     pub note: NoteId,
+    /// For a note-on, how many note-ons of this pitch come before it on the track, from
+    /// the top of the piece. An instrument that cycles (a drum's round robin) reads this
+    /// instead of counting hits, so a render that starts mid-song cycles the same way.
+    pub ordinal: u32,
 }
 
 impl NoteEvent {
@@ -49,6 +53,10 @@ pub struct TrackSnapshot {
     /// engine fills it in before the snapshot is sent — the same snapshot then serves
     /// real-time playback and offline render, which is what keeps the two bit-identical.
     pub samples: Vec<Option<std::sync::Arc<crate::pads::SampleData>>>,
+    /// Decoded audio for a native instrument's asset keys (`NativeSpec::assets`), as
+    /// `(key, audio)` in key order; `None` for a file that could not be read. Empty after
+    /// [`Snapshot::compile`] and filled by the engine's loader, like `samples`.
+    pub assets: Vec<(String, Option<std::sync::Arc<crate::pads::SampleData>>)>,
 }
 
 impl TrackSnapshot {
@@ -123,6 +131,7 @@ impl Snapshot {
                 events: compile_events(t),
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
+                assets: Vec::new(),
             })
             .collect();
         Snapshot {
@@ -229,18 +238,26 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
                     pitch: n.pitch,
                     velocity: n.velocity.max(1),
                     note: n.id,
+                    ordinal: 0,
                 });
                 events.push(NoteEvent {
                     tick: off,
                     pitch: n.pitch,
                     velocity: 0,
                     note: n.id,
+                    ordinal: 0,
                 });
             }
         }
     }
     // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
     events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
+    let mut count = [0u32; 128];
+    for e in events.iter_mut().filter(|e| e.is_on()) {
+        let c = &mut count[e.pitch.min(127) as usize];
+        e.ordinal = *c;
+        *c += 1;
+    }
     events
 }
 

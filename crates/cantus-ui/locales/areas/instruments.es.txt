@@ -1,0 +1,59 @@
+# El marco común de los instrumentos nativos y su modelo de modulación (ADR 0023).
+# Los textos de cada instrumento están en locales/inst/<tipo>.es.txt.
+
+cmd.set_instrument_value = Cambiar valor del instrumento
+cmd.set_instrument_text = Cambiar texto del instrumento
+cmd.connect_modulation = Conectar modulación
+cmd.remove_modulation = Quitar modulación
+
+inst.gain = Ganancia
+inst.view.play = Tocar
+inst.view.edit = Editar
+inst.view.matrix = Matriz
+inst.macros = MACROS
+inst.macro_n = Macro {n}
+inst.modulation = MODULACIÓN
+inst.preview = {name} · {n} valores cambiados
+inst.voices = Voces {n} / {of}
+inst.stolen = {n} robadas
+inst.open_editor = Abrir editor
+inst.open_editor_tip = La ventana del instrumento: Tocar, Editar y la Matriz de modulación
+
+mod.macro = Macro
+mod.amount = Profundidad
+mod.curve = Curva
+mod.on = Activa
+mod.slot = #
+mod.source = Fuente
+mod.target = Destino
+mod.add = + Conexión
+mod.remove = Quitar esta conexión
+mod.empty = Aún no hay conexiones. Arrastra una fuente a una perilla, o añade una aquí.
+mod.full = Todas las ranuras de modulación están en uso.
+mod.drag_tip = Arrástrala a una perilla para modularla
+mod.curve.linear = Lineal
+mod.curve.exp = Exponencial
+mod.curve.log = Logarítmica
+mod.curve.s = Curva S
+mod.curve.steps = Escalones
+mod.src.env = Envolvente
+mod.src.lfo = LFO
+mod.src.vel = Velocidad
+mod.src.relvel = Velocidad de suelta
+mod.src.key = Tecla
+mod.src.rnd = Aleatorio por nota
+mod.src.mpe_bend = Inflexión MPE
+mod.src.mpe_press = Presión MPE
+mod.src.mpe_slide = Deslizamiento MPE
+mod.src.macro = Macro
+mod.src.mw = Rueda de modulación
+mod.src.at = Aftertouch
+mod.src.pb = Inflexión de tono
+mod.src.expr = Expresión
+mod.src.sus = Pedal de sostenido
+
+# El marco (ADR 0024 §8)
+inst.preset.init = Inicial
+inst.more.keyboard = Teclado
+inst.more.macros = Macros
+inst.more.mods = Modulación

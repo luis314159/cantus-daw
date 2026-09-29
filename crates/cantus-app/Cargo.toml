@@ -17,3 +17,10 @@ cantus-ui.workspace = true
 env_logger.workspace = true
 log.workspace = true
 anyhow.workspace = true
+
+# ADR 0024 §12: the splash logo and the window's icon are rendered from the logo's SVG
+# masters at build time; `winresource` (MIT) puts the icon into the Windows executable.
+[build-dependencies]
+resvg = { version = "0.48", default-features = false }
+tiny-skia = "0.12"
+winresource = "0.1"

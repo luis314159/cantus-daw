@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 15;
+pub const SCHEMA_VERSION: u32 = 17;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -193,6 +193,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_12_to_13,
     migrate_13_to_14,
     migrate_14_to_15,
+    migrate_15_to_16,
+    migrate_16_to_17,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -517,6 +519,21 @@ fn migrate_13_to_14(_value: &mut Value) -> Result<(), String> {
 /// `midi_from` is "no track" — the effect hears nothing and renders as before — so the
 /// migration writes nothing.
 fn migrate_14_to_15(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 16: native instruments (ADR 0023) — `InstrumentSpec::Native`, a kind with its
+/// numbers and texts by key. No old file holds one, so the migration writes nothing.
+fn migrate_15_to_16(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 17: Pulsus II — a kit's `version` (absent means model 1, which renders as it
+/// always did), stable pad ids, sample layers with round robin, per-pad envelopes, filter,
+/// drive and chokes, the hi-hat pedal, and a pad's own `output`. Every field reads from an
+/// old file as the value that changes no sample, so the migration writes nothing; the
+/// number is what makes an older build refuse a kit it would silently strip.
+fn migrate_16_to_17(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

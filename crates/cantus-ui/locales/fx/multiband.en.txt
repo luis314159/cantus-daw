@@ -118,3 +118,32 @@ mb.preset.punch = Drum punch
 # Undo
 cmd.mb_band_add = add multiband band
 cmd.mb_band_remove = remove multiband band
+
+# The editor in the device frame (ADR 0024)
+mb.band = Band
+mb.display = Bands
+mb.display_tip = Drag a line for a threshold, a dot for the gain, a crossover to move it · double-click to split a band · right-click for its menu · [ ] step through the bands, Delete removes one
+mb.card.transfer = Transfer
+mb.key_off = No sidechain
+mb.quick_tip = Start from this many bands, spread musically
+mb.tip.out = The level at the output, after every band.
+fx.mb.thr.short = THRESH
+fx.mb.ratio.short = RATIO
+fx.mb.range.short = RANGE
+fx.mb.thr_lo.short = LO THR
+fx.mb.ratio_lo.short = LO RAT
+fx.mb.range_lo.short = LO RNG
+fx.mb.knee.short = KNEE
+fx.mb.att.short = ATK
+fx.mb.rel.short = REL
+fx.mb.la.short = LOOK
+fx.mb.gain.short = GAIN
+fx.mb.key_lo.short = FROM
+fx.mb.key_hi.short = TO
+fx.mb.key_free.short = FREE KEY
+fx.mb.mute.short = MUTE
+fx.mb.out.short = OUT
+mb.key_own.short = Own
+mb.key_ext.short = Sidechain
+mb.mode.0.short = Dyn.
+mb.mode.1.short = Split

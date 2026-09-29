@@ -113,6 +113,9 @@ fn main() {
             cantus_ui::views::plugins::demo_setup(&mut app, &test_plugin(), kind == "plugin");
         } else if !kind.is_empty() {
             app.demo_editor(kind);
+            if let Some(k) = views::inst::kind_from_name(kind) {
+                views::inst::demo_feed(&mut app, k);
+            }
         }
         if let (true, Some((strip, effect, _))) = (cut_space, app.fx.open) {
             app.exec(cantus_core::Command::SetEffectParam {
@@ -218,6 +221,8 @@ fn main() {
                         .default_size([640.0, 420.0])
                         .show(&ctx, |ui| views::plugins::manager(&mut app, ui));
                 }
+                views::inst::window(&mut app, &ctx);
+                views::pulsus_editor::window(&mut app, &ctx);
             },
         );
         println!("wrote {}", path.display());

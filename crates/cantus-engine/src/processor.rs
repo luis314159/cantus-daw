@@ -21,16 +21,13 @@
 //! thing before the output.
 
 use crate::effects::EffectUnit;
+use crate::inst::{Controller, NativeUnit, NoteOn};
 use crate::messages::*;
 use crate::transport::Transport;
 use cantus_core::{
-    apply_width, balance_gains, DrumPad, InstrumentSpec, NoteEvent, PadVoice, PanLaw, Snapshot,
-    StripId, TrackId,
+    apply_width, balance_gains, InstrumentSpec, NoteEvent, PanLaw, Snapshot, StripId, TrackId,
 };
-use cantus_dsp::{
-    ChannelEq, Click, DrumVoice, Firmus, FirmusSettings, PadSettings, Pulsus, SampleRef, Wave,
-    MAX_PADS,
-};
+use cantus_dsp::{ChannelEq, Click, Firmus, FirmusSettings, Pulsus, Wave};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
 use std::time::Instant;
@@ -71,6 +68,8 @@ struct FxNoteDue {
 enum SlotInstrument {
     Firmus,
     Pulsus,
+    /// A native instrument's unit (ADR 0023), in `TrackSlot::native`.
+    Native,
 }
 
 struct TrackSlot {
@@ -78,6 +77,11 @@ struct TrackSlot {
     instrument: SlotInstrument,
     synth: Firmus,
     drums: Pulsus,
+    /// The native instrument's unit, delivered by `AddInstrument`; `None` while the track
+    /// hosts Firmus or Pulsus. Unlike those two it is not preallocated per slot: a native
+    /// instrument can be large (a sampler, a piano), so it is built off the audio thread
+    /// and swapped in.
+    native: Option<Box<NativeUnit>>,
     /// Index into the snapshot track's events of the next event to fire.
     next_event: usize,
     gain: f32,
@@ -170,6 +174,16 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_on(pitch, velocity, tag),
             SlotInstrument::Pulsus => self.drums.note_on(pitch, velocity, tag),
+            SlotInstrument::Native => {
+                if let Some(n) = self.native.as_mut() {
+                    n.unit.note_on(NoteOn {
+                        key: pitch,
+                        velocity: velocity as f32 / 127.0,
+                        id: native_id(pitch, tag),
+                        channel: 0,
+                    });
+                }
+            }
         }
     }
 
@@ -177,6 +191,22 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_off(pitch, tag),
             SlotInstrument::Pulsus => self.drums.note_off(pitch, tag),
+            SlotInstrument::Native => {
+                if let Some(n) = self.native.as_mut() {
+                    n.unit.note_off(pitch, native_id(pitch, tag), 0.0);
+                }
+            }
+        }
+    }
+
+    /// A channel-wide controller from live MIDI. Firmus reads none; Pulsus reads its
+    /// hi-hat pedal (a plain CC, CC4 by default).
+    fn controller(&mut self, controller: Controller, value: f32) {
+        if let (SlotInstrument::Pulsus, Controller::Cc(n)) = (self.instrument, controller) {
+            self.drums.controller(n, value);
+        }
+        if let (SlotInstrument::Native, Some(n)) = (self.instrument, self.native.as_mut()) {
+            n.unit.controller(controller, value);
         }
     }
 
@@ -184,6 +214,11 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.all_notes_off(),
             SlotInstrument::Pulsus => self.drums.all_notes_off(),
+            SlotInstrument::Native => {
+                if let Some(n) = self.native.as_mut() {
+                    n.unit.all_notes_off();
+                }
+            }
         }
     }
 
@@ -192,12 +227,16 @@ impl TrackSlot {
     fn reset(&mut self) {
         self.synth.reset();
         self.drums.reset();
+        if let Some(n) = self.native.as_mut() {
+            n.unit.reset();
+        }
     }
 
     fn active_voices(&self) -> usize {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.active_voices(),
             SlotInstrument::Pulsus => self.drums.active_voices(),
+            SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.active_voices()),
         }
     }
 
@@ -207,6 +246,7 @@ impl TrackSlot {
             instrument: SlotInstrument::Firmus,
             synth: Firmus::new(sample_rate),
             drums: Pulsus::new(sample_rate),
+            native: None,
             next_event: 0,
             gain: 1.0,
             pan: 0.0,
@@ -229,6 +269,10 @@ pub struct Processor {
     incoming_effects: Vec<Box<EffectUnit>>,
     /// Scratch space while re-ordering a track's chain (never grows past one chain).
     scratch_effects: Vec<Box<EffectUnit>>,
+    /// Native instrument units received but not yet claimed by a snapshot.
+    incoming_instruments: Vec<Box<NativeUnit>>,
+    /// The track whose instrument reports telemetry (its editor is open).
+    probed: Option<TrackId>,
     transport: Transport,
     slots: Vec<TrackSlot>,
     /// Snapshot track index → slot index.
@@ -322,6 +366,8 @@ impl Processor {
             pending_garbage: Vec::with_capacity(PENDING_GARBAGE),
             incoming_effects: Vec::with_capacity(MAX_PENDING_EFFECTS),
             scratch_effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
+            incoming_instruments: Vec::with_capacity(MAX_TRACKS),
+            probed: None,
             transport: Transport::new(sample_rate),
             slots: (0..MAX_TRACKS).map(|_| TrackSlot::new(sr)).collect(),
             track_to_slot: Vec::with_capacity(MAX_TRACKS),
@@ -581,6 +627,18 @@ impl Processor {
                     }
                 }
                 EngineMessage::ReplaceEffect(unit) => self.replace_effect(unit),
+                EngineMessage::AddInstrument(unit) => {
+                    if self.incoming_instruments.len() < self.incoming_instruments.capacity() {
+                        self.incoming_instruments.push(unit);
+                    } else {
+                        self.stats.dropped_events += 1;
+                        self.dispose_instrument(unit);
+                    }
+                }
+                EngineMessage::SetInstrumentProbe(track) => {
+                    self.probed = track;
+                    self.meters.inst = [0.0; crate::inst::TELEMETRY_LEN];
+                }
                 EngineMessage::Play => {
                     if !self.transport.is_playing() {
                         self.reseek_events();
@@ -700,6 +758,11 @@ impl Processor {
                     self.slots[slot].all_notes_off();
                 }
             }
+            0xB0 | 0xE0 => {
+                if let (Some(slot), Some((c, v))) = (self.slot_for(track), controller_of(&ev)) {
+                    self.slots[slot].controller(c, v);
+                }
+            }
             _ => {}
         }
     }
@@ -764,18 +827,26 @@ impl Processor {
                 }
             };
             self.track_to_slot.push(slot);
+            self.swap_native(slot, t.id, t.instrument.native().map(|n| n.kind));
             let s = &mut self.slots[slot];
             s.gain = t.gain;
             s.pan = t.pan;
             s.audible = t.audible;
-            apply_instrument(s, &t.instrument, &t.samples);
+            apply_instrument(s, &t.instrument, &t.samples, &t.assets);
         }
         // Slots whose track vanished: silence them and free them.
         for (i, in_use) in used.iter().enumerate() {
             if !in_use && self.slots[i].id.is_some() {
                 self.slots[i].all_notes_off();
                 self.slots[i].id = None;
+                if let Some(u) = self.slots[i].native.take() {
+                    self.dispose_instrument(u);
+                }
             }
+        }
+        // Instrument units nobody claimed are stale.
+        while let Some(u) = self.incoming_instruments.pop() {
+            self.dispose_instrument(u);
         }
 
         // Strips, the same way: a strip whose id survives keeps its slot, so a reverb's
@@ -1162,6 +1233,40 @@ impl Processor {
         }
     }
 
+    /// Give a slot the native unit its track now needs (`kind`), or none. A unit already of
+    /// the right kind stays, so voices ring across snapshots; otherwise the one delivered
+    /// for this track and kind is taken from the incoming list and the old one goes back.
+    fn swap_native(
+        &mut self,
+        slot: usize,
+        track: TrackId,
+        kind: Option<cantus_core::InstrumentKind>,
+    ) {
+        let have = self.slots[slot].native.as_ref().map(|n| (n.track, n.kind));
+        if kind.is_some() && have == kind.map(|k| (track, k)) {
+            return;
+        }
+        let incoming = kind.and_then(|k| {
+            self.incoming_instruments
+                .iter()
+                .position(|u| u.track == track && u.kind == k)
+                .map(|p| self.incoming_instruments.swap_remove(p))
+        });
+        let old = match incoming {
+            Some(u) => self.slots[slot].native.replace(u),
+            None => self.slots[slot].native.take(),
+        };
+        if let Some(old) = old {
+            self.dispose_instrument(old);
+        }
+    }
+
+    fn dispose_instrument(&mut self, unit: Box<NativeUnit>) {
+        if self.tx.push(EngineEvent::GarbageInstrument(unit)).is_err() {
+            self.stats.dropped_events += 1;
+        }
+    }
+
     fn dispose_effect(&mut self, mut unit: Box<EffectUnit>) {
         // It will not be processed again: a hosted plug-in stops processing here, on the
         // audio thread, before it leaves.
@@ -1356,6 +1461,20 @@ impl Processor {
                         l.iter_mut().for_each(|x| *x = 0.0);
                         r.iter_mut().for_each(|x| *x = 0.0);
                         s.drums.process_add(l, r)
+                    }
+                    SlotInstrument::Native => {
+                        l.iter_mut().for_each(|x| *x = 0.0);
+                        r.iter_mut().for_each(|x| *x = 0.0);
+                        match s.native.as_mut() {
+                            Some(u) => {
+                                let sig = u.unit.process(l, r);
+                                if self.probed == s.id {
+                                    self.meters.inst = u.unit.telemetry();
+                                }
+                                sig
+                            }
+                            None => false,
+                        }
                     }
                 };
                 let line = self.track_line[slot];
@@ -1859,9 +1978,48 @@ fn fx_note(ev: &NoteEvent) -> crate::fx::FxNote {
     }
 }
 
+/// The id a native instrument sees for a note. Live input carries one tag for every key,
+/// so it is made unique per key here: a unit may rely on an id naming one sounding note.
+fn native_id(pitch: u8, tag: u64) -> u64 {
+    if tag == LIVE_TAG {
+        LIVE_TAG - 1 - pitch as u64
+    } else {
+        tag
+    }
+}
+
+/// A MIDI controller or pitch bend as the instrument contract names it, scaled.
+fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
+    match ev.status & 0xF0 {
+        0xE0 => {
+            let raw = ((ev.data2 as i32) << 7 | ev.data1 as i32) - 8192;
+            Some((Controller::PitchBend, raw as f32 / 8192.0 * 2.0))
+        }
+        0xB0 => {
+            let v = ev.data2 as f32 / 127.0;
+            Some(match ev.data1 {
+                1 => (Controller::ModWheel, v),
+                11 => (Controller::Expression, v),
+                64 => (Controller::Sustain, v),
+                n => (Controller::Cc(n), v),
+            })
+        }
+        _ => None,
+    }
+}
+
 #[inline]
 fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
-    if ev.is_on() {
+    if ev.is_on() && slot.instrument == SlotInstrument::Pulsus {
+        // A kit seeds what a hit chooses from where the note is (Pulsus II).
+        let hit = cantus_dsp::pulsus::Hit {
+            id: ev.note.0,
+            tick: ev.tick.0,
+            ordinal: ev.ordinal,
+            sequenced: true,
+        };
+        slot.drums.trigger(ev.pitch, ev.velocity, hit);
+    } else if ev.is_on() {
         slot.note_on(ev.pitch, ev.velocity, ev.note.0);
     } else {
         slot.note_off(ev.pitch, ev.note.0);
@@ -1878,59 +2036,28 @@ fn apply_instrument(
     slot: &mut TrackSlot,
     spec: &InstrumentSpec,
     samples: &[Option<Arc<cantus_core::SampleData>>],
+    assets: &crate::inst::Assets,
 ) {
     let wanted = match spec {
         InstrumentSpec::Firmus(_) => SlotInstrument::Firmus,
         InstrumentSpec::Pulsus(_) => SlotInstrument::Pulsus,
+        InstrumentSpec::Native(_) => SlotInstrument::Native,
     };
     if slot.instrument != wanted {
         slot.reset();
         slot.instrument = wanted;
     }
     match spec {
-        InstrumentSpec::Firmus(p) => slot.synth.set_settings(&to_settings(p)),
-        InstrumentSpec::Pulsus(k) => {
-            // Written into the kit's fixed table in place: this runs on the audio thread,
-            // once per snapshot, and must not allocate (ADR 0005).
-            slot.drums.set_pad_count(k.pads.len());
-            for (i, pad) in k.pads.iter().take(MAX_PADS).enumerate() {
-                slot.drums.set_pad(i, pad.pitch, &to_pad(pad));
-                // The snapshot carries the decoded audio (`SampleCache::attach`); this is
-                // an `Arc` clone per pad and nothing more.
-                let sample = samples.get(i).and_then(|s| s.as_ref()).map(|d| SampleRef {
-                    frames: d.frames.clone(),
-                    rate: d.rate as f32,
-                    channels: d.channels as usize,
-                });
-                slot.drums.set_sample(i, sample);
+        InstrumentSpec::Native(n) => {
+            if let Some(u) = slot.native.as_mut() {
+                u.unit.configure(n, assets);
             }
         }
-    }
-}
-
-fn to_pad(pad: &DrumPad) -> PadSettings {
-    PadSettings {
-        voice: match pad.voice {
-            PadVoice::Kick => DrumVoice::Kick,
-            PadVoice::Snare => DrumVoice::Snare,
-            PadVoice::HiHat => DrumVoice::HiHat,
-            PadVoice::Sample => DrumVoice::Sample,
-        },
-        tune: pad.tune,
-        decay: pad.decay,
-        pitch_drop: pad.pitch_drop,
-        pitch_decay: pad.pitch_decay,
-        click: pad.click,
-        drive: pad.drive,
-        noise_decay: pad.noise_decay,
-        tone: pad.tone,
-        mix: pad.mix,
-        hp_cutoff: pad.hp_cutoff,
-        gain: cantus_core::db_to_linear(pad.level_db),
-        pan: pad.pan,
-        // A muted pad is already gone from the snapshot's events (`Snapshot::compile`),
-        // so nothing here has to know about it.
-        choke: pad.choke,
+        InstrumentSpec::Firmus(p) => slot.synth.set_settings(&to_settings(p)),
+        // Written into the kit's fixed tables in place: this runs on the audio thread,
+        // once per snapshot, and must not allocate (ADR 0005). The snapshot carries the
+        // decoded audio (`SampleCache::attach`).
+        InstrumentSpec::Pulsus(k) => crate::pulsus_kit::configure(&mut slot.drums, k, samples),
     }
 }
 

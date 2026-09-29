@@ -167,3 +167,33 @@ cmd.comp_engine = compressor engine
 cmd.comp_key_band = key EQ band
 cmd.comp_duck = duck from a strip
 cmd.comp_reset_curve = compressor curve
+
+# The device frame (ADR 0024): card titles, words on the displays, the help line
+comp.card.transfer = Transfer
+comp.card.meters = Meters
+comp.read_in = In
+comp.read_out = Out
+comp.gr = GR
+comp.max = max
+comp.remove_band = Remove
+comp.history_tip = Drag the dashed line for the threshold. Click to freeze, double-click to run live again; the wheel scrolls back; hover to read any moment.
+comp.key_eq_display_tip = Double-click to add a band (a cut at the edges, a bell anywhere else); drag a dot; the wheel sets Q (a cut's slope); Alt+click bypasses a band; right-click for its menu; Delete removes it.
+comp.key_band_step = The band shown: ‹ and › step through the bands in use
+comp.key_band_menu = The band's menu: its shape, bypass, remove
+
+# Short forms, for labels wider than their cell
+fx.comp.look.short = Look
+fx.comp.key_hpf.short = HPF
+fx.comp.link.short = Link
+fx.comp.det_rms.short = Det
+fx.comp.det_fb.short = Fdbk
+fx.comp.det_prog.short = Prog
+fx.comp.det_dual.short = Stage 2
+fx.comp.det_curve.short = Curve
+fx.comp.auto_rel.short = Auto rel
+fx.comp.auto_gain.short = Auto gain
+comp.speed.whole.short = Whole
+comp.band_on.short = On
+fx.comp.rel.short = Rel
+fx.comp.makeup.short = Makeup
+comp.key_from = Listens to

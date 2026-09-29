@@ -3,7 +3,7 @@
 //! compiled snapshots.
 
 use crate::clips::{self, ClipRef};
-use crate::design::{self, space, Elevation};
+use crate::design::{self, space};
 use crate::i18n::{self, t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
 use crate::keymap::{Action, Keymap};
@@ -11,6 +11,8 @@ use crate::layout::{self, Layouts};
 use crate::recording::{RecordedNote, Recorder};
 use crate::settings::{self, Settings};
 use crate::theme;
+use crate::views::workspace::{Pane, Workspace};
+use crate::views::workspace_ticker::{self as ticker, Reason};
 use crate::views::{
     self, arrangement::ArrangementView, arrangement::ClipDragResult, channel_rack::ChannelRackView,
     mixer::MixerView, piano_roll::PianoRollView,
@@ -60,6 +62,8 @@ impl From<CentralView> for layout::Central {
 pub enum EditFocus {
     Arrangement,
     PianoRoll,
+    /// The mixer: the arrows walk the strips, M and S act on the selected one (§10).
+    Mixer,
 }
 
 #[derive(Debug)]
@@ -108,6 +112,7 @@ pub struct CantusApp {
     pub piano_roll: PianoRollView,
     pub rack: ChannelRackView,
     pub mixer: MixerView,
+    pub inspector: views::inspector::Inspector,
     /// The mix recorder: takes of the master or of a strip, written to WAV (`takes`).
     pub mix_recorder: crate::takes::MixRecorder,
     /// The Aequalis editor window (`views::eq_editor`).
@@ -121,25 +126,36 @@ pub struct CantusApp {
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
+    /// The native instruments' editors (ADR 0023).
+    pub inst: views::inst::InstEditors,
+    /// Pulsus II's editor (round 17).
+    pub pulsus: views::pulsus_editor::State,
     /// Where the recorder's samples are drained into each frame; reused, never shrunk.
     capture_scratch: Vec<f32>,
     pub central: CentralView,
+    /// The window's areas as tabs that dock, split, stack and float (ADR 0024 §5).
+    pub workspace: Workspace,
     pub recorder: Recorder,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
-    theme_watcher: Option<theme::ThemeWatcher>,
-    theme_path: PathBuf,
+    /// The look as the user set it: light and dark, a base theme for each, and every
+    /// change on top (`kit::appearance`). Kept in `appearance.json`; an older `theme.json`
+    /// is migrated into it.
+    pub appearance: crate::kit::appearance::Appearance,
+    /// Where [`Self::store_appearance`] writes. Public so tests can redirect it.
+    pub appearance_path: PathBuf,
+    appearance_watch: views::appearance_file::Watch,
+    /// The appearance page's own state: search, undo, the element picked.
+    pub appearance_page: views::appearance::Page,
     /// User preferences, from `settings.json` (`crate::settings`).
     pub settings: Settings,
     /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
     pub settings_path: PathBuf,
     pub show_settings: bool,
-    /// The theme as text, while the colour pickers are open. Kept here rather than
-    /// re-derived from the palette each frame so that a colour the user is dragging does
-    /// not round-trip through hex and back on every mouse move.
-    editing_theme: Option<theme::Theme>,
-    /// True while the colour editor is expanded.
+    /// The settings window's own state (a pending audio choice, an open list).
+    pub settings_page: views::workspace_settings::Page,
+    /// True while the appearance page (the colour editor) is open.
     pub show_theme_editor: bool,
     /// Set while the audio device is being reopened, to report the outcome once.
     audio_error: Option<String>,
@@ -185,84 +201,87 @@ impl CantusApp {
     /// `locale_from_flag` is whatever `--locale` asked for. It is passed in rather than
     /// read here because an explicit flag must win over the stored preference, and only
     /// the caller knows whether one was given.
+    ///
+    /// This opens everything on the calling thread; the desktop app goes through the
+    /// splash instead (`crate::boot`), which reads the files and scans MIDI on a thread.
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         project: Option<Project>,
         stress: bool,
         locale_from_flag: Option<i18n::Locale>,
     ) -> Self {
-        // The theme lives in a user-editable file; create it from the default on first run.
-        let theme_path = directories_fallback().join("theme.json");
-        let loaded = match theme::load_file(&theme_path) {
-            Ok(mut t) => {
-                // A file from an older release is missing whatever tokens have been added
-                // since. Write them back so they are there to be edited.
-                if t.fill_missing() {
-                    if let Err(e) = theme::save_file(&t, &theme_path) {
-                        log::warn!("cannot upgrade theme file: {e}");
-                    }
-                }
-                t
-            }
-            Err(_) => {
-                let t = theme::default_theme();
-                if let Err(e) = theme::save_file(&t, &theme_path) {
-                    log::warn!("cannot write theme file: {e}");
-                }
-                t
-            }
-        };
+        let files = Files::read(&directories_fallback(), locale_from_flag);
         design::install_fonts(&cc.egui_ctx);
         design::install_style(&cc.egui_ctx);
-        // Settings are read before anything else: they decide the language the first
-        // strings are drawn in and which device the engine opens.
-        let settings_path = settings::settings_path(&directories_fallback());
-        let settings = Settings::load(&settings_path);
-        // An explicit `--locale` on the command line wins over the stored preference.
-        if locale_from_flag.is_none() {
-            if let Some(l) = settings.locale.as_deref().and_then(i18n::Locale::from_code) {
-                i18n::set_locale(l);
-            }
-        }
-        cc.egui_ctx.set_zoom_factor(settings.ui_scale());
-        let layouts_path = layout::layouts_path(&directories_fallback());
-        let mut layouts = Layouts::load(&layouts_path);
-        layouts.force();
-        // The keymap file is written on first run so it is there to be discovered and
-        // edited, the same way the theme is.
-        let keymap_path = crate::keymap::keymap_path(&directories_fallback());
-        let keymap = Keymap::load(&keymap_path);
-        if !keymap_path.exists() {
-            if let Err(e) = keymap.save(&keymap_path) {
-                log::warn!("cannot write keymap file: {e}");
-            }
-        }
-        theme::apply(&loaded, &cc.egui_ctx);
-        let engine = match EngineHandle::start(&settings.audio.to_config()) {
-            Ok(e) => e,
-            Err(e) => {
-                log::error!("audio: {e}");
-                EngineHandle::dummy()
-            }
-        };
-        let mut app = Self::from_parts(project, engine, stress);
-        app.settings = settings;
-        app.settings_path = settings_path;
-        app.central = layouts.current.central.into();
-        app.layouts = layouts;
-        app.layouts_path = layouts_path;
-        app.keymap = keymap;
-        app.keymap_path = keymap_path;
-        app.theme_watcher = Some(theme::ThemeWatcher::new(theme_path.clone()));
-        app.theme_path = theme_path;
-        app.theme_ctx = Some(cc.egui_ctx.clone());
-        // Plug-in windows are owned by the main window, so they stay above it.
-        app.plugins.owner_window = {
+        let engine = start_engine(&files.settings);
+        let midi = engine
+            .is_live()
+            .then(|| MidiInputs::open_all(engine.midi_sender()));
+        let owner = {
             use raw_window_handle::HasWindowHandle;
             cc.window_handle().ok().map(|h| h.as_raw())
         };
-        if app.engine.is_live() {
-            let inputs = MidiInputs::open_all(app.engine.midi_sender());
+        let db = cantus_host::PluginDb::load(&data_dir().join("plugins.json"));
+        Self::assemble(
+            &cc.egui_ctx,
+            files,
+            project,
+            engine,
+            midi,
+            Some(db),
+            owner,
+            stress,
+        )
+    }
+
+    /// Put the application together from what the boot gathered: the files read, the
+    /// engine opened, the MIDI ports scanned, the plug-in database loaded.
+    #[allow(clippy::too_many_arguments)]
+    pub fn assemble(
+        ctx: &egui::Context,
+        files: Files,
+        project: Option<Project>,
+        engine: EngineHandle,
+        midi: Option<MidiInputs>,
+        plugin_db: Option<cantus_host::PluginDb>,
+        owner_window: Option<raw_window_handle::RawWindowHandle>,
+        stress: bool,
+    ) -> Self {
+        let Files {
+            settings,
+            settings_path,
+            appearance,
+            appearance_path,
+            layouts,
+            layouts_path,
+            keymap,
+            keymap_path,
+        } = files;
+        views::workspace_style::install(ctx);
+        ctx.set_zoom_factor(settings.ui_scale());
+        crate::kit::logo::set_disk_cache(Some(directories_fallback().join("cache")));
+        let mut app = Self::from_parts(project, engine, stress);
+        app.mixer.load_prefs(&layouts_path);
+        app.settings = settings;
+        app.settings_path = settings_path;
+        app.appearance = appearance;
+        app.appearance_path = appearance_path.clone();
+        app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
+        app.theme_ctx = Some(ctx.clone());
+        app.apply_appearance();
+        app.layouts = layouts;
+        app.layouts_path = layouts_path;
+        app.central = app.layouts.current.central.into();
+        app.workspace.load(&app.layouts.current);
+        app.keymap = keymap;
+        app.keymap_path = keymap_path;
+        if let Some(db) = plugin_db {
+            app.plugins.db = db;
+            app.plugins.db_path = Some(data_dir().join("plugins.json"));
+        }
+        // Plug-in windows are owned by the main window, so they stay above it.
+        app.plugins.owner_window = owner_window;
+        if let Some(inputs) = midi {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
         }
@@ -303,25 +322,31 @@ impl CantusApp {
             piano_roll: PianoRollView::default(),
             rack: ChannelRackView::default(),
             mixer: MixerView::default(),
+            inspector: Default::default(),
             mix_recorder: crate::takes::MixRecorder::default(),
             eq_editor: views::eq_editor::EqEditor::default(),
             comp_editor: views::comp_editor::CompEditor::default(),
             fx: views::fx::FxEditors::default(),
             interop: Default::default(),
             plugins,
+            inst: views::inst::InstEditors::default(),
+            pulsus: views::pulsus_editor::State::default(),
             capture_scratch: Vec::new(),
-            central: CentralView::PianoRoll,
+            central: CentralView::Mixer,
+            workspace: Workspace::default(),
             recorder: Recorder::new(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,
-            theme_watcher: None,
-            theme_path: directories_fallback().join("theme.json"),
+            appearance: Default::default(),
+            appearance_path: views::appearance_file::path(&directories_fallback()),
+            appearance_watch: Default::default(),
+            appearance_page: Default::default(),
             theme_ctx: None,
             settings: Settings::default(),
             settings_path: settings::settings_path(&directories_fallback()),
             show_settings: false,
-            editing_theme: None,
+            settings_page: Default::default(),
             show_theme_editor: false,
             audio_error: None,
             keymap: Keymap::default(),
@@ -439,12 +464,11 @@ impl CantusApp {
         }
     }
 
-    /// Fold the live panel sizes and the current view into the layout, then write the
+    /// Fold the workspace's shape and the current view into the layout, then write the
     /// layouts file. Called whenever a layout changes and once on exit, so what is on disk
     /// is what the user was last looking at.
-    pub fn store_layouts(&mut self, ctx: &egui::Context) {
-        self.layouts.sync(ctx);
-        self.layouts.current.central = self.central.into();
+    pub fn store_layouts(&mut self, _ctx: &egui::Context) {
+        self.layouts.sync(&self.workspace, self.central.into());
         if let Err(e) = self.layouts.save(&self.layouts_path) {
             log::warn!("cannot write layouts file: {e}");
         }
@@ -455,8 +479,8 @@ impl CantusApp {
         if name.is_empty() {
             return;
         }
-        self.layouts.current.central = self.central.into();
-        self.layouts.save_as(name, ctx);
+        self.layouts
+            .save_as(name, &self.workspace, self.central.into());
         self.store_layouts(ctx);
         self.set_status(tf("layout.saved", &[("name", &name)]));
     }
@@ -466,9 +490,10 @@ impl CantusApp {
             return;
         }
         self.central = self.layouts.current.central.into();
+        self.workspace.load(&self.layouts.current);
         let label = self.layouts.current.display_name();
-        // `store` would sync the live sizes back over the ones we just applied, so the
-        // file is written from the layout itself.
+        // `store` would sync the live shape back over the one just applied, so the file is
+        // written from the layout itself.
         if let Err(e) = self.layouts.save(&self.layouts_path) {
             log::warn!("cannot write layouts file: {e}");
         }
@@ -483,35 +508,62 @@ impl CantusApp {
     pub fn reset_layout(&mut self) {
         self.layouts.reset();
         self.central = self.layouts.current.central.into();
+        self.workspace.load(&self.layouts.current);
         if let Err(e) = self.layouts.save(&self.layouts_path) {
             log::warn!("cannot write layouts file: {e}");
         }
         self.set_status(t("layout.was_reset"));
     }
 
-    /// Apply an edited theme immediately and write it to the theme file.
-    ///
-    /// The file is the source of truth — the same one `ThemeWatcher` reloads and the user
-    /// can edit by hand — so the dialog writes through to it rather than keeping a second
-    /// copy of the truth in memory.
-    pub fn apply_theme_edit(&mut self, theme: theme::Theme) {
-        self.apply_theme(&theme);
-        if let Err(e) = theme::save_file(&theme, &self.theme_path) {
-            log::warn!("cannot write theme file: {e}");
-        }
-        self.editing_theme = Some(theme);
+    /// Bring a view to the front of the lower zone (the `--mixer` and `--rack` flags, the
+    /// tests): it becomes the central view and its tab shows.
+    pub fn show_central(&mut self, view: CentralView) {
+        self.central = view;
+        self.workspace.reveal(Pane::of_central(view));
     }
 
-    /// The theme currently being edited, seeded from the file the first time it is asked
-    /// for.
-    pub fn theme_for_editing(&mut self) -> theme::Theme {
-        if self.editing_theme.is_none() {
-            self.editing_theme =
-                Some(theme::load_file(&self.theme_path).unwrap_or_else(|_| theme::default_theme()));
+    /// Show the look the appearance describes, now: the mode's theme with the user's
+    /// changes on top, installed for every view and every kit painter.
+    pub fn apply_appearance(&mut self) {
+        let Some(ctx) = self.theme_ctx.clone() else {
+            return;
+        };
+        let dark = views::appearance_file::system_dark(&ctx);
+        let t = self.appearance.resolve(dark);
+        theme::apply(&t, &ctx);
+        self.appearance_page.system_dark = dark;
+    }
+
+    /// Write the appearance file (it is also what a hand edit or another window changes;
+    /// the app picks those up while it runs), and leave the chosen logo where the next
+    /// launch's splash finds it.
+    pub fn store_appearance(&mut self) {
+        if let Err(e) = views::appearance_file::save(&self.appearance, &self.appearance_path) {
+            log::warn!("cannot write appearance file: {e}");
         }
-        self.editing_theme
-            .clone()
-            .unwrap_or_else(theme::default_theme)
+        self.appearance_watch.saw_write(&self.appearance_path);
+        let logo = self.appearance.logo;
+        let themed = logo.tint == crate::kit::logo::Tint::Theme;
+        let key = (
+            logo,
+            if themed {
+                crate::kit::tokens::generation()
+            } else {
+                0
+            },
+        );
+        if self.appearance_page.remembered != Some(key) {
+            self.appearance_page.remembered = Some(key);
+            crate::boot::remember_logo(logo, &crate::kit::tokens::current());
+        }
+    }
+
+    /// Give the application its egui context (the window's, or a test's): the workspace's
+    /// style and the look are installed at once.
+    pub fn attach(&mut self, ctx: &egui::Context) {
+        self.theme_ctx = Some(ctx.clone());
+        views::workspace_style::install(ctx);
+        self.apply_appearance();
     }
 
     /// The scale everything is drawn at. egui applies it to fonts and to the spacing grid
@@ -521,6 +573,17 @@ impl CantusApp {
         ctx.set_zoom_factor(scale);
         self.settings.ui_scale = scale;
         self.store_settings();
+        self.set_status(tf(
+            "workspace.zoom_now",
+            &[("pct", &format!("{:.0}", scale * 100.0))],
+        ));
+    }
+
+    /// Ctrl + / Ctrl −: the next step of the global zoom (ADR 0024 §11).
+    pub fn step_ui_scale(&mut self, ctx: &egui::Context, up: bool) {
+        let now = self.settings.ui_scale();
+        let next = settings::ui_scale_step(now, up);
+        self.apply_ui_scale(ctx, next);
     }
 
     pub fn store_settings(&mut self) {
@@ -633,6 +696,7 @@ impl CantusApp {
             self.select_track(t);
             self.selected_strip = Some(id);
         }
+        self.inspector.follow(views::inspector::Subject::Strip(id));
     }
 
     /// The strips a mixer operation acts on: the multi-selection while the selected strip
@@ -995,6 +1059,14 @@ impl CantusApp {
     /// `--editor eq|comp`: an effect on the selected track's strip, set up to show what its
     /// editor does, with the editor open.
     pub fn demo_editor(&mut self, kind: &str) {
+        if kind.starts_with("pulsus") {
+            views::pulsus_editor::demo(self, kind);
+            return;
+        }
+        if let Some(kind) = views::inst::kind_from_name(kind) {
+            self.demo_instrument(kind);
+            return;
+        }
         let Some(strip) = self
             .selected_track
             .and_then(|t| self.project().track(t))
@@ -1182,6 +1254,7 @@ impl CantusApp {
     }
 
     pub fn select_track(&mut self, id: TrackId) {
+        self.inspector.follow(views::inspector::Subject::Track(id));
         if self.selected_track != Some(id) {
             for ev in self.keyboard.release_all() {
                 self.apply_key_event(ev);
@@ -1202,6 +1275,8 @@ impl CantusApp {
 
     pub fn select_clip(&mut self, track: TrackId, clip: ClipId) {
         self.select_track(track);
+        self.inspector
+            .follow(views::inspector::Subject::Clip(track, clip));
         self.selected_clips = vec![(track, clip)];
         if self.selected_clip != Some(clip) {
             self.selected_clip = Some(clip);
@@ -1496,6 +1571,41 @@ impl CantusApp {
 
     pub fn clear_clip_selection(&mut self) {
         self.selected_clips.clear();
+    }
+
+    /// Move the mixer's selection one strip left or right along the desk.
+    pub fn step_strip(&mut self, delta: i32) {
+        let strips: Vec<StripId> = self.project().strips.iter().map(|s| s.id).collect();
+        if strips.is_empty() {
+            return;
+        }
+        let current = self
+            .selected_strip
+            .and_then(|id| strips.iter().position(|s| *s == id))
+            .map(|i| i as i32)
+            .unwrap_or(if delta > 0 { -1 } else { strips.len() as i32 });
+        let next = (current + delta).clamp(0, strips.len() as i32 - 1) as usize;
+        self.select_strip(strips[next]);
+        self.focus = EditFocus::Mixer;
+    }
+
+    /// Show or hide an area of the workspace (F5, F6, F7, F9, I).
+    pub fn toggle_pane(&mut self, pane: Pane) {
+        self.workspace.toggle(pane);
+        if let Some(c) = pane.central() {
+            if self.workspace.is_visible(pane) {
+                self.central = c;
+            }
+        }
+    }
+
+    /// "Pick an element": turn the eyedropper on or off (ADR 0024 §2). While it is on,
+    /// clicking anything selects it and opens its colours in the appearance page.
+    pub fn toggle_pick(&mut self) {
+        self.appearance_page.picking = !self.appearance_page.picking;
+        if let Some(ctx) = &self.theme_ctx {
+            crate::kit::inspect::set_enabled(ctx, self.appearance_page.picking);
+        }
     }
 
     pub fn focus_arrangement(&mut self) {
@@ -2190,30 +2300,14 @@ impl CantusApp {
         }
     }
 
-    // ---- theme ----------------------------------------------------------------------
+    // ---- appearance -----------------------------------------------------------------
 
-    /// Write a preset to the theme file and apply it.
-    pub fn apply_theme_preset(&mut self, theme: theme::Theme) {
-        if let Err(e) = theme::save_file(&theme, &self.theme_path) {
-            self.set_error(tf("status.theme_error", &[("error", &e)]));
-            return;
-        }
-        if let Some(w) = self.theme_watcher.as_mut() {
-            *w = theme::ThemeWatcher::new(self.theme_path.clone());
-        }
-        self.apply_theme(&theme);
-    }
-
-    fn apply_theme(&mut self, theme: &theme::Theme) {
-        if let Some(ctx) = &self.theme_ctx {
-            theme::apply(theme, ctx);
-        }
-        self.set_status(tf("status.theme_applied", &[("name", &theme.name)]));
-    }
-
-    /// Show the theme file in the OS file manager so the user can edit it.
+    /// Show the appearance file in the OS file manager so the user can edit it.
     pub fn reveal_theme_file(&mut self) {
-        let path = self.theme_path.clone();
+        let path = self.appearance_path.clone();
+        if !path.exists() {
+            self.store_appearance();
+        }
         match reveal(&path) {
             Ok(_) => self.set_status(tf("status.theme_file", &[("path", &path.display())])),
             Err(e) => self.set_error(e.to_string()),
@@ -2228,13 +2322,21 @@ impl CantusApp {
         }
     }
 
-    fn poll_theme(&mut self) {
-        let Some(result) = self.theme_watcher.as_mut().and_then(|w| w.poll()) else {
-            return;
-        };
-        match result {
-            Ok(theme) => self.apply_theme(&theme),
-            Err(e) => self.set_error(tf("status.theme_error", &[("error", &e)])),
+    /// The appearance file changed on disk, or the system went dark or light: show it.
+    fn poll_appearance(&mut self, ctx: &egui::Context) {
+        if let Some(result) = self.appearance_watch.poll() {
+            match result {
+                Ok(a) => {
+                    self.appearance = a;
+                    self.apply_appearance();
+                }
+                Err(e) => self.set_error(tf("status.theme_error", &[("error", &e)])),
+            }
+        }
+        if self.appearance.mode == crate::kit::appearance::Mode::System
+            && views::appearance_file::system_dark(ctx) != self.appearance_page.system_dark
+        {
+            self.apply_appearance();
         }
     }
 
@@ -2490,6 +2592,8 @@ impl CantusApp {
             PadVoice::Kick => DrumPad::kick(),
             PadVoice::Snare => DrumPad::snare(),
             PadVoice::HiHat => DrumPad::closed_hat(),
+            PadVoice::Clap => DrumPad::clap(),
+            PadVoice::Tom => DrumPad::tom(pitch, "Tom", 0.0),
             PadVoice::Sample => {
                 let mut p = DrumPad::snare();
                 p.voice = PadVoice::Sample;
@@ -2504,6 +2608,7 @@ impl CantusApp {
         } else {
             localized_pad_name(&pad)
         };
+        pad.id = kit.next_id();
         let index = kit.pads.partition_point(|p| p.pitch < pitch);
         if self.exec(Command::InsertPad {
             track,
@@ -2514,16 +2619,16 @@ impl CantusApp {
     }
 
     pub fn remove_pad(&mut self, track: TrackId, pad: usize) {
-        let Some(pitch) = self
+        let Some(id) = self
             .project()
             .track(track)
             .and_then(|t| t.instrument.pulsus())
             .and_then(|k| k.pad(pad))
-            .map(|p| p.pitch)
+            .map(|p| p.id)
         else {
             return;
         };
-        if self.exec(Command::RemovePad { track, pitch }) {
+        if self.exec(Command::RemovePad { track, pad: id }) {
             self.rack.selected_pad = pad.saturating_sub(1);
         }
     }
@@ -2546,22 +2651,25 @@ impl CantusApp {
         if let Some(p) = path.as_deref() {
             self.engine.samples.retry(std::path::Path::new(p));
         }
-        let mut commands = vec![Command::SetPadSample {
-            track,
-            pad: pad as u8,
-            path,
-        }];
-        let is_sample = self
+        let Some((id, is_sample)) = self
             .project()
             .track(track)
             .and_then(|t| t.instrument.pulsus())
             .and_then(|k| k.pad(pad))
-            .is_some_and(|p| p.voice == cantus_core::PadVoice::Sample);
+            .map(|p| (p.id, p.voice == cantus_core::PadVoice::Sample))
+        else {
+            return;
+        };
+        let mut commands = vec![Command::SetPadSample {
+            track,
+            pad: id,
+            path,
+        }];
         if !is_sample {
             commands.push(Command::SetInstrumentParam {
                 track,
                 param: cantus_core::InstrumentParam::Pulsus {
-                    pad: pad as u8,
+                    pad: id,
                     field: cantus_core::PadField::Voice,
                 },
                 value: cantus_core::PadVoice::Sample.index() as f32,
@@ -2816,6 +2924,13 @@ impl CantusApp {
         // as well (`crate::widgets`).
         let arrows_taken = crate::widgets::arrow_keys_claimed(ctx);
         for action in self.keymap.pressed(ctx, self.keyboard_piano, arrows_taken) {
+            // A bare M or S mutes or solos the selected strip only while the mixer is what
+            // is being edited; elsewhere the letters stay out of the way.
+            let strip_key = matches!(action, Action::ToggleStripMute | Action::ToggleStripSolo);
+            if strip_key && self.focus != EditFocus::Mixer && self.bare_binding_pressed(ctx, action)
+            {
+                continue;
+            }
             self.run_action(action);
         }
         if self.keyboard_piano {
@@ -2823,6 +2938,16 @@ impl CantusApp {
                 self.apply_key_event(ev);
             }
         }
+    }
+
+    /// Whether `action` fired this frame through a binding with no modifier.
+    fn bare_binding_pressed(&self, ctx: &egui::Context, action: Action) -> bool {
+        ctx.input(|i| {
+            self.keymap
+                .bindings_for(action)
+                .iter()
+                .any(|b| b.is_bare() && i.key_pressed(b.key))
+        })
     }
 
     /// Do one thing. Every path into this — a shortcut, a menu item, a future script or
@@ -2900,7 +3025,17 @@ impl CantusApp {
             }
             Quantize => self.quantize_selection(),
             ClearSelection => {
-                if self.editing_clips() {
+                // Esc over a floating device window closes it (FL); anywhere else it
+                // clears the selection.
+                let closed = self
+                    .theme_ctx
+                    .clone()
+                    .is_some_and(|ctx| self.workspace.close_hovered_floating_device(&ctx));
+                if closed {
+                    // The window was the thing to clear.
+                } else if self.appearance_page.picking {
+                    self.toggle_pick();
+                } else if self.editing_clips() {
                     self.clear_clip_selection();
                     // Escape in the arrangement clears *both* selections. Two presses to
                     // clear what reads as one selected thing is the kind of detail that
@@ -2920,6 +3055,9 @@ impl CantusApp {
             ToggleClipLoop => self.toggle_clip_loop(),
             ClipColorNext => self.cycle_clip_color(),
             RenameClip => self.begin_rename_clip(),
+            // In the mixer the arrows walk the strips (§10).
+            NudgeLeft if self.focus == EditFocus::Mixer => self.step_strip(-1),
+            NudgeRight if self.focus == EditFocus::Mixer => self.step_strip(1),
             NudgeLeft => self.nudge(-1, false),
             NudgeRight => self.nudge(1, false),
             NudgeLeftBar => self.nudge(-1, true),
@@ -2941,9 +3079,33 @@ impl CantusApp {
                     self.apply_key_event(ev);
                 }
             }
-            ViewPianoRoll => self.central = CentralView::PianoRoll,
-            ViewChannelRack => self.central = CentralView::ChannelRack,
-            ViewMixer => self.central = CentralView::Mixer,
+            // FL's window keys toggle their area (ADR 0024 §5): hide it when it shows,
+            // bring it to the front when it is behind a tab, put it back when it is gone.
+            ViewPianoRoll => self.toggle_pane(Pane::PianoRoll),
+            ViewChannelRack => self.toggle_pane(Pane::ChannelRack),
+            ViewMixer => self.toggle_pane(Pane::Mixer),
+            ViewArrangement => self.toggle_pane(Pane::Arrangement),
+            ToggleInspector => self.toggle_pane(Pane::Inspector),
+            CloseFloating => {
+                if let Some(ctx) = self.theme_ctx.clone() {
+                    self.workspace.close_floating_devices(&ctx);
+                }
+            }
+            ZoomIn | ZoomOut | ZoomReset => {
+                if let Some(ctx) = self.theme_ctx.clone() {
+                    match action {
+                        ZoomIn => self.step_ui_scale(&ctx, true),
+                        ZoomOut => self.step_ui_scale(&ctx, false),
+                        _ => self.apply_ui_scale(&ctx, settings::DEFAULT_UI_SCALE),
+                    }
+                }
+            }
+            PickElement => self.toggle_pick(),
+            ToggleDeviceKeyboard => {
+                if let Some(ctx) = &self.theme_ctx {
+                    views::workspace_device::request_keyboard_toggle(ctx);
+                }
+            }
             MoveStripLeft => {
                 if let Some(id) = self.selected_strip {
                     self.move_strip(id, -1);
@@ -2971,519 +3133,9 @@ impl CantusApp {
         }
     }
 
-    fn status_bar(&mut self, ui: &mut egui::Ui) {
-        // The engine and MIDI readouts on the right are the ones that must always be
-        // legible, so they claim their width first and the tool hint takes what is left.
-        ui.horizontal(|ui| {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let s = self.engine.stats();
-                let engine = if self.engine.is_live() {
-                    tf(
-                        "status.engine",
-                        &[
-                            ("device", &self.engine.device_name),
-                            ("rate", &(self.engine.sample_rate as u32)),
-                            ("load", &format!("{:.0}", s.load * 100.0)),
-                            ("overruns", &s.overruns),
-                            ("voices", &s.active_voices),
-                        ],
-                    )
-                } else {
-                    t("status.no_audio")
-                };
-                ui.label(
-                    egui::RichText::new(engine)
-                        .text_style(design::caption())
-                        .color(if s.overruns > 0 {
-                            theme::p().danger
-                        } else {
-                            theme::p().text_dim
-                        }),
-                );
-                // Plug-in latency is compensated, never silent: shown whenever there is
-                // some, in red when a path could not be given a delay line.
-                if s.latency_samples > 0 || s.pdc_unserved > 0 {
-                    ui.separator();
-                    let ms = s.latency_samples as f64 * 1000.0 / self.engine.sample_rate.max(1.0);
-                    let text = tf("status.latency", &[("ms", &format!("{ms:.1}"))]);
-                    let tip = if s.pdc_unserved > 0 {
-                        tf(
-                            "status.latency_unserved",
-                            &[("samples", &s.latency_samples), ("n", &s.pdc_unserved)],
-                        )
-                    } else {
-                        tf("status.latency_tip", &[("samples", &s.latency_samples)])
-                    };
-                    ui.label(
-                        egui::RichText::new(text)
-                            .text_style(design::caption())
-                            .color(if s.pdc_unserved > 0 {
-                                theme::p().danger
-                            } else {
-                                theme::p().text_dim
-                            }),
-                    )
-                    .on_hover_text(tip);
-                }
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(tf("status.midi", &[("n", &self.midi_port_names.len())]))
-                        .text_style(design::caption())
-                        .color(theme::p().text_dim),
-                );
-                ui.separator();
-                let kb = if self.keyboard_piano {
-                    tf("status.keyboard", &[("octave", &self.keyboard.octave)])
-                } else {
-                    t("status.keyboard_off")
-                };
-                ui.label(
-                    egui::RichText::new(kb)
-                        .text_style(design::caption())
-                        .color(theme::p().text_dim),
-                );
-                if self.show_stats {
-                    ui.separator();
-                    let avg = if self.frame_times.is_empty() {
-                        0.0
-                    } else {
-                        self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32
-                    };
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "ui {:.1} ms · notes drawn {} · block {} · max {:.0} µs",
-                            avg * 1000.0,
-                            self.piano_roll_notes_drawn,
-                            s.block_frames,
-                            s.max_block_us
-                        ))
-                        .text_style(design::mono_small())
-                        .color(theme::p().text_dim),
-                    );
-                }
-                ui.separator();
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let color = if self.status.error {
-                        theme::p().danger
-                    } else {
-                        theme::p().text_dim
-                    };
-                    ui.label(
-                        egui::RichText::new(&self.status.text)
-                            .text_style(design::caption())
-                            .color(color),
-                    );
-                    // The hint follows the half of the window being edited. Showing the
-                    // piano roll's tool hints while somebody is dragging clips around the
-                    // arrangement is worse than showing nothing: it is an answer to a
-                    // question they are not asking.
-                    let hint = match self.focus {
-                        EditFocus::Arrangement => Some(t("arrangement.hint")),
-                        EditFocus::PianoRoll if self.central == CentralView::PianoRoll => {
-                            Some(t(self.piano_roll.tool.hint_key()))
-                        }
-                        EditFocus::PianoRoll if self.central == CentralView::ChannelRack => {
-                            Some(t("rack.hint"))
-                        }
-                        EditFocus::PianoRoll => None,
-                    };
-                    if let Some(hint) = hint {
-                        ui.separator();
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(hint)
-                                    .text_style(design::caption())
-                                    .color(theme::p().text_dim),
-                            )
-                            .truncate(),
-                        );
-                    }
-                });
-            });
-        });
-    }
-
-    /// Preferences: the sound card, the MIDI ports, the language, the theme, how often to
-    /// autosave — and a way through to the shortcuts editor.
-    ///
-    /// Audio changes are deliberately *not* applied as the user drags: reopening the
-    /// device on every frame of a combo box would stutter the audio. The dialog collects a
-    /// pending choice and applies it when *Apply* is pressed.
-    fn settings_dialog(&mut self, ctx: &egui::Context) {
-        use crate::i18n::Locale;
-        use crate::settings::{
-            BUFFER_SIZES, MAX_AUTOSAVE_SECONDS, MIN_AUTOSAVE_SECONDS, SAMPLE_RATES,
-        };
-
-        let mut open = self.show_settings;
-        let mut pending = self.settings.audio.clone();
-        let mut apply_audio = false;
-        let mut rescan = false;
-        let mut open_shortcuts = false;
-        let mut locale_change: Option<Locale> = None;
-        let mut preset_change: Option<theme::Theme> = None;
-        let mut open_theme = false;
-        let mut ui_scale: Option<f32> = None;
-        let mut open_colours = false;
-        let mut autosave = self.settings.autosave_seconds;
-
-        egui::Window::new(t("settings.title"))
-            .collapsible(false)
-            .open(&mut open)
-            // Tall enough for all four sections at once: a preferences window that makes
-            // you scroll to find "Saving" hides half of itself.
-            .default_size([space::GRID * 130.0, space::GRID * 165.0])
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    section(ui, "settings.audio");
-                    egui::Grid::new("settings-audio")
-                        .num_columns(2)
-                        .spacing([space::S3, space::S2])
-                        .min_row_height(space::ROW)
-                        .show(ui, |ui| {
-                            ui.label(t("settings.device"));
-                            egui::ComboBox::from_id_salt("device")
-                                .selected_text(
-                                    pending
-                                        .device
-                                        .clone()
-                                        .unwrap_or_else(|| t("settings.default")),
-                                )
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut pending.device,
-                                        None,
-                                        t("settings.default"),
-                                    );
-                                    for d in cantus_engine::output_devices() {
-                                        let label = if d.is_default {
-                                            format!("{} ({})", d.name, t("settings.default"))
-                                        } else {
-                                            d.name.clone()
-                                        };
-                                        ui.selectable_value(
-                                            &mut pending.device,
-                                            Some(d.name.clone()),
-                                            label,
-                                        );
-                                    }
-                                });
-                            ui.end_row();
-
-                            ui.label(t("settings.sample_rate"));
-                            egui::ComboBox::from_id_salt("rate")
-                                .selected_text(match pending.sample_rate {
-                                    Some(r) => format!("{r} Hz"),
-                                    None => t("settings.default"),
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut pending.sample_rate,
-                                        None,
-                                        t("settings.default"),
-                                    );
-                                    for r in SAMPLE_RATES {
-                                        ui.selectable_value(
-                                            &mut pending.sample_rate,
-                                            Some(r),
-                                            format!("{r} Hz"),
-                                        );
-                                    }
-                                });
-                            ui.end_row();
-
-                            ui.label(t("settings.buffer"));
-                            ui.horizontal(|ui| {
-                                egui::ComboBox::from_id_salt("buffer")
-                                    .selected_text(match pending.buffer_frames {
-                                        Some(b) => b.to_string(),
-                                        None => t("settings.default"),
-                                    })
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(
-                                            &mut pending.buffer_frames,
-                                            None,
-                                            t("settings.default"),
-                                        );
-                                        for b in BUFFER_SIZES {
-                                            ui.selectable_value(
-                                                &mut pending.buffer_frames,
-                                                Some(b),
-                                                b.to_string(),
-                                            );
-                                        }
-                                    });
-                                // Frames mean nothing on their own; milliseconds are what
-                                // a musician is actually choosing between.
-                                if let Some(ms) = pending.block_latency_ms(self.engine.sample_rate)
-                                {
-                                    ui.label(
-                                        egui::RichText::new(format!("≈ {ms:.1} ms"))
-                                            .text_style(design::mono_small())
-                                            .color(theme::p().text_dim),
-                                    );
-                                }
-                            });
-                            ui.end_row();
-                        });
-
-                    ui.horizontal(|ui| {
-                        let changed = pending != self.settings.audio;
-                        if ui
-                            .add_enabled(changed, egui::Button::new(t("settings.apply")))
-                            .clicked()
-                        {
-                            apply_audio = true;
-                        }
-                        let running = if self.engine.is_live() {
-                            tf(
-                                "settings.audio_now",
-                                &[
-                                    ("device", &self.engine.device_name),
-                                    ("rate", &(self.engine.sample_rate as u32)),
-                                ],
-                            )
-                        } else {
-                            t("status.no_audio")
-                        };
-                        ui.label(
-                            egui::RichText::new(running)
-                                .text_style(design::caption())
-                                .color(theme::p().text_dim),
-                        );
-                    });
-                    if let Some(e) = &self.audio_error {
-                        ui.label(egui::RichText::new(e).color(theme::p().danger));
-                    }
-
-                    section(ui, "settings.midi");
-                    ui.horizontal(|ui| {
-                        if ui.button(t("settings.rescan_midi")).clicked() {
-                            rescan = true;
-                        }
-                        ui.label(
-                            egui::RichText::new(tf(
-                                "status.midi",
-                                &[("n", &self.midi_port_names.len())],
-                            ))
-                            .text_style(design::caption())
-                            .color(theme::p().text_dim),
-                        );
-                    });
-                    for name in &self.midi_port_names {
-                        ui.label(
-                            egui::RichText::new(name)
-                                .text_style(design::caption())
-                                .color(theme::p().text_dim),
-                        );
-                    }
-                    if self.midi_port_names.is_empty() {
-                        ui.label(
-                            egui::RichText::new(t("settings.no_midi"))
-                                .text_style(design::caption())
-                                .color(theme::p().text_dim),
-                        );
-                    }
-
-                    section(ui, "settings.appearance");
-                    egui::Grid::new("settings-look")
-                        .num_columns(2)
-                        .spacing([space::S3, space::S2])
-                        .min_row_height(space::ROW)
-                        .show(ui, |ui| {
-                            ui.label(t("menu.language"));
-                            ui.horizontal(|ui| {
-                                for l in Locale::ALL {
-                                    if ui
-                                        .selectable_label(
-                                            crate::i18n::locale() == l,
-                                            l.native_name(),
-                                        )
-                                        .clicked()
-                                    {
-                                        locale_change = Some(l);
-                                    }
-                                }
-                            });
-                            ui.end_row();
-
-                            ui.label(t("menu.theme"));
-                            ui.horizontal(|ui| {
-                                for (key, make) in theme::PRESETS {
-                                    if ui.button(t(key)).clicked() {
-                                        preset_change = Some(make());
-                                    }
-                                }
-                                if ui.button(t("menu.open_theme_file")).clicked() {
-                                    open_theme = true;
-                                }
-                            });
-                            ui.end_row();
-
-                            ui.label(t("settings.ui_scale"));
-                            ui.horizontal(|ui| {
-                                let mut scale = self.settings.ui_scale;
-                                let r = ui.add(
-                                    egui::Slider::new(
-                                        &mut scale,
-                                        settings::MIN_UI_SCALE..=settings::MAX_UI_SCALE,
-                                    )
-                                    .step_by(0.05)
-                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
-                                );
-                                if r.changed() {
-                                    ui_scale = Some(scale);
-                                }
-                                if ui.button(t("settings.reset")).clicked() {
-                                    ui_scale = Some(1.0);
-                                }
-                            });
-                            ui.end_row();
-
-                            ui.label(t("settings.colours"));
-                            if ui.button(t("settings.edit_colours")).clicked() {
-                                open_colours = true;
-                            }
-                            ui.end_row();
-
-                            ui.label(t("keymap.title"));
-                            if ui.button(t("settings.edit_shortcuts")).clicked() {
-                                open_shortcuts = true;
-                            }
-                            ui.end_row();
-                        });
-
-                    section(ui, "settings.saving");
-                    ui.horizontal(|ui| {
-                        ui.label(t("settings.autosave"));
-                        ui.add(
-                            egui::Slider::new(
-                                &mut autosave,
-                                MIN_AUTOSAVE_SECONDS..=MAX_AUTOSAVE_SECONDS,
-                            )
-                            .suffix(" s"),
-                        );
-                    });
-                    ui.label(
-                        egui::RichText::new(t("settings.autosave_hint"))
-                            .text_style(design::caption())
-                            .color(theme::p().text_dim),
-                    );
-
-                    // Plug-ins made to the market's standards (ADR 0019): last, since it
-                    // grows with what is installed.
-                    section(ui, "host.manager.title");
-                    views::plugins::manager(self, ui);
-                });
-            });
-
-        self.show_settings = open;
-        if autosave != self.settings.autosave_seconds {
-            self.settings.autosave_seconds = autosave;
-            self.store_settings();
-        }
-        if apply_audio {
-            self.settings.audio = pending;
-            self.restart_audio();
-        }
-        if rescan {
-            self.rescan_midi();
-        }
-        if let Some(l) = locale_change {
-            self.set_locale(l);
-        }
-        if let Some(theme) = preset_change {
-            self.apply_theme_preset(theme);
-        }
-        if open_theme {
-            self.reveal_theme_file();
-        }
-        if let Some(scale) = ui_scale {
-            self.apply_ui_scale(ctx, scale);
-        }
-        if open_colours {
-            self.show_theme_editor = true;
-        }
-
-        if open_shortcuts {
-            self.show_shortcuts = true;
-        }
-    }
-
-    /// The colour editor: every token in the theme, with a picker, applied as you drag.
-    ///
-    /// It is a window of its own rather than a section inside Settings because there are
-    /// twenty-two colours: inside the settings dialog's scroll area you could see two of
-    /// them at a time. It writes through to `theme.json`, which stays the source of truth
-    /// and the thing `ThemeWatcher` reloads.
-    fn theme_dialog(&mut self, ctx: &egui::Context) {
-        let mut open = self.show_theme_editor;
-        let mut edits: Vec<(&'static str, egui::Color32)> = Vec::new();
-        let mut reset = false;
-        let mut edited = self.theme_for_editing();
-
-        egui::Window::new(t("settings.colours"))
-            .collapsible(false)
-            .open(&mut open)
-            .default_size([space::GRID * 90.0, space::GRID * 150.0])
-            .show(ctx, |ui| {
-                ui.label(
-                    egui::RichText::new(tf("theme.editing", &[("name", &edited.name)]))
-                        .text_style(design::caption())
-                        .color(theme::p().text_dim),
-                );
-                ui.separator();
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    let tokens = edited.tokens_mut();
-                    for group in theme::Theme::GROUPS {
-                        ui.add_space(space::S2);
-                        ui.label(
-                            egui::RichText::new(t(group).to_uppercase())
-                                .text_style(design::caption())
-                                .color(theme::p().text_dim),
-                        );
-                        egui::Grid::new(group)
-                            .num_columns(2)
-                            .spacing([space::S3, space::S1])
-                            .show(ui, |ui| {
-                                for token in tokens.iter().filter(|k| k.group_key == group) {
-                                    ui.label(t(token.label_key));
-                                    // The picker speaks Color32; the file speaks hex, and
-                                    // stays what the user can edit by hand.
-                                    let mut colour =
-                                        theme::parse_hex(token.hex).unwrap_or(egui::Color32::GRAY);
-                                    if ui.color_edit_button_srgba(&mut colour).changed() {
-                                        edits.push((token.label_key, colour));
-                                    }
-                                    ui.end_row();
-                                }
-                            });
-                    }
-                });
-                ui.separator();
-                if ui.button(t("settings.reset_theme")).clicked() {
-                    reset = true;
-                }
-            });
-
-        self.show_theme_editor = open;
-        if reset {
-            self.editing_theme = None;
-            self.apply_theme_preset(theme::default_theme());
-            return;
-        }
-        if !edits.is_empty() {
-            let mut theme = edited;
-            {
-                let mut tokens = theme.tokens_mut();
-                for (label_key, colour) in edits {
-                    if let Some(token) = tokens.iter_mut().find(|k| k.label_key == label_key) {
-                        *token.hex = theme::to_hex(colour);
-                    }
-                }
-            }
-            self.apply_theme_edit(theme);
-        }
+    /// The last audio device error, while it stands (the settings window shows it).
+    pub fn audio_error(&self) -> Option<&str> {
+        self.audio_error.as_deref()
     }
 
     /// The shortcuts editor: every action, what it is bound to, and a click to rebind.
@@ -3706,11 +3358,13 @@ impl CantusApp {
         views::eq_editor::window(self, ctx);
         views::comp_editor::window(self, ctx);
         views::fx::window(self, ctx);
+        views::inst::window(self, ctx);
+        views::pulsus_editor::window(self, ctx);
         if self.show_settings {
-            self.settings_dialog(ctx);
+            views::workspace_settings::window(self, ctx);
         }
         if self.show_theme_editor {
-            self.theme_dialog(ctx);
+            views::appearance::window(self, ctx);
         }
         if self.show_shortcuts {
             self.keymap_dialog(ctx);
@@ -3718,10 +3372,16 @@ impl CantusApp {
     }
 }
 
-impl eframe::App for CantusApp {
-    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+impl CantusApp {
+    /// One frame of the whole window: the toolbar, the workspace, the status bar, the
+    /// floating windows. `eframe::App::ui` calls it; so do the splash (`crate::boot`) once
+    /// the application is up, and the whole-window screenshots.
+    pub fn frame(&mut self, root: &mut egui::Ui) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
+        if self.theme_ctx.is_none() {
+            self.theme_ctx = Some(ctx.clone());
+        }
         let frame_start = Instant::now();
         self.engine.poll();
         // Hosted plug-ins: their requests, restarts, and what their windows did.
@@ -3731,7 +3391,7 @@ impl eframe::App for CantusApp {
         self.pump_analyser();
         self.poll_export();
         self.poll_recording();
-        self.poll_theme();
+        self.poll_appearance(ctx);
         self.global_shortcuts(ctx);
         self.sync_live_track();
 
@@ -3747,76 +3407,29 @@ impl eframe::App for CantusApp {
             }
         }
 
-        // Chrome panels sit one step above the canvas and are separated from it by a
-        // hairline on the edge they meet it at (design::Elevation).
-        let pal = theme::p();
-        let panel = Elevation::Panel.frame(&pal);
-        let hairline = design::hairline(&pal);
-        egui::Panel::top(egui::Id::new("transport"))
-            .frame(panel.stroke(hairline).outer_margin(egui::Margin {
-                bottom: -1,
-                ..Default::default()
-            }))
+        // The toolbar on top, the status bar below, the workspace between: every area of
+        // the window a tab of the dock (ADR 0024 §5).
+        let s = crate::kit::Style::current();
+        let toolbar = (views::transport::HEIGHT * s.t.density).round();
+        let status = (views::workspace_status::HEIGHT * s.t.density).round();
+        egui::Panel::top(egui::Id::new("toolbar"))
+            .frame(egui::Frame::NONE)
+            .exact_size(toolbar)
+            .resizable(false)
             .show(root, |ui| views::transport::show(self, ui));
         egui::Panel::bottom(egui::Id::new("status"))
-            .frame(panel.stroke(hairline).outer_margin(egui::Margin {
-                top: -1,
-                ..Default::default()
-            }))
-            .show(root, |ui| self.status_bar(ui));
-        // A layout being applied pins the panel for one frame (`Layouts::forced`);
-        // otherwise the panel is resizable and the user's drag is what counts.
-        let forced_inspector = self.layouts.forced(layout::INSPECTOR);
-        let forced_arrangement = self.layouts.forced(layout::ARRANGEMENT);
-        if self.layouts.current.show_inspector {
-            let p = egui::Panel::right(layout::panel_id(layout::INSPECTOR));
-            let p = match forced_inspector {
-                Some(w) => p.exact_size(w),
-                None => p
-                    .resizable(true)
-                    .default_size(space::GRID * 76.0)
-                    .min_size(space::GRID * 60.0),
-            };
-            p.frame(
-                panel
-                    .inner_margin(egui::Margin::same(space::S3 as i8))
-                    .stroke(hairline)
-                    .outer_margin(egui::Margin {
-                        left: -1,
-                        ..Default::default()
-                    }),
-            )
-            .show(root, |ui| views::inspector::show(self, ui));
-        }
-        if self.layouts.current.show_arrangement {
-            let p = egui::Panel::top(layout::panel_id(layout::ARRANGEMENT));
-            let p = match forced_arrangement {
-                Some(h) => p.exact_size(h),
-                None => p
-                    .resizable(true)
-                    .default_size(space::GRID * 65.0)
-                    .min_size(space::GRID * 30.0),
-            };
-            p.frame(Elevation::Canvas.frame(&pal))
-                .show(root, |ui| views::arrangement::show(self, ui));
-        }
+            .frame(egui::Frame::NONE)
+            .exact_size(status)
+            .resizable(false)
+            .show(root, |ui| views::workspace_status::show(self, ui));
         egui::CentralPanel::default()
-            .frame(
-                Elevation::Canvas
-                    .frame(&pal)
-                    .inner_margin(egui::Margin::same(space::S1 as i8)),
-            )
-            .show(root, |ui| {
-                ui.horizontal(|ui| views::transport::view_tabs(self, ui));
-                match self.central {
-                    CentralView::PianoRoll => views::piano_roll::show(self, ui),
-                    CentralView::ChannelRack => views::channel_rack::show(self, ui),
-                    CentralView::Mixer => views::mixer::show(self, ui),
-                }
-            });
+            .frame(egui::Frame::NONE.fill(s.t.panel))
+            .show(root, |ui| views::workspace::show(self, ui));
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
-        design::paint_focus_ring(ctx, &pal);
+        views::appearance::pick(self, ctx);
+        views::hint::value_pill(ctx);
+        design::paint_focus_ring(ctx, &theme::p());
         self.layouts.end_frame();
 
         self.sync_engine();
@@ -3844,31 +3457,127 @@ impl eframe::App for CantusApp {
             self.frame_times.remove(0);
         }
         self.frame_times.push(dt);
-        ctx.request_repaint_after(Duration::from_millis(
-            if self.engine.is_playing() || !self.auditions.is_empty() || self.is_recording() {
-                16
-            } else {
-                100
-            },
-        ));
-        // A hosted plug-in expects its requests served soon (CLAP `request_callback`),
-        // and a scan's result shown when it lands: the frame loop is the main thread's
-        // pump, so it keeps turning while either is about.
-        if self.plugins.loaded_count() > 0 || self.plugins.scanning() {
-            ctx.request_repaint_after(Duration::from_millis(33));
+        self.tick(ctx);
+    }
+
+    /// The repaint policy (ADR 0024 §13): say what moves, and let the ticker ask for one
+    /// frame at ≤ 60 Hz — or none at all when nothing does.
+    fn tick(&mut self, ctx: &egui::Context) {
+        if self.engine.is_playing() {
+            ticker::moving(ctx, Reason::Playback);
+        }
+        if self.is_recording() {
+            ticker::moving(ctx, Reason::Recording);
+        }
+        if !self.auditions.is_empty() {
+            ticker::moving(ctx, Reason::Audition);
+        }
+        if self.export_in_progress() || self.plugins.scanning() {
+            ticker::moving(ctx, Reason::Background);
+        }
+        // A hosted plug-in expects its requests served soon (CLAP `request_callback`): the
+        // frame loop is the main thread's pump, so it keeps turning while one is loaded.
+        if self.plugins.loaded_count() > 0 {
+            ticker::moving(ctx, Reason::Plugins);
+        }
+        let m = self.engine.meters().master;
+        if m[0].max(m[1]) > 1e-5 {
+            ticker::moving(ctx, Reason::Meters);
+        }
+        // An autosave that falls due: one wake-up at that moment, not a steady tick.
+        if self.bus.is_dirty() && self.bus.revision() != self.autosaved_revision {
+            let left = self
+                .settings
+                .autosave_interval()
+                .saturating_sub(self.last_autosave.elapsed());
+            ticker::wake_after(ctx, left.max(Duration::from_millis(250)));
+        }
+        ticker::finish(ctx);
+    }
+
+    /// The last two seconds' average frame time, in milliseconds (the stats readout).
+    pub fn average_frame_ms(&self) -> f32 {
+        if self.frame_times.is_empty() {
+            0.0
+        } else {
+            self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32 * 1000.0
         }
     }
 }
 
-/// A group heading inside a dialog, matching the inspector's.
-fn section(ui: &mut egui::Ui, key: &str) {
-    ui.add_space(space::S3);
-    ui.label(
-        egui::RichText::new(t(key).to_uppercase())
-            .text_style(design::caption())
-            .color(theme::p().text_dim),
-    );
-    ui.add_space(space::S1);
+impl eframe::App for CantusApp {
+    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.frame(root);
+    }
+}
+
+/// What the application reads from disk before it can open — plain data, so the splash
+/// reads it on a thread (ADR 0024 §12): the settings, the look, the layouts, the keymap.
+pub struct Files {
+    pub settings: Settings,
+    pub settings_path: PathBuf,
+    pub appearance: crate::kit::appearance::Appearance,
+    pub appearance_path: PathBuf,
+    pub layouts: Layouts,
+    pub layouts_path: PathBuf,
+    pub keymap: Keymap,
+    pub keymap_path: PathBuf,
+}
+
+impl Files {
+    /// Read everything from `dir`, writing the files a fresh install should find there
+    /// (the keymap, to be discovered and edited). Sets the interface language: an explicit
+    /// `--locale` wins over the stored preference.
+    pub fn read(dir: &Path, locale_from_flag: Option<i18n::Locale>) -> Files {
+        let settings_path = settings::settings_path(dir);
+        let settings = Settings::load(&settings_path);
+        match locale_from_flag {
+            Some(l) => i18n::set_locale(l),
+            None => {
+                if let Some(l) = settings.locale.as_deref().and_then(i18n::Locale::from_code) {
+                    i18n::set_locale(l);
+                }
+            }
+        }
+        let (appearance, appearance_path) = views::appearance_file::load(dir);
+        let layouts_path = layout::layouts_path(dir);
+        let mut layouts = Layouts::load(&layouts_path);
+        layouts.force();
+        let keymap_path = crate::keymap::keymap_path(dir);
+        let keymap = Keymap::load(&keymap_path);
+        if !keymap_path.exists() {
+            if let Err(e) = keymap.save(&keymap_path) {
+                log::warn!("cannot write keymap file: {e}");
+            }
+        }
+        Files {
+            settings,
+            settings_path,
+            appearance,
+            appearance_path,
+            layouts,
+            layouts_path,
+            keymap,
+            keymap_path,
+        }
+    }
+}
+
+/// Open the sound card the settings name — or the system's default when that one is gone,
+/// or a silent engine when there is none at all.
+pub fn start_engine(settings: &Settings) -> EngineHandle {
+    match EngineHandle::start(&settings.audio.to_config()) {
+        Ok(e) => e,
+        Err(e) => {
+            log::error!("audio: {e}");
+            EngineHandle::dummy()
+        }
+    }
+}
+
+/// Where the application keeps the user's files: settings, look, layouts, keymap.
+pub fn config_dir() -> PathBuf {
+    directories_fallback()
 }
 
 /// Show a file in the platform's file manager, selecting it where that is supported.
@@ -3954,7 +3663,9 @@ pub fn localized_pad_name(pad: &cantus_core::DrumPad) -> String {
         "Open hat" => "pad.name.open_hat",
         "Low tom" => "pad.name.low_tom",
         "High tom" => "pad.name.high_tom",
-        _ => return pad.name.clone(),
+        other => {
+            return views::pulsus_editor::localized_name(other).unwrap_or_else(|| pad.name.clone())
+        }
     };
     t(key)
 }

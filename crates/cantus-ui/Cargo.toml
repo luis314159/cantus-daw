@@ -25,6 +25,12 @@ serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
 hound.workspace = true
+# ADR 0024: logos and cached layers are rasterised as vectors at the exact pixel size.
+# resvg / usvg: Apache-2.0 OR MIT; tiny-skia: BSD-3-Clause. No text, no raster images.
+resvg = { version = "0.48", default-features = false }
+tiny-skia = "0.12"
+# ADR 0024 §5: the workspace docks, splits, stacks and floats its areas (MIT).
+egui_dock = { version = "0.21", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3"

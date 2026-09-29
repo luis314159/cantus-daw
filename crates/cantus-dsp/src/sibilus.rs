@@ -485,7 +485,7 @@ impl Sibilus {
         let nfir = self.fir.len();
         for i in 0..n {
             // Band edges glide on a fixed grid.
-            if self.t % GLIDE as u64 == 0 && (self.lo != tlo || self.hi != thi) {
+            if self.t.is_multiple_of(GLIDE as u64) && (self.lo != tlo || self.hi != thi) {
                 let glide = self.glide;
                 let step = |cur: f32, target: f32| {
                     let r = (cur / target).ln();
@@ -514,7 +514,7 @@ impl Sibilus {
             };
 
             // Detection, per channel.
-            let update = self.t % UPDATE as u64 == 0;
+            let update = self.t.is_multiple_of(UPDATE as u64);
             let mut band = [0f32; 2];
             let mut target = [0f32; 2];
             let mut det_db = -120f32;
@@ -624,7 +624,7 @@ impl Sibilus {
             a.conf = a.conf.max(self.ctl[3].at(late));
             self.track_event(gr_now, det_now, crossed);
             self.t += 1;
-            if self.t % self.chunk as u64 == 0 {
+            if self.t.is_multiple_of(self.chunk as u64) {
                 let mut col = self.acc;
                 col.hz = self.acc_zc as f32 * self.sr / (2.0 * self.chunk as f32);
                 self.ring[(self.seq % HISTORY as u64) as usize] = col;

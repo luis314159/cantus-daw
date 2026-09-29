@@ -1,0 +1,26 @@
+# views: the round-18 views work's strings. Every key here needs its twin in views.en.txt.
+
+# --- el marco de las vistas de edición (arreglo, piano roll, rack de canales) ---
+views.nav.hbar = Desplazar en el tiempo · arrastra un extremo de la barra para acercar · doble clic: ver todo
+views.nav.vbar = Desplazar las filas · arrastra un extremo de la barra para cambiar su altura · doble clic: ver todas las filas
+arrangement.menu = Menú del arreglo
+arrangement.grid_tip = A qué se ajustan los clips al arrastrarlos (Ctrl al arrastrar: sin ajuste)
+arrangement.snap_tip = Ajustar los clips a la cuadrícula
+
+# --- colores de tema que añaden las vistas de edición (los lista el editor de colores) ---
+kit.group.editor = Editores
+kit.token.editor.row_white = Fila (tecla blanca)
+kit.token.editor.row_black = Fila (tecla negra) y pistas
+kit.token.editor.playhead = Cabezal de reproducción
+pianoroll.menu = Menú del piano roll
+pianoroll.grid_tip = A qué se ajustan las notas (Alt al arrastrar: sin ajuste)
+pianoroll.snap_tip = Ajustar las notas a la cuadrícula
+pianoroll.zoom_notes = Acercar a las notas seleccionadas (a todas si no hay selección)
+pianoroll.keys_tip = Haz clic en una tecla para oírla
+pianoroll.split_tip = Arrastra para cambiar el alto del carril de velocidad · clic derecho: restablecer · doble clic: alternar
+pianoroll.velocity_tip = Arrastra un tallo arriba o abajo para cambiar la velocidad de su nota (y de la selección)
+rack.menu = Menú del rack de canales
+rack.fit = Ajustar el patrón al ancho
+rack.bars = compases {from}–{to}
+rack.grid_tip = Lo que vale un paso
+pianoroll.velocity.short = Vel.

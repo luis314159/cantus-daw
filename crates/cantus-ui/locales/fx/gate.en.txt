@@ -102,3 +102,21 @@ gate.midi_none = choose a track
 gate.midi_tip = The track whose notes play the gate. Its own sound can stay muted: muting a track silences its instrument, not its notes.
 gate.vel_tip = How much less the softest note opens the gate than the hardest; at 0 dB every note opens it fully.
 gate.midi_waiting = no track chosen: the gate stays shut
+
+# The kit's frame (round 18)
+gate.card.level = Level
+gate.card.key_filter = Key filter
+gate.card.transfer = Transfer
+gate.card.learn = Learn and hits
+fx.gate.hyst.short = HYST
+fx.gate.look.short = LOOK
+fx.gate.vel.short = VEL
+fx.gate.rel.short = REL
+fx.gate.hold.short = HOLD
+fx.gate.ratio.short = RATIO
+fx.gate.att.short = ATK
+fx.gate.thr.short = THR
+fx.gate.hpf.short = HP
+fx.gate.lpf.short = LP
+gate.key.own = Own input
+gate.key.sidechain = Sidechain

@@ -1,0 +1,61 @@
+# mixer: the round-18 mixer work's strings. Every key here needs its twin in mixer.es.txt.
+
+# The legend column: each row named once for the whole desk (`.short` where the full
+# name may not fit the column).
+mixer.legend.number = Number
+mixer.legend.name = Name
+mixer.legend.meter = Level
+mixer.legend.mute = Mute · solo
+mixer.legend.mute.short = Mute · solo
+mixer.legend.pan = Pan
+mixer.legend.fader = Volume
+mixer.legend.readout = Value
+mixer.legend.phase = Phase · swap
+mixer.legend.phase.short = Phase · swap
+mixer.legend.width = Width
+mixer.legend.eq = EQ · low mid high
+mixer.legend.eq.short = EQ
+mixer.legend.fx = FX · record
+mixer.legend.fx.short = FX · rec
+mixer.legend.sends = Sends
+mixer.legend.inserts = Inserts
+
+# The hint bar's names for the desk's controls.
+mixer.hint.balance = Balance
+mixer.hint.record = Record this strip to a WAV file
+mixer.hint.peak = Held peak · click to reset
+mixer.hint.send_free = Send the selected strip here · Ctrl+click: route it here only
+mixer.hint.send_loop = The selected strip cannot go here: it would make a loop
+mixer.hint.send_lit = The selected strip goes here · click to send it to the master instead
+mixer.hint.send_knob = Send level from the selected strip · right-click for the send's menu
+mixer.hint.route = Where the selected strip goes · click for every destination
+mixer.hint.ratio = Drag to share the height between meters and faders · double-click to reset
+mixer.hint.menu = The mixer's menu: width, rows, colours, pan law
+mixer.hint.modes = Strip width · Ctrl+wheel over the desk steps through them
+mixer.hint.slot_empty = Empty insert slot · click to add an effect
+mixer.hint.slot = Click the lamp to bypass, the name to open · right-click for more
+mixer.hint.group = Click to fold · double-click to rename · right-click for the group's menu
+mixer.hint.gr = Gain reduction
+mixer.hint.name = Strip
+mixer.takes = Takes
+
+# Colourful mixer (FL): how strongly a strip takes its colour.
+mixer.colourful.off = Off
+mixer.colourful.low = Low
+mixer.colourful.medium = Medium
+mixer.colourful.high = High
+
+# The desk's menus.
+mixer.menu.width = Strip width
+mixer.menu.rows = Rows
+mixer.menu.colourful = Colourful mixer
+mixer.menu.reset_ratio = Reset the meter and fader heights
+mixer.menu.routing = Routing
+mixer.menu.output = Output
+mixer.menu.send_to = Send to
+mixer.menu.desk = Desk
+mixer.menu.send_here_one = Send the selected strip here
+mixer.menu.send_on = Send on
+mixer.menu.route_only = Route the selected strip here only
+mixer.menu.route_master = Route the selected strip to the master
+mixer.menu.open_editor = Open the editor

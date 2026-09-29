@@ -1691,7 +1691,7 @@ impl Aequalis {
     }
 
     fn key_chunk(&mut self, kl: &[f32], kr: &[f32]) {
-        if self.clock % KEY_HOP == 0 {
+        if self.clock.is_multiple_of(KEY_HOP) {
             self.key.compute(self.sample_rate);
         }
         self.key.push(kl, kr);
@@ -1712,7 +1712,7 @@ impl Aequalis {
                 if auto {
                     self.auto.k_in.power(l, r, &mut self.auto.e_in, coef);
                 }
-                if self.np_dirty && self.clock % phase::NP_FADE as u64 == 0 {
+                if self.np_dirty && self.clock.is_multiple_of(phase::NP_FADE as u64) {
                     self.build_stages(false);
                     self.np.design(&self.stages);
                     self.np_dirty = false;

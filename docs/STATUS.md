@@ -1,21 +1,33 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-25 (round 17: **Cantus meets the market's DAWs** — it hosts CLAP and VST3 plug-ins behind one contract, with a crash-proof scanner; our seven effects ship as a separate CLAP/VST3 build, bit-identical to the native ones and proved by hosting them in Cantus itself; MIDI files, stems and DAWproject in and out; the playhead and recording follow the latency, bypass keeps it, an EQ allocates only what it uses, and a track's notes can play an effect; schema 15) · **Phase:** 0/1 complete, Phase 2 (MIDI), Phase 4 (mixer) all but external I/O, Phase 8 (effects) complete for the first family, plug-in hosting (5.8) begun · **Tests:** 689 green + 6 ignored (one real-device), clippy clean · **Code:** ~118 000 lines of Rust
+**Updated:** 2026-09-29 (round 18: **a look drawn by hand, FL Studio first** (ADR 0024) — a vector component kit of our own replaces every stock widget; the Slate theme (FL-derived, dark) is the default and Paper the light option; IBM Plex Sans Condensed; a docked, resizable workspace; an FL-style mixer that fits and then scrolls; the inspector as the channel's signal-flow sheet; every effect and instrument in one device shell; the appearance page with pick-an-element; the user's logos and a splash; a frame budget. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 160+ green, clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
-## The next session: the instruments land, then what round 17 left
+## The next session: what round 17 left
 
-Round 17 did the user's "compatible with the market's DAWs" (its section is below). What
-is next, in order:
+Round 17 had two halves, both below: the native instruments, and "compatible with the
+market's DAWs". What is next, in order:
 
-**1. The instruments** belong to the other session, `daw-b0` (the user's split,
-2026-09-24): an instrument contract (ADR 0023, `InstrumentUnit`) and seven builders on
-`inst/*` branches in `C:\projects\daw-inst\`, to be merged into this tree by that session.
-Its native-instrument migration becomes **schema 16** (14 and 15 are round 17's). Hosted
-CLAP/VST3 instruments on tracks are an adapter from `cantus_host::AudioThread` to its
-`InstrumentUnit` — built on `cantus-host`, never a second host; the host contract already
-carries notes with ids, release velocity and per-note expressions.
+**1. What the instruments left**, in the order that pays most:
+- *Host hooks the builders designed and could not wire* (their docs name each): the song's
+  **tempo and position** for every unit (LFO and arp sync, a tempo-locked rotary, glide in
+  note values) — pass `crate::fx::SongPosition` through `InstrumentUnit`; **Gravis's kick
+  duck** (`kick_in(ahead)`: the engine already holds every track's sorted notes, so the
+  bass can duck *before* the kick with no latency) and **song key** (needs a project key);
+  **Pulsus's per-pad outputs** (`DrumPad::output` and `process_add_bus` exist; the track
+  loop must route each bus to its strip).
+- *Hosted CLAP/VST3 instruments on tracks*: an adapter from `cantus_host::AudioThread` to
+  `InstrumentUnit`, on `cantus-host` — never a second host.
+- *The whole-block strip stage* (item 2 below) — agree it with the track side here.
+- *Each instrument's P1 list* (in its doc): Unda's wavetable editor and export, Exemplar's
+  disk streaming, Calor's host-synced LFOs, Modulus's AI programming, Pulsus's drag-and-drop
+  and rack chips, and the modelled grand piano (Chorda) — after a legal read of Modartt's
+  patent, which expires 2027-10-20.
+- *One preset library across instruments*, with audition through the user's own clip
+  (`research/instruments/family.md` §6).
+- *Bundled content*: ADR 0001 allows only original or CC0 samples; a CC-BY set (Salamander
+  Grand) needs the owner's ruling.
 
 **2. What round 17 left**, the ones worth doing first:
 - *A whole-block strip stage.* Inserts run once per note-event segment, sometimes for a
@@ -84,8 +96,9 @@ reasoning stays next to the result.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0022 | done |
+| Workspace, licenses, ADRs 0001–0023 | done |
 | `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, pads and lanes, track height and icon, mixer strips and routing, **sends, strip solo, EQ, slot mix, submixes** | done; 39 tests incl. 40-seed undo/redo invariant fuzz (pads, instruments, strips, sends, routes the commands refuse) |
+| **Native instruments** (ADR 0023): Unda, Calor and the shared `cantus_dsp::va`, Modulus, Exemplar, Gravis, Organum, Lamina, and Pulsus II; the shared modulation model, voice allocator and editor frame (Play · Edit · Matrix) | done; each has `docs/instruments/<name>.md` and its own DSP, engine and UI tests; `inst_contract.rs` holds every kind to block-size independence, headroom and exact silence |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, **RBJ biquads and the three-band channel EQ**, null-test harness | done; 37 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |
 | `cantus-engine`: transport, processor with mixer strips in dependency order, **post-fader sends, strip EQ, per-slot dry/wet, swap, FX switch**, insert chains on strips, width / pan law / polarity, two instruments per slot, stereo instrument path, sample cache, hardware MIDI in, recording feedback, cpal backend, offline render | done; 23 null/behaviour tests (five for a kit, one golden render, one for buses, five for sends / EQ / slot mix / swap / solo) + 5 effect/MIDI tests + 6 unit tests + 1 real-device test |
 | `cantus-project`: versioned JSON (**schema 12**), SHA-256, migrations 0→1→…→12, atomic save, autosave, recovery, fixture corpus | done; 10 tests; fixtures `v1`–`v12.cantus` must always load |
@@ -137,6 +150,105 @@ left-hand content overrun the right-hand readouts at 1200 px. Both now nest a
 `left_to_right` layout inside a `right_to_left` one, so the readouts claim their width
 first and the flexible content truncates. The Loop / Metronome / Keys text toggles became
 icon buttons, which is what freed the space.
+
+## Round 18: a look drawn by hand, FL Studio first (requested 2026-09-25)
+
+**The ask.** *The application looks super ugly and plain, and so do our plug-ins … the side
+panel of the mixer looks very ugly, the letters run into each other … let me resize and move
+the interface's elements … rethink the whole style at the level of the best DAWs — FL Studio
+is beautiful … as excellent as FL, vectorized by hand, with incredible performance … as
+configurable as possible.* The user also designed ten logos and asked for a splash like FL's.
+
+**Research.** Seven reports in `research/ui/` (screenshots local and git-ignored): FL Studio
+(the primary reference, measured, with a spec in §12), Ableton Live, Bitwig Studio,
+Logic/Studio One, the best plug-in and instrument UIs, an audit of Cantus's own interface
+(47 defects with file:line) and a measured study of how Cantus draws.
+
+**Decision:** ADR 0024. Phase A built the kit (`crates/cantus-ui/src/kit/`) and a proof render
+the user approved; Phase B migrated the app with five builders here and four in the
+instruments session, merged file by file.
+
+| Area | What changed |
+|---|---|
+| Kit | 18 hand-drawn parts on one lighting recipe, 61 named colour tokens, boxed text that elides or abbreviates and never collides, cached layers, one batched mesh for meters, 132 golden images, a lint against literal colours and stock widgets |
+| Themes | **Slate is the default**; Paper, Parchment, Ink & Gold; FL-style knobs (hue, saturation, brightness, contrast, text) plus depth, roundness, density and text size; Dark / Light / Follow the system with a theme per mode |
+| Workspace | `egui_dock`: tabs you drag, split, float and hide; splitters that reset on right-click; F5/F6/F7/F9, Alt+I, Alt+K; the hint bar and a value pill; UI zoom 75–200 %; zero repaints when idle |
+| Appearance | searchable tokens with reset, A/B, save/import/export, **pick an element** (Ctrl+Shift+I), the logo picker |
+| Splash and icons | the window starts as a splash with logo #2 while files, MIDI and plug-ins load on a thread; window, taskbar and `.exe` icons from the logo |
+| Mixer | FL's strip with a legend column, Compact / Wide / XL, fit then scroll, the wheel moves a fader only with Ctrl, one-mesh meters, only visible strips laid out |
+| Inspector | the channel's signal-flow sheet: insert tiles with mini views, the EQ you drag, sends, routing, the channel's fader pinned; resizable, collapsible |
+| Editing views | FL-style arrangement, a real piano keyboard, the rack's step keycaps; scrolling both ways, Shift+wheel, zoom by the scrollbar's ends |
+| Devices | every effect, the hosted-plug-in editor, every instrument and Pulsus II in one shell (preset well, A/B, device undo, bypass, help line); all seven effect editors also run in the CLAP/VST3 build |
+
+**Numbers.** 64-strip whole window: 28 778 allocations and 27 ms a frame before, about 3 ms
+and ≤ 3 500 allocations after (the desk alone: 19 allocations, 1.9 ms). The arrangement no
+longer copies 18 MB of notes a frame. Each effect editor ≤ 0.83 ms. Held by
+`tests/frame_budget.rs`, `views_budget.rs` and the kit's allocation test.
+
+**Left.** Drag-to-select across strips and arrow keys between strips; FL's mini piano roll
+in the rack's melodic channels; the File menu entries in `interop.rs` and rename fields still
+stock egui; plug-in windows resizing from their host (CLAP `set_scale`) and the host's
+transport into `FxHost`; hosted CLAP/VST3 instruments; whether CC-BY samples may be bundled
+(ADR 0001 allows original or CC0 only — the user's call).
+
+## Round 17, the other half: native instruments (requested 2026-09-24)
+
+**The ask.** *Research the best virtual instruments on the market — synths, basses, drums,
+samplers, keys, and how they look — then put agents on building ours, to equal and beat
+them, with Cantus following the plug-in standards.* The user split the round: the standards
+(hosting, export, interchange) went to the effects session (the section below), the
+instruments to this one.
+
+**Research.** Nine agents, nine reports in `research/instruments/` (about 10 400 lines;
+140 official screenshots kept locally and git-ignored): wavetable (Serum 2, Pigments 7,
+Phase Plant, Vital), analog (Diva, Repro, Arturia V), FM/additive/granular (FM8, Sytrus,
+Harmor, Operator, Omnisphere 3), samplers and their formats (Kontakt 8, Falcon, HALion,
+SFZ, Decent Sampler, SF2), drums (Battery 4, XO, Superior Drummer 3, Microtonic, 808/909),
+bass (Trilian, MODO BASS 2, SubLab XL), keys (Pianoteq 9, Keyscape, Lounge Lizard, organs),
+the standards (handed to the effects session for ADRs 0019–0020), and the DAWs' stock
+instruments with the category's interface language. Their shared verdict: the leaders win
+on sound and interaction and share structural gaps — their own undo, modulation that
+cannot leave the plug-in, renders that do not repeat (unseeded drift, quality modes that
+differ offline), knob boundaries at 1.0–2.2:1 contrast, no idea of the song.
+
+**The contract first** (ADR 0023): `InstrumentSpec::Native` — a kind and its state as
+numbers and texts by key, three commands with exact inverses; `InstrumentUnit`, delivered
+by message and swapped on the audio thread (a large sampler is never preallocated per
+slot); notes with ids and the seven CLAP/VST3 note expressions; one modulation model for
+every instrument (8 macros, 32 connection slots stored in the spec) evaluated by
+`cantus_dsp::modmatrix`, one voice allocator (`cantus_dsp::voices`); a shared editor frame
+(Play · Edit · Matrix, macro bar, draggable modulation sources, a playable keyboard, a
+footer with the voices); and the knob's edge raised to 3:1. Every kind's dispatch existed
+from the first commit, so seven builders never edited the same line.
+
+**Built** — each has `docs/instruments/<name>.md` with its parameters, what its tests hold
+and its measured numbers:
+
+| Instrument | What it is | Measured |
+|---|---|---|
+| **Unda** | wavetable flagship: 3 oscillators, 16-voice unison, two warps each, SVF + ZDF ladder, 4 envelopes, 8 drawable LFOs, 10 generated tables, Serum/Surge table import, a 3D table you scrub; additive (*Partes*) and granular (*Grana*) engines | aliasing −102.8 dB at the default 2×; pitch 0.00024 ct |
+| **Calor** | analog polysynth on `cantus_dsp::va` (ladder, cascade, diode, SVF, Sallen-Key — all self-oscillating on pitch), Draft/Good/Best the same live and offline, 16 visible voice cards with seeded variance | self-oscillation within 4.9 ct (Good); aliasing −85 dB (Good) |
+| **Modulus** | 8-operator FM, any-to-any with DX7 feedback, the 32 algorithms as templates, DX envelopes and scaling, DX7 SysEx in and out byte for byte, aliasing control saved with the patch | pitch 0.0002 ct; −80 dB aliasing at index 8 (Auto) |
+| **Exemplar** | multisampler: groups/zones, seeded round robin, cross-fades, release triggers, loops; an alias-free resampler as the default; WAV/AIFF/FLAC/Ogg, SFZ, Decent Sampler, SF2/SF3 in, SFZ out; the loop seam measured in dB | aliasing −120 dBFS at +12/+24 st (High) |
+| **Gravis** | bass: 808, synth (303 accent and slide) and a modelled string (waveguide, pickups in mm, fret collisions for slap) on one mono/legato voice | pitch < 0.05 ct on every engine; drive moves the fundamental < 0.1 dB |
+| **Organum** | tonewheel organ: 91 gear-tuned wheels, three drawbar sets with splits, click, percussion, scanner, and a rotary speaker kept in its own module | tuning 0.0003 ct; CPU flat at 5 % of a core whatever the keys held |
+| **Lamina** | modelled electric piano: tine and reed, the pickup nonlinearity that barks, geometry in mm, continuous half-pedalling | pitch 0.01 ct |
+| **Pulsus II** | the kit grown in place: stable pad ids, sample layers with seeded round robin, a full section per pad, 16 choke groups, the hi-hat pedal, 808/909/modal voices; old kits load as model 1 and render bit-identically | new kick at F1 ±0.03 ct; a render from bar 5 equals bars 5–8 of a full render |
+
+**Schema 16** (native instruments) and **17** (Pulsus II) — 14 and 15 are the effects
+half's; fixture `v17.cantus` holds both.
+
+**How it ran.** The contract on a side branch (`inst/contract`), a worktree per builder
+(`inst/{unda,calor,modulus,exemplar,gravis,keys,pulsus}`), then an integration worktree
+where everything was merged file by file over the effects half, conflicts resolved keeping
+both sides. Two things went wrong on the way and were recovered: four builders stalled on a
+stream watchdog early on, and all seven stopped at an account spend limit mid-round; each
+was resumed with its context and lost nothing.
+
+**What the integration fixed in the shared frame**, from the builders' screenshots: white
+keys were invisible on a light theme (they are outlined now), the modulation strip ran off
+the window instead of wrapping (rows are packed to the width), and every macro knob said
+"Macro" instead of its name.
 
 ## Round 17: compatible with the market's DAWs (requested 2026-09-24)
 
