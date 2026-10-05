@@ -142,6 +142,8 @@ pub struct CantusApp {
     pub peaks: crate::waveform::PeakStore,
     /// Audio recording: the pass in progress and what draws it (`record_session`).
     pub rec: crate::record_session::RecSession,
+    /// The device picker, when open, and what it was opened for (`crate::picker`).
+    pub picker: Option<crate::picker::PickPurpose>,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -346,6 +348,7 @@ impl CantusApp {
             recorder: Recorder::new(),
             peaks: Default::default(),
             rec: Default::default(),
+            picker: None,
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,

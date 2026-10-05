@@ -19,6 +19,7 @@ pub mod keyboard;
 pub mod keymap;
 pub mod kit;
 pub mod layout;
+pub mod picker;
 pub mod raster;
 pub mod record_pass;
 pub mod record_session;

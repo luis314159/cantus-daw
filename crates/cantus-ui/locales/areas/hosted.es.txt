@@ -1,0 +1,1 @@
+# Área: hosted CLAP/VST3 instruments (round 20). Cada clave necesita su gemela en hosted.en.txt.

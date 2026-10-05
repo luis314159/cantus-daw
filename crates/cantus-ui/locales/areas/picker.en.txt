@@ -1,0 +1,1 @@
+# Area: the device picker and browser (round 20). Every key here needs its twin in picker.es.txt.

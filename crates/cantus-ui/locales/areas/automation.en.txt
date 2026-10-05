@@ -1,0 +1,1 @@
+# Area: automation clips and lanes (round 20). Every key here needs its twin in automation.es.txt.

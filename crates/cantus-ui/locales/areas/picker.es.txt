@@ -1,0 +1,1 @@
+# Área: the device picker and browser (round 20). Cada clave necesita su gemela en picker.en.txt.

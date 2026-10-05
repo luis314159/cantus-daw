@@ -1,0 +1,1 @@
+# Area: device windows, swapping instruments and effects (round 20). Every key here needs its twin in swap.es.txt.

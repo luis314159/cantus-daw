@@ -71,6 +71,10 @@ impl Locale {
                 include_str!("../locales/areas/master.en.txt"),
                 include_str!("../locales/areas/demos.en.txt"),
                 include_str!("../locales/areas/devices.en.txt"),
+                include_str!("../locales/areas/automation.en.txt"),
+                include_str!("../locales/areas/picker.en.txt"),
+                include_str!("../locales/areas/swap.en.txt"),
+                include_str!("../locales/areas/hosted.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -108,6 +112,10 @@ impl Locale {
                 include_str!("../locales/areas/master.es.txt"),
                 include_str!("../locales/areas/demos.es.txt"),
                 include_str!("../locales/areas/devices.es.txt"),
+                include_str!("../locales/areas/automation.es.txt"),
+                include_str!("../locales/areas/picker.es.txt"),
+                include_str!("../locales/areas/swap.es.txt"),
+                include_str!("../locales/areas/hosted.es.txt"),
             ],
         }
     }

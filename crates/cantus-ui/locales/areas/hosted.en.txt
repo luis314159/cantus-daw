@@ -1,0 +1,1 @@
+# Area: hosted CLAP/VST3 instruments (round 20). Every key here needs its twin in hosted.es.txt.
