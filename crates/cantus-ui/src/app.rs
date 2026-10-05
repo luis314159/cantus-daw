@@ -2743,11 +2743,15 @@ impl CantusApp {
         let units = self
             .plugins
             .render_units(self.bus.project(), f64::from(opts.sample_rate));
+        let instruments = self
+            .plugins
+            .render_instruments(self.bus.project(), f64::from(opts.sample_rate));
         let (tx, rx) = mpsc::channel();
         std::thread::Builder::new()
             .name("cantus-export".into())
             .spawn(move || {
-                let result = cantus_engine::render_with_units(snapshot, &opts, units)
+                let result =
+                    cantus_engine::render_with_instruments(snapshot, &opts, units, instruments)
                     .and_then(|r| {
                         cantus_engine::write_wav(&r, &path)?;
                         Ok(r)
@@ -2851,7 +2855,16 @@ impl CantusApp {
                         ],
                     ));
                 }
-                HostNotice::WindowClosed(_) => {}
+                HostNotice::WindowClosed(_) | HostNotice::InstrumentWindowClosed(_) => {}
+                // A hosted instrument that is not here (ADR 0028): the track keeps its
+                // data and plays silence, and the status line says so.
+                HostNotice::InstrumentLoadFailed { name, error, .. } => self.set_error(tf(
+                    "hosted.missing_status",
+                    &[("name", &name), ("why", &error)],
+                )),
+                HostNotice::InstrumentRestartFailed { error, .. } => {
+                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
+                }
             }
         }
     }

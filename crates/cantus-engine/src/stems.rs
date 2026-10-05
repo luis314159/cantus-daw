@@ -450,12 +450,18 @@ fn run(
     crate::samples::conform_audio(&mut snap, ro.sample_rate);
     let snap = Arc::new(snap);
     let effect_count: usize = snap.effect_slots().count();
-    let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count);
-    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
+    // Native instruments' units, as `render::render` sends them.
+    let instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    let (mut tx, rx_engine) =
+        RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
+    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     for slot in snap.effect_slots() {
         let unit = make_unit(slot, sr as f32);
         tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
+    }
+    for unit in instruments {
+        tx.push(EngineMessage::AddInstrument(unit)).ok();
     }
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     p.settle();

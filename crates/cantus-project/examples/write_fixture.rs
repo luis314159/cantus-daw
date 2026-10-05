@@ -247,6 +247,20 @@ fn main() {
     let mut master_lim = p.make_effect(EffectKind::Limiter);
     master_lim.spec.set("ceiling", -0.3).unwrap();
     p.master.effects.push(master_lim);
+    // Schema 19 (ADR 0028): a hosted CLAP instrument installed nowhere — it opens, plays
+    // silence, and its state and values (0.1 + 0.2 to the bit) survive a round trip.
+    let mut synth = p.make_track("Synth");
+    let mut plugin = ExternalPlugin::new(PluginFormat::Clap, "org.cantus.test.synth", "Cantus Test Synth");
+    plugin.vendor = "Cantus Tests".into();
+    plugin.state = PluginState::new(b"CTS1 opaque instrument state".to_vec());
+    plugin.params.insert(0, -4.5);
+    plugin.params.insert(7, 0.1 + 0.2);
+    synth.instrument = InstrumentSpec::External(plugin);
+    let mut riff = p.make_clip("Riff", Ticks::ZERO, Ticks::beats(4));
+    riff.notes
+        .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 48, 100));
+    synth.clips.push(riff);
+    p.tracks.push(synth);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

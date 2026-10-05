@@ -72,6 +72,20 @@ impl CantusApp {
             _ => None,
         };
         match (purpose, choice) {
+            // A hosted instrument (ADR 0028): through the host, which loads it first.
+            (PickPurpose::ReplaceInstrument { track }, PickChoice::Hosted(info))
+                if info.kind == cantus_host::PluginKind::Instrument =>
+            {
+                self.set_hosted_instrument(track, &info);
+            }
+            (PickPurpose::AddInstrument { .. }, PickChoice::Hosted(info))
+                if info.kind == cantus_host::PluginKind::Instrument =>
+            {
+                self.add_track();
+                if let Some(t) = self.project().tracks.last().map(|t| t.id) {
+                    self.set_hosted_instrument(t, &info);
+                }
+            }
             (PickPurpose::ReplaceInstrument { track }, _) => {
                 if let Some(spec) = spec {
                     self.set_instrument(track, spec);

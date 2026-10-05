@@ -8,6 +8,7 @@ members = [
     "crates/cantus-ai",
     "crates/cantus-host",
     "crates/cantus-test-plugins/clap-gain",
+    "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
     "crates/cantus-ui",
     "crates/cantus-app",

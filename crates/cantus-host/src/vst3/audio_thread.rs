@@ -207,10 +207,23 @@ impl AudioHalf {
     fn gather_notes(&mut self, notes: &[NoteEvent], last: i32) {
         self.in_events.clear();
         self.out_events.clear();
-        if !self.has_event_input {
-            return;
-        }
         for n in notes {
+            if let NoteKind::Midi {
+                status,
+                data1,
+                data2,
+            } = n.kind
+            {
+                // A controller travels as the parameter the controller maps it to.
+                if let Some((id, norm)) = self.inst.midi_param(n.channel, status, data1, data2) {
+                    self.in_changes
+                        .add(id, n.offset.min(last as u32) as i32, norm);
+                }
+                continue;
+            }
+            if !self.has_event_input {
+                continue;
+            }
             if let Some(e) = note_event(n, n.offset.min(last as u32) as i32) {
                 self.in_events.push(e);
             }
@@ -466,6 +479,8 @@ fn note_event(n: &NoteEvent, offset: i32) -> Option<Event> {
                 value: norm.clamp(0.0, 1.0),
             };
         }
+        // Parameters, not events (`AudioHalf::gather_notes`).
+        NoteKind::Midi { .. } => return None,
     }
     Some(e)
 }

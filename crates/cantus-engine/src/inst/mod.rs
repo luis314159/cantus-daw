@@ -16,7 +16,7 @@
 //! or a per-note expression addresses one voice even when two notes share a key — CLAP's
 //! note id and VST3's note id map onto it one to one.
 
-use cantus_core::{InstrumentKind, NativeSpec, SampleData, TrackId};
+use cantus_core::{ExternalPlugin, InstrumentKind, InstrumentSpec, NativeSpec, SampleData, TrackId};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -136,6 +136,67 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     fn telemetry(&self) -> Telemetry {
         [0.0; TELEMETRY_LEN]
     }
+
+    // ---- Additions (round 20, ADR 0028), each with a default, so a native unit is
+    // ---- unchanged. A hosted CLAP/VST3 instrument (`cantus_host`) uses all of them.
+
+    /// The values of a hosted instrument's spec ([`InstrumentSpec::External`]), with each
+    /// snapshot, in place of [`Self::configure`]. Audio thread, no allocation.
+    fn configure_hosted(&mut self, _plugin: &ExternalPlugin) {}
+    /// Where the song is, before each segment is processed (tempo, position, loop).
+    fn set_position(&mut self, _position: &crate::fx::SongPosition) {}
+    /// What the instrument's own editor did during the last `process` (a hosted plug-in's
+    /// window): gestures and values for the host to record as commands.
+    fn param_events(&self) -> &[crate::fx::FxParamEvent] {
+        &[]
+    }
+    fn clear_param_events(&mut self) {}
+    /// It will not be processed again: called on the audio thread before the unit is
+    /// handed back (a hosted plug-in stops processing here, as its standard asks).
+    fn stop(&mut self) {}
+}
+
+/// What a unit is, as the processor matches it against what a snapshot's track hosts: a
+/// native kind, or a hosted plug-in (ADR 0028) named by [`hosted_key`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum UnitKind {
+    Native(InstrumentKind),
+    Hosted(u64),
+}
+
+impl UnitKind {
+    /// The unit a track's instrument needs; `None` for Firmus and Pulsus, which every slot
+    /// holds already.
+    pub fn of(spec: &InstrumentSpec) -> Option<UnitKind> {
+        match spec {
+            InstrumentSpec::Native(n) => Some(UnitKind::Native(n.kind)),
+            InstrumentSpec::External(p) => Some(UnitKind::Hosted(hosted_key(p))),
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Pulsus(_) => None,
+        }
+    }
+
+    pub fn native(self) -> Option<InstrumentKind> {
+        match self {
+            UnitKind::Native(k) => Some(k),
+            UnitKind::Hosted(_) => None,
+        }
+    }
+}
+
+/// A hosted plug-in's name as the engine matches it: FNV-1a over its format and id. Two
+/// plug-ins share a key only if they share format and id, which is what makes them the
+/// same plug-in. No allocation, so the audio thread computes it from a snapshot.
+pub fn hosted_key(plugin: &ExternalPlugin) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let format = match plugin.format {
+        cantus_core::PluginFormat::Clap => 1u8,
+        cantus_core::PluginFormat::Vst3 => 2u8,
+    };
+    for b in std::iter::once(format).chain(plugin.id.bytes()) {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
 }
 
 /// A unit on its way to the audio thread, labelled with the track and kind it was built
@@ -143,7 +204,8 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
 #[derive(Debug)]
 pub struct NativeUnit {
     pub track: TrackId,
-    pub kind: InstrumentKind,
+    /// A native kind, or a hosted plug-in (ADR 0028).
+    pub kind: UnitKind,
     /// Unique per unit ever built, so the backend can tell a unit handed back late from
     /// the one the engine holds now.
     pub serial: u64,
@@ -157,11 +219,27 @@ impl NativeUnit {
     pub fn new(track: TrackId, kind: InstrumentKind, sample_rate: f32) -> Self {
         NativeUnit {
             track,
-            kind,
-            serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed),
+            kind: UnitKind::Native(kind),
+            serial: next_serial(),
             unit: make(kind, sample_rate),
         }
     }
+
+    /// A unit built elsewhere — a hosted plug-in's adapter (`cantus_host`, ADR 0028) — for
+    /// the plug-in named by `key` ([`hosted_key`]).
+    pub fn hosted(track: TrackId, key: u64, unit: Box<dyn InstrumentUnit>) -> Self {
+        NativeUnit {
+            track,
+            kind: UnitKind::Hosted(key),
+            serial: next_serial(),
+            unit,
+        }
+    }
+}
+
+/// A serial no unit has had.
+pub fn next_serial() -> u64 {
+    NEXT_SERIAL.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Build the unit for a kind. Main or worker thread: this allocates.

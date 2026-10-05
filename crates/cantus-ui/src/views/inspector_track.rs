@@ -173,6 +173,8 @@ pub fn instrument(
             super::pads::show(&mut sh, app, t, &kit.pads);
         } else if let Some(params) = track.instrument.firmus() {
             firmus(&mut sh, t, params);
+        } else if let Some(plugin) = track.instrument.external() {
+            super::hosted::show(&mut sh, app, t, plugin);
         }
     }
     st.brush.flush(&painter);

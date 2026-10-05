@@ -237,7 +237,8 @@ impl ClapAudio {
                 }
             }
         }
-        self.events.fill(params, notes, n as u32);
+        self.events
+            .fill(params, notes, n as u32, self.ports.note_dialects);
         self.out_events.bind(out);
         let process = clap_process {
             steady_time: self.steady_time,

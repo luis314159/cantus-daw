@@ -21,7 +21,7 @@
 //! thing before the output.
 
 use crate::effects::EffectUnit;
-use crate::inst::{Controller, NativeUnit, NoteOn};
+use crate::inst::{Controller, NativeUnit, NoteOn, UnitKind};
 use crate::messages::*;
 use crate::transport::Transport;
 use cantus_core::{
@@ -674,6 +674,7 @@ impl Processor {
                         self.dispose_instrument(unit);
                     }
                 }
+                EngineMessage::ReplaceInstrument(unit) => self.replace_instrument(unit),
                 EngineMessage::SetInstrumentProbe(track) => {
                     self.probed = track;
                     self.meters.inst = [0.0; crate::inst::TELEMETRY_LEN];
@@ -931,7 +932,7 @@ impl Processor {
                 }
             };
             self.track_to_slot.push(slot);
-            self.swap_native(slot, t.id, t.instrument.native().map(|n| n.kind));
+            self.swap_native(slot, t.id, UnitKind::of(&t.instrument));
             let s = &mut self.slots[slot];
             s.gain = t.gain;
             s.pan = t.pan;
@@ -1093,6 +1094,22 @@ impl Processor {
             }
             *own = st.effects.iter().map(|e| e.latency()).sum();
         }
+        // A track leaves at its instrument's latency (a hosted synth's lookahead, ADR 0028),
+        // so what it feeds arrives no earlier and every other path waits for it.
+        let mut leave = [0usize; MAX_TRACKS];
+        for ti in 0..self.track_to_slot.len() {
+            let slot = self.track_to_slot[ti];
+            let s = &self.slots[slot];
+            let latency = match s.instrument {
+                SlotInstrument::Native => s.native.as_ref().map_or(0, |n| n.unit.latency()),
+                SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
+            };
+            leave[slot] = latency;
+            match s.strip {
+                Some(d) => arrive[d] = arrive[d].max(latency),
+                None => master = master.max(latency),
+            }
+        }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
             let p = arrive[slot] + own[slot];
@@ -1140,7 +1157,8 @@ impl Processor {
                 Some(d) => arrive[d],
                 None => master,
             };
-            self.pdc.want(&mut kept, Edge::Track(slot), want);
+            self.pdc
+                .want(&mut kept, Edge::Track(slot), want - leave[slot]);
         }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
@@ -1352,12 +1370,7 @@ impl Processor {
     /// Give a slot the native unit its track now needs (`kind`), or none. A unit already of
     /// the right kind stays, so voices ring across snapshots; otherwise the one delivered
     /// for this track and kind is taken from the incoming list and the old one goes back.
-    fn swap_native(
-        &mut self,
-        slot: usize,
-        track: TrackId,
-        kind: Option<cantus_core::InstrumentKind>,
-    ) {
+    fn swap_native(&mut self, slot: usize, track: TrackId, kind: Option<UnitKind>) {
         let have = self.slots[slot].native.as_ref().map(|n| (n.track, n.kind));
         if kind.is_some() && have == kind.map(|k| (track, k)) {
             return;
@@ -1377,7 +1390,40 @@ impl Processor {
         }
     }
 
-    fn dispose_instrument(&mut self, unit: Box<NativeUnit>) {
+    /// A unit in place of the one running for its track and kind (ADR 0028): swapped in
+    /// now, keeping the slot; or, when no slot runs that track and kind, waiting with the
+    /// new ones in place of any waiting there.
+    fn replace_instrument(&mut self, unit: Box<NativeUnit>) {
+        let (track, kind) = (unit.track, unit.kind);
+        let running = self.slots.iter().position(|s| {
+            s.id == Some(track) && s.native.as_ref().is_some_and(|n| n.kind == kind)
+        });
+        if let Some(i) = running {
+            if let Some(old) = self.slots[i].native.replace(unit) {
+                self.dispose_instrument(old);
+            }
+            self.compensate();
+            return;
+        }
+        let waiting = self
+            .incoming_instruments
+            .iter()
+            .position(|u| u.track == track && u.kind == kind);
+        if let Some(p) = waiting {
+            let old = std::mem::replace(&mut self.incoming_instruments[p], unit);
+            self.dispose_instrument(old);
+        } else if self.incoming_instruments.len() < self.incoming_instruments.capacity() {
+            self.incoming_instruments.push(unit);
+        } else {
+            self.stats.dropped_events += 1;
+            self.dispose_instrument(unit);
+        }
+    }
+
+    fn dispose_instrument(&mut self, mut unit: Box<NativeUnit>) {
+        // It will not be processed again: a hosted instrument stops processing here, on
+        // the audio thread, before it leaves (ADR 0028).
+        unit.unit.stop();
         if self.tx.push(EngineEvent::GarbageInstrument(unit)).is_err() {
             self.stats.dropped_events += 1;
         }
@@ -1560,6 +1606,9 @@ impl Processor {
             self.record_segment(done, n);
 
             // ---- tracks: instrument → channel gain and balance → their strip -----------
+            // Where the song is at this segment's first sample, for the units that follow
+            // it: hosted instruments (a synth's arp) and hosted inserts.
+            let position = self.song_position();
             for ti in 0..self.track_to_slot.len() {
                 let slot = self.track_to_slot[ti];
                 let s = &mut self.slots[slot];
@@ -1588,9 +1637,25 @@ impl Processor {
                         r.iter_mut().for_each(|x| *x = 0.0);
                         match s.native.as_mut() {
                             Some(u) => {
+                                u.unit.set_position(&position);
                                 let sig = u.unit.process(l, r);
                                 if self.probed == s.id {
                                     self.meters.inst = u.unit.telemetry();
+                                }
+                                // A hosted instrument's own window: its gestures go to
+                                // the host (ADR 0028).
+                                if let Some(track) = s.id {
+                                    for event in u.unit.param_events() {
+                                        let event = *event;
+                                        if self
+                                            .tx
+                                            .push(EngineEvent::InstParam { track, event })
+                                            .is_err()
+                                        {
+                                            self.stats.dropped_events += 1;
+                                        }
+                                    }
+                                    u.unit.clear_param_events();
                                 }
                                 sig
                             }
@@ -1672,8 +1737,7 @@ impl Processor {
             // ---- strips, in dependency order: polarity → swap → inserts → EQ → width →
             // gain/pan → output and sends ---------------------------------------------
             let mut strip_captured = false;
-            // Where the song is at this segment's first sample, for hosted units.
-            let position = self.song_position();
+            // `position`, from above: where the song is at this segment's first sample.
             for oi in 0..self.strip_play_order.len() {
                 let slot = self.strip_play_order[oi];
                 let (active, ringing, output_slot) = {
@@ -2178,7 +2242,7 @@ fn apply_instrument(
     let wanted = match spec {
         InstrumentSpec::Firmus(_) => SlotInstrument::Firmus,
         InstrumentSpec::Pulsus(_) => SlotInstrument::Pulsus,
-        InstrumentSpec::Native(_) => SlotInstrument::Native,
+        InstrumentSpec::Native(_) | InstrumentSpec::External(_) => SlotInstrument::Native,
     };
     if slot.instrument != wanted {
         slot.reset();
@@ -2188,6 +2252,12 @@ fn apply_instrument(
         InstrumentSpec::Native(n) => {
             if let Some(u) = slot.native.as_mut() {
                 u.unit.configure(n, assets);
+            }
+        }
+        // A hosted plug-in (ADR 0028): its values, diffed against what it holds.
+        InstrumentSpec::External(p) => {
+            if let Some(u) = slot.native.as_mut() {
+                u.unit.configure_hosted(p);
             }
         }
         InstrumentSpec::Firmus(p) => slot.synth.set_settings(&to_settings(p)),

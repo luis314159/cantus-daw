@@ -33,6 +33,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc};
 
+#[path = "session_inst.rs"]
+mod inst;
+#[path = "session_inst_idle.rs"]
+mod inst_idle;
+
+pub use inst::HostedInst;
+
 /// Something the application should know about.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HostNotice {
@@ -48,6 +55,20 @@ pub enum HostNotice {
     ScanDone(ScanReport),
     /// The user closed a plug-in's window.
     WindowClosed(EffectId),
+    /// A track's hosted instrument could not be loaded (ADR 0028); the track plays
+    /// silence until it is installed and the project rescanned or reopened.
+    InstrumentLoadFailed {
+        track: cantus_core::TrackId,
+        name: String,
+        error: String,
+    },
+    /// A track's hosted instrument could not restart; it is silent until reopened.
+    InstrumentRestartFailed {
+        track: cantus_core::TrackId,
+        error: String,
+    },
+    /// The user closed a hosted instrument's window.
+    InstrumentWindowClosed(cantus_core::TrackId),
 }
 
 /// One loaded plug-in in a slot.
@@ -115,6 +136,12 @@ pub struct PluginHost {
     render_mains: Vec<Box<dyn MainThread>>,
     /// The application's main window: plug-in windows are owned by it.
     pub owner_window: Option<raw_window_handle::RawWindowHandle>,
+    /// Hosted instruments (ADR 0028), by track.
+    instruments: HashMap<cantus_core::TrackId, HostedInst>,
+    /// State of instruments unloaded because their track left them, by track and plug-in.
+    inst_parked: HashMap<(cantus_core::TrackId, u64), PluginState>,
+    /// Tracks whose hosted instrument could not be loaded: the plug-in's key, and why.
+    inst_missing: HashMap<cantus_core::TrackId, (u64, String)>,
 }
 
 impl std::fmt::Debug for PluginHost {
@@ -122,6 +149,7 @@ impl std::fmt::Debug for PluginHost {
         f.debug_struct("PluginHost")
             .field("loaded", &self.slots.len())
             .field("missing", &self.missing.len())
+            .field("instruments", &self.instruments.len())
             .finish()
     }
 }
@@ -205,6 +233,9 @@ impl PluginHost {
             scan_job: None,
             render_mains: Vec::new(),
             owner_window: None,
+            instruments: HashMap::new(),
+            inst_parked: HashMap::new(),
+            inst_missing: HashMap::new(),
         }
     }
 
@@ -226,8 +257,9 @@ impl PluginHost {
         self.missing.get(&effect).map(String::as_str)
     }
 
+    /// Loaded plug-ins: inserts and instruments.
     pub fn loaded_count(&self) -> usize {
-        self.slots.len()
+        self.slots.len() + self.instruments.len()
     }
 
     /// Keep what a loaded plug-in says it is, over what its scan guessed.
@@ -254,6 +286,7 @@ impl PluginHost {
         let report = crate::scan::scan_all(&mut self.db, &backends, &self.scanner, force);
         self.save_db();
         self.missing.clear();
+        self.inst_missing.clear();
         report
     }
 
@@ -494,6 +527,7 @@ impl PluginHost {
             self.unload(id);
         }
         self.missing.retain(|id, _| seen.contains(id));
+        self.sync_instruments(project, engine, &mut notices);
         notices
     }
 
@@ -519,6 +553,11 @@ impl PluginHost {
             self.unload(id);
         }
         self.missing.clear();
+        let tracks: Vec<cantus_core::TrackId> = self.instruments.keys().copied().collect();
+        for track in tracks {
+            self.unload_instrument(track);
+        }
+        self.inst_missing.clear();
     }
 }
 
@@ -540,6 +579,7 @@ impl PluginHost {
                     self.db.folders = folders;
                     self.save_db();
                     self.missing.clear();
+                    self.inst_missing.clear();
                     self.scan_job = None;
                     notices.push(HostNotice::ScanDone(report));
                 }
@@ -613,6 +653,7 @@ impl PluginHost {
                 }
             }
         }
+        self.idle_instruments(bus, engine, &mut notices);
         notices
     }
 
@@ -818,6 +859,7 @@ impl PluginHost {
                 Err(e) => log::warn!("{}: {e}", h.info.name),
             }
         }
+        self.instruments_for_save(&mut out);
         out
     }
 
@@ -917,6 +959,10 @@ impl Drop for PluginHost {
         let ids: Vec<EffectId> = self.slots.keys().copied().collect();
         for id in ids {
             self.close_window(id);
+        }
+        let tracks: Vec<cantus_core::TrackId> = self.instruments.keys().copied().collect();
+        for track in tracks {
+            self.close_instrument_window(track);
         }
     }
 }

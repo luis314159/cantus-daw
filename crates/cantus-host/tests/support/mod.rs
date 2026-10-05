@@ -12,6 +12,9 @@ use std::process::Command as Process;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+pub mod synth;
+pub use synth::*;
+
 pub const PLUGIN_ID: &str = "org.cantus.test.gain";
 pub const P_GAIN: u32 = 0;
 pub const P_LATENCY: u32 = 1;

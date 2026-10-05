@@ -28,7 +28,9 @@ pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHa
 pub use devices::{DeviceLatency, DriverInfo, InputDeviceInfo};
 pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed};
 pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
-pub use inst::{Controller, InstrumentUnit, NativeUnit, NoteExpression, NoteOn};
+pub use inst::{
+    hosted_key, Controller, InstrumentUnit, NativeUnit, NoteExpression, NoteOn, UnitKind,
+};
 pub use loopback::{LoopbackError, LoopbackResult};
 pub use messages::{
     CaptureTarget, EngineEvent, EngineMessage, EngineStats, Meters, MidiEvent, NoteInput,
@@ -41,7 +43,8 @@ pub use recorder::{
     FinishedTake, LivePeaks, RecordLatency, RecordMark, RecordRings, MAX_INPUTS, PEAK_FRAMES,
 };
 pub use render::{
-    render, render_to_wav, render_with_units, write_wav, RenderError, RenderOptions, Rendered,
+    render, render_to_wav, render_with_instruments, render_with_units, write_wav, RenderError,
+    RenderOptions, Rendered,
 };
 pub use samples::{SampleCache, SampleStatus};
 pub use stems::{

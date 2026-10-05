@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 18;
+pub const SCHEMA_VERSION: u32 = 19;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -196,6 +196,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_15_to_16,
     migrate_16_to_17,
     migrate_17_to_18,
+    migrate_18_to_19,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -543,6 +544,14 @@ fn migrate_16_to_17(_value: &mut Value) -> Result<(), String> {
 /// default that is exactly the old behaviour, so the step writes nothing; the number is
 /// what makes an older build refuse a project with audio in it instead of dropping it.
 fn migrate_17_to_18(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 19 (ADR 0028): a track's instrument may be a hosted CLAP/VST3 plug-in
+/// (`InstrumentSpec::External`, the same record an insert keeps). No older project has
+/// one, so the step writes nothing; the number is what makes an older build refuse a
+/// project with a hosted instrument instead of failing on an instrument it cannot read.
+fn migrate_18_to_19(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

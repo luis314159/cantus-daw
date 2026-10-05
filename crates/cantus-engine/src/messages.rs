@@ -81,6 +81,11 @@ pub enum EngineMessage {
     /// A native instrument's unit for one track (ADR 0023). Must precede the snapshot in
     /// which that track hosts that kind.
     AddInstrument(Box<crate::inst::NativeUnit>),
+    /// A unit in place of the one the engine runs for the same track and kind (a hosted
+    /// instrument restarted with another latency, ADR 0028): swapped in at once, the old
+    /// one stopped and handed back, compensation planned again. Waits like
+    /// [`Self::AddInstrument`] when no snapshot holds that track and kind yet.
+    ReplaceInstrument(Box<crate::inst::NativeUnit>),
     /// Report this track's instrument telemetry in `Meters::inst` (its editor is open).
     SetInstrumentProbe(Option<TrackId>),
     Play,
@@ -274,6 +279,12 @@ pub enum EngineEvent {
     /// these into commands, one undo step per gesture.
     FxParam {
         effect: EffectId,
+        event: crate::fx::FxParamEvent,
+    },
+    /// A track's instrument's own editor moved a parameter (a hosted instrument's window,
+    /// ADR 0028), as [`Self::FxParam`] is for an insert.
+    InstParam {
+        track: TrackId,
         event: crate::fx::FxParamEvent,
     },
     /// An effect's settings need memory it has not got (a linear-phase EQ's convolver);

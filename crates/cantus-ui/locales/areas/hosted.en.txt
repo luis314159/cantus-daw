@@ -1,1 +1,19 @@
 # Area: hosted CLAP/VST3 instruments (round 20). Every key here needs its twin in hosted.es.txt.
+hosted.missing_status = {name} is not on this computer ({why}). The track keeps its sound's data and plays silence until it is installed.
+hosted.no_window = {name} has no window of its own.
+
+# --- the inspector's card for a hosted instrument ---
+hosted.title = Plug-in instrument
+hosted.plugin = Plug-in
+hosted.vendor = Maker
+hosted.format = Format
+hosted.status = Status
+hosted.status_ok = Loaded
+hosted.status_missing = Missing: silent
+hosted.status_missing_tip = {why}. Its settings are kept in the project and come back when it is installed.
+hosted.latency = Latency
+hosted.latency_value = {n} samples
+hosted.params = Parameters
+hosted.window = Window
+hosted.open_window = Open
+hosted.close_window = Close

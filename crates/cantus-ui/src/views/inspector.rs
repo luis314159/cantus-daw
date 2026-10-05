@@ -27,6 +27,8 @@ pub mod audio;
 mod channel;
 #[path = "inspector_eq.rs"]
 mod eq;
+#[path = "inspector_hosted.rs"]
+mod hosted;
 #[path = "inspector_menus.rs"]
 mod menus;
 #[path = "inspector_mini.rs"]
@@ -99,6 +101,8 @@ pub enum Act {
     SelectTrack(TrackId),
     OpenEditor(StripId, EffectId),
     OpenInstrument(TrackId),
+    /// A hosted instrument's own window, open or closed (ADR 0028).
+    ToggleInstrumentWindow(TrackId),
     OpenPulsus(TrackId, cantus_core::PadId),
     SelectPad(usize),
     LoadSample(TrackId, usize),
@@ -733,6 +737,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::SelectTrack(t) => app.select_track(t),
         Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
         Act::OpenInstrument(t) => app.open_inst_editor(t),
+        Act::ToggleInstrumentWindow(t) => app.toggle_instrument_window(t),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);
             crate::views::pulsus_editor::open(app, t);

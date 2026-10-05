@@ -15,7 +15,10 @@ use clap_sys::ext::audio_ports::{
 };
 use clap_sys::ext::gui::{clap_plugin_gui, CLAP_EXT_GUI};
 use clap_sys::ext::latency::{clap_plugin_latency, CLAP_EXT_LATENCY};
-use clap_sys::ext::note_ports::{clap_note_port_info, clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS};
+use clap_sys::ext::note_ports::{
+    clap_note_port_info, clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS, CLAP_NOTE_DIALECT_CLAP,
+    CLAP_NOTE_DIALECT_MIDI,
+};
 use clap_sys::ext::params::{clap_plugin_params, CLAP_EXT_PARAMS};
 use clap_sys::ext::state::{clap_plugin_state, CLAP_EXT_STATE};
 use clap_sys::plugin::clap_plugin;
@@ -62,6 +65,23 @@ pub(crate) struct Ports {
     /// The first input that is not the main one: the sidechain.
     pub side_in: Option<usize>,
     pub note_inputs: u32,
+    /// What the first note input speaks (ADR 0028): CLAP note events, MIDI 1.0, or both.
+    /// A port that declares neither is sent CLAP events.
+    pub note_dialects: NoteDialects,
+}
+
+/// The note dialects the first input note port accepts.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct NoteDialects {
+    pub clap: bool,
+    pub midi: bool,
+}
+
+impl NoteDialects {
+    /// Notes go as MIDI only when the port cannot take CLAP note events.
+    pub fn notes_as_midi(self) -> bool {
+        self.midi && !self.clap
+    }
 }
 
 /// What lives exactly as long as the plug-in: its pointer, its host, its library.
@@ -245,6 +265,13 @@ impl Instance {
                 for i in 0..n {
                     let mut info: clap_note_port_info = unsafe { std::mem::zeroed() };
                     if unsafe { get(plugin, i, true, &mut info) } {
+                        if ports.note_inputs == 0 {
+                            ports.note_dialects = NoteDialects {
+                                clap: info.supported_dialects & CLAP_NOTE_DIALECT_CLAP != 0
+                                    || info.supported_dialects == 0,
+                                midi: info.supported_dialects & CLAP_NOTE_DIALECT_MIDI != 0,
+                            };
+                        }
                         ports.note_inputs += 1;
                     }
                 }

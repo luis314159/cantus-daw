@@ -13,6 +13,7 @@ pub mod clips;
 pub mod comping;
 pub mod demos;
 pub mod design;
+pub mod hosted_inst;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
