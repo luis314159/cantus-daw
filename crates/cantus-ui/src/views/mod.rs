@@ -27,6 +27,7 @@ pub mod picker_details;
 pub mod picker_grid;
 pub mod picker_keys;
 pub mod picker_layout;
+pub mod picker_panel;
 pub mod picker_side;
 pub mod picker_snap;
 pub mod picker_thumbs;

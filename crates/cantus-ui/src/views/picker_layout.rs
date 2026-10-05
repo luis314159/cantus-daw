@@ -34,7 +34,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, screen: Rect, purpose: &PickPurpos
     let search_focused = ui.memory(|m| m.has_focus(search_id()));
     let mut action = picker_keys::read(v, ui, search_focused);
     // The scrim: the workspace dimmed; a click on it closes.
-    let scrim = ui.interact(screen, Id::new("picker-scrim"), Sense::click());
+    // Allocated, so the overlay's layer covers the window and takes every pointer event.
+    let scrim = ui.allocate_rect(screen, Sense::click());
     let panel = picker::panel_rect(screen);
     v.geo.panel = panel;
     with_brush(ui.painter(), |b| {

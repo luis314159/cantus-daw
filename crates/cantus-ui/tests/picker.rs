@@ -335,6 +335,8 @@ fn the_shelves_filter_when_clicked() {
     let ctx = ctx();
     let strip = first_strip(&a);
     a.open_picker(PickPurpose::AddEffect { strip });
+    // The overlay's first frame sizes it (egui's area sizing pass): nothing is clickable yet.
+    frame(&mut a, &ctx, vec![]);
     frame(&mut a, &ctx, vec![]);
     let (_, r) = *a.picker_view.geo.shelves.iter().find(|s| s.0 == Shelf::Category(Category::Space)).unwrap();
     frame(&mut a, &ctx, click(r.center()));
@@ -374,10 +376,11 @@ fn sixty_plugins_draw_only_what_is_on_screen_in_a_few_meshes() {
     let mut ms = Vec::new();
     for f in 0..8 {
         let t0 = std::time::Instant::now();
-        let out = ctx.run_ui(input(f as f64 / 60.0), |ui| {
+        let mut out = ctx.run_ui(input(f as f64 / 60.0), |ui| {
             let c = ui.ctx().clone();
             picker::frame(&mut a, &c);
         });
+        out.textures_delta.clear();
         ms.push(t0.elapsed().as_secs_f64() * 1e3);
         meshes = out.shapes.iter().filter(|s| matches!(s.shape, egui::Shape::Mesh(_))).count();
         texts = out.shapes.iter().filter(|s| matches!(s.shape, egui::Shape::Text(_))).count();
@@ -388,4 +391,42 @@ fn sixty_plugins_draw_only_what_is_on_screen_in_a_few_meshes() {
     assert!(meshes <= 24, "a handful of meshes whatever the count: {meshes}");
     assert!(texts <= 60 + 5 * v.geo.shown.len(), "text: {texts}");
     eprintln!("picker frame: {:.2} ms (frames {ms:?}), {} tiles shown, {meshes} meshes", ms[ms.len() - 1], v.geo.shown.len());
+}
+
+#[test]
+fn thumbnails_are_made_once_then_read_back_from_disk() {
+    use cantus_ui::views::picker_snap::Subject;
+    use cantus_ui::views::picker_thumbs::Thumbs;
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = ctx();
+    let subject = Subject::Instrument(InstrumentKind::Organ);
+    let wait = |th: &mut Thumbs| {
+        for _ in 0..600 {
+            th.pump(&ctx);
+            if th.get(subject).is_some() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        false
+    };
+    let mut th = Thumbs::default();
+    assert!(th.get(subject).is_none(), "off until the app turns it on");
+    th.enable(Some(dir.path().to_path_buf()));
+    assert!(th.get(subject).is_none(), "asked for, not yet made");
+    assert!(wait(&mut th), "the picture arrives");
+    assert_eq!((th.stats.captures, th.stats.uploads, th.stats.disk_loads), (1, 1, 0));
+    // Asked again: from memory, nothing made.
+    for _ in 0..3 {
+        th.pump(&ctx);
+        assert!(th.get(subject).is_some());
+    }
+    assert_eq!(th.stats.captures, 1);
+    let files: Vec<_> = std::fs::read_dir(dir.path()).unwrap().flatten().collect();
+    assert_eq!(files.len(), 1, "one PNG on disk");
+    // A new start reads the file and draws no editor.
+    let mut again = Thumbs::default();
+    again.enable(Some(dir.path().to_path_buf()));
+    assert!(wait(&mut again));
+    assert_eq!((again.stats.captures, again.stats.disk_loads), (0, 1));
 }

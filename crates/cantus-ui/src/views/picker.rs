@@ -55,6 +55,8 @@ pub struct PickerView {
     pub geo: Geometry,
     /// Choices made through this view (for tests and the status line): the last one.
     pub last_choice: Option<(PickPurpose, PickChoice)>,
+    /// The devices panel's own state (View ▸ Devices).
+    pub panel: super::picker_panel::Panel,
 }
 
 impl PickerView {
