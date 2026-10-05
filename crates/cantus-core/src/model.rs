@@ -126,6 +126,10 @@ pub struct Clip {
     /// clips that point into the takes' sources).
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub lane: u8,
+    /// Set for an **automation clip** (ADR 0027): the content is this curve, and `notes`
+    /// is empty. `None` — every clip before schema 19 — is a note or audio clip.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub automation: Option<crate::automation::Automation>,
 }
 
 fn is_zero_u8(x: &u8) -> bool {
@@ -477,6 +481,13 @@ pub struct Track {
     /// The take lanes are shown under the track.
     #[serde(default)]
     pub takes_open: bool,
+    /// The automation lanes are shown under the track (ADR 0027). Shown unless hidden.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub automation_open: bool,
+}
+
+fn is_true(x: &bool) -> bool {
+    *x
 }
 
 /// A tap from one strip into another that does not replace the strip's output: the
@@ -1309,6 +1320,7 @@ impl Project {
             input: None,
             armed: false,
             takes_open: false,
+            automation_open: true,
         }
     }
 
@@ -1347,7 +1359,23 @@ impl Project {
             notes: Vec::new(),
             audio: None,
             lane: 0,
+            automation: None,
         }
+    }
+
+    /// An automation clip (ADR 0027) driving `target`, its window `start`..`start +
+    /// length` showing the curve from content tick 0.
+    pub fn make_automation_clip(
+        &mut self,
+        name: impl Into<String>,
+        target: crate::automation::AutoTarget,
+        start: Ticks,
+        length: Ticks,
+        points: Vec<crate::automation::AutoPoint>,
+    ) -> Clip {
+        let mut clip = self.make_clip(name, start, length);
+        clip.automation = Some(crate::automation::Automation::new(target, points));
+        clip
     }
 
     /// An audio clip over `source`, its window `start`..`start + length` showing the file

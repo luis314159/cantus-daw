@@ -489,6 +489,20 @@ pub enum Command {
         clip: ClipId,
         audio: Option<crate::audio::AudioRegion>,
     },
+    /// Set or clear what makes a clip an automation clip (ADR 0027): its target and its
+    /// curve. Every edit of a curve — a point added, moved, bent, an articulator — is this
+    /// one command with the whole new curve, so a drag merges into one step and its
+    /// inverse is simply the curve as it was.
+    SetClipAutomation {
+        track: TrackId,
+        clip: ClipId,
+        automation: Option<crate::automation::Automation>,
+    },
+    /// Show or hide the automation lanes under a track.
+    SetTrackAutomationOpen {
+        id: TrackId,
+        open: bool,
+    },
     /// Move a clip to another lane: 0 plays, 1… are take lanes.
     SetClipLane {
         track: TrackId,
@@ -627,6 +641,8 @@ impl Command {
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
             SetClipAudio { .. } => "cmd.set_clip_audio",
             SetClipLane { .. } => "cmd.set_clip_lane",
+            SetClipAutomation { .. } => "cmd.set_clip_automation",
+            SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
@@ -662,6 +678,18 @@ impl Command {
                     ..
                 },
                 SetClipAudio {
+                    track: tb,
+                    clip: cb,
+                    ..
+                },
+            ) => ta == tb && ca == cb,
+            (
+                SetClipAutomation {
+                    track: ta,
+                    clip: ca,
+                    ..
+                },
+                SetClipAutomation {
                     track: tb,
                     clip: cb,
                     ..
@@ -1873,6 +1901,32 @@ impl Command {
                     audio: old,
                 })
             }
+            SetClipAutomation {
+                track,
+                clip,
+                automation,
+            } => {
+                if automation.as_ref().is_some_and(|a| !a.is_valid()) {
+                    return Err(CommandError::InvalidValue("automation curve".into()));
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.automation, automation);
+                Ok(SetClipAutomation {
+                    track,
+                    clip,
+                    automation: old,
+                })
+            }
+            SetTrackAutomationOpen { id, open } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.automation_open, open);
+                Ok(SetTrackAutomationOpen { id, open: old })
+            }
             SetClipLane { track, clip, lane } => {
                 let t = project
                     .track_mut(track)
@@ -2142,6 +2196,9 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
     }
     for n in &c.notes {
         validate_note(n)?;
+    }
+    if c.automation.as_ref().is_some_and(|a| !a.is_valid()) {
+        return Err(CommandError::InvalidValue("automation curve".into()));
     }
     Ok(())
 }

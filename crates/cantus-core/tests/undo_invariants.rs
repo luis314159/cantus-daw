@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(25) {
+    match rng.below(26) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -706,9 +706,105 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
             }
             Command::SetRecordSettings { settings }
         }
+        // Automation clips (ADR 0027): made for every kind of target, a vanished one
+        // included; curves replaced, broken (refused), cleared; lanes shown and hidden.
+        25 if tracks > 0 => automation_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
+    }
+}
+
+fn random_points(rng: &mut Lcg) -> Vec<AutoPoint> {
+    let mut pts: Vec<AutoPoint> = (0..rng.below(6))
+        .map(|_| AutoPoint {
+            tick: Ticks(rng.below(4000) as i64),
+            value: rng.f32(0.0, 1.0),
+            tension: rng.f32(-1.0, 1.0),
+            shape: Shape::ALL[rng.below(Shape::ALL.len() as u64) as usize],
+        })
+        .collect();
+    pts.sort_by_key(|p| p.tick);
+    pts
+}
+
+fn automation_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    let tracks = project.tracks.len() as u64;
+    let t = &project.tracks[rng.below(tracks) as usize];
+    let tid = t.id;
+    let autos: Vec<ClipId> = t
+        .clips
+        .iter()
+        .filter(|c| c.automation.is_some())
+        .map(|c| c.id)
+        .collect();
+    match rng.below(4) {
+        0 | 1 if !autos.is_empty() => {
+            let clip = autos[rng.below(autos.len() as u64) as usize];
+            let mut auto = project
+                .track(tid)
+                .and_then(|t| t.clip(clip))
+                .and_then(|c| c.automation.clone())
+                .unwrap();
+            match rng.below(4) {
+                0 => auto.points = random_points(rng),
+                // Out of range and out of order: refused, and nothing changes.
+                1 => auto.points = vec![AutoPoint::new(Ticks(9), 3.0), AutoPoint::new(Ticks(1), 0.5)],
+                2 => auto.target = AutoTarget::TrackPan(tid),
+                _ => {
+                    return Command::SetClipAutomation {
+                        track: tid,
+                        clip,
+                        automation: None,
+                    }
+                }
+            }
+            Command::SetClipAutomation {
+                track: tid,
+                clip,
+                automation: Some(auto),
+            }
+        }
+        2 => Command::SetTrackAutomationOpen {
+            id: tid,
+            open: rng.below(2) == 1,
+        },
+        _ => {
+            let strip = project.strips[rng.below(project.strips.len() as u64) as usize].id;
+            let effect = project.all_effects().next().map(|(_, e)| e.id);
+            let target = match rng.below(6) {
+                0 => AutoTarget::StripGain(strip),
+                1 => AutoTarget::MasterWidth,
+                2 => AutoTarget::TrackGain(tid),
+                3 => match effect {
+                    Some(effect) => AutoTarget::Effect {
+                        effect,
+                        key: "mix".into(),
+                    },
+                    None => AutoTarget::MasterPan,
+                },
+                4 => AutoTarget::Effect {
+                    effect: EffectId(77_777),
+                    key: "nothing".into(),
+                },
+                _ => AutoTarget::Firmus {
+                    track: tid,
+                    param: FirmusParam::Cutoff,
+                },
+            };
+            let pts = random_points(rng);
+            let clip = project.make_automation_clip(
+                "auto",
+                target,
+                Ticks::beats(rng.below(32) as i64),
+                Ticks::beats(1 + rng.below(8) as i64),
+                pts,
+            );
+            Command::InsertClip {
+                track: tid,
+                clip: Box::new(clip),
+            }
+        }
     }
 }
 

@@ -247,6 +247,62 @@ fn main() {
     let mut master_lim = p.make_effect(EffectKind::Limiter);
     master_lim.spec.set("ceiling", -0.3).unwrap();
     p.master.effects.push(master_lim);
+    // Schema 19 (ADR 0027): automation clips under the Keys track — the Keys strip's
+    // fader ramping in with a bent curve, the delay's mix stepping, looped, and the
+    // master's width on a sine — and the Drums track with its lanes hidden.
+    let delay_id = p.strip(strip1).unwrap().effects[0].id;
+    let mut fade = p.make_automation_clip(
+        "Fade in",
+        AutoTarget::StripGain(strip1),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint {
+                tick: Ticks::ZERO,
+                value: 0.0,
+                tension: 0.4,
+                shape: Shape::Curve,
+            },
+            AutoPoint::new(Ticks::beats(8), 0.8),
+        ],
+    );
+    fade.color = Some(Color::PALETTE[5]);
+    let mut steps = p.make_automation_clip(
+        "Delay mix",
+        AutoTarget::Effect {
+            effect: delay_id,
+            key: "mix".into(),
+        },
+        Ticks::beats(8),
+        Ticks::beats(16),
+        vec![
+            AutoPoint {
+                tick: Ticks::ZERO,
+                value: 0.1,
+                tension: 0.0,
+                shape: Shape::Hold,
+            },
+            AutoPoint::new(Ticks::beats(2), 0.6),
+        ],
+    );
+    steps.content_length = Some(Ticks::beats(4));
+    let wide = p.make_automation_clip(
+        "Width",
+        AutoTarget::MasterWidth,
+        Ticks::beats(16),
+        Ticks::beats(8),
+        cantus_core::automation::edit::lfo(
+            cantus_core::automation::edit::Lfo::Sine,
+            Ticks::ZERO,
+            Ticks::beats(8),
+            2,
+            0.3,
+            0.7,
+            0,
+        ),
+    );
+    p.tracks[0].clips.extend([fade, steps, wide]);
+    p.tracks[1].automation_open = false;
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

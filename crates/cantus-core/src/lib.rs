@@ -10,6 +10,7 @@
 #![warn(missing_debug_implementations)]
 
 pub mod audio;
+pub mod automation;
 pub mod bus;
 pub mod command;
 pub mod effect;
@@ -26,6 +27,7 @@ pub use audio::{
     AudioRegion, AudioSource, ClickMode, FadeCurve, MonitorMode, RecordSettings, TakeMode,
     TrackInput,
 };
+pub use automation::{AutoLane, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
 pub use command::{Command, CommandError, Origin};
 pub use effect::{
