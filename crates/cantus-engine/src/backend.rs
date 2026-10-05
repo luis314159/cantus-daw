@@ -518,6 +518,12 @@ impl EngineHandle {
         self.send(EngineMessage::Seek(tick));
     }
 
+    /// Audition a decoded sample through the output (the sample browser), or fade the
+    /// audition out with `None`.
+    pub fn preview(&mut self, sample: Option<(Arc<cantus_core::SampleData>, f32)>) {
+        self.send(EngineMessage::Preview(sample));
+    }
+
     pub fn note_on(&mut self, track: TrackId, pitch: u8, velocity: u8) {
         self.send(EngineMessage::NoteOn {
             track,
@@ -610,6 +616,7 @@ impl EngineHandle {
                 EngineEvent::GarbageMemory(memory) => drop(memory),
                 EngineEvent::Record(mark) => self.rec.mark(mark),
                 EngineEvent::GarbageRecorder(rings) => self.rec.rings_back(rings),
+                EngineEvent::GarbagePreview(sample) => drop(sample),
             }
         }
         n
