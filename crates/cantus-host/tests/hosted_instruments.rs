@@ -8,8 +8,8 @@ use cantus_engine::{render_with_instruments, RenderOptions};
 use cantus_host::{HostNotice, PluginKind};
 use support::*;
 
-/// One second at 48 kHz: the chord on beat 2 and E4 on beat 4 both sound in it… almost:
-/// beat 4 is at 1.5 s, so plays run to 2 s.
+/// Two seconds at 48 kHz: the chord on beat 2 and E4 on beat 4, both over and released
+/// before the end.
 const FRAMES: usize = 96_000;
 
 fn rig_with_synth() -> (Rig, TrackId) {
@@ -55,7 +55,11 @@ fn every_block_size_gives_the_same_samples() {
     let reference = rig.play(FRAMES, 256);
     for block in [7, 64, 1000, 4096] {
         let out = rig.play(FRAMES, block);
-        assert_eq!(differing(&out, &reference), 0, "block {block}");
+        let first = out
+            .iter()
+            .zip(&reference)
+            .position(|(a, b)| a.to_bits() != b.to_bits());
+        assert_eq!(differing(&out, &reference), 0, "block {block}, first at {first:?}");
     }
 }
 

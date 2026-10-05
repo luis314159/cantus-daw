@@ -77,7 +77,8 @@ pub fn synth_info(host: &PluginHost) -> PluginInfo {
         .clone()
 }
 
-/// One track: a C major chord on beat 2 (one beat long), then E4 alone on beat 4, at
+/// One track: a C major chord on beat 2 (one beat long), then E4 alone on beat 4 (half a
+/// beat), at
 /// 120 BPM — so the first sound is exactly at sample 24 000.
 pub fn chord_project() -> Project {
     let mut p = Project::new("instrument");
@@ -87,7 +88,8 @@ pub fn chord_project() -> Project {
         let n = p.make_note(Ticks::beats(1), Ticks::QUARTER, pitch, 100);
         clip.notes.push(n);
     }
-    let n = p.make_note(Ticks::beats(3), Ticks::QUARTER, 64, 80);
+    // Over before the plays end (two seconds), so no note is left for a stop to release.
+    let n = p.make_note(Ticks::beats(3), Ticks(Ticks::QUARTER.0 / 2), 64, 80);
     clip.notes.push(n);
     keys.clips.push(clip);
     p.tracks.push(keys);

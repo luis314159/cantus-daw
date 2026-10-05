@@ -138,7 +138,7 @@ fn adapter(info: &PluginInfo, setup: AudioSetup) -> Result<(HostedInstrument, Bo
     Ok((unit, main))
 }
 
-fn check(info: &PluginInfo, folder: &std::path::Path) -> Row {
+fn check(info: &PluginInfo, db: &cantus_host::PluginDb) -> Row {
     let mut row = Row {
         name: info.name.clone(),
         vendor: info.vendor.clone(),
@@ -211,9 +211,7 @@ fn check(info: &PluginInfo, folder: &std::path::Path) -> Row {
     cantus_host::clap::collect_garbage();
     // ---- through the whole host ---------------------------------------------------------
     let mut host = PluginHost::new(None, RATE);
-    host.scanner = scanner(Duration::from_secs(120));
-    host.db.folders.push(folder.to_path_buf());
-    host.scan_now(false);
+    host.db = db.clone();
     let project = demo_project();
     let track = project.tracks[0].id;
     let mut rig = Rig::new(project, host);
@@ -275,7 +273,7 @@ fn real_free_instruments_play_and_keep_their_state() {
     let mut failures = Vec::new();
     for info in &infos {
         eprintln!("--- {} ({:?}) {}", info.name, info.format, info.path.display());
-        let r = check(info, &folder);
+        let r = check(info, &host.db);
         eprintln!("{r:?}");
         let yes = |b: bool| if b { "yes" } else { "no" };
         let _ = writeln!(

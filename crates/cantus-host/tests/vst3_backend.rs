@@ -918,3 +918,56 @@ fn the_editor_attaches_resizes_and_detaches() {
     assert_eq!(probe.editor().0, 0, "removed");
     drop((main, audio));
 }
+
+// ---------------------------------------------------------------------------------------
+// The instrument adapter (ADR 0028) over a VST3 instrument
+
+#[test]
+fn a_vst3_instrument_plays_through_the_instrument_adapter() {
+    use cantus_engine::inst::{InstrumentUnit, NoteOn};
+    let _g = serial();
+    let Loaded { main, audio } = load(PULSE_ID);
+    let mut unit = cantus_host::HostedInstrument::new(
+        audio,
+        &main.params(),
+        |id| main.param_value(id),
+        main.latency(),
+        RATE,
+        Default::default(),
+    );
+    let (mut l, mut r) = (vec![0.0f32; 16], vec![0.0f32; 16]);
+    assert!(!unit.process(&mut l, &mut r), "nothing played, nothing written");
+    // A note given between two calls is the first sample of the next one.
+    unit.note_on(NoteOn {
+        key: 60,
+        velocity: 0.75,
+        id: 7,
+        channel: 0,
+    });
+    l.fill(0.0);
+    r.fill(0.0);
+    assert!(unit.process(&mut l, &mut r));
+    assert_eq!(l[0], 0.75);
+    assert!(l[1..].iter().all(|x| *x == 0.0));
+    assert_eq!(unit.active_voices(), 1);
+    unit.note_off(60, 7, 0.5);
+    l.fill(0.0);
+    r.fill(0.0);
+    unit.process(&mut l, &mut r);
+    assert_eq!(l[0], -0.5, "its release velocity");
+    assert_eq!(unit.active_voices(), 0);
+    // A stop releases what still sounds.
+    unit.note_on(NoteOn {
+        key: 64,
+        velocity: 0.5,
+        id: 8,
+        channel: 0,
+    });
+    unit.all_notes_off();
+    assert_eq!(unit.active_voices(), 0);
+    l.fill(0.0);
+    r.fill(0.0);
+    unit.process(&mut l, &mut r);
+    assert_eq!(l[0], 0.5, "the note-on, then its note-off, in one instant");
+    unit.stop();
+}
