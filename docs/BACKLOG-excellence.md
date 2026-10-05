@@ -14,7 +14,7 @@ con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behri
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(4)** rendimiento con
-sesiones grandes (motor multinúcleo); **(5)** contenido (librería de sonidos, presets);
+sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
@@ -82,6 +82,73 @@ macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles 
   plug-ins plays at 128 samples on an 8-core laptop.
 - Disk streaming of long audio (ADR 0025 left it), lazy loading of samples, a frame
   budget for 200-track arrangements, startup under two seconds.
+
+## 4b. Performance beyond the market (requested 2026-10-05)
+
+*The goal: more tracks and plug-ins than any DAW on the same machine, at a lower buffer,
+with zero dropouts — proved by a published benchmark, not claimed.* The principle the best
+engines share: **never do work twice, never do work nobody hears, and never let the
+real-time path wait.**
+
+**The engine**
+- **Anticipative processing** (REAPER's) / **dual-path buffers** (Cubase's ASIO-Guard,
+  Logic's live vs playback): tracks that are *not* armed or monitored are rendered ahead
+  of time on worker threads in large blocks; only the live path (armed tracks, the input,
+  the instrument being played) runs at the 32–64-sample device buffer. This is the single
+  biggest lever — it is how REAPER plays sessions others choke on.
+- **A multicore graph scheduler**: the track/bus/send/sidechain graph (we already compute
+  `strip_order` and delay compensation) split into tasks, run by a lock-free
+  work-stealing pool of real-time threads; the critical path first; no allocation, no
+  mutex, no syscall in the callback.
+- **Real-time OS priority**: MMCSS "Pro Audio" on Windows (`AvSetMmThreadCharacteristics`)
+  for the audio and worker threads, Mach real-time policy on macOS, `SCHED_FIFO` /
+  rtkit on Linux; worker threads pinned to physical cores, away from the UI thread.
+- **A render cache — automatic background freeze** (beyond the market): a track whose
+  inputs (notes, parameters, automation, plug-in state) have not changed since its last
+  render is played from a cached render on disk instead of being computed; any edit
+  invalidates exactly what it touches. Heavy synths cost nothing once they stop changing.
+  Ableton/FL/Cubase freeze only by hand.
+- **Silence and tail awareness**: suspend any instrument or effect whose input is silent
+  once its tail has died (CLAP `tail`, our units' `is_quiet`), wake it on the next event;
+  extend the "idle track" skip we have to every node of the graph.
+- **SIMD everywhere hot**: explicit AVX2/AVX-512/NEON with runtime dispatch in the DSP
+  kernels (filters, oscillators, convolution, oversampling); synth voices processed 8 at
+  a time across SIMD lanes; structure-of-arrays voice state.
+- **FTZ/DAZ** set in the callback (STATUS round 17 measured 6 % on Sibilus for free).
+- **Memory**: per-thread arenas built off the audio thread, cache-line-aligned buffers,
+  no false sharing between workers, buffer reuse by liveness analysis of the graph.
+- **Plug-in hosting at scale**: out-of-process sandboxes (crash isolation) sharing audio
+  through shared memory with lock-free rings, grouped per process to keep the overhead
+  low (Bitwig's model); per-plug-in CPU accounting; plug-ins that report latency changes
+  handled without a dropout.
+- **Disk**: memory-mapped, prefetched audio streaming with a lock-free reader; projects of
+  hours of multitrack audio open instantly (peaks cached — round 19 did this for drawing).
+- **Research**: GPU DSP for convolution and large FFT work (experimental), and how far
+  sample-accurate parameter smoothing can be made branch-free.
+
+**Offline**
+- **Export faster than any DAW**: render independent tracks in parallel and in large
+  blocks (no real-time constraint), stems in parallel, at 50–200× real time; the render
+  cache makes re-exports near-instant.
+- Plug-in scanning in parallel, cached, incremental; never blocking start-up.
+
+**The interface**
+- Start-up under one second to a playable project (lazy plug-in loading, a cached scan,
+  instruments built on first note), project open under a second for 100 tracks.
+- 120/144 Hz rendering with input-to-photon latency measured; virtualised views for
+  1 000 tracks and 10 000 clips; waveforms and notes as cached meshes (rounds 9 and 19
+  started this); zero work when idle (round 18 already guarantees no repaint).
+
+**Proof — a benchmark that keeps us honest**
+- A reproducible **DAWbench-style suite** (DSP: N instances of a reference effect chain;
+  VI: N voices of a reference synth; a 100-track mix) run on the same machine against
+  REAPER, Ableton Live, FL Studio, Bitwig and Cubase; results published with the method.
+- **Performance gates in CI**: per-kernel benchmarks, a frame-time budget (exists for the
+  UI), callback time histograms; a regression fails the build.
+- **A dropout detector with blame**: every xrun records which node ran long, shown to the
+  user ("Spatium on Vocal took 3.1 ms") — no DAW tells you this today.
+- *Done when:* Cantus sustains more instances than every DAW in the suite at 64 samples
+  without a dropout, and exports faster than all of them, on a mid-range laptop.
 
 ## 5. Content
 
