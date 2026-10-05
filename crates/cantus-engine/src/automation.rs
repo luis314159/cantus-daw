@@ -53,6 +53,9 @@ pub(crate) struct FxCopy {
     pub effect: EffectId,
     pub spec: EffectSpec,
     pub dirty: bool,
+    /// Where its unit runs, found when the snapshot is installed: a strip slot and the
+    /// index in its chain, or `usize::MAX` and the index in the master's.
+    pub at: Option<(usize, usize)>,
 }
 
 /// An automated native instrument's copy, by snapshot track index.
@@ -131,6 +134,7 @@ impl Runtime {
                                     effect: *effect,
                                     spec: slot.spec.clone(),
                                     dirty: false,
+                                    at: None,
                                 });
                                 rt.effects.len() - 1
                             }

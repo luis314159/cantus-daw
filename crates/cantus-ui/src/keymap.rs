@@ -125,6 +125,8 @@ pub enum Action {
     TogglePunch,
     /// Show or hide the selected track's take lanes.
     ShowTakes,
+    /// FL's *Tools ▸ Last tweaked ▸ Create automation clip* (ADR 0027).
+    AutomateLastTweaked,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -170,7 +172,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 70] = [
+    pub const ALL: [Action; 71] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -241,6 +243,7 @@ impl Action {
         Action::ToggleCountIn,
         Action::TogglePunch,
         Action::ShowTakes,
+        Action::AutomateLastTweaked,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -316,6 +319,7 @@ impl Action {
             Action::ToggleCountIn => "toggle-count-in",
             Action::TogglePunch => "toggle-punch",
             Action::ShowTakes => "show-takes",
+            Action::AutomateLastTweaked => "automate-last-tweaked",
         }
     }
 
@@ -339,7 +343,9 @@ impl Action {
             | ClearSelection => Category::Edit,
             // Recording sits with the arrangement, where its tracks and lanes are.
             LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack | ArmTrack
-            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch => Category::Arrangement,
+            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch | AutomateLastTweaked => {
+                Category::Arrangement
+            }
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown

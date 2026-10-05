@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod audio_clips;
+pub mod automation;
 pub mod audio_files;
 pub mod boot;
 pub mod clips;

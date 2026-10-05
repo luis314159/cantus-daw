@@ -116,6 +116,8 @@ pub fn render_with_units(
     for unit in instruments {
         tx.push(EngineMessage::AddInstrument(unit)).ok();
     }
+    tx.push(EngineMessage::Automation(crate::automation::Runtime::build(&snap)))
+        .ok();
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     // Delay compensation longer than the pool's start-up lines is asked for; answer it
     // before the first block so the render is aligned from its first sample.

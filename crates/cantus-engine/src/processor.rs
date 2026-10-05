@@ -37,6 +37,9 @@ mod master;
 /// Input, monitoring, recording and audio clips (ADR 0025).
 #[path = "processor_rec.rs"]
 mod rec;
+/// Automation (ADR 0027): control points, ramps, configured copies.
+#[path = "processor_auto.rs"]
+mod auto;
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
@@ -362,6 +365,8 @@ pub struct Processor {
     live: rec::Live,
     /// The master's insert chain (ADR 0026, `processor_master.rs`).
     master: master::MasterChain,
+    /// Automation (ADR 0027, `processor_auto.rs`).
+    auto: auto::AutoState,
 }
 
 impl Processor {
@@ -438,6 +443,7 @@ impl Processor {
             record_rings: None,
             live: rec::Live::new(),
             master: master::MasterChain::new(),
+            auto: auto::AutoState::new(),
         }
     }
 
@@ -657,6 +663,7 @@ impl Processor {
             let Ok(msg) = self.rx.pop() else { break };
             match msg {
                 EngineMessage::SetSnapshot(snapshot) => self.install_snapshot(snapshot),
+                EngineMessage::Automation(rt) => self.auto_arrived(rt),
                 EngineMessage::AddEffect(unit) => {
                     if self.incoming_effects.len() < MAX_PENDING_EFFECTS {
                         self.incoming_effects.push(unit);
@@ -1068,6 +1075,7 @@ impl Processor {
         self.request_memory();
         self.transport.set_bpm(snapshot.tempo_bpm);
         self.transport.set_loop(snapshot.loop_region.clone());
+        self.auto_install(&snapshot);
 
         let old = self.snapshot.replace(snapshot);
         if let Some(old) = old {
@@ -1421,6 +1429,7 @@ impl Processor {
             let beat = snap.time_signature.ticks_per_beat().0 as f64;
             self.next_beat_tick = (pos / beat).ceil() * beat;
         }
+        self.auto_reseek();
     }
 
     fn release_all(&mut self) {
@@ -1478,7 +1487,8 @@ impl Processor {
             if guard > MAX_BLOCK_FRAMES * 2 {
                 break; // Impossible unless the loop region is degenerate; never spin.
             }
-            let mut seg_end = frames;
+            // A control point due now runs first; the segment ends at the next one.
+            let mut seg_end = self.auto_point(done, frames);
             let mut wrap_at_seg_end = false;
 
             if self.transport.is_playing() {
@@ -1625,6 +1635,13 @@ impl Processor {
                 let (bl, br) = balance_gains(s.pan);
                 let g = if s.audible { s.gain } else { 0.0 };
                 let (mut gl, mut gr) = (g * bl, g * br);
+                // Automated level or balance ramping (ADR 0027): applied here, sample by
+                // sample, and what follows is at unity.
+                if let Some(k0) = self.auto.k0(self.transport.samples()) {
+                    if auto::ramp_track(&self.auto, slot, s, k0, l, r) {
+                        (gl, gr) = (1.0, 1.0);
+                    }
+                }
                 if let Some(tap) = self.stem_tap.as_mut() {
                     tap.track(slot, s.strip.is_none(), done, l, r, gl, gr);
                 }
@@ -1833,6 +1850,17 @@ impl Processor {
                 };
                 let mut peak = 0f32;
                 let (gl, gr) = if muted { (0.0, 0.0) } else { (gl, gr) };
+                // An automated fader or pan ramping (ADR 0027): applied to the buffer, so
+                // every tap below — keys, the recorder, outputs, sends — is post-fader.
+                let (gl, gr) = match self.auto.k0(self.transport.samples()) {
+                    Some(k0)
+                        if !muted
+                            && auto::ramp_strip(&self.auto, slot, &self.strips[slot], law, k0, l, r) =>
+                    {
+                        (1.0, 1.0)
+                    }
+                    _ => (gl, gr),
+                };
                 if let Some(tap) = self.stem_tap.as_mut() {
                     tap.strip(slot, done, l, r, gl, gr);
                 }
@@ -1980,7 +2008,9 @@ impl Processor {
             }
             // The master's insert chain, on the summed mix, before its fader (ADR 0026).
             self.run_master(out, channels, n, done, seg_end, &position);
-            // Master strip: width, then pan and gain, then polarity last of all.
+            // Master strip: width, then pan and gain, then polarity last of all. Automation
+            // (ADR 0027) overrides the snapshot's values while it drives them.
+            let master_width = self.auto.master[2].unwrap_or(master_width);
             if channels > 1 && master_width != 1.0 {
                 for i in 0..n {
                     let frame = &mut out[i * channels..(i + 1) * channels];
@@ -1992,15 +2022,36 @@ impl Processor {
                     frame[1] = r;
                 }
             }
+            let master_ramp = self
+                .auto
+                .k0(self.transport.samples())
+                .filter(|_| self.auto.master_gain.is_some() || self.auto.master_pan.is_some());
+            let master_gain = self.auto.master[0].unwrap_or(master_gain);
+            let (master_l, master_r) = match self.auto.master[1] {
+                Some(p) => balance_gains(p),
+                None => (master_l, master_r),
+            };
             for i in 0..n {
                 let frame = &mut out[i * channels..(i + 1) * channels];
+                let (g, ml, mr) = match master_ramp {
+                    Some(k0) => {
+                        let k = k0 + i as u64;
+                        let g = self.auto.master_gain.map_or(master_gain, |r| r.at(k));
+                        let (l, r) = match self.auto.master_pan {
+                            Some(p) => balance_gains(p.at(k)),
+                            None => (master_l, master_r),
+                        };
+                        (g, l, r)
+                    }
+                    None => (master_gain, master_l, master_r),
+                };
                 for (ch, s) in frame.iter_mut().enumerate() {
                     let pan = match ch {
-                        0 => master_l,
-                        1 => master_r,
+                        0 => ml,
+                        1 => mr,
                         _ => 1.0,
                     };
-                    *s *= master_gain * pan * master_sign;
+                    *s *= g * pan * master_sign;
                     if ch < 2 {
                         master_peak[ch] = master_peak[ch].max(s.abs());
                     }

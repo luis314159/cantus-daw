@@ -547,6 +547,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             empty(ui, "audioclips.piano_roll", &s);
             return;
         }
+        // An automation clip: its curve in the large editor (ADR 0027).
+        Some(c) if c.automation.is_some() => {
+            super::auto_editor::show(app, ui, track_id, clip_id);
+            return;
+        }
         Some(_) => {}
     }
     toolbar(app, ui, track_id, clip_id);

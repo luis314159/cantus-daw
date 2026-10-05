@@ -280,7 +280,7 @@ impl Pattern {
     pub fn clip_on<'a>(&self, track: &'a cantus_core::Track) -> Option<&'a Clip> {
         let end = self.start + self.window();
         // Note clips on the playing lane only: an audio clip or a take has no steps.
-        let notes = |c: &&'a Clip| c.audio.is_none() && c.lane == 0;
+        let notes = |c: &&'a Clip| c.audio.is_none() && c.automation.is_none() && c.lane == 0;
         track
             .clips
             .iter()

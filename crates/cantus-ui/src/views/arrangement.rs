@@ -34,6 +34,9 @@ mod paint;
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
+/// Automation lanes and the curves in their clips (ADR 0027).
+#[path = "arrangement_auto.rs"]
+pub mod autolanes;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
@@ -101,6 +104,8 @@ pub struct ArrangementView {
     audio: audio::edit::State,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
     scratch: Scratch,
+    /// The automation lanes: their order, what was drawn, a point being dragged.
+    pub auto: autolanes::State,
 }
 
 /// What the painters reuse from frame to frame.
@@ -213,6 +218,7 @@ impl Default for ArrangementView {
             rename: None,
             audio: Default::default(),
             scratch: Scratch::default(),
+            auto: Default::default(),
         }
     }
 }
@@ -574,6 +580,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         return;
     }
     let punch_h = rec::punch_height(app, &s);
+    // The automation lanes' order, once per edit.
+    let mut auto_st = std::mem::take(&mut app.arrangement.auto);
+    auto_st.refresh(app);
+    app.arrangement.auto = auto_st;
     let v = &mut app.arrangement;
     let most = HEADER_MAX.min(full.width() * 0.6).max(40.0);
     v.header_width = v.header_width.clamp(HEADER_MIN.min(most), most);
@@ -805,7 +815,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         .input(|i| i.pointer.hover_pos())
         .filter(|_| ui.rect_contains_pointer(clip));
     let visible =
-        |row: &TrackRow| row.top + row.height + row.takes > clip.top() && row.top < clip.bottom();
+        |row: &TrackRow| row.top + row.height + row.takes + row.auto > clip.top() && row.top < clip.bottom();
     let row_rect = |row: &TrackRow| {
         Rect::from_min_size(pos2(clip.left(), row.top), vec2(clip.width(), row.height))
     };
@@ -853,6 +863,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
                 rec::paint_header(b, a, track, &rr, tint, pointer, s);
                 takes::paint_headers(b, a, track, row, clip, tint, s);
+                autolanes::paint_headers(b, a, i, track, row, clip, tint, s);
             }
             // Below the last track, FL's empty rows: "Track 5" in a placeholder's faint
             // text on a flat well, so the column reads as a list with room in it.
@@ -947,6 +958,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             rec::header_input(app, ui, id, rr, s);
         }
         takes::header_input(app, ui, id, row, clip, s);
+        autolanes::header_input(app, ui, i, id, row, clip);
 
         let grip = Rect::from_min_max(
             pos2(hr.row.left(), row.top + row.height - DIVIDER_GRIP),
@@ -1065,6 +1077,11 @@ fn track_menu(
 ) {
     // Recording first: arm, input, takes (`arrangement_rec`).
     if rec::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
+    // Automation: its fader, pan or level, and its lanes (ADR 0027).
+    if autolanes::track_menu(app, ui, id) {
         ui.close();
         return;
     }
@@ -1205,6 +1222,8 @@ pub struct TrackRow {
     pub height: f32,
     /// The take lanes' height below it, while they are shown (zero otherwise).
     pub takes: f32,
+    /// The automation lanes' height below those (ADR 0027), while shown.
+    pub auto: f32,
 }
 
 impl TimelineGeometry {
@@ -1237,7 +1256,7 @@ impl TimelineGeometry {
     pub fn bottom(&self) -> f32 {
         self.rows
             .last()
-            .map(|r| r.top + r.height + r.takes)
+            .map(|r| r.top + r.height + r.takes + r.auto)
             .unwrap_or(self.body_top)
     }
 }
@@ -1258,12 +1277,14 @@ fn rows_into(rows: &mut Vec<TrackRow>, project: &cantus_core::Project, top: f32,
     for t in &project.tracks {
         let height = (base * t.height()).round();
         let takes = takes::height(t, base);
+        let auto = autolanes::height(t, base);
         rows.push(TrackRow {
             top: y,
             height,
             takes,
+            auto,
         });
-        y += height + takes;
+        y += height + takes + auto;
     }
 }
 
@@ -1302,6 +1323,7 @@ fn clips(
     geo: &TimelineGeometry,
     lanes: Rect,
     scratch: &mut Scratch,
+    auto_st: &mut autolanes::State,
     pointer: Option<Pos2>,
     press: Option<Pos2>,
     s: &Style,
@@ -1322,7 +1344,15 @@ fn clips(
             let (dstart, dlen, drows) = v.preview(sel, r).unwrap_or((Ticks::ZERO, Ticks::ZERO, 0));
             // A clip being dragged across tracks takes the *target* row's shape: a
             // preview that kept its old height would be a lie about where it goes.
-            let target = if clip.lane > 0 {
+            let target = if let Some(lane) =
+                autolanes::clip_row(auto_st, v.track_height, i, &here, clip)
+            {
+                // An automation clip: in its lane, which a drag never leaves (ADR 0027).
+                match lane {
+                    Some(r) => r,
+                    None => continue,
+                }
+            } else if clip.lane > 0 {
                 // A take lane's clip: drawn in its lane under the track, when shown.
                 match takes::lane_row(&here, clip.lane, v.track_height) {
                     Some(r) => r,
@@ -1407,6 +1437,26 @@ fn clips(
                 offset: clip.offset + v.slip_preview(r, false),
                 content_length: clip.content_length,
             };
+            // An automation clip's body is its curve (ADR 0027).
+            if clip.automation.is_some() {
+                let ground = if s.t.dark { s.t.row_black } else { s.t.row_white };
+                autolanes::paint_body(
+                    b,
+                    auto_st,
+                    r,
+                    clip,
+                    shown,
+                    inner,
+                    body,
+                    lanes,
+                    geo,
+                    paint::note_ink(&look, s),
+                    ground,
+                    sel,
+                    pointer,
+                    s,
+                );
+            }
             if !clip.notes.is_empty() && inner.height() > 2.0 && inner.width() > 4.0 {
                 let (lo, hi) = clip.notes.iter().fold((127u8, 0u8), |(lo, hi), n| {
                     (lo.min(n.pitch), hi.max(n.pitch))
@@ -1524,6 +1574,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // ---- paint: the ruler, the lanes and the clips, then what goes over them ----------
     let mut scratch = std::mem::take(&mut app.arrangement.scratch);
     scratch.refresh_words();
+    let mut auto_st = std::mem::take(&mut app.arrangement.auto);
+    auto_st.drawn.clear();
     let lanes_p = ui.painter().with_clip_rect(f.lanes);
     let hits = {
         let a: &CantusApp = app;
@@ -1534,10 +1586,12 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         kit::with_brush(&lanes_p, |b| {
             paint::lanes(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
-            clips(b, a, view, f.lanes, &mut scratch, pointer, press_origin, s)
+            autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
+            clips(b, a, view, f.lanes, &mut scratch, &mut auto_st, pointer, press_origin, s)
         })
     };
     app.arrangement.scratch = scratch;
+    app.arrangement.auto = auto_st;
     kit::with_brush(&lanes_p, |b| {
         takes::overlay(b, app, view, f.lanes, s);
         rec::paint_live(b, app, view, f.lanes, s);
@@ -1685,6 +1739,13 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     if resp.double_clicked() {
         if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
             audio::edit::reset(app, (h.track, h.clip), handle);
+        }
+        // An automation clip opens in the large editor (ADR 0027).
+        if let Some(h) = hit.filter(|h| {
+            crate::clips::clip_of(app.project(), (h.track, h.clip))
+                .is_some_and(|c| c.automation.is_some())
+        }) {
+            app.open_automation_editor(h.track, h.clip);
         }
         if let Some(pos) = resp.interact_pointer_pos() {
             if pos.y >= body_top && hit.is_none() {
@@ -1858,18 +1919,29 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         } else if let Some((a, b)) = app.arrangement.marquee.take() {
             let band = Rect::from_two_pos(a, b);
             let mut picked = Vec::new();
+            let base = app.arrangement.track_height;
             for (i, track) in app.project().tracks.iter().enumerate() {
                 let Some(r) = view.rows.get(i).copied() else {
                     continue;
                 };
-                let row = Rect::from_min_max(
+                let track_row = Rect::from_min_max(
                     pos2(rect.left(), r.top + 2.0),
                     pos2(rect.right(), r.top + r.height - 2.0),
                 );
-                if !band.intersects(row) {
-                    continue;
-                }
                 for clip in track.clips.iter().filter(|c| c.lane == 0) {
+                    // Automation clips are picked in their lanes.
+                    let row = match autolanes::clip_row(&app.arrangement.auto, base, i, &r, clip)
+                    {
+                        Some(Some(l)) => Rect::from_min_max(
+                            pos2(rect.left(), l.top + 2.0),
+                            pos2(rect.right(), l.top + l.height - 2.0),
+                        ),
+                        Some(None) => continue,
+                        None => track_row,
+                    };
+                    if !band.intersects(row) {
+                        continue;
+                    }
                     let x0 = view.x(ticks_to_beats(clip.start));
                     let x1 = view.x(ticks_to_beats(clip.end()));
                     if band.intersects(Rect::from_min_max(
@@ -1889,6 +1961,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // lane's brace and the take lanes' swipes are theirs, not a clip drag's.
     rec::punch_input(app, ui, view, f.ruler, s);
     takes::input(app, ui, view, f.lanes, s);
+    autolanes::input(app, ui, f.lanes, s);
 }
 
 /// What a finished clip drag asks the application to do.
@@ -2037,6 +2110,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
         let _ = menu(app, ui, &[Entry::Band("clip.color")]);
     }
     color_menu(app, ui);
+    // An automation clip's section: open it, FL's articulators (ADR 0027).
+    autolanes::clip_menu(app, ui, (track, clip));
 }
 
 /// Normalise the selected audio clips (their loudest sample to −0.1 dBFS, through clip
