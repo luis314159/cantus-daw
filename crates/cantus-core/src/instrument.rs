@@ -395,8 +395,7 @@ impl From<FirmusParam> for InstrumentParam {
     }
 }
 
-/// Which instrument a track hosts. New instruments are added as variants; plugin hosting
-/// will add a `Plugin { format, id, state }` variant.
+/// Which instrument a track hosts. New instruments are added as variants.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum InstrumentSpec {
@@ -408,6 +407,10 @@ pub enum InstrumentSpec {
     /// A native instrument whose model is `key → f32` plus text (ADR 0023): Unda, Calor,
     /// Modulus, Exemplar, Gravis, Lamina, Organum. Its arrival is schema 16.
     Native(crate::inst::NativeSpec),
+    /// A hosted CLAP/VST3 instrument (ADR 0028): the same record an insert slot keeps for a
+    /// hosted effect — format and id to find it, name and vendor to show when it is missing,
+    /// its opaque state and its parameter values by its own ids. Its arrival is schema 19.
+    External(crate::external::ExternalPlugin),
 }
 
 impl Default for InstrumentSpec {
@@ -459,11 +462,27 @@ impl InstrumentSpec {
         }
     }
 
+    /// The hosted plug-in, for [`InstrumentSpec::External`].
+    pub fn external(&self) -> Option<&crate::external::ExternalPlugin> {
+        match self {
+            InstrumentSpec::External(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    pub fn external_mut(&mut self) -> Option<&mut crate::external::ExternalPlugin> {
+        match self {
+            InstrumentSpec::External(e) => Some(e),
+            _ => None,
+        }
+    }
+
     pub fn name_key(&self) -> &'static str {
         match self {
             InstrumentSpec::Firmus(_) => "instrument.firmus",
             InstrumentSpec::Pulsus(_) => "instrument.pulsus",
             InstrumentSpec::Native(n) => n.kind.name_key(),
+            InstrumentSpec::External(_) => crate::external::NAME_KEY,
         }
     }
 
@@ -474,7 +493,9 @@ impl InstrumentSpec {
     /// called `F#2` when it plays a closed hat is a lane the musician has to translate.
     pub fn lane_name(&self, pitch: Pitch) -> Option<&str> {
         match self {
-            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) => None,
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) | InstrumentSpec::External(_) => {
+                None
+            }
             InstrumentSpec::Pulsus(p) => p
                 .pads
                 .iter()
@@ -486,7 +507,9 @@ impl InstrumentSpec {
     /// The rows a note editor should draw for this instrument.
     pub fn lanes(&self) -> Lanes<'_> {
         match self {
-            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) => Lanes::Chromatic,
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) | InstrumentSpec::External(_) => {
+                Lanes::Chromatic
+            }
             InstrumentSpec::Pulsus(p) => Lanes::Pads(&p.pads),
         }
     }

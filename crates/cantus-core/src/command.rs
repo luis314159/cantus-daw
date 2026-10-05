@@ -408,6 +408,21 @@ pub enum Command {
         state: crate::external::PluginState,
         params: std::collections::BTreeMap<u32, f64>,
     },
+    /// One parameter of a track's hosted instrument (ADR 0028), by the plug-in's id, in its
+    /// own range; `None` takes the value out of the project. The instrument twin of
+    /// [`Command::SetPluginParam`]; only for an [`InstrumentSpec::External`] track.
+    SetInstrumentPluginParam {
+        track: TrackId,
+        id: u32,
+        value: Option<f64>,
+    },
+    /// A track's hosted instrument's whole state and values at once: a preset, the other
+    /// side of A/B, or a state the plug-in changed by itself (its own preset browser).
+    SetInstrumentPluginState {
+        track: TrackId,
+        state: crate::external::PluginState,
+        params: std::collections::BTreeMap<u32, f64>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -589,6 +604,8 @@ impl Command {
             SetEffectMix { .. } => "cmd.set_effect_mix",
             SetPluginParam { .. } => "cmd.set_plugin_param",
             SetPluginState { .. } => "cmd.set_plugin_state",
+            SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
+            SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -748,6 +765,18 @@ impl Command {
                     ..
                 },
             ) => a == b && ea == eb,
+            (
+                SetInstrumentPluginParam {
+                    track: a, id: ia, ..
+                },
+                SetInstrumentPluginParam {
+                    track: b, id: ib, ..
+                },
+            ) => a == b && ia == ib,
+            (
+                SetInstrumentPluginState { track: a, .. },
+                SetInstrumentPluginState { track: b, .. },
+            ) => a == b,
             // A batch of the same shape — the ganged faders of a multi-selection — is one
             // gesture too: every pair supersedes, so the batch does.
             (Batch { commands: a, .. }, Batch { commands: b, .. }) => {
@@ -1716,6 +1745,38 @@ impl Command {
                     params: old_params,
                 })
             }
+            SetInstrumentPluginParam { track, id, value } => {
+                if value.is_some_and(|v| !v.is_finite()) {
+                    return Err(CommandError::InvalidValue("plug-in parameter".into()));
+                }
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = match value {
+                    Some(v) => plugin.params.insert(id, v),
+                    None => plugin.params.remove(&id),
+                };
+                Ok(SetInstrumentPluginParam {
+                    track,
+                    id,
+                    value: old,
+                })
+            }
+            SetInstrumentPluginState {
+                track,
+                state,
+                params,
+            } => {
+                if params.values().any(|v| !v.is_finite()) {
+                    return Err(CommandError::InvalidValue("plug-in parameter".into()));
+                }
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old_state = std::mem::replace(&mut plugin.state, state);
+                let old_params = std::mem::replace(&mut plugin.params, params);
+                Ok(SetInstrumentPluginState {
+                    track,
+                    state: old_state,
+                    params: old_params,
+                })
+            }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
                 let t = project
@@ -2134,6 +2195,19 @@ fn external_mut(
         .external
         .as_deref_mut()
         .ok_or_else(|| CommandError::InvalidValue("not a hosted plug-in".into()))
+}
+
+/// A track's hosted instrument, for the commands that only mean something there.
+fn instrument_plugin_mut(
+    project: &mut Project,
+    track: TrackId,
+) -> Result<&mut crate::external::ExternalPlugin, CommandError> {
+    project
+        .track_mut(track)
+        .ok_or(CommandError::TrackNotFound(track))?
+        .instrument
+        .external_mut()
+        .ok_or_else(|| CommandError::InvalidValue("not a hosted instrument".into()))
 }
 
 fn validate_clip(c: &Clip) -> Result<(), CommandError> {
