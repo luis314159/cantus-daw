@@ -358,6 +358,17 @@ pub enum Command {
         effect: EffectId,
         index: usize,
     },
+    /// Swap an insert for another **in its place** (round 20, ADR 0029): the slot `effect`
+    /// leaves the chain and `slot` takes its index. One step of the history, whose inverse
+    /// puts the old slot back. What the new slot carries over from the old one (mix,
+    /// bypass, a key, a note source) is the caller's choice; a key or a note source the new
+    /// kind cannot take is refused as `SetEffectSidechain` and `SetEffectMidiSource`
+    /// refuse it, and so is an id already in the chain.
+    ReplaceEffect {
+        strip: StripId,
+        effect: EffectId,
+        slot: Box<EffectSlot>,
+    },
     SetEffectBypass {
         strip: StripId,
         effect: EffectId,
@@ -608,6 +619,7 @@ impl Command {
             InsertEffect { .. } => "cmd.insert_effect",
             RemoveEffect { .. } => "cmd.remove_effect",
             MoveEffect { .. } => "cmd.move_effect",
+            ReplaceEffect { .. } => "cmd.replace_effect",
             SetEffectBypass { .. } => "cmd.set_effect_bypass",
             SetEffectParam { .. } => "cmd.set_effect_param",
             InsertClip { .. } => "cmd.insert_clip",
@@ -1563,6 +1575,28 @@ impl Command {
                     index: from,
                 })
             }
+            ReplaceEffect {
+                strip,
+                effect,
+                slot,
+            } => {
+                check_effect_routes(project, strip, &slot)?;
+                let t = chain_mut(project, strip)?;
+                let index = t
+                    .iter()
+                    .position(|e| e.id == effect)
+                    .ok_or(CommandError::EffectNotFound(effect))?;
+                if slot.id != effect && t.iter().any(|e| e.id == slot.id) {
+                    return Err(CommandError::DuplicateId(slot.id.0));
+                }
+                let id = slot.id;
+                let old = std::mem::replace(&mut t[index], *slot);
+                Ok(ReplaceEffect {
+                    strip,
+                    effect: id,
+                    slot: Box::new(old),
+                })
+            }
             SetEffectBypass {
                 strip,
                 effect,
@@ -2109,6 +2143,38 @@ fn chain_mut(project: &mut Project, strip: StripId) -> Result<&mut Vec<EffectSlo
     project
         .effects_of_mut(strip)
         .ok_or(CommandError::StripNotFound(strip))
+}
+
+/// The routes a whole new slot brings (`ReplaceEffect`): its key and its note source,
+/// checked as `SetEffectSidechain` and `SetEffectMidiSource` check them.
+fn check_effect_routes(
+    project: &Project,
+    strip: StripId,
+    slot: &EffectSlot,
+) -> Result<(), CommandError> {
+    if let Some(src) = slot.sidechain {
+        if !slot.spec.takes_sidechain() {
+            return Err(CommandError::InvalidValue("sidechain".into()));
+        }
+        if src.is_master() {
+            return Err(CommandError::RoutingCycle(strip));
+        }
+        if project.strip(src).is_none() {
+            return Err(CommandError::StripNotFound(src));
+        }
+        if src == strip || project.routing_would_cycle(src, Some(strip)) {
+            return Err(CommandError::RoutingCycle(strip));
+        }
+    }
+    if let Some(src) = slot.midi_from {
+        if !slot.spec.kind.takes_notes() {
+            return Err(CommandError::InvalidValue("midi source".into()));
+        }
+        if project.track(src).is_none() {
+            return Err(CommandError::TrackNotFound(src));
+        }
+    }
+    Ok(())
 }
 
 /// One insert of a strip or of the master.
