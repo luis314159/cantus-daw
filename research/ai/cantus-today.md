@@ -35,7 +35,7 @@ young — prefer thin in-house code to a heavy dependency.
 
 ## 2. The command bus (ADR 0004) — the reason AI is safe in Cantus
 
-Every mutation is a `cantus_core::Command` (about 110 variants today: transport, tracks,
+Every mutation is a `cantus_core::Command` (roughly 95 variants today: transport, tracks,
 strips, sends, groups, instruments and pads, effects and hosted-plug-in params/state,
 clips, audio pool, recording settings, notes, and `Batch`). `CommandBus::execute(cmd,
 origin)` applies it, stores the **inverse**, bumps the revision and writes an
