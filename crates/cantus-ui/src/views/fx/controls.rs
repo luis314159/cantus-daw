@@ -70,6 +70,7 @@ pub fn write_readout(v: f32, unit: &str, out: &mut String) {
         "st" => write!(out, "{v:+.1} st"),
         "ct" => write!(out, "{v:+.0} ct"),
         "%" => write!(out, "{:.0}%", v * 100.0),
+        "\u{b0}" => write!(out, "{v:+.1}\u{b0}"),
         "" if v.abs() >= 100.0 => write!(out, "{v:.0}"),
         "" => write!(out, "{v:.2}"),
         u => write!(out, "{v:.2} {u}"),
@@ -832,7 +833,9 @@ mod tests {
     #[test]
     fn the_readout_is_the_cores_to_the_letter() {
         let mut buf = String::new();
-        for unit in ["Hz", "ms", "s", "dB", "st", "ct", "%", "", ":1", "LUFS"] {
+        for unit in [
+            "Hz", "ms", "s", "dB", "st", "ct", "%", "\u{b0}", "", ":1", "LUFS",
+        ] {
             for v in [
                 -48.0f32, -3.5, 0.0, 0.004, 0.25, 0.71, 1.0, 12.0, 99.9, 150.0, 999.0, 1_500.0,
                 12_000.0,

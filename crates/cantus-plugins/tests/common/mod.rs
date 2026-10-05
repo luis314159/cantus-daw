@@ -522,6 +522,36 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         ],
         EffectKind::DeEsser => vec![("thr", -40.0), ("range", 9.0)],
         EffectKind::Gate => vec![("thr", -30.0), ("range", 60.0), ("hold", 10.0)],
+        EffectKind::Stereo => vec![
+            ("width", 1.4),
+            ("rot", 10.0),
+            ("mono", 150.0),
+            ("w_hi", 1.6),
+            ("s_hi", 3.0),
+            ("m_lo", -2.0),
+            ("haas", 6.0),
+            ("haas_mode", 2.0),
+        ],
+        EffectKind::Maximizer => vec![
+            ("gain", 9.0),
+            ("lo.thr", -30.0),
+            ("lo.ratio", 3.0),
+            ("all.thr", -20.0),
+            ("all.ratio", 2.0),
+            ("xmode", 1.0),
+        ],
+        EffectKind::Saturator => vec![
+            ("model", 1.0),
+            ("drive", 18.0),
+            ("char", 0.6),
+            ("bias", 0.2),
+            ("os", 1.0),
+            ("tone", 2.0),
+            ("mix", 0.8),
+            ("p2.on", 1.0),
+            ("p2.x", 0.5),
+            ("p2.y", 0.8),
+        ],
         _ => vec![],
     }
 }
@@ -572,6 +602,9 @@ pub enum Direct {
     Mb(Box<cantus_dsp::multiplex::Multiplex>),
     Ds(Box<cantus_dsp::sibilus::Sibilus>),
     Gate(Box<cantus_dsp::porta::Porta>),
+    Stereo(Box<cantus_dsp::latitudo::Latitudo>),
+    Max(Box<cantus_dsp::culmen::Culmen>),
+    Sat(Box<cantus_dsp::fervor::Fervor>),
 }
 
 impl Direct {
@@ -586,6 +619,9 @@ impl Direct {
             }
             EffectKind::DeEsser => Direct::Ds(Box::new(cantus_dsp::sibilus::Sibilus::new(SR))),
             EffectKind::Gate => Direct::Gate(Box::new(cantus_dsp::porta::Porta::new(SR))),
+            EffectKind::Stereo => Direct::Stereo(Box::new(cantus_dsp::latitudo::Latitudo::new(SR))),
+            EffectKind::Maximizer => Direct::Max(Box::new(cantus_dsp::culmen::Culmen::new(SR))),
+            EffectKind::Saturator => Direct::Sat(Box::new(cantus_dsp::fervor::Fervor::new(SR))),
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -615,6 +651,9 @@ impl Direct {
             Direct::Mb(x) => x.set(&fx::multiband::settings(spec)),
             Direct::Ds(x) => x.set(&fx::deesser::settings(spec)),
             Direct::Gate(x) => x.set(&fx::gate::settings(spec)),
+            Direct::Stereo(x) => x.set(&fx::stereo::settings(spec)),
+            Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
+            Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
         }
     }
 
@@ -627,6 +666,9 @@ impl Direct {
             Direct::Mb(x) => x.reset(),
             Direct::Ds(x) => x.reset(),
             Direct::Gate(x) => x.reset(),
+            Direct::Stereo(x) => x.reset(),
+            Direct::Max(x) => x.reset(),
+            Direct::Sat(x) => x.reset(),
         }
     }
 
@@ -639,6 +681,9 @@ impl Direct {
             Direct::Mb(x) => x.latency(),
             Direct::Ds(x) => x.latency(),
             Direct::Gate(x) => x.latency(),
+            Direct::Stereo(x) => x.latency(),
+            Direct::Max(x) => x.latency(),
+            Direct::Sat(x) => x.latency(),
         }
     }
 
@@ -651,6 +696,9 @@ impl Direct {
             Direct::Mb(x) => x.process(l, r, key),
             Direct::Ds(x) => x.process(l, r, key),
             Direct::Gate(x) => x.process(l, r, key),
+            Direct::Stereo(x) => x.process(l, r),
+            Direct::Max(x) => x.process(l, r),
+            Direct::Sat(x) => x.process(l, r),
         }
     }
 }

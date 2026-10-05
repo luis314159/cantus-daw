@@ -57,6 +57,12 @@ pub struct TrackSnapshot {
     /// `(key, audio)` in key order; `None` for a file that could not be read. Empty after
     /// [`Snapshot::compile`] and filled by the engine's loader, like `samples`.
     pub assets: Vec<(String, Option<std::sync::Arc<crate::pads::SampleData>>)>,
+    /// The audio clips on the playing lane (ADR 0025), sorted by `start`, unmuted only.
+    /// `data` is filled by the engine's cache (`SampleCache::attach`), like `samples`.
+    pub audio: Vec<AudioClipSnapshot>,
+    /// The track's input, and whether it is armed: what the engine monitors and records.
+    pub input: Option<crate::audio::TrackInput>,
+    pub armed: bool,
 }
 
 impl TrackSnapshot {
@@ -64,6 +70,33 @@ impl TrackSnapshot {
     pub fn first_event_at_or_after(&self, tick: Ticks) -> usize {
         self.events.partition_point(|e| e.tick < tick)
     }
+}
+
+/// One audio clip as the engine plays it: the window in timeline ticks, the source and how
+/// to play it. Ticks, not samples: the snapshot does not know the device's rate, and the
+/// transport converts exactly as it does for notes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AudioClipSnapshot {
+    pub clip: crate::model::ClipId,
+    pub source: crate::model::AudioSourceId,
+    /// The source's path as the project stores it; the cache resolves it.
+    pub path: String,
+    pub start: Ticks,
+    pub end: Ticks,
+    /// The content tick at `start` (the clip's `offset`): content tick 0 is the file's
+    /// first frame.
+    pub offset: Ticks,
+    pub gain: f32,
+    pub fade_in: Ticks,
+    pub fade_out: Ticks,
+    pub fade_in_curve: crate::audio::FadeCurve,
+    pub fade_out_curve: crate::audio::FadeCurve,
+    pub reverse: bool,
+    /// The region's fine offset (`AudioRegion::slip_frames`) in seconds: the engine adds
+    /// it, at its own rate, to the content position.
+    pub slip: f64,
+    /// The decoded file at the engine's rate, once attached; `None` plays silence.
+    pub data: Option<std::sync::Arc<crate::pads::SampleData>>,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -113,6 +146,11 @@ pub struct Snapshot {
     /// thread never sorts anything.
     pub strip_order: Vec<usize>,
     pub content_end: Ticks,
+    /// The master's insert chain (ADR 0026) and its switch.
+    pub master_effects: Vec<EffectSlot>,
+    pub master_fx_enabled: bool,
+    /// Recording behaviour the engine needs (the click's mode and level).
+    pub recording: crate::audio::RecordSettings,
 }
 
 impl Snapshot {
@@ -132,6 +170,9 @@ impl Snapshot {
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
                 assets: Vec::new(),
+                audio: compile_audio(project, t),
+                input: t.input.clone(),
+                armed: t.armed,
             })
             .collect();
         Snapshot {
@@ -182,12 +223,96 @@ impl Snapshot {
             },
             strip_order: project.strip_order(),
             content_end: project.content_end(),
+            master_effects: project.master.effects.clone(),
+            master_fx_enabled: project.master.fx_enabled,
+            recording: project.recording.clone(),
         }
     }
 
     pub fn track(&self, id: TrackId) -> Option<&TrackSnapshot> {
         self.tracks.iter().find(|t| t.id == id)
     }
+
+    /// Every insert the snapshot holds — the strips' in order, then the master's (ADR
+    /// 0026) — for whoever builds the engine's units for them.
+    pub fn effect_slots(&self) -> impl Iterator<Item = &EffectSlot> {
+        self.strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .chain(self.master_effects.iter())
+    }
+}
+
+/// Most repetitions a looping audio clip is expanded into; a hand-edited file with a tiny
+/// period must not make the snapshot huge.
+const MAX_AUDIO_REPEATS: i64 = 4096;
+
+/// The audio clips that sound: lane 0, not muted, with a source in the pool, sorted by
+/// start (ADR 0025 §1).
+///
+/// A **looping** clip (`content_length` set) is handed to the engine as one window per
+/// repetition, each showing the content from `offset` for one period, so the engine plays
+/// every piece the way it plays a plain clip. The clip's fade in belongs to its first
+/// piece and its fade out to its last (each limited to its piece); the pieces between are
+/// unfaded, so a loop sounds continuous.
+fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
+    let mut out: Vec<AudioClipSnapshot> = Vec::new();
+    for c in track.clips.iter().filter(|c| !c.muted && c.lane == 0) {
+        let Some(a) = c.audio.as_ref() else {
+            continue;
+        };
+        let Some(src) = project.audio_source(a.source) else {
+            continue;
+        };
+        if c.length <= Ticks::ZERO {
+            continue;
+        }
+        // A piece of a loop keeps its fade inside itself; a whole clip hands the engine its
+        // fades as they are (the engine shortens overlapping ones in proportion).
+        let looped = c.period().is_some_and(|p| p < c.length);
+        let fit = |f: Ticks, len: Ticks| if looped { f.min(len) } else { f };
+        let piece = |start: Ticks, end: Ticks, first: bool, last: bool| AudioClipSnapshot {
+            clip: c.id,
+            source: a.source,
+            path: src.path.clone(),
+            start,
+            end,
+            offset: c.offset,
+            gain: db_to_linear(a.gain_db),
+            fade_in: if first {
+                fit(a.fade_in, end - start)
+            } else {
+                Ticks::ZERO
+            },
+            fade_out: if last {
+                fit(a.fade_out, end - start)
+            } else {
+                Ticks::ZERO
+            },
+            fade_in_curve: a.fade_in_curve,
+            fade_out_curve: a.fade_out_curve,
+            reverse: a.reverse,
+            slip: if src.sample_rate > 0 {
+                a.slip_frames as f64 / src.sample_rate as f64
+            } else {
+                0.0
+            },
+            data: None,
+        };
+        match c.period() {
+            Some(period) if period < c.length => {
+                let count = ((c.length.0 + period.0 - 1) / period.0).min(MAX_AUDIO_REPEATS);
+                for k in 0..count {
+                    let start = c.start + Ticks(k * period.0);
+                    let end = (start + period).min(c.end());
+                    out.push(piece(start, end, k == 0, k == count - 1));
+                }
+            }
+            _ => out.push(piece(c.start, c.end(), true, true)),
+        }
+    }
+    out.sort_by_key(|c| c.start);
+    out
 }
 
 fn compile_events(track: &Track) -> Vec<NoteEvent> {
@@ -205,7 +330,8 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
             .collect::<Vec<_>>()
     });
     for clip in &track.clips {
-        if clip.muted {
+        // Take lanes are never heard, and an audio clip has no notes to fire.
+        if clip.muted || clip.lane != 0 || clip.audio.is_some() {
             continue;
         }
         for n in &clip.notes {
@@ -321,6 +447,73 @@ mod tests {
         );
         assert!(s.strips[1].muted, "an unconnected strip is silenced");
         assert_eq!(s.strips[0].sends, vec![(5, 0.25)]);
+    }
+
+    #[test]
+    fn audio_clips_compile_to_windows_and_loops_to_pieces() {
+        let mut p = Project::default();
+        let src = AudioSourceId(p.alloc_id());
+        p.audio_pool.push(crate::audio::AudioSource {
+            id: src,
+            name: "s".into(),
+            path: "Audio/s.wav".into(),
+            sample_rate: 48_000,
+            channels: 2,
+            frames: 1000,
+            sha256: None,
+            recorded: false,
+        });
+        let mut t = p.make_track("t");
+        let mut plain = p.make_audio_clip("plain", src, Ticks(100), Ticks(50));
+        plain.audio.as_mut().unwrap().gain_db = -6.0;
+        let mut take = p.make_audio_clip("take", src, Ticks(0), Ticks(50));
+        take.lane = 1;
+        let mut muted = p.make_audio_clip("muted", src, Ticks(0), Ticks(50));
+        muted.muted = true;
+        let orphan = p.make_audio_clip("orphan", AudioSourceId(999_999), Ticks(0), Ticks(50));
+        let mut looped = p.make_audio_clip("loop", src, Ticks(1000), Ticks(250));
+        looped.offset = Ticks(7);
+        looped.content_length = Some(Ticks(100));
+        {
+            let a = looped.audio.as_mut().unwrap();
+            a.fade_in = Ticks(30);
+            a.fade_out = Ticks(80);
+        }
+        t.clips = vec![looped, plain, take, muted, orphan];
+        p.tracks.push(t);
+        let s = Snapshot::compile(&p, 0);
+        let a = &s.tracks[0].audio;
+        // The plain clip, then the loop's three pieces; takes, muted and orphans never.
+        assert_eq!(a.len(), 4);
+        assert_eq!(
+            (a[0].start, a[0].end, a[0].path.as_str()),
+            (Ticks(100), Ticks(150), "Audio/s.wav")
+        );
+        assert!((a[0].gain - 0.501_187).abs() < 1e-5);
+        let pieces: Vec<_> = a[1..]
+            .iter()
+            .map(|c| (c.start.0, c.end.0, c.offset.0, c.fade_in.0, c.fade_out.0))
+            .collect();
+        assert_eq!(
+            pieces,
+            vec![
+                (1000, 1100, 7, 30, 0),
+                (1100, 1200, 7, 0, 0),
+                (1200, 1250, 7, 0, 50)
+            ]
+        );
+        // Note clips' events never come from audio clips.
+        assert!(s.tracks[0].events.is_empty());
+        // The fine offset goes to the engine in seconds of the source.
+        assert_eq!(a[0].slip, 0.0);
+        let c = p.tracks[0]
+            .clips
+            .iter_mut()
+            .find(|c| c.name == "plain")
+            .unwrap();
+        c.audio.as_mut().unwrap().slip_frames = -12;
+        let s = Snapshot::compile(&p, 0);
+        assert_eq!(s.tracks[0].audio[0].slip, -12.0 / 48_000.0);
     }
 
     #[test]

@@ -36,29 +36,21 @@ pub struct DeviceInfo {
     pub is_default: bool,
 }
 
-/// Enumerate output devices for a settings dialog.
+/// Enumerate output devices for a settings dialog (the default driver; see
+/// [`crate::devices::output_devices_on`] for another).
 pub fn output_devices() -> Vec<DeviceInfo> {
-    let host = cpal::default_host();
-    let default_name = host
-        .default_output_device()
-        .and_then(|d| d.description().ok())
-        .map(|d| d.name().to_string());
-    host.output_devices()
-        .map(|it| {
-            it.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
-                .map(|name| DeviceInfo {
-                    is_default: Some(&name) == default_name.as_ref(),
-                    name,
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    crate::devices::output_devices_on(None)
 }
 
 /// Requested stream settings. `None` means "device default".
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AudioConfig {
+    /// The driver type by cpal's host name ("WASAPI", "ASIO"); `None` is the default.
+    pub driver: Option<String>,
     pub device_name: Option<String>,
+    /// The device recorded from (ADR 0025); `None` is the default input, and an empty
+    /// string opens no input at all.
+    pub input_device_name: Option<String>,
     pub sample_rate: Option<u32>,
     pub buffer_frames: Option<u32>,
 }
@@ -96,6 +88,10 @@ pub struct EngineHandle {
     comp_peak: [f32; 3],
     /// What hosted plug-ins' own windows did since the last take (ADR 0019).
     fx_params: Vec<(EffectId, crate::fx::FxParamEvent)>,
+    /// Recording's state on this side (`crate::recorder`).
+    pub(crate) rec: crate::recorder::HandleRecorder,
+    /// The devices' side: the driver, the input stream, latencies, the loopback probe.
+    pub(crate) dev: crate::devices::HandleDevices,
 }
 
 impl std::fmt::Debug for EngineHandle {
@@ -109,27 +105,41 @@ impl std::fmt::Debug for EngineHandle {
 }
 
 impl EngineHandle {
-    /// Open the output device and start the audio thread.
+    /// Open the output device and start the audio thread, and the input next to it
+    /// (ADR 0025): the driver `config.driver` names (the system's default when it is not
+    /// there), the output device, and the input device at the output's rate. An input
+    /// that cannot open leaves the output running and says why ([`Self::input_error`]).
     pub fn start(config: &AudioConfig) -> Result<Self, EngineError> {
-        let host = cpal::default_host();
+        let host = crate::devices::host(config.driver.as_deref());
         let device = match &config.device_name {
             Some(name) => host
                 .output_devices()
                 .map_err(|e| EngineError::Config(e.to_string()))?
-                .find(|d| d.description().map(|x| x.name() == name).unwrap_or(false))
+                .find(|d| crate::devices::name_of(d).as_deref() == Some(name.as_str()))
                 .or_else(|| host.default_output_device()),
             None => host.default_output_device(),
         }
         .ok_or(EngineError::NoOutputDevice)?;
-        let device_name = device
-            .description()
-            .map(|d| d.name().to_string())
-            .unwrap_or_default();
+        let device_name = crate::devices::name_of(&device).unwrap_or_default();
         let default = device
             .default_output_config()
             .map_err(|e| EngineError::Config(e.to_string()))?;
         let channels = default.channels().max(1) as usize;
         let sample_rate = config.sample_rate.unwrap_or(default.sample_rate());
+        // `f32` when the device plays it at this rate, its own format otherwise (ASIO
+        // devices often take only integers).
+        let format = if default.sample_format() == cpal::SampleFormat::F32
+            || device.supported_output_configs().is_ok_and(|mut it| {
+                it.any(|r| {
+                    r.sample_format() == cpal::SampleFormat::F32
+                        && r.channels() as usize == channels
+                        && r.contains_rate(sample_rate)
+                })
+            }) {
+            cpal::SampleFormat::F32
+        } else {
+            default.sample_format()
+        };
         let stream_config = cpal::StreamConfig {
             channels: channels as u16,
             sample_rate,
@@ -148,22 +158,69 @@ impl EngineHandle {
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
         processor.attach_analyser(analyser_tx);
 
-        let stream = device
-            .build_output_stream(
-                stream_config,
-                move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
-                    processor.process(data, channels);
-                },
-                |err| log::error!("audio stream error: {err}"),
-                None,
-            )
-            .map_err(|e| EngineError::Stream(e.to_string()))?;
+        // The input, at the output's rate, into the processor's ring.
+        let telemetry = Arc::new(crate::devices::DeviceTelemetry::default());
+        let mut rec = crate::recorder::HandleRecorder::default();
+        let (plan, mut input_error) =
+            match crate::devices::plan_input(host, config, &device, sample_rate) {
+                Ok(p) => (p, None),
+                Err(e) => (None, Some(e)),
+            };
+        let (plan, probe_input) = match plan {
+            Some((plan, rings)) => {
+                processor.attach_input(rings.ring, plan.channels);
+                processor.attach_input_clock(telemetry.input_clock.clone());
+                (Some(plan), Some(rings.probe))
+            }
+            None => (None, None),
+        };
+        let (probe_tx, probe_rx) = RingBuffer::new(2);
+        let (done_tx, done_rx) = RingBuffer::new(2);
+        let driver = crate::devices::OutputDriver {
+            processor,
+            channels,
+            rate: sample_rate as f64,
+            telemetry: telemetry.clone(),
+            probe: crate::loopback::ProbeSlot {
+                incoming: probe_rx,
+                done: done_tx,
+                input: probe_input,
+                active: None,
+                telemetry: telemetry.clone(),
+            },
+            scratch: Vec::new(),
+            latency: Default::default(),
+        };
+        let stream = crate::devices::build_output(&device, stream_config, format, driver)
+            .map_err(EngineError::Stream)?;
         stream
             .play()
             .map_err(|e| EngineError::Stream(e.to_string()))?;
-        log::info!("audio started: {device_name} @ {sample_rate} Hz, {channels} ch");
+        // The input starts once the output runs. If it cannot, the processor keeps a ring
+        // nothing fills (silence) and the handle reports no input.
+        let input_stream = plan.and_then(|plan| {
+            let (name, channels) = (plan.name.clone(), plan.channels);
+            match plan.start(&telemetry, sample_rate) {
+                Ok(stream) => {
+                    rec.input_name = Some(name);
+                    rec.input_channels = channels;
+                    Some(stream)
+                }
+                Err(e) => {
+                    input_error = Some(e);
+                    None
+                }
+            }
+        });
+        if let Some(e) = &input_error {
+            log::warn!("audio input: {e}");
+        }
+        let driver_name = host.id().name().to_string();
+        log::info!(
+            "audio started: {driver_name} {device_name} @ {sample_rate} Hz, {channels} ch, {format}"
+        );
 
-        Ok(EngineHandle {
+        let mut handle = EngineHandle {
             tx,
             rx,
             midi: MidiSender::new(midi_tx),
@@ -186,7 +243,21 @@ impl EngineHandle {
             analyser: Some(analyser_rx),
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
-        })
+            rec,
+            dev: Default::default(),
+        };
+        handle.dev = crate::devices::HandleDevices {
+            driver: driver_name,
+            buffer_frames: config.buffer_frames,
+            input_error,
+            telemetry: Some(telemetry),
+            input_stream,
+            probe_tx: Some(probe_tx),
+            probe_back: Some(done_rx),
+            probe_sent: None,
+            out_seen: (0, None),
+        };
+        Ok(handle)
     }
 
     /// A handle and the processor behind it, with no audio device: the caller drives the
@@ -232,6 +303,8 @@ impl EngineHandle {
             analyser: None,
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
+            rec: Default::default(),
+            dev: Default::default(),
         }
     }
 
@@ -368,28 +441,37 @@ impl EngineHandle {
     /// Files that cannot be read are reported and the pad stays silent; a project must
     /// never fail to play because a sample moved.
     pub fn compile(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
+        // A live engine loads audio sources in the background (ADR 0025 §9); a manual
+        // one (tests, renders) at once.
+        if self.is_live() {
+            self.samples.set_background(true);
+        }
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
+        }
+        // Audio clips' sources, at the device's rate (ADR 0025 §9).
+        let rate = self.sample_rate.round() as u32;
+        for (path, err) in self.samples.attach_audio(&mut snapshot, rate) {
+            log::warn!("audio {}: {err}", path.display());
         }
         Arc::new(snapshot)
     }
 
     /// Send a snapshot, first delivering units for any effect the engine does not have.
     pub fn set_snapshot(&mut self, snapshot: Arc<Snapshot>) {
-        for strip in &snapshot.strips {
-            for slot in &strip.effects {
-                if !self.known_effects.contains(&slot.id) {
-                    let unit = EffectUnit::new(slot, self.sample_rate as f32);
-                    if self
-                        .tx
-                        .push(EngineMessage::AddEffect(Box::new(unit)))
-                        .is_ok()
-                    {
-                        self.known_effects.insert(slot.id);
-                    } else {
-                        self.send_failures += 1;
-                    }
+        // The strips' inserts and the master's (ADR 0026).
+        for slot in snapshot.effect_slots() {
+            if !self.known_effects.contains(&slot.id) {
+                let unit = EffectUnit::new(slot, self.sample_rate as f32);
+                if self
+                    .tx
+                    .push(EngineMessage::AddEffect(Box::new(unit)))
+                    .is_ok()
+                {
+                    self.known_effects.insert(slot.id);
+                } else {
+                    self.send_failures += 1;
                 }
             }
         }
@@ -413,6 +495,7 @@ impl EngineHandle {
                 self.send_failures += 1;
             }
         }
+        self.rec.snapshot = Some(snapshot.clone());
         self.send(EngineMessage::SetSnapshot(snapshot));
     }
 
@@ -451,6 +534,16 @@ impl EngineHandle {
         self.send(EngineMessage::SetLiveTrack(track));
     }
 
+    /// Tracks that play the live notes too (the armed instrument tracks of a recording
+    /// pass); empty for none. At most `MAX_LIVE_ECHO` are taken.
+    pub fn set_live_echo(&mut self, tracks: &[TrackId]) {
+        let mut a = [None; crate::messages::MAX_LIVE_ECHO];
+        for (o, t) in a.iter_mut().zip(tracks) {
+            *o = Some(*t);
+        }
+        self.send(EngineMessage::SetLiveEcho(a));
+    }
+
     pub fn set_recording(&mut self, on: bool) {
         self.send(EngineMessage::SetRecording(on));
     }
@@ -462,6 +555,7 @@ impl EngineHandle {
     /// Drain events from the audio thread. Call once per UI frame. Returns how many
     /// events were processed.
     pub fn poll(&mut self) -> usize {
+        self.sync_devices();
         let mut n = 0;
         while let Ok(ev) = self.rx.pop() {
             n += 1;
@@ -479,9 +573,13 @@ impl EngineHandle {
                     for (p, v) in self.comp_peak.iter_mut().zip(m.comp) {
                         *p = p.max(v);
                     }
+                    self.rec.meter(&m);
                     self.meters = m;
                 }
-                EngineEvent::Stats(s) => self.stats = s,
+                EngineEvent::Stats(s) => {
+                    self.rec.engine_latency(&s);
+                    self.stats = s;
+                }
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
                 EngineEvent::Garbage(old) => drop(old),
                 EngineEvent::GarbageEffect(unit) => {
@@ -510,6 +608,8 @@ impl EngineHandle {
                     self.send(EngineMessage::EffectMemory { effect, memory });
                 }
                 EngineEvent::GarbageMemory(memory) => drop(memory),
+                EngineEvent::Record(mark) => self.rec.mark(mark),
+                EngineEvent::GarbageRecorder(rings) => self.rec.rings_back(rings),
             }
         }
         n

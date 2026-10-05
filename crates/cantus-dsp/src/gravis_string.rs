@@ -33,6 +33,15 @@ const AP: usize = 4;
 const TAPS: usize = 10;
 /// Output scale: a finger pluck at full velocity peaks around −6 dBFS.
 const OUT: f32 = 0.22;
+/// What a slap's **thumb** is heard at, against a finger pluck. The thumb's strike is a
+/// velocity step whose edge reaches the coil (a derivative) in a third of a millisecond: at
+/// unity it peaked ~20 dB over a finger pluck of the same velocity (+12 dBFS) and ~10 dB
+/// over its loudness. The physics — the step, the frets it slaps — is kept; only what the
+/// pickups hand on is scaled (round 19, fixes-mix).
+pub const THUMB_LEVEL: f32 = 0.2;
+/// What a slap's **pop** is heard at: it pulls 3.5× a finger's displacement off the frets
+/// (+4 … +8 dBFS at unity); scaled as the thumb is.
+pub const POP_LEVEL: f32 = 0.3;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum Technique {
@@ -387,6 +396,9 @@ struct Guide {
     n_frets: usize,
     taps: [[(f64, f32); TAPS]; 2],
     pu_prev: [f32; 2],
+    /// What the pickups hand on, by the last excitation's kind (1, or a slap's thumb or
+    /// pop level).
+    level: f32,
     piezo_prev: f32,
     /// How much of the motion is towards the frets (finger 0.35 … slap 1).
     vfac: f32,
@@ -431,6 +443,7 @@ impl Guide {
             n_frets: 0,
             taps: [[(1.0, 0.0); TAPS]; 2],
             pu_prev: [0.0; 2],
+            level: 1.0,
             piezo_prev: 0.0,
             vfac: 0.35,
             resync: false,
@@ -681,14 +694,14 @@ impl Guide {
             if self.resync {
                 self.pu_prev[p] = f;
             }
-            *o = (f - self.pu_prev[p]) * self.k_norm;
+            *o = (f - self.pu_prev[p]) * self.k_norm * self.level;
             self.pu_prev[p] = f;
         }
         if self.resync {
             self.piezo_prev = lb;
             self.resync = false;
         }
-        out[2] = (lb - self.piezo_prev) * self.k_norm;
+        out[2] = (lb - self.piezo_prev) * self.k_norm * self.level;
         self.piezo_prev = lb;
         self.w = (w + 1) & mask;
         if rn.abs() < 1e-6 && lb.abs() < 1e-6 {

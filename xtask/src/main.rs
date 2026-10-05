@@ -33,6 +33,9 @@ fn feature(d: &Descriptor) -> &'static str {
         "multiplex" => "multiband",
         "sibilus" => "deesser",
         "porta" => "gate,editor",
+        "latitudo" => "stereo,editor",
+        "culmen" => "maximizer,editor",
+        "fervor" => "saturator,editor",
         other => panic!("no feature for {other}"),
     }
 }

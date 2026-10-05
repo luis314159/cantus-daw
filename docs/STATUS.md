@@ -1,8 +1,60 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-09-29 (round 18: **a look drawn by hand, FL Studio first** (ADR 0024) — a vector component kit of our own replaces every stock widget; the Slate theme (FL-derived, dark) is the default and Paper the light option; IBM Plex Sans Condensed; a docked, resizable workspace; an FL-style mixer that fits and then scrolls; the inspector as the channel's signal-flow sheet; every effect and instrument in one device shell; the appearance page with pick-an-element; the user's logos and a splash; a frame budget. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 160+ green, clippy clean
+**Updated:** 2026-10-05 (round 19: **recording, the master chain, mastering effects, demos** (ADR 0025, 0026) — record from an audio interface (WASAPI, ASIO behind a feature) with monitoring, count-in, punch, loop takes and comping, multitrack, latency measured and placed to the sample; audio clips with waveforms, fades, gain and import; effects on the master; Fervor, Latitudo and Culmen; six demo songs and a startup song; schema 18. Round 18: a look drawn by hand, FL Studio first (ADR 0024). Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 422 green (121 test binaries), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 19 left
+
+Round 19 (below) made Cantus record. What it left, in the order that pays most:
+
+1. **Try it on a real interface.** ASIO builds (`--features asio`, steps in
+   `docs/round19/devices.md`) and runs output-only on Realtek ASIO; with input and output
+   open together that driver stops calling back after a few buffers (cpal rebuilds the
+   driver's buffers when the second direction is added). The owner has a Behringer UMC
+   driver installed: test duplex on it. If it stalls too, the fix belongs in cpal's ASIO
+   host (create both directions before the first `ASIOStart`). The loopback measurement has
+   only been proved through a simulated cable.
+2. **Warping.** Audio clips keep their bar positions when the tempo changes and play at
+   their own speed (ADR 0025 §1). Time-stretch, a tempo track and warp markers are the next
+   block — and the one that makes audio and the tempo track (STATUS round 17 item 2) one
+   job.
+3. **Crossfades and clip gain envelopes**; MP3 import (no decoder in the tree); dropping
+   from Cantus's own browser; disk streaming once projects outgrow memory.
+4. **Instrument gain staging** (`docs/round19/fixes-mix.md`): native instruments sit
+   well below the effects' reference level at unity; decide a calibration (it changes
+   existing projects' sound, so it is a versioned decision per instrument).
+5. Each builder's own *left* list in `docs/round19/<name>.md`, and what round 17 left
+   (below), which still stands.
+
+## Round 19: recording, the master chain, mastering effects, demos (requested 2026-10-04)
+
+**The ask.** *Record from an audio interface professionally, with every feature of the
+DAWs that are best at recording, then polish everything so songs can be made in Cantus;
+demo songs, and a startup song that shows what the DAW can do.* Mid-way: *effects on the
+master channel — very, very important — and effects for mastering: a Maximus,
+saturation/colour like Blood Overdrive or Fruity WaveShaper, stereo control like Patcher's
+mid/side.* The owner's mission: the best DAW in the world, made with excellence
+(Colossians 3:23).
+
+**Decisions:** ADR 0025 (recording and audio clips) and ADR 0026 (the master chain and
+three mastering effects); schema **18**. A contract commit (`r19/contract`) declared the
+model, the engine's recording API and the stubs; nine builders worked in parallel
+(`docs/round19/BUILDING.md` and the briefs), two more fixed what their reports surfaced;
+everything was merged on `r19/integration`. Each builder's report is in
+`docs/round19/<name>.md`.
+
+| Area | What changed |
+|---|---|
+| Model | `Clip::audio` (an audio clip is a clip: split, trim, slip, glue, move work unchanged), `Project::audio_pool`, `Clip::lane` (take lanes), `Track::{input, armed, takes_open}`, `RecordSettings` (count-in, punch, take mode, loop takes, click mode and level), `AudioRegion::slip_frames` (sample-accurate placement), `Master::effects`, `StripId::MASTER`; nine audio commands, `SetMasterFxEnabled`, one resolver for every effect chain (`Project::effects_of`) |
+| Engine | input ring with drift handling and meters; monitoring Off / Auto / On through the strip's inserts; recording to 32-bit-float WAV on a writer thread (header every 0.5 s, a full ring padded with silence and reported live); take latency = device out + plug-ins + device in + measured ring wait + offset; audio-clip playback to the sample (fades with five curves, gain, reverse), block-size independent and bit-identical offline; windowed-sinc conversion to the device rate on a loader thread; click modes; pre-roll so a count-in at bar 1 is heard whole; live MIDI echoed to every armed instrument track; the master's insert chain before the master fader, its latency in the heard position, `Meters::master_gr` |
+| Devices | driver choice (WASAPI; **ASIO** behind the `asio` feature, builds here), input devices and channels, any sample format, measured latencies, stall detection, a loopback latency measurement (noise bursts, FFT cross-correlation, agreement check) |
+| Recording UI | audio tracks; arm lamp, input chip, monitor key and input meter on the header; the strip's input menu and arm; an inspector *Recording* section; record options (count-in, punch with a ruler brace, loop takes, Stack / Replace / Overdub, click); multitrack passes as one undo step; take lanes with swipe comping, promote, delete unused, explode; the live take drawn as it grows; Alt+R / Alt+C / Alt+P / Alt+T, Ctrl+Shift+A |
+| Audio clips UI | peaks at three levels of detail on a worker thread with a disk cache; waveforms in the clip's ink with gain and fades drawn; fade and gain handles; normalise, reverse, curves; drag-and-drop and *Import audio…*; audio files moved/copied into `<project>/Audio/` on save, *Collect and save*, relink of missing files; the audio-clip inspector; the piano roll refuses audio clips |
+| Master | FL's master track: slots on the desk (XL) and in the inspector's master sheet, device windows, presets, A/B, analyser, hosted plug-ins; stems optionally *through the master chain* |
+| Effects | **Fervor** (saturation: tape, tube, overdrive, fuzz, clip, fold, a drawn curve; oversampling; harmonics display), **Latitudo** (stereo: width by band, phase-coherent mono bass, M/S tone, mono-safe Haas, vectorscope and correlation), **Culmen** (maximizer: three bands + full band of two-sided dynamics into a true-peak brickwall, loudness targets, *learn drive*); each null-tested, block-size independent, and in the CLAP/VST3 build bit-identical to the native unit — ten plug-ins in the export |
+| Fixes | take latency measured end to end and placed to the sample (`tests/rec_e2e.rs`); Culmen on the master's reduction meter; Gravis's slap levelled; every factory preset under full scale on a dense riff (93 renders); Terminus's true-peak overshoot fixed (worst case −0.016 dB) |
+| Demos | six songs (house, worship ballad, funk, lo-fi, cinematic, trap) using every native instrument and effect, mastered on the master with Latitudo and Culmen to about −14 LUFS and −1.1 dBTP; *File ▸ Demo songs…* (Ctrl+Shift+N); the program opens on Neon Tide's drop |
 
 ## The next session: what round 17 left
 
@@ -96,7 +148,7 @@ reasoning stays next to the result.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0023 | done |
+| Workspace, licenses, ADRs 0001–0026 | done |
 | `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, pads and lanes, track height and icon, mixer strips and routing, **sends, strip solo, EQ, slot mix, submixes** | done; 39 tests incl. 40-seed undo/redo invariant fuzz (pads, instruments, strips, sends, routes the commands refuse) |
 | **Native instruments** (ADR 0023): Unda, Calor and the shared `cantus_dsp::va`, Modulus, Exemplar, Gravis, Organum, Lamina, and Pulsus II; the shared modulation model, voice allocator and editor frame (Play · Edit · Matrix) | done; each has `docs/instruments/<name>.md` and its own DSP, engine and UI tests; `inst_contract.rs` holds every kind to block-size independence, headroom and exact silence |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, **RBJ biquads and the three-band channel EQ**, null-test harness | done; 37 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |

@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 # A development build carries all seven; the bundler builds each plug-in on its own with
 # `--no-default-features --features <name>`, so each binary holds one plug-in's code.
 default = ["all", "editor"]
-all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate"]
+all = ["eq", "compressor", "limiter", "space", "multiband", "deesser", "gate", "stereo", "maximizer", "saturator"]
 # The plug-ins' own editors — the DAW's, running in the host's window (egui 0.36 through
 # baseview). Porta's is the first; the others show the host's generic interface.
 editor = ["dep:cantus-ui", "dep:egui", "dep:egui-baseview", "dep:baseview", "dep:raw-window-handle"]
@@ -28,6 +28,9 @@ space = []
 multiband = []
 deesser = []
 gate = []
+stereo = []
+maximizer = []
+saturator = []
 
 [dependencies]
 cantus-core.workspace = true

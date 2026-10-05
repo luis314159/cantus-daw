@@ -214,18 +214,22 @@ impl StringEngine {
         match s.technique {
             Technique::Finger | Technique::PalmMute => {
                 g.vfac = 0.35;
+                g.level = 1.0;
                 g.pluck(x, amp, 14.0 * hard * per_mm);
             }
             Technique::Pick => {
                 g.vfac = 0.5;
+                g.level = 1.0;
                 g.pluck(x, 0.8 * amp, 3.0 * hard * per_mm);
             }
             Technique::Slap if vel >= s.pop_vel => {
                 g.vfac = 1.0;
+                g.level = super::POP_LEVEL;
                 g.pluck(x, 3.5 * amp, 3.0 * per_mm);
             }
             Technique::Slap => {
                 g.vfac = 1.0;
+                g.level = super::THUMB_LEVEL;
                 g.strike(x, 2.5 * amp, 12.0 * per_mm);
             }
         }

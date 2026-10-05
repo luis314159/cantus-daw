@@ -6,7 +6,7 @@
 
 mod common;
 
-use cantus_host::{Audio, AudioSetup, Backend, ParamOut};
+use cantus_host::{Audio, AudioSetup, Backend, Notice, ParamOut};
 use common::*;
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
@@ -69,7 +69,7 @@ fn every_exported_plugin_hosted_by_cantus_sounds_as_the_native_insert() {
 
         // Hosted: through the file, the scan, the host's load, and the state a project
         // would give it.
-        let mut loaded = backend
+        let loaded = backend
             .load(
                 info,
                 AudioSetup {
@@ -78,15 +78,39 @@ fn every_exported_plugin_hosted_by_cantus_sounds_as_the_native_insert() {
                 },
             )
             .unwrap_or_else(|e| panic!("{}: {e}", info.name));
+        let (mut main, mut audio) = (loaded.main, loaded.audio);
         let state = serde_json::to_vec(&spec).unwrap();
-        loaded
-            .main
-            .load_state(&state)
+        main.load_state(&state)
             .unwrap_or_else(|e| panic!("{}: {e}", info.name));
-        let (mut hl, mut hr) = (in_l.clone(), in_r.clone());
+        // A state with another latency (Fervor's oversampling, say) makes the plug-in ask
+        // for a restart from its first call, as CLAP wants (the latency changes only in
+        // `activate`), and the session restarts it. Here: one block to let it ask, the
+        // restart a session makes, and the measured run from a fresh start.
         let mut out = ParamOut::new();
+        let (mut pl, mut pr) = (in_l[..BLOCK].to_vec(), in_r[..BLOCK].to_vec());
+        let probe = Audio {
+            left: &mut pl,
+            right: &mut pr,
+            key: None,
+            transport: None,
+        };
+        audio.process(probe, &[], &[], &mut out);
+        let asked = main
+            .idle()
+            .iter()
+            .any(|n| matches!(n, Notice::RestartNeeded | Notice::LatencyChanged(_)));
+        let fresh = engine_unit(&cantus_core::EffectSpec::new(kind)).latency();
+        if engine_unit(&spec).latency() != fresh {
+            assert!(asked, "{}: a new latency asks for a restart", info.name);
+        }
+        drop(audio);
+        audio = main
+            .restart()
+            .unwrap_or_else(|e| panic!("{}: {e}", info.name))
+            .expect("a new audio half");
+        let (mut hl, mut hr) = (in_l.clone(), in_r.clone());
         for (l, r) in hl.chunks_mut(BLOCK).zip(hr.chunks_mut(BLOCK)) {
-            loaded.audio.process(
+            audio.process(
                 Audio {
                     left: l,
                     right: r,
@@ -98,14 +122,15 @@ fn every_exported_plugin_hosted_by_cantus_sounds_as_the_native_insert() {
                 &mut out,
             );
         }
-        loaded.audio.stop();
+        audio.stop();
         assert_eq!(
-            loaded.main.latency(),
+            main.latency(),
             engine_unit(&spec).latency(),
             "{}: the hosted plug-in reports the native latency",
             info.name
         );
-        drop(loaded);
+        drop(audio);
+        drop(main);
 
         // Native: the insert Cantus runs for the same spec.
         let mut unit = engine_unit(&spec);

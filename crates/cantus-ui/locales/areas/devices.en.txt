@@ -1,0 +1,43 @@
+# Area: audio devices (round 19: drivers, inputs, latency). Every key here needs its twin in devices.es.txt.
+
+# --- the Audio page of Settings ---
+devices.band.device = Audio device
+devices.driver = Driver
+devices.driver.hint = The kind of driver: WASAPI is Windows' own; ASIO talks to an interface directly, with the lowest latency.
+devices.driver.no_asio = ASIO is not in this build (the asio feature).
+devices.output = Output device
+devices.input = Input device
+devices.input.none = No input
+devices.channels = {n} ch
+devices.rescan = Rescan devices
+devices.input_error = The input did not open: {error}
+devices.dropped = {n} input samples were dropped: try a larger buffer.
+devices.stalled = The device stopped playing: Apply again, or choose another driver or device.
+
+# --- latency ---
+devices.band.latency = Latency
+devices.latency.input = Input
+devices.latency.output = Output
+devices.latency.round_trip = Round trip
+devices.latency.value = {ms} ms · {frames} samples
+devices.latency.none = Not running
+devices.offset = Record offset
+devices.offset.cell = Offset
+devices.offset.value = {frames} samples · {ms} ms
+devices.offset.hint = Takes move earlier by the round trip plus this offset.
+devices.measure = Measure
+devices.measuring = Measuring…
+devices.measure.hint = Loop an output into an input with a cable, then Measure.
+devices.measured = Measured {ms} ms round trip on input {channel}; the drivers report {reported} samples.
+devices.loopback.no_device = No audio device is open.
+devices.loopback.no_input = No input is open to listen on.
+devices.loopback.busy = A measurement is already running.
+devices.loopback.timeout = The device did not play the measurement.
+devices.loopback.no_data = No input arrived while measuring.
+devices.loopback.not_found = The bursts were not heard: connect an output to an input with a cable and raise the input's level.
+
+# --- inputs ---
+devices.band.inputs = Inputs
+devices.inputs.none = No input is open.
+devices.inputs.device = {name} · {n} channels
+devices.inputs.meter = Input {ch}

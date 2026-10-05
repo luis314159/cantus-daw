@@ -663,6 +663,13 @@ impl Multiplex {
         self.lay
     }
 
+    /// Take the next settings at once, as if they were the first: for a host that sets a
+    /// unit up more than once before it has processed anything (Culmen, a plug-in loading
+    /// its state after activation). No allocation.
+    pub fn snap_next(&mut self) {
+        self.configured = false;
+    }
+
     /// New settings. The first call snaps; later ones glide over ~20 ms.
     pub fn set(&mut self, s: &Settings) {
         let snap = !self.configured;

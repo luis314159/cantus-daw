@@ -16,6 +16,7 @@ pub fn readout(v: f32, unit: &str) -> String {
         "st" => format!("{v:+.1} st"),
         "ct" => format!("{v:+.0} ct"),
         "%" => format!("{:.0}%", v * 100.0),
+        "\u{b0}" => format!("{v:+.1}\u{b0}"),
         "" if v.abs() >= 100.0 => format!("{v:.0}"),
         "" => format!("{v:.2}"),
         u => format!("{v:.2} {u}"),
@@ -32,7 +33,7 @@ pub fn parse_readout(text: &str, unit: &str) -> Option<f32> {
     // The most specific suffixes first: `khz` before `hz`, `db/oct` before `ct`, `ms` and
     // `lufs` before `s`.
     for suffix in [
-        "khz", "hz", "db/oct", "ms", "db", "lufs", "st", "ct", ":1", "%", "x", "s", "k",
+        "khz", "hz", "db/oct", "ms", "db", "lufs", "st", "ct", ":1", "%", "\u{b0}", "x", "s", "k",
     ] {
         if let Some(rest) = s.strip_suffix(suffix) {
             s = rest.trim_end();
@@ -71,6 +72,7 @@ mod tests {
             (0.5, "%"),
             (4.0, ":1"),
             (-14.0, "LUFS"),
+            (-22.5, "\u{b0}"),
         ] {
             let text = readout(v, unit);
             let back = parse_readout(&text, unit).unwrap();

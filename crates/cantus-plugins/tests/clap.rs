@@ -52,7 +52,10 @@ fn through_dsp(spec: &EffectSpec, n: usize, ftz: bool) -> Vec<f32> {
 fn the_factory_lists_the_seven() {
     let f = factory();
     unsafe {
-        assert_eq!(f.get_plugin_count.unwrap()(f), 7);
+        assert_eq!(
+            f.get_plugin_count.unwrap()(f),
+            cantus_plugins::desc::ALL.len() as u32
+        );
         for (i, d) in cantus_plugins::desc::ALL.iter().enumerate() {
             let cd = &*f.get_plugin_descriptor.unwrap()(f, i as u32);
             assert_eq!(std::ffi::CStr::from_ptr(cd.id).to_str().unwrap(), d.clap_id);
@@ -179,6 +182,9 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Space => "mix",
             EffectKind::Multiband => "b1.thr",
             EffectKind::DeEsser => "thr",
+            EffectKind::Stereo => "width",
+            EffectKind::Maximizer => "gain",
+            EffectKind::Saturator => "drive",
             _ => "thr",
         };
         let table = params::table(kind);

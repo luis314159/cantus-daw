@@ -54,8 +54,8 @@ impl Descriptor {
 const FX: &str = "audio-effect";
 const STEREO: &str = "stereo";
 
-/// The seven, in the family's order (ADR 0017).
-pub static ALL: [Descriptor; 7] = [
+/// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026).
+pub static ALL: [Descriptor; 10] = [
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -142,6 +142,44 @@ pub static ALL: [Descriptor; 7] = [
         vst3_categories: "Fx|Dynamics",
         description: "Gate and expander: six styles, hysteresis, lookahead, key filters.",
         compiled: cfg!(feature = "gate"),
+    },
+    Descriptor {
+        kind: EffectKind::Stereo,
+        name: "Latitudo",
+        full_name: "Cantus Latitudo",
+        slug: "latitudo",
+        clap_id: "com.github.lalmazan.cantus.latitudo",
+        vst3_cid: [0xEC13BB3A, 0x4A5F71E7, 0x1468741C, 0xD2C29ACE],
+        clap_features: &[FX, "utility", "mastering", STEREO],
+        vst3_categories: "Fx|Spatial",
+        description:
+            "Stereo and mid/side: width by band, phase-coherent mono bass, M/S tone, vectorscope.",
+        compiled: cfg!(feature = "stereo"),
+    },
+    Descriptor {
+        kind: EffectKind::Maximizer,
+        name: "Culmen",
+        full_name: "Cantus Culmen",
+        slug: "culmen",
+        clap_id: "com.github.lalmazan.cantus.culmen",
+        vst3_cid: [0x5A15F5E7, 0x18155BDA, 0xA4E01DAE, 0xB6CACEC3],
+        clap_features: &[FX, "limiter", "compressor", "mastering", STEREO],
+        vst3_categories: "Fx|Mastering",
+        description: "Mastering maximizer: three bands and a full band of two-sided dynamics into a true-peak brickwall.",
+        compiled: cfg!(feature = "maximizer"),
+    },
+    Descriptor {
+        kind: EffectKind::Saturator,
+        name: "Fervor",
+        full_name: "Cantus Fervor",
+        slug: "fervor",
+        clap_id: "com.github.lalmazan.cantus.fervor",
+        vst3_cid: [0xC1072D15, 0xF4D9B4EB, 0xD8CBE322, 0x8AD22E23],
+        clap_features: &[FX, "distortion", "mastering", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description:
+            "Saturation and colour: tape, tube, overdrive, fuzz, clip, fold and a drawn curve, oversampled.",
+        compiled: cfg!(feature = "saturator"),
     },
 ];
 

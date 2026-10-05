@@ -1,7 +1,13 @@
 //! MIDI recording: turns the engine's timestamped [`NoteInput`] events into finished notes.
 //!
 //! The recorder is pure state, no I/O, so the whole take logic is unit-testable. The app
-//! commits the notes it returns through ordinary commands (one merged undo step per take).
+//! keeps the notes it returns for the pass and, when the pass ends, turns them into clips
+//! through `record_pass` (one undo step per pass).
+//!
+//! **Loop passes.** While the transport loops, every note is tagged with the pass it was
+//! played in. The application tells the recorder when the playhead wrapped this frame
+//! ([`Recorder::ingest_pass`]); the events of that frame are split at the middle of the
+//! loop, which is far from both ends of a frame's worth of time.
 
 use cantus_core::{LoopRegion, Ticks};
 use cantus_engine::NoteInput;
@@ -12,6 +18,8 @@ pub struct PendingNote {
     pub velocity: u8,
     /// Absolute tick of the note-on.
     pub start: Ticks,
+    /// The loop pass it was played in (0 without a loop).
+    pub pass: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +29,8 @@ pub struct RecordedNote {
     pub length: Ticks,
     pub pitch: u8,
     pub velocity: u8,
+    /// The loop pass it was played in (0 without a loop).
+    pub pass: u32,
 }
 
 #[derive(Debug, Default)]
@@ -29,6 +39,8 @@ pub struct Recorder {
     pending: Vec<PendingNote>,
     /// Increments per take so each take merges into its own undo step.
     take: u64,
+    /// The loop pass being played.
+    pass: u32,
 }
 
 /// A note-off that arrives with no matching note-on (or with a tick before the note-on
@@ -52,10 +64,16 @@ impl Recorder {
         &self.pending
     }
 
+    /// The loop pass being played (0 until the playhead first wraps).
+    pub fn pass(&self) -> u32 {
+        self.pass
+    }
+
     pub fn start(&mut self) {
         if !self.recording {
             self.recording = true;
             self.take += 1;
+            self.pass = 0;
             self.pending.clear();
         }
     }
@@ -70,6 +88,7 @@ impl Recorder {
                 length: (at - p.start).max(FALLBACK_LENGTH),
                 pitch: p.pitch,
                 velocity: p.velocity,
+                pass: p.pass,
             })
             .collect()
     }
@@ -80,11 +99,29 @@ impl Recorder {
         inputs: &[NoteInput],
         loop_region: Option<&LoopRegion>,
     ) -> Vec<RecordedNote> {
+        self.ingest_pass(inputs, loop_region, false)
+    }
+
+    /// [`Self::ingest`], told whether the playhead wrapped around the loop since the last
+    /// call. The frame's events before the wrap (in the loop's second half) belong to the
+    /// pass that is ending, the ones after it (in the first half) to the next.
+    pub fn ingest_pass(
+        &mut self,
+        inputs: &[NoteInput],
+        loop_region: Option<&LoopRegion>,
+        wrapped: bool,
+    ) -> Vec<RecordedNote> {
         let mut done = Vec::new();
         if !self.recording {
             return done;
         }
+        let mid = loop_region.map(|l| l.start + (l.end - l.start) / 2);
+        let mut pending_wrap = wrapped;
         for ev in inputs {
+            if pending_wrap && mid.is_some_and(|m| ev.tick < m) {
+                self.pass += 1;
+                pending_wrap = false;
+            }
             if ev.velocity > 0 {
                 // Retrigger of a held pitch: close the previous one first.
                 if let Some(i) = self.pending.iter().position(|p| p.pitch == ev.pitch) {
@@ -95,11 +132,15 @@ impl Recorder {
                     pitch: ev.pitch,
                     velocity: ev.velocity,
                     start: ev.tick,
+                    pass: self.pass,
                 });
             } else if let Some(i) = self.pending.iter().position(|p| p.pitch == ev.pitch) {
                 let p = self.pending.remove(i);
                 done.push(close(p, ev.tick, loop_region));
             }
+        }
+        if pending_wrap {
+            self.pass += 1;
         }
         done
     }
@@ -120,6 +161,7 @@ fn close(p: PendingNote, off: Ticks, loop_region: Option<&LoopRegion>) -> Record
         length: length.max(Ticks(1)),
         pitch: p.pitch,
         velocity: p.velocity,
+        pass: p.pass,
     }
 }
 
@@ -152,7 +194,8 @@ mod tests {
                 start: Ticks(100),
                 length: Ticks(480),
                 pitch: 60,
-                velocity: 100
+                velocity: 100,
+                pass: 0,
             }]
         );
         assert_eq!(r.pending().len(), 1);
@@ -186,5 +229,43 @@ mod tests {
         r.stop(Ticks(300));
         r.start();
         assert_eq!(r.take(), 2);
+    }
+
+    /// A frame in which the playhead wrapped: what was played before the wrap (late in
+    /// the loop) stays in the old pass, what came after it starts the next one.
+    #[test]
+    fn a_wrap_splits_the_frame_at_the_middle_of_the_loop() {
+        let mut r = Recorder::new();
+        r.start();
+        let l = LoopRegion {
+            start: Ticks::ZERO,
+            end: Ticks::beats(8),
+        };
+        let a = r.ingest_pass(&[ev(960, 60, 100), ev(1200, 60, 0)], Some(&l), false);
+        assert_eq!(a[0].pass, 0);
+        // Late in pass 0, then the wrap, then early in pass 1 — all in one frame.
+        let b = r.ingest_pass(
+            &[
+                ev(7000, 62, 100),
+                ev(7300, 62, 0),
+                ev(100, 64, 100),
+                ev(300, 64, 0),
+            ],
+            Some(&l),
+            true,
+        );
+        assert_eq!(
+            b.iter().map(|n| (n.pitch, n.pass)).collect::<Vec<_>>(),
+            vec![(62, 0), (64, 1)]
+        );
+        assert_eq!(r.pass(), 1);
+        // A wrap in a frame with no events still counts.
+        r.ingest_pass(&[], Some(&l), true);
+        assert_eq!(r.pass(), 2);
+        // A note held over the wrap keeps the pass it began in.
+        r.ingest_pass(&[ev(7600, 65, 90)], Some(&l), false);
+        let c = r.ingest_pass(&[ev(50, 65, 0)], Some(&l), true);
+        assert_eq!((c[0].pass, c[0].length), (2, Ticks(7680 - 7600)));
+        assert_eq!(r.pass(), 3);
     }
 }

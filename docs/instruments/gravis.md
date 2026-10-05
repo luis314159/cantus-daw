@@ -102,7 +102,13 @@ Transistor Bass) under ADR 0023.
   no collision at all.
 - **Techniques**: finger (a rounded pluck, width from *hardness*), pick (a sharp one), slap
   (a **thumb** strike as a velocity pulse below the pop velocity, a **pop** — a large pull —
-  at or above it; both hit the frets), palm mute. **Muting** shortens the T60; letting go
+  at or above it; both hit the frets), palm mute. The thumb and the pop are **calibrated
+  against the finger** (round 19): what the pickups hand on after a thumb is × 0.2
+  (`THUMB_LEVEL`), after a pop × 0.3 (`POP_LEVEL`). The thumb's velocity step reaches the
+  coil — a derivative — as a third-of-a-millisecond edge, and at unity it peaked ~20 dB
+  over a finger pluck (+12 dBFS on one note, the slap preset +15 dBFS on a funk riff); the
+  pop pulls 3.5× the finger's displacement. The physics (the step, the pull, the frets they
+  slap) is unchanged, so the sound is the same, only at a level a mix can use. **Muting** shortens the T60; letting go
   damps the string to the *let go* T60.
 - **Hammer-ons and pull-offs** (a legato note on the same string with no glide: the length
   changes at once plus the finger's own small strike or pluck), **slides** (with a glide:
@@ -285,7 +291,10 @@ the unit implement their half; the processor does not call them yet.
   click (and without the declick the test sees the click); every engine goes exactly silent
   and says so; **renders are identical at block sizes 1, 7, 64, 480, 4096**; the half-band
   rejects images by more than 70 dB and passes the band within 0.05 dB; the duck reaches its
-  depth on the kick's sample and starts `pre` early; every engine peaks near −6 dBFS.
+  depth on the kick's sample and starts `pre` early; every engine peaks near −6 dBFS;
+  (round 19) a slap's thumb and pop each peak under −1 dBFS across the neck with a
+  loudness within 6 dB of a finger pluck's at the same velocity, and every technique on a
+  dense funk riff at full velocity peaks under −1 dBFS (it was +12.6 dBFS for the slap).
 
 `cantus-engine` (`inst_bass.rs`, 9 tests; `inst_contract.rs` stays green):
 
@@ -321,6 +330,7 @@ engine (Play in the window, Edit whole).
 | CPU, one 808 voice, drive 100 % + harmonics + clipper | 5.2 % of a core |
 | CPU, one synth voice, 7 unison, width, diode filter | 6.2 % of a core |
 | Level, full velocity | 808 −6 dBFS · synth −7.5 dBFS · string −5 to −8 dBFS |
+| Slap (round 19), one note | thumb −1.8 to −3.5 dBFS · pop −2.3 to −7.3 dBFS (were +11 to +12 and +3 to +8) |
 
 CPU was measured on a build machine shared by about a dozen builds at once, so the
 numbers are pessimistic.

@@ -105,6 +105,10 @@ pub fn hue_of(kind: EffectKind) -> Function {
             Function::Dynamics
         }
         EffectKind::Space | EffectKind::Delay | EffectKind::Reverb => Function::Space,
+        EffectKind::Saturator => Function::Tone,
+        EffectKind::Maximizer => Function::Dynamics,
+        // Width is space (the kit's own words: delay, reverb, chorus, width).
+        EffectKind::Stereo => Function::Space,
         EffectKind::External => Function::Output,
     }
 }
@@ -119,6 +123,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Space => DISPLAY_EFFECT,
         EffectKind::External => Vec2::new(820.0, 480.0),
         EffectKind::Compressor => Vec2::new(1120.0, 780.0),
+        // Culmen: gain over time and the loudness, the bands and the curve, two rows of cells.
+        EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
         _ => Vec2::new(1000.0, 640.0),
     }
 }

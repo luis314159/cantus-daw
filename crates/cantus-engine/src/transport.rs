@@ -61,6 +61,20 @@ impl Transport {
         Ticks(self.position_f64().floor() as i64)
     }
 
+    /// The tick the sample counter counts from: the last start, seek, loop wrap or tempo
+    /// change. With [`Self::samples`], what an audio clip's frame is computed from, so
+    /// playback is the same for every block size.
+    #[inline]
+    pub fn origin_tick(&self) -> f64 {
+        self.origin_tick
+    }
+
+    /// Samples since [`Self::origin_tick`].
+    #[inline]
+    pub fn samples(&self) -> u64 {
+        self.samples
+    }
+
     /// Where the playhead was `back` samples ago, exactly as [`Self::position_f64`] said
     /// then — or `None` if it has jumped since (a seek, a loop wrap, a tempo change).
     #[inline]
@@ -77,8 +91,11 @@ impl Transport {
         self.playing = false;
     }
 
+    /// Move the playhead. A tick before zero is a pre-roll (the count-in before bar 1),
+    /// which plays nothing but the click until the timeline begins; the application
+    /// clamps the seeks the user makes.
     pub fn seek(&mut self, tick: Ticks) {
-        self.origin_tick = tick.0.max(0) as f64;
+        self.origin_tick = tick.0 as f64;
         self.samples = 0;
     }
 

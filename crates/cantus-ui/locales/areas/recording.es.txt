@@ -1,0 +1,98 @@
+# Área: recording (round 19: arm, monitor, count-in, punch, takes, comping, devices). Cada clave necesita su gemela en recording.en.txt.
+cmd.insert_audio_source = Añadir archivo de audio
+cmd.remove_audio_source = Quitar archivo de audio
+cmd.set_audio_source_path = Volver a vincular audio
+cmd.set_clip_audio = Editar clip de audio
+cmd.set_clip_lane = Mover a carril de toma
+cmd.set_track_input = Entrada de la pista
+cmd.set_track_armed = Armar pista
+cmd.set_track_takes_open = Mostrar tomas
+cmd.set_record_settings = Opciones de grabación
+cmd.comp_swipe = componer una toma
+cmd.comp_promote = usar una toma
+cmd.delete_unused_takes = borrar tomas sin usar
+cmd.explode_takes = separar tomas en pistas
+
+# Las acciones de grabación del mapa de teclas.
+action.arm-track = Armar la pista seleccionada
+action.add-audio-track = Añadir una pista de audio
+action.toggle-count-in = Claqueta sí/no
+action.toggle-punch = Pinchazo sí/no
+action.show-takes = Mostrar las tomas de la pista seleccionada
+
+# La entrada de una pista, la escucha y el armado.
+rec.in = Ent
+rec.input = Entrada
+rec.monitor = Escucha
+rec.monitor.off = No
+rec.monitor.auto = Auto
+rec.monitor.on = Sí
+rec.no_input_choice = Sin entrada
+rec.no_device = No hay un dispositivo de entrada abierto
+rec.audio_settings = Ajustes de audio…
+rec.recording = Grabación
+rec.arm = Armar para grabar
+rec.add_audio_track = Añadir pista de audio
+rec.audio_track_name = Audio {n}
+rec.show_takes = Mostrar tomas
+rec.arm_tip = Armar para grabar — Mayús+clic arma solo esta pista
+rec.monitor_tip = Escuchar la entrada — clic para No, Auto, Sí
+rec.input_tip = La entrada del dispositivo que graba esta pista
+rec.takes_tip = Mostrar u ocultar los carriles de tomas
+
+# Carriles de tomas y composición.
+rec.take = Toma
+rec.use_take = Usar esta toma
+rec.delete_unused = Borrar tomas sin usar
+rec.explode = Separar tomas en pistas nuevas
+rec.hide_takes = Ocultar tomas
+rec.lane_tip = Arrastra sobre una toma para componerla · clic en una toma para usarla entera
+rec.lane_name_tip = Clic para usar esta toma entera
+
+# Modos de toma.
+rec.mode.stack = Apilar
+rec.mode.replace = Reemplazar
+rec.mode.overdub = Sobregrabar
+
+# Pinchazo.
+rec.punch_tip = Rango de pinchazo — arrastra un extremo para moverlo, en otro sitio para uno nuevo
+rec.punch_from_selection = Pinchazo desde la selección
+rec.punch_off = Quitar pinchazo
+
+# Una pasada.
+rec.nothing_armed = Selecciona o arma una pista para grabar
+rec.no_input = No hay una entrada de audio abierta — elige una en Ajustes › Audio
+rec.failed = La grabación falló: {error}
+rec.dropped = La grabación perdió {ms} ms de audio — el disco se quedó atrás
+rec.dropped_live = La grabación está perdiendo audio: {ms} ms hasta ahora — el disco se queda atrás
+rec.done = Grabadas {n} tomas de audio
+rec.recording_tracks = Grabando {n} pistas… Pulsa R o Espacio para parar.
+rec.no_selection = Haz primero una selección de tiempo
+
+# Las opciones de grabación (el ▾ junto al botón de grabar).
+rec.options = Opciones de grabación
+rec.count_in = Claqueta
+rec.opt.off = No
+rec.opt.bar1 = 1 comp.
+rec.opt.bar2 = 2 comp.
+rec.opt.bar4 = 4 comp.
+rec.punch = Pinchazo
+rec.punch_on = Pinchazo
+rec.loop_takes = Tomas en bucle
+rec.loop_takes_on = Tomas
+rec.take_mode = Modo de toma
+rec.click = Clic
+rec.click_when = El clic suena
+rec.click.always = Siempre
+rec.click.recording = Al grabar
+rec.click.count_in = Claqueta
+rec.click_level = Nivel del clic
+rec.capture_strip = Grabar la salida del canal a un archivo
+rec.arm_strip_tip = Armar la entrada de este canal para grabar
+
+# Las filas de grabación del inspector.
+rec.audio_in = Entrada de audio
+rec.trim = Ajuste
+rec.arm_row = Grabar
+rec.armed = Armar
+rec.from_selection = Desde la selección

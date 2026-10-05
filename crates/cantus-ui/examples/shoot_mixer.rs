@@ -7,8 +7,10 @@
 //! Writes `mixer-<theme>-<w>x<h>-<strips>[-<variant>].png` for Slate and Paper, at
 //! 1280 × 720 (the laptop where the old desk lost its bottom 170 px) and 1920 × 1080,
 //! with 16 and 64 strips, the transport playing so the meters move. Variants: `es`
-//! (Spanish), `75` and `200` (UI scale), `wide` and `xl` (width modes). A filter keeps
-//! only the files whose name contains it.
+//! (Spanish), `75` and `200` (UI scale), `wide` and `xl` (width modes), `master` (a
+//! mastering chain on the master, the master chosen so the inspector shows it, Extra
+//! large) and `master-menu` (its menu open). A filter keeps only the files whose name
+//! contains it.
 
 use cantus_core::{Color, Project, Send, Ticks};
 use cantus_engine::EngineHandle;
@@ -79,6 +81,28 @@ pub fn grown(n: usize) -> Project {
     p
 }
 
+/// A mastering chain on the master (ADR 0026): an EQ, a compressor (bypassed), the
+/// limiter, and its mini views open in the inspector.
+fn master_chain(app: &mut CantusApp) {
+    use cantus_core::{Command, EffectKind, StripId};
+    let m = StripId::MASTER;
+    for kind in [EffectKind::Eq, EffectKind::Compressor, EffectKind::Limiter] {
+        app.add_effect(m, kind);
+    }
+    let ids: Vec<_> = app.project().master.effects.iter().map(|e| e.id).collect();
+    app.exec(Command::SetEffectBypass {
+        strip: m,
+        effect: ids[1],
+        bypass: true,
+    });
+    app.exec(Command::SetEffectMix {
+        strip: m,
+        effect: ids[0],
+        mix: 0.75,
+    });
+    app.inspector.toggle_mini(ids[0]);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
@@ -90,7 +114,9 @@ fn main() {
     ];
     let sizes = [(1280.0f32, 720.0f32), (1920.0, 1080.0)];
     // (suffix, locale, ppp, width mode 0/1/2)
-    let variants: [(&str, cantus_ui::i18n::Locale, f32, Option<u8>); 8] = [
+    let variants: [(&str, cantus_ui::i18n::Locale, f32, Option<u8>); 10] = [
+        ("-master", cantus_ui::i18n::Locale::En, 1.0, Some(2)),
+        ("-master-menu", cantus_ui::i18n::Locale::En, 1.0, Some(2)),
         ("-menu", cantus_ui::i18n::Locale::En, 1.0, None),
         ("-desk-menu", cantus_ui::i18n::Locale::En, 1.0, None),
         ("", cantus_ui::i18n::Locale::En, 1.0, None),
@@ -129,7 +155,15 @@ fn main() {
                     }
                     let pick = app.project().strips[2].id;
                     app.select_strip(pick);
-                    if suffix == "-menu" {
+                    if suffix.starts_with("-master") {
+                        master_chain(&mut app);
+                        app.select_master();
+                    }
+                    if suffix == "-master-menu" {
+                        let at = egui::pos2(95.0, h * 0.56);
+                        let master = Some(cantus_core::StripId::MASTER);
+                        cantus_ui::views::mixer::open_menu(&mut app, master, at);
+                    } else if suffix == "-menu" {
                         let at = egui::pos2(w * 0.22, h * 0.62);
                         cantus_ui::views::mixer::open_menu(&mut app, Some(pick), at);
                     } else if suffix == "-desk-menu" {

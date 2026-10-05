@@ -10,6 +10,9 @@ pub const MAX_TRACKS: usize = 64;
 /// Mixer strips the engine can hold, buffers preallocated for each.
 pub const MAX_STRIPS: usize = 64;
 pub const MAX_BLOCK_FRAMES: usize = 8192;
+/// Most tracks that play the live notes besides the live track (multitrack MIDI
+/// recording: every armed instrument track sounds).
+pub const MAX_LIVE_ECHO: usize = 8;
 /// Insert effects per track.
 pub const MAX_EFFECTS_PER_TRACK: usize = cantus_core::MAX_INSERTS;
 /// Sends per strip, preallocated on the audio thread like everything else.
@@ -98,6 +101,11 @@ pub enum EngineMessage {
     Midi(MidiEvent),
     /// Track that receives hardware MIDI and is recorded into.
     SetLiveTrack(Option<TrackId>),
+    /// Tracks that also play every live note (and controller) the live track gets: the
+    /// armed instrument tracks of a recording pass, so each is heard as it is recorded
+    /// into (multitrack MIDI recording, as Cubase and Logic do it). Only the live track's
+    /// notes are reported back; an entry equal to the note's own track is skipped.
+    SetLiveEcho([Option<TrackId>; MAX_LIVE_ECHO]),
     /// While recording, live notes are reported back as [`EngineEvent::NoteInput`].
     SetRecording(bool),
     /// Start, switch or stop the mix recorder. Samples go into the capture ring the
@@ -119,6 +127,14 @@ pub enum EngineMessage {
         effect: EffectId,
         memory: crate::effects::EffectMemory,
     },
+    /// Rings for the armed tracks of the next recording pass (ADR 0025). The old set, if
+    /// any, comes back as [`EngineEvent::GarbageRecorder`].
+    AttachRecorder(Box<crate::recorder::RecordRings>),
+    /// Stop writing into the rings and hand them back.
+    DetachRecorder,
+    /// Where the take begins when recording starts with a count-in (`ClickMode::CountInOnly`
+    /// clicks only before it); `None` when not counting in.
+    SetRecordStart(Option<Ticks>),
 }
 
 /// Peak meters for one block. Track order matches the snapshot's track order.
@@ -143,6 +159,11 @@ pub struct Meters {
     pub fx: crate::fx::Telemetry,
     /// The probed track's instrument telemetry (`crate::inst::InstrumentUnit::telemetry`).
     pub inst: crate::inst::Telemetry,
+    /// Each input channel's peak this block (ADR 0025); the first `input_count` are live.
+    pub input_count: usize,
+    pub inputs: [f32; crate::recorder::MAX_INPUTS],
+    /// The master chain's gain reduction, dB (positive), the deepest of its dynamics.
+    pub master_gr: f32,
 }
 
 impl Default for Meters {
@@ -158,6 +179,9 @@ impl Default for Meters {
             comp: [0.0; 3],
             fx: [0.0; crate::fx::TELEMETRY_LEN],
             inst: [0.0; crate::inst::TELEMETRY_LEN],
+            input_count: 0,
+            inputs: [0.0; crate::recorder::MAX_INPUTS],
+            master_gr: 0.0,
         }
     }
 }
@@ -187,6 +211,19 @@ pub struct EngineStats {
     pub latency_samples: u64,
     /// Edges that needed compensation and found no free delay line.
     pub pdc_unserved: u64,
+    /// The input ring held more than its target (the input device's clock runs fast
+    /// against the output's): frames thrown away to catch up (ADR 0025 §10).
+    pub input_dropped: u64,
+    /// The input ring ran short (the input's clock runs slow, or it stalled): frames the
+    /// processor made up by holding the last one.
+    pub input_repeated: u64,
+    /// Recorded frames lost because a track's recording ring was full (the disk fell
+    /// behind); each loss is also reported as `RecordMark::Overflow`.
+    pub record_overflow: u64,
+    /// How long the input frames the processor pops have waited since their buffer
+    /// arrived, in frames, smoothed (`crate::devices::queue_wait`); 0 without an input.
+    /// Part of the latency a recorded take is moved by (ADR 0025 §7).
+    pub input_queue: f64,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**
@@ -248,4 +285,8 @@ pub enum EngineEvent {
     },
     /// Effect memory handed back; the UI drops it.
     GarbageMemory(crate::effects::EffectMemory),
+    /// Where a recording pass is (`crate::recorder`).
+    Record(crate::recorder::RecordMark),
+    /// Recording rings handed back; the UI drops them.
+    GarbageRecorder(Box<crate::recorder::RecordRings>),
 }

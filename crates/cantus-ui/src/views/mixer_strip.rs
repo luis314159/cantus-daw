@@ -357,7 +357,7 @@ impl Snap {
     /// The master's values in a strip's shape, for the parts they share.
     pub(super) fn master(m: &cantus_core::Master) -> Snap {
         Snap {
-            id: StripId(0),
+            id: StripId::MASTER,
             index: usize::MAX,
             gain: m.gain_db,
             pan: m.pan,
@@ -366,8 +366,8 @@ impl Snap {
             swap: false,
             muted: false,
             soloed: false,
-            fx_on: true,
-            effects: 0,
+            fx_on: m.fx_enabled,
+            effects: m.effects.len(),
             eq: [0.0; 3],
             eq_hz: [0.0; 3],
             output: None,
@@ -1198,9 +1198,10 @@ pub(super) fn fx_rec(
     let compact = pass.mode() == WidthMode::Compact;
     let dx = if compact { 5.5 } else { 8.0 };
     let master = matches!(target, CaptureTarget::Master);
-    if !master {
+    {
         let br = Rect::from_center_size(pos2(cx - dx, fy), vec2(12.0, 12.0));
-        let resp = sense(ui, pass, br, pid(Some(sn.id), Part::Fx), Sense::click());
+        let fx_id = if master { None } else { Some(sn.id) };
+        let resp = sense(ui, pass, br, pid(fx_id, Part::Fx), Sense::click());
         let hovered = resp.as_ref().is_some_and(|r| r.hovered());
         let c = if sn.effects == 0 {
             with_alpha(t.text_dim, if hovered { 0.6 } else { 0.35 })
@@ -1220,18 +1221,59 @@ pub(super) fn fx_rec(
                 hint::set_text(&ctx, tip, "", Caps::NONE);
             }
             if resp.on_hover_text(tip).clicked() {
-                app.exec(Command::SetStripFxEnabled {
-                    id: sn.id,
-                    enabled: !sn.fx_on,
-                });
+                if master {
+                    app.exec(Command::SetMasterFxEnabled { enabled: !sn.fx_on });
+                } else {
+                    app.exec(Command::SetStripFxEnabled {
+                        id: sn.id,
+                        enabled: !sn.fx_on,
+                    });
+                }
             }
         }
     }
-    let rc = if master { cx } else { cx + dx };
+    let rc = cx + dx;
     let rr = Rect::from_center_size(pos2(rc, fy), vec2(11.0, 11.0));
     let id = if master { None } else { Some(sn.id) };
     let resp = sense(ui, pass, rr, pid(id, Part::Rec), Sense::click());
     let hovered = resp.as_ref().is_some_and(|r| r.hovered());
+    // A strip whose tracks have an input: the dot arms them (FL's mixer record arm, ADR
+    // 0025); the take of what leaves the fader moves to the strip's menu.
+    let (inputs, armed) = if master {
+        (false, false)
+    } else {
+        super::menu::rec_state(app, sn.id)
+    };
+    if inputs {
+        let live = app.rec.pass.as_ref().is_some_and(|l| {
+            app.project()
+                .tracks_on_strip(sn.id)
+                .any(|t| l.records(t.id))
+        });
+        if live {
+            let pulse = 0.65 + 0.35 * (pass.now as f32 * 5.0).sin().abs();
+            glyph::paint(b, rr, Glyph::Record, with_alpha(t.danger, pulse));
+        } else if armed {
+            glyph::paint(b, rr, Glyph::Record, t.danger);
+        } else {
+            let c = if hovered {
+                with_alpha(t.danger, 0.8)
+            } else {
+                with_alpha(t.danger, 0.4)
+            };
+            glyph::paint(b, rr.shrink(1.0), Glyph::Record, c);
+        }
+        if let Some(resp) = resp {
+            let tip = crate::views::clips_chrome::word("rec.arm_strip_tip");
+            if hovered {
+                hint::set_text(&ctx, tip, "", Caps::NONE);
+            }
+            if resp.on_hover_text(tip).clicked() {
+                super::menu::arm_strip(app, sn.id);
+            }
+        }
+        return;
+    }
     let on = app.capturing(target);
     if on {
         let pulse = 0.75 + 0.25 * (pass.now as f32 * 3.0).sin();

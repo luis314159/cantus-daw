@@ -287,8 +287,7 @@ impl<'a> DawHost<'a> {
             Some((r, e, spec)) if r == rev && e == effect => spec,
             _ => app
                 .project()
-                .strip(strip)
-                .and_then(|s| s.effect(effect))
+                .effect(strip, effect)
                 .map(|e| e.spec.clone())
                 .unwrap_or_else(|| EffectSpec::new(cantus_core::EffectKind::Gate)),
         };
@@ -387,8 +386,7 @@ impl FxHost for DawHost<'_> {
     fn key_source(&self) -> Option<KeySource> {
         let project = self.app.project();
         let current = project
-            .strip(self.strip)
-            .and_then(|s| s.effect(self.effect))
+            .effect(self.strip, self.effect)
             .and_then(|e| e.sidechain);
         let label = |id: StripId| {
             self.app
@@ -480,8 +478,8 @@ impl FxHost for DawHost<'_> {
     fn context(&self) -> String {
         let project = self.app.project();
         let slot = project
-            .strip(self.strip)
-            .and_then(|s| s.effects.iter().position(|e| e.id == self.effect))
+            .effects_of(self.strip)
+            .and_then(|s| s.iter().position(|e| e.id == self.effect))
             .map_or(1, |i| i + 1);
         crate::i18n::tf(
             "fx.frame.context",
@@ -500,8 +498,7 @@ impl FxHost for DawHost<'_> {
     fn bypassed(&self) -> Option<bool> {
         self.app
             .project()
-            .strip(self.strip)
-            .and_then(|s| s.effect(self.effect))
+            .effect(self.strip, self.effect)
             .map(|e| e.bypass)
     }
 

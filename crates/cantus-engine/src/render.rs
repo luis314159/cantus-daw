@@ -95,23 +95,23 @@ pub fn render_with_units(
     let mut snap = (*snapshot).clone();
     snap.loop_region = None;
     snap.metronome = false;
+    // Audio clips at the render's rate (ADR 0025 §9).
+    crate::samples::conform_audio(&mut snap, opts.sample_rate);
     let snap = Arc::new(snap);
 
-    let effect_count: usize = snap.strips.iter().map(|s| s.effects.len()).sum();
+    let effect_count: usize = snap.effect_slots().count();
     let instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
 
-    for strip in &snap.strips {
-        for slot in &strip.effects {
-            let unit = match units.iter().position(|u| u.id == slot.id) {
-                Some(i) => units.swap_remove(i),
-                None => EffectUnit::new(slot, sr as f32),
-            };
-            tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
-        }
+    for slot in snap.effect_slots() {
+        let unit = match units.iter().position(|u| u.id == slot.id) {
+            Some(i) => units.swap_remove(i),
+            None => EffectUnit::new(slot, sr as f32),
+        };
+        tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
     }
     for unit in instruments {
         tx.push(EngineMessage::AddInstrument(unit)).ok();

@@ -12,9 +12,17 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::tile::{self, TileLook};
 use crate::kit::{cache, Fill, Function, State, Tok};
-use cantus_core::{Command, EffectId, EffectSlot, MergeKey, MixerStrip, StripId, MAX_INSERTS};
+use cantus_core::{Command, EffectId, EffectSlot, MergeKey, StripId, MAX_INSERTS};
 use egui::{pos2, Align2, Id, Rect, Sense, Vec2};
 use std::fmt::Write as _;
+
+/// An insert chain as the sheet shows it: a strip's, or the master's (ADR 0026).
+#[derive(Copy, Clone)]
+pub struct Chain<'a> {
+    pub id: StripId,
+    pub effects: &'a [EffectSlot],
+    pub fx_enabled: bool,
+}
 
 /// What the channel sheet keeps between frames.
 #[derive(Default)]
@@ -44,13 +52,36 @@ pub fn show(
         // Below a track, a clip or notes: where the channel's own sheet begins.
         sh.band("inspector.mixer", Function::Output, None, false, None);
     }
+    if subject == Subject::Master {
+        // The master (ADR 0026): the mix in, its own chain, out to the device. It has no
+        // EQ and no sends: those sections stand dimmed, in their places.
+        master_input(sh);
+        let m = &p.master;
+        let chain = Chain {
+            id: StripId::MASTER,
+            effects: &m.effects,
+            fx_enabled: m.fx_enabled,
+        };
+        inserts(sh, st, app, chain);
+        eq::show(sh, st, None);
+        sends::sends(sh, app, None);
+        sends::routing(sh, app, None, Some(chain));
+        return;
+    }
     input(sh, app, subject, strip);
+    // The track's recording input: device channels, monitor, trim, arm (ADR 0025).
+    super::record::show(sh, app, subject, strip);
     match strip.and_then(|id| p.strip(id)) {
         Some(ms) => {
-            inserts(sh, st, app, ms);
+            let chain = Chain {
+                id: ms.id,
+                effects: &ms.effects,
+                fx_enabled: ms.fx_enabled,
+            };
+            inserts(sh, st, app, chain);
             eq::show(sh, st, Some(ms));
             sends::sends(sh, app, Some(ms));
-            sends::routing(sh, app, Some(ms));
+            sends::routing(sh, app, Some(ms), Some(chain));
         }
         None => {
             // No strip: every section in its place, dimmed.
@@ -66,9 +97,24 @@ pub fn show(
             }
             eq::show(sh, st, None);
             sends::sends(sh, app, None);
-            sends::routing(sh, app, None);
+            sends::routing(sh, app, None, None);
         }
     }
+}
+
+/// The master's input row: the whole mix comes in.
+fn master_input(sh: &mut Sheet<'_>) {
+    let s = sh.s;
+    sh.ui.add_space(s.d(4.0));
+    let row = sh.row();
+    let ground = Rect::from_min_max(
+        pos2(row.full.left(), row.full.top() - s.d(4.0)),
+        pos2(row.full.right(), row.full.bottom() + s.d(2.0)),
+    );
+    sh.b.rect(ground, Fill::Solid(s.t.panel));
+    sh.label(row.label, "kit.inspector.input", false);
+    let text = sh.fmt.tr("master.input");
+    crate::kit::well::readout(sh.b, row.value, &s, State::REST, text, false);
 }
 
 /// The input row: what feeds the strip. On a strip chosen on the desk, a click shows the
@@ -123,7 +169,7 @@ fn input(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option<St
 /// The inserts: every slot drawn, empty ones as italic placeholders, so nothing jumps
 /// when one is filled (FL). ▸ opens the slot's mini view; the name opens its editor; the
 /// ring is its dry/wet; the LED its bypass; a drag moves it; right-click has the rest.
-fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: &MixerStrip) {
+fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: Chain<'_>) {
     let s = sh.s;
     let id = ms.id;
     let n = ms.effects.len();
@@ -143,14 +189,17 @@ fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: &MixerStrip) 
         Some(count),
     );
     if band.power {
-        sh.acts
-            .push(Act::Exec(Command::SetStripFxEnabled { id, enabled: !fx }));
+        sh.acts.push(Act::Exec(if id.is_master() {
+            Command::SetMasterFxEnabled { enabled: !fx }
+        } else {
+            Command::SetStripFxEnabled { id, enabled: !fx }
+        }));
     }
     let mut rects = [Rect::NOTHING; MAX_INSERTS];
     for (i, slot) in ms.effects.iter().enumerate() {
         rects[i] = insert_tile(sh, st, app, ms, i, slot);
         if st.open.contains(&slot.id) {
-            mini::show(sh, &mut st.mini, app, ms, slot);
+            mini::show(sh, &mut st.mini, app, ms.id, slot);
         }
     }
     for i in n..MAX_INSERTS {
@@ -213,7 +262,7 @@ fn insert_tile(
     sh: &mut Sheet<'_>,
     st: &mut Chan,
     app: &CantusApp,
-    ms: &MixerStrip,
+    ms: Chain<'_>,
     i: usize,
     slot: &EffectSlot,
 ) -> Rect {

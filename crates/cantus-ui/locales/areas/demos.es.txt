@@ -1,0 +1,72 @@
+# Área: the demo songs and the startup project (round 19). Cada clave necesita su gemela en demos.en.txt.
+
+# Las canciones: sus títulos y estilos, como los lista el selector.
+demos.song.house = Neon Tide
+demos.song.ballad = Morning Light
+demos.song.funk = Sunday Strut
+demos.song.lofi = Paper Lanterns
+demos.song.ambient = Aurora
+demos.song.trap = Midnight Static
+demos.style.house = House
+demos.style.ballad = Balada pop
+demos.style.funk = Funk y soul
+demos.style.lofi = Hip-hop lo-fi
+demos.style.ambient = Cinemática
+demos.style.trap = Trap
+
+# Secciones: los nombres de los clips en el arreglo.
+demos.section.intro = Intro
+demos.section.verse = Estrofa
+demos.section.chorus = Estribillo
+demos.section.build = Subida
+demos.section.drop = Drop
+demos.section.break = Pausa
+demos.section.bridge = Puente
+demos.section.hook = Gancho
+demos.section.solo = Solo
+demos.section.rise = Ascenso
+demos.section.swell = Oleada
+demos.section.outro = Final
+
+# Pistas y canales.
+demos.track.kick = Bombo
+demos.track.snare = Caja
+demos.track.clap = Palmas
+demos.track.hats = Charles
+demos.track.cymbals = Platillos
+demos.track.toms = Toms
+demos.track.perc = Percusión
+demos.track.drums = Batería
+demos.track.bass = Bajo
+demos.track.sub = 808
+demos.track.piano = Piano
+demos.track.keys = Teclas
+demos.track.organ = Órgano
+demos.track.pad = Pad
+demos.track.strings = Cuerdas
+demos.track.choir = Coro
+demos.track.guitar = Guitarra
+demos.track.melody = Melodía
+demos.track.lead = Lead
+demos.track.chords = Acordes
+demos.track.pluck = Pluck
+demos.track.bells = Campanas
+demos.track.brass = Metales
+demos.track.arp = Arpegio
+demos.strip.drum_bus = Bus de batería
+demos.strip.reverb = Reverb
+demos.strip.delay = Delay
+
+# El selector (Archivo → Canciones de demostración).
+demos.menu = Canciones de demostración…
+action.demo-songs = Canciones de demostración
+demos.picker.title = Canciones de demostración
+demos.picker.list = Canciones hechas en Cantus
+demos.picker.meta = {style} · {bpm} BPM · {length}
+demos.picker.hint = Cada canción usa los instrumentos y efectos nativos; ábrela, escúchala, desármala.
+demos.picker.open = Abrir
+demos.picker.cancel = Cancelar
+demos.picker.unsaved = Cambios sin guardar
+demos.picker.unsaved_text = «{name}» tiene cambios sin guardar. Abrir una demostración la reemplaza.
+demos.picker.save_first = Guardar antes
+demos.picker.discard = No guardar

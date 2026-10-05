@@ -278,7 +278,7 @@ fn sample_row(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, pad: usize, drum:
                         SampleStatus::Failed(_) => {
                             b.push_str(&crate::i18n::t("pad.sample_missing"))
                         }
-                        SampleStatus::Unknown => {}
+                        SampleStatus::Unknown | SampleStatus::Loading => {}
                     },
                 );
                 hint::set_text(sh.ui.ctx(), path, tip, Caps::NONE);

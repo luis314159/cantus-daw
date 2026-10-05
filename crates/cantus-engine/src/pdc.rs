@@ -61,6 +61,9 @@ pub enum Edge {
     /// The strip the mix recorder takes, delayed by its path to the master so its take
     /// lines up with what is heard (ADR 0022).
     Capture,
+    /// The master chain's `i`-th insert's dry path (ADR 0026), as [`Edge::Dry`] is a
+    /// strip's.
+    MasterDry(usize),
 }
 
 /// One stereo delay line.

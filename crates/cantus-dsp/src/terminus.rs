@@ -46,6 +46,9 @@
 pub mod loudness;
 #[path = "terminus_os.rs"]
 pub mod os;
+#[cfg(test)]
+#[path = "terminus_tests_tp.rs"]
+mod tests_tp;
 
 use loudness::{column_len, KWeighting};
 use os::{Decim, Interp, TruePeak, TP_DELAY};
@@ -57,10 +60,21 @@ pub const MAX_LOOKAHEAD_MS: f32 = 5.0;
 const SAFE_SPREAD: usize = 8;
 /// The true-peak safety stage's attack ramp, samples.
 const SAFE_RAMP: usize = 48;
-/// The safety stage aims this far under the ceiling, dB.
-pub const SAFE_MARGIN_DB: f32 = 0.05;
+/// The safety stage aims this far under the ceiling, dB: what its 4× detector can read low
+/// on material with energy near Nyquist (0.05 until round 19; see `docs/plugins/limiter.md`,
+/// decision 3, and `tests_tp`).
+pub const SAFE_MARGIN_DB: f32 = 0.15;
 /// How fast the safety stage lets go, ms.
 const SAFE_RELEASE_MS: f32 = 5.0;
+/// Where the clipper's residual (what clipping changes) is cut, as a fraction of the
+/// sample rate. Clipping makes harmonics up to the 4× rate's Nyquist; the residual is
+/// brought back through a low-pass that leaves nothing in the last few per cent below the
+/// base rate's Nyquist, where the true-peak detectors' 4× reconstruction is still in its
+/// transition and reads low (round 19: with the prototype there, clipped drums read up to
+/// 0.24 dB over the ceiling by the 32× reference).
+const CLIP_BAND: f64 = 0.40;
+/// The clipper's low-pass window (Kaiser β): about 60 dB down from the base Nyquist.
+const CLIP_BETA: f64 = 6.0;
 /// Micro-decibels: the transient stage's integer unit.
 const MICRO: f64 = 1e6;
 /// Consecutive exact-zero samples after which dither falls silent too.
@@ -525,7 +539,7 @@ impl Clipper {
     fn new() -> Self {
         Clipper {
             interp: Interp::new(),
-            decim: Decim::new(),
+            decim: Decim::with_filter(&os::lowpass(CLIP_BAND, CLIP_BETA)),
             dry: Delay::new(2 * os::DELAY + 1),
             quiet: true,
         }
@@ -590,16 +604,17 @@ impl Clipper {
     }
 }
 
-/// TPDF dither with optional error-feedback noise shaping, for one channel.
+/// TPDF dither with optional error-feedback noise shaping, for one channel. Public so the
+/// maximizer (`culmen`) dithers with the same code.
 #[derive(Clone, Debug)]
-struct Ditherer {
+pub struct Ditherer {
     rng: u32,
     err: [f32; 5],
     zeros: u32,
 }
 
 impl Ditherer {
-    fn new(seed: u32) -> Self {
+    pub fn new(seed: u32) -> Self {
         Ditherer {
             rng: seed,
             err: [0.0; 5],
@@ -615,8 +630,9 @@ impl Ditherer {
         (self.rng >> 8) as f32 / 16_777_216.0
     }
 
+    /// One sample to `bits` bits; digital silence stays silent after 64 zeros.
     #[inline]
-    fn process(&mut self, x: f32, bits: u32, shaping: Shaping) -> f32 {
+    pub fn process(&mut self, x: f32, bits: u32, shaping: Shaping) -> f32 {
         // Digital silence stays silent: no hiss after the song ends.
         if x == 0.0 {
             self.zeros = self.zeros.saturating_add(1);

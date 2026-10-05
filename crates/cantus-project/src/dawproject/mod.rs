@@ -102,6 +102,8 @@ pub fn effect_device_name(kind: EffectKind) -> String {
         EffectKind::Multiband => "Multiplex".into(),
         EffectKind::DeEsser => "Sibilus".into(),
         EffectKind::Gate => "Porta".into(),
+        EffectKind::Stereo => "Latitudo".into(),
+        EffectKind::Saturator => "Fervor".into(),
         EffectKind::Delay => "Delay".into(),
         EffectKind::Reverb => "Reverb".into(),
         #[allow(unreachable_patterns)]

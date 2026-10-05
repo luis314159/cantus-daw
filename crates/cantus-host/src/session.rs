@@ -183,10 +183,8 @@ fn settle_new(
 
 /// The project's slot for an effect id, with its strip.
 fn find_slot(project: &Project, effect: EffectId) -> Option<(StripId, &EffectSlot)> {
-    project
-        .strips
-        .iter()
-        .find_map(|s| s.effect(effect).map(|e| (s.id, e)))
+    // The strips' inserts and the master's (ADR 0026).
+    project.all_effects().find(|(_, e)| e.id == effect)
 }
 
 impl PluginHost {
@@ -422,70 +420,69 @@ impl PluginHost {
     pub fn sync(&mut self, project: &Project, engine: &mut EngineHandle) -> Vec<HostNotice> {
         let mut notices = Vec::new();
         let mut seen = HashSet::new();
-        for strip in &project.strips {
-            for slot in &strip.effects {
-                let Some(plugin) = slot.spec.external.as_deref() else {
-                    continue;
-                };
-                seen.insert(slot.id);
-                if self.missing.contains_key(&slot.id) {
-                    continue;
-                }
-                if !self.slots.contains_key(&slot.id) {
-                    match self.load_for(strip.id, slot, plugin) {
-                        Ok(h) => {
-                            self.slots.insert(slot.id, h);
-                        }
-                        Err(error) => {
-                            log::warn!("plug-in {}: {error}", plugin.name);
-                            self.missing.insert(slot.id, error.clone());
-                            notices.push(HostNotice::LoadFailed {
-                                effect: slot.id,
-                                name: plugin.name.clone(),
-                                error,
-                            });
-                            continue;
-                        }
-                    }
-                }
-                let Some(mut h) = self.slots.remove(&slot.id) else {
-                    continue;
-                };
-                h.strip = strip.id;
-                // A state the project changed: into the plug-in.
-                if plugin.state != h.synced_state {
-                    if !plugin.state.is_empty() {
-                        if let Err(e) = h.main.load_state(plugin.state.bytes()) {
-                            log::warn!("{}: {e}", h.info.name);
-                        }
-                    }
-                    h.synced_state = plugin.state.clone();
-                    h.generation.fetch_add(1, Ordering::AcqRel);
-                }
-                // Values the project changed, delivered here while nothing processes (no
-                // audio device, or not started yet); processing, they go with the next
-                // block instead.
-                if plugin.params != h.flushed {
-                    let delta: BTreeMap<u32, f64> = plugin
-                        .params
-                        .iter()
-                        .filter(|(id, v)| h.flushed.get(id) != Some(v))
-                        .map(|(id, v)| (*id, *v))
-                        .collect();
-                    let mut out = ParamOut::new();
-                    h.main.flush(&changes(&delta), &mut out);
-                    h.flushed = plugin.params.clone();
-                }
-                if let Some(audio) = h.audio.take() {
-                    let unit = self.make_unit(&h, audio, slot);
-                    if engine.knows_effect(slot.id) {
-                        engine.replace_unit(unit);
-                    } else {
-                        engine.add_unit(unit);
-                    }
-                }
-                self.slots.insert(slot.id, h);
+        // The strips' inserts and the master's (ADR 0026).
+        for (host, slot) in project.all_effects() {
+            let Some(plugin) = slot.spec.external.as_deref() else {
+                continue;
+            };
+            seen.insert(slot.id);
+            if self.missing.contains_key(&slot.id) {
+                continue;
             }
+            if !self.slots.contains_key(&slot.id) {
+                match self.load_for(host, slot, plugin) {
+                    Ok(h) => {
+                        self.slots.insert(slot.id, h);
+                    }
+                    Err(error) => {
+                        log::warn!("plug-in {}: {error}", plugin.name);
+                        self.missing.insert(slot.id, error.clone());
+                        notices.push(HostNotice::LoadFailed {
+                            effect: slot.id,
+                            name: plugin.name.clone(),
+                            error,
+                        });
+                        continue;
+                    }
+                }
+            }
+            let Some(mut h) = self.slots.remove(&slot.id) else {
+                continue;
+            };
+            h.strip = host;
+            // A state the project changed: into the plug-in.
+            if plugin.state != h.synced_state {
+                if !plugin.state.is_empty() {
+                    if let Err(e) = h.main.load_state(plugin.state.bytes()) {
+                        log::warn!("{}: {e}", h.info.name);
+                    }
+                }
+                h.synced_state = plugin.state.clone();
+                h.generation.fetch_add(1, Ordering::AcqRel);
+            }
+            // Values the project changed, delivered here while nothing processes (no
+            // audio device, or not started yet); processing, they go with the next
+            // block instead.
+            if plugin.params != h.flushed {
+                let delta: BTreeMap<u32, f64> = plugin
+                    .params
+                    .iter()
+                    .filter(|(id, v)| h.flushed.get(id) != Some(v))
+                    .map(|(id, v)| (*id, *v))
+                    .collect();
+                let mut out = ParamOut::new();
+                h.main.flush(&changes(&delta), &mut out);
+                h.flushed = plugin.params.clone();
+            }
+            if let Some(audio) = h.audio.take() {
+                let unit = self.make_unit(&h, audio, slot);
+                if engine.knows_effect(slot.id) {
+                    engine.replace_unit(unit);
+                } else {
+                    engine.add_unit(unit);
+                }
+            }
+            self.slots.insert(slot.id, h);
         }
         let gone: Vec<EffectId> = self
             .slots
@@ -809,18 +806,16 @@ impl PluginHost {
     /// whose plug-in is missing keeps what the project holds, untouched.
     pub fn project_for_save(&mut self, project: &Project) -> Project {
         let mut out = project.clone();
-        for strip in &mut out.strips {
-            for slot in &mut strip.effects {
-                let Some(h) = self.slots.get_mut(&slot.id) else {
-                    continue;
-                };
-                let Some(plugin) = slot.spec.external.as_deref_mut() else {
-                    continue;
-                };
-                match h.main.save_state() {
-                    Ok(bytes) => plugin.state = PluginState::new(bytes),
-                    Err(e) => log::warn!("{}: {e}", h.info.name),
-                }
+        for slot in out.all_effects_mut() {
+            let Some(h) = self.slots.get_mut(&slot.id) else {
+                continue;
+            };
+            let Some(plugin) = slot.spec.external.as_deref_mut() else {
+                continue;
+            };
+            match h.main.save_state() {
+                Ok(bytes) => plugin.state = PluginState::new(bytes),
+                Err(e) => log::warn!("{}: {e}", h.info.name),
             }
         }
         out
@@ -836,42 +831,39 @@ impl PluginHost {
             max_block: MAX_BLOCK_FRAMES,
         };
         let mut units = Vec::new();
-        for strip in &project.strips {
-            for slot in &strip.effects {
-                let Some(plugin) = slot.spec.external.as_deref() else {
-                    continue;
-                };
-                let Some(h) = self.slots.get_mut(&slot.id) else {
-                    continue;
-                };
-                let state = h.main.save_state().ok();
-                let info = h.info.clone();
-                let Some(Ok(loaded)) = backend_for(info.format).map(|b| b.load(&info, setup))
-                else {
-                    continue;
-                };
-                let mut main = loaded.main;
-                if let Some(s) = &state {
-                    let _ = main.load_state(s);
-                }
-                let mut out = ParamOut::new();
-                main.flush(&changes(&plugin.params), &mut out);
-                let Some(audio) = settle_new(&mut main, loaded.audio, &info, setup, &plugin.params)
-                else {
-                    continue;
-                };
-                let params = main.params();
-                let unit = HostedUnit::new(
-                    audio,
-                    &params,
-                    |id| main.param_value(id),
-                    main.latency(),
-                    sample_rate,
-                    Arc::new(AtomicU64::new(0)),
-                );
-                units.push(EffectUnit::from_fx(slot, Box::new(unit)));
-                self.render_mains.push(main);
+        for (_, slot) in project.all_effects() {
+            let Some(plugin) = slot.spec.external.as_deref() else {
+                continue;
+            };
+            let Some(h) = self.slots.get_mut(&slot.id) else {
+                continue;
+            };
+            let state = h.main.save_state().ok();
+            let info = h.info.clone();
+            let Some(Ok(loaded)) = backend_for(info.format).map(|b| b.load(&info, setup)) else {
+                continue;
+            };
+            let mut main = loaded.main;
+            if let Some(s) = &state {
+                let _ = main.load_state(s);
             }
+            let mut out = ParamOut::new();
+            main.flush(&changes(&plugin.params), &mut out);
+            let Some(audio) = settle_new(&mut main, loaded.audio, &info, setup, &plugin.params)
+            else {
+                continue;
+            };
+            let params = main.params();
+            let unit = HostedUnit::new(
+                audio,
+                &params,
+                |id| main.param_value(id),
+                main.latency(),
+                sample_rate,
+                Arc::new(AtomicU64::new(0)),
+            );
+            units.push(EffectUnit::from_fx(slot, Box::new(unit)));
+            self.render_mains.push(main);
         }
         units
     }

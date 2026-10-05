@@ -12,34 +12,24 @@ use crate::i18n::{t, tf, Locale};
 use crate::kit::glyph::Glyph;
 use crate::kit::knob::KnobSize;
 use crate::kit::light::{self, RaisedOpts};
-use crate::kit::menu::{Check, Item};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::widgets::{menu_field, menu_list, segmented, Param};
+use crate::kit::widgets::{segmented, Param};
 use crate::kit::{with_brush, Fill, Style};
-use crate::settings::{
-    AudioSettings, BUFFER_SIZES, MAX_AUTOSAVE_SECONDS, MIN_AUTOSAVE_SECONDS, SAMPLE_RATES,
-    UI_SCALES,
-};
-use egui::{Align2, Context, Id, Order, Pos2, Rect, Sense, Ui, Vec2};
+use crate::settings::{AudioSettings, MAX_AUTOSAVE_SECONDS, MIN_AUTOSAVE_SECONDS, UI_SCALES};
+use egui::{Align2, Context, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::fmt::Write as _;
 
 /// The label column's width, in points.
-const LABEL_W: f32 = 140.0;
-
-/// Which of the audio lists is open.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum List {
-    Device,
-    Rate,
-    Buffer,
-}
+pub(super) const LABEL_W: f32 = 140.0;
 
 /// The window's own state.
 #[derive(Default)]
 pub struct Page {
     /// The audio choice not yet applied.
-    pending: Option<AudioSettings>,
-    list: Option<(List, Pos2)>,
+    pub(super) pending: Option<AudioSettings>,
+    pub(super) list: Option<(super::settings_audio::List, Pos2)>,
+    /// The Audio page's own (ADR 0025): the device scan, the loopback measurement.
+    pub audio: super::settings_audio::State,
 }
 
 /// The settings window.
@@ -48,7 +38,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
     let s = Style::current();
     let screen = ctx.content_rect();
     // Below the toolbar, clear of the status bar.
-    let size = Vec2::new(560.0, 660.0).min(screen.size() - Vec2::new(40.0, 100.0));
+    let size = Vec2::new(600.0, 800.0).min(screen.size() - Vec2::new(40.0, 100.0));
     egui::Window::new("cantus-settings")
         .id(Id::new("cantus-settings"))
         .title_bar(false)
@@ -79,7 +69,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                 .show(&mut child, |ui| {
                     ui.set_width(body.width() - 14.0 * s.k);
                     ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
-                    audio(app, ui);
+                    super::settings_audio::page(app, ui);
                     midi(app, ui);
                     look(app, ui);
                     saving(app, ui);
@@ -87,7 +77,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                     super::plugins::manager(app, ui);
                 });
         });
-    lists(app, ctx);
+    super::settings_audio::lists(app, ctx);
     app.show_settings = open;
     if !open {
         app.settings_page.pending = None;
@@ -162,7 +152,7 @@ pub fn title(ui: &mut Ui, rect: Rect, s: &Style, g: Glyph, key: &str) -> bool {
 }
 
 /// A dim line in a box.
-fn note(ui: &mut Ui, s: &str, warn: bool) {
+pub(super) fn note(ui: &mut Ui, s: &str, warn: bool) {
     let st = Style::current();
     let (rect, _) =
         ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0 * st.k), Sense::hover());
@@ -180,90 +170,6 @@ fn note(ui: &mut Ui, s: &str, warn: bool) {
             st.tk(),
         );
     });
-}
-
-fn default_or<T: std::fmt::Display>(v: Option<T>, unit: &str) -> String {
-    match v {
-        Some(v) => format!("{v}{unit}"),
-        None => t("settings.default"),
-    }
-}
-
-fn audio(app: &mut CantusApp, ui: &mut Ui) {
-    let s = Style::current();
-    let k = s.k;
-    w::band(ui, Src::Key("settings.audio"));
-    let pending = app
-        .settings_page
-        .pending
-        .clone()
-        .unwrap_or_else(|| app.settings.audio.clone());
-    let fw = |ui: &Ui| (ui.available_width() / k - 8.0).max(120.0);
-    let rows = [
-        (
-            List::Device,
-            "settings.device",
-            pending
-                .device
-                .clone()
-                .unwrap_or_else(|| t("settings.default")),
-        ),
-        (
-            List::Rate,
-            "settings.sample_rate",
-            default_or(pending.sample_rate, " Hz"),
-        ),
-        (
-            List::Buffer,
-            "settings.buffer",
-            match (
-                pending.buffer_frames,
-                pending.block_latency_ms(app.engine.sample_rate),
-            ) {
-                (Some(b), Some(ms)) => format!("{b} · ≈ {ms:.1} ms"),
-                (b, _) => default_or(b, ""),
-            },
-        ),
-    ];
-    for (list, key, value) in rows {
-        ui.horizontal(|ui| {
-            w::row_label(ui, key, LABEL_W, 24.0);
-            let width = fw(ui);
-            let open = app.settings_page.list.is_some_and(|(l, _)| l == list);
-            let (resp, clicks) = menu_field(ui, &value, false, open, &t(key), width);
-            if clicks.open {
-                app.settings_page.list = if open {
-                    None
-                } else {
-                    Some((list, resp.rect.left_bottom()))
-                };
-            }
-        });
-    }
-    ui.horizontal(|ui| {
-        w::row_label(ui, "", LABEL_W, 24.0);
-        let changed = pending != app.settings.audio;
-        if w::button(ui, Src::Key("settings.apply"), 90.0, changed).clicked() {
-            app.settings.audio = pending.clone();
-            app.settings_page.pending = None;
-            app.restart_audio();
-        }
-        let running = if app.engine.is_live() {
-            tf(
-                "settings.audio_now",
-                &[
-                    ("device", &app.engine.device_name),
-                    ("rate", &(app.engine.sample_rate as u32)),
-                ],
-            )
-        } else {
-            t("status.no_audio")
-        };
-        note(ui, &running, false);
-    });
-    if let Some(e) = app.audio_error().map(str::to_string) {
-        note(ui, &e, true);
-    }
 }
 
 fn midi(app: &mut CantusApp, ui: &mut Ui) {
@@ -376,98 +282,5 @@ fn saving(app: &mut CantusApp, ui: &mut Ui) {
     if (secs - before).abs() > f32::EPSILON && snapped as u64 != app.settings.autosave_seconds {
         app.settings.autosave_seconds = snapped as u64;
         app.store_settings();
-    }
-}
-
-/// The audio lists: the devices, the rates, the buffer sizes.
-fn lists(app: &mut CantusApp, ctx: &Context) {
-    let Some((list, at)) = app.settings_page.list else {
-        return;
-    };
-    let s = Style::current();
-    let mut pending = app
-        .settings_page
-        .pending
-        .clone()
-        .unwrap_or_else(|| app.settings.audio.clone());
-    let default = t("settings.default");
-    let (labels, current): (Vec<String>, usize) = match list {
-        List::Device => {
-            let devices = cantus_engine::output_devices();
-            let mut v = vec![default.clone()];
-            let mut cur = 0;
-            for (i, d) in devices.iter().enumerate() {
-                if pending.device.as_deref() == Some(d.name.as_str()) {
-                    cur = i + 1;
-                }
-                v.push(if d.is_default {
-                    format!("{} ({default})", d.name)
-                } else {
-                    d.name.clone()
-                });
-            }
-            (v, cur)
-        }
-        List::Rate => {
-            let mut v = vec![default.clone()];
-            v.extend(SAMPLE_RATES.iter().map(|r| format!("{r} Hz")));
-            let cur = pending
-                .sample_rate
-                .and_then(|r| SAMPLE_RATES.iter().position(|x| *x == r))
-                .map_or(0, |i| i + 1);
-            (v, cur)
-        }
-        List::Buffer => {
-            let mut v = vec![default.clone()];
-            v.extend(BUFFER_SIZES.iter().map(|b| b.to_string()));
-            let cur = pending
-                .buffer_frames
-                .and_then(|b| BUFFER_SIZES.iter().position(|x| *x == b))
-                .map_or(0, |i| i + 1);
-            (v, cur)
-        }
-    };
-    let items: Vec<Item<'_>> = labels
-        .iter()
-        .enumerate()
-        .map(|(i, l)| Item::Action {
-            label: Src::Str(l),
-            check: Check::Radio(i == current),
-            shortcut: None,
-            submenu: false,
-            enabled: true,
-        })
-        .collect();
-    let mut chosen = None;
-    let area = egui::Area::new(Id::new("cantus-settings-list"))
-        .order(Order::Foreground)
-        .fixed_pos(at)
-        .constrain(true)
-        .show(ctx, |ui| {
-            let (_, c) = menu_list(ui, &items, 280.0 * s.k);
-            chosen = c.clicked;
-        });
-    if let Some(i) = chosen {
-        match list {
-            List::Device => {
-                pending.device = if i == 0 {
-                    None
-                } else {
-                    cantus_engine::output_devices()
-                        .get(i - 1)
-                        .map(|d| d.name.clone())
-                };
-            }
-            List::Rate => pending.sample_rate = i.checked_sub(1).map(|i| SAMPLE_RATES[i]),
-            List::Buffer => pending.buffer_frames = i.checked_sub(1).map(|i| BUFFER_SIZES[i]),
-        }
-        app.settings_page.pending = Some(pending);
-    }
-    let outside = ctx.input(|i| i.pointer.any_pressed())
-        && !ctx
-            .pointer_interact_pos()
-            .is_some_and(|p| area.response.rect.contains(p));
-    if chosen.is_some() || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        app.settings_page.list = None;
     }
 }

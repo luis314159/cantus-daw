@@ -829,8 +829,7 @@ fn trigger_card(
             };
             let current = app
                 .project()
-                .strip(strip)
-                .and_then(|x| x.effect(effect))
+                .effect(strip, effect)
                 .and_then(|e| e.midi_from);
             let name = current
                 .and_then(|id| app.project().track(id))
@@ -2152,12 +2151,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect, _)) = app.fx.open else {
         return;
     };
-    let Some(spec) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .map(|e| e.spec.clone())
-    else {
+    let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
     let sr = 48_000.0;

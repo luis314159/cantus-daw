@@ -1,0 +1,52 @@
+# Área: clips de audio (ronda 19: formas de onda, fundidos, ganancia de clip, importar). Cada clave aquí tiene su gemela en audioclips.en.txt.
+
+# --- comandos (los nombra el historial de deshacer) ---
+cmd.import_audio = Importar audio
+cmd.collect_audio = Reunir archivos de audio
+cmd.normalize_audio = Normalizar
+
+# --- el clip en el arreglo ---
+audioclips.badge.reverse = REV
+audioclips.missing = FALTA
+audioclips.fade_in = Fundido de entrada
+audioclips.fade_out = Fundido de salida
+audioclips.gain = Ganancia de clip
+audioclips.fade_remove = Quitar fundidos
+audioclips.curve.linear = Lineal
+audioclips.curve.equal_power = Potencia constante
+audioclips.curve.exponential = Exponencial
+audioclips.curve.logarithmic = Logarítmica
+audioclips.curve.s_curve = Curva en S
+
+# --- el menú del clip ---
+audioclips.menu.band = Audio
+audioclips.menu.normalize = Normalizar
+audioclips.menu.reset_gain = Restablecer ganancia
+audioclips.menu.reverse = Invertir
+audioclips.menu.locate = Buscar archivo…
+audioclips.menu.reveal = Mostrar en el explorador
+audioclips.menu.import = Importar audio…
+audioclips.menu.collect = Reunir audio y guardar
+
+# --- el inspector ---
+audioclips.inspector.band = Clip de audio
+audioclips.inspector.file = Archivo
+audioclips.inspector.format = Formato
+audioclips.inspector.path = Ruta
+audioclips.inspector.curve = Curva
+audioclips.inspector.mono = mono
+audioclips.inspector.stereo = estéreo
+
+# --- archivos ---
+audioclips.filter = Archivos de audio
+audioclips.default_name = Audio
+audioclips.error.format = no es un archivo de audio que Cantus lea (WAV, AIFF, FLAC, Ogg)
+audioclips.drop.hint = Suelta archivos de audio para colocarlos aquí, un MIDI para añadir sus pistas o un DAWproject para abrirlo
+audioclips.drop.unsupported = No se puede importar {file}: Cantus acepta audio (WAV, AIFF, FLAC, Ogg), .mid y .dawproject
+audioclips.status.imported = Importados {n} archivo(s) de audio
+audioclips.status.import_failed = No se pudo importar {file}: {error}
+audioclips.status.collect_failed = No se pudo copiar {file} a la carpeta Audio del proyecto: {error}
+audioclips.status.relinked = Audio encontrado de nuevo: {file}
+audioclips.status.wait_peaks = La forma de onda aún se está leyendo; inténtalo en un momento
+audioclips.loading = Cargando
+audioclips.piano_roll = Un clip de audio no tiene notas. Su ganancia, fundidos y archivo están en el inspector

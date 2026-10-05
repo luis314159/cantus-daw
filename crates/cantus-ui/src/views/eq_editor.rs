@@ -1002,8 +1002,7 @@ impl CantusApp {
         // Open on the first band there is, so its numbers are on screen at once.
         let first = self
             .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
+            .effect(strip, effect)
             .and_then(|e| (0..EQ_BANDS).find(|b| used(&e.spec, *b)));
         self.eq_editor.select(first.as_slice());
         self.engine.set_analyser(Some(effect));
@@ -1015,8 +1014,7 @@ impl CantusApp {
         if let Some((strip, effect)) = self.eq_editor.open.take() {
             let soloed = self
                 .project()
-                .strip(strip)
-                .and_then(|s| s.effect(effect))
+                .effect(strip, effect)
                 .is_some_and(|e| e.spec.get("solo") >= 1.0);
             if soloed {
                 self.set_eq_solo(strip, effect, None);
@@ -1106,12 +1104,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect)) = app.eq_editor.open else {
         return;
     };
-    if app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .is_none()
-    {
+    if app.project().effect(strip, effect).is_none() {
         app.close_eq_editor();
         return;
     }
@@ -1435,12 +1428,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect)) = app.eq_editor.open else {
         return;
     };
-    let Some(slot) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .cloned()
-    else {
+    let Some(slot) = app.project().effect(strip, effect).cloned() else {
         return;
     };
     let sr = 48_000.0f32;

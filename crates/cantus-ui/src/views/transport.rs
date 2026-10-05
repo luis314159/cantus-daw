@@ -100,7 +100,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         (Group::Modes, 3.0 * key + 4.0 * k),
         (Group::Meter, 104.0 * k),
         (Group::Tempo, 104.0 * k),
-        (Group::Transport, 4.0 * key + 6.0 * k),
+        (
+            Group::Transport,
+            4.0 * key + 6.0 * k + (views::record_options::KEY_W + 2.0) * k,
+        ),
     ];
     let logo_w = 34.0 * k;
     let menus_w = menus_width(ui.ctx(), &s);
@@ -282,12 +285,12 @@ fn transport_keys(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             Some(Action::Record),
         ),
     ];
+    let mut record = None;
     for (g, lit, id, key, action) in keys {
-        if key_at(ui, x, cy, s, KeyFace::Glyph(g), lit, id, || {
+        let resp = key_at(ui, x, cy, s, KeyFace::Glyph(g), lit, id, || {
             tip(app, key, action)
-        })
-        .clicked()
-        {
+        });
+        if resp.clicked() {
             match id {
                 "to-start" => app.seek(Ticks::ZERO),
                 "play" => app.toggle_play(),
@@ -295,7 +298,19 @@ fn transport_keys(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 _ => app.toggle_record(),
             }
         }
+        if id == "record" {
+            record = Some(resp);
+        }
         x += step;
+    }
+    // The record options hang from a narrow ▾ beside the record key (ADR 0025).
+    if let Some(record) = record {
+        let w = views::record_options::KEY_W * s.k;
+        let r = Rect::from_min_size(
+            Pos2::new(x - 1.0 * s.k, cy - KEY * s.k * 0.5),
+            Vec2::new(w, KEY * s.k),
+        );
+        views::record_options::key(app, ui, r, &record, s);
     }
 }
 
@@ -501,14 +516,19 @@ fn clock(app: &mut CantusApp, ui: &mut Ui, r: Rect, digits_w: f32, s: &Style) {
                         .policy(Policy::Elide(Elide::End)),
                     s.tk(),
                 );
-                let _ = text::paint(
-                    b,
-                    bottom,
-                    &Text::new(metre, Role::Value, t.text_dim)
-                        .align(Align2::RIGHT_CENTER)
-                        .policy(Policy::Elide(Elide::End)),
-                    s.tk(),
-                );
+                if app.rec.pass.is_some() || app.rec.dropped > 0 {
+                    // Recording: the take's time and a pulsing lamp in the metre's place.
+                    views::record_options::paint_elapsed(b, app, bottom, s);
+                } else {
+                    let _ = text::paint(
+                        b,
+                        bottom,
+                        &Text::new(metre, Role::Value, t.text_dim)
+                            .align(Align2::RIGHT_CENTER)
+                            .policy(Policy::Elide(Elide::End)),
+                        s.tk(),
+                    );
+                }
             }
         });
     });
@@ -793,6 +813,10 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
         ui.close();
         app.new_project();
     }
+    if ui.button(t("demos.menu")).clicked() {
+        ui.close();
+        views::demos::show(app);
+    }
     if ui.button(t("menu.open")).clicked() {
         ui.close();
         app.open_dialog();
@@ -806,7 +830,16 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
         ui.close();
         app.save_as();
     }
+    // Audio (ADR 0025): files in as clips, and every file of the project into its folder.
+    if ui.button(t("audioclips.menu.collect")).clicked() {
+        ui.close();
+        app.save();
+    }
     ui.separator();
+    if ui.button(t("audioclips.menu.import")).clicked() {
+        ui.close();
+        app.import_audio_dialog();
+    }
     if ui.button(t("menu.export_wav")).clicked() {
         ui.close();
         app.export_dialog();

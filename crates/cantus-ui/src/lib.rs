@@ -6,8 +6,12 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod audio_clips;
+pub mod audio_files;
 pub mod boot;
 pub mod clips;
+pub mod comping;
+pub mod demos;
 pub mod design;
 pub mod i18n;
 pub mod icons;
@@ -16,11 +20,14 @@ pub mod keymap;
 pub mod kit;
 pub mod layout;
 pub mod raster;
+pub mod record_pass;
+pub mod record_session;
 pub mod recording;
 pub mod settings;
 pub mod takes;
 pub mod theme;
 pub mod views;
+pub mod waveform;
 pub mod widgets;
 
 pub use app::{starter_project, stress_project, welcome_project, CantusApp, APP_VERSION};

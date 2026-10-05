@@ -703,11 +703,7 @@ impl CantusApp {
 
     /// Open whichever editor an effect has.
     pub fn open_effect_editor(&mut self, strip: StripId, effect: EffectId) {
-        let kind = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .map(|e| e.spec.kind);
+        let kind = self.project().effect(strip, effect).map(|e| e.spec.kind);
         match kind {
             Some(EffectKind::Eq) => {
                 self.close_comp_editor();
@@ -757,7 +753,7 @@ impl CantusApp {
             slot.spec.set(k, v);
         }
         let effect = slot.id;
-        let index = self.project().strip(strip)?.effects.len();
+        let index = self.project().effects_of(strip)?.len();
         let ok = self.exec(Command::Batch {
             label_key: "cmd.comp_duck".into(),
             commands: vec![
@@ -780,14 +776,13 @@ impl CantusApp {
     /// reports it: today the one whose editor is open (its telemetry). `None` when the
     /// strip has no compressor, `Some(None)` when it has one the engine does not report.
     pub fn comp_gr_on_strip(&self, strip: StripId) -> Option<Option<f32>> {
-        let s = self.project().strip(strip)?;
+        let effects = self.project().effects_of(strip)?;
         let working = |id: EffectId| {
-            s.effects
+            effects
                 .iter()
                 .any(|e| e.id == id && e.spec.kind == EffectKind::Compressor && !e.bypass)
         };
-        if !s
-            .effects
+        if !effects
             .iter()
             .any(|e| e.spec.kind == EffectKind::Compressor && !e.bypass)
         {
@@ -800,6 +795,8 @@ impl CantusApp {
             }
             // Every other strip: the engine's per-strip reduction (the deepest of its
             // working compressors), in the same order as the desk's meters.
+            // The master's chain: its own reduction (ADR 0026).
+            _ if strip.is_master() => Some(self.engine.meters().master_gr),
             _ => {
                 let index = self.project().strips.iter().position(|s| s.id == strip)?;
                 self.engine.meters().strip_gr.get(index).copied()
@@ -980,12 +977,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect)) = app.comp_editor.open else {
         return;
     };
-    if app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .is_none()
-    {
+    if app.project().effect(strip, effect).is_none() {
         app.close_comp_editor();
         return;
     }

@@ -109,7 +109,8 @@ impl Desk {
             }
         }
         self.info.clear();
-        self.most_inserts = 0;
+        // The master's slots count too: they sit in the same row (ADR 0026).
+        self.most_inserts = p.master.effects.len();
         self.any_solo = false;
         self.any_muted = false;
         for s in &p.strips {

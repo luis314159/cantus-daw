@@ -32,5 +32,10 @@ tiny-skia = "0.12"
 # ADR 0024 §5: the workspace docks, splits, stacks and floats its areas (MIT).
 egui_dock = { version = "0.21", features = ["serde"] }
 
+[features]
+# ASIO drivers on Windows (ADR 0025 §10); see docs/round19/devices.md to build it.
+asio = ["cantus-engine/asio"]
+
 [dev-dependencies]
 tempfile = "3"
+rtrb.workspace = true

@@ -258,12 +258,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect)) = app.comp_editor.open else {
         return;
     };
-    let Some(spec) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .map(|e| e.spec.clone())
-    else {
+    let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
     let mut c = cantus_dsp::Comprimo::new(DISPLAY_SR);

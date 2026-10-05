@@ -47,6 +47,7 @@ pub enum Action {
     Save,
     SaveAs,
     ExportWav,
+    DemoSongs,
     // Edit
     Undo,
     Redo,
@@ -113,6 +114,17 @@ pub enum Action {
     ToggleStripSolo,
     ToggleStripMute,
     ToggleMeterWave,
+    // Recording (ADR 0025)
+    /// Arm the selected track for recording.
+    ArmTrack,
+    /// A new track with an input, armed and selected.
+    AddAudioTrack,
+    /// Count-in on or off.
+    ToggleCountIn,
+    /// Punch in/out on or off.
+    TogglePunch,
+    /// Show or hide the selected track's take lanes.
+    ShowTakes,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -158,7 +170,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 64] = [
+    pub const ALL: [Action; 70] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -171,6 +183,7 @@ impl Action {
         Action::Save,
         Action::SaveAs,
         Action::ExportWav,
+        Action::DemoSongs,
         Action::Undo,
         Action::Redo,
         Action::Cut,
@@ -223,6 +236,11 @@ impl Action {
         Action::ToggleStripSolo,
         Action::ToggleStripMute,
         Action::ToggleMeterWave,
+        Action::ArmTrack,
+        Action::AddAudioTrack,
+        Action::ToggleCountIn,
+        Action::TogglePunch,
+        Action::ShowTakes,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -236,6 +254,7 @@ impl Action {
             Action::ToggleMetronome => "toggle-metronome",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
+            Action::DemoSongs => "demo-songs",
             Action::Open => "open",
             Action::Save => "save",
             Action::SaveAs => "save-as",
@@ -292,6 +311,11 @@ impl Action {
             Action::ToggleStripSolo => "toggle-strip-solo",
             Action::ToggleStripMute => "toggle-strip-mute",
             Action::ToggleMeterWave => "toggle-meter-wave",
+            Action::ArmTrack => "arm-track",
+            Action::AddAudioTrack => "add-audio-track",
+            Action::ToggleCountIn => "toggle-count-in",
+            Action::TogglePunch => "toggle-punch",
+            Action::ShowTakes => "show-takes",
         }
     }
 
@@ -310,12 +334,12 @@ impl Action {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | Panic => {
                 Category::Transport
             }
-            NewProject | Open | Save | SaveAs | ExportWav => Category::File,
+            NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
-            LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack => {
-                Category::Arrangement
-            }
+            // Recording sits with the arrangement, where its tracks and lanes are.
+            LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack | ArmTrack
+            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch => Category::Arrangement,
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
@@ -543,6 +567,7 @@ fn common() -> Vec<(Action, Binding)> {
         (Record, Binding::key(Key::R)),
         (ToStart, Binding::key(Key::Home)),
         (NewProject, Binding::cmd(Key::N)),
+        (DemoSongs, Binding::cmd_shift(Key::N)),
         (Open, Binding::cmd(Key::O)),
         (Save, Binding::cmd(Key::S)),
         (SaveAs, Binding::cmd_shift(Key::S)),
@@ -614,6 +639,14 @@ fn common() -> Vec<(Action, Binding)> {
         (MoveStripRight, Binding::alt(Key::ArrowRight)),
         // FL's `Alt+W`.
         (ToggleMeterWave, Binding::alt(Key::W)),
+        // Recording (ADR 0025): Alt and a letter, so the typing piano never takes them.
+        // R records; Alt+R arms the selected track (Cubase's "R" on the track, moved off
+        // the bare letter), Alt+C counts in, Alt+P punches, Alt+T shows the takes.
+        (ArmTrack, Binding::alt(Key::R)),
+        (ToggleCountIn, Binding::alt(Key::C)),
+        (TogglePunch, Binding::alt(Key::P)),
+        (ShowTakes, Binding::alt(Key::T)),
+        (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }
 

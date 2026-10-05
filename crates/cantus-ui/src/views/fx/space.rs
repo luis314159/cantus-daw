@@ -582,12 +582,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     // capture is the reverb alone.
     let slot_mix = host
         .daw()
-        .and_then(|(app, strip, effect)| {
-            app.project()
-                .strip(strip)
-                .and_then(|x| x.effect(effect))
-                .map(|e| e.mix)
-        })
+        .and_then(|(app, strip, effect)| app.project().effect(strip, effect).map(|e| e.mix))
         .unwrap_or(1.0);
     st.pairs.clear();
     host.take_pairs(&mut st.pairs);
@@ -1737,12 +1732,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect, _)) = app.fx.open else {
         return;
     };
-    let Some(slot) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .cloned()
-    else {
+    let Some(slot) = app.project().effect(strip, effect).cloned() else {
         return;
     };
     app.fx.space.start_for(effect);

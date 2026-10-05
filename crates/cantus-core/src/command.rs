@@ -55,6 +55,10 @@ pub enum CommandError {
     GroupNotFound(GroupId),
     #[error("mixer group {0} still has strips in it")]
     GroupInUse(GroupId),
+    #[error("audio source {0} not found")]
+    AudioSourceNotFound(AudioSourceId),
+    #[error("audio source {0} is still played by a clip")]
+    AudioSourceInUse(AudioSourceId),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -89,6 +93,10 @@ pub enum Command {
     },
     SetMasterPhaseInvert {
         invert: bool,
+    },
+    /// The master's whole insert chain in or out (ADR 0026), FL's master FX lamp.
+    SetMasterFxEnabled {
+        enabled: bool,
     },
     /// Project-wide, because it changes what the project renders as (ADR 0012).
     SetPanLaw {
@@ -459,6 +467,50 @@ pub enum Command {
         clip: ClipId,
     },
 
+    // --- audio (ADR 0025) -------------------------------------------------------------
+    /// Add a file to the pool. The id comes from `Project::alloc_id`, like a clip's.
+    InsertAudioSource {
+        source: crate::audio::AudioSource,
+    },
+    /// Take a file out of the pool; refused while a clip (on any lane) still plays it.
+    RemoveAudioSource {
+        id: AudioSourceId,
+    },
+    /// Point a source at another path (the file was moved into the project's folder, or
+    /// found again).
+    SetAudioSourcePath {
+        id: AudioSourceId,
+        path: String,
+    },
+    /// Set or clear what makes a clip an audio clip: clip gain, fades and their curves,
+    /// reverse. One command for all of them, so a drag on a fade handle merges.
+    SetClipAudio {
+        track: TrackId,
+        clip: ClipId,
+        audio: Option<crate::audio::AudioRegion>,
+    },
+    /// Move a clip to another lane: 0 plays, 1… are take lanes.
+    SetClipLane {
+        track: TrackId,
+        clip: ClipId,
+        lane: u8,
+    },
+    SetTrackInput {
+        id: TrackId,
+        input: Option<crate::audio::TrackInput>,
+    },
+    SetTrackArmed {
+        id: TrackId,
+        armed: bool,
+    },
+    SetTrackTakesOpen {
+        id: TrackId,
+        open: bool,
+    },
+    SetRecordSettings {
+        settings: crate::audio::RecordSettings,
+    },
+
     // --- notes ------------------------------------------------------------------------
     InsertNotes {
         track: TrackId,
@@ -499,6 +551,7 @@ impl Command {
             SetMasterPan { .. } => "cmd.set_master_pan",
             SetMasterWidth { .. } => "cmd.set_master_width",
             SetMasterPhaseInvert { .. } => "cmd.set_master_phase",
+            SetMasterFxEnabled { .. } => "cmd.set_master_fx_enabled",
             SetPanLaw { .. } => "cmd.set_pan_law",
             ReplaceProject { .. } => "cmd.replace_project",
             InsertTrack { .. } => "cmd.insert_track",
@@ -569,6 +622,15 @@ impl Command {
             InsertNotes { .. } => "cmd.insert_notes",
             RemoveNotes { .. } => "cmd.remove_notes",
             SetNotes { .. } => "cmd.set_notes",
+            InsertAudioSource { .. } => "cmd.insert_audio_source",
+            RemoveAudioSource { .. } => "cmd.remove_audio_source",
+            SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
+            SetClipAudio { .. } => "cmd.set_clip_audio",
+            SetClipLane { .. } => "cmd.set_clip_lane",
+            SetTrackInput { .. } => "cmd.set_track_input",
+            SetTrackArmed { .. } => "cmd.set_track_armed",
+            SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
+            SetRecordSettings { .. } => "cmd.set_record_settings",
             Batch { label_key, .. } => label_key,
         }
     }
@@ -589,7 +651,22 @@ impl Command {
             | (SetMasterPan { .. }, SetMasterPan { .. })
             | (SetMasterWidth { .. }, SetMasterWidth { .. })
             | (SetMasterPhaseInvert { .. }, SetMasterPhaseInvert { .. })
-            | (SetPanLaw { .. }, SetPanLaw { .. }) => true,
+            | (SetMasterFxEnabled { .. }, SetMasterFxEnabled { .. })
+            | (SetPanLaw { .. }, SetPanLaw { .. })
+            | (SetRecordSettings { .. }, SetRecordSettings { .. }) => true,
+            (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
+            (
+                SetClipAudio {
+                    track: ta,
+                    clip: ca,
+                    ..
+                },
+                SetClipAudio {
+                    track: tb,
+                    clip: cb,
+                    ..
+                },
+            ) => ta == tb && ca == cb,
             (SetTrackName { id: a, .. }, SetTrackName { id: b, .. })
             | (SetTrackColor { id: a, .. }, SetTrackColor { id: b, .. })
             | (SetTrackGain { id: a, .. }, SetTrackGain { id: b, .. })
@@ -837,6 +914,10 @@ impl Command {
                 let old = std::mem::replace(&mut project.master.phase_invert, invert);
                 Ok(SetMasterPhaseInvert { invert: old })
             }
+            SetMasterFxEnabled { enabled } => {
+                let old = std::mem::replace(&mut project.master.fx_enabled, enabled);
+                Ok(SetMasterFxEnabled { enabled: old })
+            }
             SetPanLaw { law } => {
                 let old = std::mem::replace(&mut project.pan_law, law);
                 Ok(SetPanLaw { law: old })
@@ -945,7 +1026,12 @@ impl Command {
                     .ok_or(CommandError::StripNotFound(id))?;
                 let fed = project.tracks.iter().any(|t| t.strip == Some(id))
                     || project.strips.iter().any(|s| s.feeds().any(|to| to == id))
-                    || project.strips.iter().any(|s| s.keys().any(|k| k == id));
+                    || project.strips.iter().any(|s| s.keys().any(|k| k == id))
+                    || project
+                        .master
+                        .effects
+                        .iter()
+                        .any(|e| e.sidechain == Some(id));
                 if fed {
                     return Err(CommandError::StripInUse(id));
                 }
@@ -1427,31 +1513,28 @@ impl Command {
             }
 
             InsertEffect { strip, index, slot } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let len = t.effects.len();
+                let t = chain_mut(project, strip)?;
+                let len = t.len();
                 if index > len {
                     return Err(CommandError::IndexOutOfRange { index, len });
                 }
                 if len >= MAX_INSERTS {
                     return Err(CommandError::TooManyInserts(strip));
                 }
-                if t.effect(slot.id).is_some() {
+                if t.iter().any(|e| e.id == slot.id) {
                     return Err(CommandError::DuplicateId(slot.id.0));
                 }
                 let id = slot.id;
-                t.effects.insert(index, *slot);
+                t.insert(index, *slot);
                 Ok(RemoveEffect { strip, effect: id })
             }
             RemoveEffect { strip, effect } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
+                let t = chain_mut(project, strip)?;
                 let index = t
-                    .effect_index(effect)
+                    .iter()
+                    .position(|e| e.id == effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
-                let slot = t.effects.remove(index);
+                let slot = t.remove(index);
                 Ok(InsertEffect {
                     strip,
                     index,
@@ -1463,18 +1546,17 @@ impl Command {
                 effect,
                 index,
             } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
+                let t = chain_mut(project, strip)?;
                 let from = t
-                    .effect_index(effect)
+                    .iter()
+                    .position(|e| e.id == effect)
                     .ok_or(CommandError::EffectNotFound(effect))?;
-                let len = t.effects.len();
+                let len = t.len();
                 if index >= len {
                     return Err(CommandError::IndexOutOfRange { index, len });
                 }
-                let e = t.effects.remove(from);
-                t.effects.insert(index, e);
+                let e = t.remove(from);
+                t.insert(index, e);
                 Ok(MoveEffect {
                     strip,
                     effect,
@@ -1486,12 +1568,7 @@ impl Command {
                 effect,
                 bypass,
             } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 let old = std::mem::replace(&mut e.bypass, bypass);
                 Ok(SetEffectBypass {
                     strip,
@@ -1505,12 +1582,7 @@ impl Command {
                 key,
                 value,
             } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 let stored = e.spec.params.get(&key).copied();
                 e.spec
                     .set(&key, value)
@@ -1531,6 +1603,12 @@ impl Command {
                 source,
             } => {
                 if let Some(src) = source {
+                    // The master cannot be keyed from: every strip feeds it, so a key from
+                    // it into anything is a loop (ADR 0026). A key *into* a master insert
+                    // from any strip is fine — the master is always processed last.
+                    if src.is_master() {
+                        return Err(CommandError::RoutingCycle(strip));
+                    }
                     if project.strip(src).is_none() {
                         return Err(CommandError::StripNotFound(src));
                     }
@@ -1538,12 +1616,7 @@ impl Command {
                         return Err(CommandError::RoutingCycle(strip));
                     }
                 }
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 if source.is_some() && !e.spec.takes_sidechain() {
                     return Err(CommandError::InvalidValue("sidechain".into()));
                 }
@@ -1564,12 +1637,7 @@ impl Command {
                         return Err(CommandError::TrackNotFound(src));
                     }
                 }
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 if source.is_some() && !e.spec.kind.takes_notes() {
                     return Err(CommandError::InvalidValue("midi source".into()));
                 }
@@ -1581,12 +1649,7 @@ impl Command {
                 })
             }
             ClearEffectParam { strip, effect, key } => {
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 if e.spec.kind.param(&key).is_none() {
                     return Err(CommandError::InvalidValue(format!("effect param {key}")));
                 }
@@ -1605,12 +1668,7 @@ impl Command {
                 if !mix.is_finite() {
                     return Err(CommandError::InvalidValue("mix".into()));
                 }
-                let t = project
-                    .strip_mut(strip)
-                    .ok_or(CommandError::StripNotFound(strip))?;
-                let e = t
-                    .effect_mut(effect)
-                    .ok_or(CommandError::EffectNotFound(effect))?;
+                let e = slot_mut(project, strip, effect)?;
                 let old = std::mem::replace(&mut e.mix, mix.clamp(0.0, 1.0));
                 Ok(SetEffectMix {
                     strip,
@@ -1760,6 +1818,105 @@ impl Command {
                     clip,
                     muted: old,
                 })
+            }
+            InsertAudioSource { source } => {
+                if project.audio_source(source.id).is_some() {
+                    return Err(CommandError::DuplicateId(source.id.0));
+                }
+                let id = source.id;
+                project.next_id = project.next_id.max(id.0.saturating_add(1));
+                project.audio_pool.push(source);
+                Ok(RemoveAudioSource { id })
+            }
+            RemoveAudioSource { id } => {
+                let index = project
+                    .audio_pool
+                    .iter()
+                    .position(|s| s.id == id)
+                    .ok_or(CommandError::AudioSourceNotFound(id))?;
+                let used = project.tracks.iter().any(|t| {
+                    t.clips
+                        .iter()
+                        .any(|c| c.audio.as_ref().is_some_and(|a| a.source == id))
+                });
+                if used {
+                    return Err(CommandError::AudioSourceInUse(id));
+                }
+                let source = project.audio_pool.remove(index);
+                Ok(InsertAudioSource { source })
+            }
+            SetAudioSourcePath { id, path } => {
+                let s = project
+                    .audio_source_mut(id)
+                    .ok_or(CommandError::AudioSourceNotFound(id))?;
+                let old = std::mem::replace(&mut s.path, path);
+                Ok(SetAudioSourcePath { id, path: old })
+            }
+            SetClipAudio { track, clip, audio } => {
+                if let Some(a) = &audio {
+                    if project.audio_source(a.source).is_none() {
+                        return Err(CommandError::AudioSourceNotFound(a.source));
+                    }
+                    if !a.gain_db.is_finite() || a.fade_in < Ticks::ZERO || a.fade_out < Ticks::ZERO
+                    {
+                        return Err(CommandError::InvalidValue("clip audio".into()));
+                    }
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.audio, audio);
+                Ok(SetClipAudio {
+                    track,
+                    clip,
+                    audio: old,
+                })
+            }
+            SetClipLane { track, clip, lane } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.lane, lane);
+                Ok(SetClipLane {
+                    track,
+                    clip,
+                    lane: old,
+                })
+            }
+            SetTrackInput { id, input } => {
+                if let Some(i) = &input {
+                    if !i.trim_db.is_finite() {
+                        return Err(CommandError::InvalidValue("input trim".into()));
+                    }
+                }
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.input, input);
+                Ok(SetTrackInput { id, input: old })
+            }
+            SetTrackArmed { id, armed } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.armed, armed);
+                Ok(SetTrackArmed { id, armed: old })
+            }
+            SetTrackTakesOpen { id, open } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.takes_open, open);
+                Ok(SetTrackTakesOpen { id, open: old })
+            }
+            SetRecordSettings { settings } => {
+                if !settings.click_db.is_finite() {
+                    return Err(CommandError::InvalidValue("click level".into()));
+                }
+                let old = std::mem::replace(&mut project.recording, settings);
+                Ok(SetRecordSettings { settings: old })
             }
             SetClipColor { track, clip, color } => {
                 let t = project
@@ -1947,17 +2104,32 @@ fn clamp_width(width: f32) -> Result<f32, CommandError> {
     Ok(width.clamp(0.0, MAX_WIDTH))
 }
 
+/// The insert chain a host id names — a strip's, or the master's (ADR 0026).
+fn chain_mut(project: &mut Project, strip: StripId) -> Result<&mut Vec<EffectSlot>, CommandError> {
+    project
+        .effects_of_mut(strip)
+        .ok_or(CommandError::StripNotFound(strip))
+}
+
+/// One insert of a strip or of the master.
+fn slot_mut(
+    project: &mut Project,
+    strip: StripId,
+    effect: EffectId,
+) -> Result<&mut EffectSlot, CommandError> {
+    chain_mut(project, strip)?
+        .iter_mut()
+        .find(|e| e.id == effect)
+        .ok_or(CommandError::EffectNotFound(effect))
+}
+
 /// The hosted plug-in in a slot, for the commands that only mean something there.
 fn external_mut(
     project: &mut Project,
     strip: StripId,
     effect: EffectId,
 ) -> Result<&mut crate::external::ExternalPlugin, CommandError> {
-    project
-        .strip_mut(strip)
-        .ok_or(CommandError::StripNotFound(strip))?
-        .effect_mut(effect)
-        .ok_or(CommandError::EffectNotFound(effect))?
+    slot_mut(project, strip, effect)?
         .spec
         .external
         .as_deref_mut()

@@ -10,7 +10,7 @@ use crate::app::CantusApp;
 use crate::kit::color::{shade, with_alpha};
 use crate::kit::{cache, Brush, Fill, Function, State, Style};
 use crate::widgets::knob::Taper;
-use cantus_core::{Command, EffectId, EffectKind, EffectSlot, MergeKey, MixerStrip};
+use cantus_core::{Command, EffectId, EffectKind, EffectSlot, MergeKey, StripId};
 use egui::{pos2, Id, Pos2, Rect, Sense, Vec2};
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -36,6 +36,9 @@ pub fn function_of(kind: EffectKind) -> Function {
         | EffectKind::DeEsser
         | EffectKind::Multiband => Function::Dynamics,
         EffectKind::Delay | EffectKind::Reverb | EffectKind::Space => Function::Space,
+        EffectKind::Saturator => Function::Tone,
+        EffectKind::Maximizer => Function::Dynamics,
+        EffectKind::Stereo => Function::Space,
         EffectKind::External => Function::Source,
     }
 }
@@ -44,7 +47,7 @@ pub fn show(
     sh: &mut Sheet<'_>,
     curves: &mut Curves,
     app: &CantusApp,
-    ms: &MixerStrip,
+    host: StripId,
     slot: &EffectSlot,
 ) {
     let s = sh.s;
@@ -70,7 +73,7 @@ pub fn show(
             }
             paint_curve(sh.b, rect, &s.function(f), kind, &entry.1);
             if resp.clicked() {
-                sh.acts.push(Act::OpenEditor(ms.id, e));
+                sh.acts.push(Act::OpenEditor(host, e));
             }
             if resp.hovered() {
                 let name = sh.fmt.tr("eq.open_tip");
@@ -112,7 +115,7 @@ pub fn show(
                     |v| {
                         Act::Merge(
                             Command::SetEffectParam {
-                                strip: ms.id,
+                                strip: host,
                                 effect: e,
                                 key: key.to_string(),
                                 value: v,
@@ -136,7 +139,7 @@ pub fn show(
         |mix| {
             Act::Merge(
                 Command::SetEffectMix {
-                    strip: ms.id,
+                    strip: host,
                     effect: e,
                     mix,
                 },
@@ -158,7 +161,7 @@ pub fn show(
     let last = sh.menu_row(
         "inspector.sidechain",
         &text,
-        MenuId::Sidechain(ms.id, e),
+        MenuId::Sidechain(host, e),
         !takes,
     );
     // A rule in the effect's hue down the left margin: these rows are the tile's.

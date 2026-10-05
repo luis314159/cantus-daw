@@ -536,9 +536,18 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         empty(ui, "clip.none_selected", &s);
         return;
     };
-    if clip_of(app, track_id, clip_id).is_none() {
-        app.selected_clip = None;
-        return;
+    match clip_of(app, track_id, clip_id) {
+        None => {
+            app.selected_clip = None;
+            return;
+        }
+        // An audio clip has no notes to edit (and would fire none): its fades, gain and
+        // file are in the inspector (ADR 0025 §1).
+        Some(c) if c.audio.is_some() => {
+            empty(ui, "audioclips.piano_roll", &s);
+            return;
+        }
+        Some(_) => {}
     }
     toolbar(app, ui, track_id, clip_id);
 

@@ -242,6 +242,17 @@ impl Table {
 /// The group of a banded key (`b3.gain` → band 3), and the field.
 fn band_of(kind: EffectKind, key: &str) -> Option<(&'static str, usize, String)> {
     let (head, field) = key.split_once('.')?;
+    if kind == EffectKind::Maximizer {
+        // Culmen's bands are named, not numbered: `lo.thr` is in *Low band*.
+        cantus_core::fx::maximizer::parse_key(key)?;
+        let group = match head {
+            "lo" => "max.group.lo",
+            "mid" => "max.group.mid",
+            "hi" => "max.group.hi",
+            _ => "max.group.all",
+        };
+        return Some((group, 0, format!("b.{field}")));
+    }
     let digits = head.trim_start_matches(|c: char| c.is_ascii_alphabetic());
     let prefix = &head[..head.len() - digits.len()];
     let n: usize = digits.parse().ok()?;
@@ -250,6 +261,7 @@ fn band_of(kind: EffectKind, key: &str) -> Option<(&'static str, usize, String)>
         (EffectKind::Compressor, "sc") => "export.group.key_band",
         (EffectKind::Space, "d") => "export.group.decay_band",
         (EffectKind::Space, "e") => "export.group.post_band",
+        (EffectKind::Saturator, "p") => "sat.group.point",
         _ => return None,
     };
     Some((group, n, format!("{prefix}.{field}")))
@@ -283,6 +295,18 @@ fn choice_prefix(kind: EffectKind, field: &str) -> Option<&'static str> {
         (DeEsser, "listen") => "ds.listen",
         (Gate, "style") => "gate.style",
         (Gate, "listen") => "gate.hear",
+        (Stereo, "listen") => "st.listen",
+        (Stereo, "mono_slope") | (Stereo, "tone_slope") => "st.slope",
+        (Stereo, "haas_mode") => "st.haas_mode",
+        (Maximizer, "style") => "lim.style",
+        (Maximizer, "shape") => "lim.shape",
+        (Maximizer, "monitor") => "max.monitor",
+        (Maximizer, "xmode") => "max.xmode",
+        (Maximizer, "b.place") => "mb.place",
+        (Saturator, "model") => "sat.model",
+        (Saturator, "os") => "sat.os",
+        (Saturator, "phase") => "sat.phase",
+        (Saturator, "chan") => "sat.chan",
         _ => return None,
     })
 }
@@ -326,7 +350,7 @@ fn choices(kind: EffectKind, field: &str, info: &EffectParamInfo, lang: Lang) ->
             .collect();
     }
     match (kind, field) {
-        (EffectKind::Limiter, "dither") => {
+        (EffectKind::Limiter | EffectKind::Maximizer, "dither") => {
             let mut v = vec![text::t_in(lang, "export.off")];
             for bits in [24, 22, 20, 18, 16] {
                 v.push(text::tf_in(lang, "export.bits", &[("n", &bits)]));
@@ -440,7 +464,8 @@ fn build(kind: EffectKind, lang: Lang) -> Table {
 
 /// A kind's table in the process's language, built once.
 pub fn table(kind: EffectKind) -> &'static Table {
-    static TABLES: [OnceLock<Table>; 9] = [const { OnceLock::new() }; 9];
+    static TABLES: [OnceLock<Table>; EffectKind::ALL.len()] =
+        [const { OnceLock::new() }; EffectKind::ALL.len()];
     let at = EffectKind::ALL
         .iter()
         .position(|k| *k == kind)

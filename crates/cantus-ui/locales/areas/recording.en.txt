@@ -1,0 +1,98 @@
+# Area: recording (round 19: arm, monitor, count-in, punch, takes, comping, devices). Every key here needs its twin in recording.es.txt.
+cmd.insert_audio_source = Add audio file
+cmd.remove_audio_source = Remove audio file
+cmd.set_audio_source_path = Relink audio file
+cmd.set_clip_audio = Edit audio clip
+cmd.set_clip_lane = Move to take lane
+cmd.set_track_input = Set track input
+cmd.set_track_armed = Arm track
+cmd.set_track_takes_open = Show takes
+cmd.set_record_settings = Recording options
+cmd.comp_swipe = comp a take
+cmd.comp_promote = use a take
+cmd.delete_unused_takes = delete unused takes
+cmd.explode_takes = explode takes to tracks
+
+# The keymap's recording actions.
+action.arm-track = Arm the selected track
+action.add-audio-track = Add an audio track
+action.toggle-count-in = Count-in on/off
+action.toggle-punch = Punch in/out on/off
+action.show-takes = Show the selected track's takes
+
+# A track's input, monitoring and arming.
+rec.in = In
+rec.input = Input
+rec.monitor = Monitor
+rec.monitor.off = Off
+rec.monitor.auto = Auto
+rec.monitor.on = On
+rec.no_input_choice = No input
+rec.no_device = No input device is open
+rec.audio_settings = Audio settings…
+rec.recording = Recording
+rec.arm = Arm for recording
+rec.add_audio_track = Add audio track
+rec.audio_track_name = Audio {n}
+rec.show_takes = Show takes
+rec.arm_tip = Arm for recording — Shift+click arms this track alone
+rec.monitor_tip = Monitor the input — click for Off, Auto, On
+rec.input_tip = The device input this track records
+rec.takes_tip = Show or hide the take lanes
+
+# Take lanes and comping.
+rec.take = Take
+rec.use_take = Use this take
+rec.delete_unused = Delete unused takes
+rec.explode = Explode takes to new tracks
+rec.hide_takes = Hide takes
+rec.lane_tip = Drag across a take to comp it in · click a take to use all of it
+rec.lane_name_tip = Click to use this whole take
+
+# Take modes.
+rec.mode.stack = Stack
+rec.mode.replace = Replace
+rec.mode.overdub = Overdub
+
+# Punch.
+rec.punch_tip = Punch range — drag an end to move it, drag elsewhere for a new range
+rec.punch_from_selection = Set punch from selection
+rec.punch_off = Punch off
+
+# A pass.
+rec.nothing_armed = Select or arm a track to record
+rec.no_input = No audio input is open — choose one in Settings › Audio
+rec.failed = Recording failed: {error}
+rec.dropped = The recording lost {ms} ms of audio — the disk fell behind
+rec.dropped_live = Recording is losing audio: {ms} ms so far — the disk is falling behind
+rec.done = Recorded {n} audio takes
+rec.recording_tracks = Recording {n} tracks… Press R or Space to stop.
+rec.no_selection = Make a time selection first
+
+# The record options (the ▾ beside the record key).
+rec.options = Recording options
+rec.count_in = Count-in
+rec.opt.off = Off
+rec.opt.bar1 = 1 bar
+rec.opt.bar2 = 2 bars
+rec.opt.bar4 = 4 bars
+rec.punch = Punch
+rec.punch_on = Punch
+rec.loop_takes = Loop takes
+rec.loop_takes_on = Takes
+rec.take_mode = Take mode
+rec.click = Click
+rec.click_when = Click plays
+rec.click.always = Always
+rec.click.recording = Recording
+rec.click.count_in = Count-in
+rec.click_level = Click level
+rec.capture_strip = Record the strip's output to a file
+rec.arm_strip_tip = Arm this channel's input for recording
+
+# The inspector's recording rows.
+rec.audio_in = Audio in
+rec.trim = Trim
+rec.arm_row = Record
+rec.armed = Arm
+rec.from_selection = From selection

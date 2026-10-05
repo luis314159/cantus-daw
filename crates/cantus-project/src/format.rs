@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 17;
+pub const SCHEMA_VERSION: u32 = 18;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -195,6 +195,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_14_to_15,
     migrate_15_to_16,
     migrate_16_to_17,
+    migrate_17_to_18,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -534,6 +535,14 @@ fn migrate_15_to_16(_value: &mut Value) -> Result<(), String> {
 /// old file as the value that changes no sample, so the migration writes nothing; the
 /// number is what makes an older build refuse a kit it would silently strip.
 fn migrate_16_to_17(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 18 (ADR 0025, 0026): audio clips and the audio pool, a track's input and arm,
+/// take lanes, recording settings, and the master's insert chain. Every field has a serde
+/// default that is exactly the old behaviour, so the step writes nothing; the number is
+/// what makes an older build refuse a project with audio in it instead of dropping it.
+fn migrate_17_to_18(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

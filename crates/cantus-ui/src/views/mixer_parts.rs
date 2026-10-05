@@ -221,8 +221,9 @@ pub(super) fn sends_row(
 }
 
 /// The insert slots (Extra large): a loaded slot is a raised tile — its lamp (a click
-/// bypasses it) and its name (a click opens its editor); an empty slot is a darker well
-/// (a click lists the effects to put in it). Right-click: the slot's menu.
+/// bypasses it), its name (a click opens its editor) and a drag moves it to another slot;
+/// an empty slot is a darker well (a click lists the effects to put in it). Right-click:
+/// the slot's menu. The master's slots are the same code (ADR 0026).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn inserts(
     v: &mut MixerView,
@@ -240,6 +241,7 @@ pub(super) fn inserts(
     let s = pass.s;
     let t = &s.t;
     let ctx = ui.ctx().clone();
+    let loaded = app.project().effects_of(sn.id).map_or(0, |e| e.len());
     for k in 0..pass.fit.slots {
         let y = a + 2.0 + k as f32 * layout::SLOT;
         let r = Rect::from_min_max(pos2(x + 3.0, y), pos2(x + bw - 3.0, y + layout::SLOT - 2.0));
@@ -248,14 +250,15 @@ pub(super) fn inserts(
             pass,
             r,
             pid(Some(sn.id), Part::Slot(k as u8)),
-            Sense::click(),
+            if k < loaded {
+                Sense::click_and_drag()
+            } else {
+                Sense::click()
+            },
         );
         let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-        let slot = app
-            .project()
-            .strips
-            .get(sn.index)
-            .and_then(|st| st.effects.get(k));
+        // Through the resolver, so the master's slots are the same code (ADR 0026).
+        let slot = app.project().effects_of(sn.id).and_then(|e| e.get(k));
         b.register(r, "insert_slot", SLOT_TOKENS, &[]);
         let Some(slot) = slot else {
             let base = shade(t.well, if t.dark { -0.05 } else { -0.03 });
@@ -324,6 +327,9 @@ pub(super) fn inserts(
         let on_lamp = resp
             .interact_pointer_pos()
             .is_some_and(|p| p.x < lc.x + 6.0);
+        if resp.drag_started() {
+            v.slot_drag = Some((sn.id, effect, k));
+        }
         let resp = resp.on_hover_text(&v.words.slot);
         if resp.secondary_clicked() {
             let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
@@ -338,6 +344,52 @@ pub(super) fn inserts(
             } else {
                 app.open_effect_editor(sn.id, effect);
             }
+        }
+    }
+    slot_drop(v, app, ui, b, pass, sn, x, bw, a, loaded);
+}
+
+/// A slot being dragged on this strip: a line in the selection colour where it would
+/// land, and the move when the button is let go.
+#[allow(clippy::too_many_arguments)]
+fn slot_drop(
+    v: &mut MixerView,
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    b: &mut Brush,
+    pass: &mut Pass,
+    sn: &Snap,
+    x: f32,
+    bw: f32,
+    top: f32,
+    loaded: usize,
+) {
+    let Some((strip, effect, from)) = v.slot_drag else {
+        return;
+    };
+    if strip != sn.id || loaded == 0 {
+        return;
+    }
+    let Some(p) = ui.ctx().pointer_interact_pos() else {
+        return;
+    };
+    let row = ((p.y - top - 2.0) / layout::SLOT).floor().max(0.0) as usize;
+    let to = row.min(loaded - 1);
+    if to != from {
+        // Above the slot it lands on when moving up, below it when moving down.
+        let k = if to > from { to + 1 } else { to };
+        let y = top + 1.0 + k as f32 * layout::SLOT;
+        let r = Rect::from_min_max(pos2(x + 3.0, y - 1.0), pos2(x + bw - 3.0, y + 1.0));
+        b.rect(r, Fill::Solid(pass.s.t.selection));
+    }
+    if !ui.input(|i| i.pointer.any_down()) {
+        v.slot_drag = None;
+        if to != from {
+            app.exec(Command::MoveEffect {
+                strip,
+                effect,
+                index: to,
+            });
         }
     }
 }
@@ -363,19 +415,52 @@ pub(super) fn master(
     let m = app.project().master.clone();
     let body = pass.body(x, bw);
     b.rect(b.snap_rect(body), Fill::Solid(t.strip));
+    // The master is chosen like a strip (ADR 0026): a click on its number or name shows
+    // its chain in the inspector, a right-click is its menu.
+    let chosen = crate::views::inspector::subject(app) == crate::views::inspector::Subject::Master;
+    let mut head = Rect::NOTHING;
     if let Some((a, z)) = pass.row(Row::Number) {
         let cell = b.snap_rect(Rect::from_min_max(pos2(x, a), pos2(x + bw, z)));
+        head = head.union(cell);
         let fill = t.header_cell;
         b.rect(cell, Fill::V(shade(fill, 0.03), shade(fill, -0.03)));
+        if chosen {
+            b.rrect_stroke(cell.shrink(b.px() * 1.5), 0.0, b.px() * 1.5, t.selection);
+        }
         let _ = text::paint(b, cell, &Text::new("M", Role::Label, on_fill(fill)), s.tk());
     }
     if let Some((a, z)) = pass.row(Row::Name) {
         let nr = Rect::from_min_max(pos2(x + 2.0, a), pos2(x + bw - 2.0, z - 2.0));
-        let tt = Text::key("mixer.master", Role::Label, t.label)
+        head = head.union(nr);
+        let ink = if chosen { t.text } else { t.label };
+        let tt = Text::key("mixer.master", Role::Label, ink)
             .caps(true)
             .align(Align2::CENTER_BOTTOM)
             .policy(Policy::Elide(Elide::End));
         let _ = text::paint(b, nr, &tt, s.tk());
+    }
+    if head.is_positive() {
+        if let Some(resp) = sense(ui, pass, head, pid(None, Part::Head), Sense::click()) {
+            if resp.hovered() {
+                hint::set_text(
+                    &ctx,
+                    &v.words.master_head,
+                    "",
+                    Caps {
+                        menu: true,
+                        ..Caps::NONE
+                    },
+                );
+            }
+            let resp = resp.on_hover_text(&v.words.master_head);
+            if resp.clicked() {
+                app.select_master();
+            }
+            if resp.secondary_clicked() {
+                let at = resp.interact_pointer_pos().unwrap_or(head.left_bottom());
+                v.popups.open(Menu::Master, at);
+            }
+        }
     }
     if let Some((a, z)) = pass.row(Row::Meter) {
         let levels = v
@@ -559,6 +644,8 @@ pub(super) fn master(
     }
     let sn = Snap::master(&m);
     fx_rec(v, app, ui, b, pass, &sn, cx, CaptureTarget::Master);
+    // Its insert slots, the same code as a strip's (ADR 0026).
+    inserts(v, app, ui, b, pass, &sn, x, bw);
     // The pan law.
     if let Some(sy) = pass.mid(Row::Sends) {
         let law = app.project().pan_law;

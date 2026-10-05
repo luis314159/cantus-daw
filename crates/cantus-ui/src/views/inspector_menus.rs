@@ -212,9 +212,11 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             }
         }
         MenuId::Slot(strip, e) => {
-            let Some(s) = p.strip(strip) else { return out };
-            let i = s.effect_index(e).unwrap_or(0);
-            let slot = s.effect(e);
+            let Some(s) = p.effects_of(strip) else {
+                return out;
+            };
+            let i = s.iter().position(|x| x.id == e).unwrap_or(0);
+            let slot = s.get(i).filter(|x| x.id == e);
             if slot.is_some_and(|x| x.spec.kind.has_editor()) {
                 out.push(act(Label::Key("eq.open"), Check::None, Choice::Open));
             }
@@ -222,7 +224,7 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             up.enabled = i > 0;
             out.push(up);
             let mut down = act(Label::Key("effect.down"), Check::None, Choice::Down);
-            down.enabled = i + 1 < s.effects.len();
+            down.enabled = i + 1 < s.len();
             out.push(down);
             let on = slot.is_some_and(|x| x.bypass);
             out.push(act(
@@ -276,10 +278,7 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             ));
         }
         MenuId::Sidechain(me, e) => {
-            let cur = p
-                .strip(me)
-                .and_then(|s| s.effect(e))
-                .and_then(|x| x.sidechain);
+            let cur = p.effect(me, e).and_then(|x| x.sidechain);
             out.push(act(
                 Label::Key("kit.inspector.none"),
                 radio(cur.is_none()),
@@ -386,7 +385,7 @@ pub fn show(st: &mut Inspector, app: &mut CantusApp, ui: &mut Ui, s: &Style) {
         .collect();
     let width = open.anchor.width().max(s.s(180.0));
     let inserts = |app: &CantusApp| match open.id {
-        MenuId::AddInsert(sid) => app.project().strip(sid).map(|x| x.effects.len()),
+        MenuId::AddInsert(sid) => app.project().effects_of(sid).map(|x| x.len()),
         _ => None,
     };
     let before = inserts(app);
@@ -452,8 +451,8 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         (MenuId::Slot(strip, e), c) => {
             let i = app
                 .project()
-                .strip(strip)
-                .and_then(|s| s.effect_index(e))
+                .effects_of(strip)
+                .and_then(|s| s.iter().position(|x| x.id == e))
                 .unwrap_or(0);
             match c {
                 Choice::Open => app.open_effect_editor(strip, e),
@@ -472,11 +471,7 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                     });
                 }
                 Choice::Bypass => {
-                    let on = app
-                        .project()
-                        .strip(strip)
-                        .and_then(|s| s.effect(e))
-                        .is_some_and(|x| x.bypass);
+                    let on = app.project().effect(strip, e).is_some_and(|x| x.bypass);
                     app.exec(Command::SetEffectBypass {
                         strip,
                         effect: e,

@@ -227,7 +227,7 @@ impl CantusApp {
     pub fn add_plugin(&mut self, strip: StripId, info: &PluginInfo) {
         match self.plugins.make_slot(&mut self.bus, strip, info) {
             Ok(slot) => {
-                let index = self.project().strip(strip).map_or(0, |s| s.effects.len());
+                let index = self.project().effects_of(strip).map_or(0, |s| s.len());
                 self.exec(Command::InsertEffect {
                     strip,
                     index,
@@ -389,8 +389,7 @@ pub fn framed(
     if ed.badge.as_ref().is_none_or(|b| b.0 != effect) {
         let words = app
             .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
+            .effect(strip, effect)
             .and_then(|e| e.spec.external.as_deref())
             .map(|p| {
                 if p.vendor.is_empty() {
@@ -455,8 +454,7 @@ fn body_ui(
     let mut g = Grid::new(body, s);
     let Some(sidechain) = app
         .project()
-        .strip(strip)
-        .and_then(|x| x.effect(effect))
+        .effect(strip, effect)
         .and_then(|e| e.spec.external.as_deref())
         .map(|p| p.sidechain)
     else {
@@ -507,8 +505,7 @@ fn body_ui(
             controls::column(ui, s, w, |ui| {
                 let name = app
                     .project()
-                    .strip(strip)
-                    .and_then(|x| x.effect(effect))
+                    .effect(strip, effect)
                     .and_then(|e| e.spec.external.as_deref())
                     .map_or("", |p| p.name.as_str());
                 let line = tf("host.editor.missing", &[("name", &name), ("why", &why)]);
@@ -589,12 +586,7 @@ fn body_ui(
     ed.wanted = Some(wanted_h.clamp(300.0, 760.0));
     let mut changes: Vec<Change> = Vec::new();
     let hosted = app.plugins.hosted(effect);
-    let spec = app
-        .bus
-        .project()
-        .strip(strip)
-        .and_then(|x| x.effect(effect))
-        .map(|e| &e.spec);
+    let spec = app.bus.project().effect(strip, effect).map(|e| &e.spec);
     let texts = &mut ed.texts;
     let mut area_ui = ui.new_child(egui::UiBuilder::new().max_rect(area));
     egui::ScrollArea::vertical()
@@ -700,8 +692,7 @@ fn key_field(
 ) {
     let current = app
         .project()
-        .strip(strip)
-        .and_then(|x| x.effect(effect))
+        .effect(strip, effect)
         .and_then(|e| e.sidechain)
         .filter(|k| app.project().strip(*k).is_some());
     // The field's words, made when the key, the project or the language changes.
@@ -769,22 +760,20 @@ impl CantusApp {
         if self.plugins.close_window(effect) {
             return;
         }
-        let title = self
-            .project()
-            .strips
-            .iter()
-            .find_map(|s| {
-                s.effect(effect).map(|e| {
-                    let name = e
-                        .spec
-                        .external
-                        .as_deref()
-                        .map_or_else(|| t("host.plugin"), |p| p.name.clone());
-                    format!(
-                        "{name} \u{2014} {}",
-                        self.capture_label(cantus_engine::CaptureTarget::Strip(s.id))
-                    )
-                })
+        let project = self.project();
+        let title = project
+            .effect_host(effect)
+            .and_then(|host| project.effect(host, effect).map(|e| (host, e)))
+            .map(|(host, e)| {
+                let name = e
+                    .spec
+                    .external
+                    .as_deref()
+                    .map_or_else(|| t("host.plugin"), |p| p.name.clone());
+                format!(
+                    "{name} \u{2014} {}",
+                    self.capture_label(cantus_engine::CaptureTarget::Strip(host))
+                )
             })
             .unwrap_or_default();
         let owner = self.plugins.owner_window;
@@ -1145,8 +1134,8 @@ pub fn demo_setup(app: &mut CantusApp, library: &std::path::Path, open_editor: b
     app.sync_engine();
     let Some(effect) = app
         .project()
-        .strip(strip)
-        .and_then(|s| s.effects.iter().rev().find(|e| e.spec.external.is_some()))
+        .effects_of(strip)
+        .and_then(|s| s.iter().rev().find(|e| e.spec.external.is_some()))
         .map(|e| e.id)
     else {
         return;

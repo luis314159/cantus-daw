@@ -23,6 +23,9 @@ use rtrb::RingBuffer;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[path = "stems_master.rs"]
+mod through;
+
 /// Where a stem is taken from.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StemSource {
@@ -57,6 +60,9 @@ pub struct StemOptions {
     /// with sixteen strips, and thirteen empty files are noise. The ones skipped are
     /// listed in [`StemsDone::silent`].
     pub keep_silent: bool,
+    /// Pass every stem but the master's through its own copy of the master's insert
+    /// chain, as if soloed into it (ADR 0026; off by default, see `stems_master.rs`).
+    pub through_master: bool,
 }
 
 /// `NN Name.wav`: the number with two digits (strip or track number, from 1; 0 for the
@@ -227,6 +233,8 @@ enum Target {
 struct Out {
     /// Where the tap keeps it; `None` is the master's output.
     tapped: Option<Tapped>,
+    /// Its own copy of the master chain, when stems go through it.
+    through: Option<Box<through::Through>>,
     /// A source the engine does not hold: silence.
     silent: bool,
     /// Frames to drop from the start: how late this source is.
@@ -439,16 +447,15 @@ fn run(
     let mut snap = (*snapshot).clone();
     snap.loop_region = None;
     snap.metronome = false;
+    crate::samples::conform_audio(&mut snap, ro.sample_rate);
     let snap = Arc::new(snap);
-    let effect_count: usize = snap.strips.iter().map(|s| s.effects.len()).sum();
+    let effect_count: usize = snap.effect_slots().count();
     let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count);
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
-    for strip in &snap.strips {
-        for slot in &strip.effects {
-            let unit = make_unit(slot, sr as f32);
-            tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
-        }
+    for slot in snap.effect_slots() {
+        let unit = make_unit(slot, sr as f32);
+        tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
     }
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     p.settle();
@@ -480,8 +487,17 @@ fn run(
                 None => (None, 0, true),
             },
         };
+        let through = match (opts.through_master, spec.source) {
+            (true, StemSource::Strip(_) | StemSource::Track(_) | StemSource::Direct) => {
+                through::Through::new(&snapshot, sr as f32, block, make_unit)
+            }
+            _ => None,
+        };
+        // The chain delays the stem by its latency: trimmed like the stem's own.
+        let late = late + through.as_ref().map_or(0, |t| t.latency());
         outs.push(Out {
             tapped,
+            through,
             silent,
             late,
             kept: 0,
@@ -520,7 +536,17 @@ fn run(
                     (&l[..n], &r[..n])
                 }
             };
-            if let Err(e) = o.push(l, r, done, total) {
+            let mut through = o.through.take();
+            let (l, r) = match through.as_mut() {
+                Some(t) => {
+                    t.run(l, r);
+                    t.out(n)
+                }
+                None => (l, r),
+            };
+            let pushed = o.push(l, r, done, total);
+            o.through = through;
+            if let Err(e) = pushed {
                 failure = Some(e);
                 break;
             }

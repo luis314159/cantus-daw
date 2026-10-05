@@ -609,6 +609,8 @@ pub fn import_commands(
             muted: false,
             color: None,
             notes,
+            audio: None,
+            lane: 0,
         };
         let instrument = if it.drums {
             InstrumentSpec::Pulsus(kit_for(it, &mut report))
@@ -630,6 +632,9 @@ pub fn import_commands(
             strip: strips.take(),
             muted: false,
             soloed: false,
+            input: None,
+            armed: false,
+            takes_open: false,
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

@@ -10,8 +10,11 @@ use cantus_core::{EffectKind, EffectSpec};
 pub mod deesser;
 pub mod gate;
 pub mod limiter;
+pub mod maximizer;
 pub mod multiband;
+pub mod saturator;
 pub mod space;
+pub mod stereo;
 
 /// Numbers a plug-in reports to its editor each block: meters, gain reduction per band,
 /// loudness — whatever its display needs. Their meaning is the plug-in's own; they travel
@@ -48,6 +51,11 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// What the editor draws, refreshed each block.
     fn telemetry(&self) -> Telemetry {
         [0.0; TELEMETRY_LEN]
+    }
+    /// The gain reduction a dynamics unit applies now, dB (positive): what the master's
+    /// reduction meter (`Meters::master_gr`, ADR 0026) shows. Default: none.
+    fn gain_reduction_db(&self) -> Option<f32> {
+        None
     }
 
     // ---- For units the engine did not build: hosted plug-ins (ADR 0019). Every one has
@@ -124,6 +132,9 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Multiband => Box::new(multiband::Unit::new(sample_rate)),
         EffectKind::DeEsser => Box::new(deesser::Unit::new(sample_rate)),
         EffectKind::Gate => Box::new(gate::Unit::new(sample_rate)),
+        EffectKind::Saturator => Box::new(saturator::Unit::new(sample_rate)),
+        EffectKind::Stereo => Box::new(stereo::Unit::new(sample_rate)),
+        EffectKind::Maximizer => Box::new(maximizer::Unit::new(sample_rate)),
         // Hosted: the host delivers the real unit (`EngineHandle::add_unit`); without one
         // the slot is a wire.
         EffectKind::External => Box::new(Wire),

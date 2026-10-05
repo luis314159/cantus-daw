@@ -1,0 +1,530 @@
+//! The processor's audio input, monitoring, recording and audio-clip playback (ADR 0025).
+//!
+//! A child module of `processor`, so it reaches the processor's own fields; everything
+//! here runs on the audio thread and follows ADR 0005 — every buffer is allocated in
+//! [`Live::new`], before the processor moves to the audio thread.
+//!
+//! - **Input** ([`Processor::read_input`]): at the top of each block one block of the
+//!   input ring is popped into `Live::input`, deinterleaved, and metered. Input and output
+//!   may run on two clocks, so the ring is kept near one block of fill: more than that
+//!   plus a block and the surplus is dropped (a frame per block while it is small, all of
+//!   it when it is more than a block); less than a block and what is there is used and
+//!   the last frame held for the rest; nothing at all and the block is silence and the
+//!   ring primes again. Both are counted (`EngineStats::{input_dropped, input_repeated}`).
+//! - **Monitoring** ([`Live::add_track_audio`]): a monitored track's input × trim joins
+//!   its signal where the instrument's output is, before the channel's level and balance,
+//!   so its strip's inserts apply. Off never; On always; Auto while armed and (stopped,
+//!   or recording).
+//! - **Recording** ([`Processor::record_segment`]): while the transport plays with
+//!   recording on and rings are attached, each armed track's input × trim — what is heard,
+//!   before any effect — goes into its ring, whole frames only. A full ring drops the
+//!   segment for that track and reports it; it never waits.
+//! - **Audio clips** ([`add_clips`]): integer-sample playback from memory, no
+//!   interpolation (the cache converted the file to the engine's rate on load), so a clip
+//!   at 0 dB with no fades plays its file bit for bit.
+
+use super::Processor;
+use crate::messages::{EngineEvent, MAX_BLOCK_FRAMES, MAX_TRACKS};
+use crate::recorder::{RecordMark, MAX_INPUTS};
+use crate::transport::Transport;
+use cantus_core::{AudioClipSnapshot, ClickMode, MonitorMode, Snapshot, TrackId};
+
+/// A track's input as the audio thread reads it, by track slot.
+#[derive(Copy, Clone, Debug, Default)]
+pub(super) struct TrackInputSlot {
+    /// The track has an input at all.
+    pub has: bool,
+    pub first: usize,
+    pub stereo: bool,
+    pub monitor: MonitorMode,
+    pub trim: f32,
+    pub armed: bool,
+}
+
+/// Input, monitoring and recording state, preallocated.
+pub(super) struct Live {
+    /// The block's input, deinterleaved: channel `c` is `input[c * MAX_BLOCK_FRAMES..]`.
+    input: Vec<f32>,
+    /// Channels in `input` this block (0: no input device).
+    channels: usize,
+    /// The ring has held a whole block since it last ran dry.
+    primed: bool,
+    /// The last frame popped, held when the ring runs short.
+    last: [f32; MAX_INPUTS],
+    /// `EngineStats::input_queue` has had its first reading.
+    queue_seeded: bool,
+    /// Each track slot's input.
+    pub tracks: [TrackInputSlot; MAX_TRACKS],
+    /// A pass is being written (the `Started` mark has gone out).
+    active: bool,
+    /// Frames written since the rings were attached.
+    frames: u64,
+    /// Frames each ring lost since the last `Overflow` mark, and whose ring it is.
+    dropped: [(Option<TrackId>, u64); MAX_TRACKS],
+    /// The count-in's end, in ticks (`EngineMessage::SetRecordStart`).
+    pub record_start: Option<f64>,
+    /// The click's mode, from the snapshot.
+    pub click: ClickMode,
+}
+
+impl Live {
+    pub fn new() -> Self {
+        Live {
+            input: vec![0.0; MAX_BLOCK_FRAMES * MAX_INPUTS],
+            channels: 0,
+            primed: false,
+            last: [0.0; MAX_INPUTS],
+            queue_seeded: false,
+            tracks: [TrackInputSlot::default(); MAX_TRACKS],
+            active: false,
+            frames: 0,
+            dropped: [(None, 0); MAX_TRACKS],
+            record_start: None,
+            click: ClickMode::Always,
+        }
+    }
+
+    /// New rings: a new pass counts its frames from zero.
+    pub fn new_pass(&mut self) {
+        self.frames = 0;
+        self.active = false;
+        self.dropped = [(None, 0); MAX_TRACKS];
+    }
+
+    /// Input channel `c`, frames `[from, from + n)` of this block; `None` past the
+    /// device's channels.
+    #[inline]
+    fn channel(&self, c: usize, from: usize, n: usize) -> Option<&[f32]> {
+        (c < self.channels).then(|| &self.input[c * MAX_BLOCK_FRAMES + from..][..n])
+    }
+
+    /// Add a track's audio clips and its monitored input to its signal `l`/`r` for the
+    /// segment `[done, done + n)`. `has_signal` says whether the instrument wrote `l`/`r`
+    /// (otherwise they hold another track's leftovers and are cleared before anything is
+    /// added). Returns whether the track now has a signal.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_track_audio(
+        &self,
+        track: Option<&cantus_core::TrackSnapshot>,
+        slot: usize,
+        mut has_signal: bool,
+        done: usize,
+        l: &mut [f32],
+        r: &mut [f32],
+        transport: &Transport,
+        recording: bool,
+    ) -> bool {
+        let n = l.len();
+        let clear = |has: &mut bool, l: &mut [f32], r: &mut [f32]| {
+            if !*has {
+                l.iter_mut().for_each(|x| *x = 0.0);
+                r.iter_mut().for_each(|x| *x = 0.0);
+                *has = true;
+            }
+        };
+        if let Some(t) = track {
+            if transport.is_playing() && t.audio.iter().any(|c| c.data.is_some()) {
+                let mut zeroed = has_signal;
+                if add_clips(&t.audio, transport, l, r, &mut |l, r| {
+                    clear(&mut zeroed, l, r)
+                }) {
+                    has_signal = true;
+                }
+            }
+        }
+        let t = &self.tracks[slot];
+        if !t.has || self.channels == 0 {
+            return has_signal;
+        }
+        let playing = transport.is_playing();
+        let monitoring = match t.monitor {
+            MonitorMode::Off => false,
+            MonitorMode::On => true,
+            MonitorMode::Auto => t.armed && (!playing || recording),
+        };
+        if !monitoring {
+            return has_signal;
+        }
+        let left = self.channel(t.first, done, n);
+        let right = if t.stereo {
+            self.channel(t.first + 1, done, n)
+        } else {
+            left
+        };
+        if left.is_none() && right.is_none() {
+            return has_signal;
+        }
+        // A monitoring track is never idle, even over digital silence: its strip's
+        // inserts and its meters follow the input.
+        clear(&mut has_signal, l, r);
+        let g = t.trim;
+        if let Some(a) = left {
+            for (o, x) in l.iter_mut().zip(a) {
+                *o += x * g;
+            }
+        }
+        if let Some(b) = right {
+            for (o, x) in r.iter_mut().zip(b) {
+                *o += x * g;
+            }
+        }
+        has_signal
+    }
+}
+
+/// The transport sample (counted from its origin) a timeline tick falls on, to the
+/// nearest sample.
+#[inline]
+fn sample_of(tick: f64, origin: f64, tps: f64) -> i64 {
+    ((tick - origin) / tps).round() as i64
+}
+
+/// Add every audio clip sounding in this segment into `l`/`r` (`l.len()` frames from the
+/// transport's current sample). `clear` is called once, before the first sample is
+/// added, to clear buffers that hold nothing of this track yet. Returns whether a clip
+/// sounded.
+///
+/// Frame arithmetic, so it is the same for every block size: a clip starts at the
+/// transport sample nearest its start tick, the file frame under transport sample `s` is
+/// `s − zero`, where `zero` is the sample nearest the window's content origin
+/// (`start − offset`) less the region's fine offset (`slip`), and the
+/// fades are counted in frames from the clip's edges — a fade in is exactly 0 on the
+/// clip's first frame and 1 from its length on; a fade out mirrors it onto the last
+/// frame. Fades that would overlap are shortened in proportion.
+pub(super) fn add_clips(
+    clips: &[AudioClipSnapshot],
+    transport: &Transport,
+    l: &mut [f32],
+    r: &mut [f32],
+    clear: &mut dyn FnMut(&mut [f32], &mut [f32]),
+) -> bool {
+    let n = l.len() as i64;
+    let tps = transport.ticks_per_sample();
+    if tps <= 0.0 || n == 0 {
+        return false;
+    }
+    let origin = transport.origin_tick();
+    let sr = transport.sample_rate();
+    let s0 = transport.samples() as i64;
+    let s1 = s0 + n;
+    let mut sounded = false;
+    for c in clips {
+        let start = sample_of(c.start.0 as f64, origin, tps);
+        if start >= s1 {
+            break; // Sorted by start: nothing later begins in this segment.
+        }
+        let end = sample_of(c.end.0 as f64, origin, tps);
+        let len = end - start;
+        if end <= s0 || len <= 0 {
+            continue;
+        }
+        let Some(data) = c.data.as_deref() else {
+            continue;
+        };
+        let stereo = data.channels >= 2;
+        let frames = data.len_frames() as i64;
+        // The transport sample the file's frame 0 lands on, rounded once: the window's
+        // content origin (`start − offset`, whole ticks) less the region's fine offset.
+        // One rounding keeps the halves of a split seamless, and the fine offset puts a
+        // take where it was played to the sample (ADR 0025 §7).
+        let zero = (((c.start.0 - c.offset.0) as f64 - origin) / tps - c.slip * sr).round() as i64;
+        // The file frame under the window's first sample.
+        let offset = start - zero;
+        let mut fade_in = (c.fade_in.0.max(0) as f64 / tps).round() as i64;
+        let mut fade_out = (c.fade_out.0.max(0) as f64 / tps).round() as i64;
+        if fade_in + fade_out > len {
+            let fi = (fade_in as i128 * len as i128 / (fade_in + fade_out) as i128) as i64;
+            fade_out = len - fi;
+            fade_in = fi;
+        }
+        let from = start.max(s0);
+        let to = end.min(s1);
+        // The first and last file frames the window reads in this segment.
+        let first = if c.reverse {
+            offset + (len - 1 - (from - start))
+        } else {
+            offset + (from - start)
+        };
+        let last = if c.reverse {
+            offset + (len - 1 - (to - 1 - start))
+        } else {
+            offset + (to - 1 - start)
+        };
+        if first.max(last) < 0 || first.min(last) >= frames {
+            continue; // The window shows no part of the file here.
+        }
+        if !sounded {
+            clear(l, r);
+            sounded = true;
+        }
+        let gain = c.gain;
+        let faded = fade_in > 0 || fade_out > 0;
+        for s in from..to {
+            let j = s - start;
+            let src = if c.reverse {
+                offset + (len - 1 - j)
+            } else {
+                offset + j
+            };
+            if src < 0 || src >= frames {
+                continue;
+            }
+            let (a, b) = if stereo {
+                let k = src as usize * 2;
+                (data.frames[k], data.frames[k + 1])
+            } else {
+                let x = data.frames[src as usize];
+                (x, x)
+            };
+            let mut g = gain;
+            if faded {
+                if j < fade_in {
+                    g *= c.fade_in_curve.gain(j as f32 / fade_in as f32);
+                }
+                let k = len - 1 - j;
+                if k < fade_out {
+                    g *= c.fade_out_curve.gain(k as f32 / fade_out as f32);
+                }
+            }
+            let i = (s - s0) as usize;
+            l[i] += a * g;
+            r[i] += b * g;
+        }
+    }
+    sounded
+}
+
+impl Processor {
+    /// Copy what the snapshot says about inputs and the click into the audio thread's
+    /// tables. After `track_to_slot` is built; allocates nothing.
+    pub(super) fn live_install(&mut self, snapshot: &Snapshot) {
+        self.live.tracks = [TrackInputSlot::default(); MAX_TRACKS];
+        for (ti, t) in snapshot
+            .tracks
+            .iter()
+            .enumerate()
+            .take(self.track_to_slot.len())
+        {
+            let slot = self.track_to_slot[ti];
+            if let Some(i) = &t.input {
+                self.live.tracks[slot] = TrackInputSlot {
+                    has: true,
+                    first: i.first as usize,
+                    stereo: i.stereo,
+                    monitor: i.monitor,
+                    // 0 dB is exactly 1.0: a trim at its default touches no sample.
+                    trim: if i.trim_db == 0.0 {
+                        1.0
+                    } else {
+                        10f32.powf(i.trim_db / 20.0)
+                    },
+                    armed: t.armed,
+                };
+            }
+        }
+        self.live.click = snapshot.recording.click;
+        // The click's built-in level is 0.5; 0 dB keeps it exactly (10^0 is 1).
+        let db = snapshot.recording.click_db;
+        self.click.set_gain(
+            0.5 * if db == 0.0 {
+                1.0
+            } else {
+                10f32.powf(db / 20.0)
+            },
+        );
+    }
+
+    /// Whether a beat of the metronome sounds now (`ClickMode`). `Always` is what the
+    /// metronome switch always meant.
+    pub(super) fn click_allowed(&self) -> bool {
+        match self.live.click {
+            ClickMode::Always => true,
+            ClickMode::Recording => self.recording,
+            ClickMode::CountInOnly => self
+                .live
+                .record_start
+                .is_some_and(|at| self.transport.position_f64() < at - 1e-9),
+        }
+    }
+
+    /// Pop one block of input (see the module's docs), deinterleave it and meter it.
+    pub(super) fn read_input(&mut self, frames: usize) {
+        let stride = self.input.channels;
+        let channels = stride.min(MAX_INPUTS);
+        let live = &mut self.live;
+        let Some(ring) = self.input.ring.as_mut().filter(|_| stride > 0) else {
+            live.channels = 0;
+            self.meters.input_count = 0;
+            self.stats.input_queue = 0.0;
+            return;
+        };
+        live.channels = channels;
+        let mut avail = ring.slots() / stride;
+        if !live.primed && avail >= frames {
+            live.primed = true;
+        }
+        let mut take = 0;
+        if live.primed {
+            // Too much waiting: the input's clock is ahead. A little is shed a frame a
+            // block (inaudible); a backlog of more than a block goes at once.
+            let target = frames;
+            if avail > target + frames {
+                let surplus = avail - target - frames;
+                let shed = if surplus > frames { surplus } else { 1 };
+                if let Ok(chunk) = ring.read_chunk(shed * stride) {
+                    chunk.commit_all();
+                    avail -= shed;
+                    self.stats.input_dropped += shed as u64;
+                }
+            }
+            take = avail.min(frames);
+            if take > 0 {
+                // How long what is popped now has waited: part of a take's latency.
+                let clock = self
+                    .input
+                    .clock
+                    .as_ref()
+                    .and_then(|c| c.last_buffer(self.sample_rate));
+                let q = crate::devices::queue_wait(avail as f64, frames as f64, clock);
+                let s = &mut self.stats.input_queue;
+                *s = if live.queue_seeded {
+                    *s + (q - *s) * 0.05
+                } else {
+                    q
+                };
+                live.queue_seeded = true;
+            }
+            if let Ok(chunk) = ring.read_chunk(take * stride) {
+                let (a, b) = chunk.as_slices();
+                for (i, frame) in a
+                    .chunks_exact(stride)
+                    .chain(b.chunks_exact(stride))
+                    .enumerate()
+                {
+                    for (c, x) in frame.iter().take(channels).enumerate() {
+                        live.input[c * MAX_BLOCK_FRAMES + i] = *x;
+                    }
+                }
+                chunk.commit_all();
+            } else {
+                take = 0;
+            }
+            if take == 0 {
+                // Dry: silence, and wait for a whole block again.
+                live.primed = false;
+                live.last = [0.0; MAX_INPUTS];
+            } else {
+                for c in 0..channels {
+                    live.last[c] = live.input[c * MAX_BLOCK_FRAMES + take - 1];
+                }
+            }
+            if take < frames {
+                self.stats.input_repeated += (frames - take) as u64;
+            }
+        }
+        for c in 0..channels {
+            let held = live.last[c];
+            let ch = &mut live.input[c * MAX_BLOCK_FRAMES..c * MAX_BLOCK_FRAMES + frames];
+            ch[take..].iter_mut().for_each(|x| *x = held);
+            self.meters.inputs[c] = ch.iter().fold(0f32, |m, x| m.max(x.abs()));
+        }
+        self.meters.input_count = channels;
+    }
+
+    fn should_record(&self) -> bool {
+        self.recording && self.transport.is_playing() && self.record_rings.is_some()
+    }
+
+    fn mark(&mut self, mark: RecordMark) {
+        if self.tx.push(EngineEvent::Record(mark)).is_err() {
+            self.stats.dropped_events += 1;
+        }
+    }
+
+    /// At the top of a block, after the messages: report what the rings lost, and end
+    /// the pass if the transport stopped, recording went off or the rings were taken.
+    pub(super) fn record_block_start(&mut self) {
+        for k in 0..MAX_TRACKS {
+            if let (Some(track), frames) = self.live.dropped[k] {
+                if frames > 0 {
+                    self.live.dropped[k].1 = 0;
+                    self.mark(RecordMark::Overflow { track, frames });
+                }
+            }
+        }
+        if self.live.active && !self.should_record() {
+            self.flush_record_gaps();
+            self.live.active = false;
+            let frames = self.live.frames;
+            self.mark(RecordMark::Stopped { frames });
+        }
+    }
+
+    /// Write the segment `[done, done + n)` of every armed track's input into its ring.
+    pub(super) fn record_segment(&mut self, done: usize, n: usize) {
+        if !self.should_record() {
+            return;
+        }
+        if !self.live.active {
+            self.live.active = true;
+            let tick = self.transport.position_f64();
+            self.mark(RecordMark::Started { tick });
+        }
+        let Some(rings) = self.record_rings.as_mut() else {
+            return;
+        };
+        for (k, ring) in rings.tracks.iter_mut().enumerate().take(MAX_TRACKS) {
+            let ch = ring.channels.clamp(1, 2);
+            let slot = self.slots.iter().position(|s| s.id == Some(ring.track));
+            let t = slot.map(|s| self.live.tracks[s]).unwrap_or_default();
+            // A ring without room, or a gap the writer cannot be told about yet: lose
+            // this segment for this track, say so, never wait. The writer pads the gap
+            // with silence, so the file keeps its length and its timing.
+            if ring.producer.slots() < n * ch || !ring.flush_gap() {
+                ring.pending += n as u64;
+                self.live.dropped[k] = (Some(ring.track), self.live.dropped[k].1 + n as u64);
+                self.stats.record_overflow += n as u64;
+                continue;
+            }
+            let Ok(mut chunk) = ring.producer.write_chunk(n * ch) else {
+                continue;
+            };
+            ring.at += n as u64;
+            let (a, b) = chunk.as_mut_slices();
+            let live = &self.live;
+            let left = live.channel(t.first, done, n).filter(|_| t.has);
+            let right = live.channel(t.first + 1, done, n).filter(|_| t.has);
+            let g = t.trim;
+            for (i, frame) in a
+                .chunks_exact_mut(ch)
+                .chain(b.chunks_exact_mut(ch))
+                .enumerate()
+            {
+                frame[0] = left.map_or(0.0, |x| x[i] * g);
+                if ch == 2 {
+                    frame[1] = right.map_or(0.0, |x| x[i] * g);
+                }
+            }
+            chunk.commit_all();
+        }
+        self.live.frames += n as u64;
+    }
+
+    /// Announce every ring's last gap (the pass is ending, or the rings are handed back),
+    /// so the writer pads a take that lost its end too.
+    pub(super) fn flush_record_gaps(&mut self) {
+        if let Some(rings) = self.record_rings.as_mut() {
+            for ring in rings.tracks.iter_mut() {
+                let _ = ring.flush_gap();
+            }
+        }
+    }
+
+    /// The loop wrapped: the pass's takes split here.
+    pub(super) fn record_wrapped(&mut self) {
+        if self.live.active {
+            let frames = self.live.frames;
+            self.mark(RecordMark::Wrapped { frames });
+        }
+    }
+}

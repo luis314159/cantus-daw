@@ -1,0 +1,72 @@
+# Area: the demo songs and the startup project (round 19). Every key here needs its twin in demos.es.txt.
+
+# The songs: their titles and styles, as the picker lists them.
+demos.song.house = Neon Tide
+demos.song.ballad = Morning Light
+demos.song.funk = Sunday Strut
+demos.song.lofi = Paper Lanterns
+demos.song.ambient = Aurora
+demos.song.trap = Midnight Static
+demos.style.house = House
+demos.style.ballad = Pop ballad
+demos.style.funk = Funk and soul
+demos.style.lofi = Lo-fi hip-hop
+demos.style.ambient = Cinematic
+demos.style.trap = Trap
+
+# Sections, the names of the clips in the arrangement.
+demos.section.intro = Intro
+demos.section.verse = Verse
+demos.section.chorus = Chorus
+demos.section.build = Build
+demos.section.drop = Drop
+demos.section.break = Break
+demos.section.bridge = Bridge
+demos.section.hook = Hook
+demos.section.solo = Solo
+demos.section.rise = Rise
+demos.section.swell = Swell
+demos.section.outro = Outro
+
+# Tracks and strips.
+demos.track.kick = Kick
+demos.track.snare = Snare
+demos.track.clap = Clap
+demos.track.hats = Hats
+demos.track.cymbals = Cymbals
+demos.track.toms = Toms
+demos.track.perc = Percussion
+demos.track.drums = Drums
+demos.track.bass = Bass
+demos.track.sub = 808
+demos.track.piano = Piano
+demos.track.keys = Keys
+demos.track.organ = Organ
+demos.track.pad = Pad
+demos.track.strings = Strings
+demos.track.choir = Choir
+demos.track.guitar = Guitar
+demos.track.melody = Melody
+demos.track.lead = Lead
+demos.track.chords = Chords
+demos.track.pluck = Pluck
+demos.track.bells = Bells
+demos.track.brass = Brass
+demos.track.arp = Arp
+demos.strip.drum_bus = Drum bus
+demos.strip.reverb = Reverb
+demos.strip.delay = Delay
+
+# The picker (File → Demo songs).
+demos.menu = Demo songs…
+action.demo-songs = Demo songs
+demos.picker.title = Demo songs
+demos.picker.list = Songs made in Cantus
+demos.picker.meta = {style} · {bpm} BPM · {length}
+demos.picker.hint = Each song uses the native instruments and effects; open one, play it, take it apart.
+demos.picker.open = Open
+demos.picker.cancel = Cancel
+demos.picker.unsaved = Unsaved changes
+demos.picker.unsaved_text = “{name}” has changes that are not saved. Opening a demo replaces it.
+demos.picker.save_first = Save first
+demos.picker.discard = Don’t save

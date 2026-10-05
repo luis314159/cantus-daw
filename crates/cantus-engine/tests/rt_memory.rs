@@ -262,12 +262,10 @@ impl Rig {
 
     fn snapshot(&mut self, project: &Project) {
         let snap = Snapshot::compile(project, 1);
-        for strip in &snap.strips {
-            for slot in &strip.effects {
-                if self.known.insert(slot.id) {
-                    let unit = Box::new(EffectUnit::new(slot, 48_000.0));
-                    self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
-                }
+        for slot in snap.effect_slots() {
+            if self.known.insert(slot.id) {
+                let unit = Box::new(EffectUnit::new(slot, 48_000.0));
+                self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
             }
         }
         self.tx
@@ -378,6 +376,69 @@ fn the_audio_thread_never_allocates() {
     rig.play("seek", 10);
     rig.tx.push(EngineMessage::Stop).unwrap();
     rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// The master's chain (ADR 0026) on the audio thread: a limiter and an EQ that switches to
+/// linear phase (memory asked for and delivered), a compressor keyed from a strip, soft
+/// bypass, the chain switch, an insert taken out (its unit handed back), the master take.
+/// Not one allocation while processing.
+#[test]
+fn the_master_chain_never_allocates() {
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    p.metronome = true;
+    let key = p.tracks[1].strip.unwrap();
+    let lim = p.make_effect(EffectKind::Limiter);
+    let lim_id = lim.id;
+    let eq = p.make_effect(EffectKind::Eq);
+    let eq_id = eq.id;
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(key);
+    comp.mix = 0.5;
+    p.master.effects = vec![eq, comp, lim];
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx
+        .push(EngineMessage::SetCapture(CaptureTarget::Master))
+        .unwrap();
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("master start", 20);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.effect_mut(StripId::MASTER, eq_id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "b0.used", 1.0);
+    set(&mut p, "b0.gain", 3.0);
+    set(&mut p, "mode", 2.0);
+    set(&mut p, "lp_res", 1.0);
+    rig.snapshot(&p);
+    rig.play("master linear phase", 40);
+    let latency = rig.p.stats().latency_samples as usize;
+    assert!(
+        latency >= latency_of(Mode::LinearPhase, Resolution::Medium, 48_000.0),
+        "the master's EQ in linear phase is in the output's latency: {latency}"
+    );
+    p.effect_mut(StripId::MASTER, eq_id).unwrap().bypass = true;
+    rig.snapshot(&p);
+    rig.play("master soft bypass", 10);
+    assert_eq!(rig.p.stats().latency_samples as usize, latency);
+    p.master.fx_enabled = false;
+    rig.snapshot(&p);
+    rig.play("master chain off", 10);
+    p.master.fx_enabled = true;
+    p.master.effects.retain(|e| e.id != lim_id);
+    rig.snapshot(&p);
+    rig.play("master insert removed", 10);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("master seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("master stop", 4);
     assert!(
         rig.allocations.iter().all(|(_, n)| *n == 0),
         "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",

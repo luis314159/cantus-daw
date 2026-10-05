@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(23) {
+    match rng.below(25) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -160,6 +160,12 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         13 => {
             let strips = project.strips.len();
             let id = project.strips[rng.below(strips as u64) as usize].id;
+            // A quarter of them on the master's chain (ADR 0026).
+            let id = if rng.below(4) == 0 {
+                StripId::MASTER
+            } else {
+                id
+            };
             let kind = EffectKind::ALL[rng.below(EffectKind::ALL.len() as u64) as usize];
             let mut slot = project.make_effect(kind);
             if rng.below(4) == 0 {
@@ -170,7 +176,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 plugin.params.insert(0, 0.5);
                 slot.spec = EffectSpec::external(plugin);
             }
-            let len = project.strip(id).unwrap().effects.len();
+            let len = project.effects_of(id).unwrap().len();
             Command::InsertEffect {
                 strip: id,
                 index: rng.below(len as u64 + 1) as usize,
@@ -180,34 +186,50 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         14 => {
             let strips = project.strips.len();
             let st = &project.strips[rng.below(strips as u64) as usize];
-            match st
-                .effects
-                .get(rng.below(st.effects.len().max(1) as u64) as usize)
-            {
+            // The master's chain as well as the strips' (ADR 0026): every effect command
+            // addresses it as `StripId::MASTER`.
+            let on_master = rng.below(4) == 0;
+            let (host, chain) = if on_master {
+                (StripId::MASTER, &project.master.effects)
+            } else {
+                (st.id, &st.effects)
+            };
+            match chain.get(rng.below(chain.len().max(1) as u64) as usize) {
                 Some(e) => match rng.below(4) {
                     0 => Command::RemoveEffect {
-                        strip: st.id,
+                        strip: host,
                         effect: e.id,
                     },
                     1 => Command::SetEffectBypass {
-                        strip: st.id,
+                        strip: host,
                         effect: e.id,
                         bypass: rng.below(2) == 1,
                     },
                     2 => Command::MoveEffect {
-                        strip: st.id,
+                        strip: host,
                         effect: e.id,
-                        index: rng.below(st.effects.len() as u64) as usize,
+                        index: rng.below(chain.len() as u64) as usize,
                     },
                     _ => {
+                        if on_master && rng.below(8) == 0 {
+                            return Command::SetMasterFxEnabled {
+                                enabled: rng.below(2) == 1,
+                            };
+                        }
                         if rng.below(6) == 0 {
                             // Keys: from any strip, itself and loops included, onto any
                             // effect, kinds that take none included.
                             return Command::SetEffectSidechain {
-                                strip: st.id,
+                                strip: host,
                                 effect: e.id,
-                                source: (rng.below(3) != 0)
-                                    .then(|| project.strips[rng.below(strips as u64) as usize].id),
+                                source: (rng.below(3) != 0).then(|| {
+                                    // The master as a key is always refused (a loop).
+                                    if rng.below(8) == 0 {
+                                        StripId::MASTER
+                                    } else {
+                                        project.strips[rng.below(strips as u64) as usize].id
+                                    }
+                                }),
                             };
                         }
                         if rng.below(8) == 0 {
@@ -223,14 +245,14 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 _ => None,
                             };
                             return Command::SetEffectMidiSource {
-                                strip: st.id,
+                                strip: host,
                                 effect: e.id,
                                 source,
                             };
                         }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
-                                strip: st.id,
+                                strip: host,
                                 effect: e.id,
                                 mix: rng.f32(-0.5, 1.5),
                             };
@@ -243,7 +265,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 let mut params = std::collections::BTreeMap::new();
                                 params.insert(id, f64::from(rng.f32(-2.0, 2.0)));
                                 return Command::SetPluginState {
-                                    strip: st.id,
+                                    strip: host,
                                     effect: e.id,
                                     state: PluginState::new(vec![
                                         rng.below(256) as u8;
@@ -253,7 +275,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 };
                             }
                             return Command::SetPluginParam {
-                                strip: st.id,
+                                strip: host,
                                 effect: e.id,
                                 id,
                                 value: (rng.below(5) != 0).then(|| f64::from(rng.f32(-2.0, 2.0))),
@@ -263,18 +285,21 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                         let info = infos[rng.below(infos.len() as u64) as usize];
                         if rng.below(5) == 0 {
                             return Command::ClearEffectParam {
-                                strip: st.id,
+                                strip: host,
                                 effect: e.id,
                                 key: info.key.to_string(),
                             };
                         }
                         Command::SetEffectParam {
-                            strip: st.id,
+                            strip: host,
                             effect: e.id,
                             key: info.key.to_string(),
                             value: rng.f32(info.min - 1.0, info.max + 1.0),
                         }
                     }
+                },
+                None if on_master => Command::SetMasterFxEnabled {
+                    enabled: rng.below(2) == 1,
                 },
                 // Strip controls and routing, including routes the command must refuse
                 // (cycles, a strip feeding itself) and removals it must refuse (a strip
@@ -568,6 +593,118 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     },
                 },
             }
+        }
+        // Recording (ADR 0025): arm, input, take lanes, the pool, a clip's lane — including
+        // the refused paths (a lane on a clip that is not there, a trim that is not finite).
+        23 if tracks > 0 => {
+            let t = &project.tracks[rng.below(tracks as u64) as usize];
+            let id = t.id;
+            let clip =
+                (!t.clips.is_empty()).then(|| t.clips[rng.below(t.clips.len() as u64) as usize].id);
+            match rng.below(6) {
+                0 => Command::SetTrackArmed {
+                    id,
+                    armed: rng.below(2) == 1,
+                },
+                1 => Command::SetTrackInput {
+                    id,
+                    input: match rng.below(4) {
+                        0 => None,
+                        1 => Some(TrackInput {
+                            trim_db: f32::NAN,
+                            ..TrackInput::mono(0)
+                        }),
+                        k => {
+                            let mut i = if k == 2 {
+                                TrackInput::mono(rng.below(4) as u16)
+                            } else {
+                                TrackInput::stereo(2 * rng.below(2) as u16)
+                            };
+                            i.monitor = [MonitorMode::Off, MonitorMode::Auto, MonitorMode::On]
+                                [rng.below(3) as usize];
+                            i.trim_db = rng.f32(-24.0, 24.0);
+                            Some(i)
+                        }
+                    },
+                },
+                2 => Command::SetTrackTakesOpen {
+                    id,
+                    open: rng.below(2) == 1,
+                },
+                3 => Command::SetClipLane {
+                    track: id,
+                    clip: clip.unwrap_or(ClipId(9_999)),
+                    lane: rng.below(4) as u8,
+                },
+                4 => {
+                    let sid = AudioSourceId(project.alloc_id());
+                    Command::InsertAudioSource {
+                        source: AudioSource {
+                            id: sid,
+                            name: format!("take {}", sid.0),
+                            path: format!("C:/rec/take {}.wav", sid.0),
+                            sample_rate: 48_000,
+                            channels: 1 + rng.below(2) as u8,
+                            frames: rng.below(1_000_000),
+                            sha256: None,
+                            recorded: true,
+                        },
+                    }
+                }
+                _ => {
+                    // An audio clip on a take lane, over a source in the pool (or a refused
+                    // one over a source that is not).
+                    let source = project
+                        .audio_pool
+                        .first()
+                        .map(|s| s.id)
+                        .unwrap_or(AudioSourceId(9_998));
+                    let mut c = project.make_audio_clip(
+                        "take",
+                        source,
+                        Ticks::beats(rng.below(16) as i64),
+                        Ticks::beats(1 + rng.below(4) as i64),
+                    );
+                    c.lane = rng.below(3) as u8;
+                    // A fine offset under the tick, as a recorded take has (round 19).
+                    if let Some(a) = c.audio.as_mut() {
+                        a.slip_frames = rng.below(25) as i32 - 12;
+                    }
+                    Command::InsertClip {
+                        track: id,
+                        clip: Box::new(c),
+                    }
+                }
+            }
+        }
+        24 => {
+            let mut settings = project.recording.clone();
+            match rng.below(5) {
+                0 => settings.count_in_bars = [0, 1, 2, 4][rng.below(4) as usize],
+                1 => {
+                    let a = Ticks::beats(rng.below(16) as i64);
+                    settings.punch = Some(LoopRegion {
+                        start: a,
+                        end: a + Ticks::beats(1 + rng.below(8) as i64),
+                    });
+                    settings.punch_enabled = rng.below(2) == 1;
+                }
+                2 => {
+                    settings.take_mode = [TakeMode::Stack, TakeMode::Replace, TakeMode::Overdub]
+                        [rng.below(3) as usize];
+                    settings.loop_takes = rng.below(2) == 1;
+                }
+                3 => {
+                    settings.click = [
+                        ClickMode::Always,
+                        ClickMode::Recording,
+                        ClickMode::CountInOnly,
+                    ][rng.below(3) as usize];
+                    settings.click_db = rng.f32(-24.0, 6.0);
+                }
+                _ => settings.click_db = f32::INFINITY,
+            }
+            Command::SetRecordSettings { settings }
         }
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),

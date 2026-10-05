@@ -72,6 +72,8 @@ pub struct StemsDialog {
     pub tail_seconds: f32,
     pub keep_silent: bool,
     pub master: bool,
+    /// Each stem through its own copy of the master chain (ADR 0026).
+    pub through_master: bool,
     pub folder: Option<PathBuf>,
 }
 
@@ -82,6 +84,7 @@ impl Default for StemsDialog {
             tail_seconds: 2.0,
             keep_silent: false,
             master: false,
+            through_master: false,
             folder: None,
         }
     }
@@ -387,7 +390,7 @@ fn para(ui: &mut egui::Ui, text: String, dim: bool) {
 
 /// The dialogs' parts, drawn with the kit: a band over each group of rows, choices and
 /// switches as lamps beside their words, fields as wells, buttons as caps.
-mod form {
+pub(crate) mod form {
     use crate::kit::light::{self, RaisedOpts};
     use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
     use crate::kit::{band, led, well, with_brush, State, Style, Tok};
@@ -809,6 +812,7 @@ pub fn export_stems_to(app: &mut CantusApp, folder: &Path, d: &StemsDialog) {
             ..Default::default()
         },
         keep_silent: d.keep_silent,
+        through_master: d.through_master,
     };
     let progress = Arc::new(AtomicU32::new(0));
     let cancel = Arc::new(AtomicBool::new(false));
@@ -959,6 +963,12 @@ fn stems_window(app: &mut CantusApp, ctx: &egui::Context) {
         }
         if form::choice(ui, d.master, on, &t("interop.stems.master")) {
             d.master = !d.master;
+        }
+        // Only when the master has a chain to pass through (ADR 0026).
+        if !app.project().master.effects.is_empty()
+            && form::choice(ui, d.through_master, on, &t("master.stems.through"))
+        {
+            d.through_master = !d.through_master;
         }
         ui.add_space(space::S2);
         let shown = d
@@ -1164,7 +1174,19 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
     if hovering {
         paint_drop_hint(app, ctx);
     }
+    // Audio files become clips where they were dropped (ADR 0025), all in one undo step.
+    let audio: Vec<PathBuf> = files
+        .iter()
+        .map(|f| f.path().to_path_buf())
+        .filter(|p| crate::audio_files::is_audio_path(p))
+        .collect();
+    if !audio.is_empty() {
+        crate::audio_files::drop_audio(app, &audio, pos);
+    }
     for f in files {
+        if crate::audio_files::is_audio_path(f.path()) {
+            continue;
+        }
         let name = file_name(f.path());
         let bytes = match f.bytes() {
             Ok(b) => b,
@@ -1184,7 +1206,7 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
         } else if lower.ends_with(&format!(".{}", dawproject::EXTENSION)) {
             import_dawproject(app, &bytes, &name);
         } else {
-            app.set_error(tf("interop.drop.unsupported", &[("file", &name)]));
+            app.set_error(tf("audioclips.drop.unsupported", &[("file", &name)]));
         }
     }
 }
@@ -1223,8 +1245,8 @@ fn paint_drop_hint(app: &CantusApp, ctx: &egui::Context) {
         let r = rect.shrink(space::S1);
         b.rrect(r, s.r(3.0), Fill::Solid(with_alpha(s.t.selection, 0.10)));
         b.rrect_stroke(r, s.r(3.0), 2.0, s.t.selection);
-        let tx =
-            Text::key("interop.drop.hint", Role::Title, s.t.text).policy(Policy::Elide(Elide::End));
+        let tx = Text::key("audioclips.drop.hint", Role::Title, s.t.text)
+            .policy(Policy::Elide(Elide::End));
         let w = text::measure(b.ctx(), &tx, s.tk()).x.min(r.width() - 40.0);
         let plate = egui::Rect::from_center_size(r.center(), egui::vec2(w + 32.0, s.s(34.0)));
         light::raised(b, plate, s.r(3.0), s.t.panel, light::RaisedOpts::default());

@@ -35,8 +35,12 @@ pub mod gate;
 /// What an editor needs from whatever runs it: Cantus, or a plug-in host (ADR 0020).
 pub mod host;
 pub mod limiter;
+pub mod maximizer;
 pub mod multiband;
+/// Fervor, the saturator (ADR 0026).
+pub mod saturator;
 pub mod space;
+pub mod stereo;
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
 pub const PAIRS: usize = 16_384;
@@ -62,6 +66,9 @@ pub struct FxEditors {
     pub multiband: multiband::State,
     pub deesser: deesser::State,
     pub gate: gate::State,
+    pub stereo: stereo::State,
+    pub maximizer: maximizer::State,
+    pub saturator: saturator::State,
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -151,12 +158,7 @@ impl CantusApp {
         params: &BTreeMap<String, f32>,
         label_key: &str,
     ) {
-        let Some(slot) = self
-            .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
-            .cloned()
-        else {
+        let Some(slot) = self.project().effect(strip, effect).cloned() else {
             return;
         };
         let mut commands = Vec::new();
@@ -205,8 +207,7 @@ impl CantusApp {
     pub fn toggle_ab(&mut self, strip: StripId, effect: EffectId) {
         let Some(current) = self
             .project()
-            .strip(strip)
-            .and_then(|s| s.effect(effect))
+            .effect(strip, effect)
             .map(|e| e.spec.params.clone())
         else {
             return;
@@ -289,6 +290,9 @@ pub fn factory_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::Multiband => multiband::FACTORY_PRESETS,
         EffectKind::DeEsser => deesser::FACTORY_PRESETS,
         EffectKind::Gate => gate::FACTORY_PRESETS,
+        EffectKind::Stereo => stereo::FACTORY_PRESETS,
+        EffectKind::Maximizer => maximizer::FACTORY_PRESETS,
+        EffectKind::Saturator => saturator::FACTORY_PRESETS,
         _ => &[],
     }
 }
@@ -332,12 +336,15 @@ pub fn open_window_sized(
 /// host that shows one editor on its own: the exported plug-in's window (ADR 0020).
 pub enum Editor {
     Gate(Box<gate::State>),
+    Stereo(Box<stereo::State>),
     Multiband(Box<multiband::State>),
     Space(Box<space::State>),
     Limiter(Box<limiter::State>),
     DeEsser(Box<deesser::State>),
     Comp(Box<crate::views::comp_editor::State>),
     Eq(Box<crate::views::eq_editor::EqEditor>),
+    Maximizer(Box<maximizer::State>),
+    Saturator(Box<saturator::State>),
 }
 
 impl Editor {
@@ -345,12 +352,15 @@ impl Editor {
     pub fn of(kind: EffectKind) -> Option<Editor> {
         match kind {
             EffectKind::Gate => Some(Editor::Gate(Box::default())),
+            EffectKind::Stereo => Some(Editor::Stereo(Box::default())),
             EffectKind::Multiband => Some(Editor::Multiband(Box::default())),
             EffectKind::Space => Some(Editor::Space(Box::default())),
             EffectKind::Limiter => Some(Editor::Limiter(Box::default())),
             EffectKind::DeEsser => Some(Editor::DeEsser(Box::default())),
             EffectKind::Compressor => Some(Editor::Comp(Box::default())),
             EffectKind::Eq => Some(Editor::Eq(Box::default())),
+            EffectKind::Maximizer => Some(Editor::Maximizer(Box::default())),
+            EffectKind::Saturator => Some(Editor::Saturator(Box::default())),
             _ => None,
         }
     }
@@ -359,12 +369,15 @@ impl Editor {
     pub fn show(&mut self, host: &mut dyn host::FxHost, ui: &mut egui::Ui) -> frame::Out {
         match self {
             Editor::Gate(st) => gate::editor(host, st, ui),
+            Editor::Stereo(st) => stereo::editor(host, st, ui),
             Editor::Multiband(st) => multiband::editor(host, st, ui),
             Editor::Space(st) => space::editor(host, st, ui),
             Editor::Limiter(st) => limiter::editor(host, st, ui),
             Editor::DeEsser(st) => deesser::editor(host, st, ui),
             Editor::Comp(st) => crate::views::comp_editor::editor(host, st, ui),
             Editor::Eq(st) => crate::views::eq_editor::editor(host, st, ui),
+            Editor::Maximizer(st) => maximizer::editor(host, st, ui),
+            Editor::Saturator(st) => saturator::editor(host, st, ui),
         }
     }
 }
@@ -375,12 +388,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some((strip, effect, kind)) = app.fx.open else {
         return;
     };
-    if app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .is_none()
-    {
+    if app.project().effect(strip, effect).is_none() {
         app.close_fx_editor();
         return;
     }
@@ -390,6 +398,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Space
         | EffectKind::Limiter
         | EffectKind::DeEsser
+        | EffectKind::Stereo
+        | EffectKind::Maximizer
+        | EffectKind::Saturator
         | EffectKind::External => {
             let mut pos = app.fx.pos;
             let mut designed = frame::designed_size(kind);
@@ -414,6 +425,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::Space => space::framed(app, ui, strip, effect),
                     EffectKind::Limiter => limiter::framed(app, ui, strip, effect),
                     EffectKind::DeEsser => deesser::framed(app, ui, strip, effect),
+                    EffectKind::Stereo => stereo::framed(app, ui, strip, effect),
+                    EffectKind::Maximizer => maximizer::framed(app, ui, strip, effect),
+                    EffectKind::Saturator => saturator::framed(app, ui, strip, effect),
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
             );
@@ -437,6 +451,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Multiband => multiband::preview(ui, spec),
         EffectKind::DeEsser => deesser::preview(ui, spec),
         EffectKind::Gate => gate::preview(ui, spec),
+        EffectKind::Stereo => stereo::preview(ui, spec),
+        EffectKind::Maximizer => maximizer::preview(ui, spec),
+        EffectKind::Saturator => saturator::preview(ui, spec),
         _ => {
             let s = crate::kit::Style::current();
             let name = frame::tr(spec.kind.name_key());
@@ -454,6 +471,9 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::Multiband => multiband::demo_setup(app, strip, effect),
         EffectKind::DeEsser => deesser::demo_setup(app, strip, effect),
         EffectKind::Gate => gate::demo_setup(app, strip, effect),
+        EffectKind::Stereo => stereo::demo_setup(app, strip, effect),
+        EffectKind::Maximizer => maximizer::demo_setup(app, strip, effect),
+        EffectKind::Saturator => saturator::demo_setup(app, strip, effect),
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
     }
@@ -469,6 +489,9 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Multiband => multiband::demo_feed(app),
         EffectKind::DeEsser => deesser::demo_feed(app),
         EffectKind::Gate => gate::demo_feed(app),
+        EffectKind::Stereo => stereo::demo_feed(app),
+        EffectKind::Maximizer => maximizer::demo_feed(app),
+        EffectKind::Saturator => saturator::demo_feed(app),
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}
     }

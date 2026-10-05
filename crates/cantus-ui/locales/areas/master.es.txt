@@ -1,0 +1,8 @@
+# Área: the master chain (round 19). Cada clave necesita su gemela en master.en.txt.
+cmd.set_master_fx_enabled = FX del máster
+master.head_tip = Máster: clic para ver su cadena de inserciones en el inspector
+master.menu.effects = Efectos
+master.menu.fx_on = Efectos activados
+master.input = La mezcla completa
+master.output = Salida de audio
+master.stems.through = A través de la cadena del máster

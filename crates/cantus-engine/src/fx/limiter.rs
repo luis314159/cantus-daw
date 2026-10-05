@@ -82,6 +82,14 @@ impl FxUnit for Unit {
         self.dsp.latency()
     }
 
+    /// The deeper of the reduction now and the last column's largest (telemetry 6, 7), so
+    /// a meter read once a block does not miss a peak between reads.
+    fn gain_reduction_db(&self) -> Option<f32> {
+        let [l, r] = self.dsp.gain_reduction_db();
+        let t = self.dsp.telemetry();
+        Some(l.abs().max(r.abs()).max(t[6].abs()).max(t[7].abs()))
+    }
+
     fn telemetry(&self) -> Telemetry {
         self.dsp.telemetry()
     }

@@ -28,6 +28,14 @@ pub enum EffectKind {
     DeEsser,
     /// Porta, the gate and expander (`fx::gate`).
     Gate,
+    /// Fervor, saturation and colour: tape, tube, overdrive, a drawn waveshaper
+    /// (`fx::saturator`, ADR 0026).
+    Saturator,
+    /// Latitudo, stereo control: width, mid/side, mono bass, balance (`fx::stereo`).
+    Stereo,
+    /// Culmen, the mastering maximizer: multiband dynamics into a limiter
+    /// (`fx::maximizer`), FL's Maximus to our bar.
+    Maximizer,
     /// A plug-in made to a market standard (CLAP, VST3), hosted (ADR 0019). What it is and
     /// its parameters are in [`EffectSpec::external`]; `params` stays empty.
     External,
@@ -143,7 +151,7 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 9] = [
+    pub const ALL: [EffectKind; 12] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -151,6 +159,9 @@ impl EffectKind {
         EffectKind::Multiband,
         EffectKind::DeEsser,
         EffectKind::Gate,
+        EffectKind::Saturator,
+        EffectKind::Stereo,
+        EffectKind::Maximizer,
         EffectKind::Delay,
         EffectKind::Reverb,
     ];
@@ -166,6 +177,9 @@ impl EffectKind {
             EffectKind::Multiband => fx::multiband::NAME_KEY,
             EffectKind::DeEsser => fx::deesser::NAME_KEY,
             EffectKind::Gate => fx::gate::NAME_KEY,
+            EffectKind::Saturator => fx::saturator::NAME_KEY,
+            EffectKind::Stereo => fx::stereo::NAME_KEY,
+            EffectKind::Maximizer => fx::maximizer::NAME_KEY,
             EffectKind::External => crate::external::NAME_KEY,
         }
     }
@@ -181,6 +195,9 @@ impl EffectKind {
             EffectKind::Multiband => fx::multiband::params(),
             EffectKind::DeEsser => fx::deesser::params(),
             EffectKind::Gate => fx::gate::params(),
+            EffectKind::Saturator => fx::saturator::params(),
+            EffectKind::Stereo => fx::stereo::params(),
+            EffectKind::Maximizer => fx::maximizer::params(),
             // The plug-in's own, by its ids, in `EffectSpec::external`.
             EffectKind::External => &[],
         }
@@ -198,6 +215,9 @@ impl EffectKind {
             EffectKind::Multiband => fx::multiband::SPARSE,
             EffectKind::DeEsser => fx::deesser::SPARSE,
             EffectKind::Gate => fx::gate::SPARSE,
+            EffectKind::Saturator => fx::saturator::SPARSE,
+            EffectKind::Stereo => fx::stereo::SPARSE,
+            EffectKind::Maximizer => fx::maximizer::SPARSE,
             EffectKind::External => true,
         }
     }
@@ -218,6 +238,9 @@ impl EffectKind {
             EffectKind::Multiband => fx::multiband::TAKES_SIDECHAIN,
             EffectKind::DeEsser => fx::deesser::TAKES_SIDECHAIN,
             EffectKind::Gate => fx::gate::TAKES_SIDECHAIN,
+            EffectKind::Saturator => fx::saturator::TAKES_SIDECHAIN,
+            EffectKind::Stereo => fx::stereo::TAKES_SIDECHAIN,
+            EffectKind::Maximizer => fx::maximizer::TAKES_SIDECHAIN,
             // Per plug-in, not per kind: `EffectSpec::takes_sidechain`.
             EffectKind::External => false,
         }

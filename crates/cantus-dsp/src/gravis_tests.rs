@@ -831,3 +831,136 @@ fn every_engine_peaks_near_minus_six_dbfs() {
         }
     }
 }
+
+/// The slap preset's string (`bass.preset.slap`): high action off, buzz up, plucked near
+/// the neck, pop at velocity 100.
+fn slap_string() -> GravisSettings {
+    let mut s = GravisSettings {
+        engine: Engine::String,
+        ..Default::default()
+    };
+    s.string.technique = string::Technique::Slap;
+    s.string.pluck_mm = 330.0;
+    s.string.buzz = 0.7;
+    s.string.action_mm = 1.8;
+    s.string.bright = 0.75;
+    s.string.stiffness = 1.2;
+    s.string.pop_vel = 100.0 / 127.0;
+    s
+}
+
+/// A funk riff at 102 BPM in sixteenths: (step, key, velocity 0…1), thumb and pops.
+fn funk_riff(g: &mut Gravis, vel_scale: f32) -> Vec<f32> {
+    let step = (60.0 / 102.0 / 4.0 * SR) as usize;
+    let riff: [(u8, f32); 16] = [
+        (28, 1.0),
+        (28, 0.6),
+        (40, 1.0),
+        (28, 0.8),
+        (31, 1.0),
+        (33, 0.8),
+        (40, 1.0),
+        (28, 0.7),
+        (28, 1.0),
+        (35, 0.8),
+        (38, 1.0),
+        (40, 1.0),
+        (28, 0.9),
+        (43, 1.0),
+        (40, 0.8),
+        (31, 1.0),
+    ];
+    let mut out = Vec::new();
+    for bar in 0..2 {
+        for (i, (key, v)) in riff.iter().enumerate() {
+            let id = (bar * 16 + i) as u64 + 1;
+            g.note_on(*key, id, v * vel_scale);
+            out.extend(render(g, step * 3 / 4));
+            g.note_off(*key, id);
+            out.extend(render(g, step - step * 3 / 4));
+        }
+    }
+    out.extend(render(g, 24_000));
+    out
+}
+
+/// Every technique keeps the string engine's headroom: a dense funk riff at full velocity
+/// — thumb and pop, finger, pick, palm mute, on the slap preset's string and the default
+/// one — peaks under full scale, as a single finger pluck peaks near −6 dBFS. The slap
+/// preset once peaked at +15 dBFS here.
+#[test]
+fn every_technique_keeps_its_headroom_on_a_dense_riff() {
+    let mut report = Vec::new();
+    for (name, base) in [
+        ("slap string", slap_string()),
+        ("default string", {
+            GravisSettings {
+                engine: Engine::String,
+                ..Default::default()
+            }
+        }),
+    ] {
+        for t in 0..4 {
+            let mut s = base;
+            s.string.technique = string::Technique::from_index(t as f32);
+            for vel in [1.0f32, 0.75] {
+                let mut g = Gravis::new(SR);
+                g.set(&s);
+                let x = funk_riff(&mut g, vel);
+                assert!(x.iter().all(|v| v.is_finite()));
+                let peak = x.iter().fold(0f32, |m, v| m.max(v.abs()));
+                report.push((name, s.string.technique, vel, 20.0 * peak.log10()));
+            }
+        }
+    }
+    for r in &report {
+        eprintln!(
+            "{:<15} {:?} vel {:.2}: peak {:+.1} dBFS",
+            r.0, r.1, r.2, r.3
+        );
+    }
+    for r in &report {
+        assert!(
+            r.3 < -1.0,
+            "{} {:?} at velocity {}: {:+.1} dBFS",
+            r.0,
+            r.1,
+            r.2,
+            r.3
+        );
+    }
+}
+
+/// A slap is calibrated against a finger pluck: on the slap preset's string, a thumb (just
+/// under the pop velocity) and a pop (full velocity) each peak under −1 dBFS across the
+/// neck, and their loudness over the first 200 ms is within 6 dB of a finger pluck's at the
+/// same velocity. At unity the thumb peaked at +12 dBFS.
+#[test]
+fn a_slap_is_calibrated_against_a_finger_pluck() {
+    let measure = |tech: f32, vel: f32, key: u8| {
+        let mut s = slap_string();
+        s.string.technique = string::Technique::from_index(tech);
+        let mut g = Gravis::new(SR);
+        g.set(&s);
+        g.note_on(key, 1, vel);
+        let x = render(&mut g, 24_000);
+        let peak = x.iter().fold(0f32, |m, v| m.max(v.abs()));
+        let rms = (x[..9_600].iter().map(|v| v * v).sum::<f32>() / 9_600.0).sqrt();
+        (20.0 * peak.log10(), 20.0 * rms.log10())
+    };
+    let thumb_vel = slap_string().string.pop_vel - 0.01;
+    for key in [28u8, 33, 40, 52] {
+        for (what, vel) in [("thumb", thumb_vel), ("pop", 1.0)] {
+            let (_, finger) = measure(0.0, vel, key);
+            let (peak, rms) = measure(2.0, vel, key);
+            eprintln!(
+                "{what} key {key}: peak {peak:+.1} dBFS, {rms:+.1} dB RMS (finger {finger:+.1})"
+            );
+            assert!(peak < -1.0, "{what} on key {key} peaks at {peak:+.1} dBFS");
+            assert!(
+                (rms - finger).abs() < 6.0,
+                "{what} on key {key}: {rms:+.1} dB RMS against the finger's {finger:+.1}"
+            );
+        }
+    }
+}

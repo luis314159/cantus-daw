@@ -1,0 +1,184 @@
+# Culmen — owned by Culmen. Every key here needs its twin in maximizer.es.txt.
+# Culmen also prints Terminus's style and noise-shaping names (lim.style.*, lim.shape.*),
+# and Multiplex's placements (mb.place.*): the same engines, the same words.
+effect.maximizer = Culmen maximizer
+cmd.max_target = Delivery target
+cmd.max_learn = Learn drive
+cmd.max_split = Crossover
+
+# Parameters (cell labels) and what each one does.
+fx.max.gain = Drive
+fx.max.gain_tip = How hard the result is pushed into the ceiling. The brickwall holds the peaks; everything under them gets louder. Learn sets it for the target.
+fx.max.ceiling = Ceiling
+fx.max.ceiling_tip = The most the output ever reaches. With true peak on it is measured between the samples too (dBTP).
+fx.max.style = Character
+fx.max.style_tip = How the brickwall catches a peak and lets it go: Terminus's five engines, each printed as what it does.
+fx.max.look = Lookahead
+fx.max.look_tip = How far ahead the brickwall sees a peak coming. Adds this much latency.
+fx.max.lim_att = Attack
+fx.max.lim_att_tip = How soon the brickwall's slow stage takes over from the fast one.
+fx.max.lim_rel = Release
+fx.max.lim_rel_tip = How the brickwall lets go after an overload. Longer is smoother; shorter is louder and can pump.
+fx.max.link_t = Link transients
+fx.max.link_t_tip = Stereo link of the fast stage. Below 100 % a one-sided peak is caught on its side alone.
+fx.max.link_r = Link release
+fx.max.link_r_tip = Stereo link of the slow stage. Keep it high so the recovery stays centred.
+fx.max.lim_knee = Knee
+fx.max.lim_knee_tip = The brickwall starts bending this many dB under the ceiling. The ceiling itself is never passed.
+fx.max.tp = True peak
+fx.max.tp_tip = Hold the peaks between the samples too, as a converter or an encoder sees them.
+fx.max.clip = Clipper
+fx.max.clip_tip = A soft clipper before the brickwall, oversampled 4x: more of each peak is clipped and less limited as it goes up.
+fx.max.dc = DC filter
+fx.max.dc_tip = Remove a DC offset before the brickwall.
+fx.max.bands = Bands
+fx.max.bands_tip = How many bands the spectrum is split into before the full band: none, two or three.
+fx.max.x1 = Low split
+fx.max.x1_tip = Where the low band ends and the next begins. Drag it on the band display.
+fx.max.x2 = High split
+fx.max.x2_tip = Where the mid band ends and the high band begins.
+fx.max.xmode = Crossovers
+fx.max.xmode_tip = How the bands are made: Dynamic (no split, no latency, a wire while nothing moves), Minimum phase (a Linkwitz–Riley split) or Linear phase (no phase shift, 48 ms of latency).
+fx.max.slope = Slope
+fx.max.delta = Δ
+fx.max.delta_tip = Hear only what Culmen changes: the input, driven and lined up, minus the output.
+fx.max.monitor = Hear
+fx.max.dither = Dither
+fx.max.dither_tip = TPDF dither for a lower word length: only the last thing before the file should dither. Digital silence stays silent.
+fx.max.shape = Noise shaping
+fx.max.target = Target
+fx.max.target_tip = The loudness the meters judge and Learn aims at.
+fx.max.on = On
+fx.max.solo = Solo
+fx.max.thr = Threshold
+fx.max.thr_tip = Above this level the upper ratio works: over 1:1 it squeezes the peaks down, under 1:1 it lifts them further.
+fx.max.ratio = Ratio
+fx.max.ratio_tip = The upper side's ratio: 4:1 compresses, 1:2 expands upward, 1:1 is off.
+fx.max.range = Range
+fx.max.range_tip = The most the upper side moves the gain.
+fx.max.thr_lo = Lower threshold
+fx.max.thr_lo_tip = Below this level the lower ratio works: over 1:1 it lifts quiet parts (upward compression), under 1:1 it pushes them down.
+fx.max.ratio_lo = Lower ratio
+fx.max.ratio_lo_tip = The lower side's ratio: 2:1 lifts what is under the threshold, 1:2 expands it down, 1:1 is off.
+fx.max.range_lo = Lower range
+fx.max.range_lo_tip = The most the lower side moves the gain.
+fx.max.knee = Knee
+fx.max.att = Attack
+fx.max.rel = Release
+fx.max.band_gain = Band gain
+fx.max.band_gain_tip = The band's own level, after its dynamics.
+fx.max.place = Stereo
+fx.max.place_tip = What the band listens to and moves: both channels linked, the mid only, or the side only.
+
+# Bands and their groups (also the exported plug-in's groups).
+max.group.lo = Low band
+max.group.mid = Mid band
+max.group.hi = High band
+max.group.all = Full band
+max.band.lo = Low
+max.band.mid = Mid
+max.band.hi = High
+max.band.all = Full
+max.xmode.0 = Dynamic
+max.xmode.1 = Minimum phase
+max.xmode.2 = Linear phase
+max.monitor.0 = Output
+max.monitor.1 = 1:1
+max.monitor.2 = Match
+max.monitor.0_tip = What leaves Culmen.
+max.monitor.1_tip = The output turned down by the drive: the processing, without the loudness it adds.
+max.monitor.2_tip = The output at the input's measured loudness, so settings compare at equal loudness.
+max.bands.1 = None
+max.bands.2 = Two
+max.bands.3 = Three
+
+# Cards.
+max.card.history = Gain over time
+max.card.loudness = Loudness
+max.card.bands = Bands
+max.card.curve = Curve
+max.card.brickwall = Brickwall
+max.card.output = Output
+max.history_tip = The output's peaks (fill) over the input's (line), the brickwall's reduction from the top, and each band's gain in its lane. Drag the dashed line to move the ceiling.
+max.bands_tip = The spectrum as the bands share it. Click a band to edit it; drag a split to move it; double-click a band for solo.
+max.curve_tip = Level in across, level out up. Drag a threshold point along the line; drag a side's slope up or down for its ratio. The dot is the band now.
+max.lane_tip = Gain this band applied over the last seconds: cuts below the line, lifts above.
+max.ceiling_line = Ceiling
+max.empty = Play something to see what Culmen does.
+max.solo_on = Solo
+max.off = Off
+max.latency_bands = Linear-phase bands add {ms} ms
+
+# Loudness and delivery.
+max.momentary = Momentary
+max.short = Short-term
+max.integrated = Integrated
+max.range = Range
+max.tp_max = True peak
+max.plr = PLR
+max.plr_tip = Peak to loudness ratio: the true peak's distance over the integrated loudness. Under about 8 dB, a master starts to sound squashed.
+max.input = Input
+max.input_tip = The loudness of what comes in, integrated over the same time.
+max.reset = Reset
+max.reset_tip = Start the loudness measurements again.
+max.target.stream = Streaming −14
+max.target.apple = Apple −16
+max.target.cd = CD −9
+max.target.club = Club −7
+max.target.ebu = Broadcast −23
+max.target.custom = Custom
+max.target.stream_rule = Spotify, YouTube, Tidal: −14 LUFS, −1 dBTP; louder masters are turned down.
+max.target.apple_rule = Apple Music: −16 LUFS, −1 dBTP; louder masters are turned down.
+max.target.cd_rule = A loud CD or download: −9 LUFS, −0.3 dBTP; nothing turns it down.
+max.target.club_rule = Club and DJ use: −7 LUFS, −0.1 dBTP; as loud as the genre is played.
+max.target.ebu_rule = EBU R128 broadcast: −23 LUFS ±0.5 LU, −1 dBTP.
+max.verdict.none = Play the song to measure it.
+max.verdict.on = On target.
+max.verdict.loud = {lu} LU over the target.
+max.verdict.quiet = {lu} LU under the target.
+max.verdict.tp = true peak {db} dB over
+
+# Learn.
+max.learn = Learn drive
+max.learn_tip = Play the loudest part of the song: Culmen listens, sets the drive, listens again, and stops when the output reads the target. One undo step.
+max.learning = Learning {n} · {lufs}
+max.learn.waiting = Waiting for sound
+max.learn.done = Learned: drive {db} dB, {lufs} LUFS
+max.learn.silent = Stopped: no sound for 10 s
+max.learn.limit = Stopped: the drive is at its end ({db} dB)
+max.learn.stopped = Stopped
+
+# Factory presets.
+preset.max.transparent = Transparent master
+preset.max.streaming = Streaming −14
+preset.max.loud = Loud and dense
+preset.max.club = Club master
+preset.max.cd = CD master, 16-bit
+preset.max.lowend = Low-end control
+preset.max.upward = Upward lift
+preset.max.ms = Mid/side polish
+preset.max.broadcast = Broadcast safe
+preset.max.maximus = Classic three-band
+
+# The curve's two sides, and short forms for narrow cells.
+max.above = Above
+max.below = Below
+max.monitor.0.short = Out
+max.monitor.2.short = Match
+fx.max.thr.short = THR
+fx.max.thr_lo.short = THR LO
+fx.max.ratio_lo.short = RAT LO
+fx.max.range_lo.short = RNG LO
+fx.max.band_gain.short = GAIN
+fx.max.att.short = ATK
+fx.max.rel.short = REL
+fx.max.look.short = LOOK
+fx.max.lim_att.short = ATK
+fx.max.lim_rel.short = REL
+fx.max.link_t.short = LINK T
+fx.max.link_r.short = LINK R
+fx.max.clip.short = CLIP
+fx.max.ratio.short = RATIO
+fx.max.range.short = RANGE
+fx.max.knee.short = KNEE
+max.xmode.1.short = Min phase

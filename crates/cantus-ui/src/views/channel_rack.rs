@@ -279,14 +279,18 @@ impl Pattern {
     /// start, or failing that the first one overlapping it.
     pub fn clip_on<'a>(&self, track: &'a cantus_core::Track) -> Option<&'a Clip> {
         let end = self.start + self.window();
+        // Note clips on the playing lane only: an audio clip or a take has no steps.
+        let notes = |c: &&'a Clip| c.audio.is_none() && c.lane == 0;
         track
             .clips
             .iter()
+            .filter(notes)
             .find(|c| c.start <= self.start && c.end() > self.start)
             .or_else(|| {
                 track
                     .clips
                     .iter()
+                    .filter(notes)
                     .find(|c| c.start < end && c.end() > self.start)
             })
     }
@@ -310,6 +314,8 @@ fn empty_clip() -> Clip {
         muted: false,
         color: None,
         notes: Vec::new(),
+        audio: None,
+        lane: 0,
     }
 }
 

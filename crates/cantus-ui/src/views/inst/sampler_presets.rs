@@ -132,7 +132,8 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             ("filter.cutoff", 4_000.0),
             ("filter.key", 50.0),
             ("filter.vel", 24.0),
-            ("gain", 3.0),
+            // Round 19: −5 dB (was +3): five notes at velocity 127 peaked at +6.7 dBFS.
+            ("gain", -5.0),
             ("mod1.amt", 0.3),
             ("mod2.amt", 0.2),
         ],
@@ -167,6 +168,8 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             ("filter.type", 1.0),
             ("filter.cutoff", 4_000.0),
             ("filter.key", 60.0),
+            // Round 19: chords at velocity 127 peaked at +1.6 dBFS.
+            ("gain", -3.0),
             ("mod1.amt", 0.3),
             ("mod2.amt", 0.05),
         ],
@@ -467,6 +470,8 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             ("filter.cutoff", 3_000.0),
             ("filter.vel", 36.0),
             ("filter.key", 50.0),
+            // Round 19: chords at velocity 127 peaked at +2.7 dBFS.
+            ("gain", -4.0),
             ("mod1.amt", 0.3),
             ("mod2.amt", 0.2),
         ],

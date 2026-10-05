@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
 
+pub mod audio;
 pub mod bus;
 pub mod command;
 pub mod effect;
@@ -21,6 +22,10 @@ pub mod pads;
 pub mod snapshot;
 pub mod time;
 
+pub use audio::{
+    AudioRegion, AudioSource, ClickMode, FadeCurve, MonitorMode, RecordSettings, TakeMode,
+    TrackInput,
+};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
 pub use command::{Command, CommandError, Origin};
 pub use effect::{
@@ -33,15 +38,15 @@ pub use instrument::{
 };
 pub use model::{
     apply_width, balance_gains, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz,
-    Clip, ClipId, ClipWindow, Color, Dock, EffectId, EqBand, EqField, GroupId, LoopRegion, Master,
-    MixerStrip, Note, NoteId, PanLaw, Pitch, Project, Send, StripEq, StripGroup, StripId, Track,
-    TrackIcon, TrackId, Velocity, DEFAULT_RIGHT_DOCK, DEFAULT_STRIPS, EQ_MAX_GAIN_DB, EQ_MAX_HZ,
-    EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MAX_TRACK_HEIGHT,
-    MAX_WIDTH, MIN_GAIN_DB, MIN_TRACK_HEIGHT,
+    AudioSourceId, Clip, ClipId, ClipWindow, Color, Dock, EffectId, EqBand, EqField, GroupId,
+    LoopRegion, Master, MixerStrip, Note, NoteId, PanLaw, Pitch, Project, Send, StripEq,
+    StripGroup, StripId, Track, TrackIcon, TrackId, Velocity, DEFAULT_RIGHT_DOCK, DEFAULT_STRIPS,
+    EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS,
+    MAX_TRACK_HEIGHT, MAX_WIDTH, MIN_GAIN_DB, MIN_TRACK_HEIGHT,
 };
 pub use pads::{
     DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,
     PulsusParams, RoundRobin, SampleData, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
-pub use snapshot::{NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
+pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use time::{Ticks, TimeSignature, PPQ};

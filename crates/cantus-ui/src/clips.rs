@@ -98,7 +98,7 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
     if at <= clip.start || at >= clip.end() {
         return None;
     }
-    let right = Clip {
+    let mut right = Clip {
         id: ClipId(ids()),
         name: clip.name.clone(),
         start: at,
@@ -108,8 +108,13 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
         muted: clip.muted,
         color: clip.color,
         notes: clip.notes.clone(),
+        audio: clip.audio.clone(),
+        lane: clip.lane,
     };
-    Some(vec![
+    // An audio clip's fades stay at the outer edges (and a reversed one's halves swap
+    // their windows): `audio_clips::split_audio`.
+    let audio = crate::audio_clips::split_audio(track, clip, at, &mut right);
+    let mut out = vec![
         Command::SetClipBounds {
             track,
             clip: clip.id,
@@ -120,7 +125,9 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
             track,
             clip: Box::new(right),
         },
-    ])
+    ];
+    out.extend(audio);
+    Some(out)
 }
 
 /// Glue clips on one track into a single clip spanning all of them.
@@ -132,6 +139,10 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
 pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> {
     if clips.len() < 2 {
         return None;
+    }
+    // Audio glues only contiguous windows on one file (ADR 0025).
+    if clips.iter().any(|c| c.audio.is_some()) {
+        return crate::audio_clips::glue(track, clips);
     }
     let mut ordered: Vec<&Clip> = clips.to_vec();
     ordered.sort_by_key(|c| (c.start, c.id.0));
@@ -189,6 +200,8 @@ pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> 
 /// every note as one it already had and throw the lot away.
 pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
     Clip {
+        audio: clip.audio.clone(),
+        lane: clip.lane,
         id: ClipId(ids()),
         name: clip.name.clone(),
         start,
@@ -288,6 +301,8 @@ pub fn set_color(project: &Project, sel: &[ClipRef], color: Option<Color>) -> Ve
 pub fn set_loop(project: &Project, sel: &[ClipRef], on: bool) -> Vec<Command> {
     sel.iter()
         .filter_map(|r| clip_of(project, *r).map(|c| (r, c)))
+        // An audio clip plays its file once (ADR 0025): it has no repeat to switch.
+        .filter(|(_, c)| c.audio.is_none() || !on)
         .filter_map(|(r, c)| {
             let want = if on { Some(c.length) } else { None };
             (c.content_length.is_some() != on).then_some(Command::SetClipLoop {

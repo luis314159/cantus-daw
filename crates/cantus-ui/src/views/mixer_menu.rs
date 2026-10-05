@@ -38,6 +38,8 @@ pub(super) enum Menu {
     AddEffect(StripId),
     /// A loaded insert slot.
     Slot(StripId, EffectId),
+    /// The master's menu (right-click on its number or name): its chain (ADR 0026).
+    Master,
 }
 
 /// A submenu, opened from a row with a chevron.
@@ -54,6 +56,8 @@ enum Sub {
     Dock(StripId),
     Group(StripId),
     AddEffect(StripId),
+    /// The device input of the strip's recording track (FL's mixer input; ADR 0025).
+    Input(StripId),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -101,8 +105,19 @@ enum Act {
     Bypass(StripId, EffectId, bool),
     MoveEffect(StripId, EffectId, usize),
     RemoveEffect(StripId, EffectId),
+    /// The master's whole chain in or out.
+    MasterFx(bool),
+    /// A strip's whole chain in or out.
+    FxOn(StripId, bool),
     Reveal(usize),
     StopTake,
+    /// The strip's recording track takes this input (first channel, stereo), or none.
+    Input(StripId, Option<(u16, bool)>),
+    /// Arm or disarm the strip's tracks that have an input.
+    Arm(StripId),
+    /// Record what leaves the strip's fader (the take recorder), for a strip whose record
+    /// dot arms its input.
+    Capture(StripId),
 }
 
 /// A row's words.
@@ -290,6 +305,24 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::act(Label::Key("track.solo_tip"), Act::Solo(id)).check(on(s.soloed)));
             e.push(Entry::act(Label::Key("track.mute_tip"), Act::Mute(id)).check(on(s.muted)));
             e.push(Entry::act(Label::Key("track.mono"), Act::Mono(id)).check(on(s.width <= 0.005)));
+            if p.tracks_on_strip(id).next().is_some() {
+                // Recording (ADR 0025): the input, arm, and the mix take for a strip whose
+                // record dot now arms.
+                let (inputs, armed) = rec_state(app, id);
+                e.push(Entry::band("rec.recording"));
+                e.push(Entry::sub(Label::Key("rec.input"), Sub::Input(id)));
+                e.push(
+                    Entry::act(Label::Key("rec.arm"), Act::Arm(id))
+                        .check(on(armed))
+                        .enabled(inputs),
+                );
+                if inputs {
+                    e.push(
+                        Entry::act(Label::Key("rec.capture_strip"), Act::Capture(id))
+                            .check(on(app.capturing(cantus_engine::CaptureTarget::Strip(id)))),
+                    );
+                }
+            }
             e.push(Entry::band("mixer.menu.routing"));
             e.push(Entry::sub(Label::Key("mixer.menu.output"), Sub::Output(id)));
             e.push(Entry::sub(
@@ -321,6 +354,16 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 );
             }
             e.push(Entry::sub(Label::Key("comp.duck.menu"), Sub::Duck(id)));
+            e.push(Entry::band("master.menu.effects"));
+            e.push(Entry::sub(Label::Key("effect.add"), Sub::AddEffect(id)));
+            e.push(
+                Entry::act(
+                    Label::Key("master.menu.fx_on"),
+                    Act::FxOn(id, !s.fx_enabled),
+                )
+                .check(on(s.fx_enabled))
+                .enabled(!s.effects.is_empty()),
+            );
             e.push(Entry::band("mixer.menu.desk"));
             e.push(Entry::sub(Label::Key("mixer.menu.dock"), Sub::Dock(id)));
             e.push(Entry::sub(Label::Key("mixer.menu.group"), Sub::Group(id)));
@@ -421,14 +464,32 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             }
         }
         Menu::AddEffect(id) => sub_entries(v, app, Sub::AddEffect(id), &mut e),
+        Menu::Master => {
+            let m = &p.master;
+            e.push(Entry::band("master.menu.effects"));
+            e.push(Entry::sub(
+                Label::Key("effect.add"),
+                Sub::AddEffect(StripId::MASTER),
+            ));
+            e.push(
+                Entry::act(
+                    Label::Key("master.menu.fx_on"),
+                    Act::MasterFx(!m.fx_enabled),
+                )
+                .check(on(m.fx_enabled))
+                .enabled(!m.effects.is_empty()),
+            );
+            e.push(Entry::separator());
+            e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
+        }
         Menu::Slot(id, fx) => {
-            let Some(s) = p.strip(id) else {
+            let Some(s) = p.effects_of(id) else {
                 return e;
             };
-            let Some(i) = s.effect_index(fx) else {
+            let Some(i) = s.iter().position(|x| x.id == fx) else {
                 return e;
             };
-            let bypass = s.effects[i].bypass;
+            let bypass = s[i].bypass;
             e.push(Entry::act(
                 Label::Key("mixer.menu.open_editor"),
                 Act::OpenEffect(id, fx),
@@ -446,7 +507,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             );
             e.push(
                 Entry::act(Label::Key("effect.down"), Act::MoveEffect(id, fx, i + 1))
-                    .enabled(i + 1 < s.effects.len()),
+                    .enabled(i + 1 < s.len()),
             );
             e.push(Entry::separator());
             e.push(Entry::act(
@@ -493,6 +554,32 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
                 e.push(
                     Entry::act(Label::Key(law.label_key()), Act::PanLaw(law))
                         .check(radio(p.pan_law == law)),
+                );
+            }
+        }
+        Sub::Input(id) => {
+            let Some(track) = rec_track(app, id).and_then(|t| p.track(t)) else {
+                return;
+            };
+            e.push(Entry::band("rec.input"));
+            let current = track.input.as_ref().map(|i| (i.first, i.stereo));
+            e.push(
+                Entry::act(Label::Key("rec.no_input_choice"), Act::Input(id, None))
+                    .check(radio(current.is_none())),
+            );
+            let channels = app.input_channels();
+            if channels == 0 {
+                e.push(
+                    Entry::act(Label::Key("rec.no_device"), Act::Input(id, current)).enabled(false),
+                );
+            }
+            for c in crate::record_session::input_choices(channels) {
+                let mut word = String::new();
+                crate::record_session::input_label(&c, &mut word);
+                let key = (c.first, c.stereo);
+                e.push(
+                    Entry::act(Label::Own(word), Act::Input(id, Some(key)))
+                        .check(radio(current == Some(key))),
                 );
             }
         }
@@ -586,7 +673,7 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
             }
         }
         Sub::AddEffect(id) => {
-            let full = p.strip(id).is_none_or(|s| s.effects.len() >= MAX_INSERTS);
+            let full = p.effects_of(id).is_none_or(|s| s.len() >= MAX_INSERTS);
             e.push(Entry::band("effect.add"));
             for kind in EffectKind::ALL {
                 e.push(
@@ -1020,12 +1107,80 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             });
         }
         Act::RemoveEffect(id, fx) => app.remove_effect(id, fx),
+        Act::MasterFx(enabled) => {
+            app.exec(Command::SetMasterFxEnabled { enabled });
+        }
+        Act::FxOn(id, enabled) => {
+            app.exec(Command::SetStripFxEnabled { id, enabled });
+        }
         Act::Reveal(i) => {
             if let Some(take) = app.mix_recorder.takes.get(i) {
                 reveal(&take.path);
             }
         }
         Act::StopTake => app.stop_capture(),
+        Act::Input(id, input) => {
+            if let Some(track) = rec_track(app, id) {
+                let input = input.map(|(first, stereo)| {
+                    if stereo {
+                        cantus_core::TrackInput::stereo(first)
+                    } else {
+                        cantus_core::TrackInput::mono(first)
+                    }
+                });
+                app.set_track_input(track, input);
+            }
+        }
+        Act::Arm(id) => arm_strip(app, id),
+        Act::Capture(id) => app.toggle_capture(cantus_engine::CaptureTarget::Strip(id)),
+    }
+}
+
+/// The track a strip records: the first on it with an input, else the first on it.
+pub(super) fn rec_track(app: &CantusApp, id: StripId) -> Option<TrackId> {
+    let p = app.project();
+    p.tracks_on_strip(id)
+        .find(|t| t.input.is_some())
+        .or_else(|| p.tracks_on_strip(id).next())
+        .map(|t| t.id)
+}
+
+/// Whether any track on the strip has an input, and whether all of those are armed.
+/// Allocates nothing (the desk asks every frame).
+pub(super) fn rec_state(app: &CantusApp, id: StripId) -> (bool, bool) {
+    let mut any = false;
+    let mut all = true;
+    for t in app
+        .project()
+        .tracks_on_strip(id)
+        .filter(|t| t.input.is_some())
+    {
+        any = true;
+        all &= t.armed;
+    }
+    (any, any && all)
+}
+
+/// Arm the strip's input tracks, or disarm them when all are armed: one undo step.
+pub(super) fn arm_strip(app: &mut CantusApp, id: StripId) {
+    let (any, all) = rec_state(app, id);
+    if !any {
+        return;
+    }
+    let commands: Vec<Command> = app
+        .project()
+        .tracks_on_strip(id)
+        .filter(|t| t.input.is_some() && t.armed == all)
+        .map(|t| Command::SetTrackArmed {
+            id: t.id,
+            armed: !all,
+        })
+        .collect();
+    if !commands.is_empty() {
+        app.exec(Command::Batch {
+            label_key: "cmd.set_track_armed".into(),
+            commands,
+        });
     }
 }
 

@@ -142,6 +142,8 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     b.rect(rect, Fill::V(shade(ground, 0.02), ground));
     let loop_lane = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + LOOP_LANE_H));
     b.rect(b.snap_rect(loop_lane), Fill::Solid(t.ink));
+    // Below the loop lane, the punch lane while punch is on (`arrangement_rec`).
+    let numbers_top = geo.punch.map_or(loop_lane.bottom(), |(_, bottom)| bottom);
     b.hline(
         rect.left(),
         rect.right(),
@@ -161,7 +163,7 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
         let x = geo.x(beat);
         let is_bar = (beat / per_bar).fract().abs() < 1e-4;
         let top = if is_bar {
-            loop_lane.bottom()
+            numbers_top
         } else {
             rect.bottom() - 4.0 * s.k
         };
@@ -185,7 +187,7 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     while (bar as f32) * per_bar <= last {
         let x = geo.x(bar as f32 * per_bar);
         let label = Rect::from_min_max(
-            pos2(x + 3.0 * s.k, loop_lane.bottom()),
+            pos2(x + 3.0 * s.k, numbers_top),
             pos2(x + bar_px * every as f32 - 2.0 * s.k, rect.bottom() - 1.0),
         );
         // Every fourth bar is a phrase: its number in full-strength text, as in FL.
@@ -226,7 +228,7 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     if let Some((from, to)) = app.time_selection {
         let x0 = geo.x(ticks_to_beats(from));
         let x1 = geo.x(ticks_to_beats(to));
-        let band = Rect::from_min_max(pos2(x0, loop_lane.bottom()), pos2(x1, rect.bottom()));
+        let band = Rect::from_min_max(pos2(x0, numbers_top), pos2(x1, rect.bottom()));
         b.rect(
             b.snap_rect(band),
             Fill::Solid(with_alpha(t.selection, 0.45)),
@@ -308,6 +310,8 @@ pub(super) struct HeaderRects {
     pub name: Rect,
     pub mute: Pos2,
     pub solo: Pos2,
+    /// The record-arm lamp, left of mute (ADR 0025; painted by `arrangement_rec`).
+    pub arm: Pos2,
     /// The whole piece in miniature, when the row is tall enough to hold it.
     pub map: Option<Rect>,
 }
@@ -338,13 +342,14 @@ pub(super) fn header_rects(row: Rect, s: &Style) -> HeaderRects {
     };
     let solo = pos2(line.right() - 8.0 * k, line.center().y);
     let mute = pos2(solo.x - (LED + 5.0) * k, line.center().y);
+    let arm = pos2(mute.x - (LED + 5.0) * k, line.center().y);
     let icon = Rect::from_center_size(
         pos2(cell.right() + 12.0 * k, line.center().y),
         vec2(15.0 * k, 15.0 * k),
     );
     let name = Rect::from_min_max(
         pos2(icon.right() + 5.0 * k, line.top()),
-        pos2(mute.x - LED * 0.5 * k - 6.0 * k, line.bottom()),
+        pos2(arm.x - LED * 0.5 * k - 6.0 * k, line.bottom()),
     );
     let map = tall.then(|| {
         Rect::from_min_max(
@@ -362,6 +367,7 @@ pub(super) fn header_rects(row: Rect, s: &Style) -> HeaderRects {
         name,
         mute,
         solo,
+        arm,
         map,
     }
 }
@@ -600,6 +606,8 @@ pub(super) struct ClipLook {
     pub tint: Tint,
     /// Leave the name out: it is being edited in place.
     pub renaming: bool,
+    /// Room kept free at the title bar's right (an audio clip's gain and reverse badges).
+    pub reserve: f32,
 }
 
 /// The chrome of one clip: a body in a deep (or pale) version of its colour, a title bar
@@ -640,11 +648,7 @@ pub(super) fn clip_chrome(
         (r - b.px()).max(0.0),
         Fill::Solid(body_c),
     );
-    let title_h = if body.height() >= 22.0 * k {
-        14.0 * k
-    } else {
-        0.0
-    };
+    let title_h = title_height(body, k);
     if title_h > 0.0 {
         let title = Rect::from_min_max(body.min, pos2(body.right(), body.top() + title_h));
         b.rrect(
@@ -693,7 +697,7 @@ pub(super) fn clip_chrome(
         }
         let name_box = Rect::from_min_max(
             pos2(left + 3.0 * k, line.top()),
-            pos2(body.right() - 3.0 * k, line.bottom()),
+            pos2(body.right() - 3.0 * k - look.reserve, line.bottom()),
         );
         if name_box.width() > 6.0 * k {
             let tx = Text::new(name, Role::Label, ink)
@@ -737,4 +741,13 @@ pub(super) fn clip_label<'a>(scratch: &'a mut Scratch, name: &str, muted: bool) 
         scratch.label.push(')');
     }
     &scratch.label
+}
+
+/// The height of a clip's title bar: none on a body too short to hold one.
+pub(super) fn title_height(body: Rect, k: f32) -> f32 {
+    if body.height() >= 22.0 * k {
+        14.0 * k
+    } else {
+        0.0
+    }
 }

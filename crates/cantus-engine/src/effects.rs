@@ -343,6 +343,17 @@ impl EffectUnit {
         }
     }
 
+    /// The gain reduction a dynamics unit applies now, dB (positive): a compressor's, or
+    /// what a unit behind the contract reports (the limiter, the maximizer). `None` for
+    /// the others.
+    pub fn gain_reduction_db(&self) -> Option<f32> {
+        match &self.dsp {
+            Dsp::Comp(c) => Some(c.meter().gr_db),
+            Dsp::Fx(u) => u.gain_reduction_db(),
+            _ => None,
+        }
+    }
+
     /// The gain each dynamic EQ band is applying now, dB; `None` for anything but an EQ.
     pub fn eq_deltas(&self) -> Option<[f32; MAX_BANDS]> {
         match &self.dsp {

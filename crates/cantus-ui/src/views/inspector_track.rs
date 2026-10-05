@@ -26,8 +26,11 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     sh.band("inspector.track", Function::Source, None, false, None);
     sh.text_row("track.name", &track.name, false, false);
     swatches(sh, id, track.color);
-    let name = sheet::name(sh.fmt.tr(track.instrument.name_key()));
-    sh.menu_row("inspector.title", &name, MenuId::Instrument(id), false);
+    // An audio track plays no instrument: its input and its audio are what it is.
+    if !crate::record_session::is_audio_track(track) {
+        let name = sheet::name(sh.fmt.tr(track.instrument.name_key()));
+        sh.menu_row("inspector.title", &name, MenuId::Instrument(id), false);
+    }
     sh.param_row(
         "inspector.track_level",
         Id::new(("insp-track-gain", id)),
@@ -319,12 +322,14 @@ pub fn clip(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     }));
     sh.text_row("inspector.length", &len, true, false);
     let looping = clip.content_length.is_some();
+    // An audio clip plays its file once (ADR 0025): the repeat does not apply.
+    let audio = clip.audio.is_some();
     if sh.led_row(
         "inspector.loop",
         "inspector.loop",
         looping,
         Function::Source,
-        false,
+        audio,
     ) {
         let content_length = if looping { None } else { Some(clip.length) };
         sh.acts.push(Act::Exec(Command::SetClipLoop {
@@ -345,6 +350,9 @@ pub fn clip(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             clip: c,
             muted: !clip.muted,
         }));
+    }
+    if audio {
+        return;
     }
     let n = clip.notes.len();
     let count = sheet::name(sh.fmt.get(cache::key(("insp-clip-n", c)), n as u64, |b| {

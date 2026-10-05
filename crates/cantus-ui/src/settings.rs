@@ -67,11 +67,19 @@ pub struct AudioSettings {
     pub sample_rate: Option<u32>,
     /// `None` = the device's preferred buffer size.
     pub buffer_frames: Option<u32>,
+    /// The driver type ("WASAPI", "ASIO"); `None` = the system's default (ADR 0025).
+    pub driver: Option<String>,
+    /// The device recorded from; `None` = the default input, `Some("")` = no input.
+    pub input_device: Option<String>,
+    /// Recording latency correction in frames, measured by the loopback test or typed.
+    pub record_offset_frames: i64,
 }
 
 impl AudioSettings {
     pub fn to_config(&self) -> AudioConfig {
         AudioConfig {
+            driver: self.driver.clone(),
+            input_device_name: self.input_device.clone(),
             device_name: self.device.clone(),
             sample_rate: self.sample_rate,
             buffer_frames: self.buffer_frames,
@@ -196,6 +204,7 @@ mod tests {
                 device: Some("Speakers".into()),
                 sample_rate: Some(48_000),
                 buffer_frames: Some(256),
+                ..Default::default()
             },
             locale: Some("es".into()),
             autosave_seconds: 30,
@@ -296,6 +305,7 @@ mod tests {
             device: Some("Speakers".into()),
             sample_rate: Some(48_000),
             buffer_frames: Some(480),
+            ..Default::default()
         };
         let config = chosen.to_config();
         assert_eq!(config.device_name.as_deref(), Some("Speakers"));
@@ -303,5 +313,38 @@ mod tests {
         assert_eq!(config.buffer_frames, Some(480));
         // 480 frames at 48 kHz is exactly 10 ms.
         assert_eq!(chosen.block_latency_ms(48_000.0), Some(10.0));
+    }
+
+    #[test]
+    fn the_recording_devices_round_trip_through_the_file() {
+        let mut s = Settings {
+            audio: AudioSettings {
+                driver: Some("ASIO".into()),
+                device: Some("Interface".into()),
+                input_device: Some("Interface".into()),
+                sample_rate: Some(96_000),
+                buffer_frames: Some(128),
+                record_offset_frames: -42,
+            },
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, s);
+        let config = back.audio.to_config();
+        assert_eq!(config.driver.as_deref(), Some("ASIO"));
+        assert_eq!(config.input_device_name.as_deref(), Some("Interface"));
+        // "No input" is an empty name, and survives the file as one.
+        s.audio.input_device = Some(String::new());
+        let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(
+            back.audio.to_config().input_device_name.as_deref(),
+            Some("")
+        );
+        // A file from before round 19 has none of them: the defaults.
+        let old: Settings = serde_json::from_str(r#"{"audio":{"device":"Speakers"}}"#).unwrap();
+        assert_eq!(old.audio.driver, None);
+        assert_eq!(old.audio.input_device, None);
+        assert_eq!(old.audio.record_offset_frames, 0);
     }
 }

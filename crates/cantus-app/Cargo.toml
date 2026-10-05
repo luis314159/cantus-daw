@@ -12,6 +12,10 @@ repository.workspace = true
 name = "cantus"
 path = "src/main.rs"
 
+[features]
+# ASIO drivers on Windows (ADR 0025 §10); see docs/round19/devices.md to build it.
+asio = ["cantus-ui/asio"]
+
 [dependencies]
 cantus-ui.workspace = true
 env_logger.workspace = true

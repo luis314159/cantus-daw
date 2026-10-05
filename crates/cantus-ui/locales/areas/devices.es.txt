@@ -1,0 +1,43 @@
+# Área: dispositivos de audio (ronda 19: drivers, entradas, latencia). Cada clave necesita su gemela en devices.en.txt.
+
+# --- the Audio page of Settings ---
+devices.band.device = Dispositivo de audio
+devices.driver = Controlador
+devices.driver.hint = El tipo de controlador: WASAPI es el de Windows; ASIO habla directamente con la interfaz, con la menor latencia.
+devices.driver.no_asio = ASIO no está en esta compilación (la característica asio).
+devices.output = Dispositivo de salida
+devices.input = Dispositivo de entrada
+devices.input.none = Sin entrada
+devices.channels = {n} can.
+devices.rescan = Volver a buscar
+devices.input_error = La entrada no se abrió: {error}
+devices.dropped = Se perdieron {n} muestras de entrada: prueba un búfer más grande.
+devices.stalled = El dispositivo dejó de sonar: pulsa Aplicar de nuevo o elige otro controlador o dispositivo.
+
+# --- latency ---
+devices.band.latency = Latencia
+devices.latency.input = Entrada
+devices.latency.output = Salida
+devices.latency.round_trip = Ida y vuelta
+devices.latency.value = {ms} ms · {frames} muestras
+devices.latency.none = Sin funcionar
+devices.offset = Corrección de grabación
+devices.offset.cell = Corrección
+devices.offset.value = {frames} muestras · {ms} ms
+devices.offset.hint = Las tomas se adelantan la ida y vuelta más esta corrección.
+devices.measure = Medir
+devices.measuring = Midiendo…
+devices.measure.hint = Une una salida con una entrada mediante un cable y pulsa Medir.
+devices.measured = Ida y vuelta medida: {ms} ms en la entrada {channel}; los controladores informan {reported} muestras.
+devices.loopback.no_device = No hay ningún dispositivo de audio abierto.
+devices.loopback.no_input = No hay ninguna entrada abierta para escuchar.
+devices.loopback.busy = Ya hay una medición en curso.
+devices.loopback.timeout = El dispositivo no reprodujo la medición.
+devices.loopback.no_data = No llegó nada por la entrada durante la medición.
+devices.loopback.not_found = No se oyeron las ráfagas: conecta una salida a una entrada con un cable y sube el nivel de la entrada.
+
+# --- inputs ---
+devices.band.inputs = Entradas
+devices.inputs.none = No hay ninguna entrada abierta.
+devices.inputs.device = {name} · {n} canales
+devices.inputs.meter = Entrada {ch}

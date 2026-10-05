@@ -205,6 +205,48 @@ fn main() {
     n.set("mod1.amt", 0.25).unwrap();
     organ.instrument = InstrumentSpec::Native(n);
     p.tracks.push(organ);
+    // Schema 18 (ADR 0025): an audio track with a stereo input, armed, a clip with gain and
+    // fades on the playing lane and an older take on lane 1, recording settings; and
+    // (ADR 0026) a limiter on the master. The file is not shipped — a missing source must
+    // open, and the clip plays silence.
+    let source = AudioSource {
+        id: AudioSourceId(p.alloc_id()),
+        name: "Vocal take 1".into(),
+        path: "Audio/Vocal take 1.wav".into(),
+        sample_rate: 48_000,
+        channels: 2,
+        frames: 48_000 * 8,
+        sha256: None,
+        recorded: true,
+    };
+    let mut vocal = p.make_track("Vocal");
+    vocal.input = Some(TrackInput::stereo(0));
+    vocal.armed = true;
+    vocal.takes_open = true;
+    let mut take = p.make_audio_clip("Vocal take 1", source.id, Ticks::beats(4), Ticks::beats(8));
+    if let Some(a) = take.audio.as_mut() {
+        a.gain_db = -2.5;
+        a.fade_in = Ticks::SIXTEENTH;
+        a.fade_out = Ticks::QUARTER;
+        a.fade_out_curve = FadeCurve::EqualPower;
+    }
+    let mut older = p.make_audio_clip("Vocal take 0", source.id, Ticks::beats(4), Ticks::beats(8));
+    older.lane = 1;
+    older.offset = Ticks::beats(8);
+    vocal.clips.push(take);
+    vocal.clips.push(older);
+    p.tracks.push(vocal);
+    p.audio_pool.push(source);
+    p.recording.count_in_bars = 1;
+    p.recording.punch = Some(LoopRegion {
+        start: Ticks::beats(4),
+        end: Ticks::beats(12),
+    });
+    p.recording.take_mode = TakeMode::Stack;
+    p.recording.click = ClickMode::Recording;
+    let mut master_lim = p.make_effect(EffectKind::Limiter);
+    master_lim.spec.set("ceiling", -0.3).unwrap();
+    p.master.effects.push(master_lim);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

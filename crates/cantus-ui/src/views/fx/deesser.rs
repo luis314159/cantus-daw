@@ -2281,12 +2281,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect, _)) = app.fx.open else {
         return;
     };
-    let Some(spec) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .map(|e| e.spec.clone())
-    else {
+    let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
     let sr = DEFAULT_SR;

@@ -1,0 +1,8 @@
+# Area: the master chain (round 19). Every key here needs its twin in master.es.txt.
+cmd.set_master_fx_enabled = master FX on/off
+master.head_tip = Master: click to show its insert chain in the inspector
+master.menu.effects = Effects
+master.menu.fx_on = Effects on
+master.input = The whole mix
+master.output = Audio output
+master.stems.through = Through the master chain

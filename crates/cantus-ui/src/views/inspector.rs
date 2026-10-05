@@ -21,6 +21,8 @@
 //! change (`Fmt`), lists are built when their menu opens, curves when their settings
 //! move.
 
+#[path = "inspector_audio.rs"]
+pub mod audio;
 #[path = "inspector_channel.rs"]
 mod channel;
 #[path = "inspector_eq.rs"]
@@ -33,6 +35,8 @@ mod mini;
 mod pads;
 #[path = "inspector_pinned.rs"]
 mod pinned;
+#[path = "inspector_record.rs"]
+mod record;
 #[path = "inspector_sends.rs"]
 mod sends;
 #[path = "inspector_sheet.rs"]
@@ -100,6 +104,8 @@ pub enum Act {
     LoadSample(TrackId, usize),
     RemovePad(TrackId, usize),
     Flat(StripId),
+    /// The audio clip section's buttons (locate, show, normalise).
+    Audio(audio::AudioAct),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -234,6 +240,8 @@ pub fn subject(app: &CantusApp) -> Subject {
             return Subject::Strip(s)
         }
         Some(Subject::Track(t)) if track_ok(t) => return Subject::Track(t),
+        // The master chosen on the desk (ADR 0026).
+        Some(Subject::Master) => return Subject::Master,
         Some(Subject::Clip(t, c) | Subject::Notes(t, c)) if clip_ok(t, c) => {
             return if notes {
                 Subject::Notes(t, c)
@@ -407,14 +415,29 @@ impl Inspector {
         {
             let mut sh = self.sheet(ui, s, col);
             match subject {
-                Subject::Track(t) => track::rows(&mut sh, app, t),
-                Subject::Clip(t, c) => track::clip(&mut sh, app, t, c),
+                Subject::Track(t) => {
+                    track::rows(&mut sh, app, t);
+                    // An audio track: its audio clip's section where an instrument's
+                    // would be (its input and recording are in the channel below).
+                    if audio_track(app, t) {
+                        if let Some(c) = crate::record_session::inspected_audio_clip(app, t) {
+                            audio::show(&mut sh, app, t, c);
+                        }
+                    }
+                }
+                Subject::Clip(t, c) => {
+                    track::clip(&mut sh, app, t, c);
+                    audio::show(&mut sh, app, t, c);
+                }
                 Subject::Notes(t, c) => track::notes(&mut sh, app, t, c),
                 _ => {}
             }
         }
         self.brush.flush(&painter);
-        if let Subject::Track(t) = subject {
+        if let Some(t) = match subject {
+            Subject::Track(t) if !audio_track(app, t) => Some(t),
+            _ => None,
+        } {
             // The instrument's section may hold the instrument editor's own widgets:
             // it flushes the brush around them so they paint under nothing of ours.
             track::instrument(self, app, ui, s, col, t);
@@ -642,6 +665,13 @@ impl Inspector {
 }
 
 /// The dimmed first half of the title: which kind of thing is shown.
+/// Whether a track is an audio track (an input, no note clips): no instrument section.
+fn audio_track(app: &CantusApp, t: cantus_core::TrackId) -> bool {
+    app.project()
+        .track(t)
+        .is_some_and(crate::record_session::is_audio_track)
+}
+
 fn context_key(s: Subject) -> &'static str {
     match s {
         Subject::Strip(_) | Subject::Master => "kit.mixer.title",
@@ -710,6 +740,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::SelectPad(i) => app.rack.selected_pad = i,
         Act::LoadSample(t, pad) => app.load_pad_sample(t, pad),
         Act::RemovePad(t, pad) => app.remove_pad(t, pad),
+        Act::Audio(a) => audio::apply(app, a),
         Act::Flat(id) => {
             let commands = (0..3u8)
                 .map(|band| Command::SetStripEq {

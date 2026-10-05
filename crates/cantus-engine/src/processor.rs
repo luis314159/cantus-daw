@@ -32,6 +32,12 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
 use std::time::Instant;
 
+#[path = "processor_master.rs"]
+mod master;
+/// Input, monitoring, recording and audio clips (ADR 0025).
+#[path = "processor_rec.rs"]
+mod rec;
+
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
 /// How many snapshots we can hold back when the garbage queue is full.
@@ -292,6 +298,8 @@ pub struct Processor {
     metronome: bool,
     next_beat_tick: f64,
     live_track: Option<TrackId>,
+    /// Tracks that play the live notes too (`EngineMessage::SetLiveEcho`).
+    live_echo: [Option<TrackId>; crate::messages::MAX_LIVE_ECHO],
     recording: bool,
     stats: EngineStats,
     meters: Meters,
@@ -347,6 +355,13 @@ pub struct Processor {
     /// all-notes-off).
     clock: u64,
     note_at: u64,
+    /// The input stream's end and the recording rings (ADR 0025, `crate::recorder`).
+    pub(crate) input: crate::recorder::InputPort,
+    pub(crate) record_rings: Option<Box<crate::recorder::RecordRings>>,
+    /// The block's input, each track's input settings, and the pass's state.
+    live: rec::Live,
+    /// The master's insert chain (ADR 0026, `processor_master.rs`).
+    master: master::MasterChain,
 }
 
 impl Processor {
@@ -383,6 +398,7 @@ impl Processor {
             metronome: false,
             next_beat_tick: 0.0,
             live_track: None,
+            live_echo: [None; crate::messages::MAX_LIVE_ECHO],
             recording: false,
             stats: EngineStats {
                 sample_rate,
@@ -418,6 +434,10 @@ impl Processor {
             fx_notes: Vec::with_capacity(MAX_FX_NOTES),
             clock: 0,
             note_at: 0,
+            input: Default::default(),
+            record_rings: None,
+            live: rec::Live::new(),
+            master: master::MasterChain::new(),
         }
     }
 
@@ -506,6 +526,23 @@ impl Processor {
     /// Give the processor the producer end of the mix recorder's ring (see
     /// [`CAPTURE_SAMPLES`]). Built on the UI side before the processor moves to the audio
     /// thread, so nothing is allocated there.
+    /// The input stream's ring (interleaved, `channels` per frame): what the processor
+    /// monitors and records from (ADR 0025). Contract: stored; the engine builder reads it.
+    pub fn attach_input(&mut self, consumer: rtrb::Consumer<f32>, channels: usize) {
+        self.input = crate::recorder::InputPort {
+            ring: Some(consumer),
+            channels,
+            clock: None,
+        };
+    }
+
+    /// The live input stream's clock, so the processor can tell how long the frames it
+    /// pops have waited (`EngineStats::input_queue`, ADR 0025 §7). Set after
+    /// [`Self::attach_input`].
+    pub fn attach_input_clock(&mut self, clock: Arc<crate::devices::InputClock>) {
+        self.input.clock = Some(clock);
+    }
+
     pub fn attach_capture(&mut self, producer: Producer<f32>) {
         self.capture = Some(producer);
     }
@@ -578,6 +615,8 @@ impl Processor {
         self.drain_messages();
         self.drain_midi();
         self.retry_garbage();
+        self.read_input(frames);
+        self.record_block_start();
 
         if self.was_playing && !self.transport.is_playing() {
             self.release_all();
@@ -661,6 +700,7 @@ impl Processor {
                 EngineMessage::NoteOff { track, pitch } => self.live_note(track, pitch, 0),
                 EngineMessage::Midi(ev) => self.midi(ev),
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
+                EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
                 EngineMessage::SetCapture(target) => {
@@ -679,6 +719,9 @@ impl Processor {
                             e.reset();
                         }
                     }
+                    for e in self.master_units() {
+                        e.reset();
+                    }
                 }
                 EngineMessage::PdcLines(mut lines) => {
                     self.pdc.supply(&mut lines);
@@ -690,6 +733,21 @@ impl Processor {
                 }
                 EngineMessage::EffectMemory { effect, memory } => {
                     self.supply_effect(effect, memory);
+                }
+                EngineMessage::AttachRecorder(rings) => {
+                    self.live.new_pass();
+                    if let Some(old) = self.record_rings.replace(rings) {
+                        let _ = self.tx.push(EngineEvent::GarbageRecorder(old));
+                    }
+                }
+                EngineMessage::DetachRecorder => {
+                    self.flush_record_gaps();
+                    if let Some(old) = self.record_rings.take() {
+                        let _ = self.tx.push(EngineEvent::GarbageRecorder(old));
+                    }
+                }
+                EngineMessage::SetRecordStart(at) => {
+                    self.live.record_start = at.map(|t| t.0 as f64);
                 }
             }
         }
@@ -707,6 +765,7 @@ impl Processor {
             .strips
             .iter_mut()
             .flat_map(|s| s.effects.iter_mut())
+            .chain(self.master.effects.iter_mut())
             .chain(self.incoming_effects.iter_mut())
             .find(|e| e.id == effect);
         let back = match unit {
@@ -726,11 +785,13 @@ impl Processor {
     /// Ask the UI thread for memory any effect's settings need and it has not got (ADR
     /// 0022). Each need is asked for once; the effect runs its previous path meanwhile.
     fn request_memory(&mut self) {
-        for st in self.strips.iter_mut() {
-            if st.id.is_none() {
-                continue;
-            }
-            for e in st.effects.iter_mut() {
+        let strips = self
+            .strips
+            .iter_mut()
+            .filter(|st| st.id.is_some())
+            .map(|st| st.effects.iter_mut());
+        for chain in strips.chain(std::iter::once(self.master.effects.iter_mut())) {
+            for e in chain {
                 if let Some(need) = e.take_request() {
                     let ev = EngineEvent::EffectNeed { effect: e.id, need };
                     if self.tx.push(ev).is_err() {
@@ -754,24 +815,76 @@ impl Processor {
             0x90 if ev.data2 > 0 => self.live_note(track, ev.data1, ev.data2),
             0x80 | 0x90 => self.live_note(track, ev.data1, 0),
             0xB0 if ev.data1 == 123 || ev.data1 == 120 => {
-                if let Some(slot) = self.slot_for(track) {
-                    self.slots[slot].all_notes_off();
+                for t in self.live_targets(track) {
+                    if let Some(slot) = t.and_then(|t| self.slot_for(t)) {
+                        self.slots[slot].all_notes_off();
+                    }
                 }
             }
             0xB0 | 0xE0 => {
-                if let (Some(slot), Some((c, v))) = (self.slot_for(track), controller_of(&ev)) {
-                    self.slots[slot].controller(c, v);
+                if let Some((c, v)) = controller_of(&ev) {
+                    for t in self.live_targets(track) {
+                        if let Some(slot) = t.and_then(|t| self.slot_for(t)) {
+                            self.slots[slot].controller(c, v);
+                        }
+                    }
                 }
             }
             _ => {}
         }
     }
 
+    /// The live track and the tracks echoing it (each once), as a fixed array.
+    fn live_targets(
+        &self,
+        track: TrackId,
+    ) -> [Option<TrackId>; crate::messages::MAX_LIVE_ECHO + 1] {
+        let mut out = [None; crate::messages::MAX_LIVE_ECHO + 1];
+        out[0] = Some(track);
+        for (o, e) in out[1..].iter_mut().zip(self.live_echo) {
+            *o = e.filter(|e| *e != track);
+        }
+        out
+    }
+
+    /// New echo tracks: a track that stops echoing lets go of what it was playing.
+    fn set_live_echo(&mut self, tracks: [Option<TrackId>; crate::messages::MAX_LIVE_ECHO]) {
+        for old in self.live_echo {
+            if let Some(t) = old.filter(|t| !tracks.contains(&Some(*t))) {
+                if let Some(slot) = self.slot_for(t) {
+                    self.slots[slot].all_notes_off();
+                }
+            }
+        }
+        self.live_echo = tracks;
+    }
+
     /// Play (velocity > 0) or release a live note and, while recording, report it.
     fn live_note(&mut self, track: TrackId, pitch: u8, velocity: u8) {
+        // The echo tracks play it too (heard, not reported: the UI records the live
+        // track's notes into every armed track itself).
+        for e in self.live_echo {
+            if let Some(slot) = e.filter(|e| *e != track).and_then(|e| self.slot_for(e)) {
+                self.sound_live(slot, pitch, velocity);
+            }
+        }
         let Some(slot) = self.slot_for(track) else {
             return;
         };
+        self.sound_live(slot, pitch, velocity);
+        if self.recording && self.transport.is_playing() {
+            // Where the player heard it: the output lags the engine by its latency.
+            let _ = self.tx.push(EngineEvent::NoteInput(NoteInput {
+                track,
+                tick: self.heard_position(),
+                pitch,
+                velocity,
+            }));
+        }
+    }
+
+    /// Play or release a live note on one slot, and tell the effects listening to it.
+    fn sound_live(&mut self, slot: usize, pitch: u8, velocity: u8) {
         if velocity > 0 {
             self.slots[slot].note_on(pitch, velocity, LIVE_TAG);
         } else {
@@ -784,15 +897,6 @@ impl Processor {
                 crate::fx::FxNote::Off { pitch }
             };
             self.notes_to_fx(slot, self.note_at, note);
-        }
-        if self.recording && self.transport.is_playing() {
-            // Where the player heard it: the output lags the engine by its latency.
-            let _ = self.tx.push(EngineEvent::NoteInput(NoteInput {
-                track,
-                tick: self.heard_position(),
-                pitch,
-                velocity,
-            }));
         }
     }
 
@@ -918,6 +1022,7 @@ impl Processor {
         for s in self.strips.iter_mut() {
             s.is_key = false;
         }
+        // Before the strips' keys are resolved below; the master's own keys after them.
         for slot in 0..MAX_STRIPS {
             if self.strips[slot].id.is_none() {
                 continue;
@@ -934,6 +1039,7 @@ impl Processor {
                 }
             }
         }
+        self.install_master(&snapshot);
         self.resolve_capture();
         self.strip_play_order.clear();
         for si in &snapshot.strip_order {
@@ -955,6 +1061,7 @@ impl Processor {
         while let Some(e) = self.incoming_effects.pop() {
             self.dispose_effect(e);
         }
+        self.live_install(&snapshot);
         // Before compensating: the click has a line of its own when it is on.
         self.metronome = snapshot.metronome;
         self.compensate();
@@ -1024,6 +1131,8 @@ impl Processor {
                 ahead += e.latency() as u64;
             }
         }
+        // The master chain delays every path equally: it moves what is heard, not the mix.
+        let heard = master + self.master.latency();
         let mut kept = self.pdc.begin();
         for ti in 0..self.track_to_slot.len() {
             let slot = self.track_to_slot[ti];
@@ -1060,11 +1169,12 @@ impl Processor {
             }
             if self.capture_slot == Some(slot) {
                 self.pdc
-                    .want(&mut kept, Edge::Capture, master.saturating_sub(post[slot]));
+                    .want(&mut kept, Edge::Capture, heard.saturating_sub(post[slot]));
             }
         }
+        self.plan_master(&mut kept, master);
         if self.metronome {
-            self.pdc.want(&mut kept, Edge::Click, master);
+            self.pdc.want(&mut kept, Edge::Click, heard);
         }
         self.pdc.finish(&kept);
         // Resolve the assignment once, so the render loop reads an array.
@@ -1074,6 +1184,7 @@ impl Processor {
         self.dry_line = [[None; MAX_EFFECTS_PER_TRACK]; MAX_STRIPS];
         self.click_line = None;
         self.capture_line = None;
+        self.master.dry_line = [None; MAX_EFFECTS_PER_TRACK];
         for (i, line) in self.pdc.lines.iter().enumerate() {
             match line.edge {
                 Some(Edge::Track(s)) => self.track_line[s] = Some(i),
@@ -1082,11 +1193,12 @@ impl Processor {
                 Some(Edge::Dry(s, k)) => self.dry_line[s][k] = Some(i),
                 Some(Edge::Click) => self.click_line = Some(i),
                 Some(Edge::Capture) => self.capture_line = Some(i),
+                Some(Edge::MasterDry(k)) => self.master.dry_line[k] = Some(i),
                 None => {}
             }
         }
-        self.pdc.total = master;
-        self.stats.latency_samples = master as u64;
+        self.pdc.total = heard;
+        self.stats.latency_samples = heard as u64;
         self.stats.pdc_unserved = self.pdc.unserved as u64;
         if let Some((count, delay)) = self.pdc.take_request() {
             if self.tx.push(EngineEvent::PdcNeed { count, delay }).is_err() {
@@ -1172,13 +1284,10 @@ impl Processor {
     /// compensation again, since the new one may report another latency.
     fn replace_effect(&mut self, mut unit: Box<EffectUnit>) {
         let snapshot = self.snapshot.clone();
-        if let Some(spec) = snapshot.as_ref().and_then(|s| {
-            s.strips
-                .iter()
-                .flat_map(|st| st.effects.iter())
-                .find(|e| e.id == unit.id)
-                .map(|e| &e.spec)
-        }) {
+        if let Some(spec) = snapshot
+            .as_ref()
+            .and_then(|s| s.effect_slots().find(|e| e.id == unit.id).map(|e| &e.spec))
+        {
             unit.configure(spec);
         }
         for slot in 0..MAX_STRIPS {
@@ -1193,6 +1302,13 @@ impl Processor {
                 self.compensate();
                 return;
             }
+        }
+        if let Some(i) = self.master.effects.iter().position(|e| e.id == unit.id) {
+            let mut old = std::mem::replace(&mut self.master.effects[i], unit);
+            old.replaced = true;
+            self.dispose_effect(old);
+            self.compensate();
+            return;
         }
         // Not in a chain yet: it waits with the new ones, in place of any waiting there.
         if let Some(p) = self.incoming_effects.iter().position(|e| e.id == unit.id) {
@@ -1401,7 +1517,9 @@ impl Processor {
                             let beat_len = snap.time_signature.ticks_per_beat().0 as f64;
                             let bar_len = snap.time_signature.ticks_per_bar().0 as f64;
                             let in_bar = self.next_beat_tick.rem_euclid(bar_len);
-                            self.click.trigger(in_bar.abs() < 0.5);
+                            if self.click_allowed() {
+                                self.click.trigger(in_bar.abs() < 0.5);
+                            }
                             self.next_beat_tick += beat_len;
                         } else {
                             seg_end = seg_end.min(done + off);
@@ -1437,6 +1555,9 @@ impl Processor {
                 st.buf_l[..n].iter_mut().for_each(|x| *x = 0.0);
                 st.buf_r[..n].iter_mut().for_each(|x| *x = 0.0);
             }
+
+            // Armed tracks' input into their recording rings (ADR 0025).
+            self.record_segment(done, n);
 
             // ---- tracks: instrument → channel gain and balance → their strip -----------
             for ti in 0..self.track_to_slot.len() {
@@ -1477,6 +1598,18 @@ impl Processor {
                         }
                     }
                 };
+                // Audio clips and the monitored input join the instrument's output, before
+                // the channel's level (ADR 0025 §3, §4).
+                let has_signal = self.live.add_track_audio(
+                    self.snapshot.as_deref().and_then(|x| x.tracks.get(ti)),
+                    slot,
+                    has_signal,
+                    done,
+                    l,
+                    r,
+                    &self.transport,
+                    self.recording,
+                );
                 let line = self.track_line[slot];
                 let line_ringing = line.is_some_and(|i| self.pdc.lines[i].ringing());
                 if !has_signal && !line_ringing {
@@ -1845,6 +1978,8 @@ impl Processor {
                     }
                 }
             }
+            // The master's insert chain, on the summed mix, before its fader (ADR 0026).
+            self.run_master(out, channels, n, done, seg_end, &position);
             // Master strip: width, then pan and gain, then polarity last of all.
             if channels > 1 && master_width != 1.0 {
                 for i in 0..n {
@@ -1931,6 +2066,7 @@ impl Processor {
         }
 
         self.meters.master = master_peak;
+        self.meters.master_gr = self.master_gr();
         self.meters.track_count = self.track_to_slot.len();
         for (ti, slot) in self.track_to_slot.iter().enumerate() {
             self.meters.tracks[ti] = self.slots[*slot].peak;
@@ -1962,6 +2098,7 @@ impl Processor {
         }
         self.release_all();
         self.reseek_events();
+        self.record_wrapped();
     }
 }
 

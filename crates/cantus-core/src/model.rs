@@ -31,6 +31,18 @@ id_type!(NoteId, "n");
 id_type!(EffectId, "fx");
 id_type!(StripId, "s");
 id_type!(GroupId, "g");
+id_type!(AudioSourceId, "a");
+
+impl StripId {
+    /// The master, wherever an effect's host is named by a strip id (ADR 0026): effect
+    /// commands, the device windows, the analyser. Ids come from `Project::alloc_id`,
+    /// which counts up from 1, so this one is never handed out.
+    pub const MASTER: StripId = StripId(u64::MAX);
+
+    pub fn is_master(self) -> bool {
+        self == StripId::MASTER
+    }
+}
 
 /// MIDI-style note (0..=127). Middle C is 60.
 pub type Pitch = u8;
@@ -105,6 +117,19 @@ pub struct Clip {
     pub color: Option<Color>,
     /// The clip's content, in content ticks (see the type docs).
     pub notes: Vec<Note>,
+    /// Set for an **audio clip** (ADR 0025): the content is this source, and `notes` is
+    /// empty. `None` — every clip before schema 18 — is a note clip.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<crate::audio::AudioRegion>,
+    /// The lane the clip sits on. **0 is the playing lane**; 1, 2, … are take lanes, kept
+    /// and shown under the track but never heard (ADR 0025's comping: a comp is lane-0
+    /// clips that point into the takes' sources).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub lane: u8,
+}
+
+fn is_zero_u8(x: &u8) -> bool {
+    *x == 0
 }
 
 impl Clip {
@@ -442,6 +467,16 @@ pub struct Track {
     pub strip: Option<StripId>,
     pub muted: bool,
     pub soloed: bool,
+    /// The audio input this track records and monitors (ADR 0025). `None` has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<crate::audio::TrackInput>,
+    /// Armed for recording: the record button records this track (its input when it has
+    /// one, the keyboard and MIDI when it has an instrument).
+    #[serde(default)]
+    pub armed: bool,
+    /// The take lanes are shown under the track.
+    #[serde(default)]
+    pub takes_open: bool,
 }
 
 /// A tap from one strip into another that does not replace the strip's output: the
@@ -824,6 +859,18 @@ pub struct Master {
     pub width: f32,
     #[serde(default)]
     pub phase_invert: bool,
+    /// The master's own insert chain (ADR 0026), FL's master track: run on the summed mix
+    /// before the master's gain, balance and width. Addressed by every effect command as
+    /// [`StripId::MASTER`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<EffectSlot>,
+    /// The whole master chain in or out.
+    #[serde(default = "yes")]
+    pub fx_enabled: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for Master {
@@ -833,6 +880,8 @@ impl Default for Master {
             pan: 0.0,
             width: 1.0,
             phase_invert: false,
+            effects: Vec::new(),
+            fx_enabled: true,
         }
     }
 }
@@ -857,6 +906,12 @@ pub struct Project {
     /// project renders as (ADR 0012).
     #[serde(default)]
     pub pan_law: PanLaw,
+    /// Every audio file the project's clips play (ADR 0025).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_pool: Vec<crate::audio::AudioSource>,
+    /// How recording behaves: count-in, punch, takes, the click (ADR 0025).
+    #[serde(default)]
+    pub recording: crate::audio::RecordSettings,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -894,6 +949,8 @@ impl Project {
             loop_enabled: false,
             metronome: false,
             pan_law: PanLaw::default(),
+            audio_pool: Vec::new(),
+            recording: crate::audio::RecordSettings::default(),
             next_id: 1,
         }
     }
@@ -935,6 +992,78 @@ impl Project {
 
     pub fn strip_index(&self, id: StripId) -> Option<usize> {
         self.strips.iter().position(|s| s.id == id)
+    }
+
+    /// The insert chain an effect host id names (ADR 0026): a strip's, or the master's for
+    /// [`StripId::MASTER`]. The one resolver every effect command and view goes through,
+    /// so the master needs no second path.
+    pub fn effects_of(&self, host: StripId) -> Option<&Vec<EffectSlot>> {
+        if host.is_master() {
+            Some(&self.master.effects)
+        } else {
+            self.strip(host).map(|s| &s.effects)
+        }
+    }
+
+    /// [`Self::effects_of`], to change.
+    pub fn effects_of_mut(&mut self, host: StripId) -> Option<&mut Vec<EffectSlot>> {
+        if host.is_master() {
+            Some(&mut self.master.effects)
+        } else {
+            self.strip_mut(host).map(|s| &mut s.effects)
+        }
+    }
+
+    /// One insert of a strip or of the master.
+    pub fn effect(&self, host: StripId, id: EffectId) -> Option<&EffectSlot> {
+        self.effects_of(host)?.iter().find(|e| e.id == id)
+    }
+
+    /// [`Self::effect`], to change.
+    pub fn effect_mut(&mut self, host: StripId, id: EffectId) -> Option<&mut EffectSlot> {
+        self.effects_of_mut(host)?.iter_mut().find(|e| e.id == id)
+    }
+
+    /// Whether a host's chain is switched on (a strip's FX lamp, or the master's).
+    pub fn fx_enabled(&self, host: StripId) -> Option<bool> {
+        if host.is_master() {
+            Some(self.master.fx_enabled)
+        } else {
+            self.strip(host).map(|s| s.fx_enabled)
+        }
+    }
+
+    /// Every insert of the project with its host: the strips' in desk order, then the
+    /// master's (ADR 0026).
+    pub fn all_effects(&self) -> impl Iterator<Item = (StripId, &EffectSlot)> {
+        self.strips
+            .iter()
+            .flat_map(|s| s.effects.iter().map(move |e| (s.id, e)))
+            .chain(self.master.effects.iter().map(|e| (StripId::MASTER, e)))
+    }
+
+    /// [`Self::all_effects`], to change (without their hosts).
+    pub fn all_effects_mut(&mut self) -> impl Iterator<Item = &mut EffectSlot> {
+        self.strips
+            .iter_mut()
+            .flat_map(|s| s.effects.iter_mut())
+            .chain(self.master.effects.iter_mut())
+    }
+
+    /// Where an effect lives: the host (a strip, or [`StripId::MASTER`]) whose chain holds
+    /// it.
+    pub fn effect_host(&self, id: EffectId) -> Option<StripId> {
+        self.strips
+            .iter()
+            .find(|s| s.effect(id).is_some())
+            .map(|s| s.id)
+            .or_else(|| {
+                self.master
+                    .effects
+                    .iter()
+                    .any(|e| e.id == id)
+                    .then_some(StripId::MASTER)
+            })
     }
 
     /// The strip's number as the mixer shows it, from 1.
@@ -1177,6 +1306,9 @@ impl Project {
             strip: self.first_free_strip(),
             muted: false,
             soloed: false,
+            input: None,
+            armed: false,
+            takes_open: false,
         }
     }
 
@@ -1213,7 +1345,34 @@ impl Project {
             muted: false,
             color: None,
             notes: Vec::new(),
+            audio: None,
+            lane: 0,
         }
+    }
+
+    /// An audio clip over `source`, its window `start`..`start + length` showing the file
+    /// from its first frame.
+    pub fn make_audio_clip(
+        &mut self,
+        name: impl Into<String>,
+        source: AudioSourceId,
+        start: Ticks,
+        length: Ticks,
+    ) -> Clip {
+        let mut clip = self.make_clip(name, start, length);
+        clip.audio = Some(crate::audio::AudioRegion::of(source));
+        clip
+    }
+
+    pub fn audio_source(&self, id: AudioSourceId) -> Option<&crate::audio::AudioSource> {
+        self.audio_pool.iter().find(|s| s.id == id)
+    }
+
+    pub fn audio_source_mut(
+        &mut self,
+        id: AudioSourceId,
+    ) -> Option<&mut crate::audio::AudioSource> {
+        self.audio_pool.iter_mut().find(|s| s.id == id)
     }
 
     pub fn make_effect(&mut self, kind: crate::effect::EffectKind) -> EffectSlot {

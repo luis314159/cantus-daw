@@ -23,8 +23,18 @@ use cantus_core::{
 };
 use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 
+#[path = "arrangement_audio.rs"]
+mod audio;
+pub use audio::edit::CURVE_KEYS;
+pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
+
 #[path = "arrangement_paint.rs"]
 mod paint;
+#[path = "arrangement_rec.rs"]
+mod rec;
+#[path = "arrangement_takes.rs"]
+mod takes;
+pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
 ///
@@ -87,6 +97,8 @@ pub struct ArrangementView {
     /// menu that only exists while its own target is hovered closes before it can be used.
     menu_clip: Option<(TrackId, ClipId)>,
     rename: Option<(TrackId, String)>,
+    /// A fade or gain handle being dragged, and the handle a menu was opened on.
+    audio: audio::edit::State,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
     scratch: Scratch,
 }
@@ -109,6 +121,8 @@ struct Scratch {
     /// "Track 5", "Track 6"…: the empty rows below the last track, named as FL names
     /// them, built once per language and count.
     placeholders: Vec<String>,
+    /// Audio clips' buffers, and the handles drawn this frame.
+    audio: audio::Scratch,
 }
 
 impl Scratch {
@@ -197,6 +211,7 @@ impl Default for ArrangementView {
             rename_clip: None,
             geometry: None,
             rename: None,
+            audio: Default::default(),
             scratch: Scratch::default(),
         }
     }
@@ -209,6 +224,22 @@ impl ArrangementView {
     }
 
     /// Start renaming a clip in place.
+    /// Where an audio clip's fade and gain handles were drawn last frame (published
+    /// geometry: tests aim with it), or `None` when the clip was not drawn with them.
+    pub fn audio_handles(&self, clip: (TrackId, ClipId)) -> Option<AudioHandles> {
+        self.scratch
+            .audio
+            .handles
+            .iter()
+            .find(|(r, _)| *r == clip)
+            .map(|(_, h)| *h)
+    }
+
+    /// Whether a fade or gain handle is being dragged.
+    pub fn audio_dragging(&self) -> bool {
+        self.audio.drag.is_some()
+    }
+
     pub fn begin_rename_clip(&mut self, clip: (TrackId, ClipId), name: String) {
         self.rename_clip = Some((clip, name));
     }
@@ -236,10 +267,18 @@ impl ArrangementView {
         }
     }
 
-    /// How far the content has been slipped under the window, for the preview.
-    fn slip_preview(&self, r: (TrackId, ClipId)) -> Ticks {
+    /// How far the window's offset has moved in the drag's preview: a slip moves it, and
+    /// so does a trim of the edge where the content is anchored (the left edge, or the
+    /// right one of a reversed audio clip, whose window plays backwards).
+    fn slip_preview(&self, r: (TrackId, ClipId), reversed: bool) -> Ticks {
         match &self.drag {
-            Some(d) if d.mode == DragMode::Slip && d.anchor == r => -d.delta,
+            Some(d) if d.anchor == r => match (d.mode, reversed) {
+                (DragMode::Slip, false) => -d.delta,
+                (DragMode::Slip, true) => d.delta,
+                (DragMode::TrimStart, false) => d.delta,
+                (DragMode::TrimEnd, true) => -d.delta,
+                _ => Ticks::ZERO,
+            },
             _ => Ticks::ZERO,
         }
     }
@@ -260,17 +299,20 @@ struct Frame {
     vcorner: Rect,
     /// The header column's edge.
     split: Rect,
+    /// The punch lane's height (zero while punch is off), between the loop lane and the
+    /// bar numbers.
+    punch_h: f32,
 }
 
 impl Frame {
-    fn of(full: Rect, header_w: f32, s: &Style) -> Frame {
+    fn of(full: Rect, header_w: f32, punch_h: f32, s: &Style) -> Frame {
         let bar = s.s(BAR);
         let hx = full.left() + header_w;
         let right = full.right() - bar;
         let hbar = Rect::from_min_max(pos2(hx + 1.0, full.top()), pos2(right, full.top() + bar));
         let ruler = Rect::from_min_max(
             pos2(hbar.left(), hbar.bottom()),
-            pos2(right, hbar.bottom() + RULER_H),
+            pos2(right, hbar.bottom() + RULER_H + punch_h),
         );
         let lanes = Rect::from_min_max(
             pos2(hbar.left(), ruler.bottom()),
@@ -291,6 +333,7 @@ impl Frame {
                 pos2(hx + 0.5, (full.top() + full.bottom()) * 0.5),
                 vec2(s.s(kit::chrome::SPLITTER), full.height()),
             ),
+            punch_h,
         }
     }
 }
@@ -530,10 +573,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     if full.width() < 60.0 || full.height() < RULER_H + 2.0 * s.s(BAR) {
         return;
     }
+    let punch_h = rec::punch_height(app, &s);
     let v = &mut app.arrangement;
     let most = HEADER_MAX.min(full.width() * 0.6).max(40.0);
     v.header_width = v.header_width.clamp(HEADER_MIN.min(most), most);
-    let f = Frame::of(full, v.header_width, &s);
+    let f = Frame::of(full, v.header_width, punch_h, &s);
     navigate(app, ui, &f, &s);
     let mut geo = layout(app, &f);
     timeline(app, ui, &f, &geo, &s);
@@ -567,7 +611,7 @@ fn content_height(app: &CantusApp) -> f32 {
     app.project()
         .tracks
         .iter()
-        .map(|t| (base * t.height()).round())
+        .map(|t| (base * t.height()).round() + takes::height(t, base))
         .sum()
 }
 
@@ -678,12 +722,15 @@ fn layout(app: &mut CantusApp, f: &Frame) -> TimelineGeometry {
         px_per_beat: 1.0,
         scroll_beats: 0.0,
         rows: Vec::new(),
+        punch: None,
     });
     geo.left = f.lanes.left();
     geo.width = f.lanes.width();
     geo.ruler_top = f.ruler.top();
     geo.loop_lane_bottom = f.ruler.top() + LOOP_LANE_H;
     geo.body_top = f.lanes.top();
+    geo.punch =
+        (f.punch_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.punch_h));
     geo.px_per_beat = v.px_per_beat;
     geo.scroll_beats = v.scroll_beats;
     let (top, base) = (f.lanes.top() - v.scroll_y, v.track_height);
@@ -722,6 +769,26 @@ fn corner(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
     if resp.clicked() {
         app.add_track();
     }
+    // Right-click: an instrument track or an audio track (ADR 0025).
+    egui::Popup::context_menu(&resp)
+        .frame(chrome::menu_frame())
+        .show(|ui| {
+            let items = [
+                Item::action(Src::Key("track.add")),
+                Item::action(Src::Key("rec.add_audio_track")),
+            ];
+            match kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
+                Some(0) => {
+                    app.add_track();
+                    ui.close();
+                }
+                Some(1) => {
+                    app.add_audio_track();
+                    ui.close();
+                }
+                _ => {}
+            }
+        });
 }
 
 /// The track headers.
@@ -737,7 +804,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
     let pointer = ui
         .input(|i| i.pointer.hover_pos())
         .filter(|_| ui.rect_contains_pointer(clip));
-    let visible = |row: &TrackRow| row.top + row.height > clip.top() && row.top < clip.bottom();
+    let visible =
+        |row: &TrackRow| row.top + row.height + row.takes > clip.top() && row.top < clip.bottom();
     let row_rect = |row: &TrackRow| {
         Rect::from_min_size(pos2(clip.left(), row.top), vec2(clip.width(), row.height))
     };
@@ -759,7 +827,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 let Some(track) = a.project().tracks.get(i).filter(|_| visible(row)) else {
                     continue;
                 };
-                let hr = paint::header_rects(row_rect(row), s);
+                let mut hr = paint::header_rects(row_rect(row), s);
+                let rr = rec::layout(&mut hr, track, s);
                 let tint = scratch.tints.of(theme::track_color(track.color), s);
                 let grip = Rect::from_min_max(
                     pos2(hr.row.left(), hr.row.bottom() - DIVIDER_GRIP),
@@ -782,6 +851,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                     level,
                 };
                 paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
+                rec::paint_header(b, a, track, &rr, tint, pointer, s);
+                takes::paint_headers(b, a, track, row, clip, tint, s);
             }
             // Below the last track, FL's empty rows: "Track 5" in a placeholder's faint
             // text on a flat well, so the column reads as a list with room in it.
@@ -826,7 +897,12 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         else {
             continue;
         };
-        let hr = paint::header_rects(row_rect(row), s);
+        let mut hr = paint::header_rects(row_rect(row), s);
+        let rr = app
+            .project()
+            .tracks
+            .get(i)
+            .map(|t| rec::layout(&mut hr, t, s));
         // The interactive area is shifted down by the grip: a row owns the divider *below*
         // it and not the one above, so a press exactly on the line goes to the row whose
         // height it changes. With the plain rect, both rows contained the line and the
@@ -867,6 +943,10 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             });
         }
         rename_in_place(app, ui, id, hr.name);
+        if let Some(rr) = &rr {
+            rec::header_input(app, ui, id, rr, s);
+        }
+        takes::header_input(app, ui, id, row, clip, s);
 
         let grip = Rect::from_min_max(
             pos2(hr.row.left(), row.top + row.height - DIVIDER_GRIP),
@@ -983,6 +1063,11 @@ fn track_menu(
     id: TrackId,
     to_delete: &mut Option<TrackId>,
 ) {
+    // Recording first: arm, input, takes (`arrangement_rec`).
+    if rec::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
     let current = app.project().track(id).map(|t| t.height()).unwrap_or(1.0);
     let width = 220.0;
     let heights: [Item<'_>; 6] = [
@@ -1109,12 +1194,17 @@ pub struct TimelineGeometry {
     /// above `body_top`. Rows are not all the same size, so a single `track_height` cannot
     /// answer "where is row 3", and every caller that multiplied would get it wrong.
     pub rows: Vec<TrackRow>,
+    /// The punch lane's top and bottom, while punch is on (ADR 0025): the red brace.
+    pub punch: Option<(f32, f32)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct TrackRow {
     pub top: f32,
+    /// The playing lane's height: the track's row.
     pub height: f32,
+    /// The take lanes' height below it, while they are shown (zero otherwise).
+    pub takes: f32,
 }
 
 impl TimelineGeometry {
@@ -1147,7 +1237,7 @@ impl TimelineGeometry {
     pub fn bottom(&self) -> f32 {
         self.rows
             .last()
-            .map(|r| r.top + r.height)
+            .map(|r| r.top + r.height + r.takes)
             .unwrap_or(self.body_top)
     }
 }
@@ -1167,8 +1257,13 @@ fn rows_into(rows: &mut Vec<TrackRow>, project: &cantus_core::Project, top: f32,
     let mut y = top;
     for t in &project.tracks {
         let height = (base * t.height()).round();
-        rows.push(TrackRow { top: y, height });
-        y += height;
+        let takes = takes::height(t, base);
+        rows.push(TrackRow {
+            top: y,
+            height,
+            takes,
+        });
+        y += height + takes;
     }
 }
 
@@ -1178,6 +1273,8 @@ struct Hit {
     track: TrackId,
     clip: ClipId,
     mode: DragMode,
+    /// An audio clip's fade or gain handle, which a press there drags instead.
+    handle: Option<AudioHandle>,
 }
 
 /// How wide the trim zone at each end of a clip is. Wide enough to aim at, never more
@@ -1211,6 +1308,7 @@ fn clips(
 ) -> ClipHits {
     let v = &app.arrangement;
     let mut out = ClipHits::default();
+    audio::begin_frame(&mut scratch.audio);
     let n_rows = geo.rows.len() as i32;
     let (vis_l, vis_r) = (geo.beats(lanes.left()), geo.beats(lanes.right()));
     for (i, track) in app.project().tracks.iter().enumerate() {
@@ -1224,11 +1322,18 @@ fn clips(
             let (dstart, dlen, drows) = v.preview(sel, r).unwrap_or((Ticks::ZERO, Ticks::ZERO, 0));
             // A clip being dragged across tracks takes the *target* row's shape: a
             // preview that kept its old height would be a lie about where it goes.
-            let target = geo
-                .rows
-                .get((i as i32 + drows).clamp(0, n_rows - 1) as usize)
-                .copied()
-                .unwrap_or(here);
+            let target = if clip.lane > 0 {
+                // A take lane's clip: drawn in its lane under the track, when shown.
+                match takes::lane_row(&here, clip.lane, v.track_height) {
+                    Some(r) => r,
+                    None => continue,
+                }
+            } else {
+                geo.rows
+                    .get((i as i32 + drows).clamp(0, n_rows - 1) as usize)
+                    .copied()
+                    .unwrap_or(here)
+            };
             if target.top + target.height < lanes.top() || target.top > lanes.bottom() {
                 continue;
             }
@@ -1247,24 +1352,59 @@ fn clips(
             );
             let color = clip.color.map(theme::track_color).unwrap_or(track_color);
             let renaming = v.rename_clip.as_ref().is_some_and(|(c, _)| *c == r);
+            let reserve = match clip.audio.as_ref() {
+                Some(a) => audio::badge_width(b, a, &mut scratch.audio, s),
+                None => 0.0,
+            };
             let look = paint::ClipLook {
                 selected: sel,
                 muted: clip.muted,
                 tint: scratch.tints.of(color, s),
                 renaming,
+                reserve,
             };
             let name = paint::clip_label(scratch, &clip.name, clip.muted);
             let inner = paint::clip_chrome(b, body, lanes, name, look, s);
             if renaming {
                 out.renaming = Some(body);
             }
+            // An audio clip: its waveform, fades, gain and handles (ADR 0025).
+            let audio_h = clip.audio.as_ref().and_then(|region| {
+                let dragging = v.audio.drag.as_ref().filter(|d| d.r == r).map(|d| d.handle);
+                let shown = audio::Shown {
+                    track: track.id,
+                    clip,
+                    region,
+                    start,
+                    length,
+                    offset: clip.offset + v.slip_preview(r, region.reverse),
+                    bpm: app.project().tempo_bpm,
+                };
+                let near = pointer.is_some_and(|p| body.contains(p));
+                let show = sel || near || dragging.is_some();
+                audio::paint(
+                    b,
+                    app,
+                    geo,
+                    lanes,
+                    &shown,
+                    body,
+                    inner,
+                    &look,
+                    pointer,
+                    dragging,
+                    show,
+                    &mut scratch.audio,
+                    s,
+                )
+            });
             // The miniature, in the clip's own content frame so a slipped, trimmed or
             // repeating clip shows what it actually plays. Geometry only: cloning the clip
             // here would copy every note in it, once per clip, every frame.
             let shown = cantus_core::ClipWindow {
                 start,
                 length,
-                offset: clip.offset + v.slip_preview(r),
+                offset: clip.offset + v.slip_preview(r, false),
                 content_length: clip.content_length,
             };
             if !clip.notes.is_empty() && inner.height() > 2.0 && inner.width() > 4.0 {
@@ -1334,8 +1474,16 @@ fn clips(
                 }
             }
             let test = |pos: Pos2| -> Option<Hit> {
-                if !body.contains(pos) || !lanes.contains(pos) {
+                if clip.lane > 0 || !body.contains(pos) || !lanes.contains(pos) {
                     return None;
+                }
+                if let Some(handle) = audio_h.and_then(|h| h.at(pos)) {
+                    return Some(Hit {
+                        track: track.id,
+                        clip: clip.id,
+                        mode: DragMode::Move,
+                        handle: Some(handle),
+                    });
                 }
                 let zone = edge_zone(body.width());
                 let mode = if pos.x < body.left() + zone {
@@ -1349,6 +1497,7 @@ fn clips(
                     track: track.id,
                     clip: clip.id,
                     mode,
+                    handle: None,
                 })
             };
             if let Some(h) = pointer.and_then(test) {
@@ -1379,17 +1528,22 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     let hits = {
         let a: &CantusApp = app;
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
-            paint::ruler(b, a, view, f.ruler, s)
+            paint::ruler(b, a, view, f.ruler, s);
+            rec::paint_punch(b, a, view, f.ruler, s);
         });
         kit::with_brush(&lanes_p, |b| {
             paint::lanes(b, a, view, f.lanes, s);
+            takes::grounds(b, a, view, f.lanes, s);
             clips(b, a, view, f.lanes, &mut scratch, pointer, press_origin, s)
         })
     };
     app.arrangement.scratch = scratch;
     kit::with_brush(&lanes_p, |b| {
+        takes::overlay(b, app, view, f.lanes, s);
+        rec::paint_live(b, app, view, f.lanes, s);
         paint::overlay(b, app, &app.arrangement, view, f.lanes, s)
     });
+    rec::paint_live_waves(&lanes_p, app, view, f.lanes, s);
     if app.project().tracks.is_empty() {
         kit::with_brush(&lanes_p, |b| {
             let tx = kit::text::Text::key("track.add", kit::text::Role::Title, s.t.text_dim);
@@ -1459,7 +1613,17 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             );
         }
     }
-    if let Some(h) = hit {
+    // An audio clip's handle: its own pointer and hint (live while it is dragged).
+    if let Some(d) = app.arrangement.audio.drag.as_ref() {
+        let (r, handle) = (d.r, d.handle);
+        audio::edit::hint(ui.ctx(), app, r, handle, true);
+    } else if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
+        ui.ctx().set_cursor_icon(match handle {
+            AudioHandle::Gain => egui::CursorIcon::ResizeVertical,
+            _ => egui::CursorIcon::ResizeHorizontal,
+        });
+        audio::edit::hint(ui.ctx(), app, (h.track, h.clip), handle, false);
+    } else if let Some(h) = hit {
         if app.arrangement.drag.is_none() {
             ui.ctx().set_cursor_icon(match h.mode {
                 DragMode::TrimStart | DragMode::TrimEnd => egui::CursorIcon::ResizeHorizontal,
@@ -1519,6 +1683,9 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         }
     }
     if resp.double_clicked() {
+        if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
+            audio::edit::reset(app, (h.track, h.clip), handle);
+        }
         if let Some(pos) = resp.interact_pointer_pos() {
             if pos.y >= body_top && hit.is_none() {
                 if let Some(tid) = track_at(app, pos.y) {
@@ -1535,16 +1702,19 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // after that whatever the pointer is doing (see `menu_clip`).
     if ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)) && resp.hovered() {
         app.arrangement.menu_clip = hit.map(|h| (h.track, h.clip));
+        app.arrangement.audio.menu = hit.and_then(|h| h.handle);
     }
+    let fade_menu = audio::edit::menu_fade(app.arrangement.audio.menu);
     let menu_target = app
         .arrangement
         .menu_clip
         .filter(|(t, c)| app.project().track(*t).and_then(|t| t.clip(*c)).is_some());
     egui::Popup::context_menu(&resp)
         .frame(chrome::menu_frame())
-        .show(|ui| match menu_target {
-            Some((track, clip)) => clip_menu(app, ui, track, clip),
-            None => timeline_menu(app, ui),
+        .show(|ui| match (menu_target, fade_menu) {
+            (Some(r), Some(fade)) => audio::edit::fade_menu(app, ui, r, fade),
+            (Some((track, clip)), None) => clip_menu(app, ui, track, clip),
+            (None, _) => timeline_menu(app, ui),
         });
 
     if resp.drag_started_by(PointerButton::Primary) {
@@ -1558,6 +1728,14 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                     app.focus_arrangement();
                     app.arrangement.selecting = Some(at);
                 }
+            } else if let Some((h, handle)) = hit_at_press.and_then(|h| h.handle.map(|x| (h, x))) {
+                // A fade or the gain of an audio clip: shaped live, one undo step.
+                app.focus_arrangement();
+                if !paint::is_selected(app, (h.track, h.clip)) {
+                    app.select_clip(h.track, h.clip);
+                }
+                app.arrangement.drag = None;
+                audio::edit::begin(app, (h.track, h.clip), handle, pos, view.px_per_beat);
             } else if let Some(h) = hit_at_press {
                 app.focus_arrangement();
                 if !paint::is_selected(app, (h.track, h.clip)) {
@@ -1594,7 +1772,9 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     }
     if resp.dragged_by(PointerButton::Primary) {
         if let Some(pos) = resp.interact_pointer_pos() {
-            if let Some(d) = app.arrangement.drag.as_ref() {
+            if app.arrangement.audio.drag.is_some() {
+                audio::edit::update(app, pos, mods.shift);
+            } else if let Some(d) = app.arrangement.drag.as_ref() {
                 let raw = beats_to_ticks((pos.x - d.press.x) / view.px_per_beat);
                 let (mode, anchor_start, anchor_length, press_y) =
                     (d.mode, d.anchor_start, d.anchor_length, d.press.y);
@@ -1606,6 +1786,21 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                             - (anchor_start + anchor_length)
                     }
                     _ => snap_to(anchor_start + raw, mods.command) - anchor_start,
+                };
+                // An audio clip's window stays on its file (ADR 0025).
+                let anchor = d.anchor;
+                let delta = {
+                    use crate::audio_clips::{clamp_edit, WindowEdit};
+                    let edit = match mode {
+                        DragMode::TrimStart => Some(WindowEdit::TrimStart),
+                        DragMode::TrimEnd => Some(WindowEdit::TrimEnd),
+                        DragMode::Slip => Some(WindowEdit::Slip),
+                        DragMode::Move => None,
+                    };
+                    match (edit, crate::clips::clip_of(app.project(), anchor)) {
+                        (Some(e), Some(c)) => clamp_edit(app.project(), c, e, delta),
+                        _ => delta,
+                    }
                 };
                 let rows = match mode {
                     DragMode::Move => {
@@ -1645,6 +1840,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     if resp.drag_stopped() {
         app.arrangement.looping = None;
         app.arrangement.selecting = None;
+        audio::edit::end(app);
         if let Some(d) = app.arrangement.drag.take() {
             app.commit_clip_drag(
                 d.anchor,
@@ -1673,7 +1869,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 if !band.intersects(row) {
                     continue;
                 }
-                for clip in &track.clips {
+                for clip in track.clips.iter().filter(|c| c.lane == 0) {
                     let x0 = view.x(ticks_to_beats(clip.start));
                     let x1 = view.x(ticks_to_beats(clip.end()));
                     if band.intersects(Rect::from_min_max(
@@ -1689,6 +1885,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         }
         app.end_gesture();
     }
+    // Registered after the timeline's own response, so they are on top of it: the punch
+    // lane's brace and the take lanes' swipes are theirs, not a clip drag's.
+    rec::punch_input(app, ui, view, f.ruler, s);
+    takes::input(app, ui, view, f.lanes, s);
 }
 
 /// What a finished clip drag asks the application to do.
@@ -1757,6 +1957,7 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         Entry::Run(Action::SelectAll, "menu.select_all"),
         Entry::Separator,
         Entry::Own("track.add"),
+        Entry::Run(Action::AddAudioTrack, "rec.add_audio_track"),
     ];
     match menu(app, ui, &entries) {
         Some(3) => {
@@ -1788,13 +1989,13 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
         app.select_clip(track, clip);
     }
     app.focus_arrangement();
-    let (muted, looping) = app
+    let (muted, looping, is_audio) = app
         .project()
         .track(track)
         .and_then(|t| t.clip(clip))
-        .map(|c| (c.muted, c.content_length.is_some()))
-        .unwrap_or((false, false));
-    let entries = [
+        .map(|c| (c.muted, c.content_length.is_some(), c.audio.is_some()))
+        .unwrap_or((false, false, false));
+    let mut entries = vec![
         Entry::Run(Action::SplitClip, "clip.split"),
         Entry::Run(Action::GlueClips, "clip.glue"),
         Entry::Run(Action::Duplicate, "clip.duplicate"),
@@ -1804,25 +2005,42 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
             Action::ToggleClipMute,
             if muted { "clip.unmute" } else { "clip.mute" },
         ),
-        Entry::Run(
+    ];
+    // An audio clip plays its file once: it has no repeat (ADR 0025).
+    if !is_audio {
+        entries.push(Entry::Run(
             Action::ToggleClipLoop,
             if looping {
                 "clip.loop_off"
             } else {
                 "clip.loop_on"
             },
-        ),
-        Entry::Separator,
-        Entry::Own("clip.delete"),
-        Entry::Band("clip.color"),
-    ];
+        ));
+    }
+    entries.push(Entry::Separator);
+    entries.push(Entry::Own("clip.delete"));
+    let delete = entries.len() - 1;
+    if !is_audio {
+        entries.push(Entry::Band("clip.color"));
+    }
     match menu(app, ui, &entries) {
-        Some(8) => {
+        Some(i) if i == delete => {
             app.delete_clip_selection();
             ui.close();
         }
         Some(_) => ui.close(),
         None => {}
     }
+    if is_audio {
+        // The audio clip's own section: curves, normalise, gain, reverse, the file.
+        audio::edit::clip_menu(app, ui, (track, clip));
+        let _ = menu(app, ui, &[Entry::Band("clip.color")]);
+    }
     color_menu(app, ui);
+}
+
+/// Normalise the selected audio clips (their loudest sample to −0.1 dBFS, through clip
+/// gain); the menu and the inspector both come here. Returns how many were set.
+pub fn normalize_selection(app: &mut CantusApp) -> usize {
+    audio::edit::normalize(app)
 }

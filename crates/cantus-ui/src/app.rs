@@ -8,7 +8,7 @@ use crate::i18n::{self, t, tf};
 use crate::keyboard::{KeyEvent, KeyboardPiano};
 use crate::keymap::{Action, Keymap};
 use crate::layout::{self, Layouts};
-use crate::recording::{RecordedNote, Recorder};
+use crate::recording::Recorder;
 use crate::settings::{self, Settings};
 use crate::theme;
 use crate::views::workspace::{Pane, Workspace};
@@ -21,7 +21,7 @@ use cantus_core::{
     Clip, ClipId, Color, Command, CommandBus, Dock, EffectId, EffectKind, GroupId, InstrumentSpec,
     MergeKey, Origin, Project, Send, StripId, Ticks, TrackId, MAX_GAIN_DB, MIN_GAIN_DB,
 };
-use cantus_engine::{CaptureTarget, EngineHandle, MidiInputs, NoteInput, RenderOptions, Rendered};
+use cantus_engine::{CaptureTarget, EngineHandle, MidiInputs, RenderOptions, Rendered};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -123,6 +123,8 @@ pub struct CantusApp {
     pub fx: views::fx::FxEditors,
     /// Moving work between Cantus and other DAWs: MIDI files, stems, DAWproject.
     pub interop: views::interop::Interop,
+    /// File → Demo songs: the picker (round 19).
+    pub demos: views::demos::Picker,
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
@@ -136,6 +138,10 @@ pub struct CantusApp {
     /// The window's areas as tabs that dock, split, stack and float (ADR 0024 §5).
     pub workspace: Workspace,
     pub recorder: Recorder,
+    /// Every audio source's waveform peaks, computed off this thread (ADR 0025).
+    pub peaks: crate::waveform::PeakStore,
+    /// Audio recording: the pass in progress and what draws it (`record_session`).
+    pub rec: crate::record_session::RecSession,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -260,7 +266,9 @@ impl CantusApp {
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
         crate::kit::logo::set_disk_cache(Some(directories_fallback().join("cache")));
+        let peak_cache = directories_fallback().join("cache").join("peaks");
         let mut app = Self::from_parts(project, engine, stress);
+        app.peaks.set_disk_cache(Some(peak_cache));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
@@ -328,6 +336,7 @@ impl CantusApp {
             comp_editor: views::comp_editor::CompEditor::default(),
             fx: views::fx::FxEditors::default(),
             interop: Default::default(),
+            demos: Default::default(),
             plugins,
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
@@ -335,6 +344,8 @@ impl CantusApp {
             central: CentralView::Mixer,
             workspace: Workspace::default(),
             recorder: Recorder::new(),
+            peaks: Default::default(),
+            rec: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,
@@ -604,6 +615,8 @@ impl CantusApp {
         match EngineHandle::start(&self.settings.audio.to_config()) {
             Ok(engine) => {
                 self.engine = engine;
+                self.engine
+                    .set_record_offset(self.settings.audio.record_offset_frames);
                 // Hosted plug-ins load again, for the new engine and its rate.
                 self.plugins.reload_all(self.engine.sample_rate);
                 self.midi_inputs = None;
@@ -697,6 +710,14 @@ impl CantusApp {
             self.selected_strip = Some(id);
         }
         self.inspector.follow(views::inspector::Subject::Strip(id));
+    }
+
+    /// A click on the master on the desk: the inspector shows the master's chain (ADR
+    /// 0026). The master is not a strip, so the strip selection is let go.
+    pub fn select_master(&mut self) {
+        self.selected_strip = None;
+        self.selected_strips.clear();
+        self.inspector.follow(views::inspector::Subject::Master);
     }
 
     /// The strips a mixer operation acts on: the multi-selection while the selected strip
@@ -1081,13 +1102,16 @@ impl CantusApp {
             "multiband" => EffectKind::Multiband,
             "deesser" => EffectKind::DeEsser,
             "gate" => EffectKind::Gate,
+            "stereo" | "latitudo" => EffectKind::Stereo,
+            "maximizer" | "culmen" => EffectKind::Maximizer,
+            "saturator" | "fervor" => EffectKind::Saturator,
             _ => EffectKind::Eq,
         };
         self.add_effect(strip, kind);
         let Some(effect) = self
             .project()
-            .strip(strip)
-            .and_then(|s| s.effects.last())
+            .effects_of(strip)
+            .and_then(|e| e.last())
             .map(|e| e.id)
         else {
             return;
@@ -1132,6 +1156,8 @@ impl CantusApp {
         match target {
             CaptureTarget::Off => String::new(),
             CaptureTarget::Master => t("mixer.master"),
+            // An effect's host named as a strip: the master's chain (ADR 0026).
+            CaptureTarget::Strip(id) if id.is_master() => t("mixer.master"),
             CaptureTarget::Strip(id) => {
                 let n = self.project().strip_number(id).unwrap_or(0);
                 let name = self.project().strip(id).map(|s| {
@@ -1922,6 +1948,13 @@ impl CantusApp {
             let Some(clip) = clips::clip_of(project, anchor) else {
                 return (Vec::new(), Vec::new());
             };
+            // A reversed audio clip maps its window backwards (ADR 0025).
+            if let Some((edit, delta)) = crate::audio_clips::reversed_drag(clip, result) {
+                return (
+                    crate::audio_clips::reversed_edit(anchor.0, clip, edit, delta),
+                    Vec::new(),
+                );
+            }
             match result {
                 ClipDragResult::Move { delta, rows, copy } => {
                     clips::transpose_selection(project, &sel, delta, rows, copy, ids)
@@ -2347,8 +2380,8 @@ impl CantusApp {
         let slot = self.bus.new_effect(kind);
         let index = self
             .project()
-            .strip(strip)
-            .map(|s| s.effects.len())
+            .effects_of(strip)
+            .map(|e| e.len())
             .unwrap_or(0);
         self.exec(Command::InsertEffect {
             strip,
@@ -2362,125 +2395,8 @@ impl CantusApp {
     }
 
     // ---- recording ------------------------------------------------------------------
-
-    pub fn is_recording(&self) -> bool {
-        self.recorder.is_recording()
-    }
-
-    /// Start recording onto the selected track (creating a clip at the playhead if the
-    /// track has none) and roll the transport.
-    pub fn start_recording(&mut self) {
-        let Some(track) = self.selected_track else {
-            return;
-        };
-        if self.selected_clip.is_none() {
-            let start = self
-                .engine
-                .position()
-                .snap_floor(self.project().time_signature.ticks_per_bar());
-            let len = self.project().time_signature.ticks_per_bar() * 4;
-            self.create_clip(track, start, len);
-        }
-        self.recorder.start();
-        self.engine.set_recording(true);
-        if !self.engine.is_playing() {
-            self.engine.play();
-        }
-        self.set_status(t("status.recording"));
-    }
-
-    pub fn stop_recording(&mut self) {
-        if !self.recorder.is_recording() {
-            return;
-        }
-        let at = self.engine.position();
-        let notes = self.recorder.stop(at);
-        self.engine.set_recording(false);
-        self.commit_recorded(notes);
-        self.end_gesture();
-        self.set_status(t("status.ready"));
-    }
-
-    pub fn toggle_record(&mut self) {
-        if self.is_recording() {
-            self.stop_recording();
-        } else {
-            self.start_recording();
-        }
-    }
-
-    /// Feed live-note events (normally from the engine) into the current take.
-    pub fn ingest_note_inputs(&mut self, inputs: Vec<NoteInput>) {
-        if inputs.is_empty() {
-            return;
-        }
-        let loop_region = if self.project().loop_enabled {
-            self.project().loop_region.clone()
-        } else {
-            None
-        };
-        let notes = self.recorder.ingest(&inputs, loop_region.as_ref());
-        self.commit_recorded(notes);
-    }
-
-    fn commit_recorded(&mut self, notes: Vec<RecordedNote>) {
-        if notes.is_empty() {
-            return;
-        }
-        let (Some(track), Some(clip_id)) = (self.selected_track, self.selected_clip) else {
-            return;
-        };
-        let Some(clip) = self
-            .project()
-            .track(track)
-            .and_then(|t| t.clip(clip_id))
-            .cloned()
-        else {
-            return;
-        };
-        let mut commands = Vec::new();
-        // Grow the clip so every recorded note lies inside it. Growing to the left moves
-        // the window *and* the offset (`clips::set_window`), so not a single existing note
-        // has to move — which is what the content offset bought.
-        let mut start = clip.start;
-        let mut end = clip.end();
-        for n in &notes {
-            start = start.min(n.start);
-            end = end.max(n.start + n.length);
-        }
-        commands.extend(clips::set_window(track, &clip, start, end - start));
-        let new_notes: Vec<_> = notes
-            .iter()
-            .map(|n| {
-                self.bus
-                    .new_note(clip.content_of(n.start), n.length, n.pitch, n.velocity)
-            })
-            .collect();
-        commands.push(Command::InsertNotes {
-            track,
-            clip: clip_id,
-            notes: new_notes,
-        });
-        let key = MergeKey::of(&("take", self.recorder.take()));
-        self.exec_merging(
-            Command::Batch {
-                label_key: "cmd.record_take".into(),
-                commands,
-            },
-            key,
-        );
-    }
-
-    fn poll_recording(&mut self) {
-        let inputs = self.engine.take_note_inputs();
-        if self.recorder.is_recording() {
-            self.ingest_note_inputs(inputs);
-            if !self.engine.is_playing() && self.engine.stats().blocks_processed > 0 {
-                // Transport stopped (space, end of loop-less content): close the take.
-                self.stop_recording();
-            }
-        }
-    }
+    // Arming, inputs, the record options and a pass from start to end are in
+    // `record_session` (ADR 0025).
 
     fn sync_live_track(&mut self) {
         if self.live_track_sent != Some(self.selected_track) {
@@ -2536,9 +2452,16 @@ impl CantusApp {
     // ---- files ----------------------------------------------------------------------
 
     pub fn new_project(&mut self) {
+        self.replace_project(welcome_project());
+    }
+
+    /// Put `project` in the place of the open one, as a new, unsaved session: what *New*
+    /// and the demo picker do.
+    pub fn replace_project(&mut self, project: Project) {
         self.engine.stop();
-        self.bus.reset(welcome_project());
+        self.bus.reset(project);
         self.path = None;
+        self.sync_audio_base();
         self.selected_track = None;
         self.selected_clip = None;
         self.selected_notes.clear();
@@ -2713,6 +2636,7 @@ impl CantusApp {
         self.engine.stop();
         self.bus.reset(loaded.project);
         self.path = Some(path.to_path_buf());
+        self.sync_audio_base();
         self.selected_track = None;
         self.selected_clip = None;
         self.selected_notes.clear();
@@ -2744,11 +2668,14 @@ impl CantusApp {
     }
 
     pub fn save_to_path(&mut self, path: &Path) {
+        // The audio comes home first, so the file is written with its new paths.
+        self.collect_audio(path);
         // Hosted plug-ins are asked for their state as it is now.
         let project = self.plugins.project_for_save(self.bus.project());
         match cantus_project::save(&project, path, APP_VERSION) {
             Ok(r) => {
                 self.path = Some(path.to_path_buf());
+                self.sync_audio_base();
                 self.bus.mark_saved();
                 self.autosaved_revision = self.bus.revision();
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
@@ -2765,7 +2692,7 @@ impl CantusApp {
         if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
             return;
         }
-        let project = self.plugins.project_for_save(self.bus.project());
+        let project = self.autosave_copy();
         match cantus_project::autosave(
             &project,
             self.path.as_deref(),
@@ -2869,7 +2796,23 @@ impl CantusApp {
 
     // ---- per-frame ------------------------------------------------------------------
 
+    /// Relative audio paths resolve against the project's folder (ADR 0025 §2): when it
+    /// changes (open, save, save as, new, a demo) the engine's cache is told and the audio
+    /// is attached again with the next snapshot.
+    pub(crate) fn sync_audio_base(&mut self) {
+        let base = self.audio_base().map(Path::to_path_buf);
+        if self.engine.samples.project_dir() != base.as_deref() {
+            self.engine.samples.set_project_dir(base);
+            self.synced_revision = u64::MAX;
+        }
+    }
+
     pub fn sync_engine(&mut self) {
+        self.sync_audio_base();
+        // A source the loader thread finished: attach it (ADR 0025 §9).
+        if self.engine.samples.poll_loaded() {
+            self.synced_revision = u64::MAX;
+        }
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
@@ -2959,6 +2902,11 @@ impl CantusApp {
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => self.toggle_record(),
+            ArmTrack => self.arm_selected(),
+            AddAudioTrack => self.add_audio_track(),
+            ToggleCountIn => self.toggle_count_in(),
+            TogglePunch => self.toggle_punch(),
+            ShowTakes => self.toggle_selected_takes(),
             ToStart => self.seek(Ticks::ZERO),
             ToggleLoop => {
                 let enabled = !self.project().loop_enabled;
@@ -2970,6 +2918,7 @@ impl CantusApp {
             }
             Panic => self.engine.panic(),
             NewProject => self.new_project(),
+            DemoSongs => views::demos::show(self),
             Open => self.open_dialog(),
             Save => self.save(),
             SaveAs => self.save_as(),
@@ -3427,6 +3376,7 @@ impl CantusApp {
             .show(root, |ui| views::workspace::show(self, ui));
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
+        views::demos::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
         design::paint_focus_ring(ctx, &theme::p());
@@ -3443,7 +3393,7 @@ impl CantusApp {
         }
         if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
             // Last line of defence: never lose work on close.
-            let project = self.plugins.project_for_save(self.bus.project());
+            let project = self.autosave_copy();
             let _ = cantus_project::autosave(
                 &project,
                 self.path.as_deref(),
@@ -3567,7 +3517,10 @@ impl Files {
 /// or a silent engine when there is none at all.
 pub fn start_engine(settings: &Settings) -> EngineHandle {
     match EngineHandle::start(&settings.audio.to_config()) {
-        Ok(e) => e,
+        Ok(mut e) => {
+            e.set_record_offset(settings.audio.record_offset_frames);
+            e
+        }
         Err(e) => {
             log::error!("audio: {e}");
             EngineHandle::dummy()
@@ -3581,7 +3534,7 @@ pub fn config_dir() -> PathBuf {
 }
 
 /// Show a file in the platform's file manager, selecting it where that is supported.
-fn reveal(path: &Path) -> std::io::Result<std::process::Child> {
+pub(crate) fn reveal(path: &Path) -> std::io::Result<std::process::Child> {
     #[cfg(target_os = "windows")]
     return std::process::Command::new("explorer")
         .arg(format!("/select,{}", path.display()))

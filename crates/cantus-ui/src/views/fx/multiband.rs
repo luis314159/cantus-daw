@@ -839,7 +839,7 @@ fn flip(host: &mut dyn FxHost, band: usize, field: &str, on: bool) {
 impl CantusApp {
     /// [`split_at`] on a strip's Multiplex, from anywhere in Cantus.
     pub fn mb_split_at(&mut self, strip: StripId, effect: EffectId, hz: f32) -> Option<usize> {
-        self.project().strip(strip)?.effect(effect)?;
+        self.project().effect(strip, effect)?;
         let mut st = std::mem::take(&mut self.fx.multiband);
         let r = split_at(
             &mut DawHost::new(self, strip, effect, "multiband"),
@@ -3216,12 +3216,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some((strip, effect, _)) = app.fx.open else {
         return;
     };
-    let Some(spec) = app
-        .project()
-        .strip(strip)
-        .and_then(|s| s.effect(effect))
-        .map(|e| e.spec.clone())
-    else {
+    let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
     app.fx.multiband.start_for(effect);

@@ -171,10 +171,15 @@ fn set(id: cantus_core::StripId, send: Send) -> Act {
 
 /// Routing: how late the strip's own chain makes it (the delay compensation the engine
 /// plans for it), the whole output's latency, and where the strip goes.
-pub fn routing(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
+pub fn routing(
+    sh: &mut Sheet<'_>,
+    app: &CantusApp,
+    ms: Option<&MixerStrip>,
+    inserts: Option<super::channel::Chain<'_>>,
+) {
     sh.band("kit.inspector.routing", Function::Output, None, false, None);
     let sr = (app.engine.sample_rate as f32).max(1.0);
-    let chain: usize = ms.map_or(0, |m| {
+    let chain: usize = inserts.map_or(0, |m| {
         m.effects
             .iter()
             .filter_map(|e| app.plugins.hosted(e.id).map(|h| h.latency()))
@@ -192,11 +197,14 @@ pub fn routing(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
     let text = sheet::name(text);
     sh.text_row("kit.inspector.latency", &text, true, total == 0);
     let out = ms.and_then(|m| m.output);
+    let master = inserts.is_some_and(|c| c.id.is_master());
     let text = sh.fmt.get(
-        cache::key(("insp-output", ms.map(|m| m.id))),
+        cache::key(("insp-output", ms.map(|m| m.id), master)),
         app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
         |b| match out {
             Some(o) => super::strip_label(app, o, b),
+            // The master goes to the audio device.
+            None if master => b.push_str(&crate::i18n::t("master.output")),
             None => b.push_str(&crate::i18n::t("mixer.master")),
         },
     );
@@ -206,7 +214,7 @@ pub fn routing(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
             sh.menu_row("kit.inspector.output", &text, MenuId::Output(m.id), false);
         }
         None => {
-            sh.text_row("kit.inspector.output", &text, false, true);
+            sh.text_row("kit.inspector.output", &text, false, !master);
         }
     }
 }

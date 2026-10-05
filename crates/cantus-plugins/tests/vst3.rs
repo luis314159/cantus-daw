@@ -283,7 +283,7 @@ fn state_of(kind: EffectKind, values: &[(&str, f32)]) -> Vec<u8> {
 fn the_factory_describes_the_seven() {
     let f = factory();
     unsafe {
-        assert_eq!(f.countClasses(), 7);
+        assert_eq!(f.countClasses(), cantus_plugins::desc::ALL.len() as i32);
         for (i, d) in cantus_plugins::desc::ALL.iter().enumerate() {
             let mut info: PClassInfo2 = std::mem::zeroed();
             assert_eq!(f.getClassInfo2(i as int32, &mut info), kResultOk);

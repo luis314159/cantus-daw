@@ -79,6 +79,35 @@ pub fn prototype() -> [f64; LEN] {
     h
 }
 
+/// A low-pass at the oversampled rate cutting at `cutoff` (a fraction of the *base* rate):
+/// a Kaiser-windowed sinc of the prototype's length and centre (so the same delay), with
+/// the prototype's gain of [`FACTOR`] at DC exactly. For a decimator that must leave nothing
+/// in the band the true-peak detector reads least well — the last few per cent below the
+/// base rate's Nyquist frequency, where the prototype is still in its transition.
+pub fn lowpass(cutoff: f64, beta: f64) -> [f64; LEN] {
+    let mut h = [0.0; LEN];
+    let c = (LEN - 1) / 2;
+    let norm = bessel_i0(beta);
+    let fc = cutoff / FACTOR as f64;
+    for (k, tap) in h.iter_mut().enumerate() {
+        let m = k as f64 - c as f64;
+        let x = 2.0 * fc * m;
+        let sinc = if m == 0.0 {
+            1.0
+        } else {
+            (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
+        };
+        let r = m / c as f64;
+        let w = bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / norm;
+        *tap = 2.0 * fc * sinc * w;
+    }
+    let sum: f64 = h.iter().sum();
+    for tap in &mut h {
+        *tap *= FACTOR as f64 / sum;
+    }
+    h
+}
+
 /// A 4× polyphase interpolator. Push one base-rate sample, get the four points of the
 /// reconstructed waveform at `n − DELAY + p/4`, `p = 0..4`; point 0 is `x[n − DELAY]`.
 #[derive(Clone, Debug)]
@@ -259,7 +288,12 @@ impl Default for Decim {
 
 impl Decim {
     pub fn new() -> Self {
-        let h = prototype();
+        Self::with_filter(&prototype())
+    }
+
+    /// A decimator through `h` (a filter at the oversampled rate of the prototype's length
+    /// and centre, with a gain of [`FACTOR`] — [`prototype`] or [`lowpass`]).
+    pub fn with_filter(h: &[f64; LEN]) -> Self {
         let mut coef = [0f32; DECIM_LEN];
         // Window index i holds d[m − (DECIM_LEN−1−i)]; y = Σ_k g[k] d[m − k], g = h / FACTOR,
         // zero past the prototype's length (the padding).

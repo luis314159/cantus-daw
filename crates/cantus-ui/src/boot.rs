@@ -216,6 +216,9 @@ impl Boot {
                 let midi = self.midi_got.take().flatten();
                 let (project, path) = match read.project {
                     Some((p, path)) => (Some(p), Some(path)),
+                    // Nothing to open: the program opens on a demo (round 19), so the first
+                    // thing anybody hears is what Cantus can do.
+                    None if !self.options.stress => (Some(crate::demos::startup_project()), None),
                     None => (None, None),
                 };
                 let mut app = CantusApp::assemble(

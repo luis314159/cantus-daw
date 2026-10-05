@@ -48,6 +48,7 @@ fn opts(block: usize) -> StemOptions {
             ..Default::default()
         },
         keep_silent: false,
+        ..Default::default()
     }
 }
 

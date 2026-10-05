@@ -8,6 +8,9 @@
 //! running the real compressor over a drum-like signal.
 
 use cantus_engine::EngineHandle;
+
+#[path = "shoot_audio/scene.rs"]
+mod audio_scene;
 use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
@@ -53,6 +56,14 @@ fn main() {
 
     // `shoot <dir> [scale] [kind…]`: the kinds named, or every editor and the mixer.
     let kinds: Vec<String> = args.collect();
+    // `audio`: the arrangement with audio clips, and the inspector on one (round 19).
+    if kinds.iter().any(|k| k == "audio") {
+        audio_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    let kinds: Vec<String> = kinds.into_iter().filter(|k| k != "audio").collect();
     let kinds: Vec<String> = if kinds.is_empty() {
         [
             "eq",
@@ -62,7 +73,11 @@ fn main() {
             "multiband",
             "deesser",
             "gate",
+            "stereo",
+            "maximizer",
+            "saturator",
             "",
+            "startup",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -95,27 +110,73 @@ fn main() {
             cantus_ui::theme::default_theme()
         };
         cantus_ui::theme::apply(&theme, &ctx);
-        let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+        // The mixer and `startup` (the whole window) show what the program opens on.
+        // `master` too: the startup project's mastering chain (round 19).
+        let project = if matches!(kind, "" | "startup" | "master") {
+            cantus_ui::demos::startup_project()
+        } else {
+            welcome_project()
+        };
+        let mut app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
+        if kind == "startup" {
+            startup_window(&mut app, &ctx, dark, &dir.join(format!("{name}.png")));
+            continue;
+        }
         app.central = cantus_ui::app::CentralView::Mixer;
         // `gate-midi`: the gate played by the first track's notes; `space-cut`: a hall too
         // long for the measure's capture, so its low octaves are marked cut (ADR 0022).
         let midi_gate = kind == "gate-midi";
         let cut_space = kind == "space-cut";
+        // `saturator-curve`: Fervor's drawn curve, an asymmetric shape.
+        let curve_sat = kind == "saturator-curve";
         let kind = match kind {
             "gate-midi" => "gate",
             "space-cut" => "space",
+            "saturator-curve" => "saturator",
             k => k,
         };
         // `plugin`: the generic editor of a hosted plug-in (the test plug-in, built from
         // source); `plugins`: the plug-in manager of Settings.
         let hosted = matches!(kind, "plugin" | "plugins");
-        if hosted {
+        // `settings`: the Settings window on its Audio page, with a demo interface.
+        if kind == "settings" {
+            views::settings_audio::demo_setup(&mut app);
+            app.show_settings = true;
+        } else if hosted {
             cantus_ui::views::plugins::demo_setup(&mut app, &test_plugin(), kind == "plugin");
+        } else if kind == "master" {
+            // `master`: the startup project's mastering chain (ADR 0026: EQ, glue,
+            // Latitudo, Culmen), the last insert's window open from it, the desk Extra
+            // large so the master's slots show. A project without one gets EQ and Terminus.
+            let m = cantus_core::StripId::MASTER;
+            if app.project().master.effects.is_empty() {
+                for k in [
+                    cantus_core::EffectKind::Eq,
+                    cantus_core::EffectKind::Limiter,
+                ] {
+                    app.add_effect(m, k);
+                }
+            }
+            if let Some(id) = app.project().master.effects.last().map(|e| e.id) {
+                app.open_effect_editor(m, id);
+            }
+            views::mixer::set_width_mode(&mut app, views::mixer::layout::WidthMode::from_index(2));
         } else if !kind.is_empty() {
             app.demo_editor(kind);
             if let Some(k) = views::inst::kind_from_name(kind) {
                 views::inst::demo_feed(&mut app, k);
             }
+        }
+        if let (true, Some((strip, effect, _))) = (curve_sat, app.fx.open) {
+            let mut host = views::fx::host::DawHost::new(&mut app, strip, effect, "saturator");
+            views::fx::saturator::apply_shape(&mut host, 7);
+            drop(host);
+            app.exec(cantus_core::Command::SetEffectParam {
+                strip,
+                effect,
+                key: "drive".into(),
+                value: 4.0,
+            });
         }
         if let (true, Some((strip, effect, _))) = (cut_space, app.fx.open) {
             app.exec(cantus_core::Command::SetEffectParam {
@@ -174,7 +235,7 @@ fn main() {
             }
             views::fx::demo_feed(&mut app, cantus_core::EffectKind::Eq);
         }
-        if !matches!(kind, "" | "eq" | "comp" | "plugin" | "plugins") {
+        if !matches!(kind, "" | "eq" | "comp" | "plugin" | "plugins" | "settings") {
             if let Some((_, _, k)) = app.fx.open {
                 views::fx::demo_feed(&mut app, k);
             }
@@ -216,6 +277,9 @@ fn main() {
                 views::eq_editor::window(&mut app, &ctx);
                 views::comp_editor::window(&mut app, &ctx);
                 views::fx::window(&mut app, &ctx);
+                if kind == "settings" {
+                    views::workspace_settings::window(&mut app, &ctx);
+                }
                 if kind == "plugins" {
                     egui::Window::new(cantus_ui::i18n::t("host.manager.title"))
                         .default_size([640.0, 420.0])
@@ -227,4 +291,29 @@ fn main() {
         );
         println!("wrote {}", path.display());
     }
+}
+
+/// The whole window on the startup project — toolbar, arrangement, mixer, inspector — as
+/// the program opens, at 1920 × 1080.
+fn startup_window(app: &mut CantusApp, ctx: &egui::Context, dark: bool, path: &std::path::Path) {
+    use cantus_ui::kit::appearance::Mode;
+    let tmp = std::env::temp_dir().join("cantus-shoot-startup");
+    app.settings_path = tmp.join("settings.json");
+    app.layouts_path = tmp.join("layouts.json");
+    app.keymap_path = tmp.join("keymap.toml");
+    app.appearance_path = tmp.join("appearance.json");
+    app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
+    app.attach(ctx);
+    if let Some(strip) = app.project().tracks.get(5).and_then(|t| t.strip) {
+        app.select_strip(strip);
+    }
+    shoot(
+        ctx,
+        egui::vec2(1920.0, 1080.0),
+        1.0,
+        8,
+        Some(path),
+        |root| app.frame(root),
+    );
+    println!("wrote {}", path.display());
 }

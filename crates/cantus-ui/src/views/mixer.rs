@@ -212,6 +212,8 @@ pub(crate) struct Words {
     pub route: String,
     pub add_strip: String,
     pub master: String,
+    /// The master's number and name: a click shows its chain, a right-click its menu.
+    pub master_head: String,
     pub pan_law: String,
     pub ratio: String,
     pub menu: String,
@@ -263,6 +265,7 @@ impl Words {
             route: t("mixer.hint.route"),
             add_strip: t("mixer.add_strip"),
             master: t("mixer.master"),
+            master_head: t("master.head_tip"),
             pan_law: t("panlaw.tip"),
             ratio: t("mixer.hint.ratio"),
             menu: t("mixer.hint.menu"),
@@ -304,6 +307,9 @@ pub struct MixerView {
     /// Ctrl+wheel notches this frame, for the fader or knob under the pointer.
     pub(crate) ctrl_notches: f32,
     popups: menu::Popups,
+    /// An insert slot being dragged to a new place: its strip (or the master), the
+    /// effect, and the slot it started in.
+    slot_drag: Option<(StripId, cantus_core::EffectId, usize)>,
     /// The desk's one brush: a mesh per clip region, the text on top.
     brush: Brush,
     /// Reused for numbers and hint names, so a frame formats without allocating.
@@ -412,6 +418,7 @@ pub fn set_width_mode(app: &mut CantusApp, mode: WidthMode) {
 /// `at`, and optionally one of its submenus by row.
 pub fn open_menu(app: &mut CantusApp, strip: Option<StripId>, at: egui::Pos2) {
     let m = match strip {
+        Some(id) if id.is_master() => menu::Menu::Master,
         Some(id) => menu::Menu::Strip(id),
         None => menu::Menu::Desk,
     };

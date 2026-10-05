@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod collect;
 pub mod dawproject;
 pub mod format;
 pub mod midi;

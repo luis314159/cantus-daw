@@ -35,10 +35,10 @@ in ─ DC filter ─ gain ─ clipper (4×) ─┬─ delay ──────�
   Kaiser-sinc interpolator (33 taps per phase) refined by a parabola through the three
   points around each local maximum. A second, always-linked stage then measures the
   *output* the same way and removes what the gain modulation put back between samples
-  (0.05 dB of internal margin, a 1 ms S-curve ramp, 5 ms release).
+  (0.15 dB of internal margin, a 1 ms S-curve ramp, 5 ms release).
 - **Clipper** (P1): 4× oversampled soft clipper before the limiter. It computes only *what
-  clipping changes* at 4× and adds that back, band-limited, to the delayed input — so with
-  nothing to clip it is an exact delay. The knob moves its threshold from 6 dB over the
+  clipping changes* at 4× and adds that back, band-limited (below 0.40 of the sample rate,
+  round 19), to the delayed input — so with nothing to clip it is an exact delay. The knob moves its threshold from 6 dB over the
   ceiling down to the ceiling: more of each peak clipped, less limited.
 - **Knee** (P1): 0–12 dB soft knee *under* the ceiling; the static curve reaches the ceiling
   with slope zero and never passes it.
@@ -120,8 +120,23 @@ advice); the test below shows they are ordered as the table says.
 3. **A second true-peak stage after the first**, rather than a larger internal margin. The
    first stage already holds the reconstructed peaks of its *input*; the second measures
    the *output* and removes only what the gain changes put back between samples. The
-   margin (0.05 dB) was set from the measurement below: at 0.02 dB the worst case was
-   +0.002 dB over (Loud, zero look-ahead, +18 dB, tones at 11–19 kHz).
+   margin was first set at 0.05 dB from the measurement below (at 0.02 dB the worst case
+   was +0.002 dB over: Loud, zero look-ahead, +18 dB, tones at 11–19 kHz). **Round 19
+   raised it to 0.15 dB**, on a measurement that corpus missed: drums and hats split into
+   three bands by Culmen, squeezed and driven 18 dB into Terminus (Loud at 0.5 ms, Safe at
+   5 ms) read **+0.032 dB** over the ceiling by the 32× reference with the clipper off and
+   **+0.244 dB** with it at 100 %, while the 4× detector read exactly the −0.05 it aimed
+   for. The detector's reconstruction is flat to 0.44 of the sample rate and rolls off to
+   −6 dB at Nyquist, so energy in that last tenth — what a fast gain puts around bright
+   hats, and above all what a clipper makes — is read 0.08–0.29 dB low. Two changes,
+   measured by `terminus::tests_tp`: the margin is 0.15 dB (worst over that grid with the
+   clipper off: −0.068 dB; on the corpus below: −0.100 dB), and the clipper's residual
+   comes back through its own low-pass at 0.40 of the sample rate (Kaiser, the
+   prototype's length and centre, so the latency is unchanged), which leaves nothing in
+   the band the detector reads low (clipper at 100 %: +0.244 → −0.016 dB). Where the
+   safety stage does nothing — a signal under the ceiling, or held by the first stage with
+   room to spare — nothing changed; where it works, a true-peak-limited peak sits 0.1 dB
+   lower than before. Culmen's own 0.05 dB (`TP_MARGIN_DB`) now adds to this one.
 4. **Telemetry as a ring of 10 ms columns with a counter**, not a last-block snapshot: the
    engine keeps only the latest `Meters`, so a snapshot would lose the columns between two
    frames. Eleven columns (110 ms) cover a late frame; the editor reads the counter, takes
@@ -160,7 +175,8 @@ DSP (`cargo test -p cantus-dsp terminus`; the heavy ones in `--release`):
 | `the_result_does_not_depend_on_the_block_size` | every style with everything on (clipper, knee, DC, dither, Match): blocks 1, 7, 64, 1000 equal 4096, tolerance 0 |
 | `it_is_deterministic_and_finite_on_nasty_input` | +30 dB into ×40 noise and 1e-30 sections: identical twice, all finite |
 | `no_sample_passes_the_ceiling` | sample-peak mode, every style, look-ahead 0 / 0.3 / 2 / 5 ms, +20 dB: no sample over −3 dBFS |
-| `true_peak_never_passes_the_ceiling_by_a_32x_reference` | four inter-sample-peak signals (quarter-rate sine at 45°, swelling tones at 11–19 kHz, a band-limited square, band-limited noise bursts), five style/look-ahead/gain cases, both channels: the output's true peak by an independent 32× Kaiser-sinc reconstruction in f64 is **at most −0.019 dB re the ceiling** (worst: noise bursts, Punch, 0.5 ms, +6 dB) |
+| `true_peak_never_passes_the_ceiling_by_a_32x_reference` | four inter-sample-peak signals (quarter-rate sine at 45°, swelling tones at 11–19 kHz, a band-limited square, band-limited noise bursts), five style/look-ahead/gain cases, both channels: the output's true peak by an independent 32× Kaiser-sinc reconstruction in f64 is **at most −0.100 dB re the ceiling** (round 19, margin 0.15 dB; worst: the quarter-rate sine at 45°, Bus, 1 ms, +9 dB; it was −0.019 dB at the first margin of 0.05) |
+| `tests_tp::band_processed_drums_driven_into_the_clipper_stay_under_the_ceiling` | (round 19) drums and hats split into three bands by Culmen in every crossover mode, two seeds, driven +18 dB; clipper off, 20, 40, 70, 100 %; Punch, Loud, Clean, Safe: true peak by the 32× reference **at most −0.016 dB re the ceiling** (was +0.244 dB) |
 | `the_latency_reported_is_the_latency_measured` | an impulse comes out exactly `latency()` samples later, four configurations |
 | `a_steady_overload_settles_at_the_ceiling` | a tone 10 dB over settles within 0.3 dB under the ceiling |
 | `linking_is_per_stage` | unlinked, a left-only peak leaves the right untouched (1e-5); linked both move; transients linked + release unlinked: the right is back 100 ms after the peak while the left still recovers |
@@ -224,7 +240,7 @@ channel (input, output safety, output meter) are most of it. Allocation-free aft
 | Two-stage limiter, Lookahead 0–5 ms, Attack / Release 0–10 s | same ranges (attack from 0.1 ms, release from 1 ms, log knobs) | have |
 | Channel link per stage (transients, release) | same, tested per stage | have |
 | Eight styles, opaque | five styles, each printed as the numbers it sets, ordered by distortion in a test | **better** |
-| True Peak Limiting (~5 ms latency) | 4× detection refined between points + an output safety stage; **verified ≤ −0.019 dB re ceiling by a 32× reference**; 90 samples (1.9 ms) | **better** (verified, lower latency) |
+| True Peak Limiting (~5 ms latency) | 4× detection refined between points + an output safety stage; **verified ≤ −0.1 dB re ceiling on the corpus, ≤ −0.016 dB on clipped band-processed drums, by a 32× reference**; 90 samples (1.9 ms) | **better** (verified, lower latency) |
 | Oversampling 2–32× of the whole limiter | detection-only 4×; clipper at 4× | different — missing as an option; see decision 1 |
 | Gain 0–30 dB, Output −30…0 dB(TP); Alt-drag gain against output | same; the gain strip and the ceiling line are dragged on the display, Alt on the strip moves the ceiling inversely | have / **better** (on the display) |
 | Unity Gain (1:1) | 1:1, plus **Match** by measured K-weighted loudness | **better** |

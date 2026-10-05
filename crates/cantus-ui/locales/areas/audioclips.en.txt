@@ -1,0 +1,52 @@
+# Area: audio clips (round 19: waveforms, fades, clip gain, import). Every key here needs its twin in audioclips.es.txt.
+
+# --- commands (the undo history names them) ---
+cmd.import_audio = Import audio
+cmd.collect_audio = Collect audio files
+cmd.normalize_audio = Normalize
+
+# --- the clip in the arrangement ---
+audioclips.badge.reverse = REV
+audioclips.missing = MISSING
+audioclips.fade_in = Fade in
+audioclips.fade_out = Fade out
+audioclips.gain = Clip gain
+audioclips.fade_remove = Remove fades
+audioclips.curve.linear = Linear
+audioclips.curve.equal_power = Equal power
+audioclips.curve.exponential = Exponential
+audioclips.curve.logarithmic = Logarithmic
+audioclips.curve.s_curve = S-curve
+
+# --- the clip's menu ---
+audioclips.menu.band = Audio
+audioclips.menu.normalize = Normalize
+audioclips.menu.reset_gain = Reset clip gain
+audioclips.menu.reverse = Reverse
+audioclips.menu.locate = Locate file…
+audioclips.menu.reveal = Show in file browser
+audioclips.menu.import = Import audio…
+audioclips.menu.collect = Collect audio and save
+
+# --- the inspector ---
+audioclips.inspector.band = Audio clip
+audioclips.inspector.file = File
+audioclips.inspector.format = Format
+audioclips.inspector.path = Path
+audioclips.inspector.curve = Curve
+audioclips.inspector.mono = mono
+audioclips.inspector.stereo = stereo
+
+# --- files ---
+audioclips.filter = Audio files
+audioclips.default_name = Audio
+audioclips.error.format = not an audio file Cantus reads (WAV, AIFF, FLAC, Ogg)
+audioclips.drop.hint = Drop audio files to place them here, a MIDI file to add its tracks, or a DAWproject to open it
+audioclips.drop.unsupported = Cannot import {file}: Cantus takes audio (WAV, AIFF, FLAC, Ogg), .mid and .dawproject files
+audioclips.status.imported = Imported {n} audio file(s)
+audioclips.status.import_failed = Could not import {file}: {error}
+audioclips.status.collect_failed = Could not copy {file} into the project's Audio folder: {error}
+audioclips.status.relinked = Found the audio again: {file}
+audioclips.status.wait_peaks = The waveform is still being read; try again in a moment
+audioclips.loading = Loading
+audioclips.piano_roll = An audio clip has no notes. Its gain, fades and file are in the inspector

@@ -9,8 +9,11 @@ pub mod deesser;
 pub mod eq;
 pub mod gate;
 pub mod limiter;
+pub mod maximizer;
 pub mod multiband;
+pub mod saturator;
 pub mod space;
+pub mod stereo;
 
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).

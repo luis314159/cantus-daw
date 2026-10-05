@@ -29,6 +29,9 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/multiband.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/deesser.en.txt"),
                 include_str!("../../cantus-ui/locales/fx/gate.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/stereo.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/maximizer.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/saturator.en.txt"),
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -40,6 +43,9 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/multiband.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/deesser.es.txt"),
                 include_str!("../../cantus-ui/locales/fx/gate.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/stereo.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/maximizer.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/saturator.es.txt"),
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }
