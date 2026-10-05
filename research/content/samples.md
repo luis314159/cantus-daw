@@ -43,9 +43,10 @@ that I can GPL the output people get from use of my program?" (`#GPLOutput`) say
 GPL does not cover what users make with the program. So a sample library keeps its own
 licence inside a GPL installer, and the GPL does not reach users' songs.
 
-- **Not verified this session.** gnu.org timed out from this network, so this paraphrase
-  of the FAQ comes from memory. Check the wording at
-  https://www.gnu.org/licenses/gpl-faq.html before an ADR cites it.
+- gnu.org timed out from this network while this section was written. The FAQ was
+  later read through the Internet Archive copy for instruments.md §4.1, which quotes
+  `#MereAggregation` and the plug-in entries verbatim. Re-read the live page before
+  an ADR cites it.
 - The GPL itself does not stop us shipping CC-BY or CC-BY-SA data. The questions that
   matter are each licence's own duties and our own policy, ADR 0001.
 - The usual open-source practice (Debian, Fedora) applies: data must be redistributable
@@ -390,8 +391,8 @@ not quotes.
 
 ## 9. What could not be verified (2026-10-05)
 
-- **GNU GPL FAQ wording** (gnu.org timed out). The aggregation/output points are from
-  memory.
+- **GNU GPL FAQ wording**: gnu.org timed out; `#MereAggregation` was confirmed from the
+  archive.org copy (instruments.md §4.1); `#GPLOutput` is paraphrased.
 - **Freesound's own pages and API** (not fetchable from this network). Licence set
   confirmed only via search results. API details are not verified: APIv2 needs a token;
   original-file download needs OAuth2.
