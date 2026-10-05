@@ -322,14 +322,43 @@ pub fn open_window_sized(
     designed: egui::Vec2,
     add: impl FnOnce(&mut egui::Ui) -> frame::Out,
 ) -> bool {
+    use crate::views::workspace_device as device;
+    // A device of the workspace (round 20): closed from outside (Esc, the tray), kept
+    // open but not drawn while minimised, over the workspace while maximised, and back
+    // where it floated last.
+    let key = id.value();
+    let st = device::register_area(ctx, key, frame::hue_of(kind), || {
+        crate::i18n::t(kind.name_key())
+    });
+    if st.closed {
+        return false;
+    }
+    if st.minimised {
+        return true;
+    }
     let size = designed * frame::shell_of(kind).scale(ctx);
-    let at = frame::position(ctx, *pos, size);
+    let (at, size) = match st.maximised {
+        Some(area) => (area.min, area.size()),
+        None => (frame::position(ctx, st.place.or(*pos), size), size),
+    };
     let mut out = frame::Out::default();
     frame::place(ctx, id, at, size, |ui| out = add(ui));
-    *pos = Some(at + out.moved);
+    let whole = egui::Rect::from_min_size(at, size);
+    let header = egui::Rect::from_min_max(at, egui::pos2(whole.right(), out.body.top()));
+    device::note_shown(ctx, key, whole, header);
+    if st.maximised.is_none() {
+        let to = at + out.moved;
+        *pos = Some(to);
+        device::remember_place(ctx, key, egui::Rect::from_min_size(to, size));
+    }
     // Meters and histories move with the audio: at most 60 frames a second.
     ctx.request_repaint_after(std::time::Duration::from_millis(16));
     !out.close
+}
+
+/// The device id of an effect's editor window: its key among the workspace's devices.
+pub fn device_id(effect: cantus_core::EffectId) -> egui::Id {
+    egui::Id::new(("fx-editor", effect.0))
 }
 
 /// One of the effect editors that run on any [`host::FxHost`], with its state — for a

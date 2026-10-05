@@ -13,6 +13,7 @@ pub mod channel_rack;
 pub mod clips_chrome;
 pub mod comp_editor;
 pub mod demos;
+pub mod device_chrome;
 pub mod eq_editor;
 pub mod fx;
 pub mod hint;

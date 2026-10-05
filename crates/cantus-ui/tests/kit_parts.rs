@@ -311,6 +311,7 @@ fn the_shell_frames_the_body_between_header_and_footer() {
             views: None,
             bypassed: Some(false),
             help: true,
+            window: None,
         };
         let f = shell::Footer {
             chips: &[],

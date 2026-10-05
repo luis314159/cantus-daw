@@ -201,6 +201,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         .unwrap_or_else(|| t("inst.preset.init"));
     let on_b = app.inst.on_b(track);
     let undo = (app.bus.can_undo(), app.bus.can_redo());
+    let key = editor_id(track).value();
     let header = Header {
         name: &name,
         context: &context,
@@ -215,6 +216,11 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         views: Some((&VIEWS, view_index(app.inst.view))),
         bypassed: None,
         help: false,
+        window: Some(crate::views::device_chrome::ctl(
+            ctx,
+            key,
+            "swap.tip.instrument",
+        )),
     };
     let chip_strings = footer_chips(app, &spec);
     let chips: Vec<&str> = chip_strings.iter().map(String::as_str).collect();
@@ -230,11 +236,13 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         .open(&mut open)
         .default_size(size)
         .min_size(size * 0.75)
+        .hue(hue(spec.kind))
         .show(ctx, |ui| {
             let rect = ui.max_rect();
             let out = shell.show(ui, &header, &footer, |ui, s, body_rect| {
                 shell_body(app, ui, track, &spec, s, body_rect);
             });
+            crate::views::workspace_device::note_shown(ctx, key, rect, out.header);
             events = out.events;
             rect
         });
@@ -270,6 +278,15 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::SizeMenu => app.inst.popup = Popup::Sizes,
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Favourite | Event::Help | Event::Bypass => {}
+            // The window's own buttons (round 20).
+            Event::Close | Event::Minimise | Event::Maximise | Event::Swap => {
+                use crate::views::device_chrome::{on_event, Asked};
+                let swap = crate::picker::PickPurpose::ReplaceInstrument { track };
+                if on_event(app, ctx, key, ev, swap) == Asked::Close {
+                    app.close_inst_editor();
+                    return;
+                }
+            }
         }
     }
     popups(app, ctx, track, &spec, &shell, rect, k);

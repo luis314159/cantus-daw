@@ -125,6 +125,9 @@ pub enum Action {
     TogglePunch,
     /// Show or hide the selected track's take lanes.
     ShowTakes,
+    /// Open or close the selected track's instrument window, or bring it back from the
+    /// device tray (F8; round 20).
+    ToggleInstrumentWindow,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -170,7 +173,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 70] = [
+    pub const ALL: [Action; 71] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -241,6 +244,7 @@ impl Action {
         Action::ToggleCountIn,
         Action::TogglePunch,
         Action::ShowTakes,
+        Action::ToggleInstrumentWindow,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -316,6 +320,7 @@ impl Action {
             Action::ToggleCountIn => "toggle-count-in",
             Action::TogglePunch => "toggle-punch",
             Action::ShowTakes => "show-takes",
+            Action::ToggleInstrumentWindow => "toggle-instrument-window",
         }
     }
 
@@ -348,7 +353,7 @@ impl Action {
             | ToolPlayback => Category::Tools,
             ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer | ViewArrangement
             | ToggleInspector | CloseFloating | ZoomIn | ZoomOut | ZoomReset | PickElement
-            | ToggleDeviceKeyboard => Category::View,
+            | ToggleDeviceKeyboard | ToggleInstrumentWindow => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave => Category::Mixer,
         }
@@ -615,6 +620,8 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleInspector, Binding::alt(Key::I)),
         (ToggleDeviceKeyboard, Binding::alt(Key::K)),
         (CloseFloating, Binding::key(Key::F12)),
+        // Round 20: the selected track's instrument window, open or closed, from anywhere.
+        (ToggleInstrumentWindow, Binding::key(Key::F8)),
         (ZoomIn, Binding::cmd(Key::Plus)),
         (ZoomIn, Binding::cmd(Key::Equals)),
         (ZoomOut, Binding::cmd(Key::Minus)),

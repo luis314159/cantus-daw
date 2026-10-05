@@ -246,7 +246,9 @@ impl Workspace {
         }
         self.synced_central = Some(app.central);
 
-        // Device editors: a tab for each new one, none for those that closed.
+        // Device editors: their buttons' maximise and restore, where they float (round 20);
+        // a tab for each new one, none for those that closed or are minimised.
+        self.device_places(ctx, area);
         let mut wanted = std::mem::take(&mut self.wanted);
         device::wanted(ctx, &mut wanted);
         let stale: Vec<Pane> = self
@@ -263,6 +265,7 @@ impl Workspace {
         for key in &wanted {
             if !self.contains(Pane::Device(*key)) {
                 self.reveal(Pane::Device(*key));
+                self.float_where_it_was(ctx, *key);
                 ctx.request_repaint();
             }
         }

@@ -26,8 +26,19 @@
 //!
 //! Nothing here needs the application: the registry lives in the context, so an editor
 //! can switch without touching `app.rs`.
+//!
+//! **Round 20: the window's own buttons.** The registry also keeps what the shell's
+//! buttons ask of a device ([`crate::kit::window_ctl`]): **minimised** — not drawn, a chip
+//! in the device tray brings it back ([`minimise`], [`restore`]); **maximised** — filling
+//! the workspace, and back ([`toggle_maximise`]); and the effects' editors, which float
+//! as areas of their own rather than tabs ([`Entry::area`]), so one tray, one Esc and one
+//! set of buttons serve every device. It remembers where each device floated, so a device
+//! closed and opened again comes back where it was ([`Registry::places`]), and which
+//! device was clicked last, so **Esc** closes it ([`focused`]).
 
-use egui::{Context, Id, LayerId, Rect, Ui, UiBuilder, Vec2};
+use crate::kit::Function;
+use egui::{Context, Id, LayerId, Pos2, Rect, Ui, UiBuilder, Vec2};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// A device editor's key in the registry and its tab's identity: the `Id` the editor gave
@@ -47,6 +58,29 @@ pub struct Entry {
     pub body: Option<Body>,
     /// The user closed its tab: the next `show` reports `open = false`.
     pub closed: bool,
+    /// Hosted as a floating area of its own (an effect's editor), not as a tab of the dock.
+    pub area: bool,
+    /// Minimised to the device tray: not drawn; its chip brings it back.
+    pub minimised: bool,
+    /// Filling the workspace.
+    pub maximised: bool,
+    /// Where it was before it was maximised: a floating rect, or `None` for a tab that
+    /// was docked.
+    pub restore: Option<Rect>,
+    /// A maximise or restore the workspace has to carry out on a tab (it owns the dock).
+    pub pending: Option<Pending>,
+    /// The device hue: its chip's mark in the tray.
+    pub hue: Function,
+    /// Where it was drawn last, whole and its header (published geometry for tests and
+    /// for the focus).
+    pub shown: Option<(Rect, Rect)>,
+}
+
+/// A change of place the workspace carries out on a device's tab.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Pending {
+    Maximise,
+    Restore,
 }
 
 /// A docked tab's body, recorded by the workspace while laying the dock out.
@@ -62,6 +96,13 @@ pub struct Body {
 #[derive(Default)]
 pub struct Registry {
     pub entries: Vec<Entry>,
+    /// The workspace's area last frame: where a maximised device goes.
+    pub area: Option<Rect>,
+    /// The device clicked last, while it stays on screen: Esc closes it.
+    pub focused: Option<DeviceKey>,
+    /// Where each device floated last, for the session: it opens there again. A device
+    /// docked by the user is forgotten here, and docks again.
+    pub places: HashMap<DeviceKey, Rect>,
 }
 
 impl Registry {
@@ -71,6 +112,38 @@ impl Registry {
 
     pub fn get_mut(&mut self, key: DeviceKey) -> Option<&mut Entry> {
         self.entries.iter_mut().find(|e| e.key == key)
+    }
+
+    /// The entry for `key`, made fresh when there is none.
+    fn entry(&mut self, key: DeviceKey, pass: u64, area: bool) -> (&mut Entry, bool) {
+        match self.entries.iter().position(|e| e.key == key) {
+            Some(i) => (&mut self.entries[i], false),
+            None => {
+                self.entries.push(Entry::new(key, pass, area));
+                (self.entries.last_mut().expect("just pushed"), true)
+            }
+        }
+    }
+}
+
+impl Entry {
+    fn new(key: DeviceKey, pass: u64, area: bool) -> Entry {
+        Entry {
+            key,
+            title: String::new(),
+            default_size: Vec2::new(880.0, 560.0),
+            min_size: Vec2::new(480.0, 320.0),
+            seen: pass,
+            body: None,
+            closed: false,
+            area,
+            minimised: false,
+            maximised: false,
+            restore: None,
+            pending: None,
+            hue: Function::Output,
+            shown: None,
+        }
     }
 }
 
@@ -136,7 +209,239 @@ pub fn wanted(ctx: &Context, out: &mut Vec<DeviceKey>) {
     with_registry(ctx, |r| {
         // An editor that stopped asking was closed by the application: forget it.
         r.entries.retain(|e| pass.saturating_sub(e.seen) <= 2);
-        out.extend(r.entries.iter().filter(|e| !e.closed).map(|e| e.key));
+        if r.focused.is_some_and(|k| r.get(k).is_none()) {
+            r.focused = None;
+        }
+        out.extend(
+            r.entries
+                .iter()
+                .filter(|e| !e.closed && !e.area && !e.minimised)
+                .map(|e| e.key),
+        );
+    });
+}
+
+// ---- the window's buttons (round 20) ------------------------------------------------------
+
+/// Minimise a device to the tray: it stops being drawn (its tab leaves the dock, its area
+/// is not shown) and stays open; its chip brings it back.
+pub fn minimise(ctx: &Context, key: DeviceKey) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            e.minimised = true;
+            e.body = None;
+        }
+        if r.focused == Some(key) {
+            r.focused = None;
+        }
+    });
+    ctx.request_repaint();
+}
+
+/// Bring a minimised device back where it was, and make it the one Esc closes.
+pub fn restore(ctx: &Context, key: DeviceKey) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            e.minimised = false;
+        }
+        r.focused = Some(key);
+    });
+    ctx.request_repaint();
+}
+
+/// Maximise a device to the workspace, or restore it to where it was. An area does it
+/// itself; a tab is moved by the workspace on the next frame.
+pub fn toggle_maximise(ctx: &Context, key: DeviceKey) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            if e.area {
+                if e.maximised {
+                    e.maximised = false;
+                } else {
+                    e.restore = e.shown.map(|(whole, _)| whole);
+                    e.maximised = true;
+                }
+            } else {
+                e.pending = Some(if e.maximised {
+                    Pending::Restore
+                } else {
+                    Pending::Maximise
+                });
+            }
+        }
+    });
+    ctx.request_repaint();
+}
+
+/// Whether the device is maximised (its key shows *restore*).
+pub fn is_maximised(ctx: &Context, key: DeviceKey) -> bool {
+    with_registry(ctx, |r| r.get(key).is_some_and(|e| e.maximised))
+}
+
+/// Whether the device is minimised to the tray.
+pub fn is_minimised(ctx: &Context, key: DeviceKey) -> bool {
+    with_registry(ctx, |r| r.get(key).is_some_and(|e| e.minimised))
+}
+
+/// A device was drawn this frame at `whole`, its header at `header`: published for tests
+/// and the tray, and a press inside makes it the device Esc closes.
+pub fn note_shown(ctx: &Context, key: DeviceKey, whole: Rect, header: Rect) {
+    let pressed = ctx.input(|i| {
+        i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|p| whole.contains(p))
+    });
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            e.shown = Some((whole, header));
+        }
+        if pressed {
+            r.focused = Some(key);
+        }
+    });
+}
+
+/// Name a registered device (its chip in the tray), when the name changed.
+pub fn set_title(ctx: &Context, key: DeviceKey, title: &str) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            if e.title != title {
+                e.title.clear();
+                e.title.push_str(title);
+            }
+        }
+    });
+}
+
+/// Where a device was drawn last: (whole, header).
+pub fn shown(ctx: &Context, key: DeviceKey) -> Option<(Rect, Rect)> {
+    with_registry(ctx, |r| r.get(key).and_then(|e| e.shown))
+}
+
+/// The device Esc closes: the one clicked last, if it is still open and on screen.
+pub fn focused(ctx: &Context) -> Option<DeviceKey> {
+    with_registry(ctx, |r| {
+        r.focused
+            .filter(|k| r.get(*k).is_some_and(|e| !e.closed && !e.minimised))
+    })
+}
+
+/// The workspace's frame starts: remember its area, and a press that lands on no device
+/// takes the focus away from them all.
+pub fn begin_frame(ctx: &Context, area: Rect) {
+    let press = ctx.input(|i| {
+        i.pointer
+            .any_pressed()
+            .then(|| i.pointer.interact_pos())
+            .flatten()
+    });
+    with_registry(ctx, |r| {
+        r.area = Some(area);
+        if let Some(p) = press {
+            let on_device = r
+                .entries
+                .iter()
+                .any(|e| !e.minimised && e.shown.is_some_and(|(w, _)| w.contains(p)));
+            if !on_device {
+                r.focused = None;
+            }
+        }
+    });
+}
+
+/// The minimised devices, for the tray: (key, title, hue), in the order they opened.
+pub fn minimised(ctx: &Context, out: &mut Vec<(DeviceKey, String, Function)>) {
+    out.clear();
+    with_registry(ctx, |r| {
+        out.extend(
+            r.entries
+                .iter()
+                .filter(|e| e.minimised && !e.closed)
+                .map(|e| (e.key, e.title.clone(), e.hue)),
+        );
+    });
+}
+
+/// What an area-hosted device (an effect's editor) is to do this frame.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct AreaState {
+    /// Closed from outside (Esc, the tray): close the editor.
+    pub closed: bool,
+    pub minimised: bool,
+    /// Maximised: draw it over the workspace's area.
+    pub maximised: Option<Rect>,
+    /// Where it floated last (this session), if anywhere.
+    pub place: Option<Pos2>,
+}
+
+/// An effect's editor registers itself as an area-hosted device every frame it is open.
+/// `title` is asked for only when the entry has none.
+pub fn register_area(
+    ctx: &Context,
+    key: DeviceKey,
+    hue: Function,
+    title: impl FnOnce() -> String,
+) -> AreaState {
+    let pass = ctx.cumulative_pass_nr();
+    let st = with_registry(ctx, |r| {
+        let area = r.area;
+        let place = r.places.get(&key).map(|p| p.min);
+        let (e, _) = r.entry(key, pass, true);
+        e.seen = pass;
+        e.area = true;
+        e.hue = hue;
+        if e.title.is_empty() {
+            e.title = title();
+        }
+        AreaState {
+            closed: e.closed,
+            minimised: e.minimised,
+            maximised: area.filter(|a| e.maximised && a.is_positive()),
+            place,
+        }
+    });
+    if st.closed {
+        with_registry(ctx, |r| r.entries.retain(|e| e.key != key));
+    }
+    st
+}
+
+/// Remember where a device floats (an area's rect, a floating tab's window).
+pub fn remember_place(ctx: &Context, key: DeviceKey, rect: Rect) {
+    with_registry(ctx, |r| {
+        r.places.insert(key, rect);
+    });
+}
+
+/// Forget where a device floated: it was docked.
+pub fn forget_place(ctx: &Context, key: DeviceKey) {
+    with_registry(ctx, |r| {
+        r.places.remove(&key);
+    });
+}
+
+/// Where a device floated last, if it did.
+pub fn place_of(ctx: &Context, key: DeviceKey) -> Option<Rect> {
+    with_registry(ctx, |r| r.places.get(&key).copied())
+}
+
+/// The tabs with a maximise or restore to carry out (taken: done once).
+pub fn take_pending(ctx: &Context, out: &mut Vec<(DeviceKey, Pending, Option<Rect>)>) {
+    out.clear();
+    with_registry(ctx, |r| {
+        for e in &mut r.entries {
+            if let Some(p) = e.pending.take() {
+                out.push((e.key, p, e.restore));
+            }
+        }
+    });
+}
+
+/// The workspace carried out a maximise (with where to restore to) or a restore.
+pub fn set_maximised(ctx: &Context, key: DeviceKey, on: bool, restore: Option<Rect>) {
+    with_registry(ctx, |r| {
+        if let Some(e) = r.get_mut(key) {
+            e.maximised = on;
+            e.restore = restore;
+        }
     });
 }
 
@@ -171,6 +476,7 @@ pub struct DeviceWindow<'open> {
     open: Option<&'open mut bool>,
     default_size: Vec2,
     min_size: Vec2,
+    hue: Option<Function>,
 }
 
 impl<'open> DeviceWindow<'open> {
@@ -181,7 +487,14 @@ impl<'open> DeviceWindow<'open> {
             open: None,
             default_size: Vec2::new(880.0, 560.0),
             min_size: Vec2::new(480.0, 320.0),
+            hue: None,
         }
+    }
+
+    /// The device hue: its chip's mark in the tray when it is minimised.
+    pub fn hue(mut self, hue: Function) -> Self {
+        self.hue = Some(hue);
+        self
     }
 
     /// The editor's identity: the same id always means the same tab.
@@ -236,22 +549,11 @@ impl<'open> DeviceWindow<'open> {
         let pass = ctx.cumulative_pass_nr();
         let mut fresh = false;
         let state = with_registry(ctx, |r| {
-            let e = match r.get_mut(key) {
-                Some(e) => e,
-                None => {
-                    fresh = true;
-                    r.entries.push(Entry {
-                        key,
-                        title: String::new(),
-                        default_size: self.default_size,
-                        min_size: self.min_size,
-                        seen: pass,
-                        body: None,
-                        closed: false,
-                    });
-                    r.entries.last_mut().expect("just pushed")
-                }
-            };
+            let (e, new) = r.entry(key, pass, false);
+            fresh = new;
+            if let Some(hue) = self.hue {
+                e.hue = hue;
+            }
             if e.title != self.title {
                 e.title.clear();
                 e.title.push_str(&self.title);

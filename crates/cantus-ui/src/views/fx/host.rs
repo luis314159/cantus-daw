@@ -92,6 +92,14 @@ pub trait FxHost {
     fn makes_clips(&self) -> bool {
         false
     }
+    /// The editor's window as a device of the workspace (round 20): its key, when the
+    /// host draws the window's own buttons — swap, minimise, maximise, close. `None` where
+    /// the window is the host's (the exported plug-ins').
+    fn device_key(&self) -> Option<u64> {
+        None
+    }
+    /// The swap button: offer the device picker for this slot, in place.
+    fn swap(&mut self) {}
 
     // ---- editing several parameters at once ------------------------------------------
 
@@ -318,6 +326,17 @@ impl<'a> DawHost<'a> {
 impl FxHost for DawHost<'_> {
     fn spec(&self) -> &EffectSpec {
         &self.spec
+    }
+
+    fn device_key(&self) -> Option<u64> {
+        Some(super::device_id(self.effect).value())
+    }
+
+    fn swap(&mut self) {
+        self.app.open_picker(crate::picker::PickPurpose::ReplaceEffect {
+            strip: self.strip,
+            effect: self.effect,
+        });
     }
 
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {

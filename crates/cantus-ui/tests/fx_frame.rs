@@ -116,6 +116,7 @@ fn header_parts(a: &cantus_ui::CantusApp, kind: EffectKind) -> cantus_ui::kit::s
         views: None,
         bypassed: Some(false),
         help: false,
+        window: Some(cantus_ui::views::fx::frame::window_ctl(false)),
     };
     shell::header_rects(rect, &s, &header)
 }

@@ -117,6 +117,7 @@ pub mod shell;
 pub mod tile;
 pub mod well;
 pub mod widgets;
+pub mod window_ctl;
 
 pub mod gallery;
 

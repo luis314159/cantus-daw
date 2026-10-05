@@ -183,7 +183,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     };
 
     let right_edge = insp_r.left() - pad;
-    let left_edge = lower_r.right() + pad;
+    // Round 20: the minimised devices' chips come first; the status line follows them.
+    let left_edge = super::device_chrome::tray(ui, rect, lower_r.right() + pad, k);
     let painter = ui.painter_at(rect);
     CACHE.with(|cell| {
         let mut c = cell.borrow_mut();
