@@ -69,6 +69,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                 .show(&mut child, |ui| {
                     ui.set_width(body.width() - 14.0 * s.k);
                     ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
+                    super::verse::settings(app, ui);
                     super::settings_audio::page(app, ui);
                     midi(app, ui);
                     look(app, ui);

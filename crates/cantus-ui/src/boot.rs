@@ -27,8 +27,17 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
 
-/// The splash window's size, in points.
+/// The splash window's size, in points (without the verse).
 pub const SIZE: Vec2 = Vec2::new(520.0, 320.0);
+
+/// The splash window's size: taller by the verse's band when a verse shows (§6c).
+pub fn size(verse: bool) -> Vec2 {
+    if verse {
+        SIZE + Vec2::new(0.0, crate::views::verse::SPLASH_BAND)
+    } else {
+        SIZE
+    }
+}
 /// The logo's side on the splash, in points (baked at 1× and 2× of this).
 pub const LOGO: f32 = 184.0;
 
@@ -110,6 +119,9 @@ pub struct Boot {
     logo: Option<TextureHandle>,
     owner: Option<raw_window_handle::RawWindowHandle>,
     started: Instant,
+    /// The verse chosen at launch (§6c), and whether *Don't show again* was clicked.
+    verse: crate::verse::Launch,
+    hide_verse: bool,
 }
 
 impl Boot {
@@ -133,7 +145,16 @@ impl Boot {
             logo,
             owner,
             started: Instant::now(),
+            verse: crate::verse::Launch::default(),
+            hide_verse: false,
         }
+    }
+
+    /// The verse to show on the splash and then in the window (`verse::Launch::read`,
+    /// done before the window opens, which it sizes).
+    pub fn with_verse(mut self, verse: crate::verse::Launch) -> Boot {
+        self.verse = verse;
+        self
     }
 
     /// Take one step. Returns the application once everything is in.
@@ -235,6 +256,11 @@ impl Boot {
                     app.path = path;
                 }
                 self.options.apply_flags(&mut app);
+                if self.hide_verse {
+                    crate::views::verse::turn_off(&mut app);
+                } else if let Some(v) = self.verse.shown {
+                    app.verse = Some(crate::views::verse::Card::new(v.reference));
+                }
                 log::info!(
                     "opened in {:.0} ms",
                     self.started.elapsed().as_secs_f64() * 1000.0
@@ -246,14 +272,48 @@ impl Boot {
     }
 }
 
+/// What the splash shows of the verse: the passage, or the word that it will not show.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum SplashVerse {
+    None,
+    Shown(crate::verse::Shown),
+    Hidden,
+}
+
 /// Paint the splash over `ui`'s whole rect: the logo, and — once the fonts are in — the
-/// wordmark, the version and the step `key`; the progress bar at `progress` (0…1).
-fn paint(ui: &mut egui::Ui, logo: Option<&TextureHandle>, key: &str, progress: f32, fonts: bool) {
+/// wordmark, the version and the step `key`; the progress bar at `progress` (0…1); the
+/// verse's band under it all. Returns where the verse went, and whether *Don't show
+/// again* was clicked.
+fn paint(
+    ui: &mut egui::Ui,
+    logo: Option<&TextureHandle>,
+    key: &str,
+    progress: f32,
+    fonts: bool,
+    verse: SplashVerse,
+) -> (Option<crate::views::verse::Painted>, bool) {
     let rect = ui.max_rect();
     let s = Style::new(Tokens::slate());
     let t = s.t;
-    let k = (rect.width() / SIZE.x).min(rect.height() / SIZE.y).max(0.1);
+    let full = size(verse != SplashVerse::None);
+    let k = (rect.width() / full.x).min(rect.height() / full.y).max(0.1);
     let at = |x: f32, y: f32| rect.min + Vec2::new(x, y) * k;
+    let band = Rect::from_min_max(at(0.0, SIZE.y), at(SIZE.x, full.y));
+    let mut clicked = false;
+    let mut hover = None;
+    if let SplashVerse::Shown(_) = verse {
+        let hit = crate::views::verse::splash_hide_rect(band, k);
+        let r = ui.interact(
+            hit,
+            egui::Id::new("cantus-splash-hide-verse"),
+            egui::Sense::click(),
+        );
+        clicked = r.clicked();
+        hover = r.hover_pos();
+        if r.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+    }
     with_brush(ui.painter(), |b| {
         b.rect(rect, Fill::V(shade(t.ink, 0.04), shade(t.ink, -0.05)));
         b.rrect_soft(
@@ -303,18 +363,46 @@ fn paint(ui: &mut egui::Ui, logo: Option<&TextureHandle>, key: &str, progress: f
             Vec2::new(bar.width() * progress.clamp(0.0, 1.0), bar.height()),
         );
         b.rrect(b.snap_rect(done), 2.0 * k, Fill::Solid(t.brand));
+        let painted = match verse {
+            SplashVerse::Shown(v) if fonts => Some(crate::views::verse::paint_splash(
+                b, band, v, &t, k, hover,
+            )),
+            SplashVerse::Hidden if fonts => {
+                let _ = text::paint(
+                    b,
+                    band.shrink2(Vec2::new(40.0 * k, 0.0)),
+                    &Text::key("verse.hidden", Role::Body, t.text_dim)
+                        .align(Align2::CENTER_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    k,
+                );
+                None
+            }
+            _ => None,
+        };
         b.rrect_stroke(
             b.snap_rect(rect).shrink(b.px() * 0.5),
             0.0,
             b.px(),
             with_alpha(t.text, 0.08),
         );
-    });
+        (painted, clicked)
+    })
 }
 
 /// The splash as the screenshots show it: the logo rendered on the spot, the MIDI scan
 /// under way.
 pub fn paint_splash(root: &mut egui::Ui, progress: f32) {
+    let _ = paint_splash_with(root, progress, SplashVerse::None);
+}
+
+/// The splash with a verse, as the screenshots and the tests show it; returns where the
+/// verse went.
+pub fn paint_splash_with(
+    root: &mut egui::Ui,
+    progress: f32,
+    verse: SplashVerse,
+) -> Option<crate::views::verse::Painted> {
     let ctx = root.ctx().clone();
     let id = egui::Id::new("cantus-splash-shot");
     let tex = ctx.data(|d| d.get_temp::<TextureHandle>(id)).or_else(|| {
@@ -325,8 +413,9 @@ pub fn paint_splash(root: &mut egui::Ui, progress: f32) {
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE)
         .show(root, |ui| {
-            paint(ui, tex.as_ref(), "kit.splash.midi", progress, true)
-        });
+            paint(ui, tex.as_ref(), "kit.splash.midi", progress, true, verse).0
+        })
+        .inner
 }
 
 impl eframe::App for Shell {
@@ -337,9 +426,18 @@ impl eframe::App for Shell {
             Shell::Booting(boot) => {
                 let (key, progress, fonts) = (boot.stage.key(), boot.stage.progress(), boot.fonts);
                 let logo = boot.logo.clone();
-                egui::CentralPanel::default()
+                let verse = match boot.verse.shown {
+                    Some(_) if boot.hide_verse => SplashVerse::Hidden,
+                    Some(v) => SplashVerse::Shown(v),
+                    None => SplashVerse::None,
+                };
+                let hide = egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
-                    .show(root, |ui| paint(ui, logo.as_ref(), key, progress, fonts));
+                    .show(root, |ui| {
+                        paint(ui, logo.as_ref(), key, progress, fonts, verse).1
+                    })
+                    .inner;
+                boot.hide_verse |= hide;
                 if let Some(app) = boot.step(&ctx) {
                     become_main_window(&ctx, &boot.options);
                     *self = Shell::Running(Box::new(app));
