@@ -10,7 +10,7 @@ engine's `unsafe` and OS code. `cantus-engine` stays `#![forbid(unsafe_code)]`.
 
 | Module | What it does |
 |---|---|
-| `thread.rs` (+ `thread/{windows,macos,linux,other}.rs`) | `promote_callback(host, period)`: on **WASAPI** (and ALSA/other cpal-owned threads) MMCSS **"Pro Audio"** + `AvSetMmThreadPriority(HIGH)`; on **ASIO, CoreAudio, JACK** nothing (`Promotion::LeftAsIs` — the driver owns the thread). Cached per thread in a const thread-local: one system call per stream start, the same answer after. `promote_worker(role, period)` → a `!Send` guard reverted on drop: Live "Pro Audio" HIGH, Ahead "Pro Audio" LOW, Background "Audio" NORMAL (§2.6, R3); macOS `THREAD_TIME_CONSTRAINT_POLICY` (period = device period, computation ½, as Mozilla's `rt_mach.rs`), and `promote_worker_in(&Workgroup, …)` which sets the policy **before** `os_workgroup_join` (R4) and reports `EINVAL` (cancelled workgroup) as a refusal to re-fetch; `Workgroup::max_parallel_threads()`; Linux `SCHED_FIFO \| SCHED_RESET_ON_FORK` directly when `RLIMIT_RTPRIO` (or root) allows, else rtkit's SCHED_RR through `audio_thread_priority` (feature `rtkit`, default on, off for the plug-ins). `set_current_thread_cpus` (Windows CPU sets — soft, power-manager friendly; Linux affinity). `opt_out_of_power_throttling()` (EcoQoS off, timer resolution kept, R1). `AudioHost::from_driver_name` maps cpal's `HostId::name()`. Every result is a `Promotion`/`Refusal` with a `Display` that names the OS call and its error. |
+| `thread.rs` (+ `thread/{windows,macos,linux,other}.rs`) | `promote_callback(host, period)`: on **WASAPI** (and ALSA/other cpal-owned threads) MMCSS **"Pro Audio"** + `AvSetMmThreadPriority(HIGH)`; on **ASIO, CoreAudio, JACK** nothing (`Promotion::LeftAsIs` — the driver owns the thread). Cached per thread in a const thread-local: one system call per stream start, the same answer after. `promote_worker(role, period, waiting)` → a `!Send` guard reverted on drop, **safe for how the thread waits** (§5 below): a `Waiting::Spins` worker never enters a throttled real-time class (Windows TIME_CRITICAL / HIGHEST; Linux direct FIFO only with unlimited `RLIMIT_RTTIME`; macOS nothing), a `Waiting::Bounded` one under `realtime_share() − 0.15` gets Live "Pro Audio" HIGH, Ahead "Pro Audio" LOW, Background "Audio" (§2.6, R3); macOS `THREAD_TIME_CONSTRAINT_POLICY` (period = device period, computation ½, as Mozilla's `rt_mach.rs`), and `promote_worker_in(&Workgroup, …)` which sets the policy **before** `os_workgroup_join` (R4) and reports `EINVAL` (cancelled workgroup) as a refusal to re-fetch; `Workgroup::max_parallel_threads()`; Linux `SCHED_FIFO \| SCHED_RESET_ON_FORK` directly when `RLIMIT_RTPRIO` (or root) allows, else rtkit's SCHED_RR through `audio_thread_priority` (feature `rtkit`, default on, off for the plug-ins). `set_current_thread_cpus` (Windows CPU sets — soft, power-manager friendly; Linux affinity). `opt_out_of_power_throttling()` (EcoQoS off, timer resolution kept, R1). `AudioHost::from_driver_name` maps cpal's `HostId::name()`. Every result is a `Promotion`/`Refusal` with a `Display` that names the OS call and its error. |
 | `topology.rs` (+ `topology/{windows,linux,macos,parse}.rs`) | Physical cores, P/E class, last-level-cache domains. Windows: `GetSystemCpuSetInformation` (ids for `SetThreadSelectedCpuSets`, `EfficiencyClass`, `LastLevelCacheIndex`, parked / reserved flags) with the cache's level and size from `GetLogicalProcessorInformationEx(RelationCache)`, and a second, independent topology from `GetLogicalProcessorInformationEx` alone for cross-checking. Linux: sysfs (`core_cpus_list`, `cpu_capacity`, `/sys/devices/cpu_atom/cpus`, highest `cache/index*`). macOS: `hw.perflevel*`. Fallback: `available_parallelism`. `default_live_workers()` = live-domain P-cores − 2, clamped 1..=14 (§2.1); `placement(w)` = live workers on P-cores of one cache domain skipping the first, one logical processor per core (R4, R5); ahead = spare P-cores then E-cores (R3); background = E-cores first. The records are parsed as bytes at `offset_of!` offsets: the only `unsafe` is the two calls. |
 | `pad.rs` | `CachePadded<T>` at **128** bytes on every target (R11: Intel's spatial prefetcher pairs lines), `round_up`, `padded_len`. |
 | `memory.rs` | `prefault(&mut [T])` (one volatile read-write per page, contents unchanged), `prefault_stack()` (64 KiB, top-down), `lock(&[T])` → `Lock::{Locked(LockedRegion), Refused(Refusal), NotApplicable}` — `VirtualLock` after raising the working-set minimum (soft limits), `mlock` on Unix; unlocked on drop. `page_size()`. |
@@ -121,9 +121,88 @@ the engine's units are untouched; the guard only moved crates, and `reassert()` 
 hosted plug-in calls and is a no-op until graph adds the guard). On this contended machine
 the perf suite's numbers would measure the builders, not the change.
 
+### 5. Which threads may be promoted, and how — MMCSS and spinning (for wave 2)
+
+*Asked by the coordinator after the sched builder's bench saw 2.5–17.6 s blocks with every pool
+thread in MMCSS "Pro Audio" HIGH (155 ms worst with MMCSS off).*
+
+**The mechanism (documented, and measured here).** MMCSS keeps `SystemResponsiveness` % of the
+CPU (registry: **20**, both tasks at a 1 ms clock rate on this machine) for normal work: a
+thread in an MMCSS task that is busy more than **80 %** of the time is dropped to priority 1–7
+— *below* every normal thread — for the rest of the window. A pool worker that spins between
+blocks is busy ~100 %. On a machine at 100 % (here: the builders), a demoted thread waits behind
+every compiler. Linux and macOS police the same thing differently and more harshly: rtkit's
+`RLIMIT_RTTIME` kills a real-time thread that runs ~200 ms without blocking, and macOS demotes
+a time-constraint thread that keeps overrunning its computation.
+
+**The experiment** (`crates/cantus-rt/examples/mmcss_spin.rs`): the pool's shape without the
+engine — a callback paced at 128 frames (2 667 µs) that arms each block and does 300 µs, four
+workers each doing 300 µs of every block and **spinning** between blocks (or spinning a
+bounded fraction of a period, then parking), 20 normal-priority busy threads beside the
+builders, every thread promoted and running before the first measured block (a start barrier
+and 1 s of warm-up — without them the first block waited seconds for a worker that had not yet
+been scheduled to promote itself: a real lesson for the pool too). 3 rounds × 15 s per row
+(5 624 blocks each); ranges across the rounds:
+
+| callback / workers | block p99 | block max | misses / 5 624 | longest gap seen by the callback |
+|---|---|---|---|---|
+| callback alone, **normal** priority | 2.1–3.5 ms | 49–103 ms | 5 469–5 578 | 49–103 ms |
+| callback alone, **MMCSS "Pro Audio" HIGH** (R1) | **0.30 ms** | **0.32–0.45 ms** | **0–1** | 0.12–0.26 ms |
+| callback alone, TIME_CRITICAL | 0.30 ms | 0.33–0.35 ms | 0–1 | 0.06–0.15 ms |
+| MMCSS callback + **spinning MMCSS workers** (HIGH or CRITICAL) | **2.33–2.37 ms** | 2.9–3.9 ms | **80–133** | 2.8–3.5 ms |
+| MMCSS callback + MMCSS workers spinning 0.7 / 0.85 / 1.0 period, then parking (81–100 % busy) | 2.26–2.42 ms | 3.0–3.5 ms | 91–152 | 2.7–3.5 ms |
+| MMCSS callback + MMCSS workers spinning **0.5 period, then parking** (61 % busy) | **0.46–0.60 ms** | **2.5–3.1 ms** | **0–8** | 0.15–0.87 ms |
+| MMCSS callback + **TIME_CRITICAL spinning** workers | **0.31–0.37 ms** | 0.9–31 ms | 0–4 | 0.1–0.7 ms |
+| MMCSS callback + TIME_CRITICAL workers, 0.5 period then park | 0.64–1.45 ms | 3.4–39 ms | 1–32 | 0.1–0.9 ms |
+| MMCSS callback, MMCSS spinners it **never waits on** (detached) | 2.23–2.30 ms | 3.2–3.4 ms | 59–116 | **2.9–3.3 ms** |
+| MMCSS callback, *normal-priority* spinners it never waits on | 0.31–0.32 ms | 1.0–1.7 ms | 0–2 | 0.9–1.5 ms |
+
+What it shows:
+
+1. **The callback alone in MMCSS is safe and is the single biggest win** (R1 stands): from
+   ~5 500 misses per 15 s at normal priority to 0–1.
+2. **A spinning MMCSS thread is throttled, with the 80 % threshold exactly where
+   `SystemResponsiveness` puts it**: 61 % busy runs clean, 81 % shows the throttle signature
+   (a ~2.35 ms p99 — the demoted part of the window) and ~2 % misses.
+3. **The throttle reaches every MMCSS thread of the process — the callback included.** In the
+   *detached* rows the callback never waits for the workers and does 300 µs of its own, yet
+   with MMCSS spinners beside it its own longest gap is 2.9–3.3 ms and it misses 59–116 blocks;
+   with the same spinners at normal priority it misses 0–2. **One spinning MMCSS thread
+   undoes R1.**
+4. **TIME_CRITICAL** (`SetThreadPriority`, no MMCSS) is never throttled: the best p99 for
+   spinners. Its residual risk is Windows' anti-starvation boost, which lifts starved normal
+   threads to priority 15 — TIME_CRITICAL's own level — for a quantum: single blocks of
+   8–31 ms on this saturated machine. MMCSS's band (16–31) is above that boost, which is why
+   **bounded spin + park + MMCSS** has the best worst case (≤ 3.1 ms).
+5. In the paced harness nothing reached seconds; the multi-second blocks of the sched bench
+   need its two extra ingredients: its loop runs blocks **back to back** (the callback, also
+   in MMCSS there, is ~100 % busy and throttled too) under `start /high /affinity 555` on a
+   machine at 100 %, where a thread demoted below normal can wait for the ~4 s anti-starvation
+   boost. Its own bench, run here once (1 round, W ≤ 2, launched without `/high /affinity`,
+   binary built into my scratch dir from `r21/sched`): MMCSS on worst block 91 ms, off 82 ms —
+   **not reproduced at that size**; the exact `start /high /affinity 555`, W ≤ 4, 5-round run
+   was not repeated for time. The mechanism above does not depend on it.
+
+**The rule, now in `cantus-rt`'s API** (`thread.rs`, safe by default):
+
+| Thread | Windows | Linux | macOS |
+|---|---|---|---|
+| **Callback** (`promote_callback`) — blocks every period in the driver; its busy share is the engine's load | MMCSS "Pro Audio" HIGH (WASAPI); nothing on ASIO | rtkit / SCHED_FIFO (ALSA) | nothing (CoreAudio's thread) |
+| **Spinning worker** — `promote_worker(role, period, Waiting::Spins)` | Live `THREAD_PRIORITY_TIME_CRITICAL`, Ahead `HIGHEST`, Background normal — **never MMCSS** | SCHED_FIFO only directly and only while `RLIMIT_RTTIME` is unlimited; never rtkit | left at normal priority |
+| **Bounded worker** — `Waiting::Bounded { busy_share }`, granted when `busy_share ≤ realtime_share() − 0.15` (0.65 here), spin then **park** | MMCSS: Live "Pro Audio" HIGH, Ahead "Pro Audio" LOW, Background "Audio" | rtkit / SCHED_FIFO | time constraint, computation = busy share × period; `promote_worker_in` joins the device workgroup after it |
+
+`realtime_share()` reads `SystemResponsiveness` (Windows), `sched_rt_runtime_us` (Linux).
+Declaring `Bounded` and then spinning is the one way left to hurt the callback; the
+documentation says so where the promise is made. **Recommendation for wave 2's pool**: spin
+at most about half a period after the last task, then park, and take `Waiting::Bounded`
+(MMCSS): it has the best worst case measured. If the pool keeps the 1.5-period spin budget,
+`Waiting::Spins` (TIME_CRITICAL) is safe and has the best p99, at the risk of rare 10–30 ms
+blocks under saturation. Either way, a worker must count as available only after it has
+promoted itself.
+
 ## Tests
 
-`cargo test -p cantus-rt`: **26 tests, all pass** on this machine.
+`cargo test -p cantus-rt`: **26 tests, all pass** on this machine (after the §5 change too).
 
 - `tests/model.rs` (13) — the pure types on synthetic machines: an i7-12700H as CPU sets
   describe it (6 P with SMT + 8 E, one L3 → 4 live workers on P-cores 1–4, ahead = the two
@@ -182,9 +261,12 @@ file changed).
   Phase 1.
 - **`loom` models**: the plan asks for them on types with interior unsafety; nothing in this
   crate has any yet (no shared-memory types: the rings and `shm.rs` come in Phases 2/6).
+- **The sched bench's exact multi-second case** (`start /high /affinity 555`, W ≤ 4, 5 rounds)
+  was not re-run; one shorter run did not reproduce it (§5). A quiet-machine run of
+  `mmcss_spin` and of that case would settle the magnitude; the rule does not depend on it.
 - **RTWQ vs MMCSS** under WASAPI low latency (R3's measurement) — Phase 1, with a real
   `IAudioClient3` stream.
-- **Crate size**: 2 349 lines with comments and blank lines (1 746 of code) against ADR
+- **Crate size**: 2 563 lines with comments and blank lines (1 900 of code) against ADR
   0031 §2.7's "under 2 000". The four platforms' backends and the documentation of every
   OS call are most of it; if the integrator reads the rule as total lines, `topology/macos.rs`
   and `thread/macos.rs` (309 lines) are the candidates to move behind a `cantus-rt-apple`
@@ -201,8 +283,12 @@ file changed).
    wave — it would make the app render other bits than every test pins (92 % of samples
    differ here). Wire `thread::opt_out_of_power_throttling()` now; decide the FMA3 switch
    after *math* with `fma3_bits` (`requests.md`).
-4. **Graph's R1 call** and the guard in `process`: `requests.md` has the exact code; the
+4. **Pool threads (wave 2)**: never MMCSS for a thread that spins — the throttle reaches the
+   callback too (§5). `promote_worker` now takes `Waiting` and is safe by default; the sched
+   bench's `on_start` hook should call `promote_worker(Live, period, Waiting::Spins)`, or the
+   pool should adopt bounded spin + park and declare `Waiting::Bounded` (`requests.md`).
+5. **Graph's R1 call** and the guard in `process`: `requests.md` has the exact code; the
    jitter table above is the reason to do it in Phase 0 rather than wait for the pool.
-5. **Linux CI** needs `libdbus-1-dev` once the engine enables `rtkit` (`requests.md`).
-6. Measurements were taken with the other builders compiling; re-run `promote_jitter`
+6. **Linux CI** needs `libdbus-1-dev` once the engine enables `rtkit` (`requests.md`).
+7. Measurements were taken with the other builders compiling; re-run `promote_jitter`
    (`--session dsp --tracks 8`) and `rt_probe` on a quiet machine for the published numbers.

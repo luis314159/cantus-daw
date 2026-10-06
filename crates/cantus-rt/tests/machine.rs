@@ -4,14 +4,14 @@
 #![cfg(not(miri))]
 
 use cantus_rt::memory::{lock, prefault};
+use cantus_rt::thread::Grant;
+#[cfg(windows)]
+use cantus_rt::thread::MmcssPriority;
 use cantus_rt::thread::{
     callback_promotion, current_priority, opt_out_of_power_throttling, promote_callback,
     promote_worker, realtime_share, set_current_thread_cpus, AudioHost, PowerThrottling, Promotion,
     Waiting, WorkerRole,
 };
-use cantus_rt::thread::Grant;
-#[cfg(windows)]
-use cantus_rt::thread::MmcssPriority;
 #[cfg(any(windows, target_os = "linux"))]
 use cantus_rt::topology::Source;
 use cantus_rt::topology::{CoreClass, Topology};
@@ -213,7 +213,11 @@ fn workers_are_promoted_safely_for_how_they_wait_and_reverted_on_drop() {
         realtime_share()
     );
     for role in [WorkerRole::Live, WorkerRole::Ahead, WorkerRole::Background] {
-        for waiting in [Waiting::Spins, bounded, Waiting::Bounded { busy_share: 0.95 }] {
+        for waiting in [
+            Waiting::Spins,
+            bounded,
+            Waiting::Bounded { busy_share: 0.95 },
+        ] {
             std::thread::spawn(move || {
                 let before = current_priority();
                 let w = promote_worker(role, PERIOD, waiting);
@@ -233,7 +237,10 @@ fn workers_are_promoted_safely_for_how_they_wait_and_reverted_on_drop() {
                         assert!(matches!(w.promotion, Promotion::LeftAsIs(_)))
                     }
                     (_, false) => assert!(
-                        matches!(w.promotion, Promotion::Granted(Grant::ThreadPriority { .. })),
+                        matches!(
+                            w.promotion,
+                            Promotion::Granted(Grant::ThreadPriority { .. })
+                        ),
                         "a spinning thread must not be in MMCSS: {}",
                         w.promotion
                     ),
