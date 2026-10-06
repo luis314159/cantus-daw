@@ -258,11 +258,32 @@ fn an_installer_compiles_when_nsis_is_here() {
         eprintln!("no NSIS icon to hand: skipped");
         return;
     };
+    // `CANTUS_TEST_SIGN_WITH=<xtask.exe>` (with `sign-test-cert` done): the uninstaller is
+    // signed through NSIS's `!uninstfinalize` hook, as a signed release does it.
+    let (uninst_sign, env) = match std::env::var("CANTUS_TEST_SIGN_WITH") {
+        Ok(xtask) => {
+            let Ok(crate::sign::Signer::Pfx { file, password }) =
+                crate::sign::test_signer(&crate::target_dir())
+            else {
+                panic!("CANTUS_TEST_SIGN_WITH needs `xtask sign-test-cert` first");
+            };
+            (
+                Some(format!("\"{xtask}\" sign-file \"%1\"")),
+                vec![
+                    ("CANTUS_SIGN".to_string(), "pfx".to_string()),
+                    ("CANTUS_SIGN_PFX".to_string(), file.display().to_string()),
+                    ("CANTUS_SIGN_PFX_PASSWORD".to_string(), password),
+                    ("CANTUS_SIGN_TIMESTAMP".to_string(), "none".to_string()),
+                ],
+            )
+        }
+        Err(_) => (None, Vec::new()),
+    };
     let job = InstallerJob {
         makensis,
         icon,
-        uninst_sign: None,
-        env: Vec::new(),
+        uninst_sign,
+        env,
     };
     let dist = package::assemble(&inputs, &out, V, Some(&job), None);
     assert_eq!(

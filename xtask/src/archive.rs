@@ -67,7 +67,8 @@ pub fn zip(out: &Path, top: &str, entries: &[Entry]) {
     z.finish().expect("zip finish");
 }
 
-/// The names inside a zip, sorted (for the tests and the package's own check).
+/// The names inside a zip, sorted (for the tests).
+#[cfg(test)]
 pub fn names(path: &Path) -> Vec<String> {
     let f = std::fs::File::open(path).unwrap();
     let z = zip::ZipArchive::new(f).expect("a zip");

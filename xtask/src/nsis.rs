@@ -160,7 +160,8 @@ pub fn config_nsh(c: &Config) -> String {
         out.push_str(&format!("!define ICON \"{}\"\n", win(icon)));
     }
     if let Some(cmd) = &c.uninst_sign {
-        // Single quotes: the command holds double quotes of its own.
+        // Single quotes: the command holds double quotes of its own. It runs in the
+        // script's folder, so its program path must be absolute.
         out.push_str(&format!("!uninstfinalize '{cmd}' = 0\n"));
     }
     out

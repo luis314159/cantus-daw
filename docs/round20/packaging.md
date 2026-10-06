@@ -174,6 +174,15 @@ See the report at the end of the round (`cargo test -p cantus-update -p xtask`):
   Vst3 1). Then `/S /UPDATE` with `Clap` set to 0: the CLAP folder removed, VST3 kept,
   installed into the remembered folder. Then `uninstall.exe /S`: every key, folder and
   shortcut gone (all eight checks false). Exit codes 0.
+- The ASIO installer, built with the uninstaller-signing hook (`CANTUS_TEST_SIGN_WITH`):
+  `!uninstfinalize` ran `xtask sign-file` on the uninstaller NSIS wrote; installed
+  silently, its `uninstall.exe` reads *signed by CN=Cantus Test Signing (not trusted)*;
+  Apps & features says *Cantus (ASIO)*, `Flavor = asio`; uninstalled clean. (Found on the
+  way: the hook runs in the script's folder, so the program path must be absolute — it is,
+  `current_exe()`.)
+- `xtask sign-file` signed an installer with the test certificate and a DigiCert RFC 3161
+  timestamp through the proxy; one flipped byte reads `HashMismatch`; the certificate was
+  gone from the user's store after export.
 - `flexasio.ps1 -DownloadOnly` fetched and verified FlexASIO-1.10b.exe through the proxy.
 - The GitHub API answered through the proxy (curl, and the recorded fixtures).
 - Not done here: a full `xtask package` of the real app (a release build of `cantus` and

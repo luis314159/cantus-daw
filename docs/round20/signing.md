@@ -74,7 +74,11 @@ cargo run -p xtask -- sign-test-cert          # CN=Cantus Test Signing (not trus
 cargo run -p xtask -- package --sign-test     # signs cantus.exe, every plug-in, the uninstaller, the installer
 ```
 
-Every signed file then reads, to Windows, as *signed, intact, root not trusted*
+Done here on 2026-10-06: `sign-test-cert` made the certificate (thumbprint `0D5ECA86…873B`,
+removed from the store right after the export — checked); `xtask sign-file` signed an
+installer built by the package test, with an RFC 3161 timestamp from DigiCert fetched
+through the corporate proxy (`TimeStamperCertificate: DigiCert SHA256 RSA4096 Timestamp
+Responder 2026 1`). Every signed file then reads, to Windows, as *signed, intact, root not trusted*
 (`Get-AuthenticodeSignature` → `UnknownError`, the chain ending in an untrusted root),
 which is exactly what a self-signed certificate should give; flipping one byte gives
 `HashMismatch`. The app's updater would refuse such an installer if it required that
