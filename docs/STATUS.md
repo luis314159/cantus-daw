@@ -1,8 +1,67 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-05 (round 19: **recording, the master chain, mastering effects, demos** (ADR 0025, 0026) — record from an audio interface (WASAPI, ASIO behind a feature) with monitoring, count-in, punch, loop takes and comping, multitrack, latency measured and placed to the sample; audio clips with waveforms, fades, gain and import; effects on the master; Fervor, Latitudo and Culmen; six demo songs and a startup song; schema 18. Round 18: a look drawn by hand, FL Studio first (ADR 0024). Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 422 green (121 test binaries), clippy clean
+**Updated:** 2026-10-06 (round 20: **automation, device windows and swapping, the device browser, hosted CLAP/VST3 instruments, rights-free sample packs, direct audio setup, a verse at start, the installer and updates, a benchmark** (ADR 0027–0032), and the performance architecture for round 21 (ADR 0031 with its state-of-the-art review); schema 20. Round 19: recording, the master chain, mastering effects, demos. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** see round 20, clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 20 left
+
+Round 20 (below) is merged. The owner's priority for the next round is **performance**
+(`docs/BACKLOG-excellence.md` §4b): ADR 0031 and `docs/perf/plan.md` — read the plan's
+**last section** (the state-of-the-art review, amendments R1–R16), which supersedes its
+earlier order. Start with R1 (the WASAPI callback runs at normal priority today) and Phase 0
+(the graph in the serial engine), then the multicore live pool. The bench builder's
+`docs/perf/baseline.md` is the starting line.
+
+Decisions waiting for the owner (each builder's doc has the detail):
+- **FlexASIO in the app**: the first-run wizard links to it; downloading and running its
+  installer with admin rights from inside Cantus needs the owner's explicit yes (the
+  installer already offers it as an optional step).
+- **Code signing**: SignPath Foundation (free), Azure Trusted Signing (~US$10/month; check
+  enrolment from Mexico) or Certum Open Source (~€30–70/year) — `docs/round20/signing.md`.
+- **Content**: CC-BY packs as opt-in downloads; hosting on the authors' releases vs a
+  `cantus-content` mirror; showing the browser and the starter kit on first run; an
+  original 808/909 kit rendered from Pulsus — `docs/round20/samples.md`.
+- **RVR1960**: a written confirmation from SBU/ABS about the non-commercial clause.
+- The legal points in `research/content/README.md` and `research/ai/README.md`.
+
+Left by the builders (their docs list each): latch/touch automation recording, hosted
+plug-in parameters as automation targets; hosted instruments in stem exports and
+multi-output instruments; arrow-key navigation in the sample browser; preset browsing in
+the device picker; audible instrument preview; the picker's "keep matching settings"
+toggle; MP3 import; real-hardware runs of plug-and-play and the headphone cue; macOS and
+Linux packages.
+
+## Round 20: automation, devices, content, hosted instruments, product (requested 2026-10-05)
+
+**The ask.** Automation clips; closing and minimising instruments made easy and graphical;
+swapping instruments and mixer effects made easy; *"see every available instrument on
+screen to choose — it looks very, very pro"*; free instruments preloaded (proving
+compatibility); rights-free WAVs and where to keep them (not the repo) — *"put an agent on
+the WAVs right away"*; research for AI (MCP, LLM APIs, generative audio); then, from the
+backlog of excellence: a verse at every start (on by default, switchable), an installer
+with signing and updates, audio setup that is direct, a benchmark; and the design of a
+performance architecture that beats the market, reviewed against market engines and papers.
+
+**Decisions:** ADR 0027 (automation clips and lanes, schema 19), 0028 (hosted instruments,
+schema 20), 0029 (the device picker and swapping), 0030 (content and samples), 0031 (the
+performance architecture, with its state-of-the-art review), 0032 (installer, signing,
+updates); ADR 0025 §11 (audio setup). Briefs in `docs/round20/`; each builder's report is
+`docs/round20/<name>.md`.
+
+| Area | What changed |
+|---|---|
+| Automation | clips with FL's six point shapes and tension, lanes under tracks, the large editor and articulators (flip, scale, smooth, random, normalise, LFO); every strip/master/send/effect/native-instrument/Firmus parameter; *Create automation clip* on any parameter's right-click and Alt+A for the last tweaked; evaluated on the 16-sample grid with sample ramps for gains — null when absent, block-size independent, bit-identical offline; automation follows a swapped effect |
+| Devices | every device window has Swap, minimise (to a tray in the status bar), maximise/restore and close; Esc and F8; `Command::ReplaceEffect`; swapping keeps clips, routing and matching settings in one undo step; the picker opens from title bars, track chips, the rack, the inspector, every mixer slot and Add track; drop targets |
+| Browser | a gallery of every native and hosted instrument and effect with thumbnails rendered from the real editors, shelves, search in EN/ES, favourites and recents, details, keyboard; a docked Devices panel with drag payloads |
+| Hosted instruments | CLAP/VST3 instruments on tracks (sample-accurate notes, CC/pitch bend, transport, latency in delay compensation, state, offline render, the plug-in's window); 19 free open-source plug-ins proved (Surge XT, Dexed, OB-Xf, Six Sines, Firefly Synth 2, JC303, RipplerX, sfizz); instrument latency now compensated for native instruments too; stems no longer silence native instruments |
+| Samples | `cantus-content`: a manifest of verified CC0 packs (starter kit of 81 drums, Karoryfer, VCSL, VSCO 2 percussion…), downloaded on demand into the user's data folder with SHA-256, resume and proxy handling; a sample browser (audition, drag to Pulsus pads, Exemplar, the rack and the arrangement); the Sound packs window |
+| Audio setup | an always-visible audio chip and popover, a first-run setup (three clicks to an armed audio track), plug-and-play, settings per interface, channel names and a headphone cue, problems with fix buttons, a "Get ASIO…" window (FlexASIO, ASIO4ALL, 13 makers) |
+| Verse | a verse on the splash and a card at start, RVR1960 (293 verses, under its 500-verse allowance) with RV1909 selectable, WEB in English, following the live language switch; on by default, switchable in Settings ▸ General |
+| Product | `xtask package`: an NSIS per-user installer, portable zip, plug-ins zip, ASIO variant, optional latest-FlexASIO step; a signing pipeline proved with a test certificate; auto-update from GitHub Releases (no telemetry); a tag-driven release workflow; `LICENSE-GPL` added |
+| Bench | `crates/cantus-bench` and `xtask perf` (a gate against stored baselines); a callback histogram and **dropout blame** in the engine shown on the status line; DAWbench-style DSP/VI tests defined in `docs/perf/benchmark.md`; today's numbers in `docs/perf/baseline.md` — the 10-track demo needs **103 % of one core at 128 samples**, the engine caps tracks and strips at 64 without saying so, start-up takes 5–6 s, the 64-strip mixer frame is over budget |
+| Research | `research/content/` (rights-free samples, storage, free instruments, legal points), `research/ai/` (MCP, LLM providers, generative audio, a phased plan), `research/engine/` (market engines, real-time systems, scheduling papers, DSP quality, verification) |
+| Integration fixes | the sample browser's dock width; keymap file v3 fills in round 19's keys too; one instrument-window path for native and hosted instruments |
 
 ## The next session: what round 19 left
 
@@ -148,7 +207,7 @@ reasoning stays next to the result.
 
 | Area | State |
 |---|---|
-| Workspace, licenses, ADRs 0001–0026 | done |
+| Workspace, licenses, ADRs 0001–0032 | done |
 | `cantus-core`: time, model, commands, bus, snapshots, effects model, clip windows, pan law / width, pads and lanes, track height and icon, mixer strips and routing, **sends, strip solo, EQ, slot mix, submixes** | done; 39 tests incl. 40-seed undo/redo invariant fuzz (pads, instruments, strips, sends, routes the commands refuse) |
 | **Native instruments** (ADR 0023): Unda, Calor and the shared `cantus_dsp::va`, Modulus, Exemplar, Gravis, Organum, Lamina, and Pulsus II; the shared modulation model, voice allocator and editor frame (Play · Edit · Matrix) | done; each has `docs/instruments/<name>.md` and its own DSP, engine and UI tests; `inst_contract.rs` holds every kind to block-size independence, headroom and exact silence |
 | `cantus-dsp`: PolyBLEP osc, ADSR, SVF, smoother, click, Firmus, **Pulsus (kick, snare, hi-hat, sample pads, choke groups)**, stereo delay, reverb, **RBJ biquads and the three-band channel EQ**, null-test harness | done; 37 tests, fourteen of them the kit's (block-size independence, determinism, choke, headroom, exact silence, sample playback and retune) |
