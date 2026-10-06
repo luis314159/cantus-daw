@@ -110,6 +110,87 @@ Touched outside my area (small, local; each says "round 20"):
 - Tests updated for the header's new field: `tests/kit_parts.rs`, `tests/fx_frame.rs`,
   `examples/proof/device.rs`.
 
+## Decisions worth knowing
+
+- **One behaviour for minimise everywhere**: the tray, not FL's collapse-to-title-bar — a docked
+  tab has no title bar to collapse to.
+- **An instrument opens floating when its dock leaf cannot hold it.** ADR 0024 §5 docks
+  devices by default; at 1600 × 1000 the arrangement's half of the window is ~380 pt tall and
+  an instrument is designed at 680, so a docked instrument's cards overlapped (render
+  `before`/`r2`). The first time a device opens, if the leaf it would dock in is shorter or
+  narrower than the device's minimum size, it floats at its own size over the workspace;
+  dragged into the dock, it stays docked (and is remembered so). Effects already floated.
+- **Floating windows are moved by re-creating them.** egui keeps a window's old size for the
+  frame it moves, so a restored window was pushed against the workspace's corner; restore and
+  reopen detach a fresh window and settle its position for three frames. egui_dock 0.21 never
+  fills `WindowState::rect`, so a floating tab's place is read from its leaf.
+- **A swap gives the new effect a new id** (another device: nothing that pointed at the old
+  one silently changes kind). Its editor reopens where the old one was (`inherit_place`).
+- **F8** toggles the instrument window. FL's F8 is its plug-in picker; the browser builder did
+  not bind a key, so there is no clash today — if the picker wants F8, the integrator picks.
+
+## Tests
+
+- `crates/cantus-core/tests/replace_effect.rs` (4): place, one undo step, master chain,
+  refusals leave nothing behind, key and note source carried. Undo fuzz arm in
+  `undo_invariants.rs` (green).
+- `crates/cantus-ui/tests/device_ux.rs` (22), every gesture through published geometry
+  (`workspace_device::buttons`, `device_chrome::spot`, `mixer::control_rect(Control::Slot)`):
+  close by the ×; minimise to the tray and back by its chip; the tray's × closes; maximise and
+  restore (floating and docked); an instrument too tall for its leaf floats; Esc closes the
+  device clicked last; F8 opens and closes; an effect's window has the same buttons and they
+  work; the swap button opens the picker in place; an effect reopens where it floated;
+  instrument swap keeps the track and is one undo step; default names follow; kit → synth
+  keeps every note (on what the engine would play); matching settings come along (and do not
+  when off); effect swap keeps place, mix, bypass and key, one undo step each; adding names,
+  places and opens; a choice that does not fit changes nothing; header chip, + key, rack
+  button (click, right-click, badge), inspector field and empty tile, mixer empty slot and
+  swap badge each open the picker with the right purpose.
+- Whole `cantus-ui` suite run with `--no-fail-fast`: every binary green (49 binaries,
+  goldens, lints, frame budgets included). `cargo clippy -p cantus-core -p cantus-ui --tests
+  --examples`: clean. `cargo fmt`: applied.
+- Renders: `cargo run -p cantus-ui --example shoot_devices -- <dir>` (instrument with its
+  buttons, close hovered, an effect with swap hovered, the tray, maximised, the header chip,
+  the mixer's and the rack's swap badges; Slate and Paper). Looked at each; fixed: the tray
+  was painted under the status bar's ground, the chip's ▾ ran into the name, the rack's hint
+  described the old click, the docked instrument overlapped (above).
+
+## Left
+
+- **Hosted instruments**: `swap::available` returns false for `PluginKind::Instrument` and
+  `apply_pick` says so; when ADR 0028's API lands (`set_hosted_instrument` or what it is
+  named), call it in `CantusApp::replace_instrument` / `add_instrument_track` and flip the TODO
+  in `swap::available`.
+- **Drop targets**: track headers and mixer slots take a `DevicePayload`; the inspector's
+  tiles and the arrangement's empty lanes (→ AddInstrument) do not yet.
+- **Keep matching settings** is a field (`CantusApp::swap_keep.matching`), on by default; the
+  picker (browser) should offer it as a toggle next to *Replace*.
+- A floating device tab shows egui_dock's tab × beside the shell's ×; both close it. Hiding the
+  dock's for device windows is the workspace skin's call.
+- Remembered places last the session, not across launches (a device is an effect id or a
+  track, which belong to a project).
+- Keyboard focus of the window buttons (Tab, Enter) is not wired: they are pointer buttons
+  with tooltips and keys of their own (Esc, F8).
+
+## Notes for others
+
+- **Integrator**: replace ADR 0029's placeholder §9 with the text below. `picker.rs` here
+  carries `DevicePayload` copied verbatim from `r20/browser` so both sides add the same lines;
+  if git still conflicts, keep one copy. `CantusApp::swap_keep` sits after `pulsus`, away from
+  the browser's `picker_view`. The browser's `views::picker::open` replaces `open_picker`'s
+  body; nothing here depends on its contract body. `global_shortcuts` is off while the picker
+  is open (browser), which also keeps F8 and Esc to the picker then.
+- **Browser**: call `crate::swap::available(&purpose, &choice)` to grey a tile that cannot be
+  applied (hosted instruments, until ADR 0028); `CantusApp::swap_keep.matching` is the
+  "keep matching settings" choice.
+- **Automation**: a swapped effect gets a new `EffectId`; automation targeting the old one
+  should follow the slot or be dropped (the old id no longer exists). Decide in ADR 0027;
+  `ReplaceEffect` is the place to hook it (its inverse restores the old id).
+- **Hosted-inst**: a hosted instrument's generic editor gets the window buttons for free if it
+  is shown through `DeviceWindow` with `.hue(...)` and passes `device_chrome::ctl(...)` as the
+  shell header's `window`, handling `Event::{Close, Minimise, Maximise, Swap}` with
+  `device_chrome::on_event` (see `views/inst/frame.rs`).
+
 ## ADR 0029 §9 — Swapping (device-ux)
 
 The browser's draft of ADR 0029 (on `r20/browser`) leaves §9 to this builder. To avoid an
