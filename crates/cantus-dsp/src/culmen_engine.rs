@@ -276,7 +276,8 @@ impl Culmen {
             self.st_pos = (self.st_pos + cols % len) % len;
             self.st_seen = self.st_seen.saturating_add(cols);
             self.in_pos = (self.in_pos + cols % IN_RING) % IN_RING;
-            self.seq = ((self.seq as usize + cols % tel::WRAP as usize) % tel::WRAP as usize) as u32;
+            self.seq =
+                ((self.seq as usize + cols % tel::WRAP as usize) % tel::WRAP as usize) as u32;
             self.acc = Acc::default();
         }
         self.col_n = total % self.col_len;

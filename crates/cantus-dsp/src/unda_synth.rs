@@ -229,9 +229,8 @@ impl Unda {
     /// glide from. The control grid counts samples, so skipping it is exact.
     pub fn at_rest(&self) -> bool {
         let s = &*self.s;
-        let free_lfo = (0..8).any(|l| {
-            s.lfo[l].mode == LfoMode::Free && s.used_sources[source::LFO + l]
-        });
+        let free_lfo =
+            (0..8).any(|l| s.lfo[l].mode == LfoMode::Free && s.used_sources[source::LFO + l]);
         !self.voices.iter().any(|v| v.active)
             && self.alloc.is_clear()
             && self.decim.peak() == 0.0

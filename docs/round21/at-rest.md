@@ -57,7 +57,40 @@ condition that fails — for the tests and for a profiler that wants to say why 
 
 ## The units
 
-(See the table in the report section below; it is filled from the twin tests' output.)
+Times are the silence the twin tests needed before `at_rest()` held (after their signal,
+random length, up to +12 dBFS), with FTZ/DAZ; "—" is a kind that does not rest at that
+setting, with the reason.
+
+### Effects (`EffectKind::ALL`, twelve)
+
+| Kind (DSP) | At rest | Defaults | Heavy | What it reads; what keeps it from resting |
+|---|---|---|---|---|
+| Eq (`Aequalis`) | yes | 0 s | — | all three modes: glides landed, no dynamic movement, every band's biquads and detector empty (the detector's envelope has no flush: it reaches zero under FTZ), auto gain neutral when it is on, natural phase designed and not fading, linear phase settled with its blocks on the clock a new unit's run on. **Heavy does not rest**: a dynamic band's release leaves a residual under 0.0001 dB that it never sets back to 0 (finding 3). An expander band acting on silence, or the auto gain after music, never rests either: a reset starts every band at its static gain and the auto gain at 0 dB. |
+| Compressor (`Comprimo`) | yes | 3.9–20 s | 3.3–20 s | reduction, hold and programme memory at zero, key filters, lines and oversamplers empty, the auto gain and compare glides landed or stalled (finding 6) — and the three loudness meters' 3 s windows all silence, so no step can move their targets. Needed the meter flush fix (finding 2). Not with auto gain after music, or listening to the compare. |
+| Limiter (`Terminus`) | yes, without dither | 5.7–7.9 s | — (dithers) | every stage, detector, look-ahead window, envelope and line empty, the glides landed, the Match monitor's window all silence and its gain landed or stalled (at unity in Match mode). **Never with dither on** (R10): the noise generator stops on silence but does not go back to its seed. Needed the loudness flush fix (finding 2); its programme memory stops in the subnormals without FTZ and is exactly nothing there (proved in `work_is_nothing`). |
+| Space (`Spatium`) | **no** | — | — | its late field's delay lines are swept by free-running rotating phasors, renormalised each step: a new unit's start at fixed phases and would only line up again if the rotation were replayed sample by sample at an unchanged rate. With modulation depth 0 it could rest; not built this round. |
+| Multiband (`Multiplex`) | yes | 0 s (a wire) | 3.4–3.7 s | every band at unity with no dynamic gain, in force and all through its look-ahead ring, glides landed, detectors, splits, shelves and the audio ring empty; in linear phase the FFT blocks empty, started with the stream, and the filters designed exactly where the crossovers are. A band with a static gain, or an expander acting on silence, never rests: a reset starts every band at unity. Needed the detector flush fix (finding 2). |
+| DeEsser (`Sibilus`) | yes | 0.5–0.7 s | 0.4–0.7 s | band edges landed, no reduction, detectors and the input, band and reduction lines empty. |
+| Gate (`Porta`) | MIDI trigger only | — | — | played by its key a gate never rests: a reset gate starts **open** and closes after its hold, one that heard silence is closed — two different states, both right. In MIDI mode both are closed. |
+| Saturator (`Fervor`) | yes | 0–0.01 s | 1.2–1.3 s | glides and structure as a reset leaves them, no crossfade, gains still, dry line and (when engaged) every filter, the DC blocker, the hold and the oversampler empty. Never with the sample-and-hold on: its phase follows the history of the rate. |
+| Stereo (`Latitudo`) | yes | 0.04–0.09 s | 0.04–0.06 s | every glide, fade and structure where a reset puts them, the ramps still, filters and the Haas line empty. |
+| Maximizer (`Culmen`) | yes, without dither | 8.4–8.6 s | 7.3–8.5 s | its three stages at rest, the drive landed, reference lines and input loudness empty, the Match window silent and its gain landed or stalled. Never with dither on (R10). |
+| Delay (`StereoDelay`) | yes | ~20 s | — (~11 min) | both lines all zeros, the tone filter empty, time and mix landed. The feedback decays to the 1e-20 flush (0.4 → ~18 s), then the 2 s line clears; 0.9 feedback takes about eleven minutes. |
+| Reverb (`Reverb`) | yes | 6.3–7.2 s | — (> 1 min) | every comb, allpass and the pre-delay all zeros and the damping filters empty. |
+
+### Instruments (`InstrumentKind::ALL`, seven, and the slot's two)
+
+| Kind (DSP) | At rest | Defaults | Heavy (32 voices) | What it reads; what keeps it from resting |
+|---|---|---|---|---|
+| Wavetable (`Unda`) | yes | 0 s | 0–0.07 s | no voice, no note held, the decimator empty, wheels and pedals home; not with a free-running LFO in use (its phase follows the history of its rate), not with glide on every note and a last pitch to glide from. |
+| Analog (`Calor`) | yes | 0.9–1.0 s | 0.9–1.1 s | no voice or ghost, the tail let go (decimator, chorus, DC block), wheels home; the chorus sweeps on the sample clock, so it rests while it turns. Not after a live note (live notes rotate the cards and are seeded by their count), not with glide on and a last pitch. |
+| FM (`Modulus`) | yes | 0.05–0.2 s | 0.03–0.2 s | no voice, no note held, wheels home; with glide on, no last pitch. |
+| Sampler (`Exemplar`) | yes | 0.4–0.55 s | 0.5–0.6 s | no layer, no key held, pedals home; not with a keyswitch in force (a new unit has none) or after a live note (live round robin counts). |
+| Bass (`Gravis` + its host unit) | yes | see test run | see test run | idle (Gravis's own predicate: every voice ended, every stage after it empty, every glide landed), no note held, the legato window shut, no bend; not the String engine (it picks the next string from where the hand last was), not Free phase (the oscillator carries its phase), not glide-always with a last pitch, not with a route reading the LFO, velocity, key or random (the modulation tick would move the settings, or remember the last note). |
+| Electric piano (`Lamina`) | yes | 0.04–0.23 s | 0.05–0.13 s | asleep, every voice free, pedal up, wheels home, glides landed; the tremolo is either silent or where a new unit's would be after as many samples (it runs on the sample clock). |
+| Organ (`Organum`) | **no** | — | — | its tone wheels, vibrato scanner and rotor turn for ever, and their phases reach the output; a new unit's start at zero. The wheels and the scanner already skip exactly (`Generator::skip`, `Scanner::skip`) so it could rest with them advanced by `skip`; the rotor's speed history (slow/fast with acceleration) would have to be tracked too. Not this round. |
+| Firmus (the slot's synth) | yes (`Firmus::at_rest`) | — | — | no voice, both glides landed. For the graph builder: the processor holds Firmus directly; nothing counts samples. |
+| Pulsus (the slot's kit) | **no predicate** | — | — | a hit counter seeds live hits and the hi-hat's chick (and every hit in Pulsus I); a new kit's starts at zero, so after its first hit the kit differs from a new one. Suspension alone would be exact for Pulsus II with no voice — a weaker predicate than this round's. |
 
 ## Tests
 
@@ -84,4 +117,53 @@ condition that fails — for the tests and for a profiler that wants to say why 
 
 ## Findings
 
-(Filled in below.)
+1. **Split invariance holds beyond the defaults.** Every effect kind (keyed and not, notes
+   for the gate) and every instrument kind (notes, chokes, controllers, per-note
+   expressions, the 32-voice chord) renders the same bits at blocks of 1, 7 and 4096 and at
+   random splits as at 512 — at the defaults, the bench's heavy settings and six settings
+   drawn over every parameter's range per kind. **No unit was found block-size independent
+   only at its defaults.** The project-level test at the heavy settings holds at 1, 64, 1000
+   and 4096 too.
+2. **Flushes that hover.** Three filters flushed their two state variables one at a time;
+   after some decays one kicks the other and the pair hovers at the threshold for ever (the
+   comment in Porta's sections names exactly this). They never came back to zero, so their
+   units could never be at rest: Comprimo's loudness meters, Terminus's (and Culmen's)
+   K-weighting, and Multiplex's band detectors. Each now flushes both at once, in its own
+   commit with the reason. All three are measurement paths: what they change is under
+   1e-30 (meters) or 1e-20 (detectors, whose followers flush below 1e-12), far under an ulp
+   of anything they are compared with; the only place it can be heard is Multiplex's Key
+   listen tail under 1e-20. The null corpus and the `v5.cantus` hash do not move (below).
+   The same one-at-a-time flush remains in audio-path filters (Aequalis's biquads, the
+   crossover sections Multiplex and Latitudo share); there it would move tail bits, so it
+   is left — those units came to rest in every test, and if one ever hovers its `at_rest`
+   simply stays false.
+3. **Aequalis's dynamic bands keep a residual.** A band's dynamic gain is updated only when
+   it moves by more than 0.0001 dB, so its release ends a hair from 0 and stays there: a
+   dynamic EQ (the heavy setting) never rests. Landing on exactly 0 when the target is 0
+   is one line, but it moves bits; it waits for a `DSP_VERSION` bump (the math builder's).
+4. **−0.0 is not +0.0.** The first twin test found Terminus's DC blocker holding −0.0 from
+   a −0.0 input and turning the next −0.0 into −0.0 where a new unit gives +0.0. Every zero
+   check compares bits now.
+5. **Counters are in the bits.** The delay's read head takes its fraction from the absolute
+   write position (`write as f32 − delay`), so the position of an all-zero line matters:
+   skipping 300 samples without moving it changed bits. The same holds for every grid a
+   unit updates on and for the linear-phase convolvers' block position. Hence `skip`.
+6. **Glides that stall.** Terminus's and Culmen's Match gain glides by 2·10⁻⁵ of the gap per
+   sample and stops a few tenths of a percent short of its target when the step falls under
+   half an ulp; Comprimo's compare does the same. A stalled glide never moves again, so it
+   counts as still (`cantus_dsp::rest::glide_still` replays the step and checks).
+7. **Resets that kept counting.** The bass unit's modulation grid and Modulus's clock were
+   not zeroed by `reset`, so a reset unit was not a new one. They are now (the only change
+   of behaviour: after a panic or an instrument switch the grid restarts at 0, as a new
+   unit's does; no render resets mid-way).
+8. **What only the editor reads does not count**: meters, telemetry columns, scopes, the
+   gain-reduction readouts, event statistics — skipping them changes what an editor would
+   draw for the skipped time, never a sample.
+
+## Bits
+
+Four commits change DSP behaviour on purpose, each with its reason: the three flushes
+(finding 2) and the two resets (finding 7). `null_tests.rs`, the `v5.cantus` hash and every
+test in `crates/cantus-engine/tests` and `crates/cantus-dsp` pass unchanged on this branch
+(see the report). Everything else is additive: new methods, new counters beside the state
+(`ZeroRun`, quiet and unity counts, clocks) that no output reads.

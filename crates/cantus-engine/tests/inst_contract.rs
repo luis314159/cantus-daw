@@ -394,7 +394,14 @@ impl Score {
         }
         let f = end;
         for (key, id) in held {
-            ev.push((f, Ev::Off { key, id, velocity: 0.5 }));
+            ev.push((
+                f,
+                Ev::Off {
+                    key,
+                    id,
+                    velocity: 0.5,
+                },
+            ));
         }
         for c in [
             Controller::Sustain,
@@ -424,7 +431,14 @@ impl Score {
         for v in 0..heavy::HEAVY_VOICES {
             let key = 36 + ((v * 7) % 60) as u8;
             let id = 1_000 + v as u64;
-            ev.push((frames * 3 / 4, Ev::Off { key, id, velocity: 0.5 }));
+            ev.push((
+                frames * 3 / 4,
+                Ev::Off {
+                    key,
+                    id,
+                    velocity: 0.5,
+                },
+            ));
         }
         Score { frames, events: ev }
     }
@@ -460,8 +474,15 @@ fn play(
         let next = score.events.get(ei).map_or(n, |e| e.0.min(n));
         let b = block().clamp(1, n - at).min(next.max(at + 1) - at);
         let wrote = u.process(&mut l[at..at + b], &mut r[at..at + b]);
-        if !wrote && !l[at..at + b].iter().chain(&r[at..at + b]).all(|v| *v == 0.0) {
-            return Err(format!("process said it wrote nothing at frame {at}, and did"));
+        if !wrote
+            && !l[at..at + b]
+                .iter()
+                .chain(&r[at..at + b])
+                .all(|v| *v == 0.0)
+        {
+            return Err(format!(
+                "process said it wrote nothing at frame {at}, and did"
+            ));
         }
         after(u, &l[at..at + b], &r[at..at + b]);
         at += b;
@@ -541,7 +562,12 @@ fn inst_split_invariance(kind: InstrumentKind) {
                 continue;
             }
         };
-        if !reference.0.iter().chain(&reference.1).all(|v| v.is_finite()) {
+        if !reference
+            .0
+            .iter()
+            .chain(&reference.1)
+            .all(|v| v.is_finite())
+        {
             failures.push(format!("{kind:?} {label}: not finite"));
             continue;
         }
@@ -586,12 +612,21 @@ fn inst_twins(
     // claims rest where a new one cannot.
     let mut probe = inst_unit(spec);
     probe.skip(cap);
-    let cap = if probe.at_rest() { cap } else { cap.min(48_000) };
+    let cap = if probe.at_rest() {
+        cap
+    } else {
+        cap.min(48_000)
+    };
     let history = score_for(chord, rng.range(4_800, 60_000), &mut rng);
     let (mut a, mut b, mut d) = (inst_unit(spec), inst_unit(spec), inst_unit(spec));
     let hist_seed = rng.next_u64();
     for u in [&mut a, &mut b, &mut d] {
-        play(&mut **u, &history, splits(Rng::new(hist_seed)), |_, _, _| {})?;
+        play(
+            &mut **u,
+            &history,
+            splits(Rng::new(hist_seed)),
+            |_, _, _| {},
+        )?;
     }
     let mut silent = 0;
     while !a.at_rest() {
@@ -612,15 +647,20 @@ fn inst_twins(
     }
     let k = rng.range(0, 30_000);
     let mut broke = None;
-    play(&mut *a, &Score::silence(k), splits(Rng::new(rng.next_u64())), |u, l, r| {
-        if broke.is_none() && !(l.iter().chain(r).all(|v| *v == 0.0) && u.at_rest()) {
-            broke = Some(if u.at_rest() {
-                "at rest, no notes gave sound"
-            } else {
-                "at rest, no notes left it not at rest"
-            });
-        }
-    })?;
+    play(
+        &mut *a,
+        &Score::silence(k),
+        splits(Rng::new(rng.next_u64())),
+        |u, l, r| {
+            if broke.is_none() && !(l.iter().chain(r).all(|v| *v == 0.0) && u.at_rest()) {
+                broke = Some(if u.at_rest() {
+                    "at rest, no notes gave sound"
+                } else {
+                    "at rest, no notes left it not at rest"
+                });
+            }
+        },
+    )?;
     if let Some(e) = broke {
         return Err(e.into());
     }
@@ -645,13 +685,30 @@ fn inst_twins(
         }
     }
     let back = score_for(chord, rng.range(4_800, 48_000), &mut rng);
-    let out_a = play(&mut *a, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {})?;
-    let out_d = play(&mut *d, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {})?;
+    let out_a = play(
+        &mut *a,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    )?;
+    let out_d = play(
+        &mut *d,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    )?;
     if let Some(e) = first_difference(&out_a, &out_d) {
-        return Err(format!("the skipped twin differs after {k} frames of rest: {e}"));
+        return Err(format!(
+            "the skipped twin differs after {k} frames of rest: {e}"
+        ));
     }
     for (name, u) in [("reset", &mut b), ("new", &mut c)] {
-        let out = play(&mut **u, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {})?;
+        let out = play(
+            &mut **u,
+            &back,
+            splits(Rng::new(rng.next_u64())),
+            |_, _, _| {},
+        )?;
         if let Some(e) = first_difference(&out_a, &out) {
             if change.is_none() {
                 return Err(format!("the {name} twin differs: {e}"));

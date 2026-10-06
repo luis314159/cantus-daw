@@ -1284,8 +1284,12 @@ impl Aequalis {
                 })
             }),
             ("dynamic gain", &|| active().all(|b| b.delta_db == 0.0)),
-            ("detectors", &|| active().all(|b| z(b.env) && clear(&b.det_state))),
-            ("band filters", &|| active().all(|b| b.state.iter().all(|s| clear(s)))),
+            ("detectors", &|| {
+                active().all(|b| z(b.env) && clear(&b.det_state))
+            }),
+            ("band filters", &|| {
+                active().all(|b| b.state.iter().all(|s| clear(s)))
+            }),
             ("auto gain", &|| {
                 !auto
                     || (a.gain_db == 0.0

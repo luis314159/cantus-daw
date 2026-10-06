@@ -696,7 +696,12 @@ impl Multiplex {
         self.s = *s;
         let lay = Layout::of(&s.bands);
         let topology = snap || lay.n != self.lay.n || lay.order != self.lay.order;
-        if topology || s.bands.iter().zip(&self.live).any(|(a, l)| a.used != l.b.used) {
+        if topology
+            || s.bands
+                .iter()
+                .zip(&self.live)
+                .any(|(a, l)| a.used != l.b.used)
+        {
             self.unity_run = 0;
         }
         self.lay = lay;
@@ -833,7 +838,9 @@ impl Multiplex {
             ("output glide", &|| {
                 self.out_from == self.out_to && self.out_to == db_to_lin(s.output_db)
             }),
-            ("first gain", &|| self.g0_from == [1.0; 2] && self.g0_to == [1.0; 2]),
+            ("first gain", &|| {
+                self.g0_from == [1.0; 2] && self.g0_to == [1.0; 2]
+            }),
             ("stages", &|| {
                 (0..2).all(|h| {
                     (0..MAX_XOVERS).all(|i| {
@@ -842,9 +849,15 @@ impl Multiplex {
                     })
                 })
             }),
-            ("band glides", &|| order.iter().all(|&b| self.live[b].b == s.bands[b])),
-            ("band gains", &|| order.iter().all(|&b| self.g_now[b] == 1.0)),
-            ("solo and mute", &|| order.iter().all(|&b| self.audible[b] == self.audible_t[b])),
+            ("band glides", &|| {
+                order.iter().all(|&b| self.live[b].b == s.bands[b])
+            }),
+            ("band gains", &|| {
+                order.iter().all(|&b| self.g_now[b] == 1.0)
+            }),
+            ("solo and mute", &|| {
+                order.iter().all(|&b| self.audible[b] == self.audible_t[b])
+            }),
             ("bypass fades", &|| {
                 order
                     .iter()

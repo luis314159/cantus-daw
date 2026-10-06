@@ -783,22 +783,40 @@ impl Comprimo {
         let s = &self.s;
         let goal = if s.auto_gain { self.auto_target } else { 0.0 };
         let checks: [(&'static str, &dyn Fn() -> bool); 14] = [
-            ("auto gain glide", &|| step_still(self.auto_db, goal, self.smooth)),
+            ("auto gain glide", &|| {
+                step_still(self.auto_db, goal, self.smooth)
+            }),
             ("auto gain", &|| !s.auto_gain || self.auto_db == 0.0),
-            ("compare glide", &|| step_still(self.compare_db, self.compare_target, self.smooth)),
-            ("compare", &|| s.listen != Listen::Compare || self.compare_db == 0.0),
+            ("compare glide", &|| {
+                step_still(self.compare_db, self.compare_target, self.smooth)
+            }),
+            ("compare", &|| {
+                s.listen != Listen::Compare || self.compare_db == 0.0
+            }),
             ("reduction", &|| {
                 all_zero(&self.gr) && all_zero(&self.fast) && all_zero(&self.slow)
             }),
-            ("detector", &|| all_zero(&self.ms) && self.hold_left == [0; 2]),
+            ("detector", &|| {
+                all_zero(&self.ms) && self.hold_left == [0; 2]
+            }),
             ("programme memory", &|| self.work.to_bits() == 0),
-            ("gain stage", &|| self.g_last == [1.0; 2] && self.g_prev == [1.0; 2]),
+            ("gain stage", &|| {
+                self.g_last == [1.0; 2] && self.g_prev == [1.0; 2]
+            }),
             ("key filters", &|| {
                 self.hpf.iter().all(Hpf::is_clear)
-                    && self.key_z.iter().flatten().flatten().flatten().all(|v| z64(*v))
+                    && self
+                        .key_z
+                        .iter()
+                        .flatten()
+                        .flatten()
+                        .flatten()
+                        .all(|v| z64(*v))
             }),
             ("loudness meters", &|| {
-                [&self.lm_in, &self.lm_wet, &self.lm_out].iter().all(|m| m.is_clear())
+                [&self.lm_in, &self.lm_wet, &self.lm_out]
+                    .iter()
+                    .all(|m| m.is_clear())
             }),
             ("oversampler", &|| self.os.is_clear()),
             ("key oversampler", &|| self.os_key.is_clear()),

@@ -1030,29 +1030,51 @@ impl Terminus {
         let spec = s.style.spec();
         let a = &self.acc;
         let checks: [(&'static str, &dyn Fn() -> bool); 20] = [
-            ("dither", &|| DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] == 0),
+            ("dither", &|| {
+                DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] == 0
+            }),
             ("gain glide", &|| self.gain == self.gain_target),
             ("ceiling glide", &|| self.ceiling_db == s.ceiling_db),
             ("match glide", &|| {
                 crate::rest::glide_still(self.match_gain, self.match_target, self.match_glide, 1e-6)
             }),
-            ("match gain", &|| s.monitor != Monitor::Match || self.match_gain == 1.0),
-            ("programme memory", &|| spec.program <= 0.0 || self.work_is_nothing()),
+            ("match gain", &|| {
+                s.monitor != Monitor::Match || self.match_gain == 1.0
+            }),
+            ("programme memory", &|| {
+                spec.program <= 0.0 || self.work_is_nothing()
+            }),
             ("release envelope", &|| z(self.r_env[0]) && z(self.r_env[1])),
             ("column energy", &|| z64(a.energy) && z64(a.energy_in)),
             ("dc blocker", &|| self.dc.iter().all(DcBlock::is_clear)),
             ("loudness filters", &|| {
-                self.k_in.iter().chain(&self.k_out).all(KWeighting::is_clear)
+                self.k_in
+                    .iter()
+                    .chain(&self.k_out)
+                    .all(KWeighting::is_clear)
             }),
-            ("match window", &|| all_zero_f64(&self.st_in) && all_zero_f64(&self.st_out)),
-            ("detectors", &|| self.det.iter().chain(&self.safe_det).all(TruePeak::is_clear)),
-            ("transient stage", &|| self.t_stage.iter().all(Lookahead::is_clear)),
+            ("match window", &|| {
+                all_zero_f64(&self.st_in) && all_zero_f64(&self.st_out)
+            }),
+            ("detectors", &|| {
+                self.det
+                    .iter()
+                    .chain(&self.safe_det)
+                    .all(TruePeak::is_clear)
+            }),
+            ("transient stage", &|| {
+                self.t_stage.iter().all(Lookahead::is_clear)
+            }),
             ("safety stage", &|| self.safe.is_clear()),
             ("clipper", &|| self.clip.iter().all(Clipper::is_clear)),
-            ("requirement line", &|| self.t_pre.iter().all(Delay::is_clear)),
+            ("requirement line", &|| {
+                self.t_pre.iter().all(Delay::is_clear)
+            }),
             ("release line", &|| self.r_delay.iter().all(Delay::is_clear)),
             ("audio line", &|| self.audio.iter().all(Delay::is_clear)),
-            ("safety line", &|| self.safe_audio.iter().all(Delay::is_clear)),
+            ("safety line", &|| {
+                self.safe_audio.iter().all(Delay::is_clear)
+            }),
             ("dry line", &|| self.dry.iter().all(Delay::is_clear)),
         ];
         checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
@@ -1065,7 +1087,8 @@ impl Terminus {
     /// of two coefficients (under 1) and added to a release coefficient of at least ½ it is
     /// far under half an ulp.
     fn work_is_nothing(&self) -> bool {
-        self.work == 0.0 || (self.work < f32::MIN_POSITIVE && coef(self.s.release_ms, self.sr) >= 0.5)
+        self.work == 0.0
+            || (self.work < f32::MIN_POSITIVE && coef(self.s.release_ms, self.sr) >= 0.5)
     }
 
     /// Samples of silence skipped while at rest (ADR 0031 §5.1): the 10 ms columns the

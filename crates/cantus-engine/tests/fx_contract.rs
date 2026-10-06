@@ -214,10 +214,7 @@ fn specs(kind: EffectKind, random: usize, rng: &mut Rng) -> Vec<(String, EffectS
     ];
     for i in 0..random {
         let p = if i % 3 == 2 { 1.0 } else { 0.5 };
-        v.push((
-            format!("random #{i}"),
-            heavy::random_effect(kind, p, rng),
-        ));
+        v.push((format!("random #{i}"), heavy::random_effect(kind, p, rng)));
     }
     v
 }
@@ -246,7 +243,12 @@ fn split_invariance(kind: EffectKind) {
                 v.extend_from_slice(t);
             }
             let reference = drive(&mut unit(&spec), &x, || 512, |_, _, _| {});
-            if !reference.0.iter().chain(&reference.1).all(|v| v.is_finite()) {
+            if !reference
+                .0
+                .iter()
+                .chain(&reference.1)
+                .all(|v| v.is_finite())
+            {
                 failures.push(format!("{kind:?} {label} keyed {keyed}: not finite"));
                 continue;
             }
@@ -290,7 +292,11 @@ fn twins(
     // claims rest where a new one cannot.
     let mut probe = unit(spec);
     probe.skip(cap);
-    let cap = if probe.at_rest() { cap } else { cap.min(48_000) };
+    let cap = if probe.at_rest() {
+        cap
+    } else {
+        cap.min(48_000)
+    };
     let history = Input::music(rng.range(2_400, 30_000), keyed, notes, &mut rng);
     let (mut a, mut b, mut d) = (unit(spec), unit(spec), unit(spec));
     let hist_seed = rng.next_u64();
@@ -322,15 +328,20 @@ fn twins(
     // a: keeps processing zeros, which must come out as zeros, at rest throughout.
     let k = rng.range(0, 30_000);
     let mut broke = None;
-    drive(&mut a, &Input::silence(k, keyed), splits(Rng::new(rng.next_u64())), |u, l, r| {
-        if broke.is_none() && !(l.iter().chain(r).all(|v| *v == 0.0) && u.at_rest()) {
-            broke = Some(if u.at_rest() {
-                "at rest, silence in gave sound out"
-            } else {
-                "at rest, silence in left it not at rest"
-            });
-        }
-    });
+    drive(
+        &mut a,
+        &Input::silence(k, keyed),
+        splits(Rng::new(rng.next_u64())),
+        |u, l, r| {
+            if broke.is_none() && !(l.iter().chain(r).all(|v| *v == 0.0) && u.at_rest()) {
+                broke = Some(if u.at_rest() {
+                    "at rest, silence in gave sound out"
+                } else {
+                    "at rest, silence in left it not at rest"
+                });
+            }
+        },
+    );
     if let Some(e) = broke {
         return Err(e.into());
     }
@@ -357,10 +368,22 @@ fn twins(
         }
     }
     let back = Input::music(rng.range(4_800, 40_000), keyed, notes, &mut rng);
-    let out_a = drive(&mut a, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {});
-    let out_d = drive(&mut d, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {});
+    let out_a = drive(
+        &mut a,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    );
+    let out_d = drive(
+        &mut d,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    );
     if let Some(e) = first_difference(&out_a, &out_d) {
-        return Err(format!("the skipped twin differs after {k} frames of rest: {e}"));
+        return Err(format!(
+            "the skipped twin differs after {k} frames of rest: {e}"
+        ));
     }
     for (name, u) in [("reset", &mut b), ("new", &mut c)] {
         let out = drive(u, &back, splits(Rng::new(rng.next_u64())), |_, _, _| {});
@@ -387,7 +410,7 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Stereo | EffectKind::Saturator => (true, true),
         EffectKind::Multiband | EffectKind::DeEsser | EffectKind::Maximizer => (true, true),
         EffectKind::Limiter => (true, false), // heavy: dithers (R10)
-        EffectKind::Gate => (false, false), // keyed, a reset gate starts open
+        EffectKind::Gate => (false, false),   // keyed, a reset gate starts open
         _ => (false, false),
     }
 }
