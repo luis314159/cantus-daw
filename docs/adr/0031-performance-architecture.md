@@ -437,9 +437,15 @@ any of these holds; everything else is eligible:
 When nothing is live — playback of a finished song, the commonest case — **the whole graph
 including the master renders ahead**, and the callback copies the master's ring to the
 device. That is where the market's 3× "plays sessions others choke on" comes from.
-Selecting a track does not make it live in Cantus unless it is the keyboard's target (Logic
-makes the *selected* instrument track live, and Apple's own advice is to select an empty
-track for playback — a trap we do not set).
+**The selected track.** The UI makes the selected track the keyboard's target
+(`cantus-ui/src/app.rs`: `set_live_track(self.selected_track)`), which is Logic's model —
+the selected instrument track is live, and Apple's advice is to select an empty track for
+playback. Cantus keeps the convenience and drops the trap: the live track counts as live
+only while something can play it live — a MIDI input port is open, or the computer
+keyboard is playing notes — so with no controller attached, selecting a track changes
+nothing. When it is live, only it and its path to the master leave the ahead path.
+Changing the selection during playback promotes the new track within `H`, which is shorter
+than the time it takes to reach for the keyboard.
 
 **3.3 How far ahead.** A setting with three levels, like ASIO-Guard's:
 
