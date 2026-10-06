@@ -175,7 +175,7 @@ Section /o "$(CANTUS_SECTION_FLEXASIO)" SecFlexAsio
   SetOutPath "$PLUGINSDIR"
   File "flexasio.ps1"
   DetailPrint "$(CANTUS_FLEXASIO_FETCHING)"
-  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIRlexasio.ps1" -Dest "$PLUGINSDIR"'
+  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\flexasio.ps1" -Dest "$PLUGINSDIR"'
   Pop $0
   ${If} $0 == 0
     DetailPrint "$(CANTUS_FLEXASIO_DONE)"
