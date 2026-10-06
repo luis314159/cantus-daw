@@ -668,7 +668,9 @@ fn inst_twins(
 /// test's silence (30 s). The reasons for a `false` are in `docs/round21/at-rest.md`.
 fn inst_must_rest(kind: InstrumentKind) -> (bool, bool) {
     match kind {
-        _ => (false, false),
+        // The tone wheels, the scanner and the rotor turn for ever (see the notes).
+        InstrumentKind::Organ => (false, false),
+        _ => (true, true),
     }
 }
 

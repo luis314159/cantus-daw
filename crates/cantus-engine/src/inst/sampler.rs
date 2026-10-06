@@ -393,6 +393,14 @@ impl InstrumentUnit for Unit {
         self.ex.reset();
     }
 
+    fn at_rest(&self) -> bool {
+        self.ex.at_rest()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.ex.skip(frames);
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
         let wrote = self.ex.process(left, right);
         self.stolen += self.ex.take_stolen();
