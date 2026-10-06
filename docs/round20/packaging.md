@@ -161,3 +161,64 @@ See the report at the end of the round (`cargo test -p cantus-update -p xtask`):
   exists; an installer compiles when NSIS is present; signing args mask the password;
   Azure and store arguments.
 - `cantus-ui`: settings round trip includes `updates`.
+
+## Proved on this machine
+
+- Both installers (standard and ASIO, with the FlexASIO component) compile with NSIS 3.11
+  from the test's stand-ins (`an_installer_compiles_when_nsis_is_here`).
+- A silent install of the standard one (`/S /D=<scratch>`), checked by hand: the four
+  files and `uninstall.exe`; both stand-in plug-ins in the per-user CLAP and VST3 folders
+  with their bundle layout; `.cantus` → `Cantus.Project` with the exe's icon and
+  `"…\cantus.exe" "%1"`; Apps & features entry (name, version, uninstall string); the
+  Start-menu shortcut; no desktop shortcut; the choices stored (Assoc 1, Desktop 0, Clap 1,
+  Vst3 1). Then `/S /UPDATE` with `Clap` set to 0: the CLAP folder removed, VST3 kept,
+  installed into the remembered folder. Then `uninstall.exe /S`: every key, folder and
+  shortcut gone (all eight checks false). Exit codes 0.
+- `flexasio.ps1 -DownloadOnly` fetched and verified FlexASIO-1.10b.exe through the proxy.
+- The GitHub API answered through the proxy (curl, and the recorded fixtures).
+- Not done here: a full `xtask package` of the real app (a release build of `cantus` and
+  ten fat-LTO plug-in builds; the shared machine's cargo package-cache lock held builds
+  for tens of minutes at a time) — the CI workflow does it on a clean runner; locally:
+  `cargo run -p xtask -- package --sign-test`.
+
+## Files touched outside my area
+
+- `Cargo.toml` (workspace: member, default member, `cantus-update` dependency), `Cargo.lock`.
+- `crates/cantus-ui/Cargo.toml` (`cantus-update`), `src/i18n.rs` (the `update` area, one
+  line per locale), `src/settings.rs` (`UpdateSettings`, the round-trip test literal),
+  `src/app.rs` (field + init, `views::update::frame`, `on_quit` in the close path, the
+  portable data folder in `directories_fallback`), `src/views/mod.rs` (`pub mod update`),
+  `src/views/transport.rs` (Help → *Check for updates…*), `src/views/workspace_settings.rs`
+  (the Updates section after Saving), `examples/shoot.rs` (`update`, `update-ready`,
+  `update-notice`, `update-held`).
+- `LICENSE-GPL` (new, the GPL-3.0 text `LICENSE` already referred to).
+- `.github/workflows/release.yml` (new; `ci.yml` untouched).
+
+## Left
+
+- A full local `package --all --sign-test` run of the real app (see above), and a look at
+  the real installer's pages (welcome, licence, components) in both languages.
+- macOS (DMG, notarisation) and Linux (AppImage/Flatpak) packages — BACKLOG §6.
+- An MSI for enterprise deployment, if ever asked for (same staging folder).
+- Files a previous version shipped and the new one does not stay until uninstall.
+- The `.sigstore` bundle of FlexASIO is not verified (no verifier shipped); its assets
+  have no GitHub digest, so it is checked by type and size only.
+- A PAC proxy script is not evaluated by the Rust updater (Windows' fixed proxy, the
+  environment and a typed proxy are); the installer's FlexASIO step does honour PAC.
+- `docs/releases/v<x.y.z>.md` is where release notes go (the workflow reads it); none yet.
+
+## The owner's decisions and purchases
+
+1. **Code signing** — see [`signing.md`](signing.md): apply to SignPath Foundation (free,
+   OSS), or Azure Trusted Signing (≈ US$10/month, if eligible from Mexico), or a Certum Open
+   Source certificate (≈ €30–70/year). Then set the repository secrets/variables listed in
+   `release.yml`, and `CANTUS_PUBLISHER` to the certificate's CN — once, for good.
+2. **When to release**: bump `version` in `Cargo.toml`, optionally write
+   `docs/releases/vX.Y.Z.md`, then tag `vX.Y.Z` and push the tag. The workflow refuses a
+   tag that does not match the version.
+3. **Updates on by default** (*Check daily*): confirm; it sends nothing but an anonymous
+   request to GitHub.
+4. **Plug-ins installed by default** into the per-user CLAP/VST3 folders: confirm (some
+   DAWs scan only the all-users folders; the README says how to add the folder).
+5. **The ASIO SDK hash** pinned in `release.yml` comes from round 19's zip; confirm it on
+   the first CI run.
