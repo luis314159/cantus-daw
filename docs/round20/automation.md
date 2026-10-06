@@ -40,7 +40,7 @@ width and send levels step on the grid. Stopped, a seek evaluates once at the pl
   through `FxHost::{can_automate, automated, automate}`); the mixer's strip and master menus
   (volume, pan, width) and the track menu (volume, pan, channel level).
 - *Last tweaked*: Clip ▸ *Create automation clip (last tweaked)*, which names it, and the
-  action `automate-last-tweaked` (unbound) — any parameter command counts, so the EQ's
+  action `automate-last-tweaked` (**Alt+A**) — any parameter command counts, so the EQ's
   nodes and every custom display are covered.
 - Arrangement: automation lanes under the track (one per target, below the take lanes),
   headers with the parameter, the device and the value now; the clip body drawn as its curve
@@ -64,7 +64,16 @@ width and send levels step on the grid. Stopped, a seek evaluates once at the pl
   to none; every kind of target at once is block-size independent (1…8192); real-time
   processing with irregular blocks is bit-identical to the offline render; a fader ride
   lands the gains the curve draws (held step exactly −6 dB); an effect parameter is
-  untouched before its clip.
+  untouched before its clip. `rt_memory.rs`: automation of every kind (ramps, an EQ band,
+  Firmus, the master) through a new snapshot mid-play, a seek and a stop allocates nothing
+  on the audio thread.
+- Whole suites green: cantus-core (incl. the 40-seed undo fuzz), cantus-engine (null tests,
+  the golden render), cantus-project (every fixture v1…v19), cantus-ui (47 test binaries);
+  `cargo clippy --tests` clean on the four crates; `cargo fmt`.
+- Rendered and looked at: `cargo run -p cantus-ui --example shoot -- <dir> 1 automation`
+  writes the arrangement with lanes and the large editor, in Slate and Paper. Fixed after
+  looking: duplicate polyline points thickened straight segments (mitre on a zero-length
+  segment), the fill was too faint, the lanes too short for the curve.
 - ui (`tests/automation.rs`): a parameter makes a clip flat at its value in one undo step
   (and opens it the second time); last tweaked; the knob shows the automated value (the
   effect editor's host and the app); the lane's layout; dragging a point through published
@@ -88,6 +97,8 @@ clips), `views/arrangement.rs` (+ `arrangement_takes.rs` `TrackRow::auto`),
 
 ## Notes for others
 
+- keymap: **Alt+A** is taken by *automate last tweaked* (every arrangement action must have
+  a key — the test says so).
 - **Every path that sends a snapshot must send its runtime first** (`EngineHandle::
   set_snapshot`, `render`, `render_stems` do). A test pushing `SetSnapshot` by hand with
   automation in it needs `EngineMessage::Automation(AutomationRuntime::build(&snap))` first.

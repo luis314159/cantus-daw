@@ -135,7 +135,7 @@ writes the hand into the curve is recording automation, a later block.
 - **From the last tweaked parameter**: every command that sets a parameter is remembered
   (`AutoTarget::of_command`), whatever widget sent it — so the EQ's nodes, the compressor's
   curve and every custom display are covered too. *Clip ▸ Create automation clip (last
-  tweaked)*, which names the parameter, and an unbound action (`automate-last-tweaked`).
+  tweaked)*, which names the parameter, and the action `automate-last-tweaked` on **Alt+A**.
 - A new clip spans the time selection, else the loop, else four bars from the playhead's
   bar, flat at the parameter's value now, under the track the parameter belongs to (for a
   strip, the first track feeding it; for the master, the selected track), selected, with the
