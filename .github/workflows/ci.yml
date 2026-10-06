@@ -31,6 +31,27 @@ jobs:
       - run: cargo test --workspace
       - run: cargo build --release -p cantus
 
+  # The performance gate (docs/perf/benchmark.md §6): the quick suite against
+  # perf/baselines/<class>.json. Hosted runners vary by tens of percent, so this job
+  # reports and does not fail until a baseline for its class has been gathered over
+  # enough runs to know its spread; then drop `continue-on-error`.
+  perf:
+    name: perf (quick suite)
+    runs-on: windows-latest
+    continue-on-error: true
+    env:
+      CANTUS_PERF_CLASS: gha-windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p xtask -- perf
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-report
+          path: target/perf/latest.json
+
   audit:
     name: supply chain
     runs-on: ubuntu-latest

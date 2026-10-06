@@ -5,6 +5,7 @@
 //! cargo run -p xtask -- bundle porta terminus   # only those
 //! cargo run -p xtask -- bundle --v3             # the x86-64-v3 flavour, into target/bundled-x86-64-v3/
 //! cargo run -p xtask -- bundle --no-build       # only lay out what is already built
+//! cargo run -p xtask -- perf                    # the performance gate (perf.rs)
 //! ```
 //!
 //! Each plug-in is built on its own (`cargo build -p cantus-plugins --profile plugin
@@ -17,6 +18,8 @@
 //!   `…/Contents/x86_64-linux/Cantus <Name>.so` (Linux), `…/Contents/MacOS/Cantus <Name>`
 //!   (macOS), with `Contents/Resources/moduleinfo.json` so a VST 3.7.5+ host can list it
 //!   without loading it.
+
+mod perf;
 
 use cantus_plugins::desc::{self, Descriptor};
 use std::path::{Path, PathBuf};
@@ -218,8 +221,9 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("bundle") => bundle(&args[1..]),
+        Some("perf") => perf::perf(&args[1..]),
         _ => {
-            eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
+            eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build] | perf [--full] [--save] [--only …]");
             std::process::exit(2);
         }
     }

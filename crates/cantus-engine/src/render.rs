@@ -105,6 +105,8 @@ pub fn render_with_units(
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
+    // Nobody reads an offline render's blame; the clock stamps are export time saved.
+    p.set_profiling(false);
 
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {

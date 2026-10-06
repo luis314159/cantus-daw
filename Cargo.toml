@@ -12,6 +12,8 @@ members = [
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-plugins",
+    # The benchmark suite (round 20): built on purpose, `cargo run -p xtask -- perf`.
+    "crates/cantus-bench",
     "xtask",
 ]
 # `cargo build` and `cargo run` at the root build the DAW only, as before: the exported

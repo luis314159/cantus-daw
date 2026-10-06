@@ -210,6 +210,7 @@ impl Processor {
         let dry_l = &mut m.dry_l[..n];
         let dry_r = &mut m.dry_r[..n];
         for (i, e) in m.effects.iter_mut().enumerate() {
+            self.prof.enter(crate::profile::Node::MasterInsert(i));
             let looked_at = self.analysed == Some(e.id);
             if looked_at {
                 for k in 0..n {
@@ -300,6 +301,7 @@ impl Processor {
                 }
             }
         }
+        self.prof.enter(crate::profile::Node::Engine);
         for i in 0..n {
             let frame = &mut out[i * channels..(i + 1) * channels];
             if channels > 1 {
@@ -309,6 +311,11 @@ impl Processor {
                 frame[0] = l[i] + r[i];
             }
         }
+    }
+
+    /// The id of the master chain's insert at `index`, for the profiler's blame.
+    pub(super) fn master_effect(&self, index: usize) -> Option<cantus_core::EffectId> {
+        self.master.effects.get(index).map(|e| e.id)
     }
 
     /// The chain's reduction for the meters.

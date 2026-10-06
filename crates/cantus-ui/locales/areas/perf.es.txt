@@ -1,0 +1,10 @@
+# perf — los instrumentos de rendimiento de la ronda 20: a quién culpa el detector de cortes
+# en la línea de estado, y el histograma del callback en su ayuda. Cada clave tiene su gemela en perf.en.txt.
+perf.engine = el motor
+perf.instrument = {instrument} en {track}
+perf.strip = la mezcla de {strip}
+perf.insert = {effect} en {strip}
+perf.strip_n = Inserción {n}
+perf.dropout = Corte de audio: {who} tardó {ms} ms de {budget} ms
+perf.dropout_tip = El último bloque que se pasó de su tiempo: {block} ms con un presupuesto de {budget} ms, bloque {n}. Lo que más tardó en él: {who}, {ms} ms. Congélalo o quítalo, o sube el tamaño del búfer, si se repite.
+perf.histogram = Callback de audio en {blocks} bloques: mediana {p50} ms · 99 % bajo {p99} ms · 99,9 % bajo {p999} ms · el más lento {max} ms · presupuesto {budget} ms · {overruns} desbordes
