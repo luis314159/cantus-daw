@@ -7,6 +7,10 @@ tests that must hold before it merges and the number the bench must show. Target
 the same machine class (`perf/baselines/<class>.json`), so every target is checkable the
 day the bench's baseline lands.*
 
+> **Amended 2026-10-06** by the state-of-the-art review (ADR 0031, last section): anticipation
+> moves ahead of the parallel export, and several phases gain work. See "Amendments from the
+> state-of-the-art review" at the end; it supersedes the order and the calendar below.
+
 ## Rules for every phase
 
 1. **One owner per hot file.** `processor.rs` and the `graph/` node files have exactly one
@@ -225,3 +229,116 @@ Each wave ends with the integrator's merge, the full test suite at `W = 0` and `
    its target, else *Within Cantus* (today's behaviour).
 4. **Shipping two x86 binaries** (v3 and a v2 fallback) — the packaging builder's call on
    how the stub and the installer present it.
+
+## Amendments from the state-of-the-art review (2026-10-06)
+
+*ADR 0031's last section ("Review against the state of the art") proposes amendments
+R1–R16. If they are accepted, this section supersedes the order and adds to the phases
+above; the phase contents above stay as written except where a line below changes them.
+Research: `research/engine/`.*
+
+### New order: anticipation before the parallel export (R7)
+
+Every leading DAW renders ahead (REAPER, Cubase, Studio One, Pro Tools, Logic); it is the
+lever for "more tracks at a lower buffer", and it is where Cantus is behind. The parallel
+export and the render cache are where Cantus is first, and they lose nothing by waiting one
+wave. Anticipation's real dependencies — node cursors and the pool — are Phase 1's.
+
+```
+P0a rt ─────────────┐
+P0b at-rest ────────┤
+P0c graph (serial) ─┴─► P1 pool ──► P2' anticipation + suspension ──► P4' parallel export ──► P5 cache
+P1s sched (mock) ───────┘                                                                   │
+P3 SIMD + v3 + math + dither ── in parallel with P1–P2', its own files ─────────────────────┘   P6 sandbox
+                                                                         (after P1; prototype any time)
+```
+
+| Wave | Builders in parallel (replaces the calendar sketch above) |
+|---|---|
+| 1 | rt · at-rest · graph (P0) · sched (mock, both queues) · build · ipc-proto · math |
+| 2 | graph + sched (P1) · kernel-1…3 · voices · dither · replay |
+| 3 | ring · ahead · ui-host · graph (suspension) — **P2'** |
+| 4 | export (P4': parallel and pipelined export) · kernel-4… |
+| 5 | key · store · play · ui · shm · sandbox |
+| 6 | time-parallel export; rollback (R8) if promotion proved insufficient; the published benchmark |
+
+Phase 2' takes Phase 4's builders, tests and targets **plus** Phase 2's suspension (the
+graph builder's half); Phase 4' is Phase 2's export half. Phase 4's target "live armed
+track at 64 samples with the rest ahead" is measured with the bench's mastering session and
+states that the master chain is on the live path (R7a).
+
+### Additions per phase
+
+**Phase 0 — rt** (R1, R3, R4, R5, R9, R11):
+- `thread.rs`: `promote_callback()` (MMCSS "Pro Audio" + `AvSetMmThreadPriority(HIGH)` on
+  WASAPI, nothing on ASIO), called by the control phase on the first block after a stream
+  start; process-wide EcoQoS opt-out at start (`SetProcessInformation`,
+  `ProcessPowerThrottling`); macOS: time constraint **before** `os_workgroup_join`, re-join
+  on `EINVAL`, `max_parallel_threads()`; Linux: rtkit (SCHED_RR) or FIFO directly.
+- `topology.rs`: P/E class **and** last-level-cache domains (`RelationCache`), one logical
+  processor per core.
+- `pad.rs`: 128-byte padding on x86-64 and aarch64.
+- new `memory.rs`: pre-fault and best-effort lock (`VirtualLock` after raising the working
+  set minimum; `mlock`), reported by `examples/rt_probe.rs`.
+- new `fpenv.rs`: `_set_FMA3_enable(0)` at start-up on Windows x64 (interim, until *math*
+  lands); the denormal guard's re-assert used after every hosted plug-in call.
+- Tests: `tests/ftz.rs` also renders the null corpus with the guard off and compares.
+
+**Phase 0 — graph**: the callback's first block after a stream start calls
+`promote_callback()` (counted like `EngineStats::wakes`); pre-faulting the slab on
+arrival is the UI thread's job (`backend.rs`).
+
+**Phase 0/1 — sched** (R2, R13): implement **both** the Vyukov queues and per-worker
+fixed-capacity Chase–Lev deques with home-worker seeding, behind one trait; `tests/sched.rs`
+injects a stall between claim and publish; the fuzz is PCT-shaped (random priorities, 2–3
+change points, short episodes), prints a replay token, and runs each seed twice comparing
+the final random state; `buggify!` sites under a `fuzz` feature. The choice between the
+queues is made on the bench (`engine.s64.b128` p99 and a stalled-pusher case) and written in
+the phase report.
+
+**Phase 1 — graph** (R13): the readout's *load* becomes the live path's peak; the ahead
+average is added in Phase 2'. A Linux CI job runs `-Zsanitizer=realtime` (nightly) over
+`Processor::process` and the pool loops, with the permitted wakes scoped.
+
+**Phase 1 — new builder *replay*** (R13): `crates/cantus-engine/src/record_session.rs` — the
+session recorder (messages and MIDI with block and frame, device block sizes, input,
+initial snapshot) and `tests/replay.rs` (record a fuzzed session, replay offline, equal
+bits). Touches only the control phase's drain points, by agreement with *graph*.
+
+**Phase 1 — bench builder, by coordination** (R13): `--paced` (blocks at the device period),
+a glitch-detector node for the live DAWbench run, missed callbacks counted from the device
+position, and the serial-chain DAWbench variant beside the wide one.
+
+**Phase 2' — ahead** (R3, R6, R7): ahead workers take free P-cores first while playing,
+E-cores after; eligibility reads VST3 `IPrefetchableSupport` and keeps non-prefetchable
+disk-streaming instruments live; the readout shows the ahead average beside the live peak.
+
+**Phase 3 — new builders *math* and *dither*** (R9, R10, R14):
+- *math*: one deterministic transcendental module (pinned `libm` or own polynomials) used
+  by every `cantus-dsp` unit; `clippy.toml` `disallowed-methods` for std's `sin`, `cos`,
+  `tan`, `exp`, `ln`, `log*`, `powf`, `tanh` in `cantus-dsp` and `cantus-engine`; one
+  `DSP_VERSION` bump with goldens; then `_set_FMA3_enable(0)` is removed. CI compares null
+  hashes on a second machine class and an aarch64 runner.
+- *dither*: counter-based TPDF noise in `terminus.rs` (`Ditherer`), used by Culmen; the
+  `at_rest` of both kinds then holds after the shaping state clears; a `DSP_VERSION` bump.
+  Must merge before Phase 5.
+- *kernel-k*: Fervor's shapers get ADAA, and 2× becomes the default factor where it measures
+  at least equal aliasing (R14), before their halfbands are vectorised; no approximate
+  reciprocal instructions in any kernel.
+
+**Phase 6 — sandbox** (R15): the ipc prototype also measures a direct, PipeWire-style wake
+(activation record + per-group event) and the **async** mode (one block of latency reported
+to delay compensation); the sandbox's spinners count against a machine-wide budget shared
+with the live pool.
+
+**Phase 7b — rollback for native ahead nodes** (R8, research-gated): only after Phase 2'
+has held for a round and only if promotion leaves audible edit latency; `checkpoint_size()`
+opt-in; test: an edit with rollback equals a serial edit at the rollback point, to the bit.
+
+### Open questions this adds for the owner
+
+5. **A low-latency monitoring rule** (R7b): bypass or switch latent plug-ins on the live path
+   while monitoring, as Cubase, Logic, Live and Studio One do — a new ADR beside 0022.
+6. **Accept the reorder** (anticipation before the parallel export)?
+7. **Cross-machine determinism** (R9): accept one `DSP_VERSION` bump to make renders — and
+   render-cache pages — identical on every machine, not only on the one that made them.
