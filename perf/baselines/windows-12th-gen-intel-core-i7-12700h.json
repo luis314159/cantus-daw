@@ -1,0 +1,1478 @@
+{
+  "schema": 1,
+  "suite": "quick",
+  "machine": {
+    "class": "windows-12th-gen-intel-core-i7-12700h",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "logical_cores": 20,
+    "os": "windows",
+    "arch": "x86_64"
+  },
+  "git": "d6d5c22",
+  "date": "2026-10-06",
+  "metrics": [
+    {
+      "id": "fx.aequalis.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 0.7812499999999999,
+        "p10": 0.78125,
+        "p90": 0.78125,
+        "min": 0.7812499999999999,
+        "max": 0.7812499999999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.aequalis.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 26666.0,
+        "p10": 26666.000000000004,
+        "p90": 26666.0,
+        "min": 26666.0,
+        "max": 26666.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.aequalis.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 71.09375,
+        "p10": 70.15625,
+        "p90": 71.40624999999999,
+        "min": 69.921875,
+        "max": 71.48437499999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.aequalis.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 293.0,
+        "p10": 291.40000000000003,
+        "p90": 296.2,
+        "min": 291.0,
+        "max": 297.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.comprimo.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 142.96875,
+        "p10": 142.65625,
+        "p90": 151.09374999999997,
+        "min": 142.578125,
+        "max": 153.12499999999997,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.comprimo.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 145.0,
+        "p10": 137.8,
+        "p90": 145.8,
+        "min": 136.0,
+        "max": 146.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.comprimo.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 449.609375,
+        "p10": 399.296875,
+        "p90": 547.1093749999999,
+        "min": 386.71875,
+        "max": 571.4843749999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.comprimo.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 46.0,
+        "p10": 38.0,
+        "p90": 51.6,
+        "min": 36.0,
+        "max": 53.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.terminus.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 730.46875,
+        "p10": 692.03125,
+        "p90": 793.90625,
+        "min": 682.421875,
+        "max": 809.765625,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.terminus.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 28.0,
+        "p10": 25.6,
+        "p90": 29.599999999999998,
+        "min": 25.0,
+        "max": 30.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.terminus.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 775.78125,
+        "p10": 775.15625,
+        "p90": 820.78125,
+        "min": 775.0,
+        "max": 832.03125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.terminus.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 26.0,
+        "p10": 25.2,
+        "p90": 26.0,
+        "min": 25.0,
+        "max": 26.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.spatium.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1239.0625000000002,
+        "p10": 1058.4375,
+        "p90": 1285.3125,
+        "min": 1013.2812499999999,
+        "max": 1296.875,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.spatium.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 16.0,
+        "p10": 16.0,
+        "p90": 19.2,
+        "min": 16.0,
+        "max": 20.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.spatium.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 871.875,
+        "p10": 857.8125,
+        "p90": 875.0,
+        "min": 854.296875,
+        "max": 875.78125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.spatium.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 23.0,
+        "p10": 23.000000000000004,
+        "p90": 23.8,
+        "min": 23.0,
+        "max": 24.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.multiplex.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 5.46875,
+        "p10": 5.46875,
+        "p90": 5.46875,
+        "min": 5.46875,
+        "max": 5.46875,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.multiplex.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 3809.0,
+        "p10": 3809.0000000000005,
+        "p90": 3809.0,
+        "min": 3809.0,
+        "max": 3809.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.multiplex.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1001.171875,
+        "p10": 998.046875,
+        "p90": 1175.8593750000002,
+        "min": 997.265625,
+        "max": 1219.5312500000002,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.multiplex.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 20.0,
+        "p10": 17.6,
+        "p90": 20.0,
+        "min": 17.0,
+        "max": 20.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.sibilus.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 272.65625,
+        "p10": 265.15625,
+        "p90": 273.28125,
+        "min": 263.28124999999994,
+        "max": 273.4375,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.sibilus.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 76.0,
+        "p10": 76.0,
+        "p90": 78.4,
+        "min": 76.0,
+        "max": 79.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.sibilus.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 414.84375,
+        "p10": 402.96875,
+        "p90": 572.03125,
+        "min": 399.99999999999994,
+        "max": 611.328125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.sibilus.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 50.0,
+        "p10": 37.2,
+        "p90": 51.6,
+        "min": 34.0,
+        "max": 52.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.porta.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 39.84375000000001,
+        "p10": 39.21875,
+        "p90": 42.96875,
+        "min": 39.0625,
+        "max": 43.75,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.porta.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 522.0,
+        "p10": 485.20000000000005,
+        "p90": 530.8,
+        "min": 476.0,
+        "max": 533.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.porta.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 109.375,
+        "p10": 86.24999999999999,
+        "p90": 110.0,
+        "min": 80.46874999999999,
+        "max": 110.15625,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.porta.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 190.0,
+        "p10": 189.20000000000002,
+        "p90": 244.4,
+        "min": 189.0,
+        "max": 258.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.fervor.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 12.890625,
+        "p10": 12.578125,
+        "p90": 17.578125,
+        "min": 12.499999999999998,
+        "max": 18.75,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.fervor.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 1616.0,
+        "p10": 1212.0,
+        "p90": 1656.0,
+        "min": 1111.0,
+        "max": 1666.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.fervor.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 483.984375,
+        "p10": 481.17187500000006,
+        "p90": 680.8593749999999,
+        "min": 480.46875000000006,
+        "max": 730.0781249999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.fervor.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 43.0,
+        "p10": 31.0,
+        "p90": 43.0,
+        "min": 28.0,
+        "max": 43.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.latitudo.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 39.84375000000001,
+        "p10": 39.84375000000001,
+        "p90": 52.96875,
+        "min": 39.84375000000001,
+        "max": 56.24999999999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.latitudo.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 522.0,
+        "p10": 400.4,
+        "p90": 522.0,
+        "min": 370.0,
+        "max": 522.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.latitudo.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 39.84375000000001,
+        "p10": 39.84375000000001,
+        "p90": 54.21875,
+        "min": 39.84375000000001,
+        "max": 57.8125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.latitudo.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 522.0,
+        "p10": 392.4,
+        "p90": 522.0,
+        "min": 360.0,
+        "max": 522.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.culmen.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 997.6562499999999,
+        "p10": 996.7187500000001,
+        "p90": 1005.78125,
+        "min": 996.4843750000001,
+        "max": 1007.8125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.culmen.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 20.0,
+        "p10": 20.0,
+        "p90": 20.0,
+        "min": 20.0,
+        "max": 20.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.culmen.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 989.8437499999999,
+        "p10": 987.96875,
+        "p90": 1044.53125,
+        "min": 987.5,
+        "max": 1058.203125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.culmen.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 21.0,
+        "p10": 19.400000000000002,
+        "p90": 21.0,
+        "min": 19.0,
+        "max": 21.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.delay.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 31.25,
+        "p10": 31.25,
+        "p90": 38.12500000000001,
+        "min": 31.25,
+        "max": 39.84375000000001,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.delay.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 666.0,
+        "p10": 550.8000000000001,
+        "p90": 666.0,
+        "min": 522.0,
+        "max": 666.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.delay.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 31.25,
+        "p10": 30.625,
+        "p90": 31.25,
+        "min": 30.46875,
+        "max": 31.25,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.delay.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 666.0,
+        "p10": 666.0000000000001,
+        "p90": 679.5999999999999,
+        "min": 666.0,
+        "max": 683.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.reverb.default",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 46.09375,
+        "p10": 45.46875000000001,
+        "p90": 63.28125,
+        "min": 45.31250000000001,
+        "max": 67.578125,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.reverb.default.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 451.0,
+        "p10": 336.6,
+        "p90": 457.40000000000003,
+        "min": 308.0,
+        "max": 459.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.reverb.heavy",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 44.53124999999999,
+        "p10": 43.90625,
+        "p90": 45.15625,
+        "min": 43.75,
+        "max": 45.31250000000001,
+        "runs": 3
+      }
+    },
+    {
+      "id": "fx.reverb.heavy.fit128",
+      "unit": "instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 467.0,
+        "p10": 460.6,
+        "p90": 474.2,
+        "min": 459.0,
+        "max": 476.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "inst.firmus.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 195.703125,
+        "p10": 174.140625,
+        "p90": 197.89062500000003,
+        "min": 168.75,
+        "max": 198.43750000000003,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.firmus.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1128.515625,
+        "p10": 1113.8281250000002,
+        "p90": 1164.453125,
+        "min": 1110.1562500000002,
+        "max": 1173.4375,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.firmus.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2205.078125,
+        "p10": 2203.2031250000005,
+        "p90": 2267.890625,
+        "min": 2202.7343750000005,
+        "max": 2283.59375,
+        "runs": 3
+      },
+      "note": "16 voices sounding"
+    },
+    {
+      "id": "inst.pulsus.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1159.765625,
+        "p10": 1146.328125,
+        "p90": 1275.0781249999998,
+        "min": 1142.96875,
+        "max": 1303.9062499999998,
+        "runs": 3
+      },
+      "note": "3 voices sounding"
+    },
+    {
+      "id": "inst.pulsus.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1399.21875,
+        "p10": 1380.15625,
+        "p90": 1404.84375,
+        "min": 1375.390625,
+        "max": 1406.25,
+        "runs": 3
+      },
+      "note": "4 voices sounding"
+    },
+    {
+      "id": "inst.pulsus.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 5032.03125,
+        "p10": 5001.71875,
+        "p90": 5100.78125,
+        "min": 4994.140625,
+        "max": 5117.96875,
+        "runs": 3
+      },
+      "note": "21 voices sounding"
+    },
+    {
+      "id": "inst.unda.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 182.8125,
+        "p10": 177.1875,
+        "p90": 183.4375,
+        "min": 175.78125,
+        "max": 183.59375,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.unda.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1062.5,
+        "p10": 1061.25,
+        "p90": 1076.875,
+        "min": 1060.9374999999998,
+        "max": 1080.46875,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.unda.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2038.671875,
+        "p10": 1958.9843750000002,
+        "p90": 2073.984375,
+        "min": 1939.0625000000002,
+        "max": 2082.8125,
+        "runs": 3
+      },
+      "note": "16 voices sounding"
+    },
+    {
+      "id": "inst.calor.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 487.5,
+        "p10": 487.5,
+        "p90": 488.75,
+        "min": 487.5,
+        "max": 489.0625,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.calor.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 3500.0,
+        "p10": 3360.0,
+        "p90": 4186.5625,
+        "min": 3324.9999999999995,
+        "max": 4358.203125,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.calor.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 3372.65625,
+        "p10": 3366.09375,
+        "p90": 3473.28125,
+        "min": 3364.453125,
+        "max": 3498.4375,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.modulus.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 75.78125000000001,
+        "p10": 75.78125000000001,
+        "p90": 75.78125000000001,
+        "min": 75.78125000000001,
+        "max": 75.78125000000001,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.modulus.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 324.21875,
+        "p10": 316.09375,
+        "p90": 326.71875,
+        "min": 314.0625,
+        "max": 327.34375,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.modulus.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 603.90625,
+        "p10": 603.28125,
+        "p90": 605.7812500000001,
+        "min": 603.125,
+        "max": 606.2500000000001,
+        "runs": 3
+      },
+      "note": "16 voices sounding"
+    },
+    {
+      "id": "inst.exemplar.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 153.90625000000003,
+        "p10": 153.28125,
+        "p90": 153.90625000000003,
+        "min": 153.12499999999997,
+        "max": 153.90625000000003,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.exemplar.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2260.5468749999995,
+        "p10": 2241.796875,
+        "p90": 2526.796875,
+        "min": 2237.109375,
+        "max": 2593.359375,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.exemplar.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 11919.921875,
+        "p10": 11061.171875,
+        "p90": 12032.109375,
+        "min": 10846.484375,
+        "max": 12060.15625,
+        "runs": 3
+      },
+      "note": "32 voices sounding"
+    },
+    {
+      "id": "inst.gravis.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 168.75,
+        "p10": 168.75,
+        "p90": 168.75,
+        "min": 168.75,
+        "max": 168.75,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.gravis.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 185.93749999999997,
+        "p10": 171.5625,
+        "p90": 224.0625,
+        "min": 167.96875,
+        "max": 233.59375,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.gravis.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 230.46875,
+        "p10": 181.09375,
+        "p90": 235.46875,
+        "min": 168.75,
+        "max": 236.71875,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.lamina.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 250.78125,
+        "p10": 232.34375,
+        "p90": 325.15625,
+        "min": 227.734375,
+        "max": 343.75,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.lamina.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 648.0468749999999,
+        "p10": 620.546875,
+        "p90": 653.359375,
+        "min": 613.671875,
+        "max": 654.6875,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.lamina.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 1919.921875,
+        "p10": 1389.2968750000002,
+        "p90": 1980.234375,
+        "min": 1256.6406250000002,
+        "max": 1995.3125,
+        "runs": 3
+      },
+      "note": "32 voices sounding"
+    },
+    {
+      "id": "inst.organum.v1",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 902.7343750000001,
+        "p10": 900.234375,
+        "p90": 941.7968750000001,
+        "min": 899.609375,
+        "max": 951.5625000000001,
+        "runs": 3
+      },
+      "note": "1 voices sounding"
+    },
+    {
+      "id": "inst.organum.v8",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 876.171875,
+        "p10": 803.359375,
+        "p90": 889.609375,
+        "min": 785.15625,
+        "max": 892.96875,
+        "runs": 3
+      },
+      "note": "8 voices sounding"
+    },
+    {
+      "id": "inst.organum.v32",
+      "unit": "ns/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 869.53125,
+        "p10": 827.03125,
+        "p90": 877.34375,
+        "min": 816.40625,
+        "max": 879.296875,
+        "runs": 3
+      },
+      "note": "32 voices sounding"
+    },
+    {
+      "id": "engine.s10.b128",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 3174.0,
+        "p10": 2835.5200000000004,
+        "p90": 5772.160000000001,
+        "min": 2750.9,
+        "max": 6421.7,
+        "runs": 3
+      },
+      "note": "35 voices at the end of the run"
+    },
+    {
+      "id": "engine.s10.b128.p99",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 19325.352,
+        "p10": 13609.3696,
+        "p90": 20086.43679999999,
+        "min": 12180.374,
+        "max": 20276.707999999984,
+        "runs": 3
+      }
+    },
+    {
+      "id": "engine.s10.b128.cpu",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2750.0,
+        "p10": 2650.0,
+        "p90": 5083.333333333334,
+        "min": 2625.0,
+        "max": 5666.666666666667,
+        "runs": 3
+      },
+      "note": "thread CPU time: the work without the waits for a core"
+    },
+    {
+      "id": "engine.s10.b128.share",
+      "unit": "% of a core",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 78.3384578973183,
+        "p10": 67.44878221727298,
+        "p90": 80.54731660077093,
+        "min": 64.72636329726164,
+        "max": 81.09953127663408,
+        "runs": 3
+      },
+      "note": "100 % on an idle machine; less is the neighbours"
+    },
+    {
+      "id": "engine.s10.b128.load",
+      "unit": "% of budget",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 119.025,
+        "p10": 106.33200000000002,
+        "p90": 216.45600000000002,
+        "min": 103.15875000000001,
+        "max": 240.81375,
+        "runs": 3
+      }
+    },
+    {
+      "id": "engine.s32.b128",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 16616.9,
+        "p10": 13617.460000000003,
+        "p90": 18463.7,
+        "min": 12867.6,
+        "max": 18925.399999999998,
+        "runs": 3
+      },
+      "note": "85 voices at the end of the run"
+    },
+    {
+      "id": "engine.s32.b128.p99",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 104130.49399999979,
+        "p10": 65918.56119999995,
+        "p90": 148024.21879999994,
+        "min": 56365.57799999999,
+        "max": 158997.64999999997,
+        "runs": 3
+      }
+    },
+    {
+      "id": "engine.s32.b128.cpu",
+      "unit": "µs/block",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 11958.333333333334,
+        "p10": 10725.0,
+        "p90": 12391.666666666666,
+        "min": 10416.666666666666,
+        "max": 12500.0,
+        "runs": 3
+      },
+      "note": "thread CPU time: the work without the waits for a core"
+    },
+    {
+      "id": "engine.s32.b128.share",
+      "unit": "% of a core",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 57.71230989103425,
+        "p10": 36.5065222557205,
+        "p90": 62.80228321642862,
+        "min": 31.205075346892052,
+        "max": 64.0747765477772,
+        "runs": 3
+      },
+      "note": "100 % on an idle machine; less is the neighbours"
+    },
+    {
+      "id": "engine.s32.b128.load",
+      "unit": "% of budget",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 623.1337500000001,
+        "p10": 510.65475000000004,
+        "p90": 692.3887500000001,
+        "min": 482.535,
+        "max": 709.7025,
+        "runs": 3
+      }
+    },
+    {
+      "id": "engine.profiler_overhead.s32",
+      "unit": "% of block",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 0.11820969319484634,
+        "p10": -1.5218937514965367,
+        "p90": 6.470916194298899,
+        "min": -1.9319196126693823,
+        "max": 8.05909281957491,
+        "runs": 3
+      }
+    },
+    {
+      "id": "render.s10.xrt",
+      "unit": "× real time",
+      "better": "higher",
+      "gate": true,
+      "summary": {
+        "median": 0.8329176671771888,
+        "p10": 0.3516613204766563,
+        "p90": 0.8386220199575347,
+        "min": 0.23134723380152322,
+        "max": 0.8400481081526212,
+        "runs": 3
+      }
+    },
+    {
+      "id": "render.s10.xrt_cpu",
+      "unit": "× real time",
+      "better": "higher",
+      "gate": true,
+      "summary": {
+        "median": 1.071033502538071,
+        "p10": 0.5543817911968525,
+        "p90": 1.0869827087806236,
+        "min": 0.4252188633615478,
+        "max": 1.0909700103412616,
+        "runs": 3
+      },
+      "note": "audio seconds per CPU second of the rendering thread"
+    },
+    {
+      "id": "open.s10.read",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 55.804100000000005,
+        "p10": 52.1405,
+        "p90": 68.82658,
+        "min": 51.2246,
+        "max": 72.0822,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s10.compile",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 0.2648,
+        "p10": 0.26336000000000004,
+        "p90": 0.332,
+        "min": 0.263,
+        "max": 0.3488,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s10.units",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 22.9495,
+        "p10": 18.21806,
+        "p90": 24.41958,
+        "min": 17.0352,
+        "max": 24.7871,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s10.total",
+      "unit": "ms",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 79.1024,
+        "p10": 76.84168,
+        "p90": 87.32479999999998,
+        "min": 76.2765,
+        "max": 89.3804,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s64.read",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 102.0013,
+        "p10": 46.599540000000005,
+        "p90": 106.51002,
+        "min": 32.749100000000006,
+        "max": 107.6372,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s64.compile",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 0.7593,
+        "p10": 0.58538,
+        "p90": 1.1353,
+        "min": 0.5419,
+        "max": 1.2293,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s64.units",
+      "unit": "ms",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 96.1271,
+        "p10": 82.40917999999999,
+        "p90": 102.37214,
+        "min": 78.9797,
+        "max": 103.93339999999999,
+        "runs": 3
+      }
+    },
+    {
+      "id": "open.s64.total",
+      "unit": "ms",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 181.5229,
+        "p10": 140.01297999999997,
+        "p90": 206.54449999999997,
+        "min": 129.63549999999998,
+        "max": 212.79989999999998,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.s64.mixer",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 6.4206,
+        "p10": 6.3761600000000005,
+        "p90": 6.42548,
+        "min": 6.36505,
+        "max": 6.4267,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.s64.mixer.p95",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 12.215939999999996,
+        "p10": 10.001855999999997,
+        "p90": 15.027307999999998,
+        "min": 9.448334999999995,
+        "max": 15.730149999999997,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.s64.pianoroll",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2.55525,
+        "p10": 2.34037,
+        "p90": 2.55745,
+        "min": 2.28665,
+        "max": 2.558,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.s64.pianoroll.p95",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 3.6434099999999994,
+        "p10": 3.356058,
+        "p90": 6.086729999999999,
+        "min": 3.2842199999999995,
+        "max": 6.697559999999998,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.startup.pianoroll",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": true,
+      "summary": {
+        "median": 2.28825,
+        "p10": 2.06889,
+        "p90": 2.3849299999999998,
+        "min": 2.01405,
+        "max": 2.4090999999999996,
+        "runs": 3
+      }
+    },
+    {
+      "id": "ui.startup.pianoroll.p95",
+      "unit": "ms/frame",
+      "better": "lower",
+      "gate": false,
+      "summary": {
+        "median": 5.226994999999998,
+        "p10": 4.5504029999999975,
+        "p90": 7.985382999999999,
+        "min": 4.381254999999997,
+        "max": 8.674979999999998,
+        "runs": 3
+      }
+    }
+  ],
+  "hot_spots": []
+}

@@ -70,12 +70,18 @@ pub fn perf(args: &[String]) {
         // `start /AFFINITY` is the one way Windows offers to start a process on a given
         // core without code of our own; a hybrid CPU's P and E cores differ by 2×, and a
         // run that migrates between them measures the scheduler.
-        Some(cpu) if cfg!(windows) => {
+        #[cfg(windows)]
+        Some(cpu) => {
+            // `start` takes the window title as its first quoted argument, and an empty
+            // one must reach cmd as a bare `""`, which `Command::arg` would escape.
+            use std::os::windows::process::CommandExt;
             let mut c = Command::new("cmd");
-            c.args(["/C", "start", "\"\"", "/B", "/WAIT", "/AFFINITY"])
-                .arg(format!("{:X}", 1u64 << cpu))
-                .arg(&exe)
-                .args(&bench_args);
+            c.raw_arg(format!(
+                "/C start \"\" /B /WAIT /AFFINITY {:X}",
+                1u64 << cpu
+            ))
+            .arg(&exe)
+            .args(&bench_args);
             c
         }
         _ => {
