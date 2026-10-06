@@ -2,8 +2,8 @@
 
 **Status:** Accepted · **Date:** 2026-10-05 · **Round:** 20 (packaging) · **Extends:** ADR 0001 (licence), ADR 0020 (our plug-ins outside Cantus), ADR 0025 §10 (ASIO)
 
-> Numbering: 0027–0029 are the first wave's. If another second-wave builder also took
-> 0030, the integrator renumbers one of the two.
+> Numbering: 0027–0029 are the first wave's. Written as 0030 on `r20/packaging`; the
+> samples builder's ADR kept 0030, so this one became 0032 at the round-20 merge.
 
 ## Context
 
