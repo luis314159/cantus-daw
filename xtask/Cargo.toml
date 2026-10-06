@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Cantus's build tasks: `cargo run -p xtask -- bundle` makes the CLAP and VST3 bundles (ADR 0020)."
+description = "Cantus's build tasks: `bundle` makes the CLAP and VST3 bundles (ADR 0020); `package` makes the installer, the portable zip and the release files (ADR 0030)."
 license = "GPL-3.0-or-later"
 version.workspace = true
 edition.workspace = true
@@ -11,4 +11,11 @@ publish = false
 
 [dependencies]
 cantus-plugins = { path = "../crates/cantus-plugins", default-features = false }
+# The release files' names and the SHA256SUMS format, shared with the app's updater.
+cantus-update.workspace = true
 serde_json.workspace = true
+# The portable and plug-in zips (MIT).
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"

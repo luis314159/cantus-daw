@@ -1,0 +1,73 @@
+# Área: actualizaciones y el instalador (ronda 20, packaging; ADR 0030). Cada clave aquí tiene su gemela en update.en.txt.
+
+# --- la ventana de actualización ---
+update.title = Actualizaciones
+update.menu.check = Buscar actualizaciones…
+update.band.available = Una versión nueva
+update.band.notes = Qué hay de nuevo
+update.band.status = Estado
+update.available = Ya salió Cantus {version}; tienes la {current}.
+update.up_to_date = Cantus {version} está al día.
+update.checking = Preguntando a GitHub por la última versión…
+update.never_checked = Aún no se ha buscado.
+update.last_checked = Última búsqueda: {when}.
+update.when.minutes = hace {n} min
+update.when.hours = hace {n} h
+update.when.days = hace {n} días
+update.download = Descargar
+update.downloading = Descargando… {done} de {total}
+update.downloading.unknown = Descargando… {done}
+update.held = La red está reteniendo la descarga para un análisis de seguridad. Se reintenta en dos minutos ({attempt} de {max}).
+update.ready = Descargada y verificada. Se instala al cerrar Cantus.
+update.verified = Verificada: el SHA-256 coincide con el publicado.
+update.verified.signed = Verificada: el SHA-256 coincide y la firma es de {publisher}.
+update.install_now = Reiniciar y actualizar
+update.install_on_quit = Instalar al cerrar Cantus
+update.skip = Omitir esta versión
+update.later = Más tarde
+update.cancel = Cancelar
+update.check_now = Buscar ahora
+update.open_page = Página de la versión
+update.portable = Esta copia es portátil: descarga el zip nuevo desde la página de la versión y descomprímelo sobre esta carpeta; la carpeta data se conserva.
+update.dev = Esta copia se compiló desde el código: actualízala con git y cargo.
+update.no_notes = Esta versión no trae notas.
+update.notes_more = Más en la página de la versión.
+update.notice = Ya está disponible Cantus {version}
+update.notice.ready = Cantus {version} se instala al cerrar
+
+# --- por qué algo no funcionó ---
+update.error.offline = No se pudo llegar a GitHub. Cantus lo intentará en otro inicio.
+update.error.held = La red respondió con una página web en lugar del archivo (quizá un proxy lo está analizando). Inténtalo en unos minutos.
+update.error.rate_limited = GitHub está limitando las peticiones desde esta red. Cantus lo intentará mañana.
+update.error.answer = La respuesta de GitHub no es una versión que Cantus pueda leer.
+update.error.hash = La descarga no coincide con su SHA-256 publicado, así que se borró.
+update.error.no_hash = La versión no publica un SHA-256 para este archivo, así que Cantus no lo instalará.
+update.error.signature = El instalador no está firmado por el editor de Cantus, así que se borró.
+update.error.io = No se pudo guardar la descarga.
+update.error.launch = El instalador no arrancó: {error}
+
+# --- Ajustes ---
+update.settings.band = Actualizaciones
+update.settings.check_daily = Buscar a diario
+update.settings.check_daily.hint = Una vez al día, al abrir, Cantus pregunta a GitHub si hay una versión nueva. No se envía nada sobre ti ni sobre tu música.
+update.settings.proxy = Proxy
+update.settings.proxy.hint = Solo si tu red necesita un proxy que Windows aún no use: http://equipo:puerto
+
+# --- el instalador (xtask package los convierte en cadenas de NSIS) ---
+update.installer.section_app = Cantus
+update.installer.section_assoc = Abrir los proyectos .cantus con Cantus
+update.installer.section_desktop = Acceso directo en el escritorio
+update.installer.section_clap = Plug-ins CLAP, para otros DAW
+update.installer.section_vst3 = Plug-ins VST3, para otros DAW
+update.installer.desc_app = El programa, su acceso en el menú Inicio y su desinstalador.
+update.installer.desc_assoc = Doble clic en un proyecto .cantus para abrirlo en Cantus, con el icono de Cantus.
+update.installer.desc_desktop = Un acceso directo a Cantus en el escritorio.
+update.installer.desc_clap = Los efectos de Cantus como plug-ins CLAP, en tu carpeta CLAP, para Bitwig, Reaper, FL Studio y otros.
+update.installer.desc_vst3 = Los efectos de Cantus como plug-ins VST3, en tu carpeta VST3, para Ableton Live, Cubase, FL Studio y otros.
+update.installer.un_section_app = Cantus
+update.installer.un_section_data = Mis ajustes, presets y copias automáticas
+update.installer.un_desc_app = El programa, sus accesos directos, sus plug-ins y la asociación de archivos.
+update.installer.un_desc_data = Borra también la carpeta de Cantus en tu perfil: ajustes, presets, copias automáticas y grabaciones que no son de ningún proyecto. Tus proyectos en otras carpetas no se tocan.
+update.installer.close_cantus = Cantus sigue abierto. Ciérralo y elige Reintentar.
+update.installer.project_type = Proyecto de Cantus
+update.installer.license_bottom = Cantus es software libre. No necesitas aceptar esta licencia para usarlo; dice lo que puedes hacer al compartirlo o modificarlo.

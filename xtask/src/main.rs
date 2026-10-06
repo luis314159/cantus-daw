@@ -5,6 +5,9 @@
 //! cargo run -p xtask -- bundle porta terminus   # only those
 //! cargo run -p xtask -- bundle --v3             # the x86-64-v3 flavour, into target/bundled-x86-64-v3/
 //! cargo run -p xtask -- bundle --no-build       # only lay out what is already built
+//! cargo run -p xtask -- package                 # the Windows release files (package.rs)
+//! cargo run -p xtask -- sign-test-cert          # a self-signed certificate (sign.rs)
+//! cargo run -p xtask -- version                 # the workspace's version
 //! ```
 //!
 //! Each plug-in is built on its own (`cargo build -p cantus-plugins --profile plugin
@@ -17,6 +20,13 @@
 //!   `…/Contents/x86_64-linux/Cantus <Name>.so` (Linux), `…/Contents/MacOS/Cantus <Name>`
 //!   (macOS), with `Contents/Resources/moduleinfo.json` so a VST 3.7.5+ host can list it
 //!   without loading it.
+
+mod archive;
+mod nsis;
+mod package;
+mod sign;
+#[cfg(test)]
+mod package_tests;
 
 use cantus_plugins::desc::{self, Descriptor};
 use std::path::{Path, PathBuf};
@@ -40,14 +50,14 @@ fn feature(d: &Descriptor) -> &'static str {
     }
 }
 
-fn workspace() -> PathBuf {
+pub(crate) fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("xtask sits in the workspace")
         .to_path_buf()
 }
 
-fn target_dir() -> PathBuf {
+pub(crate) fn target_dir() -> PathBuf {
     std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace().join("target"))
@@ -65,7 +75,7 @@ fn built_library(target: &Path) -> PathBuf {
     }
 }
 
-fn run(cmd: &mut Command) {
+pub(crate) fn run(cmd: &mut Command) {
     eprintln!("> {cmd:?}");
     let status = cmd.status().expect("run cargo");
     if !status.success() {
@@ -74,7 +84,7 @@ fn run(cmd: &mut Command) {
     }
 }
 
-fn copy(from: &Path, to: &Path) {
+pub(crate) fn copy(from: &Path, to: &Path) {
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent).expect("make the bundle's folders");
     }
@@ -148,7 +158,7 @@ fn lay_out(d: &Descriptor, library: &Path, out: &Path) {
     eprintln!("  {}\n  {}", clap.display(), vst3.display());
 }
 
-fn bundle(args: &[String]) {
+pub(crate) fn bundle(args: &[String]) {
     let v3 = args.iter().any(|a| a == "--v3");
     let build = !args.iter().any(|a| a == "--no-build");
     let wanted: Vec<&str> = args
@@ -218,8 +228,14 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("bundle") => bundle(&args[1..]),
+        Some("package") => package::package(&args[1..]),
+        Some("sign-file") => package::sign_file(&args[1..]),
+        Some("sign-test-cert") => sign::make_test_cert(&target_dir()),
+        Some("version") => println!("{}", package::VERSION),
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
+            eprintln!("       cargo run -p xtask -- package [--asio|--all] [--no-build] [--no-installer] [--sign|--sign-test]");
+            eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
             std::process::exit(2);
         }
     }

@@ -1,0 +1,73 @@
+# Area: updates and the installer (round 20, packaging; ADR 0030). Every key here needs its twin in update.es.txt.
+
+# --- the update window ---
+update.title = Updates
+update.menu.check = Check for updates…
+update.band.available = A new version
+update.band.notes = What is new
+update.band.status = Status
+update.available = Cantus {version} is out — you have {current}.
+update.up_to_date = Cantus {version} is up to date.
+update.checking = Asking GitHub for the latest release…
+update.never_checked = Not checked yet.
+update.last_checked = Last checked {when}.
+update.when.minutes = {n} min ago
+update.when.hours = {n} h ago
+update.when.days = {n} days ago
+update.download = Download
+update.downloading = Downloading… {done} of {total}
+update.downloading.unknown = Downloading… {done}
+update.held = The network is holding the download for a security scan. Trying again in two minutes ({attempt} of {max}).
+update.ready = Downloaded and verified. It installs when you close Cantus.
+update.verified = Verified: SHA-256 matches the release.
+update.verified.signed = Verified: SHA-256 matches, signed by {publisher}.
+update.install_now = Restart and update
+update.install_on_quit = Install when I close Cantus
+update.skip = Skip this version
+update.later = Later
+update.cancel = Cancel
+update.check_now = Check now
+update.open_page = Release page
+update.portable = This copy is portable: download the new zip from the release page and unzip it over this folder — the data folder is kept.
+update.dev = This copy was built from source: update it with git and cargo.
+update.no_notes = The release has no notes.
+update.notes_more = More on the release page.
+update.notice = Cantus {version} is available
+update.notice.ready = Cantus {version} installs when you close
+
+# --- why something did not work ---
+update.error.offline = Could not reach GitHub. Cantus will try again on a later start.
+update.error.held = The network answered with a web page instead of the file (a proxy may be scanning it). Try again in a few minutes.
+update.error.rate_limited = GitHub is limiting requests from this network. Cantus will try again tomorrow.
+update.error.answer = GitHub's answer was not a release Cantus can read.
+update.error.hash = The download did not match its published SHA-256, so it was deleted.
+update.error.no_hash = The release publishes no SHA-256 for this file, so Cantus will not install it.
+update.error.signature = The installer is not signed by Cantus's publisher, so it was deleted.
+update.error.io = The download could not be saved.
+update.error.launch = The installer did not start: {error}
+
+# --- Settings ---
+update.settings.band = Updates
+update.settings.check_daily = Check daily
+update.settings.check_daily.hint = Once a day, at start, Cantus asks GitHub whether a newer version is out. Nothing about you or your music is sent.
+update.settings.proxy = Proxy
+update.settings.proxy.hint = Only if your network needs a proxy Windows does not already use: http://host:port
+
+# --- the installer (xtask package turns these into NSIS strings) ---
+update.installer.section_app = Cantus
+update.installer.section_assoc = Open .cantus projects with Cantus
+update.installer.section_desktop = Desktop shortcut
+update.installer.section_clap = CLAP plug-ins, for other DAWs
+update.installer.section_vst3 = VST3 plug-ins, for other DAWs
+update.installer.desc_app = The program, its Start-menu shortcut and its uninstaller.
+update.installer.desc_assoc = Double-click a .cantus project to open it in Cantus, shown with Cantus's icon.
+update.installer.desc_desktop = A shortcut to Cantus on the desktop.
+update.installer.desc_clap = Cantus's effects as CLAP plug-ins, in your CLAP folder, for Bitwig, Reaper, FL Studio and others.
+update.installer.desc_vst3 = Cantus's effects as VST3 plug-ins, in your VST3 folder, for Ableton Live, Cubase, FL Studio and others.
+update.installer.un_section_app = Cantus
+update.installer.un_section_data = My settings, presets and autosaves
+update.installer.un_desc_app = The program, its shortcuts, its plug-ins and its file association.
+update.installer.un_desc_data = Also delete the Cantus folder in your profile: settings, presets, autosaves and recordings that belong to no project. Your projects elsewhere are not touched.
+update.installer.close_cantus = Cantus is still open. Close it, then choose Retry.
+update.installer.project_type = Cantus project
+update.installer.license_bottom = Cantus is free software. You do not need to accept this licence to use it; it says what you may do when you share or change it.

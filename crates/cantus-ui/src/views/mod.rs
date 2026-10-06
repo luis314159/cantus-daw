@@ -26,6 +26,7 @@ pub mod pulsus_editor;
 pub mod record_options;
 pub mod settings_audio;
 pub mod transport;
+pub mod update;
 pub mod workspace;
 pub mod workspace_device;
 pub mod workspace_frame;

@@ -128,6 +128,28 @@ pub struct Settings {
     pub mixer_density: MixerDensity,
     /// Show each strip's recent level as a scrolling envelope (FL's meter-wave view).
     pub mixer_meter_wave: bool,
+    /// Checking GitHub for a newer Cantus (ADR 0030).
+    pub updates: UpdateSettings,
+}
+
+/// The updater's two preferences. The schedule itself (when it last asked) is in
+/// `update.json`, not here: it is the program's bookkeeping, not a choice.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateSettings {
+    /// Ask once a day, at start. On by default; off sends nothing, ever.
+    pub check_daily: bool,
+    /// A proxy typed by the user, for a network whose proxy Windows does not set.
+    pub proxy: Option<String>,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        UpdateSettings {
+            check_daily: true,
+            proxy: None,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -139,6 +161,7 @@ impl Default for Settings {
             ui_scale: DEFAULT_UI_SCALE,
             mixer_density: MixerDensity::Normal,
             mixer_meter_wave: false,
+            updates: UpdateSettings::default(),
         }
     }
 }
@@ -211,6 +234,10 @@ mod tests {
             ui_scale: 1.25,
             mixer_density: MixerDensity::Compact,
             mixer_meter_wave: true,
+            updates: UpdateSettings {
+                check_daily: false,
+                proxy: Some("http://proxy.example:8080".into()),
+            },
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

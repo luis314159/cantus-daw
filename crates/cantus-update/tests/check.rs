@@ -390,8 +390,9 @@ fn the_same_version_a_skipped_one_and_a_portable_copy() {
 #[test]
 fn windows_reads_an_unsigned_file_as_unsigned() {
     let dir = tempfile::tempdir().unwrap();
+    // This test's own executable: a real program, and nobody signed it.
     let f: PathBuf = dir.path().join("unsigned.exe");
-    std::fs::write(&f, b"MZ not really a program").unwrap();
+    std::fs::copy(std::env::current_exe().unwrap(), &f).unwrap();
     let sig = verify::authenticode(&f).expect("powershell answers");
     assert_eq!(sig.status, "NotSigned");
     assert_eq!(
