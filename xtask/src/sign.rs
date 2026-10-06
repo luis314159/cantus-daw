@@ -264,9 +264,8 @@ pub fn make_test_cert(target: &Path) {
     }
     std::fs::write(dir.join("password.txt"), &password).unwrap();
     eprintln!(
-        "test certificate {} in {}\n(thumbprint {}; not trusted by Windows — for proving the pipeline only)\n\
+        "test certificate CN=Cantus Test Signing (not trusted) in {}\n(thumbprint {}; not trusted by Windows — for proving the pipeline only)\n\
          sign with it: cargo run -p xtask -- package --sign-test",
-        "CN=Cantus Test Signing (not trusted)",
         pfx.display(),
         String::from_utf8_lossy(&out.stdout).trim()
     );

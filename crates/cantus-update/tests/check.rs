@@ -123,7 +123,10 @@ fn a_bad_hash_a_wrong_size_and_a_proxy_page_are_refused() {
     let f = dir.path().join("x.exe");
     std::fs::write(&f, b"installer standard").unwrap();
     let good = verify::sha256_hex(b"installer standard");
-    assert_eq!(verify::check_file(&f, Some(18), &[good.clone()]), Ok(()));
+    assert_eq!(
+        verify::check_file(&f, Some(18), std::slice::from_ref(&good)),
+        Ok(())
+    );
     assert_eq!(
         verify::check_file(&f, Some(18), &[good.to_uppercase()]),
         Ok(()),
@@ -135,7 +138,7 @@ fn a_bad_hash_a_wrong_size_and_a_proxy_page_are_refused() {
         Err(VerifyError::Hash { .. })
     ));
     assert!(matches!(
-        verify::check_file(&f, Some(99), &[good.clone()]),
+        verify::check_file(&f, Some(99), std::slice::from_ref(&good)),
         Err(VerifyError::Size {
             expected: 99,
             got: 18
@@ -394,7 +397,8 @@ fn a_download_a_proxy_holds_is_tried_again_until_the_file_arrives() {
 #[test]
 fn the_checks_failures_say_why() {
     let dir = tempfile::tempdir().unwrap();
-    let cases: [(Option<(u16, &[u8])>, &str); 4] = [
+    type Case<'a> = (Option<(u16, &'a [u8])>, &'a str);
+    let cases: [Case; 4] = [
         (None, "update.error.offline"),
         (Some((200, PROXY_PAGE)), "update.error.held"),
         (

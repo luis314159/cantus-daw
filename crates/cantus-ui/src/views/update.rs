@@ -256,6 +256,7 @@ pub fn status_line(app: &UpdateUi, status: &Status) -> (String, bool) {
 
 /// Break `s` into lines no wider than `width` points in `role`.
 fn wrap(ctx: &Context, s: &str, role: Role, width: f32, k: f32) -> Vec<String> {
+    let ink = Style::current().t.text;
     let mut lines = Vec::new();
     let mut cur = String::new();
     for word in s.split_whitespace() {
@@ -264,7 +265,7 @@ fn wrap(ctx: &Context, s: &str, role: Role, width: f32, k: f32) -> Vec<String> {
         } else {
             format!("{cur} {word}")
         };
-        let wide = text::measure(ctx, &Text::new(&cand, role, Color32::WHITE), k).x > width;
+        let wide = text::measure(ctx, &Text::new(&cand, role, ink), k).x > width;
         if wide && !cur.is_empty() {
             lines.push(std::mem::replace(&mut cur, word.to_owned()));
         } else {

@@ -345,41 +345,32 @@ impl Updater {
     }
 
     /// Every SHA-256 the release offers for `asset`: GitHub's digest, and the line in
-    /// `SHA256SUMS.txt`.
-    fn hashes(&self, offer: &Offer, asset: &Asset) -> Result<Vec<String>, Status> {
+    /// `SHA256SUMS.txt`. On failure: the locale key and a detail for the log.
+    fn hashes(&self, offer: &Offer, asset: &Asset) -> Result<Vec<String>, (&'static str, String)> {
         let mut out: Vec<String> = asset.sha256().into_iter().collect();
         if let Some(url) = &offer.sums_url {
-            let fail = |key, detail| Status::Failed {
-                key,
-                detail,
-                offer: Some(offer.clone()),
-            };
             match self.fetch.get(url, None) {
                 Ok(a) if a.status == 200 => {
                     if release::looks_like_html(&a.body) {
-                        return Err(fail("update.error.held", "SHA256SUMS is a web page".into()));
+                        return Err(("update.error.held", "SHA256SUMS is a web page".into()));
                     }
                     let sums = release::parse_sums(&String::from_utf8_lossy(&a.body));
                     match sums.get(&asset.name) {
                         Some(h) => out.push(h.clone()),
                         None => {
-                            return Err(fail(
+                            return Err((
                                 "update.error.hash",
                                 format!("{} not in SHA256SUMS", asset.name),
                             ))
                         }
                     }
                 }
-                Ok(a) => return Err(fail("update.error.answer", format!("HTTP {}", a.status))),
-                Err(e) => return Err(fail("update.error.offline", format!("{e:?}"))),
+                Ok(a) => return Err(("update.error.answer", format!("HTTP {}", a.status))),
+                Err(e) => return Err(("update.error.offline", format!("{e:?}"))),
             }
         }
         if out.is_empty() {
-            return Err(Status::Failed {
-                key: VerifyError::NoHash.key(),
-                detail: "no hash published".into(),
-                offer: Some(offer.clone()),
-            });
+            return Err((VerifyError::NoHash.key(), "no hash published".into()));
         }
         Ok(out)
     }
@@ -388,7 +379,13 @@ impl Updater {
         let asset = offer.installer.clone().expect("checked");
         let hashes = match self.hashes(&offer, &asset) {
             Ok(h) => h,
-            Err(s) => return self.set(s),
+            Err((key, detail)) => {
+                return self.set(Status::Failed {
+                    key,
+                    detail,
+                    offer: Some(offer),
+                })
+            }
         };
         let dest = self.config.downloads.join(&asset.name);
         let mut attempt = 0;
