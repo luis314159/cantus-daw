@@ -783,6 +783,39 @@ fn fanout(per_ns: f64) -> Session {
     Session::new("fan", preds, cost, per_ns)
 }
 
+/// The promotion *rt* will own (ADR 0031 §2.6, `cantus-rt` `thread.rs`): MMCSS "Pro
+/// Audio" at HIGH. Bench only, through the pool's `on_start` hook (and once on the bench's
+/// callback thread); `CANTUS_SCHED_MMCSS=0` turns it off.
+#[cfg(windows)]
+mod mmcss {
+    #[link(name = "avrt")]
+    extern "system" {
+        fn AvSetMmThreadCharacteristicsW(task: *const u16, index: *mut u32) -> isize;
+        fn AvSetMmThreadPriority(handle: isize, priority: i32) -> i32;
+    }
+
+    pub fn promote() -> bool {
+        if std::env::var("CANTUS_SCHED_MMCSS").is_ok_and(|v| v == "0") {
+            return false;
+        }
+        let name: Vec<u16> = "Pro Audio\0".encode_utf16().collect();
+        let mut index = 0u32;
+        // SAFETY: a NUL-terminated UTF-16 name and a valid out pointer. The handle is kept
+        // for the thread's life (bench threads end with their pool).
+        unsafe {
+            let h = AvSetMmThreadCharacteristicsW(name.as_ptr(), &mut index);
+            h != 0 && AvSetMmThreadPriority(h, 1) != 0
+        }
+    }
+}
+
+#[cfg(not(windows))]
+mod mmcss {
+    pub fn promote() -> bool {
+        false
+    }
+}
+
 /// One configuration's block wall times (sorted, ns): all blocks, and those in which a
 /// stall fired; and the pool's counters.
 struct Measured {
@@ -794,6 +827,9 @@ struct Measured {
 fn measure<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, workers: usize, chaos: C, blocks: usize) -> Measured {
     let mut cfg = Config::new(workers, g.len());
     cfg.mode = if workers == 0 { Mode::Serial } else { Mode::Parallel };
+    cfg.on_start = Some(Arc::new(|_slot| {
+        mmcss::promote();
+    }));
     let mut pool = Pool::<Session, Q, C>::with_chaos(g.clone(), cfg, chaos).unwrap();
     for _ in 0..blocks / 8 + 10 {
         pool.run_block();
@@ -830,92 +866,129 @@ fn pct(sorted: &[u64], q: f64) -> f64 {
     sorted[((sorted.len() - 1) as f64 * q).round() as usize] as f64 / 1000.0
 }
 
-fn row<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, w: usize, case: &str, chaos: C, blocks: usize) {
+/// One row's numbers in one round (µs).
+#[derive(Clone, Copy)]
+struct Round {
+    p50: f64,
+    p99: f64,
+    max: f64,
+    stalled_p50: f64,
+    stalled_p99: f64,
+    pushes: f64,
+    stalled: usize,
+}
+
+fn round<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, w: usize, chaos: C, blocks: usize) -> Round {
     let m = measure::<Q, C>(g, w, chaos, blocks);
-    let t = &m.all;
-    let mean = t.iter().sum::<u64>() as f64 / t.len() as f64 / 1000.0;
-    let queue = if w == 0 { "serial" } else { Q::NAME };
-    let pushes = m.stats.pushes as f64 / t.len() as f64;
-    println!(
-        "| {:<9} | {:<9} | {} | {:<7} | {:>7.0} | {:>7.0} | {:>7.0} | {:>7.0} | {:>6.1} | {:>4} | {:>7.0} | {:>7.0} |",
-        g.name,
-        queue,
-        w,
-        case,
-        pct(t, 0.5),
-        pct(t, 0.99),
-        t[t.len() - 1] as f64 / 1000.0,
-        mean,
-        pushes,
-        m.stalled.len(),
-        pct(&m.stalled, 0.5),
-        pct(&m.stalled, 0.99),
-    );
-    eprintln!(
-        "{{\"name\":\"sched.{}.{}.w{}.{}\",\"p50_us\":{:.1},\"p99_us\":{:.1},\"max_us\":{:.1},\"mean_us\":{:.1},\"pushes_per_block\":{:.2},\"stalled_blocks\":{},\"stalled_p50_us\":{:.1},\"stalled_p99_us\":{:.1}}}",
-        g.name,
-        queue,
-        w,
-        case,
-        pct(t, 0.5),
-        pct(t, 0.99),
-        t[t.len() - 1] as f64 / 1000.0,
-        mean,
-        pushes,
-        m.stalled.len(),
-        pct(&m.stalled, 0.5),
-        pct(&m.stalled, 0.99),
-    );
+    Round {
+        p50: pct(&m.all, 0.5),
+        p99: pct(&m.all, 0.99),
+        max: m.all[m.all.len() - 1] as f64 / 1000.0,
+        stalled_p50: pct(&m.stalled, 0.5),
+        stalled_p99: pct(&m.stalled, 0.99),
+        pushes: m.stats.pushes as f64 / m.all.len() as f64,
+        stalled: m.stalled.len(),
+    }
+}
+
+fn median(mut v: Vec<f64>) -> f64 {
+    v.retain(|x| !x.is_nan());
+    if v.is_empty() {
+        return f64::NAN;
+    }
+    v.sort_by(f64::total_cmp);
+    v[v.len() / 2]
 }
 
 /// Both queues on the bench-shaped sessions, W = 1 … `CANTUS_SCHED_MAXW` (default 4: the
 /// 12700H's six P-cores minus two), plus the serial run; with the `fuzz` feature also a
-/// worker stalled 500 µs between claim and publish at its first push of every block.
+/// worker stalled 500 µs between claim and publish at one of its first pushes of every
+/// block. `CANTUS_SCHED_ROUNDS` rounds (default 5) interleave every configuration, and the
+/// table gives the **median across rounds** of each round's p50 and p99 — on a shared
+/// machine one round's tail is mostly its neighbours'. `CANTUS_SCHED_PER_NS` fixes the work
+/// per µs (default: calibrated); `CANTUS_SCHED_MMCSS=0` leaves the threads unpromoted.
 #[test]
 #[ignore = "a measurement: run with --release --features fuzz -- --ignored --nocapture"]
 fn bench_both_queues() {
     let env = |k: &str, d: usize| std::env::var(k).ok().and_then(|s| s.parse().ok()).unwrap_or(d);
     let max_w = env("CANTUS_SCHED_MAXW", 4);
-    let blocks = env("CANTUS_SCHED_BLOCKS", 400);
-    let per_ns = calibrate();
-    println!("calibration: {per_ns:.3} burn iterations per ns; {blocks} blocks per row");
+    let blocks = env("CANTUS_SCHED_BLOCKS", 300);
+    let rounds = env("CANTUS_SCHED_ROUNDS", 5);
+    let promoted = mmcss::promote();
+    let per_ns = std::env::var("CANTUS_SCHED_PER_NS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(calibrate);
+    println!(
+        "work: {per_ns:.3} burn iterations per ns; {blocks} blocks per row; {rounds} rounds; MMCSS Pro Audio: {promoted}"
+    );
     let graphs = [
         Arc::new(scaled(64, per_ns, false)),
         Arc::new(scaled(100, per_ns, false)),
         Arc::new(fanout(per_ns)),
         Arc::new(scaled(64, per_ns, true)),
     ];
-    for g in &graphs {
+    let stall = || {
+        let mut s = fuzz::Stall::new(cantus_engine::sched::Site::Claimed, 0, Duration::from_micros(500));
+        s.spread = 8;
+        s
+    };
+    // (graph, queue, W, case) → one Round per round.
+    let mut table: Vec<((usize, &str, usize, &str), Vec<Round>)> = Vec::new();
+    let mut put = |key: (usize, &'static str, usize, &'static str), r: Round| {
+        match table.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, v)) => v.push(r),
+            None => table.push((key, vec![r])),
+        }
+    };
+    for r in 0..rounds {
+        eprintln!("round {}/{rounds}", r + 1);
+        for (gi, g) in graphs.iter().enumerate() {
+            let bare = g.name.ends_with("bare");
+            let blocks = if bare { blocks * 10 } else { blocks };
+            if r == 0 || bare {
+                put((gi, "serial", 0, "normal"), round::<Vyukov, _>(g, 0, cantus_engine::sched::Calm, blocks));
+            }
+            for w in 1..=max_w {
+                put((gi, Vyukov::NAME, w, "normal"), round::<Vyukov, _>(g, w, cantus_engine::sched::Calm, blocks));
+                put((gi, ChaseLev::NAME, w, "normal"), round::<ChaseLev, _>(g, w, cantus_engine::sched::Calm, blocks));
+                if cfg!(feature = "fuzz") && !bare {
+                    put((gi, Vyukov::NAME, w, "stalled"), round::<Vyukov, _>(g, w, stall(), blocks));
+                    put((gi, ChaseLev::NAME, w, "stalled"), round::<ChaseLev, _>(g, w, stall(), blocks));
+                }
+            }
+        }
+    }
+    for (gi, g) in graphs.iter().enumerate() {
         println!(
-            "\n{}: {} tasks, {:.0} µs of work, critical path {:.0} µs (block budget 2 667 µs)\n",
+            "\n{}: {} tasks, {:.0} µs of work, critical path {:.0} µs (budget 2 667 µs at 128 frames)\n",
             g.name,
             g.len(),
             g.total_us(),
             g.critical_us()
         );
-        println!("| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |");
-        println!("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|");
-        let bare = g.name.ends_with("bare");
-        let blocks = if bare { blocks * 10 } else { blocks };
-        row::<Vyukov, _>(g, 0, "normal", cantus_engine::sched::Calm, blocks);
-        for w in 1..=max_w {
-            row::<Vyukov, _>(g, w, "normal", cantus_engine::sched::Calm, blocks);
-            row::<ChaseLev, _>(g, w, "normal", cantus_engine::sched::Calm, blocks);
-            if cfg!(feature = "fuzz") && !bare {
-                // A worker stalled 500 µs mid-push, at one of its first 8 pushes of each
-                // block (which one varies by block).
-                let stall = || {
-                    let mut s = fuzz::Stall::new(
-                        cantus_engine::sched::Site::Claimed,
-                        0,
-                        Duration::from_micros(500),
-                    );
-                    s.spread = 8;
-                    s
-                };
-                row::<Vyukov, _>(g, w, "stalled", stall(), blocks);
-                row::<ChaseLev, _>(g, w, "stalled", stall(), blocks);
-            }
+        println!("| queue | W | case | p50 µs | p99 µs | best p99 | worst max | pushes/block | stalled p50 | stalled p99 |");
+        println!("|---|---|---|---:|---:|---:|---:|---:|---:|---:|");
+        for ((_, queue, w, case), rs) in table.iter().filter(|((i, ..), _)| *i == gi) {
+            let col = |f: fn(&Round) -> f64| median(rs.iter().map(f).collect());
+            let best_p99 = rs.iter().map(|r| r.p99).fold(f64::MAX, f64::min);
+            let worst = rs.iter().map(|r| r.max).fold(0.0, f64::max);
+            println!(
+                "| {queue} | {w} | {case} | {:.0} | {:.0} | {best_p99:.0} | {worst:.0} | {:.1} | {:.0} | {:.0} |",
+                col(|r| r.p50),
+                col(|r| r.p99),
+                col(|r| r.pushes),
+                col(|r| r.stalled_p50),
+                col(|r| r.stalled_p99),
+            );
+            eprintln!(
+                "{{\"name\":\"sched.{}.{queue}.w{w}.{case}\",\"p50_us\":{:.1},\"p99_us\":{:.1},\"best_p99_us\":{best_p99:.1},\"worst_max_us\":{worst:.1},\"rounds\":{},\"stalled_blocks\":{}}}",
+                g.name,
+                col(|r| r.p50),
+                col(|r| r.p99),
+                rs.len(),
+                rs.iter().map(|r| r.stalled).sum::<usize>(),
+            );
         }
     }
 }
