@@ -333,10 +333,11 @@ impl FxHost for DawHost<'_> {
     }
 
     fn swap(&mut self) {
-        self.app.open_picker(crate::picker::PickPurpose::ReplaceEffect {
-            strip: self.strip,
-            effect: self.effect,
-        });
+        self.app
+            .open_picker(crate::picker::PickPurpose::ReplaceEffect {
+                strip: self.strip,
+                effect: self.effect,
+            });
     }
 
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {

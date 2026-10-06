@@ -23,8 +23,8 @@ use crate::picker::{PickChoice, PickPurpose};
 use crate::views::workspace_device as device;
 use cantus_core::inst::modulation::{self, MACRO_KEYS, MACRO_NAME_KEYS};
 use cantus_core::{
-    Command, EffectId, EffectSlot, InstrumentKind, InstrumentSpec, NativeSpec,
-    PulsusParams, StripId, TrackId,
+    Command, EffectId, EffectSlot, InstrumentKind, InstrumentSpec, NativeSpec, PulsusParams,
+    StripId, TrackId,
 };
 
 /// What a swap keeps beyond what it always keeps. Lives on the application, so the picker
@@ -156,7 +156,10 @@ pub fn carry_over(from: &NativeSpec, to: InstrumentKind) -> (NativeSpec, usize) 
         let keys = &modulation::SLOTS[slot];
         out.text.insert(keys.src.to_string(), c.src.to_string());
         out.text.insert(keys.dst.to_string(), c.dst.to_string());
-        if let Some(via) = c.via.filter(|v| to.sources().contains(v) || v.starts_with("macro")) {
+        if let Some(via) = c
+            .via
+            .filter(|v| to.sources().contains(v) || v.starts_with("macro"))
+        {
             out.text.insert(keys.via.to_string(), via.to_string());
         }
         let _ = out.set(keys.amt, c.amount);
@@ -196,7 +199,9 @@ fn localized(spec: InstrumentSpec) -> InstrumentSpec {
 impl CantusApp {
     /// Whether an editor is open on an effect.
     fn effect_window_open(&self, strip: StripId, effect: EffectId) -> bool {
-        self.fx.open.is_some_and(|(s, e, _)| (s, e) == (strip, effect))
+        self.fx
+            .open
+            .is_some_and(|(s, e, _)| (s, e) == (strip, effect))
             || self.eq_editor.open == Some((strip, effect))
             || self.comp_editor.open == Some((strip, effect))
     }
@@ -215,7 +220,9 @@ impl CantusApp {
             return false;
         }
         let (new, kept) = match (&old, fresh) {
-            (InstrumentSpec::Native(from), InstrumentSpec::Native(to)) if self.swap_keep.matching => {
+            (InstrumentSpec::Native(from), InstrumentSpec::Native(to))
+                if self.swap_keep.matching =>
+            {
                 let (spec, kept) = carry_over(from, to.kind);
                 (InstrumentSpec::Native(spec), kept)
             }
@@ -332,7 +339,11 @@ impl CantusApp {
                 self.bus.new_effect(*kind)
             }
             PickChoice::Hosted(info) => {
-                let same = old.spec.external.as_deref().is_some_and(|p| p.id == info.id);
+                let same = old
+                    .spec
+                    .external
+                    .as_deref()
+                    .is_some_and(|p| p.id == info.id);
                 if same {
                     return false;
                 }

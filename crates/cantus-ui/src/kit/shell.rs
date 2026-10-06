@@ -1308,7 +1308,11 @@ mod tests {
                 Some(r.size),
             ]
             .into_iter()
-            .chain(r.window.iter().flat_map(|w| [w.swap, w.minimise, w.maximise, w.close]))
+            .chain(
+                r.window
+                    .iter()
+                    .flat_map(|w| [w.swap, w.minimise, w.maximise, w.close]),
+            )
             .flatten()
             .collect();
             for (i, a) in parts.iter().enumerate() {

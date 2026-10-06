@@ -135,7 +135,10 @@ fn calor_open() -> (Win, TrackId, u64) {
     w.app.open_inst_editor(track);
     w.idle(4);
     let key = w.app.instrument_window_key(track).unwrap();
-    assert!(w.app.workspace.contains(Pane::Device(key)), "the editor has its tab");
+    assert!(
+        w.app.workspace.contains(Pane::Device(key)),
+        "the editor has its tab"
+    );
     (w, track, key)
 }
 
@@ -157,18 +160,27 @@ fn minimise_puts_the_device_in_the_tray_and_a_click_brings_it_back() {
     w.click(min.center());
     assert_eq!(w.app.inst.open, Some(track), "still open, only minimised");
     assert!(device::is_minimised(&w.ctx, key));
-    assert!(!w.app.workspace.contains(Pane::Device(key)), "off the screen");
+    assert!(
+        !w.app.workspace.contains(Pane::Device(key)),
+        "off the screen"
+    );
     // Its chip in the status bar, saying what it is.
     let mut items = Vec::new();
     device::minimised(&w.ctx, &mut items);
     assert_eq!(items.len(), 1);
     assert!(items[0].1.contains("Calor"), "the chip: {}", items[0].1);
     let chip = w.spot(Spot::TrayChip(key));
-    assert!(chip.bottom() > w.size.y - 30.0, "in the status bar: {chip:?}");
+    assert!(
+        chip.bottom() > w.size.y - 30.0,
+        "in the status bar: {chip:?}"
+    );
     w.click(Pos2::new(chip.left() + 12.0, chip.center().y));
     assert!(!device::is_minimised(&w.ctx, key));
     w.idle(2);
-    assert!(w.app.workspace.contains(Pane::Device(key)), "back in the dock");
+    assert!(
+        w.app.workspace.contains(Pane::Device(key)),
+        "back in the dock"
+    );
 }
 
 #[test]
@@ -210,7 +222,10 @@ fn maximise_fills_the_workspace_and_restore_puts_it_back() {
     w.idle(3);
     assert!(!device::is_maximised(&w.ctx, key));
     let back = device::shown(&w.ctx, key).unwrap().0;
-    assert!((back.min - before.min).length() < 2.0, "{back:?} vs {before:?}");
+    assert!(
+        (back.min - before.min).length() < 2.0,
+        "{back:?} vs {before:?}"
+    );
     // Docked by the user, a maximised device docks again when restored.
     w.app.workspace.toggle_float(Pane::Device(key));
     w.idle(3);
@@ -279,11 +294,17 @@ fn an_effect_window_has_the_same_buttons_and_they_work() {
     assert!(big.width() > before.width(), "{big:?} over {before:?}");
     w.click(w.buttons(key).maximise.unwrap().center());
     let back = device::shown(&w.ctx, key).unwrap().0;
-    assert!((back.min - before.min).length() < 1.0, "{back:?} vs {before:?}");
+    assert!(
+        (back.min - before.min).length() < 1.0,
+        "{back:?} vs {before:?}"
+    );
     // Close.
     w.click(w.buttons(key).close.unwrap().center());
     assert_eq!(w.app.fx.open, None);
-    assert!(w.app.project().effect(strip, fx).is_some(), "closing keeps the effect");
+    assert!(
+        w.app.project().effect(strip, fx).is_some(),
+        "closing keeps the effect"
+    );
 }
 
 #[test]
@@ -331,14 +352,22 @@ fn an_effect_reopens_where_it_floated() {
     w.app.open_effect_editor(strip, fx);
     w.idle(4);
     let again = device::shown(&w.ctx, key).unwrap().0;
-    assert!((again.min - moved.min).length() < 1.0, "{again:?} vs {moved:?}");
+    assert!(
+        (again.min - moved.min).length() < 1.0,
+        "{again:?} vs {moved:?}"
+    );
 }
 
 // ---- apply_pick: what a swap keeps -------------------------------------------------------
 
 fn compiled_pitches(a: &CantusApp, track: TrackId) -> Vec<u8> {
     let snap = Snapshot::compile(a.project(), 0);
-    let i = a.project().tracks.iter().position(|t| t.id == track).unwrap();
+    let i = a
+        .project()
+        .tracks
+        .iter()
+        .position(|t| t.id == track)
+        .unwrap();
     let mut v: Vec<u8> = snap.tracks[i].events.iter().map(|e| e.pitch).collect();
     v.sort_unstable();
     v
@@ -356,15 +385,30 @@ fn swapping_an_instrument_keeps_the_track_and_is_one_undo_step() {
         PickChoice::Instrument(InstrumentKind::Wavetable),
     );
     let now = a.project().track(t.id).unwrap().clone();
-    assert_eq!(now.instrument.native().map(|n| n.kind), Some(InstrumentKind::Wavetable));
+    assert_eq!(
+        now.instrument.native().map(|n| n.kind),
+        Some(InstrumentKind::Wavetable)
+    );
     assert_eq!(now.clips, t.clips, "clips and notes stay");
-    assert_eq!((now.strip, now.color), (t.strip, t.color), "strip and colour stay");
-    assert_eq!(compiled_pitches(&a, t.id), pitches, "it plays the same notes");
+    assert_eq!(
+        (now.strip, now.color),
+        (t.strip, t.color),
+        "strip and colour stay"
+    );
+    assert_eq!(
+        compiled_pitches(&a, t.id),
+        pitches,
+        "it plays the same notes"
+    );
     assert_eq!(a.bus.history().len(), history + 1, "one step");
     // "Keys" is a name the user (or the welcome song) gave it: it stays.
     assert_eq!(now.name, t.name);
     a.undo();
-    assert_eq!(*a.project(), before, "one undo puts the old instrument back");
+    assert_eq!(
+        *a.project(),
+        before,
+        "one undo puts the old instrument back"
+    );
 }
 
 #[test]
@@ -389,7 +433,13 @@ fn a_default_name_follows_the_new_instrument() {
 fn a_kit_swapped_for_a_synth_keeps_every_note() {
     let mut a = app(cantus_ui::welcome_project());
     let kit = a.project().tracks[1].id;
-    assert!(a.project().track(kit).unwrap().instrument.pulsus().is_some());
+    assert!(a
+        .project()
+        .track(kit)
+        .unwrap()
+        .instrument
+        .pulsus()
+        .is_some());
     let pitches = compiled_pitches(&a, kit);
     assert!(!pitches.is_empty());
     a.apply_pick(
@@ -415,7 +465,8 @@ fn matching_settings_come_along_between_native_instruments() {
         .find(|p| InstrumentKind::Wavetable.param(p.key).is_some() && !p.key.starts_with("macro"))
         .map(|p| p.key);
     if let Some(key) = shared {
-        from.text.insert(SLOTS[0].src.to_string(), "vel".to_string());
+        from.text
+            .insert(SLOTS[0].src.to_string(), "vel".to_string());
         from.text.insert(SLOTS[0].dst.to_string(), key.to_string());
         from.set(SLOTS[0].amt, 0.5);
         from.set(SLOTS[0].on, 1.0);
@@ -425,7 +476,14 @@ fn matching_settings_come_along_between_native_instruments() {
         PickPurpose::ReplaceInstrument { track: id },
         PickChoice::Instrument(InstrumentKind::Wavetable),
     );
-    let now = a.project().track(id).unwrap().instrument.native().unwrap().clone();
+    let now = a
+        .project()
+        .track(id)
+        .unwrap()
+        .instrument
+        .native()
+        .unwrap()
+        .clone();
     assert_eq!(now.kind, InstrumentKind::Wavetable);
     assert_eq!(now.get(MACRO_KEYS[0]), 0.7, "the macro's value");
     assert_eq!(now.text(MACRO_NAME_KEYS[0]), Some("Bright"), "and its name");
@@ -438,8 +496,18 @@ fn matching_settings_come_along_between_native_instruments() {
         PickPurpose::ReplaceInstrument { track: id },
         PickChoice::Instrument(InstrumentKind::Fm),
     );
-    let fresh = a.project().track(id).unwrap().instrument.native().unwrap().clone();
-    assert!(fresh.params.is_empty() && fresh.text.is_empty(), "{fresh:?}");
+    let fresh = a
+        .project()
+        .track(id)
+        .unwrap()
+        .instrument
+        .native()
+        .unwrap()
+        .clone();
+    assert!(
+        fresh.params.is_empty() && fresh.text.is_empty(),
+        "{fresh:?}"
+    );
 }
 
 #[test]
@@ -451,29 +519,53 @@ fn swapping_an_effect_keeps_its_place_mix_bypass_and_key() {
         a.add_effect(strip, k);
     }
     let comp = a.project().strip(strip).unwrap().effects[1].id;
-    a.exec(Command::SetEffectMix { strip, effect: comp, mix: 0.35 });
-    a.exec(Command::SetEffectBypass { strip, effect: comp, bypass: true });
-    a.exec(Command::SetEffectSidechain { strip, effect: comp, source: Some(key) });
+    a.exec(Command::SetEffectMix {
+        strip,
+        effect: comp,
+        mix: 0.35,
+    });
+    a.exec(Command::SetEffectBypass {
+        strip,
+        effect: comp,
+        bypass: true,
+    });
+    a.exec(Command::SetEffectSidechain {
+        strip,
+        effect: comp,
+        source: Some(key),
+    });
     let before = a.project().clone();
     let history = a.bus.history().len();
     a.apply_pick(
-        PickPurpose::ReplaceEffect { strip, effect: comp },
+        PickPurpose::ReplaceEffect {
+            strip,
+            effect: comp,
+        },
         PickChoice::Effect(EffectKind::Gate),
     );
     let chain = &a.project().strip(strip).unwrap().effects;
     let kinds: Vec<EffectKind> = chain.iter().map(|e| e.spec.kind).collect();
-    assert_eq!(kinds, [EffectKind::Eq, EffectKind::Gate, EffectKind::Reverb]);
+    assert_eq!(
+        kinds,
+        [EffectKind::Eq, EffectKind::Gate, EffectKind::Reverb]
+    );
     let g = &chain[1];
     assert_eq!((g.mix, g.bypass, g.sidechain), (0.35, true, Some(key)));
     assert_eq!(a.bus.history().len(), history + 1, "one step");
     // A kind with no key drops it; the rest stays.
     let gate = g.id;
     a.apply_pick(
-        PickPurpose::ReplaceEffect { strip, effect: gate },
+        PickPurpose::ReplaceEffect {
+            strip,
+            effect: gate,
+        },
         PickChoice::Effect(EffectKind::Delay),
     );
     let d = &a.project().strip(strip).unwrap().effects[1];
-    assert_eq!((d.spec.kind, d.mix, d.sidechain), (EffectKind::Delay, 0.35, None));
+    assert_eq!(
+        (d.spec.kind, d.mix, d.sidechain),
+        (EffectKind::Delay, 0.35, None)
+    );
     a.undo();
     a.undo();
     // The ids the new slots were given stay handed out; everything else is as it was.
@@ -509,7 +601,14 @@ fn adding_from_the_picker_names_places_and_opens() {
         PickPurpose::AddEffect { strip },
         PickChoice::Effect(EffectKind::Saturator),
     );
-    let last = a.project().strip(strip).unwrap().effects.last().unwrap().clone();
+    let last = a
+        .project()
+        .strip(strip)
+        .unwrap()
+        .effects
+        .last()
+        .unwrap()
+        .clone();
     assert_eq!(last.spec.kind, EffectKind::Saturator);
     assert_eq!(a.fx.open.map(|(_, e, _)| e), Some(last.id));
 }
@@ -572,8 +671,15 @@ fn the_add_track_key_opens_the_picker_on_the_instruments() {
     let mut w = Win::new(cantus_ui::welcome_project());
     let n = w.app.project().tracks.len();
     w.click(w.spot(Spot::AddTrack).center());
-    assert_eq!(w.app.picker, Some(PickPurpose::AddInstrument { index: None }));
-    assert_eq!(w.app.project().tracks.len(), n, "nothing is added until a choice");
+    assert_eq!(
+        w.app.picker,
+        Some(PickPurpose::AddInstrument { index: None })
+    );
+    assert_eq!(
+        w.app.project().tracks.len(),
+        n,
+        "nothing is added until a choice"
+    );
 }
 
 #[test]
@@ -586,16 +692,26 @@ fn the_racks_channel_button_opens_the_instrument_and_its_right_click_swaps_it() 
     // Left of centre: the badge sits at the right end while the pointer is on it.
     let at = Pos2::new(button.left() + 10.0, button.center().y);
     w.click(at);
-    assert_eq!(w.app.pulsus.open, Some(kit), "a click opens its window (FL)");
+    assert_eq!(
+        w.app.pulsus.open,
+        Some(kit),
+        "a click opens its window (FL)"
+    );
     w.click(at);
     assert_eq!(w.app.pulsus.open, None, "and closes it");
     w.click_with(at, PointerButton::Secondary);
-    assert_eq!(w.app.picker, Some(PickPurpose::ReplaceInstrument { track: kit }));
+    assert_eq!(
+        w.app.picker,
+        Some(PickPurpose::ReplaceInstrument { track: kit })
+    );
     // The badge.
     w.app.picker = None;
     w.hover(at);
     w.click(chrome::badge_rect(button, 1.0).center());
-    assert_eq!(w.app.picker, Some(PickPurpose::ReplaceInstrument { track: kit }));
+    assert_eq!(
+        w.app.picker,
+        Some(PickPurpose::ReplaceInstrument { track: kit })
+    );
 }
 
 #[test]
@@ -636,5 +752,8 @@ fn the_mixers_slots_open_the_picker_to_add_and_to_swap() {
         w.app.picker,
         Some(PickPurpose::ReplaceEffect { strip, effect: fx })
     );
-    assert_eq!(w.app.eq_editor.open, None, "the badge does not open the editor");
+    assert_eq!(
+        w.app.eq_editor.open, None,
+        "the badge does not open the editor"
+    );
 }

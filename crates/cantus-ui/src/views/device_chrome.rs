@@ -195,26 +195,14 @@ impl Workspace {
             match what {
                 Pending::Maximise => {
                     let was = (!path.surface.is_main())
-                        .then(|| self.dock.get_window_state(path.surface).map(|w| w.rect()))
-                        .flatten()
-                        .filter(|r| r.is_positive());
-                    let surface = if path.surface.is_main() {
-                        self.dock.detach_tab(path, area)
-                    } else {
-                        path.surface
-                    };
-                    if let Some(w) = self.dock.get_window_state_mut(surface) {
-                        w.set_position(area.min).set_size(area.size());
-                    }
+                        .then(|| self.float_rect(ctx, path))
+                        .flatten();
+                    self.refloat(pane, area);
                     device::set_maximised(ctx, key, true, was);
                 }
                 Pending::Restore => {
                     match restore {
-                        Some(r) => {
-                            if let Some(w) = self.dock.get_window_state_mut(path.surface) {
-                                w.set_position(r.min).set_size(r.size());
-                            }
-                        }
+                        Some(r) => self.refloat(pane, r),
                         // It was docked: back into the dock.
                         None => {
                             self.hide(pane);
@@ -241,14 +229,25 @@ impl Workspace {
             }
             if path.surface.is_main() {
                 device::forget_place(ctx, key);
-            } else if let Some(r) = self
-                .dock
-                .get_window_state(path.surface)
-                .map(|w| w.rect())
-                .filter(|r| r.is_positive())
-            {
+            } else if let Some(r) = self.float_rect(ctx, path) {
                 device::remember_place(ctx, key, r);
             }
+        }
+    }
+
+    /// Float `pane` in a fresh window at `rect`. A window that already floats is made
+    /// again rather than moved: egui keeps an existing window's place over a new position.
+    fn refloat(&mut self, pane: Pane, rect: Rect) {
+        if self.find(pane).is_some_and(|p| !p.surface.is_main()) {
+            self.hide(pane);
+            self.reveal(pane);
+        }
+        let Some(path) = self.find(pane).filter(|p| p.surface.is_main()) else {
+            return;
+        };
+        let surface = self.dock.detach_tab(path, rect);
+        if let Some(w) = self.dock.get_window_state_mut(surface) {
+            w.set_position(rect.min).set_size(rect.size());
         }
     }
 
@@ -265,7 +264,9 @@ impl Workspace {
             let leaf = self.dock.leaf(path.node_path()).ok()?.rect;
             let short = !leaf.is_positive() || leaf.height() < min.y || leaf.width() < min.x;
             (short && area.is_positive()).then(|| {
-                let size = size.min(area.size() - Vec2::splat(16.0)).max(min.min(area.size()));
+                let size = size
+                    .min(area.size() - Vec2::splat(16.0))
+                    .max(min.min(area.size()));
                 Rect::from_center_size(area.center(), size)
             })
         });
@@ -278,6 +279,20 @@ impl Workspace {
                 w.set_position(rect.min).set_size(rect.size());
             }
         }
+    }
+}
+
+impl Workspace {
+    /// Where a floating tab's window is, as `set_position` and `set_size` take it back: the
+    /// window's corner and its content's size. egui_dock 0.21 never fills in
+    /// `WindowState::rect`; the window's egui area remembers its corner (as the
+    /// workspace's snapping reads it) and the leaf its content.
+    fn float_rect(&self, ctx: &Context, path: egui_dock::TabPath) -> Option<Rect> {
+        let id = egui::Id::new(format!("window {:?}", path.surface));
+        let corner = egui::AreaState::load(ctx, id)?.rect().min;
+        let size = self.dock.leaf(path.node_path()).ok()?.rect.size();
+        let r = Rect::from_min_size(corner, size);
+        r.is_positive().then_some(r)
     }
 }
 
@@ -336,7 +351,11 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
         publish(&ctx, Spot::TrayChip(*key), chip);
         publish(&ctx, Spot::TrayClose(*key), *close);
         let resp = ui.interact(chip, ui.id().with(("device-tray", *key)), Sense::click());
-        let x = ui.interact(*close, ui.id().with(("device-tray-x", *key)), Sense::click());
+        let x = ui.interact(
+            *close,
+            ui.id().with(("device-tray-x", *key)),
+            Sense::click(),
+        );
         let over_x = x.hovered();
         if x.clicked() {
             device::mark_closed(&ctx, *key);
@@ -398,7 +417,12 @@ pub fn tray_paint(ui: &Ui, rect: Rect, k: f32) {
         let (chip, close, st, over_x, hue) = (c.chip, &c.close, c.st, c.over_x, &c.hue);
         let title = &c.title;
         with_brush(&painter, |b| {
-            b.register(chip, "device_tray_chip", crate::kit::window_ctl::TOKENS, &[]);
+            b.register(
+                chip,
+                "device_tray_chip",
+                crate::kit::window_ctl::TOKENS,
+                &[],
+            );
             let look = cap::CapLook {
                 base: Some(shade(t.panel, if t.dark { 0.08 } else { 0.06 })),
                 radius: Some(3.0),
@@ -499,7 +523,13 @@ pub fn swap_badge(
 /// key while the pointer is on it, with a ▾ that says it opens a choice. A click opens
 /// the picker to swap the instrument ([`chip_input`]). Paints the key into `b`; the icon
 /// itself is drawn over it by the caller.
-pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egui::Color32, k: f32) {
+pub fn chip_plate(
+    b: &mut crate::kit::Brush,
+    icon: Rect,
+    hovered: bool,
+    ink: egui::Color32,
+    k: f32,
+) {
     if !hovered {
         return;
     }
@@ -512,7 +542,12 @@ pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egu
         3.0 * k,
         Fill::Solid(crate::kit::color::with_alpha(t.dark_shade, 0.3)),
     );
-    b.rrect_stroke(b.snap_rect(r), 3.0 * k, b.px(), crate::kit::color::with_alpha(ink, 0.6));
+    b.rrect_stroke(
+        b.snap_rect(r),
+        3.0 * k,
+        b.px(),
+        crate::kit::color::with_alpha(ink, 0.6),
+    );
     // The ▾ inside the key's corner: it opens a choice.
     let down = Rect::from_center_size(
         Pos2::new(r.right() - 3.0 * k, r.bottom() - 3.0 * k),
@@ -525,7 +560,11 @@ pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egu
 pub fn chip_input(app: &mut CantusApp, ui: &Ui, icon: Rect, track: TrackId, k: f32) {
     let r = icon.expand(3.0 * k);
     publish(ui.ctx(), Spot::Chip(track), r);
-    let resp = ui.interact(r, ui.id().with(("instrument-chip", track.0)), Sense::click());
+    let resp = ui.interact(
+        r,
+        ui.id().with(("instrument-chip", track.0)),
+        Sense::click(),
+    );
     if resp.hovered() {
         let name = app
             .project()

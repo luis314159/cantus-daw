@@ -682,8 +682,11 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
         Sub::AddEffect(id) => {
             let full = p.effects_of(id).is_none_or(|s| s.len() >= MAX_INSERTS);
             e.push(
-                Entry::act(Label::Key("swap.menu.browse_effects"), Act::BrowseEffects(id))
-                    .enabled(!full),
+                Entry::act(
+                    Label::Key("swap.menu.browse_effects"),
+                    Act::BrowseEffects(id),
+                )
+                .enabled(!full),
             );
             e.push(Entry::band("effect.add"));
             for kind in EffectKind::ALL {

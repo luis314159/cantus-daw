@@ -205,7 +205,11 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             }
         }
         MenuId::AddInsert(_) => {
-            out.push(act(Label::Key("swap.menu.browse_effects"), Check::None, Choice::Browse));
+            out.push(act(
+                Label::Key("swap.menu.browse_effects"),
+                Check::None,
+                Choice::Browse,
+            ));
             out.push(band("inspector.effects"));
             for kind in EffectKind::ALL {
                 out.push(act(
@@ -224,7 +228,11 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             if slot.is_some_and(|x| x.spec.kind.has_editor()) {
                 out.push(act(Label::Key("eq.open"), Check::None, Choice::Open));
             }
-            out.push(act(Label::Key("swap.menu.swap_effect"), Check::None, Choice::Swap));
+            out.push(act(
+                Label::Key("swap.menu.swap_effect"),
+                Check::None,
+                Choice::Swap,
+            ));
             let mut up = act(Label::Key("effect.up"), Check::None, Choice::Up);
             up.enabled = i > 0;
             out.push(up);

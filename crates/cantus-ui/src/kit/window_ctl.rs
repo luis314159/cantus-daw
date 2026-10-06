@@ -191,7 +191,11 @@ pub fn paint(
         let Some(rect) = rect else { continue };
         let lit = hot == h;
         let fill = match (lit, h == WinHot::Close) {
-            (true, true) => Some(if down { shade(t.danger, -0.06) } else { t.danger }),
+            (true, true) => Some(if down {
+                shade(t.danger, -0.06)
+            } else {
+                t.danger
+            }),
             (true, false) => Some(shade(
                 t.panel,
                 match (t.dark, down) {
@@ -212,7 +216,12 @@ pub fn paint(
             None => t.text_dim,
         };
         let side = if h == WinHot::Close { 12.0 } else { 11.0 } * k;
-        glyph::paint(b, Rect::from_center_size(rect.center(), Vec2::splat(side)), g, ink);
+        glyph::paint(
+            b,
+            Rect::from_center_size(rect.center(), Vec2::splat(side)),
+            g,
+            ink,
+        );
     }
 }
 

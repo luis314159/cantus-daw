@@ -214,7 +214,10 @@ fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: Chain<'_>) {
             }
             Some((_, false)) => {
                 *sh.menu = None;
-                sh.acts.push(Act::Pick(crate::picker::PickPurpose::AddEffect { strip: id }));
+                sh.acts
+                    .push(Act::Pick(crate::picker::PickPurpose::AddEffect {
+                        strip: id,
+                    }));
             }
             None => {}
         }

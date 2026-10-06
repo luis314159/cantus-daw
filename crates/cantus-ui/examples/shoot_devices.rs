@@ -33,7 +33,10 @@ struct Case {
 
 fn calor(a: &mut CantusApp) {
     let t = a.project().tracks[0].id;
-    a.set_instrument(t, InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Analog)));
+    a.set_instrument(
+        t,
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Analog)),
+    );
     a.select_track(t);
     a.open_inst_editor(t);
 }
@@ -51,10 +54,7 @@ fn mixer_xl(a: &mut CantusApp) {
     let s = a.project().tracks[0].strip.unwrap();
     a.add_effect(s, EffectKind::Eq);
     a.add_effect(s, EffectKind::Compressor);
-    cantus_ui::views::mixer::set_width_mode(
-        a,
-        cantus_ui::views::mixer::layout::WidthMode::Xl,
-    );
+    cantus_ui::views::mixer::set_width_mode(a, cantus_ui::views::mixer::layout::WidthMode::Xl);
     a.show_central(CentralView::Mixer);
 }
 fn rack(a: &mut CantusApp) {
@@ -102,9 +102,19 @@ fn at_rack(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
 }
 
 fn cases() -> Vec<Case> {
-    let c = |name, setup, then, aim| Case { name, setup, then, aim };
+    let c = |name, setup, then, aim| Case {
+        name,
+        setup,
+        then,
+        aim,
+    };
     vec![
-        c("inst", calor as fn(&mut CantusApp), no_then as fn(&mut CantusApp, &egui::Context), no_aim as Aim),
+        c(
+            "inst",
+            calor as fn(&mut CantusApp),
+            no_then as fn(&mut CantusApp, &egui::Context),
+            no_aim as Aim,
+        ),
         c("inst-close", calor, no_then, at_close),
         c("fx-swap", gate, no_then, at_swap),
         c("tray", both, minimise_both, no_aim),
