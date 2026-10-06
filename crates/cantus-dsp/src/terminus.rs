@@ -357,6 +357,15 @@ impl<T: Copy + Default> Delay<T> {
         self.pos = 0;
     }
 
+    /// Holds only defaults (zeros): the position does not matter then.
+    fn is_clear(&self) -> bool
+    where
+        T: PartialEq,
+    {
+        let zero = T::default();
+        self.buf.iter().all(|x| *x == zero)
+    }
+
     #[inline]
     fn push(&mut self, x: T, delay: usize) -> T {
         let cap = self.buf.len();
@@ -512,6 +521,21 @@ impl Lookahead {
         self.configure(h, b1, b2, self.release);
     }
 
+    /// As [`Self::reset`] leaves it, for every input it can be given (requirements are
+    /// never negative): no requirement held, both averages at zero, and nothing in the hold
+    /// window but zeros — which any requirement pushes out, as from an empty window.
+    fn is_clear(&self) -> bool {
+        let w = &self.hold;
+        let cap = w.val.len();
+        self.out == 0
+            && self.held == 0
+            && self.b1.sum == 0
+            && self.b2.sum == 0
+            && self.b1.ring[..self.b1.len].iter().all(|v| *v == 0)
+            && self.b2.ring[..self.b2.len].iter().all(|v| *v == 0)
+            && (0..w.len).all(|k| w.val[(w.head + k) % cap] == 0)
+    }
+
     #[inline]
     fn push(&mut self, v: i64) -> i64 {
         let h = self.hold.push(v);
@@ -550,6 +574,10 @@ impl Clipper {
         self.decim.reset();
         self.dry.clear();
         self.quiet = true;
+    }
+
+    fn is_clear(&self) -> bool {
+        self.quiet && self.interp.is_clear() && self.decim.is_clear() && self.dry.is_clear()
     }
 
     /// Soft clip to `t`: straight up to 70 % of it, then a tanh knee that never reaches it.
@@ -668,6 +696,10 @@ struct DcBlock {
 }
 
 impl DcBlock {
+    fn is_clear(&self) -> bool {
+        self.x1 == 0.0 && self.y1 == 0.0
+    }
+
     #[inline]
     fn tick(&mut self, x: f32, r: f32) -> f32 {
         let y = x - self.x1 + r * self.y1;
@@ -959,6 +991,65 @@ impl Terminus {
         self.telemetry[T_RATE] = self.sr;
         self.seq = 0;
         self.gr_now = [0.0; 2];
+    }
+
+    /// At rest (ADR 0031 §5.1): every stage as [`Self::reset`] leaves it — glides landed,
+    /// filters, detectors, look-ahead windows, envelopes and delay lines empty — and the
+    /// Match monitor's memory still: its three-second window all silence (so no column can
+    /// move its level) and its gain landed; in Match mode, at unity as a new unit's is.
+    /// The meters that only the editor reads do not count.
+    ///
+    /// **Never with dither on** (R10): the noise generator stops on silence but does not go
+    /// back to its seed, so a new unit would dither the next sound with other noise. When
+    /// the dither becomes counter-based this can hold after its shaping state clears.
+    pub fn at_rest(&self) -> bool {
+        let s = &self.s;
+        let spec = s.style.spec();
+        let a = &self.acc;
+        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0
+            || self.gain != self.gain_target
+            || self.ceiling_db != s.ceiling_db
+            || self.match_gain != self.match_target
+            || (s.monitor == Monitor::Match && self.match_gain != 1.0)
+            || (spec.program > 0.0 && self.work != 0.0)
+            || self.r_env != [0.0; 2]
+            || a.energy != 0.0
+            || a.energy_in != 0.0
+            || !self.dc.iter().all(DcBlock::is_clear)
+            || !self.k_in.iter().chain(&self.k_out).all(KWeighting::is_clear)
+        {
+            return false;
+        }
+        crate::rest::all_zero_f64(&self.st_in)
+            && crate::rest::all_zero_f64(&self.st_out)
+            && self.det.iter().chain(&self.safe_det).all(TruePeak::is_clear)
+            && self.t_stage.iter().all(Lookahead::is_clear)
+            && self.safe.is_clear()
+            && self.clip.iter().all(Clipper::is_clear)
+            && self.t_pre.iter().all(Delay::is_clear)
+            && self
+                .r_delay
+                .iter()
+                .chain(&self.audio)
+                .chain(&self.safe_audio)
+                .chain(&self.dry)
+                .all(Delay::is_clear)
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the 10 ms columns the
+    /// Match monitor's window counts go on as processing would have moved them — each
+    /// one silent, so its window stays all silence and its level holds.
+    pub fn skip(&mut self, frames: usize) {
+        let total = self.acc.n + frames;
+        let cols = total / self.col_len;
+        if cols > 0 {
+            let len = self.st_in.len();
+            self.st_pos = (self.st_pos + cols % len) % len;
+            self.st_seen = self.st_seen.saturating_add(cols);
+            self.seq = ((self.seq as usize + cols % T_WRAP as usize) % T_WRAP as usize) as u32;
+            self.acc = ColumnAcc::default();
+        }
+        self.acc.n = total % self.col_len;
     }
 
     /// Samples of delay this adds: look-ahead, the true-peak detectors and the clipper's

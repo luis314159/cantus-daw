@@ -252,6 +252,10 @@ impl Latitudo {
             self.meter(ol, or);
             self.n += 1;
         }
+        let pos = self.pos;
+        for (q, line) in self.line_quiet.iter_mut().zip(&self.line) {
+            q.wrote(line, pos, n);
+        }
     }
 
     /// One sample through the mid/side stages (after polarity and swap).

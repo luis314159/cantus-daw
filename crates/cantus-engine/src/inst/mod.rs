@@ -129,13 +129,16 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool;
-    /// True when the unit is **at rest** (ADR 0031 §5.1): its state equals, for everything
-    /// that can reach its output, a freshly reset unit's with the same configuration — once
-    /// that unit has been [`skip`](Self::skip)ped by as many samples as this one has
-    /// processed since it was made or reset. Then, with no note, expression or controller
-    /// arriving, `process` writes nothing (returns `false`) and leaves the unit at rest, and
-    /// `skip` is exactly that — so the engine may stop calling `process` until something
-    /// arrives, and may reset the unit, without changing a sample.
+    /// True when the unit is **at rest** (ADR 0031 §5.1). Exactly:
+    ///
+    /// 1. with no note, expression or controller arriving, `process` writes nothing
+    ///    (returns `false`) and leaves it at rest;
+    /// 2. **suspension is exact**: skipping those calls — telling the unit with
+    ///    [`skip`](Self::skip) — changes no sample of what follows, whatever is played and
+    ///    whatever parameter changes come next;
+    /// 3. **it is as good as new**: it renders exactly what a freshly reset unit with the same
+    ///    configuration renders (that unit skipped as far as this one has run) for anything
+    ///    played, as long as the parameters stay as they are.
     ///
     /// Stricter than [`Self::process`] returning `false`: a unit can be silent with a
     /// filter still ringing below the flush threshold, a glide in flight, a held
@@ -148,7 +151,7 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// The engine did not call `process` for `frames` samples because the unit was
     /// [at rest](Self::at_rest) and nothing arrived: advance whatever counts samples,
     /// exactly as processing would have. Cheap, no allocation. Called only while at rest,
-    /// and on a fresh unit; the unit stays at rest. Default: nothing counts.
+    /// and on a fresh unit; it stays at rest. Default: nothing counts.
     fn skip(&mut self, frames: usize) {
         let _ = frames;
     }

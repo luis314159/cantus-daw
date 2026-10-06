@@ -308,6 +308,17 @@ impl Chan {
         }
     }
 
+    /// The wet path is empty, as [`Self::clear_wet`] leaves it.
+    fn wet_clear(&self) -> bool {
+        [&self.lo, &self.pre, &self.post, &self.tone, &self.hi]
+            .iter()
+            .all(|b| b.z1 == 0.0 && b.z2 == 0.0)
+            && self.dc_x1 == 0.0
+            && self.dc_y1 == 0.0
+            && self.hold == 0.0
+            && self.os.is_clear()
+    }
+
     /// Clear the wet path (the dry delay keeps running).
     fn clear_wet(&mut self) {
         for b in [
@@ -532,6 +543,42 @@ impl Fervor {
         (self.wet_g, self.wet_end, self.wet_step) = (w, w, 0.0);
         (self.out_g, self.out_end, self.out_step) = (o, o, 0.0);
         (self.mix_v, self.mix_end, self.mix_step) = (m, m, 0.0);
+    }
+
+    /// At rest (ADR 0031 §5.1): what [`Self::reset`] leaves for these settings — every
+    /// glide landed, the structure (model, curve, oversampling) the target's, no crossfade,
+    /// the gains still — with the dry delay all zeros and, when the wet path runs, every
+    /// filter, the DC blocker, the hold and the oversampler empty. A disengaged wet path
+    /// does not count: it is cleared when it engages. Never at rest while the sample-and-hold
+    /// runs: its phase follows the history of the settings, not the sample count.
+    pub fn at_rest(&self) -> bool {
+        let t = &self.target;
+        if self.fade != 0
+            || rate_on(t.rate_hz, self.sr)
+            || self.live != Live::of(t)
+            || self.model != t.model
+            || self.factor != t.oversampling
+            || self.minimum != t.minimum_phase
+            || self.engaged == self.neutral()
+            || self.curve != t.curve
+        {
+            return false;
+        }
+        let (w, o, m) = self.gains();
+        let still = |v: f32, end: f32, step: f32, to: f32| v == to && end == to && step == 0.0;
+        still(self.wet_g, self.wet_end, self.wet_step, w)
+            && still(self.out_g, self.out_end, self.out_step, o)
+            && still(self.mix_v, self.mix_end, self.mix_step, m)
+            && self
+                .chans
+                .iter()
+                .all(|c| crate::rest::all_zero(&c.delay) && (!self.engaged || c.wet_clear()))
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the grid's position moves
+    /// on, so a setting that moves later glides on the same samples as it would have.
+    pub fn skip(&mut self, frames: usize) {
+        self.grid = (self.grid + frames % UPDATE) % UPDATE;
     }
 
     fn make_shaper(&self) -> Shaper {

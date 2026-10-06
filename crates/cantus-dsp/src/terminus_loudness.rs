@@ -113,6 +113,11 @@ impl KWeighting {
         self.highpass.z = [0.0; 2];
     }
 
+    /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.shelf.z == [0.0; 2] && self.highpass.z == [0.0; 2]
+    }
+
     #[inline]
     pub fn tick(&mut self, x: f64) -> f64 {
         self.highpass.tick(self.shelf.tick(x))

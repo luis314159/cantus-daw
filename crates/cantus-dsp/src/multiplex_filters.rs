@@ -152,6 +152,12 @@ impl Svf {
         }
         (v2, v1, x - c.k * v1 - v2)
     }
+
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    #[inline]
+    pub fn is_clear(&self) -> bool {
+        self.ic1 == 0.0 && self.ic2 == 0.0
+    }
 }
 
 /// One channel of a trapezoidal one-pole low-pass; `G = g / (1 + g)`.
@@ -170,6 +176,12 @@ impl OnePole {
             self.s = 0.0;
         }
         lp
+    }
+
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    #[inline]
+    pub fn is_clear(&self) -> bool {
+        self.s == 0.0
     }
 }
 
@@ -220,6 +232,17 @@ pub struct Xover {
 }
 
 impl Xover {
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.first.iter().all(Svf::is_clear)
+            && self.low.iter().all(Svf::is_clear)
+            && self.high.iter().all(Svf::is_clear)
+            && self.ap.iter().all(Svf::is_clear)
+            && self.p_low.iter().all(OnePole::is_clear)
+            && self.p_high.iter().all(OnePole::is_clear)
+            && self.p_ap.is_clear()
+    }
+
     /// Split one sample into (low, high). Low + high is the all-pass [`Self::allpass`]
     /// would give (for the 6 dB slope, the input itself).
     #[inline]
@@ -292,6 +315,11 @@ pub struct Shelf {
 }
 
 impl Shelf {
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.svf.iter().all(Svf::is_clear) && self.pole.is_clear()
+    }
+
     /// Run the stage at pole coefficient `g` (`tan(π f_p / fs)`) and section gain `rho`.
     /// With `mix == false` the filter only keeps its state warm and the input is returned.
     #[inline]

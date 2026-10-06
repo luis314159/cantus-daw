@@ -362,11 +362,10 @@ impl EffectUnit {
         }
     }
 
-    /// True when the unit is at rest (ADR 0031 §5.1, [`crate::fx::FxUnit::at_rest`]): its
-    /// state equals a freshly reset unit's (skipped as far) for everything that reaches its
-    /// output, so with silent input (and key) its calls may be skipped — telling it with
-    /// [`Self::skip`] — without changing a sample. Exact; `false` whenever the unit cannot
-    /// prove it.
+    /// True when the unit is at rest (ADR 0031 §5.1, [`crate::fx::FxUnit::at_rest`]):
+    /// silence in gives silence out, skipping its calls on silent input — telling it with
+    /// [`Self::skip`] — changes no sample, and it renders as a new unit would while its
+    /// parameters stay. Exact; `false` whenever the unit cannot prove it.
     pub fn at_rest(&self) -> bool {
         match &self.dsp {
             Dsp::Delay(d) => d.at_rest(),

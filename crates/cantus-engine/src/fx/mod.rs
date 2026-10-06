@@ -44,13 +44,17 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// Process a stereo block in place; `key` is the sidechain when one is routed.
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>);
     fn reset(&mut self);
-    /// True when the unit is **at rest** (ADR 0031 §5.1): its state equals, for everything
-    /// that can reach its output, a freshly reset unit's with the same configuration — once
-    /// that unit has been [`skip`](Self::skip)ped by as many samples as this one has
-    /// processed since it was made or reset (so the counters agree too). Then, with silent
-    /// input (silent key, no note), `process` outputs exact zeros and leaves the unit at
-    /// rest, and `skip` is exactly that — so the engine may stop calling `process` until
-    /// something arrives, and may reset the unit, without changing a sample.
+    /// True when the unit is **at rest** (ADR 0031 §5.1). Exactly:
+    ///
+    /// 1. silent input (silent key, no note) gives exact zeros out and leaves it at rest;
+    /// 2. **suspension is exact**: skipping those calls — telling the unit with
+    ///    [`skip`](Self::skip) — changes no sample of what follows, whatever input and
+    ///    whatever parameter changes come next;
+    /// 3. **it is as good as new**: it renders exactly what a freshly reset unit with the same
+    ///    configuration renders (that unit [`skip`](Self::skip)ped as far as this one has run,
+    ///    so their counters agree) for any input, as long as the parameters stay as they
+    ///    are. A unit whose memory outlives silence (a loudness match that holds its level)
+    ///    may differ from a new one only after a parameter moves.
     ///
     /// **Exact, never a guess**: a unit that cannot prove it — a free-running LFO, a
     /// smoother still gliding, noise that advances on silence — says `false`. Cheap: the
@@ -62,10 +66,10 @@ pub trait FxUnit: Send + std::fmt::Debug {
     }
     /// The engine did not call `process` for `frames` samples of silence (silent key, no
     /// note) because the unit was [at rest](Self::at_rest): advance whatever counts samples
-    /// — a ring's write position, the grid a unit updates its coefficients on — exactly as
-    /// processing silence would have, so that skipping is processing silence, also when a
-    /// parameter moves afterwards. Cheap (no audio is rendered), no allocation. Called only
-    /// while at rest, and on a fresh unit; the unit stays at rest. Default: nothing counts.
+    /// — a ring's write position, the grid a unit updates its coefficients on, a meter's
+    /// columns — exactly as processing silence would have. Cheap (no audio is rendered), no
+    /// allocation. Called only while at rest, and on a fresh unit; it stays at rest.
+    /// Default: nothing counts.
     fn skip(&mut self, frames: usize) {
         let _ = frames;
     }
