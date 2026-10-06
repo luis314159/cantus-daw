@@ -9,6 +9,7 @@
 //! set (tests, screenshots), records it without touching the machine's sound card.
 
 pub mod demo;
+pub mod drivers;
 pub mod interfaces;
 pub mod latency;
 pub mod memory;
@@ -16,7 +17,6 @@ pub mod names;
 pub mod plug;
 pub mod problems;
 
-use crate::app::CantusApp;
 use crate::settings::AudioSettings;
 use cantus_engine::{DeviceLatency, DriverInfo, InputDeviceInfo};
 use interfaces::Interface;
@@ -71,14 +71,9 @@ impl Scan {
             .map(|d| d.name)
             .collect();
         let inputs = devices::input_devices(None);
-        let asio: Vec<String> = if drivers.iter().any(|d| d.name.eq_ignore_ascii_case("ASIO")) {
-            devices::output_devices_on(Some("ASIO"))
-                .into_iter()
-                .map(|d| d.name)
-                .collect()
-        } else {
-            Vec::new()
-        };
+        // Read from the registry even in a build without ASIO, so the setup can say a
+        // driver is installed but this build cannot use it.
+        let asio = devices::installed_asio_drivers();
         Scan::of(drivers, outputs, inputs, asio)
     }
 
@@ -90,7 +85,8 @@ impl Scan {
         asio: Vec<String>,
     ) -> Scan {
         let names: Vec<String> = inputs.iter().map(|i| i.name.clone()).collect();
-        let interfaces = interfaces::group(&outputs, &names, &asio);
+        let interfaces =
+            interfaces::group(&outputs, &names, &asio, cantus_engine::devices::ASIO_BUILT);
         Scan {
             drivers,
             outputs,
@@ -101,7 +97,9 @@ impl Scan {
     }
 
     pub fn has_driver(&self, name: &str) -> bool {
-        self.drivers.iter().any(|d| d.name.eq_ignore_ascii_case(name))
+        self.drivers
+            .iter()
+            .any(|d| d.name.eq_ignore_ascii_case(name))
     }
 
     pub fn interface(&self, key: &str) -> Option<&Interface> {
@@ -154,6 +152,15 @@ pub enum Hit {
     Buffer(u32),
     InputField,
     InputRow(usize),
+    AsioField,
+    AsioRow(usize),
+    /// *Get a low-latency driver* and its window: FlexASIO's page, ASIO4ALL's page,
+    /// maker `i`'s page, rescan.
+    GetDriver,
+    FlexPage,
+    Asio4All,
+    MakerLink(usize),
+    Rescan,
     Tone,
     Routing,
     Assistant,
@@ -188,7 +195,11 @@ pub struct Geo {
 impl Geo {
     /// Where `h` was drawn this frame.
     pub fn rect(&self, h: &Hit) -> Option<egui::Rect> {
-        self.hits.iter().rev().find(|(x, _)| x == h).map(|(_, r)| *r)
+        self.hits
+            .iter()
+            .rev()
+            .find(|(x, _)| x == h)
+            .map(|(_, r)| *r)
     }
 }
 
@@ -238,6 +249,8 @@ impl Dropouts {
 pub enum PopList {
     Interface,
     Input,
+    /// The ASIO drivers installed (Driver: ASIO).
+    Asio,
 }
 
 /// Everything this round keeps on the application (`CantusApp::audio_setup`).
@@ -268,6 +281,10 @@ pub struct AudioSetup {
     pub editing: Option<(bool, usize, String)>,
     /// The device the channel names were last looked up for.
     names_for: String,
+    /// *Get a low-latency driver*: the window.
+    pub drivers: bool,
+    /// Whether the window had the focus last frame (coming back rescans the drivers).
+    pub focused: bool,
 }
 
 impl AudioSetup {

@@ -11,7 +11,14 @@ use egui::text::{LayoutJob, TextFormat};
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Ui, Vec2};
 
 /// Lay `s` out in `role`, wrapped at `width`, at most `rows` lines.
-pub fn wrapped(ctx: &egui::Context, s: &str, role: Role, k: f32, width: f32, rows: usize) -> std::sync::Arc<egui::Galley> {
+pub fn wrapped(
+    ctx: &egui::Context,
+    s: &str,
+    role: Role,
+    k: f32,
+    width: f32,
+    rows: usize,
+) -> std::sync::Arc<egui::Galley> {
     let mut j = LayoutJob::default();
     j.append(
         s,
@@ -30,7 +37,15 @@ pub fn wrapped(ctx: &egui::Context, s: &str, role: Role, k: f32, width: f32, row
 }
 
 /// Paint a wrapped paragraph at `pos`; returns its size.
-pub fn paint_wrapped(b: &mut Brush, pos: Pos2, s: &str, role: Role, color: Color32, k: f32, width: f32) -> Vec2 {
+pub fn paint_wrapped(
+    b: &mut Brush,
+    pos: Pos2,
+    s: &str,
+    role: Role,
+    color: Color32,
+    k: f32,
+    width: f32,
+) -> Vec2 {
     let g = wrapped(b.ctx(), s, role, k, width, 4);
     let size = g.size();
     b.text(Pos2::new(b.snap(pos.x), b.snap(pos.y)), g, color, 0.0);
@@ -44,7 +59,12 @@ pub fn paragraph(ui: &mut Ui, s: &str, role: Role, color: Color32) -> Rect {
     let g = wrapped(ui.ctx(), s, role, st.tk(), w, 4);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, g.size().y), Sense::hover());
     with_brush(ui.painter(), |b| {
-        b.text(Pos2::new(b.snap(rect.left()), b.snap(rect.top())), g, color, 0.0);
+        b.text(
+            Pos2::new(b.snap(rect.left()), b.snap(rect.top())),
+            g,
+            color,
+            0.0,
+        );
     });
     rect
 }
@@ -56,22 +76,42 @@ pub fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool, min_w: f32
         .align(Align2::CENTER_CENTER)
         .policy(Policy::Elide(Elide::End));
     let w = (text::measure(ui.ctx(), &text, s.tk()).x + 24.0 * s.k).max(min_w * s.k);
-    let sense = if enabled { Sense::click() } else { Sense::hover() };
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, s.d(24.0)), sense);
     paint_button(ui, rect, &resp, label, primary, enabled);
     resp
 }
 
 /// Paint a button in `rect` for `resp`.
-pub fn paint_button(ui: &Ui, rect: Rect, resp: &Response, label: &str, primary: bool, enabled: bool) {
+pub fn paint_button(
+    ui: &Ui,
+    rect: Rect,
+    resp: &Response,
+    label: &str,
+    primary: bool,
+    enabled: bool,
+) {
     let s = Style::current();
     let st = State {
         disabled: !enabled,
         ..State::of(resp, false)
     };
     with_brush(ui.painter(), |b| {
-        b.register(rect, "audio-button", &[Tok::PanelRaised, Tok::Highlight, Tok::Text], &[]);
-        let base = if primary { s.t.highlight } else { s.t.panel_raised };
+        b.register(
+            rect,
+            "audio-button",
+            &[Tok::PanelRaised, Tok::Highlight, Tok::Text],
+            &[],
+        );
+        let base = if primary {
+            s.t.highlight
+        } else {
+            s.t.panel_raised
+        };
         let base = if st.active {
             shade(base, -0.05)
         } else if st.hovered {
@@ -130,7 +170,12 @@ pub fn choice_key(
     let resp = ui.interact(rect, id, Sense::click());
     let st = State::of(&resp, lit);
     with_brush(ui.painter(), |b| {
-        b.register(rect, "audio-choice", &[Tok::PanelRaised, Tok::Selection, Tok::Text, Tok::TextDim], &[]);
+        b.register(
+            rect,
+            "audio-choice",
+            &[Tok::PanelRaised, Tok::Selection, Tok::Text, Tok::TextDim],
+            &[],
+        );
         let base = if lit {
             shade(s.t.panel_raised, 0.06)
         } else if st.hovered {
@@ -159,7 +204,10 @@ pub fn choice_key(
             b.rrect(u, s.s(1.0), Fill::Solid(s.t.selection));
             b.rrect_stroke(rect, s.r(4.0), b.px(), with_alpha(s.t.selection, 0.55));
         }
-        let top = Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.center().y + s.s(2.0)));
+        let top = Rect::from_min_max(
+            rect.min,
+            Pos2::new(rect.right(), rect.center().y + s.s(2.0)),
+        );
         let _ = text::paint(
             b,
             top,

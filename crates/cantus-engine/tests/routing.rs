@@ -99,20 +99,19 @@ fn the_test_tone_plays_on_its_pair_fades_in_and_out_and_only_there() {
         ..Default::default()
     };
     route(&mut out, 4, rate, on, &mut tone);
-    let peak = |o: &[f32], c: usize| {
-        o.chunks_exact(4)
-            .map(|f| f[c].abs())
-            .fold(0.0f32, f32::max)
-    };
+    let peak = |o: &[f32], c: usize| o.chunks_exact(4).map(|f| f[c].abs()).fold(0.0f32, f32::max);
     assert_eq!(peak(&out, 0), 0.0, "nothing on 1–2");
     assert_eq!(peak(&out, 1), 0.0);
     let p = peak(&out, 2);
-    assert!(
-        (p - TONE_LEVEL).abs() < 1e-3,
-        "−18 dBFS once faded in: {p}"
+    assert!((p - TONE_LEVEL).abs() < 1e-3, "−18 dBFS once faded in: {p}");
+    assert_eq!(
+        out[2], 0.0,
+        "the first sample starts from silence (no click)"
     );
-    assert_eq!(out[2], 0.0, "the first sample starts from silence (no click)");
-    assert!(out[4 * 10 + 2].abs() < TONE_LEVEL * 0.05, "a fade, not a step");
+    assert!(
+        out[4 * 10 + 2].abs() < TONE_LEVEL * 0.05,
+        "a fade, not a step"
+    );
     assert!(tone.sounding());
     // Off: it fades out where it was, then stops.
     let mut out = vec![0.0f32; frames * 4];

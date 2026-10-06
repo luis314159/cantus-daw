@@ -58,7 +58,7 @@ pub enum Problem {
 
 /// "44.1", "48": a rate in kHz for a sentence.
 pub fn khz(rate: u32) -> String {
-    if rate % 1000 == 0 {
+    if rate.is_multiple_of(1000) {
         format!("{}", rate / 1000)
     } else {
         format!("{:.1}", rate as f64 / 1000.0)

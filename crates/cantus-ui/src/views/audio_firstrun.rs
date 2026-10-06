@@ -45,12 +45,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             let l = parts::db(live.peaks.get(c).copied().unwrap_or(0.0));
             *h = (*h - 20.0 / 60.0).max(l).max(MIN_DB);
         }
-        if let Some((c, h)) = fr
-            .hold
-            .iter()
-            .enumerate()
-            .max_by(|a, b| a.1.total_cmp(b.1))
-        {
+        if let Some((c, h)) = fr.hold.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) {
             if *h > HEARD_DB {
                 fr.heard = Some(c);
             }
@@ -59,9 +54,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     if live.live {
         ctx.request_repaint();
     }
-    // The room behind dims, and takes no clicks.
+    // The room behind dims, and takes no clicks. A layer below the setup's, so a click
+    // on the veil can never bring it in front of the setup.
     egui::Area::new(Id::new("cantus-audio-first-run-veil"))
-        .order(egui::Order::Foreground)
+        .order(egui::Order::Middle)
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
@@ -78,7 +74,8 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
-            if super::workspace_settings::title(ui, head, &s, Glyph::Device, "devices.first.title") {
+            if super::workspace_settings::title(ui, head, &s, Glyph::Device, "devices.first.title")
+            {
                 setup::close_first_run(app);
                 return;
             }
@@ -88,7 +85,12 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             );
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
             child.spacing_mut().item_spacing = Vec2::new(8.0 * k, 8.0 * k);
-            parts::paragraph(&mut child, &t("devices.first.intro"), Role::Body, s.t.text_dim);
+            parts::paragraph(
+                &mut child,
+                &t("devices.first.intro"),
+                Role::Body,
+                s.t.text_dim,
+            );
             step(&mut child, 1, "devices.first.choose");
             cards(app, &mut child);
             step(&mut child, 2, "devices.first.listen");
@@ -97,7 +99,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             meters(app, &mut child, &live);
             step(&mut child, 4, "devices.first.latency");
             latency_step(app, &mut child, &live);
-            let foot = Rect::from_min_max(Pos2::new(rect.left() + 22.0 * k, rect.bottom() - 46.0 * k), Pos2::new(rect.right() - 22.0 * k, rect.bottom() - 14.0 * k));
+            let foot = Rect::from_min_max(
+                Pos2::new(rect.left() + 22.0 * k, rect.bottom() - 46.0 * k),
+                Pos2::new(rect.right() - 22.0 * k, rect.bottom() - 14.0 * k),
+            );
             footer(app, ui, foot);
         });
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && app.audio_setup.first_run.is_some() {
@@ -114,12 +119,21 @@ fn step(ui: &mut Ui, n: u32, key: &str) {
         let title = Rect::from_min_max(Pos2::new(r.left() + 22.0 * k, r.top()), r.max);
         band::section(b, title, &s, State::REST, text::Src::Key(key), None, false);
         let c = Pos2::new(r.left() + 10.0 * k, r.center().y);
-        b.circle(c, 9.0 * k, Fill::V(shade(s.t.selection, 0.08), shade(s.t.selection, -0.08)));
+        b.circle(
+            c,
+            9.0 * k,
+            Fill::V(shade(s.t.selection, 0.08), shade(s.t.selection, -0.08)),
+        );
         let digit = n.to_string();
         let _ = text::paint(
             b,
             Rect::from_center_size(c, Vec2::splat(18.0 * k)),
-            &Text::new(&digit, Role::Label, crate::kit::color::on_fill(s.t.selection)).align(Align2::CENTER_CENTER),
+            &Text::new(
+                &digit,
+                Role::Label,
+                crate::kit::color::on_fill(s.t.selection),
+            )
+            .align(Align2::CENTER_CENTER),
             s.tk(),
         );
     });
@@ -129,7 +143,12 @@ fn step(ui: &mut Ui, n: u32, key: &str) {
 fn cards(app: &mut CantusApp, ui: &mut Ui) {
     let s = Style::current();
     let k = s.k;
-    let list = app.audio_setup.scan.as_ref().map(|s| s.interfaces.clone()).unwrap_or_default();
+    let list = app
+        .audio_setup
+        .scan
+        .as_ref()
+        .map(|s| s.interfaces.clone())
+        .unwrap_or_default();
     if list.is_empty() {
         let key = if app.audio_setup.is_scanning() || app.audio_setup.scan.is_none() {
             "devices.scanning"
@@ -141,14 +160,20 @@ fn cards(app: &mut CantusApp, ui: &mut Ui) {
     }
     let current = setup::current_key(app);
     let gap = 10.0 * k;
-    let per_row = ((ui.available_width() + gap) / (CARD.x * k + gap)).floor().max(1.0) as usize;
+    let per_row = ((ui.available_width() + gap) / (CARD.x * k + gap))
+        .floor()
+        .max(1.0) as usize;
     let shown = list.len().min(per_row * 2);
     for row in 0..shown.div_ceil(per_row) {
-        let (rr, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), CARD.y * k), Sense::hover());
+        let (rr, _) =
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), CARD.y * k), Sense::hover());
         for c in 0..per_row {
             let i = row * per_row + c;
             let Some(iface) = list.get(i) else { break };
-            let r = Rect::from_min_size(Pos2::new(rr.left() + c as f32 * (CARD.x * k + gap), rr.top()), CARD * k);
+            let r = Rect::from_min_size(
+                Pos2::new(rr.left() + c as f32 * (CARD.x * k + gap), rr.top()),
+                CARD * k,
+            );
             let resp = ui.interact(r, Id::new(("audio-card", i)), Sense::click());
             app.audio_setup.hit(ui.ctx(), Hit::Card(i), r);
             let lit = current.as_deref() == Some(iface.key.as_str());
@@ -175,7 +200,18 @@ fn card(ui: &Ui, r: Rect, iface: &interfaces::Interface, st: State) {
         sub.push_str(" · ASIO");
     }
     with_brush(ui.painter(), |b| {
-        b.register(r, "audio-card", &[Tok::PanelRaised, Tok::Well, Tok::Selection, Tok::Text, Tok::TextDim], &[]);
+        b.register(
+            r,
+            "audio-card",
+            &[
+                Tok::PanelRaised,
+                Tok::Well,
+                Tok::Selection,
+                Tok::Text,
+                Tok::TextDim,
+            ],
+            &[],
+        );
         let base = if st.lit {
             shade(s.t.panel_raised, 0.05)
         } else if st.hovered {
@@ -183,19 +219,58 @@ fn card(ui: &Ui, r: Rect, iface: &interfaces::Interface, st: State) {
         } else {
             s.t.panel_raised
         };
-        crate::kit::light::raised(b, r, s.r(6.0), base, crate::kit::light::RaisedOpts { k, depth: s.t.depth, drop: !st.lit, ..Default::default() });
-        let pic = Rect::from_min_size(r.min + Vec2::splat(6.0 * k), Vec2::new(r.width() - 12.0 * k, 66.0 * k));
+        crate::kit::light::raised(
+            b,
+            r,
+            s.r(6.0),
+            base,
+            crate::kit::light::RaisedOpts {
+                k,
+                depth: s.t.depth,
+                drop: !st.lit,
+                ..Default::default()
+            },
+        );
+        let pic = Rect::from_min_size(
+            r.min + Vec2::splat(6.0 * k),
+            Vec2::new(r.width() - 12.0 * k, 66.0 * k),
+        );
         b.rrect(pic, s.r(4.0), Fill::V(shade(s.t.well, 0.03), s.t.well));
         super::audio_art::paint(b, pic.shrink(7.0 * k), &s, iface.kind, st.lit);
-        let name = Rect::from_min_max(Pos2::new(r.left() + 10.0 * k, pic.bottom() + 4.0 * k), Pos2::new(r.right() - 10.0 * k, pic.bottom() + 24.0 * k));
-        let _ = text::paint(b, name, &Text::new(&iface.key, Role::Body, s.t.text).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::Middle)), s.tk());
-        let line = Rect::from_min_max(Pos2::new(r.left() + 10.0 * k, name.bottom()), Pos2::new(r.right() - 10.0 * k, r.bottom() - 6.0 * k));
-        let _ = text::paint(b, line, &Text::new(&sub, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
+        let name = Rect::from_min_max(
+            Pos2::new(r.left() + 10.0 * k, pic.bottom() + 4.0 * k),
+            Pos2::new(r.right() - 10.0 * k, pic.bottom() + 24.0 * k),
+        );
+        let _ = text::paint(
+            b,
+            name,
+            &Text::new(&iface.key, Role::Body, s.t.text)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::Middle)),
+            s.tk(),
+        );
+        let line = Rect::from_min_max(
+            Pos2::new(r.left() + 10.0 * k, name.bottom()),
+            Pos2::new(r.right() - 10.0 * k, r.bottom() - 6.0 * k),
+        );
+        let _ = text::paint(
+            b,
+            line,
+            &Text::new(&sub, Role::Label, s.t.text_dim)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
         if st.lit {
             b.rrect_stroke(r, s.r(6.0), 2.0 * k, s.t.selection);
             let c = Pos2::new(r.right() - 14.0 * k, r.top() + 14.0 * k);
             b.circle(c, 8.0 * k, Fill::Solid(s.t.selection));
-            glyph::paint(b, Rect::from_center_size(c, Vec2::splat(10.0 * k)), Glyph::Check, crate::kit::color::on_fill(s.t.selection));
+            glyph::paint(
+                b,
+                Rect::from_center_size(c, Vec2::splat(10.0 * k)),
+                Glyph::Check,
+                crate::kit::color::on_fill(s.t.selection),
+            );
         }
     });
 }
@@ -205,7 +280,11 @@ fn listen(app: &mut CantusApp, ui: &mut Ui) {
     let s = Style::current();
     let on = app.audio_setup.tone.is_some();
     ui.horizontal(|ui| {
-        let label = if on { t("devices.tone.stop") } else { t("devices.tone.play") };
+        let label = if on {
+            t("devices.tone.stop")
+        } else {
+            t("devices.tone.play")
+        };
         let r = parts::button(ui, &label, on, true, 140.0);
         app.audio_setup.hit(ui.ctx(), Hit::FirstTone, r.rect);
         if r.clicked() {
@@ -214,7 +293,11 @@ fn listen(app: &mut CantusApp, ui: &mut Ui) {
                 fr.tone = !on;
             }
         }
-        let hint = if on { t("devices.first.tone_on") } else { t("devices.first.tone_hint") };
+        let hint = if on {
+            t("devices.first.tone_on")
+        } else {
+            t("devices.first.tone_hint")
+        };
         parts::paragraph(ui, &hint, Role::Body, s.t.text_dim);
     });
 }
@@ -223,7 +306,9 @@ fn listen(app: &mut CantusApp, ui: &mut Ui) {
 fn meters(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     let s = Style::current();
     let k = s.k;
-    let Some(fr) = app.audio_setup.first_run.clone() else { return };
+    let Some(fr) = app.audio_setup.first_run.clone() else {
+        return;
+    };
     if live.in_channels == 0 {
         super::workspace_settings::note(ui, &t("devices.first.no_inputs"), true);
         return;
@@ -234,7 +319,10 @@ fn meters(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     let wdt = ui.available_width();
     let col_w = (wdt - 16.0 * k * (cols as f32 - 1.0)) / cols as f32;
     let row_h = 18.0 * k;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(wdt, per_col as f32 * (row_h + 4.0 * k)), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(
+        Vec2::new(wdt, per_col as f32 * (row_h + 4.0 * k)),
+        Sense::hover(),
+    );
     with_brush(ui.painter(), |b| {
         for c in 0..n {
             let (col, row) = (c / per_col, c % per_col);
@@ -247,8 +335,18 @@ fn meters(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
             }
             let heard = fr.heard == Some(c);
             let ink = if heard { s.t.text } else { s.t.text_dim };
-            let _ = text::paint(b, label, &Text::new(&name, Role::Label, ink).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
-            let bar = Rect::from_min_max(Pos2::new(label.right() + 6.0 * k, y + 3.0 * k), Pos2::new(x + col_w, y + row_h - 3.0 * k));
+            let _ = text::paint(
+                b,
+                label,
+                &Text::new(&name, Role::Label, ink)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+            let bar = Rect::from_min_max(
+                Pos2::new(label.right() + 6.0 * k, y + 3.0 * k),
+                Pos2::new(x + col_w, y + row_h - 3.0 * k),
+            );
             let lvl = parts::db(live.peaks.get(c).copied().unwrap_or(0.0));
             parts::level_bar(b, bar, &s, lvl, fr.hold.get(c).copied().unwrap_or(MIN_DB));
         }
@@ -270,7 +368,12 @@ fn meters(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
 fn latency_step(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     let s = Style::current();
     let rate = if live.rate > 0.0 { live.rate } else { 48_000.0 };
-    let block = app.settings.audio.buffer_frames.unwrap_or(live.block).max(1);
+    let block = app
+        .settings
+        .audio
+        .buffer_frames
+        .unwrap_or(live.block)
+        .max(1);
     let mut ms = String::new();
     latency::fmt_ms(setup::estimate_ms(live, block), &mut ms);
     let feel = match latency::feel(setup::estimate_ms(live, block)) {
@@ -281,16 +384,54 @@ fn latency_step(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     let line = if live.live {
         tf(
             "devices.first.chosen",
-            &[("driver", &live.driver), ("buffer", &block), ("rate", &latency::short_rate(rate as u32)), ("ms", &ms), ("feel", &feel)],
+            &[
+                ("driver", &live.driver),
+                ("buffer", &block),
+                ("rate", &latency::short_rate(rate as u32)),
+                ("ms", &ms),
+                ("feel", &feel),
+            ],
         )
     } else {
         t("devices.chip.none")
     };
     parts::paragraph(ui, &line, Role::Body, s.t.text);
-    let measure = app.audio_setup.first_run.as_ref().map(|f| f.measure.clone()).unwrap_or_default();
+    // No ASIO driver yet (or this build cannot use one): the way to lower latency.
+    let no_asio = app
+        .audio_setup
+        .scan
+        .as_ref()
+        .is_some_and(|sc| sc.asio.is_empty())
+        || !cantus_engine::devices::ASIO_BUILT;
+    if no_asio || !live.driver.eq_ignore_ascii_case("ASIO") {
+        ui.horizontal(|ui| {
+            let r = parts::button(ui, &t("devices.drivers.get"), false, true, 0.0);
+            app.audio_setup.hit(ui.ctx(), Hit::GetDriver, r.rect);
+            if r.clicked() {
+                app.audio_setup.drivers = true;
+                app.audio_setup.request_scan();
+            }
+            let hint = if no_asio {
+                t("devices.drivers.first_hint")
+            } else {
+                t("devices.drivers.first_hint_some")
+            };
+            parts::paragraph(ui, &hint, Role::Label, s.t.text_dim);
+        });
+    }
+    let measure = app
+        .audio_setup
+        .first_run
+        .as_ref()
+        .map(|f| f.measure.clone())
+        .unwrap_or_default();
     ui.horizontal(|ui| {
         let running = measure == Measure::Running;
-        let label = if running { t("devices.measuring") } else { t("devices.first.measure") };
+        let label = if running {
+            t("devices.measuring")
+        } else {
+            t("devices.first.measure")
+        };
         let r = parts::button(ui, &label, false, live.live && !running, 150.0);
         app.audio_setup.hit(ui.ctx(), Hit::FirstMeasure, r.rect);
         if r.clicked() {
@@ -298,7 +439,13 @@ fn latency_step(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
         }
         let (text, warn) = match &measure {
             Measure::Done(r) => (
-                tf("devices.first.measured", &[("offset", &format!("{:+}", r.offset)), ("ms", &format!("{:.1}", r.round_trip as f64 / rate * 1000.0))]),
+                tf(
+                    "devices.first.measured",
+                    &[
+                        ("offset", &format!("{:+}", r.offset)),
+                        ("ms", &format!("{:.1}", r.round_trip as f64 / rate * 1000.0)),
+                    ],
+                ),
                 false,
             ),
             Measure::Failed(e) => (t(e.key()), true),
@@ -353,9 +500,19 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, r: Rect) {
     let s = Style::current();
     let k = s.k;
     with_brush(ui.painter(), |b| {
-        b.hline(r.left(), r.right(), r.top() - 6.0 * k, b.px(), shade(s.t.panel, -0.14));
+        b.hline(
+            r.left(),
+            r.right(),
+            r.top() - 6.0 * k,
+            b.px(),
+            shade(s.t.panel, -0.14),
+        );
     });
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(r)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
     let skip = parts::button(&mut child, &t("devices.first.skip"), false, true, 90.0);
     app.audio_setup.hit(child.ctx(), Hit::FirstSkip, skip.rect);
     if skip.clicked() {
@@ -363,7 +520,11 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, r: Rect) {
         return;
     }
     let heard = app.audio_setup.first_run.as_ref().and_then(|f| f.heard);
-    let mut right = child.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::right_to_left(egui::Align::Center)));
+    let mut right = child.new_child(
+        egui::UiBuilder::new()
+            .max_rect(r)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
     let label = match heard {
         Some(c) => {
             let mut name = String::new();

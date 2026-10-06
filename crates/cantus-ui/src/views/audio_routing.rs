@@ -49,16 +49,24 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .frame(egui::Frame::NONE)
         .resizable(false)
         .fixed_size(size)
-        .default_pos(Pos2::new(screen.center().x - size.x * 0.5, screen.top() + 70.0))
+        .default_pos(Pos2::new(
+            screen.center().x - size.x * 0.5,
+            screen.top() + 70.0,
+        ))
         .constrain(true)
         .show(ctx, |ui| {
             let rect = Rect::from_min_size(ui.max_rect().min, size);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * k));
-            if super::workspace_settings::title(ui, head, &s, Glyph::Send, "devices.routing.title") {
+            if super::workspace_settings::title(ui, head, &s, Glyph::Send, "devices.routing.title")
+            {
                 open = false;
             }
-            app.audio_setup.hit(ui.ctx(), Hit::Close, Rect::from_min_max(Pos2::new(head.right() - 36.0 * k, head.top()), head.max));
+            app.audio_setup.hit(
+                ui.ctx(),
+                Hit::Close,
+                Rect::from_min_max(Pos2::new(head.right() - 36.0 * k, head.top()), head.max),
+            );
             let body = Rect::from_min_max(
                 Pos2::new(rect.left() + 14.0 * k, head.bottom() + 8.0 * k),
                 Pos2::new(rect.right() - 8.0 * k, rect.bottom() - 10.0 * k),
@@ -91,11 +99,19 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     let outs = live.out_channels.max(2);
     let pairs: Vec<usize> = (0..outs).step_by(2).collect();
     let labels: Vec<String> = pairs.iter().map(|p| pair_label(*p, outs)).collect();
-    let mut prof = app.settings.audio_setup.profile(&key).cloned().unwrap_or_default();
+    let mut prof = app
+        .settings
+        .audio_setup
+        .profile(&key)
+        .cloned()
+        .unwrap_or_default();
     let before = prof.clone();
     let value_w = (ui.available_width() / s.k - LABEL_W - 10.0).clamp(160.0, 360.0);
     // The main pair.
-    let mut sel = pairs.iter().position(|p| *p == prof.main as usize).unwrap_or(0);
+    let mut sel = pairs
+        .iter()
+        .position(|p| *p == prof.main as usize)
+        .unwrap_or(0);
     let mut seg = Rect::NOTHING;
     ui.horizontal(|ui| {
         w::row_label(ui, "devices.routing.main", LABEL_W, 24.0);
@@ -103,22 +119,37 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
         seg = segmented(ui, &mut sel, &src, &t("devices.routing.main"), value_w).rect;
     });
     for (i, p) in pairs.iter().enumerate() {
-        app.audio_setup.hit(ui.ctx(), Hit::Main(*p as u16), crate::kit::segmented::segment(seg, pairs.len(), i));
+        app.audio_setup.hit(
+            ui.ctx(),
+            Hit::Main(*p as u16),
+            crate::kit::segmented::segment(seg, pairs.len(), i),
+        );
     }
     prof.main = pairs[sel.min(pairs.len() - 1)] as u16;
     // The cue: off, or a pair.
     let off = t("devices.routing.off");
     let mut cue_labels = vec![off.clone()];
     cue_labels.extend(labels.iter().cloned());
-    let mut sel = prof.cue.and_then(|c| pairs.iter().position(|p| *p == c as usize)).map_or(0, |i| i + 1);
+    let mut sel = prof
+        .cue
+        .and_then(|c| pairs.iter().position(|p| *p == c as usize))
+        .map_or(0, |i| i + 1);
     ui.horizontal(|ui| {
         w::row_label(ui, "devices.routing.cue", LABEL_W, 24.0);
         let src: Vec<Src<'_>> = cue_labels.iter().map(|l| Src::Str(l)).collect();
         seg = segmented(ui, &mut sel, &src, &t("devices.routing.cue"), value_w).rect;
     });
-    app.audio_setup.hit(ui.ctx(), Hit::Cue(None), crate::kit::segmented::segment(seg, cue_labels.len(), 0));
+    app.audio_setup.hit(
+        ui.ctx(),
+        Hit::Cue(None),
+        crate::kit::segmented::segment(seg, cue_labels.len(), 0),
+    );
     for (i, p) in pairs.iter().enumerate() {
-        app.audio_setup.hit(ui.ctx(), Hit::Cue(Some(*p as u16)), crate::kit::segmented::segment(seg, cue_labels.len(), i + 1));
+        app.audio_setup.hit(
+            ui.ctx(),
+            Hit::Cue(Some(*p as u16)),
+            crate::kit::segmented::segment(seg, cue_labels.len(), i + 1),
+        );
     }
     prof.cue = sel.checked_sub(1).map(|i| pairs[i] as u16);
     if prof.cue.is_some() {
@@ -145,7 +176,11 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
     // The test tone, on any pair.
     let mut tone_labels = vec![off];
     tone_labels.extend(labels.iter().cloned());
-    let mut sel = app.audio_setup.tone.and_then(|c| pairs.iter().position(|p| *p == c as usize)).map_or(0, |i| i + 1);
+    let mut sel = app
+        .audio_setup
+        .tone
+        .and_then(|c| pairs.iter().position(|p| *p == c as usize))
+        .map_or(0, |i| i + 1);
     let was = sel;
     ui.horizontal(|ui| {
         w::row_label(ui, "devices.routing.tone", LABEL_W, 24.0);
@@ -178,10 +213,21 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
 }
 
 /// A channel: its number, its name in a field, its meter (inputs).
-fn name_row(app: &mut CantusApp, ui: &mut Ui, prof: &mut crate::audio_setup::memory::Profile, input: bool, c: usize, level: Option<f32>) {
+fn name_row(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    prof: &mut crate::audio_setup::memory::Profile,
+    input: bool,
+    c: usize,
+    level: Option<f32>,
+) {
     let s = Style::current();
     let k = s.k;
-    let list = if input { &mut prof.inputs } else { &mut prof.outputs };
+    let list = if input {
+        &mut prof.inputs
+    } else {
+        &mut prof.outputs
+    };
     let mut name = list.get(c).cloned().unwrap_or_default();
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(Vec2::new(LABEL_W * k, 24.0 * k), Sense::hover());
@@ -191,20 +237,41 @@ fn name_row(app: &mut CantusApp, ui: &mut Ui, prof: &mut crate::audio_setup::mem
             tf("devices.routing.out_n", &[("n", &(c + 1))])
         };
         with_brush(ui.painter(), |b| {
-            let _ = text::paint(b, r, &Text::new(&label, Role::Body, s.t.text_dim).align(Align2::RIGHT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
+            let _ = text::paint(
+                b,
+                r,
+                &Text::new(&label, Role::Body, s.t.text_dim)
+                    .align(Align2::RIGHT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
         });
-        let hint = if input { "devices.routing.name_in" } else { "devices.routing.name_out" };
+        let hint = if input {
+            "devices.routing.name_in"
+        } else {
+            "devices.routing.name_out"
+        };
         let resp = w::text_field(ui, &mut name, hint, 200.0);
-        let h = if input { Hit::InputName(c) } else { Hit::OutputName(c) };
+        let h = if input {
+            Hit::InputName(c)
+        } else {
+            Hit::OutputName(c)
+        };
         app.audio_setup.hit(ui.ctx(), h, resp.rect);
         if let Some(db) = level {
-            let (m, _) = ui.allocate_exact_size(Vec2::new((ui.available_width() - 8.0 * k).max(40.0 * k), 24.0 * k), Sense::hover());
+            let (m, _) = ui.allocate_exact_size(
+                Vec2::new((ui.available_width() - 8.0 * k).max(40.0 * k), 24.0 * k),
+                Sense::hover(),
+            );
             with_brush(ui.painter(), |b| {
                 parts::level_bar(b, m.shrink2(Vec2::new(0.0, 7.0 * k)), &s, db, MIN_DB);
             });
         }
     });
-    if list.get(c).map_or(!name.trim().is_empty(), |old| old.trim() != name.trim()) {
+    if list
+        .get(c)
+        .map_or(!name.trim().is_empty(), |old| old.trim() != name.trim())
+    {
         crate::audio_setup::memory::Profile::set_name(list, c, &name);
     }
 }

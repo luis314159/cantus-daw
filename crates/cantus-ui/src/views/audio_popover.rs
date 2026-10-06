@@ -28,18 +28,15 @@ pub const BUFFERS: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
 /// The rates offered, after *Auto*.
 const RATES: [u32; 4] = [44_100, 48_000, 88_200, 96_000];
 
-/// The driver names this interface can use: the system's own, and ASIO when this build
-/// has it and the interface has an ASIO driver.
-fn drivers(app: &CantusApp, key: Option<&str>) -> Vec<String> {
+/// The driver names on offer: the system's own, and ASIO when this build has it and an
+/// ASIO driver is installed (the interface's own, or a universal one: FlexASIO, ASIO4ALL).
+fn drivers(app: &CantusApp, _key: Option<&str>) -> Vec<String> {
     let scan = app.audio_setup.scan.as_ref();
     let system = scan
         .and_then(|s| s.drivers.iter().find(|d| d.is_default))
         .map_or_else(|| "WASAPI".to_string(), |d| d.name.clone());
     let mut v = vec![system];
-    let asio = scan.is_some_and(|s| s.has_driver("ASIO"))
-        && key
-            .and_then(|k| scan.and_then(|s| s.interface(k)))
-            .is_some_and(|i| i.has_asio());
+    let asio = scan.is_some_and(|s| s.has_driver("ASIO") && !s.asio.is_empty());
     if asio || app.settings.audio.driver.as_deref() == Some("ASIO") {
         v.push("ASIO".into());
     }
@@ -61,7 +58,17 @@ fn set_driver(app: &mut CantusApp, key: Option<&str>, name: &str) {
     let mut a = app.settings.audio.clone();
     if name.eq_ignore_ascii_case("ASIO") {
         a.driver = Some("ASIO".into());
-        a.device = iface.as_ref().and_then(|i| i.asio.clone()).or(a.device);
+        // The interface's own ASIO driver, else the first installed (FlexASIO, ASIO4ALL).
+        let first = app
+            .audio_setup
+            .scan
+            .as_ref()
+            .and_then(|s| s.asio.first().cloned());
+        a.device = iface
+            .as_ref()
+            .and_then(|i| i.asio.clone())
+            .or(first)
+            .or(a.device);
         a.input_device = None;
     } else {
         a.driver = None;
@@ -92,11 +99,16 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     let live = setup::live(app, false);
     let key = setup::current_key(app);
     let own = setup::own_input(app);
-    let n = app
-        .audio_setup
-        .dropouts
-        .within(std::time::Duration::from_secs(30), std::time::Instant::now());
-    let found = problems::diagnose(&live, app.audio_setup.plug.lost.as_deref(), own.as_deref(), n);
+    let n = app.audio_setup.dropouts.within(
+        std::time::Duration::from_secs(30),
+        std::time::Instant::now(),
+    );
+    let found = problems::diagnose(
+        &live,
+        app.audio_setup.plug.lost.as_deref(),
+        own.as_deref(),
+        n,
+    );
     let area = egui::Area::new(Id::new("cantus-audio-popover"))
         .order(egui::Order::Foreground)
         .pivot(Align2::RIGHT_BOTTOM)
@@ -130,7 +142,9 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     let pressed = ctx.input(|i| i.pointer.any_pressed());
     let at = ctx.input(|i| i.pointer.interact_pos());
     let inside = at.is_some_and(|p| {
-        pop.contains(p) || chip.is_some_and(|c| c.contains(p)) || list.is_some_and(|l| l.contains(p))
+        pop.contains(p)
+            || chip.is_some_and(|c| c.contains(p))
+            || list.is_some_and(|l| l.contains(p))
     });
     if (pressed && !inside) || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         app.audio_setup.popover = false;
@@ -142,7 +156,8 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
 fn header(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     let s = Style::current();
     let k = s.k;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 50.0 * k), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 50.0 * k), Sense::hover());
     let kind = key.map_or(interfaces::Kind::BuiltIn, interfaces::kind_of);
     let name = key.map_or_else(|| t("devices.chip.none"), str::to_string);
     let health = super::audio_chip::health(app);
@@ -166,17 +181,66 @@ fn header(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     };
     with_brush(ui.painter(), |b| {
         let pic = Rect::from_min_size(rect.min, Vec2::new(84.0 * k, rect.height()));
-        b.rrect(pic, s.r(5.0), Fill::V(crate::kit::color::shade(s.t.well, 0.02), s.t.well));
-        super::audio_art::paint(b, pic.shrink(6.0 * k), &s, kind, health != super::audio_chip::Health::Lost);
+        b.rrect(
+            pic,
+            s.r(5.0),
+            Fill::V(crate::kit::color::shade(s.t.well, 0.02), s.t.well),
+        );
+        super::audio_art::paint(
+            b,
+            pic.shrink(6.0 * k),
+            &s,
+            kind,
+            health != super::audio_chip::Health::Lost,
+        );
         let x = pic.right() + 12.0 * k;
         let state_w = 96.0 * k;
-        let title = Rect::from_min_max(Pos2::new(x, rect.top() + 4.0 * k), Pos2::new(rect.right() - state_w, rect.center().y + 2.0 * k));
-        let _ = text::paint(b, title, &Text::new(&name, Role::Title, s.t.text).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::Middle)), s.tk());
-        let line = Rect::from_min_max(Pos2::new(x, rect.center().y + 2.0 * k), Pos2::new(rect.right(), rect.bottom() - 4.0 * k));
-        let _ = text::paint(b, line, &Text::new(&sub, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
-        let sr = Rect::from_min_max(Pos2::new(rect.right() - state_w, title.top()), Pos2::new(rect.right(), title.bottom()));
-        if let Some(p) = text::paint(b, sr, &Text::new(&state, Role::Label, s.t.text).align(Align2::RIGHT_CENTER).policy(Policy::Elide(Elide::End)), s.tk()) {
-            led::paint(b, Pos2::new(p.rect.left() - 9.0 * k, sr.center().y), 9.0 * k, true, &s, health.tok(), Tok::Panel, 1.0);
+        let title = Rect::from_min_max(
+            Pos2::new(x, rect.top() + 4.0 * k),
+            Pos2::new(rect.right() - state_w, rect.center().y + 2.0 * k),
+        );
+        let _ = text::paint(
+            b,
+            title,
+            &Text::new(&name, Role::Title, s.t.text)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::Middle)),
+            s.tk(),
+        );
+        let line = Rect::from_min_max(
+            Pos2::new(x, rect.center().y + 2.0 * k),
+            Pos2::new(rect.right(), rect.bottom() - 4.0 * k),
+        );
+        let _ = text::paint(
+            b,
+            line,
+            &Text::new(&sub, Role::Label, s.t.text_dim)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
+        let sr = Rect::from_min_max(
+            Pos2::new(rect.right() - state_w, title.top()),
+            Pos2::new(rect.right(), title.bottom()),
+        );
+        if let Some(p) = text::paint(
+            b,
+            sr,
+            &Text::new(&state, Role::Label, s.t.text)
+                .align(Align2::RIGHT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        ) {
+            led::paint(
+                b,
+                Pos2::new(p.rect.left() - 9.0 * k, sr.center().y),
+                9.0 * k,
+                true,
+                &s,
+                health.tok(),
+                Tok::Panel,
+                1.0,
+            );
         }
     });
 }
@@ -190,22 +254,57 @@ fn problem(app: &mut CantusApp, ui: &mut Ui, i: usize, p: &problems::Problem, fi
     let g = parts::wrapped(ui.ctx(), &text, Role::Body, s.tk(), wdt - 40.0 * k, 4);
     let h = g.size().y + 16.0 * k + if fixes.is_empty() { 0.0 } else { 30.0 * k };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(wdt, h), Sense::hover());
-    let tone = if p.is_silent() { Tok::Danger } else { Tok::MeterHigh };
+    let tone = if p.is_silent() {
+        Tok::Danger
+    } else {
+        Tok::MeterHigh
+    };
     with_brush(ui.painter(), |b| {
-        b.register(rect, "audio-problem", &[Tok::Well, tone, Tok::Text], &[]);
-        b.rrect(rect, s.r(5.0), Fill::Solid(crate::kit::color::mix(s.t.well, s.t.get(tone), 0.10)));
-        b.rrect_stroke(rect, s.r(5.0), b.px(), crate::kit::color::with_alpha(s.t.get(tone), 0.6));
-        let edge = Rect::from_min_size(rect.min, Vec2::new(3.0 * k, rect.height())).shrink2(Vec2::new(0.0, 5.0 * k));
+        b.register(
+            rect,
+            "audio-problem",
+            &[Tok::Well, Tok::Text],
+            &[Some(tone)],
+        );
+        b.rrect(
+            rect,
+            s.r(5.0),
+            Fill::Solid(crate::kit::color::mix(s.t.well, s.t.get(tone), 0.10)),
+        );
+        b.rrect_stroke(
+            rect,
+            s.r(5.0),
+            b.px(),
+            crate::kit::color::with_alpha(s.t.get(tone), 0.6),
+        );
+        let edge = Rect::from_min_size(rect.min, Vec2::new(3.0 * k, rect.height()))
+            .shrink2(Vec2::new(0.0, 5.0 * k));
         b.rrect(edge, 1.5 * k, Fill::Solid(s.t.get(tone)));
-        let gr = Rect::from_min_size(rect.min + Vec2::new(12.0 * k, 9.0 * k), Vec2::splat(14.0 * k));
+        let gr = Rect::from_min_size(
+            rect.min + Vec2::new(12.0 * k, 9.0 * k),
+            Vec2::splat(14.0 * k),
+        );
         glyph::paint(b, gr, Glyph::Warning, s.t.get(tone));
-        b.text(Pos2::new(b.snap(rect.left() + 34.0 * k), b.snap(rect.top() + 8.0 * k)), g, s.t.text, 0.0);
+        b.text(
+            Pos2::new(b.snap(rect.left() + 34.0 * k), b.snap(rect.top() + 8.0 * k)),
+            g,
+            s.t.text,
+            0.0,
+        );
     });
     let mut x = rect.left() + 34.0 * k;
     for (j, f) in fixes.iter().enumerate() {
         let label = f.label();
-        let tw = text::measure(ui.ctx(), &Text::new(&label, Role::Control, s.t.text), s.tk()).x + 24.0 * k;
-        let r = Rect::from_min_size(Pos2::new(x, rect.bottom() - 30.0 * k), Vec2::new(tw.max(72.0 * k), 22.0 * k));
+        let tw = text::measure(
+            ui.ctx(),
+            &Text::new(&label, Role::Control, s.t.text),
+            s.tk(),
+        )
+        .x + 24.0 * k;
+        let r = Rect::from_min_size(
+            Pos2::new(x, rect.bottom() - 30.0 * k),
+            Vec2::new(tw.max(72.0 * k), 22.0 * k),
+        );
         x = r.right() + 6.0 * k;
         let resp = ui.interact(r, Id::new(("audio-fix", i, j)), Sense::click());
         parts::paint_button(ui, r, &resp, &label, j == 0, true);
@@ -251,22 +350,73 @@ fn rows(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     // The driver.
     let names = drivers(app, key);
     let now = driver_now(app, live);
-    let mut sel = names.iter().position(|d| d.eq_ignore_ascii_case(&now)).unwrap_or(0);
+    let mut sel = names
+        .iter()
+        .position(|d| d.eq_ignore_ascii_case(&now))
+        .unwrap_or(0);
     let before = sel;
     let mut seg = Rect::NOTHING;
+    let (mut get, mut open_drivers) = (None, false);
     row(ui, "devices.driver", 24.0, |ui| {
         let labels: Vec<text::Src<'_>> = names.iter().map(|n| text::Src::Str(n)).collect();
         let w = (90.0 * names.len() as f32).min(value_w);
         seg = crate::kit::widgets::segmented(ui, &mut sel, &labels, &t("devices.driver"), w).rect;
+        // Beside it, always: how to get a low-latency (ASIO) driver.
+        let r = parts::button(ui, &t("devices.drivers.get_short"), false, true, 0.0);
+        get = Some(r.rect);
+        if r.clicked() {
+            open_drivers = true;
+        }
     });
+    if let Some(r) = get {
+        app.audio_setup.hit(ui.ctx(), Hit::GetDriver, r);
+    }
+    if open_drivers {
+        app.audio_setup.drivers = true;
+        app.audio_setup.request_scan();
+    }
     for (i, n) in names.iter().enumerate() {
-        app.audio_setup.hit(ui.ctx(), Hit::Driver(n.clone()), segmented::segment(seg, names.len(), i));
+        app.audio_setup.hit(
+            ui.ctx(),
+            Hit::Driver(n.clone()),
+            segmented::segment(seg, names.len(), i),
+        );
     }
     if sel != before {
         set_driver(app, key, &names[sel]);
     }
-    // The input.
+    // On ASIO: which ASIO driver (they are listed by name; inputs are the driver's own).
     let asio = now.eq_ignore_ascii_case("ASIO");
+    if asio {
+        let name = app
+            .settings
+            .audio
+            .device
+            .clone()
+            .unwrap_or_else(|| live.device.clone());
+        let open = app.audio_setup.pop_list == Some(PopList::Asio);
+        let mut field = None;
+        row(ui, "devices.pop.asio_driver", 24.0, |ui| {
+            let (resp, c) = menu_field(
+                ui,
+                &name,
+                false,
+                open,
+                &t("devices.pop.asio_driver"),
+                value_w,
+            );
+            field = Some((resp.rect, c.open));
+        });
+        if let Some((r, clicked)) = field {
+            app.audio_setup.hit(ui.ctx(), Hit::AsioField, r);
+            if clicked {
+                app.audio_setup.list_at = r.left_bottom();
+                app.audio_setup.pop_list = if open { None } else { Some(PopList::Asio) };
+                app.audio_setup.request_scan();
+            }
+        }
+    }
+    // The input.
     let input = match app.settings.audio.input_device.as_deref() {
         _ if asio => tf("devices.pop.asio_input", &[("n", &live.in_channels)]),
         Some("") => t("devices.input.none"),
@@ -299,11 +449,17 @@ fn rows(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
     let mut seg = Rect::NOTHING;
     row(ui, "devices.pop.rate", 24.0, |ui| {
         let labels: Vec<text::Src<'_>> = rates.iter().map(|n| text::Src::Str(n)).collect();
-        seg = crate::kit::widgets::segmented(ui, &mut sel, &labels, &t("devices.pop.rate"), value_w).rect;
+        seg =
+            crate::kit::widgets::segmented(ui, &mut sel, &labels, &t("devices.pop.rate"), value_w)
+                .rect;
     });
     for i in 0..rates.len() {
         let r = if i == 0 { None } else { Some(RATES[i - 1]) };
-        app.audio_setup.hit(ui.ctx(), Hit::Rate(r), segmented::segment(seg, rates.len(), i));
+        app.audio_setup.hit(
+            ui.ctx(),
+            Hit::Rate(r),
+            segmented::segment(seg, rates.len(), i),
+        );
     }
     if sel != before {
         let mut a = app.settings.audio.clone();
@@ -325,7 +481,10 @@ fn buffers(app: &mut CantusApp, ui: &mut Ui, live: &Live) {
     let chosen = app.settings.audio.buffer_frames.unwrap_or(live.block);
     let mut pick = None;
     for (i, b) in BUFFERS.iter().enumerate() {
-        let r = Rect::from_min_size(Pos2::new(rect.left() + i as f32 * (kw + gap), rect.top()), Vec2::new(kw, rect.height()));
+        let r = Rect::from_min_size(
+            Pos2::new(rect.left() + i as f32 * (kw + gap), rect.top()),
+            Vec2::new(kw, rect.height()),
+        );
         let ms = setup::estimate_ms(live, *b);
         let mut cap = String::from("≈ ");
         latency::fmt_ms(ms, &mut cap);
@@ -335,10 +494,23 @@ fn buffers(app: &mut CantusApp, ui: &mut Ui, live: &Live) {
             latency::Feel::Fine => Tok::MeterHigh,
             latency::Feel::Loose => Tok::Danger,
         };
-        let resp = choice_key(ui, r, Id::new(("audio-buffer", *b)), &b.to_string(), &cap, Some(dot), chosen == *b);
+        let resp = choice_key(
+            ui,
+            r,
+            Id::new(("audio-buffer", *b)),
+            &b.to_string(),
+            &cap,
+            Some(dot),
+            chosen == *b,
+        );
         app.audio_setup.hit(ui.ctx(), Hit::Buffer(*b), r);
         if resp.hovered() {
-            crate::kit::hint::set_text(ui.ctx(), &tf("devices.pop.buffer_tip", &[("n", b), ("ms", &cap)]), "", crate::kit::hint::Caps::NONE);
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                &tf("devices.pop.buffer_tip", &[("n", b), ("ms", &cap)]),
+                "",
+                crate::kit::hint::Caps::NONE,
+            );
         }
         if resp.clicked() && chosen != *b {
             pick = Some(*b);
@@ -355,7 +527,11 @@ fn buffers(app: &mut CantusApp, ui: &mut Ui, live: &Live) {
         };
         line = tf(
             "devices.pop.measured",
-            &[("in", &f(live.latency.input)), ("out", &f(live.latency.output)), ("rt", &f(live.latency.round_trip()))],
+            &[
+                ("in", &f(live.latency.input)),
+                ("out", &f(live.latency.output)),
+                ("rt", &f(live.latency.round_trip())),
+            ],
         );
     }
     if !line.is_empty() {
@@ -374,7 +550,11 @@ fn footer(app: &mut CantusApp, ui: &mut Ui) {
     ui.add_space(2.0 * k);
     ui.horizontal(|ui| {
         let tone_on = app.audio_setup.tone.is_some();
-        let label = if tone_on { t("devices.tone.stop") } else { t("devices.tone.play") };
+        let label = if tone_on {
+            t("devices.tone.stop")
+        } else {
+            t("devices.tone.play")
+        };
         let r = parts::button(ui, &label, tone_on, true, 84.0);
         app.audio_setup.hit(ui.ctx(), Hit::Tone, r.rect);
         if r.clicked() {

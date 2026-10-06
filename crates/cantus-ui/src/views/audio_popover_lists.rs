@@ -24,6 +24,7 @@ fn kind_key(k: Kind) -> &'static str {
 enum Choice {
     Interface(String),
     Input(Option<String>),
+    Asio(String),
 }
 
 /// Draw the open list, if any.
@@ -52,6 +53,19 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
             }
             _ => labels.push((t("devices.scanning"), None, false, None)),
         },
+        PopList::Asio => {
+            let now = app.settings.audio.device.clone();
+            match &scan {
+                Some(sc) if !sc.asio.is_empty() => {
+                    for d in &sc.asio {
+                        let on = now.as_deref() == Some(d.as_str());
+                        labels.push((d.clone(), None, on, Some(Choice::Asio(d.clone()))));
+                    }
+                }
+                Some(_) => labels.push((t("devices.drivers.none_installed"), None, false, None)),
+                None => labels.push((t("devices.scanning"), None, false, None)),
+            }
+        }
         PopList::Input => {
             let now = app.settings.audio.input_device.clone();
             labels.push((
@@ -65,9 +79,18 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
                 .unwrap_or_default();
             let all: Vec<(String, u16)> = scan
                 .as_ref()
-                .map(|s| s.inputs.iter().map(|i| (i.name.clone(), i.channels)).collect())
+                .map(|s| {
+                    s.inputs
+                        .iter()
+                        .map(|i| (i.name.clone(), i.channels))
+                        .collect()
+                })
                 .unwrap_or_default();
-            let mut ordered: Vec<(String, u16)> = all.iter().filter(|(n, _)| own.contains(n)).cloned().collect();
+            let mut ordered: Vec<(String, u16)> = all
+                .iter()
+                .filter(|(n, _)| own.contains(n))
+                .cloned()
+                .collect();
             ordered.extend(all.iter().filter(|(n, _)| !own.contains(n)).cloned());
             for (n, ch) in ordered {
                 let side = (ch > 0).then(|| crate::i18n::tf("devices.channels", &[("n", &ch)]));
@@ -105,6 +128,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
         let h = match which {
             PopList::Interface => Hit::InterfaceRow(i),
             PopList::Input => Hit::InputRow(i),
+            PopList::Asio => Hit::AsioRow(i),
         };
         app.audio_setup.hit(ctx, h, r);
     }
@@ -117,6 +141,13 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
     app.audio_setup.pop_list = None;
     match labels.into_iter().nth(i).and_then(|l| l.3) {
         Some(Choice::Interface(k)) => setup::choose_interface(app, &k),
+        Some(Choice::Asio(name)) => {
+            let mut a = app.settings.audio.clone();
+            a.driver = Some("ASIO".into());
+            a.device = Some(name);
+            a.input_device = None;
+            setup::apply(app, a);
+        }
         Some(Choice::Input(name)) => {
             let mut a = app.settings.audio.clone();
             a.input_device = name;

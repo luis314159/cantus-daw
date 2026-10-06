@@ -57,7 +57,7 @@ pub fn feel(ms: f64) -> Feel {
 
 /// The rate printed short: 44 100 → "44.1 k", 48 000 → "48 k".
 pub fn short_rate(rate: u32) -> String {
-    if rate % 1000 == 0 {
+    if rate.is_multiple_of(1000) {
         format!("{} k", rate / 1000)
     } else {
         format!("{:.1} k", rate as f64 / 1000.0)

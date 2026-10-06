@@ -4,10 +4,9 @@
 
 mod support;
 
-use cantus_core::TrackInput;
 use cantus_engine::hotplug::{DeviceList, DeviceWatch};
 use cantus_ui::audio_setup::{self as setup, demo, problems, Hit, Notice};
-use cantus_ui::settings::{AudioSettings, Settings};
+
 use cantus_ui::CantusApp;
 use egui::{Pos2, Rect};
 
@@ -68,7 +67,10 @@ fn a_lost_interface_keeps_the_session_working_and_comes_back_by_itself() {
     let ctx = support::ctx();
     a.attach(&ctx);
     setup::plug::devices_changed(&mut a, devices(true));
-    assert!(a.audio_setup.notices.is_empty(), "the first list is the baseline");
+    assert!(
+        a.audio_setup.notices.is_empty(),
+        "the first list is the baseline"
+    );
     a.audio_setup.scan = Some(demo::scan(true));
     setup::plug::devices_changed(&mut a, devices(false));
     assert_eq!(a.audio_setup.plug.lost.as_deref(), Some(demo::UMC));
@@ -85,7 +87,11 @@ fn a_lost_interface_keeps_the_session_working_and_comes_back_by_itself() {
     let lost = a.audio_setup.plug.lost.clone();
     let found = problems::diagnose(&setup::live(&mut a, false), lost.as_deref(), None, 0);
     assert!(matches!(found[0].0, problems::Problem::Lost { .. }));
-    assert!(found[0].0.text().contains(demo::UMC), "said by name: {}", found[0].0.text());
+    assert!(
+        found[0].0.text().contains(demo::UMC),
+        "said by name: {}",
+        found[0].0.text()
+    );
     assert_eq!(found[0].1, vec![problems::Fix::UseDefault]);
     // Plugged back in: opened again with what it had, without asking.
     let before = a.audio_setup.applied.len();
@@ -94,7 +100,11 @@ fn a_lost_interface_keeps_the_session_working_and_comes_back_by_itself() {
     assert_eq!(a.settings.audio.device.as_deref(), Some(demo::UMC_OUT));
     assert_eq!(a.audio_setup.plug.lost, None);
     assert!(has(&a, &Notice::Reconnected(demo::UMC.into())));
-    assert!(!a.audio_setup.notices.iter().any(|(n, _)| matches!(n, Notice::Lost(_))));
+    assert!(!a
+        .audio_setup
+        .notices
+        .iter()
+        .any(|(n, _)| matches!(n, Notice::Lost(_))));
 }
 
 #[test]
@@ -127,7 +137,10 @@ fn a_new_interface_is_offered_and_one_click_switches_to_it() {
     assert!(a.audio_setup.notices.is_empty());
     plugged.store(true, std::sync::atomic::Ordering::Relaxed);
     wait(&mut a, &ctx, &|a| !a.audio_setup.notices.is_empty());
-    assert_eq!(a.audio_setup.notices[0].0, Notice::Connected(demo::UMC.into()));
+    assert_eq!(
+        a.audio_setup.notices[0].0,
+        Notice::Connected(demo::UMC.into())
+    );
     // The card's first button switches; the remembered UMC settings come back.
     a.audio_setup.scan = Some(demo::scan(true));
     click(&mut a, &ctx, Hit::Notice(0, 0));
@@ -151,8 +164,18 @@ fn problems_are_said_in_words_and_their_fix_is_one_click() {
     let own = setup::own_input(&a);
     let found = problems::diagnose(&setup::live(&mut a, false), None, own.as_deref(), 0);
     let (p, fixes) = &found[0];
-    assert_eq!(*p, problems::Problem::RateMismatch { input: 44_100, output: 48_000 });
-    assert!(p.text().contains("44.1") && p.text().contains("48"), "{}", p.text());
+    assert_eq!(
+        *p,
+        problems::Problem::RateMismatch {
+            input: 44_100,
+            output: 48_000
+        }
+    );
+    assert!(
+        p.text().contains("44.1") && p.text().contains("48"),
+        "{}",
+        p.text()
+    );
     assert_eq!(fixes[0], problems::Fix::RunAt(44_100));
     assert_eq!(fixes[1], problems::Fix::UseInput(demo::UMC_IN.into()));
     // The fixes through the popover's buttons.
@@ -174,7 +197,13 @@ fn problems_are_said_in_words_and_their_fix_is_one_click() {
     assert_eq!(f[0].1, vec![problems::Fix::RestartAudio]);
     assert!(f[0].0.is_silent());
     let f = problems::diagnose(&demo::live_on_umc(), None, None, 5);
-    assert_eq!(f[0].0, problems::Problem::Dropouts { count: 5, buffer: 128 });
+    assert_eq!(
+        f[0].0,
+        problems::Problem::Dropouts {
+            count: 5,
+            buffer: 128
+        }
+    );
     assert_eq!(f[0].1, vec![problems::Fix::RaiseBuffer(256)]);
     setup::fix(&mut a, &f[0].1[0]);
     assert_eq!(a.settings.audio.buffer_frames, Some(256));
@@ -188,9 +217,15 @@ fn problems_are_said_in_words_and_their_fix_is_one_click() {
             problems::Problem::Stalled { asio: false },
             problems::Problem::OpenFailed { error: "e".into() },
             problems::Problem::Busy { name: "X".into() },
-            problems::Problem::RateMismatch { input: 44_100, output: 48_000 },
+            problems::Problem::RateMismatch {
+                input: 44_100,
+                output: 48_000,
+            },
             problems::Problem::InputFailed { error: "e".into() },
-            problems::Problem::Dropouts { count: 3, buffer: 64 },
+            problems::Problem::Dropouts {
+                count: 3,
+                buffer: 64,
+            },
         ] {
             assert!(!p.text().starts_with("devices."), "{loc:?}: {}", p.text());
         }

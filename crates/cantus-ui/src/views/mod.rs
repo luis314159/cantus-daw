@@ -11,6 +11,7 @@ pub mod appearance_panels;
 pub mod arrangement;
 pub mod audio_art;
 pub mod audio_chip;
+pub mod audio_drivers;
 pub mod audio_firstrun;
 pub mod audio_notice;
 pub mod audio_parts;

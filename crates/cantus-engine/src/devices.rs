@@ -97,11 +97,18 @@ fn is_asio(host: &cpal::Host) -> bool {
     host.id().name().eq_ignore_ascii_case("ASIO")
 }
 
+/// The ASIO drivers installed, by name, whether or not this build can open them (the
+/// setup says so when it cannot). Read from the registry; no driver is loaded.
+///
 /// The ASIO drivers installed, by name, read from the registry where drivers register
 /// themselves (`HKLM\SOFTWARE\ASIO`) — without loading any. cpal's ASIO device list loads
 /// every driver in turn to read its channels; on this machine loading a driver whose
 /// interface is unplugged and then opening another crashed the process, and a scan must
 /// not load a driver while the engine holds one. The first is the default, as in cpal.
+pub fn installed_asio_drivers() -> Vec<String> {
+    asio_driver_names()
+}
+
 fn asio_driver_names() -> Vec<String> {
     #[cfg(windows)]
     {

@@ -48,12 +48,18 @@ fn routing(a: &mut CantusApp) {
     a.audio_setup.routing = true;
     let p = a.settings.audio_setup.profile_mut(demo::UMC);
     p.inputs = vec!["Guitar".into(), "Vocal mic".into()];
-    p.outputs = vec!["Monitors L".into(), "Monitors R".into(), "Phones L".into(), "Phones R".into()];
+    p.outputs = vec![
+        "Monitors L".into(),
+        "Monitors R".into(),
+        "Phones L".into(),
+        "Phones R".into(),
+    ];
     p.cue = Some(2);
     p.cue_db = -6.0;
 }
 fn notices(a: &mut CantusApp) {
-    a.audio_setup.notice(Notice::Connected("Scarlett 2i2 USB".into()));
+    a.audio_setup
+        .notice(Notice::Connected("Scarlett 2i2 USB".into()));
     a.audio_setup.notice(Notice::Reconnected(demo::UMC.into()));
 }
 
@@ -89,9 +95,14 @@ fn shoot(dir: &Path, dark: bool, name: &str, f: Setup, locale: Locale, zoom: f32
     let theme = if dark { "slate" } else { "paper" };
     let path = dir.join(format!("audio-{theme}-{name}.png"));
     let (w, h) = (1280.0, 760.0);
-    raster::shoot(&ctx, egui::vec2(w / zoom, h / zoom), zoom, 8, Some(&path), |root| {
-        app.frame(root)
-    });
+    raster::shoot(
+        &ctx,
+        egui::vec2(w / zoom, h / zoom),
+        zoom,
+        8,
+        Some(&path),
+        |root| app.frame(root),
+    );
     println!("{}", path.display());
 }
 

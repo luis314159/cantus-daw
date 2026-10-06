@@ -94,8 +94,8 @@ fn words(s: &str) -> Vec<String> {
 
 /// Words that say nothing about which interface a driver is for.
 const GENERIC: &[&str] = &[
-    "asio", "driver", "usb", "audio", "the", "x64", "64", "32", "bit", "device", "pro",
-    "hd", "2", "0", "v2", "r",
+    "asio", "driver", "usb", "audio", "the", "x64", "64", "32", "bit", "device", "pro", "hd", "2",
+    "0", "v2", "r",
 ];
 
 fn any_word(name: &str, list: &[&str]) -> bool {
@@ -107,8 +107,17 @@ fn any_word(name: &str, list: &[&str]) -> bool {
 /// What kind of thing a device name describes.
 pub fn kind_of(name: &str) -> Kind {
     let n = name.to_lowercase();
-    if any_word(name, &["asio4all", "flexasio", "voicemeeter", "vb", "cable", "virtual"])
-        || n.contains("steam streaming")
+    if any_word(
+        name,
+        &[
+            "asio4all",
+            "flexasio",
+            "voicemeeter",
+            "vb",
+            "cable",
+            "virtual",
+        ],
+    ) || n.contains("steam streaming")
         || n.contains("vb-audio")
     {
         Kind::Virtual
@@ -119,7 +128,15 @@ pub fn kind_of(name: &str) -> Kind {
         Kind::Display
     } else if any_word(
         name,
-        &["bluetooth", "headset", "headphones", "airpods", "hands", "buds", "wh"],
+        &[
+            "bluetooth",
+            "headset",
+            "headphones",
+            "airpods",
+            "hands",
+            "buds",
+            "wh",
+        ],
     ) {
         Kind::Headphones
     } else if any_word(name, &["realtek", "conexant", "cirrus", "sst", "smart"])
@@ -139,7 +156,10 @@ pub fn asio_matches(driver: &str, adapter: &str) -> bool {
     words(driver)
         .into_iter()
         .filter(|w| w.len() >= 3 && !GENERIC.contains(&w.as_str()))
-        .any(|w| a.iter().any(|x| x.starts_with(&w) || w.starts_with(x.as_str()) && x.len() >= 3))
+        .any(|w| {
+            a.iter()
+                .any(|x| x.starts_with(&w) || w.starts_with(x.as_str()) && x.len() >= 3)
+        })
 }
 
 /// An endpoint's rank among its interface's: the main jacks first.
@@ -160,9 +180,17 @@ fn rank(endpoint: &str, output: bool) -> u8 {
 /// An ASIO driver no endpoint matches is an interface of its own (a wrapper driver, or an
 /// interface whose WASAPI side is disabled). Ordered: interfaces first, then the
 /// computer's own, then the rest; by name within each.
-pub fn group(outputs: &[String], inputs: &[String], asio: &[String]) -> Vec<Interface> {
+///
+/// `asio_only`: list ASIO drivers that match no endpoint as interfaces (only a build that
+/// can open ASIO wants them).
+pub fn group(
+    outputs: &[String],
+    inputs: &[String],
+    asio: &[String],
+    asio_only: bool,
+) -> Vec<Interface> {
     let mut v: Vec<Interface> = Vec::new();
-    let mut add = |endpoint: &String, output: bool, v: &mut Vec<Interface>| {
+    let add = |endpoint: &String, output: bool, v: &mut Vec<Interface>| {
         let key = adapter_of(endpoint);
         let i = match v.iter().position(|x| x.key == key) {
             Some(i) => i,
@@ -196,15 +224,20 @@ pub fn group(outputs: &[String], inputs: &[String], asio: &[String]) -> Vec<Inte
         x.outputs.sort_by_key(|e| (rank(e, true), e.clone()));
         x.inputs.sort_by_key(|e| (rank(e, false), e.clone()));
         // The endpoint's own words can say more than the adapter's ("Headphones (…)").
-        if x.kind == Kind::Interface && x.outputs.iter().all(|o| kind_of(o) == Kind::Headphones)
+        if x.kind == Kind::Interface
+            && x.outputs.iter().all(|o| kind_of(o) == Kind::Headphones)
             && !x.outputs.is_empty()
         {
             x.kind = Kind::Headphones;
         }
     }
     for d in asio {
-        match v.iter_mut().find(|x| x.asio.is_none() && asio_matches(d, &x.key)) {
+        match v
+            .iter_mut()
+            .find(|x| x.asio.is_none() && asio_matches(d, &x.key))
+        {
             Some(x) => x.asio = Some(d.clone()),
+            None if !asio_only => {}
             None => v.push(Interface {
                 key: d.clone(),
                 kind: kind_of(d),

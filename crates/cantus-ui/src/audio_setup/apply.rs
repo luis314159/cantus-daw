@@ -189,8 +189,7 @@ pub fn apply_routing(app: &mut CantusApp) {
         .and_then(|k| app.settings.audio_setup.profile(&k).cloned())
         .unwrap_or_default();
     app.engine.set_main_output(p.main);
-    app.engine
-        .set_cue_output(p.cue.map(|c| (c, p.cue_gain())));
+    app.engine.set_cue_output(p.cue.map(|c| (c, p.cue_gain())));
     app.engine.set_test_tone(app.audio_setup.tone);
     names::set_inputs(&p.inputs);
 }
@@ -288,7 +287,12 @@ pub fn tick(app: &mut CantusApp) {
 /// Put the interface's channel names where the input menus read them.
 pub fn sync_names(app: &mut CantusApp) {
     let names = current_key(app)
-        .and_then(|k| app.settings.audio_setup.profile(&k).map(|p| p.inputs.clone()))
+        .and_then(|k| {
+            app.settings
+                .audio_setup
+                .profile(&k)
+                .map(|p| p.inputs.clone())
+        })
         .unwrap_or_default();
     names::set_inputs(&names);
 }

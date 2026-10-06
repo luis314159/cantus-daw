@@ -50,21 +50,11 @@ impl Default for OutputRouting {
 }
 
 /// One reading of the routing, for one buffer.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Route {
     pub main: usize,
     pub cue: Option<(usize, f32)>,
     pub tone: Option<usize>,
-}
-
-impl Default for Route {
-    fn default() -> Self {
-        Route {
-            main: 0,
-            cue: None,
-            tone: None,
-        }
-    }
 }
 
 impl OutputRouting {
@@ -233,9 +223,11 @@ impl crate::backend::EngineHandle {
     pub fn device_lost(&self) -> bool {
         self.is_live()
             && (self.output_stalled()
-                || self.dev.telemetry.as_ref().is_some_and(|t| {
-                    t.stream_lost.load(std::sync::atomic::Ordering::Acquire)
-                }))
+                || self
+                    .dev
+                    .telemetry
+                    .as_ref()
+                    .is_some_and(|t| t.stream_lost.load(std::sync::atomic::Ordering::Acquire)))
     }
 
     /// Underruns and overruns the driver reported since the device opened.

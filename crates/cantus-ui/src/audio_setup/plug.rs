@@ -73,7 +73,10 @@ pub fn devices_changed(app: &mut CantusApp, list: DeviceList) {
     let now_keys = keys(&list);
     // The first list only sets the baseline — unless the interface remembered last is
     // missing from it, which is the same as losing it.
-    let before_keys = before.as_ref().map(keys).unwrap_or_else(|| now_keys.clone());
+    let before_keys = before
+        .as_ref()
+        .map(keys)
+        .unwrap_or_else(|| now_keys.clone());
     let current = super::current_key(app);
     // Rescan so the popover and the setup show what is there now.
     app.audio_setup.request_scan();
@@ -102,7 +105,9 @@ pub fn devices_changed(app: &mut CantusApp, list: DeviceList) {
         }
     }
     for k in now_keys.iter().filter(|k| !before_keys.contains(k)) {
-        if Some(k.as_str()) != current.as_deref() && interfaces::kind_of(k) != interfaces::Kind::Virtual {
+        if Some(k.as_str()) != current.as_deref()
+            && interfaces::kind_of(k) != interfaces::Kind::Virtual
+        {
             app.audio_setup.notice(Notice::Connected(k.clone()));
         }
     }

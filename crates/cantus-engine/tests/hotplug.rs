@@ -28,7 +28,10 @@ fn wait(w: &DeviceWatch) -> Option<DeviceList> {
 
 #[test]
 fn the_watcher_reports_the_first_list_then_only_changes() {
-    let laptop = list(&["Speakers (Realtek(R) Audio)"], &["Microphone (Realtek(R) Audio)"]);
+    let laptop = list(
+        &["Speakers (Realtek(R) Audio)"],
+        &["Microphone (Realtek(R) Audio)"],
+    );
     let plugged = list(
         &["Speakers (Realtek(R) Audio)", "Speakers (UMC204HD 192k)"],
         &["Microphone (Realtek(R) Audio)", "Line (UMC204HD 192k)"],

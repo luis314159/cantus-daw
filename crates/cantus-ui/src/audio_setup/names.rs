@@ -28,11 +28,7 @@ pub fn set_inputs(names: &[String]) {
 pub fn write_input(first: usize, stereo: bool, b: &mut String) -> bool {
     INPUTS.with(|n| {
         let n = n.borrow();
-        let get = |c: usize| {
-            n.get(c)
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-        };
+        let get = |c: usize| n.get(c).map(|s| s.trim()).filter(|s| !s.is_empty());
         match (get(first), stereo.then(|| get(first + 1)).flatten()) {
             (Some(a), None) => {
                 b.push_str(a);

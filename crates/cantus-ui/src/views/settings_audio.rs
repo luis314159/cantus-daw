@@ -240,13 +240,24 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         w::row_label(ui, "", LABEL_W, 24.0);
         let changed = p != app.settings.audio;
         if w::button(ui, Src::Key("settings.apply"), 90.0, changed).clicked() {
-            app.settings.audio = p.clone();
             app.settings_page.pending = None;
-            app.restart_audio();
+            // Applied as the popover applies: remembered for its interface (round 20).
+            crate::audio_setup::apply(app, p.clone());
             app.settings_page.audio.measure = Measure::Idle;
         }
         if w::button(ui, Src::Key("devices.rescan"), 0.0, true).clicked() {
             app.settings_page.audio.scan = Some(Scan::of(p.driver.as_deref()));
+        }
+    });
+    // Round 20: the guided setup and the channels page, one click from here too.
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 24.0);
+        if w::button(ui, Src::Key("devices.pop.assistant"), 0.0, true).clicked() {
+            app.show_settings = false;
+            crate::audio_setup::open_first_run(app);
+        }
+        if w::button(ui, Src::Key("devices.pop.routing"), 0.0, true).clicked() {
+            app.audio_setup.routing = true;
         }
     });
     let running = if f.live {

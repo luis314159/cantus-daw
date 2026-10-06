@@ -53,13 +53,7 @@ pub fn health(app: &CantusApp) -> Health {
     };
     if !live || lost || app.audio_setup.plug.lost.is_some() {
         Health::Lost
-    } else if input_bad
-        || app
-            .audio_setup
-            .dropouts
-            .within(Duration::from_secs(5), now)
-            > 0
-    {
+    } else if input_bad || app.audio_setup.dropouts.within(Duration::from_secs(5), now) > 0 {
         Health::Warn
     } else {
         Health::Good
@@ -121,7 +115,11 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
         }
     };
     let lost = lost || app.audio_setup.plug.lost.is_some();
-    let ms = if rate > 0.0 { rt as f64 / rate * 1000.0 } else { 0.0 };
+    let ms = if rate > 0.0 {
+        rt as f64 / rate * 1000.0
+    } else {
+        0.0
+    };
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
         let k = &c.key;
@@ -205,11 +203,26 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
     let open = app.audio_setup.popover;
     if resp.hovered() {
         let tip = t("devices.chip.tip");
-        CACHE.with(|c| hint::set_text(&ctx, &tip, &c.borrow().text, Caps { menu: true, ..Caps::NONE }));
+        CACHE.with(|c| {
+            hint::set_text(
+                &ctx,
+                &tip,
+                &c.borrow().text,
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
+            )
+        });
     }
     let st = State::of(&resp, open);
     with_brush(ui.painter(), |b| {
-        b.register(rect, "audio-chip", &[Tok::Panel, Tok::Text, Tok::TextDim, h.tok()], &[]);
+        b.register(
+            rect,
+            "audio-chip",
+            &[Tok::Panel, Tok::Text, Tok::TextDim],
+            &[Some(h.tok())],
+        );
         let base = if st.lit {
             shade(s.t.panel_raised, 0.07)
         } else if st.hovered {
@@ -233,7 +246,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
         if h == Health::Lost {
             // A red edge at the left: seen from the corner of the eye.
             let edge = Rect::from_min_size(rect.min, Vec2::new(s.s(3.0), rect.height()));
-            b.rrect(edge.shrink2(Vec2::new(0.0, s.s(3.0))), s.s(1.5), Fill::Solid(s.t.danger));
+            b.rrect(
+                edge.shrink2(Vec2::new(0.0, s.s(3.0))),
+                s.s(1.5),
+                Fill::Solid(s.t.danger),
+            );
         }
         let lamp = Pos2::new(rect.left() + s.s(12.0), rect.center().y);
         led::paint(b, lamp, s.s(8.0), true, &s, h.tok(), Tok::Panel, 1.0);
@@ -241,7 +258,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
             Pos2::new(rect.left() + s.s(22.0), rect.top()),
             Pos2::new(rect.right() - s.s(18.0), rect.bottom()),
         );
-        let ink = if h == Health::Lost { s.t.danger } else { s.t.text };
+        let ink = if h == Health::Lost {
+            s.t.danger
+        } else {
+            s.t.text
+        };
         CACHE.with(|c| {
             let c = c.borrow();
             let _ = text::paint(

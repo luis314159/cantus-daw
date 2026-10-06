@@ -7,9 +7,7 @@
 
 mod support;
 
-use cantus_core::TrackInput;
-use cantus_engine::hotplug::{DeviceList, DeviceWatch};
-use cantus_ui::audio_setup::{self as setup, demo, interfaces, problems, Hit, Notice};
+use cantus_ui::audio_setup::{self as setup, demo, interfaces, Hit};
 use cantus_ui::settings::{AudioSettings, Settings};
 use cantus_ui::CantusApp;
 use egui::{Pos2, Rect};
@@ -71,16 +69,31 @@ fn endpoints_group_into_interfaces_with_their_asio_driver() {
     let rt = s.interface("Realtek(R) Audio").unwrap();
     assert_eq!(rt.kind, interfaces::Kind::BuiltIn);
     assert_eq!(rt.asio.as_deref(), Some("Realtek ASIO"));
-    assert_eq!(s.interface("WH-1000XM4 Stereo").unwrap().kind, interfaces::Kind::Headphones);
+    assert_eq!(
+        s.interface("WH-1000XM4 Stereo").unwrap().kind,
+        interfaces::Kind::Headphones
+    );
     assert_eq!(
         s.interface("NVIDIA High Definition Audio").unwrap().kind,
         interfaces::Kind::Display
     );
-    assert_eq!(interfaces::adapter_of("Line (2- Focusrite USB Audio)"), "Focusrite USB Audio");
-    assert_eq!(interfaces::adapter_of("Speakers (Realtek(R) Audio)"), "Realtek(R) Audio");
+    assert_eq!(
+        interfaces::adapter_of("Line (2- Focusrite USB Audio)"),
+        "Focusrite USB Audio"
+    );
+    assert_eq!(
+        interfaces::adapter_of("Speakers (Realtek(R) Audio)"),
+        "Realtek(R) Audio"
+    );
     assert_eq!(interfaces::adapter_of("ASIO4ALL v2"), "ASIO4ALL v2");
-    assert!(interfaces::asio_matches("Focusrite USB ASIO", "Focusrite USB Audio"));
-    assert!(!interfaces::asio_matches("UMC ASIO Driver", "Realtek(R) Audio"));
+    assert!(interfaces::asio_matches(
+        "Focusrite USB ASIO",
+        "Focusrite USB Audio"
+    ));
+    assert!(!interfaces::asio_matches(
+        "UMC ASIO Driver",
+        "Realtek(R) Audio"
+    ));
     // The suggestion: ASIO for an interface when the build has it, never for the laptop.
     let with = interfaces::suggest(umc, true);
     assert_eq!(with.driver.as_deref(), Some("ASIO"));
@@ -90,7 +103,11 @@ fn endpoints_group_into_interfaces_with_their_asio_driver() {
     assert_eq!(without.driver, None);
     assert_eq!(without.device.as_deref(), Some(demo::UMC_OUT));
     assert_eq!(without.input_device.as_deref(), Some(demo::UMC_IN));
-    assert_eq!(interfaces::suggest(rt, true).driver, None, "Realtek's ASIO stalls");
+    assert_eq!(
+        interfaces::suggest(rt, true).driver,
+        None,
+        "Realtek's ASIO stalls"
+    );
 }
 
 #[test]
@@ -111,13 +128,17 @@ fn each_interface_remembers_its_settings_through_the_file() {
     p.inputs = vec!["Guitar".into(), "Mic".into()];
     p.cue = Some(2);
     p.cue_db = -6.0;
-    s.audio_setup.remember("Realtek(R) Audio", &AudioSettings::default());
+    s.audio_setup
+        .remember("Realtek(R) Audio", &AudioSettings::default());
     s.audio_setup.setup_done = true;
     s.save(&path).unwrap();
     let back = Settings::load(&path);
     assert_eq!(back, s);
     assert_eq!(back.audio_setup.recall(demo::UMC), Some(&umc));
-    assert_eq!(back.audio_setup.profile(demo::UMC).unwrap().input_name(0), Some("Guitar"));
+    assert_eq!(
+        back.audio_setup.profile(demo::UMC).unwrap().input_name(0),
+        Some("Guitar")
+    );
     assert_eq!(back.audio_setup.last.as_deref(), Some("Realtek(R) Audio"));
     // A file from before round 20: nothing remembered, the setup not done.
     std::fs::write(&path, r#"{"audio":{"device":"Speakers"}}"#).unwrap();
@@ -138,7 +159,11 @@ fn the_chip_opens_a_popover_that_switches_the_device_in_place() {
     assert_eq!(a.settings.audio.buffer_frames, Some(256));
     assert_eq!(a.audio_setup.applied.len(), 1, "applied once, in place");
     assert_eq!(
-        a.settings.audio_setup.recall(demo::UMC).unwrap().buffer_frames,
+        a.settings
+            .audio_setup
+            .recall(demo::UMC)
+            .unwrap()
+            .buffer_frames,
         Some(256)
     );
     assert!(a.audio_setup.popover, "it stays open for the next choice");
@@ -171,13 +196,17 @@ fn the_chip_opens_a_popover_that_switches_the_device_in_place() {
     assert_eq!(a.settings.audio.buffer_frames, Some(256));
     assert_eq!(a.settings.audio.sample_rate, Some(44_100));
     // Escape closes it.
-    run(&mut a, &ctx, vec![egui::Event::Key {
-        key: egui::Key::Escape,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Default::default(),
-    }]);
+    run(
+        &mut a,
+        &ctx,
+        vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Default::default(),
+        }],
+    );
     assert!(!a.audio_setup.popover);
 }
 
@@ -187,7 +216,10 @@ fn each_buffer_shows_its_round_trip_before_it_is_chosen() {
     // 330 frames measured at 128: 74 of overhead; 64 → 202 frames, 1024 → 2122.
     let ms = |b| setup::estimate_ms(&live, b);
     assert!((ms(64) - 202.0 / 48.0).abs() < 1e-9);
-    assert!((ms(128) - 330.0 / 48.0).abs() < 1e-9, "the running size reads as measured");
+    assert!(
+        (ms(128) - 330.0 / 48.0).abs() < 1e-9,
+        "the running size reads as measured"
+    );
     assert!((ms(1024) - 2122.0 / 48.0).abs() < 1e-9);
     assert!(ms(64) < ms(128) && ms(128) < ms(256));
 }

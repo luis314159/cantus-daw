@@ -65,7 +65,11 @@ fn a_first_time_musician_is_armed_on_the_guitar_in_three_clicks() {
     assert_eq!(a.settings.audio.device.as_deref(), Some(demo::UMC_OUT));
     assert_eq!(
         a.settings.audio.buffer_frames,
-        Some(if cantus_engine::devices::ASIO_BUILT { 128 } else { 256 }),
+        Some(if cantus_engine::devices::ASIO_BUILT {
+            128
+        } else {
+            256
+        }),
         "the suggestion"
     );
     // 2. The test tone.
@@ -79,12 +83,18 @@ fn a_first_time_musician_is_armed_on_the_guitar_in_three_clicks() {
     click(&mut a, &ctx, Hit::FirstDone);
     assert!(a.audio_setup.first_run.is_none(), "closed");
     assert_eq!(a.audio_setup.tone, None, "the tone stops with it");
-    assert!(a.settings.audio_setup.setup_done, "it does not open by itself again");
+    assert!(
+        a.settings.audio_setup.setup_done,
+        "it does not open by itself again"
+    );
     assert!(!a.show_settings, "Settings never opened");
     assert_eq!(a.project().tracks.len(), tracks + 1);
     let t = a.project().track(a.selected_track.unwrap()).unwrap();
     assert!(t.armed, "armed: the next thing is pressing record");
-    assert_eq!(t.input.as_ref().map(|i| (i.first, i.stereo)), Some((0, false)));
+    assert_eq!(
+        t.input.as_ref().map(|i| (i.first, i.stereo)),
+        Some((0, false))
+    );
     // One undo takes the track away.
     a.undo();
     assert_eq!(a.project().tracks.len(), tracks);
@@ -93,7 +103,10 @@ fn a_first_time_musician_is_armed_on_the_guitar_in_three_clicks() {
     setup::arm_first_run(&mut b);
     assert!(b.audio_setup.first_run.is_none());
     // Nor in an app built for tests (only the real start arms it).
-    assert!(support::app(cantus_ui::welcome_project()).audio_setup.first_run.is_none());
+    assert!(support::app(cantus_ui::welcome_project())
+        .audio_setup
+        .first_run
+        .is_none());
 }
 
 #[test]
