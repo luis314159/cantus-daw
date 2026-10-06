@@ -153,6 +153,24 @@ impl Svf {
         (v2, v1, x - c.k * v1 - v2)
     }
 
+    /// As [`Self::tick`], flushing both states only together: a detector's filter must come
+    /// to rest, and flushing one alone kicks the other into hovering at the threshold
+    /// (ADR 0031 §5.1). For detectors only: what it changes is under 10⁻²⁰, where their
+    /// followers flush to zero anyway, so no gain and no sample moves.
+    #[inline]
+    pub fn tick_joint(&mut self, c: &SvfCoefs, x: f32) -> (f32, f32, f32) {
+        let v3 = x - self.ic2;
+        let v1 = c.a1 * self.ic1 + c.a2 * v3;
+        let v2 = self.ic2 + c.a2 * self.ic1 + c.a3 * v3;
+        self.ic1 = 2.0 * v1 - self.ic1;
+        self.ic2 = 2.0 * v2 - self.ic2;
+        if self.ic1.abs() < 1e-20 && self.ic2.abs() < 1e-20 {
+            self.ic1 = 0.0;
+            self.ic2 = 0.0;
+        }
+        (v2, v1, x - c.k * v1 - v2)
+    }
+
     /// Empty, as `default()` makes it (ADR 0031 §5.1).
     #[inline]
     pub fn is_clear(&self) -> bool {

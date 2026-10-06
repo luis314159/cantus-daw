@@ -467,12 +467,12 @@ impl Detector {
         let mut v = x;
         if let Some(c) = self.hp_c {
             for s in &mut self.hp[ch] {
-                v = s.tick(&c, v).2;
+                v = s.tick_joint(&c, v).2;
             }
         }
         if let Some(c) = self.lp_c {
             for s in &mut self.lp[ch] {
-                v = s.tick(&c, v).0;
+                v = s.tick_joint(&c, v).0;
             }
         }
         v
