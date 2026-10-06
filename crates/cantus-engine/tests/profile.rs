@@ -46,7 +46,7 @@ fn rig(p: &Project, slow: &[EffectId], spin: Duration) -> Processor {
         };
         tx.push(EngineMessage::AddEffect(Box::new(unit))).unwrap();
     }
-    for unit in inst::units_for(&snap, 48_000.0, |_, _| false) {
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
         tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
     tx.push(EngineMessage::SetSnapshot(Arc::new(snap))).unwrap();
@@ -165,10 +165,12 @@ fn with_the_profiler_off_overruns_are_counted_but_nobody_is_blamed() {
     let mut p = busy();
     let slow = add_effect(&mut p, EffectKind::Gate);
     let mut proc = rig(&p, &[slow], Duration::from_millis(4));
+    // The rig's first block ran with the profiler on; what it blamed stays as it was.
+    let before = proc.stats().last_dropout;
     proc.set_profiling(false);
     play(&mut proc, 2, 128);
     let s = proc.stats();
     assert!(s.overruns >= 2);
-    assert_eq!(s.last_dropout, None);
+    assert_eq!(s.last_dropout, before, "nobody new is blamed");
     assert_eq!(s.histogram.count(), s.blocks_processed);
 }

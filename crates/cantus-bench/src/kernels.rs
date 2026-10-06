@@ -48,7 +48,15 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Compressor => set(&mut s, &[("os", 2.0), ("thr", -30.0), ("ratio", 8.0)]),
         EffectKind::Limiter => set(&mut s, &[("tp", 1.0), ("look", 5.0), ("dither", 3.0)]),
         EffectKind::Space => set(&mut s, &[("decay", 8.0), ("predelay", 120.0)]),
-        EffectKind::Multiband => set(&mut s, &[("mode", 2.0), ("slope", 48.0)]),
+        EffectKind::Multiband => {
+            // Four bands working, split in linear phase at the steepest slope.
+            set(&mut s, &[("mode", 2.0), ("slope", 48.0)]);
+            for (b, from) in [0.0f32, 200.0, 1_000.0, 5_000.0].into_iter().enumerate() {
+                for (field, v) in [("used", 1.0), ("from", from.max(20.0)), ("thr", -40.0)] {
+                    s.set(&format!("b{b}.{field}"), v);
+                }
+            }
+        }
         EffectKind::DeEsser => set(&mut s, &[("mode", 1.0), ("proc", 2.0), ("thr", -50.0)]),
         EffectKind::Gate => set(&mut s, &[("style", 5.0)]),
         EffectKind::Saturator => set(&mut s, &[("os", 3.0)]),

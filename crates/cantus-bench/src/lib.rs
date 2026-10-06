@@ -20,6 +20,7 @@
 //! per-function statistics and HTML reports answer a different question.
 
 pub mod compare;
+pub mod cpu;
 pub mod dawbench;
 pub mod kernels;
 pub mod report;

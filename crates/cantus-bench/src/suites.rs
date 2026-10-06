@@ -24,6 +24,7 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
         let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
         let blocks = (plan.session_seconds * SAMPLE_RATE / frames as f64).ceil() as usize;
         let (mut med, mut p99, mut load) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut cpu, mut share) = (Vec::new(), Vec::new());
         let mut voices = 0;
         for run in 0..plan.runs {
             let mut rig = Rig::new(&p, start, frames);
@@ -32,6 +33,8 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
             med.push(m);
             p99.push(quantile(&r.block_us, 0.99));
             load.push(m / r.budget_us() * 100.0);
+            cpu.extend(r.cpu_us_per_block());
+            share.extend(r.cpu_share_pct());
             voices = r.voices;
             if run == 0 && n == 64 && frames == 128 {
                 spots.extend(rig.hot_spots(&format!("s{n}.b{frames}"), 15));
@@ -58,6 +61,26 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
             )
             .ungated(),
         );
+        if !cpu.is_empty() {
+            let m = Metric::new(
+                format!("{id}.cpu"),
+                "µs/block",
+                Better::Lower,
+                Summary::of(&cpu),
+            )
+            .note("thread CPU time: the work without the waits for a core");
+            out.push(if gate { m } else { m.ungated() });
+            out.push(
+                Metric::new(
+                    format!("{id}.share"),
+                    "% of a core",
+                    Better::Higher,
+                    Summary::of(&share),
+                )
+                .ungated()
+                .note("100 % on an idle machine; less is the neighbours"),
+            );
+        }
         out.push(
             Metric::new(
                 format!("{id}.load"),
@@ -122,21 +145,31 @@ pub fn render_speed(plan: &Plan) -> Vec<Metric> {
             tail_seconds: 1.0,
             ..Default::default()
         };
-        let xrt: Vec<f64> = (0..plan.runs)
-            .map(|_| {
-                let t = Instant::now();
-                let r = render(snap.clone(), &opts).expect("renders");
-                let wall = t.elapsed().as_secs_f64();
-                std::hint::black_box(r.peak);
-                r.duration_seconds() / wall
-            })
-            .collect();
+        let (mut xrt, mut xrt_cpu) = (Vec::new(), Vec::new());
+        for _ in 0..plan.runs {
+            let (r, wall, cpu) = crate::cpu::timed(|| render(snap.clone(), &opts));
+            let r = r.expect("renders");
+            std::hint::black_box(r.peak);
+            xrt.push(r.duration_seconds() / wall);
+            xrt_cpu.extend(cpu.map(|c| r.duration_seconds() / c.max(1e-9)));
+        }
         out.push(Metric::new(
             format!("render.{name}.xrt"),
             "× real time",
             Better::Higher,
             Summary::of(&xrt),
         ));
+        if !xrt_cpu.is_empty() {
+            out.push(
+                Metric::new(
+                    format!("render.{name}.xrt_cpu"),
+                    "× real time",
+                    Better::Higher,
+                    Summary::of(&xrt_cpu),
+                )
+                .note("audio seconds per CPU second of the rendering thread"),
+            );
+        }
     }
     out
 }

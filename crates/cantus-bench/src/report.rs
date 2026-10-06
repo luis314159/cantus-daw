@@ -204,14 +204,14 @@ impl Report {
     /// The metrics as a Markdown table, those whose id starts with `prefix`.
     pub fn table(&self, prefix: &str) -> String {
         let mut s = String::from(
-            "| Metric | Median | p10 – p90 | Min – max | Unit | Runs | Gate |\n\
-             |---|---:|---:|---:|---|---:|:---:|\n",
+            "| Metric | Median | p10 – p90 | Min – max | Unit | Runs | Gate | Note |\n\
+             |---|---:|---:|---:|---|---:|:---:|---|\n",
         );
         for m in self.metrics.iter().filter(|m| m.id.starts_with(prefix)) {
             let x = &m.summary;
             let _ = writeln!(
                 s,
-                "| `{}` | {} | {} – {} | {} – {} | {} | {} | {} |",
+                "| `{}` | {} | {} – {} | {} – {} | {} | {} | {} | {} |",
                 m.id,
                 num(x.median),
                 num(x.p10),
@@ -220,7 +220,8 @@ impl Report {
                 num(x.max),
                 m.unit,
                 x.runs,
-                if m.gate { "✓" } else { "" }
+                if m.gate { "✓" } else { "" },
+                m.note
             );
         }
         s

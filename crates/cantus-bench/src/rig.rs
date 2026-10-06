@@ -37,6 +37,8 @@ pub struct Run {
     pub frames: usize,
     /// Voices sounding at the end (from the engine's stats).
     pub voices: usize,
+    /// The thread's CPU seconds over the timed blocks (`crate::cpu`), when the OS says.
+    pub cpu_seconds: Option<f64>,
 }
 
 impl Run {
@@ -52,6 +54,17 @@ impl Run {
 
     pub fn wall_seconds(&self) -> f64 {
         self.block_us.iter().sum::<f64>() / 1e6
+    }
+
+    /// CPU µs per block: the work, without the time spent waiting for a core.
+    pub fn cpu_us_per_block(&self) -> Option<f64> {
+        self.cpu_seconds
+            .map(|c| c * 1e6 / self.block_us.len().max(1) as f64)
+    }
+
+    /// The share of a core the run got, percent (100 on an idle machine).
+    pub fn cpu_share_pct(&self) -> Option<f64> {
+        self.cpu_seconds.map(|c| c / self.wall_seconds().max(1e-9) * 100.0)
     }
 }
 
@@ -131,11 +144,13 @@ impl Rig {
             self.block();
         }
         self.processor.profiler_mut().reset_totals();
-        let block_us = (0..blocks).map(|_| self.block()).collect();
+        let (block_us, _, cpu_seconds) =
+            crate::cpu::timed(|| (0..blocks).map(|_| self.block()).collect());
         Run {
             block_us,
             frames: self.frames,
             voices: self.processor.stats().active_voices,
+            cpu_seconds,
         }
     }
 
