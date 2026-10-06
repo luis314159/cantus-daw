@@ -1,0 +1,7 @@
+## 6. Scheduling alone: 256 tracks -> 128 buses -> master, nodes that do nothing
+workers | median us per block | ns per node | p99 us
+      0 |               19.70 |        51.2 |   24.2
+      1 |              119.40 |       310.1 |  134.5
+      2 |              147.10 |       382.1 |  166.4
+      3 |              176.10 |       457.4 |  216.9
+      4 |              203.00 |       527.3 |  241.7
