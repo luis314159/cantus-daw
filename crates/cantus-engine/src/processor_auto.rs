@@ -162,7 +162,10 @@ impl Processor {
                     .enumerate()
                     .filter(|(_, s)| s.id.is_some())
                     .find_map(|(si, s)| {
-                        s.effects.iter().position(|e| e.id == c.effect).map(|i| (si, i))
+                        s.effects
+                            .iter()
+                            .position(|e| e.id == c.effect)
+                            .map(|i| (si, i))
                     })
                     .or_else(|| {
                         self.master
@@ -292,7 +295,9 @@ impl Processor {
         }
         for c in rt.natives.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
-            if let (Some(&slot), Some(t)) = (self.track_to_slot.get(c.track), snap.tracks.get(c.track)) {
+            if let (Some(&slot), Some(t)) =
+                (self.track_to_slot.get(c.track), snap.tracks.get(c.track))
+            {
                 if let Some(u) = self.slots[slot].native.as_mut() {
                     u.unit.configure(&c.spec, &t.assets);
                 }

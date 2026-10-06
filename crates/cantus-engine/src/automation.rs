@@ -33,7 +33,10 @@ pub(crate) enum Dest {
     StripGain(usize),
     StripPan(usize),
     StripWidth(usize),
-    Send { strip: usize, to: usize },
+    Send {
+        strip: usize,
+        to: usize,
+    },
     MasterGain,
     MasterPan,
     MasterWidth,
@@ -126,26 +129,29 @@ impl Runtime {
                 AutoTarget::MasterPan => Some(Dest::MasterPan),
                 AutoTarget::MasterWidth => Some(Dest::MasterWidth),
                 AutoTarget::Effect { effect, key } => {
-                    snapshot.effect_slots().find(|e| e.id == *effect).map(|slot| {
-                        let i = match rt.effects.iter().position(|c| c.effect == *effect) {
-                            Some(i) => i,
-                            None => {
-                                rt.effects.push(FxCopy {
-                                    effect: *effect,
-                                    spec: slot.spec.clone(),
-                                    dirty: false,
-                                    at: None,
-                                });
-                                rt.effects.len() - 1
-                            }
-                        };
-                        // The key is in the copy from the start, so writing it later is
-                        // a write and never an insertion (which would allocate).
-                        let spec = &mut rt.effects[i].spec;
-                        let v = spec.get(key);
-                        spec.params.insert(key.clone(), v);
-                        Dest::Effect(i, key.clone())
-                    })
+                    snapshot
+                        .effect_slots()
+                        .find(|e| e.id == *effect)
+                        .map(|slot| {
+                            let i = match rt.effects.iter().position(|c| c.effect == *effect) {
+                                Some(i) => i,
+                                None => {
+                                    rt.effects.push(FxCopy {
+                                        effect: *effect,
+                                        spec: slot.spec.clone(),
+                                        dirty: false,
+                                        at: None,
+                                    });
+                                    rt.effects.len() - 1
+                                }
+                            };
+                            // The key is in the copy from the start, so writing it later is
+                            // a write and never an insertion (which would allocate).
+                            let spec = &mut rt.effects[i].spec;
+                            let v = spec.get(key);
+                            spec.params.insert(key.clone(), v);
+                            Dest::Effect(i, key.clone())
+                        })
                 }
                 AutoTarget::Instrument { track: t, key } => track(*t).and_then(|ti| {
                     let native = snapshot.tracks[ti].instrument.native()?;

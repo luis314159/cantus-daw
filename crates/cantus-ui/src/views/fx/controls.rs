@@ -271,7 +271,9 @@ impl<'a> Cell<'a> {
         )
         .pill;
         // The parameter's menu, where there is one; typing opens from it.
-        let choice = self.offer.and_then(|o| crate::kit::automate::menu(ui, &resp, o));
+        let choice = self
+            .offer
+            .and_then(|o| crate::kit::automate::menu(ui, &resp, o));
         let open = match self.offer {
             Some(_) => choice == Some(crate::kit::automate::Choice::Type),
             None => resp.secondary_clicked(),
@@ -280,7 +282,15 @@ impl<'a> Cell<'a> {
             v = self.default;
             done = true;
         }
-        if let Some(x) = typing_with(ui, &resp, pill, s, self.unit, |b| self.write(start, b), open) {
+        if let Some(x) = typing_with(
+            ui,
+            &resp,
+            pill,
+            s,
+            self.unit,
+            |b| self.write(start, b),
+            open,
+        ) {
             v = x;
             done = true;
         }

@@ -32,14 +32,14 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Automation (ADR 0027): control points, ramps, configured copies.
+#[path = "processor_auto.rs"]
+mod auto;
 #[path = "processor_master.rs"]
 mod master;
 /// Input, monitoring, recording and audio clips (ADR 0025).
 #[path = "processor_rec.rs"]
 mod rec;
-/// Automation (ADR 0027): control points, ramps, configured copies.
-#[path = "processor_auto.rs"]
-mod auto;
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
@@ -1855,7 +1855,15 @@ impl Processor {
                 let (gl, gr) = match self.auto.k0(self.transport.samples()) {
                     Some(k0)
                         if !muted
-                            && auto::ramp_strip(&self.auto, slot, &self.strips[slot], law, k0, l, r) =>
+                            && auto::ramp_strip(
+                                &self.auto,
+                                slot,
+                                &self.strips[slot],
+                                law,
+                                k0,
+                                l,
+                                r,
+                            ) =>
                     {
                         (1.0, 1.0)
                     }

@@ -28,15 +28,15 @@ mod audio;
 pub use audio::edit::CURVE_KEYS;
 pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
 
+/// Automation lanes and the curves in their clips (ADR 0027).
+#[path = "arrangement_auto.rs"]
+pub mod autolanes;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
-/// Automation lanes and the curves in their clips (ADR 0027).
-#[path = "arrangement_auto.rs"]
-pub mod autolanes;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
@@ -814,8 +814,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
     let pointer = ui
         .input(|i| i.pointer.hover_pos())
         .filter(|_| ui.rect_contains_pointer(clip));
-    let visible =
-        |row: &TrackRow| row.top + row.height + row.takes + row.auto > clip.top() && row.top < clip.bottom();
+    let visible = |row: &TrackRow| {
+        row.top + row.height + row.takes + row.auto > clip.top() && row.top < clip.bottom()
+    };
     let row_rect = |row: &TrackRow| {
         Rect::from_min_size(pos2(clip.left(), row.top), vec2(clip.width(), row.height))
     };
@@ -1344,26 +1345,25 @@ fn clips(
             let (dstart, dlen, drows) = v.preview(sel, r).unwrap_or((Ticks::ZERO, Ticks::ZERO, 0));
             // A clip being dragged across tracks takes the *target* row's shape: a
             // preview that kept its old height would be a lie about where it goes.
-            let target = if let Some(lane) =
-                autolanes::clip_row(auto_st, v.track_height, i, &here, clip)
-            {
-                // An automation clip: in its lane, which a drag never leaves (ADR 0027).
-                match lane {
-                    Some(r) => r,
-                    None => continue,
-                }
-            } else if clip.lane > 0 {
-                // A take lane's clip: drawn in its lane under the track, when shown.
-                match takes::lane_row(&here, clip.lane, v.track_height) {
-                    Some(r) => r,
-                    None => continue,
-                }
-            } else {
-                geo.rows
-                    .get((i as i32 + drows).clamp(0, n_rows - 1) as usize)
-                    .copied()
-                    .unwrap_or(here)
-            };
+            let target =
+                if let Some(lane) = autolanes::clip_row(auto_st, v.track_height, i, &here, clip) {
+                    // An automation clip: in its lane, which a drag never leaves (ADR 0027).
+                    match lane {
+                        Some(r) => r,
+                        None => continue,
+                    }
+                } else if clip.lane > 0 {
+                    // A take lane's clip: drawn in its lane under the track, when shown.
+                    match takes::lane_row(&here, clip.lane, v.track_height) {
+                        Some(r) => r,
+                        None => continue,
+                    }
+                } else {
+                    geo.rows
+                        .get((i as i32 + drows).clamp(0, n_rows - 1) as usize)
+                        .copied()
+                        .unwrap_or(here)
+                };
             if target.top + target.height < lanes.top() || target.top > lanes.bottom() {
                 continue;
             }
@@ -1439,7 +1439,11 @@ fn clips(
             };
             // An automation clip's body is its curve (ADR 0027).
             if clip.automation.is_some() {
-                let ground = if s.t.dark { s.t.row_black } else { s.t.row_white };
+                let ground = if s.t.dark {
+                    s.t.row_black
+                } else {
+                    s.t.row_white
+                };
                 autolanes::paint_body(
                     b,
                     auto_st,
@@ -1587,7 +1591,17 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             paint::lanes(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
             autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
-            clips(b, a, view, f.lanes, &mut scratch, &mut auto_st, pointer, press_origin, s)
+            clips(
+                b,
+                a,
+                view,
+                f.lanes,
+                &mut scratch,
+                &mut auto_st,
+                pointer,
+                press_origin,
+                s,
+            )
         })
     };
     app.arrangement.scratch = scratch;
@@ -1930,8 +1944,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 );
                 for clip in track.clips.iter().filter(|c| c.lane == 0) {
                     // Automation clips are picked in their lanes.
-                    let row = match autolanes::clip_row(&app.arrangement.auto, base, i, &r, clip)
-                    {
+                    let row = match autolanes::clip_row(&app.arrangement.auto, base, i, &r, clip) {
                         Some(Some(l)) => Rect::from_min_max(
                             pos2(rect.left(), l.top + 2.0),
                             pos2(rect.right(), l.top + l.height - 2.0),

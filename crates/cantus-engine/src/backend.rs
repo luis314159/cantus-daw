@@ -497,7 +497,9 @@ impl EngineHandle {
         }
         self.rec.snapshot = Some(snapshot.clone());
         // The automation's runtime first: the engine pairs it with the snapshot (ADR 0027).
-        self.send(EngineMessage::Automation(crate::automation::Runtime::build(&snapshot)));
+        self.send(EngineMessage::Automation(
+            crate::automation::Runtime::build(&snapshot),
+        ));
         self.send(EngineMessage::SetSnapshot(snapshot));
     }
 

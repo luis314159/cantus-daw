@@ -1220,7 +1220,16 @@ fn reveal(path: &std::path::Path) {
 /// A strip's (or the master's) automation rows: its volume, pan and width (ADR 0027).
 fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
     e.push(Entry::band("auto.menu.band"));
-    e.push(Entry::act(Label::Key("auto.track.volume"), Act::Automate(id, 0)));
-    e.push(Entry::act(Label::Key("auto.track.pan"), Act::Automate(id, 1)));
-    e.push(Entry::act(Label::Key("auto.strip.width"), Act::Automate(id, 2)));
+    e.push(Entry::act(
+        Label::Key("auto.track.volume"),
+        Act::Automate(id, 0),
+    ));
+    e.push(Entry::act(
+        Label::Key("auto.track.pan"),
+        Act::Automate(id, 1),
+    ));
+    e.push(Entry::act(
+        Label::Key("auto.strip.width"),
+        Act::Automate(id, 2),
+    ));
 }

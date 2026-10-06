@@ -457,8 +457,10 @@ fn run(
         let unit = make_unit(slot, sr as f32);
         tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
     }
-    tx.push(EngineMessage::Automation(crate::automation::Runtime::build(&snap)))
-        .ok();
+    tx.push(EngineMessage::Automation(
+        crate::automation::Runtime::build(&snap),
+    ))
+    .ok();
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     p.settle();
     while let Ok(ev) = rx.pop() {

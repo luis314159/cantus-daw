@@ -43,7 +43,14 @@ fn base_project() -> Project {
     p
 }
 
-fn add_auto(p: &mut Project, track: usize, target: AutoTarget, start: f64, len: f64, pts: Vec<AutoPoint>) {
+fn add_auto(
+    p: &mut Project,
+    track: usize,
+    target: AutoTarget,
+    start: f64,
+    len: f64,
+    pts: Vec<AutoPoint>,
+) {
     let c = p.make_automation_clip(
         "a",
         target,
@@ -61,8 +68,22 @@ fn automated_project() -> Project {
     let strip = p.tracks[0].strip.unwrap();
     let sat = p.strip(strip).unwrap().effects[0].id;
     let (lead, organ) = (p.tracks[0].id, p.tracks[1].id);
-    add_auto(&mut p, 0, AutoTarget::StripGain(strip), 0.5, 4.0, vec![pt(0.0, 0.3), pt(4.0, 0.8)]);
-    add_auto(&mut p, 0, AutoTarget::StripPan(strip), 1.0, 6.0, edit_lfo(6.0));
+    add_auto(
+        &mut p,
+        0,
+        AutoTarget::StripGain(strip),
+        0.5,
+        4.0,
+        vec![pt(0.0, 0.3), pt(4.0, 0.8)],
+    );
+    add_auto(
+        &mut p,
+        0,
+        AutoTarget::StripPan(strip),
+        1.0,
+        6.0,
+        edit_lfo(6.0),
+    );
     add_auto(
         &mut p,
         0,
@@ -100,9 +121,30 @@ fn automated_project() -> Project {
         5.0,
         steps,
     );
-    add_auto(&mut p, 1, AutoTarget::MasterWidth, 3.0, 2.0, vec![pt(0.0, 0.2), pt(2.0, 0.6)]);
-    add_auto(&mut p, 1, AutoTarget::MasterGain, 0.0, 8.0, vec![pt(0.0, 0.8), pt(8.0, 0.7)]);
-    add_auto(&mut p, 1, AutoTarget::TrackPan(organ), 2.0, 2.0, vec![pt(0.0, 0.5), pt(2.0, 0.0)]);
+    add_auto(
+        &mut p,
+        1,
+        AutoTarget::MasterWidth,
+        3.0,
+        2.0,
+        vec![pt(0.0, 0.2), pt(2.0, 0.6)],
+    );
+    add_auto(
+        &mut p,
+        1,
+        AutoTarget::MasterGain,
+        0.0,
+        8.0,
+        vec![pt(0.0, 0.8), pt(8.0, 0.7)],
+    );
+    add_auto(
+        &mut p,
+        1,
+        AutoTarget::TrackPan(organ),
+        2.0,
+        2.0,
+        vec![pt(0.0, 0.5), pt(2.0, 0.0)],
+    );
     p
 }
 
@@ -137,7 +179,14 @@ fn no_automation_muted_or_orphaned_renders_exactly_as_none() {
     // A muted clip and a clip whose effect is gone: the lanes are not there at all.
     let mut p = base_project();
     let strip = p.tracks[0].strip.unwrap();
-    add_auto(&mut p, 0, AutoTarget::StripGain(strip), 0.0, 4.0, vec![pt(0.0, 0.0)]);
+    add_auto(
+        &mut p,
+        0,
+        AutoTarget::StripGain(strip),
+        0.0,
+        4.0,
+        vec![pt(0.0, 0.0)],
+    );
     p.tracks[0].clips.last_mut().unwrap().muted = true;
     add_auto(
         &mut p,
@@ -167,7 +216,12 @@ fn automation_is_block_size_independent() {
     );
     for block in [1usize, 7, 16, 64, 333, 1024, 8192] {
         let r = render(s.clone(), &opts(block)).unwrap();
-        assert_null(&reference.samples, &r.samples, 0.0, &format!("block {block}"));
+        assert_null(
+            &reference.samples,
+            &r.samples,
+            0.0,
+            &format!("block {block}"),
+        );
     }
 }
 
@@ -220,10 +274,16 @@ fn a_ramp_on_a_fader_lands_the_gains_it_draws() {
     let strip = p.tracks[0].strip.unwrap();
     let reference = render(snap(&p), &opts(512)).unwrap();
     let minus6 = GAIN.pos(-6.0);
-    let mut pts = vec![pt(0.0, GAIN.pos(0.0)), pt(1.0, minus6), pt(2.0, minus6), pt(4.0, GAIN.pos(-20.0))];
+    let mut pts = vec![
+        pt(0.0, GAIN.pos(0.0)),
+        pt(1.0, minus6),
+        pt(2.0, minus6),
+        pt(4.0, GAIN.pos(-20.0)),
+    ];
     pts[0].shape = Shape::Hold;
     add_auto(&mut p, 0, AutoTarget::StripGain(strip), 0.0, 4.0, pts);
-    let lane = cantus_core::automation::compile::lane_for(&p, &AutoTarget::StripGain(strip)).unwrap();
+    let lane =
+        cantus_core::automation::compile::lane_for(&p, &AutoTarget::StripGain(strip)).unwrap();
     let r = render(snap(&p), &opts(512)).unwrap();
     let tps = p.tempo_bpm * PPQ as f64 / (60.0 * SR);
     let mut checked = 0;
@@ -275,6 +335,10 @@ fn an_effect_parameter_follows_its_clip_and_only_from_its_start() {
     let start = (2.0 * 60.0 / p.tempo_bpm * SR) as usize;
     let c = compare(&plain.samples, &r.samples);
     let first = c.first_diff_index.expect("the drive is heard");
-    assert!(first / 2 >= start, "differs at frame {} before the clip at {start}", first / 2);
+    assert!(
+        first / 2 >= start,
+        "differs at frame {} before the clip at {start}",
+        first / 2
+    );
     assert!(peak(&r.samples) > 0.05);
 }

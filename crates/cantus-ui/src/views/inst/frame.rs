@@ -848,7 +848,9 @@ fn param(
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
-    let (r, choice) = p.format(move |v, b| write_readout(v, unit, b)).show_full(ui);
+    let (r, choice) = p
+        .format(move |v, b| write_readout(v, unit, b))
+        .show_full(ui);
     if choice == Some(crate::kit::automate::Choice::Automate) {
         app.automate(cantus_core::AutoTarget::Instrument {
             track,

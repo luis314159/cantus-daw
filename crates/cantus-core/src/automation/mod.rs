@@ -39,17 +39,29 @@ pub enum AutoTarget {
     StripPan(StripId),
     StripWidth(StripId),
     /// A strip's post-fader send into `to`.
-    Send { strip: StripId, to: StripId },
+    Send {
+        strip: StripId,
+        to: StripId,
+    },
     MasterGain,
     MasterPan,
     MasterWidth,
     /// One parameter of an insert, on a strip or on the master (the effect's host is
     /// found from its id: ids are unique in a project).
-    Effect { effect: EffectId, key: String },
+    Effect {
+        effect: EffectId,
+        key: String,
+    },
     /// One number of a track's native instrument (`NativeSpec` key).
-    Instrument { track: TrackId, key: String },
+    Instrument {
+        track: TrackId,
+        key: String,
+    },
     /// One parameter of Firmus, the built-in synth.
-    Firmus { track: TrackId, param: FirmusParam },
+    Firmus {
+        track: TrackId,
+        param: FirmusParam,
+    },
 }
 
 impl AutoTarget {

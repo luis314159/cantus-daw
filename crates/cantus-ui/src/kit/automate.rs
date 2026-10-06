@@ -33,29 +33,31 @@ pub enum Choice {
 /// The menu on a right-click of `resp`; the choice, the frame it is made.
 pub fn menu(ui: &Ui, resp: &Response, offer: Offer) -> Option<Choice> {
     let mut chosen = None;
-    egui::Popup::context_menu(resp)
-        .frame(frame())
-        .show(|ui| {
-            let mut items = vec![Item::action(Src::Key(if offer.automated {
-                "auto.param.open"
+    egui::Popup::context_menu(resp).frame(frame()).show(|ui| {
+        let mut items = vec![Item::action(Src::Key(if offer.automated {
+            "auto.param.open"
+        } else {
+            "auto.param.create"
+        }))];
+        let mut choices = vec![Choice::Automate];
+        if offer.typing {
+            items.push(Item::action(Src::Key("auto.param.type")));
+            choices.push(Choice::Type);
+        }
+        items.push(Item::Separator);
+        choices.push(Choice::Reset);
+        items.push(Item::action(Src::Key("auto.param.reset")));
+        if let Some(i) = super::widgets::menu_list(ui, &items, 220.0).1.clicked {
+            // The separator is not a choice: rows after it shift by one.
+            let k = if i >= items.len() - 1 {
+                choices.len() - 1
             } else {
-                "auto.param.create"
-            }))];
-            let mut choices = vec![Choice::Automate];
-            if offer.typing {
-                items.push(Item::action(Src::Key("auto.param.type")));
-                choices.push(Choice::Type);
-            }
-            items.push(Item::Separator);
-            choices.push(Choice::Reset);
-            items.push(Item::action(Src::Key("auto.param.reset")));
-            if let Some(i) = super::widgets::menu_list(ui, &items, 220.0).1.clicked {
-                // The separator is not a choice: rows after it shift by one.
-                let k = if i >= items.len() - 1 { choices.len() - 1 } else { i };
-                chosen = choices.get(k).copied();
-                ui.close();
-            }
-        });
+                i
+            };
+            chosen = choices.get(k).copied();
+            ui.close();
+        }
+    });
     let _ = ui;
     chosen
 }

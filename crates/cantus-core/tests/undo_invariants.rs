@@ -749,7 +749,9 @@ fn automation_command(rng: &mut Lcg, project: &mut Project) -> Command {
             match rng.below(4) {
                 0 => auto.points = random_points(rng),
                 // Out of range and out of order: refused, and nothing changes.
-                1 => auto.points = vec![AutoPoint::new(Ticks(9), 3.0), AutoPoint::new(Ticks(1), 0.5)],
+                1 => {
+                    auto.points = vec![AutoPoint::new(Ticks(9), 3.0), AutoPoint::new(Ticks(1), 0.5)]
+                }
                 2 => auto.target = AutoTarget::TrackPan(tid),
                 _ => {
                     return Command::SetClipAutomation {

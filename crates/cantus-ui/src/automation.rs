@@ -125,7 +125,10 @@ impl CantusApp {
         let (start, end) = self.automation_span();
         let pos = range.pos(value);
         let name = target_name(project, &target);
-        let points = vec![AutoPoint::new(Ticks::ZERO, pos), AutoPoint::new(end - start, pos)];
+        let points = vec![
+            AutoPoint::new(Ticks::ZERO, pos),
+            AutoPoint::new(end - start, pos),
+        ];
         let mut clip = self.bus.new_clip(name.clone(), start, end - start);
         clip.automation = Some(cantus_core::Automation::new(target, points));
         let id = clip.id;
@@ -133,7 +136,11 @@ impl CantusApp {
             track,
             clip: Box::new(clip),
         }];
-        if !self.project().track(track).is_some_and(|t| t.automation_open) {
+        if !self
+            .project()
+            .track(track)
+            .is_some_and(|t| t.automation_open)
+        {
             commands.push(Command::SetTrackAutomationOpen {
                 id: track,
                 open: true,
@@ -162,7 +169,11 @@ impl CantusApp {
             return (a, b);
         }
         let p = self.project();
-        if let Some(l) = p.loop_region.as_ref().filter(|l| p.loop_enabled && l.end > l.start) {
+        if let Some(l) = p
+            .loop_region
+            .as_ref()
+            .filter(|l| p.loop_enabled && l.end > l.start)
+        {
             return (l.start, l.end);
         }
         let bar = p.time_signature.ticks_per_bar().0.max(1);
@@ -173,7 +184,11 @@ impl CantusApp {
 
 /// The track an automation clip for `target` lives under: the track the parameter is
 /// on; for a strip, the first track feeding it; else the selected track, else the first.
-pub fn host_track(project: &Project, target: &AutoTarget, selected: Option<TrackId>) -> Option<TrackId> {
+pub fn host_track(
+    project: &Project,
+    target: &AutoTarget,
+    selected: Option<TrackId>,
+) -> Option<TrackId> {
     let feeding = |s: StripId| project.tracks_on_strip(s).next().map(|t| t.id);
     let own = match target {
         AutoTarget::TrackGain(t)
@@ -238,7 +253,11 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
         AutoTarget::StripPan(s) => (strip_name(project, *s), t("auto.target.pan")),
         AutoTarget::StripWidth(s) => (strip_name(project, *s), t("auto.target.width")),
         AutoTarget::Send { strip, to } => (
-            format!("{} \u{2192} {}", strip_name(project, *strip), strip_name(project, *to)),
+            format!(
+                "{} \u{2192} {}",
+                strip_name(project, *strip),
+                strip_name(project, *to)
+            ),
             t("auto.target.send"),
         ),
         AutoTarget::MasterGain => (t("kit.mixer.master"), t("auto.target.volume")),

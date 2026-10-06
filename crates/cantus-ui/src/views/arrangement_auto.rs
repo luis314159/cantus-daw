@@ -11,21 +11,23 @@
 //!
 //! The large editor, for everything else, is the piano roll's area (`auto_editor`).
 
-use crate::views::auto_curve::{self as curve, Frame};
 use super::{ticks_to_beats, TimelineGeometry, TrackRow};
 use crate::app::CantusApp;
 use crate::kit::color::{mix, shade, with_alpha};
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{Brush, Fill, Style, Tok};
+use crate::views::auto_curve::{self as curve, Frame};
 use crate::views::clips_chrome::Tint;
 use cantus_core::automation::edit;
-use cantus_core::{AutoPoint, AutoTarget, Automation, Clip, ClipId, Command, MergeKey, Ticks, Track, TrackId};
+use cantus_core::{
+    AutoPoint, AutoTarget, Automation, Clip, ClipId, Command, MergeKey, Ticks, Track, TrackId,
+};
 use egui::{pos2, Align2, Pos2, Rect, Sense};
 
 /// An automation lane's height at the base row height.
 pub(super) fn lane_height(base: f32) -> f32 {
-    (base * 0.9).round().max(24.0)
+    (base * 1.05).round().max(28.0)
 }
 
 /// How many lanes a track has: one per distinct target among its automation clips.
@@ -135,30 +137,54 @@ impl State {
 
 /// The lanes' ground: a darker band than the track's row, the base line of each lane, a
 /// hairline between lanes.
-pub(super) fn grounds(b: &mut Brush, st: &State, base: f32, geo: &TimelineGeometry, rect: Rect, s: &Style) {
+pub(super) fn grounds(
+    b: &mut Brush,
+    st: &State,
+    base: f32,
+    geo: &TimelineGeometry,
+    rect: Rect,
+    s: &Style,
+) {
     let t = &s.t;
     for (i, row) in geo.rows.iter().enumerate() {
         if row.auto <= 0.0 {
             continue;
         }
         for lane in 0..st.targets(i).len() {
-            let Some(r) = lane_row(row, lane, base) else { break };
+            let Some(r) = lane_row(row, lane, base) else {
+                break;
+            };
             if r.top > rect.bottom() || r.top + r.height < rect.top() {
                 continue;
             }
-            let band = Rect::from_min_max(pos2(rect.left(), r.top), pos2(rect.right(), r.top + r.height));
+            let band = Rect::from_min_max(
+                pos2(rect.left(), r.top),
+                pos2(rect.right(), r.top + r.height),
+            );
             b.register(band, "auto_lane", &[Tok::Ink, Tok::Grid], &[]);
             b.rect(
                 b.snap_rect(band),
                 Fill::Solid(with_alpha(t.ink, if t.dark { 0.30 } else { 0.07 })),
             );
-            b.hline(rect.left(), rect.right(), band.bottom() - 0.5 * b.px(), b.px(), t.grid);
+            b.hline(
+                rect.left(),
+                rect.right(),
+                band.bottom() - 0.5 * b.px(),
+                b.px(),
+                t.grid,
+            );
         }
     }
 }
 
 /// The lane a clip is drawn in, if it is an automation clip and its lanes are shown.
-pub(super) fn clip_row(st: &State, base: f32, track: usize, row: &TrackRow, clip: &Clip) -> Option<Option<TrackRow>> {
+pub(super) fn clip_row(
+    st: &State,
+    base: f32,
+    track: usize,
+    row: &TrackRow,
+    clip: &Clip,
+) -> Option<Option<TrackRow>> {
     let a = clip.automation.as_ref()?;
     let lane = st.lane_of(track, &a.target);
     Some(lane.and_then(|l| lane_row(row, l, base)))
@@ -183,7 +209,9 @@ pub(super) fn paint_body(
     pointer: Option<Pos2>,
     s: &Style,
 ) {
-    let Some(auto) = clip.automation.as_ref() else { return };
+    let Some(auto) = clip.automation.as_ref() else {
+        return;
+    };
     if inner.height() < 4.0 || inner.width() < 2.0 {
         return;
     }
@@ -220,10 +248,20 @@ pub(super) fn paint_body(
         let (ca, cb) = (rep - shift, rep_end - shift);
         st.pts.clear();
         curve::trace(auto, ca, cb, &f, 3.0, &mut st.pts);
-        curve::paint(b, &st.pts, inner.bottom(), curve::Ink::of(ink, 1.5 * s.k, s));
+        curve::paint(
+            b,
+            &st.pts,
+            inner.bottom(),
+            curve::Ink::of(ink, 1.5 * s.k, s),
+        );
         // Points, when they are far enough apart to be told apart.
         let span_px = (cb - ca).0 as f32 * px_per_tick;
-        let n = auto.points.iter().filter(|p| p.tick >= ca && p.tick < cb).count().max(1);
+        let n = auto
+            .points
+            .iter()
+            .filter(|p| p.tick >= ca && p.tick < cb)
+            .count()
+            .max(1);
         if inner.height() >= 16.0 * s.k && span_px / n as f32 >= 7.0 * s.k {
             let rad = 2.5 * s.k;
             let near = pointer.filter(|p| body.contains(*p));
@@ -278,45 +316,80 @@ pub(super) fn paint_headers(
     let project = app.project();
     let mut value = String::new();
     for (lane, target) in app.arrangement.auto.targets(i).iter().enumerate() {
-        let Some(r) = lane_row(row, lane, base) else { break };
+        let Some(r) = lane_row(row, lane, base) else {
+            break;
+        };
         if r.top > clip.bottom() || r.top + r.height < clip.top() {
             continue;
         }
-        let band = Rect::from_min_max(pos2(clip.left(), r.top), pos2(clip.right(), r.top + r.height));
+        let band = Rect::from_min_max(
+            pos2(clip.left(), r.top),
+            pos2(clip.right(), r.top + r.height),
+        );
         b.register(band, "auto_header", &[Tok::Panel, Tok::Text], &[]);
-        b.rect(b.snap_rect(band), Fill::Solid(shade(t.panel, if t.dark { -0.04 } else { -0.03 })));
+        b.rect(
+            b.snap_rect(band),
+            Fill::Solid(shade(t.panel, if t.dark { -0.04 } else { -0.03 })),
+        );
         // The track's colour as a spine, so the lane reads as the track's.
         let spine = Rect::from_min_max(band.min, pos2(band.left() + 4.0 * k, band.bottom()));
-        b.rect(b.snap_rect(spine), Fill::Solid(mix(tint.large, t.panel, 0.35)));
-        b.hline(band.left(), band.right(), band.bottom() - 0.5 * b.px(), b.px(), t.grid);
+        b.rect(
+            b.snap_rect(spine),
+            Fill::Solid(mix(tint.large, t.panel, 0.35)),
+        );
+        b.hline(
+            band.left(),
+            band.right(),
+            band.bottom() - 0.5 * b.px(),
+            b.px(),
+            t.grid,
+        );
         // A small curve glyph: this row is automation.
-        let g = Rect::from_center_size(pos2(band.left() + 14.0 * k, band.center().y), egui::vec2(12.0 * k, 9.0 * k));
+        let g = Rect::from_center_size(
+            pos2(band.left() + 14.0 * k, band.center().y),
+            egui::vec2(12.0 * k, 9.0 * k),
+        );
         glyph(b, g, with_alpha(t.text_dim, 0.9), k);
         let (place, what) = crate::automation::target_parts(project, target);
         value.clear();
         if let Some(l) = lanes.iter().find(|l| &l.target == target) {
-            crate::automation::write_value(project, target, l.value_at(app.engine.position().0 as f64), &mut value);
+            crate::automation::write_value(
+                project,
+                target,
+                l.value_at(app.engine.position().0 as f64),
+                &mut value,
+            );
         }
-        let right = Rect::from_min_max(pos2(band.right() - 64.0 * k, band.top()), pos2(band.right() - 6.0 * k, band.bottom()));
+        let right = Rect::from_min_max(
+            pos2(band.right() - 64.0 * k, band.top()),
+            pos2(band.right() - 6.0 * k, band.bottom()),
+        );
         let _ = text::paint(
             b,
             right,
             &Text::new(&value, Role::Value, t.text).align(Align2::RIGHT_CENTER),
             s.tk(),
         );
-        let names = Rect::from_min_max(pos2(g.right() + 6.0 * k, band.top()), pos2(right.left() - 4.0 * k, band.bottom()));
+        let names = Rect::from_min_max(
+            pos2(g.right() + 6.0 * k, band.top()),
+            pos2(right.left() - 4.0 * k, band.bottom()),
+        );
         if r.height >= 30.0 * k {
             let (top, bottom) = names.split_top_bottom_at_fraction(0.5);
             let _ = text::paint(
                 b,
                 top.translate(egui::vec2(0.0, 2.0 * k)),
-                &Text::new(&what, Role::Label, t.text).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)),
+                &Text::new(&what, Role::Label, t.text)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
                 s.tk(),
             );
             let _ = text::paint(
                 b,
                 bottom.translate(egui::vec2(0.0, -2.0 * k)),
-                &Text::new(&place, Role::Micro, t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)),
+                &Text::new(&place, Role::Micro, t.text_dim)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
                 s.tk(),
             );
         } else {
@@ -346,19 +419,44 @@ fn glyph(b: &mut Brush, r: Rect, c: egui::Color32, k: f32) {
 
 /// The lanes' headers as controls: a click selects the lane's clips (the first opens in
 /// the editor), a right-click offers hiding the lanes and deleting the lane.
-pub(super) fn header_input(app: &mut CantusApp, ui: &mut egui::Ui, i: usize, id: TrackId, row: &TrackRow, clip: Rect) {
+pub(super) fn header_input(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    i: usize,
+    id: TrackId,
+    row: &TrackRow,
+    clip: Rect,
+) {
     let base = app.arrangement.track_height;
     let targets = app.arrangement.auto.targets(i).to_vec();
     for (lane, target) in targets.iter().enumerate() {
-        let Some(r) = lane_row(row, lane, base) else { break };
-        let band = Rect::from_min_max(pos2(clip.left(), r.top), pos2(clip.right(), r.top + r.height)).intersect(clip);
+        let Some(r) = lane_row(row, lane, base) else {
+            break;
+        };
+        let band = Rect::from_min_max(
+            pos2(clip.left(), r.top),
+            pos2(clip.right(), r.top + r.height),
+        )
+        .intersect(clip);
         if band.height() <= 0.0 {
             continue;
         }
-        let resp = ui.interact(band, ui.id().with(("auto-lane-head", id.0, lane)), Sense::click());
+        let resp = ui.interact(
+            band,
+            ui.id().with(("auto-lane-head", id.0, lane)),
+            Sense::click(),
+        );
         if resp.hovered() {
             let name = crate::automation::target_name(app.project(), target);
-            hint::set_text(ui.ctx(), &name, "", Caps { menu: true, ..Caps::NONE });
+            hint::set_text(
+                ui.ctx(),
+                &name,
+                "",
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
+            );
         }
         let clips = lane_clips(app, id, target);
         if resp.clicked() {
@@ -382,7 +480,10 @@ pub(super) fn header_input(app: &mut CantusApp, ui: &mut egui::Ui, i: usize, id:
                     Some(1) => {
                         let commands = clips
                             .iter()
-                            .map(|c| Command::RemoveClip { track: id, clip: *c })
+                            .map(|c| Command::RemoveClip {
+                                track: id,
+                                clip: *c,
+                            })
                             .collect();
                         app.exec(Command::Batch {
                             label_key: "auto.cmd.delete_lane".into(),
@@ -426,24 +527,47 @@ fn grab_at(auto: &Automation, d: &Drawn, pos: Pos2, k: f32) -> Option<Grab> {
 /// in the clip it is the clip's (move, trim).
 pub(super) fn input(app: &mut CantusApp, ui: &mut egui::Ui, lanes: Rect, s: &Style) {
     let k = s.k;
-    let pointer = ui.input(|i| i.pointer.hover_pos()).filter(|p| lanes.contains(*p));
+    let pointer = ui
+        .input(|i| i.pointer.hover_pos())
+        .filter(|p| lanes.contains(*p));
     let drawn = std::mem::take(&mut app.arrangement.auto.drawn);
     for d in &drawn {
         if d.body.height() < 16.0 * k {
             continue;
         }
-        let Some(auto) = clip_auto(app, (d.track, d.clip)) else { continue };
+        let Some(auto) = clip_auto(app, (d.track, d.clip)) else {
+            continue;
+        };
         let r = (d.track, d.clip);
         let dragging = app.arrangement.auto.drag.as_ref().is_some_and(|g| g.r == r);
         let grab = pointer.and_then(|p| grab_at(&auto, d, p, k));
         let on_line = pointer.filter(|p| d.body.contains(*p)).is_some_and(|p| {
             curve::distance_to_curve(&auto, &d.frame, p).is_some_and(|dy| dy <= 4.0 * k)
         });
-        if !(dragging || grab.is_some() || on_line) {
+        // While the button is down, the press decides: a drag that started on the curve
+        // keeps its widget even when the pointer has left the point.
+        let held = ui
+            .input(|i| {
+                i.pointer
+                    .primary_down()
+                    .then(|| i.pointer.press_origin())
+                    .flatten()
+            })
+            .is_some_and(|p| {
+                grab_at(&auto, d, p, k).is_some()
+                    || (d.body.contains(p)
+                        && curve::distance_to_curve(&auto, &d.frame, p)
+                            .is_some_and(|dy| dy <= 4.0 * k))
+            });
+        if !(dragging || held || grab.is_some() || on_line) {
             continue;
         }
         let area = d.body.intersect(lanes);
-        let resp = ui.interact(area, ui.id().with(("auto-curve", d.clip.0)), Sense::click_and_drag());
+        let resp = ui.interact(
+            area,
+            ui.id().with(("auto-curve", d.clip.0)),
+            Sense::click_and_drag(),
+        );
         ui.ctx().set_cursor_icon(match grab {
             Some(Grab::Point(_)) => egui::CursorIcon::Grab,
             Some(Grab::Bend(_)) => egui::CursorIcon::ResizeVertical,
@@ -477,7 +601,10 @@ pub(super) fn input(app: &mut CantusApp, ui: &mut egui::Ui, lanes: Rect, s: &Sty
             }
         }
         if resp.dragged_by(egui::PointerButton::Primary) {
-            if let (Some(pos), Some(g)) = (resp.interact_pointer_pos(), app.arrangement.auto.drag.clone()) {
+            if let (Some(pos), Some(g)) = (
+                resp.interact_pointer_pos(),
+                app.arrangement.auto.drag.clone(),
+            ) {
                 let off_grid = ui.input(|i| i.modifiers.command);
                 let a = dragged(app, &g, &d.frame, pos, off_grid);
                 set_curve(app, r, a, true);
@@ -543,7 +670,11 @@ fn dragged(app: &CantusApp, g: &PointDrag, f: &Frame, pos: Pos2, off_grid: bool)
                 tick = tick.snap(app.arrangement.grid);
             }
             // A point stays between its neighbours: the order is the curve.
-            let lo = if i > 0 { a.points[i - 1].tick } else { Ticks::ZERO };
+            let lo = if i > 0 {
+                a.points[i - 1].tick
+            } else {
+                Ticks::ZERO
+            };
             let hi = a.points.get(i + 1).map_or(Ticks(i64::MAX / 4), |p| p.tick);
             a.points[i].tick = tick.clamp(lo, hi);
             a.points[i].value = f.value(pos.y);
@@ -572,15 +703,24 @@ fn point_hint(app: &CantusApp, ui: &egui::Ui, a: &Automation, i: usize) {
     };
     let mut v = String::new();
     crate::automation::write_value(project, &a.target, range.value(pt.value), &mut v);
-    hint::set_text(ui.ctx(), &v, &crate::i18n::t("auto.hint.point"), Caps::PARAM);
+    hint::set_text(
+        ui.ctx(),
+        &v,
+        &crate::i18n::t("auto.hint.point"),
+        Caps::PARAM,
+    );
 }
 
 /// A point's menu: its shape, and delete.
 fn point_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), i: usize) {
     use crate::kit::menu::{Check, Item};
     use crate::kit::text::Src;
-    let Some(mut a) = clip_auto(app, r) else { return };
-    let Some(now) = a.points.get(i).map(|p| p.shape) else { return };
+    let Some(mut a) = clip_auto(app, r) else {
+        return;
+    };
+    let Some(now) = a.points.get(i).map(|p| p.shape) else {
+        return;
+    };
     let mut items: Vec<Item<'_>> = cantus_core::Shape::ALL
         .iter()
         .map(|sh| Item::Action {
@@ -609,7 +749,9 @@ fn point_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), i: u
 pub(super) fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId)) {
     use crate::kit::menu::Item;
     use crate::kit::text::Src;
-    let Some(mut a) = clip_auto(app, r) else { return };
+    let Some(mut a) = clip_auto(app, r) else {
+        return;
+    };
     let items = [
         Item::Band(Src::Key("auto.menu.band")),
         Item::action(Src::Key("auto.menu.open")),
@@ -648,7 +790,12 @@ pub(super) fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, Cli
 /// The screen position of point `i` of an automation clip drawn this frame — for tests,
 /// which aim at what was drawn rather than recompute the layout.
 pub fn point_pos(app: &CantusApp, r: (TrackId, ClipId), i: usize) -> Option<Pos2> {
-    let d = app.arrangement.auto.drawn.iter().find(|d| (d.track, d.clip) == r)?;
+    let d = app
+        .arrangement
+        .auto
+        .drawn
+        .iter()
+        .find(|d| (d.track, d.clip) == r)?;
     let a = clip_auto(app, r)?;
     let p = a.points.get(i)?;
     Some(d.frame.point(p.tick, p.value))
@@ -656,7 +803,12 @@ pub fn point_pos(app: &CantusApp, r: (TrackId, ClipId), i: usize) -> Option<Pos2
 
 /// Where content tick `t` at value `v` of a drawn clip is on screen — for tests.
 pub fn content_pos(app: &CantusApp, r: (TrackId, ClipId), t: Ticks, v: f32) -> Option<Pos2> {
-    let d = app.arrangement.auto.drawn.iter().find(|d| (d.track, d.clip) == r)?;
+    let d = app
+        .arrangement
+        .auto
+        .drawn
+        .iter()
+        .find(|d| (d.track, d.clip) == r)?;
     Some(d.frame.point(t, v))
 }
 
@@ -665,7 +817,9 @@ pub fn content_pos(app: &CantusApp, r: (TrackId, ClipId), t: Ticks, v: f32) -> O
 pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) -> bool {
     use crate::kit::menu::{Check, Item};
     use crate::kit::text::Src;
-    let Some(t) = app.project().track(id) else { return false };
+    let Some(t) = app.project().track(id) else {
+        return false;
+    };
     let has = lane_count(t) > 0;
     let open = t.automation_open;
     let strip = t.strip;
@@ -685,8 +839,12 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
         });
     }
     let target = match crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
-        Some(1) => strip.map(AutoTarget::StripGain).unwrap_or(AutoTarget::TrackGain(id)),
-        Some(2) => strip.map(AutoTarget::StripPan).unwrap_or(AutoTarget::TrackPan(id)),
+        Some(1) => strip
+            .map(AutoTarget::StripGain)
+            .unwrap_or(AutoTarget::TrackGain(id)),
+        Some(2) => strip
+            .map(AutoTarget::StripPan)
+            .unwrap_or(AutoTarget::TrackPan(id)),
         Some(3) => AutoTarget::TrackGain(id),
         Some(4) => {
             app.exec(Command::SetTrackAutomationOpen { id, open: !open });

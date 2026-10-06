@@ -22,7 +22,12 @@ fn ctx() -> egui::Context {
 const SIZE: egui::Vec2 = egui::vec2(1200.0, 520.0);
 
 /// One frame of a view with these events.
-fn frame(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>, view: fn(&mut CantusApp, &mut egui::Ui)) {
+fn frame(
+    a: &mut CantusApp,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+    view: fn(&mut CantusApp, &mut egui::Ui),
+) {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SIZE)),
         events,
@@ -55,20 +60,46 @@ fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
 }
 
 /// Press at `from`, travel to `to`, release, in `view`.
-fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2, view: fn(&mut CantusApp, &mut egui::Ui)) {
+fn drag(
+    a: &mut CantusApp,
+    ctx: &egui::Context,
+    from: egui::Pos2,
+    to: egui::Pos2,
+    view: fn(&mut CantusApp, &mut egui::Ui),
+) {
     frame(a, ctx, vec![egui::Event::PointerMoved(from)], view);
-    frame(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true)], view);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true)],
+        view,
+    );
     for i in 1..=4 {
         let at = from + (to - from) * (i as f32 / 4.0);
         frame(a, ctx, vec![egui::Event::PointerMoved(at)], view);
     }
-    frame(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false)], view);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+        view,
+    );
     frame(a, ctx, vec![], view);
 }
 
-fn click(a: &mut CantusApp, ctx: &egui::Context, at: egui::Pos2, view: fn(&mut CantusApp, &mut egui::Ui)) {
+fn click(
+    a: &mut CantusApp,
+    ctx: &egui::Context,
+    at: egui::Pos2,
+    view: fn(&mut CantusApp, &mut egui::Ui),
+) {
     frame(a, ctx, vec![egui::Event::PointerMoved(at)], view);
-    frame(a, ctx, vec![egui::Event::PointerMoved(at), button(at, true)], view);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(at), button(at, true)],
+        view,
+    );
     frame(a, ctx, vec![button(at, false)], view);
     frame(a, ctx, vec![], view);
 }
@@ -78,7 +109,11 @@ fn autos(a: &CantusApp) -> Vec<(TrackId, ClipId, Automation)> {
     a.project()
         .tracks
         .iter()
-        .flat_map(|t| t.clips.iter().filter_map(move |c| c.automation.clone().map(|x| (t.id, c.id, x))))
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter_map(move |c| c.automation.clone().map(|x| (t.id, c.id, x)))
+        })
         .collect()
 }
 
@@ -87,13 +122,20 @@ fn a_parameter_makes_a_clip_flat_at_its_value_in_one_undo_step() {
     let mut a = app(starter_project());
     let before = a.project().clone();
     let strip = a.project().tracks[0].strip.unwrap();
-    assert!(a.exec(Command::SetStripGain { id: strip, gain_db: -6.0 }));
+    assert!(a.exec(Command::SetStripGain {
+        id: strip,
+        gain_db: -6.0
+    }));
     let rev = a.project().clone();
     a.automate(AutoTarget::StripGain(strip));
     let made = autos(&a);
     assert_eq!(made.len(), 1);
     let (t, c, auto) = &made[0];
-    assert_eq!(*t, a.project().tracks[0].id, "under the track that feeds the strip");
+    assert_eq!(
+        *t,
+        a.project().tracks[0].id,
+        "under the track that feeds the strip"
+    );
     assert_eq!(auto.target, AutoTarget::StripGain(strip));
     let range = automation::range::range_of(a.project(), &auto.target).unwrap();
     for p in &auto.points {
@@ -102,12 +144,18 @@ fn a_parameter_makes_a_clip_flat_at_its_value_in_one_undo_step() {
     assert_eq!(a.selected_clip, Some(*c), "the new clip is selected");
     let clip = a.project().track(*t).unwrap().clip(*c).unwrap();
     assert_eq!(clip.start, Ticks::ZERO);
-    assert_eq!(clip.length, Ticks::beats(16), "four bars from the playhead's bar");
+    assert_eq!(
+        clip.length,
+        Ticks::beats(16),
+        "four bars from the playhead's bar"
+    );
     // Asked again, the parameter opens its clip rather than making another.
     a.automate(AutoTarget::StripGain(strip));
     assert_eq!(autos(&a).len(), 1);
     a.undo();
-    assert_eq!(*a.project(), rev, "one undo step");
+    let mut now = a.project().clone();
+    now.next_id = rev.next_id;
+    assert_eq!(now, rev, "one undo step");
     a.undo();
     let mut now = a.project().clone();
     now.next_id = before.next_id;
@@ -120,10 +168,22 @@ fn the_last_tweaked_parameter_is_any_command_and_makes_its_clip() {
     let strip = a.project().tracks[0].strip.unwrap();
     let slot = a.bus.new_effect(EffectKind::Saturator);
     let fx = slot.id;
-    assert!(a.exec(Command::InsertEffect { strip, index: 0, slot: Box::new(slot) }));
+    assert!(a.exec(Command::InsertEffect {
+        strip,
+        index: 0,
+        slot: Box::new(slot)
+    }));
     assert!(!a.automate_last_tweaked(), "nothing tweaked yet");
-    assert!(a.exec(Command::SetEffectParam { strip, effect: fx, key: "drive".into(), value: 12.0 }));
-    let want = AutoTarget::Effect { effect: fx, key: "drive".into() };
+    assert!(a.exec(Command::SetEffectParam {
+        strip,
+        effect: fx,
+        key: "drive".into(),
+        value: 12.0
+    }));
+    let want = AutoTarget::Effect {
+        effect: fx,
+        key: "drive".into(),
+    };
     assert_eq!(a.automation.last_tweaked, Some(want.clone()));
     a.run_action(cantus_ui::keymap::Action::AutomateLastTweaked);
     let made = autos(&a);
@@ -141,15 +201,28 @@ fn an_automated_knob_shows_the_curve_where_the_song_is() {
     let strip = a.project().tracks[0].strip.unwrap();
     let slot = a.bus.new_effect(EffectKind::Saturator);
     let fx = slot.id;
-    assert!(a.exec(Command::InsertEffect { strip, index: 0, slot: Box::new(slot) }));
+    assert!(a.exec(Command::InsertEffect {
+        strip,
+        index: 0,
+        slot: Box::new(slot)
+    }));
     let track = a.project().tracks[0].id;
-    let target = AutoTarget::Effect { effect: fx, key: "drive".into() };
+    let target = AutoTarget::Effect {
+        effect: fx,
+        key: "drive".into(),
+    };
     let mut clip = a.bus.new_clip("drive", Ticks::beats(4), Ticks::beats(4));
     clip.automation = Some(Automation::new(
         target.clone(),
-        vec![AutoPoint::new(Ticks::ZERO, 0.0), AutoPoint::new(Ticks::beats(4), 1.0)],
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.0),
+            AutoPoint::new(Ticks::beats(4), 1.0),
+        ],
     ));
-    assert!(a.exec(Command::InsertClip { track, clip: Box::new(clip) }));
+    assert!(a.exec(Command::InsertClip {
+        track,
+        clip: Box::new(clip)
+    }));
     assert!(a.is_automated(&target));
     // Before the clip: the knob's own value (the default, 0 dB of drive).
     a.engine.seek(Ticks::beats(1));
@@ -160,7 +233,10 @@ fn an_automated_knob_shows_the_curve_where_the_song_is() {
     assert!((v - 18.0).abs() < 1e-3, "{v}");
     let host = views::fx::host::DawHost::new(&mut a, strip, fx, "test");
     use views::fx::host::FxHost;
-    assert!((host.spec().get("drive") - 18.0).abs() < 1e-3, "the editor's knob");
+    assert!(
+        (host.spec().get("drive") - 18.0).abs() < 1e-3,
+        "the editor's knob"
+    );
     assert!(host.automated("drive") && !host.automated("tone"));
     drop(host);
     // After it: held at the end.
@@ -183,7 +259,10 @@ fn ramped() -> (CantusApp, (TrackId, ClipId), egui::Context) {
         ],
     ));
     let id = clip.id;
-    assert!(a.exec(Command::InsertClip { track, clip: Box::new(clip) }));
+    assert!(a.exec(Command::InsertClip {
+        track,
+        clip: Box::new(clip)
+    }));
     a.arrangement.track_height = 60.0;
     let ctx = ctx();
     frame(&mut a, &ctx, vec![], arrangement);
@@ -195,9 +274,15 @@ fn ramped() -> (CantusApp, (TrackId, ClipId), egui::Context) {
 fn the_lane_is_laid_out_under_its_track() {
     let (a, r, _) = ramped();
     let geo = a.arrangement.geometry().unwrap();
-    assert!(geo.rows[0].auto > 0.0, "the track's row has a lane under it");
+    assert!(
+        geo.rows[0].auto > 0.0,
+        "the track's row has a lane under it"
+    );
     let p = autolanes::point_pos(&a, r, 1).expect("the clip was drawn");
-    assert!(p.y > geo.rows[0].top + geo.rows[0].height, "in the lane, below the row");
+    assert!(
+        p.y > geo.rows[0].top + geo.rows[0].height,
+        "in the lane, below the row"
+    );
     assert!(p.y < geo.bottom());
 }
 
@@ -210,7 +295,11 @@ fn dragging_a_point_in_the_clip_moves_it_and_undo_puts_it_back() {
     drag(&mut a, &ctx, from, to, arrangement);
     let auto = autos(&a)[0].2.clone();
     assert_eq!(auto.points[1].tick, Ticks::beats(12), "snapped to the bar");
-    assert!((auto.points[1].value - 0.4).abs() < 0.03, "{}", auto.points[1].value);
+    assert!(
+        (auto.points[1].value - 0.4).abs() < 0.03,
+        "{}",
+        auto.points[1].value
+    );
     assert_eq!(auto.points.len(), 3, "a drag adds nothing");
     a.undo();
     assert_eq!(*a.project(), before, "one undo step");
@@ -233,7 +322,11 @@ fn the_editor_adds_points_and_delete_removes_them() {
     a.select_clip(r.0, r.1);
     frame(&mut a, &ctx, vec![], editor);
     frame(&mut a, &ctx, vec![], editor);
-    let f = a.automation.editor.frame.expect("the editor drew its curve");
+    let f = a
+        .automation
+        .editor
+        .frame
+        .expect("the editor drew its curve");
     let at = f.point(Ticks::beats(4) + Ticks(240), 0.9);
     click(&mut a, &ctx, at, editor);
     let auto = autos(&a)[0].2.clone();
@@ -284,17 +377,39 @@ fn split_then_glue_gives_back_the_automation_clip() {
         next
     };
     let cmds = cantus_ui::clips::split(r.0, &clip, Ticks::beats(5), &mut ids).unwrap();
-    assert!(a.exec(Command::Batch { label_key: "split".into(), commands: cmds }));
-    let halves: Vec<Clip> = a.project().track(r.0).unwrap().clips.iter().filter(|c| c.automation.is_some()).cloned().collect();
+    assert!(a.exec(Command::Batch {
+        label_key: "split".into(),
+        commands: cmds
+    }));
+    let halves: Vec<Clip> = a
+        .project()
+        .track(r.0)
+        .unwrap()
+        .clips
+        .iter()
+        .filter(|c| c.automation.is_some())
+        .cloned()
+        .collect();
     assert_eq!(halves.len(), 2);
-    let lane_now = automation::compile::lane_for(a.project(), &halves[0].automation.as_ref().unwrap().target).unwrap();
-    let lane_was = automation::compile::lane_for(&before, &halves[0].automation.as_ref().unwrap().target).unwrap();
+    let lane_now =
+        automation::compile::lane_for(a.project(), &halves[0].automation.as_ref().unwrap().target)
+            .unwrap();
+    let lane_was =
+        automation::compile::lane_for(&before, &halves[0].automation.as_ref().unwrap().target)
+            .unwrap();
     for t in (0..Ticks::beats(16).0).step_by(97) {
-        assert_eq!(lane_now.pos_at(t as f64), lane_was.pos_at(t as f64), "tick {t}");
+        assert_eq!(
+            lane_now.pos_at(t as f64),
+            lane_was.pos_at(t as f64),
+            "tick {t}"
+        );
     }
     let refs: Vec<&Clip> = halves.iter().collect();
     let cmds = cantus_ui::clips::glue(r.0, &refs, &mut ids).unwrap();
-    assert!(a.exec(Command::Batch { label_key: "glue".into(), commands: cmds }));
+    assert!(a.exec(Command::Batch {
+        label_key: "glue".into(),
+        commands: cmds
+    }));
     let mut now = a.project().clone();
     now.next_id = before.next_id;
     assert_eq!(now, before, "split and glue are an exact round trip");

@@ -152,7 +152,11 @@ pub fn clear_range(
     }
     let tid = track.id;
     // Automation clips sit in their own lanes (ADR 0027): a take never cuts them.
-    for c in track.clips.iter().filter(|c| c.lane == 0 && c.automation.is_none()) {
+    for c in track
+        .clips
+        .iter()
+        .filter(|c| c.lane == 0 && c.automation.is_none())
+    {
         if c.start >= b || c.end() <= a {
             continue;
         }

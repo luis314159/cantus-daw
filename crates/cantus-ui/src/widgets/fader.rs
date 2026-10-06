@@ -40,14 +40,9 @@ use egui::{
 pub const UNITY_POS: f32 = 0.80;
 
 /// `(position from the bottom, decibels)`, ascending. Interpolated linearly in dB.
-const ANCHORS: [(f32, f32); 6] = [
-    (0.00, MIN_GAIN_DB),
-    (0.12, -60.0),
-    (0.25, -40.0),
-    (0.40, -24.0),
-    (UNITY_POS, 0.0),
-    (1.00, MAX_GAIN_DB),
-];
+/// One table for the mixer and for automation (ADR 0027): a curve drawn at 0 dB plays
+/// 0 dB.
+const ANCHORS: [(f32, f32); 6] = cantus_core::automation::range::FADER_ANCHORS;
 
 /// The decibel value at a position on the travel (0 = bottom, 1 = top).
 pub fn db_at(pos: f32) -> f32 {

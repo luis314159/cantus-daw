@@ -91,9 +91,9 @@ pub fn scale_time(points: &mut Vec<AutoPoint>, anchor: Ticks, factor: f64) {
 
 /// Normalise: stretch the values so the lowest is 0 and the highest 1.
 pub fn normalize(points: &mut [AutoPoint]) {
-    let (lo, hi) = points
-        .iter()
-        .fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p.value), hi.max(p.value)));
+    let (lo, hi) = points.iter().fold((f32::MAX, f32::MIN), |(lo, hi), p| {
+        (lo.min(p.value), hi.max(p.value))
+    });
     if hi - lo > 1e-6 {
         for p in points.iter_mut() {
             p.value = (p.value - lo) / (hi - lo);
@@ -162,7 +162,15 @@ impl Lfo {
 /// Replace the curve over `[from, to)` with `cycles` cycles of an LFO between `lo` and
 /// `hi`, with as few points as draw it exactly: a sine is a chain of S-curves between its
 /// peaks, a triangle straight lines, a saw a ramp and a jump, a square holds.
-pub fn lfo(shape: Lfo, from: Ticks, to: Ticks, cycles: u32, lo: f32, hi: f32, seed: u64) -> Vec<AutoPoint> {
+pub fn lfo(
+    shape: Lfo,
+    from: Ticks,
+    to: Ticks,
+    cycles: u32,
+    lo: f32,
+    hi: f32,
+    seed: u64,
+) -> Vec<AutoPoint> {
     let cycles = cycles.max(1) as i64;
     let len = (to - from).0.max(cycles);
     let at = |num: i64, den: i64| from + Ticks(len * num / den);
@@ -227,7 +235,11 @@ pub fn tension_for_mid(shape: Shape, mid: f32) -> f32 {
     match shape {
         Shape::Curve => {
             // bend(0.5) = 0.5^p for t > 0 (below the line), 1 − 0.5^p for t < 0.
-            let (below, y) = if m <= 0.5 { (true, m) } else { (false, 1.0 - m) };
+            let (below, y) = if m <= 0.5 {
+                (true, m)
+            } else {
+                (false, 1.0 - m)
+            };
             let p = y.ln() / 0.5f32.ln(); // 0.5^p = y
             let t = ((p - 1.0) / 7.0).clamp(0.0, 1.0);
             if below {

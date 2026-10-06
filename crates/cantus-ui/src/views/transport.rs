@@ -1023,14 +1023,21 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
         .clone()
         .map(|t| crate::automation::target_name(app.project(), &t));
     ui.add_enabled_ui(tweaked.is_some(), |ui| {
-        if views::arrangement::action_item(app, ui, Action::AutomateLastTweaked, "auto.menu.last_tweaked") {
+        if views::arrangement::action_item(
+            app,
+            ui,
+            Action::AutomateLastTweaked,
+            "auto.menu.last_tweaked",
+        ) {
             ui.close();
         }
     });
     if let Some(name) = tweaked {
         let _ = crate::kit::widgets::menu_list(
             ui,
-            &[crate::kit::menu::Item::Band(crate::kit::text::Src::Str(&name))],
+            &[crate::kit::menu::Item::Band(crate::kit::text::Src::Str(
+                &name,
+            ))],
             240.0,
         );
     }

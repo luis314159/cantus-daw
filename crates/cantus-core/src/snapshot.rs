@@ -219,7 +219,10 @@ impl Snapshot {
                             .iter()
                             // An automated send is carried even at zero: the curve may
                             // bring it up.
-                            .filter(|x| x.effective_level() > 0.0 || (x.enabled && automated_send(&automation, s.id, x.to)))
+                            .filter(|x| {
+                                x.effective_level() > 0.0
+                                    || (x.enabled && automated_send(&automation, s.id, x.to))
+                            })
                             .filter_map(|x| {
                                 project.strip_index(x.to).map(|i| (i, x.effective_level()))
                             })
@@ -252,13 +255,9 @@ impl Snapshot {
 
 /// Whether a lane drives the send from `strip` into `to`.
 fn automated_send(lanes: &[crate::automation::AutoLane], strip: StripId, to: StripId) -> bool {
-    lanes.iter().any(|l| {
-        l.target
-            == crate::automation::AutoTarget::Send {
-                strip,
-                to,
-            }
-    })
+    lanes
+        .iter()
+        .any(|l| l.target == crate::automation::AutoTarget::Send { strip, to })
 }
 
 /// Most repetitions a looping audio clip is expanded into; a hand-edited file with a tiny

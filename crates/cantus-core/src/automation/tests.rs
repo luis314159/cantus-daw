@@ -36,11 +36,19 @@ fn shapes_start_at_zero_end_at_one_and_bend_as_told() {
     assert_eq!(Shape::Curve.at(0.0, 0.25), 0.25, "no tension is a line");
     assert!(Shape::Curve.at(0.8, 0.5) < 0.2, "positive tension waits");
     assert!(Shape::Curve.at(-0.8, 0.5) > 0.8, "negative tension rushes");
-    assert_eq!(Shape::Hold.at(0.0, 0.99), 0.0, "hold stays until the next point");
+    assert_eq!(
+        Shape::Hold.at(0.0, 0.99),
+        0.0,
+        "hold stays until the next point"
+    );
     let s = Shape::SCurve.at(0.6, 0.5);
     assert!((s - 0.5).abs() < 1e-6, "an S passes through its middle");
     assert!(Shape::SCurve.at(0.6, 0.2) < 0.2 && Shape::SCurve.at(0.6, 0.8) > 0.8);
-    assert_eq!(Shape::Stairs.at(0.0, 0.99), 1.0, "the last stair is the next value");
+    assert_eq!(
+        Shape::Stairs.at(0.0, 0.99),
+        1.0,
+        "the last stair is the next value"
+    );
 }
 
 #[test]
@@ -49,7 +57,10 @@ fn a_clip_curve_holds_before_its_first_point_and_after_its_last() {
     assert_eq!(a.value_at(0.0), Some(0.2));
     assert!((a.value_at(150.0).unwrap() - 0.4).abs() < 1e-6);
     assert_eq!(a.value_at(10_000.0), Some(0.6));
-    assert_eq!(Automation::new(AutoTarget::MasterGain, vec![]).value_at(0.0), None);
+    assert_eq!(
+        Automation::new(AutoTarget::MasterGain, vec![]).value_at(0.0),
+        None
+    );
 }
 
 #[test]
@@ -130,7 +141,10 @@ fn split_halves_play_exactly_what_the_whole_did() {
     right.offset = Ticks(900);
     halves.tracks[0].clips[0].length = Ticks(900);
     halves.tracks[0].clips.push(right);
-    let (a, b) = (lane_for(&whole, &target).unwrap(), lane_for(&halves, &target).unwrap());
+    let (a, b) = (
+        lane_for(&whole, &target).unwrap(),
+        lane_for(&halves, &target).unwrap(),
+    );
     for t in (0..2600).step_by(37) {
         assert_eq!(a.pos_at(t as f64), b.pos_at(t as f64), "tick {t}");
     }
@@ -142,7 +156,10 @@ fn the_snapshot_carries_lanes_and_no_automation_changes_nothing() {
     let s = Snapshot::compile(&p, 1);
     assert_eq!(s.automation.len(), 1);
     assert_eq!(s.automation[0].target, target);
-    assert!(s.tracks[0].events.is_empty(), "an automation clip fires no notes");
+    assert!(
+        s.tracks[0].events.is_empty(),
+        "an automation clip fires no notes"
+    );
     let plain = Snapshot::compile(&Project::default(), 1);
     assert!(plain.automation.is_empty());
 }
@@ -170,7 +187,10 @@ fn set_clip_automation_is_undone_exactly_and_refuses_bad_curves() {
     let cmd = Command::SetClipAutomation {
         track,
         clip,
-        automation: Some(Automation::new(target.clone(), vec![pt(0, 0.1), pt(480, 0.9)])),
+        automation: Some(Automation::new(
+            target.clone(),
+            vec![pt(0, 0.1), pt(480, 0.9)],
+        )),
     };
     let inverse = cmd.apply(&mut p).unwrap();
     assert_ne!(p, before);
@@ -191,7 +211,10 @@ fn set_clip_automation_is_undone_exactly_and_refuses_bad_curves() {
 #[test]
 fn the_last_tweaked_parameter_comes_from_the_command() {
     let s = crate::StripId(7);
-    let cmd = Command::SetStripGain { id: s, gain_db: -3.0 };
+    let cmd = Command::SetStripGain {
+        id: s,
+        gain_db: -3.0,
+    };
     assert_eq!(AutoTarget::of_command(&cmd), Some(AutoTarget::StripGain(s)));
     let fx = Command::SetEffectParam {
         strip: s,
@@ -210,7 +233,10 @@ fn the_last_tweaked_parameter_comes_from_the_command() {
             key: "mix".into()
         })
     );
-    assert_eq!(AutoTarget::of_command(&Command::SetMetronome { enabled: true }), None);
+    assert_eq!(
+        AutoTarget::of_command(&Command::SetMetronome { enabled: true }),
+        None
+    );
 }
 
 #[test]
@@ -220,8 +246,14 @@ fn articulators_keep_curves_sorted_and_in_range() {
     edit::flip_vertical(&mut pts, &[]);
     assert!((pts[0].value - 0.9).abs() < 1e-6);
     edit::flip_horizontal(&mut pts, Ticks(0), Ticks(300));
-    assert_eq!(pts.iter().map(|p| p.tick.0).collect::<Vec<_>>(), vec![0, 200, 300]);
-    assert!((pts[2].value - 0.9).abs() < 1e-6, "the first point is now last");
+    assert_eq!(
+        pts.iter().map(|p| p.tick.0).collect::<Vec<_>>(),
+        vec![0, 200, 300]
+    );
+    assert!(
+        (pts[2].value - 0.9).abs() < 1e-6,
+        "the first point is now last"
+    );
     assert_eq!(pts[1].tension, -0.5, "its bend travels the other way");
     edit::scale_values(&mut pts, &[], 0.5, 0.0);
     assert!(pts.iter().all(|p| p.value == 0.5));
@@ -234,7 +266,10 @@ fn articulators_keep_curves_sorted_and_in_range() {
     let lfo = edit::lfo(edit::Lfo::Sine, Ticks(0), Ticks(960), 4, 0.2, 0.8, 1);
     let a = Automation::new(AutoTarget::MasterPan, lfo);
     assert!(a.is_valid());
-    assert!((a.value_at(120.0).unwrap() - 0.8).abs() < 1e-6, "the first peak");
+    assert!(
+        (a.value_at(120.0).unwrap() - 0.8).abs() < 1e-6,
+        "the first peak"
+    );
     assert!((a.value_at(240.0).unwrap() - 0.2).abs() < 1e-6);
 }
 

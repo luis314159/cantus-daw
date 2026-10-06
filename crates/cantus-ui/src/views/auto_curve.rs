@@ -102,6 +102,13 @@ pub fn trace(auto: &Automation, ca: Ticks, cb: Ticks, f: &Frame, step: f32, out:
         out.push(pos2(f.x(c.0 as f64), f.y(v)));
         i = pts.partition_point(|p| p.tick <= c);
     }
+    dedup(out);
+}
+
+/// Drop points that land on the one before (a point where a straight segment ends and
+/// the next begins): a zero-length segment has no direction, and its mitre would blow up.
+fn dedup(out: &mut Vec<Pos2>) {
+    out.dedup_by(|b, a| (b.x - a.x).abs() < 0.05 && (b.y - a.y).abs() < 0.05);
 }
 
 /// How a traced curve is painted.
@@ -117,7 +124,7 @@ impl Ink {
     pub fn of(ink: Color32, width: f32, s: &Style) -> Ink {
         Ink {
             line: ink,
-            fill: with_alpha(ink, if s.t.dark { 0.22 } else { 0.16 }),
+            fill: with_alpha(ink, if s.t.dark { 0.30 } else { 0.22 }),
             width,
         }
     }

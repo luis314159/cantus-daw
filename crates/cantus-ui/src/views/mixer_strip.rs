@@ -385,7 +385,9 @@ pub(super) fn snap(app: &CantusApp, index: usize) -> Option<Snap> {
     }
     // An automated fader, pan or width shows what its clip gives it (ADR 0027).
     let auto = |t: cantus_core::AutoTarget, own: f32| {
-        app.automated_value_where(|x| *x == t).flatten().unwrap_or(own)
+        app.automated_value_where(|x| *x == t)
+            .flatten()
+            .unwrap_or(own)
     };
     Some(Snap {
         id: s.id,

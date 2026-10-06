@@ -37,10 +37,22 @@ pub enum Tool {
 #[derive(Clone, Debug)]
 enum Gesture {
     /// Points `sel` moved together from where they were at the press.
-    Move { at_press: Automation, anchor: usize },
-    Bend { at_press: Automation, seg: usize },
-    Marquee { from: Pos2, to: Pos2 },
-    Draw { at_press: Automation, painted: Vec<(Ticks, f32)> },
+    Move {
+        at_press: Automation,
+        anchor: usize,
+    },
+    Bend {
+        at_press: Automation,
+        seg: usize,
+    },
+    Marquee {
+        from: Pos2,
+        to: Pos2,
+    },
+    Draw {
+        at_press: Automation,
+        painted: Vec<(Ticks, f32)>,
+    },
 }
 
 /// The editor's state, kept between frames on the app.
@@ -85,15 +97,19 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         return;
     };
     let axis = Rect::from_min_max(full.min, pos2(full.left() + s.s(AXIS_W), full.bottom()));
-    let ruler = Rect::from_min_max(pos2(axis.right(), full.top()), pos2(full.right(), full.top() + s.s(RULER_H)));
+    let ruler = Rect::from_min_max(
+        pos2(axis.right(), full.top()),
+        pos2(full.right(), full.top() + s.s(RULER_H)),
+    );
     let canvas = Rect::from_min_max(pos2(axis.right(), ruler.bottom()), full.max);
     ui.allocate_rect(full, Sense::hover());
     // Fit the clip's content to the width the first time it is opened.
     let st = &mut app.automation.editor;
-    let content_len = window
-        .period()
-        .unwrap_or(window.length)
-        .max(auto.points.last().map_or(Ticks(1), |p| p.tick - window.offset + Ticks(1)));
+    let content_len = window.period().unwrap_or(window.length).max(
+        auto.points
+            .last()
+            .map_or(Ticks(1), |p| p.tick - window.offset + Ticks(1)),
+    );
     if st.fitted != Some(clip) || st.px_per_tick <= 0.0 {
         st.fitted = Some(clip);
         st.selected.clear();
@@ -126,17 +142,29 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     let id = ui.id().with("auto-editor-toolbar");
     let mut bar = Toolbar::new(ui);
     let r = (track, clip);
-    let Some(auto) = app.project().track(track).and_then(|t| t.clip(clip)).and_then(|c| c.automation.clone()) else {
+    let Some(auto) = app
+        .project()
+        .track(track)
+        .and_then(|t| t.clip(clip))
+        .and_then(|c| c.automation.clone())
+    else {
         return;
     };
     {
         let a: &CantusApp = app;
         let name = crate::automation::target_name(a.project(), &auto.target);
-        let clip_name = a.project().track(track).and_then(|t| t.clip(clip)).map(|c| c.name.clone());
+        let clip_name = a
+            .project()
+            .track(track)
+            .and_then(|t| t.clip(clip))
+            .map(|c| c.name.clone());
         bar.title(ui, Src::Str(&name), clip_name.as_deref());
     }
     bar.divider(ui);
-    for (tool, icon, key) in [(Tool::Edit, Icon::Select, "auto.tool.edit"), (Tool::Draw, Icon::Draw, "auto.tool.draw")] {
+    for (tool, icon, key) in [
+        (Tool::Edit, Icon::Select, "auto.tool.edit"),
+        (Tool::Draw, Icon::Draw, "auto.tool.draw"),
+    ] {
         let lit = app.automation.editor.tool == tool;
         if bar
             .key(ui, id.with(key), icon, lit, true, || t(key))
@@ -147,7 +175,9 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     }
     let step = app.automation.editor.step;
     if bar
-        .led(ui, id.with("step"), step, "auto.step", 58.0, || t("auto.step_tip"))
+        .led(ui, id.with("step"), step, "auto.step", 58.0, || {
+            t("auto.step_tip")
+        })
         .is_some_and(|r| r.clicked())
     {
         app.automation.editor.step = !step;
@@ -161,29 +191,38 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
         .or(auto.points.first())
         .map_or(Shape::Curve, |p| p.shape);
     let caption = t("auto.shape");
-    if let Some(resp) = bar.field(ui, id.with("shape"), Some(&caption), &t(shown.label_key()), 84.0, || t("auto.shape_tip")) {
-        egui::Popup::menu(&resp).frame(crate::views::clips_chrome::menu_frame()).show(|ui| {
-            let items: Vec<kit::menu::Item<'_>> = Shape::ALL
-                .iter()
-                .map(|sh| kit::menu::Item::Action {
-                    label: Src::Key(sh.label_key()),
-                    check: kit::menu::Check::Radio(*sh == shown),
-                    shortcut: None,
-                    submenu: false,
-                    enabled: true,
-                })
-                .collect();
-            if let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked {
-                let mut a = auto.clone();
-                for (k, p) in a.points.iter_mut().enumerate() {
-                    if sel.is_empty() || sel.contains(&k) {
-                        p.shape = Shape::ALL[i];
+    if let Some(resp) = bar.field(
+        ui,
+        id.with("shape"),
+        Some(&caption),
+        &t(shown.label_key()),
+        84.0,
+        || t("auto.shape_tip"),
+    ) {
+        egui::Popup::menu(&resp)
+            .frame(crate::views::clips_chrome::menu_frame())
+            .show(|ui| {
+                let items: Vec<kit::menu::Item<'_>> = Shape::ALL
+                    .iter()
+                    .map(|sh| kit::menu::Item::Action {
+                        label: Src::Key(sh.label_key()),
+                        check: kit::menu::Check::Radio(*sh == shown),
+                        shortcut: None,
+                        submenu: false,
+                        enabled: true,
+                    })
+                    .collect();
+                if let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked {
+                    let mut a = auto.clone();
+                    for (k, p) in a.points.iter_mut().enumerate() {
+                        if sel.is_empty() || sel.contains(&k) {
+                            p.shape = Shape::ALL[i];
+                        }
                     }
+                    commit(app, r, a, false);
+                    ui.close();
                 }
-                commit(app, r, a, false);
-                ui.close();
-            }
-        });
+            });
     }
     bar.divider(ui);
     let len = clip_len(app, r);
@@ -196,7 +235,9 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     ] {
         let word = t(key);
         let tip_key = key.trim_end_matches("_short");
-        let Some(resp) = bar.word(ui, id.with(key), &word, w, || t(tip_key)) else { continue };
+        let Some(resp) = bar.word(ui, id.with(key), &word, w, || t(tip_key)) else {
+            continue;
+        };
         if !resp.clicked() {
             continue;
         }
@@ -205,7 +246,9 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
             "auto.art.flip_v_short" => edit::flip_vertical(&mut a.points, &sel),
             "auto.art.flip_h_short" => edit::flip_horizontal(&mut a.points, Ticks::ZERO, len),
             "auto.art.smooth_short" => edit::smooth(&mut a.points, 0.5),
-            "auto.art.randomize_short" => edit::randomize(&mut a.points, &sel, 0.08, app.bus.revision()),
+            "auto.art.randomize_short" => {
+                edit::randomize(&mut a.points, &sel, 0.08, app.bus.revision())
+            }
             _ => edit::normalize(&mut a.points),
         }
         app.automation.editor.selected.clear();
@@ -213,15 +256,19 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     }
     let scale = t("auto.art.scale_short");
     if let Some(resp) = bar.word(ui, id.with("scale"), &scale, 58.0, || t("auto.art.scale")) {
-        egui::Popup::menu(&resp).frame(crate::views::clips_chrome::menu_frame()).show(|ui| {
-            scale_menu(app, ui, r, &auto, &sel);
-        });
+        egui::Popup::menu(&resp)
+            .frame(crate::views::clips_chrome::menu_frame())
+            .show(|ui| {
+                scale_menu(app, ui, r, &auto, &sel);
+            });
     }
     let lfo = t("auto.art.lfo_short");
     if let Some(resp) = bar.word(ui, id.with("lfo"), &lfo, 54.0, || t("auto.art.lfo")) {
-        egui::Popup::menu(&resp).frame(crate::views::clips_chrome::menu_frame()).show(|ui| {
-            lfo_menu(app, ui, r, &auto, len);
-        });
+        egui::Popup::menu(&resp)
+            .frame(crate::views::clips_chrome::menu_frame())
+            .show(|ui| {
+                lfo_menu(app, ui, r, &auto, len);
+            });
     }
 }
 
@@ -248,7 +295,13 @@ fn commit(app: &mut CantusApp, r: (TrackId, ClipId), a: Automation, merge: bool)
 }
 
 /// Scale: values about the middle (or the selection's), and time about the start.
-fn scale_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto: &Automation, sel: &[usize]) {
+fn scale_menu(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    r: (TrackId, ClipId),
+    auto: &Automation,
+    sel: &[usize],
+) {
     use kit::menu::Item;
     let items = [
         Item::Band(Src::Key("auto.scale.values")),
@@ -258,10 +311,20 @@ fn scale_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto
         Item::action(Src::Key("auto.scale.time_half")),
         Item::action(Src::Key("auto.scale.time_double")),
     ];
-    let Some(i) = kit::widgets::menu_list(ui, &items, 200.0).1.clicked else { return };
+    let Some(i) = kit::widgets::menu_list(ui, &items, 200.0).1.clicked else {
+        return;
+    };
     let mut a = auto.clone();
-    let picked: Vec<&AutoPoint> = a.points.iter().enumerate().filter(|(k, _)| sel.is_empty() || sel.contains(k)).map(|(_, p)| p).collect();
-    let (lo, hi) = picked.iter().fold((1f32, 0f32), |(lo, hi), p| (lo.min(p.value), hi.max(p.value)));
+    let picked: Vec<&AutoPoint> = a
+        .points
+        .iter()
+        .enumerate()
+        .filter(|(k, _)| sel.is_empty() || sel.contains(k))
+        .map(|(_, p)| p)
+        .collect();
+    let (lo, hi) = picked.iter().fold((1f32, 0f32), |(lo, hi), p| {
+        (lo.min(p.value), hi.max(p.value))
+    });
     let pivot = if hi >= lo { (lo + hi) * 0.5 } else { 0.5 };
     match i {
         1 => edit::scale_values(&mut a.points, sel, pivot, 0.5),
@@ -275,10 +338,20 @@ fn scale_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto
 }
 
 /// FL's *create sequence*: an LFO over the selection's span, or the whole clip.
-fn lfo_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto: &Automation, len: Ticks) {
+fn lfo_menu(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    r: (TrackId, ClipId),
+    auto: &Automation,
+    len: Ticks,
+) {
     use kit::menu::Item;
     let mut items: Vec<Item<'_>> = vec![Item::Band(Src::Key("auto.art.lfo"))];
-    items.extend(Lfo::ALL.iter().map(|l| Item::action(Src::Key(l.label_key()))));
+    items.extend(
+        Lfo::ALL
+            .iter()
+            .map(|l| Item::action(Src::Key(l.label_key()))),
+    );
     items.push(Item::Band(Src::Key("auto.lfo.cycles")));
     let cycles = match app.automation.editor.lfo_cycles {
         0 => 4,
@@ -293,7 +366,9 @@ fn lfo_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto: 
             enabled: true,
         });
     }
-    let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked else { return };
+    let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked else {
+        return;
+    };
     let shapes = Lfo::ALL.len();
     if (1..=shapes).contains(&i) {
         let sel = &app.automation.editor.selected;
@@ -306,7 +381,15 @@ fn lfo_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto: 
         };
         if to > from {
             let (lo, hi) = (0.2, 0.8);
-            let new = edit::lfo(Lfo::ALL[i - 1], from, to, cycles, lo, hi, app.bus.revision());
+            let new = edit::lfo(
+                Lfo::ALL[i - 1],
+                from,
+                to,
+                cycles,
+                lo,
+                hi,
+                app.bus.revision(),
+            );
             let mut a = auto.clone();
             edit::splice(&mut a.points, from, to + Ticks(1), new);
             app.automation.editor.selected.clear();
@@ -322,12 +405,28 @@ fn lfo_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: (TrackId, ClipId), auto: 
 /// The wheel: Ctrl zooms time about the pointer, otherwise it scrolls; the middle button
 /// pans.
 fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, canvas: Rect) {
-    let Some(p) = ui.input(|i| i.pointer.hover_pos()).filter(|p| canvas.contains(*p)) else { return };
-    let (dx, dy, ctrl, zoom) = ui.input(|i| (i.smooth_scroll_delta.x, i.smooth_scroll_delta.y, i.modifiers.command, i.zoom_delta()));
+    let Some(p) = ui
+        .input(|i| i.pointer.hover_pos())
+        .filter(|p| canvas.contains(*p))
+    else {
+        return;
+    };
+    let (dx, dy, ctrl, zoom) = ui.input(|i| {
+        (
+            i.smooth_scroll_delta.x,
+            i.smooth_scroll_delta.y,
+            i.modifiers.command,
+            i.zoom_delta(),
+        )
+    });
     let st = &mut app.automation.editor;
     let at = st.scroll + ((p.x - canvas.left()) / st.px_per_tick) as f64;
     if ctrl || zoom != 1.0 {
-        let k = if zoom != 1.0 { zoom } else { (dy * 0.003).exp() };
+        let k = if zoom != 1.0 {
+            zoom
+        } else {
+            (dy * 0.003).exp()
+        };
         st.px_per_tick = (st.px_per_tick * k).clamp(0.002, 2.0);
         st.scroll = at - ((p.x - canvas.left()) / st.px_per_tick) as f64;
     } else if dx != 0.0 || dy != 0.0 {
@@ -342,7 +441,17 @@ fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, canvas: Rect) {
 /// Paint the ruler, the value axis, the grid, the clip's window, the curve, the points
 /// and rings, the playhead and a marquee.
 #[allow(clippy::too_many_arguments)]
-fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core::ClipWindow, f: Frame, canvas: Rect, ruler: Rect, axis: Rect, s: &Style) {
+fn paint(
+    app: &CantusApp,
+    ui: &egui::Ui,
+    auto: &Automation,
+    window: cantus_core::ClipWindow,
+    f: Frame,
+    canvas: Rect,
+    ruler: Rect,
+    axis: Rect,
+    s: &Style,
+) {
     let t = &s.t;
     let k = s.k;
     let project = app.project();
@@ -359,33 +468,64 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
         b.register(canvas, "auto_editor", &[Tok::Ink, Tok::Grid], &[]);
         b.rect(b.snap_rect(canvas), Fill::Solid(t.row_black));
         // Outside the clip's window, the ground is dimmed: what is there does not play.
-        let (w0, w1) = (window.offset, window.offset + window.period().unwrap_or(window.length));
+        let (w0, w1) = (
+            window.offset,
+            window.offset + window.period().unwrap_or(window.length),
+        );
         let (x0, x1) = (f.x(w0.0 as f64), f.x(w1.0 as f64));
         for side in [
-            Rect::from_min_max(canvas.min, pos2(x0.clamp(canvas.left(), canvas.right()), canvas.bottom())),
-            Rect::from_min_max(pos2(x1.clamp(canvas.left(), canvas.right()), canvas.top()), canvas.max),
+            Rect::from_min_max(
+                canvas.min,
+                pos2(x0.clamp(canvas.left(), canvas.right()), canvas.bottom()),
+            ),
+            Rect::from_min_max(
+                pos2(x1.clamp(canvas.left(), canvas.right()), canvas.top()),
+                canvas.max,
+            ),
         ] {
             if side.width() > 0.0 {
-                b.rect(side, Fill::Solid(with_alpha(t.ink, if t.dark { 0.45 } else { 0.12 })));
+                b.rect(
+                    side,
+                    Fill::Solid(with_alpha(t.ink, if t.dark { 0.45 } else { 0.12 })),
+                );
             }
         }
         // Beats and bars, as the arrangement draws them.
-        let step = if (beat as f32 * f.px_per_tick) >= 10.0 { beat } else { bar };
+        let step = if (beat as f32 * f.px_per_tick) >= 10.0 {
+            beat
+        } else {
+            bar
+        };
         let mut tick = (lo.div_euclid(step)) * step;
         while tick <= hi {
             let x = f.x(tick as f64);
             let is_bar = tick.rem_euclid(bar) == 0;
-            b.vline(x, canvas.top(), canvas.bottom(), b.px() * if is_bar { 1.5 } else { 1.0 }, if is_bar { t.grid_bar } else { t.grid_strong });
+            b.vline(
+                x,
+                canvas.top(),
+                canvas.bottom(),
+                b.px() * if is_bar { 1.5 } else { 1.0 },
+                if is_bar { t.grid_bar } else { t.grid_strong },
+            );
             tick += step;
         }
         // Value lines at quarters, the middle stronger.
         for q in 1..4 {
             let y = f.y(q as f32 * 0.25);
-            b.hline(canvas.left(), canvas.right(), y, b.px(), if q == 2 { t.grid_strong } else { t.grid });
+            b.hline(
+                canvas.left(),
+                canvas.right(),
+                y,
+                b.px(),
+                if q == 2 { t.grid_strong } else { t.grid },
+            );
         }
         // The window's brace on the ruler, and the ruler's bar numbers.
         b.rect(b.snap_rect(ruler), Fill::Solid(t.panel));
-        let brace = Rect::from_min_max(pos2(x0.max(ruler.left()), ruler.bottom() - 5.0 * k), pos2(x1.min(ruler.right()), ruler.bottom() - 1.0 * k));
+        let brace = Rect::from_min_max(
+            pos2(x0.max(ruler.left()), ruler.bottom() - 5.0 * k),
+            pos2(x1.min(ruler.right()), ruler.bottom() - 1.0 * k),
+        );
         if brace.width() > 0.0 {
             b.rrect(brace, 1.5 * k, Fill::Solid(with_alpha(t.selection, 0.8)));
         }
@@ -394,9 +534,17 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
             let x = f.x((barn * bar) as f64);
             if x >= ruler.left() - 1.0 && x <= ruler.right() {
                 b.vline(x, ruler.top() + 6.0 * k, ruler.bottom(), b.px(), t.text_dim);
-                let label = Rect::from_min_size(pos2(x + 3.0 * k, ruler.top()), vec2(40.0 * k, ruler.height() - 6.0 * k));
+                let label = Rect::from_min_size(
+                    pos2(x + 3.0 * k, ruler.top()),
+                    vec2(40.0 * k, ruler.height() - 6.0 * k),
+                );
                 let n = (barn + 1).to_string();
-                let _ = text::paint(b, label, &Text::new(&n, Role::Value, t.text_dim).align(Align2::LEFT_CENTER), s.tk());
+                let _ = text::paint(
+                    b,
+                    label,
+                    &Text::new(&n, Role::Value, t.text_dim).align(Align2::LEFT_CENTER),
+                    s.tk(),
+                );
             }
             barn += 1;
         }
@@ -408,15 +556,30 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
                 v.clear();
                 crate::automation::write_value(project, &auto.target, range.value(q), &mut v);
                 let y = f.y(q);
-                let r = Rect::from_min_max(pos2(axis.left() + 4.0 * k, y - 8.0 * k), pos2(axis.right() - 6.0 * k, y + 8.0 * k));
-                let _ = text::paint(b, r, &Text::new(&v, Role::Value, t.text_dim).align(Align2::RIGHT_CENTER), s.tk());
+                let r = Rect::from_min_max(
+                    pos2(axis.left() + 4.0 * k, y - 8.0 * k),
+                    pos2(axis.right() - 6.0 * k, y + 8.0 * k),
+                );
+                let _ = text::paint(
+                    b,
+                    r,
+                    &Text::new(&v, Role::Value, t.text_dim).align(Align2::RIGHT_CENTER),
+                    s.tk(),
+                );
                 b.hline(axis.right() - 4.0 * k, axis.right(), y, b.px(), t.text_dim);
             }
         }
         // The curve, in the clip's colour.
         let ink = ink_of(app, auto);
         let mut pts = Vec::new();
-        curve::trace(auto, Ticks(lo.max(0) - 1).min(Ticks::ZERO), Ticks(hi.max(1) + 1), &f, 2.0, &mut pts);
+        curve::trace(
+            auto,
+            Ticks(lo.max(0) - 1).min(Ticks::ZERO),
+            Ticks(hi.max(1) + 1),
+            &f,
+            2.0,
+            &mut pts,
+        );
         curve::paint(b, &pts, f.bottom, curve::Ink::of(ink, 2.0 * k, s));
         // Rings, then points.
         for i in 0..auto.points.len().saturating_sub(1) {
@@ -437,7 +600,14 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
             if lit {
                 b.circle(c, 6.5 * k, Fill::Solid(with_alpha(t.selection, 0.35)));
             }
-            curve::point(b, c, if hot { 5.0 * k } else { 4.0 * k }, if lit { t.selection } else { ink }, t.row_black, lit || hot);
+            curve::point(
+                b,
+                c,
+                if hot { 5.0 * k } else { 4.0 * k },
+                if lit { t.selection } else { ink },
+                t.row_black,
+                lit || hot,
+            );
         }
         // The playhead, where it is inside the clip.
         let at = app.engine.position();
@@ -481,15 +651,32 @@ fn ink_of(app: &CantusApp, auto: &Automation) -> egui::Color32 {
                 .map(|c| c.color.unwrap_or(t.color))
         })
         .unwrap_or(cantus_core::Color::PALETTE[0]);
-    crate::kit::color::safe_track(crate::theme::track_color(color), s.t.dark, crate::kit::color::FillSize::Small)
+    crate::kit::color::safe_track(
+        crate::theme::track_color(color),
+        s.t.dark,
+        crate::kit::color::FillSize::Small,
+    )
 }
 
 /// The pointer in the canvas: points, rings, the marquee, drawing; Delete and Ctrl+A.
 #[allow(clippy::too_many_arguments)]
-fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, auto: &Automation, f: Frame, canvas: Rect, s: &Style) {
+fn input(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    track: TrackId,
+    clip: ClipId,
+    auto: &Automation,
+    f: Frame,
+    canvas: Rect,
+    s: &Style,
+) {
     let k = s.k;
     let r = (track, clip);
-    let resp = ui.interact(canvas, Id::new("auto-editor-canvas"), Sense::click_and_drag());
+    let resp = ui.interact(
+        canvas,
+        Id::new("auto-editor-canvas"),
+        Sense::click_and_drag(),
+    );
     let pointer = resp.hover_pos();
     let tool = app.automation.editor.tool;
     let near_point = |p: Pos2| curve::point_at(auto, &f, p, 7.0 * k);
@@ -505,7 +692,9 @@ fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, a
         let project = app.project();
         if let Some(range) = cantus_core::automation::range::range_of(project, &auto.target) {
             let mut v = String::new();
-            let pos = near_point(p).and_then(|i| auto.points.get(i)).map_or(f.value(p.y), |q| q.value);
+            let pos = near_point(p)
+                .and_then(|i| auto.points.get(i))
+                .map_or(f.value(p.y), |q| q.value);
             crate::automation::write_value(project, &auto.target, range.value(pos), &mut v);
             hint::set_text(ui.ctx(), &v, &t("auto.hint.editor"), Caps::PARAM);
         }
@@ -537,10 +726,19 @@ fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, a
                     st.selected.push(i);
                     st.selected.sort_unstable();
                 }
-                Gesture::Move { at_press: auto.clone(), anchor: i }
+                Gesture::Move {
+                    at_press: auto.clone(),
+                    anchor: i,
+                }
             }
-            (_, None, Some(seg)) => Gesture::Bend { at_press: auto.clone(), seg },
-            _ => Gesture::Marquee { from: press, to: press },
+            (_, None, Some(seg)) => Gesture::Bend {
+                at_press: auto.clone(),
+                seg,
+            },
+            _ => Gesture::Marquee {
+                from: press,
+                to: press,
+            },
         });
     }
     if resp.dragged_by(egui::PointerButton::Primary) {
@@ -556,14 +754,21 @@ fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, a
                     let mut a = at_press.clone();
                     let (p, q) = (a.points[seg], a.points[seg + 1]);
                     let v = f.value(pos.y);
-                    let mid = if (q.value - p.value).abs() > 1e-6 { (v - p.value) / (q.value - p.value) } else { 0.5 };
+                    let mid = if (q.value - p.value).abs() > 1e-6 {
+                        (v - p.value) / (q.value - p.value)
+                    } else {
+                        0.5
+                    };
                     a.points[seg].tension = edit::tension_for_mid(p.shape, mid);
                     commit(app, r, a, true);
                 }
                 Some(Gesture::Marquee { from, .. }) => {
                     app.automation.editor.gesture = Some(Gesture::Marquee { from, to: pos });
                 }
-                Some(Gesture::Draw { at_press, mut painted }) => {
+                Some(Gesture::Draw {
+                    at_press,
+                    mut painted,
+                }) => {
                     let grid = draw_grid(app);
                     let at = Ticks(f.tick(pos.x).max(0.0).round() as i64).snap(grid);
                     paint_at(&mut painted, at, f.value(pos.y), grid);
@@ -636,12 +841,17 @@ fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, a
                     .iter()
                     .map(|sh| kit::menu::Item::Action {
                         label: Src::Key(sh.label_key()),
-                        check: kit::menu::Check::Radio(auto.points.get(i).is_some_and(|p| p.shape == *sh)),
+                        check: kit::menu::Check::Radio(
+                            auto.points.get(i).is_some_and(|p| p.shape == *sh),
+                        ),
                         shortcut: None,
                         submenu: false,
                         enabled: true,
                     })
-                    .chain([kit::menu::Item::Separator, kit::menu::Item::action(Src::Key("auto.point.delete"))])
+                    .chain([
+                        kit::menu::Item::Separator,
+                        kit::menu::Item::action(Src::Key("auto.point.delete")),
+                    ])
                     .collect();
                 if let Some(c) = kit::widgets::menu_list(ui, &items, 200.0).1.clicked {
                     let mut a = auto.clone();
@@ -684,10 +894,20 @@ fn input(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, a
 
 /// The curve with the selection moved by the pointer's travel: in time (snapped, as the
 /// anchor lands) and in value, each point kept between its unselected neighbours.
-fn moved(app: &CantusApp, at_press: &Automation, anchor: usize, f: &Frame, press: Pos2, pos: Pos2, free: bool) -> Automation {
+fn moved(
+    app: &CantusApp,
+    at_press: &Automation,
+    anchor: usize,
+    f: &Frame,
+    press: Pos2,
+    pos: Pos2,
+    free: bool,
+) -> Automation {
     let mut a = at_press.clone();
     let sel = &app.automation.editor.selected;
-    let Some(p0) = at_press.points.get(anchor) else { return a };
+    let Some(p0) = at_press.points.get(anchor) else {
+        return a;
+    };
     let raw = p0.tick.0 as f64 + ((pos.x - press.x) / f.px_per_tick) as f64;
     let mut land = Ticks(raw.max(0.0).round() as i64);
     if app.arrangement.snap && !free {
@@ -706,8 +926,13 @@ fn moved(app: &CantusApp, at_press: &Automation, anchor: usize, f: &Frame, press
         if !sel.contains(&i) {
             continue;
         }
-        let lo = (0..i).rev().find(|j| !sel.contains(j)).map(|j| a.points[j].tick);
-        let hi = (i + 1..a.points.len()).find(|j| !sel.contains(j)).map(|j| a.points[j].tick);
+        let lo = (0..i)
+            .rev()
+            .find(|j| !sel.contains(j))
+            .map(|j| a.points[j].tick);
+        let hi = (i + 1..a.points.len())
+            .find(|j| !sel.contains(j))
+            .map(|j| a.points[j].tick);
         if let Some(lo) = lo {
             a.points[i].tick = a.points[i].tick.max(lo);
         }
