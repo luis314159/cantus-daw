@@ -39,9 +39,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, screen: Rect, purpose: &PickPurpos
     let panel = picker::panel_rect(screen);
     v.geo.panel = panel;
     with_brush(ui.painter(), |b| {
-        b.register(screen, "picker-scrim", &[Tok::Shadow], &[]);
-        b.rect(screen, Fill::Solid(with_alpha(s.t.dark_shade, if s.t.dark { 0.55 } else { 0.32 })));
-        b.rrect_soft(panel.translate(vec2(0.0, s.s(10.0))), s.r(12.0), Fill::Solid(with_alpha(s.t.dark_shade, 0.5)), s.s(28.0));
+        b.register(screen, "picker-scrim", &[Tok::MeterWell], &[]);
+        // The meters' well is dark in every theme: the workspace sinks under the panel.
+        b.rect(screen, Fill::Solid(with_alpha(s.t.meter_well, if s.t.dark { 0.6 } else { 0.42 })));
+        b.rrect_soft(panel.translate(vec2(0.0, s.s(10.0))), s.r(12.0), Fill::Solid(with_alpha(s.t.meter_well, 0.55)), s.s(28.0));
         b.rrect(panel, s.r(10.0), Fill::Solid(s.t.panel));
     });
     // The panel swallows clicks so they do not reach the scrim.

@@ -153,10 +153,31 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
     if std::mem::take(&mut v.reveal) {
         if let Some((_, r)) = v.geo.tiles.iter().find(|t| Some(&t.0) == v.selected.as_ref()) {
             let margin = s.s(PAD);
+            // The tops of the rows and headings: a scroll that starts on one shows whole
+            // tiles at the top of the gallery, never a cut row.
+            let tops: Vec<f32> = items
+                .iter()
+                .map(|it| match it {
+                    Item::Heading(_, _, h) | Item::Tile(_, h) => h.top() - margin * 0.5,
+                })
+                .collect();
             if r.top() - margin < v.scroll {
-                v.scroll = r.top() - margin;
+                // Upward: start at the selection's row, or at its heading just above.
+                let want = r.top() - margin * 0.5;
+                v.scroll = tops
+                    .iter()
+                    .copied()
+                    .filter(|&t| t <= want && t >= want - s.s(HEADING) - margin)
+                    .fold(want, f32::min);
             } else if r.bottom() + margin > v.scroll + view.height() {
-                v.scroll = r.bottom() + margin - view.height();
+                // Downward: the first row start that still shows the selection whole.
+                let need = r.bottom() + margin - view.height();
+                v.scroll = tops
+                    .iter()
+                    .copied()
+                    .filter(|&t| t >= need)
+                    .fold(f32::MAX, f32::min)
+                    .min(r.top() - margin * 0.5);
             }
         }
     }
@@ -271,6 +292,9 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
             overlay(b, r, s, d, sel, hov, fav, current);
         }
     });
+    if v.geo.tiles.is_empty() {
+        empty(v, ui, view, s);
+    }
     // The scrollbar, always visible when there is more than a screenful.
     if max > 0.0 {
         let bar_rect = Rect::from_min_max(
@@ -315,10 +339,12 @@ fn face(b: &mut Brush, r: Rect, s: &Style, sel: bool, hov: bool) {
         return;
     }
     let card = r.expand(s.s(6.0));
-    let base = if sel {
-        crate::kit::color::mix(s.t.strip, s.t.selection, 0.16)
-    } else {
-        s.t.strip
+    // Dark: the strip's grey, a breath of the selection when selected. Light: the raised
+    // tile's white, which the selection ring alone marks (a green tint turns khaki there).
+    let base = match (s.t.dark, sel) {
+        (true, true) => crate::kit::color::mix(s.t.strip, s.t.selection, 0.16),
+        (true, false) => s.t.strip,
+        (false, _) => s.t.panel_raised,
     };
     crate::kit::light::raised(
         b,
@@ -370,4 +396,29 @@ fn overlay(b: &mut Brush, r: Rect, s: &Style, d: &Device, sel: bool, hov: bool, 
         let ring = r.expand(s.s(6.0));
         b.rrect_stroke(ring, s.r(9.0), s.s(2.0), s.t.selection);
     }
+}
+
+/// What the gallery says when it shows nothing: why, and what to do.
+fn empty(v: &PickerView, ui: &Ui, view: Rect, s: &Style) {
+    use crate::i18n::{t, tf};
+    let (line, hint) = if !v.query.text.trim().is_empty() {
+        (tf("picker.empty", &[("q", &v.query.text.trim())]), t("picker.empty.hint"))
+    } else {
+        match v.query.shelf {
+            Shelf::Favourites => (t("picker.empty.favourites"), String::new()),
+            Shelf::Recent => (t("picker.empty.recent"), String::new()),
+            _ => (t("picker.empty.shelf"), String::new()),
+        }
+    };
+    let c = view.center() - vec2(0.0, view.height() * 0.12);
+    crate::kit::with_brush(ui.painter(), |b| {
+        let g = Rect::from_center_size(c - vec2(0.0, s.s(40.0)), Vec2::splat(s.s(36.0)));
+        super::picker_layout::magnifier(b, g, with_alpha(s.t.text_dim, 0.6), s.s(2.4));
+        let r = Rect::from_center_size(c, vec2(view.width() - s.s(80.0), s.s(24.0)));
+        let _ = text::paint(b, r, &Text::new(&line, Role::Title, s.t.text).policy(Policy::Elide(Elide::End)), s.tk());
+        if !hint.is_empty() {
+            let r = r.translate(vec2(0.0, s.s(24.0)));
+            let _ = text::paint(b, r, &Text::new(&hint, Role::Body, s.t.text_dim).policy(Policy::Elide(Elide::End)), s.tk());
+        }
+    });
 }

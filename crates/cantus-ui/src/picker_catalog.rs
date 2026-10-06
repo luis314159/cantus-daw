@@ -129,21 +129,23 @@ impl Category {
 
     /// Words that find it whatever the interface's language (English, Spanish).
     fn words(self) -> &'static str {
+        // Only the shelf's own names: a synonym that names another kind of device
+        // ("reverb" on Space) would find the delay when someone looks for a reverb.
         match self {
-            Category::Synths => "synth synths synthesizer sintetizador",
-            Category::Keys => "keys piano teclas",
-            Category::Bass => "bass bajo",
-            Category::Drums => "drums drum kit beat bateria percusion",
-            Category::Samplers => "sampler samples muestras",
+            Category::Synths => "synth synths synthesizer sintetizador sintetizadores",
+            Category::Keys => "keys teclados",
+            Category::Bass => "bass bajo bajos",
+            Category::Drums => "drums drum bateria baterias percusion",
+            Category::Samplers => "sampler samplers",
             Category::OtherInstruments => "instrument instrumento",
-            Category::Eq => "eq equalizer ecualizador filter filtro",
-            Category::Dynamics => "dynamics compressor gate dinamica compresor",
-            Category::Space => "space reverb delay echo espacio eco",
-            Category::Distortion => "distortion saturation drive distorsion saturacion",
-            Category::Modulation => "modulation chorus flanger phaser modulacion",
-            Category::Stereo => "stereo width imager estereo anchura",
-            Category::Mastering => "mastering master masterizacion",
-            Category::Utility => "utility tools analyzer utilidad herramientas",
+            Category::Eq => "eq equalizer ecualizador",
+            Category::Dynamics => "dynamics dinamica",
+            Category::Space => "space espacio",
+            Category::Distortion => "distortion saturation distorsion saturacion",
+            Category::Modulation => "modulation modulacion",
+            Category::Stereo => "stereo estereo",
+            Category::Mastering => "mastering masterizacion",
+            Category::Utility => "utility utilidad utilidades",
         }
     }
 

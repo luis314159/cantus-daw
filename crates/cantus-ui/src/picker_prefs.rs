@@ -64,7 +64,7 @@ impl TileSize {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
     pub favourites: Vec<String>,
@@ -76,12 +76,21 @@ pub struct Prefs {
     pub details: bool,
 }
 
+impl Default for Prefs {
+    fn default() -> Self {
+        Prefs {
+            favourites: Vec::new(),
+            recent: Vec::new(),
+            sort: Sort::default(),
+            tile: TileSize::default(),
+            details: true,
+        }
+    }
+}
+
 impl Prefs {
     pub fn new() -> Prefs {
-        Prefs {
-            details: true,
-            ..Default::default()
-        }
+        Prefs::default()
     }
 
     pub fn is_favourite(&self, key: &str) -> bool {

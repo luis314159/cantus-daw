@@ -75,6 +75,29 @@ fn thumbs(dir: &Path, dark: bool) {
     }
 }
 
+/// Every capture made inside another context's pass, as the app makes them.
+fn nested(dark: bool) {
+    let ctx = themed_ctx(dark);
+    for round in 0..3 {
+        for (name, s) in subjects() {
+            eprintln!("round {round} {name} …");
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let f = picker_snap::capture(ui.ctx(), s, 0.8);
+                eprintln!("  captured {}", f.is_some());
+                if let Some(f) = f {
+                    let img = picker_snap::finish(f, 416, 9.0);
+                    eprintln!("  finished {:?}", img.size);
+                }
+            });
+            out.textures_delta.clear();
+        }
+    }
+}
+
 fn hosted(format: Format, id: &str, name: &str, vendor: &str, kind: PluginKind, f: &[&str]) -> PluginInfo {
     PluginInfo {
         format,
@@ -138,6 +161,9 @@ fn window(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, path: &Pat
             ..Default::default()
         };
         let mut o = ctx.run_ui(input, |root| app.frame(root));
+        if std::env::var_os("SHOOT_LOG").is_some() {
+            eprintln!("frame {frame}: {:?}", app.picker_view.thumbs.stats);
+        }
         textures.update(&o.textures_delta);
         o.textures_delta.clear();
         frame += 1;
@@ -158,6 +184,7 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
     use cantus_ui::kit::appearance::Mode;
     let locale = if spanish { cantus_ui::i18n::Locale::Es } else { cantus_ui::i18n::Locale::En };
     cantus_ui::i18n::set_locale(locale);
+    eprintln!("picker {what} dark={dark} es={spanish}");
     let ctx = themed_ctx(dark);
     let mut app = CantusApp::from_parts(Some(cantus_ui::demos::startup_project()), EngineHandle::dummy(), false);
     let tmp = std::env::temp_dir().join("cantus-shoot-picker");
@@ -178,12 +205,17 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
         "instruments" => app.open_picker(PickPurpose::AddInstrument { index: None }),
         "replace" => app.open_picker(PickPurpose::ReplaceInstrument { track }),
         "effects" => app.open_picker(PickPurpose::AddEffect { strip }),
+        "panel" => {
+            app.toggle_pane(cantus_ui::views::workspace::Pane::Devices);
+            app.picker_view.panel.selected = Some("cantus:calor".into());
+        }
         "search" => {
             app.open_picker(PickPurpose::AddEffect { strip });
             events.push(egui::Event::Text("verb".into()));
         }
         _ => {}
     }
+    eprintln!("opened: {:?}", app.picker);
     let tag = format!("picker-{what}-{}{}", if dark { "dark" } else { "light" }, if spanish { "-es" } else { "" });
     window(&mut app, &ctx, egui::vec2(1920.0, 1080.0), &dir.join(format!("{tag}.png")), events);
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
@@ -197,23 +229,27 @@ fn main() {
     let what: Vec<String> = args.collect();
     let all = what.is_empty();
     let wants = |w: &str| all || what.iter().any(|x| x == w);
+    if what.iter().any(|w| w == "nested") {
+        nested(true);
+        nested(false);
+        eprintln!("nested: all done");
+        return;
+    }
     if wants("thumbs") {
         thumbs(&dir, true);
         thumbs(&dir, false);
     }
-    if wants("picker") {
-        for dark in [true, false] {
-            for w in ["instruments", "effects"] {
-                picker(&dir, dark, w, false);
-            }
-        }
-        picker(&dir, true, "search", false);
-        picker(&dir, true, "replace", true);
-    }
-    for w in ["instruments", "effects", "search", "replace"] {
+    // One picture per run: run once per view and theme (`instruments dark`, `effects
+    // light es`…); a second whole window in the same process is not reliable.
+    let es = what.iter().any(|x| x == "es");
+    for w in ["instruments", "effects", "search", "replace", "panel"] {
         if what.iter().any(|x| x == w) {
-            picker(&dir, true, w, false);
-            picker(&dir, false, w, false);
+            if !what.iter().any(|x| x == "light") {
+                picker(&dir, true, w, es);
+            }
+            if !what.iter().any(|x| x == "dark") {
+                picker(&dir, false, w, es);
+            }
         }
     }
 }

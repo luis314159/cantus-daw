@@ -88,7 +88,8 @@ fn row_paint(b: &mut Brush, row: Rect, s: &Style, shelf: Shelf, n: usize, on: bo
         _ => s.t.selection,
     };
     if on {
-        b.rrect(row, s.r(4.0), Fill::Solid(mix(s.t.strip, s.t.selection, if s.t.dark { 0.2 } else { 0.24 })));
+        let face = if s.t.dark { mix(s.t.strip, s.t.selection, 0.2) } else { s.t.panel_raised };
+        b.rrect(row, s.r(4.0), Fill::Solid(face));
         let bar = Rect::from_min_size(row.min + vec2(0.0, s.s(5.0)), vec2(s.s(3.0), row.height() - s.s(10.0)));
         b.rrect(bar, s.r(1.5), Fill::Solid(s.t.selection));
     } else if hov {

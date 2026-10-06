@@ -430,3 +430,41 @@ fn thumbnails_are_made_once_then_read_back_from_disk() {
     assert!(wait(&mut again));
     assert_eq!((again.stats.captures, again.stats.disk_loads), (0, 1));
 }
+
+#[test]
+fn the_devices_panel_drags_a_payload_and_double_click_adds() {
+    use cantus_ui::picker::DevicePayload;
+    let mut a = app_with_plugins();
+    let ctx = ctx();
+    let run = |a: &mut CantusApp, events: Vec<egui::Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 1400.0))),
+            events,
+            time: Some(ctx.input(|i| i.time) + 1.0 / 60.0),
+            predicted_dt: 1.0 / 60.0,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| cantus_ui::views::picker_panel::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    run(&mut a, vec![]);
+    run(&mut a, vec![]);
+    let (_, r) = a.picker_view.panel.rows.iter().find(|r| r.0 == "cantus:organum").cloned().expect("Organum listed");
+    let b = egui::PointerButton::Primary;
+    let p = r.center();
+    run(&mut a, vec![egui::Event::PointerMoved(p), egui::Event::PointerButton { pos: p, button: b, pressed: true, modifiers: Default::default() }]);
+    run(&mut a, vec![egui::Event::PointerMoved(p + egui::vec2(30.0, 0.0))]);
+    run(&mut a, vec![egui::Event::PointerMoved(p + egui::vec2(60.0, 10.0))]);
+    let payload = egui::DragAndDrop::payload::<DevicePayload>(&ctx).expect("a payload while dragging");
+    assert_eq!(payload.0, PickChoice::Instrument(InstrumentKind::Organ));
+    assert!(payload.is_instrument());
+    run(&mut a, vec![egui::Event::PointerButton { pos: p + egui::vec2(60.0, 10.0), button: b, pressed: false, modifiers: Default::default() }]);
+    // A double-click adds it on a new track (one undo step).
+    let tracks = a.project().tracks.len();
+    cantus_ui::views::picker_panel::add(&mut a, "cantus:organum");
+    assert_eq!(a.project().tracks.len(), tracks + 1);
+    assert_eq!(a.picker_view.prefs.recent.first().map(String::as_str), Some("cantus:organum"));
+}
