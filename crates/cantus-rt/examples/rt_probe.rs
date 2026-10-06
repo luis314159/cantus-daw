@@ -7,8 +7,8 @@
 
 use cantus_rt::memory::{lock, page_size, prefault, prefault_stack};
 use cantus_rt::thread::{
-    current_priority, promote_callback, promote_worker, set_current_thread_cpus, AudioHost,
-    WorkerRole,
+    current_priority, promote_callback, promote_worker, realtime_share, set_current_thread_cpus,
+    AudioHost, Waiting, WorkerRole,
 };
 use cantus_rt::topology::{CoreClass, Source, Topology};
 use std::time::{Duration, Instant};
@@ -45,7 +45,7 @@ fn main() {
     );
     println!("init_process: {init}");
 
-    println!("\n== threads");
+    println!("\n== threads (real-time share {:.2})", realtime_share());
     for host in [AudioHost::Wasapi, AudioHost::Asio, AudioHost::Alsa] {
         let (before, p, after) = std::thread::spawn(move || {
             let before = current_priority();
@@ -65,11 +65,14 @@ fn main() {
         .copied();
         let line = std::thread::spawn(move || {
             let before = current_priority();
-            let w = promote_worker(role, PERIOD);
+            let w = promote_worker(role, PERIOD, Waiting::Spins);
+            let b = promote_worker(role, PERIOD, Waiting::Bounded { busy_share: 0.5 });
+            let bounded = b.promotion.to_string();
+            drop(b);
             let after = current_priority();
             let pin = cpus.map(|c| (c, set_current_thread_cpus(&[c])));
             let text = format!(
-                "worker {role:?}: {}  [priority {before:?} -> {after:?}]",
+                "worker {role:?} spinning: {}  [priority {before:?} -> {after:?}]; bounded at 0.5: {bounded}",
                 w.promotion
             );
             drop(w);

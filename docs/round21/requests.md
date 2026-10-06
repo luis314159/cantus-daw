@@ -81,6 +81,38 @@ it is sent: `cantus_rt::memory::prefault(&mut slab)` and, best-effort,
 the slab comes back as garbage). Measured on this machine: first touch of 16 MiB costs
 **4.2 ms** — 1.6 blocks of 128 frames — if it happens on the audio thread.
 
+## To **sched** and **graph** (Phase 1's pool) — how pool threads are promoted
+
+Round 21 measured why the sched bench's MMCSS runs had 2.5–17.6 s blocks
+(`docs/round21/rt.md` §5): **MMCSS throttles a thread that is busy more than
+`100 − SystemResponsiveness` % (80 % by default) of each period, and the throttle reaches every
+MMCSS thread of the process — the callback included, even when the callback never waits on the
+spinner.** A spinning pool thread is busy ~100 % of the time. Hence, in `cantus-rt`:
+
+```rust
+// A worker that spins between blocks (the pool's 1.5-period spin budget):
+let _p = cantus_rt::thread::promote_worker(WorkerRole::Live, period, Waiting::Spins);
+//  -> Windows THREAD_PRIORITY_TIME_CRITICAL (no MMCSS); Linux SCHED_FIFO only when
+//     RLIMIT_RTTIME is unlimited (never rtkit: it would kill a spinner); macOS: left alone.
+
+// A worker that spins at most `busy_share` of a period, then parks until woken:
+let _p = promote_worker(WorkerRole::Live, period, Waiting::Bounded { busy_share: 0.5 });
+//  -> MMCSS "Pro Audio" HIGH / time constraint (+ workgroup) / rtkit, when
+//     busy_share <= realtime_share() - SHARE_MARGIN (0.65 on a default Windows).
+```
+
+- The sched bench's `mmcss::promote()` in its `on_start` hook should become
+  `promote_worker(WorkerRole::Live, cfg.period, Waiting::Spins)` — the pool spins.
+- A pool that wants the real-time class (macOS workgroups require it; Apple's guidance is not
+  to spin at all) must bound its spin: spin ≤ ~½ period after its last task, then park. The
+  measurement favours **bounded spin + park** on every count except wake-up latency
+  (`rt.md` §5); the `park_after` grace of ADR 0031 §2.4 then becomes "half a period", with the
+  idle → busy wake on every block — which amends ADR 0005 rule 3's "none in steady state".
+  That trade is the pool's to measure in wave 2 with these two promotions.
+- The bench's back-to-back `run_block()` loop keeps even the *callback* busy ~100 % of the
+  time: with MMCSS on it measures the throttle, not the scheduler. Pace it (sleep to each
+  period) or leave the callback unpromoted in that bench.
+
 ## To the **integrator** — `crates/cantus-app/src/main.rs` (R1, R9)
 
 **Now** — at start-up, before the engine starts (no effect on any sample):

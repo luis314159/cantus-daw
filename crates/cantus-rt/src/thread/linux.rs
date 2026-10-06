@@ -52,7 +52,44 @@ fn set(policy: i32, priority: i32) -> i32 {
     unsafe { libc::pthread_setschedparam(libc::pthread_self(), policy, &param) }
 }
 
-pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promotion {
+/// A limit on CPU time without blocking, per `RLIMIT_RTTIME`; `None` when unlimited.
+fn rttime_limit() -> Option<u64> {
+    // SAFETY: an all-zero rlimit is a valid value to be overwritten.
+    let mut lim: libc::rlimit = unsafe { std::mem::zeroed() };
+    // SAFETY: `lim` is a live out-pointer.
+    let ok = unsafe { libc::getrlimit(libc::RLIMIT_RTTIME, &mut lim) } == 0;
+    (ok && lim.rlim_cur != libc::RLIM_INFINITY).then_some(lim.rlim_cur as u64)
+}
+
+/// `sched_rt_runtime_us / sched_rt_period_us` (0.95 by default; −1 means unthrottled).
+pub fn realtime_share() -> f32 {
+    let read = |f: &str| {
+        std::fs::read_to_string(format!("/proc/sys/kernel/{f}"))
+            .ok()
+            .and_then(|t| t.trim().parse::<i64>().ok())
+    };
+    match (read("sched_rt_runtime_us"), read("sched_rt_period_us")) {
+        (Some(-1), _) => 1.0,
+        (Some(r), Some(p)) if r > 0 && p > 0 => (r as f32 / p as f32).min(1.0),
+        _ => 0.95,
+    }
+}
+
+pub fn promote(
+    role: WorkerRole,
+    period: Duration,
+    share: Option<f32>,
+    revert: &mut Revert,
+) -> Promotion {
+    // A spinning thread in a real-time class is killed (SIGKILL after SIGXCPU) once it runs
+    // `RLIMIT_RTTIME` without blocking — which rtkit requires and Mozilla's crate sets for the
+    // whole process. Such a thread gets SCHED_FIFO only directly and only while unlimited.
+    let spins = share.is_none();
+    if spins && role != WorkerRole::Background && rttime_limit().is_some() {
+        return Promotion::LeftAsIs(
+            "a spinning thread stays at normal priority: RLIMIT_RTTIME would kill it",
+        );
+    }
     let wanted = match role {
         WorkerRole::Live => 50,
         WorkerRole::Ahead => 40,
@@ -91,6 +128,12 @@ pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promo
             fifo: true,
             priority,
             via_rtkit: false,
+        });
+    }
+    if spins {
+        return Promotion::Refused(Refusal {
+            step: "pthread_setschedparam(SCHED_FIFO) (rtkit is not used for spinning threads)",
+            code: direct,
         });
     }
     rtkit(period, revert, direct)

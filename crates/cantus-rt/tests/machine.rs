@@ -6,10 +6,12 @@
 use cantus_rt::memory::{lock, prefault};
 use cantus_rt::thread::{
     callback_promotion, current_priority, opt_out_of_power_throttling, promote_callback,
-    promote_worker, set_current_thread_cpus, AudioHost, PowerThrottling, Promotion, WorkerRole,
+    promote_worker, realtime_share, set_current_thread_cpus, AudioHost, PowerThrottling, Promotion,
+    Waiting, WorkerRole,
 };
+use cantus_rt::thread::Grant;
 #[cfg(windows)]
-use cantus_rt::thread::{Grant, MmcssPriority};
+use cantus_rt::thread::MmcssPriority;
 #[cfg(any(windows, target_os = "linux"))]
 use cantus_rt::topology::Source;
 use cantus_rt::topology::{CoreClass, Topology};
@@ -195,28 +197,60 @@ fn a_driver_owned_callback_is_left_alone() {
     .unwrap();
 }
 
+/// The rule round 21 measured (docs/round21/rt.md §5): a spinning worker never enters a
+/// throttled real-time class; a bounded one does. Both revert on drop.
 #[test]
-fn workers_are_promoted_by_role_and_reverted_on_drop() {
+fn workers_are_promoted_safely_for_how_they_wait_and_reverted_on_drop() {
+    let bounded = Waiting::Bounded { busy_share: 0.5 };
+    println!("real-time share {}", realtime_share());
+    assert!(bounded.realtime_safe());
+    assert!(!Waiting::Spins.realtime_safe());
+    assert!(!Waiting::Bounded { busy_share: 0.9 }.realtime_safe());
+    #[cfg(windows)]
+    assert!(
+        (0.0..=0.9).contains(&realtime_share()),
+        "SystemResponsiveness gives {}",
+        realtime_share()
+    );
     for role in [WorkerRole::Live, WorkerRole::Ahead, WorkerRole::Background] {
-        std::thread::spawn(move || {
-            let before = current_priority();
-            let w = promote_worker(role, PERIOD);
-            println!(
-                "{role:?}: {} [{before:?} -> {:?}]",
-                w.promotion,
-                current_priority()
-            );
-            #[cfg(windows)]
-            assert!(
-                matches!(w.promotion, Promotion::Granted(Grant::Mmcss { .. })),
-                "{}",
-                w.promotion
-            );
-            drop(w);
-            assert_eq!(current_priority(), before);
-        })
-        .join()
-        .unwrap();
+        for waiting in [Waiting::Spins, bounded, Waiting::Bounded { busy_share: 0.95 }] {
+            std::thread::spawn(move || {
+                let before = current_priority();
+                let w = promote_worker(role, PERIOD, waiting);
+                println!(
+                    "{role:?} {waiting:?}: {} [{before:?} -> {:?}]",
+                    w.promotion,
+                    current_priority()
+                );
+                #[cfg(windows)]
+                match (role, waiting.realtime_safe()) {
+                    (_, true) => assert!(
+                        matches!(w.promotion, Promotion::Granted(Grant::Mmcss { .. })),
+                        "{}",
+                        w.promotion
+                    ),
+                    (WorkerRole::Background, false) => {
+                        assert!(matches!(w.promotion, Promotion::LeftAsIs(_)))
+                    }
+                    (_, false) => assert!(
+                        matches!(w.promotion, Promotion::Granted(Grant::ThreadPriority { .. })),
+                        "a spinning thread must not be in MMCSS: {}",
+                        w.promotion
+                    ),
+                }
+                #[cfg(not(windows))]
+                if !waiting.realtime_safe() && role != WorkerRole::Background {
+                    assert!(!matches!(
+                        w.promotion,
+                        Promotion::Granted(Grant::TimeConstraint { .. })
+                    ));
+                }
+                drop(w);
+                assert_eq!(current_priority(), before);
+            })
+            .join()
+            .unwrap();
+        }
     }
 }
 

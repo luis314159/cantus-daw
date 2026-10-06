@@ -11,7 +11,16 @@ const NONE: Refusal = Refusal {
     code: 0,
 };
 
-pub fn promote(_role: WorkerRole, _period: Duration, _revert: &mut Revert) -> Promotion {
+pub fn realtime_share() -> f32 {
+    1.0
+}
+
+pub fn promote(
+    _role: WorkerRole,
+    _period: Duration,
+    _share: Option<f32>,
+    _revert: &mut Revert,
+) -> Promotion {
     Promotion::Refused(NONE)
 }
 

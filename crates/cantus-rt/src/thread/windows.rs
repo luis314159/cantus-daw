@@ -1,4 +1,5 @@
-//! Windows: MMCSS (`avrt.dll`), CPU sets, power throttling.
+//! Windows: MMCSS (`avrt.dll`) for threads that block every period, plain thread priority for
+//! threads that spin (MMCSS throttles them: see `thread.rs`), CPU sets, power throttling.
 
 use super::{Grant, MmcssPriority, PowerThrottling, Promotion, Refusal, WorkerRole};
 use std::time::Duration;
@@ -6,16 +7,19 @@ use windows_sys::Win32::Foundation::{GetLastError, HANDLE};
 use windows_sys::Win32::System::Threading::{
     AvRevertMmThreadCharacteristics, AvSetMmThreadCharacteristicsW, AvSetMmThreadPriority,
     GetCurrentProcess, GetCurrentThread, GetThreadPriority, ProcessPowerThrottling,
-    SetProcessInformation, SetThreadSelectedCpuSets, AVRT_PRIORITY, AVRT_PRIORITY_HIGH,
-    AVRT_PRIORITY_LOW, AVRT_PRIORITY_NORMAL, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-    PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
-    PROCESS_POWER_THROTTLING_STATE,
+    SetProcessInformation, SetThreadPriority, SetThreadSelectedCpuSets, AVRT_PRIORITY,
+    AVRT_PRIORITY_HIGH, AVRT_PRIORITY_LOW, AVRT_PRIORITY_NORMAL,
+    PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+    PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, PROCESS_POWER_THROTTLING_STATE,
+    THREAD_PRIORITY, THREAD_PRIORITY_HIGHEST, THREAD_PRIORITY_TIME_CRITICAL,
 };
 
-/// The MMCSS registration to revert (the handle as an integer; 0 = none).
+/// What to revert: the MMCSS registration (the handle as an integer; 0 = none) or the
+/// thread priority before a plain promotion.
 #[derive(Debug, Default)]
 pub struct Revert {
     handle: usize,
+    previous: Option<i32>,
 }
 
 /// An ASCII string as a NUL-terminated UTF-16 array, at compile time.
@@ -37,7 +41,15 @@ fn last_error() -> i32 {
     unsafe { GetLastError() as i32 }
 }
 
-pub fn promote(role: WorkerRole, _period: Duration, revert: &mut Revert) -> Promotion {
+pub fn promote(
+    role: WorkerRole,
+    _period: Duration,
+    share: Option<f32>,
+    revert: &mut Revert,
+) -> Promotion {
+    if share.is_none() {
+        return plain(role, revert);
+    }
     let (task, name, priority, avrt): (&'static str, &[u16], _, AVRT_PRIORITY) = match role {
         WorkerRole::Live => (
             "Pro Audio",
@@ -81,7 +93,66 @@ pub fn promote(role: WorkerRole, _period: Duration, revert: &mut Revert) -> Prom
     })
 }
 
+/// A spinning thread: the top of the normal class, which no service throttles. (A starving
+/// thread may be boosted to 15 for a quantum by the balance-set manager: the residual risk,
+/// measured in `docs/round21/rt.md` as single blocks of 5–37 ms on a machine at 100 %.)
+fn plain(role: WorkerRole, revert: &mut Revert) -> Promotion {
+    let level: THREAD_PRIORITY = match role {
+        WorkerRole::Live => THREAD_PRIORITY_TIME_CRITICAL,
+        WorkerRole::Ahead => THREAD_PRIORITY_HIGHEST,
+        WorkerRole::Background => {
+            return Promotion::LeftAsIs("background threads run at normal priority")
+        }
+    };
+    let before = priority().unwrap_or(0);
+    // SAFETY: a pseudo-handle for this thread; a documented priority level.
+    if unsafe { SetThreadPriority(GetCurrentThread(), level) } == 0 {
+        return Promotion::Refused(Refusal {
+            step: "SetThreadPriority",
+            code: last_error(),
+        });
+    }
+    revert.previous = Some(before);
+    Promotion::Granted(Grant::ThreadPriority { level })
+}
+
+/// `1 − SystemResponsiveness / 100`, as MMCSS applies it: the registry value rounded up to a
+/// multiple of 10, 0 read as 10, outside 10..=100 the default 20.
+pub fn realtime_share() -> f32 {
+    use windows_sys::Win32::System::Registry::{
+        RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD,
+    };
+    let key: Vec<u16> =
+        "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\0"
+            .encode_utf16()
+            .collect();
+    let value: Vec<u16> = "SystemResponsiveness\0".encode_utf16().collect();
+    let (mut data, mut size) = (0u32, 4u32);
+    // SAFETY: NUL-terminated key and value names; `data` is a live DWORD of the size passed.
+    let r = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            key.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            (&mut data as *mut u32).cast(),
+            &mut size,
+        )
+    };
+    let reserve = match (r, data) {
+        (0, 0) => 10,
+        (0, d) if d <= 100 => d.div_ceil(10) * 10,
+        _ => 20,
+    };
+    1.0 - reserve as f32 / 100.0
+}
+
 pub fn revert(r: &mut Revert) {
+    if let Some(p) = r.previous.take() {
+        // SAFETY: a pseudo-handle for this thread; the level read before the promotion.
+        unsafe { SetThreadPriority(GetCurrentThread(), p) };
+    }
     if r.handle != 0 {
         // SAFETY: the handle is the registration `promote` made on this thread (the guard
         // holding it is not `Send`), reverted once.

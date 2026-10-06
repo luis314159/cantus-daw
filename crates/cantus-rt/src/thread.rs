@@ -1,4 +1,5 @@
-//! Thread priority and placement (ADR 0031 §2.6, amended by R1, R3, R4, R5).
+//! Thread priority and placement (ADR 0031 §2.6, amended by R1, R3, R4, R5 — and by what
+//! round 21 measured: **a real-time class that throttles must never hold a spinning thread**).
 //!
 //! - [`promote_callback`]: the audio callback's thread, on the first block after a stream
 //!   starts. On **WASAPI** the thread is cpal's, at normal priority (cpal promotes only under
@@ -7,14 +8,26 @@
 //!   made it real-time: nothing is done. One system call per stream start, never per block
 //!   (ADR 0005 rule 3 as amended by ADR 0031 §2.4); later calls on the same thread return the
 //!   first answer from a thread-local, with no system call.
-//! - [`promote_worker`]: a pool thread, by role — live workers "Pro Audio" HIGH, ahead workers
-//!   "Pro Audio" LOW, background threads "Audio" NORMAL on Windows; the time-constraint policy
-//!   (and, with a device workgroup, `os_workgroup_join` after it) on macOS; rtkit's SCHED_RR or
-//!   SCHED_FIFO on Linux. Reverted when the returned guard drops.
+//! - [`promote_worker`]: a pool thread, by role **and by how it waits** ([`Waiting`]). Every
+//!   OS's real-time class polices how much of each period a thread may use: MMCSS demotes a
+//!   thread past `100 − SystemResponsiveness` % (80 % by default) to priority 1–7 for the
+//!   rest of the period — behind every compiler on a busy machine, which round 21 measured as
+//!   blocks of 0.1–1 s (rt) and 2.5–17.6 s (sched); macOS demotes a time-constraint thread
+//!   that keeps overrunning its computation; rtkit sets `RLIMIT_RTTIME`, and a real-time
+//!   thread that runs that long without blocking is killed. So a worker that **spins** gets
+//!   the highest priority no OS throttles (Windows `THREAD_PRIORITY_TIME_CRITICAL`; Linux
+//!   `SCHED_FIFO` only when `RLIMIT_RTTIME` is unlimited; nothing on macOS), and only a worker
+//!   whose busy share stays under [`realtime_share`] — spin a bounded time, then park — gets
+//!   the real-time class (MMCSS "Pro Audio", the time constraint and the workgroup, rtkit).
+//!   Reverted when the returned guard drops.
 //! - [`set_current_thread_cpus`]: soft placement — Windows CPU sets (which the power manager
 //!   respects), Linux affinity; macOS has none.
 //! - [`opt_out_of_power_throttling`]: the process leaves EcoQoS (R1), which Steinberg tells
 //!   Cubase users to do by hand after prefetch threads dropped out on E-cores.
+//!
+//! The callback is in the real-time class because it blocks every period in the driver: its
+//! busy share is the engine's load, which must stay under [`realtime_share`] anyway — past it
+//! the device drops out before MMCSS would throttle.
 
 use std::cell::Cell;
 use std::fmt;
@@ -83,6 +96,38 @@ pub enum WorkerRole {
     Background,
 }
 
+/// How a pool thread waits between tasks — which decides the promotion that is safe for it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Waiting {
+    /// Spins (or may spin) through most of a period — the pool's spin-for-1.5-periods
+    /// discipline at steady state. Never given a throttled real-time class.
+    Spins,
+    /// Busy — working plus spinning — at most `busy_share` of each period, then blocks (parks)
+    /// until woken. Given the real-time class when `busy_share` < [`realtime_share`].
+    Bounded { busy_share: f32 },
+}
+
+impl Waiting {
+    /// True when the real-time class is safe for a thread that waits this way: bounded, and
+    /// at least [`SHARE_MARGIN`] under [`realtime_share`] (round 21 measured the MMCSS
+    /// threshold at exactly 80 %: a 61 % busy share ran clean, 81 % was throttled).
+    pub fn realtime_safe(self) -> bool {
+        matches!(self, Waiting::Bounded { busy_share } if busy_share <= realtime_share() - SHARE_MARGIN)
+    }
+}
+
+/// How far under [`realtime_share`] a bounded thread's busy share must stay.
+pub const SHARE_MARGIN: f32 = 0.15;
+
+/// The share of each period a thread may be busy in this OS's real-time class before it is
+/// throttled: Windows `1 − SystemResponsiveness/100` (0.8 by default, read from the registry
+/// once); Linux 0.95 (`sched_rt_runtime_us`); macOS 1.0 (the computation is set from the
+/// declared share). Pool threads must stay *under* it, with margin.
+pub fn realtime_share() -> f32 {
+    static SHARE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *SHARE.get_or_init(os::realtime_share)
+}
+
 /// What a promotion achieved.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Promotion {
@@ -110,6 +155,9 @@ pub enum Grant {
         computation_ns: u64,
         joined_workgroup: bool,
     },
+    /// Windows `SetThreadPriority` without MMCSS (15 = `THREAD_PRIORITY_TIME_CRITICAL`, 2 =
+    /// `HIGHEST`): for threads that spin, which MMCSS would throttle.
+    ThreadPriority { level: i32 },
     /// Linux real-time scheduling: the policy and priority, and whether rtkit granted it.
     RealTime {
         fifo: bool,
@@ -183,6 +231,9 @@ impl fmt::Display for Promotion {
                     ""
                 }
             ),
+            Promotion::Granted(Grant::ThreadPriority { level }) => {
+                write!(f, "thread priority {level} (no MMCSS: the thread spins)")
+            }
             Promotion::Granted(Grant::RealTime {
                 fifo,
                 priority,
@@ -217,7 +268,12 @@ pub fn promote_callback(host: AudioHost, period: Duration) -> Promotion {
     let p = if host.driver_owns_priority() {
         Promotion::LeftAsIs("driver-owned thread: real-time already, left alone")
     } else {
-        os::promote(WorkerRole::Live, period, &mut os::Revert::default())
+        os::promote(
+            WorkerRole::Live,
+            period,
+            Some(0.5),
+            &mut os::Revert::default(),
+        )
     };
     CALLBACK.with(|c| c.set(Some(p)));
     p
@@ -243,11 +299,12 @@ impl Drop for WorkerPromotion {
     }
 }
 
-/// Promotes the calling pool thread for `role`; `period` is the device period (macOS'
-/// constraint, Linux's `RLIMIT_RTTIME`).
-pub fn promote_worker(role: WorkerRole, period: Duration) -> WorkerPromotion {
+/// Promotes the calling pool thread for `role`, safely for how it `waits` (module docs):
+/// the real-time class only when `waiting.realtime_safe()`, else the highest priority no OS
+/// throttles. `period` is the device period (macOS' constraint, Linux's `RLIMIT_RTTIME`).
+pub fn promote_worker(role: WorkerRole, period: Duration, waiting: Waiting) -> WorkerPromotion {
     let mut revert = os::Revert::default();
-    let promotion = os::promote(role, period, &mut revert);
+    let promotion = os::promote(role, period, share(waiting), &mut revert);
     WorkerPromotion {
         promotion,
         revert,
@@ -259,13 +316,26 @@ pub fn promote_worker(role: WorkerRole, period: Duration) -> WorkerPromotion {
 /// fails with `EINVAL`). A refusal from step `"os_workgroup_join"` with `EINVAL` means the
 /// workgroup was cancelled (the device changed): fetch the new one and call again.
 #[cfg(target_os = "macos")]
-pub fn promote_worker_in(wg: &Workgroup, role: WorkerRole, period: Duration) -> WorkerPromotion {
+pub fn promote_worker_in(
+    wg: &Workgroup,
+    role: WorkerRole,
+    period: Duration,
+    waiting: Waiting,
+) -> WorkerPromotion {
     let mut revert = os::Revert::default();
-    let promotion = os::promote_in(wg, role, period, &mut revert);
+    let promotion = os::promote_in(wg, role, period, share(waiting), &mut revert);
     WorkerPromotion {
         promotion,
         revert,
         _not_send: std::marker::PhantomData,
+    }
+}
+
+/// The busy share to promote with, `None` when the thread must not enter the real-time class.
+fn share(waiting: Waiting) -> Option<f32> {
+    match waiting {
+        Waiting::Bounded { busy_share } if waiting.realtime_safe() => Some(busy_share.max(0.05)),
+        _ => None,
     }
 }
 

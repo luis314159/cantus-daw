@@ -154,8 +154,8 @@ Also: `cargo clippy -p cantus-rt --all-targets` clean; `cargo check -p cantus-rt
 aarch64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin** (the rtkit feature
 cannot be cross-checked here — `libdbus-sys` needs the target's pkg-config — so its three
 calls were checked against `audio_thread_priority` 0.38's source); `cargo test -p
-cantus-plugins --test clap` (the guard through its re-export) and `cargo check -p cantus-host
---all-targets` — see the report. The engine's tests are untouched by this branch (no engine
+cantus-plugins --test clap` (the guard through its re-export, FTZ on and off bit-identical):
+**16 pass**; `cargo check -p cantus-host --all-targets`: clean. The engine's tests are untouched by this branch (no engine
 file changed).
 
 ## Files outside my area

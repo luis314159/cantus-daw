@@ -135,13 +135,15 @@ fn this_thread() -> libc::thread_t {
     unsafe { libc::pthread_mach_thread_np(libc::pthread_self()) }
 }
 
-fn constrain(period: Duration) -> Result<(u64, u64), Refusal> {
+fn constrain(period: Duration, share: f32) -> Result<(u64, u64), Refusal> {
     let mut tb = Timebase { numer: 0, denom: 0 };
     // SAFETY: `tb` is a live out-pointer.
     unsafe { mach_timebase_info(&mut tb) };
     let period_ns = period.as_nanos().clamp(100_000, 100_000_000) as u64;
-    // Mozilla's choice (rt_mach.rs): computation half the period, capped at 50 ms.
-    let computation_ns = (period_ns / 2).min(50_000_000);
+    // The declared busy share of the period (the callback: a half, Mozilla's `rt_mach.rs`
+    // choice), capped at 50 ms; the kernel demotes a thread that keeps overrunning it.
+    let computation_ns =
+        ((period_ns as f64 * share.clamp(0.05, 1.0) as f64) as u64).min(50_000_000);
     let abs = |ns: u64| (ns * tb.denom.max(1) as u64 / tb.numer.max(1) as u64) as u32;
     let mut policy = libc::thread_time_constraint_policy {
         period: abs(period_ns),
@@ -167,11 +169,26 @@ fn constrain(period: Duration) -> Result<(u64, u64), Refusal> {
     Ok((period_ns, computation_ns))
 }
 
-pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promotion {
+/// The computation is set from the declared busy share, so any share under 1 is honest.
+pub fn realtime_share() -> f32 {
+    1.0
+}
+
+pub fn promote(
+    role: WorkerRole,
+    period: Duration,
+    share: Option<f32>,
+    revert: &mut Revert,
+) -> Promotion {
     if role == WorkerRole::Background {
         return Promotion::LeftAsIs("background threads run at normal priority");
     }
-    match constrain(period) {
+    let Some(share) = share else {
+        return Promotion::LeftAsIs(
+            "a spinning thread gets no time constraint: macOS demotes threads that overrun it",
+        );
+    };
+    match constrain(period, share) {
         Ok((period_ns, computation_ns)) => {
             revert.constrained = true;
             Promotion::Granted(Grant::TimeConstraint {
@@ -188,9 +205,10 @@ pub fn promote_in(
     wg: &Workgroup,
     role: WorkerRole,
     period: Duration,
+    share: Option<f32>,
     revert: &mut Revert,
 ) -> Promotion {
-    let p = promote(role, period, revert);
+    let p = promote(role, period, share, revert);
     let Promotion::Granted(Grant::TimeConstraint {
         period_ns,
         computation_ns,
