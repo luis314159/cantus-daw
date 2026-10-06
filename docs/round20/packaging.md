@@ -185,10 +185,16 @@ See the report at the end of the round (`cargo test -p cantus-update -p xtask`):
   gone from the user's store after export.
 - `flexasio.ps1 -DownloadOnly` fetched and verified FlexASIO-1.10b.exe through the proxy.
 - The GitHub API answered through the proxy (curl, and the recorded fixtures).
-- Not done here: a full `xtask package` of the real app (a release build of `cantus` and
-  ten fat-LTO plug-in builds; the shared machine's cargo package-cache lock held builds
-  for tens of minutes at a time) — the CI workflow does it on a clean runner; locally:
-  `cargo run -p xtask -- package --sign-test`.
+- **The real thing, end to end**: `cargo run -p xtask -- package --sign-test` built
+  `cantus` (release), the ten plug-ins (`plugin` profile), signed `cantus.exe`, the 10 CLAP
+  and 10 VST3 binaries, the uninstaller (hook) and the installer, and wrote
+  `Cantus-0.1.0-windows-x64-setup.exe` (38.2 MB; 142 MB of payload, LZMA 28 %),
+  `…-portable.zip` (59.7 MB), `…-plugins-windows-x64.zip` (49.1 MB) and `SHA256SUMS.txt`.
+  Installed silently: `cantus.exe` (27 MB, signed), the texts, the signed uninstaller,
+  10 + 10 plug-ins in the per-user folders; uninstalled clean.
+- Not done here: the ASIO flavour of the real app (`--asio`/`--all`; it needs
+  `CPAL_ASIO_DIR` — round 19 built it on this machine), and looking at the installer's
+  pages interactively.
 
 ## Files touched outside my area
 
@@ -205,8 +211,8 @@ See the report at the end of the round (`cargo test -p cantus-update -p xtask`):
 
 ## Left
 
-- A full local `package --all --sign-test` run of the real app (see above), and a look at
-  the real installer's pages (welcome, licence, components) in both languages.
+- A local `package --all` (the ASIO flavour of the real app), and a look at the real
+  installer's pages (welcome, licence, components) in both languages.
 - macOS (DMG, notarisation) and Linux (AppImage/Flatpak) packages — BACKLOG §6.
 - An MSI for enterprise deployment, if ever asked for (same staging folder).
 - Files a previous version shipped and the new one does not stay until uninstall.
