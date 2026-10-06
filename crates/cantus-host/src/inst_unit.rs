@@ -224,6 +224,7 @@ impl InstrumentUnit for HostedInstrument {
         self.notes.clear();
         self.held.clear();
         self.audio.reset();
+        cantus_rt::fpenv::reassert();
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
@@ -244,6 +245,8 @@ impl InstrumentUnit for HostedInstrument {
             &self.notes,
             &mut self.sync.out,
         );
+        // A plug-in may leave MXCSR changed (ADR 0031 R9; a no-op outside a `DenormalGuard`).
+        cantus_rt::fpenv::reassert();
         self.notes.clear();
         self.sync.after_process(frames);
         left[..frames].iter().any(|x| *x != 0.0) || right[..frames].iter().any(|x| *x != 0.0)

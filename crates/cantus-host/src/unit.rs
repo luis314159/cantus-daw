@@ -291,11 +291,15 @@ impl FxUnit for HostedUnit {
             &[],
             &mut self.sync.out,
         );
+        // A plug-in may leave MXCSR changed: the next native unit renders with FTZ/DAZ as
+        // the engine set them (ADR 0031 R9; a no-op outside a `DenormalGuard`).
+        cantus_rt::fpenv::reassert();
         self.sync.after_process(frames);
     }
 
     fn reset(&mut self) {
         self.audio.reset();
+        cantus_rt::fpenv::reassert();
     }
 
     fn latency(&self) -> usize {

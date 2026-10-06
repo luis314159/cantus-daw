@@ -10,6 +10,17 @@ use std::ffi::{c_int, c_void};
 use std::sync::OnceLock;
 use std::time::Duration;
 
+/// `mach_timebase_info_data_t` (`<mach/mach_time.h>`); libc deprecates its own copy.
+#[repr(C)]
+struct Timebase {
+    numer: u32,
+    denom: u32,
+}
+
+extern "C" {
+    fn mach_timebase_info(info: *mut Timebase) -> c_int;
+}
+
 /// `os_workgroup_join_token_s`: a 4-byte signature and 36 opaque bytes on 64-bit systems
 /// (`<os/workgroup_base.h>`); 64 bytes here leave room to spare.
 #[repr(C, align(8))]
@@ -125,9 +136,9 @@ fn this_thread() -> libc::thread_t {
 }
 
 fn constrain(period: Duration) -> Result<(u64, u64), Refusal> {
-    let mut tb = libc::mach_timebase_info { numer: 0, denom: 0 };
+    let mut tb = Timebase { numer: 0, denom: 0 };
     // SAFETY: `tb` is a live out-pointer.
-    unsafe { libc::mach_timebase_info(&mut tb) };
+    unsafe { mach_timebase_info(&mut tb) };
     let period_ns = period.as_nanos().clamp(100_000, 100_000_000) as u64;
     // Mozilla's choice (rt_mach.rs): computation half the period, capped at 50 ms.
     let computation_ns = (period_ns / 2).min(50_000_000);
@@ -148,7 +159,10 @@ fn constrain(period: Duration) -> Result<(u64, u64), Refusal> {
         )
     };
     if kr != 0 {
-        return Err(Refusal { step: "thread_policy_set(TIME_CONSTRAINT)", code: kr });
+        return Err(Refusal {
+            step: "thread_policy_set(TIME_CONSTRAINT)",
+            code: kr,
+        });
     }
     Ok((period_ns, computation_ns))
 }
@@ -160,19 +174,36 @@ pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promo
     match constrain(period) {
         Ok((period_ns, computation_ns)) => {
             revert.constrained = true;
-            Promotion::Granted(Grant::TimeConstraint { period_ns, computation_ns, joined_workgroup: false })
+            Promotion::Granted(Grant::TimeConstraint {
+                period_ns,
+                computation_ns,
+                joined_workgroup: false,
+            })
         }
         Err(r) => Promotion::Refused(r),
     }
 }
 
-pub fn promote_in(wg: &Workgroup, role: WorkerRole, period: Duration, revert: &mut Revert) -> Promotion {
+pub fn promote_in(
+    wg: &Workgroup,
+    role: WorkerRole,
+    period: Duration,
+    revert: &mut Revert,
+) -> Promotion {
     let p = promote(role, period, revert);
-    let Promotion::Granted(Grant::TimeConstraint { period_ns, computation_ns, .. }) = p else {
+    let Promotion::Granted(Grant::TimeConstraint {
+        period_ns,
+        computation_ns,
+        ..
+    }) = p
+    else {
         return p;
     };
     let Some(s) = syms() else {
-        return Promotion::Refused(Refusal { step: "os_workgroup_join (needs macOS 11)", code: 0 });
+        return Promotion::Refused(Refusal {
+            step: "os_workgroup_join (needs macOS 11)",
+            code: 0,
+        });
     };
     let mut token = Box::new(Token([0; 64]));
     // SAFETY: `wg.raw` is retained by `wg`; `token` is a live, writable, large-enough buffer
@@ -180,12 +211,19 @@ pub fn promote_in(wg: &Workgroup, role: WorkerRole, period: Duration, revert: &m
     let r = unsafe { (s.join)(wg.raw, &mut *token) };
     if r != 0 {
         // EINVAL: the workgroup was cancelled (device change) — fetch the new one and retry.
-        return Promotion::Refused(Refusal { step: "os_workgroup_join", code: r });
+        return Promotion::Refused(Refusal {
+            step: "os_workgroup_join",
+            code: r,
+        });
     }
     // SAFETY: an extra retain for the membership, released after the leave in `revert`.
     unsafe { (s.retain)(wg.raw) };
     revert.joined = Some((wg.raw as usize, token));
-    Promotion::Granted(Grant::TimeConstraint { period_ns, computation_ns, joined_workgroup: true })
+    Promotion::Granted(Grant::TimeConstraint {
+        period_ns,
+        computation_ns,
+        joined_workgroup: true,
+    })
 }
 
 pub fn revert(r: &mut Revert) {
@@ -212,7 +250,10 @@ pub fn revert(r: &mut Revert) {
 }
 
 pub fn set_cpus(_ids: &[u32]) -> Result<(), Refusal> {
-    Err(Refusal { step: "macOS has no thread affinity (the workgroup places threads)", code: 0 })
+    Err(Refusal {
+        step: "macOS has no thread affinity (the workgroup places threads)",
+        code: 0,
+    })
 }
 
 pub fn opt_out_of_power_throttling() -> PowerThrottling {

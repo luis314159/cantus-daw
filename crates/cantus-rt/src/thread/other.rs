@@ -6,7 +6,10 @@ use std::time::Duration;
 #[derive(Debug, Default)]
 pub struct Revert;
 
-const NONE: Refusal = Refusal { step: "no real-time scheduling on this target", code: 0 };
+const NONE: Refusal = Refusal {
+    step: "no real-time scheduling on this target",
+    code: 0,
+};
 
 pub fn promote(_role: WorkerRole, _period: Duration, _revert: &mut Revert) -> Promotion {
     Promotion::Refused(NONE)

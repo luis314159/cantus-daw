@@ -223,11 +223,15 @@ impl Topology {
     }
 
     pub fn performance_cores(&self) -> impl Iterator<Item = &Core> {
-        self.cores.iter().filter(|c| c.class == CoreClass::Performance)
+        self.cores
+            .iter()
+            .filter(|c| c.class == CoreClass::Performance)
     }
 
     pub fn efficiency_cores(&self) -> impl Iterator<Item = &Core> {
-        self.cores.iter().filter(|c| c.class == CoreClass::Efficiency)
+        self.cores
+            .iter()
+            .filter(|c| c.class == CoreClass::Efficiency)
     }
 
     /// The cache domain the live pool uses: the one with the most available performance
@@ -236,7 +240,9 @@ impl Topology {
         let p = |d: &&CacheDomain| {
             d.cores
                 .iter()
-                .filter(|&&i| self.cores[i].class == CoreClass::Performance && self.cores[i].available)
+                .filter(|&&i| {
+                    self.cores[i].class == CoreClass::Performance && self.cores[i].available
+                })
                 .count()
         };
         let best = self.caches.iter().map(|d| p(&d)).max()?;
@@ -251,7 +257,9 @@ impl Topology {
         let p = self.live_domain().map_or(0, |d| {
             d.cores
                 .iter()
-                .filter(|&&i| self.cores[i].class == CoreClass::Performance && self.cores[i].available)
+                .filter(|&&i| {
+                    self.cores[i].class == CoreClass::Performance && self.cores[i].available
+                })
                 .count()
         });
         p.saturating_sub(2).clamp(1, 14)
@@ -261,7 +269,10 @@ impl Topology {
     pub fn placement(&self, live: usize) -> Placement {
         let first = |c: &Core| c.cpus[0];
         let usable = |c: &&Core| c.available;
-        let domain: Vec<usize> = self.live_domain().map(|d| d.cores.clone()).unwrap_or_default();
+        let domain: Vec<usize> = self
+            .live_domain()
+            .map(|d| d.cores.clone())
+            .unwrap_or_default();
         let live_cores: Vec<&Core> = domain
             .iter()
             .map(|&i| &self.cores[i])

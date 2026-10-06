@@ -11,7 +11,10 @@ use std::time::Duration;
 pub enum Revert {
     #[default]
     Nothing,
-    Direct { policy: i32, priority: i32 },
+    Direct {
+        policy: i32,
+        priority: i32,
+    },
     #[cfg(feature = "rtkit")]
     Rtkit(audio_thread_priority::RtPriorityHandle),
 }
@@ -53,10 +56,15 @@ pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promo
     let wanted = match role {
         WorkerRole::Live => 50,
         WorkerRole::Ahead => 40,
-        WorkerRole::Background => return Promotion::LeftAsIs("background threads run at normal priority"),
+        WorkerRole::Background => {
+            return Promotion::LeftAsIs("background threads run at normal priority")
+        }
     };
     let Some((old_policy, old_priority)) = current() else {
-        return Promotion::Refused(Refusal { step: "pthread_getschedparam", code: errno() });
+        return Promotion::Refused(Refusal {
+            step: "pthread_getschedparam",
+            code: errno(),
+        });
     };
     // SAFETY: an all-zero rlimit is a valid value to be overwritten.
     let mut lim: libc::rlimit = unsafe { std::mem::zeroed() };
@@ -75,8 +83,15 @@ pub fn promote(role: WorkerRole, period: Duration, revert: &mut Revert) -> Promo
         libc::EPERM
     };
     if direct == 0 {
-        *revert = Revert::Direct { policy: old_policy, priority: old_priority };
-        return Promotion::Granted(Grant::RealTime { fifo: true, priority, via_rtkit: false });
+        *revert = Revert::Direct {
+            policy: old_policy,
+            priority: old_priority,
+        };
+        return Promotion::Granted(Grant::RealTime {
+            fifo: true,
+            priority,
+            via_rtkit: false,
+        });
     }
     rtkit(period, revert, direct)
 }
@@ -90,7 +105,11 @@ fn rtkit(period: Duration, revert: &mut Revert, _direct: i32) -> Promotion {
             *revert = Revert::Rtkit(handle);
             let (policy, priority) = current().unwrap_or((libc::SCHED_RR, 0));
             let fifo = policy & !libc::SCHED_RESET_ON_FORK == libc::SCHED_FIFO;
-            Promotion::Granted(Grant::RealTime { fifo, priority, via_rtkit: true })
+            Promotion::Granted(Grant::RealTime {
+                fifo,
+                priority,
+                via_rtkit: true,
+            })
         }
         Err(_) => Promotion::Refused(Refusal {
             step: "rtkit (D-Bus org.freedesktop.RealtimeKit1) after SCHED_FIFO was not allowed",
@@ -101,7 +120,10 @@ fn rtkit(period: Duration, revert: &mut Revert, _direct: i32) -> Promotion {
 
 #[cfg(not(feature = "rtkit"))]
 fn rtkit(_period: Duration, _revert: &mut Revert, direct: i32) -> Promotion {
-    Promotion::Refused(Refusal { step: "pthread_setschedparam(SCHED_FIFO) (built without rtkit)", code: direct })
+    Promotion::Refused(Refusal {
+        step: "pthread_setschedparam(SCHED_FIFO) (built without rtkit)",
+        code: direct,
+    })
 }
 
 pub fn revert(r: &mut Revert) {
@@ -136,7 +158,10 @@ pub fn set_cpus(ids: &[u32]) -> Result<(), Refusal> {
     if r == 0 {
         Ok(())
     } else {
-        Err(Refusal { step: "sched_setaffinity", code: errno() })
+        Err(Refusal {
+            step: "sched_setaffinity",
+            code: errno(),
+        })
     }
 }
 

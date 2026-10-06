@@ -24,6 +24,8 @@ log.workspace = true
 raw-window-handle = "0.6"
 cantus-core.workspace = true
 cantus-engine.workspace = true
+# The denormal guard's re-assert after every audio-thread call into a plug-in (ADR 0031 R9).
+cantus-rt.workspace = true
 rtrb.workspace = true
 # CLAP: the ABI as the official headers define it (MIT OR Apache-2.0), ADR 0019.
 clap-sys = "0.5"

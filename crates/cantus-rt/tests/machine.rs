@@ -6,10 +6,13 @@
 use cantus_rt::memory::{lock, prefault};
 use cantus_rt::thread::{
     callback_promotion, current_priority, opt_out_of_power_throttling, promote_callback,
-    promote_worker, set_current_thread_cpus, AudioHost, Grant, MmcssPriority, PowerThrottling,
-    Promotion, WorkerRole,
+    promote_worker, set_current_thread_cpus, AudioHost, PowerThrottling, Promotion, WorkerRole,
 };
-use cantus_rt::topology::{CoreClass, Source, Topology};
+#[cfg(windows)]
+use cantus_rt::thread::{Grant, MmcssPriority};
+#[cfg(any(windows, target_os = "linux"))]
+use cantus_rt::topology::Source;
+use cantus_rt::topology::{CoreClass, Topology};
 use std::time::Duration;
 
 const PERIOD: Duration = Duration::from_micros(2_667);
@@ -35,13 +38,27 @@ fn cpuid_says_hybrid() -> bool {
 #[test]
 fn the_topology_is_whole() {
     let t = Topology::detect();
-    println!("{:?}: {} logical, {} cores, {} P, {} E, {} cache domains", t.source, t.logical,
-        t.cores.len(), t.performance_cores().count(), t.efficiency_cores().count(), t.caches.len());
+    println!(
+        "{:?}: {} logical, {} cores, {} P, {} E, {} cache domains",
+        t.source,
+        t.logical,
+        t.cores.len(),
+        t.performance_cores().count(),
+        t.efficiency_cores().count(),
+        t.caches.len()
+    );
     assert!(t.logical >= 1 && !t.cores.is_empty());
-    assert_eq!(t.cores.iter().map(|c| c.cpus.len()).sum::<usize>(), t.logical);
+    assert_eq!(
+        t.cores.iter().map(|c| c.cpus.len()).sum::<usize>(),
+        t.logical
+    );
     assert!(t.performance_cores().count() >= 1);
     // Every core in exactly one cache domain.
-    let mut seen: Vec<usize> = t.caches.iter().flat_map(|d| d.cores.iter().copied()).collect();
+    let mut seen: Vec<usize> = t
+        .caches
+        .iter()
+        .flat_map(|d| d.cores.iter().copied())
+        .collect();
     seen.sort_unstable();
     assert_eq!(seen, (0..t.cores.len()).collect::<Vec<_>>());
     // As many logical processors as std sees (one processor group: under 64).
@@ -54,18 +71,27 @@ fn the_topology_is_whole() {
     #[cfg(target_os = "linux")]
     assert_eq!(t.source, Source::Sysfs);
     #[cfg(windows)]
-    assert!(t.caches.iter().all(|d| d.level >= 2 && d.bytes > 0), "{:?}", t.caches);
+    assert!(
+        t.caches.iter().all(|d| d.level >= 2 && d.bytes > 0),
+        "{:?}",
+        t.caches
+    );
 }
 
 #[test]
 fn a_hybrid_cpu_shows_both_classes() {
     let t = Topology::detect();
     if cpuid_says_hybrid() {
-        assert!(t.is_hybrid(), "CPUID says hybrid; the topology found one class: {t:?}");
+        assert!(
+            t.is_hybrid(),
+            "CPUID says hybrid; the topology found one class: {t:?}"
+        );
         assert!(t.efficiency_cores().count() >= 1);
         // On Intel's hybrid parts the P-cores are the hyper-threaded ones, when any are.
         let ht = |c: &&cantus_rt::topology::Core| c.cpus.len() > 1;
-        assert!(t.efficiency_cores().filter(ht).count() <= t.performance_cores().filter(ht).count());
+        assert!(
+            t.efficiency_cores().filter(ht).count() <= t.performance_cores().filter(ht).count()
+        );
         // The live pool never lands on an E-core.
         let place = t.placement(t.default_live_workers());
         for id in &place.live {
@@ -73,7 +99,10 @@ fn a_hybrid_cpu_shows_both_classes() {
             assert_eq!(core.class, CoreClass::Performance);
         }
     } else {
-        println!("CPUID does not say hybrid: {} classes found", if t.is_hybrid() { 2 } else { 1 });
+        println!(
+            "CPUID does not say hybrid: {} classes found",
+            if t.is_hybrid() { 2 } else { 1 }
+        );
     }
 }
 
@@ -82,20 +111,29 @@ fn a_hybrid_cpu_shows_both_classes() {
 #[test]
 fn cpu_sets_and_processor_information_agree() {
     let a = Topology::detect_from(Source::CpuSets).expect("CPU sets");
-    let b = Topology::detect_from(Source::ProcessorInformation).expect("GetLogicalProcessorInformationEx");
+    let b = Topology::detect_from(Source::ProcessorInformation)
+        .expect("GetLogicalProcessorInformationEx");
     assert_eq!(a.logical, b.logical);
     assert_eq!(a.cores.len(), b.cores.len());
     assert_eq!(a.caches.len(), b.caches.len());
     assert_eq!(a.performance_cores().count(), b.performance_cores().count());
     assert_eq!(a.efficiency_cores().count(), b.efficiency_cores().count());
     let shape = |t: &Topology| {
-        let mut v: Vec<(u8, usize)> = t.cores.iter().map(|c| (c.efficiency_class, c.cpus.len())).collect();
+        let mut v: Vec<(u8, usize)> = t
+            .cores
+            .iter()
+            .map(|c| (c.efficiency_class, c.cpus.len()))
+            .collect();
         v.sort_unstable();
         v
     };
     assert_eq!(shape(&a), shape(&b));
     let size = |t: &Topology| {
-        let mut v: Vec<(u8, u64, usize)> = t.caches.iter().map(|d| (d.level, d.bytes, d.cores.len())).collect();
+        let mut v: Vec<(u8, u64, usize)> = t
+            .caches
+            .iter()
+            .map(|d| (d.level, d.bytes, d.cores.len()))
+            .collect();
         v.sort_unstable();
         v
     };
@@ -107,7 +145,10 @@ fn the_callback_is_promoted_once_or_says_why() {
     std::thread::spawn(|| {
         let before = current_priority();
         let p = promote_callback(AudioHost::Wasapi, PERIOD);
-        println!("callback: {p} [priority {before:?} -> {:?}]", current_priority());
+        println!(
+            "callback: {p} [priority {before:?} -> {:?}]",
+            current_priority()
+        );
         match p {
             Promotion::Granted(_) => assert!(p.is_realtime()),
             Promotion::Refused(r) => assert!(!r.step.is_empty() && !p.to_string().is_empty()),
@@ -133,7 +174,9 @@ fn the_callback_is_promoted_once_or_says_why() {
     .join()
     .unwrap();
     // A fresh thread has no answer yet.
-    std::thread::spawn(|| assert_eq!(callback_promotion(), None)).join().unwrap();
+    std::thread::spawn(|| assert_eq!(callback_promotion(), None))
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -158,9 +201,17 @@ fn workers_are_promoted_by_role_and_reverted_on_drop() {
         std::thread::spawn(move || {
             let before = current_priority();
             let w = promote_worker(role, PERIOD);
-            println!("{role:?}: {} [{before:?} -> {:?}]", w.promotion, current_priority());
+            println!(
+                "{role:?}: {} [{before:?} -> {:?}]",
+                w.promotion,
+                current_priority()
+            );
             #[cfg(windows)]
-            assert!(matches!(w.promotion, Promotion::Granted(Grant::Mmcss { .. })), "{}", w.promotion);
+            assert!(
+                matches!(w.promotion, Promotion::Granted(Grant::Mmcss { .. })),
+                "{}",
+                w.promotion
+            );
             drop(w);
             assert_eq!(current_priority(), before);
         })
@@ -174,7 +225,9 @@ fn a_thread_can_be_placed_on_a_live_core() {
     let t = Topology::detect();
     let place = t.placement(t.default_live_workers());
     std::thread::spawn(move || {
-        let Some(&id) = place.live.first().or(place.background.first()) else { return };
+        let Some(&id) = place.live.first().or(place.background.first()) else {
+            return;
+        };
         let r = set_current_thread_cpus(&[id]);
         #[cfg(any(windows, target_os = "linux"))]
         assert!(r.is_ok(), "{:?}", r);

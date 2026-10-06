@@ -39,8 +39,18 @@ fn last_error() -> i32 {
 
 pub fn promote(role: WorkerRole, _period: Duration, revert: &mut Revert) -> Promotion {
     let (task, name, priority, avrt): (&'static str, &[u16], _, AVRT_PRIORITY) = match role {
-        WorkerRole::Live => ("Pro Audio", &PRO_AUDIO, MmcssPriority::High, AVRT_PRIORITY_HIGH),
-        WorkerRole::Ahead => ("Pro Audio", &PRO_AUDIO, MmcssPriority::Low, AVRT_PRIORITY_LOW),
+        WorkerRole::Live => (
+            "Pro Audio",
+            &PRO_AUDIO,
+            MmcssPriority::High,
+            AVRT_PRIORITY_HIGH,
+        ),
+        WorkerRole::Ahead => (
+            "Pro Audio",
+            &PRO_AUDIO,
+            MmcssPriority::Low,
+            AVRT_PRIORITY_LOW,
+        ),
         WorkerRole::Background => ("Audio", &AUDIO, MmcssPriority::Normal, AVRT_PRIORITY_NORMAL),
     };
     let mut task_index = 0u32;
@@ -48,17 +58,27 @@ pub fn promote(role: WorkerRole, _period: Duration, revert: &mut Revert) -> Prom
     // call writes (0 on entry asks MMCSS for a new task index).
     let h: HANDLE = unsafe { AvSetMmThreadCharacteristicsW(name.as_ptr(), &mut task_index) };
     if h.is_null() {
-        return Promotion::Refused(Refusal { step: "AvSetMmThreadCharacteristicsW", code: last_error() });
+        return Promotion::Refused(Refusal {
+            step: "AvSetMmThreadCharacteristicsW",
+            code: last_error(),
+        });
     }
     // SAFETY: `h` is the registration just returned for this thread.
     if unsafe { AvSetMmThreadPriority(h, avrt) } == 0 {
         let code = last_error();
         // SAFETY: as above; undoes the registration so the thread is exactly as it was.
         unsafe { AvRevertMmThreadCharacteristics(h) };
-        return Promotion::Refused(Refusal { step: "AvSetMmThreadPriority", code });
+        return Promotion::Refused(Refusal {
+            step: "AvSetMmThreadPriority",
+            code,
+        });
     }
     revert.handle = h as usize;
-    Promotion::Granted(Grant::Mmcss { task, priority, task_index })
+    Promotion::Granted(Grant::Mmcss {
+        task,
+        priority,
+        task_index,
+    })
 }
 
 pub fn revert(r: &mut Revert) {
@@ -73,9 +93,13 @@ pub fn revert(r: &mut Revert) {
 pub fn set_cpus(ids: &[u32]) -> Result<(), Refusal> {
     // SAFETY: a pseudo-handle for this thread; `ids` is a live slice of `ids.len()` CPU set
     // ids (an empty slice clears the selection).
-    let ok = unsafe { SetThreadSelectedCpuSets(GetCurrentThread(), ids.as_ptr(), ids.len() as u32) };
+    let ok =
+        unsafe { SetThreadSelectedCpuSets(GetCurrentThread(), ids.as_ptr(), ids.len() as u32) };
     if ok == 0 {
-        Err(Refusal { step: "SetThreadSelectedCpuSets", code: last_error() })
+        Err(Refusal {
+            step: "SetThreadSelectedCpuSets",
+            code: last_error(),
+        })
     } else {
         Ok(())
     }
@@ -107,11 +131,18 @@ pub fn opt_out_of_power_throttling() -> PowerThrottling {
     };
     let speed = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
     match set(speed | PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION) {
-        Ok(()) => PowerThrottling::OptedOut { timer_resolution: true },
+        Ok(()) => PowerThrottling::OptedOut {
+            timer_resolution: true,
+        },
         // Windows 10 before 21H2 knows only EXECUTION_SPEED.
         Err(_) => match set(speed) {
-            Ok(()) => PowerThrottling::OptedOut { timer_resolution: false },
-            Err(code) => PowerThrottling::Refused(Refusal { step: "SetProcessInformation", code }),
+            Ok(()) => PowerThrottling::OptedOut {
+                timer_resolution: false,
+            },
+            Err(code) => PowerThrottling::Refused(Refusal {
+                step: "SetProcessInformation",
+                code,
+            }),
         },
     }
 }

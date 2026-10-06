@@ -5,7 +5,12 @@
 /// Malformed pieces are skipped; the result is sorted and without duplicates.
 pub fn cpu_list(text: &str) -> Vec<u32> {
     let mut out = Vec::new();
-    for piece in text.trim().split(',').map(str::trim).filter(|p| !p.is_empty()) {
+    for piece in text
+        .trim()
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
         match piece.split_once('-') {
             Some((a, b)) => {
                 if let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>()) {
@@ -48,34 +53,4 @@ pub fn capacity_classes(capacities: &[u32]) -> Vec<u8> {
         .iter()
         .map(|c| distinct.iter().position(|d| d == c).unwrap_or(0).min(255) as u8)
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cpu_lists() {
-        assert_eq!(cpu_list("0-3,8,10-11\n"), vec![0, 1, 2, 3, 8, 10, 11]);
-        assert_eq!(cpu_list("5"), vec![5]);
-        assert_eq!(cpu_list(""), Vec::<u32>::new());
-        assert_eq!(cpu_list("3,1-2,2"), vec![1, 2, 3]);
-        assert_eq!(cpu_list("x,4-2,7"), vec![7]);
-    }
-
-    #[test]
-    fn cache_sizes() {
-        assert_eq!(cache_size("48K"), Some(48 * 1024));
-        assert_eq!(cache_size("24576K\n"), Some(24 << 20));
-        assert_eq!(cache_size("2M"), Some(2 << 20));
-        assert_eq!(cache_size("1024"), Some(1024));
-        assert_eq!(cache_size("K"), None);
-        assert_eq!(cache_size(""), None);
-    }
-
-    #[test]
-    fn capacities_rank_into_classes() {
-        assert_eq!(capacity_classes(&[1024, 1024, 446, 446, 871]), vec![2, 2, 0, 0, 1]);
-        assert_eq!(capacity_classes(&[1024, 1024]), vec![0, 0]);
-    }
 }

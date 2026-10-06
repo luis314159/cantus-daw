@@ -4,6 +4,7 @@
 
 use cantus_rt::memory::prefault;
 use cantus_rt::pad::{padded_len, round_up, CachePadded, CACHE_PAD};
+use cantus_rt::topology::parse::{cache_size, capacity_classes, cpu_list};
 use cantus_rt::topology::{CoreClass, LogicalCpu, Source, Topology};
 
 fn cpu(id: u32, core: u32, class: u8, llc: u32) -> LogicalCpu {
@@ -105,7 +106,10 @@ fn a_uniform_cpu_counts_every_core_as_performance() {
     let one = Topology::from_cpus(Source::Fallback, &[cpu(0, 0, 0, 0)]);
     assert_eq!(one.default_live_workers(), 1);
     let big: Vec<_> = (0..64).map(|i| cpu(i, i, 0, 0)).collect();
-    assert_eq!(Topology::from_cpus(Source::Fallback, &big).default_live_workers(), 14);
+    assert_eq!(
+        Topology::from_cpus(Source::Fallback, &big).default_live_workers(),
+        14
+    );
 }
 
 #[test]
@@ -158,4 +162,48 @@ fn guards_nest_and_reassert_is_inert_outside_one() {
         g.reassert();
     }
     assert_eq!(cantus_rt::denormal::control_register(), before);
+}
+
+#[test]
+fn driver_names_map_to_hosts() {
+    use cantus_rt::AudioHost;
+    assert_eq!(AudioHost::from_driver_name("ASIO"), AudioHost::Asio);
+    assert_eq!(AudioHost::from_driver_name("WASAPI"), AudioHost::Wasapi);
+    assert_eq!(
+        AudioHost::from_driver_name("CoreAudio"),
+        AudioHost::CoreAudio
+    );
+    assert_eq!(AudioHost::from_driver_name("jack"), AudioHost::Jack);
+    assert_eq!(AudioHost::from_driver_name("ALSA"), AudioHost::Alsa);
+    assert_eq!(AudioHost::from_driver_name("PulseAudio"), AudioHost::Other);
+    assert!(AudioHost::from_driver_name("ASIO").driver_owns_priority());
+    assert!(!AudioHost::from_driver_name("WASAPI").driver_owns_priority());
+}
+
+#[test]
+fn parse_cpu_lists() {
+    assert_eq!(cpu_list("0-3,8,10-11\n"), vec![0, 1, 2, 3, 8, 10, 11]);
+    assert_eq!(cpu_list("5"), vec![5]);
+    assert_eq!(cpu_list(""), Vec::<u32>::new());
+    assert_eq!(cpu_list("3,1-2,2"), vec![1, 2, 3]);
+    assert_eq!(cpu_list("x,4-2,7"), vec![7]);
+}
+
+#[test]
+fn parse_cache_sizes() {
+    assert_eq!(cache_size("48K"), Some(48 * 1024));
+    assert_eq!(cache_size("24576K\n"), Some(24 << 20));
+    assert_eq!(cache_size("2M"), Some(2 << 20));
+    assert_eq!(cache_size("1024"), Some(1024));
+    assert_eq!(cache_size("K"), None);
+    assert_eq!(cache_size(""), None);
+}
+
+#[test]
+fn parse_capacities_rank_into_classes() {
+    assert_eq!(
+        capacity_classes(&[1024, 1024, 446, 446, 871]),
+        vec![2, 2, 0, 0, 1]
+    );
+    assert_eq!(capacity_classes(&[1024, 1024]), vec![0, 0]);
 }

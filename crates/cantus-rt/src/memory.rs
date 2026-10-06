@@ -14,7 +14,11 @@ use std::fmt;
 /// The OS page size, bytes (4096 where the OS is not asked).
 pub fn page_size() -> usize {
     static SIZE: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *SIZE.get_or_init(|| imp::page_size().filter(|&s| s.is_power_of_two()).unwrap_or(4096))
+    *SIZE.get_or_init(|| {
+        imp::page_size()
+            .filter(|&s| s.is_power_of_two())
+            .unwrap_or(4096)
+    })
 }
 
 /// Writes one element per page of `buf` with the value already there, so every page is
@@ -124,7 +128,10 @@ mod imp {
 
     fn refused(step: &'static str) -> Lock {
         // SAFETY: reads this thread's last-error value.
-        Lock::Refused(Refusal { step, code: unsafe { GetLastError() } as i32 })
+        Lock::Refused(Refusal {
+            step,
+            code: unsafe { GetLastError() } as i32,
+        })
     }
 
     pub fn lock(addr: usize, len: usize) -> Lock {
@@ -174,7 +181,10 @@ mod imp {
             Lock::Locked(super::LockedRegion { addr, len })
         } else {
             let code = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-            Lock::Refused(Refusal { step: "mlock (RLIMIT_MEMLOCK)", code })
+            Lock::Refused(Refusal {
+                step: "mlock (RLIMIT_MEMLOCK)",
+                code,
+            })
         }
     }
 

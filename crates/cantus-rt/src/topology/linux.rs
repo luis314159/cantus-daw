@@ -22,10 +22,16 @@ pub fn detect_from(source: Source) -> Option<Topology> {
         return None;
     }
     let read = |cpu: u32, file: &str| read_to_string(format!("{CPU}/cpu{cpu}/{file}")).ok();
-    let atoms = read_to_string("/sys/devices/cpu_atom/cpus").map(|t| cpu_list(&t)).unwrap_or_default();
+    let atoms = read_to_string("/sys/devices/cpu_atom/cpus")
+        .map(|t| cpu_list(&t))
+        .unwrap_or_default();
     let capacities: Vec<u32> = online
         .iter()
-        .map(|&c| read(c, "cpu_capacity").and_then(|t| t.trim().parse().ok()).unwrap_or(1024))
+        .map(|&c| {
+            read(c, "cpu_capacity")
+                .and_then(|t| t.trim().parse().ok())
+                .unwrap_or(1024)
+        })
         .collect();
     let classes = capacity_classes(&capacities);
     let mut llc_info: Vec<(u32, u8, u64)> = Vec::new();
@@ -68,17 +74,26 @@ fn last_level_cache(cpu: u32) -> Option<(u32, u8, u64)> {
     let mut best: Option<(u32, u8, u64)> = None;
     for index in 0..16 {
         let dir = format!("{CPU}/cpu{cpu}/cache/index{index}");
-        let Ok(level) = read_to_string(format!("{dir}/level")) else { break };
+        let Ok(level) = read_to_string(format!("{dir}/level")) else {
+            break;
+        };
         let ty = read_to_string(format!("{dir}/type")).unwrap_or_default();
         if ty.trim() == "Instruction" {
             continue;
         }
-        let Ok(level) = level.trim().parse::<u8>() else { continue };
+        let Ok(level) = level.trim().parse::<u8>() else {
+            continue;
+        };
         if best.is_some_and(|b| b.1 >= level) {
             continue;
         }
-        let sharers = read_to_string(format!("{dir}/shared_cpu_list")).map(|t| cpu_list(&t)).unwrap_or_default();
-        let bytes = read_to_string(format!("{dir}/size")).ok().and_then(|t| cache_size(&t)).unwrap_or(0);
+        let sharers = read_to_string(format!("{dir}/shared_cpu_list"))
+            .map(|t| cpu_list(&t))
+            .unwrap_or_default();
+        let bytes = read_to_string(format!("{dir}/size"))
+            .ok()
+            .and_then(|t| cache_size(&t))
+            .unwrap_or(0);
         best = Some((sharers.first().copied().unwrap_or(cpu), level, bytes));
     }
     best

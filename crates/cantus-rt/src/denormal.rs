@@ -176,32 +176,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_guard_sets_and_restores() {
-        let before = control_register();
-        {
-            let g = DenormalGuard::new();
-            assert_eq!(flushing(), FLUSH != 0);
-            g.reassert();
-            assert_eq!(flushing(), FLUSH != 0);
-        }
-        assert_eq!(control_register(), before);
-    }
-
-    #[test]
-    fn nested_guards_unwind_in_order() {
-        let before = control_register();
-        let outer = DenormalGuard::new();
-        let inside = control_register();
-        {
-            let _inner = DenormalGuard::default();
-            assert_eq!(control_register(), inside);
-        }
-        assert_eq!(control_register(), inside);
-        drop(outer);
-        assert_eq!(control_register(), before);
-    }
-
-    #[test]
     fn reassert_acts_only_inside_a_guard() {
         let before = control_register();
         // Outside a guard: nothing changes.

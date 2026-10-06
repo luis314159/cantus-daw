@@ -18,10 +18,25 @@ fn digest() -> (u64, usize) {
     for i in 0..20_000 {
         let x = i as f64 * 0.000_731 - 7.3;
         let xf = x as f32;
-        for v in [x.sin(), x.cos(), x.exp(), x.abs().ln_1p(), x.abs().powf(0.37), x.tanh(), x.atan()] {
+        for v in [
+            x.sin(),
+            x.cos(),
+            x.exp(),
+            x.abs().ln_1p(),
+            x.abs().powf(0.37),
+            x.tanh(),
+            x.atan(),
+        ] {
             mix(v.to_bits());
         }
-        for v in [xf.sin(), xf.cos(), xf.exp(), xf.abs().ln_1p(), xf.abs().powf(0.37), xf.tanh()] {
+        for v in [
+            xf.sin(),
+            xf.cos(),
+            xf.exp(),
+            xf.abs().ln_1p(),
+            xf.abs().powf(0.37),
+            xf.tanh(),
+        ] {
             mix(v.to_bits() as u64);
         }
     }

@@ -49,10 +49,26 @@ pub enum AudioHost {
 }
 
 impl AudioHost {
+    /// From a driver API's name as cpal gives it (`HostId::name()`: "ASIO", "WASAPI",
+    /// "CoreAudio", "JACK", "ALSA"), case-insensitive; anything else is [`AudioHost::Other`].
+    pub fn from_driver_name(name: &str) -> AudioHost {
+        match name.to_ascii_lowercase().as_str() {
+            "asio" => AudioHost::Asio,
+            "wasapi" => AudioHost::Wasapi,
+            "coreaudio" => AudioHost::CoreAudio,
+            "jack" => AudioHost::Jack,
+            "alsa" => AudioHost::Alsa,
+            _ => AudioHost::Other,
+        }
+    }
+
     /// True when the driver creates the callback thread and gives it real-time priority
     /// itself, so promoting it again would only fight the driver.
     pub fn driver_owns_priority(self) -> bool {
-        matches!(self, AudioHost::Asio | AudioHost::CoreAudio | AudioHost::Jack)
+        matches!(
+            self,
+            AudioHost::Asio | AudioHost::CoreAudio | AudioHost::Jack
+        )
     }
 }
 
@@ -83,11 +99,23 @@ pub enum Promotion {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Grant {
     /// Windows MMCSS: the task name, the priority inside it, the task index MMCSS assigned.
-    Mmcss { task: &'static str, priority: MmcssPriority, task_index: u32 },
+    Mmcss {
+        task: &'static str,
+        priority: MmcssPriority,
+        task_index: u32,
+    },
     /// macOS `THREAD_TIME_CONSTRAINT_POLICY`, and whether the thread joined a workgroup.
-    TimeConstraint { period_ns: u64, computation_ns: u64, joined_workgroup: bool },
+    TimeConstraint {
+        period_ns: u64,
+        computation_ns: u64,
+        joined_workgroup: bool,
+    },
     /// Linux real-time scheduling: the policy and priority, and whether rtkit granted it.
-    RealTime { fifo: bool, priority: i32, via_rtkit: bool },
+    RealTime {
+        fifo: bool,
+        priority: i32,
+        via_rtkit: bool,
+    },
 }
 
 /// MMCSS priority inside a task (`AVRT_PRIORITY`).
@@ -130,17 +158,36 @@ impl fmt::Display for Refusal {
 impl fmt::Display for Promotion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Promotion::Granted(Grant::Mmcss { task, priority, task_index }) => {
-                write!(f, "MMCSS \"{task}\" at {priority:?} (task index {task_index})")
+            Promotion::Granted(Grant::Mmcss {
+                task,
+                priority,
+                task_index,
+            }) => {
+                write!(
+                    f,
+                    "MMCSS \"{task}\" at {priority:?} (task index {task_index})"
+                )
             }
-            Promotion::Granted(Grant::TimeConstraint { period_ns, computation_ns, joined_workgroup }) => write!(
+            Promotion::Granted(Grant::TimeConstraint {
+                period_ns,
+                computation_ns,
+                joined_workgroup,
+            }) => write!(
                 f,
                 "time constraint, period {:.2} ms, computation {:.2} ms{}",
                 *period_ns as f64 / 1e6,
                 *computation_ns as f64 / 1e6,
-                if *joined_workgroup { ", in the device's workgroup" } else { "" }
+                if *joined_workgroup {
+                    ", in the device's workgroup"
+                } else {
+                    ""
+                }
             ),
-            Promotion::Granted(Grant::RealTime { fifo, priority, via_rtkit }) => write!(
+            Promotion::Granted(Grant::RealTime {
+                fifo,
+                priority,
+                via_rtkit,
+            }) => write!(
                 f,
                 "SCHED_{} priority {priority}{}",
                 if *fifo { "FIFO" } else { "RR" },
@@ -233,7 +280,9 @@ pub fn set_current_thread_cpus(ids: &[u32]) -> Result<(), Refusal> {
 pub enum PowerThrottling {
     /// Opted out of EcoQoS; `timer_resolution` says whether Windows will also keep honouring
     /// the process's timer resolution when it is minimised or occluded.
-    OptedOut { timer_resolution: bool },
+    OptedOut {
+        timer_resolution: bool,
+    },
     NotApplicable,
     Refused(Refusal),
 }
@@ -244,7 +293,11 @@ impl fmt::Display for PowerThrottling {
             PowerThrottling::OptedOut { timer_resolution } => write!(
                 f,
                 "EcoQoS opted out{}",
-                if *timer_resolution { ", timer resolution kept" } else { "" }
+                if *timer_resolution {
+                    ", timer resolution kept"
+                } else {
+                    ""
+                }
             ),
             PowerThrottling::NotApplicable => f.write_str("no power throttling on this OS"),
             PowerThrottling::Refused(r) => write!(f, "EcoQoS opt-out refused: {r}"),

@@ -16,7 +16,11 @@ use std::time::{Duration, Instant};
 const PERIOD: Duration = Duration::from_micros(2_667); // 128 frames at 48 kHz
 
 fn main() {
-    println!("== cantus-rt probe ({} {})", std::env::consts::OS, std::env::consts::ARCH);
+    println!(
+        "== cantus-rt probe ({} {})",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
     let t = Topology::detect();
     print_topology("topology", &t);
     if t.source == Source::CpuSets {
@@ -27,12 +31,18 @@ fn main() {
     let live = t.default_live_workers();
     let place = t.placement(live);
     println!("default live workers: {live}");
-    println!("placement: live {:?}\n           ahead {:?}\n           background {:?}", place.live, place.ahead, place.background);
+    println!(
+        "placement: live {:?}\n           ahead {:?}\n           background {:?}",
+        place.live, place.ahead, place.background
+    );
 
     println!("\n== process");
     let fma_before = cantus_rt::fpenv::crt_fma3_enabled();
     let init = cantus_rt::init_process();
-    println!("CRT FMA3 path before: {fma_before:?}; after: {:?}", cantus_rt::fpenv::crt_fma3_enabled());
+    println!(
+        "CRT FMA3 path before: {fma_before:?}; after: {:?}",
+        cantus_rt::fpenv::crt_fma3_enabled()
+    );
     println!("init_process: {init}");
 
     println!("\n== threads");
@@ -58,12 +68,17 @@ fn main() {
             let w = promote_worker(role, PERIOD);
             let after = current_priority();
             let pin = cpus.map(|c| (c, set_current_thread_cpus(&[c])));
-            let text = format!("worker {role:?}: {}  [priority {before:?} -> {after:?}]", w.promotion);
+            let text = format!(
+                "worker {role:?}: {}  [priority {before:?} -> {after:?}]",
+                w.promotion
+            );
             drop(w);
             let reverted = current_priority();
             match pin {
                 Some((c, Ok(()))) => format!("{text}; placed on cpu {c}; reverted to {reverted:?}"),
-                Some((c, Err(e))) => format!("{text}; placing on cpu {c}: {e}; reverted to {reverted:?}"),
+                Some((c, Err(e))) => {
+                    format!("{text}; placing on cpu {c}: {e}; reverted to {reverted:?}")
+                }
                 None => format!("{text}; reverted to {reverted:?}"),
             }
         })
@@ -102,7 +117,10 @@ fn main() {
             cantus_rt::denormal::flushing()
         );
     }
-    println!("after the guard {:#x}", cantus_rt::denormal::control_register());
+    println!(
+        "after the guard {:#x}",
+        cantus_rt::denormal::control_register()
+    );
 }
 
 fn ms(d: Duration) -> f64 {
@@ -117,17 +135,29 @@ fn print_topology(title: &str, t: &Topology) {
         t.source,
         t.logical,
         t.cores.len(),
-        if t.is_hybrid() { ", hybrid" } else { ", uniform" }
+        if t.is_hybrid() {
+            ", hybrid"
+        } else {
+            ", uniform"
+        }
     );
     for c in &t.cores {
-        let class = if c.class == CoreClass::Performance { "P" } else { "E" };
+        let class = if c.class == CoreClass::Performance {
+            "P"
+        } else {
+            "E"
+        };
         println!(
             "  core {:#07x} {class} (class {}) llc {:#x} cpus {:?}{}",
             c.key,
             c.efficiency_class,
             c.llc,
             c.cpus,
-            if c.available { "" } else { " [parked/reserved]" }
+            if c.available {
+                ""
+            } else {
+                " [parked/reserved]"
+            }
         );
     }
     for d in &t.caches {

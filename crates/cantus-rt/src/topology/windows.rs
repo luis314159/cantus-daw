@@ -8,7 +8,7 @@
 use super::{LogicalCpu, Source, Topology};
 use std::mem::{offset_of, size_of};
 use windows_sys::Win32::System::SystemInformation::{
-    GetLogicalProcessorInformationEx, GetSystemCpuSetInformation, CacheData, CacheUnified,
+    CacheData, CacheUnified, GetLogicalProcessorInformationEx, GetSystemCpuSetInformation,
     RelationCache, RelationProcessorCore, CACHE_RELATIONSHIP, GROUP_AFFINITY,
     LOGICAL_PROCESSOR_RELATIONSHIP, PROCESSOR_RELATIONSHIP, SYSTEM_CPU_SET_INFORMATION,
     SYSTEM_CPU_SET_INFORMATION_0_0, SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX,
@@ -81,13 +81,16 @@ fn cpu_sets() -> Option<Vec<LogicalCpu>> {
     // `u64`s keep the buffer aligned for the structs (the OS writes them aligned).
     let mut buf = vec![0u64; (len as usize).div_ceil(8)];
     // SAFETY: `buf` holds at least `len` writable bytes, aligned to 8, alive for the call.
-    let ok = unsafe {
-        GetSystemCpuSetInformation(buf.as_mut_ptr().cast(), len, &mut len, process, 0)
-    };
+    let ok =
+        unsafe { GetSystemCpuSetInformation(buf.as_mut_ptr().cast(), len, &mut len, process, 0) };
     if ok == 0 || len == 0 {
         return None;
     }
-    let bytes: Vec<u8> = buf.iter().flat_map(|w| w.to_le_bytes()).take(len as usize).collect();
+    let bytes: Vec<u8> = buf
+        .iter()
+        .flat_map(|w| w.to_le_bytes())
+        .take(len as usize)
+        .collect();
     let base = offset_of!(SYSTEM_CPU_SET_INFORMATION, Anonymous);
     let f = |o: usize| base + o;
     type C = SYSTEM_CPU_SET_INFORMATION_0_0;
@@ -122,9 +125,14 @@ fn glpi(relation: LOGICAL_PROCESSOR_RELATIONSHIP) -> Option<Vec<u8>> {
     unsafe { GetLogicalProcessorInformationEx(relation, std::ptr::null_mut(), &mut len) };
     let mut buf = vec![0u64; (len as usize).div_ceil(8)];
     // SAFETY: `buf` holds at least `len` writable bytes, aligned to 8, alive for the call.
-    let ok = unsafe { GetLogicalProcessorInformationEx(relation, buf.as_mut_ptr().cast(), &mut len) };
-    (ok != 0 && len != 0)
-        .then(|| buf.iter().flat_map(|w| w.to_le_bytes()).take(len as usize).collect())
+    let ok =
+        unsafe { GetLogicalProcessorInformationEx(relation, buf.as_mut_ptr().cast(), &mut len) };
+    (ok != 0 && len != 0).then(|| {
+        buf.iter()
+            .flat_map(|w| w.to_le_bytes())
+            .take(len as usize)
+            .collect()
+    })
 }
 
 /// The `(group, number)` of every logical processor in `count` group masks starting at `at`.
