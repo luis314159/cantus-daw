@@ -11,8 +11,8 @@ samples.no_results = Nothing called “{query}”
 samples.section.packs = Packs
 samples.section.folders = My folders
 samples.folders.empty = Add a folder with the + key above
-samples.hint.file = Click to hear · drag to a pad, the rack or the playlist
-samples.foot.hint = Click to hear · drag onto a pad, the rack or the playlist
+samples.hint.file = Click to hear · drag to a pad, the rack or the arrangement
+samples.foot.hint = Click to hear · drag onto a pad, the rack or the arrangement
 samples.cancel = Cancel
 
 # The one-click offer while nothing is installed.

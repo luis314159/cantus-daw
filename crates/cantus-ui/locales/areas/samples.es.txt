@@ -11,8 +11,8 @@ samples.no_results = Nada se llama «{query}»
 samples.section.packs = Paquetes
 samples.section.folders = Mis carpetas
 samples.folders.empty = Añade una carpeta con la tecla + de arriba
-samples.hint.file = Clic para oír · arrastra a un pad, al rack o a la lista
-samples.foot.hint = Clic para oír · arrastra a un pad, al rack o a la lista
+samples.hint.file = Clic para oír · arrastra a un pad, al rack o al arreglo
+samples.foot.hint = Clic para oír · arrastra a un pad, al rack o al arreglo
 samples.cancel = Cancelar
 
 # La oferta de un clic mientras no hay nada instalado.

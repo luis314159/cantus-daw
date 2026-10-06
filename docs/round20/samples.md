@@ -94,13 +94,20 @@ at the pinned commit.
 
 ### Adding or changing a pack
 
-Hashes and sizes are never typed by hand. A script downloads every file (pinned commit
-URLs) or archive, checks it is audio or a zip and not a proxy page, hashes it, measures
-what the `include`/`exclude` patterns keep, and writes `content.json`.
+Hashes and sizes are never typed by hand. `crates/cantus-content/tools/` holds two
+scripts (Python 3; they need `curl` and `git`):
 
-The script used this round is `build_packs.py` plus `make_manifest.py`, in the session
-scratchpad. It is not committed (see *Left*). Bump a pack's `version` whenever its files
-change; an installed older version then shows *Update*.
+- `build_packs.py <work> starter|body|tx81z|vsco-perc` downloads every file of a
+  file-list pack from its pinned commit and checks it is audio, not a proxy page. It
+  hashes each file and writes `<work>/<name>.json`. To list a repository's files it uses
+  a blobless clone, which downloads no audio.
+- `make_manifest.py <work> crates/cantus-content/manifest/content.json` reads those
+  lists and the release archives in `<work>/dl`. It measures what each pack's
+  `include`/`exclude` keeps and writes the manifest.
+
+Re-running it on this round's downloads gives a byte-identical `content.json`. Bump a
+pack's `version` whenever its files change; an installed older version then shows
+*Update*.
 
 ## Tests
 
@@ -170,13 +177,12 @@ change; an installed older version then shows *Update*.
   - `views/transport.rs`: the toolbar's window keys (6 now) and the View menu;
   - one `drop::publish` line each in `views/channel_rack.rs`, `views/arrangement.rs`,
     `views/inst/sampler_map.rs` and `views/pulsus_editor_grid.rs`.
-- `examples/shoot.rs`: the `samples` kind.
+- `examples/shoot.rs`: the `samples` kind (scene in `examples/shoot_samples/scene.rs`).
 
 ## Left
 
-1. **Commit the pack-building script** (`xtask content`, or a Rust example in
-   `cantus-content` that uses the crate's own downloader). This round's Python scripts live
-   in the scratchpad.
+1. The pack tools are Python. Porting them to an `xtask content` command, so they use the
+   crate's own downloader, would remove the Python dependency.
 2. **Projects reference absolute paths** under `Content/`. A portable `content://` reference
    with "missing content: download it" on project load needs a schema bump; that round
    is not this one.
