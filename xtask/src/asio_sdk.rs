@@ -52,8 +52,7 @@ pub fn tools_root() -> Option<PathBuf> {
 
 /// Whether a folder holds the SDK (what `asio-sys` needs from it).
 pub fn is_sdk(dir: &Path) -> bool {
-    dir.join("common").join("asio.h").is_file()
-        && dir.join("host").join("asiodrivers.h").is_file()
+    dir.join("common").join("asio.h").is_file() && dir.join("host").join("asiodrivers.h").is_file()
 }
 
 /// The folder holding the SDK somewhere under `root` (the zip has one top folder; its
@@ -114,18 +113,44 @@ pub fn unpack(zip_path: &Path, dest: &Path) -> Result<PathBuf, String> {
     Ok(sdk)
 }
 
-/// Download the SDK zip to `to` with Windows' own `curl.exe` (Schannel: the system's
-/// trust store and proxy settings, as the browser), checking it.
+/// Download the SDK zip to `to` the way the browser would: Windows PowerShell's
+/// `Invoke-WebRequest` (the system's proxy settings, PAC included, and trust store), then
+/// Windows' `curl.exe` if that fails. Steinberg's CDN answered `curl.exe` with 403 once
+/// here while PowerShell got the file; the hash check decides either way.
 fn download(to: &Path) -> Result<(), String> {
     eprintln!("downloading {SDK_URL}");
+    let ps = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command"])
+        .arg(format!(
+            "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -Uri '{SDK_URL}' -OutFile '{}'",
+            to.display()
+        ))
+        // A module path inherited from PowerShell 7 breaks Windows PowerShell.
+        .env_remove("PSModulePath")
+        .status();
+    if ps.is_ok_and(|s| s.success()) && to.is_file() {
+        return Ok(());
+    }
+    eprintln!("PowerShell could not download it; trying curl.exe");
     let status = Command::new("curl.exe")
-        .args(["--fail", "--location", "--silent", "--show-error", "--output"])
+        .args([
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--retry",
+            "2",
+            "--output",
+        ])
         .arg(to)
         .arg(SDK_URL)
         .status()
         .map_err(|e| format!("curl.exe: {e}"))?;
     if !status.success() {
-        return Err(format!("downloading {SDK_URL} failed ({status})"));
+        return Err(format!(
+            "downloading {SDK_URL} failed ({status}); download it by hand and run again with \
+             CANTUS_ASIO_SDK_ZIP=<the zip>"
+        ));
     }
     Ok(())
 }
@@ -137,7 +162,10 @@ pub fn sdk() -> Result<PathBuf, String> {
         return if is_sdk(&dir) {
             Ok(dir)
         } else {
-            Err(format!("CPAL_ASIO_DIR={} does not hold the ASIO SDK", dir.display()))
+            Err(format!(
+                "CPAL_ASIO_DIR={} does not hold the ASIO SDK",
+                dir.display()
+            ))
         };
     }
     let root = tools_root().ok_or("LOCALAPPDATA is not set")?;
@@ -162,7 +190,10 @@ pub fn sdk() -> Result<PathBuf, String> {
         return Err(why);
     }
     let sdk = unpack(&zip, &cache)?;
-    eprintln!("ASIO SDK checked (SHA-256 {SDK_SHA256}) and unpacked into {}", sdk.display());
+    eprintln!(
+        "ASIO SDK checked (SHA-256 {SDK_SHA256}) and unpacked into {}",
+        sdk.display()
+    );
     Ok(sdk)
 }
 
@@ -192,9 +223,10 @@ pub fn ensure() -> Result<AsioTools, String> {
 /// (`audio drivers: WASAPI, ASIO`).
 pub fn lists_asio(answer: &str) -> bool {
     answer.lines().any(|l| {
-        l.trim()
-            .strip_prefix("audio drivers:")
-            .is_some_and(|rest| rest.split(',').any(|d| d.trim().eq_ignore_ascii_case("ASIO")))
+        l.trim().strip_prefix("audio drivers:").is_some_and(|rest| {
+            rest.split(',')
+                .any(|d| d.trim().eq_ignore_ascii_case("ASIO"))
+        })
     })
 }
 

@@ -143,7 +143,10 @@ impl EngineHandle {
             channels: channels as u16,
             sample_rate,
             // A size the device cannot take is left to the driver (and shown as it runs).
-            buffer_size: crate::devices::buffer_request(config.buffer_frames, default.buffer_size()),
+            buffer_size: crate::devices::buffer_request(
+                config.buffer_frames,
+                default.buffer_size(),
+            ),
         };
 
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);

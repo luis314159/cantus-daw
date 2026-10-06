@@ -256,7 +256,11 @@ fn a_stalled_driver_is_restarted_once_and_never_called_disconnected() {
         before + 1,
         "the audio is restarted by itself, once"
     );
-    assert_eq!(a.audio_setup.applied.last(), Some(&a.settings.audio), "as it was");
+    assert_eq!(
+        a.audio_setup.applied.last(),
+        Some(&a.settings.audio),
+        "as it was"
+    );
     for _ in 0..20 {
         run(&mut a, &ctx, vec![]);
     }
@@ -276,7 +280,10 @@ fn a_stalled_driver_is_restarted_once_and_never_called_disconnected() {
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         cantus_ui::i18n::set_locale(lang);
         let text = found[0].0.text().to_lowercase();
-        assert!(!text.contains("disconnected") && !text.contains("desconect"), "{text}");
+        assert!(
+            !text.contains("disconnected") && !text.contains("desconect"),
+            "{text}"
+        );
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     // The button restarts it.
@@ -318,13 +325,21 @@ fn the_buffer_the_driver_dictates_is_shown() {
         .iter()
         .find(|(p, _)| matches!(p, problems::Problem::Dictated { .. }))
         .expect("the buffer the driver runs is said");
-    assert_eq!(dictated.0, problems::Problem::Dictated { asked: 128, runs: 512 });
+    assert_eq!(
+        dictated.0,
+        problems::Problem::Dictated {
+            asked: 128,
+            runs: 512
+        }
+    );
     assert!(dictated.0.text().contains("512") && dictated.0.text().contains("128"));
     assert!(!dictated.0.is_silent());
     assert_eq!(dictated.1, vec![problems::Fix::RaiseBuffer(512)]);
-    assert!(found
-        .iter()
-        .any(|(p, _)| *p == problems::Problem::RateRefused { asked: 96_000, runs: 48_000 }));
+    assert!(found.iter().any(|(p, _)| *p
+        == problems::Problem::RateRefused {
+            asked: 96_000,
+            runs: 48_000
+        }));
     // The chip prints what runs.
     run(&mut a, &ctx, vec![]);
 }
@@ -352,7 +367,10 @@ fn a_deliberate_reopen_does_not_trigger_the_lost_watcher() {
             break;
         }
     }
-    assert!(a.audio_setup.plug.last.is_some(), "the watcher's first list");
+    assert!(
+        a.audio_setup.plug.last.is_some(),
+        "the watcher's first list"
+    );
     // Reopened on purpose; while the driver closes and opens, the UMC's endpoints vanish
     // for a moment, then come back.
     let audio = a.settings.audio.clone();

@@ -116,7 +116,11 @@ fn main() {
         }
         other => panic!("unknown mode {other}"),
     }
-    println!("built in {:?}; buffer {:?}", t0.elapsed(), streams[0].buffer_size());
+    println!(
+        "built in {:?}; buffer {:?}",
+        t0.elapsed(),
+        streams[0].buffer_size()
+    );
 
     let t0 = Instant::now();
     let (mut last_out, mut last_in) = (0, 0);
@@ -135,15 +139,27 @@ fn main() {
         }
         let (o, i) = (outs.load(Ordering::Relaxed), ins.load(Ordering::Relaxed));
         // Gaps count once a direction has started (ASIO4ALL takes a second to start).
-        still_out = if o == last_out && o > 0 { still_out + step } else { Duration::ZERO };
-        still_in = if i == last_in && i > 0 { still_in + step } else { Duration::ZERO };
+        still_out = if o == last_out && o > 0 {
+            still_out + step
+        } else {
+            Duration::ZERO
+        };
+        still_in = if i == last_in && i > 0 {
+            still_in + step
+        } else {
+            Duration::ZERO
+        };
         worst_out = worst_out.max(still_out);
         worst_in = worst_in.max(still_in);
         if t0.elapsed().as_millis() % 1000 < 250 || still_out >= Duration::from_millis(500) {
             println!(
                 "{:>5.2} s  out {o:>6}  in {i:>6}{}",
                 t0.elapsed().as_secs_f64(),
-                if still_out >= Duration::from_millis(500) { "  << output stalled" } else { "" }
+                if still_out >= Duration::from_millis(500) {
+                    "  << output stalled"
+                } else {
+                    ""
+                }
             );
         }
         (last_out, last_in) = (o, i);

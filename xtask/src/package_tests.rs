@@ -302,12 +302,17 @@ fn the_asio_sdk_is_checked_and_found() {
     // A proxy's quarantine page and any other file are refused, with a reason.
     let page = b"<!DOCTYPE html><html><title>Zscaler</title></html>";
     assert!(asio_sdk::refuse_zip(page).unwrap().contains("web page"));
-    assert!(asio_sdk::refuse_zip(b"PK\x03\x04 not the sdk").unwrap().contains("SHA-256"));
+    assert!(asio_sdk::refuse_zip(b"PK\x03\x04 not the sdk")
+        .unwrap()
+        .contains("SHA-256"));
     assert_eq!(asio_sdk::SDK_SHA256.len(), 64);
     // The workflow pins the same hash.
-    let wf = std::fs::read_to_string(crate::workspace().join(".github/workflows/release.yml"))
-        .unwrap();
-    assert!(wf.contains(asio_sdk::SDK_SHA256), "release.yml pins another SDK hash");
+    let wf =
+        std::fs::read_to_string(crate::workspace().join(".github/workflows/release.yml")).unwrap();
+    assert!(
+        wf.contains(asio_sdk::SDK_SHA256),
+        "release.yml pins another SDK hash"
+    );
     // The zip's top folder is found however it is named.
     let dir = tempfile::tempdir().unwrap();
     let sdk = dir.path().join("asiosdk_2.3.4_2025-10-15/ASIOSDK");
@@ -315,7 +320,10 @@ fn the_asio_sdk_is_checked_and_found() {
     write(&sdk.join("host/asiodrivers.h"), b"//");
     assert_eq!(asio_sdk::find_sdk_in(dir.path()), Some(sdk.clone()));
     assert!(asio_sdk::is_sdk(&sdk));
-    assert_eq!(asio_sdk::find_sdk_in(&dir.path().join("asiosdk_2.3.4_2025-10-15/ASIOSDK/common")), None);
+    assert_eq!(
+        asio_sdk::find_sdk_in(&dir.path().join("asiosdk_2.3.4_2025-10-15/ASIOSDK/common")),
+        None
+    );
     // Unpacked from a zip into the cache layout.
     let z = dir.path().join("sdk.zip");
     archive::zip(&z, "ASIOSDK_2.3.4", &archive::walk(&sdk));
@@ -324,7 +332,11 @@ fn the_asio_sdk_is_checked_and_found() {
     assert_eq!(got, cache.join(asio_sdk::SDK_DIR));
     assert!(asio_sdk::is_sdk(&got));
     // `cantus --audio-drivers`.
-    assert!(asio_sdk::lists_asio("audio drivers: WASAPI, ASIO\nasio sdk: linked\n"));
-    assert!(!asio_sdk::lists_asio("audio drivers: WASAPI\nasio sdk: not linked\n"));
+    assert!(asio_sdk::lists_asio(
+        "audio drivers: WASAPI, ASIO\nasio sdk: linked\n"
+    ));
+    assert!(!asio_sdk::lists_asio(
+        "audio drivers: WASAPI\nasio sdk: not linked\n"
+    ));
     assert!(!asio_sdk::lists_asio(""));
 }

@@ -469,10 +469,16 @@ fn live_streams_run_without_a_stall() {
         h.device_buffer(),
     );
     assert!(first.1.is_some(), "the output never called back");
-    assert!(worst_out < Duration::from_millis(500), "the output stalled for {worst_out:?}");
+    assert!(
+        worst_out < Duration::from_millis(500),
+        "the output stalled for {worst_out:?}"
+    );
     if duplex {
         assert!(first.0.is_some(), "the input never called back");
-        assert!(worst_in < Duration::from_millis(500), "the input stalled for {worst_in:?}");
+        assert!(
+            worst_in < Duration::from_millis(500),
+            "the input stalled for {worst_in:?}"
+        );
     }
     assert!(!h.device_lost(), "the device was reported lost");
 }
@@ -481,26 +487,41 @@ fn live_streams_run_without_a_stall() {
 
 #[test]
 fn a_stalled_driver_is_stalled_not_lost() {
-    use devices::{classify, DeviceState as S, START_GRACE, STALL_AFTER};
+    use devices::{classify, DeviceState as S, STALL_AFTER, START_GRACE};
     use std::time::Duration;
     let ms = Duration::from_millis;
     let open = ms(10_000);
     // Running: both directions called back a moment ago.
-    assert_eq!(classify(false, false, open, Some(ms(5)), Some(Some(ms(5)))), S::Running);
+    assert_eq!(
+        classify(false, false, open, Some(ms(5)), Some(Some(ms(5)))),
+        S::Running
+    );
     // The output stopped calling back while the device is still there: stalled — never
     // lost, which is only what a stream says when its device is gone.
     let stalled = classify(false, false, open, Some(STALL_AFTER + ms(1)), None);
     assert_eq!(stalled, S::Stalled);
     assert!(stalled.is_silent());
     // The input stopped while the output runs (the duplex stall of round 19): stalled too.
-    assert_eq!(classify(false, false, open, Some(ms(5)), Some(Some(ms(1_500)))), S::Stalled);
+    assert_eq!(
+        classify(false, false, open, Some(ms(5)), Some(Some(ms(1_500)))),
+        S::Stalled
+    );
     // An input that never called back, past the grace.
-    assert_eq!(classify(false, false, open, Some(ms(5)), Some(None)), S::Stalled);
+    assert_eq!(
+        classify(false, false, open, Some(ms(5)), Some(None)),
+        S::Stalled
+    );
     // Slow to start (ASIO4ALL takes a second): starting, then stalled after the grace.
-    assert_eq!(classify(false, false, ms(1_200), None, Some(None)), S::Starting);
+    assert_eq!(
+        classify(false, false, ms(1_200), None, Some(None)),
+        S::Starting
+    );
     assert_eq!(classify(false, false, START_GRACE, None, None), S::Stalled);
     // The driver asked to be reset: a restart, not a lost device.
-    assert_eq!(classify(false, true, open, Some(ms(5)), None), S::RestartRequested);
+    assert_eq!(
+        classify(false, true, open, Some(ms(5)), None),
+        S::RestartRequested
+    );
     // Gone is gone, whatever else.
     assert_eq!(classify(true, true, open, Some(ms(5)), None), S::Lost);
 }
@@ -541,6 +562,10 @@ fn a_reset_request_asks_for_a_restart_and_an_unplug_is_lost() {
     assert_eq!(t.xruns.load(Ordering::Relaxed), 1);
     assert!(!t.stream_lost.load(Ordering::Acquire));
     // The device went away: lost.
-    devices::stream_error(&t, &cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable), "input");
+    devices::stream_error(
+        &t,
+        &cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable),
+        "input",
+    );
     assert!(t.stream_lost.load(Ordering::Acquire));
 }

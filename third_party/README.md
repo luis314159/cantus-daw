@@ -56,10 +56,21 @@ Round 19 and the owner's tests in round 20 found Cantus's ASIO path failing:
 - `CPAL_ASIO_TRACE=1` prints each step (recorded, `ASIOCreateBuffers`, `ASIOStart`, the
   first buffer callback, every driver message with the stream's state) with a timestamp:
   how the duplex behaviour was diagnosed, kept for the next driver that misbehaves.
+- **`stream.rs` — a reset request before the first buffer is part of starting.** cpal
+  ignores `kAsioResetRequest`/`kAsioResyncRequest` only while a stream is `Starting`.
+  ASIO4ALL v2 sends a reset request ~0.7 s after `ASIOStart`, before its first buffer
+  (~1.1 s), then streams steadily; cpal passed it on as `StreamInvalidated`, which an app
+  must treat as "rebuild the stream" — and reopening only made it happen again. Requests
+  that arrive before the stream's first buffer callback are now ignored (and traced).
 - **`mod.rs`, `device.rs` — one driver at a time.** `HostTrait::device_by_id` on the ASIO
   host loads only the driver its id names (`Devices::named`) instead of walking every
   driver; Cantus finds ASIO devices with it. Driver-load failures during enumeration are
-  traced instead of silently skipped.
+  traced instead of silently skipped. A device found this way **keeps its driver loaded**
+  while it lives, so building its streams does not unload and reload it (loading ASIO4ALL
+  takes 6–13 s on this machine; it was loaded twice).
+- **`device.rs` — a driver that refuses every rate.** Realtek's ASIO driver answers
+  `ASIOCanSampleRate` with an error for every rate, the one it runs at included, which left
+  the device with no configuration (so no input). The driver's current rate is kept.
 - **`mod.rs` — `is_available()`** returns `asio_sys::SDK_LINKED`: a build without the SDK
   (below) does not offer an ASIO host that can never load a driver.
 
@@ -74,19 +85,24 @@ Round 19 and the owner's tests in round 20 found Cantus's ASIO path failing:
   into a hard error — release builds set it.
 - **`src/lib.rs` — `SDK_LINKED`**: whether the real SDK is linked (`cfg(asio_sdk)`).
 - **`src/bindings/mod.rs` — `Driver::is_running()` / `has_buffers()`**, which the cpal
-  patch needs to stop a running driver before taking its lock.
+  patch needs to stop a running driver before taking its lock; `trace()` (the same
+  `CPAL_ASIO_TRACE=1`): loading, `ASIOInit`, `ASIOStart`, whether the driver uses
+  `ASIOOutputReady`, every `asioMessage`, and the first buffer switches step by step (the
+  thread, entering, the callbacks done, `ASIOOutputReady` done) — how a driver that stops
+  calling back is told from a host that blocks it.
 
 ## Evidence (this machine, Windows 11, 2026-10-06)
 
-See `docs/round21/asio.md` for the full runs. In short, with
-`cargo run -p cantus-engine --features asio --example asio_duplex -- "<driver>" <mode> <s>`:
+`docs/round21/asio.md` has the full runs. In short:
 
-- Unpatched cpal, *ASIO4ALL v2*, output then input (`duplex`): building the input took
-  ~4 s (stop/dispose/create/start of a running driver), and in the engine the output
-  reported *"Stream reset was requested by the ASIO driver"* — which Cantus took for an
-  unplugged interface ("disconnected").
-- Patched cpal, `build-both`: one `ASIOCreateBuffers: 2 in + 2 out`, one `ASIOStart`, both
-  directions calling back in step.
+- Unpatched cpal 0.18.2 (a probe built from crates.io), asking for *Realtek ASIO*: the
+  enumeration loads *ASIO4ALL v2* first, Realtek's driver then fails to load, and the walk
+  goes on to load *UMC ASIO Driver* with no UMC attached — the device is never found.
+- Engine on unpatched cpal, *ASIO4ALL v2* duplex: `started in 10.26 s`, no callback after
+  0.8 s, and *"audio output lost: Stream reset was requested by the ASIO driver"*.
+- Patched, same: one load, one `ASIOCreateBuffers: 2 in + 2 out`, one `ASIOStart`, the
+  start-up reset request traced and ignored (`buffers flowing false`), 60 s with 5 033
+  callbacks in each direction, longest gap 69 ms.
 
 ## Offered upstream
 
@@ -94,9 +110,12 @@ The patch is meant for RustAudio/cpal as two pull requests:
 
 1. *asio: create both directions' buffers in one ASIOCreateBuffers before the first
    ASIOStart; stop a running driver before taking the streams lock* (`stream.rs`).
-2. *asio: `device_by_id` loads only the named driver; `is_available` follows the SDK* plus
+2. *asio: ignore reset/resync requests before the first buffer* (ASIO4ALL's start-up
+   request).
+3. *asio: `device_by_id` loads only the named driver and keeps it loaded; a driver that
+   refuses every rate keeps its current one; `is_available` follows the SDK* plus
    *asio-sys: do not download the SDK in build.rs; build stubs with a warning when it is
-   missing* (the second half may be a feature flag upstream, since it changes behaviour).
+   missing* (the last may be a feature flag upstream, since it changes behaviour).
 
 Text for the first, ready to paste:
 

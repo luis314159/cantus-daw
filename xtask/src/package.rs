@@ -369,11 +369,10 @@ pub fn package(args: &[String]) {
             );
             std::process::exit(1);
         };
-        let icon = find_icon(&target.join("release"))
-            .unwrap_or_else(|| {
-                eprintln!("the app's icon is not built (cargo build --release -p cantus)");
-                std::process::exit(1)
-            });
+        let icon = find_icon(&target.join("release")).unwrap_or_else(|| {
+            eprintln!("the app's icon is not built (cargo build --release -p cantus)");
+            std::process::exit(1)
+        });
         let me = std::env::current_exe().expect("xtask's own path");
         let mut env = Vec::new();
         if let Some(Signer::Pfx { file, password }) = &signer {

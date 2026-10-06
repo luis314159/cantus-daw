@@ -102,9 +102,10 @@ impl Problem {
             Problem::Stalled { asio: false } => t("devices.problem.stalled"),
             Problem::Reset { asio: true } => t("devices.problem.reset_asio"),
             Problem::Reset { asio: false } => t("devices.problem.reset"),
-            Problem::Dictated { asked, runs } => {
-                tf("devices.problem.dictated", &[("asked", asked), ("runs", runs)])
-            }
+            Problem::Dictated { asked, runs } => tf(
+                "devices.problem.dictated",
+                &[("asked", asked), ("runs", runs)],
+            ),
             Problem::RateRefused { asked, runs } => tf(
                 "devices.problem.rate_refused",
                 &[("asked", &khz(*asked)), ("runs", &khz(*runs))],

@@ -108,8 +108,12 @@ impl Scan {
         asio: Vec<String>,
     ) -> Scan {
         let names: Vec<String> = inputs.iter().map(|i| i.name.clone()).collect();
-        let interfaces =
-            interfaces::group(&outputs, &names, &asio, cantus_engine::devices::asio_built());
+        let interfaces = interfaces::group(
+            &outputs,
+            &names,
+            &asio,
+            cantus_engine::devices::asio_built(),
+        );
         Scan {
             drivers,
             outputs,
