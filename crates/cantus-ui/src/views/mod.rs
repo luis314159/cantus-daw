@@ -39,6 +39,7 @@ pub mod samples_content;
 pub mod samples_paint;
 pub mod settings_audio;
 pub mod transport;
+pub mod verse;
 pub mod workspace;
 pub mod workspace_device;
 pub mod workspace_frame;

@@ -198,6 +198,8 @@ pub struct CantusApp {
     pub status: Status,
     pub show_stats: bool,
     pub show_about: bool,
+    /// The verse at start, while it shows (BACKLOG §6c; `views::verse`).
+    pub verse: Option<views::verse::Card>,
     pub show_shortcuts: bool,
     pub request_quit: bool,
     synced_revision: u64,
@@ -394,6 +396,7 @@ impl CantusApp {
             },
             show_stats: stress,
             show_about: false,
+            verse: None,
             show_shortcuts: false,
             request_quit: false,
             synced_revision: u64::MAX,
@@ -3279,6 +3282,16 @@ impl CantusApp {
                     );
                     ui.add_space(space::S2);
                     ui.label(t("about.text"));
+                    // The verse at start: each translation and its licence (§6c).
+                    ui.add_space(space::S2);
+                    ui.label(
+                        egui::RichText::new(t("verse.about.title"))
+                            .family(design::family_strong())
+                            .color(theme::p().text_dim),
+                    );
+                    for (name, licence) in views::verse::credits() {
+                        ui.label(format!("{name}: {licence}"));
+                    }
                 });
         }
         if let Some(name) = self.naming_layout.clone() {
@@ -3395,6 +3408,7 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::demos::frame(self, ctx);
+        views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::appearance::pick(self, ctx);

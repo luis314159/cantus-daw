@@ -31,6 +31,7 @@ pub mod samples;
 pub mod settings;
 pub mod takes;
 pub mod theme;
+pub mod verse;
 pub mod views;
 pub mod waveform;
 pub mod widgets;
@@ -105,10 +106,17 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     if let Some(l) = options.locale.as_deref().and_then(i18n::Locale::from_code) {
         i18n::set_locale(l);
     }
+    // The verse at start (§6c): one small file read now, to know whether the splash is
+    // tall enough for a verse, and in which language.
+    let verse = verse::Launch::read(
+        &app::config_dir(),
+        options.locale.as_deref().and_then(i18n::Locale::from_code),
+        verse::seed_now(),
+    );
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(i18n::t("app.title"))
         .with_app_id("cantus")
-        .with_inner_size(boot::SIZE)
+        .with_inner_size(boot::size(verse.shown.is_some()))
         .with_decorations(false)
         .with_resizable(false);
     if let Some(icon) = boot::icon(options.art.as_ref()) {
@@ -122,7 +130,11 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     eframe::run_native(
         "Cantus",
         native,
-        Box::new(move |cc| Ok(Box::new(boot::Shell::Booting(boot::Boot::new(cc, options))))),
+        Box::new(move |cc| {
+            Ok(Box::new(boot::Shell::Booting(
+                boot::Boot::new(cc, options).with_verse(verse),
+            )))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("{e}"))
 }

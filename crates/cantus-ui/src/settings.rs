@@ -132,6 +132,8 @@ pub struct Settings {
     pub sample_folders: Vec<std::path::PathBuf>,
     /// Play a sample when it is clicked in the browser.
     pub sample_audition: bool,
+    /// The verse at start (BACKLOG §6c): on by default, and which Spanish translation.
+    pub verse: crate::verse::VerseSettings,
 }
 
 impl Default for Settings {
@@ -145,6 +147,7 @@ impl Default for Settings {
             mixer_meter_wave: false,
             sample_folders: Vec::new(),
             sample_audition: true,
+            verse: crate::verse::VerseSettings::default(),
         }
     }
 }
@@ -219,6 +222,10 @@ mod tests {
             mixer_meter_wave: true,
             sample_folders: vec!["D:/Samples".into()],
             sample_audition: false,
+            verse: crate::verse::VerseSettings {
+                show: false,
+                spanish: crate::verse::Spanish::Rv1909,
+            },
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

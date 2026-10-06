@@ -98,6 +98,7 @@ pub mod glyph;
 pub mod hint;
 pub mod inspect;
 pub mod light;
+pub mod prose;
 pub mod text;
 pub mod tokens;
 
