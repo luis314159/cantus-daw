@@ -135,7 +135,9 @@ pub fn render_with_instruments(
         crate::automation::Runtime::build(&snap),
     ))
     .ok();
-    tx.push(EngineMessage::SetSnapshot(snap)).ok();
+    // The graph's plan, compiled here and sent with it, as the application does.
+    let plan = crate::graph::compile(&snap);
+    tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
     // Delay compensation longer than the pool's start-up lines is asked for; answer it
     // before the first block so the render is aligned from its first sample.
     // The same for memory an effect's settings need (ADR 0022).

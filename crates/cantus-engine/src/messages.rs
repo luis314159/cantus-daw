@@ -5,10 +5,12 @@ use crate::effects::EffectUnit;
 use cantus_core::{EffectId, Snapshot, StripId, Ticks, TrackId};
 use std::sync::Arc;
 
-/// Hard limits that let the audio thread pre-allocate everything (ADR 0005).
-pub const MAX_TRACKS: usize = 64;
+/// Hard limits that let the audio thread pre-allocate everything (ADR 0005). A snapshot
+/// with more is played up to the limit and the rest is refused and counted
+/// (`EngineStats::refused_tracks`, `refused_strips`), never dropped silently.
+pub const MAX_TRACKS: usize = 256;
 /// Mixer strips the engine can hold, buffers preallocated for each.
-pub const MAX_STRIPS: usize = 64;
+pub const MAX_STRIPS: usize = 256;
 pub const MAX_BLOCK_FRAMES: usize = 8192;
 /// Most tracks that play the live notes besides the live track (multitrack MIDI
 /// recording: every armed instrument track sounds).
@@ -69,8 +71,15 @@ impl MidiEvent {
 /// UI → engine.
 #[derive(Debug)]
 pub enum EngineMessage {
-    /// A freshly compiled project snapshot. The engine keeps it until the next one.
+    /// A freshly compiled project snapshot. The engine keeps it until the next one. Its
+    /// graph plan is the engine's current one when the routing has not changed; otherwise
+    /// the engine compiles it in place (allocation-free) — the UI sends
+    /// [`Self::SetSnapshotPlanned`] instead when the routing changed.
     SetSnapshot(Arc<Snapshot>),
+    /// A snapshot with its graph plan, compiled on the UI thread because its routing
+    /// changed (`crate::graph::compile`, ADR 0031 §1.2). The plan it replaces comes back as
+    /// [`EngineEvent::GarbagePlan`].
+    SetSnapshotPlanned(Arc<Snapshot>, Box<crate::graph::GraphPlan>),
     /// The automation runtime for the snapshot that follows (ADR 0027), built by
     /// `crate::automation::Runtime::build`; `None` for a snapshot without automation. Must
     /// precede its snapshot. The one it replaces comes back as
@@ -244,6 +253,18 @@ pub struct EngineStats {
     /// The latest block that overran, and the node that ran longest in it — the dropout
     /// detector's blame (`crate::profile::Dropout`).
     pub last_dropout: Option<crate::profile::Dropout>,
+    /// The snapshot's tracks and strips past [`MAX_TRACKS`] and [`MAX_STRIPS`]: not
+    /// played. Zero in every project the application can make; a file or an import with
+    /// more is told, not silently cut.
+    pub refused_tracks: u64,
+    pub refused_strips: u64,
+    /// Graph plans compiled on the audio thread (in place, allocation-free) because a
+    /// snapshot whose routing changed came without one — a test, or a full queue. The
+    /// application sends the plan, so this stays at zero there.
+    pub plans_compiled: u64,
+    /// System calls made to raise the callback's thread (once per stream start, ADR 0031
+    /// R1; the amended ADR 0005 rule 3 counts them).
+    pub promotions: u64,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**
@@ -319,4 +340,6 @@ pub enum EngineEvent {
     GarbagePreview(Arc<cantus_core::SampleData>),
     /// An automation runtime the engine no longer uses; the UI drops it.
     GarbageAutomation(Box<crate::automation::Runtime>),
+    /// A graph plan the engine no longer uses; the UI drops it.
+    GarbagePlan(Box<crate::graph::GraphPlan>),
 }
