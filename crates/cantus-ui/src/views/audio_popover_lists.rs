@@ -110,7 +110,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
         })
         .collect();
     let at = app.audio_setup.list_at;
-    let width = 340.0 * s.k;
+    let width = 300.0 * s.k;
     let mut chosen = None;
     let mut list_rect = egui::Rect::NOTHING;
     let area = egui::Area::new(Id::new("cantus-audio-popover-list"))

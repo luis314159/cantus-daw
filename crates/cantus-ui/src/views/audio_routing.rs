@@ -160,7 +160,7 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
             Param::new(&mut db, -60.0..=12.0, 0.0)
                 .format(|v, b| {
                     use std::fmt::Write as _;
-                    let _ = write!(b, "{v:+.1} dB");
+                    let _ = write!(b, "{v:+.0}");
                 })
                 .size(KnobSize::S)
                 .cell(Src::Key("devices.routing.level"))

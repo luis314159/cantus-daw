@@ -221,6 +221,7 @@ pub fn choice_key(
             Pos2::new(rect.right(), rect.bottom() - s.s(5.0)),
         );
         let cap = Text::new(caption, Role::Micro, s.t.text_dim)
+            .caps(false)
             .align(Align2::CENTER_TOP)
             .policy(Policy::Elide(Elide::End));
         if let Some(p) = text::paint(b, bottom, &cap, s.tk()) {

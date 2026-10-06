@@ -54,10 +54,9 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     if live.live {
         ctx.request_repaint();
     }
-    // The room behind dims, and takes no clicks. A layer below the setup's, so a click
-    // on the veil can never bring it in front of the setup.
+    // The room behind dims, and takes no clicks; the setup is moved above it each frame.
     egui::Area::new(Id::new("cantus-audio-first-run-veil"))
-        .order(egui::Order::Middle)
+        .order(egui::Order::Foreground)
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
@@ -84,27 +83,35 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 Pos2::new(rect.right() - 22.0 * k, rect.bottom() - 54.0 * k),
             );
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
-            child.spacing_mut().item_spacing = Vec2::new(8.0 * k, 8.0 * k);
-            parts::paragraph(
-                &mut child,
-                &t("devices.first.intro"),
-                Role::Body,
-                s.t.text_dim,
-            );
-            step(&mut child, 1, "devices.first.choose");
-            cards(app, &mut child);
-            step(&mut child, 2, "devices.first.listen");
-            listen(app, &mut child);
-            step(&mut child, 3, "devices.first.play");
-            meters(app, &mut child, &live);
-            step(&mut child, 4, "devices.first.latency");
-            latency_step(app, &mut child, &live);
+            // A short window (a laptop at 150 %) scrolls; the footer stays put.
+            egui::ScrollArea::vertical()
+                .id_salt("cantus-audio-first-run-body")
+                .auto_shrink([false, false])
+                .max_height(body.height())
+                .show(&mut child, |ui| {
+                    ui.set_width(body.width() - 12.0 * k);
+                    ui.spacing_mut().item_spacing = Vec2::new(8.0 * k, 8.0 * k);
+                    parts::paragraph(ui, &t("devices.first.intro"), Role::Body, s.t.text_dim);
+                    step(ui, 1, "devices.first.choose");
+                    cards(app, ui);
+                    step(ui, 2, "devices.first.listen");
+                    listen(app, ui);
+                    step(ui, 3, "devices.first.play");
+                    meters(app, ui, &live);
+                    step(ui, 4, "devices.first.latency");
+                    latency_step(app, ui, &live);
+                });
             let foot = Rect::from_min_max(
                 Pos2::new(rect.left() + 22.0 * k, rect.bottom() - 46.0 * k),
                 Pos2::new(rect.right() - 22.0 * k, rect.bottom() - 14.0 * k),
             );
             footer(app, ui, foot);
         });
+    // Always above its veil, whichever was clicked last.
+    ctx.move_to_top(egui::LayerId::new(
+        egui::Order::Foreground,
+        Id::new("cantus-audio-first-run"),
+    ));
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && app.audio_setup.first_run.is_some() {
         setup::close_first_run(app);
     }

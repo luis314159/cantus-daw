@@ -57,13 +57,18 @@ fn routing(a: &mut CantusApp) {
     p.cue = Some(2);
     p.cue_db = -6.0;
 }
+fn drivers(a: &mut CantusApp) {
+    a.audio_setup.drivers = true;
+}
 fn notices(a: &mut CantusApp) {
     a.audio_setup
         .notice(Notice::Connected("Scarlett 2i2 USB".into()));
     a.audio_setup.notice(Notice::Reconnected(demo::UMC.into()));
 }
 
-const CASES: [(&str, Setup, Locale, f32); 11] = [
+const CASES: [(&str, Setup, Locale, f32); 13] = [
+    ("drivers", drivers, Locale::En, 1.0),
+    ("drivers-es", drivers, Locale::Es, 1.0),
     ("chip", chip, Locale::En, 1.0),
     ("chip-warn", chip_warn, Locale::En, 1.0),
     ("chip-lost", chip_lost, Locale::En, 1.0),
