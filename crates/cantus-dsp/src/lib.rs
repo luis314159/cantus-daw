@@ -44,6 +44,7 @@ pub mod organum;
 pub mod osc;
 pub mod porta;
 pub mod pulsus;
+pub mod rest;
 pub mod reverb;
 pub mod sibilus;
 pub mod smoother;

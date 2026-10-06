@@ -129,6 +129,29 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool;
+    /// True when the unit is **at rest** (ADR 0031 §5.1): its state equals, for everything
+    /// that can reach its output, a freshly reset unit's with the same configuration — once
+    /// that unit has been [`skip`](Self::skip)ped by as many samples as this one has
+    /// processed since it was made or reset. Then, with no note, expression or controller
+    /// arriving, `process` writes nothing (returns `false`) and leaves the unit at rest, and
+    /// `skip` is exactly that — so the engine may stop calling `process` until something
+    /// arrives, and may reset the unit, without changing a sample.
+    ///
+    /// Stricter than [`Self::process`] returning `false`: a unit can be silent with a
+    /// filter still ringing below the flush threshold, a glide in flight, a held
+    /// controller or a free-running LFO whose phase would differ after a skip — none of
+    /// those is at rest. Cheap: the engine may ask once per block. Default `false`.
+    /// Checked for every native kind by the twin tests (`tests/inst_contract.rs`).
+    fn at_rest(&self) -> bool {
+        false
+    }
+    /// The engine did not call `process` for `frames` samples because the unit was
+    /// [at rest](Self::at_rest) and nothing arrived: advance whatever counts samples,
+    /// exactly as processing would have. Cheap, no allocation. Called only while at rest,
+    /// and on a fresh unit; the unit stays at rest. Default: nothing counts.
+    fn skip(&mut self, frames: usize) {
+        let _ = frames;
+    }
     fn active_voices(&self) -> usize;
     /// Samples of delay between a note and its sound, for delay compensation.
     fn latency(&self) -> usize {

@@ -3,6 +3,8 @@
 //! renderer that turns a project into interleaved stereo samples.
 #![allow(dead_code)]
 
+pub mod heavy;
+
 use cantus_core::*;
 use cantus_engine::*;
 use std::sync::Arc;

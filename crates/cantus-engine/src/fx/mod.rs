@@ -44,6 +44,31 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// Process a stereo block in place; `key` is the sidechain when one is routed.
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>);
     fn reset(&mut self);
+    /// True when the unit is **at rest** (ADR 0031 §5.1): its state equals, for everything
+    /// that can reach its output, a freshly reset unit's with the same configuration — once
+    /// that unit has been [`skip`](Self::skip)ped by as many samples as this one has
+    /// processed since it was made or reset (so the counters agree too). Then, with silent
+    /// input (silent key, no note), `process` outputs exact zeros and leaves the unit at
+    /// rest, and `skip` is exactly that — so the engine may stop calling `process` until
+    /// something arrives, and may reset the unit, without changing a sample.
+    ///
+    /// **Exact, never a guess**: a unit that cannot prove it — a free-running LFO, a
+    /// smoother still gliding, noise that advances on silence — says `false`. Cheap: the
+    /// engine may ask once per block, so a unit keeps counters rather than scanning long
+    /// lines. Default `false`: nothing is ever skipped until a unit opts in. Checked for
+    /// every native kind by the twin tests (`tests/fx_contract.rs`).
+    fn at_rest(&self) -> bool {
+        false
+    }
+    /// The engine did not call `process` for `frames` samples of silence (silent key, no
+    /// note) because the unit was [at rest](Self::at_rest): advance whatever counts samples
+    /// — a ring's write position, the grid a unit updates its coefficients on — exactly as
+    /// processing silence would have, so that skipping is processing silence, also when a
+    /// parameter moves afterwards. Cheap (no audio is rendered), no allocation. Called only
+    /// while at rest, and on a fresh unit; the unit stays at rest. Default: nothing counts.
+    fn skip(&mut self, frames: usize) {
+        let _ = frames;
+    }
     /// Samples of delay the unit adds, for delay compensation.
     fn latency(&self) -> usize {
         0

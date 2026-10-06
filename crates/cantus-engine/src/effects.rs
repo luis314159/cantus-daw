@@ -362,6 +362,34 @@ impl EffectUnit {
         }
     }
 
+    /// True when the unit is at rest (ADR 0031 §5.1, [`crate::fx::FxUnit::at_rest`]): its
+    /// state equals a freshly reset unit's (skipped as far) for everything that reaches its
+    /// output, so with silent input (and key) its calls may be skipped — telling it with
+    /// [`Self::skip`] — without changing a sample. Exact; `false` whenever the unit cannot
+    /// prove it.
+    pub fn at_rest(&self) -> bool {
+        match &self.dsp {
+            Dsp::Delay(d) => d.at_rest(),
+            Dsp::Reverb(r) => r.at_rest(),
+            Dsp::Eq(e) => e.at_rest(),
+            Dsp::Comp(c) => c.at_rest(),
+            Dsp::Fx(u) => u.at_rest(),
+        }
+    }
+
+    /// The engine skipped `frames` samples of silence while the unit was at rest
+    /// ([`crate::fx::FxUnit::skip`]): advance whatever counts samples. Cheap.
+    pub fn skip(&mut self, frames: usize) {
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.skip(frames),
+            // Integer ring positions only: an all-zero ring reads the same from any.
+            Dsp::Reverb(_) => {}
+            Dsp::Eq(e) => e.skip(frames),
+            Dsp::Comp(c) => c.skip(frames),
+            Dsp::Fx(u) => u.skip(frames),
+        }
+    }
+
     pub fn reset(&mut self) {
         match &mut self.dsp {
             Dsp::Delay(d) => d.reset(),

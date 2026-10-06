@@ -1221,6 +1221,16 @@ impl Aequalis {
         }
     }
 
+    /// Samples skipped while at rest (ADR 0031 §5.1): nothing counts samples here.
+    pub fn skip(&mut self, frames: usize) {
+        let _ = frames;
+    }
+
+    /// At rest (ADR 0031 §5.1). Not yet proven: `false`.
+    pub fn at_rest(&self) -> bool {
+        false
+    }
+
     pub fn reset(&mut self) {
         for b in self.bands.iter_mut().chain(std::iter::once(&mut self.solo)) {
             b.state = [[State::default(); 2]; MAX_SECTIONS];

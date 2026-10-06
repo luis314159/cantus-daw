@@ -733,6 +733,16 @@ impl Comprimo {
         self.g_static = Self::db_gain(self.s.mix * self.s.makeup_db + self.auto_db);
     }
 
+    /// Samples skipped while at rest (ADR 0031 §5.1): nothing counts samples here.
+    pub fn skip(&mut self, frames: usize) {
+        let _ = frames;
+    }
+
+    /// At rest (ADR 0031 §5.1). Not yet proven: `false`.
+    pub fn at_rest(&self) -> bool {
+        false
+    }
+
     pub fn reset(&mut self) {
         self.hpf = [Hpf::default(); 2];
         for h in &mut self.hpf {

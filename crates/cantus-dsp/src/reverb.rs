@@ -2,6 +2,8 @@
 //! allpasses per channel, stereo spread) with a pre-delay. Deterministic, allocation-free
 //! after construction. Convolution and better-sounding FDN designs come later.
 
+use crate::rest::ZeroRun;
+
 const COMB_TUNING: [usize; 8] = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 const ALLPASS_TUNING: [usize; 4] = [556, 441, 341, 225];
 const STEREO_SPREAD: usize = 23;
@@ -35,6 +37,7 @@ struct Comb {
     buf: Vec<f32>,
     idx: usize,
     store: f32,
+    quiet: ZeroRun,
 }
 
 impl Comb {
@@ -43,6 +46,7 @@ impl Comb {
             buf: vec![0.0; len.max(1)],
             idx: 0,
             store: 0.0,
+            quiet: ZeroRun::FULL,
         }
     }
 
@@ -65,6 +69,11 @@ impl Comb {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.store = 0.0;
         self.idx = 0;
+        self.quiet.clear();
+    }
+
+    fn at_rest(&self) -> bool {
+        self.store == 0.0 && self.quiet.covers(self.buf.len())
     }
 }
 
@@ -72,6 +81,7 @@ impl Comb {
 struct Allpass {
     buf: Vec<f32>,
     idx: usize,
+    quiet: ZeroRun,
 }
 
 impl Allpass {
@@ -79,7 +89,12 @@ impl Allpass {
         Allpass {
             buf: vec![0.0; len.max(1)],
             idx: 0,
+            quiet: ZeroRun::FULL,
         }
+    }
+
+    fn at_rest(&self) -> bool {
+        self.quiet.covers(self.buf.len())
     }
 
     #[inline]
@@ -97,6 +112,7 @@ impl Allpass {
     fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.idx = 0;
+        self.quiet.clear();
     }
 }
 
@@ -110,6 +126,7 @@ pub struct Reverb {
     predelay: Vec<f32>,
     predelay_write: usize,
     predelay_samples: usize,
+    predelay_quiet: ZeroRun,
     feedback: f32,
     damp: f32,
     wet1: f32,
@@ -141,6 +158,7 @@ impl Reverb {
             predelay: vec![0.0; (MAX_PREDELAY_SECONDS * sample_rate) as usize + 2],
             predelay_write: 0,
             predelay_samples: 0,
+            predelay_quiet: ZeroRun::FULL,
             feedback: 0.0,
             damp: 0.0,
             wet1: 0.0,
@@ -182,12 +200,31 @@ impl Reverb {
         }
         self.predelay.iter_mut().for_each(|x| *x = 0.0);
         self.predelay_write = 0;
+        self.predelay_quiet.clear();
+    }
+
+    /// At rest (ADR 0031 §5.1): the pre-delay, every comb and every allpass hold only
+    /// zeros and the combs' damping filters are empty — what [`Self::reset`] leaves. The
+    /// settings are plain values (no glide), so nothing else moves.
+    pub fn at_rest(&self) -> bool {
+        self.predelay_quiet.covers(self.predelay.len())
+            && self
+                .combs_l
+                .iter()
+                .chain(self.combs_r.iter())
+                .all(Comb::at_rest)
+            && self
+                .allpasses_l
+                .iter()
+                .chain(self.allpasses_r.iter())
+                .all(Allpass::at_rest)
     }
 
     /// Process a stereo block in place.
     pub fn process(&mut self, l: &mut [f32], r: &mut [f32]) {
         let len = self.predelay.len();
-        for i in 0..l.len().min(r.len()) {
+        let n = l.len().min(r.len());
+        for i in 0..n {
             let in_l = l[i];
             let in_r = r[i];
             // Pre-delay on the mono send.
@@ -215,6 +252,18 @@ impl Reverb {
             let wet_r = out_r * self.wet1 + out_l * self.wet2;
             l[i] = in_l + (wet_l - in_l) * self.mix;
             r[i] = in_r + (wet_r - in_r) * self.mix;
+        }
+        self.predelay_quiet
+            .wrote(&self.predelay, self.predelay_write, n);
+        for c in self.combs_l.iter_mut().chain(self.combs_r.iter_mut()) {
+            c.quiet.wrote(&c.buf, c.idx, n);
+        }
+        for a in self
+            .allpasses_l
+            .iter_mut()
+            .chain(self.allpasses_r.iter_mut())
+        {
+            a.quiet.wrote(&a.buf, a.idx, n);
         }
     }
 }

@@ -4,6 +4,7 @@
 //! through a smoother and a fractional read head, so sweeping the time bends pitch like a
 //! tape echo instead of clicking.
 
+use crate::rest::ZeroRun;
 use crate::smoother::Smoother;
 
 pub const MAX_DELAY_SECONDS: f32 = 2.0;
@@ -41,6 +42,8 @@ pub struct StereoDelay {
     lp_r: f32,
     lp_coef: f32,
     settings: DelaySettings,
+    /// Zeros written into each line in a row, for [`StereoDelay::at_rest`].
+    quiet: [ZeroRun; 2],
 }
 
 impl StereoDelay {
@@ -58,6 +61,7 @@ impl StereoDelay {
             lp_r: 0.0,
             lp_coef: 1.0,
             settings: s.clone(),
+            quiet: [ZeroRun::FULL; 2],
         };
         d.set(&s);
         d
@@ -88,6 +92,28 @@ impl StereoDelay {
         self.time
             .snap((self.settings.time_ms * 0.001 * self.sample_rate).clamp(1.0, max_samples));
         self.mix.snap(self.settings.mix.clamp(0.0, 1.0));
+        self.quiet = [ZeroRun::FULL; 2];
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the write position moves
+    /// as processing would have moved it. It is not idle bookkeeping — the read head's
+    /// fraction is worked out from the absolute position, so it is in the output's bits.
+    pub fn skip(&mut self, frames: usize) {
+        let len = self.buf_l.len();
+        self.write = (self.write + frames % len) % len;
+    }
+
+    /// At rest (ADR 0031 §5.1): both lines hold only zeros, the feedback tone filter is
+    /// empty and the time and mix glides have landed — what [`Self::reset`] leaves, with
+    /// the write position that [`Self::skip`] keeps.
+    pub fn at_rest(&self) -> bool {
+        let len = self.buf_l.len();
+        self.lp_l == 0.0
+            && self.lp_r == 0.0
+            && self.time.is_settled()
+            && self.mix.is_settled()
+            && self.quiet[0].covers(len)
+            && self.quiet[1].covers(len)
     }
 
     #[inline]
@@ -106,7 +132,8 @@ impl StereoDelay {
         let fb = self.settings.feedback.clamp(0.0, 0.98);
         let ping_pong = self.settings.ping_pong;
         let len = self.buf_l.len();
-        for i in 0..l.len().min(r.len()) {
+        let n = l.len().min(r.len());
+        for i in 0..n {
             let d = self.time.next();
             let mix = self.mix.next();
             let in_l = l[i];
@@ -129,6 +156,8 @@ impl StereoDelay {
             l[i] = in_l + (rd_l - in_l) * mix;
             r[i] = in_r + (rd_r - in_r) * mix;
         }
+        self.quiet[0].wrote(&self.buf_l, self.write, n);
+        self.quiet[1].wrote(&self.buf_r, self.write, n);
     }
 }
 
