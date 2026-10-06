@@ -876,7 +876,7 @@ impl Porta {
         if frames == 0 {
             return;
         }
-        if self.fresh {
+        if self.fresh && self.s.midi {
             self.fresh = false;
             let closed = Self::midi_gain_db(&self.s, false, self.velocity);
             self.phase = Phase::Closed;

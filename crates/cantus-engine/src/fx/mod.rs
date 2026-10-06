@@ -74,8 +74,8 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// note) because the unit was [at rest](Self::at_rest): advance whatever counts samples
     /// — a ring's write position, the grid a unit updates its coefficients on, a meter's
     /// columns — exactly as processing silence would have. Cheap (no audio is rendered), no
-    /// allocation. Called only while at rest, and on a fresh unit; it stays at rest.
-    /// Default: nothing counts.
+    /// allocation. Called only while at rest (a new unit is, when its kind can rest); it
+    /// stays at rest. Default: nothing counts.
     fn skip(&mut self, frames: usize) {
         let _ = frames;
     }

@@ -150,8 +150,8 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     }
     /// The engine did not call `process` for `frames` samples because the unit was
     /// [at rest](Self::at_rest) and nothing arrived: advance whatever counts samples,
-    /// exactly as processing would have. Cheap, no allocation. Called only while at rest,
-    /// and on a fresh unit; it stays at rest. Default: nothing counts.
+    /// exactly as processing would have. Cheap, no allocation. Called only while at rest (a
+    /// new unit is, when its kind can rest); it stays at rest. Default: nothing counts.
     fn skip(&mut self, frames: usize) {
         let _ = frames;
     }

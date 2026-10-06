@@ -305,7 +305,7 @@ fn twins(
         }
         if silent > cap {
             if let Some(why) = a.rest_blocker() {
-                eprintln!("  (not at rest: {why})");
+                eprintln!("  ({kind:?}, seed {seed}: not at rest — {why})");
             }
             return Ok(None);
         }
@@ -416,7 +416,7 @@ fn at_rest_is_exact(kind: EffectKind) {
                     if flushed { " (FTZ)" } else { "" }
                 )),
                 Ok(None) => {
-                    report.push(format!("{label} #{trial}: no rest"));
+                    report.push(format!("{label} #{trial}: no rest (seed {seed})"));
                     if must && flushed {
                         failures.push(format!(
                             "{kind:?} {label} #{trial}: no rest within {} s of silence",
