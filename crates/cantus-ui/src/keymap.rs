@@ -652,6 +652,8 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleCountIn, Binding::alt(Key::C)),
         (TogglePunch, Binding::alt(Key::P)),
         (ShowTakes, Binding::alt(Key::T)),
+        // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
+        (AutomateLastTweaked, Binding::alt(Key::A)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }

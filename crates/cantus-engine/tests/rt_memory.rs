@@ -268,9 +268,12 @@ impl Rig {
                 self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
             }
         }
+        let snap = Arc::new(snap);
+        // Its automation's runtime first (ADR 0027): built here, off the audio thread.
         self.tx
-            .push(EngineMessage::SetSnapshot(Arc::new(snap)))
+            .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
             .unwrap();
+        self.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     }
 
     /// `blocks` blocks of 512, counted under `phase`; the UI's side between each.
@@ -439,6 +442,51 @@ fn the_master_chain_never_allocates() {
     rig.play("master seek", 10);
     rig.tx.push(EngineMessage::Stop).unwrap();
     rig.play("master stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// Automation (ADR 0027) on the audio thread: a fader ride and a pan sweep ramping, an
+/// EQ's band gain and Firmus's cutoff configured at control points, the master's width;
+/// a new snapshot (and runtime) mid-play, a seek, a stop. Not one allocation.
+#[test]
+fn automation_never_allocates() {
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("b0.used", 1.0).unwrap();
+    let eq_id = eq.id;
+    p.strip_mut(s0).unwrap().effects.push(eq);
+    let lead = p.tracks[0].id;
+    let ramp = |a: f32, b: f32| vec![AutoPoint::new(Ticks::ZERO, a), AutoPoint::new(Ticks::beats(4), b)];
+    let targets = [
+        AutoTarget::StripGain(s0),
+        AutoTarget::StripPan(s0),
+        AutoTarget::Effect { effect: eq_id, key: "b0.gain".into() },
+        AutoTarget::Firmus { track: lead, param: FirmusParam::Cutoff },
+        AutoTarget::MasterWidth,
+        AutoTarget::TrackGain(lead),
+    ];
+    for t in targets {
+        let c = p.make_automation_clip("a", t, Ticks::ZERO, Ticks::beats(8), ramp(0.2, 0.9));
+        p.tracks[0].clips.push(c);
+    }
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("automation start", 30);
+    p.tracks[0].clips.last_mut().unwrap().automation.as_mut().unwrap().points[1].value = 0.1;
+    rig.snapshot(&p);
+    rig.play("automation new snapshot", 30);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+    rig.play("automation seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("automation stop", 4);
     assert!(
         rig.allocations.iter().all(|(_, n)| *n == 0),
         "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
