@@ -1,6 +1,6 @@
 # ADR 0031 — The performance architecture: a compiled graph, a real-time pool, rendering ahead, and never doing work twice
 
-**Status:** Proposed · **Date:** 2026-10-05 · **Extends:** ADR 0005 (real-time rules),
+**Status:** Proposed · **Date:** 2026-10-05 · **Extends:** ADR 0005 (real-time rules), · **Reviewed:** 2026-10-06 against the state of the art (last section)
 ADR 0014/0015 (strips, sends), ADR 0018/0022 (delay compensation, notes into effects),
 ADR 0019 (hosting), ADR 0023 (instruments), ADR 0025 (recording), ADR 0026 (the master
 chain) · **Plan:** `docs/perf/plan.md` · **Prototype:** `docs/perf/proto/`
@@ -877,3 +877,258 @@ the cache is an ahead renderer; the sandbox is an external task of the pool.
 - What the user sees: the engine readout gains *ahead lead* (how far ahead the anticipative
   path is) beside the load; the dropout notice names the node, or says *preempted*; the
   plug-in manager says which plug-ins are not cacheable and why.
+
+## Review against the state of the art (2026-10-06)
+
+*Added by the engine-research builder (round 20, branch `r20/engine-research`). The text
+above is the architect's and is unchanged; this section judges each decision against
+today's engines and the literature and proposes amendments, numbered **R1–R16**, for the
+architect and the owner to accept or reject. Evidence and full citations are in
+`research/engine/` — `engines.md` (REAPER, Cubase, Pro Tools, Studio One, Logic, Bitwig,
+Live, FL Studio, JUCE, the benchmarks), `realtime-systems.md` (OS, CPU, language),
+`scheduling-papers.md` (Ardour, Tracktion Graph, JACK2, PipeWire, Supernova, Faust, CLAP,
+VST3, scheduling theory), `dsp-quality.md` and `verification.md`; the ranked summary is
+`research/engine/README.md`. Sources marked there as excerpts only are not relied on alone
+for any amendment below.*
+
+**The verdict in one paragraph.** The architecture is sound and in several places ahead of
+everything surveyed: no engine read for this review claims parallel = serial to the bit
+(§1.3), none has an automatic invalidating render cache (§4), none suspends plug-ins by an
+exact predicate rather than a threshold (§5.1), and none ranks ready work by critical path
+(§2.3 — HEFT's upward rank, unused in audio). Where the review disagrees it is about the
+ground the design stands on, not its shape: the callback thread Cantus already runs is not
+real-time on Windows today, the ready queue does not have the progress guarantee §2.2
+claims for it, Windows will put the ahead workers exactly where Steinberg found them to
+drop out, bits are not yet the same across machines, and anticipation — the one lever every
+leading DAW already has — is scheduled after two features where Cantus would be first.
+
+### Decision by decision
+
+| § | Decision | Verdict | Evidence (see the research files) | Amendment |
+|---|---|---|---|---|
+| 1.1 | Nodes own state and outputs; control phase serial | **Supported** | Every engine surveyed; JACK2/PipeWire do the control work at cycle start | — |
+| 1.2 | Plan compiled on the UI thread, swapped by message, keyed by topology | **Supported** | Ardour (chain swap, butler deletion), Tracktion (prepared node, quiesce), JACK2 (two states), JUCE 7 | — |
+| 1.3 | Canonical summation order ⇒ parallel = serial | **Supported, ahead of the field** | No surveyed engine claims bit-identity; reproducible summation (Demmel–Nguyen) costs ~4× — the fixed order is the cheap correct answer | — |
+| 1.4 | Every output its own buffer; reuse by liveness only for large blocks | **Supported; reuse doubtful** | Rowland (ADC 2022): reuse "outweighed the cache benefits" on desktop; Tracktion keeps per-node buffers | R12 |
+| 1.4 | Slab allocated on the UI thread | **Gap** | Fresh pages fault on first touch — on the audio thread (mlock(2), `VirtualLock`; Supernova pre-touches and mlocks) | R11 |
+| 1.5 | Each node at its own segments; whole-block inserts | **Supported** | CLAP/VST3 prefer it; FL's variable-size chunks are the counter-example its manual warns about | R14 (fixed sub-block for coefficients) |
+| 2.1 | W = physical P-cores − 2; live on P, ahead on E | **Partly contradicted** | Apple: size by `os_workgroup_max_parallel_threads`; Steinberg KB: prefetch threads on E-cores drop out when the window is in the background; DAWbench 2025: inter-CCD latency matters at 64 samples; Live processes on P-cores only | R1, R3, R4 |
+| 2.2 | Callback helps; "waits only on nodes already running" | **Supported in shape, claim too strong** | Tracktion, Supernova, Faust, Radium help; Ardour does not. With a Vyukov queue a preempted *pusher* also stalls the callback | R2 |
+| 2.3 | Bounded Vyukov MPMC, two priority queues, continuation slot | **Better exists** | Vyukov: "not lockfree in the official meaning"; Boost documents the stall; Ardour and Tracktion share the flaw; Faust's per-thread fixed arrays and Acar–Blelloch–Blumofe's affinity give lock-free progress and locality | R2 |
+| 2.3 | Rejecting rayon and crossbeam-deque | **Supported** | crossbeam-deque grows, shrinks and frees through epoch GC on any pinning thread (source read) | — (R2 keeps the rejection) |
+| 2.4 | Spin by time, park after silence, wake only at idle → busy | **Supported** | Supernova spins (and says it is unfriendly); Tracktion's default spins then waits; Speed Shift needs 5–17 ms to ramp a parked core; PAUSE costs ~140 cycles on Skylake+ (time, not counts); crill's progressive backoff | R5 (Thread Director) |
+| 2.5 | Clustering ≥ 20 µs; serial fallback under 25 % load | **Supported / novel** | Supernova merges sequential synths; Faust: simple graphs faster scalar; no engine has a load-based fallback | — (measure it) |
+| 2.6 | Windows MMCSS Pro Audio HIGH + CPU sets | **Supported, incomplete** | The callback is not promoted today (cpal `realtime` feature off); EcoQoS can override; Microsoft protects only RTWQ items for WASAPI in low-latency mode | R1, R3 |
+| 2.6 | macOS time constraint + device workgroup | **Supported** | WWDC20 10224; Ardour does exactly this; time constraint must precede the join | R4 |
+| 2.6 | Linux SCHED_FIFO via rtkit | **Wording** | rtkit grants SCHED_RR; RT threads are frequency-boosted by default (`uclamp_min = 1024`) | R4 |
+| 2.7 | `AtomicRefCell`, `cantus-rt` for unsafe | **Supported** | `atomic_refcell` panics on conflict — `try_*` only, as written | R16 (lint) |
+| 2.8 | Hosted plug-ins on workers; CLAP thread-pool served by the pool | **Supported** | CLAP `thread-check`: "audio-thread is symbolic"; `thread-pool` blocks the caller, as written | — |
+| 2.9 | Blame per node and per worker; "possibly preempted" | **Supported, ahead of the field** | Cubase 14 names tracks; nobody names the plug-in | R13 (two meters) |
+| 3.1–3.4 | Per-node cursors, rings, claim rule | **Supported** | REAPER's "dependent on a track that is"; JACK2 async and PipeWire async are the one-cycle form of the same trade | — |
+| 3.2 | Eligibility table | **Incomplete** | VST3 `IPrefetchableSupport` (`kIsNeverPrefetchable`) not read; with anything live the master chain is live (Logic's live chain, REAPER's dependency rule) | R6, R7 |
+| 3.3 | Levels; ahead workers on E-cores | **Contradicted on placement** | Steinberg KB (E-cores + EcoQoS ⇒ prefetch dropouts) | R3 |
+| 3.5 | Parameter edits on ahead nodes heard ≤ H late, promotion | **Supported; better exists for native units** | REAPER users disable anticipation per track for this; Cubase fader latency grows with level; Time Warp (Jefferson 1985) rolls back | R8 |
+| 3.6–3.7 | ahead = live = offline; VST3 `kPrefetch` | **Supported** | VST3: "plug-in must not slow down to realtime … host should avoid kPrefetch for sampler plug-ins" | R6 |
+| 4 | Render cache with chained page keys and settle points | **Supported by theory, novel in DAWs** | Build systems' constructive traces and early cutoff (Mokhov et al.); every DAW freezes by hand | R9 (determinism), R10 (dither) |
+| 5.1 | Exact `at_rest` suspension | **Supported, stricter than the market** | REAPER needs a threshold and lets the user turn auto-bypass off for offline render; FL and Live warn about tails | R10 |
+| 5.2 | FTZ/DAZ inside `process` | **Supported in practice; outside Rust's model** | RFC 3514: changing FP control bits without restoring them inside the asm block is UB; aarch64 has FZ, no DAZ | R9 |
+| 5.3 | v3 build bit-identical to v2 | **True for Cantus's arithmetic, not for the CRT** | UCRT picks FMA3 or non-FMA3 transcendental code by CPU (Microsoft docs); std's `sin/exp` precision "varies by platform"; ~450 calls in `cantus-dsp` | R9 |
+| 5.3 | SIMD kernels, SoA voices | **Supported** | Surge XT (QuadFilterChain), Vital (`poly_float`); add: no `rcpps`/`rsqrtps` | R9, R14 |
+| 5.4 | 64-byte padding on x86, 128 on Apple | **Contradicted on x86** | crossbeam pads 128 on x86-64 because the spatial prefetcher pairs lines | R11 |
+| 6 | Sandbox: shared memory, job/completion, spin-then-park | **Supported in shape; spinning contradicted** | JACK2/PipeWire activation records in shared memory, eventfd wake; Supernova on spinning's cost; the ADR's own 97 ms p99 with spinners = cores | R15 |
+| 7 | Parallel, pipelined export; time-parallel at settle points | **Supported** | Faust (pipelining no clear win at their sizes — measure); Pro Tools 11's bounce at 4×–150× | R10 (dither settles) |
+| 8 | Order of work | **Contradicted on anticipation's place** | Every leading DAW has render-ahead; parallel export and the cache are where Cantus is first, anticipation where it is behind | R7 |
+| Tests | Seeded schedule fuzz, loom, Miri, `rt_memory` | **Supported; better methods exist** | PCT (ASPLOS 2010), Shuttle, FoundationDB's seed self-check and BUGGIFY, RTSan in rustc nightly | R13 |
+
+### Amendments
+
+**R1 — Own the callback's priority, and keep Windows from throttling the process (§2.6, §2.1).**
+Today the default driver path (WASAPI shared, ADR 0025 §10) runs `Processor::process` on a
+cpal thread at **normal priority**: cpal promotes it only under its `realtime` feature,
+which Cantus does not enable (`cpal-0.18.2/src/host/wasapi/stream.rs`), and that feature
+would ask MMCSS for "Audio", not "Pro Audio" (Mozilla's `rt_win.rs`). With §2.6's workers
+at MMCSS HIGH the one thread every block waits on would be the lowest-priority thread of
+the engine. Amend §2.6: *"the callback thread belongs to the driver"* holds for ASIO only;
+on WASAPI the control phase calls `cantus_rt::promote_callback()` on the first block after a
+stream starts — `AvSetMmThreadCharacteristicsW("Pro Audio")` + `AvSetMmThreadPriority(HIGH)`
+— one system call per stream start, counted with `EngineStats::wakes`' kind under ADR 0005's
+amended rule 3. At start-up the process opts out of EcoQoS
+(`SetProcessInformation(ProcessPowerThrottling)`, `ControlMask = EXECUTION_SPEED,
+StateMask = 0`), which is what Steinberg's knowledge base tells Cubase users to do by hand
+with `powercfg` after prefetch threads dropped out on E-cores with the window in the
+background. And the targets say which driver path they assume: ASIO, or a low-latency
+`IAudioClient3` stream (cpal's WASAPI path is plain shared mode, ~10 ms periods).
+
+**R2 — A ready queue that keeps §2.2's promise (§2.3).** Vyukov's queue is, in its author's
+words, "not lockfree in the official meaning": a thread preempted between claiming a cell
+and publishing it makes every consumer see *empty* (Boost.Lockfree documents the stall; the
+prototype's `queue.rs` has it line for line; Ardour's and Tracktion's queues share it). So
+the callback can spin on a queue that is not empty, behind a preempted *pusher* — a case
+§2.9's blame would misreport. Replace the two shared queues with **one fixed-capacity
+Chase–Lev deque per worker (and one for the callback), capacity = the plan's task count**:
+a task is pushed at most once per block, so the buffer never grows, never shrinks and is
+never replaced — the allocation and epoch-reclamation objections to crossbeam-deque do not
+arise. This is Faust's scheduler (a fixed `int` array per thread, LAC 2010) with the C11
+orderings proved by Lê et al. (PPoPP 2013). Owner push/pop are wait-free; a thief preempted
+mid-steal blocks no one. Priority becomes push order (critical successors pushed last,
+popped first; the continuation slot is the owner's LIFO end; thieves take oldest-first).
+**Locality** comes free: each task has a *home* worker — the one that ran it last block —
+seeded into that worker's deque at arming (Acar, Blelloch, Blumofe, SPAA 2000: affinity
+mailboxes match static partitioning when quiet and beat it under multiprogramming); this
+also gives §8 risk 3's "home worker" for single-thread-minded plug-ins at no extra cost. The
+*sched* builder implements both queues against the mock graphs, injects a stall between
+claim and publish, and keeps the Vyukov queue only if the deques lose on the bench. Reword
+§2.2: the callback waits only on tasks that are running *or on a worker preempted inside
+the scheduler's own few-instruction critical windows* — and R2 removes the second.
+
+**R3 — Ahead workers are not "E-cores first" (§2.1, §3.3, §2.6).** Cubase's ASIO-Guard is
+the reference implementation of §3, and Steinberg had to publish *Dropouts on Intel
+hybrid-architecture CPUs* about exactly this placement. The ahead path has a deadline too
+(`H`), and an E-core under EcoQoS may run at a fraction of its clock. Amend: while the
+transport plays, ahead workers take the P-cores the live pool leaves (one physical core per
+worker), then E-cores; background freeze and export take E-cores first. Ahead workers use
+MMCSS "Pro Audio" LOW (as written) *and* R1's process-wide EcoQoS opt-out. Phase 1 also
+measures MMCSS threads against Real-Time Work Queue items under the WASAPI low-latency mode
+— Microsoft's *Low Latency Audio* page protects "only the work items that were submitted to
+the Real-Time Work Queue API" for WASAPI applications — and records the choice.
+
+**R4 — How many workers, and where (§2.1, §2.6).** macOS: `W =
+os_workgroup_max_parallel_threads(device workgroup) − 1`, threads created one per core at
+start and *used* up to W at render time (WWDC20 10224); the time-constraint policy is set
+**before** `os_workgroup_join` (or it fails with `EINVAL`), and a cancelled workgroup is
+re-joined after a device change. All platforms: the live pool stays inside **one
+last-level-cache domain** when the CPU has several (DAWbench 2025: a single-CCD part beat
+dual-CCD parts at 64 samples; `GetLogicalProcessorInformationEx(RelationCache)`, sysfs,
+`hw.perflevel*`). Linux: "SCHED_RR via rtkit (FIFO when `RLIMIT_RTPRIO` allows)"; note that
+RT threads are already frequency-boosted (`uclamp_min = 1024`), so the *Eco* setting costs
+less there.
+
+**R5 — Spinners stay where Thread Director will not move them (§2.4).** PAUSE-heavy loops are
+their own Thread Director class, judged suitable for E-cores. Live workers' CPU sets name
+P-cores only (R3 already); the inner loop follows crill's progressive backoff (a few bare
+polls, then `spin_loop()`, the clock read every few hundred iterations — PAUSE is ~140 cycles
+on Skylake and later, so budgets stay in time).
+
+**R6 — Eligibility reads what the plug-in standards say (§3.2, §3.7).** Add to the "live
+because" table: a VST3 plug-in whose `IPrefetchableSupport` says `kIsNeverPrefetchable` (or
+`kIsNotYetPrefetchable`), re-read on `restartComponent(kPrefetchableSupportChanged)`; and a
+hosted **disk-streaming instrument** that does not declare itself prefetchable — the VST3
+header asks hosts to "avoid to process in kPrefetch mode such sampler based plug-in", since
+running ahead calls it faster than real time.
+
+**R7 — Be honest about the live path, and build anticipation sooner (§3.2, §8, plan).**
+(a) With anything live, the master is live (REAPER's dependency rule, Logic's live chain),
+and Cantus's master holds the mastering chain (ADR 0026): the live path's floor is the
+serial master chain. Phase 2's "live armed track at 64 samples" target says so and is
+measured with the bench's mastering session. (b) Every leading DAW pairs liveness with a
+**low-latency monitoring rule** — Cubase's *Constrain Delay Compensation*, Logic's *Low
+Latency Mode*, Live's *Reduced latency when monitoring*, Studio One's < 3 ms rule — because a
+lookahead limiter on the master delays what a player hears by tens of milliseconds. Cantus
+needs one (a new ADR beside 0022; it changes what is heard while monitoring, never the
+export). (c) **Move anticipation (§3) ahead of the parallel export**: REAPER, Cubase, Studio
+One, Pro Tools and Logic all render ahead; it is the lever for §4b's "more tracks at a lower
+buffer", and it is where Cantus is behind rather than first. Parallel export and the render
+cache stay, after it. `plan.md` is reordered accordingly.
+
+**R8 — Edits on ahead native nodes: roll back instead of waiting (§3.5; research-gated).**
+Anticipation is optimistic execution; an edit is a message that arrives in the node's past.
+Time Warp (Jefferson, *ACM TOPLAS* 1985) answers with a checkpoint and a rollback. Native
+units are Rust values: a node whose state is small (say ≤ 64 KiB — most effects, not
+reverbs or samplers) can keep a checkpoint at each chunk start (a copy into a preallocated
+slot, by an ahead worker), and on a parameter edit roll back to the newest checkpoint at or
+after `now + 2b`, drop its ring beyond it and re-render — the edit is heard within two
+blocks with no promotion and no `H`. Bit-exact by the same argument as §3.6 (the state *is*
+what it was). Built after Phase 2's anticipation holds, only if promotion proves
+insufficient; a unit opts in with `fn checkpoint_size(&self) -> Option<usize>`.
+
+**R9 — The same bits on every machine (§5.2, §5.3, §4.7, §8 risk 6).** Microsoft's CRT picks
+FMA3 or non-FMA3 implementations of `exp`, `sin`, `pow`… by CPU at start-up, and documents
+that results differ "between computers that do or don't support FMA3"; Rust's std defers to
+it and states that their precision "varies by platform". `cantus-dsp` calls them ~450
+times. The v2-vs-v3 CI job cannot see this (both builds run on one machine and one CRT
+path). Amend: (1) one deterministic math module — the pinned pure-Rust `libm` crate or
+Cantus's own polynomials — for every transcendental in `cantus-dsp` and `cantus-engine`,
+with std's methods banned there by clippy `disallowed_methods`; one reviewed `DSP_VERSION`
+bump. (2) Until it lands, `cantus-rt` calls `_set_FMA3_enable(0)` at start-up on Windows x64
+so every Windows machine takes one path. (3) Kernels never use approximate instructions
+(`rcpps`, `rsqrtps` differ between Intel and AMD). (4) CI compares null-test hashes **across
+machine classes** (a second x86 class and an aarch64 runner), not only across builds; the
+render cache key keeps the CPU class until (1) has landed, then drops it. (5) §5.2 states
+its basis: running Rust code under FTZ is outside the language's model (RFC 3514), so the
+guarantee is empirical — Cantus's DSP never relies on a subnormal, and the null corpus runs
+with the guard on and off on x86-64 (FTZ+DAZ) and aarch64 (FZ only; there is no DAZ bit).
+The guard is re-asserted after every **hosted** plug-in call, not only before each node.
+
+**R10 — Stateless dither, so the master chain can come to rest (§4.2, §5.1, §7.3).**
+Terminus's and Culmen's `Ditherer` draws TPDF noise from a sequential xorshift that advances
+on every non-zero sample, so a dithering master is never *at rest* and the master has **no
+settle points** — for the render cache and for time-parallel export — in every 16/24-bit
+export. Replace it with a counter-based generator: the noise for channel *c* at absolute
+sample *n* is `hash(seed, c, n)` (SplitMix64 or a Philox round). Same statistics; the same
+noise at any block size, start, thread or split; only the shaping filter's few samples of
+error state remain, which already clear after 64 zeros. A `DSP_VERSION` bump.
+
+**R11 — Memory the audio thread never faults on, padded for the prefetcher (§1.4, §3.3, §5.4).**
+Every slab, ring, page pool and ADR 0018 line pool is **pre-faulted** (written once) on the
+thread that allocates it and locked where the OS allows (`VirtualLock` after raising the
+minimum working set; `mlock` elsewhere), best-effort and reported; each pool thread touches
+its stack at start (Supernova does both). Hot per-node scalars are padded to **128 bytes on
+x86-64 as well** (Intel's spatial prefetcher fetches 64-byte lines in pairs — the reason
+crossbeam's `CachePadded` is 128 there); buffers written concurrently by two workers are
+rounded to 128 bytes.
+
+**R12 — Do not build buffer reuse until it is measured (§1.4).** Rowland measured run-time
+buffer reuse losing to per-node buffers on desktop machines. Keep Phase 1's "no reuse", and
+extend it to the ahead path: §3.3's rings at Normal are 10 MiB for 256 nodes — memory nobody
+is short of. The liveness colouring is built only if the bench shows memory pressure.
+
+**R13 — Verify and measure the way the state of the art does (§2.9, "What the tests hold", bench).**
+(1) The schedule fuzz is **PCT-shaped** (Burckhardt et al., ASPLOS 2010: random priorities,
+*d − 1* change points; a stated bound per run) on short episodes, and a failing seed prints a
+**replay token**; each seed runs twice and asserts the same final random state
+(FoundationDB's "unseed" check); a `buggify!` macro under a test feature injects one-sample
+chunks, stalled workers and late ahead workers. (2) **RTSan on Linux CI** (rustc nightly
+`-Zsanitizer=realtime`, or `rtsan-standalone`) over the callback and every pool loop, with the
+permitted wakes as scoped exceptions — the amended ADR 0005 rule 3 made machine-checked;
+`rt_memory` stays the Windows gate. (3) A **session recorder**: every message and MIDI event
+with the block and frame it applied at, the device block sizes, the input, the initial
+snapshot — so a user's bug replays offline bit for bit. (4) The bench gains a **paced mode**
+(blocks at the device period, so caches cool and clocks drop as they do live), a
+**glitch-detector node** (a sine at the head, a phase-locked predictor at the master, as
+OboeTester and DAWbench's sine track do), missed callbacks counted from the device's sample
+position, and DAWbench 2026's **serial-chain variant** beside the wide one. (5) The engine
+readout shows **the live path's peak and the ahead path's average separately** (Cubase's
+Audio Performance Monitor), with the per-node blame beside them.
+
+**R14 — Cheaper DSP before faster DSP (§5.3, §1.5).** Before hand-vectorising Fervor's and
+Comprimo's oversamplers, give the shapers **antiderivative antialiasing** (Parker,
+Zavalishin, Le Bivic, DAFx 2016; Bilbao et al., IEEE SPL 2017): first-order ADAA at 2× beats
+either alone, which halves the oversampled work and its latency — a reviewed `DSP_VERSION`
+bump with the old modes kept. And every unit that recomputes coefficients every *N* samples
+does it on a **fixed internal sub-block aligned to the absolute sample index**, never the
+host block, which makes the block-size contracts structural rather than each unit's care.
+
+**R15 — The sandbox does what JACK2 and PipeWire do, and never spins unboundedly (§6).**
+Sandboxes that spin "while the transport plays" are spinners the host does not count: with
+*By plug-in* or *Individually* hosting, N groups spinning on top of W live workers is the
+prototype's 97 ms p99 again. Amend: (1) a **machine-wide spinner budget** — live workers plus
+spinning sandbox threads never exceed the cores the pool was given; sandboxes beyond it wait
+on their event; (2) the host wakes a sandbox **directly** with its job, PipeWire-style
+(activation record in the shared mapping, a pending counter, an event per group); (3) an
+**async hosting option** for live sandboxed nodes — the node's output is the previous
+block's (JACK2's default mode, PipeWire's `node.async` since 1.2), its extra block of latency
+reported to delay compensation, so the round trip leaves the critical path entirely; ahead
+nodes need none of this (§6 already says so).
+
+**R16 — Lints that keep the rules true.** `clippy::disallowed_methods` in `graph/` and
+`sched/` for `AtomicRefCell::borrow`/`borrow_mut` (they panic on conflict; only `try_*` is
+allowed), and in the DSP crates for std's transcendental functions (R9).
+
+### What does not change
+
+The graph, the canonical gather, whole-block nodes, the callback that helps, spin-then-park
+with wakes only at idle → busy, clustering, the critical-path rank, the cursors and the claim
+rule, promotion, the switch point, the render cache's keys and settle points, exact
+suspension, the SIMD rules, Bitwig's hosting modes, and the export's pipelining. The review
+found each of them supported by at least one shipping engine or paper, and several of them
+better than anything shipping.
