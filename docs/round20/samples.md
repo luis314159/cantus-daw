@@ -149,6 +149,20 @@ pack's `version` whenever its files change; an installed older version then show
   - the starter offer installs the pack in one click, then disappears and lists the pack;
   - the Sound packs window shows names, licences and credits.
 
+**Runs (2026-10-05/06, on this machine):**
+
+- `cargo test -p cantus-content`: 13 passed.
+- The ignored real download passed: 81 files, 33 MB, every SHA-256 verified, in 44 s,
+  through the corporate proxy (ureq with the platform verifier; nothing bypassed).
+- `cargo test --no-fail-fast -p cantus-engine -p cantus-ui`: 794 passed, 0 failed, 15
+  ignored.
+  - An earlier run had one failure, `inst_fm::sixteen_eight_operator_voices_render_within_budget`.
+    It is a timing budget, and other builders were compiling on the machine at the time;
+    it passed on the re-run.
+- `cargo clippy -p cantus-content -p cantus-engine -p cantus-ui --tests --examples`:
+  clean.
+- `cargo fmt`: clean.
+
 ## Files touched outside my area
 
 - `Cargo.toml`: the workspace member, the default member, and the `cantus-content`
