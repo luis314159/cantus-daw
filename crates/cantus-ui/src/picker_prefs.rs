@@ -125,7 +125,7 @@ impl Prefs {
         std::fs::read_to_string(path)
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
-            .unwrap_or_else(Prefs::new)
+            .unwrap_or_default()
     }
 
     /// Write the file (through a temporary one, so a crash never leaves half of it).
