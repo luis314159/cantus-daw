@@ -496,6 +496,10 @@ impl EngineHandle {
             }
         }
         self.rec.snapshot = Some(snapshot.clone());
+        // The automation's runtime first: the engine pairs it with the snapshot (ADR 0027).
+        self.send(EngineMessage::Automation(
+            crate::automation::Runtime::build(&snapshot),
+        ));
         self.send(EngineMessage::SetSnapshot(snapshot));
     }
 
@@ -617,6 +621,7 @@ impl EngineHandle {
                 EngineEvent::Record(mark) => self.rec.mark(mark),
                 EngineEvent::GarbageRecorder(rings) => self.rec.rings_back(rings),
                 EngineEvent::GarbagePreview(sample) => drop(sample),
+                EngineEvent::GarbageAutomation(rt) => drop(rt),
             }
         }
         n

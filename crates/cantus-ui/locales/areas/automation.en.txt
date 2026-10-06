@@ -1,1 +1,92 @@
 # Area: automation clips and lanes (round 20). Every key here needs its twin in automation.es.txt.
+cmd.set_clip_automation = Edit automation
+cmd.set_track_automation_open = Show automation lanes
+auto.cmd.create = Create automation clip
+auto.cmd.delete_lane = Delete automation lane
+
+action.automate-last-tweaked = Create automation clip for the last tweaked parameter
+
+# What is automated, in words.
+auto.target.level = Level
+auto.target.balance = Balance
+auto.target.volume = Volume
+auto.target.pan = Pan
+auto.target.width = Stereo width
+auto.target.send = Send
+auto.target.insert = Insert {n}
+auto.target.missing = (missing)
+
+# The shapes between two points (FL's point modes).
+auto.shape.curve = Single curve
+auto.shape.scurve = Double curve
+auto.shape.hold = Hold (step)
+auto.shape.stairs = Stairs
+auto.shape.pulse = Pulse
+auto.shape.wave = Wave
+auto.shape = Shape
+auto.shape_tip = The shape between each selected point and the next
+
+# LFO shapes (create sequence).
+auto.lfo.sine = Sine
+auto.lfo.triangle = Triangle
+auto.lfo.saw = Saw
+auto.lfo.square = Square
+auto.lfo.random = Random steps
+auto.lfo.cycles = Cycles
+
+# The status line.
+auto.status.nothing_tweaked = Move a knob or a fader first: nothing has been tweaked yet
+auto.status.no_target = That parameter cannot be automated
+auto.status.no_track = Add a track first: an automation clip lives under a track
+auto.status.created = Automation clip created: {name}
+
+# Lanes, clips and points.
+auto.lane.hide = Hide automation lanes
+auto.lane.show = Show automation lanes
+auto.lane.delete = Delete this lane's clips
+auto.hint.line = Click to add a point · drag to add and move it
+auto.hint.point = Drag to move · double-click deletes · right-click for its shape
+auto.hint.editor = Click adds a point · drag moves · drag a ring to bend · Delete removes
+auto.point.delete = Delete point
+auto.menu.band = Automation
+auto.menu.open = Open in the automation editor
+auto.menu.last_tweaked = Create automation clip (last tweaked)
+auto.track.volume = Automate volume
+auto.track.pan = Automate pan
+auto.strip.width = Automate stereo width
+auto.track.level = Automate channel level
+
+# Articulators.
+auto.art.flip_v = Flip vertically
+auto.art.flip_h = Flip horizontally
+auto.art.smooth = Smooth
+auto.art.randomize = Randomize a little
+auto.art.normalize = Normalize (full range)
+auto.art.scale = Scale values or time
+auto.art.lfo = LFO (create sequence)
+auto.art.flip_v_short = FLIP V
+auto.art.flip_h_short = FLIP H
+auto.art.smooth_short = SMOOTH
+auto.art.randomize_short = RANDOM
+auto.art.normalize_short = NORM
+auto.art.scale_short = SCALE
+auto.art.lfo_short = LFO
+auto.scale.values = Values
+auto.scale.half = Halve the swing
+auto.scale.more = One and a half times the swing
+auto.scale.time = Time
+auto.scale.time_half = Twice as fast
+auto.scale.time_double = Twice as slow
+
+# The editor's tools.
+auto.tool.edit = Edit points (click adds, drag moves, rings bend)
+auto.tool.draw = Draw the curve with the pointer
+auto.step = STEP
+auto.step_tip = Step: drawn points hold until the next · off: Slide, drawn points ramp
+
+# A parameter's own menu (right-click a knob).
+auto.param.create = Create automation clip
+auto.param.open = Edit automation
+auto.param.type = Type a value…
+auto.param.reset = Reset to default
+auto.param.automated = Automated: the clip drives it while the song plays

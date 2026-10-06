@@ -129,6 +129,7 @@ pub fn piece(clip: &Clip, start: Ticks, end: Ticks, lane: u8, ids: Ids) -> Clip 
         notes: clip.notes.clone(),
         audio: clip.audio.clone(),
         lane,
+        automation: clip.automation.clone(),
     }
 }
 
@@ -150,7 +151,12 @@ pub fn clear_range(
         return out;
     }
     let tid = track.id;
-    for c in track.clips.iter().filter(|c| c.lane == 0) {
+    // Automation clips sit in their own lanes (ADR 0027): a take never cuts them.
+    for c in track
+        .clips
+        .iter()
+        .filter(|c| c.lane == 0 && c.automation.is_none())
+    {
         if c.start >= b || c.end() <= a {
             continue;
         }
@@ -422,6 +428,7 @@ fn audio_takes(
                 notes: Vec::new(),
                 audio: Some(region),
                 lane: 0,
+                automation: None,
             });
         }
         if clips.is_empty() {
@@ -543,6 +550,7 @@ fn midi_clip(
         notes,
         audio: None,
         lane: 0,
+        automation: None,
     }
 }
 
@@ -569,7 +577,7 @@ fn overdub(
         .unwrap_or(plan.record_start);
     let end = passes.iter().map(|p| p.end).max().unwrap_or(start);
     let found = target.and_then(|id| track.clip(id)).cloned().or_else(|| {
-        let note_clip = |c: &&Clip| c.lane == 0 && c.audio.is_none();
+        let note_clip = |c: &&Clip| c.lane == 0 && c.audio.is_none() && c.automation.is_none();
         track
             .clips
             .iter()

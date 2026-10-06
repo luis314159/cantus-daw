@@ -611,6 +611,7 @@ pub fn import_commands(
             notes,
             audio: None,
             lane: 0,
+            automation: None,
         };
         let instrument = if it.drums {
             InstrumentSpec::Pulsus(kit_for(it, &mut report))
@@ -635,6 +636,7 @@ pub fn import_commands(
             input: None,
             armed: false,
             takes_open: false,
+            automation_open: true,
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

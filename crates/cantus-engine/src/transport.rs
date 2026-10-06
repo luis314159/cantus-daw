@@ -54,7 +54,15 @@ impl Transport {
     /// Exact current position in ticks (fractional).
     #[inline]
     pub fn position_f64(&self) -> f64 {
-        self.origin_tick + self.samples as f64 * self.ticks_per_sample()
+        self.position_at(self.samples)
+    }
+
+    /// The position, in ticks, at a sample counted from the origin — the same arithmetic
+    /// as [`Self::position_f64`], so a control point computed ahead lands on the tick the
+    /// playhead will report there.
+    #[inline]
+    pub fn position_at(&self, samples: u64) -> f64 {
+        self.origin_tick + samples as f64 * self.ticks_per_sample()
     }
 
     pub fn position(&self) -> Ticks {

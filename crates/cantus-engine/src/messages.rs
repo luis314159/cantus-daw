@@ -71,6 +71,11 @@ impl MidiEvent {
 pub enum EngineMessage {
     /// A freshly compiled project snapshot. The engine keeps it until the next one.
     SetSnapshot(Arc<Snapshot>),
+    /// The automation runtime for the snapshot that follows (ADR 0027), built by
+    /// `crate::automation::Runtime::build`; `None` for a snapshot without automation. Must
+    /// precede its snapshot. The one it replaces comes back as
+    /// [`EngineEvent::GarbageAutomation`].
+    Automation(Option<Box<crate::automation::Runtime>>),
     /// An effect instance for an id the engine has not seen yet. Must precede the
     /// snapshot that references it.
     AddEffect(Box<EffectUnit>),
@@ -295,4 +300,6 @@ pub enum EngineEvent {
     GarbageRecorder(Box<crate::recorder::RecordRings>),
     /// An audition's sample the engine let go of; the UI drops it.
     GarbagePreview(Arc<cantus_core::SampleData>),
+    /// An automation runtime the engine no longer uses; the UI drops it.
+    GarbageAutomation(Box<crate::automation::Runtime>),
 }

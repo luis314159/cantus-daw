@@ -830,16 +830,33 @@ fn param(
     let rings = rings_for(spec, key, s);
     let name = t(info.label_key);
     let unit = info.unit;
+    // Automated (ADR 0027): the knob shows what the clip gives it where the song is, and
+    // wears the mark; its menu creates or opens the clip.
+    let automated = app.automated_value_where(|x| {
+        matches!(x, cantus_core::AutoTarget::Instrument { track: t, key: k } if *t == track && k == key)
+    });
+    if let Some(Some(av)) = automated {
+        v = av;
+    }
     let mut p = Param::new(&mut v, info.min..=info.max, info.default)
         .size(size)
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
-        .rings(&rings);
+        .rings(&rings)
+        .automation(automated.is_some());
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
-    let r = p.format(move |v, b| write_readout(v, unit, b)).show(ui);
+    let (r, choice) = p
+        .format(move |v, b| write_readout(v, unit, b))
+        .show_full(ui);
+    if choice == Some(crate::kit::automate::Choice::Automate) {
+        app.automate(cantus_core::AutoTarget::Instrument {
+            track,
+            key: key.to_string(),
+        });
+    }
     if info.stepped {
         if r.dragged() {
             ui.data_mut(|d| d.insert_temp(pending, v));

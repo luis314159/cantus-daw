@@ -1,1 +1,90 @@
-# Área: automation clips and lanes (round 20). Cada clave necesita su gemela en automation.en.txt.
+# Área: clips y carriles de automatización (ronda 20). Cada clave necesita su gemela en automation.en.txt.
+cmd.set_clip_automation = Editar automatización
+cmd.set_track_automation_open = Mostrar carriles de automatización
+auto.cmd.create = Crear clip de automatización
+auto.cmd.delete_lane = Borrar carril de automatización
+
+action.automate-last-tweaked = Crear clip de automatización del último parámetro movido
+
+# Qué se automatiza, en palabras.
+auto.target.level = Nivel
+auto.target.balance = Balance
+auto.target.volume = Volumen
+auto.target.pan = Panorama
+auto.target.width = Anchura estéreo
+auto.target.send = Envío
+auto.target.insert = Inserción {n}
+auto.target.missing = (no está)
+
+# Las formas entre dos puntos (los modos de punto de FL).
+auto.shape.curve = Curva simple
+auto.shape.scurve = Curva doble
+auto.shape.hold = Mantener (escalón)
+auto.shape.stairs = Escalera
+auto.shape.pulse = Pulso
+auto.shape.wave = Onda
+auto.shape = Forma
+auto.shape_tip = La forma entre cada punto seleccionado y el siguiente
+
+# Formas de LFO (crear secuencia).
+auto.lfo.sine = Senoidal
+auto.lfo.triangle = Triangular
+auto.lfo.saw = Diente de sierra
+auto.lfo.square = Cuadrada
+auto.lfo.random = Escalones al azar
+auto.lfo.cycles = Ciclos
+
+# La línea de estado.
+auto.status.nothing_tweaked = Mueve antes una perilla o un fader: todavía no se ha movido nada
+auto.status.no_target = Ese parámetro no se puede automatizar
+auto.status.no_track = Añade antes una pista: un clip de automatización vive bajo una pista
+auto.status.created = Clip de automatización creado: {name}
+
+# Carriles, clips y puntos.
+auto.lane.hide = Ocultar carriles de automatización
+auto.lane.show = Mostrar carriles de automatización
+auto.lane.delete = Borrar los clips de este carril
+auto.hint.line = Clic añade un punto · arrastra para añadirlo y moverlo
+auto.hint.point = Arrastra para mover · doble clic lo borra · clic derecho para su forma
+auto.hint.editor = Clic añade un punto · arrastrar mueve · arrastra un anillo para curvar · Supr borra
+auto.point.delete = Borrar punto
+auto.menu.band = Automatización
+auto.menu.open = Abrir en el editor de automatización
+auto.menu.last_tweaked = Crear clip de automatización (último movido)
+auto.track.volume = Automatizar volumen
+auto.track.pan = Automatizar panorama
+auto.strip.width = Automatizar anchura estéreo
+auto.track.level = Automatizar nivel del canal
+
+# Articuladores.
+auto.art.flip_v = Invertir en vertical
+auto.art.flip_h = Invertir en horizontal
+auto.art.smooth = Suavizar
+auto.art.randomize = Variar un poco al azar
+auto.art.normalize = Normalizar (todo el rango)
+auto.art.scale = Escalar valores o tiempo
+auto.art.lfo = LFO (crear secuencia)
+auto.art.flip_v_short = INV V
+auto.art.flip_h_short = INV H
+auto.art.smooth_short = SUAVE
+auto.art.randomize_short = AZAR
+auto.art.normalize_short = NORM
+auto.art.scale_short = ESCALA
+auto.art.lfo_short = LFO
+auto.scale.values = Valores
+auto.scale.half = La mitad de recorrido
+auto.scale.more = Vez y media de recorrido
+auto.scale.time = Tiempo
+auto.scale.time_half = El doble de rápido
+auto.scale.time_double = El doble de lento
+
+# Las herramientas del editor.
+auto.tool.edit = Editar puntos (clic añade, arrastrar mueve, los anillos curvan)
+auto.tool.draw = Dibujar la curva con el puntero
+auto.step = ESCALÓN
+auto.step_tip = Escalón: los puntos dibujados se mantienen hasta el siguiente · apagado: rampa
+auto.param.create = Crear clip de automatización
+auto.param.open = Editar automatización
+auto.param.type = Escribir un valor…
+auto.param.reset = Volver al valor por defecto
+auto.param.automated = Automatizado: el clip lo mueve mientras suena la canción

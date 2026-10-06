@@ -151,10 +151,14 @@ pub struct Snapshot {
     pub master_fx_enabled: bool,
     /// Recording behaviour the engine needs (the click's mode and level).
     pub recording: crate::audio::RecordSettings,
+    /// Every automated target, one function of time each (ADR 0027), in target order.
+    /// Empty — every project without automation clips — and the engine does nothing new.
+    pub automation: Vec<crate::automation::AutoLane>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
+        let automation = crate::automation::compile::compile(project);
         let tracks = project
             .tracks
             .iter()
@@ -213,7 +217,12 @@ impl Snapshot {
                         sends: s
                             .sends
                             .iter()
-                            .filter(|x| x.effective_level() > 0.0)
+                            // An automated send is carried even at zero: the curve may
+                            // bring it up.
+                            .filter(|x| {
+                                x.effective_level() > 0.0
+                                    || (x.enabled && automated_send(&automation, s.id, x.to))
+                            })
                             .filter_map(|x| {
                                 project.strip_index(x.to).map(|i| (i, x.effective_level()))
                             })
@@ -226,6 +235,7 @@ impl Snapshot {
             master_effects: project.master.effects.clone(),
             master_fx_enabled: project.master.fx_enabled,
             recording: project.recording.clone(),
+            automation,
         }
     }
 
@@ -241,6 +251,13 @@ impl Snapshot {
             .flat_map(|s| s.effects.iter())
             .chain(self.master_effects.iter())
     }
+}
+
+/// Whether a lane drives the send from `strip` into `to`.
+fn automated_send(lanes: &[crate::automation::AutoLane], strip: StripId, to: StripId) -> bool {
+    lanes
+        .iter()
+        .any(|l| l.target == crate::automation::AutoTarget::Send { strip, to })
 }
 
 /// Most repetitions a looping audio clip is expanded into; a hand-edited file with a tiny
@@ -330,8 +347,8 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
             .collect::<Vec<_>>()
     });
     for clip in &track.clips {
-        // Take lanes are never heard, and an audio clip has no notes to fire.
-        if clip.muted || clip.lane != 0 || clip.audio.is_some() {
+        // Take lanes are never heard, and audio and automation clips have no notes to fire.
+        if clip.muted || clip.lane != 0 || clip.audio.is_some() || clip.automation.is_some() {
             continue;
         }
         for n in &clip.notes {

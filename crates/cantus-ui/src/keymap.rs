@@ -127,6 +127,8 @@ pub enum Action {
     TogglePunch,
     /// Show or hide the selected track's take lanes.
     ShowTakes,
+    /// FL's *Tools ▸ Last tweaked ▸ Create automation clip* (ADR 0027).
+    AutomateLastTweaked,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -172,7 +174,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 71] = [
+    pub const ALL: [Action; 72] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -244,6 +246,7 @@ impl Action {
         Action::ToggleCountIn,
         Action::TogglePunch,
         Action::ShowTakes,
+        Action::AutomateLastTweaked,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -320,6 +323,7 @@ impl Action {
             Action::ToggleCountIn => "toggle-count-in",
             Action::TogglePunch => "toggle-punch",
             Action::ShowTakes => "show-takes",
+            Action::AutomateLastTweaked => "automate-last-tweaked",
         }
     }
 
@@ -343,7 +347,9 @@ impl Action {
             | ClearSelection => Category::Edit,
             // Recording sits with the arrangement, where its tracks and lanes are.
             LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack | ArmTrack
-            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch => Category::Arrangement,
+            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch | AutomateLastTweaked => {
+                Category::Arrangement
+            }
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
@@ -651,6 +657,8 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleCountIn, Binding::alt(Key::C)),
         (TogglePunch, Binding::alt(Key::P)),
         (ShowTakes, Binding::alt(Key::T)),
+        // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
+        (AutomateLastTweaked, Binding::alt(Key::A)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }
@@ -977,11 +985,21 @@ struct KeymapFile {
 }
 
 /// The file format. Version 2 added the workspace's actions (round 18); version 3 the
-/// sample browser's key (round 20).
+/// recording, demo, sample-browser and automation actions (rounds 19–20).
 pub const FILE_VERSION: u32 = 3;
 
-/// Actions added in version 3.
-const NEW_IN_V3: [Action; 1] = [Action::ToggleBrowser];
+/// Actions added in version 3. Round 19's keys shipped without a version bump, so a file
+/// written by round 18 never got them; version 3 fills them in too.
+const NEW_IN_V3: [Action; 8] = [
+    Action::AddAudioTrack,
+    Action::ArmTrack,
+    Action::ShowTakes,
+    Action::ToggleCountIn,
+    Action::TogglePunch,
+    Action::DemoSongs,
+    Action::ToggleBrowser,
+    Action::AutomateLastTweaked,
+];
 
 /// Actions added in version 2: a file written before them gets the preset's bindings for
 /// them, where those keys are still free — an old file never mentions them, and "no line"

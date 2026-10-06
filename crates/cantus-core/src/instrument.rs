@@ -106,7 +106,7 @@ impl Default for FirmusParams {
 
 /// Addressable parameter of Firmus. This is the "plugin parameter id" of the built-in
 /// synth: commands, automation (later) and the AI bridge all speak in these.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FirmusParam {
     Osc1Wave,
     Osc2Wave,

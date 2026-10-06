@@ -110,6 +110,7 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
         notes: clip.notes.clone(),
         audio: clip.audio.clone(),
         lane: clip.lane,
+        automation: clip.automation.clone(),
     };
     // An audio clip's fades stay at the outer edges (and a reversed one's halves swap
     // their windows): `audio_clips::split_audio`.
@@ -143,6 +144,10 @@ pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> 
     // Audio glues only contiguous windows on one file (ADR 0025).
     if clips.iter().any(|c| c.audio.is_some()) {
         return crate::audio_clips::glue(track, clips);
+    }
+    // Automation glues clips of one target into one curve (ADR 0027).
+    if clips.iter().any(|c| c.automation.is_some()) {
+        return glue_automation(track, clips);
     }
     let mut ordered: Vec<&Clip> = clips.to_vec();
     ordered.sort_by_key(|c| (c.start, c.id.0));
@@ -193,6 +198,74 @@ pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> 
     Some(commands)
 }
 
+/// Glue automation clips of one target: the windows become one, and the curve is what
+/// they played — each clip's points inside its window, in the first clip's content frame,
+/// with a point at each seam where the curve would otherwise change. Halves of a split
+/// (one curve, one frame) glue back to exactly the clip that was split.
+fn glue_automation(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
+    let target = &clips[0].automation.as_ref()?.target;
+    if clips
+        .iter()
+        .any(|c| c.automation.as_ref().is_none_or(|a| &a.target != target))
+    {
+        return None;
+    }
+    let mut ordered: Vec<&Clip> = clips.to_vec();
+    ordered.sort_by_key(|c| (c.start, c.id.0));
+    let first = ordered[0];
+    let end = ordered.iter().map(|c| c.end()).max()?;
+    let curve = first.automation.as_ref()?;
+    let same = ordered.iter().all(|c| {
+        c.automation.as_ref().map(|a| &a.points) == Some(&curve.points)
+            && c.offset - c.start == first.offset - first.start
+            && c.content_length.is_none()
+    });
+    let mut commands: Vec<Command> = ordered[1..]
+        .iter()
+        .map(|c| Command::RemoveClip { track, clip: c.id })
+        .collect();
+    commands.push(Command::SetClipBounds {
+        track,
+        clip: first.id,
+        start: first.start,
+        length: end - first.start,
+    });
+    if same {
+        return Some(commands);
+    }
+    let mut points = Vec::new();
+    for c in &ordered {
+        let a = c.automation.as_ref()?;
+        let shift = first.content_of(c.start) - c.offset;
+        let (lo, hi) = (c.offset, c.offset + c.length);
+        for edge in [lo, hi] {
+            if let Some(v) = a.value_at(edge.0 as f64) {
+                if !a.points.iter().any(|p| p.tick == edge) {
+                    points.push(cantus_core::AutoPoint::new(edge + shift, v));
+                }
+            }
+        }
+        for p in a.points.iter().filter(|p| p.tick >= lo && p.tick <= hi) {
+            let mut q = *p;
+            q.tick = p.tick + shift;
+            points.push(q);
+        }
+    }
+    cantus_core::automation::edit::tidy(&mut points);
+    points.dedup_by(|a, b| a.tick == b.tick && a.value == b.value);
+    commands.push(Command::SetClipAutomation {
+        track,
+        clip: first.id,
+        automation: Some(cantus_core::Automation::new(target.clone(), points)),
+    });
+    commands.push(Command::SetClipLoop {
+        track,
+        clip: first.id,
+        content_length: None,
+    });
+    Some(commands)
+}
+
 /// An independent copy of a clip: a fresh clip id **and** fresh note ids.
 ///
 /// The new note ids are the point. Split deliberately shares them so the halves can be
@@ -202,6 +275,7 @@ pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
     Clip {
         audio: clip.audio.clone(),
         lane: clip.lane,
+        automation: clip.automation.clone(),
         id: ClipId(ids()),
         name: clip.name.clone(),
         start,
@@ -350,7 +424,13 @@ pub fn transpose_selection(
         return (commands, made);
     }
     for (index, clip) in clips {
-        let to = project.tracks[(index as i32 + rows) as usize].id;
+        // An automation clip stays in its lane under its track (ADR 0027): its target does
+        // not depend on where it sits, and a lane is not a row to drop it on.
+        let to = if clip.automation.is_some() {
+            project.tracks[index].id
+        } else {
+            project.tracks[(index as i32 + rows) as usize].id
+        };
         let from = project.tracks[index].id;
         if copy {
             let copy = copy_of(clip, clip.start + delta, ids);

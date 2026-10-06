@@ -9,6 +9,8 @@ pub mod appearance;
 pub mod appearance_file;
 pub mod appearance_panels;
 pub mod arrangement;
+pub mod auto_curve;
+pub mod auto_editor;
 pub mod channel_rack;
 pub mod clips_chrome;
 pub mod comp_editor;

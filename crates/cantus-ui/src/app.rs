@@ -209,6 +209,9 @@ pub struct CantusApp {
     export: Option<mpsc::Receiver<Result<(PathBuf, Rendered), String>>>,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
+    /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
+    /// them, the large editor's state.
+    pub automation: crate::automation::AutoUi,
 }
 
 impl CantusApp {
@@ -406,6 +409,7 @@ impl CantusApp {
             export: None,
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
+            automation: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -424,6 +428,7 @@ impl CantusApp {
 
     /// Execute a command from the user. Returns `true` on success.
     pub fn exec(&mut self, cmd: Command) -> bool {
+        self.note_tweak(&cmd);
         match self.bus.execute(cmd, Origin::User) {
             Ok(()) => true,
             Err(e) => {
@@ -434,6 +439,7 @@ impl CantusApp {
     }
 
     pub fn exec_merging(&mut self, cmd: Command, key: MergeKey) -> bool {
+        self.note_tweak(&cmd);
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => true,
             Err(e) => {
@@ -3034,6 +3040,9 @@ impl CantusApp {
             TransposeDown => self.transpose_selection(-1),
             TransposeOctaveUp => self.transpose_selection(12),
             TransposeOctaveDown => self.transpose_selection(-12),
+            AutomateLastTweaked => {
+                self.automate_last_tweaked();
+            }
             ToolDraw => self.piano_roll.tool = views::piano_roll::Tool::Draw,
             ToolPaint => self.piano_roll.tool = views::piano_roll::Tool::Paint,
             ToolSelect => self.piano_roll.tool = views::piano_roll::Tool::Select,

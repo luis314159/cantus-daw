@@ -63,6 +63,8 @@ pub struct Param<'a, F = fn(f32, &mut String)> {
     wheel: bool,
     style: Option<Style>,
     rings: &'a [(f32, egui::Color32)],
+    /// The parameter's own menu on a right-click (ADR 0027), and whether a clip drives it.
+    offer: Option<super::automate::Offer>,
 }
 
 impl<'a> Param<'a> {
@@ -81,6 +83,7 @@ impl<'a> Param<'a> {
             wheel: false,
             style: None,
             rings: &[],
+            offer: None,
         }
     }
 
@@ -99,6 +102,7 @@ impl<'a> Param<'a> {
             wheel: self.wheel,
             style: self.style,
             rings: self.rings,
+            offer: self.offer,
         }
     }
 }
@@ -134,8 +138,23 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         self.rings = r;
         self
     }
+    /// Offer the parameter's menu (automate, reset) on a right-click; `automated` marks
+    /// the control as driven by a clip (ADR 0027).
+    pub fn automation(mut self, automated: bool) -> Self {
+        self.offer = Some(super::automate::Offer {
+            automated,
+            typing: false,
+        });
+        self
+    }
 
     pub fn show(self, ui: &mut Ui) -> Response {
+        self.show_full(ui).0
+    }
+
+    /// [`Param::show`], with what was chosen in the parameter's menu. A reset is done
+    /// here (the value goes to its default and the response says it changed).
+    pub fn show_full(self, ui: &mut Ui) -> (Response, Option<super::automate::Choice>) {
         let s = self.style.unwrap_or_else(Style::current);
         let size = if self.label.is_some() {
             cell::size(self.size) * s.k
@@ -225,9 +244,20 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                     cell::paint(b, rect, &s, st, &l);
                 }
                 None => knob::paint(b, rect.center(), &s, st, &look),
-            })
+            });
+            if self.offer.is_some_and(|o| o.automated) {
+                with_brush(&painter, |b| super::automate::mark(b, rect, &s));
+            }
         });
-        resp
+        let mut choice = None;
+        if let Some(offer) = self.offer {
+            choice = super::automate::menu(ui, &resp, offer);
+            if choice == Some(super::automate::Choice::Reset) {
+                *self.value = self.default;
+                resp.mark_changed();
+            }
+        }
+        (resp, choice)
     }
 }
 

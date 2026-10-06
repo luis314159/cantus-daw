@@ -13,6 +13,8 @@ use cantus_engine::EngineHandle;
 mod audio_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
+#[path = "shoot_auto/scene.rs"]
+mod auto_scene;
 use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
@@ -72,9 +74,16 @@ fn main() {
             return;
         }
     }
+    // `automation`: lanes, clips and the editor (round 20, ADR 0027).
+    if kinds.iter().any(|k| k == "automation") {
+        auto_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
     let kinds: Vec<String> = kinds
         .into_iter()
-        .filter(|k| k != "audio" && k != "samples")
+        .filter(|k| k != "audio" && k != "samples" && k != "automation")
         .collect();
     let kinds: Vec<String> = if kinds.is_empty() {
         [

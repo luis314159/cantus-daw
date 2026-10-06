@@ -1030,6 +1030,33 @@ fn layout_menu(app: &mut CantusApp, ui: &mut Ui) {
 /// bound to it, so the menu teaches the shortcut instead of replacing it.
 fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
+    // FL's Tools ▸ Last tweaked ▸ Create automation clip, here where clips are made
+    // (ADR 0027): enabled once a parameter has been moved, and saying which.
+    let tweaked = app
+        .automation
+        .last_tweaked
+        .clone()
+        .map(|t| crate::automation::target_name(app.project(), &t));
+    ui.add_enabled_ui(tweaked.is_some(), |ui| {
+        if views::arrangement::action_item(
+            app,
+            ui,
+            Action::AutomateLastTweaked,
+            "auto.menu.last_tweaked",
+        ) {
+            ui.close();
+        }
+    });
+    if let Some(name) = tweaked {
+        let _ = crate::kit::widgets::menu_list(
+            ui,
+            &[crate::kit::menu::Item::Band(crate::kit::text::Src::Str(
+                &name,
+            ))],
+            240.0,
+        );
+    }
+    ui.separator();
     let selection = app.clip_selection();
     let (muted, looping) = selection
         .first()

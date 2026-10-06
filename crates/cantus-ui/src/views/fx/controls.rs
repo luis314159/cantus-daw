@@ -95,6 +95,8 @@ pub struct Cell<'a> {
     format: Option<Pill<'a>>,
     wheel: bool,
     rings: &'a [(f32, egui::Color32)],
+    /// The parameter's menu (ADR 0027): right-click offers automate, type, reset.
+    offer: Option<crate::kit::automate::Offer>,
 }
 
 /// What a cell did this frame.
@@ -105,6 +107,8 @@ pub struct CellOut {
     pub changed: Option<f32>,
     /// The gesture ended (a drag let go, a reset, a typed value): the end of an undo step.
     pub done: bool,
+    /// Its menu asked to automate it (create the clip, or open it).
+    pub automate: bool,
 }
 
 impl<'a> Cell<'a> {
@@ -124,6 +128,7 @@ impl<'a> Cell<'a> {
             format: None,
             wheel: false,
             rings: &[],
+            offer: None,
         }
     }
 
@@ -180,6 +185,15 @@ impl<'a> Cell<'a> {
     }
     pub fn rings(mut self, r: &'a [(f32, egui::Color32)]) -> Self {
         self.rings = r;
+        self
+    }
+    /// The parameter's menu on a right-click instead of typing straight away (typing is
+    /// one of its entries), and the automated mark when `automated`.
+    pub fn automation(mut self, automated: bool) -> Self {
+        self.offer = Some(crate::kit::automate::Offer {
+            automated,
+            typing: true,
+        });
         self
     }
 
@@ -256,7 +270,27 @@ impl<'a> Cell<'a> {
             },
         )
         .pill;
-        if let Some(x) = typing(ui, &resp, pill, s, self.unit, |b| self.write(start, b)) {
+        // The parameter's menu, where there is one; typing opens from it.
+        let choice = self
+            .offer
+            .and_then(|o| crate::kit::automate::menu(ui, &resp, o));
+        let open = match self.offer {
+            Some(_) => choice == Some(crate::kit::automate::Choice::Type),
+            None => resp.secondary_clicked(),
+        };
+        if choice == Some(crate::kit::automate::Choice::Reset) {
+            v = self.default;
+            done = true;
+        }
+        if let Some(x) = typing_with(
+            ui,
+            &resp,
+            pill,
+            s,
+            self.unit,
+            |b| self.write(start, b),
+            open,
+        ) {
             v = x;
             done = true;
         }
@@ -295,6 +329,9 @@ impl<'a> Cell<'a> {
                             label: self.label,
                         };
                         cell::paint(b, rect, s, st, &l);
+                        if self.offer.is_some_and(|o| o.automated) {
+                            crate::kit::automate::mark(b, rect, s);
+                        }
                     })
                 },
             );
@@ -303,6 +340,7 @@ impl<'a> Cell<'a> {
             resp,
             changed,
             done,
+            automate: choice == Some(crate::kit::automate::Choice::Automate),
         }
     }
 }
@@ -321,8 +359,22 @@ pub(crate) fn typing(
     unit: &str,
     current: impl FnOnce(&mut String),
 ) -> Option<f32> {
+    typing_with(ui, resp, pill, s, unit, current, resp.secondary_clicked())
+}
+
+/// [`typing`], opened when `open` says (a menu's *Type a value...*) rather than on a
+/// right-click.
+pub(crate) fn typing_with(
+    ui: &mut Ui,
+    resp: &Response,
+    pill: Rect,
+    s: &Style,
+    unit: &str,
+    current: impl FnOnce(&mut String),
+    open: bool,
+) -> Option<f32> {
     let id = resp.id.with("typing");
-    if resp.secondary_clicked() {
+    if open {
         let mut text = String::new();
         current(&mut text);
         ui.data_mut(|d| d.insert_temp(id, Typed(text)));
@@ -386,12 +438,19 @@ pub fn param_with(
     if let Some(f) = format {
         c = c.format(f);
     }
+    // In Cantus, the parameter's menu and its automated mark (ADR 0027).
+    if host.can_automate() {
+        c = c.automation(host.automated(key));
+    }
     let out = c.show(ui, s);
     if let Some(v) = out.changed {
         host.set(key, v, Some(key));
     }
     if out.done {
         host.end_gesture();
+    }
+    if out.automate {
+        host.automate(key);
     }
     out.resp
 }
