@@ -110,12 +110,19 @@ fn stalled_pusher<Q: ReadyQueue>() -> (Option<u32>, Vec<u32>) {
 fn a_stalled_pusher_hides_later_work_in_vyukov_only_its_own_in_chase_lev() {
     // R2's hazard, shown: the published task 6 is invisible behind the claimed cell.
     let (during, after) = stalled_pusher::<Vyukov>();
-    assert_eq!(during, None, "Vyukov: a consumer sees empty behind a stalled pusher");
+    assert_eq!(
+        during, None,
+        "Vyukov: a consumer sees empty behind a stalled pusher"
+    );
     assert_eq!(after, vec![5, 6], "and nothing is lost once it publishes");
 
     // The deques: slot 2's task is in slot 2's deque, stealable at once.
     let (during, after) = stalled_pusher::<ChaseLev>();
-    assert_eq!(during, Some(6), "Chase–Lev: only the stalled task is hidden");
+    assert_eq!(
+        during,
+        Some(6),
+        "Chase–Lev: only the stalled task is hidden"
+    );
     assert_eq!(after, vec![5], "and it is not lost");
 }
 
@@ -207,7 +214,7 @@ fn the_deque_gives_every_task_to_exactly_one_thread() {
             }
             next += 1;
         }
-        if next % 3 == 0 {
+        if next.is_multiple_of(3) {
             if let Some(v) = d.pop() {
                 seen[v as usize].fetch_add(1, Relaxed);
             }
@@ -317,7 +324,10 @@ fn park_and_wake<Q: ReadyQueue>() {
     }
     assert_eq!(pool.stats().wakes, 0, "no wake while the workers spin");
     // Silence: both workers park.
-    assert!(wait_parked(&pool, Duration::from_secs(2)), "workers park after silence");
+    assert!(
+        wait_parked(&pool, Duration::from_secs(2)),
+        "workers park after silence"
+    );
     // The first block after it wakes each parked worker once, and completes.
     let r = block(&mut pool);
     assert_eq!(r.woke, 2, "one wake per parked worker");
@@ -335,7 +345,10 @@ fn park_and_wake<Q: ReadyQueue>() {
         let gap = last.elapsed();
         let r = block(&mut pool);
         if gap < Duration::from_millis(100) {
-            assert_eq!(r.woke, 0, "no wake while blocks keep coming ({gap:?} apart)");
+            assert_eq!(
+                r.woke, 0,
+                "no wake while blocks keep coming ({gap:?} apart)"
+            );
         }
         last = Instant::now();
     }
@@ -368,10 +381,16 @@ fn serial_fallback<Q: ReadyQueue>() {
         block_ok(&g, b);
         r
     };
-    assert!(!block(&mut pool, 1).serial, "a loaded graph starts parallel");
+    assert!(
+        !block(&mut pool, 1).serial,
+        "a loaded graph starts parallel"
+    );
     // Quiet (no cost): 32 quiet blocks, then serial.
     let quiet: Vec<bool> = (0..40).map(|_| block(&mut pool, 0).serial).collect();
-    assert!(!quiet[..32].iter().any(|&s| s), "parallel for the first 32 quiet blocks");
+    assert!(
+        !quiet[..32].iter().any(|&s| s),
+        "parallel for the first 32 quiet blocks"
+    );
     assert!(quiet[32..].iter().all(|&s| s), "then serial");
     // One loaded block (still serial) puts the next one back in parallel.
     assert!(block(&mut pool, 1).serial);
@@ -404,7 +423,10 @@ fn no_workers_is_the_serial_engine_and_a_graph_too_big_is_refused() {
     assert!(pool.run_block().serial);
     block_ok(&g, 1);
     let mut small = Pool::<FuzzGraph, Vyukov>::new(g.clone(), Config::new(2, 8)).unwrap();
-    assert!(small.run_block().too_big, "12 tasks in a pool built for 8: refused, not overrun");
+    assert!(
+        small.run_block().too_big,
+        "12 tasks in a pool built for 8: refused, not overrun"
+    );
     // The empty graph.
     let e = Arc::new(FuzzGraph::new(Vec::new(), Vec::new(), Vec::new()));
     let mut pool = Pool::<FuzzGraph, Vyukov>::new(e, Config::new(2, 4)).unwrap();
@@ -415,7 +437,11 @@ fn no_workers_is_the_serial_engine_and_a_graph_too_big_is_refused() {
 fn no_allocation<Q: ReadyQueue>() {
     let ep = calm_episode(0xA110C, 3);
     let n = ep.preds.len();
-    let g = Arc::new(FuzzGraph::new(ep.preds.clone(), ep.cost.clone(), ep.ranks.clone()));
+    let g = Arc::new(FuzzGraph::new(
+        ep.preds.clone(),
+        ep.cost.clone(),
+        ep.ranks.clone(),
+    ));
     let mut cfg = Config::new(3, n);
     cfg.period = Duration::from_micros(100);
     cfg.park_after = Duration::from_millis(20);
@@ -448,7 +474,12 @@ fn no_allocation<Q: ReadyQueue>() {
     COUNTED.with(|c| c.set(false));
     let events = EVENTS.load(SeqCst);
     assert!(pool.stats().wakes >= 6, "the run included wakes");
-    assert_eq!(events, 0, "{}: heap events on the pool's threads after construction", Q::NAME);
+    assert_eq!(
+        events,
+        0,
+        "{}: heap events on the pool's threads after construction",
+        Q::NAME
+    );
 }
 
 #[test]
@@ -497,9 +528,15 @@ fn fuzz_queue<Q: ReadyQueue>() -> (u32, u32) {
 
 fn fuzz_and_report<Q: ReadyQueue>() {
     let (fired, claimed) = fuzz_queue::<Q>();
-    println!("{}: {fired} change points fired, {claimed} between claim and publish", Q::NAME);
+    println!(
+        "{}: {fired} change points fired, {claimed} between claim and publish",
+        Q::NAME
+    );
     if cfg!(feature = "fuzz") && std::env::var("CANTUS_SCHED_REPLAY").is_err() {
-        assert!(fired > 0, "with the fuzz feature the change points must fire");
+        assert!(
+            fired > 0,
+            "with the fuzz feature the change points must fire"
+        );
     }
 }
 
@@ -595,7 +632,10 @@ fn the_callback_never_waits_on_a_worker_waking() {
         pool.run_block();
         block_ok(&g, b);
     }
-    assert!(t.elapsed() < Duration::from_millis(150), "the callback ran them alone");
+    assert!(
+        t.elapsed() < Duration::from_millis(150),
+        "the callback ran them alone"
+    );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -657,7 +697,10 @@ impl Session {
         ranks.sort_by(|a, b| up[*b as usize].total_cmp(&up[*a as usize]).then(a.cmp(b)));
         Session {
             name: name.to_string(),
-            iters: cost_us.iter().map(|c| (c * 1000.0 * per_ns) as u64).collect(),
+            iters: cost_us
+                .iter()
+                .map(|c| (c * 1000.0 * per_ns) as u64)
+                .collect(),
             sink: (0..n).map(|_| AtomicU64::new(0)).collect(),
             preds,
             succs,
@@ -675,7 +718,10 @@ impl Session {
         let n = self.preds.len();
         let mut up = vec![0f64; n];
         for t in (0..n).rev() {
-            let tail = self.succs[t].iter().map(|&s| up[s as usize]).fold(0.0, f64::max);
+            let tail = self.succs[t]
+                .iter()
+                .map(|&s| up[s as usize])
+                .fold(0.0, f64::max);
             up[t] = self.cost_us[t] + tail;
         }
         up.into_iter().fold(0.0, f64::max)
@@ -711,8 +757,7 @@ impl Graph for Session {
 /// (Comprimo + Culmen + Terminus). Tracks and strips are separate tasks: no clustering.
 fn scaled(tracks: usize, per_ns: f64, zero: bool) -> Session {
     const HEAVY: [f64; 15] = [
-        1600., 1080., 1080., 700., 530., 530., 300., 290., 280., 280., 260., 260., 260., 230.,
-        190.,
+        1600., 1080., 1080., 700., 530., 530., 300., 290., 280., 280., 260., 260., 260., 230., 190.,
     ];
     const LIGHT: [f64; 10] = [24., 41., 83., 60., 30., 45., 100., 20., 145., 179.];
     const MORE: [f64; 10] = [530., 24., 41., 83., 60., 260., 30., 45., 100., 20.];
@@ -824,9 +869,18 @@ struct Measured {
     stats: cantus_engine::sched::PoolStats,
 }
 
-fn measure<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, workers: usize, chaos: C, blocks: usize) -> Measured {
+fn measure<Q: ReadyQueue, C: Chaos>(
+    g: &Arc<Session>,
+    workers: usize,
+    chaos: C,
+    blocks: usize,
+) -> Measured {
     let mut cfg = Config::new(workers, g.len());
-    cfg.mode = if workers == 0 { Mode::Serial } else { Mode::Parallel };
+    cfg.mode = if workers == 0 {
+        Mode::Serial
+    } else {
+        Mode::Parallel
+    };
     cfg.on_start = Some(Arc::new(|_slot| {
         mmcss::promote();
     }));
@@ -850,13 +904,18 @@ fn measure<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, workers: usize, chaos: C, 
     let mut stats = pool.stats();
     stats.pushes -= before.pushes;
     stats.wakes -= before.wakes;
-    Measured { all, stalled, stats }
+    Measured {
+        all,
+        stalled,
+        stats,
+    }
 }
 
 /// The stalls a chaos made (only [`fuzz::Stall`] counts them).
 fn stall_count<C: Chaos>(c: &C) -> u64 {
     let any: &dyn std::any::Any = c;
-    any.downcast_ref::<fuzz::Stall>().map_or(0, |s| s.fired.load(Relaxed))
+    any.downcast_ref::<fuzz::Stall>()
+        .map_or(0, |s| s.fired.load(Relaxed))
 }
 
 fn pct(sorted: &[u64], q: f64) -> f64 {
@@ -910,7 +969,12 @@ fn median(mut v: Vec<f64>) -> f64 {
 #[test]
 #[ignore = "a measurement: run with --release --features fuzz -- --ignored --nocapture"]
 fn bench_both_queues() {
-    let env = |k: &str, d: usize| std::env::var(k).ok().and_then(|s| s.parse().ok()).unwrap_or(d);
+    let env = |k: &str, d: usize| {
+        std::env::var(k)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(d)
+    };
     let max_w = env("CANTUS_SCHED_MAXW", 4);
     let blocks = env("CANTUS_SCHED_BLOCKS", 300);
     let rounds = env("CANTUS_SCHED_ROUNDS", 5);
@@ -929,17 +993,20 @@ fn bench_both_queues() {
         Arc::new(scaled(64, per_ns, true)),
     ];
     let stall = || {
-        let mut s = fuzz::Stall::new(cantus_engine::sched::Site::Claimed, 0, Duration::from_micros(500));
+        let mut s = fuzz::Stall::new(
+            cantus_engine::sched::Site::Claimed,
+            0,
+            Duration::from_micros(500),
+        );
         s.spread = 8;
         s
     };
     // (graph, queue, W, case) → one Round per round.
-    let mut table: Vec<((usize, &str, usize, &str), Vec<Round>)> = Vec::new();
-    let mut put = |key: (usize, &'static str, usize, &'static str), r: Round| {
-        match table.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(r),
-            None => table.push((key, vec![r])),
-        }
+    type Key = (usize, &'static str, usize, &'static str);
+    let mut table: Vec<(Key, Vec<Round>)> = Vec::new();
+    let mut put = |key: Key, r: Round| match table.iter_mut().find(|(k, _)| *k == key) {
+        Some((_, v)) => v.push(r),
+        None => table.push((key, vec![r])),
     };
     for r in 0..rounds {
         eprintln!("round {}/{rounds}", r + 1);
@@ -947,14 +1014,29 @@ fn bench_both_queues() {
             let bare = g.name.ends_with("bare");
             let blocks = if bare { blocks * 10 } else { blocks };
             if r == 0 || bare {
-                put((gi, "serial", 0, "normal"), round::<Vyukov, _>(g, 0, cantus_engine::sched::Calm, blocks));
+                put(
+                    (gi, "serial", 0, "normal"),
+                    round::<Vyukov, _>(g, 0, cantus_engine::sched::Calm, blocks),
+                );
             }
             for w in 1..=max_w {
-                put((gi, Vyukov::NAME, w, "normal"), round::<Vyukov, _>(g, w, cantus_engine::sched::Calm, blocks));
-                put((gi, ChaseLev::NAME, w, "normal"), round::<ChaseLev, _>(g, w, cantus_engine::sched::Calm, blocks));
+                put(
+                    (gi, Vyukov::NAME, w, "normal"),
+                    round::<Vyukov, _>(g, w, cantus_engine::sched::Calm, blocks),
+                );
+                put(
+                    (gi, ChaseLev::NAME, w, "normal"),
+                    round::<ChaseLev, _>(g, w, cantus_engine::sched::Calm, blocks),
+                );
                 if cfg!(feature = "fuzz") && !bare {
-                    put((gi, Vyukov::NAME, w, "stalled"), round::<Vyukov, _>(g, w, stall(), blocks));
-                    put((gi, ChaseLev::NAME, w, "stalled"), round::<ChaseLev, _>(g, w, stall(), blocks));
+                    put(
+                        (gi, Vyukov::NAME, w, "stalled"),
+                        round::<Vyukov, _>(g, w, stall(), blocks),
+                    );
+                    put(
+                        (gi, ChaseLev::NAME, w, "stalled"),
+                        round::<ChaseLev, _>(g, w, stall(), blocks),
+                    );
                 }
             }
         }

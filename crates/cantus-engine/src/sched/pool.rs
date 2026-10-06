@@ -244,7 +244,10 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
 
     /// Tasks run and continuations taken by `slot` since construction.
     pub fn slot_counts(&self, slot: usize) -> (u64, u64) {
-        (self.sh.runs[slot].load(Relaxed), self.sh.conts[slot].load(Relaxed))
+        (
+            self.sh.runs[slot].load(Relaxed),
+            self.sh.conts[slot].load(Relaxed),
+        )
     }
 
     /// Whether worker `slot` (1..=W) is parked right now.
@@ -373,8 +376,7 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
         // nothing feeds has none either (the prototype hung on one).
         self.sources.clear();
         for &t in ranks {
-            if (t as usize) < n && g.preds(t) == 0 && self.sources.len() < self.sources.capacity()
-            {
+            if (t as usize) < n && g.preds(t) == 0 && self.sources.len() < self.sources.capacity() {
                 self.sources.push(t);
             }
         }
@@ -382,7 +384,8 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
             // `ranks` broke its contract (not a permutation): index order rather than a
             // hung audio thread.
             self.sources.clear();
-            self.sources.extend((0..n as u32).filter(|&t| g.preds(t) == 0));
+            self.sources
+                .extend((0..n as u32).filter(|&t| g.preds(t) == 0));
         }
         sh.remaining.store(n, Relaxed);
         sh.queue.seed(&self.sources, &sh.meta);
@@ -539,7 +542,7 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Shared<G, Q, C> {
                 polls = polls.wrapping_add(1);
                 // R5: bare polls, then PAUSE; the clock only every 256 polls (PAUSE is
                 // ~140 cycles on Skylake and later, so the budget is kept in time).
-                if polls < 64 || polls % 256 != 0 {
+                if polls < 64 || !polls.is_multiple_of(256) {
                     std::hint::spin_loop();
                     continue;
                 }

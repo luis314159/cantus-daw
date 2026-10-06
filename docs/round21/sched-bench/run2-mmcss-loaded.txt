@@ -1,0 +1,87 @@
+
+running 1 test
+test bench_both_queues ... calibration: 0.107 burn iterations per ns; 400 blocks per row; MMCSS Pro Audio: true
+
+s64: 132 tasks, 12876 µs of work, critical path 1889 µs (block budget 2 667 µs)
+
+| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| s64       | serial    | 0 | normal  |   18714 |   29505 |   31370 |   18826 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 1 | normal  |    9710 |   14517 |   15593 |    9636 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 1 | normal  |    9849 |   15381 |   16698 |    9807 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 1 | stalled |    9823 |   14956 |   17092 |    9802 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 1 | stalled |    8464 |   14212 |   16856 |    8656 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 2 | normal  |   10008 | 3549517 | 4730086 |  120519 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 2 | normal  |    6399 |   10492 |   21036 |    6396 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 2 | stalled |    4890 |   20981 |   30825 |    5676 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 2 | stalled |    5431 |   78422 | 1117505 |   14401 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 3 | normal  |    3666 |   15788 |  974744 |    7244 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 3 | normal  |    6911 |  417021 |  631820 |   40072 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 3 | stalled |    4954 |   16296 |   21484 |    5368 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 3 | stalled |    6897 | 1747960 | 3375283 |   62560 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 4 | normal  |    7663 |  162213 |  261728 |   17689 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 4 | normal  |    2118 |  505834 | 1291747 |   16613 |    0.0 |    0 |     NaN |     NaN |
+| s64       | vyukov    | 4 | stalled |    1829 |  319582 |  439055 |   10664 |    0.0 |    0 |     NaN |     NaN |
+| s64       | chase-lev | 4 | stalled |    1166 |    5680 |   13248 |    1904 |    0.0 |    0 |     NaN |     NaN |
+
+s100: 204 tasks, 17594 µs of work, critical path 1889 µs (block budget 2 667 µs)
+
+| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| s100      | serial    | 0 | normal  |    8467 |   22405 |   27320 |    9356 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 1 | normal  |    4067 |   10435 |   23767 |    4703 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 1 | normal  |    3216 |    9408 |   10231 |    3875 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 1 | stalled |    4691 |   11698 |   13634 |    4949 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 1 | stalled |    5189 |   11996 |   18866 |    5542 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 2 | normal  |    3200 |    9021 |   26110 |    3694 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 2 | normal  |    2307 |   21963 |  104095 |    3651 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 2 | stalled |    2197 |    4259 |    4380 |    2336 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 2 | stalled |    2249 |    4456 |   10604 |    2504 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 3 | normal  |    1721 |   30928 |  221971 |    3640 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 3 | normal  |    1711 |    4048 |    5661 |    1958 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 3 | stalled |    1741 |  163923 |  491659 |    8366 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 3 | stalled |    1810 |    4055 |    4324 |    2235 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 4 | normal  |    1446 |   42185 |   91455 |    3574 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 4 | normal  |    1779 |  266670 |  477895 |   14423 |    0.0 |    0 |     NaN |     NaN |
+| s100      | vyukov    | 4 | stalled |    1449 |    3704 |   23249 |    1862 |    0.0 |    0 |     NaN |     NaN |
+| s100      | chase-lev | 4 | stalled |    1809 |   11167 | 1677805 |   12118 |    0.0 |    0 |     NaN |     NaN |
+
+fan: 113 tasks, 3250 µs of work, critical path 120 µs (block budget 2 667 µs)
+
+| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| fan       | serial    | 0 | normal  |    1254 |    3627 |    4852 |    1430 |    0.0 |    0 |     NaN |     NaN |
+| fan       | vyukov    | 1 | normal  |     676 |    2833 |    3127 |     805 |   88.0 |    0 |     NaN |     NaN |
+| fan       | chase-lev | 1 | normal  |     665 |    2752 |    2978 |     783 |   88.0 |    0 |     NaN |     NaN |
+| fan       | vyukov    | 1 | stalled |     938 |    3169 |    3513 |    1146 |   88.0 |  400 |     938 |    3169 |
+| fan       | chase-lev | 1 | stalled |    1626 |    3938 |    4406 |    1937 |   88.0 |  400 |    1626 |    3938 |
+| fan       | vyukov    | 2 | normal  |    1107 |    3684 |    4123 |    1361 |   88.0 |    0 |     NaN |     NaN |
+| fan       | chase-lev | 2 | normal  |    1022 |    3514 |    4272 |    1290 |   88.0 |    0 |     NaN |     NaN |
+| fan       | vyukov    | 2 | stalled |    1677 |    4013 |    4611 |    1995 |   88.0 |  400 |    1677 |    4013 |
+| fan       | chase-lev | 2 | stalled |    1174 |    3637 |    5617 |    1473 |   88.0 |  400 |    1174 |    3637 |
+| fan       | vyukov    | 3 | normal  |     773 |    3242 |    3398 |     992 |   88.0 |    0 |     NaN |     NaN |
+| fan       | chase-lev | 3 | normal  |     760 |    3166 |    3829 |     977 |   88.0 |    0 |     NaN |     NaN |
+| fan       | vyukov    | 3 | stalled |    1064 |    3467 |    3731 |    1310 |   88.0 |  400 |    1064 |    3467 |
+| fan       | chase-lev | 3 | stalled |     884 |    3307 |    3981 |    1173 |   88.0 |  400 |     884 |    3307 |
+| fan       | vyukov    | 4 | normal  |     775 |    3322 |    4034 |     990 |   88.0 |    0 |     NaN |     NaN |
+| fan       | chase-lev | 4 | normal  |     641 |    3106 |   12916 |     851 |   88.0 |    0 |     NaN |     NaN |
+| fan       | vyukov    | 4 | stalled |    1040 |    3377 |    3710 |    1292 |   88.0 |  400 |    1040 |    3377 |
+| fan       | chase-lev | 4 | stalled |     954 |    3588 |    4901 |    1192 |   88.0 |  400 |     954 |    3588 |
+
+s64.bare: 132 tasks, 0 µs of work, critical path 0 µs (block budget 2 667 µs)
+
+| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| s64.bare  | serial    | 0 | normal  |       4 |       8 |    2068 |       5 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | vyukov    | 1 | normal  |      59 |     102 |    2461 |      73 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | chase-lev | 1 | normal  |      44 |      71 |    2126 |      47 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | vyukov    | 2 | normal  |      57 |      98 |    2700 |      67 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | chase-lev | 2 | normal  |      39 |      65 |    2770 |      48 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | vyukov    | 3 | normal  |      54 |     300 |    2733 |      72 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | chase-lev | 3 | normal  |      35 |      71 |    2692 |      45 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | vyukov    | 4 | normal  |      50 |     195 |    7668 |      67 |    0.0 |    0 |     NaN |     NaN |
+| s64.bare  | chase-lev | 4 | normal  |      38 |      81 |    2830 |      50 |    0.0 |    0 |     NaN |     NaN |
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 234.02s
+

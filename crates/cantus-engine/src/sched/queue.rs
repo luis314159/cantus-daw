@@ -17,7 +17,9 @@
 //! reset between blocks: at the end of a block every queue is empty.
 
 use super::Pad;
-use std::sync::atomic::{fence, AtomicI64, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering::*};
+use std::sync::atomic::{
+    fence, AtomicI64, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering::*,
+};
 
 /// Per-task scheduling data the queues read: each task's priority (higher = more
 /// critical) and home slot. Written by the callback while it arms a block (priorities) and
@@ -34,7 +36,9 @@ impl Meta {
     pub fn new(tasks: usize, slots: usize) -> Self {
         Meta {
             prio: (0..tasks).map(|_| AtomicU32::new(0)).collect(),
-            home: (0..tasks).map(|t| AtomicU8::new((t % slots.max(1)) as u8)).collect(),
+            home: (0..tasks)
+                .map(|t| AtomicU8::new((t % slots.max(1)) as u8))
+                .collect(),
             crit_above: AtomicU32::new(u32::MAX),
         }
     }
@@ -144,7 +148,10 @@ impl Mpmc {
             let seq = cell.seq.load(Acquire);
             let dif = seq as isize - pos as isize;
             if dif == 0 {
-                match self.enq.compare_exchange_weak(pos, pos + 1, Relaxed, Relaxed) {
+                match self
+                    .enq
+                    .compare_exchange_weak(pos, pos + 1, Relaxed, Relaxed)
+                {
                     Ok(_) => {
                         cell.val.store(v, Relaxed);
                         between();
@@ -170,7 +177,10 @@ impl Mpmc {
             let seq = cell.seq.load(Acquire);
             let dif = seq as isize - (pos + 1) as isize;
             if dif == 0 {
-                match self.deq.compare_exchange_weak(pos, pos + 1, Relaxed, Relaxed) {
+                match self
+                    .deq
+                    .compare_exchange_weak(pos, pos + 1, Relaxed, Relaxed)
+                {
                     Ok(_) => {
                         let v = cell.val.load(Relaxed);
                         mid();

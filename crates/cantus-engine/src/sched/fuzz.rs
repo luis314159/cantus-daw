@@ -140,7 +140,13 @@ impl Episode {
             preds.push(p);
         }
         let cost = (0..n)
-            .map(|_| Duration::from_micros(if rng.chance(1, 3) { 0 } else { rng.range(1, 40) }))
+            .map(|_| {
+                Duration::from_micros(if rng.chance(1, 3) {
+                    0
+                } else {
+                    rng.range(1, 40)
+                })
+            })
             .collect();
         let mut ranks: Vec<u32> = (0..n as u32).collect();
         for i in (1..n).rev() {
@@ -340,10 +346,7 @@ impl FuzzGraph {
     /// After block `b`: how many tasks did not run, and the hash of every output.
     pub fn end(&self, b: u64) -> (usize, u64) {
         let missed = self.done.iter().filter(|d| d.load(Acquire) != b).count();
-        let hash = self
-            .value
-            .iter()
-            .fold(b, |h, v| mix(h ^ v.load(Relaxed)));
+        let hash = self.value.iter().fold(b, |h, v| mix(h ^ v.load(Relaxed)));
         (missed, hash)
     }
 }
@@ -423,7 +426,11 @@ fn run_blocks<Q: ReadyQueue, C: Chaos>(
     workers: usize,
     chaos: C,
 ) -> (Pool<FuzzGraph, Q, C>, Rng, u64, usize) {
-    let g = Arc::new(FuzzGraph::new(ep.preds.clone(), ep.cost.clone(), ep.ranks.clone()));
+    let g = Arc::new(FuzzGraph::new(
+        ep.preds.clone(),
+        ep.cost.clone(),
+        ep.ranks.clone(),
+    ));
     let mut cfg = Config::new(workers, ep.preds.len());
     cfg.mode = Mode::Parallel;
     let mut pool = Pool::<FuzzGraph, Q, C>::with_chaos(g.clone(), cfg, chaos)
