@@ -105,7 +105,14 @@ pub struct AudioHalf {
     frames: i64,
     max_block: usize,
     has_event_input: bool,
+    /// Parameters a MIDI controller drove this block (through `IMidiMapping`), so the
+    /// controller hears them as it hears the host's changes.
+    midi_ids: [ParamID; MIDI_IDS],
+    midi_len: usize,
 }
+
+/// Distinct MIDI-mapped parameters reported to the controller per block.
+const MIDI_IDS: usize = 32;
 
 impl AudioHalf {
     /// Main thread: everything the audio thread will use, allocated now.
@@ -135,6 +142,8 @@ impl AudioHalf {
             frames: 0,
             max_block,
             has_event_input,
+            midi_ids: [0; MIDI_IDS],
+            midi_len: 0,
             inst,
         }
     }
@@ -207,10 +216,29 @@ impl AudioHalf {
     fn gather_notes(&mut self, notes: &[NoteEvent], last: i32) {
         self.in_events.clear();
         self.out_events.clear();
-        if !self.has_event_input {
-            return;
-        }
+        self.midi_len = 0;
         for n in notes {
+            if let NoteKind::Midi {
+                status,
+                data1,
+                data2,
+            } = n.kind
+            {
+                // A controller travels as the parameter the controller maps it to.
+                if let Some((id, norm)) = self.inst.midi_param(n.channel, status, data1, data2) {
+                    self.in_changes
+                        .add(id, n.offset.min(last as u32) as i32, norm);
+                    let seen = self.midi_ids[..self.midi_len].contains(&id);
+                    if !seen && self.midi_len < MIDI_IDS {
+                        self.midi_ids[self.midi_len] = id;
+                        self.midi_len += 1;
+                    }
+                }
+                continue;
+            }
+            if !self.has_event_input {
+                continue;
+            }
             if let Some(e) = note_event(n, n.offset.min(last as u32) as i32) {
                 self.in_events.push(e);
             }
@@ -221,7 +249,8 @@ impl AudioHalf {
     /// editor follows automation. The controller's own edits are not echoed back.
     fn report(&mut self, params: &[ParamChange], out: &mut ParamOut) {
         for q in self.in_changes.queues() {
-            if params.iter().any(|c| c.id == q.id()) {
+            let midi = self.midi_ids[..self.midi_len].contains(&q.id());
+            if midi || params.iter().any(|c| c.id == q.id()) {
                 if let Some(&(_, v)) = q.points().last() {
                     let _ = self.to_ui.push((q.id(), v));
                 }
@@ -466,6 +495,8 @@ fn note_event(n: &NoteEvent, offset: i32) -> Option<Event> {
                 value: norm.clamp(0.0, 1.0),
             };
         }
+        // Parameters, not events (`AudioHalf::gather_notes`).
+        NoteKind::Midi { .. } => return None,
     }
     Some(e)
 }

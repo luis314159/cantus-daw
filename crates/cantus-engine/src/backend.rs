@@ -5,11 +5,12 @@
 //! effect instances in sync with the snapshots it sends.
 
 use crate::effects::EffectUnit;
+use crate::inst::UnitKind;
 use crate::messages::*;
 use crate::midi::MidiSender;
 use crate::processor::Processor;
 use crate::samples::SampleCache;
-use cantus_core::{EffectId, InstrumentKind, Project, Snapshot, Ticks, TrackId};
+use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::collections::{HashMap, HashSet};
@@ -73,9 +74,9 @@ pub struct EngineHandle {
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
     known_effects: HashSet<EffectId>,
-    /// For each track hosting a native instrument, the kind and serial of the unit the
-    /// engine holds (or has been sent) for it.
-    known_instruments: HashMap<TrackId, (InstrumentKind, u64)>,
+    /// For each track hosting a native or hosted instrument, the kind and serial of the
+    /// unit the engine holds (or has been sent) for it.
+    known_instruments: HashMap<TrackId, (UnitKind, u64)>,
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
     note_inputs: Vec<NoteInput>,
@@ -88,6 +89,8 @@ pub struct EngineHandle {
     comp_peak: [f32; 3],
     /// What hosted plug-ins' own windows did since the last take (ADR 0019).
     fx_params: Vec<(EffectId, crate::fx::FxParamEvent)>,
+    /// What hosted instruments' own windows did (ADR 0028), oldest first.
+    inst_params: Vec<(TrackId, crate::fx::FxParamEvent)>,
     /// Recording's state on this side (`crate::recorder`).
     pub(crate) rec: crate::recorder::HandleRecorder,
     /// The devices' side: the driver, the input stream, latencies, the loopback probe.
@@ -246,6 +249,7 @@ impl EngineHandle {
             analyser: Some(analyser_rx),
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
+            inst_params: Vec::new(),
             rec,
             dev: Default::default(),
         };
@@ -307,6 +311,7 @@ impl EngineHandle {
             analyser: None,
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
+            inst_params: Vec::new(),
             rec: Default::default(),
             dev: Default::default(),
         }
@@ -355,6 +360,51 @@ impl EngineHandle {
     /// What hosted plug-ins' own windows did since the last call, oldest first.
     pub fn take_fx_params(&mut self) -> Vec<(EffectId, crate::fx::FxParamEvent)> {
         std::mem::take(&mut self.fx_params)
+    }
+
+    /// What hosted instruments' own windows did since the last call, oldest first.
+    pub fn take_inst_params(&mut self) -> Vec<(TrackId, crate::fx::FxParamEvent)> {
+        std::mem::take(&mut self.inst_params)
+    }
+
+    /// Deliver an instrument unit built elsewhere (a hosted plug-in, ADR 0028) for a track.
+    /// Call before [`Self::set_snapshot`] with the snapshot in which the track hosts it,
+    /// which then leaves that track alone.
+    pub fn add_instrument(&mut self, unit: crate::inst::NativeUnit) -> bool {
+        let (track, kind, serial) = (unit.track, unit.kind, unit.serial);
+        if self
+            .tx
+            .push(EngineMessage::AddInstrument(Box::new(unit)))
+            .is_ok()
+        {
+            self.known_instruments.insert(track, (kind, serial));
+            true
+        } else {
+            self.send_failures += 1;
+            false
+        }
+    }
+
+    /// Swap a new unit in for the one the engine runs for the same track and kind (a
+    /// hosted instrument restarted); the old one comes back as garbage.
+    pub fn replace_instrument(&mut self, unit: crate::inst::NativeUnit) -> bool {
+        let (track, kind, serial) = (unit.track, unit.kind, unit.serial);
+        if self
+            .tx
+            .push(EngineMessage::ReplaceInstrument(Box::new(unit)))
+            .is_ok()
+        {
+            self.known_instruments.insert(track, (kind, serial));
+            true
+        } else {
+            self.send_failures += 1;
+            false
+        }
+    }
+
+    /// Whether the engine has (or is about to get) a unit of `kind` for `track`.
+    pub fn knows_instrument(&self, track: TrackId, kind: UnitKind) -> bool {
+        self.known_instruments.get(&track).map(|k| k.0) == Some(kind)
     }
 
     /// The analysed compressor's input peak, output peak (linear) and gain reduction (dB),
@@ -486,10 +536,10 @@ impl EngineHandle {
             snapshot
                 .tracks
                 .iter()
-                .any(|t| t.id == *track && t.instrument.native().map(|n| n.kind) == Some(*kind))
+                .any(|t| t.id == *track && UnitKind::of(&t.instrument) == Some(*kind))
         });
         let units = crate::inst::units_for(&snapshot, self.sample_rate as f32, |track, kind| {
-            self.known_instruments.get(&track).map(|k| k.0) == Some(kind)
+            self.known_instruments.get(&track).map(|k| k.0) == Some(UnitKind::Native(kind))
         });
         for unit in units {
             let (track, kind, serial) = (unit.track, unit.kind, unit.serial);
@@ -604,6 +654,7 @@ impl EngineHandle {
                     drop(unit);
                 }
                 EngineEvent::FxParam { effect, event } => self.fx_params.push((effect, event)),
+                EngineEvent::InstParam { track, event } => self.inst_params.push((track, event)),
                 EngineEvent::GarbageInstrument(unit) => {
                     // Only forget it if it is the unit we think the engine holds: a unit
                     // replaced long ago can come back after its successor was sent.

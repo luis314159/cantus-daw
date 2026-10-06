@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(26) {
+    match rng.below(27) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -551,8 +551,16 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // pitch that is not there and `InsertPad` on one that is both have to fail cleanly.
         20 if tracks > 0 => {
             let id = project.tracks[rng.below(tracks as u64) as usize].id;
-            let spec = match rng.below(3) {
+            let spec = match rng.below(4) {
                 0 => InstrumentSpec::Firmus(FirmusParams::default()),
+                // A hosted instrument (ADR 0028), installed nowhere: the model only.
+                3 => {
+                    let mut plugin =
+                        ExternalPlugin::new(PluginFormat::Clap, "org.example.synth", "Synth");
+                    plugin.state = PluginState::new(vec![1, 2, rng.below(255) as u8]);
+                    plugin.params.insert(0, -6.0);
+                    InstrumentSpec::External(plugin)
+                }
                 1 => InstrumentSpec::Pulsus(PulsusParams::of(vec![
                     DrumPad::kick(),
                     DrumPad::snare(),
@@ -734,6 +742,38 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Automation clips (ADR 0027): made for every kind of target, a vanished one
         // included; curves replaced, broken (refused), cleared; lanes shown and hidden.
         25 if tracks > 0 => automation_command(rng, project),
+        // Hosted instruments (ADR 0028): a value set and forgotten, a whole state, on any
+        // track — the refused paths (not a hosted instrument, a value that is not finite)
+        // are walked as well as the working ones.
+        26 if tracks > 0 => {
+            let track = project.tracks[rng.below(tracks as u64) as usize].id;
+            match rng.below(4) {
+                0 => Command::SetInstrumentPluginParam {
+                    track,
+                    id: rng.below(4) as u32,
+                    value: Some(rng.f32(-60.0, 12.0) as f64),
+                },
+                1 => Command::SetInstrumentPluginParam {
+                    track,
+                    id: rng.below(4) as u32,
+                    value: None,
+                },
+                2 => Command::SetInstrumentPluginParam {
+                    track,
+                    id: 0,
+                    value: Some(f64::NAN),
+                },
+                _ => {
+                    let mut params = std::collections::BTreeMap::new();
+                    params.insert(rng.below(4) as u32, rng.f32(0.0, 1.0) as f64);
+                    Command::SetInstrumentPluginState {
+                        track,
+                        state: PluginState::new(vec![rng.below(255) as u8; 3]),
+                        params,
+                    }
+                }
+            }
+        }
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },

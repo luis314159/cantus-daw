@@ -159,7 +159,7 @@ impl Rig {
     fn probe(&mut self, track: TrackId, kind: InstrumentKind, serial: u64) {
         self.send(EngineMessage::AddInstrument(Box::new(NativeUnit {
             track,
-            kind,
+            kind: cantus_engine::UnitKind::Native(kind),
             serial,
             unit: Box::new(Probe::default()),
         })));

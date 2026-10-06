@@ -53,10 +53,8 @@ pub fn available(purpose: &PickPurpose, choice: &PickChoice) -> bool {
         }
         PickChoice::Effect(_) => !purpose.wants_instrument(),
         PickChoice::Hosted(info) => match info.kind {
-            // TODO(hosted-inst, ADR 0028): call its API to put a hosted instrument on a
-            // track (`CantusApp::set_hosted_instrument` or what it names), then return
-            // `purpose.wants_instrument()` here.
-            PluginKind::Instrument => false,
+            // ADR 0028: `apply_pick` puts it on a track through `set_hosted_instrument`.
+            PluginKind::Instrument => purpose.wants_instrument(),
             PluginKind::Effect => !purpose.wants_instrument(),
             PluginKind::NoteEffect | PluginKind::Other => false,
         },

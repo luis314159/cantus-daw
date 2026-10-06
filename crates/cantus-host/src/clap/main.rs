@@ -425,7 +425,7 @@ impl MainThread for ClapMain {
             return false; // processing: the changes go with the next block
         }
         host.take_bits(flag::REQUEST_FLUSH);
-        self.events.fill(params, &[], 1);
+        self.events.fill(params, &[], 1, Default::default());
         self.out_events.bind(out);
         {
             // An active plug-in is flushed from its audio thread; with nothing processing,

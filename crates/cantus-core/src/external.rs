@@ -94,7 +94,7 @@ pub struct ExternalPlugin {
     #[serde(default)]
     pub state: PluginState,
     /// Parameter values by the plug-in's ids, in the plug-in's own range.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "params_by_id")]
     pub params: BTreeMap<u32, f64>,
 }
 
@@ -110,6 +110,38 @@ impl ExternalPlugin {
             params: BTreeMap::new(),
         }
     }
+}
+
+/// The values map, read whether its keys arrive as numbers or as the text JSON gives them.
+/// A record inside an internally tagged enum (a track's `InstrumentSpec::External`, ADR
+/// 0028) is buffered by serde before it is read, and a buffered key is text that a plain
+/// `u32` key refuses.
+fn params_by_id<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<u32, f64>, D::Error> {
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
+    struct Id(u32);
+    struct IdVisitor;
+    impl serde::de::Visitor<'_> for IdVisitor {
+        type Value = Id;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("a parameter id")
+        }
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Id, E> {
+            u32::try_from(v).map(Id).map_err(E::custom)
+        }
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Id, E> {
+            u32::try_from(v).map(Id).map_err(E::custom)
+        }
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Id, E> {
+            v.parse().map(Id).map_err(E::custom)
+        }
+    }
+    impl<'de> Deserialize<'de> for Id {
+        fn deserialize<D2: Deserializer<'de>>(d: D2) -> Result<Id, D2::Error> {
+            d.deserialize_any(IdVisitor)
+        }
+    }
+    let raw: BTreeMap<Id, f64> = BTreeMap::deserialize(d)?;
+    Ok(raw.into_iter().map(|(k, v)| (k.0, v)).collect())
 }
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -205,5 +237,26 @@ mod tests {
         let back: ExternalPlugin = serde_json::from_str(&json).unwrap();
         assert_eq!(back, p);
         assert_eq!(back.params[&10].to_bits(), (0.1f64 + 0.2).to_bits());
+    }
+
+    /// A track's hosted instrument (ADR 0028) is the same record inside an internally
+    /// tagged enum, which serde buffers: its values must still come back, to the bit.
+    #[test]
+    fn a_hosted_instrument_round_trips_through_json() {
+        let mut p = ExternalPlugin::new(
+            PluginFormat::Vst3,
+            "0123456789ABCDEF0123456789ABCDEF",
+            "Synth",
+        );
+        p.state = PluginState::new(vec![7, 0, 255]);
+        p.params.insert(0, -4.5);
+        p.params.insert(4_000_000, 0.1 + 0.2);
+        let spec = crate::InstrumentSpec::External(p);
+        let json = serde_json::to_string(&spec).unwrap();
+        assert!(json.contains("\"type\":\"External\""), "{json}");
+        let back: crate::InstrumentSpec = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, spec);
+        let params = &back.external().unwrap().params;
+        assert_eq!(params[&4_000_000].to_bits(), (0.1f64 + 0.2).to_bits());
     }
 }

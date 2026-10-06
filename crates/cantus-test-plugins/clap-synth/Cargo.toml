@@ -1,0 +1,23 @@
+[package]
+name = "cantus-test-clap-synth"
+description = "A CLAP instrument built only to test Cantus's host: notes, controllers, transport, latency, state (ADR 0028)."
+license = "GPL-3.0-or-later"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+clap-sys = "0.5"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }

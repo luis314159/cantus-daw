@@ -1,1 +1,19 @@
 # Área: hosted CLAP/VST3 instruments (round 20). Cada clave necesita su gemela en hosted.en.txt.
+hosted.missing_status = {name} no está en esta computadora ({why}). La pista conserva los datos de su sonido y suena en silencio hasta que se instale.
+hosted.no_window = {name} no tiene ventana propia.
+
+# --- la tarjeta del inspector para un instrumento alojado ---
+hosted.title = Instrumento plug-in
+hosted.plugin = Plug-in
+hosted.vendor = Fabricante
+hosted.format = Formato
+hosted.status = Estado
+hosted.status_ok = Cargado
+hosted.status_missing = Falta: en silencio
+hosted.status_missing_tip = {why}. Sus ajustes se guardan en el proyecto y vuelven cuando se instale.
+hosted.latency = Latencia
+hosted.latency_value = {n} muestras
+hosted.params = Parámetros
+hosted.window = Ventana
+hosted.open_window = Abrir
+hosted.close_window = Cerrar

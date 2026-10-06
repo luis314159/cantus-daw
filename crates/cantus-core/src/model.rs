@@ -825,6 +825,7 @@ impl Track {
             InstrumentSpec::Pulsus(_) => TrackIcon::Drums,
             InstrumentSpec::Firmus(_) => TrackIcon::Synth,
             InstrumentSpec::Native(n) => n.kind.icon(),
+            InstrumentSpec::External(_) => TrackIcon::Synth,
         })
     }
 

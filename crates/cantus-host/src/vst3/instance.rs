@@ -28,8 +28,8 @@ use ::vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use ::vst3::Steinberg::Vst::ViewType::kEditor;
 use ::vst3::Steinberg::Vst::{
     IAudioProcessor, IAudioProcessorTrait, IComponent, IComponentHandler, IComponentTrait,
-    IConnectionPoint, IConnectionPointTrait, IEditController, IEditControllerTrait, ProcessSetup,
-    SpeakerArr, SpeakerArrangement,
+    IConnectionPoint, IConnectionPointTrait, IEditController, IEditControllerTrait, IMidiMapping,
+    IMidiMappingTrait, ParamID, ProcessSetup, SpeakerArr, SpeakerArrangement,
 };
 use ::vst3::Steinberg::{
     FIDString, IBStream, IPlugView, IPluginBaseTrait, IPluginFactoryTrait, TUID,
@@ -199,6 +199,10 @@ pub struct Instance {
     pub latency: AtomicUsize,
     pub setup: AudioSetup,
     pub layout: Layout,
+    /// The parameter the controller maps each MIDI channel's controller to
+    /// (`IMidiMapping`: CC 0…127, channel pressure 128, pitch bend 129), or
+    /// [`NO_MIDI_PARAM`]. Read once at activation; the audio thread only looks up.
+    pub midi_map: Box<MidiMap>,
     active: bool,
     /// Last: terminated after deactivation.
     pub parts: Parts,
@@ -230,6 +234,7 @@ impl Instance {
             latency: AtomicUsize::new(0),
             setup,
             layout: Layout::default(),
+            midi_map: Box::new([[NO_MIDI_PARAM; MIDI_CONTROLLERS]; 16]),
             active: false,
             parts,
         };
@@ -260,6 +265,7 @@ impl Instance {
             }
             inst.active = true;
             inst.refresh_latency();
+            inst.read_midi_map();
         }
         Ok((inst, from_ui))
     }
@@ -270,6 +276,52 @@ impl Instance {
         let n = unsafe { self.processor.getLatencySamples() } as usize;
         self.latency.store(n, Ordering::Release);
         n
+    }
+
+    /// Ask the controller which parameter each MIDI controller drives (main thread).
+    fn read_midi_map(&mut self) {
+        let Some(mapping) = self
+            .parts
+            .controller
+            .as_ref()
+            .and_then(|c| c.cast::<IMidiMapping>())
+        else {
+            return;
+        };
+        for (channel, row) in self.midi_map.iter_mut().enumerate() {
+            for (ctrl, slot) in row.iter_mut().enumerate() {
+                let mut id: ParamID = 0;
+                // SAFETY: a main-thread query writing one ParamID.
+                let r = unsafe {
+                    mapping.getMidiControllerAssignment(0, channel as i16, ctrl as i16, &mut id)
+                };
+                if ok(r) {
+                    *slot = id;
+                }
+            }
+        }
+    }
+
+    /// The parameter a MIDI channel message drives, and its normalized value.
+    pub fn midi_param(
+        &self,
+        channel: u8,
+        status: u8,
+        data1: u8,
+        data2: u8,
+    ) -> Option<(ParamID, f64)> {
+        let row = self.midi_map.get(usize::from(channel & 15))?;
+        let (ctrl, value) = match status & 0xF0 {
+            0xB0 if data1 < 128 => (usize::from(data1), f64::from(data2.min(127)) / 127.0),
+            0xD0 => (128, f64::from(data1.min(127)) / 127.0),
+            0xE0 => {
+                let raw = (u16::from(data2 & 127) << 7) | u16::from(data1 & 127);
+                (129, f64::from(raw) / 16383.0)
+            }
+            _ => return None,
+        };
+        let id = row[ctrl];
+        (id != NO_MIDI_PARAM).then_some((id, value))
     }
 
     pub fn controller(&self) -> Option<&ComPtr<IEditController>> {
@@ -314,6 +366,13 @@ impl Drop for Instance {
 fn lock_requests(r: &SharedRequests) -> std::sync::MutexGuard<'_, Requests> {
     super::host_objects::lock(r)
 }
+
+/// CC 0…127, then channel pressure (128) and pitch bend (129), as `IMidiMapping` numbers
+/// them.
+pub const MIDI_CONTROLLERS: usize = 130;
+/// No parameter for this controller.
+pub const NO_MIDI_PARAM: ParamID = u32::MAX;
+pub type MidiMap = [[ParamID; MIDI_CONTROLLERS]; 16];
 
 /// Room for the controller's edits between two blocks.
 const EDIT_RING: usize = 1024;

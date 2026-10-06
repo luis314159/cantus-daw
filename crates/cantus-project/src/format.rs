@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 19;
+pub const SCHEMA_VERSION: u32 = 20;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -197,6 +197,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_16_to_17,
     migrate_17_to_18,
     migrate_18_to_19,
+    migrate_19_to_20,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -556,6 +557,15 @@ fn migrate_18_to_19(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 20 (ADR 0028): a track's instrument may be a hosted CLAP/VST3 plug-in
+/// (`InstrumentSpec::External`, the same record an insert keeps). No older project has
+/// one, so the step writes nothing; the number is what makes an older build refuse a
+/// project with a hosted instrument instead of failing on an instrument it cannot read.
+/// (Built as schema 19 on its branch; renumbered at the round-20 merge, after automation.)
+fn migrate_19_to_20(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -794,6 +804,43 @@ mod hosted_plugin_tests {
         assert_eq!(plugin.params[&0], -6.25);
         assert_eq!(plugin.params[&1024].to_bits(), (0.1f64 + 0.2).to_bits());
         // Written back, it is the same file content.
+        let again = ProjectFile::wrap(r.file.project.clone(), "test")
+            .unwrap()
+            .to_json()
+            .unwrap();
+        assert_eq!(parse(&again, true).unwrap().file.project, r.file.project);
+    }
+}
+
+#[cfg(test)]
+mod hosted_instrument_tests {
+    use super::*;
+
+    /// The schema-20 fixture holds a hosted instrument installed nowhere (ADR 0028): the
+    /// project opens, and the track's record — state bytes, values to the bit — is intact.
+    #[test]
+    fn a_missing_hosted_instrument_opens_with_its_data_intact() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("v20.cantus");
+        let text = std::fs::read_to_string(&path).expect("the v20 fixture");
+        let r = parse(&text, true).expect("opens");
+        let track = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .find(|t| t.instrument.external().is_some())
+            .expect("a track with a hosted instrument");
+        assert_eq!(track.name, "Synth");
+        let plugin = track.instrument.external().unwrap();
+        assert_eq!(plugin.id, "org.cantus.test.synth");
+        assert_eq!(plugin.format, cantus_core::PluginFormat::Clap);
+        assert_eq!(plugin.vendor, "Cantus Tests");
+        assert_eq!(plugin.state.bytes(), b"CTS1 opaque instrument state");
+        assert_eq!(plugin.params[&0], -4.5);
+        assert_eq!(plugin.params[&7].to_bits(), (0.1f64 + 0.2).to_bits());
+        assert_eq!(track.clips[0].notes.len(), 1);
         let again = ProjectFile::wrap(r.file.project.clone(), "test")
             .unwrap()
             .to_json()

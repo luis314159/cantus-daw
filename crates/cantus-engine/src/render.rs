@@ -79,7 +79,19 @@ pub fn render(snapshot: Arc<Snapshot>, opts: &RenderOptions) -> Result<Rendered,
 pub fn render_with_units(
     snapshot: Arc<Snapshot>,
     opts: &RenderOptions,
+    units: Vec<EffectUnit>,
+) -> Result<Rendered, RenderError> {
+    render_with_instruments(snapshot, opts, units, Vec::new())
+}
+
+/// [`render_with_units`], with instrument units built elsewhere too — a hosted
+/// instrument's instance for this render (ADR 0028), labelled with its track and kind.
+/// Every native instrument gets the unit the engine builds, as in [`render`].
+pub fn render_with_instruments(
+    snapshot: Arc<Snapshot>,
+    opts: &RenderOptions,
     mut units: Vec<EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
 ) -> Result<Rendered, RenderError> {
     let end = opts.end.unwrap_or(snapshot.content_end);
     if end <= opts.start && opts.end.is_none() {
@@ -100,7 +112,8 @@ pub fn render_with_units(
     let snap = Arc::new(snap);
 
     let effect_count: usize = snap.effect_slots().count();
-    let instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    let mut instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    instruments.extend(hosted.into_iter().map(Box::new));
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());

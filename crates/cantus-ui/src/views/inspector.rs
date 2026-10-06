@@ -27,6 +27,8 @@ pub mod audio;
 mod channel;
 #[path = "inspector_eq.rs"]
 mod eq;
+#[path = "inspector_hosted.rs"]
+mod hosted;
 #[path = "inspector_menus.rs"]
 mod menus;
 #[path = "inspector_mini.rs"]
@@ -99,6 +101,8 @@ pub enum Act {
     SelectTrack(TrackId),
     OpenEditor(StripId, EffectId),
     OpenInstrument(TrackId),
+    /// A hosted instrument's own window, open or closed (ADR 0028).
+    ToggleInstrumentWindow(TrackId),
     OpenPulsus(TrackId, cantus_core::PadId),
     /// Open the device picker (round 20): swap the instrument, add or swap an insert.
     Pick(crate::picker::PickPurpose),
@@ -736,6 +740,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
         Act::OpenInstrument(t) => app.open_inst_editor(t),
         Act::Pick(purpose) => app.open_picker(purpose),
+        Act::ToggleInstrumentWindow(t) => app.toggle_instrument_window_of(t),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);
             crate::views::pulsus_editor::open(app, t);

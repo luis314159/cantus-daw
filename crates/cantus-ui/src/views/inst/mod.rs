@@ -141,6 +141,11 @@ impl CantusApp {
     }
 
     pub fn open_inst_editor(&mut self, track: TrackId) {
+        // A hosted instrument's editor is the plug-in's own window (ADR 0028).
+        if self.is_hosted_instrument(track) {
+            self.open_hosted_window(track);
+            return;
+        }
         self.close_inst_editor();
         self.inst.open = Some(track);
         self.engine.set_instrument_probe(Some(track));

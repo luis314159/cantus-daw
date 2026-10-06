@@ -256,6 +256,13 @@ pub enum NoteKind {
         expression: NoteExpression,
         value: f64,
     },
+    /// A channel message of MIDI 1.0 — a controller (`0xB0`), pitch bend (`0xE0`), channel
+    /// pressure (`0xD0`) — for the whole channel `NoteEvent::channel` (the status's low
+    /// nibble is ignored; `key` and `note_id` mean nothing). Added in round 20 (ADR 0028).
+    /// How it reaches the plug-in is its format's business: CLAP sends it as a MIDI event
+    /// when the note port speaks MIDI (pitch bend otherwise as a tuning expression on every
+    /// note); VST3 sends it to the parameter the controller's `IMidiMapping` names.
+    Midi { status: u8, data1: u8, data2: u8 },
 }
 
 /// The per-note expressions both standards share.

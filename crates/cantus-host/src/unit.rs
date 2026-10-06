@@ -17,6 +17,7 @@
 use crate::backend::{AudioThread, ParamChange, ParamEvent, ParamInfo, ParamOut, TransportInfo};
 use cantus_core::EffectSpec;
 use cantus_engine::fx::{FxParamEvent, FxUnit, SongPosition};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -55,40 +56,30 @@ impl Known {
     }
 }
 
-pub struct HostedUnit {
-    audio: Box<dyn AudioThread>,
+/// The parameter side of a hosted plug-in on the audio thread, shared by an insert
+/// ([`HostedUnit`]) and an instrument (`crate::inst_unit::HostedInstrument`): what the
+/// plug-in holds, what the project wants, the changes for the next block, and the plug-in's
+/// own changes on their way to the host. Allocates only when made.
+pub(crate) struct ParamSync {
     /// Sorted by id; fixed at construction.
     known: Vec<Known>,
     /// Changes waiting for the next block; never more than one per parameter.
-    pending: Vec<ParamChange>,
-    out: Box<ParamOut>,
-    events: Vec<FxParamEvent>,
-    latency: usize,
+    pub(crate) pending: Vec<ParamChange>,
+    pub(crate) out: Box<ParamOut>,
+    pub(crate) events: Vec<FxParamEvent>,
     /// Bumped by the host after it loads a state into the plug-in: everything the table
     /// knew is stale, so every value of the next snapshot is sent.
     generation: Arc<AtomicU64>,
     seen_generation: u64,
-    transport: Option<TransportInfo>,
     settle_frames: usize,
 }
 
-impl std::fmt::Debug for HostedUnit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HostedUnit")
-            .field("params", &self.known.len())
-            .field("latency", &self.latency)
-            .finish()
-    }
-}
-
-impl HostedUnit {
+impl ParamSync {
     /// Built on the main thread. `values` are the plug-in's current values (read from its
-    /// main half after its state was loaded), `latency` what it reports now.
-    pub fn new(
-        audio: Box<dyn AudioThread>,
+    /// main half after its state was loaded).
+    pub(crate) fn new(
         params: &[ParamInfo],
         values: impl Fn(u32) -> Option<f64>,
-        latency: usize,
         sample_rate: f64,
         generation: Arc<AtomicU64>,
     ) -> Self {
@@ -109,18 +100,19 @@ impl HostedUnit {
         known.sort_by_key(|k| k.id);
         known.dedup_by_key(|k| k.id);
         let seen_generation = generation.load(Ordering::Acquire);
-        HostedUnit {
-            audio,
+        ParamSync {
             pending: Vec::with_capacity(known.len()),
             known,
             out: Box::new(ParamOut::new()),
             events: Vec::with_capacity(ParamOut::CAPACITY),
-            latency,
             generation,
             seen_generation,
-            transport: None,
             settle_frames: (sample_rate * 0.5) as usize,
         }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.known.len()
     }
 
     fn find(&self, id: u32) -> Option<usize> {
@@ -137,6 +129,55 @@ impl HostedUnit {
                 id,
                 value,
             });
+        }
+    }
+
+    /// A snapshot's values: each one that differs from what the plug-in holds, and that
+    /// nothing holds back, becomes a change for the next block.
+    pub(crate) fn configure(&mut self, values: &BTreeMap<u32, f64>) {
+        let generation = self.generation.load(Ordering::Acquire);
+        if generation != self.seen_generation {
+            self.seen_generation = generation;
+            for k in &mut self.known {
+                k.value = f64::NAN;
+                k.settle = None;
+            }
+        }
+        for (id, v) in values {
+            let Some(i) = self.find(*id) else { continue };
+            let k = &mut self.known[i];
+            if !v.is_finite() {
+                continue;
+            }
+            let value = v.clamp(k.min, k.max);
+            k.wanted = if k.stepped { value.round() } else { value };
+            if k.settle
+                .is_some_and(|t| !k.gesture && t.to_bits() == k.wanted.to_bits())
+            {
+                k.settle = None; // the host caught up: from here on, snapshots rule
+            }
+            if let Some(send) = k.take_send() {
+                Self::queue(&mut self.pending, *id, send);
+            }
+        }
+    }
+
+    /// After a block of `frames`: the plug-in's own changes into the table and out to the
+    /// host, and the settle timers run down.
+    pub(crate) fn after_process(&mut self, frames: usize) {
+        self.pending.clear();
+        self.take_out();
+        for k in &mut self.known {
+            if k.settle.is_some() && !k.gesture {
+                k.settle_left = k.settle_left.saturating_sub(frames);
+                if k.settle_left == 0 {
+                    // The host never recorded the plug-in's value: the project's stands.
+                    k.settle = None;
+                    if let Some(send) = k.take_send() {
+                        Self::queue(&mut self.pending, k.id, send);
+                    }
+                }
+            }
         }
     }
 
@@ -179,35 +220,61 @@ impl HostedUnit {
     }
 }
 
+pub struct HostedUnit {
+    audio: Box<dyn AudioThread>,
+    sync: ParamSync,
+    latency: usize,
+    transport: Option<TransportInfo>,
+}
+
+impl std::fmt::Debug for HostedUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HostedUnit")
+            .field("params", &self.sync.len())
+            .field("latency", &self.latency)
+            .finish()
+    }
+}
+
+impl HostedUnit {
+    /// Built on the main thread. `values` are the plug-in's current values (read from its
+    /// main half after its state was loaded), `latency` what it reports now.
+    pub fn new(
+        audio: Box<dyn AudioThread>,
+        params: &[ParamInfo],
+        values: impl Fn(u32) -> Option<f64>,
+        latency: usize,
+        sample_rate: f64,
+        generation: Arc<AtomicU64>,
+    ) -> Self {
+        HostedUnit {
+            audio,
+            sync: ParamSync::new(params, values, sample_rate, generation),
+            latency,
+            transport: None,
+        }
+    }
+}
+
+/// The engine's song position as the backend contract carries it.
+pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
+    TransportInfo {
+        playing: p.playing,
+        recording: false,
+        tempo_bpm: p.tempo_bpm,
+        position_beats: p.beats,
+        position_samples: p.samples,
+        bar_start_beats: p.bar_start_beats,
+        time_sig_num: p.time_sig_num,
+        time_sig_den: p.time_sig_den,
+        loop_beats: p.loop_beats,
+    }
+}
+
 impl FxUnit for HostedUnit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let Some(plugin) = spec.external.as_deref() else {
-            return;
-        };
-        let generation = self.generation.load(Ordering::Acquire);
-        if generation != self.seen_generation {
-            self.seen_generation = generation;
-            for k in &mut self.known {
-                k.value = f64::NAN;
-                k.settle = None;
-            }
-        }
-        for (id, v) in &plugin.params {
-            let Some(i) = self.find(*id) else { continue };
-            let k = &mut self.known[i];
-            if !v.is_finite() {
-                continue;
-            }
-            let value = v.clamp(k.min, k.max);
-            k.wanted = if k.stepped { value.round() } else { value };
-            if k.settle
-                .is_some_and(|t| !k.gesture && t.to_bits() == k.wanted.to_bits())
-            {
-                k.settle = None; // the host caught up: from here on, snapshots rule
-            }
-            if let Some(send) = k.take_send() {
-                Self::queue(&mut self.pending, *id, send);
-            }
+        if let Some(plugin) = spec.external.as_deref() {
+            self.sync.configure(&plugin.params);
         }
     }
 
@@ -220,24 +287,11 @@ impl FxUnit for HostedUnit {
                 key,
                 transport: self.transport.as_ref(),
             },
-            &self.pending,
+            &self.sync.pending,
             &[],
-            &mut self.out,
+            &mut self.sync.out,
         );
-        self.pending.clear();
-        self.take_out();
-        for k in &mut self.known {
-            if k.settle.is_some() && !k.gesture {
-                k.settle_left = k.settle_left.saturating_sub(frames);
-                if k.settle_left == 0 {
-                    // The host never recorded the plug-in's value: the project's stands.
-                    k.settle = None;
-                    if let Some(send) = k.take_send() {
-                        Self::queue(&mut self.pending, k.id, send);
-                    }
-                }
-            }
-        }
+        self.sync.after_process(frames);
     }
 
     fn reset(&mut self) {
@@ -249,25 +303,15 @@ impl FxUnit for HostedUnit {
     }
 
     fn set_position(&mut self, p: &SongPosition) {
-        self.transport = Some(TransportInfo {
-            playing: p.playing,
-            recording: false,
-            tempo_bpm: p.tempo_bpm,
-            position_beats: p.beats,
-            position_samples: p.samples,
-            bar_start_beats: p.bar_start_beats,
-            time_sig_num: p.time_sig_num,
-            time_sig_den: p.time_sig_den,
-            loop_beats: p.loop_beats,
-        });
+        self.transport = Some(transport_of(p));
     }
 
     fn param_events(&self) -> &[FxParamEvent] {
-        &self.events
+        &self.sync.events
     }
 
     fn clear_param_events(&mut self) {
-        self.events.clear();
+        self.sync.events.clear();
     }
 
     fn stop(&mut self) {

@@ -23,6 +23,7 @@
 pub mod backend;
 pub mod clap;
 pub mod db;
+pub mod inst_unit;
 pub mod scan;
 pub mod session;
 pub mod unit;
@@ -31,8 +32,9 @@ pub mod window;
 
 pub use backend::*;
 pub use db::{DbEntry, PluginDb, ScanStatus};
+pub use inst_unit::HostedInstrument;
 pub use scan::{ScanReport, Scanner};
-pub use session::{HostNotice, PluginHost};
+pub use session::{HostNotice, HostedInst, PluginHost};
 pub use unit::HostedUnit;
 
 /// The backend for a format, when this build hosts it.

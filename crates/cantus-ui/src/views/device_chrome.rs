@@ -111,7 +111,9 @@ impl CantusApp {
 
     /// Whether `track`'s instrument window is open (shown or minimised).
     pub fn instrument_window_open(&self, track: TrackId) -> bool {
-        self.inst.open == Some(track) || self.pulsus.open == Some(track)
+        self.inst.open == Some(track)
+            || self.pulsus.open == Some(track)
+            || self.plugins.instrument_window_open(track)
     }
 
     /// Open `track`'s instrument window, or bring it back from the tray. A track whose
@@ -131,6 +133,8 @@ impl CantusApp {
         match spec {
             InstrumentSpec::Native(_) => self.open_inst_editor(track),
             InstrumentSpec::Pulsus(_) => super::pulsus_editor::open(self, track),
+            // A hosted instrument's window is the plug-in's own (ADR 0028).
+            InstrumentSpec::External(_) => self.open_hosted_window(track),
             _ => {
                 self.select_track(track);
                 if !self.workspace.is_visible(Pane::Inspector) {
@@ -148,6 +152,7 @@ impl CantusApp {
         if self.pulsus.open == Some(track) {
             super::pulsus_editor::close(self);
         }
+        self.plugins.close_instrument_window(track);
     }
 
     /// Whether `track`'s instrument window is on screen: open and not minimised.

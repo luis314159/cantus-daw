@@ -29,7 +29,11 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     // An audio track plays no instrument: its input and its audio are what it is.
     if !crate::record_session::is_audio_track(track) {
         // Round 20: a click opens the device picker to swap it; a right-click, the list.
-        let name = sheet::name(sh.fmt.tr(track.instrument.name_key()));
+        // A hosted instrument goes by its own name (ADR 0028), not the word "Plug-in".
+        let name = match track.instrument.external() {
+            Some(p) => sheet::name(&p.name),
+            None => sheet::name(sh.fmt.tr(track.instrument.name_key())),
+        };
         let row = sh.row();
         sh.label(row.label, "inspector.title", false);
         let purpose = crate::picker::PickPurpose::ReplaceInstrument { track: id };
@@ -188,6 +192,8 @@ pub fn instrument(
             super::pads::show(&mut sh, app, t, &kit.pads);
         } else if let Some(params) = track.instrument.firmus() {
             firmus(&mut sh, t, params);
+        } else if let Some(plugin) = track.instrument.external() {
+            super::hosted::show(&mut sh, app, t, plugin);
         }
     }
     st.brush.flush(&painter);
