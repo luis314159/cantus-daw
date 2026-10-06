@@ -424,6 +424,7 @@ fn audio_takes(
                 notes: Vec::new(),
                 audio: Some(region),
                 lane: 0,
+                automation: None,
             });
         }
         if clips.is_empty() {
@@ -545,6 +546,7 @@ fn midi_clip(
         notes,
         audio: None,
         lane: 0,
+        automation: None,
     }
 }
 

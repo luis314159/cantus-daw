@@ -14,7 +14,7 @@ use cantus_core::{Automation, Shape, Ticks};
 use egui::{pos2, Color32, Pos2, Rect};
 
 /// Where the curve is drawn: content ticks to x, 0…1 to y, and the x range worth tracing.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Frame {
     /// Screen x of content tick 0 (`x = x0 + tick · px_per_tick`).
     pub x0: f32,

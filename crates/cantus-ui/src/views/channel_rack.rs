@@ -316,6 +316,7 @@ fn empty_clip() -> Clip {
         notes: Vec::new(),
         audio: None,
         lane: 0,
+        automation: None,
     }
 }
 

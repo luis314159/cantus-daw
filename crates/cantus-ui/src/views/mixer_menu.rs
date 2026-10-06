@@ -69,6 +69,8 @@ enum ColorOf {
 /// What a row does.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Act {
+    /// Automate a strip's (or the master's) volume (0), pan (1) or width (2) (ADR 0027).
+    Automate(StripId, u8),
     Rename(StripId),
     RenameGroup(GroupId),
     Color(ColorOf, Option<Color>),
@@ -297,6 +299,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             };
             let s = &p.strips[index];
             e.push(Entry::act(Label::Key("mixer.menu.rename"), Act::Rename(id)));
+            automate_entries(id, &mut e);
             e.push(Entry::sub(
                 Label::Key("mixer.menu.color"),
                 Sub::Colors(ColorOf::Strip(id)),
@@ -466,6 +469,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
         Menu::AddEffect(id) => sub_entries(v, app, Sub::AddEffect(id), &mut e),
         Menu::Master => {
             let m = &p.master;
+            automate_entries(StripId::MASTER, &mut e);
             e.push(Entry::band("master.menu.effects"));
             e.push(Entry::sub(
                 Label::Key("effect.add"),
@@ -1077,6 +1081,18 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             prefs.colourful = c;
             v.prefs.set(prefs);
         }
+        Act::Automate(id, what) => {
+            use cantus_core::AutoTarget as A;
+            let target = match (id.is_master(), what) {
+                (true, 0) => A::MasterGain,
+                (true, 1) => A::MasterPan,
+                (true, _) => A::MasterWidth,
+                (false, 0) => A::StripGain(id),
+                (false, 1) => A::StripPan(id),
+                (false, _) => A::StripWidth(id),
+            };
+            app.automate(target);
+        }
         Act::ResetRatio => {
             prefs.ratio = super::layout::DEFAULT_RATIO;
             v.prefs.set(prefs);
@@ -1199,4 +1215,12 @@ fn reveal(path: &std::path::Path) {
     if let Some(dir) = path.parent() {
         let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
     }
+}
+
+/// A strip's (or the master's) automation rows: its volume, pan and width (ADR 0027).
+fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
+    e.push(Entry::band("auto.menu.band"));
+    e.push(Entry::act(Label::Key("auto.track.volume"), Act::Automate(id, 0)));
+    e.push(Entry::act(Label::Key("auto.track.pan"), Act::Automate(id, 1)));
+    e.push(Entry::act(Label::Key("auto.strip.width"), Act::Automate(id, 2)));
 }

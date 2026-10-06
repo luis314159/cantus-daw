@@ -412,7 +412,17 @@ pub(super) fn master(
     let bw = w - 1.0;
     let cx = x + bw * 0.5;
     let ctx = ui.ctx().clone();
-    let m = app.project().master.clone();
+    let mut m = app.project().master.clone();
+    // An automated master shows what its clips give it (ADR 0027).
+    for (t, val) in [
+        (cantus_core::AutoTarget::MasterGain, &mut m.gain_db),
+        (cantus_core::AutoTarget::MasterPan, &mut m.pan),
+        (cantus_core::AutoTarget::MasterWidth, &mut m.width),
+    ] {
+        if let Some(Some(a)) = app.automated_value_where(|x| *x == t) {
+            *val = a;
+        }
+    }
     let body = pass.body(x, bw);
     b.rect(b.snap_rect(body), Fill::Solid(t.strip));
     // The master is chosen like a strip (ADR 0026): a click on its number or name shows

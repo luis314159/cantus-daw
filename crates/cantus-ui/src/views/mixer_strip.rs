@@ -383,12 +383,16 @@ pub(super) fn snap(app: &CantusApp, index: usize) -> Option<Snap> {
         eq[i] = band.gain_db;
         eq_hz[i] = band.freq_hz;
     }
+    // An automated fader, pan or width shows what its clip gives it (ADR 0027).
+    let auto = |t: cantus_core::AutoTarget, own: f32| {
+        app.automated_value_where(|x| *x == t).flatten().unwrap_or(own)
+    };
     Some(Snap {
         id: s.id,
         index,
-        gain: s.gain_db,
-        pan: s.pan,
-        width: s.width,
+        gain: auto(cantus_core::AutoTarget::StripGain(s.id), s.gain_db),
+        pan: auto(cantus_core::AutoTarget::StripPan(s.id), s.pan),
+        width: auto(cantus_core::AutoTarget::StripWidth(s.id), s.width),
         phase: s.phase_invert,
         swap: s.swap_channels,
         muted: s.muted,

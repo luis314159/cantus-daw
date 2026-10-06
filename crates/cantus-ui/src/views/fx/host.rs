@@ -83,6 +83,17 @@ pub trait FxHost {
     fn set_key_source(&mut self, _target: KeyTarget) {}
     /// A line for the status bar, where the host has one.
     fn status(&mut self, _text: String) {}
+    /// Whether the host can automate a parameter (Cantus; ADR 0027). A plug-in host
+    /// automates through its own lanes, so the editor offers nothing.
+    fn can_automate(&self) -> bool {
+        false
+    }
+    /// Whether a clip drives `key` (the cell wears the automated mark).
+    fn automated(&self, _key: &str) -> bool {
+        false
+    }
+    /// Create the automation clip of `key`, or open the one it has.
+    fn automate(&mut self, _key: &str) {}
     /// Notes into a MIDI clip on a new drum track — something only a DAW can do. `notes`
     /// are (tick, velocity) at `pitch`. `None` when the host cannot; `Some(written)`.
     fn notes_to_clip(&mut self, _notes: &[(i64, u8)], _pitch: u8) -> Option<bool> {
@@ -291,6 +302,24 @@ impl<'a> DawHost<'a> {
                 .map(|e| e.spec.clone())
                 .unwrap_or_else(|| EffectSpec::new(cantus_core::EffectKind::Gate)),
         };
+        // An automated parameter shows what its clip gives it where the song is heard
+        // (ADR 0027): FL's knobs move with their automation.
+        let mut spec = spec;
+        let lanes = app.auto_lanes();
+        let at = app.engine.position().0 as f64;
+        for l in lanes.iter() {
+            if let cantus_core::AutoTarget::Effect { effect: e, key } = &l.target {
+                if *e == effect {
+                    let v = l.value_at(at);
+                    match spec.params.get_mut(key.as_str()) {
+                        Some(x) => *x = v,
+                        None => {
+                            spec.params.insert(key.clone(), v);
+                        }
+                    }
+                }
+            }
+        }
         let mut host = DawHost::with_spec(app, strip, effect, spec, tag);
         host.cached_at = Some(rev);
         host
@@ -318,6 +347,26 @@ impl<'a> DawHost<'a> {
 impl FxHost for DawHost<'_> {
     fn spec(&self) -> &EffectSpec {
         &self.spec
+    }
+
+    fn can_automate(&self) -> bool {
+        true
+    }
+
+    fn automated(&self, key: &str) -> bool {
+        let effect = self.effect;
+        self.app
+            .automated_value_where(|t| {
+                matches!(t, cantus_core::AutoTarget::Effect { effect: e, key: k } if *e == effect && k == key)
+            })
+            .is_some()
+    }
+
+    fn automate(&mut self, key: &str) {
+        self.app.automate(cantus_core::AutoTarget::Effect {
+            effect: self.effect,
+            key: key.to_string(),
+        });
     }
 
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {

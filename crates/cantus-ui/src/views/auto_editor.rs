@@ -61,7 +61,7 @@ pub struct EditorState {
     pub lfo_cycles: u32,
     /// Where the curve was drawn last frame (published for tests and for the input).
     pub frame: Option<Frame>,
-    pub canvas: Rect,
+    pub canvas: Option<Rect>,
 }
 
 /// The value axis's width, the ruler's height, the clip window brace's height.
@@ -116,7 +116,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     paint(app, ui, &auto, window, f, canvas, ruler, axis, &s);
     let st = &mut app.automation.editor;
     st.frame = Some(f);
-    st.canvas = canvas;
+    st.canvas = Some(canvas);
     input(app, ui, track, clip, &auto, f, canvas, &s);
 }
 
@@ -396,7 +396,7 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
                 b.vline(x, ruler.top() + 6.0 * k, ruler.bottom(), b.px(), t.text_dim);
                 let label = Rect::from_min_size(pos2(x + 3.0 * k, ruler.top()), vec2(40.0 * k, ruler.height() - 6.0 * k));
                 let n = (barn + 1).to_string();
-                let _ = text::paint(b, label, &Text::new(&n, Role::Readout, t.text_dim).align(Align2::LEFT_CENTER), s.tk());
+                let _ = text::paint(b, label, &Text::new(&n, Role::Value, t.text_dim).align(Align2::LEFT_CENTER), s.tk());
             }
             barn += 1;
         }
@@ -409,7 +409,7 @@ fn paint(app: &CantusApp, ui: &egui::Ui, auto: &Automation, window: cantus_core:
                 crate::automation::write_value(project, &auto.target, range.value(q), &mut v);
                 let y = f.y(q);
                 let r = Rect::from_min_max(pos2(axis.left() + 4.0 * k, y - 8.0 * k), pos2(axis.right() - 6.0 * k, y + 8.0 * k));
-                let _ = text::paint(b, r, &Text::new(&v, Role::Readout, t.text_dim).align(Align2::RIGHT_CENTER), s.tk());
+                let _ = text::paint(b, r, &Text::new(&v, Role::Value, t.text_dim).align(Align2::RIGHT_CENTER), s.tk());
                 b.hline(axis.right() - 4.0 * k, axis.right(), y, b.px(), t.text_dim);
             }
         }

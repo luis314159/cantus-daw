@@ -91,6 +91,7 @@
 //!   `cargo run -p cantus-ui --example proof` renders the mock screens.
 
 pub mod appearance;
+pub mod automate;
 pub mod brush;
 pub mod cache;
 pub mod color;

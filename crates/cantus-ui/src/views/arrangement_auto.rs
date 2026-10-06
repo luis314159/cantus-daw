@@ -11,8 +11,8 @@
 //!
 //! The large editor, for everything else, is the piano roll's area (`auto_editor`).
 
-use super::auto_curve::{self as curve, Frame};
-use super::{beats_to_ticks, ticks_to_beats, TimelineGeometry, TrackRow};
+use crate::views::auto_curve::{self as curve, Frame};
+use super::{ticks_to_beats, TimelineGeometry, TrackRow};
 use crate::app::CantusApp;
 use crate::kit::color::{mix, shade, with_alpha};
 use crate::kit::hint::{self, Caps};
@@ -21,7 +21,7 @@ use crate::kit::{Brush, Fill, Style, Tok};
 use crate::views::clips_chrome::Tint;
 use cantus_core::automation::edit;
 use cantus_core::{AutoPoint, AutoTarget, Automation, Clip, ClipId, Command, MergeKey, Ticks, Track, TrackId};
-use egui::{pos2, Align2, Id, Pos2, Rect, Sense};
+use egui::{pos2, Align2, Pos2, Rect, Sense};
 
 /// An automation lane's height at the base row height.
 pub(super) fn lane_height(base: f32) -> f32 {
@@ -301,7 +301,7 @@ pub(super) fn paint_headers(
         let _ = text::paint(
             b,
             right,
-            &Text::new(&value, Role::Readout, t.text).align(Align2::RIGHT_CENTER),
+            &Text::new(&value, Role::Value, t.text).align(Align2::RIGHT_CENTER),
             s.tk(),
         );
         let names = Rect::from_min_max(pos2(g.right() + 6.0 * k, band.top()), pos2(right.left() - 4.0 * k, band.bottom()));

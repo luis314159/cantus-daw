@@ -62,6 +62,33 @@ impl CantusApp {
         Some(lane.value_at(self.engine.position().0 as f64))
     }
 
+    /// The automated value of the target `f` picks, without building one: `None` when
+    /// nothing automates it, `Some(value)` where the song is heard (a knob asks this every
+    /// frame, so it allocates nothing).
+    pub fn automated_value_where(&self, f: impl Fn(&AutoTarget) -> bool) -> Option<Option<f32>> {
+        let lanes = self.auto_lanes();
+        let lane = lanes.iter().find(|l| f(&l.target))?;
+        Some(Some(lane.value_at(self.engine.position().0 as f64)))
+    }
+
+    /// A parameter's menu chose *automate*: open its clip when it has one (the first, in
+    /// time), or create one.
+    pub fn automate(&mut self, target: AutoTarget) {
+        let found = self.project().tracks.iter().find_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.automation.as_ref().is_some_and(|a| a.target == target))
+                .min_by_key(|c| c.start)
+                .map(|c| (t.id, c.id))
+        });
+        match found {
+            Some((t, c)) => self.open_automation_editor(t, c),
+            None => {
+                self.create_automation_clip(target);
+            }
+        }
+    }
+
     /// Remember the parameter a command moved, if it moved one.
     pub fn note_tweak(&mut self, cmd: &Command) {
         if let Some(t) = AutoTarget::of_command(cmd) {
