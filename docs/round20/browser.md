@@ -54,7 +54,7 @@ picture of each, and a browsing panel in the workspace.
 
 ## Tests
 
-`crates/cantus-ui/tests/picker.rs` (14): the catalogue lists every native kind and every offered
+`crates/cantus-ui/tests/picker.rs` (14, all green): the catalogue lists every native kind and every offered
 plug-in once (note effects out, duplicates once, keys unique); search by name, vendor, category in
 both languages, accents, presets, AND of words; shelves group and count, recents in order of use;
 grid layout and arrow geometry across groups; opening per purpose filters instruments/effects;
@@ -64,6 +64,22 @@ button adds a track with Organum, Esc closes with no project change; favourites/
 `devices.json` and are not in the project; clicking a shelf filters; 75 devices draw only the
 visible tiles in ≤ 24 meshes; thumbnails made once, then read back from disk with no capture; the
 panel drags a `DevicePayload` and double-click adds.
+
+The whole `cantus-ui` suite on this branch: **526 passed, 0 failed, 11 ignored** (49 test
+binaries); `cargo clippy -p cantus-ui --tests --examples` clean; `cargo fmt`.
+
+Cost measured by the budget test (75 effects, 1920 × 1080, `opt-level 1`, a machine shared by six
+builders): 8–10 ms a frame after the first, 12 tiles drawn, 18 meshes for the whole overlay; the
+first frame (~85 ms) lays out every galley once. Thumbnails: the editor's frames on the UI thread
+25–200 ms each (once per look, one a frame), the CPU fill 40–350 ms on a worker; from disk, a decode
+on a worker.
+
+Rendered and looked at (`shoot_picker`): instruments and effects in Slate and Paper, a search
+("verb"), *Replace* in Spanish, the devices panel in both themes. What the review changed: the
+details pane was off by default (fixed), hover/selection faces turned khaki in Paper (white tile +
+ring there now), the reveal scroll cut a row in half (now snaps to row starts), "reverb" found the
+Delay through the shelf's synonyms (shelf words are now only the shelf's own names), the Spanish
+"Usados hace poco" did not fit its segment ("Recientes").
 
 ## Files touched outside my area
 
@@ -87,6 +103,12 @@ panel drags a `DevicePayload` and double-click adds.
 - Presets inside the picker (→ to browse a device's presets, Bitwig), user collections, pictures
   of hosted plug-ins from their own windows.
 - The overlay's very first appearance in a session is egui's sizing pass: one invisible frame.
+- **Watch for**: the `shoot_picker` example sometimes ended silently (exit code 0, no panic, no
+  output) while drawing the whole window — mostly when a second whole window was drawn in the same
+  process, a few times on a single one; rerunning the same command worked. It never happened in
+  the tests (every capture path is exercised there, including 108 captures inside another
+  context's pass in the example's `nested` mode). I could not find the cause in the time the
+  shared machine allowed (a build took 10–30 minutes); the example now draws one window per run.
 
 ## Notes for others
 
