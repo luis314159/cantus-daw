@@ -253,9 +253,23 @@ impl Workspace {
     }
 
     /// A device tab was just put back in the dock: float it where it floated last, if it
-    /// did.
+    /// did. The first time, a device whose leaf is shorter than the device can be drawn in
+    /// (its minimum size; the arrangement's half of the window rarely is tall enough for an
+    /// instrument) floats at its own size over the workspace instead of being squeezed
+    /// until its cards overlap; dragged into the dock, it stays docked.
     pub(crate) fn float_where_it_was(&mut self, ctx: &Context, key: DeviceKey) {
-        let Some(rect) = device::place_of(ctx, key) else {
+        let area = self.area;
+        let rect = device::place_of(ctx, key).or_else(|| {
+            let (size, min) = device::sizes(ctx, key)?;
+            let path = self.find(Pane::Device(key))?;
+            let leaf = self.dock.leaf(path.node_path()).ok()?.rect;
+            let short = !leaf.is_positive() || leaf.height() < min.y || leaf.width() < min.x;
+            (short && area.is_positive()).then(|| {
+                let size = size.min(area.size() - Vec2::splat(16.0)).max(min.min(area.size()));
+                Rect::from_center_size(area.center(), size)
+            })
+        });
+        let Some(rect) = rect else {
             return;
         };
         if let Some(path) = self.find(Pane::Device(key)).filter(|p| p.surface.is_main()) {
@@ -311,10 +325,8 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
     }
     let mut chips = Vec::with_capacity(items.len());
     tray_layout(&ctx, rect, left, k, &items, &mut chips);
-    let s = Style::current();
-    let t = &s.t;
-    let painter = ui.painter_at(rect);
     let mut end = left;
+    let mut painted = Vec::with_capacity(items.len());
     for ((key, title, hue), (_, chip, close)) in items.iter().zip(&chips) {
         let chip = chip.intersect(rect);
         if chip.width() < 24.0 * k {
@@ -345,6 +357,46 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
             active: resp.is_pointer_button_down_on() && !over_x,
             ..State::REST
         };
+        painted.push(TrayChip {
+            chip,
+            close: *close,
+            title: title.clone(),
+            hue: *hue,
+            st,
+            over_x,
+        });
+    }
+    TRAY.with(|t| *t.borrow_mut() = painted);
+    end
+}
+
+/// A chip as [`tray`] sensed it, for [`tray_paint`].
+struct TrayChip {
+    chip: Rect,
+    close: Rect,
+    title: String,
+    hue: crate::kit::Function,
+    st: State,
+    over_x: bool,
+}
+
+thread_local! {
+    static TRAY: std::cell::RefCell<Vec<TrayChip>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Paint the chips [`tray`] laid out this frame, over the status bar's ground (which the
+/// bar paints after it has asked the tray where its status line starts).
+pub fn tray_paint(ui: &Ui, rect: Rect, k: f32) {
+    let chips = TRAY.with(|t| std::mem::take(&mut *t.borrow_mut()));
+    if chips.is_empty() {
+        return;
+    }
+    let s = Style::current();
+    let t = &s.t;
+    let painter = ui.painter_at(rect);
+    for c in &chips {
+        let (chip, close, st, over_x, hue) = (c.chip, &c.close, c.st, c.over_x, &c.hue);
+        let title = &c.title;
         with_brush(&painter, |b| {
             b.register(chip, "device_tray_chip", crate::kit::window_ctl::TOKENS, &[]);
             let look = cap::CapLook {
@@ -379,7 +431,6 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
             glyph::paint(b, close.shrink(5.0 * k), Glyph::Close, xc);
         });
     }
-    end
 }
 
 // ---- entry points: the small affordances the views share ----------------------------------
@@ -459,12 +510,13 @@ pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egu
     b.rrect(
         b.snap_rect(r),
         3.0 * k,
-        Fill::Solid(crate::kit::color::with_alpha(t.dark_shade, 0.22)),
+        Fill::Solid(crate::kit::color::with_alpha(t.dark_shade, 0.3)),
     );
-    b.rrect_stroke(b.snap_rect(r), 3.0 * k, b.px(), crate::kit::color::with_alpha(ink, 0.45));
+    b.rrect_stroke(b.snap_rect(r), 3.0 * k, b.px(), crate::kit::color::with_alpha(ink, 0.6));
+    // The ▾ inside the key's corner: it opens a choice.
     let down = Rect::from_center_size(
-        Pos2::new(r.right() - 1.0 * k, r.bottom() - 1.0 * k),
-        Vec2::splat(7.0 * k),
+        Pos2::new(r.right() - 3.0 * k, r.bottom() - 3.0 * k),
+        Vec2::splat(6.0 * k),
     );
     glyph::paint(b, down, Glyph::Down, ink);
 }

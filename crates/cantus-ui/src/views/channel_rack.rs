@@ -876,7 +876,9 @@ fn track_controls(
         Sense::click(),
     );
     if button.hovered() {
-        hint::set_text(ui.ctx(), chrome::word("rack.channel_tip"), "", Caps::NONE);
+        // Round 20: what the button does now (the selector beside it selects).
+        let tip = crate::i18n::t("swap.rack.channel_tip");
+        hint::set_text(ui.ctx(), &tip, "", Caps { menu: true, ..Caps::NONE });
     }
     // Round 20, as FL: a click opens or closes the channel's instrument; a right-click,
     // or the swap badge that shows on the button, swaps it for another.

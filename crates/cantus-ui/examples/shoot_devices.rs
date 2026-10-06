@@ -128,13 +128,30 @@ fn shoot(dir: &Path, case: &Case, dark: bool) {
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     app.attach(&ctx);
     (case.setup)(&mut app);
-    raster::shoot(&ctx, SIZE, 1.0, 6, None, |root| app.frame(root));
-    (case.then)(&mut app, &ctx);
-    raster::shoot(&ctx, SIZE, 1.0, 4, None, |root| app.frame(root));
-    let aim = (case.aim)(&app, &ctx);
     let theme = if dark { "slate" } else { "paper" };
     let path = dir.join(format!("devices-{}-{theme}.png", case.name));
-    raster::shoot_at(&ctx, SIZE, 1.0, 4, Some(&path), aim, |root| app.frame(root));
+    // One run of frames (the textures live in it): settle, then the case's step, then
+    // the pointer where the case aims, found from what the frames published.
+    let aim = std::cell::Cell::new(None);
+    let mut frame = 0;
+    raster::shoot_at(
+        &ctx,
+        SIZE,
+        1.0,
+        16,
+        Some(&path),
+        |i| if i >= 11 { aim.get() } else { None },
+        |root| {
+            if frame == 6 {
+                (case.then)(&mut app, root.ctx());
+            }
+            app.frame(root);
+            if frame >= 10 {
+                aim.set((case.aim)(&app, root.ctx()));
+            }
+            frame += 1;
+        },
+    );
     println!("{}", path.display());
 }
 

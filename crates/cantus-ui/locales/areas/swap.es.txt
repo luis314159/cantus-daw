@@ -26,6 +26,7 @@ swap.add_plain_track = Añadir pista vacía
 swap.add_track_tip = Añadir una pista: elige su instrumento
 swap.menu.swap_effect = Cambiar por otro efecto…
 swap.menu.browse_effects = Todos los efectos…
+swap.rack.channel_tip = Clic: abrir o cerrar su instrumento · clic derecho: cambiarlo por otro
 
 # --- el historial ---
 cmd.replace_effect = cambiar efecto

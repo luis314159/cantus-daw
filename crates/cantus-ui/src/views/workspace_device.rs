@@ -321,6 +321,11 @@ pub fn set_title(ctx: &Context, key: DeviceKey, title: &str) {
     });
 }
 
+/// A device's size at its scale and the least it can be drawn in, as it registered them.
+pub fn sizes(ctx: &Context, key: DeviceKey) -> Option<(Vec2, Vec2)> {
+    with_registry(ctx, |r| r.get(key).map(|e| (e.default_size, e.min_size)))
+}
+
 /// Where a device's window buttons were drawn last.
 pub fn buttons(ctx: &Context, key: DeviceKey) -> Option<crate::kit::window_ctl::WindowRects> {
     with_registry(ctx, |r| r.get(key).and_then(|e| e.buttons))

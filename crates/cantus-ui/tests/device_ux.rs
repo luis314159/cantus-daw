@@ -180,21 +180,46 @@ fn the_tray_cross_closes_a_minimised_device() {
 }
 
 #[test]
-fn maximise_fills_the_workspace_and_restore_docks_it_back() {
+fn an_instrument_too_tall_for_its_leaf_floats_at_its_own_size() {
+    let (w, _, key) = calor_open();
+    assert!(
+        w.app.workspace.is_floating(Pane::Device(key)),
+        "the arrangement's half of a 1000-pt window cannot hold an instrument"
+    );
+    let (whole, _) = device::shown(&w.ctx, key).unwrap();
+    let (size, _) = device::sizes(&w.ctx, key).unwrap();
+    assert!(
+        (whole.height() - size.y).abs() < 60.0,
+        "drawn near its own height: {whole:?} for {size:?}"
+    );
+}
+
+#[test]
+fn maximise_fills_the_workspace_and_restore_puts_it_back() {
     let (mut w, _, key) = calor_open();
-    let docked = device::shown(&w.ctx, key).unwrap().0;
+    let before = device::shown(&w.ctx, key).unwrap().0;
     w.click(w.buttons(key).maximise.unwrap().center());
     w.idle(3);
     assert!(device::is_maximised(&w.ctx, key));
-    assert!(w.app.workspace.is_floating(Pane::Device(key)));
     let big = device::shown(&w.ctx, key).unwrap().0;
     assert!(
-        big.width() > docked.width() && big.height() > docked.height(),
-        "{big:?} over {docked:?}"
+        big.width() > before.width() && big.height() > before.height(),
+        "{big:?} over {before:?}"
     );
     w.click(w.buttons(key).maximise.unwrap().center());
     w.idle(3);
     assert!(!device::is_maximised(&w.ctx, key));
+    let back = device::shown(&w.ctx, key).unwrap().0;
+    assert!((back.min - before.min).length() < 2.0, "{back:?} vs {before:?}");
+    // Docked by the user, a maximised device docks again when restored.
+    w.app.workspace.toggle_float(Pane::Device(key));
+    w.idle(3);
+    assert!(!w.app.workspace.is_floating(Pane::Device(key)));
+    w.click(w.buttons(key).maximise.unwrap().center());
+    w.idle(3);
+    assert!(w.app.workspace.is_floating(Pane::Device(key)));
+    w.click(w.buttons(key).maximise.unwrap().center());
+    w.idle(3);
     assert!(
         !w.app.workspace.is_floating(Pane::Device(key)),
         "it was docked: it docks again"

@@ -325,6 +325,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             }
         });
     });
+    // Round 20: the device tray's chips, over the bar's ground.
+    super::device_chrome::tray_paint(ui, rect, k);
 }
 
 /// The hint of the editor being worked in — what the hint panel says when nothing is
