@@ -1,0 +1,47 @@
+forkjoin-proto: 20 logical CPUs, 128-frame blocks
+budget at 48 kHz: 128 frames = 2667 us, 64 frames = 1333 us
+
+## 1. Dispatch overhead: 100 tracks, 16 buses, master, no DSP (gather only)
+workers | median us | p99 | p99.9 | max
+      0 |     250.0 | 816.9 | 6243.2 | 29329.8
+      1 |     201.5 | 1644.5 | 14497.2 | 26977.9
+      3 |     183.0 | 1073.3 | 27301.9 | 30447.4
+      5 |     159.6 | 2227.2 | 21114.0 | 28261.6
+      7 |     145.8 | 1884.0 | 16032.4 | 28273.4
+     11 |     116.9 | 2759.1 | 33374.9 | 46666.6
+
+## 2. Heavy: 100 tracks x 24 passes, 16 buses x 24, master x 48, back to back
+workers | median us | p99 | p99.9 | max | speed-up (median)
+      0 |    5248.3 | 19935.1 | 40347.8 | 50844.0 | 1.00x
+      1 |    2946.6 | 23045.1 | 40553.7 | 85639.1 | 1.78x
+      3 |    1588.9 | 12230.9 | 22774.7 | 52780.4 | 3.30x
+      5 |    1175.7 | 10530.6 | 33645.0 | 44193.2 | 4.46x
+      7 |    1116.4 | 22648.2 | 35060.2 | 68065.7 | 4.70x
+     11 |     901.4 | 43439.7 | 128613.9 | 143997.3 | 5.82x
+     13 |     746.8 | 33669.2 | 74328.7 | 90118.6 | 7.03x
+
+## 2b. Heavy, with a 1 ms idle gap before each block (as a live callback)
+workers | idle | median us | p99 | p99.9 | max
+      5 | spin |    1242.8 | 9303.4 | 24859.2 | 27457.3
+      5 | park |    1414.5 | 18335.0 | 61431.8 | 63966.0
+      7 | spin |    1326.2 | 33763.8 | 77387.6 | 135421.3
+      7 | park |    1176.0 | 31031.6 | 129767.7 | 417861.7
+
+## 3. Parallel equals serial, to the bit (500 blocks of the heavy graph)
+workers  1: identical
+workers  3: identical
+workers  7: identical
+workers 13: identical
+
+## 4. Time for the last worker to see a new block (us), after a 1.3 ms gap
+workers | idle | median | p99
+      5 | spin | 4779.4 | 37903.2
+      5 | park |  107.1 | 2094.1
+     11 | spin | 27197.9 | 158109.2
+     11 | park |  257.8 | 7166.1
+
+## 5. Copy through relaxed AtomicU32 cells vs a plain copy (ns per sample)
+frames | atomic write+read | plain write+copy
+   128 |             2.704 |            0.764
+  1024 |             3.411 |            0.444
+  8192 |             2.880 |            1.291

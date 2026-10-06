@@ -1,0 +1,13 @@
+# A throwaway prototype for ADR 0031 (performance architecture). Not a workspace member:
+# the empty [workspace] table keeps it out of the root workspace. std only, safe Rust.
+[package]
+name = "forkjoin-proto"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[profile.release]
+opt-level = 3
+debug = 0
