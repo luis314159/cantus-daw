@@ -77,8 +77,9 @@ nanosecond of a block to one node — a track's instrument, a strip's mixing, an
 master insert, or the engine's own work. The report lists the fifteen heaviest nodes of
 the 64-track session, named as the user would name them ("Spatium on Pad bus").
 
-`engine.profiler_overhead.s32` is the profiler's own cost: the 32-track session with it on
-and off, as a percentage of the block.
+`engine.profiler_overhead.s32` is the profiler's own cost: the 32-track session with it
+switched on and off on alternate blocks of one run (so both halves see the same machine),
+the median on-block against the median off-block, percent.
 
 ### 2.3 Offline render — `render.*`
 
@@ -143,9 +144,12 @@ counter moving (REAPER's Performance Meter, FL Studio's underrun count, Cantus's
 bar) or, where a host has none, a click heard on headphones.
 
 **Cantus's offline estimate** (`cantus-bench --only dawbench`): the track count is found by
-bisection; a count *passes* when the 99th percentile of 128- (or 64-) frame blocks stays
-under 80 % of the budget over the run. It is computed in seconds without a device and is
-what the trend is tracked with; the live figure above is what is published.
+bisection; a count *passes* when the median 128- (or 64-) frame block stays under half the
+budget. The sessions do the same work every block, so on a quiet machine the tail sits
+near the median and the factor of two is the live callback's margin; the median rather
+than the 99th percentile because on a shared machine a back-to-back run's tail is the
+neighbours' preemptions. It is computed in minutes without a device and is what the trend
+is tracked with; the live figure above is what is published.
 
 ## 4. The VI test — `dawbench.vi.*`
 

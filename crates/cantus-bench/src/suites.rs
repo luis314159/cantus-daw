@@ -98,18 +98,29 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
     out
 }
 
-/// The profiler's own cost: the 32-track session with it on and off.
+/// The profiler's own cost: the 32-track session with it switched on and off on
+/// alternate blocks of the same run, so both halves see the same machine; the median
+/// on-block against the median off-block, percent.
 pub fn profiler_overhead(plan: &Plan) -> Vec<Metric> {
     let p = sessions::scaled(32);
     let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
     let blocks = (plan.session_seconds * SAMPLE_RATE / 128.0).ceil() as usize;
+    let mut rig = Rig::new(&p, start, 128);
+    rig.run(375, 0);
     let mut pct = Vec::new();
     for _ in 0..plan.runs {
-        let mut on = Rig::new(&p, start, 128);
-        let mut off = Rig::new(&p, start, 128);
-        off.processor.set_profiling(false);
-        let a = median(&on.run(375, blocks).block_us);
-        let b = median(&off.run(375, blocks).block_us);
+        let (mut on, mut off) = (Vec::new(), Vec::new());
+        for i in 0..blocks * 2 {
+            let profiled = i % 2 == 0;
+            rig.processor.set_profiling(profiled);
+            let us = rig.block();
+            if profiled {
+                on.push(us);
+            } else {
+                off.push(us);
+            }
+        }
+        let (a, b) = (median(&on), median(&off));
         pct.push((a - b) / b * 100.0);
     }
     vec![Metric::new(
