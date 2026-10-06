@@ -15,7 +15,7 @@ otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y 
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
-**(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque; producto: instalador, actualizaciones, firma de código, manual y tutoriales,
+**(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
@@ -221,10 +221,13 @@ language — our DAW has Christian values."* (The project's motto is Colossians 
 - Bundled as a small text file per locale (`locales/verses/<lang>.txt`), the reference
   shown in that language's book names; the translation's name and licence credited in
   About.
-- A setting to choose the translation where several are available; the owner decides
-  whether it can be turned off.
-- *Done when:* every start shows a verse in the current language, from a translation
-  whose licence allows it, credited in About.
+- **On by default, with an On/Off switch** (decided by the owner, 2026-10-05: *"so someone
+  who does not share our beliefs and is bothered by it can turn it off — but ON by
+  default"*): Settings ▸ General ▸ *Show a verse at start*, plus a small *don't show* link
+  on the verse itself; remembered per user. A setting to choose the translation where
+  several are available.
+- *Done when:* every start shows a verse in the current language (unless switched off),
+  from a translation whose licence allows it, credited in About.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
