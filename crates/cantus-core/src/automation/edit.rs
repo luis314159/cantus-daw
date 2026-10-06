@@ -7,7 +7,7 @@ use super::{AutoPoint, Shape};
 use crate::time::Ticks;
 
 /// Clamp and sort: what every edit returns.
-pub fn tidy(points: &mut Vec<AutoPoint>) {
+pub fn tidy(points: &mut [AutoPoint]) {
     for p in points.iter_mut() {
         p.value = if p.value.is_finite() {
             p.value.clamp(0.0, 1.0)
@@ -43,12 +43,12 @@ pub fn flip_vertical(points: &mut [AutoPoint], sel: &[usize]) {
 /// Back to front over `[from, to]`: a point at `t` moves to `from + to − t`. A curve's
 /// bend belongs to the segment *after* a point, so it moves to the point that now starts
 /// that segment, and changes sign (the same bend, travelled the other way).
-pub fn flip_horizontal(points: &mut Vec<AutoPoint>, from: Ticks, to: Ticks) {
+pub fn flip_horizontal(points: &mut [AutoPoint], from: Ticks, to: Ticks) {
     let n = points.len();
     if n == 0 {
         return;
     }
-    let old = points.clone();
+    let old = points.to_vec();
     for (i, p) in points.iter_mut().enumerate() {
         let src = &old[n - 1 - i];
         p.tick = from + to - src.tick;
@@ -78,7 +78,7 @@ pub fn scale_values(points: &mut [AutoPoint], sel: &[usize], pivot: f32, factor:
 }
 
 /// Stretch time about `anchor` by `factor` (2 = twice as long).
-pub fn scale_time(points: &mut Vec<AutoPoint>, anchor: Ticks, factor: f64) {
+pub fn scale_time(points: &mut [AutoPoint], anchor: Ticks, factor: f64) {
     if !(factor.is_finite() && factor > 0.0) {
         return;
     }
