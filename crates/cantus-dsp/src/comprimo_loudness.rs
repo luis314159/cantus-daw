@@ -81,11 +81,12 @@ impl Biquad {
         let y = self.b0 * x + self.z1;
         self.z1 = self.b1 * x - self.a1 * y + self.z2;
         self.z2 = self.b2 * x - self.a2 * y;
-        // A long silence decays the state toward the denormals; flush it well before.
-        if self.z1.abs() < 1e-30 {
+        // A long silence decays the state toward the denormals; flush it well before —
+        // both at once: flushing one alone kicks the other, and the RLB high-pass (its
+        // poles near 1) then hovers at the threshold for ever instead of coming to rest
+        // (found by the at-rest tests, ADR 0031 §5.1; Porta's sections do the same).
+        if self.z1.abs() < 1e-30 && self.z2.abs() < 1e-30 {
             self.z1 = 0.0;
-        }
-        if self.z2.abs() < 1e-30 {
             self.z2 = 0.0;
         }
         y
