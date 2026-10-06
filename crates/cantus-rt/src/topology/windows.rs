@@ -149,8 +149,11 @@ fn members(r: &Rd, at: usize, count: usize) -> Vec<(u16, u32)> {
     out
 }
 
-/// Every last-level cache: level, bytes, members.
-fn last_level_caches() -> Option<Vec<(u8, u64, Vec<(u16, u32)>)>> {
+/// A cache: level, bytes, members as `(group, number)`.
+type Cache = (u8, u64, Vec<(u16, u32)>);
+
+/// Every last-level cache.
+fn last_level_caches() -> Option<Vec<Cache>> {
     let buf = glpi(RelationCache)?;
     let h = offset_of!(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, Anonymous);
     let size_at = offset_of!(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, Size);

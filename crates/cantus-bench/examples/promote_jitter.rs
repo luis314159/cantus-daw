@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! cargo run -p cantus-bench --example promote_jitter --release -- [--tracks 6] [--frames 128]
-//!     [--seconds 10] [--rounds 2] [--load <threads>]
+//!     [--seconds 10] [--rounds 2] [--load <threads>] [--session scaled|dsp]
 //! ```
 //!
 //! Per block it records the **wake lateness** (how long after the period's start the thread
@@ -23,6 +23,8 @@ use std::time::{Duration, Instant};
 
 struct Args {
     tracks: usize,
+    /// `dsp`: the DAWbench DSP session (`tracks` × 2 compressors) instead of `scaled`.
+    dsp: bool,
     frames: usize,
     seconds: f64,
     rounds: usize,
@@ -32,6 +34,7 @@ struct Args {
 fn args() -> Args {
     let mut a = Args {
         tracks: 6,
+        dsp: false,
         frames: 128,
         seconds: 10.0,
         rounds: 2,
@@ -41,6 +44,7 @@ fn args() -> Args {
     for w in v.windows(2) {
         match w[0].as_str() {
             "--tracks" => a.tracks = w[1].parse().unwrap_or(a.tracks),
+            "--session" => a.dsp = w[1] == "dsp",
             "--frames" => a.frames = w[1].parse().unwrap_or(a.frames),
             "--seconds" => a.seconds = w[1].parse().unwrap_or(a.seconds),
             "--rounds" => a.rounds = w[1].parse().unwrap_or(a.rounds),
@@ -86,9 +90,13 @@ fn load(n: usize, stop: &Arc<AtomicBool>) -> Vec<std::thread::JoinHandle<()>> {
 fn play(a: &Args, promote: bool, busy: usize) -> Run {
     let stop = Arc::new(AtomicBool::new(false));
     let loaders = load(busy, &stop);
-    let (tracks, frames, seconds) = (a.tracks, a.frames, a.seconds);
+    let (tracks, frames, seconds, dsp) = (a.tracks, a.frames, a.seconds, a.dsp);
     let run = std::thread::spawn(move || {
-        let p = sessions::scaled(tracks);
+        let p = if dsp {
+            sessions::dsp(tracks, 2)
+        } else {
+            sessions::scaled(tracks)
+        };
         let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
         let mut rig = Rig::new(&p, start, frames);
         let period = Duration::from_secs_f64(frames as f64 / SAMPLE_RATE);
@@ -137,8 +145,13 @@ fn main() {
     let a = args();
     let budget = a.frames as f64 / SAMPLE_RATE * 1e6;
     println!(
-        "scaled({}) at {} frames ({budget:.0} µs period), {} s per run, {} rounds, load {} threads",
-        a.tracks, a.frames, a.seconds, a.rounds, a.load
+        "{}({}) at {} frames ({budget:.0} µs period), {} s per run, {} rounds, load {} threads",
+        if a.dsp { "dsp" } else { "scaled" },
+        a.tracks,
+        a.frames,
+        a.seconds,
+        a.rounds,
+        a.load
     );
     let configs = [(false, 0), (true, 0), (false, a.load), (true, a.load)];
     let mut all: Vec<Vec<Run>> = configs.iter().map(|_| Vec::new()).collect();

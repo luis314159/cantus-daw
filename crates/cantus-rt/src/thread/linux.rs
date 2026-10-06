@@ -142,16 +142,15 @@ pub fn revert(r: &mut Revert) {
 pub fn set_cpus(ids: &[u32]) -> Result<(), Refusal> {
     // SAFETY: an all-zero cpu_set_t is the empty set.
     let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
-    for &id in ids {
-        if (id as usize) < libc::CPU_SETSIZE as usize {
-            libc::CPU_SET(id as usize, &mut set);
-        }
-    }
-    if ids.is_empty() {
-        // An empty selection means "anywhere", as on Windows.
-        for id in 0..libc::CPU_SETSIZE as usize {
-            libc::CPU_SET(id, &mut set);
-        }
+    // An empty selection means "anywhere", as on Windows.
+    let all: Vec<u32> = (0..libc::CPU_SETSIZE as u32).collect();
+    let ids = if ids.is_empty() { &all[..] } else { ids };
+    for &id in ids
+        .iter()
+        .filter(|&&id| (id as usize) < libc::CPU_SETSIZE as usize)
+    {
+        // SAFETY: `id` is below CPU_SETSIZE, so the bit is inside the live `set`.
+        unsafe { libc::CPU_SET(id as usize, &mut set) };
     }
     // SAFETY: pid 0 is the calling thread; `set` is a live cpu_set_t of the size passed.
     let r = unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set) };

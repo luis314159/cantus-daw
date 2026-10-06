@@ -83,18 +83,32 @@ the slab comes back as garbage). Measured on this machine: first touch of 16 MiB
 
 ## To the **integrator** — `crates/cantus-app/src/main.rs` (R1, R9)
 
-At start-up, before the engine starts:
+**Now** — at start-up, before the engine starts (no effect on any sample):
 
 ```rust
-let rt = cantus_rt::init_process();
-log::info!("real-time: {rt}");
+let eco = cantus_rt::thread::opt_out_of_power_throttling();
+log::info!("real-time: {eco}");
 ```
 
-It opts the process out of EcoQoS (Windows: `SetProcessInformation(ProcessPowerThrottling)`,
-execution speed controlled and off, timer resolution kept) and makes the universal CRT take
-its non-FMA3 transcendental path on every Windows machine (R9 (2), interim until *math*).
-See `docs/round21/rt.md` for what the FMA3 switch does to the bits on this machine — it
-decides whether the tests must call it too.
+It opts the process out of EcoQoS (`SetProcessInformation(ProcessPowerThrottling)`, execution
+speed controlled and off, timer resolution kept) — what Steinberg tells Cubase users to do by
+hand with `powercfg` after prefetch threads dropped out on E-cores in the background.
+
+**Not yet: the CRT FMA3 switch** (`fpenv::disable_crt_fma3`, the other half of
+`cantus_rt::init_process()`). Measured on this machine (`cantus-bench/examples/fma3_bits.rs`,
+`docs/round21/rt.md` §3): the switch changes **92 % of the samples** of the scaled demo session
+(peak 1.8e-4). Every null-test hash was recorded on the FMA3 path; calling the switch in the
+app alone would make the app render other bits than the tests pin, and calling it in the
+tests would move the `v5.cantus` hash — a bit change this wave reserves for *math*. So:
+
+1. After *math* lands (std's transcendentals gone from `cantus-dsp`), re-run
+   `cargo run -p cantus-bench --example fma3_bits --release`.
+2. If samples still differ (engine paths *math* lists as unreachable), call
+   `cantus_rt::fpenv::disable_crt_fma3()` in **one place every render path shares** —
+   `Processor::new` (graph's file), so the app, the offline render, the stems, the bench and
+   every test take the same path — in the same commit as *math*'s re-blessed hashes, and
+   switch the app's start-up call above to `cantus_rt::init_process()`.
+3. If nothing differs, the switch is not needed: R9 (1) did its job.
 
 ## To **CI** — `.github/workflows/ci.yml`
 
