@@ -361,9 +361,20 @@ impl Action {
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
             | ToolPlayback => Category::Tools,
-            ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer | ViewArrangement
-            | ToggleInspector | CloseFloating | ZoomIn | ZoomOut | ZoomReset | PickElement
-            | ToggleDeviceKeyboard | ToggleBrowser | ToggleInstrumentWindow => Category::View,
+            ToggleTypingPiano
+            | ViewPianoRoll
+            | ViewChannelRack
+            | ViewMixer
+            | ViewArrangement
+            | ToggleInspector
+            | CloseFloating
+            | ZoomIn
+            | ZoomOut
+            | ZoomReset
+            | PickElement
+            | ToggleDeviceKeyboard
+            | ToggleBrowser
+            | ToggleInstrumentWindow => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave => Category::Mixer,
         }

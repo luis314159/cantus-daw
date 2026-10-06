@@ -22,6 +22,7 @@ pub mod keyboard;
 pub mod keymap;
 pub mod kit;
 pub mod layout;
+pub mod perf_status;
 pub mod picker;
 pub mod picker_catalog;
 pub mod picker_prefs;
@@ -32,6 +33,7 @@ pub mod record_session;
 pub mod recording;
 pub mod samples;
 pub mod settings;
+pub mod startup_probe;
 pub mod swap;
 pub mod takes;
 pub mod theme;
@@ -106,6 +108,7 @@ impl LaunchOptions {
 /// The window opens as the splash (ADR 0024 §12) — 520 × 320, no decorations, centred —
 /// and becomes the main window once everything is in (`boot`).
 pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
+    let started = std::time::Instant::now();
     // An explicit `--locale` wins over the stored preference; the title is drawn in it.
     if let Some(l) = options.locale.as_deref().and_then(i18n::Locale::from_code) {
         i18n::set_locale(l);
@@ -135,9 +138,12 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         "Cantus",
         native,
         Box::new(move |cc| {
-            Ok(Box::new(boot::Shell::Booting(
-                boot::Boot::new(cc, options).with_verse(verse),
-            )))
+            let shell = boot::Shell::Booting(boot::Boot::new(cc, options).with_verse(verse));
+            // The start-up benchmark's probe (round 20), only when asked for.
+            Ok(match std::env::var_os(startup_probe::VAR) {
+                Some(path) => Box::new(startup_probe::Probe::new(shell, started, path.into())),
+                None => Box::new(shell) as Box<dyn eframe::App>,
+            })
         }),
     )
     .map_err(|e| anyhow::anyhow!("{e}"))

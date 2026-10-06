@@ -1,0 +1,10 @@
+# perf — round 20's performance instruments: the dropout detector's blame in the status
+# line, and the callback histogram in its tooltip. Every key here needs its twin in perf.es.txt.
+perf.engine = the engine
+perf.instrument = {instrument} on {track}
+perf.strip = mixing on {strip}
+perf.insert = {effect} on {strip}
+perf.strip_n = Insert {n}
+perf.dropout = Dropout: {who} took {ms} ms of {budget} ms
+perf.dropout_tip = The latest block that ran past its time: {block} ms against a budget of {budget} ms, block {n}. What ran longest in it: {who}, {ms} ms. Freeze or remove it, or raise the buffer size, if it keeps happening.
+perf.histogram = Audio callback over {blocks} blocks: median {p50} ms · 99 % under {p99} ms · 99.9 % under {p999} ms · slowest {max} ms · budget {budget} ms · {overruns} overruns

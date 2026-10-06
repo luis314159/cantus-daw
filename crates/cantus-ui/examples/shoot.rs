@@ -11,10 +11,10 @@ use cantus_engine::EngineHandle;
 
 #[path = "shoot_audio/scene.rs"]
 mod audio_scene;
-#[path = "shoot_samples/scene.rs"]
-mod samples_scene;
 #[path = "shoot_auto/scene.rs"]
 mod auto_scene;
+#[path = "shoot_samples/scene.rs"]
+mod samples_scene;
 use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;

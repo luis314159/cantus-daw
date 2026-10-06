@@ -42,6 +42,8 @@ struct Key {
     voices: usize,
     latency: u64,
     unserved: u64,
+    /// The block of the latest dropout (its blame is shown until the next one).
+    dropout: Option<u64>,
     midi: usize,
     keyboard: Option<i32>,
     locale: Locale,
@@ -84,7 +86,19 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
                 ("voices", &key.voices),
             ],
         );
-        push(engine, key.overruns > 0, None, 4);
+        // The callback's histogram in the engine readout's tooltip (round 20, `perf_status`).
+        let tip = Some(crate::perf_status::histogram_text(app.engine.stats()));
+        push(engine, key.overruns > 0, tip, 4);
+    }
+    // The latest dropout and who it is blamed on (round 20, `perf_status`).
+    if let Some(d) = app.engine.stats().last_dropout {
+        let p = app.project();
+        push(
+            crate::perf_status::dropout_text(p, &d),
+            true,
+            Some(crate::perf_status::dropout_tip(p, &d)),
+            3,
+        );
     }
     // Plug-in latency is compensated, never silent: shown whenever there is some, in the
     // warning colour when a path could not be given a delay line.
@@ -173,6 +187,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         voices: stats.active_voices,
         latency: stats.latency_samples,
         unserved: stats.pdc_unserved,
+        dropout: stats.last_dropout.map(|d| d.block),
         midi: app.midi_port_names.len(),
         keyboard: app.keyboard_piano.then_some(app.keyboard.octave),
         locale: crate::i18n::locale(),

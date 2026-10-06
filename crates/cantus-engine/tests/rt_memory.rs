@@ -463,12 +463,23 @@ fn automation_never_allocates() {
     let eq_id = eq.id;
     p.strip_mut(s0).unwrap().effects.push(eq);
     let lead = p.tracks[0].id;
-    let ramp = |a: f32, b: f32| vec![AutoPoint::new(Ticks::ZERO, a), AutoPoint::new(Ticks::beats(4), b)];
+    let ramp = |a: f32, b: f32| {
+        vec![
+            AutoPoint::new(Ticks::ZERO, a),
+            AutoPoint::new(Ticks::beats(4), b),
+        ]
+    };
     let targets = [
         AutoTarget::StripGain(s0),
         AutoTarget::StripPan(s0),
-        AutoTarget::Effect { effect: eq_id, key: "b0.gain".into() },
-        AutoTarget::Firmus { track: lead, param: FirmusParam::Cutoff },
+        AutoTarget::Effect {
+            effect: eq_id,
+            key: "b0.gain".into(),
+        },
+        AutoTarget::Firmus {
+            track: lead,
+            param: FirmusParam::Cutoff,
+        },
         AutoTarget::MasterWidth,
         AutoTarget::TrackGain(lead),
     ];
@@ -480,7 +491,15 @@ fn automation_never_allocates() {
     rig.snapshot(&p);
     rig.tx.push(EngineMessage::Play).unwrap();
     rig.play("automation start", 30);
-    p.tracks[0].clips.last_mut().unwrap().automation.as_mut().unwrap().points[1].value = 0.1;
+    p.tracks[0]
+        .clips
+        .last_mut()
+        .unwrap()
+        .automation
+        .as_mut()
+        .unwrap()
+        .points[1]
+        .value = 0.1;
     rig.snapshot(&p);
     rig.play("automation new snapshot", 30);
     rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();

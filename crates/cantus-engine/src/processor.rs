@@ -369,6 +369,8 @@ pub struct Processor {
     master: master::MasterChain,
     /// Automation (ADR 0027, `processor_auto.rs`).
     auto: auto::AutoState,
+    /// Where each block's time goes, and who overran it (`crate::profile`).
+    prof: crate::profile::Profiler,
 }
 
 impl Processor {
@@ -447,7 +449,53 @@ impl Processor {
             live: rec::Live::new(),
             master: master::MasterChain::new(),
             auto: auto::AutoState::new(),
+            prof: crate::profile::Profiler::new(),
         }
+    }
+
+    /// Switch the per-node profiler on or off (on by default; the offline renderer turns
+    /// it off). Off, no node is blamed; the block histogram is kept either way.
+    pub fn set_profiling(&mut self, on: bool) {
+        self.prof.set_on(on);
+    }
+
+    /// Where the blocks' time went, node by node, since the totals were last reset — what
+    /// the benchmark reports as hot spots.
+    pub fn profiler(&self) -> &crate::profile::Profiler {
+        &self.prof
+    }
+
+    pub fn profiler_mut(&mut self) -> &mut crate::profile::Profiler {
+        &mut self.prof
+    }
+
+    /// The project's name for a profiler node, as the snapshot now stands.
+    pub fn culprit(&self, node: crate::profile::Node) -> crate::profile::Culprit {
+        use crate::profile::{Culprit, Node};
+        let insert = |strip: Option<StripId>, effects: &[Box<EffectUnit>], i: usize| {
+            Some((strip?, effects.get(i)?.id))
+        };
+        match node {
+            Node::Engine => None,
+            Node::Track(s) => self
+                .slots
+                .get(s)
+                .and_then(|t| t.id)
+                .map(Culprit::Instrument),
+            Node::Strip(s) => self.strips.get(s).and_then(|t| t.id).map(Culprit::Strip),
+            Node::Insert(s, i) => self.strips.get(s).and_then(|st| {
+                insert(st.id, &st.effects, i).map(|(strip, effect)| Culprit::Insert {
+                    strip,
+                    effect,
+                    index: i as u8,
+                })
+            }),
+            Node::MasterInsert(i) => self.master_effect(i).map(|effect| Culprit::MasterInsert {
+                effect,
+                index: i as u8,
+            }),
+        }
+        .unwrap_or(Culprit::Engine)
     }
 
     /// Send a note a track played to every effect listening to it, due when the audio
@@ -614,6 +662,7 @@ impl Processor {
     /// Called from the audio callback (or the offline renderer).
     pub fn process(&mut self, output: &mut [f32], channels: usize) {
         let started = Instant::now();
+        self.prof.begin(started);
         let channels = channels.max(1);
         let frames = (output.len() / channels).min(MAX_BLOCK_FRAMES);
         output.iter_mut().for_each(|s| *s = 0.0);
@@ -638,8 +687,20 @@ impl Processor {
         }
 
         // Instrumentation.
-        let elapsed = started.elapsed().as_secs_f64() * 1e6;
+        let ended = Instant::now();
+        let elapsed = ended.saturating_duration_since(started).as_secs_f64() * 1e6;
         let budget = frames as f64 / self.sample_rate * 1e6;
+        let overran = elapsed > budget && budget > 0.0;
+        if let Some((node, ns)) = self.prof.end(ended, overran) {
+            self.stats.last_dropout = Some(crate::profile::Dropout {
+                culprit: self.culprit(node),
+                culprit_us: ns as f32 / 1e3,
+                block_us: elapsed as f32,
+                budget_us: budget as f32,
+                block: self.stats.blocks_processed,
+            });
+        }
+        self.stats.histogram.record(elapsed);
         self.stats.block_frames = frames;
         self.stats.last_block_us = elapsed;
         self.stats.max_block_us = self.stats.max_block_us.max(elapsed);
@@ -648,7 +709,7 @@ impl Processor {
         } else {
             0.0
         };
-        if elapsed > budget && budget > 0.0 {
+        if overran {
             self.stats.overruns += 1;
         }
         self.stats.blocks_processed += 1;
@@ -1551,6 +1612,7 @@ impl Processor {
         let mut done = 0usize;
         let mut guard = 0usize;
         while done < frames {
+            self.prof.enter(crate::profile::Node::Engine);
             guard += 1;
             if guard > MAX_BLOCK_FRAMES * 2 {
                 break; // Impossible unless the loop region is degenerate; never spin.
@@ -1643,6 +1705,7 @@ impl Processor {
             let position = self.song_position();
             for ti in 0..self.track_to_slot.len() {
                 let slot = self.track_to_slot[ti];
+                self.prof.enter(crate::profile::Node::Track(slot));
                 let s = &mut self.slots[slot];
                 let mono = &mut self.mono[..n];
                 let l = &mut self.buf_l[..n];
@@ -1792,6 +1855,7 @@ impl Processor {
                 if !active && !ringing && !self.strip_lines_ringing(slot) {
                     continue; // Nothing came in and nothing is ringing.
                 }
+                self.prof.enter(crate::profile::Node::Strip(slot));
                 // Work in the shared scratch so the strip's own buffer can be handed to
                 // the strip it feeds without the borrow checker having to see two strips
                 // at once.
@@ -1819,6 +1883,7 @@ impl Processor {
                         }
                     }
                     for (i, e) in st.effects.iter_mut().enumerate() {
+                        self.prof.enter(crate::profile::Node::Insert(slot, i));
                         let looked_at = self.analysed == Some(e.id);
                         if looked_at {
                             for k in 0..n {
@@ -1922,6 +1987,7 @@ impl Processor {
                             }
                         }
                     }
+                    self.prof.enter(crate::profile::Node::Strip(slot));
                     // The strip's own EQ, after the inserts and before the channel is
                     // placed — where a console's channel EQ sits.
                     if !st.eq_flat {
@@ -2100,6 +2166,7 @@ impl Processor {
                     }
                 }
             }
+            self.prof.enter(crate::profile::Node::Engine);
             // The master's insert chain, on the summed mix, before its fader (ADR 0026).
             self.run_master(out, channels, n, done, seg_end, &position);
             // Master strip: width, then pan and gain, then polarity last of all. Automation

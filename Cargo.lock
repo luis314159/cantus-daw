@@ -787,6 +787,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cantus-bench"
+version = "0.1.0"
+dependencies = [
+ "cantus-core",
+ "cantus-engine",
+ "cantus-project",
+ "cantus-ui",
+ "eframe",
+ "egui",
+ "rtrb",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cantus-content"
 version = "0.1.0"
 dependencies = [

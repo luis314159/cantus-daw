@@ -20,6 +20,7 @@ pub mod midi;
 pub mod pdc;
 pub mod preview;
 pub mod processor;
+pub mod profile;
 pub mod pulsus_kit;
 pub mod recorder;
 pub mod render;
@@ -44,6 +45,7 @@ pub use messages::{
 };
 pub use midi::{list_ports, MidiInputs, MidiSender};
 pub use processor::Processor;
+pub use profile::{BlockHistogram, Culprit, Dropout};
 pub use recorder::{
     FinishedTake, LivePeaks, RecordLatency, RecordMark, RecordRings, MAX_INPUTS, PEAK_FRAMES,
 };

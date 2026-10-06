@@ -238,6 +238,12 @@ pub struct EngineStats {
     /// arrived, in frames, smoothed (`crate::devices::queue_wait`); 0 without an input.
     /// Part of the latency a recorded take is moved by (ADR 0025 §7).
     pub input_queue: f64,
+    /// Every block's wall time since the processor was built (`crate::profile`): the
+    /// callback's distribution, not just its last and worst.
+    pub histogram: crate::profile::BlockHistogram,
+    /// The latest block that overran, and the node that ran longest in it — the dropout
+    /// detector's blame (`crate::profile::Dropout`).
+    pub last_dropout: Option<crate::profile::Dropout>,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**

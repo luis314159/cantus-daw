@@ -1,0 +1,25 @@
+[package]
+name = "cantus-bench"
+description = "Cantus's benchmark suite: DSP kernels, the processor at scale, offline render, UI frames, start-up and open; DAWbench-style capacity tests; perf gates against stored baselines (docs/perf/benchmark.md)."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "cantus-bench"
+path = "src/main.rs"
+
+[dependencies]
+cantus-core.workspace = true
+cantus-engine.workspace = true
+cantus-project.workspace = true
+cantus-ui.workspace = true
+egui.workspace = true
+eframe.workspace = true
+rtrb.workspace = true
+serde.workspace = true
+serde_json.workspace = true

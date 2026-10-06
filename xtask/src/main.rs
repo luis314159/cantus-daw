@@ -8,6 +8,7 @@
 //! cargo run -p xtask -- package                 # the Windows release files (package.rs)
 //! cargo run -p xtask -- sign-test-cert          # a self-signed certificate (sign.rs)
 //! cargo run -p xtask -- version                 # the workspace's version
+//! cargo run -p xtask -- perf                    # the performance gate (perf.rs)
 //! ```
 //!
 //! Each plug-in is built on its own (`cargo build -p cantus-plugins --profile plugin
@@ -26,6 +27,7 @@ mod nsis;
 mod package;
 #[cfg(test)]
 mod package_tests;
+mod perf;
 mod sign;
 
 use cantus_plugins::desc::{self, Descriptor};
@@ -232,10 +234,12 @@ fn main() {
         Some("sign-file") => package::sign_file(&args[1..]),
         Some("sign-test-cert") => sign::make_test_cert(&target_dir()),
         Some("version") => println!("{}", package::VERSION),
+        Some("perf") => perf::perf(&args[1..]),
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
             eprintln!("       cargo run -p xtask -- package [--asio|--all] [--no-build] [--no-installer] [--sign|--sign-test]");
             eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
+            eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …]");
             std::process::exit(2);
         }
     }
