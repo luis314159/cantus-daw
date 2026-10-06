@@ -932,6 +932,18 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             app.toggle_pane(pane);
         }
     }
+    // The devices panel (round 20) and the full device picker.
+    let mut shown = app.workspace.contains(Pane::Devices);
+    if ui
+        .checkbox(&mut shown, t("picker.menu.view_devices"))
+        .changed()
+    {
+        app.toggle_pane(Pane::Devices);
+    }
+    if ui.button(t("picker.menu.open_picker")).clicked() {
+        ui.close();
+        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
+    }
     ui.separator();
     layout_menu(app, ui);
     ui.separator();

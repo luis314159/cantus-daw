@@ -144,6 +144,8 @@ pub struct CantusApp {
     pub rec: crate::record_session::RecSession,
     /// The device picker, when open, and what it was opened for (`crate::picker`).
     pub picker: Option<crate::picker::PickPurpose>,
+    /// The device picker's view: the catalogue, the search, favourites, thumbnails.
+    pub picker_view: views::picker::PickerView,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -281,6 +283,12 @@ impl CantusApp {
         app.apply_appearance();
         app.layouts = layouts;
         app.layouts_path = layouts_path;
+        // The device picker: the user's favourites and recents, and its pictures' cache.
+        app.picker_view
+            .load_prefs(crate::picker_prefs::default_path());
+        app.picker_view
+            .thumbs
+            .enable(Some(directories_fallback().join("cache").join("thumbs")));
         app.central = app.layouts.current.central.into();
         app.workspace.load(&app.layouts.current);
         app.keymap = keymap;
@@ -349,6 +357,7 @@ impl CantusApp {
             peaks: Default::default(),
             rec: Default::default(),
             picker: None,
+            picker_view: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,
@@ -2862,7 +2871,8 @@ impl CantusApp {
     /// piece of policy left is the typing piano: while it is on it owns the bare letter
     /// keys, so those bindings are suppressed and the tools stay reachable on the numbers.
     pub fn global_shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() {
+        // The device picker reads every key while it is open (type to search).
+        if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() || self.picker.is_some() {
             return;
         }
         // A focused fader moves with the arrow keys. This dispatch runs before any panel
@@ -3380,6 +3390,7 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::demos::frame(self, ctx);
+        views::picker::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
         design::paint_focus_ring(ctx, &theme::p());

@@ -41,6 +41,9 @@ pub enum Pane {
     ChannelRack,
     Mixer,
     Inspector,
+    /// The devices panel: every instrument and effect to browse and drag (round 20,
+    /// `views::picker_panel`), docked at the left like FL's browser.
+    Devices,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -64,6 +67,7 @@ impl Pane {
             Pane::ChannelRack => "workspace.pane.channel_rack",
             Pane::Mixer => "workspace.pane.mixer",
             Pane::Inspector => "workspace.pane.inspector",
+            Pane::Devices => "picker.panel.title",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -76,6 +80,7 @@ impl Pane {
             Pane::ChannelRack => "workspace.toggle.channel_rack",
             Pane::Mixer => "workspace.toggle.mixer",
             Pane::Inspector => "workspace.toggle.inspector",
+            Pane::Devices => "picker.menu.view_devices",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -87,6 +92,7 @@ impl Pane {
             Pane::ChannelRack => Glyph::Rack,
             Pane::Mixer => Glyph::Mixer,
             Pane::Inspector => Glyph::Inspector,
+            Pane::Devices => Glyph::Browser,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -338,6 +344,12 @@ impl Workspace {
             },
             Pane::Inspector => {
                 s.split_right(NodeIndex::root(), inspector_share, vec![Pane::Inspector]);
+            }
+            // At the left edge, a browser's width (FL's, Ableton's).
+            Pane::Devices => {
+                // `split_left` gives the new (left) node `fraction` of the width.
+                let share = (260.0 / width).clamp(0.12, 0.3);
+                s.split_left(NodeIndex::root(), share, vec![Pane::Devices]);
             }
             Pane::Device(_) => match arrangement.or(lower) {
                 Some(node) => append(s, node, pane),

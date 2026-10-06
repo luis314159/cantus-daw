@@ -113,6 +113,7 @@ impl TabViewer for Viewer<'_> {
             Pane::ChannelRack => super::channel_rack::show(app, ui),
             Pane::Mixer => super::mixer::show(app, ui),
             Pane::Inspector => super::inspector::show(app, ui),
+            Pane::Devices => super::picker_panel::show(app, ui),
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }
