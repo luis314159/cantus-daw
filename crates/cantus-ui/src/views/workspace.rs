@@ -347,7 +347,8 @@ impl Workspace {
             }
             // At the left edge, a browser's width (FL's, Ableton's).
             Pane::Devices => {
-                let share = 1.0 - (260.0 / width).clamp(0.12, 0.3);
+                // `split_left` gives the new (left) node `fraction` of the width.
+                let share = (260.0 / width).clamp(0.12, 0.3);
                 s.split_left(NodeIndex::root(), share, vec![Pane::Devices]);
             }
             Pane::Device(_) => match arrangement.or(lower) {
