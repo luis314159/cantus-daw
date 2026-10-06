@@ -74,6 +74,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                     midi(app, ui);
                     look(app, ui);
                     saving(app, ui);
+                    super::update::settings_section(app, ui);
                     w::band(ui, Src::Key("host.manager.title"));
                     super::plugins::manager(app, ui);
                 });

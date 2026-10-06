@@ -975,6 +975,10 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
 }
 
 fn help_menu(app: &mut CantusApp, ui: &mut Ui) {
+    if ui.button(t("update.menu.check")).clicked() {
+        ui.close();
+        views::update::check_now(app);
+    }
     if ui.button(t("menu.shortcuts")).clicked() {
         ui.close();
         app.show_shortcuts = true;

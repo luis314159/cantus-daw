@@ -137,6 +137,28 @@ pub struct Settings {
     /// What is remembered per interface, and whether the first-run setup was done
     /// (round 20, `audio_setup::memory`).
     pub audio_setup: crate::audio_setup::memory::AudioMemory,
+    /// Checking GitHub for a newer Cantus (ADR 0032).
+    pub updates: UpdateSettings,
+}
+
+/// The updater's two preferences. The schedule itself (when it last asked) is in
+/// `update.json`, not here: it is the program's bookkeeping, not a choice.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateSettings {
+    /// Ask once a day, at start. On by default; off sends nothing, ever.
+    pub check_daily: bool,
+    /// A proxy typed by the user, for a network whose proxy Windows does not set.
+    pub proxy: Option<String>,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        UpdateSettings {
+            check_daily: true,
+            proxy: None,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -152,6 +174,7 @@ impl Default for Settings {
             sample_audition: true,
             verse: crate::verse::VerseSettings::default(),
             audio_setup: Default::default(),
+            updates: UpdateSettings::default(),
         }
     }
 }
@@ -224,6 +247,10 @@ mod tests {
             ui_scale: 1.25,
             mixer_density: MixerDensity::Compact,
             mixer_meter_wave: true,
+            updates: UpdateSettings {
+                check_daily: false,
+                proxy: Some("http://proxy.example:8080".into()),
+            },
             sample_folders: vec!["D:/Samples".into()],
             sample_audition: false,
             verse: crate::verse::VerseSettings {

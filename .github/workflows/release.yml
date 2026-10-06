@@ -1,0 +1,166 @@
+# Builds, tests and publishes a Windows release (ADR 0032).
+#
+# Runs when the owner pushes a version tag (`git tag v0.2.0 && git push origin v0.2.0`);
+# the tag must equal the workspace version in Cargo.toml. Run by hand (Actions → Release
+# → Run workflow) it builds the files and keeps them as an artifact, publishing nothing.
+#
+# Signing is optional and needs no change here, only secrets/variables in the repository:
+#   PFX:   secrets.CANTUS_SIGN_PFX_BASE64, secrets.CANTUS_SIGN_PFX_PASSWORD,
+#          vars.CANTUS_PUBLISHER (the certificate's common name)
+#   Azure Trusted Signing: vars.AZURE_SIGNING_ENDPOINT, vars.AZURE_SIGNING_ACCOUNT,
+#          vars.AZURE_SIGNING_PROFILE, vars.CANTUS_PUBLISHER, and secrets.AZURE_CLIENT_ID,
+#          secrets.AZURE_CLIENT_SECRET, secrets.AZURE_TENANT_ID
+# Without them the release is unsigned and the app verifies updates by SHA-256 only.
+# See docs/round20/signing.md.
+
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # NSIS 3.11, portable; SHA-256 as SourceForge lists it.
+  NSIS_URL: https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip
+  NSIS_SHA256: c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1
+  # The Steinberg ASIO SDK 2.3.4 (GPL-3-compatible); docs/round19/devices.md.
+  ASIO_URL: https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip
+  ASIO_SHA256: d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets
+        env:
+          RUSTFLAGS: -D warnings
+      - run: cargo test --workspace
+
+  package:
+    needs: test
+    runs-on: windows-latest
+    env:
+      CANTUS_PUBLISHER: ${{ vars.CANTUS_PUBLISHER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The tag is the workspace's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version="$(cargo run -q -p xtask -- version)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME but Cargo.toml says $version"; exit 1
+          fi
+
+      - name: NSIS (portable, verified)
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\nsis.zip"
+          Invoke-WebRequest $env:NSIS_URL -OutFile $zip -UserAgent "Wget"
+          $h = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne $env:NSIS_SHA256) { throw "NSIS zip hash $h" }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          "CANTUS_MAKENSIS=$env:RUNNER_TEMP\nsis-3.11\makensis.exe" >> $env:GITHUB_ENV
+
+      - name: ASIO SDK (verified) and LLVM
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\asiosdk.zip"
+          Invoke-WebRequest $env:ASIO_URL -OutFile $zip
+          $h = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne $env:ASIO_SHA256) { throw "ASIO SDK zip hash $h" }
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\asio"
+          $sdk = Get-ChildItem "$env:RUNNER_TEMP\asio" -Recurse -Directory -Filter ASIOSDK | Select-Object -First 1
+          "CPAL_ASIO_DIR=$($sdk.FullName)" >> $env:GITHUB_ENV
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
+      - name: Signing with a PFX (when its secret exists)
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CANTUS_SIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.CANTUS_SIGN_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64) { "No PFX secret: unsigned unless Azure is set."; exit 0 }
+          $pfx = "$env:RUNNER_TEMP\sign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          "CANTUS_SIGN=pfx" >> $env:GITHUB_ENV
+          "CANTUS_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+          "CANTUS_SIGN_PFX_PASSWORD=$env:PFX_PASSWORD" >> $env:GITHUB_ENV
+          "SIGN_FLAG=--sign" >> $env:GITHUB_ENV
+
+      - name: Signing with Azure Trusted Signing (when it is set up)
+        if: vars.AZURE_SIGNING_ACCOUNT != ''
+        shell: pwsh
+        env:
+          ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          nuget install Microsoft.Trusted.Signing.Client -OutputDirectory "$env:RUNNER_TEMP\tsc" -NonInteractive
+          $dlib = Get-ChildItem "$env:RUNNER_TEMP\tsc" -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+            Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+          $meta = "$env:RUNNER_TEMP\metadata.json"
+          @{ Endpoint = $env:ENDPOINT; CodeSigningAccountName = $env:ACCOUNT; CertificateProfileName = $env:PROFILE } |
+            ConvertTo-Json | Set-Content $meta
+          "CANTUS_SIGN=azure" >> $env:GITHUB_ENV
+          "CANTUS_SIGN_AZURE_DLIB=$($dlib.FullName)" >> $env:GITHUB_ENV
+          "CANTUS_SIGN_AZURE_METADATA=$meta" >> $env:GITHUB_ENV
+          "SIGN_FLAG=--sign" >> $env:GITHUB_ENV
+
+      - name: Package both flavours
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: cargo run -p xtask -- package --all $SIGN_FLAG
+
+      - name: Forget the certificate file
+        if: always()
+        shell: pwsh
+        run: Remove-Item "$env:RUNNER_TEMP\sign.pfx" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cantus-windows
+          path: target/package/dist/
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cantus-windows
+          path: dist
+      - name: Check the sums
+        run: cd dist && sha256sum -c SHA256SUMS.txt
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          notes="docs/releases/$tag.md"
+          args=(--title "Cantus ${tag#v}" --verify-tag)
+          if [ -f "$notes" ]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
+          case "$tag" in *-*) args+=(--prerelease);; esac
+          gh release create "$tag" dist/* "${args[@]}"

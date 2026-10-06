@@ -1,0 +1,145 @@
+# ADR 0032 — The installer, code signing and updates
+
+**Status:** Accepted · **Date:** 2026-10-05 · **Round:** 20 (packaging) · **Extends:** ADR 0001 (licence), ADR 0020 (our plug-ins outside Cantus), ADR 0025 §10 (ASIO)
+
+> Numbering: 0027–0029 are the first wave's. If another second-wave builder also took
+> 0030, the integrator renumbers one of the two.
+
+## Context
+
+Cantus could only be run from source. BACKLOG §6 asks for what every DAW a musician
+downloads has: an installer, a `.cantus` file association, a portable copy, signed
+binaries so Windows' SmartScreen does not warn people off, and updates that arrive with
+their release notes — without telemetry, and working on the networks people actually
+have, including corporate ones whose proxy inspects TLS and quarantines downloads.
+
+## Decisions
+
+### 1. NSIS, per user, no administrator rights
+
+| | WiX (MSI) | NSIS (EXE) |
+|---|---|---|
+| Per-user install without UAC | possible (`Scope="perUser"`), but MSI's per-user mode has sharp edges (ALLUSERS, upgrade codes that cannot cross scopes) | the natural mode: `RequestExecutionLevel user`, HKCU, `%LOCALAPPDATA%\Programs` |
+| Licence of the toolset | MS-RL; since v6 the binaries come with the Open Source Maintenance Fee for revenue-earning users | zlib/libpng — nothing to pay or track, ever |
+| Toolchain | .NET SDK + `dotnet tool` (v4+), or the old v3 with .NET Framework | one 2.4 MB portable zip; `makensis` also runs on Linux (CI can cross-build) |
+| Silent update from the app | `msiexec /i … /qn`, MajorUpgrade rules | the same `.exe` with `/S` — the updater runs the file it verified |
+| Enterprise deployment (GPO/Intune) | native | possible (silent switches), not native |
+| Uninstall precision | Windows Installer tracks every file | ours: the script is generated from the staged file list, so every `File` has its `Delete` (a test holds it) |
+
+NSIS wins on what the brief and the owner ask for: per-user without admin rights, a free
+toolset with no strings, a small single-file installer that is also the update payload,
+and an English/Spanish UI from the app's own locale files. An MSI for enterprise
+deployment can be added later from the same staging folder; nothing here prevents it.
+
+**What it installs.** `cantus.exe`, `LICENSE.txt` (GPL-3.0), `COPYRIGHT.txt` (which crates
+are MIT/Apache) and `README.txt` into `%LOCALAPPDATA%\Programs\Cantus`; a Start-menu
+shortcut; an uninstaller (Apps & features, HKCU). Optional, as components: the `.cantus`
+association with Cantus's icon (on), a desktop shortcut (off), the CLAP plug-ins (on) and
+the VST3 plug-ins (on), each into a `Cantus` folder in the **per-user** standard folders
+(`%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`, the CLAP and VST3 specifications'
+user locations). The choices are remembered (HKCU\Software\Cantus) and kept by updates.
+The uninstaller removes exactly what was written, the association only where it is still
+ours, and — only if ticked — the user's data folder.
+
+**Portable.** The portable zip holds the same files plus `portable.txt`; a copy with that
+marker keeps settings, presets and autosaves in `data\` beside the executable
+(`app.rs::directories_fallback`, three lines) and writes nothing to the profile or the
+registry.
+
+**ASIO.** The `asio` flavour (ADR 0025 §10) is a second set of files with `-asio` in their
+names; it installs over the same folder (a user has one or the other) and updates to its
+own flavour. The ASIO SDK is GPL-3-compatible since 2025, so the binary can be shipped; the
+SDK itself is never committed.
+
+**FlexASIO, fetched, never bundled** (the owner, 2026-10-06). The ASIO flavour's installer
+offers an unticked component, *FlexASIO driver (downloaded now)*. When ticked it runs
+`flexasio.ps1` (embedded in the installer): it asks GitHub for FlexASIO's **latest**
+release, takes its `FlexASIO-<version>.exe`, checks that what arrived is a Windows
+program (`MZ`), not a proxy's page, of exactly the size GitHub reports (and its SHA-256
+when GitHub gives a digest — FlexASIO's assets have none today, and its `.sigstore`
+bundle needs a verifier we do not ship), and runs it elevated (UAC). Anything else is
+skipped with a line in the install log and nothing is run; a silent install or update
+never does it. PowerShell's `Invoke-WebRequest` was chosen over an NSIS download plug-in
+because it uses Windows' own proxy settings, PAC scripts included, and certificate store
+— the one way to behave as the browser does behind a corporate proxy — and NSIS needs no
+third-party plug-ins. The same checks are in `cantus_update::flexasio` for the app's
+audio setup (the audio-setup builder's first-run offer). ASIO4ALL is never downloaded or
+bundled: its licence forbids redistribution, so the app only links to its page.
+
+### 2. One task makes a release
+
+`cargo run -p xtask -- package [--asio|--all] [--sign|--sign-test] [--no-build]
+[--no-installer]` builds, bundles the plug-ins (ADR 0020's `bundle`), stages each flavour,
+signs, zips, generates `config.nsh`/`files.nsh`/`strings.nsh` beside the hand-written
+`xtask/installer/cantus.nsi`, runs `makensis`, signs the installer, and writes
+`SHA256SUMS.txt`. The file names are made in one place, `cantus_update::release`, which
+the app's updater reads, so the two cannot drift.
+
+### 3. Signing through the environment only
+
+`signtool` (newest Windows SDK) signs `cantus.exe`, every plug-in library, the
+uninstaller (`!uninstfinalize`, calling `xtask sign-file`) and the installer, SHA-256 with
+an RFC 3161 timestamp. The signer is chosen by environment variables — a PFX file and its
+password, a certificate in the store by thumbprint (hardware tokens, EV), or **Azure
+Trusted Signing** through its `dlib` — so no secret is in the repository, and the log
+masks the password. `xtask sign-test-cert` makes a self-signed certificate under
+`target/` and `package --sign-test` signs a whole release with it: the pipeline is proved
+end to end without buying anything. What the owner must buy is in
+`docs/round20/signing.md`.
+
+### 4. Updates: GitHub Releases, once a day, nothing sent
+
+On start, an **installed or portable** Cantus with *Check daily* on (the default) asks
+`GET https://api.github.com/repos/luis314159/cantus/releases/latest` — at most once a day
+after an answer, at most once an hour after a failure, with `If-None-Match` so a repeat
+costs nothing against GitHub's 60-an-hour anonymous limit. A copy built from source never
+checks by itself. The request carries `User-Agent: cantus-update` and nothing else: no
+version, no machine, no identifier — **no telemetry**. Drafts and pre-releases are not
+offered to a stable build. The release's notes (its Markdown, reduced to headings,
+bullets and paragraphs; links keep only their text; nothing is fetched or rendered as
+HTML) are shown in the update window. *Skip this version* is remembered.
+
+### 5. Verify before anything runs
+
+An installed copy downloads its flavour's installer into `…\Cantus\updates\` and checks:
+not empty and not an HTML page; the size GitHub reported; the SHA-256 in the asset's
+`digest` (GitHub computes it at upload) **and** the line in the release's
+`SHA256SUMS.txt` — every hash present must match, and at least one must exist; and, when
+the running build was signed (`CANTUS_PUBLISHER` set at build time), Windows'
+Authenticode verdict must be `Valid` with that same publisher. A file that fails is
+deleted. It installs **on quit** (on by default, a tick box), or now with *Restart and
+update*: the installer runs with `/S /UPDATE [/RELAUNCH]`, waits for `cantus.exe` to
+close, keeps the components chosen before, and reopens Cantus if asked. A portable copy is
+told and given the release page.
+
+### 6. Networks as they are
+
+HTTPS goes through the operating system's TLS and trust store (`ureq` with `native-tls`:
+SChannel on Windows). A corporate proxy that inspects TLS has its root installed by IT,
+so the check works there exactly as the browser does — and **verification is never
+turned off**. The proxy is the one typed in Settings, else the `HTTPS_PROXY` family, else
+Windows' fixed proxy; a PAC script is not evaluated (a transparent client such as
+Zscaler's needs none). A proxy that quarantines a download answers `200 OK` with its own
+page: the updater recognises the page, deletes it, says so, and tries again every two
+minutes, six times — about the ten minutes such a hold lasts.
+
+### 7. A release is a tag
+
+`.github/workflows/release.yml` runs on a pushed `v*.*.*` tag (the owner decides when):
+tests, the tag must equal the workspace version, NSIS and the ASIO SDK are fetched and
+verified by SHA-256, both flavours are packaged and signed when signing secrets exist, and
+`gh release create` publishes the files with notes from `docs/releases/<tag>.md` (or
+GitHub's generated notes). `workflow_dispatch` builds without publishing.
+
+## Consequences
+
+- New crate `cantus-update` (GPL-3.0-or-later; `ureq`, `native-tls` — MIT/Apache).
+  `xtask` gains `zip` (MIT) and depends on `cantus-update` for the names.
+- `LICENSE-GPL` (the GPL-3.0 text) is added at the root: `LICENSE` already pointed to it,
+  and a GPL binary must ship with it.
+- Until a certificate is bought, releases are unsigned: SmartScreen warns on first runs,
+  and updates are verified by SHA-256 only. Signing later changes no code.
+- Old files of a previous version that the new one no longer ships stay in the install
+  folder until uninstall (the uninstaller knows only its own list) — harmless today, worth
+  a manifest of the previous install if files ever move.
+- The macOS DMG/notarisation and Linux AppImage/Flatpak of BACKLOG §6 are not done.

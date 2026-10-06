@@ -127,6 +127,8 @@ pub struct CantusApp {
     pub demos: views::demos::Picker,
     /// The sample browser and the content manager (ADR 0030).
     pub samples: crate::samples::Samples,
+    /// Updates from GitHub Releases (ADR 0032): the check, the notice, the window.
+    pub update: views::update::UpdateUi,
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
@@ -360,6 +362,7 @@ impl CantusApp {
             interop: Default::default(),
             demos: Default::default(),
             samples: Default::default(),
+            update: Default::default(),
             plugins,
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
@@ -3445,6 +3448,7 @@ impl CantusApp {
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
+        views::update::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
         design::paint_focus_ring(ctx, &theme::p());
@@ -3458,6 +3462,7 @@ impl CantusApp {
         }
         if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
+            views::update::on_quit(self);
         }
         if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
             // Last line of defence: never lose work on close.
@@ -3647,6 +3652,10 @@ pub fn data_dir() -> PathBuf {
 }
 
 fn directories_fallback() -> PathBuf {
+    // A portable copy (ADR 0032) keeps everything beside its executable.
+    if let Some(dir) = cantus_update::install::portable_data_dir() {
+        return dir;
+    }
     std::env::var_os("LOCALAPPDATA")
         .or_else(|| std::env::var_os("XDG_DATA_HOME"))
         .or_else(|| {

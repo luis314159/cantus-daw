@@ -1,0 +1,5 @@
+7e5b7b3db2047358442772382235f35206f4d8c18f6db9d1664c9da56f2d1450  Cantus-0.2.0-plugins-windows-x64.zip
+d91a566058762863fa02625e92b20c33f222228f0389b5798bf82762bfd3eeca  Cantus-0.2.0-windows-x64-asio-portable.zip
+b624e95b7adbbac9eec0aacdac7c4deb5b4891670187d2f68f68272f92bf2039  Cantus-0.2.0-windows-x64-asio-setup.exe
+9e1c20fa2ec222f55a07b23f20a686aadefe4822e4531c3643e563d3364eacf7  Cantus-0.2.0-windows-x64-portable.zip
+935028a696cade8bd2b31a14f31f553f20051ebaa13daa28e59396abd2d2ac78  Cantus-0.2.0-windows-x64-setup.exe
