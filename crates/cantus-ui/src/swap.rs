@@ -319,6 +319,39 @@ impl CantusApp {
         added.is_some()
     }
 
+    /// The commands that point the automation of `old`'s parameters at `new`, for every
+    /// parameter the new kind also has (by key).
+    fn retarget_automation(
+        &self,
+        old: EffectId,
+        new: EffectId,
+        kind: cantus_core::EffectKind,
+    ) -> Vec<Command> {
+        let mut out = Vec::new();
+        for t in &self.project().tracks {
+            for c in &t.clips {
+                let Some(a) = c.automation.as_ref() else {
+                    continue;
+                };
+                if let cantus_core::AutoTarget::Effect { effect, key } = &a.target {
+                    if *effect == old && kind.param(key).is_some() {
+                        let mut a = a.clone();
+                        a.target = cantus_core::AutoTarget::Effect {
+                            effect: new,
+                            key: key.clone(),
+                        };
+                        out.push(Command::SetClipAutomation {
+                            track: t.id,
+                            clip: c.id,
+                            automation: Some(a),
+                        });
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// *Swap effect*: `choice` in `effect`'s place on `strip` (the same position, its mix
     /// and bypass, its key and note source where the new kind takes them) as one
     /// `ReplaceEffect`. The editor open on the old one opens on the new one, where it was.
@@ -367,19 +400,27 @@ impl CantusApp {
         let new_id = slot.id;
         let kind = slot.spec.kind;
         let was_open = self.effect_window_open(strip, effect);
-        let replaced = self.exec(Command::ReplaceEffect {
-            strip,
-            effect,
-            slot: Box::new(slot.clone()),
-        }) || {
+        // Automation follows the slot (ADR 0027): a lane on a parameter the new kind also
+        // has is pointed at the new effect in the same undo step; one on a parameter it
+        // lacks keeps its clips and goes quiet.
+        let retarget = self.retarget_automation(effect, new_id, kind);
+        let swap = |slot: &EffectSlot| {
+            let mut commands = vec![Command::ReplaceEffect {
+                strip,
+                effect,
+                slot: Box::new(slot.clone()),
+            }];
+            commands.extend(retarget.iter().cloned());
+            Command::Batch {
+                label_key: "cmd.replace_effect".into(),
+                commands,
+            }
+        };
+        let replaced = self.exec(swap(&slot)) || {
             // The key would now close a loop (the routes moved since): swap without it.
             slot.sidechain = None;
             slot.midi_from = None;
-            self.exec(Command::ReplaceEffect {
-                strip,
-                effect,
-                slot: Box::new(slot),
-            })
+            self.exec(swap(&slot))
         };
         if !replaced {
             return false;
