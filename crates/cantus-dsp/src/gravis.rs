@@ -833,7 +833,9 @@ impl Gravis {
         self.s.engine != Engine::String
             && self.s.phase != PhaseMode::Free
             && self.idle()
-            && self.alloc.is_clear()
+            // One voice; its allocator is never told the voice ended, and a released slot
+            // gives the next note the same voice as a free one (Gravis ignores `stolen`).
+            && self.alloc.is_quiet()
             && self.held.iter().all(|h| h.0 == NO_ID)
             && self.window_left == 0
             && self.bend.value == 0.0

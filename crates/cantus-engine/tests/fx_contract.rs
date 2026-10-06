@@ -370,7 +370,7 @@ fn twins(
             }
             // As good as new only while the parameters stay (a memory that outlives
             // silence may show once they move): reported, not required.
-            eprintln!("  (parameters moved at the wake: the {name} twin differs: {e})");
+            eprintln!("  ({kind:?}: parameters moved at the wake: the {name} twin differs: {e})");
         }
     }
     Ok(Some(silent))
