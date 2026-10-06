@@ -95,6 +95,27 @@ audio track on that input, selected. Press record. Three clicks; Settings never 
     screen, a virtual cable.
   - `audio_parts.rs` — a wrapped paragraph (the kit's text boxes are single-line), a
     primary button, a choice key with a caption, a horizontal level bar.
+  - `audio_drivers.rs` + `audio_setup/drivers.rs` — **Get a low-latency driver** (the
+    owner's request of 2026-10-06): opened from *Get ASIO…* beside the Driver row of the
+    popover (always there) and from the first run's latency step. It says which ASIO
+    drivers are installed (read from the registry even in a build without ASIO) and, in a
+    build without the `asio` feature, says plainly that this build cannot use them — which
+    is very likely why the owner could not find ASIO4ALL after installing it. Then:
+    FlexASIO's latest release page; ASIO4ALL's site (a link only: its licence forbids
+    redistribution); the makers' driver pages (13 makers, the detected interface's maker
+    first and marked); an obvious **Rescan drivers** button, and a rescan whenever the
+    window gets the focus back while the popover, the setup or this window is open, so a
+    driver installed meanwhile appears. In an ASIO build, Driver ▸ ASIO now appears as
+    soon as *any* ASIO driver is installed (FlexASIO, ASIO4ALL, an interface's), and an
+    **ASIO driver** row lists them all by name.
+  - The owner also asked for FlexASIO to be **downloaded and installed from inside
+    Cantus** (GitHub API → download to temp → verify → run with UAC). The pure parts are
+    here and tested — `parse_release` (GitHub's answer: tag, `.exe`, size, `.sigstore`)
+    and `verify_installer` (refuses an HTML page — the proxy's quarantine — a non-PE file,
+    a wrong size). **The download-and-run step itself was not wired**: the session's
+    permission policy refused it as an execution surface (fetch an installer and run it
+    elevated). Today the button opens the release page and the text says how to install.
+    Wiring it needs the owner's explicit approval of that capability.
 - Settings › Audio: *Apply* goes through `audio_setup::apply` (remembered per interface);
   two buttons open the setup assistant and the routing page.
 - A track armed with no input open now opens the **audio popover** (not Settings).
@@ -105,7 +126,45 @@ audio track on that input, selected. Press record. Three clicks; Settings never 
 
 ## Tests
 
-(see the report at the end of this file)
+- `cantus-engine/tests/routing.rs` (4): **null test** — the default routing leaves 1, 2,
+  4 and 8-channel output bit-identical; the master moves to another pair (and falls back
+  to 1–2 on a device without it); the cue is a copy at its level, the gain clamped; the
+  tone plays only on its pair at −18 dBFS, fades in from silence and out, then the
+  routing is null again.
+- `cantus-engine/tests/hotplug.rs` (2): the watcher sends the first list, then only
+  changes (added / removed); polling and dropping never wait for a slow scan.
+- `cantus-ui/tests/audio_setup.rs` (4): endpoints → interfaces, ASIO matching, kinds,
+  suggestions; per-interface memory round-trips through `settings.json` (and a pre-20
+  file reads as nothing remembered); **the chip opens the popover, and buffer, rate and
+  interface (from its list) switch in place through the published rects**, each
+  interface getting its own settings back; the round trip per buffer estimate.
+- `cantus-ui/tests/audio_setup_flows.rs` (3): **a lost interface** — red chip, the card,
+  the session still edits and undoes, frames still draw, the problem said by name — and
+  **it comes back by itself** with its settings; **a new interface is offered** through
+  the watcher thread and one click on the card switches; **problems with fixes**: rate
+  mismatch (both fixes clicked in the popover), busy, stalled ASIO, dropouts → bigger
+  buffer, every sentence in EN and ES.
+- `cantus-ui/tests/audio_setup_first.rs` (4): **the first run — three clicks to an armed
+  track on the input that moved**, Settings never opened, the tone stopped, one undo;
+  it opens only for a fresh install and only in the real app; channel names replace
+  "In 1" in `input_label`; the routing page sets cue and main pair through its rects and
+  stores them; every view painted in EN and ES without a missing key; the chip's lamp
+  (green, amber after a dropout, red lost / no device).
+- `cantus-ui/tests/audio_drivers.rs` (3): a recorded GitHub API response is parsed (tag,
+  installer, size, signature bundle; a proxy page and junk refused); installer
+  verification (PE + size; HTML quarantine page, zip, wrong size refused; every refusal
+  worded in both languages); the makers' list with the detected maker first.
+- `rec_flows.rs`: the no-input case now opens the popover.
+
+Runs: `cargo test -p cantus-ui` — 527 passed (frame budget, kit lint, gallery included);
+`cargo test -p cantus-engine` — 276 passed; `cargo clippy -p cantus-engine -p cantus-ui
+--tests --examples` clean; `cargo fmt` applied.
+
+Looked at: `cargo run -p cantus-ui --example shoot_audio_setup` (26 PNGs in
+`target/shoot-audio`), Slate and Paper, English and Spanish, 100 % and 150 %. Fixed after
+looking: captions shouted "MS" (caps off), the cue value elided, the first run overflowed
+at 150 % (it scrolls now, the footer stays), the popover's rows moved for a frame after
+opening (it is placed from its own height), the first run's veil could come in front.
 
 ## Files touched outside this area
 
@@ -118,3 +177,17 @@ hunks), `lib.rs` (1), `settings.rs` (a field), `views/mod.rs` (module list),
 `views/settings_audio.rs` (Apply through `apply`, two buttons), `record_session.rs`
 (`input_label` reads names; no-input opens the popover), `tests/rec_flows.rs` (that
 assertion), `docs/adr/0025-recording-audio.md` (§11).
+
+## Left
+
+- **In-app FlexASIO install** (see above): parsing and verification are done and tested;
+  the download → run-elevated step awaits the owner's approval of that capability.
+- Real hardware: the hot-plug path and the routing were tested with scripted device
+  lists and a hand-driven engine; a run with a USB interface plugged and unplugged, and
+  a 4-output interface for the cue, is still to do (the machine here has only Realtek).
+- A WASAPI endpoint that exposes only 2 channels cannot carry a cue on 3–4; the routing
+  page offers the pairs the open stream has. Opening WASAPI with all of a device's
+  channels (not the mix format's) would widen that.
+- The cue is a copy of the master; a separate cue mix (per-channel sends to the cue) is
+  the next step.
+- Exclusive-mode WASAPI (lower latency without ASIO) is not offered.
