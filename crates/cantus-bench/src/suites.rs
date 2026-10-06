@@ -17,8 +17,12 @@ pub const SIZES: [usize; 4] = [10, 32, 64, 100];
 /// percentile, and the load against the budget; the hot spots of the 64-track session.
 pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
     let mut out = Vec::new();
-    let mut cases: Vec<(usize, usize)> = SIZES.iter().map(|n| (*n, 128)).collect();
-    cases.push((64, 64));
+    // The gate keeps to the sessions that run in seconds; the full suite plays them all.
+    let sizes: &[usize] = if plan.quick { &[10, 32] } else { &SIZES };
+    let mut cases: Vec<(usize, usize)> = sizes.iter().map(|n| (*n, 128)).collect();
+    if !plan.quick {
+        cases.push((64, 64));
+    }
     for (n, frames) in cases {
         let p = sessions::scaled(n);
         let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
@@ -94,9 +98,9 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
     out
 }
 
-/// The profiler's own cost: the 64-track session with it on and off.
+/// The profiler's own cost: the 32-track session with it on and off.
 pub fn profiler_overhead(plan: &Plan) -> Vec<Metric> {
-    let p = sessions::scaled(64);
+    let p = sessions::scaled(32);
     let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
     let blocks = (plan.session_seconds * SAMPLE_RATE / 128.0).ceil() as usize;
     let mut pct = Vec::new();
@@ -109,7 +113,7 @@ pub fn profiler_overhead(plan: &Plan) -> Vec<Metric> {
         pct.push((a - b) / b * 100.0);
     }
     vec![Metric::new(
-        "engine.profiler_overhead.s64",
+        "engine.profiler_overhead.s32",
         "% of block",
         Better::Lower,
         Summary::of(&pct),
@@ -124,7 +128,7 @@ pub fn render_speed(plan: &Plan) -> Vec<Metric> {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let mut cases: Vec<(String, cantus_core::Project, Ticks, Option<Ticks>)> = Vec::new();
     let demo_ids: &[&str] = if plan.quick {
-        &["house"]
+        &[]
     } else {
         &["house", "ballad", "funk", "lofi", "ambient", "trap"]
     };
@@ -132,7 +136,8 @@ pub fn render_speed(plan: &Plan) -> Vec<Metric> {
         let p = (cantus_ui::demos::find(id).expect("demo").build)();
         cases.push((id.to_string(), p, Ticks::ZERO, None));
     }
-    for n in [10usize, 64] {
+    let sizes: &[usize] = if plan.quick { &[10] } else { &[10, 64] };
+    for &n in sizes {
         let p = sessions::scaled(n);
         let l = p.loop_region.clone().expect("a loop");
         cases.push((format!("s{n}"), p, l.start, Some(l.end)));

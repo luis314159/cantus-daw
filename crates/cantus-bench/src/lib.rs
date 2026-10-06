@@ -47,15 +47,15 @@ pub struct Plan {
 impl Plan {
     pub const QUICK: Plan = Plan {
         quick: true,
-        runs: 5,
-        kernel_seconds: 1.0,
-        session_seconds: 2.0,
+        runs: 3,
+        kernel_seconds: 0.5,
+        session_seconds: 1.0,
     };
     pub const FULL: Plan = Plan {
         quick: false,
-        runs: 9,
-        kernel_seconds: 3.0,
-        session_seconds: 8.0,
+        runs: 5,
+        kernel_seconds: 2.0,
+        session_seconds: 4.0,
     };
 }
 

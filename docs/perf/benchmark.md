@@ -10,12 +10,17 @@ time. This file is the method. `docs/perf/baseline.md` is the first set of numbe
 1. **Release builds only.** `cantus-bench` warns when it is a debug build; its numbers
    then mean nothing. The `release` profile is the one users run (thin LTO, 4 codegen
    units, opt-level 3).
-2. **Medians of repeated runs, with their spread.** Every metric is run *n* times (5 in
-   the quick suite, 9 in the full one) and reported as the median with the 10th–90th
-   percentile range and min–max. Never a single run, never a mean.
-3. **Say what the machine was doing.** A shared machine (other builds running) widens the
-   spread; the report records the CPU, the core count and the machine class, and the
-   baseline document says what else was running.
+2. **Medians of repeated runs, with their spread.** Every metric is run *n* times (3 in
+   the quick suite, 5 in the full one; `--runs` changes it) and reported as the median
+   with the 10th–90th percentile range and min–max. Never a single run, never a mean.
+3. **Say what the machine was doing — and measure CPU time beside wall time.** A shared
+   machine (other builds running) widens the spread; the report records the CPU, the core
+   count and the machine class, and the baseline document says what else was running.
+   Every session run also records the thread's own CPU time (`cpu.rs`: `GetThreadTimes`,
+   `CLOCK_THREAD_CPUTIME_ID`): `….cpu` is the work per block without the waits for a
+   core, and `….share` the share of a core the run got (100 % on an idle machine). On a
+   busy machine the `.cpu` figures are the ones to read; the wall figures are what a
+   callback would have lived through.
 4. **Pin on hybrid CPUs.** On a CPU with performance and efficiency cores (Intel 12th gen
    and later, Apple silicon) a thread that migrates measures the scheduler. On Windows,
    `cargo run -p xtask -- perf --pin 2` starts the suite on one logical CPU
@@ -54,10 +59,11 @@ The **demo songs scaled up** (`sessions::scaled(n)`): the house song's whole des
 bus, returns, the mastering chain on the master), with tracks from all six demos added
 round-robin until there are *n*, each with a copy of its own strip and inserts; every
 song's full-band section is lined up on bars 16–24 and looped. Sizes 10, 32, 64 and 100
-tracks at 128 frames, and 64 tracks at 64 frames. Each run: one second of warm-up, then
-`session_seconds` of blocks timed one by one around `Processor::process`. Reported: the
-median block (`engine.s<n>.b<frames>`, µs), its 99th percentile (`.p99`) and the median's
-share of the budget (`.load`, %).
+tracks at 128 frames, and 64 tracks at 64 frames (the quick suite: 10 and 32 tracks at
+128). Each run: one second of warm-up, then `session_seconds` of blocks timed one by one
+around `Processor::process`. Reported: the median block (`engine.s<n>.b<frames>`, µs),
+its 99th percentile (`.p99`), the thread's CPU time per block (`.cpu`), the share of a
+core it got (`.share`) and the median's share of the budget (`.load`, %).
 
 The engine holds **at most 64 tracks and 64 strips** (`MAX_TRACKS`, `MAX_STRIPS`): the
 100-track session is built and played, the engine plays its first 64, and the metric says
@@ -71,14 +77,15 @@ nanosecond of a block to one node — a track's instrument, a strip's mixing, an
 master insert, or the engine's own work. The report lists the fifteen heaviest nodes of
 the 64-track session, named as the user would name them ("Spatium on Pad bus").
 
-`engine.profiler_overhead.s64` is the profiler's own cost: the same session with it on and
-off, as a percentage of the block.
+`engine.profiler_overhead.s32` is the profiler's own cost: the 32-track session with it on
+and off, as a percentage of the block.
 
 ### 2.3 Offline render — `render.*`
 
 The export path itself (`cantus_engine::render`, 512-frame blocks): each demo song whole,
-and the scaled sessions' looped section once through. Unit: **multiples of real time**
-(audio seconds over wall seconds; higher is better).
+and the scaled sessions' looped section once through (the quick suite: the 10-track
+section only). Unit: **multiples of real time** — audio seconds over wall seconds
+(`.xrt`), and over the rendering thread's CPU seconds (`.xrt_cpu`); higher is better.
 
 ### 2.4 Opening a project — `open.*`
 
@@ -170,15 +177,17 @@ of the effects installed) is not verified yet.
 ## 6. The gate — `cargo run -p xtask -- perf`
 
 `xtask perf` builds `cantus-bench` in release, runs the **quick** suite (every group but
-start-up and DAWbench, five runs each, about two minutes) into `target/perf/latest.json`,
-and compares it with **`perf/baselines/<machine class>.json`**:
+start-up and DAWbench, three runs each) into `target/perf/latest.json`,
+and compares it with **`perf/baselines/<machine class>.json`**. The quick suite is the
+kernels, the 10- and 32-track sessions, the 10-track render, project open and the UI
+frames — a few minutes on a quiet laptop:
 
 - The **machine class** is `CANTUS_PERF_CLASS` if set, else the OS and the CPU model as a
   slug (`windows-12th-gen-intel-core-i7-12700h`). Baselines are only ever compared within
   a class: a number from one laptop says nothing about another.
 - A gated metric **regresses** when its median is worse than the baseline's by more than
-  the threshold (25 %; `--threshold`) **and** the runs do not overlap (the current run's
-  best decile is worse than the baseline's worst). Both, so that one noisy run on a busy
+  the threshold (25 %; `--threshold`) **and** the runs do not overlap (the current best
+  run is worse than the baseline's worst run). Both, so that one noisy run on a busy
   machine does not fail the build, and a small repeatable shift does not either.
   Ungated metrics (99th percentiles, capacities, start-up) are printed, never failed.
 - No baseline for the class: the run passes and says how to make one —
@@ -207,7 +216,7 @@ the clock the callback already reads):
   resolved to the project's ids (`Culprit`) and kept in `EngineStats::last_dropout`; the
   status bar shows it in words — *"Dropout: Spatium on Vocal took 3.1 ms of 2.7 ms"* — with
   the whole block in its tooltip. The same totals are the benchmark's hot spots.
-- **Cost.** One clock read per node per segment. `engine.profiler_overhead.s64` measures
+- **Cost.** One clock read per node per segment. `engine.profiler_overhead.s32` measures
   it; the offline renderer switches the profiler off (`Processor::set_profiling(false)`).
 - **Proof.** `crates/cantus-engine/tests/profile.rs`: the profiler changes no sample (on,
   off and the offline render null exactly), every block is counted, and a deliberately slow

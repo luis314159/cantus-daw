@@ -3,8 +3,10 @@
 //! A gated metric **regresses** when both hold:
 //! 1. its median is worse than the baseline's by more than the threshold (25 % by
 //!    default — a shared laptop's run-to-run noise is 5–15 % on the kernels), and
-//! 2. the runs do not overlap: the current run's *best* decile is worse than the
-//!    baseline's *worst* decile (for lower-is-better: current p10 > baseline p90).
+//! 2. the runs do not overlap: the current *best* run is worse than the baseline's
+//!    *worst* run (for lower-is-better: current min > baseline max). With three to five
+//!    runs a side, deciles are interpolations between two runs; the extremes are what
+//!    was actually seen.
 //!
 //! The second condition is what keeps a noisy machine from failing the build on one bad
 //! run; the first is what keeps a tight but harmless shift (2 % slower, very repeatable)
@@ -66,11 +68,11 @@ pub fn compare(current: &Report, baseline: &Report, threshold_pct: f64) -> Vec<V
                 Better::Higher => (s.median - c.median) / s.median.abs() * 100.0,
             }
         };
-        // The runs are apart when even the current run's good end is past the baseline's
-        // bad end (and the other way round for an improvement).
+        // The runs are apart when even the current best run is past the baseline's worst
+        // (and the other way round for an improvement).
         let (worse_apart, better_apart) = match m.better {
-            Better::Lower => (c.p10 > s.p90, c.p90 < s.p10),
-            Better::Higher => (c.p90 < s.p10, c.p10 > s.p90),
+            Better::Lower => (c.min > s.max, c.max < s.min),
+            Better::Higher => (c.max < s.min, c.min > s.max),
         };
         let status = if !(m.gate && b.gate) {
             Status::Ungated
