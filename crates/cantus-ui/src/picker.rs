@@ -79,40 +79,42 @@ impl CantusApp {
         crate::views::picker::open(self, purpose);
     }
 
-    /// Do what `purpose` asked with `choice`, as one undo step, and close the picker.
-    /// Contract version: the plain add/replace through the existing commands; the
-    /// device-ux builder makes swapping keep what should be kept.
+    /// Do what `purpose` asked with `choice`, as one undo step, and close the picker
+    /// (round 20, device-ux; the work is in [`crate::swap`]):
+    ///
+    /// - **AddInstrument**: a track named after the instrument, at `index`, selected, its
+    ///   window open.
+    /// - **ReplaceInstrument**: the same track — clips, notes, strip, inserts, colour, and
+    ///   its name unless it was a default one — with the new instrument; between native
+    ///   instruments the matching settings come along (`CantusApp::swap_keep`).
+    /// - **AddEffect**: at the end of the chain, its editor open.
+    /// - **ReplaceEffect**: in the same place, with its mix, bypass, key and note source
+    ///   where the new kind takes them (`Command::ReplaceEffect`).
+    ///
+    /// A choice that does not fit the purpose (an effect for a track, a hosted instrument
+    /// before ADR 0028 lands: [`crate::swap::available`]) changes nothing and says why.
     pub fn apply_pick(&mut self, purpose: PickPurpose, choice: PickChoice) {
-        use cantus_core::{InstrumentSpec, NativeSpec};
         self.picker = None;
-        let spec = match &choice {
-            PickChoice::Firmus => Some(InstrumentSpec::default()),
-            PickChoice::Pulsus => Some(InstrumentSpec::Pulsus(Default::default())),
-            PickChoice::Instrument(k) => Some(InstrumentSpec::Native(NativeSpec::new(*k))),
-            _ => None,
-        };
-        match (purpose, choice) {
-            (PickPurpose::ReplaceInstrument { track }, _) => {
-                if let Some(spec) = spec {
-                    self.set_instrument(track, spec);
-                }
+        if !crate::swap::available(&purpose, &choice) {
+            if matches!(&choice, PickChoice::Hosted(i) if i.kind == cantus_host::PluginKind::Instrument)
+            {
+                self.set_status(crate::i18n::t("swap.status.hosted_instrument"));
             }
-            (PickPurpose::AddInstrument { .. }, _) => {
-                if let Some(spec) = spec {
-                    self.add_track();
-                    if let Some(t) = self.project().tracks.last().map(|t| t.id) {
-                        self.set_instrument(t, spec);
-                    }
-                }
+            return;
+        }
+        match purpose {
+            PickPurpose::AddInstrument { index } => {
+                self.add_instrument_track(index, &choice);
             }
-            (PickPurpose::AddEffect { strip }, PickChoice::Effect(kind)) => {
-                self.add_effect(strip, kind);
+            PickPurpose::ReplaceInstrument { track } => {
+                self.replace_instrument(track, &choice);
             }
-            (PickPurpose::ReplaceEffect { strip, effect }, PickChoice::Effect(kind)) => {
-                self.remove_effect(strip, effect);
-                self.add_effect(strip, kind);
+            PickPurpose::AddEffect { strip } => {
+                self.add_picked_effect(strip, &choice);
             }
-            _ => {}
+            PickPurpose::ReplaceEffect { strip, effect } => {
+                self.replace_effect_with(strip, effect, &choice);
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ use super::light::{self, RaisedOpts};
 use super::meter::{self, Levels};
 use super::segmented;
 use super::text::{self, Elide, Policy, Role, Src, Text};
+use super::window_ctl::{self, WinHot, WindowCtl, WindowRects};
 use super::{Function, State, Style, Tok};
 
 /// The tokens the header paints with, beside the device hue (for inspect mode).
@@ -110,6 +111,9 @@ pub struct Header<'a> {
     /// Bypass: `Some(true)` when the device is bypassed; the lamp is lit when it runs.
     pub bypassed: Option<bool>,
     pub help: bool,
+    /// The window's own buttons (round 20): swap, minimise, maximise / restore, close.
+    /// `None` where the host owns the window (the exported plug-ins').
+    pub window: Option<WindowCtl>,
 }
 
 /// What the footer shows.
@@ -141,6 +145,12 @@ pub enum Event {
     SizeMenu,
     /// The header's background was dragged: move the window by this much.
     Move(Vec2),
+    /// The window's buttons (round 20): swap the device for another, minimise it to the
+    /// device tray, maximise or restore it, close it.
+    Swap,
+    Minimise,
+    Maximise,
+    Close,
 }
 
 /// Where each part of the header is; `None` for the parts it does not show.
@@ -160,6 +170,8 @@ pub struct HeaderRects {
     pub help: Option<Rect>,
     pub more: Rect,
     pub size: Rect,
+    /// The window's own buttons, when the header shows them.
+    pub window: Option<WindowRects>,
 }
 
 /// A hovered header part, for highlighting.
@@ -180,15 +192,26 @@ pub enum Hot {
     Help,
     More,
     Size,
+    /// One of the window's buttons, and whether it is held down.
+    Window(WinHot, bool),
 }
 
 fn sq(c: Pos2, side: f32) -> Rect {
     Rect::from_center_size(c, Vec2::splat(side))
 }
 
-/// Lay the header out in `rect`: tools packed from the right, the preset well centred
-/// in what is left between the name and the tools.
+/// Lay the header out in `rect`: the window's buttons at the right end, tools packed
+/// from there, the preset well centred in what is left between the name and the tools.
+/// When the name would be squeezed, the swap cap gives up its word first.
 pub fn header_rects(rect: Rect, s: &Style, h: &Header<'_>) -> HeaderRects {
+    let r = header_rects_with(rect, s, h, false);
+    if h.window.is_some_and(|c| c.swap.is_some()) && r.name.width() < 110.0 * s.k {
+        return header_rects_with(rect, s, h, true);
+    }
+    r
+}
+
+fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> HeaderRects {
     let cy = rect.center().y;
     let k = s.k;
     let icon = 22.0 * k;
@@ -207,8 +230,14 @@ pub fn header_rects(rect: Rect, s: &Style, h: &Header<'_>) -> HeaderRects {
         help: None,
         more: Rect::NOTHING,
         size: Rect::NOTHING,
+        window: None,
     };
     let mut x = rect.right() - 6.0 * k;
+    if let Some(c) = &h.window {
+        let w = window_ctl::layout(rect, s, c, compact);
+        x = w.left - 6.0 * k;
+        r.window = Some(w);
+    }
     let mut take = |w: f32| {
         let at = Rect::from_min_max(Pos2::new(x - w, rect.top()), Pos2::new(x, rect.bottom()));
         x -= w;
@@ -457,6 +486,13 @@ pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: H
         Glyph::Resize,
         ink(hot == Hot::Size),
     );
+    if let (Some(c), Some(w)) = (&h.window, &r.window) {
+        let (wh, down) = match hot {
+            Hot::Window(wh, down) => (wh, down),
+            _ => (WinHot::None, false),
+        };
+        window_ctl::paint(b, rect, s, c, w, wh, down);
+    }
     r
 }
 
@@ -936,6 +972,8 @@ pub struct Output {
     pub footer: Rect,
     /// While the grip is dragged: the scale it would snap to on release.
     pub pending_scale: Option<f32>,
+    /// Where the window's own buttons were drawn (round 20), when the header has them.
+    pub window: Option<WindowRects>,
 }
 
 /// The shell as a widget: `Shell::new(id).show(ui, &header, &footer, |ui, style, body| …)`.
@@ -1068,6 +1106,28 @@ impl Shell {
         if size.clicked() {
             events.push(Event::SizeMenu);
         }
+        // The window's own buttons (round 20): each a button with a tooltip.
+        if let (Some(c), Some(w)) = (&header.window, &r.window) {
+            let keys = [
+                (w.swap, WinHot::Swap, Event::Swap),
+                (w.minimise, WinHot::Minimise, Event::Minimise),
+                (w.maximise, WinHot::Maximise, Event::Maximise),
+                (w.close, WinHot::Close, Event::Close),
+            ];
+            for (rr, wh, ev) in keys {
+                let Some(rr) = rr else { continue };
+                let resp = ui.interact(rr, self.id.with(("window", wh as u8)), Sense::click());
+                if resp.hovered() || resp.is_pointer_button_down_on() {
+                    hot = Hot::Window(wh, resp.is_pointer_button_down_on());
+                    let tip = crate::i18n::t(window_ctl::tip(c, wh));
+                    super::hint::set_text(&ctx, &tip, "", super::hint::Caps::NONE);
+                    resp.clone().on_hover_text(tip);
+                }
+                if resp.clicked() {
+                    events.push(ev);
+                }
+            }
+        }
         let painter = ui.painter_at(rect);
         super::with_brush(&painter, |b| {
             paint_header(b, hr, &s, header, hot);
@@ -1151,6 +1211,7 @@ impl Shell {
             body: br,
             footer: fr,
             pending_scale,
+            window: r.window,
         }
     }
 }
@@ -1224,8 +1285,9 @@ mod tests {
             views: Some((&views, 0)),
             bypassed: Some(false),
             help: true,
+            window: Some(WindowCtl::ALL),
         };
-        for w in [700.0, 880.0, 1040.0] {
+        for w in [820.0, 880.0, 1040.0] {
             let r = header_rects(
                 Rect::from_min_size(Pos2::ZERO, Vec2::new(w, HEADER)),
                 &s,
@@ -1246,6 +1308,11 @@ mod tests {
                 Some(r.size),
             ]
             .into_iter()
+            .chain(
+                r.window
+                    .iter()
+                    .flat_map(|w| [w.swap, w.minimise, w.maximise, w.close]),
+            )
             .flatten()
             .collect();
             for (i, a) in parts.iter().enumerate() {

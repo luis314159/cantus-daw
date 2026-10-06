@@ -92,6 +92,15 @@ pub enum Glyph {
     Typed,
     /// ↔ ⌕ the interface's zoom.
     Zoom,
+    // --- a device window's own buttons (round 20) ---
+    /// ‒ minimise: a bar at the foot of the box.
+    Minimise,
+    /// □ maximise: a window with a thick title edge.
+    Maximise,
+    /// ❐ restore: two windows, one behind the other.
+    Restore,
+    /// Swap the device for another: two cards with a turning arrow between them.
+    Replace,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -364,6 +373,50 @@ fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
         Glyph::Zoom => {
             b.circle_stroke(p(-1.0, -1.0), 3.4 * u, w, color);
             b.segment(p(1.6, 1.6), p(4.6, 4.6), w * 1.3, color, true);
+        }
+        _ => window(b, g, c, u, w, color),
+    }
+}
+
+/// A device window's own buttons (round 20): minimise, maximise, restore, replace.
+fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
+    let p = |x: f32, y: f32| c + Vec2::new(x * u, y * u);
+    match g {
+        Glyph::Minimise => {
+            b.rect(
+                Rect::from_min_max(p(-4.5, 2.6), p(4.5, 2.6) + Vec2::new(0.0, w * 1.15)),
+                Fill::Solid(color),
+            );
+        }
+        Glyph::Maximise => {
+            let r = Rect::from_min_max(p(-4.5, -4.5), p(4.5, 4.5));
+            b.rrect_stroke(r, 0.6 * u, w, color);
+            b.rect(
+                Rect::from_min_max(r.min, Pos2::new(r.max.x, r.min.y + w * 1.6)),
+                Fill::Solid(color),
+            );
+        }
+        Glyph::Restore => {
+            // The window behind shows only where the front one does not cover it.
+            b.segment(p(-2.0, -2.2), p(-2.0, -5.0), w, color, false);
+            b.segment(p(-2.0, -5.0), p(5.0, -5.0), w, color, false);
+            b.segment(p(5.0, -5.0), p(5.0, 2.0), w, color, false);
+            b.segment(p(5.0, 2.0), p(2.4, 2.0), w, color, false);
+            let front = Rect::from_min_max(p(-5.0, -2.0), p(2.4, 5.0));
+            b.rrect_stroke(front, 0.5 * u, w, color);
+            b.rect(
+                Rect::from_min_max(front.min, Pos2::new(front.max.x, front.min.y + w * 1.5)),
+                Fill::Solid(color),
+            );
+        }
+        Glyph::Replace => {
+            // Two cards, and an arrow turning from one to the other above them.
+            let a = Rect::from_min_max(p(-5.2, -0.6), p(-1.2, 5.0));
+            let z = Rect::from_min_max(p(1.2, -0.6), p(5.2, 5.0));
+            b.rrect_stroke(a, 0.6 * u, w * 0.9, color);
+            b.rrect(z, 0.6 * u, Fill::Solid(color));
+            b.arc(p(0.0, -0.4), 3.4 * u, PI * 1.12, PI * 1.82, w, color, true);
+            b.polygon(&[p(2.0, -4.6), p(4.6, -2.6), p(1.4, -1.8)], color);
         }
         _ => {}
     }

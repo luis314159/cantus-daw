@@ -133,6 +133,8 @@ pub enum Control {
     Record,
     /// The sends row: an arrow, a send knob, or the selected strip's route.
     Send,
+    /// Insert slot `n` (0-based), in Extra large (round 20).
+    Slot(u8),
 }
 
 impl Control {
@@ -152,6 +154,7 @@ impl Control {
             Control::Fx => Part::Fx,
             Control::Record => Part::Rec,
             Control::Send => Part::Send,
+            Control::Slot(n) => Part::Slot(n),
         }
     }
 }

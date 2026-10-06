@@ -195,7 +195,32 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 (st.id, &st.effects)
             };
             match chain.get(rng.below(chain.len().max(1) as u64) as usize) {
-                Some(e) => match rng.below(4) {
+                Some(e) => match rng.below(5) {
+                    // Round 20: swap the insert for another kind in its place, carrying
+                    // over its mix, bypass, key and note source whether the new kind
+                    // takes them or not (a refusal must leave nothing behind), now and
+                    // then with an id already in the chain.
+                    4 => {
+                        let kind =
+                            EffectKind::ALL[rng.below(EffectKind::ALL.len() as u64) as usize];
+                        let (effect, mix, bypass, sidechain, midi_from) =
+                            (e.id, e.mix, e.bypass, e.sidechain, e.midi_from);
+                        let taken = (rng.below(8) == 0)
+                            .then(|| chain[rng.below(chain.len() as u64) as usize].id);
+                        let mut slot = project.make_effect(kind);
+                        slot.mix = mix;
+                        slot.bypass = bypass;
+                        slot.sidechain = sidechain;
+                        slot.midi_from = midi_from;
+                        if let Some(id) = taken {
+                            slot.id = id;
+                        }
+                        Command::ReplaceEffect {
+                            strip: host,
+                            effect,
+                            slot: Box::new(slot),
+                        }
+                    }
                     0 => Command::RemoveEffect {
                         strip: host,
                         effect: e.id,

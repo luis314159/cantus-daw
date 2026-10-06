@@ -54,6 +54,9 @@ enum Choice {
     AddPad(PadVoice),
     ResetWidth,
     Collapse,
+    /// Round 20: open the device picker — swap this insert, or add from every effect.
+    Swap,
+    Browse,
 }
 
 /// One row, owning its words until the list closes.
@@ -202,6 +205,11 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             }
         }
         MenuId::AddInsert(_) => {
+            out.push(act(
+                Label::Key("swap.menu.browse_effects"),
+                Check::None,
+                Choice::Browse,
+            ));
             out.push(band("inspector.effects"));
             for kind in EffectKind::ALL {
                 out.push(act(
@@ -220,6 +228,11 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             if slot.is_some_and(|x| x.spec.kind.has_editor()) {
                 out.push(act(Label::Key("eq.open"), Check::None, Choice::Open));
             }
+            out.push(act(
+                Label::Key("swap.menu.swap_effect"),
+                Check::None,
+                Choice::Swap,
+            ));
             let mut up = act(Label::Key("effect.up"), Check::None, Choice::Up);
             up.enabled = i > 0;
             out.push(up);
@@ -448,6 +461,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
             app.exec(Command::SetStripOutput { id: me, output });
         }
         (MenuId::AddInsert(strip), Choice::AddEffect(kind)) => app.add_effect(strip, kind),
+        (MenuId::AddInsert(strip), Choice::Browse) => {
+            app.open_picker(crate::picker::PickPurpose::AddEffect { strip })
+        }
         (MenuId::Slot(strip, e), c) => {
             let i = app
                 .project()
@@ -456,6 +472,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                 .unwrap_or(0);
             match c {
                 Choice::Open => app.open_effect_editor(strip, e),
+                Choice::Swap => {
+                    app.open_picker(crate::picker::PickPurpose::ReplaceEffect { strip, effect: e })
+                }
                 Choice::Up if i > 0 => {
                     app.exec(Command::MoveEffect {
                         strip,

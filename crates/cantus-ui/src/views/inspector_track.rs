@@ -28,8 +28,23 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     swatches(sh, id, track.color);
     // An audio track plays no instrument: its input and its audio are what it is.
     if !crate::record_session::is_audio_track(track) {
+        // Round 20: a click opens the device picker to swap it; a right-click, the list.
         let name = sheet::name(sh.fmt.tr(track.instrument.name_key()));
-        sh.menu_row("inspector.title", &name, MenuId::Instrument(id), false);
+        let row = sh.row();
+        sh.label(row.label, "inspector.title", false);
+        let purpose = crate::picker::PickPurpose::ReplaceInstrument { track: id };
+        sh.pick_field(
+            row.value,
+            &name,
+            purpose,
+            MenuId::Instrument(id),
+            "swap.tip.instrument",
+        );
+        crate::views::device_chrome::publish(
+            sh.ui.ctx(),
+            crate::views::device_chrome::Spot::InspectorInstrument(id),
+            row.value,
+        );
     }
     sh.param_row(
         "inspector.track_level",

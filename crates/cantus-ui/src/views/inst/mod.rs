@@ -109,6 +109,13 @@ impl InstEditors {
     pub fn on_b(&self, track: TrackId) -> bool {
         self.ab.get(&track).is_some_and(|(_, b)| *b)
     }
+
+    /// The track's instrument was swapped for another (round 20): its A/B side and its
+    /// preset name belonged to the old one.
+    pub fn forget(&mut self, track: TrackId) {
+        self.ab.remove(&track);
+        self.preset.remove(&track);
+    }
 }
 
 /// `--editor <name>` for an instrument: its kind, by the module or product name.

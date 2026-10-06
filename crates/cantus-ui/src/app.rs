@@ -134,6 +134,8 @@ pub struct CantusApp {
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
     pub pulsus: views::pulsus_editor::State,
+    /// What swapping a device keeps beyond what it always keeps (round 20, `crate::swap`).
+    pub swap_keep: crate::swap::Keep,
     /// Where the recorder's samples are drained into each frame; reused, never shrunk.
     capture_scratch: Vec<f32>,
     pub central: CentralView,
@@ -185,7 +187,7 @@ pub struct CantusApp {
     pub layouts_path: PathBuf,
     /// Open when the user is naming a layout; holds the text being typed.
     pub naming_layout: Option<String>,
-    theme_ctx: Option<egui::Context>,
+    pub(crate) theme_ctx: Option<egui::Context>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
     /// Typing keyboard plays the selected track (Ctrl+T toggles; off frees more keys).
@@ -358,6 +360,7 @@ impl CantusApp {
             plugins,
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
+            swap_keep: Default::default(),
             capture_scratch: Vec::new(),
             central: CentralView::Mixer,
             workspace: Workspace::default(),
@@ -2999,12 +3002,13 @@ impl CantusApp {
             }
             Quantize => self.quantize_selection(),
             ClearSelection => {
-                // Esc over a floating device window closes it (FL); anywhere else it
-                // clears the selection.
-                let closed = self
-                    .theme_ctx
-                    .clone()
-                    .is_some_and(|ctx| self.workspace.close_hovered_floating_device(&ctx));
+                // Esc closes the device window clicked last (round 20), or a floating one
+                // under the pointer (FL); anywhere else it clears the selection.
+                let closed = self.close_focused_device()
+                    || self
+                        .theme_ctx
+                        .clone()
+                        .is_some_and(|ctx| self.workspace.close_hovered_floating_device(&ctx));
                 if closed {
                     // The window was the thing to clear.
                 } else if self.appearance_page.picking {
@@ -3079,6 +3083,7 @@ impl CantusApp {
                 }
             }
             PickElement => self.toggle_pick(),
+            ToggleInstrumentWindow => self.toggle_instrument_window(),
             ToggleDeviceKeyboard => {
                 if let Some(ctx) = &self.theme_ctx {
                     views::workspace_device::request_keyboard_toggle(ctx);

@@ -100,6 +100,8 @@ pub enum Act {
     OpenEditor(StripId, EffectId),
     OpenInstrument(TrackId),
     OpenPulsus(TrackId, cantus_core::PadId),
+    /// Open the device picker (round 20): swap the instrument, add or swap an insert.
+    Pick(crate::picker::PickPurpose),
     SelectPad(usize),
     LoadSample(TrackId, usize),
     RemovePad(TrackId, usize),
@@ -733,6 +735,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::SelectTrack(t) => app.select_track(t),
         Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
         Act::OpenInstrument(t) => app.open_inst_editor(t),
+        Act::Pick(purpose) => app.open_picker(purpose),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);
             crate::views::pulsus_editor::open(app, t);

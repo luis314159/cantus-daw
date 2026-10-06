@@ -307,6 +307,11 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         views: Some((&VIEWS, view)),
         bypassed: None,
         help: false,
+        window: Some(crate::views::device_chrome::ctl(
+            ctx,
+            editor_id(track).value(),
+            "swap.tip.instrument",
+        )),
     };
     let pads = tf("pulsus.chip.pads", &[("n", &kit.pads.len().to_string())]);
     let model = if kit.version < cantus_core::PULSUS_MODEL {
@@ -326,11 +331,14 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         .open(&mut open)
         .default_size(size)
         .min_size(size * 0.75)
+        .hue(HUE)
         .show(ctx, |ui| {
             let rect = ui.max_rect();
             let out = shell.show(ui, &header, &footer, |ui, s, body_rect| {
                 body(app, ui, track, &kit, s, body_rect);
             });
+            let key = editor_id(track).value();
+            crate::views::workspace_device::note_shown(ctx, key, rect, out.header, out.window);
             events = out.events;
             rect
         });
@@ -357,6 +365,16 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             Event::SizeMenu => app.pulsus.popup = Popup::Sizes,
             Event::Scale(k) => shell.set_scale(ctx, k),
             Event::Ab(_) | Event::Favourite | Event::Help | Event::Bypass => {}
+            // The window's own buttons (round 20).
+            Event::Close | Event::Minimise | Event::Maximise | Event::Swap => {
+                use crate::views::device_chrome::{on_event, Asked};
+                let swap = crate::picker::PickPurpose::ReplaceInstrument { track };
+                let key = editor_id(track).value();
+                if on_event(app, ctx, key, ev, swap) == Asked::Close {
+                    close(app);
+                    return;
+                }
+            }
         }
     }
     popups(app, ctx, track, &shell, rect, k);

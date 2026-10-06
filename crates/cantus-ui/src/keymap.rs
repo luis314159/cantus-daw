@@ -129,6 +129,9 @@ pub enum Action {
     ShowTakes,
     /// FL's *Tools ▸ Last tweaked ▸ Create automation clip* (ADR 0027).
     AutomateLastTweaked,
+    /// Open or close the selected track's instrument window, or bring it back from the
+    /// device tray (F8; round 20).
+    ToggleInstrumentWindow,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -174,7 +177,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 72] = [
+    pub const ALL: [Action; 73] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -247,6 +250,7 @@ impl Action {
         Action::TogglePunch,
         Action::ShowTakes,
         Action::AutomateLastTweaked,
+        Action::ToggleInstrumentWindow,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -324,6 +328,7 @@ impl Action {
             Action::TogglePunch => "toggle-punch",
             Action::ShowTakes => "show-takes",
             Action::AutomateLastTweaked => "automate-last-tweaked",
+            Action::ToggleInstrumentWindow => "toggle-instrument-window",
         }
     }
 
@@ -358,7 +363,7 @@ impl Action {
             | ToolPlayback => Category::Tools,
             ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer | ViewArrangement
             | ToggleInspector | CloseFloating | ZoomIn | ZoomOut | ZoomReset | PickElement
-            | ToggleDeviceKeyboard | ToggleBrowser => Category::View,
+            | ToggleDeviceKeyboard | ToggleBrowser | ToggleInstrumentWindow => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave => Category::Mixer,
         }
@@ -626,6 +631,8 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleBrowser, Binding::alt(Key::F8)),
         (ToggleDeviceKeyboard, Binding::alt(Key::K)),
         (CloseFloating, Binding::key(Key::F12)),
+        // Round 20: the selected track's instrument window, open or closed, from anywhere.
+        (ToggleInstrumentWindow, Binding::key(Key::F8)),
         (ZoomIn, Binding::cmd(Key::Plus)),
         (ZoomIn, Binding::cmd(Key::Equals)),
         (ZoomOut, Binding::cmd(Key::Minus)),
@@ -990,7 +997,7 @@ pub const FILE_VERSION: u32 = 3;
 
 /// Actions added in version 3. Round 19's keys shipped without a version bump, so a file
 /// written by round 18 never got them; version 3 fills them in too.
-const NEW_IN_V3: [Action; 8] = [
+const NEW_IN_V3: [Action; 9] = [
     Action::AddAudioTrack,
     Action::ArmTrack,
     Action::ShowTakes,
@@ -999,6 +1006,7 @@ const NEW_IN_V3: [Action; 8] = [
     Action::DemoSongs,
     Action::ToggleBrowser,
     Action::AutomateLastTweaked,
+    Action::ToggleInstrumentWindow,
 ];
 
 /// Actions added in version 2: a file written before them gets the preset's bindings for

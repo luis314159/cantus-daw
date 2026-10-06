@@ -129,6 +129,17 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
     }
 }
 
+/// The buttons an effect's window shows in Cantus (round 20): swap, minimise, maximise
+/// (or restore) and close.
+pub fn window_ctl(maximised: bool) -> crate::kit::window_ctl::WindowCtl {
+    crate::kit::window_ctl::WindowCtl {
+        swap: Some("swap.tip.effect"),
+        minimise: true,
+        maximised: Some(maximised),
+        close: true,
+    }
+}
+
 /// The shell's id for a kind: its scale is kept per kind.
 pub fn shell_of(kind: EffectKind) -> Shell {
     Shell::new(("cantus-fx", kind))
@@ -383,8 +394,10 @@ pub struct Out {
     pub more: Option<usize>,
     /// The header's background was dragged this much: move the window.
     pub moved: Vec2,
-    /// Close the window (asked from a menu).
+    /// Close the window (asked from a menu, or its close button).
     pub close: bool,
+    /// Where the window's own buttons were drawn (round 20), when it has them.
+    pub window: Option<crate::kit::window_ctl::WindowRects>,
 }
 
 impl Default for Out {
@@ -395,6 +408,7 @@ impl Default for Out {
             more: None,
             moved: Vec2::ZERO,
             close: false,
+            window: None,
         }
     }
 }
@@ -426,6 +440,15 @@ pub fn show(
             format!("({context})")
         };
         let name = host.name().unwrap_or_else(|| t(kind.name_key()));
+        // The tray's chip says what the device is (round 20).
+        if let Some(key) = host.device_key() {
+            let title = if context.is_empty() {
+                name.clone()
+            } else {
+                format!("{name} {context}")
+            };
+            crate::views::workspace_device::set_title(&ctx, key, &title);
+        }
         chrome.words = Some((rev, lang, name, context));
     }
     let spec_modified = chrome
@@ -457,6 +480,9 @@ pub fn show(
         views: None,
         bypassed: host.bypassed(),
         help: false,
+        window: host
+            .device_key()
+            .map(|key| crate::views::device_chrome::ctl(&ctx, key, "swap.tip.effect")),
     };
     let footer = Footer {
         chips: look.chips,
@@ -520,6 +546,20 @@ pub fn show(
             }
             Event::Move(d) => moved += d,
             Event::Scale(_) | Event::Help | Event::View(_) => {}
+            // The window's own buttons (round 20): the workspace minimises and maximises
+            // the device, the host offers the picker, the editor closes itself.
+            Event::Close => chrome.close = true,
+            Event::Swap => host.swap(),
+            Event::Minimise => {
+                if let Some(key) = host.device_key() {
+                    crate::views::workspace_device::minimise(&ctx, key);
+                }
+            }
+            Event::Maximise => {
+                if let Some(key) = host.device_key() {
+                    crate::views::workspace_device::toggle_maximise(&ctx, key);
+                }
+            }
         }
     }
     let more = popups(&ctx, &shell, host, chrome, &s, look);
@@ -530,6 +570,7 @@ pub fn show(
         more,
         moved,
         close: std::mem::take(&mut chrome.close),
+        window: out.window,
     }
 }
 

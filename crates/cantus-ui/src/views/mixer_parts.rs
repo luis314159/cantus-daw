@@ -274,8 +274,14 @@ pub(super) fn inserts(
                 if hovered {
                     hint::set_text(&ctx, &v.words.slot_empty, "", Caps::NONE);
                 }
+                let add = crate::picker::PickPurpose::AddEffect { strip: sn.id };
+                crate::views::device_chrome::drop_target(app, ui, &resp, add);
                 let resp = resp.on_hover_text(&v.words.slot_empty);
-                if resp.clicked() || resp.secondary_clicked() {
+                // Round 20: a click opens the device picker on the effects; a right-click,
+                // the quick list.
+                if resp.clicked() {
+                    app.open_picker(crate::picker::PickPurpose::AddEffect { strip: sn.id });
+                } else if resp.secondary_clicked() {
                     v.popups
                         .open(Menu::AddEffect(sn.id), pos2(r.left(), r.bottom()));
                 }
@@ -313,6 +319,11 @@ pub(super) fn inserts(
         let Some(resp) = resp else {
             continue;
         };
+        let swap = crate::picker::PickPurpose::ReplaceEffect {
+            strip: sn.id,
+            effect,
+        };
+        crate::views::device_chrome::drop_target(app, ui, &resp, swap);
         if hovered {
             hint::set_text(
                 &ctx,
@@ -330,8 +341,25 @@ pub(super) fn inserts(
         if resp.drag_started() {
             v.slot_drag = Some((sn.id, effect, k));
         }
+        // Round 20: the swap badge at the slot's right end while the pointer is on it.
+        let purpose = crate::picker::PickPurpose::ReplaceEffect {
+            strip: sn.id,
+            effect,
+        };
+        let swapped = crate::views::device_chrome::swap_badge(
+            app,
+            ui,
+            b,
+            r,
+            ui.id().with(("slot-swap", effect.0)),
+            1.0,
+            purpose,
+            "swap.tip.effect",
+        );
         let resp = resp.on_hover_text(&v.words.slot);
-        if resp.secondary_clicked() {
+        if swapped {
+            // The badge took the click: the picker is open.
+        } else if resp.secondary_clicked() {
             let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
             v.popups.open(Menu::Slot(sn.id, effect), at);
         } else if resp.clicked() {

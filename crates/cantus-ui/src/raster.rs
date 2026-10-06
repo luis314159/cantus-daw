@@ -275,6 +275,21 @@ pub fn shoot(
     ppp: f32,
     frames: usize,
     path: Option<&Path>,
+    ui: impl FnMut(&mut egui::Ui),
+) -> Canvas {
+    shoot_at(ctx, size, ppp, frames, path, |_| None, ui)
+}
+
+/// [`shoot`] with the pointer at `pointer(frame)` (none where it says `None`): what a
+/// hovered part looks like (round 20: the window buttons, the swap badges). One run of
+/// frames: the textures a run uploads are only kept by that run.
+pub fn shoot_at(
+    ctx: &egui::Context,
+    size: egui::Vec2,
+    ppp: f32,
+    frames: usize,
+    path: Option<&Path>,
+    mut pointer: impl FnMut(usize) -> Option<egui::Pos2>,
     mut ui: impl FnMut(&mut egui::Ui),
 ) -> Canvas {
     ctx.set_pixels_per_point(ppp);
@@ -287,6 +302,10 @@ pub fn shoot(
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
             time: Some(frame as f64 * 0.25),
             predicted_dt: 0.25,
+            events: pointer(frame)
+                .map(egui::Event::PointerMoved)
+                .into_iter()
+                .collect(),
             ..Default::default()
         };
         let mut out = ctx.run_ui(input, |root| ui(root));
