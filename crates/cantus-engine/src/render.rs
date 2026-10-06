@@ -6,6 +6,7 @@ use crate::effects::EffectUnit;
 use crate::messages::{EngineEvent, EngineMessage};
 use crate::processor::Processor;
 use cantus_core::{Snapshot, Ticks};
+use cantus_dsp::math;
 use rtrb::RingBuffer;
 use std::path::Path;
 use std::sync::Arc;
@@ -179,7 +180,7 @@ pub fn render_with_instruments(
     let mut peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
     if let Some(db) = opts.normalize_peak_db {
         if peak > 0.0 {
-            let target = 10f32.powf(db / 20.0);
+            let target = math::powf(10f32, db / 20.0);
             let g = target / peak;
             out.iter_mut().for_each(|x| *x *= g);
             peak = target;

@@ -2,13 +2,14 @@
 
 use super::view::{mono_pass, telemetry, unpack_point};
 use super::*;
+use crate::math;
 use std::f32::consts::{SQRT_2, TAU};
 
 const SR: f32 = 48_000.0;
 
 fn sine(hz: f32, amp: f32, n: usize) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (TAU * hz * i as f32 / SR).sin())
+        .map(|i| amp * math::sin(TAU * hz * i as f32 / SR))
         .collect()
 }
 
@@ -68,7 +69,7 @@ fn rms(x: &[f32]) -> f32 {
 }
 
 fn db(x: f32) -> f32 {
-    20.0 * x.max(1e-12).log10()
+    20.0 * math::log10(x.max(1e-12))
 }
 
 fn bits(x: &[f32]) -> Vec<u32> {
@@ -461,7 +462,7 @@ fn mono_below_removes_the_low_side_and_keeps_the_rest() {
         let (l, r) = side_tone(50.0);
         let (a, b) = settled(&s, &l, &r);
         let (_, side) = ms_levels(&a, &b);
-        let want = 20.0 * mono_pass(&s, SR, 50.0).log10() + level;
+        let want = 20.0 * math::log10(mono_pass(&s, SR, 50.0)) + level;
         assert!(
             (side - want).abs() < 0.5,
             "{slope:?}: side {side} want {want}"

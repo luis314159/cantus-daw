@@ -3,6 +3,8 @@
 //! inverted copy through a latent strip is exact silence, a slot mix around a latent effect
 //! does not comb, and a latent return lines up with the dry signal.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::{assert_null, peak};
@@ -198,7 +200,7 @@ fn a_latent_return_lines_up_with_the_dry_signal() {
     // arrive together (the return's strip at centre through the −6 dB law is × 0.5, so
     // its fader makes up the difference exactly).
     p.strip_mut(ret).unwrap().phase_invert = true;
-    p.strip_mut(ret).unwrap().gain_db = 20.0 * 2f32.log10();
+    p.strip_mut(ret).unwrap().gain_db = 20.0 * math::log10(2f32);
     let (out, latency) = play(&p, &[id], 2.0);
     assert_eq!(latency, DELAY as u64);
     let (dry, _) = {

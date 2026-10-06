@@ -22,6 +22,8 @@
 //! ends hold).
 
 /// The models, by the `model` parameter's index.
+use crate::math;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Model {
     /// tanh, with high-frequency pre-emphasis: highs saturate first, so they are what the
@@ -83,14 +85,14 @@ pub const LUT_N: usize = 2048;
 #[inline]
 fn sig(model: Model, ch: f64, u: f64) -> f64 {
     match model {
-        Model::Tape => u.tanh(),
+        Model::Tape => math::tanh(u),
         Model::Tube => {
             if u >= 0.0 {
-                u.tanh()
+                math::tanh(u)
             } else {
                 // The negative side bends at 1/k and stops at −1/k.
                 let k = 1.0 + 2.0 * ch;
-                (k * u).tanh() / k
+                math::tanh(k * u) / k
             }
         }
         Model::Drive => u / (1.0 + u * u * u * u).sqrt().sqrt(),
@@ -119,7 +121,7 @@ fn sig(model: Model, ch: f64, u: f64) -> f64 {
             y.copysign(u)
         }
         Model::Fold => {
-            let s = u.sin();
+            let s = math::sin(u);
             // A triangle of slope 1 at the origin and period 4: folds at ±1.
             let t = {
                 let p = (u + 1.0).rem_euclid(4.0);
@@ -183,7 +185,7 @@ impl Default for CurveSpec {
 /// symmetric between the two signs).
 #[inline]
 pub fn warp(u: f64, t: f64) -> f64 {
-    let c = (-4.0 * t).exp();
+    let c = math::exp(-4.0 * t);
     u / (u + c * (1.0 - u))
 }
 
@@ -286,7 +288,7 @@ impl Shaper {
 
     /// `drive_db` is the whole drive (the ×100 included); `bias` −1 … 1.
     pub fn new(model: Model, drive_db: f64, ch: f64, bias: f64, lut: &[f32]) -> Shaper {
-        let g = 10f64.powf(drive_db.max(0.0) / 20.0);
+        let g = math::powf(10f64, drive_db.max(0.0) / 20.0);
         let a = g - 1.0;
         let ch = ch.clamp(0.0, 1.0);
         if model == Model::Curve {
@@ -346,7 +348,7 @@ impl Shaper {
         let mut y = [0.0f64; N];
         let mut mean = 0.0;
         for (i, v) in y.iter_mut().enumerate() {
-            let x = REF_PEAK * (std::f64::consts::TAU * (i as f64 + 0.5) / N as f64).sin();
+            let x = REF_PEAK * math::sin(std::f64::consts::TAU * (i as f64 + 0.5) / N as f64);
             *v = self.apply(x as f32, lut) as f64;
             mean += *v;
         }

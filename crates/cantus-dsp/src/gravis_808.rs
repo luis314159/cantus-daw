@@ -13,6 +13,7 @@
 //! every platform. Reset puts every note at 0° rising (identical hits against the kick).
 
 use super::voice::{coef_60db, Env, EnvTimes, Rng};
+use crate::math;
 
 /// Pulsus's kick lands its body at 45 Hz from 15.5 st above; the knock is the TR-808's
 /// "more than an octave for about 6 ms" (Werner, Abel & Smith, DAFx-14).
@@ -81,7 +82,7 @@ impl Settings808 {
         }
         let even = self.even.clamp(-1.0, 1.0);
         for (n, v) in a.iter_mut().enumerate().skip(2) {
-            let tilt = 10f32.powf(self.tilt_db * (n as f32 / 2.0).log2() / 20.0);
+            let tilt = math::powf(10f32, self.tilt_db * math::log2(n as f32 / 2.0) / 20.0);
             let parity = if n % 2 == 0 { 1.0 + even } else { 1.0 - even };
             *v = 0.5 * self.harmonics * tilt * parity;
         }
@@ -171,7 +172,7 @@ impl Voice808 {
     ) -> (f32, f32) {
         let off = self.pitch_offset(s);
         let f = if off != 0.0 {
-            base_hz * (off as f64 / 12.0).exp2()
+            base_hz * math::exp2(off as f64 / 12.0)
         } else {
             base_hz
         };
@@ -180,7 +181,7 @@ impl Voice808 {
         let inc = (inc_f * 4_294_967_296.0).round() as u32;
         let t = self.phase as f64 * (1.0 / 4_294_967_296.0);
         let theta = std::f64::consts::TAU * t;
-        let (s1, c1) = theta.sin_cos();
+        let (s1, c1) = math::sin_cos(theta);
         let mut main = s1;
         // The soft triangle and the harmonics share one recurrence up to the 8th.
         let want_tri = s.shape > 0.0;
@@ -217,7 +218,7 @@ impl Voice808 {
                 }
             }
             2 => square(sub_t, inc_f / sub_div as f64),
-            _ => (std::f64::consts::TAU * sub_t).sin(),
+            _ => math::sin(std::f64::consts::TAU * sub_t),
         };
         let (next, wrapped) = self.phase.overflowing_add(inc);
         self.phase = next;
@@ -248,7 +249,7 @@ impl Voice808 {
         let mut out = main as f32 * g;
         if self.click_env != 0.0 {
             // White noise, high-passed at the click tone: a snap, not a thud.
-            let a = (-std::f32::consts::TAU * s.click_hz / sr).exp();
+            let a = math::exp(-std::f32::consts::TAU * s.click_hz / sr);
             let x = self.rng.bipolar();
             let hp = a * (self.click_hp.1 + x - self.click_hp.0);
             self.click_hp = (x, hp);

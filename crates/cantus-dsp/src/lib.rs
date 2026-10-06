@@ -16,6 +16,7 @@
 //! | [`pulsus`] | the built-in synthesized drum kit |
 //! | [`click`] | metronome click |
 //! | [`nulltest`] | render comparison harness |
+//! | [`math`] | the transcendental functions, the same bits on every machine |
 
 #![forbid(unsafe_code)]
 // `next()` is the conventional name for a per-sample generator in DSP code.
@@ -36,6 +37,7 @@ pub mod firmus;
 pub mod gravis;
 pub mod lamina;
 pub mod latitudo;
+pub mod math;
 pub mod modmatrix;
 pub mod modulus;
 pub mod multiplex;
@@ -53,6 +55,17 @@ pub mod terminus;
 pub mod unda;
 pub mod va;
 pub mod voices;
+
+/// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
+/// render the same project to the same bits, on any machine; a change that moves any
+/// unit's output bits (an algorithm, a coefficient, a [`math`] function) bumps it — once,
+/// in the commit that re-blesses every golden, whose message gives the reason and the
+/// size of the change. A render cache keys its pages on it.
+///
+/// | Version | Change |
+/// |---|---|
+/// | 1 | the version that introduced the constant (round 21): std's transcendentals |
+pub const DSP_VERSION: u32 = 1;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

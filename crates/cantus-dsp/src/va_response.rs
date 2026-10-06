@@ -63,8 +63,8 @@ pub fn magnitude(s: &FilterSettings, fc: f32, f: f32, fs: f32) -> f32 {
     } else {
         1.0
     };
-    let g = (pi * (fc as f64).clamp(1.0, nyq) / fs as f64).tan() * warp;
-    let w = (pi * (f as f64).clamp(0.0, nyq) / fs as f64).tan() / g;
+    let g = crate::math::tan(pi * (fc as f64).clamp(1.0, nyq) / fs as f64) * warp;
+    let w = crate::math::tan(pi * (f as f64).clamp(0.0, nyq) / fs as f64) / g;
     let s_ = C::new(0.0, w);
     let r = s.reso.clamp(0.0, DRAW_RESO_MAX) as f64;
     let comp = |k: f64| 1.0 + s.bass_comp.clamp(0.0, 1.0) as f64 * k;
@@ -126,7 +126,7 @@ pub fn magnitude(s: &FilterSettings, fc: f32, f: f32, fs: f32) -> f32 {
 
 /// [`magnitude`] in decibels, floored at −120.
 pub fn magnitude_db(s: &FilterSettings, fc: f32, f: f32, fs: f32) -> f32 {
-    20.0 * magnitude(s, fc, f, fs).max(1e-6).log10()
+    20.0 * crate::math::log10(magnitude(s, fc, f, fs).max(1e-6))
 }
 
 /// The bass a four-pole model loses at resonance `reso` with its compensation, in dB (a
@@ -137,5 +137,5 @@ pub fn bass_loss_db(s: &FilterSettings) -> f32 {
     }
     let k = s.model.k_threshold() * s.reso.clamp(0.0, 1.25);
     let gain = (1.0 + s.bass_comp.clamp(0.0, 1.0) * k) / (1.0 + k);
-    20.0 * gain.log10()
+    20.0 * crate::math::log10(gain)
 }

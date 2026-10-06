@@ -5,6 +5,7 @@
 
 use cantus_core::inst::modulation::SLOTS;
 use cantus_core::*;
+use cantus_dsp::math;
 use cantus_dsp::nulltest::assert_null;
 use cantus_engine::inst as einst;
 use cantus_engine::*;
@@ -187,8 +188,8 @@ fn notes_are_on_pitch_across_the_keyboard() {
             0.0,
         ));
         let f = frequency(&out[12_000..44_000]);
-        let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
-        let cents = 1200.0 * (f / want).log2();
+        let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
+        let cents = 1200.0 * math::log2(f / want);
         assert!(cents.abs() < 0.1, "key {key}: {cents:+.3} cents");
     }
 }
@@ -244,8 +245,8 @@ fn aliasing_floor_db(x: &[f32], f0: f64) -> f64 {
         .enumerate()
         .map(|(i, v)| {
             let p = 2.0 * std::f64::consts::PI * i as f64 / n as f64;
-            let w =
-                0.35875 - 0.48829 * p.cos() + 0.14128 * (2.0 * p).cos() - 0.01168 * (3.0 * p).cos();
+            let w = 0.35875 - 0.48829 * math::cos(p) + 0.14128 * math::cos(2.0 * p)
+                - 0.01168 * math::cos(3.0 * p);
             *v as f64 * w
         })
         .collect();
@@ -268,7 +269,7 @@ fn aliasing_floor_db(x: &[f32], f0: f64) -> f64 {
         let ang = -2.0 * std::f64::consts::PI / len as f64;
         for s in (0..n).step_by(len) {
             for k in 0..len / 2 {
-                let (wr, wi) = ((ang * k as f64).cos(), (ang * k as f64).sin());
+                let (wr, wi) = (math::cos(ang * k as f64), math::sin(ang * k as f64));
                 let (a, b) = (s + k, s + k + len / 2);
                 let (tr, ti) = (re[b] * wr - im[b] * wi, re[b] * wi + im[b] * wr);
                 re[b] = re[a] - tr;
@@ -297,7 +298,7 @@ fn aliasing_floor_db(x: &[f32], f0: f64) -> f64 {
         }
         worst = worst.max(*m);
     }
-    20.0 * (worst / fund).log10()
+    20.0 * math::log10(worst / fund)
 }
 
 /// A unit driven by hand, 48 kHz.
@@ -383,8 +384,9 @@ fn a_route_moves_its_target_and_a_macro_drives_it() {
         render_opts(&project(s, &notes), 512, 0.2)
     };
     let (open, closed) = (render_with_macro(0.0), render_with_macro(1.0));
-    let rms =
-        |x: &[f32]| (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+    let rms = |x: &[f32]| {
+        (x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len() as f64).sqrt()
+    };
     assert!(
         rms(&closed) < 0.8 * rms(&open),
         "the macro closed the filter"

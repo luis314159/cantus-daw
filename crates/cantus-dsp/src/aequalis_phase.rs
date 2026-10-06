@@ -23,6 +23,7 @@
 
 use super::fft::Fft;
 use super::{Coefs, Placement, Proto, Resolution, MAX_SECTIONS};
+use crate::math;
 
 /// Taps of the natural-phase correction.
 pub const NP_TAPS: usize = 128;
@@ -349,7 +350,7 @@ impl NaturalPhase {
             *w = if d <= 0.5 {
                 1.0
             } else {
-                (0.5 + 0.5 * (std::f64::consts::PI * (d - 0.5) / 0.5).cos()) as f32
+                (0.5 + 0.5 * math::cos(std::f64::consts::PI * (d - 0.5) / 0.5)) as f32
             };
         }
         NaturalPhase {
@@ -401,7 +402,7 @@ impl NaturalPhase {
                     ha = M2::place(s.analog(w), s.placement, s.mute_other).mul(ha);
                     hd = M2::place(s.digital(w), s.placement, s.mute_other).mul(hd);
                 }
-                let (sin, cos) = (-w * delay).sin_cos();
+                let (sin, cos) = math::sin_cos(-w * delay);
                 let z = C { re: cos, im: sin };
                 let mut c = ha.div(hd, topo);
                 c.a = c.a.mul(z);
@@ -673,7 +674,7 @@ impl LinearPhase {
         for m in 0..n {
             let x = 2.0 * std::f64::consts::PI * m as f64 / n as f64;
             self.window[m] =
-                (a0 - a1 * x.cos() + a2 * (2.0 * x).cos() - a3 * (3.0 * x).cos()) as f32;
+                (a0 - a1 * math::cos(x) + a2 * math::cos(2.0 * x) - a3 * math::cos(3.0 * x)) as f32;
         }
         self.window[0] = 0.0;
         // A fresh convolver's buffers are zero already: leave their pages untouched until

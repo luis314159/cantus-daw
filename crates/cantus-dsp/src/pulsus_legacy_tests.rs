@@ -3,6 +3,7 @@
 
 use super::shape::saturate;
 use super::*;
+use crate::math;
 use crate::nulltest::{assert_null, peak, rms};
 
 const KICK: u8 = 36;
@@ -217,12 +218,12 @@ fn test_sample(channels: usize) -> SampleRef {
     let mut frames = Vec::with_capacity(n * channels);
     for i in 0..n {
         let t = i as f32 / rate;
-        let env = (-t * 6.0).exp();
-        let l = (std::f32::consts::TAU * 220.0 * t).sin() * env * 0.8;
+        let env = math::exp(-t * 6.0);
+        let l = math::sin(std::f32::consts::TAU * 220.0 * t) * env * 0.8;
         frames.push(l);
         if channels == 2 {
             // A different note on the right, so a stereo file's channels are told apart.
-            frames.push((std::f32::consts::TAU * 330.0 * t).sin() * env * 0.8);
+            frames.push(math::sin(std::f32::consts::TAU * 330.0 * t) * env * 0.8);
         }
     }
     SampleRef {

@@ -4,6 +4,7 @@
 use super::detect::Biquad;
 use super::*;
 use crate::aequalis::{design, Coefs, EqShape, MAX_SECTIONS};
+use crate::math;
 
 const SR: f32 = 48_000.0;
 
@@ -81,7 +82,7 @@ fn bright_tone(n: usize, f0: f32, amp: f32) -> Vec<f32> {
             let t = i as f32 / SR;
             let mut x = 0.0;
             for h in 1..=harmonics {
-                x += (std::f32::consts::TAU * f0 * h as f32 * t).sin() / h as f32;
+                x += math::sin(std::f32::consts::TAU * f0 * h as f32 * t) / h as f32;
             }
             x * amp
         })
@@ -90,13 +91,13 @@ fn bright_tone(n: usize, f0: f32, amp: f32) -> Vec<f32> {
 
 fn sine(n: usize, hz: f32, amp: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / SR).sin())
+        .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / SR))
         .collect()
 }
 
 fn rms_db(x: &[f32]) -> f32 {
-    let ms = x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len().max(1) as f64;
-    (10.0 * ms.max(1e-30).log10()) as f32
+    let ms = x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len().max(1) as f64;
+    (10.0 * math::log10(ms.max(1e-30))) as f32
 }
 
 fn run(
@@ -300,11 +301,11 @@ fn material() -> Material {
     let mid = |x: &[f32]| band_level_db(&x[..(0.15 * SR) as usize]);
     let b_level = mid(&bursts);
     let target = -12.0;
-    let g = 10f32.powf((target - b_level) / 20.0);
+    let g = math::powf(10f32, (target - b_level) / 20.0);
     let bursts: Vec<f32> = bursts.iter().map(|x| x * g).collect();
     let fit = |x: Vec<f32>| {
         let lv = band_level_db(&x);
-        let g = 10f32.powf((target - lv) / 20.0);
+        let g = math::powf(10f32, (target - lv) / 20.0);
         x.into_iter().map(|v| v * g).collect::<Vec<_>>()
     };
     let saw = fit(bright_tone(n, 220.0, 0.5));
@@ -496,7 +497,7 @@ fn split_band_leaves_the_rest_alone() {
             .sum::<f64>()
             / low[from..to]
                 .iter()
-                .map(|b| (*b as f64).powi(2))
+                .map(|b| math::powi(*b as f64, 2))
                 .sum::<f64>();
         eprintln!("{processing:?}: share of the 200 Hz tone removed {low_in_removed:.2e}");
         assert!(low_in_removed.abs() < 1e-3);

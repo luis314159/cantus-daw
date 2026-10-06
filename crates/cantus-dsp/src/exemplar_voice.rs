@@ -7,6 +7,7 @@
 //! block size (ADR 0023 rule 1).
 
 use super::play::Playhead;
+use crate::math;
 
 /// Samples between control updates (pitch, filter, modulation).
 pub const CONTROL: u32 = 32;
@@ -68,7 +69,7 @@ fn fall(samples: f32) -> f32 {
     if samples <= 1.0 {
         0.0
     } else {
-        (-6.907_755 / samples).exp()
+        math::exp(-6.907_755 / samples)
     }
 }
 
@@ -180,7 +181,7 @@ impl Svf {
     /// `cutoff` in Hz, `reso` 0…1.
     pub fn set(&mut self, cutoff: f32, reso: f32, fs: f32) {
         let fc = cutoff.clamp(10.0, 0.45 * fs);
-        let g = (std::f32::consts::PI * fc / fs).tan();
+        let g = math::tan(std::f32::consts::PI * fc / fs);
         self.k = 2.0 - 1.96 * reso.clamp(0.0, 1.0);
         self.a1 = 1.0 / (1.0 + g * (g + self.k));
         self.a2 = g * self.a1;
@@ -223,7 +224,7 @@ pub fn lfo_value(shape: u8, phase: f64) -> f32 {
             }
         }
         3 => 2.0 * p - 1.0,
-        _ => (std::f32::consts::TAU * p).sin(),
+        _ => math::sin(std::f32::consts::TAU * p),
     }
 }
 

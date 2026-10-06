@@ -2,6 +2,8 @@
 //! thread at their sample, and Porta uses them in its MIDI-trigger mode — a note-on opens
 //! the gate, the last note-off lets it hold and release.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::{assert_null, peak};
@@ -112,7 +114,7 @@ fn velocity_scales_the_opening() {
     // Velocity 127 opens fully either way.
     assert_eq!(window(&full, 1), window(&scaled, 1));
     let want_db = -24.0 * (1.0 - 40.0 / 127.0);
-    let got_db = 20.0 * (window(&scaled, 3) / window(&full, 3)).log10();
+    let got_db = 20.0 * math::log10(window(&scaled, 3) / window(&full, 3));
     assert!(
         (got_db - want_db).abs() < 0.05,
         "a soft note opened {got_db:.2} dB, not {want_db:.2} dB"

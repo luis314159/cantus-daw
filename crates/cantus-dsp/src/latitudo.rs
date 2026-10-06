@@ -42,6 +42,7 @@
 //! 10 ms, so nothing clicks. Everything is per sample from the stream's start, so the
 //! output never depends on the block size.
 
+use crate::math;
 use crate::multiplex::filters::{OnePole, Shelf, Slope, Xover, XoverCoefs};
 
 #[path = "latitudo_run.rs"]
@@ -296,7 +297,7 @@ impl Fade {
 /// The one-pole share of a glide over `ms`, for a step of [`UPDATE`] samples.
 fn grid_share(ms: f32, sr: f32) -> f32 {
     let tau = (ms * 0.001 * sr).max(1e-3);
-    1.0 - (-(UPDATE as f32) / tau).exp()
+    1.0 - math::exp(-(UPDATE as f32) / tau)
 }
 
 /// `10^(db/20)`, exactly 1 at 0 dB.
@@ -305,7 +306,7 @@ pub fn db_to_gain(db: f32) -> f32 {
     if db == 0.0 {
         1.0
     } else {
-        10f32.powf(db / 20.0)
+        math::powf(10f32, db / 20.0)
     }
 }
 
@@ -499,7 +500,7 @@ impl Latitudo {
             line: [vec![0.0; cap], vec![0.0; cap]],
             cap,
             pos: 0,
-            meter_c: 1.0 - (-1.0 / (METER_MS * 0.001 * sr)).exp(),
+            meter_c: 1.0 - math::exp(-1.0 / (METER_MS * 0.001 * sr)),
             acc_in: [0.0; 3],
             acc_out: [0.0; 3],
             acc_band: [[0.0; 3]; 3],
@@ -539,7 +540,7 @@ impl Latitudo {
     /// every filter and the line empty, the meters at rest. No allocation.
     pub fn reset(&mut self) {
         let s = self.s;
-        let lg = |hz: f32| Glide::at(hz.max(1.0).log2());
+        let lg = |hz: f32| Glide::at(math::log2(hz.max(1.0)));
         let (x_lo, x_hi) = s.crossovers();
         self.n = 0;
         self.width = Glide::at(s.width);

@@ -3,6 +3,7 @@
 //! random draws from. All of it steps per sample or on the control grid, counted from the
 //! note's start, so nothing depends on where a block begins.
 
+use crate::math;
 use std::f32::consts::TAU;
 
 /// SplitMix64: a counter-based hash, so a random value is a function of what it is for
@@ -41,9 +42,9 @@ impl Curve {
             return Curve::default();
         }
         Curve {
-            inv_denom: 1.0 / (k.exp() - 1.0),
-            e: (k * t).exp(),
-            r: (k * dt).exp(),
+            inv_denom: 1.0 / (math::exp(k) - 1.0),
+            e: math::exp(k * t),
+            r: math::exp(k * dt),
         }
     }
     /// Step once and return the shape at the new `t`.
@@ -326,7 +327,7 @@ impl Shape {
 #[inline]
 pub fn wave(w: LfoWave, x: f32, r0: f32, r1: f32, shape: &Shape) -> f32 {
     match w {
-        LfoWave::Sine => (TAU * x).sin(),
+        LfoWave::Sine => math::sin(TAU * x),
         LfoWave::Triangle => 1.0 - 4.0 * ((x + 0.25).fract() - 0.5).abs(),
         LfoWave::SawUp => 2.0 * x - 1.0,
         LfoWave::SawDown => 1.0 - 2.0 * x,
@@ -339,7 +340,7 @@ pub fn wave(w: LfoWave, x: f32, r0: f32, r1: f32, shape: &Shape) -> f32 {
         }
         LfoWave::SampleHold => r0,
         LfoWave::SmoothRandom => {
-            let s = 0.5 - 0.5 * (std::f32::consts::PI * x).cos();
+            let s = 0.5 - 0.5 * math::cos(std::f32::consts::PI * x);
             r0 + (r1 - r0) * s
         }
         LfoWave::Drawn => shape.at(x),

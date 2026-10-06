@@ -6,6 +6,7 @@
 use crate::effect::EffectSlot;
 use crate::instrument::InstrumentSpec;
 use crate::time::{Ticks, TimeSignature};
+use cantus_dsp::math;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -289,7 +290,7 @@ impl PanLaw {
             0.0
         };
         let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
-        let (power_l, power_r) = (angle.cos(), angle.sin());
+        let (power_l, power_r) = (math::cos(angle), math::sin(angle));
         let (amp_l, amp_r) = ((1.0 - p) * 0.5, (1.0 + p) * 0.5);
         match self {
             // Equal-power taper on the far channel, and the near channel simply left
@@ -1438,7 +1439,7 @@ pub fn db_to_linear(db: f32) -> f32 {
     if db <= MIN_GAIN_DB {
         0.0
     } else {
-        10f32.powf(db / 20.0)
+        math::powf(10f32, db / 20.0)
     }
 }
 
@@ -1446,7 +1447,7 @@ pub fn linear_to_db(lin: f32) -> f32 {
     if lin <= 0.0 {
         MIN_GAIN_DB
     } else {
-        (20.0 * lin.log10()).max(MIN_GAIN_DB)
+        (20.0 * math::log10(lin)).max(MIN_GAIN_DB)
     }
 }
 
@@ -1471,14 +1472,14 @@ pub fn balance_gains(pan: f32) -> (f32, f32) {
     }
     let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
     (
-        (angle.cos() * std::f32::consts::SQRT_2).min(1.0),
-        (angle.sin() * std::f32::consts::SQRT_2).min(1.0),
+        (math::cos(angle) * std::f32::consts::SQRT_2).min(1.0),
+        (math::sin(angle) * std::f32::consts::SQRT_2).min(1.0),
     )
 }
 
 /// MIDI pitch → frequency in Hz with A4 = 440 Hz.
 pub fn pitch_to_hz(pitch: f32) -> f32 {
-    440.0 * 2f32.powf((pitch - 69.0) / 12.0)
+    440.0 * math::powf(2f32, (pitch - 69.0) / 12.0)
 }
 
 pub fn pitch_name(pitch: Pitch) -> String {
@@ -1560,7 +1561,7 @@ mod tests {
             // scaled so the centre is unity, with the near channel clamped to the fader.
             let p = pan.clamp(-1.0, 1.0);
             let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
-            let (pl, pr) = (angle.cos(), angle.sin());
+            let (pl, pr) = (math::cos(angle), math::sin(angle));
             let g = 1.0f32;
             let (gl, gr) = (
                 g * pl * std::f32::consts::SQRT_2,
@@ -1578,8 +1579,8 @@ mod tests {
 
     #[test]
     fn width_one_is_the_identity_and_width_zero_is_mono() {
-        let src_l: Vec<f32> = (0..64).map(|i| (i as f32 * 0.1).sin()).collect();
-        let src_r: Vec<f32> = (0..64).map(|i| (i as f32 * 0.17).cos()).collect();
+        let src_l: Vec<f32> = (0..64).map(|i| math::sin(i as f32 * 0.1)).collect();
+        let src_r: Vec<f32> = (0..64).map(|i| math::cos(i as f32 * 0.17)).collect();
 
         let (mut l, mut r) = (src_l.clone(), src_r.clone());
         apply_width(&mut l, &mut r, 1.0);

@@ -17,6 +17,8 @@
 
 /// Taps of the first (1×↔2×) and the second (2×↔4×) stage: both 4k+3, as a half-band
 /// with its centre tap on an odd index needs.
+use crate::math;
+
 const TAPS_A: usize = 63;
 const TAPS_B: usize = 19;
 /// Kaiser β for about 80 dB of stop band.
@@ -64,7 +66,7 @@ fn half_band(taps: usize) -> Vec<f64> {
             let ideal = if t == 0.0 {
                 0.5
             } else {
-                (std::f64::consts::PI * t / 2.0).sin() / (std::f64::consts::PI * t)
+                math::sin(std::f64::consts::PI * t / 2.0) / (std::f64::consts::PI * t)
             };
             let r = t / c;
             ideal * i0(BETA * (1.0 - r * r).max(0.0).sqrt()) / norm

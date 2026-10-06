@@ -2,6 +2,8 @@
 //! block-size independence, the latency through delay compensation, and the telemetry
 //! through the plug-in contract.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::fervor::telemetry;
@@ -130,7 +132,7 @@ fn latency_settings_and_telemetry_through_the_contract() {
     assert!(s.curve.points[2].is_none());
     // 0.3 s: long enough for the drive's 20 ms glide to land on its target.
     let mut l: Vec<f32> = (0..14_400)
-        .map(|i| 0.25 * (i as f32 * 0.07).sin())
+        .map(|i| 0.25 * math::sin(i as f32 * 0.07))
         .collect();
     let mut r = l.clone();
     for (a, b) in l.chunks_mut(480).zip(r.chunks_mut(480)) {

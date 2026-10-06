@@ -23,6 +23,8 @@
 //! keyboard level scaling (the DX break point, depths and four curves), keyboard rate
 //! scaling and velocity sensitivity.
 
+use crate::math;
+
 #[path = "modulus_env.rs"]
 pub mod env;
 #[path = "modulus_guard.rs"]
@@ -92,7 +94,7 @@ pub fn fast_sin_cycles(x: f32) -> f32 {
 
 #[inline]
 pub fn db_to_lin(db: f32) -> f32 {
-    (db * (std::f32::consts::LOG2_10 / 20.0)).exp2()
+    math::exp2(db * (std::f32::consts::LOG2_10 / 20.0))
 }
 
 /// A breakpoint envelope's settings: `n` points reached one after the other from `l0`.

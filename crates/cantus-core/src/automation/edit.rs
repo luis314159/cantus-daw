@@ -5,6 +5,7 @@
 
 use super::{AutoPoint, Shape};
 use crate::time::Ticks;
+use cantus_dsp::math;
 
 /// Clamp and sort: what every edit returns.
 pub fn tidy(points: &mut [AutoPoint]) {
@@ -240,7 +241,7 @@ pub fn tension_for_mid(shape: Shape, mid: f32) -> f32 {
             } else {
                 (false, 1.0 - m)
             };
-            let p = y.ln() / 0.5f32.ln(); // 0.5^p = y
+            let p = math::ln(y) / math::ln(0.5f32); // 0.5^p = y
             let t = ((p - 1.0) / 7.0).clamp(0.0, 1.0);
             if below {
                 t

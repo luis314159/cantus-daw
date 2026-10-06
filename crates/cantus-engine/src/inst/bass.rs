@@ -25,6 +25,7 @@ use cantus_dsp::gravis::string::{open_strings, Fingering, StringSettings, String
 use cantus_dsp::gravis::synth::{SynthSettings, Wave};
 use cantus_dsp::gravis::voice::{EnvTimes, GlideShape};
 use cantus_dsp::gravis::{Engine, GlideTrigger, Gravis, GravisSettings, PhaseMode, VoiceMode};
+use cantus_dsp::math;
 use cantus_dsp::modmatrix::{ModCurve, ModMatrix, ModRoute};
 use cantus_dsp::voices::Priority;
 
@@ -129,8 +130,9 @@ pub fn settings_from(v: &[f32; COUNT]) -> GravisSettings {
             spread: v[ix::SYN_SPREAD],
             width: v[ix::SYN_WIDTH],
             osc2: v[ix::SYN_OSC2],
-            osc2_ratio: ((round(ix::SYN_OSC2_SEMI) + v[ix::SYN_OSC2_FINE] * 0.01) as f64 / 12.0)
-                .exp2(),
+            osc2_ratio: math::exp2(
+                (round(ix::SYN_OSC2_SEMI) + v[ix::SYN_OSC2_FINE] * 0.01) as f64 / 12.0,
+            ),
             filter: FilterKind::from_index(v[ix::SYN_FILTER]),
             cutoff: v[ix::SYN_CUTOFF],
             reso: v[ix::SYN_RESO],
@@ -271,9 +273,9 @@ impl Unit {
                 // logarithmic control (a cutoff, a time) is modulated in octaves.
                 let info = &PARAMS[i];
                 let x = if info.logarithmic {
-                    let span = (info.max / info.min).ln();
-                    let pos = (v[i] / info.min).ln() / span + o;
-                    info.min * (pos.clamp(0.0, 1.0) * span).exp()
+                    let span = math::ln(info.max / info.min);
+                    let pos = math::ln(v[i] / info.min) / span + o;
+                    info.min * math::exp(pos.clamp(0.0, 1.0) * span)
                 } else {
                     (v[i] + o * (info.max - info.min)).clamp(info.min, info.max)
                 };

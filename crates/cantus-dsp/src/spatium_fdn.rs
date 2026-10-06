@@ -55,6 +55,7 @@
 // index; that reads clearer than zipping five iterators.
 #![allow(clippy::needless_range_loop)]
 
+use crate::math;
 use crate::spatium::model::TargetCurve;
 use crate::EqShape;
 
@@ -91,7 +92,12 @@ pub const BANDS: [(EqShape, f32, f32); SECTIONS] = [
 /// `cos ω, sin ω, cos 2ω, sin 2ω` for a frequency.
 fn trig(sample_rate: f32, hz: f64) -> [f64; 4] {
     let w = 2.0 * std::f64::consts::PI * hz / sample_rate as f64;
-    [w.cos(), w.sin(), (2.0 * w).cos(), (2.0 * w).sin()]
+    [
+        math::cos(w),
+        math::sin(w),
+        math::cos(2.0 * w),
+        math::sin(2.0 * w),
+    ]
 }
 
 /// One absorption section in the form that stays exact at small gains and low
@@ -150,7 +156,7 @@ impl Section {
 
     /// Magnitude at `hz`, dB.
     pub fn magnitude_db(&self, sample_rate: f32, hz: f32) -> f32 {
-        (10.0 * self.mag2(&trig(sample_rate, hz as f64)).max(1e-300).log10()) as f32
+        (10.0 * math::log10(self.mag2(&trig(sample_rate, hz as f64)).max(1e-300))) as f32
     }
 }
 
@@ -161,8 +167,8 @@ fn section(shape: EqShape, sample_rate: f32, hz: f32, gain_db: f32, q: f32) -> S
     }
     let w0 = 2.0 * std::f64::consts::PI * (hz as f64).min(0.45 * sample_rate as f64)
         / sample_rate as f64;
-    let (sn, cs) = w0.sin_cos();
-    let a = 10f64.powf(gain_db as f64 / 40.0);
+    let (sn, cs) = math::sin_cos(w0);
+    let a = math::powf(10f64, gain_db as f64 / 40.0);
     let alpha = sn / (2.0 * q as f64);
     let sa = 2.0 * a.sqrt() * alpha;
     let (b, den) = match shape {
@@ -205,7 +211,7 @@ fn cascade_db(coefs: &[Section; SECTIONS], g0_db: f64, t: &[f64; 4]) -> f64 {
     for c in coefs {
         m *= c.mag2(t);
     }
-    10.0 * m.max(1e-300).log10() + g0_db
+    10.0 * math::log10(m.max(1e-300)) + g0_db
 }
 
 /// The fitter: the grid and the interaction matrix's inverse for one sample rate.
@@ -228,7 +234,7 @@ impl Absorber {
         let mut grid_hz = [0.0; GRID];
         let mut points = 0;
         for (j, g) in grid_hz.iter_mut().enumerate() {
-            let f = 20.0 * 2f64.powf(j as f64 / 3.0);
+            let f = 20.0 * math::powf(2f64, j as f64 / 3.0);
             if f <= top * 1.001 {
                 *g = f;
                 points = j + 1;
@@ -260,7 +266,7 @@ impl Absorber {
         for (s, (shape, hz, q)) in BANDS.iter().enumerate() {
             let c = section(*shape, sample_rate, *hz, PROTO_DB as f32, *q);
             for j in 0..points {
-                b[j][s] = 10.0 * c.mag2(&grid[j]).log10() / PROTO_DB;
+                b[j][s] = 10.0 * math::log10(c.mag2(&grid[j])) / PROTO_DB;
             }
         }
         for row in b.iter_mut().take(points) {
@@ -300,7 +306,7 @@ impl Absorber {
         // P = (BᵀWB + λI)⁻¹ BᵀW for this line's weights.
         let mut w = [0.0f64; GRID];
         for j in 0..n {
-            w[j] = 1.0 / target_db[j].abs().max(1e-3).powi(2);
+            w[j] = 1.0 / math::powi(target_db[j].abs().max(1e-3), 2);
         }
         let mut m = [[0.0f64; K]; K];
         for r in 0..K {
@@ -345,7 +351,7 @@ impl Absorber {
         if peak > -SAFETY_DB {
             g[SECTIONS] -= peak + SAFETY_DB;
         }
-        10f64.powf(g[SECTIONS] / 20.0) as f32
+        math::powf(10f64, g[SECTIONS] / 20.0) as f32
     }
 
     fn sections(&self, g: &[f64; SECTIONS + 1], out: &mut [Section; SECTIONS]) {
@@ -440,7 +446,7 @@ impl LateDesign {
     /// Line `i`'s attenuation per pass at `hz`, dB (negative).
     pub fn pass_db(&self, i: usize, hz: f32) -> f64 {
         let t = trig(self.sample_rate, hz as f64);
-        cascade_db(&self.coefs[i], 20.0 * (self.g0[i] as f64).log10(), &t)
+        cascade_db(&self.coefs[i], 20.0 * math::log10(self.g0[i] as f64), &t)
     }
 
     /// Line `i`'s own decay time at `hz`, seconds.
@@ -455,7 +461,7 @@ impl LateDesign {
         let t = trig(self.sample_rate, hz as f64);
         let mut per_sample = 0.0;
         for i in 0..LINES {
-            per_sample += cascade_db(&self.coefs[i], 20.0 * (self.g0[i] as f64).log10(), &t)
+            per_sample += cascade_db(&self.coefs[i], 20.0 * math::log10(self.g0[i] as f64), &t)
                 / self.lengths[i] as f64;
         }
         per_sample /= LINES as f64;
@@ -634,7 +640,7 @@ impl Fdn {
             w: 0,
             len: [1000.0; LINES],
             len_target: [1000.0; LINES],
-            glide: 1.0 - (-1.0 / (0.08 * sample_rate)).exp(),
+            glide: 1.0 - math::exp(-1.0 / (0.08 * sample_rate)),
             ap: [0.0; LINES],
             lfo_re: [1.0; LINES],
             lfo_im: [0.0; LINES],
@@ -643,7 +649,7 @@ impl Fdn {
             depth_scale,
             depth: 0.0,
             depth_target: 0.0,
-            smooth: 1.0 - (-1.0 / (0.05 * sample_rate)).exp(),
+            smooth: 1.0 - math::exp(-1.0 / (0.05 * sample_rate)),
             d0: [[0.0; LINES]; SECTIONS],
             d1: [[0.0; LINES]; SECTIONS],
             d2: [[0.0; LINES]; SECTIONS],
@@ -658,7 +664,7 @@ impl Fdn {
             freeze_target: 0.0,
             energy: 0.0,
             energy_ref: 0.0,
-            energy_coef: 1.0 - (-1.0 / (0.1 * sample_rate)).exp(),
+            energy_coef: 1.0 - math::exp(-1.0 / (0.1 * sample_rate)),
             frozen_for: 0,
             b_l,
             b_r,
@@ -675,8 +681,8 @@ impl Fdn {
         for i in 0..LINES {
             // Spread the phases by the golden angle so no two lines move together.
             let ph = i as f32 * 2.399_963;
-            self.lfo_re[i] = ph.cos();
-            self.lfo_im[i] = ph.sin();
+            self.lfo_re[i] = math::cos(ph);
+            self.lfo_im[i] = math::sin(ph);
         }
     }
 
@@ -729,8 +735,8 @@ impl Fdn {
         for i in 0..LINES {
             let r = rate_hz * (0.55 + 0.9 * crate::spatium::model::hash01(i as u32, 97));
             let w = 2.0 * std::f32::consts::PI * r / self.sample_rate;
-            self.rot_c[i] = w.cos();
-            self.rot_s[i] = w.sin();
+            self.rot_c[i] = math::cos(w);
+            self.rot_s[i] = math::sin(w);
         }
     }
 
@@ -978,7 +984,7 @@ mod tests {
             let d = LateDesign::new(&a, &curve, &lengths);
             for i in 0..LINES {
                 for k in 0..=26 {
-                    let hz = 50.0 * 2f32.powf(k as f32 / 3.0);
+                    let hz = 50.0 * math::powf(2f32, k as f32 / 3.0);
                     if hz > 16_000.0 {
                         continue;
                     }

@@ -9,6 +9,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::aequalis::{design, Coefs, MAX_SECTIONS};
+use crate::math;
 use crate::EqShape;
 
 /// Octave centres the displays and tests read decay at, Hz.
@@ -66,7 +67,7 @@ pub fn schroeder_db(signal: &[f32]) -> Vec<f32> {
     }
     let total = edc.first().copied().unwrap_or(0.0).max(1e-300);
     edc.iter()
-        .map(|e| (10.0 * (e / total).max(1e-30).log10()) as f32)
+        .map(|e| (10.0 * math::log10((e / total).max(1e-30))) as f32)
         .collect()
 }
 
@@ -177,14 +178,14 @@ fn decay_of(x: &[f32], fs: f32) -> Decay {
     let mean = |a: usize| power[a..a + span].iter().sum::<f64>() / span as f64;
     let from = tail
         .iter()
-        .position(|e| *e <= tail[0] * 10f64.powf(-0.5))
+        .position(|e| *e <= tail[0] * math::powf(10f64, -0.5))
         .unwrap_or(0)
         .min(n - span);
     let (start, end) = (mean(from), mean(n - span));
     let fell_db = if start <= 0.0 {
         0.0
     } else {
-        (10.0 * (start / end.max(start * 1e-30)).log10()) as f32
+        (10.0 * math::log10(start / end.max(start * 1e-30))) as f32
     };
     // The end window's power, for whether any energy follows the cut.
     let end = power[n - win..].iter().sum::<f64>() / win as f64;
@@ -192,7 +193,7 @@ fn decay_of(x: &[f32], fs: f32) -> Decay {
         let total = (tail[0] + extra).max(1e-300);
         let db: Vec<f32> = tail
             .iter()
-            .map(|e| (10.0 * ((e + extra) / total).max(1e-30).log10()) as f32)
+            .map(|e| (10.0 * math::log10(((e + extra) / total).max(1e-30))) as f32)
             .collect();
         fit_decay(&db, fs, -5.0, -25.0)
     };
@@ -208,7 +209,7 @@ fn decay_of(x: &[f32], fs: f32) -> Decay {
         for _ in 0..20 {
             let Some(t) = t60 else { break };
             let k = 13.815_5 / (t as f64 * fs as f64);
-            let extra = last / ((k * w as f64).exp() - 1.0).max(1e-12);
+            let extra = last / (math::exp(k * w as f64) - 1.0).max(1e-12);
             let next = fit(extra);
             let settled = next.is_some_and(|v| (v - t).abs() <= t * 1e-4);
             t60 = next;
@@ -242,7 +243,7 @@ pub fn band_t60_averaged(signals: &[&[f32]], sample_rate: f32, hz: f32) -> Optio
     let total = edc.first().copied().unwrap_or(0.0).max(1e-300);
     let db: Vec<f32> = edc
         .iter()
-        .map(|e| (10.0 * (e / total).max(1e-30).log10()) as f32)
+        .map(|e| (10.0 * math::log10((e / total).max(1e-30))) as f32)
         .collect();
     fit_decay(&db, sample_rate, -5.0, -25.0)
 }
@@ -278,7 +279,7 @@ pub fn expected_band_t60(t60: impl Fn(f32) -> f32, sample_rate: f32, hz: f32) ->
     // Components on a 1/24-octave grid over ±3 octaves: (weight, T60).
     let mut comps = Vec::new();
     for k in -72..=72 {
-        let f = hz * 2f32.powf(k as f32 / 24.0);
+        let f = hz * math::powf(2f32, k as f32 / 24.0);
         if f < 10.0 || f > 0.49 * sample_rate {
             continue;
         }
@@ -288,7 +289,7 @@ pub fn expected_band_t60(t60: impl Fn(f32) -> f32, sample_rate: f32, hz: f32) ->
             .map(|c| c.magnitude_db(sample_rate, f))
             .sum();
         // Flat energy per hertz: on a log grid each point stands for a width ∝ f.
-        let w = 10f64.powf(db as f64 / 10.0) * f as f64;
+        let w = math::powf(10f64, db as f64 / 10.0) * f as f64;
         comps.push((w, t60(f).max(1e-3) as f64));
     }
     let longest = comps.iter().map(|c| c.1).fold(0.0, f64::max);
@@ -300,14 +301,14 @@ pub fn expected_band_t60(t60: impl Fn(f32) -> f32, sample_rate: f32, hz: f32) ->
             // The backward integral of w·e^(−13.8 t/T) is w·T/13.8·e^(−13.8 t/T).
             comps
                 .iter()
-                .map(|(w, tt)| w * tt * (-13.815_5 * t / tt).exp())
+                .map(|(w, tt)| w * tt * math::exp(-13.815_5 * t / tt))
                 .sum()
         })
         .collect();
     let total = edc[0].max(1e-300);
     let db: Vec<f32> = edc
         .iter()
-        .map(|e| (10.0 * (e / total).max(1e-30).log10()) as f32)
+        .map(|e| (10.0 * math::log10((e / total).max(1e-30))) as f32)
         .collect();
     fit_decay(&db, rate as f32, -5.0, -25.0)
 }
@@ -323,8 +324,8 @@ pub fn envelope_db(signal: &[f32], sample_rate: f32, bin_ms: f32) -> Vec<f32> {
     signal
         .chunks(bin)
         .map(|c| {
-            let e = c.iter().map(|x| (*x as f64).powi(2)).sum::<f64>() / c.len() as f64;
-            (10.0 * e.max(1e-20).log10()) as f32
+            let e = c.iter().map(|x| math::powi(*x as f64, 2)).sum::<f64>() / c.len() as f64;
+            (10.0 * math::log10(e.max(1e-20))) as f32
         })
         .collect()
 }
@@ -338,7 +339,7 @@ pub fn echo_density(signal: &[f32], sample_rate: f32, win_ms: f32) -> Vec<f32> {
     signal
         .chunks_exact(win)
         .map(|c| {
-            let var = c.iter().map(|x| (*x as f64).powi(2)).sum::<f64>() / c.len() as f64;
+            let var = c.iter().map(|x| math::powi(*x as f64, 2)).sum::<f64>() / c.len() as f64;
             let sd = var.sqrt();
             if sd <= 0.0 {
                 return 0.0;
@@ -354,8 +355,8 @@ pub fn correlation(a: &[f32], b: &[f32]) -> f32 {
     let (mut ab, mut aa, mut bb) = (0.0f64, 0.0f64, 0.0f64);
     for (x, y) in a.iter().zip(b) {
         ab += (*x as f64) * (*y as f64);
-        aa += (*x as f64).powi(2);
-        bb += (*y as f64).powi(2);
+        aa += math::powi(*x as f64, 2);
+        bb += math::powi(*y as f64, 2);
     }
     if aa <= 0.0 || bb <= 0.0 {
         return 0.0;
@@ -413,7 +414,7 @@ mod tests {
                 seed ^= seed >> 17;
                 seed ^= seed << 5;
                 let noise = (seed as f32 / u32::MAX as f32) * 2.0 - 1.0;
-                noise * 10f32.powf(-3.0 * i as f32 / (fs * t60))
+                noise * math::powf(10f32, -3.0 * i as f32 / (fs * t60))
             })
             .collect();
         let got = t60_of(&sig, fs);
@@ -444,7 +445,7 @@ mod tests {
                 (s as f32 / u32::MAX as f32) * 2.0 - 1.0
             })
             .collect();
-        let env = |t60: f32, i: usize| 10f32.powf(-3.0 * i as f32 / (fs * t60));
+        let env = |t60: f32, i: usize| math::powf(10f32, -3.0 * i as f32 / (fs * t60));
         let low: Vec<f32> = octave_band(
             &white
                 .iter()
@@ -461,7 +462,7 @@ mod tests {
         let tone: Vec<f32> = (0..n)
             .map(|i| {
                 let fade = (i as f32 / (0.02 * fs)).min(1.0);
-                (i as f32 / fs * 190.0 * std::f32::consts::TAU).sin() * 0.5 * fade * env(3.2, i)
+                math::sin(i as f32 / fs * 190.0 * std::f32::consts::TAU) * 0.5 * fade * env(3.2, i)
             })
             .collect();
         let mix: Vec<f32> = low.iter().zip(&tone).map(|(a, b)| a + b).collect();
@@ -504,7 +505,7 @@ mod tests {
             let x: Vec<f32> = noise(seed, n)
                 .iter()
                 .enumerate()
-                .map(|(i, v)| v * gain * 10f32.powf(-3.0 * i as f32 / (fs * t60)))
+                .map(|(i, v)| v * gain * math::powf(10f32, -3.0 * i as f32 / (fs * t60)))
                 .collect();
             octave_band(&x, fs, hz)
         };

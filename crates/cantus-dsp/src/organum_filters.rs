@@ -5,6 +5,7 @@
 //! Every state is flushed below 1e-20 on each sample (as `eq::Biquad` does), so a filter
 //! fed exact zeros reaches exact zeros, whatever the block size.
 
+use crate::math;
 use std::f32::consts::PI;
 
 #[inline]
@@ -60,7 +61,7 @@ impl Bq {
 
     fn w0(sr: f32, hz: f32) -> (f32, f32) {
         let f = hz.clamp(1.0, sr * 0.49);
-        (2.0 * PI * f / sr).sin_cos()
+        math::sin_cos(2.0 * PI * f / sr)
     }
 
     /// Second-order low-pass; `q` 0.7071 is Butterworth.
@@ -86,7 +87,7 @@ impl Bq {
             return;
         }
         let (s, c) = Self::w0(sr, hz);
-        let a = 10f32.powf(db / 40.0);
+        let a = math::powf(10f32, db / 40.0);
         let alpha = s / (2.0 * q.max(0.05));
         self.coefs(
             1.0 + alpha * a,
@@ -105,7 +106,7 @@ impl Bq {
             return;
         }
         let (s, c) = Self::w0(sr, hz);
-        let a = 10f32.powf(db / 40.0);
+        let a = math::powf(10f32, db / 40.0);
         let alpha = s / 2.0 * 2f32.sqrt();
         let sq = 2.0 * a.sqrt() * alpha;
         self.coefs(
@@ -125,7 +126,7 @@ impl Bq {
             return;
         }
         let (s, c) = Self::w0(sr, hz);
-        let a = 10f32.powf(db / 40.0);
+        let a = math::powf(10f32, db / 40.0);
         let alpha = s / 2.0 * 2f32.sqrt();
         let sq = 2.0 * a.sqrt() * alpha;
         self.coefs(
@@ -166,21 +167,19 @@ impl Bq {
     /// Magnitude at `hz`, dB — for tests and displays.
     pub fn magnitude_db(&self, sr: f32, hz: f32) -> f32 {
         let w = 2.0 * PI * hz / sr;
-        let (s1, c1) = w.sin_cos();
-        let (s2, c2) = (2.0 * w).sin_cos();
+        let (s1, c1) = math::sin_cos(w);
+        let (s2, c2) = math::sin_cos(2.0 * w);
         let nr = self.b0 + self.b1 * c1 + self.b2 * c2;
         let ni = -(self.b1 * s1 + self.b2 * s2);
         let dr = 1.0 + self.a1 * c1 + self.a2 * c2;
         let di = -(self.a1 * s1 + self.a2 * s2);
-        10.0 * ((nr * nr + ni * ni) / (dr * dr + di * di).max(1e-30))
-            .max(1e-30)
-            .log10()
+        10.0 * math::log10(((nr * nr + ni * ni) / (dr * dr + di * di).max(1e-30)).max(1e-30))
     }
 }
 
 /// The coefficient of a one-pole low-pass at `hz`: `y += a (x − y)`.
 pub fn one_pole_coef(sr: f32, hz: f32) -> f32 {
-    1.0 - (-2.0 * PI * hz.clamp(1.0, sr * 0.49) / sr).exp()
+    1.0 - math::exp(-2.0 * PI * hz.clamp(1.0, sr * 0.49) / sr)
 }
 
 /// A one-pole low-pass.
@@ -270,7 +269,7 @@ impl Glide {
 #[inline]
 fn ln_cosh(z: f32) -> f32 {
     let a = z.abs();
-    a + (-2.0 * a).exp().ln_1p() - std::f32::consts::LN_2
+    a + math::ln_1p(math::exp(-2.0 * a)) - std::f32::consts::LN_2
 }
 
 /// An asymmetric soft clipper, `f(x) = tanh(x + b) − tanh(b)`, with first-order
@@ -289,7 +288,7 @@ impl Clipper {
     pub fn new(bias: f32) -> Self {
         let mut c = Clipper {
             bias,
-            tb: bias.tanh(),
+            tb: math::tanh(bias),
             x1: 0.0,
             f1: 0.0,
         };
@@ -304,7 +303,7 @@ impl Clipper {
 
     #[inline]
     pub fn curve(&self, x: f32) -> f32 {
-        (x + self.bias).tanh() - self.tb
+        math::tanh(x + self.bias) - self.tb
     }
 
     /// The small-signal slope at zero, `1 − tanh²(b)`.
@@ -382,7 +381,7 @@ mod tests {
         let mut c = Clipper::new(0.2);
         assert_eq!(c.curve(0.0), 0.0);
         for i in 0..1000 {
-            let x = (i as f32 * 0.37).sin() * 50.0;
+            let x = math::sin(i as f32 * 0.37) * 50.0;
             let y = c.run(x);
             assert!(y.abs() <= 1.3, "{y}");
         }

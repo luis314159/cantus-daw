@@ -42,6 +42,8 @@
 //! [`Terminus::latency`], to the bit. Everything is per sample and every glide and column is
 //! counted from the start of the stream, so the output does not depend on the block size.
 
+use crate::math;
+
 #[path = "terminus_loudness.rs"]
 pub mod loudness;
 #[path = "terminus_os.rs"]
@@ -283,7 +285,7 @@ pub fn reduction_db(level_db: f32, ceiling_db: f32, knee_db: f32) -> f32 {
             0.0
         } else if over < 0.5 * w {
             // Reaches the ceiling (reduction = excess + w/2) with slope 1 at the knee's top.
-            (over + 0.5 * w).powi(2) / (2.0 * w)
+            math::powi(over + 0.5 * w, 2) / (2.0 * w)
         } else {
             over
         }
@@ -324,14 +326,14 @@ fn coef(ms: f32, sr: f32) -> f32 {
     if ms <= 0.0 {
         0.0
     } else {
-        (-1.0 / (ms * 0.001 * sr)).exp()
+        math::exp(-1.0 / (ms * 0.001 * sr))
     }
 }
 
 #[inline]
 fn db(lin: f32) -> f32 {
     if lin > 1e-8 {
-        20.0 * lin.log10()
+        20.0 * math::log10(lin)
     } else {
         -160.0
     }
@@ -561,7 +563,7 @@ impl Clipper {
             u
         } else {
             let w = t - a;
-            (a + w * ((m - a) / w).tanh()).copysign(u)
+            (a + w * math::tanh((m - a) / w)).copysign(u)
         }
     }
 
@@ -643,7 +645,7 @@ impl Ditherer {
         } else {
             self.zeros = 0;
         }
-        let q = 2f32.powi(1 - bits as i32);
+        let q = math::powi(2f32, 1 - bits as i32);
         let mut fb = 0f32;
         for (h, e) in shaping.taps().iter().zip(self.err.iter()) {
             fb += h * e;
@@ -819,7 +821,7 @@ impl Terminus {
             ceiling_db: -1.0,
             glide: 1.0 - coef(10.0, sr),
             dc: [DcBlock::default(); 2],
-            dc_r: (-2.0 * std::f32::consts::PI * 5.0 / sr).exp(),
+            dc_r: math::exp(-2.0 * std::f32::consts::PI * 5.0 / sr),
             clip: [Clipper::new(), Clipper::new()],
             det: [TruePeak::new(), TruePeak::new()],
             t_pre: [Delay::new(max_look), Delay::new(max_look)],
@@ -876,7 +878,7 @@ impl Terminus {
         self.gain_target = if s.gain_db == 0.0 {
             1.0
         } else {
-            10f32.powf(s.gain_db / 20.0)
+            math::powf(10f32, s.gain_db / 20.0)
         };
         if first {
             self.gain = self.gain_target;
@@ -909,10 +911,10 @@ impl Terminus {
 
     /// Linear thresholds for a ceiling: worked out when the ceiling moves, not per sample.
     fn derive(&mut self, ceil_db: f32) {
-        let ceil_lin = 10f32.powf(ceil_db / 20.0);
+        let ceil_lin = math::powf(10f32, ceil_db / 20.0);
         // Below the knee's foot nothing is reduced, so no logarithm is needed there.
-        let quiet_below = ceil_lin * 10f32.powf(knee_start_db(self.s.knee_db) / 20.0);
-        let clip_t = ceil_lin * 10f32.powf((1.0 - self.s.clip.clamp(0.0, 1.0)) * 6.0 / 20.0);
+        let quiet_below = ceil_lin * math::powf(10f32, knee_start_db(self.s.knee_db) / 20.0);
+        let clip_t = ceil_lin * math::powf(10f32, (1.0 - self.s.clip.clamp(0.0, 1.0)) * 6.0 / 20.0);
         self.derived = (ceil_lin, quiet_below, clip_t);
         self.derived_for = ceil_db;
     }
@@ -1140,7 +1142,7 @@ impl Terminus {
                 y[ch] = if gr[ch] == 0.0 {
                     x
                 } else {
-                    x * 10f32.powf(-gr[ch] / 20.0)
+                    x * math::powf(10f32, -gr[ch] / 20.0)
                 };
             }
 
@@ -1159,7 +1161,7 @@ impl Terminus {
                 let g = if safe_gr == 0.0 {
                     1.0
                 } else {
-                    10f32.powf(-safe_gr / 20.0)
+                    math::powf(10f32, -safe_gr / 20.0)
                 };
                 for (line, v) in self.safe_audio.iter_mut().zip(y.iter_mut()) {
                     let d = line.push(*v, safe_delay);
@@ -1218,7 +1220,7 @@ mod tests {
 
     fn tone(amp: f32, hz: f32, n: usize) -> Vec<f32> {
         (0..n)
-            .map(|i| amp * (TAU * hz * i as f32 / FS).sin())
+            .map(|i| amp * math::sin(TAU * hz * i as f32 / FS))
             .collect()
     }
 
@@ -1240,8 +1242,8 @@ mod tests {
         (0..n)
             .map(|i| {
                 let beat = (i % 12_000) as f32 / FS;
-                let env = (-beat * 30.0).exp();
-                0.9 * env * nz[i] + 0.25 * (TAU * 55.0 * i as f32 / FS).sin()
+                let env = math::exp(-beat * 30.0);
+                0.9 * env * nz[i] + 0.25 * math::sin(TAU * 55.0 * i as f32 / FS)
             })
             .collect()
     }
@@ -1362,7 +1364,7 @@ mod tests {
                     ..LimSettings::default()
                 };
                 let (l, r) = run(&s, &src, &src_r, 512);
-                let c = 10f32.powf(-3.0 / 20.0);
+                let c = math::powf(10f32, -3.0 / 20.0);
                 assert!(peak(&l) <= c && peak(&r) <= c, "{style:?} {look} ms");
             }
         }
@@ -1376,7 +1378,7 @@ mod tests {
         let fade = |x: Vec<f32>| os::tests::faded(x, 2_000);
         let sine = |hz: f64, ph: f64, amp: f64| -> Vec<f32> {
             (0..n)
-                .map(|i| (amp * (2.0 * pi * hz * i as f64 / fs + ph).sin()) as f32)
+                .map(|i| (amp * math::sin(2.0 * pi * hz * i as f64 / fs + ph)) as f32)
                 .collect()
         };
         let quarter = fade(sine(fs / 4.0, pi / 4.0, 0.7));
@@ -1388,7 +1390,8 @@ mod tests {
             let s = sine(*hz, *ph, 0.3);
             for (i, v) in s.iter().enumerate() {
                 // Bursts, so the gain moves: each tone swells in and out at its own rate.
-                let env = (0.5 - 0.5 * (2.0 * pi * (3.0 + k as f64) * i as f64 / fs).cos()) as f32;
+                let env =
+                    (0.5 - 0.5 * math::cos(2.0 * pi * (3.0 + k as f64) * i as f64 / fs)) as f32;
                 high[i] += v * env;
             }
         }
@@ -1413,9 +1416,9 @@ mod tests {
                 let sinc = if j == 0 {
                     c
                 } else {
-                    (pi * c * t).sin() / (pi * t)
+                    math::sin(pi * c * t) / (pi * t)
                 };
-                sinc * (0.5 + 0.5 * (pi * t / 41.0).cos())
+                sinc * (0.5 + 0.5 * math::cos(pi * t / 41.0))
             })
             .collect();
         let mut bursts = vec![0f32; n];
@@ -1425,7 +1428,7 @@ mod tests {
                 v += raw[i + k - 40] as f64 * c;
             }
             let beat = (i % 9_000) as f32 / FS;
-            bursts[i] = v as f32 * 0.8 * (-beat * 25.0).exp();
+            bursts[i] = v as f32 * 0.8 * math::exp(-beat * 25.0);
         }
         let bursts = fade(bursts);
         vec![
@@ -1466,7 +1469,7 @@ mod tests {
                 };
                 let (a, b) = run(&s, &l, &r, 512);
                 for out in [&a, &b] {
-                    let tp = 20.0 * os::reference_true_peak(out, 0.5).log10();
+                    let tp = 20.0 * math::log10(os::reference_true_peak(out, 0.5));
                     if tp > worst {
                         worst = tp;
                         worst_at = format!("{name}, {style:?}, {look} ms, +{gain} dB");
@@ -1520,7 +1523,7 @@ mod tests {
         };
         let src = tone(0.5, 200.0, 96_000);
         let (l, _) = run(&s, &src, &src, 512);
-        let p = 20.0 * peak(&l[72_000..]).log10();
+        let p = 20.0 * math::log10(peak(&l[72_000..]));
         assert!(p <= -1.0 && p > -1.3, "settled at {p} dB");
     }
 
@@ -1553,7 +1556,7 @@ mod tests {
             ..base
         };
         let (_, r) = run(&unlinked, &left, &right, 256);
-        let g = 10f32.powf(6.0 / 20.0) * 0.1;
+        let g = math::powf(10f32, 6.0 / 20.0) * 0.1;
         assert!(
             r.iter().skip(1_000).all(|v| (v - g).abs() < 1e-5),
             "right moved"
@@ -1599,8 +1602,8 @@ mod tests {
             let (mut c, mut sn) = (0f64, 0f64);
             for (i, v) in tail.iter().enumerate() {
                 let ph = TAU as f64 * 100.0 * (i + 48_000) as f64 / FS as f64;
-                c += *v as f64 * ph.cos();
-                sn += *v as f64 * ph.sin();
+                c += *v as f64 * math::cos(ph);
+                sn += *v as f64 * math::sin(ph);
             }
             let n = tail.len() as f64;
             let (c, sn) = (2.0 * c / n, 2.0 * sn / n);
@@ -1608,11 +1611,11 @@ mod tests {
             let mut total = 0f64;
             for (i, v) in tail.iter().enumerate() {
                 let ph = TAU as f64 * 100.0 * (i + 48_000) as f64 / FS as f64;
-                let fit = c * ph.cos() + sn * ph.sin();
-                resid += (*v as f64 - fit).powi(2);
-                total += (*v as f64).powi(2);
+                let fit = c * math::cos(ph) + sn * math::sin(ph);
+                resid += math::powi(*v as f64 - fit, 2);
+                total += math::powi(*v as f64, 2);
             }
-            10.0 * (resid / total).log10()
+            10.0 * math::log10(resid / total)
         };
         let safe = thd(LimStyle::Safe);
         let clean = thd(LimStyle::Clean);
@@ -1694,7 +1697,7 @@ mod tests {
             256,
         );
         let lat = latency_of(&base, FS);
-        let g = 10f32.powf(9.0 / 20.0);
+        let g = math::powf(10f32, 9.0 / 20.0);
         for i in lat..src.len() {
             assert!((out[i] + delta[i] - src[i - lat] * g).abs() < 1e-5);
         }
@@ -1718,7 +1721,7 @@ mod tests {
         // RBJ low-pass, Q = 0.54 and 1.31: a fourth-order Butterworth at 3 kHz.
         let section = |qf: f64| {
             let w = std::f64::consts::TAU * 3_000.0 / FS as f64;
-            let (c, sn) = (w.cos(), w.sin());
+            let (c, sn) = (math::cos(w), math::sin(w));
             let al = sn / (2.0 * qf);
             let a0 = 1.0 + al;
             (
@@ -1776,7 +1779,7 @@ mod tests {
             };
             let (l, _) = run(&s, &src, &src, 512);
             let lat = latency_of(&s, FS);
-            let q = 2f32.powi(-15);
+            let q = math::powi(2f32, -15);
             // Every sample is on the 16-bit grid.
             assert!(l.iter().all(|v| ((v / q) - (v / q).round()).abs() < 1e-3));
             let err: Vec<f32> = (lat..src.len()).map(|i| l[i] - src[i - lat]).collect();
@@ -1787,7 +1790,7 @@ mod tests {
             }
             // Noise below 3 kHz, relative to flat: the error through a steep low-pass
             // (two Butterworth sections), against the same filter's share of white noise.
-            let lo_db = 10.0 * (band_power(&err, q) / 0.25).log10();
+            let lo_db = 10.0 * math::log10(band_power(&err, q) / 0.25);
             assert!(
                 lo_db < lo_band_vs_flat + 1.0,
                 "{shaping:?}: noise under 3 kHz {lo_db:.1} dB vs flat"
@@ -1814,7 +1817,7 @@ mod tests {
         t.set(&LimSettings { clip: 1.0, ..base });
         let (mut l, mut r) = (src.clone(), src.clone());
         t.process(&mut l, &mut r, None);
-        let c = 10f32.powf(-1.0 / 20.0);
+        let c = math::powf(10f32, -1.0 / 20.0);
         assert!(peak(&l) <= c);
         // The telemetry saw it clip.
         let tel = t.telemetry();

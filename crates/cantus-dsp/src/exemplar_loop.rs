@@ -3,6 +3,8 @@
 //! Plain functions over the decoded file; the UI calls them, never the audio thread.
 
 /// Frames either side of a seam the error looks at.
+use crate::math;
+
 pub const SEAM_WINDOW: usize = 256;
 
 fn frame(data: &[f32], ch: usize, i: i64) -> f32 {
@@ -80,10 +82,10 @@ pub fn seam_error_xf_db(
         let a = frame(data, ch, le) as f64 - frame(data, ch, ls) as f64;
         let slope = frame(data, ch, ls + 1) as f64 - frame(data, ch, ls) as f64;
         let err = (a - slope).abs();
-        return (20.0 * (err.max(1e-6)).log10()).max(-120.0) as f32;
+        return (20.0 * math::log10(err.max(1e-6))).max(-120.0) as f32;
     }
     let level = (level / 2.0).max(1e-12);
-    (10.0 * (diff / level).max(1e-12).log10()).max(-120.0) as f32
+    (10.0 * math::log10((diff / level).max(1e-12))).max(-120.0) as f32
 }
 
 /// The loop end within `search` frames of `le` (then the loop start within `search` of

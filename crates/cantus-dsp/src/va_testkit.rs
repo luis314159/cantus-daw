@@ -24,7 +24,10 @@ pub fn fft(re: &mut [f64], im: &mut [f64]) {
         let ang = -2.0 * std::f64::consts::PI / len as f64;
         for start in (0..n).step_by(len) {
             for k in 0..len / 2 {
-                let (w_re, w_im) = ((ang * k as f64).cos(), (ang * k as f64).sin());
+                let (w_re, w_im) = (
+                    crate::math::cos(ang * k as f64),
+                    crate::math::sin(ang * k as f64),
+                );
                 let (a, b) = (start + k, start + k + len / 2);
                 let t_re = re[b] * w_re - im[b] * w_im;
                 let t_im = re[b] * w_im + im[b] * w_re;
@@ -58,7 +61,7 @@ pub fn spectrum(x: &[f32]) -> Vec<f64> {
             let w: f64 = A
                 .iter()
                 .enumerate()
-                .map(|(k, a)| a * (k as f64 * p).cos())
+                .map(|(k, a)| a * crate::math::cos(k as f64 * p))
                 .sum();
             *v as f64 * w
         })
@@ -94,7 +97,7 @@ pub fn aliasing_floor_db(x: &[f32], fs: f32, f0: f32, lo: f32, hi: f32) -> f64 {
         }
         worst = worst.max(*m);
     }
-    20.0 * (worst.max(1e-30) / fund).log10()
+    20.0 * crate::math::log10(worst.max(1e-30) / fund)
 }
 
 /// Frequency from the upward zero crossings of `x` (interpolated), after removing its
@@ -121,5 +124,5 @@ pub fn frequency(x: &[f32], fs: f32) -> Option<f64> {
 
 /// Cents between two frequencies.
 pub fn cents(f: f64, reference: f64) -> f64 {
-    1200.0 * (f / reference).log2()
+    1200.0 * crate::math::log2(f / reference)
 }

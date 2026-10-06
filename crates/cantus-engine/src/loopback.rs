@@ -15,6 +15,7 @@
 
 use crate::backend::EngineHandle;
 use crate::devices::DeviceTelemetry;
+use cantus_dsp::math;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -109,7 +110,7 @@ pub fn probe_signal(rate: f64) -> Vec<f32> {
             seed ^= seed >> 17;
             seed ^= seed << 5;
             let n = (seed as f32 / u32::MAX as f32) * 2.0 - 1.0;
-            let w = 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / BURST_FRAMES as f32).cos();
+            let w = 0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / BURST_FRAMES as f32);
             v[at + i] = BURST_LEVEL * n * w;
         }
     }
@@ -354,7 +355,7 @@ fn fft(re: &mut [f64], im: &mut [f64], inverse: bool) {
     let twiddles: Vec<(f64, f64)> = (0..n / 2)
         .map(|k| {
             let a = sign * std::f64::consts::TAU * k as f64 / n as f64;
-            (a.cos(), a.sin())
+            (math::cos(a), math::sin(a))
         })
         .collect();
     let mut len = 2;

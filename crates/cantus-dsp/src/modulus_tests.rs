@@ -6,6 +6,7 @@ use super::env::*;
 use super::guard::{bandwidth, graph};
 use super::tables::{design_halfband, tables, Decimator, HB_COEFS, HB_TRANSITION};
 use super::*;
+use crate::math;
 use crate::spectrum::fft;
 
 const FS: f32 = 48_000.0;
@@ -19,7 +20,7 @@ fn through_halfband(freq_in_over_fs_in: f64) -> f32 {
         let mut buf = [0f32; 8];
         for (k, b) in buf.iter_mut().take(2).enumerate() {
             let n = (2 * i + k) as f64;
-            *b = (2.0 * std::f64::consts::PI * freq_in_over_fs_in * n).sin() as f32;
+            *b = math::sin(2.0 * std::f64::consts::PI * freq_in_over_fs_in * n) as f32;
         }
         let y = d.process(&c, &mut buf, 2);
         if i > 2000 {
@@ -43,7 +44,7 @@ fn the_half_band_passes_the_band_and_stops_what_would_fold() {
         assert!(
             a < 1e-4,
             "stop band at {f}: {a} ({:.0} dB)",
-            20.0 * a.log10()
+            20.0 * math::log10(a)
         );
     }
 }
@@ -223,7 +224,7 @@ fn energy_edge(x: &[f32], fs: f32) -> f32 {
     let mut re: Vec<f32> = x[..n]
         .iter()
         .enumerate()
-        .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()))
+        .map(|(i, v)| v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / n as f32)))
         .collect();
     let mut im = vec![0f32; n];
     fft(&mut re, &mut im);
@@ -278,7 +279,7 @@ fn feedback_stays_bounded_and_the_average_removes_the_nyquist_mode() {
         let p: Vec<f32> = (0..n / 2).map(|k| re[k] * re[k] + im[k] * im[k]).collect();
         let total: f32 = p.iter().sum();
         let hi: f32 = p[(n / 2) * 99 / 100..].iter().sum();
-        10.0 * (hi / total).max(1e-20).log10()
+        10.0 * math::log10((hi / total).max(1e-20))
     };
     for b in 0..=40 {
         top(true, b as f32 * 0.1);

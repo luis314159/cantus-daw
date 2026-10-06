@@ -28,6 +28,8 @@
 // Parallel per-wheel / per-mode arrays read clearest by index (as in `spatium_*`).
 #![allow(clippy::needless_range_loop)]
 
+use crate::math;
+
 #[path = "organum_filters.rs"]
 pub mod filters;
 #[path = "organum_rotary.rs"]
@@ -174,7 +176,7 @@ pub fn db_to_gain(db: f32) -> f32 {
     if db <= -120.0 {
         0.0
     } else {
-        10f32.powf(db / 20.0)
+        math::powf(10f32, db / 20.0)
     }
 }
 
@@ -520,13 +522,13 @@ impl Organum {
             }
         }
         if first || old.brilliance_db != s.brilliance_db {
-            let top = (wheels::gear_hz(WHEELS - 1) / 523.25).log2() as f32;
+            let top = math::log2(wheels::gear_hz(WHEELS - 1) / 523.25) as f32;
             for w in 0..WHEELS {
-                let oct = (wheels::gear_hz(w) / 523.25).log2() as f32;
+                let oct = math::log2(wheels::gear_hz(w) / 523.25) as f32;
                 self.taper[w] = if s.brilliance_db == 0.0 {
                     1.0
                 } else {
-                    10f32.powf(s.brilliance_db * oct / top / 20.0)
+                    math::powf(10f32, s.brilliance_db * oct / top / 20.0)
                 };
             }
         }
@@ -535,14 +537,14 @@ impl Organum {
         if gains_moved {
             self.rebuild(first);
         }
-        self.click = 10f32.powf(s.click_db.clamp(-120.0, 12.0) / 20.0);
-        self.release_click = 10f32.powf(s.release_click_db.clamp(-120.0, 12.0) / 20.0);
+        self.click = math::powf(10f32, s.click_db.clamp(-120.0, 12.0) / 20.0);
+        self.release_click = math::powf(10f32, s.release_click_db.clamp(-120.0, 12.0) / 20.0);
         let t60 = if s.perc_slow {
             s.perc_slow_ms
         } else {
             s.perc_fast_ms
         };
-        self.perc_mult = 10f32.powf(-3.0 / (t60.max(1.0) * 0.001 * sr));
+        self.perc_mult = math::powf(10f32, -3.0 / (t60.max(1.0) * 0.001 * sr));
         self.perc_gain.set(if s.perc_soft {
             db_to_gain(s.perc_soft_db)
         } else {
@@ -562,7 +564,7 @@ impl Organum {
         let sw = s.swell.clamp(0.0, 1.0);
         self.swell.set(db_to_gain(-36.0 * (1.0 - sw)));
         self.shelf.set_low_shelf(sr, 150.0, 9.0 * (1.0 - sw));
-        let g = 10f32.powf(1.5 * s.drive.clamp(0.0, 1.0));
+        let g = math::powf(10f32, 1.5 * s.drive.clamp(0.0, 1.0));
         self.drive.set(g);
         self.post.set(1.0 / (self.clip.slope() * g.sqrt()));
         self.out.set(db_to_gain(s.gain_db));

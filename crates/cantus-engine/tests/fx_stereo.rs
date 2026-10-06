@@ -2,6 +2,8 @@
 //! anything else, then block-size independence, real time against offline, and the
 //! telemetry through the plug-in contract.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::latitudo::view::telemetry;
@@ -173,7 +175,9 @@ fn latency_and_telemetry_through_the_contract() {
     unit.configure(&spec);
     unit.reset();
     assert_eq!(unit.latency(), 0, "Latitudo never delays");
-    let tone: Vec<f32> = (0..48_000).map(|i| 0.4 * (i as f32 * 0.05).sin()).collect();
+    let tone: Vec<f32> = (0..48_000)
+        .map(|i| 0.4 * math::sin(i as f32 * 0.05))
+        .collect();
     let (mut l, mut r) = (tone.clone(), tone.clone());
     let spec = EffectSpec::new(EffectKind::Stereo);
     unit.configure(&spec);

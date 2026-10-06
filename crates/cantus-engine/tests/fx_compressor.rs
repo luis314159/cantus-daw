@@ -3,6 +3,8 @@
 //! depend on the block size with every feature on; the key's EQ decides what a key from
 //! another strip can trigger; and the telemetry the editor reads comes through.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::comprimo::tele;
@@ -185,7 +187,7 @@ fn the_unit_reports_its_telemetry() {
     slot.spec.set("look", 3.0).unwrap();
     let mut unit = EffectUnit::new(&slot, 48_000.0);
     let mut l: Vec<f32> = (0..48_000)
-        .map(|i| 0.5 * (std::f32::consts::TAU * 220.0 * i as f32 / 48_000.0).sin())
+        .map(|i| 0.5 * math::sin(std::f32::consts::TAU * 220.0 * i as f32 / 48_000.0))
         .collect();
     let mut r = l.clone();
     for (a, b) in l.chunks_mut(480).zip(r.chunks_mut(480)) {

@@ -1,5 +1,7 @@
 //! Metronome click: a short, exponentially decaying sine burst. Downbeats are higher.
 
+use crate::math;
+
 #[derive(Clone, Debug)]
 pub struct Click {
     sample_rate: f32,
@@ -37,7 +39,7 @@ impl Click {
         self.phase = 0.0;
         self.env = if accent { 1.0 } else { 0.7 };
         // ~25 ms to −60 dB.
-        self.decay = (-6.9 / (0.025 * self.sample_rate)).exp();
+        self.decay = math::exp(-6.9 / (0.025 * self.sample_rate));
     }
 
     pub fn is_active(&self) -> bool {
@@ -50,7 +52,7 @@ impl Click {
             self.env = 0.0;
             return 0.0;
         }
-        let s = (self.phase * std::f32::consts::TAU).sin() * self.env * self.gain;
+        let s = math::sin(self.phase * std::f32::consts::TAU) * self.env * self.gain;
         self.phase = (self.phase + self.inc).rem_euclid(1.0);
         self.env *= self.decay;
         s

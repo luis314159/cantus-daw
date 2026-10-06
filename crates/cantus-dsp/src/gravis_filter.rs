@@ -13,6 +13,8 @@
 //! input. Stable at any resonance; self-oscillation is bounded.
 
 /// Which filter the synth runs.
+use crate::math;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum FilterKind {
     #[default]
@@ -196,7 +198,7 @@ impl BassFilter {
     }
 
     fn ladder(&mut self, x: f64, fc: f64, reso: f64, comp: f64, sr: f64) -> f64 {
-        let g = (std::f64::consts::PI * fc / sr).tan();
+        let g = math::tan(std::f64::consts::PI * fc / sr);
         let gg = g / (1.0 + g);
         let b = 1.0 / (1.0 + g);
         let k = reso.clamp(0.0, 1.0) * LADDER_K_MAX;
@@ -219,7 +221,7 @@ impl BassFilter {
     fn diode(&mut self, x: f64, fc: f64, reso: f64, comp: f64, sr: f64, cal: &DiodeCal) -> f64 {
         // Pre-warp the resonant frequency itself, then scale by the prototype's, so the
         // digital filter resonates exactly at fc.
-        let g = ((std::f64::consts::PI * fc / sr).tan() / cal.w180).min(20.0);
+        let g = (math::tan(std::f64::consts::PI * fc / sr) / cal.w180).min(20.0);
         let k = reso.clamp(0.0, 1.0) * cal.k_max * 1.02;
         let x = x * (1.0 + comp.clamp(0.0, 1.0) * k);
         // Linear, with feedback: (I − gA + g k b e4ᵀ) v = g b x + s.
@@ -251,7 +253,7 @@ impl BassFilter {
     }
 
     fn svf(&mut self, x: f64, fc: f64, reso: f64, sr: f64, band: bool) -> f64 {
-        let g = (std::f64::consts::PI * fc / sr).tan();
+        let g = math::tan(std::f64::consts::PI * fc / sr);
         // Q from 0.5 to about 25.
         let k = 2.0 - 1.96 * reso.clamp(0.0, 1.0);
         let a1 = 1.0 / (1.0 + g * (g + k));

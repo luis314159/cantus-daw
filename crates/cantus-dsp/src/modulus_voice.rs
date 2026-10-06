@@ -7,6 +7,7 @@ use super::env::{dx_amp, dx_env_steps, dx_rate_scaling, DxEnv, Lfo, ModAdsr, Tim
 use super::guard::{decide, Graph};
 use super::tables::{Decimator, Tables};
 use super::{db_to_lin, source, target, OpSettings, Patch, OPS};
+use crate::math;
 
 /// Where the detune macro pushes each operator, in tenths of its range: alternate signs so
 /// a stack spreads rather than shifts.
@@ -192,7 +193,7 @@ pub fn key_scaling_db(s: &OpSettings, key: u8) -> f32 {
     }
     let x = d.unsigned_abs() as f32 / 24.0;
     let shape = match curve {
-        1 | 2 => ((3.0 * x).exp2() - 1.0) / 7.0,
+        1 | 2 => (math::exp2(3.0 * x) - 1.0) / 7.0,
         _ => x,
     };
     let sign = if curve <= 1 { -1.0 } else { 1.0 };
@@ -204,7 +205,7 @@ pub fn velocity_db(sens: f32, vel: f32) -> f32 {
     if sens <= 0.0 {
         0.0
     } else {
-        sens * 40.0 * vel.max(0.01).log10()
+        sens * 40.0 * math::log10(vel.max(0.01))
     }
 }
 
@@ -303,8 +304,8 @@ impl Voice {
                 op.gain = 1.0;
             } else {
                 // Key and velocity scale every segment's time.
-                let kv = (-s.time.key_time * (n.key as f32 - 60.0) / 12.0).exp2()
-                    * (-s.time.vel_time * (vel - 0.5) * 2.0).exp2();
+                let kv = math::exp2(-s.time.key_time * (n.key as f32 - 60.0) / 12.0)
+                    * math::exp2(-s.time.vel_time * (vel - 0.5) * 2.0);
                 op.time.start(&s.time, [kv; 3], !fresh);
                 op.gain = db_to_lin(db);
             }
@@ -399,7 +400,7 @@ impl Voice {
             + dmac * 10.0 * DETUNE_PATTERN[o]
             + self.ops[o].drift;
         let f = if s.fixed {
-            s.fixed_hz * (pe / 12.0).exp2()
+            s.fixed_hz * math::exp2(pe / 12.0)
         } else {
             let note = self.pitch
                 + p.transpose
@@ -408,14 +409,14 @@ impl Voice {
                 + self.mpe[0]
                 + pe
                 + vib;
-            let mut ratio = s.ratio * off[target::RATIO + o].exp2();
+            let mut ratio = s.ratio * math::exp2(off[target::RATIO + o]);
             let harm = (p.harm + off[target::HARM]).clamp(-1.0, 1.0);
             if harm != 0.0 && !c.g.carrier[o] {
-                ratio = ratio.powf(1.0 + 0.25 * harm);
+                ratio = math::powf(ratio, 1.0 + 0.25 * harm);
             }
-            440.0 * ((note - 69.0) / 12.0).exp2() * ratio
+            440.0 * math::exp2((note - 69.0) / 12.0) * ratio
         };
-        f * (det / 1200.0).exp2() + s.offset * (1.0 + dmac)
+        f * math::exp2(det / 1200.0) + s.offset * (1.0 + dmac)
     }
 }
 

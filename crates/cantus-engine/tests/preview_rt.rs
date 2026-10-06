@@ -3,6 +3,7 @@
 //! sample it lets go of comes back to the interface to be dropped.
 
 use cantus_core::SampleData;
+use cantus_dsp::math;
 use cantus_engine::EngineHandle;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -61,7 +62,7 @@ fn sample(rate: u32, channels: u8, frames: usize) -> Arc<SampleData> {
         rate,
         channels,
         frames: (0..n)
-            .map(|i| ((i as f32) * 0.05).sin() * 0.5)
+            .map(|i| math::sin((i as f32) * 0.05) * 0.5)
             .collect::<Vec<_>>()
             .into(),
     })

@@ -8,6 +8,7 @@ use super::osc::{LaneRandom, Osc, MAX_UNISON};
 use super::partes::Partes;
 use super::table::Table;
 use super::{factory, target, Engine, Settings, TableChoice, SOURCES};
+use crate::math;
 
 /// A voice's level at full velocity: one saw peaks at about −16 dBFS, so a full chord
 /// keeps its headroom.
@@ -18,7 +19,7 @@ fn db(v: f32) -> f32 {
     if v <= -47.9 {
         0.0
     } else {
-        10f32.powf(v / 20.0)
+        math::powf(10f32, v / 20.0)
     }
 }
 

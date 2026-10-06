@@ -11,6 +11,7 @@
 //! 48 kHz they reproduce the coefficients printed in the standard. A test holds the
 //! standard's own calibration: a 997 Hz sine at 0 dBFS in one channel reads −3.01 LKFS.
 
+use crate::math;
 use std::f64::consts::PI;
 
 /// Loudness below anything measurable: what silence reads.
@@ -30,7 +31,7 @@ pub fn lufs(power: f64) -> f32 {
     if power <= 1e-20 {
         SILENCE
     } else {
-        (-0.691 + 10.0 * power.log10()) as f32
+        (-0.691 + 10.0 * math::log10(power)) as f32
     }
 }
 
@@ -39,7 +40,7 @@ pub fn power(lufs: f32) -> f64 {
     if lufs <= SILENCE {
         0.0
     } else {
-        10f64.powf((lufs as f64 + 0.691) / 10.0)
+        math::powf(10f64, (lufs as f64 + 0.691) / 10.0)
     }
 }
 
@@ -111,9 +112,9 @@ impl KWeighting {
         let f0 = 1_681.974_450_955_533;
         let g = 3.999_843_853_973_347;
         let q = 0.707_175_236_955_419_6;
-        let k = (PI * f0 / fs).tan();
-        let vh = 10f64.powf(g / 20.0);
-        let vb = vh.powf(0.499_666_774_154_541_6);
+        let k = math::tan(PI * f0 / fs);
+        let vh = math::powf(10f64, g / 20.0);
+        let vb = math::powf(vh, 0.499_666_774_154_541_6);
         let a0 = 1.0 + k / q + k * k;
         let shelf = Biquad {
             b0: (vh + vb * k / q + k * k) / a0,
@@ -126,7 +127,7 @@ impl KWeighting {
         // The RLB weighting: a second-order high-pass at 38 Hz.
         let f0 = 38.135_470_876_024_44;
         let q = 0.500_327_037_323_877_3;
-        let k = (PI * f0 / fs).tan();
+        let k = math::tan(PI * f0 / fs);
         let a0 = 1.0 + k / q + k * k;
         let rlb = Biquad {
             b0: 1.0,
@@ -227,7 +228,7 @@ mod tests {
 
     fn sine(hz: f32, amp: f32, sr: f32, n: usize) -> Vec<f32> {
         (0..n)
-            .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / sr).sin())
+            .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / sr))
             .collect()
     }
 

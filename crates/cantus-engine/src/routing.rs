@@ -12,6 +12,7 @@
 //! The UI sets the routing through atomics ([`OutputRouting`]); the callback reads them
 //! once per buffer. Nothing here allocates, locks or blocks (ADR 0005).
 
+use cantus_dsp::math;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// "No pair": the cue and the tone are off.
@@ -161,7 +162,7 @@ pub fn route(data: &mut [f32], channels: usize, rate: f64, r: Route, tone: &mut 
             } else if tone.env > target {
                 tone.env = (tone.env - step).max(0.0);
             }
-            let x = (tone.phase.sin() * tone.env) as f32 * TONE_LEVEL;
+            let x = (math::sin(tone.phase) * tone.env) as f32 * TONE_LEVEL;
             tone.phase = (tone.phase + dphi) % std::f64::consts::TAU;
             if let Some(p) = tone.pair.filter(|p| *p < channels) {
                 frame[p] += x;

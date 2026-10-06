@@ -3,6 +3,8 @@
 //! what is heard and nothing inside the mix; a strip can key it; the master take is
 //! post-chain.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::{assert_null, peak};
@@ -175,7 +177,7 @@ fn on_master(p: &mut Project, kind: EffectKind) -> EffectId {
 }
 
 fn db(x: f32) -> f32 {
-    20.0 * x.max(1e-12).log10()
+    20.0 * math::log10(x.max(1e-12))
 }
 
 /// The kinds with no latency at their defaults: bypassed, they are wires.

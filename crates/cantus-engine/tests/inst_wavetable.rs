@@ -4,6 +4,8 @@
 //! costs what the document says. `cargo test -p cantus-engine --test inst_wavetable --
 //! --nocapture` prints the measured numbers.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -207,8 +209,8 @@ fn the_pitch_is_exact_across_the_keyboard() {
     for key in [24u8, 36, 45, 57, 69, 81, 93, 105] {
         let out = render_of(&project(&s, &[(0.0, 2.4, key, 100)]));
         let hz = frequency(&out, 0.2, 1.2);
-        let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
-        let cents = 1200.0 * (hz / want).log2();
+        let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
+        let cents = 1200.0 * math::log2(hz / want);
         worst = worst.max(cents.abs());
         assert!(
             cents.abs() < 0.05,
@@ -247,7 +249,7 @@ fn alias_floor(x: &[f32], f0: f64) -> f64 {
     let mut im = vec![0.0f32; n];
     Fft::new(n).run(&mut re, &mut im, false);
     let bin = SR / n as f64;
-    let power = |k: usize| (re[k] as f64).powi(2) + (im[k] as f64).powi(2);
+    let power = |k: usize| math::powi(re[k] as f64, 2) + math::powi(im[k] as f64, 2);
     let near = |k: usize| {
         let h = (k as f64 * bin / f0).round();
         ((k as f64) - h * f0 / bin).abs() <= 12.0
@@ -256,7 +258,7 @@ fn alias_floor(x: &[f32], f0: f64) -> f64 {
     let p1: f64 = (fund - 12..=fund + 12).map(power).sum();
     let top = (20_000.0 / bin) as usize;
     let alias: f64 = (1..top).filter(|k| !near(*k)).map(power).sum();
-    10.0 * (alias.max(1e-30) / p1).log10()
+    10.0 * math::log10(alias.max(1e-30) / p1)
 }
 
 #[test]
@@ -267,7 +269,7 @@ fn aliasing_is_measured_where_it_matters() {
         for key in [33u8, 96, 108] {
             let s = with(&[("osc1.rand", 0.0), ("quality", q)]);
             let out = render_of(&project(&s, &[(0.0, 3.0, key, 127)]));
-            let f0 = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let f0 = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let floor = alias_floor(&out, f0);
             rows.push((format!("{label} key {key} ({f0:.1} Hz)"), floor, budget));
         }
@@ -291,8 +293,8 @@ fn the_init_patch_keeps_its_headroom() {
     let one = peak(&render_of(&project(&unda(), &[(0.0, 1.0, 60, 127)])));
     println!(
         "init: one note peaks at {:.1} dBFS, an eight-note chord at {:.1} dBFS",
-        20.0 * one.log10(),
-        20.0 * chord.log10()
+        20.0 * math::log10(one),
+        20.0 * math::log10(chord)
     );
     assert!(chord < 1.0, "peak {chord}");
 }
@@ -348,7 +350,7 @@ fn an_imported_table_plays_what_the_file_holds() {
         for i in 0..1024 {
             let x = i as f32 / 1024.0;
             let v = if f == 0 {
-                (std::f32::consts::TAU * 3.0 * x).sin()
+                math::sin(std::f32::consts::TAU * 3.0 * x)
             } else {
                 0.0
             };
@@ -401,7 +403,7 @@ fn grana_plays_an_imported_sample_and_partes_its_table_at_every_block_size() {
     };
     let mut w = hound::WavWriter::create(&path, spec).unwrap();
     for i in 0..48_000 {
-        w.write_sample((std::f32::consts::TAU * 261.63 * i as f32 / 48_000.0).sin() * 0.8)
+        w.write_sample(math::sin(std::f32::consts::TAU * 261.63 * i as f32 / 48_000.0) * 0.8)
             .unwrap();
     }
     w.finalize().unwrap();

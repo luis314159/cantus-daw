@@ -47,6 +47,7 @@
 //! depend on where the host split the buffer; time-varying parts (the filter's envelope,
 //! the modal glide) update on a grid counted from the hit, never from a block.
 
+use crate::math;
 use std::sync::Arc;
 
 #[path = "pulsus_modal.rs"]
@@ -207,7 +208,7 @@ impl LayerSettings {
             if w <= 0.0 {
                 return if d >= 0.0 { 1.0 } else { 0.0 };
             }
-            ((d / w + 0.5).clamp(0.0, 1.0) * std::f32::consts::FRAC_PI_2).sin()
+            math::sin((d / w + 0.5).clamp(0.0, 1.0) * std::f32::consts::FRAC_PI_2)
         };
         let fade_in = if self.vel_lo.min(self.vel_hi) <= 1 {
             1.0

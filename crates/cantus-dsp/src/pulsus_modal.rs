@@ -10,6 +10,8 @@
 //! The lowest mode of every table is ratio 1, so a pad's tune is its fundamental: the
 //! tuning test holds for every material by construction.
 
+use crate::math;
+
 pub(crate) const MAX_MODES: usize = 32;
 
 /// The first 32 modes of an ideal circular membrane, as `(m, j_mn)`: the Bessel zero
@@ -129,7 +131,7 @@ impl Object {
             let ratio = *r.get(k)?;
             // A beam's or plate's mode shape at the strike point, as a cosine pattern:
             // striking the middle favours the odd modes, the end excites all of them.
-            let w = 0.25 + 0.75 * ((k as f32 + 0.5) * std::f32::consts::PI * rho).cos().abs();
+            let w = 0.25 + 0.75 * math::cos((k as f32 + 0.5) * std::f32::consts::PI * rho).abs();
             Some((ratio, w / (1.0 + k as f32).sqrt()))
         };
         match self {
@@ -137,7 +139,7 @@ impl Object {
                 let (m, j) = *MEMBRANE.get(k)?;
                 let ideal = j / MEMBRANE[0].1;
                 // Air loading and a second head pull the modes towards harmonic.
-                let ratio = ideal.powf(1.0 - 0.25 * shell.clamp(0.0, 1.0));
+                let ratio = math::powf(ideal, 1.0 - 0.25 * shell.clamp(0.0, 1.0));
                 let w = bessel_j(m as u32, (j * rho) as f64).abs() as f32;
                 Some((ratio, w))
             }
@@ -151,7 +153,7 @@ impl Object {
                 }
                 // Dense and inharmonic: a stretched series with a fixed, irregular wobble.
                 let kf = k as f32;
-                let ratio = (1.0 + kf).powf(1.38) * (1.0 + 0.06 * (1.7 * kf * kf).sin());
+                let ratio = math::powf(1.0 + kf, 1.38) * (1.0 + 0.06 * math::sin(1.7 * kf * kf));
                 Some((ratio.max(1.0), 1.0 / (1.0 + kf).sqrt()))
             }
         }
@@ -195,7 +197,7 @@ impl Bank {
     pub(crate) fn strike(&mut self, object: Object, count: usize, s: Strike) {
         let sr = self.sample_rate;
         let gamma = 0.3 + 1.2 * s.damping.clamp(0.0, 1.0);
-        let contact = 0.005 * 0.06f32.powf(s.hardness.clamp(0.0, 1.0));
+        let contact = 0.005 * math::powf(0.06f32, s.hardness.clamp(0.0, 1.0));
         let mut n = 0;
         let mut total = 0.0;
         for k in 0..count.min(MAX_MODES) {
@@ -212,20 +214,20 @@ impl Bank {
             let h = if d.abs() < 1e-3 {
                 std::f32::consts::FRAC_PI_4
             } else {
-                ((std::f32::consts::PI * hz * contact).cos() / d).abs()
+                (math::cos(std::f32::consts::PI * hz * contact) / d).abs()
             };
             let amp = weight * h.min(1.0);
-            let t60 = (s.decay * (s.f0 / hz).powf(gamma)).max(0.002);
-            let r = (-6.907_755 / (t60 * sr)).exp();
+            let t60 = (s.decay * math::powf(s.f0 / hz, gamma)).max(0.002);
+            let r = math::exp(-6.907_755 / (t60 * sr));
             let theta = std::f32::consts::TAU * hz / sr;
             let m = &mut self.modes[n];
             m.r = r;
             m.r2 = r * r;
             m.hz = hz;
-            m.a1 = 2.0 * r * theta.cos();
+            m.a1 = 2.0 * r * math::cos(theta);
             // y[−1] = 0, y[−2] = −A·sin θ / r: the first output is A·r·sin θ.
             m.y1 = 0.0;
-            m.y2 = -amp * theta.sin() / r;
+            m.y2 = -amp * math::sin(theta) / r;
             total += amp;
             n += 1;
         }
@@ -244,7 +246,7 @@ impl Bank {
     pub(crate) fn retune(&mut self, ratio: f32) {
         let k = std::f32::consts::TAU / self.sample_rate;
         for m in &mut self.modes[..self.n] {
-            m.a1 = 2.0 * m.r * (k * m.hz * ratio).min(3.0).cos();
+            m.a1 = 2.0 * m.r * math::cos((k * m.hz * ratio).min(3.0));
         }
     }
 

@@ -15,6 +15,8 @@
 //! Everything steps once per sample from the start of the stream, so a render is the same
 //! at every block size, and live and offline. Randomness is seeded by the note.
 
+use crate::math;
+
 #[path = "gravis_808.rs"]
 pub mod e808;
 #[path = "gravis_filter.rs"]
@@ -397,7 +399,7 @@ impl Gravis {
             _ => PlayMode::Legato,
         };
         self.alloc.set_mode(mode, s.priority);
-        let gain = 10f32.powf(s.gain_db / 20.0);
+        let gain = math::powf(10f32, s.gain_db / 20.0);
         if first {
             self.gain.snap(gain);
         } else {
@@ -900,7 +902,7 @@ impl Gravis {
                 }
             }
             3 => 1.0 - 2.0 * t,
-            _ => (std::f64::consts::TAU * t).sin(),
+            _ => math::sin(std::f64::consts::TAU * t),
         }) as f32
     }
 
@@ -1030,7 +1032,7 @@ impl Gravis {
                             }
                         }
                         2 => e808::square(st, inc_f / sub_div as f64),
-                        _ => (std::f64::consts::TAU * st).sin(),
+                        _ => math::sin(std::f64::consts::TAU * st),
                     };
                     let (nx, wrapped) = self
                         .ssub_phase

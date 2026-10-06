@@ -7,6 +7,7 @@ use super::settings::{src, CalorSettings};
 use super::voice::{Shared, Voice};
 use super::{Quality, CARDS, GHOSTS, MAX_VOICES};
 use crate::comprimo::oversample::Oversampler;
+use crate::math;
 use crate::modmatrix::{ModMatrix, ModRoute};
 use crate::va::math::{hash3, mix64};
 use crate::va::{card_trims, CardTrims, FilterCoefs};
@@ -90,7 +91,7 @@ impl Calor {
         let s = CalorSettings::default();
         let mut c = Calor {
             fs: sample_rate,
-            cutoff_log2: s.cutoff.log2(),
+            cutoff_log2: math::log2(s.cutoff),
             coefs: FilterCoefs::new(&s.filter),
             trims: [CardTrims::default(); CARDS],
             matrix: ModMatrix::default(),
@@ -145,7 +146,7 @@ impl Calor {
         let layout_changed = s.stack != self.s.stack || s.mode != self.s.mode;
         self.s.clone_from(s);
         self.s.stack = s.stack.clamp(1, 8);
-        self.cutoff_log2 = s.cutoff.max(1.0).log2();
+        self.cutoff_log2 = math::log2(s.cutoff.max(1.0));
         self.coefs = FilterCoefs::new(&s.filter);
         let v = s.card_variance();
         for (c, t) in self.trims.iter_mut().enumerate() {

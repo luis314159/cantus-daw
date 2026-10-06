@@ -6,13 +6,14 @@
 //! measured numbers the assertions are drawn from.
 
 use super::*;
+use crate::math;
 
 fn report() -> bool {
     std::env::var("EQ_REPORT").is_ok()
 }
 
 fn proto(shape: EqShape, g: f64, q: f64) -> Proto {
-    let a = 10f64.powf(g / 40.0);
+    let a = math::powf(10f64, g / 40.0);
     let sa = a.sqrt();
     match shape {
         EqShape::Bell => Proto {
@@ -32,7 +33,7 @@ fn proto(shape: EqShape, g: f64, q: f64) -> Proto {
 }
 
 fn analog_db_of(shape: EqShape, f0: f64, g: f64, q: f64, hz: f64) -> f64 {
-    10.0 * proto(shape, g, q).mag2(hz / f0).log10()
+    10.0 * math::log10(proto(shape, g, q).mag2(hz / f0))
 }
 
 /// A band's analog response at `w` rad/sample, complex.
@@ -64,14 +65,14 @@ fn dtft(h: &[f32], w: f64) -> (f64, f64) {
     let (mut re, mut im) = (0.0, 0.0);
     for (n, x) in h.iter().enumerate() {
         let a = w * n as f64;
-        re += *x as f64 * a.cos();
-        im -= *x as f64 * a.sin();
+        re += *x as f64 * math::cos(a);
+        im -= *x as f64 * math::sin(a);
     }
     (re, im)
 }
 
 fn db(c: (f64, f64)) -> f64 {
-    10.0 * (c.0 * c.0 + c.1 * c.1).max(1e-30).log10()
+    10.0 * math::log10((c.0 * c.0 + c.1 * c.1).max(1e-30))
 }
 
 fn eq_with(bands: &[BandSettings], opts: Options, sr: f32) -> Aequalis {
@@ -111,7 +112,7 @@ fn noise(n: usize, seed: u32, amp: f32) -> Vec<f32> {
 
 fn tone(n: usize, hz: f32, amp: f32, sr: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / sr).sin())
+        .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / sr))
         .collect()
 }
 
@@ -264,7 +265,7 @@ fn processing_matches_the_drawn_curve() {
     let mut l = tone(n, 2_000.0, 1.0, sr);
     let mut r = l.clone();
     eq.process(&mut l, &mut r);
-    let measured = 20.0 * (rms(&l[n / 2..]) / 0.5f32.sqrt()).log10();
+    let measured = 20.0 * math::log10(rms(&l[n / 2..]) / 0.5f32.sqrt());
     let drawn = Aequalis::response_db(&bands, sr, 2_000.0);
     assert!((measured - drawn).abs() < 0.1, "{measured} vs {drawn}");
 }
@@ -356,18 +357,18 @@ fn natural_phase_follows_the_analog_curve_in_magnitude_and_phase() {
                 let c = analog_c(b, sr, w);
                 a = (a.0 * c.0 - a.1 * c.1, a.0 * c.1 + a.1 * c.0);
             }
-            let pa = a.1.atan2(a.0);
+            let pa = math::atan2(a.1, a.0);
             // Natural phase, with its delay taken out.
             let n = dtft(&h_np, w);
-            let (s, c) = (w * phase::NP_DELAY as f64).sin_cos();
+            let (s, c) = math::sin_cos(w * phase::NP_DELAY as f64);
             let n = (n.0 * c - n.1 * s, n.0 * s + n.1 * c);
             let z = dtft(&h_zl, w);
             let wrap = |x: f64| (x + PI).rem_euclid(2.0 * PI) - PI;
             np_mag = np_mag.max((db(n) - db(a)).abs());
             zl_mag = zl_mag.max((db(z) - db(a)).abs());
-            np_ph = np_ph.max(wrap(n.1.atan2(n.0) - pa).abs().to_degrees());
-            zl_ph = zl_ph.max(wrap(z.1.atan2(z.0) - pa).abs().to_degrees());
-            hz *= 2f64.powf(1.0 / 24.0);
+            np_ph = np_ph.max(wrap(math::atan2(n.1, n.0) - pa).abs().to_degrees());
+            zl_ph = zl_ph.max(wrap(math::atan2(z.1, z.0) - pa).abs().to_degrees());
+            hz *= math::powf(2f64, 1.0 / 24.0);
         }
         if report() {
             eprintln!(
@@ -483,7 +484,7 @@ fn linear_phase_matches_the_drawn_curve_and_is_symmetric() {
             let got = db(dtft(&h, w));
             let want = Aequalis::curve_db(&bands, Mode::LinearPhase, sr, hz as f32) as f64;
             worst = worst.max((got - want).abs());
-            hz *= 2f64.powf(1.0 / 12.0);
+            hz *= math::powf(2f64, 1.0 / 12.0);
         }
         if report() {
             eprintln!("LP {res:?}: latency {lat}, worst {worst:.3} dB, asymmetry {asym:e}");
@@ -519,22 +520,22 @@ fn linear_phase_mixes_lr_and_ms_bands_in_one_stage() {
     let (hl, hr) = impulse(&mut eq, 2 * lat + 1024, true);
     for hz in [200.0f32, 500.0, 1_000.0, 4_000.0, 8_000.0] {
         let w = 2.0 * PI * hz as f64 / sr as f64;
-        let gl = 10f64.powf(analog_db(&left, sr, hz) as f64 / 20.0);
-        let gs = 10f64.powf(analog_db(&side, sr, hz) as f64 / 20.0);
+        let gl = math::powf(10f64, analog_db(&left, sr, hz) as f64 / 20.0);
+        let gs = math::powf(10f64, analog_db(&side, sr, hz) as f64 / 20.0);
         let want_l = 0.5 * gl * (1.0 + gs);
         let want_r = 0.5 * gl * (1.0 - gs);
         let got_l = db(dtft(&hl, w));
         assert!(
-            (got_l - 20.0 * want_l.log10()).abs() < 0.1,
+            (got_l - 20.0 * math::log10(want_l)).abs() < 0.1,
             "{hz} Hz: L {got_l} vs {}",
-            20.0 * want_l.log10()
+            20.0 * math::log10(want_l)
         );
         if want_r.abs() > 0.05 {
             let got_r = db(dtft(&hr, w));
             assert!(
-                (got_r - 20.0 * want_r.abs().log10()).abs() < 0.2,
+                (got_r - 20.0 * math::log10(want_r.abs())).abs() < 0.2,
                 "{hz} Hz: R {got_r} vs {}",
-                20.0 * want_r.abs().log10()
+                20.0 * math::log10(want_r.abs())
             );
         }
     }
@@ -683,7 +684,7 @@ fn soloing_a_band_plays_only_the_region_it_acts_on() {
                 eq.process(cl, cr);
             }
             (
-                20.0 * (rms(&l[24_000..]) / rms(&tone(24_000, hz, 0.5, sr))).log10(),
+                20.0 * math::log10(rms(&l[24_000..]) / rms(&tone(24_000, hz, 0.5, sr))),
                 rms(&r[24_000..]),
             )
         };
@@ -736,7 +737,7 @@ fn auto_gain_matches_the_loudness_the_eq_changed() {
                 sum += z;
             }
         }
-        10.0 * (sum / (a.len() - tail) as f64).log10()
+        10.0 * math::log10(sum / (a.len() - tail) as f64)
     };
     let diff = loud(&l, &r) - loud(&src, &r_src);
     if report() {

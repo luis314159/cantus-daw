@@ -7,6 +7,8 @@
 
 /// The transform. `run` is in place, unscaled; the inverse is the conjugate transform, so
 /// a forward and an inverse multiply the signal by `n`.
+use crate::math;
+
 #[derive(Clone, Debug)]
 pub struct Fft {
     max: usize,
@@ -22,7 +24,7 @@ impl Fft {
         let (cos, sin) = (0..half)
             .map(|k| {
                 let a = -2.0 * std::f64::consts::PI * k as f64 / max as f64;
-                (a.cos() as f32, a.sin() as f32)
+                (math::cos(a) as f32, math::sin(a) as f32)
             })
             .unzip();
         Fft { max, cos, sin }
@@ -99,7 +101,7 @@ mod tests {
         let n = 1024;
         let fft = Fft::new(n);
         let mut re: Vec<f32> = (0..n)
-            .map(|i| (2.0 * std::f32::consts::PI * 17.0 * i as f32 / n as f32).cos())
+            .map(|i| math::cos(2.0 * std::f32::consts::PI * 17.0 * i as f32 / n as f32))
             .collect();
         let mut im = vec![0.0; n];
         fft.run(&mut re, &mut im, false);

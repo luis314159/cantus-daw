@@ -2,6 +2,8 @@
 //! aliasing of the pickup and preamp on a high note, per-note modulation, the continuous
 //! sustain pedal as a controller, and a CPU budget per voice.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -52,7 +54,7 @@ fn left(x: &[f32]) -> Vec<f32> {
 }
 
 fn rms(x: &[f32]) -> f64 {
-    (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
+    (x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
 }
 
 fn busy(engine: f32) -> Project {
@@ -122,9 +124,9 @@ fn amp_at(x: &[f32], hz: f64) -> f64 {
     let w = std::f64::consts::TAU * hz / SR as f64;
     let (mut re, mut im, mut norm) = (0.0, 0.0, 0.0);
     for (i, v) in x.iter().enumerate() {
-        let win = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
-        re += *v as f64 * win * (w * i as f64).cos();
-        im += *v as f64 * win * (w * i as f64).sin();
+        let win = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+        re += *v as f64 * win * math::cos(w * i as f64);
+        im += *v as f64 * win * math::sin(w * i as f64);
         norm += win;
     }
     2.0 * (re * re + im * im).sqrt() / norm
@@ -166,9 +168,9 @@ fn pitch_is_equal_temperament_across_the_keyboard() {
                 &[(0.0, 3.0, key, 90)],
             );
             let out = left(&render_at(&p, 256, 0.0));
-            let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let hz = peak_hz(&out[9_600..57_600], want);
-            let ct = 1200.0 * (hz / want).log2();
+            let ct = 1200.0 * math::log2(hz / want);
             worst = worst.max(ct.abs());
             assert!(ct.abs() < 0.5, "engine {engine} key {key}: {ct:+.3} ct");
         }
@@ -200,14 +202,14 @@ fn a_high_note_at_full_velocity_keeps_its_aliases_down() {
         let mut re: Vec<f32> = x
             .iter()
             .enumerate()
-            .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()))
+            .map(|(i, v)| v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / n as f32)))
             .collect();
         let mut im = vec![0.0; n];
         cantus_dsp::spectrum::fft(&mut re, &mut im);
         let mag: Vec<f64> = (0..n / 2)
-            .map(|k| ((re[k] as f64).powi(2) + (im[k] as f64).powi(2)).sqrt())
+            .map(|k| (math::powi(re[k] as f64, 2) + math::powi(im[k] as f64, 2)).sqrt())
             .collect();
-        let f0 = 440.0 * 2f64.powf((95.0 - 69.0) / 12.0);
+        let f0 = 440.0 * math::powf(2f64, (95.0 - 69.0) / 12.0);
         let b0 = (f0 * n as f64 / SR as f64).round() as usize;
         let fund = mag[b0 - 3..b0 + 4].iter().cloned().fold(0.0, f64::max);
         let mut worst = 0.0f64;
@@ -219,7 +221,7 @@ fn a_high_note_at_full_velocity_keeps_its_aliases_down() {
             }
             worst = worst.max(*m);
         }
-        let floor = 20.0 * (worst / fund).log10();
+        let floor = 20.0 * math::log10(worst / fund);
         println!("lamina: {name} alias floor at B6, full velocity: {floor:.1} dB");
         assert!(floor < -60.0, "{name}: aliases at {floor:.1} dB");
     }
@@ -238,8 +240,8 @@ fn velocity_can_drive_a_parameter_note_by_note() {
     spec.set("mod1.amt", 0.25).unwrap();
     let a = left(&render_at(&plain, 256, 0.0));
     let b = left(&render_at(&routed, 256, 0.0));
-    let loud = 20.0 * (rms(&b[..24_000]) / rms(&a[..24_000])).log10();
-    let soft = 20.0 * (rms(&b[48_000..72_000]) / rms(&a[48_000..72_000])).log10();
+    let loud = 20.0 * math::log10(rms(&b[..24_000]) / rms(&a[..24_000]));
+    let soft = 20.0 * math::log10(rms(&b[48_000..72_000]) / rms(&a[48_000..72_000]));
     assert!(
         loud > soft + 3.0,
         "loud note +{loud:.1} dB, soft note +{soft:.1} dB"

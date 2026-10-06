@@ -2,6 +2,8 @@
 //! aliasing of the preamp, the fixture's macro connection, controllers, and a CPU budget
 //! that does not grow with the number of keys held.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -53,7 +55,7 @@ fn left(x: &[f32]) -> Vec<f32> {
 }
 
 fn rms(x: &[f32]) -> f64 {
-    (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
+    (x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
 }
 
 /// A performance that moves everything: a split with pedal, lower and upper, the
@@ -183,12 +185,12 @@ fn the_preamp_keeps_its_aliases_down() {
     let mut re: Vec<f32> = x
         .iter()
         .enumerate()
-        .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()))
+        .map(|(i, v)| v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / n as f32)))
         .collect();
     let mut im = vec![0.0; n];
     cantus_dsp::spectrum::fft(&mut re, &mut im);
     let mag: Vec<f64> = (0..n / 2)
-        .map(|k| ((re[k] as f64).powi(2) + (im[k] as f64).powi(2)).sqrt())
+        .map(|k| (math::powi(re[k] as f64, 2) + math::powi(im[k] as f64, 2)).sqrt())
         .collect();
     let f0 = gear_hz(wheel_of(96));
     let bin = |hz: f64| hz * n as f64 / SR as f64;
@@ -205,7 +207,7 @@ fn the_preamp_keeps_its_aliases_down() {
         }
         worst = worst.max(*m);
     }
-    let floor = 20.0 * (worst / fund).log10();
+    let floor = 20.0 * math::log10(worst / fund);
     println!("organ: preamp alias floor at C7, full drive: {floor:.1} dB");
     assert!(
         floor < -60.0,
@@ -225,7 +227,7 @@ fn the_fixtures_macro_drives_the_gain() {
     let a = render_at(&plain, 256, 0.0);
     let b = render_at(&routed, 256, 0.0);
     // macro 0.5 × depth 0.25 × the gain's 60 dB range = +7.5 dB.
-    let db = 20.0 * (rms(&b) / rms(&a)).log10();
+    let db = 20.0 * math::log10(rms(&b) / rms(&a));
     assert!(
         (db - 7.5).abs() < 0.01,
         "the connection moved the gain {db:.3} dB"
@@ -375,7 +377,7 @@ fn a_loud_full_organ_keeps_headroom() {
     let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
     println!(
         "organ: ten keys, every drawbar out, full drive: peak {:.2} dBFS",
-        20.0 * peak.log10()
+        20.0 * math::log10(peak)
     );
     assert!(peak < 1.0, "peak {peak}");
 }

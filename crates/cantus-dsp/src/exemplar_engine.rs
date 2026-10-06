@@ -3,6 +3,7 @@
 
 use super::voice::{EnvShape, Layer};
 use super::*;
+use crate::math;
 use crate::modmatrix::ModRoute;
 use crate::voices::Action;
 
@@ -34,7 +35,7 @@ pub fn note_random(id: u64, key: u8) -> f32 {
 }
 
 fn db(x: f32) -> f32 {
-    10f32.powf(x / 20.0)
+    math::powf(10f32, x / 20.0)
 }
 
 /// Balance: centre is unity on both sides, never louder than the source.

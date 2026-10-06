@@ -8,6 +8,7 @@
 //! Coefficients are set on the control grid (every 16 base samples), never per sample.
 
 use crate::filter::{FilterMode, Svf};
+use crate::math;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum FilterType {
@@ -71,10 +72,10 @@ impl Ladder {
     /// `cutoff` in Hz at `sr`, `res` 0…1, `drive_db` ≥ 0.
     pub fn set(&mut self, sr: f32, cutoff: f32, res: f32, drive_db: f32) {
         let fc = cutoff.clamp(10.0, sr * 0.45);
-        let g = (std::f32::consts::PI * fc / sr).tan();
+        let g = math::tan(std::f32::consts::PI * fc / sr);
         self.g = g / (1.0 + g);
         self.k = 4.0 * res.clamp(0.0, 1.0);
-        self.drive = 10f32.powf(drive_db.max(0.0) / 20.0) * LADDER_HEADROOM;
+        self.drive = math::powf(10f32, drive_db.max(0.0) / 20.0) * LADDER_HEADROOM;
         // Keep the pass band from sinking as the resonance rises. The loop's `tanh` has
         // unity gain for small signals whatever the drive (drive moves where it bends,
         // not the level), so the linear response is exactly `magnitude_db`'s.
@@ -122,7 +123,7 @@ impl Ladder {
 pub fn magnitude_db(ty: FilterType, cutoff: f32, res: f32, hz: f32, sr: f32) -> f32 {
     use std::f32::consts::PI;
     let fc = cutoff.clamp(10.0, sr * 0.45);
-    let w = (PI * hz.min(sr * 0.499) / sr).tan() / (PI * fc / sr).tan();
+    let w = math::tan(PI * hz.min(sr * 0.499) / sr) / math::tan(PI * fc / sr);
     // Complex helpers on (re, im).
     let mul = |a: (f32, f32), b: (f32, f32)| (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0);
     let abs = |a: (f32, f32)| (a.0 * a.0 + a.1 * a.1).sqrt();
@@ -163,7 +164,7 @@ pub fn magnitude_db(ty: FilterType, cutoff: f32, res: f32, hz: f32, sr: f32) -> 
             _ => lp,
         }
     };
-    20.0 * mag.max(1e-9).log10()
+    20.0 * math::log10(mag.max(1e-9))
 }
 
 /// One of Unda's two filters for one voice, both channels.
@@ -243,7 +244,7 @@ impl FilterSlot {
                 ch[1].set(cut[c], 0.0);
             }
             self.drive_on = drive_db > 0.0;
-            self.pre = 10f32.powf(drive_db.max(0.0) / 20.0);
+            self.pre = math::powf(10f32, drive_db.max(0.0) / 20.0);
         }
     }
 

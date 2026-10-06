@@ -9,6 +9,7 @@
 //! match is instead of claiming it.
 
 use super::{analog_db, BandSettings, EqShape};
+use crate::math;
 
 /// What to fit, and within which limits.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -51,9 +52,9 @@ const PER_OCTAVE: f32 = 12.0;
 pub fn grid(lo: f32, hi: f32) -> Vec<f32> {
     let lo = lo.max(10.0);
     let hi = hi.max(lo * 2.0);
-    let n = ((hi / lo).log2() * PER_OCTAVE).ceil() as usize + 1;
+    let n = (math::log2(hi / lo) * PER_OCTAVE).ceil() as usize + 1;
     (0..n)
-        .map(|i| lo * (hi / lo).powf(i as f32 / (n - 1) as f32))
+        .map(|i| lo * math::powf(hi / lo, i as f32 / (n - 1) as f32))
         .collect()
 }
 
@@ -70,7 +71,7 @@ pub fn interpolate(points: &[(f32, f32)], hz: f32) -> f32 {
             for w in points.windows(2) {
                 let ((f0, d0), (f1, d1)) = (w[0], w[1]);
                 if hz <= f1 {
-                    let t = ((hz / f0).ln() / (f1 / f0).ln()).clamp(0.0, 1.0);
+                    let t = (math::ln(hz / f0) / math::ln(f1 / f0)).clamp(0.0, 1.0);
                     return d0 + (d1 - d0) * t;
                 }
             }
@@ -87,7 +88,7 @@ fn band_curve(b: &BandSettings, sr: f32, grid: &[f32], out: &mut [f32]) {
 
 /// Bandwidth in octaves → Q.
 fn q_of_octaves(bw: f32) -> f32 {
-    let r = 2f32.powf(bw.max(0.05));
+    let r = math::powf(2f32, bw.max(0.05));
     r.sqrt() / (r - 1.0)
 }
 
@@ -159,7 +160,7 @@ pub fn fit(target: &[(f32, f32)], opts: &FitOptions, sample_rate: f32) -> Fit {
                 ..BandSettings::default()
             }
         } else {
-            let bw = (g[hi] / g[lo]).log2() + 1.0 / PER_OCTAVE;
+            let bw = math::log2(g[hi] / g[lo]) + 1.0 / PER_OCTAVE;
             BandSettings {
                 active: true,
                 shape: EqShape::Bell,
@@ -181,10 +182,10 @@ pub fn fit(target: &[(f32, f32)], opts: &FitOptions, sample_rate: f32) -> Fit {
             let before = error(&curves);
             let mut best = (before, bands[j]);
             let steps: [(f32, f32); 4] = [
-                (2f32.powf(1.0 / 12.0), 1.0),
-                (2f32.powf(-1.0 / 12.0), 1.0),
-                (1.0, 2f32.powf(0.25)),
-                (1.0, 2f32.powf(-0.25)),
+                (math::powf(2f32, 1.0 / 12.0), 1.0),
+                (math::powf(2f32, -1.0 / 12.0), 1.0),
+                (1.0, math::powf(2f32, 0.25)),
+                (1.0, math::powf(2f32, -0.25)),
             ];
             for (fm, qm) in steps {
                 let mut trial = bands[j];

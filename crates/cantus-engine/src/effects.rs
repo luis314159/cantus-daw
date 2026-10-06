@@ -4,6 +4,7 @@
 
 use cantus_core::{eq_key, EffectId, EffectKind, EffectSlot, EffectSpec};
 use cantus_dsp::aequalis::MAX_BANDS;
+use cantus_dsp::math;
 use cantus_dsp::{
     Aequalis, BandSettings, CompMeter, CompSettings, Comprimo, DelaySettings, EqShape, Listen,
     Placement, Reverb, ReverbSettings, StereoDelay, Style,
@@ -105,7 +106,7 @@ pub fn eq_bands(spec: &EffectSpec) -> [BandSettings; MAX_BANDS] {
         // Gain–Q interaction: a bell narrows as it grows — its Q doubles every 12 dB of
         // gain either way — the way the classic analog designs behave.
         let q = if g("gq") >= 0.5 && shape == EqShape::Bell {
-            (g("q") * 10f32.powf(gain.abs() / 40.0)).min(40.0)
+            (g("q") * math::powf(10f32, gain.abs() / 40.0)).min(40.0)
         } else {
             g("q")
         };

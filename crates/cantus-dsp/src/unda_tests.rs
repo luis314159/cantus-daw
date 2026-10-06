@@ -6,6 +6,7 @@ use super::decim::{coefficients, Decimator, COEFS, TRANSITION};
 use super::osc::Warp;
 use super::table::{Table, LEVEL_LEN};
 use super::*;
+use crate::math;
 use std::f32::consts::TAU;
 
 /// Settings as the init patch has them (the engine derives these from the parameters).
@@ -75,14 +76,14 @@ fn through_decimator(hz: f32, sr: f32) -> f32 {
         // In f64: an f32 argument this large jitters the phase into broadband noise.
         let x = |k: usize| {
             let t = (hz as f64 * k as f64 / sr as f64).fract();
-            (std::f64::consts::TAU * t).sin() as f32
+            math::sin(std::f64::consts::TAU * t) as f32
         };
         let (y, _) = d.tick(2, &[x(2 * i), x(2 * i + 1)], &[0.0, 0.0]);
         if i > n / 2 {
             peak = peak.max(y.abs());
         }
     }
-    20.0 * peak.max(1e-12).log10()
+    20.0 * math::log10(peak.max(1e-12))
 }
 
 /// `cargo test -p cantus-dsp --release unda_speed -- --ignored --nocapture`
@@ -144,7 +145,7 @@ fn print_half_band_response() {
             let w = std::f64::consts::TAU * f;
             let ap = |a: f64| {
                 // (a + z^-2)/(1 + a z^-2) at z = e^{jw}
-                let (zr, zi) = ((2.0 * w).cos(), -(2.0 * w).sin());
+                let (zr, zi) = (math::cos(2.0 * w), -math::sin(2.0 * w));
                 let (nr, ni) = (a + zr, zi);
                 let (dr, di) = (1.0 + a * zr, a * zi);
                 let d = dr * dr + di * di;
@@ -159,9 +160,9 @@ fn print_half_band_response() {
                     p1 = mul(p1, ap(*a));
                 }
             }
-            let p1 = mul(p1, (w.cos(), -w.sin()));
+            let p1 = mul(p1, (math::cos(w), -math::sin(w)));
             let h = (0.5 * (p0.0 + p1.0), 0.5 * (p0.1 + p1.1));
-            20.0 * (h.0 * h.0 + h.1 * h.1).sqrt().log10()
+            20.0 * math::log10((h.0 * h.0 + h.1 * h.1).sqrt())
         };
         println!("n {n} tb {tb}: {c:?}");
         for f in [0.1, 0.2, 0.25, 0.2917, 0.35, 0.45] {
@@ -222,8 +223,8 @@ fn audio_becomes_a_table_frame_by_frame() {
         for i in 0..1024 {
             let x = i as f32 / 1024.0;
             audio.push(match k {
-                0 => (TAU * x).sin(),
-                1 => 0.5 * (2.0 * TAU * x).sin(),
+                0 => math::sin(TAU * x),
+                1 => 0.5 * math::sin(2.0 * TAU * x),
                 _ => 0.0,
             });
         }
@@ -234,7 +235,7 @@ fn audio_becomes_a_table_frame_by_frame() {
     // Normalised as a whole: the octave keeps its half level against the sine.
     let p1 = c1.iter().fold(0.0f32, |m, x| m.max(x.abs()));
     assert!((p1 - 0.5).abs() < 1e-3, "{p1}");
-    assert!((c1[1024] - 0.5 * (TAU * 2.0 * 1024.0 / 8192.0).sin()).abs() < 1e-3);
+    assert!((c1[1024] - 0.5 * math::sin(TAU * 2.0 * 1024.0 / 8192.0)).abs() < 1e-3);
     assert!(t.cycle(2).iter().all(|x| x.abs() < 1e-6));
 }
 
@@ -322,13 +323,13 @@ fn the_filter_curve_the_editor_draws_is_what_plays() {
             let mut peak = 0.0f32;
             for i in 0..n {
                 // Small, so the ladder's saturation stays out of it.
-                let x = 0.01 * (TAU * hz * i as f32 / sr).sin();
+                let x = 0.01 * math::sin(TAU * hz * i as f32 / sr);
                 let y = f.process([x, x])[0];
                 if i > n / 2 {
                     peak = peak.max(y.abs());
                 }
             }
-            let measured = 20.0 * (peak / 0.01).log10();
+            let measured = 20.0 * math::log10(peak / 0.01);
             let drawn = magnitude_db(ty, 1_000.0, 0.3, hz, sr);
             if drawn > -40.0 {
                 assert!(
@@ -353,8 +354,8 @@ fn unison_rms(lanes: usize, width: f32) -> (f32, f32) {
     let tail = &out[out.len() / 2..];
     let (mut l, mut m) = (0.0f64, 0.0f64);
     for fr in tail.chunks(2) {
-        l += (fr[0] as f64).powi(2) + (fr[1] as f64).powi(2);
-        m += ((fr[0] + fr[1]) as f64 * 0.5).powi(2);
+        l += math::powi(fr[0] as f64, 2) + math::powi(fr[1] as f64, 2);
+        m += math::powi((fr[0] + fr[1]) as f64 * 0.5, 2);
     }
     (l as f32, m as f32)
 }
@@ -364,11 +365,11 @@ fn unison_keeps_its_level_and_its_mono_sum() {
     let (one, _) = unison_rms(1, 1.0);
     for n in [2usize, 3, 5, 7, 9, 12, 16] {
         let (p, mono) = unison_rms(n, 1.0);
-        let db = 10.0 * (p / one).log10();
+        let db = 10.0 * math::log10(p / one);
         assert!(db.abs() < 1.0, "{n} lanes: {db:.2} dB against one");
         // The mono sum loses about 3 dB at most against the stereo power per channel
         // (two lanes panned hard left and right lose exactly that).
-        let loss = 10.0 * (mono / (p * 0.5)).log10();
+        let loss = 10.0 * math::log10(mono / (p * 0.5));
         assert!(
             loss > -3.2,
             "{n} lanes at full width: the mono sum loses {loss:.2} dB"
@@ -425,11 +426,11 @@ fn energy_at(x: &[f32], hz: f64, sr: f64) -> f64 {
     let w = std::f64::consts::TAU * hz / sr;
     let (mut s1, mut s2) = (0.0f64, 0.0f64);
     for i in n / 2..n {
-        let s0 = x[2 * i] as f64 + 2.0 * w.cos() * s1 - s2;
+        let s0 = x[2 * i] as f64 + 2.0 * math::cos(w) * s1 - s2;
         s2 = s1;
         s1 = s0;
     }
-    s1 * s1 + s2 * s2 - 2.0 * w.cos() * s1 * s2
+    s1 * s1 + s2 * s2 - 2.0 * math::cos(w) * s1 * s2
 }
 
 #[test]
@@ -448,14 +449,14 @@ fn partes_plays_the_table_and_stretch_moves_its_partials() {
     // At stretch 0 Partes is the table, as partials: the two renders agree.
     let (w, p) = (one(Engine::Wavetable, 0.0), one(Engine::Partes, 0.0));
     let dot: f64 = w.iter().zip(&p).map(|(a, b)| *a as f64 * *b as f64).sum();
-    let nw: f64 = w.iter().map(|a| (*a as f64).powi(2)).sum();
-    let np: f64 = p.iter().map(|a| (*a as f64).powi(2)).sum();
+    let nw: f64 = w.iter().map(|a| math::powi(*a as f64, 2)).sum();
+    let np: f64 = p.iter().map(|a| math::powi(*a as f64, 2)).sum();
     let corr = dot / (nw * np).sqrt();
     assert!(corr > 0.99, "correlation {corr}");
     // Stretched, the second partial leaves the harmonic.
     let st = one(Engine::Partes, 0.05);
     let f0 = 220.0;
-    let moved = energy_at(&st, f0 * 2f64.powf(1.05), 48_000.0);
+    let moved = energy_at(&st, f0 * math::powf(2f64, 1.05), 48_000.0);
     let stayed = energy_at(&st, f0 * 2.0, 48_000.0);
     assert!(moved > 100.0 * stayed, "{moved} vs {stayed}");
 }

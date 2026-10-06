@@ -1,6 +1,7 @@
 //! Culmen's tests: the null tests first, then what each stage promises.
 
 use super::*;
+use crate::math;
 #[path = "culmen_tests_stages.rs"]
 mod stages;
 use std::f32::consts::TAU;
@@ -9,7 +10,7 @@ const FS: f32 = 48_000.0;
 
 fn tone(amp: f32, hz: f32, n: usize) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (TAU * hz * i as f32 / FS).sin())
+        .map(|i| amp * math::sin(TAU * hz * i as f32 / FS))
         .collect()
 }
 
@@ -37,9 +38,9 @@ fn music(n: usize, seed: u32) -> (Vec<f32>, Vec<f32>) {
             .map(|i| {
                 let t = i as f32 / FS;
                 let beat = (i % 24_000) as f32 / FS;
-                let kick = 0.55 * (-beat * 18.0).exp() * (TAU * 52.0 * beat).sin();
-                let hat = 0.18 * (-(((i + 12_000) % 12_000) as f32) / FS * 60.0).exp() * nz[i];
-                let pad = 0.12 * (TAU * 440.0 * t + phase).sin();
+                let kick = 0.55 * math::exp(-beat * 18.0) * math::sin(TAU * 52.0 * beat);
+                let hat = 0.18 * math::exp(-(((i + 12_000) % 12_000) as f32) / FS * 60.0) * nz[i];
+                let pad = 0.12 * math::sin(TAU * 440.0 * t + phase);
                 kick + hat + pad
             })
             .collect()
@@ -57,10 +58,10 @@ fn band_limit(x: &[f32]) -> Vec<f32> {
             let sinc = if i == 0 {
                 2.0 * fc
             } else {
-                (std::f64::consts::TAU * fc * t).sin() / (std::f64::consts::PI * t)
+                math::sin(std::f64::consts::TAU * fc * t) / (std::f64::consts::PI * t)
             };
             let w = std::f64::consts::TAU * (i + HALF) as f64 / (2 * HALF) as f64;
-            sinc * (0.42 - 0.5 * w.cos() + 0.08 * (2.0 * w).cos())
+            sinc * (0.42 - 0.5 * math::cos(w) + 0.08 * math::cos(2.0 * w))
         })
         .collect();
     (0..x.len() as i64)

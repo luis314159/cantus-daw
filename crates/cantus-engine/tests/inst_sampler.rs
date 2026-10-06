@@ -2,6 +2,8 @@
 //! configured from the spec's flat keys, the unit rendering them — bit-exact at unity,
 //! the same at every block size, silent for a missing file, within a CPU budget.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::inst::sampler::{zf, Zone};
 use cantus_core::*;
@@ -39,7 +41,7 @@ fn noise(n: usize, seed: u32) -> Vec<f32> {
 
 fn sine(freq: f64, rate: f64, n: usize, amp: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| (std::f64::consts::TAU * freq * i as f64 / rate).sin() as f32 * amp)
+        .map(|i| math::sin(std::f64::consts::TAU * freq * i as f64 / rate) as f32 * amp)
         .collect()
 }
 
@@ -200,7 +202,7 @@ fn a_multisample_renders_the_same_at_every_block_size() {
     let mut zones = Vec::new();
     for (i, root) in [48u8, 60, 72].iter().enumerate() {
         let path = dir.path().join(format!("s{root}.wav"));
-        let f = 440.0 * ((*root as f64 - 69.0) / 12.0).exp2();
+        let f = 440.0 * math::exp2((*root as f64 - 69.0) / 12.0);
         let mut d = sine(f, 44_100.0, 44_100 * 2, 0.3);
         for (j, x) in noise(d.len(), 9 + i as u32).iter().enumerate() {
             d[j] += x * 0.05;
@@ -279,8 +281,8 @@ fn the_built_in_sine_is_in_tune_across_the_keyboard() {
         u.note_on(on(key, 1.0, key as u64));
         let (l, _) = play(u.as_mut(), 48_000);
         let f = frequency(&l[4_000..], 48_000.0);
-        let want = 440.0 * ((key as f64 - 69.0) / 12.0).exp2();
-        let cents = 1200.0 * (f / want).log2();
+        let want = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
+        let cents = 1200.0 * math::log2(f / want);
         worst = worst.max(cents.abs());
         assert!(
             cents.abs() < 0.1,

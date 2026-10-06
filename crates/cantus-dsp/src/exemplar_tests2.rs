@@ -4,10 +4,11 @@ use super::play::Playhead;
 use super::resample::MAX_TAPS;
 use super::tests::source_of;
 use super::*;
+use crate::math;
 
 fn sine_cycle(period: usize, cycles: usize) -> Vec<f32> {
     (0..period * cycles)
-        .map(|i| (std::f64::consts::TAU * i as f64 / period as f64).sin() as f32 * 0.5)
+        .map(|i| math::sin(std::f64::consts::TAU * i as f64 / period as f64) as f32 * 0.5)
         .collect()
 }
 
@@ -45,7 +46,7 @@ fn a_loop_an_exact_number_of_periods_long_has_no_seam() {
         let out = run(&mut p, ratio, q, 20_000);
         let steady = &out[2_000..];
         let inside =
-            0.5 * (std::f64::consts::TAU * ratio / 100.0).sin().abs() as f32 * 1.001 + 1e-4;
+            0.5 * math::sin(std::f64::consts::TAU * ratio / 100.0).abs() as f32 * 1.001 + 1e-4;
         assert!(
             max_step(steady) <= inside,
             "ratio {ratio}: a step of {} at the seam (a period has {inside})",
@@ -193,7 +194,7 @@ fn measured_alias_floors_and_cost() {
     let mut coefs = [0.0f32; MAX_TAPS];
     let n = 480_000;
     for st in [1.0f64, 36.0] {
-        let ratio = 44_100.0 / 48_000.0 * (st / 12.0).exp2();
+        let ratio = 44_100.0 / 48_000.0 * math::exp2(st / 12.0);
         let mut p = Playhead::default();
         p.start(
             src.clone(),
@@ -277,7 +278,7 @@ fn velocity_crossfades_keep_their_law() {
             let a = engine::crossfade(&soft, 60, v7);
             let b = engine::crossfade(&loud, 60, v7);
             let sum = if gain_curve { a + b } else { a * a + b * b };
-            let db = 20.0 * sum.log10();
+            let db = 20.0 * math::log10(sum);
             assert!(
                 db.abs() < 0.01,
                 "v {v7} gain={gain_curve}: {a} + {b} gives {db} dB"
@@ -343,7 +344,7 @@ fn a_release_sample_is_quieter_by_its_decay_per_second_held() {
     render(&mut e, 96_000, 512); // two seconds
     e.note_off(60, 7, 0.0);
     let out = render(&mut e, 2_000, 512);
-    let level = 20.0 * (out[2 * 1_000] / 0.5).log10();
+    let level = 20.0 * math::log10(out[2 * 1_000] / 0.5);
     assert!(
         (level + 12.0).abs() < 0.05,
         "held 2 s at 6 dB/s: {level} dB"

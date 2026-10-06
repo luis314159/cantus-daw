@@ -1,6 +1,7 @@
 //! What each of Culmen's stages promises, measured.
 
 use super::*;
+use crate::math;
 use crate::terminus::os::reference_true_peak;
 
 /// The magnitude of `hz` in `x`, by a DFT over the whole buffer.
@@ -8,14 +9,14 @@ fn level_at(x: &[f32], hz: f32) -> f32 {
     let (mut re, mut im) = (0f64, 0f64);
     for (i, v) in x.iter().enumerate() {
         let w = std::f64::consts::TAU * hz as f64 * i as f64 / FS as f64;
-        re += *v as f64 * w.cos();
-        im += *v as f64 * w.sin();
+        re += *v as f64 * math::cos(w);
+        im += *v as f64 * math::sin(w);
     }
     (2.0 * (re * re + im * im).sqrt() / x.len() as f64) as f32
 }
 
 fn to_db(x: f32) -> f32 {
-    20.0 * x.max(1e-12).log10()
+    20.0 * math::log10(x.max(1e-12))
 }
 
 /// A band with a slow detector and a hard knee, so a steady tone sits on the static curve.
@@ -72,7 +73,7 @@ fn each_band_acts_on_its_own_range() {
     let x: Vec<f32> = (0..n)
         .map(|i| {
             let t = i as f32 / FS;
-            0.5 * (TAU * 40.0 * t).sin() + 0.05 * (TAU * 6_000.0 * t).sin()
+            0.5 * math::sin(TAU * 40.0 * t) + 0.05 * math::sin(TAU * 6_000.0 * t)
         })
         .collect();
     for mode in [Mode::Dynamic, Mode::Split, Mode::Linear] {
@@ -158,7 +159,7 @@ fn solo_hears_one_band_and_a_band_switched_off_does_nothing() {
     let x: Vec<f32> = (0..n)
         .map(|i| {
             let t = i as f32 / FS;
-            0.3 * (TAU * 60.0 * t).sin() + 0.3 * (TAU * 6_000.0 * t).sin()
+            0.3 * math::sin(TAU * 60.0 * t) + 0.3 * math::sin(TAU * 6_000.0 * t)
         })
         .collect();
     let mut s = MaxSettings {
@@ -196,7 +197,7 @@ fn delta_is_everything_culmen_changes() {
         let (a, b, lat) = run(&s, &l, &r, 512);
         let d = MaxSettings { delta: true, ..s };
         let (da, db_, _) = run(&d, &l, &r, 512);
-        let g = 10f32.powf(s.drive_db / 20.0);
+        let g = math::powf(10f32, s.drive_db / 20.0);
         for i in lat + 2_000..l.len() {
             let want = (l[i - lat] * g, r[i - lat] * g);
             assert!((a[i] + da[i] - want.0).abs() < 1e-5, "{mode:?} left {i}");
@@ -216,7 +217,7 @@ fn unity_hears_the_processing_without_the_drive() {
         ..s
     };
     let (ua, _, _) = run(&u, &l, &r, 512);
-    let g = 10f32.powf(s.drive_db / 20.0);
+    let g = math::powf(10f32, s.drive_db / 20.0);
     for i in 0..a.len() {
         assert!((ua[i] * g - a[i]).abs() < 1e-5, "sample {i}");
     }
@@ -252,7 +253,7 @@ fn dither_lands_on_the_grid_and_silence_stays_silent() {
         ..busy(Mode::Dynamic)
     };
     let (a, _, _) = run(&s, &l, &r, 512);
-    let q = 2f32.powi(-15);
+    let q = math::powi(2f32, -15);
     assert!(
         a.iter().all(|v| ((v / q).round() * q - v).abs() < 1e-9),
         "16-bit grid"
@@ -265,7 +266,7 @@ fn dither_lands_on_the_grid_and_silence_stays_silent() {
 fn telemetry_counts_columns_and_reports_every_stage() {
     let n = 48_000;
     let x: Vec<f32> = (0..n)
-        .map(|i| 0.7 * (TAU * 60.0 * i as f32 / FS).sin())
+        .map(|i| 0.7 * math::sin(TAU * 60.0 * i as f32 / FS))
         .collect();
     let mut s = MaxSettings {
         drive_db: 18.0,

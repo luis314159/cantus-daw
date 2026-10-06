@@ -25,6 +25,7 @@
 use super::geometry::{
     strike_weight, swing_ff_mm, transfer64, Engine, BAR_RATIO, REED_RATIOS, TINE_RATIOS,
 };
+use crate::math;
 use crate::organum::filters::OnePole;
 
 pub const MAX_MODES: usize = 5;
@@ -53,7 +54,7 @@ impl HammerShape {
     /// Integrate `ÿ = −yᵖ` from `y = 0, ẏ = 1` until the mass leaves, finely (RK4).
     pub fn new() -> Self {
         let p = HAMMER_P as f64;
-        let f = |y: f64| -(y.max(0.0)).powf(p);
+        let f = |y: f64| -math::powf(y.max(0.0), p);
         let dt = 1e-4;
         let (mut y, mut v, mut t) = (0.0f64, 1.0f64, 0.0f64);
         let mut ys = Vec::with_capacity(40_000);
@@ -70,12 +71,12 @@ impl HammerShape {
                 break;
             }
         }
-        let peak = ys.iter().cloned().fold(0.0, f64::max).powf(p);
+        let peak = math::powf(ys.iter().cloned().fold(0.0, f64::max), p);
         let mut shape = [0.0f32; SHAPE_POINTS + 1];
         for (i, s) in shape.iter_mut().enumerate() {
             let pos = i as f64 / SHAPE_POINTS as f64 * (ys.len() - 1) as f64;
             let j = (pos as usize).min(ys.len() - 1);
-            *s = (ys[j].max(0.0).powf(p) / peak) as f32;
+            *s = (math::powf(ys[j].max(0.0), p) / peak) as f32;
         }
         HammerShape { shape }
     }
@@ -98,7 +99,7 @@ impl HammerShape {
 pub fn contact_s(hardness: f32, vf: f32) -> f32 {
     let t_ff = 0.0032 * (1.0 - 0.85 * hardness.clamp(0.0, 1.0));
     let e = (HAMMER_P - 1.0) / (HAMMER_P + 1.0);
-    (t_ff * vf.clamp(1e-3, 1.0).powf(-e)).min(MAX_CONTACT_S)
+    (t_ff * math::powf(vf.clamp(1e-3, 1.0), -e)).min(MAX_CONTACT_S)
 }
 
 /// Everything one strike is: latched when the key goes down.
@@ -162,7 +163,7 @@ impl Burst {
     fn start(&mut self, seed: u64, level: f32, sr: f32, ms: f32, lo_hz: f32, hi_hz: f32) {
         self.rng = seed | 1;
         self.env = level;
-        self.decay = (-6.9078 / (ms * 0.001 * sr)).exp();
+        self.decay = math::exp(-6.9078 / (ms * 0.001 * sr));
         self.lo.set_hz(sr, hi_hz);
         self.hi.set_hz(sr, lo_hz);
     }
@@ -246,7 +247,7 @@ impl Voice {
     pub fn amplitude(&self) -> f32 {
         let m = &self.modes[0];
         let b = &self.modes[1];
-        ((m.re + b.re).powi(2) + (m.im + b.im).powi(2)).sqrt()
+        (math::powi(m.re + b.re, 2) + math::powi(m.im + b.im, 2)).sqrt()
     }
 
     /// Start a strike. `stolen`: the voice was sounding another note — fade that out over
@@ -287,7 +288,7 @@ impl Voice {
                 continue;
             }
             let w = std::f32::consts::TAU * hz / self.sr;
-            (m.s, m.c) = w.sin_cos();
+            (m.s, m.c) = math::sin_cos(w);
         }
     }
 
@@ -308,14 +309,14 @@ impl Voice {
         self.damp_target = 0.0;
         self.damp_step = 1.0 / (0.008 * sr);
         let f0 = s.hz;
-        let vf = 10f32.powf(-s.dynamics_db * (1.0 - s.velocity) / 40.0);
+        let vf = math::powf(10f32, -s.dynamics_db * (1.0 - s.velocity) / 40.0);
         // A tine moving back faster than the hammer throws it off: the contact never
         // outlasts half a period of the fundamental.
         let tc = contact_s(s.hardness, vf).min(0.5 / f0.max(1.0));
         self.contact = tc * sr;
-        let swing =
-            swing_ff_mm(s.engine, f0) * 10f32.powf(-s.dynamics_db * (1.0 - s.velocity) / 20.0);
-        let bell = 10f32.powf(s.bell_db / 20.0);
+        let swing = swing_ff_mm(s.engine, f0)
+            * math::powf(10f32, -s.dynamics_db * (1.0 - s.velocity) / 20.0);
+        let bell = math::powf(10f32, s.bell_db / 20.0);
         let xi = s.strike.clamp(0.01, 0.5);
         let e = [
             strike_weight(0, xi),
@@ -365,7 +366,7 @@ impl Voice {
         // strike can be set exactly.
         let w0 = std::f32::consts::TAU * f0 / sr;
         let (mut cr, mut ci) = (1.0f32, 0.0f32);
-        let (rs, rc) = w0.sin_cos();
+        let (rs, rc) = math::sin_cos(w0);
         let (mut sum_r, mut sum_i) = (0.0f32, 0.0f32);
         let len = self.contact.ceil() as usize + 1;
         for k in 0..len {
@@ -393,16 +394,16 @@ impl Voice {
                 m.s = 0.0;
                 m.ln_free = ln_r(0.001, sr);
                 m.ln_damp = m.ln_free;
-                m.r = m.ln_free.exp();
+                m.r = math::exp(m.ln_free);
                 continue;
             }
             let w = std::f32::consts::TAU * hz / sr;
-            (m.s, m.c) = w.sin_cos();
+            (m.s, m.c) = math::sin_cos(w);
             m.ln_free = ln_r(*t60, sr);
             // Damped: the damper's time, the upper modes faster as its tone rises.
-            let damp_t60 = damper_t60 * ratio.powf(-s.damper_tone.clamp(0.0, 1.0));
+            let damp_t60 = damper_t60 * math::powf(*ratio, -s.damper_tone.clamp(0.0, 1.0));
             m.ln_damp = ln_r(damp_t60, sr).min(m.ln_free);
-            m.r = m.ln_free.exp();
+            m.r = math::exp(m.ln_free);
             m.gain = g1 * share / ratio;
         }
         for m in &mut self.modes[n..] {
@@ -412,9 +413,9 @@ impl Voice {
         if !keep {
             self.prev = transfer64(s.engine, 0.0, s.gap_mm as f64, s.align_mm as f64);
         }
-        self.level = 10f32.powf(s.level_db / 20.0);
-        let hn = 10f32.powf(s.hammer_noise_db / 20.0)
-            * 10f32.powf(-s.dynamics_db * (1.0 - s.velocity) / 20.0);
+        self.level = math::powf(10f32, s.level_db / 20.0);
+        let hn = math::powf(10f32, s.hammer_noise_db / 20.0)
+            * math::powf(10f32, -s.dynamics_db * (1.0 - s.velocity) / 20.0);
         self.hammer_noise
             .start(s.id ^ 0x4841_4d4d, hn * 0.5, sr, 4.0, 700.0, 3_500.0);
         self.release_noise = Burst::default();
@@ -440,14 +441,15 @@ impl Voice {
         if damp > self.damp_target + 0.25 && damp > 0.5 {
             // The felt lands on a moving tine: a thump that grows with the swing it stops.
             let a = self.amplitude().min(4.0);
-            let level =
-                10f32.powf(self.s.release_noise_db / 20.0) * (0.3 + a) * (0.5 + release_velocity);
+            let level = math::powf(10f32, self.s.release_noise_db / 20.0)
+                * (0.3 + a)
+                * (0.5 + release_velocity);
             let seed = self.s.id.wrapping_mul(0x9E37_79B9) ^ 0x5245_4c45;
             self.release_noise
                 .start(seed, level * 0.3, self.sr, 25.0, 120.0, 900.0);
         } else if damp + 0.25 < self.damp_target && self.active {
             // The pedal lifts the felt off: a softer brush of the damper leaving the tine.
-            let level = 10f32.powf(self.s.damper_noise_db / 20.0) * 0.15;
+            let level = math::powf(10f32, self.s.damper_noise_db / 20.0) * 0.15;
             let seed = self.s.id.wrapping_mul(0x2545_F491) ^ 0x4441_4d50;
             self.release_noise
                 .start(seed, level, self.sr, 40.0, 300.0, 2_500.0);
@@ -478,7 +480,7 @@ impl Voice {
             }
             let g = self.damp;
             for m in &mut self.modes[..self.n] {
-                m.r = (m.ln_free + (m.ln_damp - m.ln_free) * g).exp();
+                m.r = math::exp(m.ln_free + (m.ln_damp - m.ln_free) * g);
             }
         }
         let t = self.t as f32;

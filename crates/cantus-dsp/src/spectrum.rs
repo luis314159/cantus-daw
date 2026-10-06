@@ -6,6 +6,7 @@
 //! here is on the audio path. The FFT is a plain iterative radix-2, which at 4096 points
 //! twice a frame is a fraction of a millisecond and needs no dependency.
 
+use crate::math;
 use std::f32::consts::PI;
 
 /// In-place complex FFT. `re.len()` must be a power of two.
@@ -29,7 +30,7 @@ pub fn fft(re: &mut [f32], im: &mut [f32]) {
     let mut len = 2;
     while len <= n {
         let ang = -2.0 * PI / len as f32;
-        let (wr, wi) = (ang.cos(), ang.sin());
+        let (wr, wi) = (math::cos(ang), math::sin(ang));
         for start in (0..n).step_by(len) {
             let (mut cr, mut ci) = (1.0f32, 0.0f32);
             for k in 0..len / 2 {
@@ -70,7 +71,7 @@ impl SpectrumAnalyser {
     pub fn new(n: usize) -> Self {
         let n = n.next_power_of_two().max(64);
         let window: Vec<f32> = (0..n)
-            .map(|i| 0.5 - 0.5 * (2.0 * PI * i as f32 / n as f32).cos())
+            .map(|i| 0.5 - 0.5 * math::cos(2.0 * PI * i as f32 / n as f32))
             .collect();
         let sum: f32 = window.iter().sum();
         SpectrumAnalyser {
@@ -119,7 +120,7 @@ impl SpectrumAnalyser {
     /// (1/6 is a good display smoothing), dB. −120 for silence.
     pub fn level_db(&self, which: usize, sample_rate: f32, hz: f32, octaves: f32) -> f32 {
         let bin_hz = sample_rate / self.n as f32;
-        let half = 2f32.powf(octaves * 0.5);
+        let half = math::powf(2f32, octaves * 0.5);
         let p = &self.power[which.min(1)];
         // Narrower than two bins (the low end on a log axis): interpolate between the two
         // nearest bins instead of averaging one, or the display is a staircase.
@@ -129,7 +130,7 @@ impl SpectrumAnalyser {
             let f = pos - k as f32;
             let power = (p[k] * (1.0 - f) + p[k + 1] * f) * 1.5;
             return if power > 1e-12 {
-                10.0 * power.log10()
+                10.0 * math::log10(power)
             } else {
                 -120.0
             };
@@ -147,7 +148,7 @@ impl SpectrumAnalyser {
             0.0
         };
         if power > 1e-12 {
-            10.0 * power.log10()
+            10.0 * math::log10(power)
         } else {
             -120.0
         }
@@ -169,7 +170,7 @@ mod tests {
         let pairs: Vec<f32> = (0..8192)
             .flat_map(|i| {
                 let t = i as f32 / sr;
-                let x = (2.0 * PI * 1_000.0 * t).sin();
+                let x = math::sin(2.0 * PI * 1_000.0 * t);
                 [x, 0.25 * x]
             })
             .collect();

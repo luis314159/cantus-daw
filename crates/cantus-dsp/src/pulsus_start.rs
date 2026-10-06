@@ -9,6 +9,7 @@ use super::voice::{decay_at, open_tone, Voice};
 use super::{
     voice_level, DrumVoice, LayerSettings, PadSettings, SampleRef, KICK_F1_HZ, KICK_LEGACY_HZ,
 };
+use crate::math;
 
 /// The six squares of the 808's metal voice, as ratios of the pad's base frequency (the
 /// usually quoted 205.3, 304.4, 369.6, 522.7, 540 and 800 Hz).
@@ -50,11 +51,11 @@ pub(crate) struct HitCtx {
 /// v^1.5 (what the tone follows) and `level` is it at the pad's sensitivity.
 fn velocity(s: &PadSettings, velocity: u8, legacy: bool) -> (f32, f32, f32) {
     let lin = velocity.clamp(1, 127) as f32 / 127.0;
-    let curve = lin.powf(1.5);
+    let curve = math::powf(lin, 1.5);
     let level = if legacy || s.vel_level == 100.0 {
         curve
     } else {
-        lin.powf(1.5 * (s.vel_level / 100.0).max(0.0))
+        math::powf(lin, 1.5 * (s.vel_level / 100.0).max(0.0))
     };
     (level, curve, lin)
 }
@@ -78,7 +79,7 @@ impl Voice {
         let mut decay = if s.vel_decay == 0.0 {
             s.decay
         } else {
-            s.decay * 2f32.powf(2.0 * (s.vel_decay / 100.0) * (lin - 1.0))
+            s.decay * math::powf(2f32, 2.0 * (s.vel_decay / 100.0) * (lin - 1.0))
         };
         let metal_opens = s.voice == DrumVoice::HiHat && s.model != 2 && c.openness > 0.0;
         if metal_opens {
@@ -142,7 +143,7 @@ impl Voice {
                 let base_hz = if c.legacy { KICK_LEGACY_HZ } else { KICK_F1_HZ };
                 let base = semitones(base_hz, tune);
                 self.base_hz = base;
-                self.pitch_span = 2f32.powf(s.pitch_drop.clamp(0.0, 48.0) / 12.0) - 1.0;
+                self.pitch_span = math::powf(2f32, s.pitch_drop.clamp(0.0, 48.0) / 12.0) - 1.0;
                 self.inc_a = base / sr;
                 // The knock: extra octaves for the first few milliseconds, scaled by the
                 // click, which is what a beater hitting a head does before the shell rings.
@@ -232,7 +233,7 @@ impl Voice {
         self.filter = s.filter.min(3);
         if self.filter != 0 {
             self.cutoff = s.cutoff.clamp(20.0, 20_000.0);
-            self.filter_q = 0.5 + 11.5 * s.resonance.clamp(0.0, 1.0).powi(2);
+            self.filter_q = 0.5 + 11.5 * math::powi(s.resonance.clamp(0.0, 1.0), 2);
             self.filter_env = s.filter_env;
             self.fl.reset();
             self.fr.reset();
@@ -252,8 +253,8 @@ impl Voice {
             self.os_r.reset();
         }
         self.trans = s.trans_attack != 0.0 || s.trans_sustain != 0.0;
-        self.trans_a = 10f32.powf(s.trans_attack.clamp(-24.0, 24.0) / 20.0);
-        self.trans_s = 10f32.powf(s.trans_sustain.clamp(-24.0, 24.0) / 20.0);
+        self.trans_a = math::powf(10f32, s.trans_attack.clamp(-24.0, 24.0) / 20.0);
+        self.trans_s = math::powf(10f32, s.trans_sustain.clamp(-24.0, 24.0) / 20.0);
         self.post = self.attack_len > 0 || self.filter != 0 || self.gdrive > 0.0 || self.trans;
         self.bank.clear();
         self.aux2 = 0.0;
@@ -289,7 +290,8 @@ impl Voice {
     ) {
         // Play at the file's own rate, retuned by the pad: a 44.1 kHz sample on a 48 kHz
         // engine advances 0.919 frames per output sample.
-        self.inc = (sample.rate / sr) as f64 * 2f64.powf((tune.clamp(-48.0, 48.0) / 12.0) as f64);
+        self.inc =
+            (sample.rate / sr) as f64 * math::powf(2f64, (tune.clamp(-48.0, 48.0) / 12.0) as f64);
         self.pos = 0.0;
         if !legacy {
             self.hermite = true;
@@ -359,7 +361,7 @@ impl Voice {
                 // sweep at the hit, the sigh (pitch sagging with the amplitude) after.
                 let base = semitones(KICK_F1_HZ, tune);
                 self.base_hz = base;
-                self.pitch_span = 2f32.powf(s.pitch_drop.clamp(0.0, 48.0) / 12.0) - 1.0;
+                self.pitch_span = math::powf(2f32, s.pitch_drop.clamp(0.0, 48.0) / 12.0) - 1.0;
                 self.sigh = s.sigh.clamp(0.0, 1.0);
                 self.aux = s.click.clamp(0.0, 1.0) * bright;
                 self.aux_coef = decay_coef(0.0015, sr);
@@ -495,7 +497,7 @@ impl Voice {
                         hardness: s.hardness,
                     },
                 );
-                self.glide = 2f32.powf(s.glide.clamp(0.0, 4.0) / 12.0) - 1.0;
+                self.glide = math::powf(2f32, s.glide.clamp(0.0, 4.0) / 12.0) - 1.0;
                 if self.glide > 0.0 || self.penv_st != 0.0 {
                     self.bank.retune(self.modal_ratio());
                 }
@@ -516,7 +518,7 @@ impl Voice {
     pub(crate) fn modal_ratio(&self) -> f32 {
         let mut r = 1.0 + self.glide * self.amp * self.amp;
         if self.penv_st != 0.0 {
-            r *= 2f32.powf(self.penv_st * self.penv / 12.0);
+            r *= math::powf(2f32, self.penv_st * self.penv / 12.0);
         }
         r
     }

@@ -29,6 +29,7 @@
 //!   read only on the grid — so neither the output nor the telemetry depends on how the
 //!   host cuts its blocks.
 
+use crate::math;
 use crate::multiplex::{self, BandSettings, Mode, Slope};
 use crate::terminus::loudness;
 use crate::terminus::{self, LimSettings, Monitor, Shaping, DITHER_BITS};
@@ -216,7 +217,7 @@ mod tests;
 #[inline]
 pub(crate) fn db(lin: f32) -> f32 {
     if lin > 1e-8 {
-        20.0 * lin.log10()
+        20.0 * math::log10(lin)
     } else {
         -160.0
     }

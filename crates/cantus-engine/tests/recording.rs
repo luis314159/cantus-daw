@@ -3,6 +3,7 @@
 //! itself, as the input stream would.
 
 use cantus_core::*;
+use cantus_dsp::math;
 use cantus_engine::*;
 use std::sync::Arc;
 
@@ -124,7 +125,7 @@ fn trim_scales_the_monitored_input() {
     let mut rig = Rig::new(Snapshot::compile(&project(input, false, true), 1), 1);
     let x = signal(512, 1, 3);
     let out = rig.run(&x);
-    let g = 10f32.powf(-6.0 / 20.0);
+    let g = math::powf(10f32, -6.0 / 20.0);
     for (o, i) in out.chunks_exact(2).zip(&x) {
         assert_eq!(o[0], i * g);
     }
@@ -345,7 +346,7 @@ fn a_stereo_input_records_its_pair_with_its_trim() {
     let takes = h.finish_recording();
     let (spec, got) = read_wav(&takes[0].path);
     assert_eq!(spec.channels, 2);
-    let g = 10f32.powf(6.0 / 20.0);
+    let g = math::powf(10f32, 6.0 / 20.0);
     let want: Vec<f32> = x
         .chunks_exact(3)
         .flat_map(|f| [f[1] * g, f[2] * g])
@@ -603,7 +604,7 @@ fn the_always_click_is_bit_identical_to_before() {
 fn the_click_level_is_relative_to_the_built_in_one() {
     let want = reference_click(100_000);
     let got = click_run(ClickMode::Always, -6.0, false, None, 100_000);
-    let g = 10f32.powf(-6.0 / 20.0);
+    let g = math::powf(10f32, -6.0 / 20.0);
     for (a, b) in want.iter().zip(&got) {
         assert!((a * g - b).abs() <= 1e-6, "{a} × {g} against {b}");
     }

@@ -5,6 +5,7 @@
 use super::shape::{saturate, shape, HALF_TAPS};
 use super::voice::Voice;
 use super::DrumVoice;
+use crate::math;
 use std::f32::consts::TAU;
 
 /// `tanh(1.6)`: the 909 shaper's normaliser.
@@ -54,7 +55,7 @@ impl Voice {
         if self.penv_st == 0.0 {
             return 1.0;
         }
-        let r = 2f32.powf(self.penv_st * self.penv / 12.0);
+        let r = math::powf(2f32, self.penv_st * self.penv / 12.0);
         self.penv *= self.penv_coef;
         r
     }
@@ -97,7 +98,7 @@ impl Voice {
             self.phase_a -= 1.0;
         }
         self.pitch_env *= self.pitch_coef;
-        let body = (TAU * self.phase_a).sin() * self.env;
+        let body = math::sin(TAU * self.phase_a) * self.env;
         let click = self.high.process(self.noise.next()) * self.aux;
         self.aux *= self.aux_coef;
         saturate(body + click, self.drive)
@@ -117,7 +118,8 @@ impl Voice {
         if self.phase_b >= 1.0 {
             self.phase_b -= 1.0;
         }
-        let body = ((TAU * self.phase_a).sin() * 0.6 + (TAU * self.phase_b).sin() * 0.4) * self.env;
+        let body =
+            (math::sin(TAU * self.phase_a) * 0.6 + math::sin(TAU * self.phase_b) * 0.4) * self.env;
         // The noise has its own envelope: the bodies stop and the wires keep going.
         let white = self.noise.next();
         let wires = self.band.process(white) * 1.7;
@@ -161,19 +163,19 @@ impl Voice {
                 if self.phase_a >= 1.0 {
                     self.phase_a -= 1.0;
                 }
-                let body = (TAU * self.phase_a).sin() * e;
+                let body = math::sin(TAU * self.phase_a) * e;
                 let pulse = self.lp.tick(self.aux * (1.0 + 0.3 * self.noise.next())).0;
                 self.aux *= self.aux_coef;
                 body + pulse * 0.8
             }
             (DrumVoice::Kick, _) => {
-                let hz = self.base_hz * 2f32.powf(self.pitch_span * self.pitch_env / 12.0);
+                let hz = self.base_hz * math::powf(2f32, self.pitch_span * self.pitch_env / 12.0);
                 self.pitch_env *= self.pitch_coef;
                 self.phase_a += hz / sr;
                 if self.phase_a >= 1.0 {
                     self.phase_a -= 1.0;
                 }
-                let body = (1.6 * (TAU * self.phase_a).sin()).tanh() / TANH_1_6 * e;
+                let body = math::tanh(1.6 * math::sin(TAU * self.phase_a)) / TANH_1_6 * e;
                 let click = self.lp.tick(self.noise.next()).0 * self.aux * 0.7 + self.aux2 * 0.6;
                 self.aux *= self.aux_coef;
                 self.aux2 *= self.aux2_coef;
@@ -309,8 +311,8 @@ impl Voice {
             r *= g;
             // A boost meets a soft ceiling rather than the top of the scale.
             if g > 1.0 {
-                l = l.tanh();
-                r = r.tanh();
+                l = math::tanh(l);
+                r = math::tanh(r);
             }
         }
         (l, r)

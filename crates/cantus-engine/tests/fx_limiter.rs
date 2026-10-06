@@ -2,6 +2,8 @@
 //! nothing to do is a delay to the bit, the render does not depend on the block size, and
 //! a mix pushed hard into it leaves the engine under the ceiling in true peak.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -108,10 +110,10 @@ fn a_mix_pushed_hard_leaves_the_engine_under_the_ceiling() {
         let out = render_of(&p);
         for ch in 0..2 {
             let x = frames(&out, ch);
-            let sample = 20.0 * x.iter().fold(0f32, |m, v| m.max(v.abs())).log10();
+            let sample = 20.0 * math::log10(x.iter().fold(0f32, |m, v| m.max(v.abs())));
             assert!(sample <= -1.0, "tp={tp}: sample peak {sample} dBFS");
             if tp > 0.5 {
-                let tp_db = 20.0 * os::reference_true_peak(&x, 0.5).log10();
+                let tp_db = 20.0 * math::log10(os::reference_true_peak(&x, 0.5));
                 assert!(tp_db <= -1.0, "true peak {tp_db} dBTP");
             }
         }
