@@ -49,9 +49,9 @@ then in a card in the window while the work begins — **on by default, with an 
   with `text::paint` — so the kit's rules hold: measured before painted, never outside its
   box, shortening reported.
 - **Views** — `src/views/verse.rs`:
-  - *the splash's band*: the splash grows by 136 pt when a verse shows (520 × 456); under
+  - *the splash's band*: the splash grows by 148 pt when a verse shows (520 × 468); under
     the unchanged composition, a hairline ornament with a small gold diamond, the passage
-    centred in the condensed italic — as large as fits in four lines (×1.16 … ×0.92),
+    centred in the condensed italic — as large as fits in four lines and the band (×1.16 … ×0.92), its lines balanced so no word is left alone,
     five at most — the reference in the section caps in the brand's gold
     ("COLOSENSES 3:23 · RVR1960"), and a quiet *Don't show again* at the bottom right
     (clicked on the splash, the band says where to turn it back on and the switch is

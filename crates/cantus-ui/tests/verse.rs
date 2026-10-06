@@ -425,6 +425,10 @@ fn every_passage_fits_the_splash_at_75_and_200_percent_in_both_languages() {
                 "{what}: reference over the text"
             );
             assert!(
+                p.hide.top() >= p.reference.bottom() - 0.5,
+                "{what}: the link beside the reference"
+            );
+            assert!(
                 !p.hide.intersects(p.reference.shrink(0.5)),
                 "{what}: link over the reference"
             );

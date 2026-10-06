@@ -40,32 +40,53 @@ pub struct Fit {
     pub lines: Arc<Lines>,
     /// The size chosen, over the role's own.
     pub scale: f32,
+    /// The height it was given.
+    pub max_h: f32,
 }
 
 impl Fit {
+    /// At most [`MAX_LINES`] lines, within the height given.
     pub fn fits(&self) -> bool {
-        self.lines.lines.len() <= MAX_LINES
+        self.lines.lines.len() <= MAX_LINES && self.lines.height() <= self.max_h + 0.5
     }
 }
 
-/// Set `text` in `width` points at the scale `k`.
-pub fn fit(ctx: &Context, text: &str, width: f32, k: f32) -> Fit {
-    let mut last = None;
+/// Set `text` in `width` × `max_h` points at the scale `k`: the largest size that takes
+/// at most four lines and fits the height, else the floor; then the lines balanced (the
+/// narrowest width that keeps their number), so no word is left alone on the last line.
+pub fn fit(ctx: &Context, text: &str, width: f32, max_h: f32, k: f32) -> Fit {
+    let mut chosen = None;
     for s in SCALES {
         let lines = prose::wrap(ctx, text, ROLE, k * s, width);
-        if lines.lines.len() <= MAX_LINES - 1 {
-            return Fit { lines, scale: s };
+        let ok = lines.lines.len() < MAX_LINES && lines.height() <= max_h + 0.5;
+        chosen = Some((s, lines));
+        if ok {
+            break;
         }
-        last = Some(Fit { lines, scale: s });
     }
-    last.unwrap_or(Fit {
-        lines: Arc::new(Lines {
-            lines: Vec::new(),
-            line_h: 0.0,
-            widest: 0.0,
-        }),
-        scale: 1.0,
-    })
+    let Some((scale, lines)) = chosen else {
+        unreachable!("SCALES is not empty")
+    };
+    let n = lines.lines.len();
+    let mut best = lines;
+    if n >= 2 {
+        let (mut lo, mut hi) = (width * 0.5, width);
+        for _ in 0..8 {
+            let mid = (lo + hi) * 0.5;
+            let l = prose::wrap(ctx, text, ROLE, k * scale, mid);
+            if l.lines.len() <= n {
+                hi = mid;
+                best = l;
+            } else {
+                lo = mid;
+            }
+        }
+    }
+    Fit {
+        lines: best,
+        scale,
+        max_h,
+    }
 }
 
 /// Where the parts of a painted verse are: what the tests check.
@@ -151,7 +172,7 @@ fn ornament(b: &mut Brush, center: Pos2, half: f32, t: &Tokens, k: f32) {
 // ---- the splash ------------------------------------------------------------------------
 
 /// The splash's verse band, in points at 100 % (under the 520 × 320 composition).
-pub const SPLASH_BAND: f32 = 136.0;
+pub const SPLASH_BAND: f32 = 148.0;
 /// The band's side margins.
 const SPLASH_MARGIN: f32 = 40.0;
 
@@ -177,7 +198,6 @@ pub fn paint_splash(
         t,
         k,
     );
-    let f = fit(&ctx, shown.text(), inner.width(), k);
     let cite_h = 16.0 * k;
     let gap = 8.0 * k;
     let link_h = 16.0 * k;
@@ -185,6 +205,13 @@ pub fn paint_splash(
     let room = Rect::from_min_max(
         Pos2::new(inner.left(), inner.top() + 16.0 * k),
         Pos2::new(inner.right(), inner.bottom() - link_h - 8.0 * k),
+    );
+    let f = fit(
+        &ctx,
+        shown.text(),
+        inner.width(),
+        room.height() - gap - cite_h,
+        k,
     );
     let block = f.lines.height() + gap + cite_h;
     let top = room.top() + ((room.height() - block) * 0.5).max(0.0);
@@ -279,7 +306,13 @@ pub fn card_layout(ctx: &Context, screen: Rect, shown: Shown) -> (Rect, Fit) {
     let status_h = (super::workspace_status::HEIGHT * s.t.density).round();
     let margin = 16.0;
     let width = CARD_W.min(screen.width() - 2.0 * margin).max(160.0);
-    let f = fit(ctx, shown.text(), width - 2.0 * PAD - KEY_ROOM, s.tk());
+    let f = fit(
+        ctx,
+        shown.text(),
+        width - 2.0 * PAD - KEY_ROOM,
+        f32::INFINITY,
+        s.tk(),
+    );
     let height = PAD + f.lines.height() + 6.0 + 16.0 + 10.0 + 18.0 + PAD * 0.6;
     let bottom = screen.bottom() - status_h - margin;
     let rect = Rect::from_min_max(
@@ -384,8 +417,8 @@ fn paint_card(ui: &Ui, rect: Rect, shown: Shown, f: &Fit, s: &Style, hovered: bo
     let k = s.tk();
     with_brush(ui.painter(), |b| {
         let edge = b.snap_rect(Rect::from_min_size(
-            Pos2::new(rect.left() + 1.0, rect.top() + 10.0),
-            Vec2::new(3.0, rect.height() - 20.0),
+            Pos2::new(rect.left() + 6.0, rect.top() + 12.0),
+            Vec2::new(3.0, rect.height() - 24.0),
         ));
         b.rrect(edge, 1.5, Fill::Solid(s.t.brand));
         let (text_rect, cite_rect, link_rect) = card_rows(rect, f);
