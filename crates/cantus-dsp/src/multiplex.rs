@@ -813,57 +813,69 @@ impl Multiplex {
     /// where the crossovers are. A band with a static gain, or an expander that acts on
     /// silence, is never at rest: a reset starts every band at unity and lets it move.
     pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
         if !self.is_active() {
-            return true;
+            return None;
         }
         let s = &self.s;
         let n = self.lay.n;
-        if self.quiet < self.ring_len
-            || self.unity_run < self.gain_len
-            || self.out_from != self.out_to
-            || self.out_to != db_to_lin(s.output_db)
-            || self.g0_from != [1.0; 2]
-            || self.g0_to != [1.0; 2]
-        {
-            return false;
-        }
-        for h in 0..2 {
-            for i in 0..MAX_XOVERS {
-                let base = (self.xo[i].g, 1.0);
-                if self.stage_from[h][i] != base || self.stage_to[h][i] != base {
-                    return false;
-                }
-            }
-        }
-        for &b in &self.lay.order[..n] {
-            let band = &s.bands[b];
-            let d = &self.det[b];
-            if self.live[b].b != *band
-                || self.g_now[b] != 1.0
-                || self.dyn_now[b] != 0.0
-                || self.audible[b] != self.audible_t[b]
-                || self.on_amt[b] != if band.on { 1.0 } else { 0.0 }
-                || d.env != 0.0
-                || !d.hp.iter().chain(&d.lp).flatten().all(Svf::is_clear)
-            {
-                return false;
-            }
-        }
-        if (0..n.saturating_sub(1)).any(|i| self.xo_hz[i] != self.lay.crossovers[i]) {
-            return false;
-        }
-        if s.mode == Mode::Linear && n > 0 {
-            // Its blocks must fall where a new unit's would: started with the stream.
-            self.lin_live
-                && self.lin_origin == 0
-                && self.lin.is_clear()
-                && (0..n - 1).all(|c| self.lin.designed_at(c, self.xo_hz[c], s.slope))
-        } else {
-            let clear = |x: &[[Xover; MAX_XOVERS]; 2]| x.iter().flatten().all(Xover::is_clear);
-            self.w == self.split_target()
-                && (!self.split_live || (clear(&self.split) && clear(&self.split_delta)))
-                && (!self.dyn_live || self.shelves.iter().flatten().all(Shelf::is_clear))
-        }
+        let order = &self.lay.order[..n];
+        let linear = s.mode == Mode::Linear && n > 0;
+        let xclear = |x: &[[Xover; MAX_XOVERS]; 2]| x.iter().flatten().all(Xover::is_clear);
+        let checks: [(&'static str, &dyn Fn() -> bool); 15] = [
+            ("audio ring", &|| self.quiet >= self.ring_len),
+            ("gain rings", &|| self.unity_run >= self.gain_len),
+            ("output glide", &|| {
+                self.out_from == self.out_to && self.out_to == db_to_lin(s.output_db)
+            }),
+            ("first gain", &|| self.g0_from == [1.0; 2] && self.g0_to == [1.0; 2]),
+            ("stages", &|| {
+                (0..2).all(|h| {
+                    (0..MAX_XOVERS).all(|i| {
+                        let base = (self.xo[i].g, 1.0);
+                        self.stage_from[h][i] == base && self.stage_to[h][i] == base
+                    })
+                })
+            }),
+            ("band glides", &|| order.iter().all(|&b| self.live[b].b == s.bands[b])),
+            ("band gains", &|| order.iter().all(|&b| self.g_now[b] == 1.0)),
+            ("solo and mute", &|| order.iter().all(|&b| self.audible[b] == self.audible_t[b])),
+            ("bypass fades", &|| {
+                order
+                    .iter()
+                    .all(|&b| self.on_amt[b] == if s.bands[b].on { 1.0 } else { 0.0 })
+            }),
+            ("detectors", &|| {
+                order.iter().all(|&b| {
+                    let d = &self.det[b];
+                    crate::rest::z(d.env) && d.hp.iter().chain(&d.lp).flatten().all(Svf::is_clear)
+                })
+            }),
+            ("crossover glides", &|| {
+                (0..n.saturating_sub(1)).all(|i| self.xo_hz[i] == self.lay.crossovers[i])
+            }),
+            ("split share", &|| linear || self.w == self.split_target()),
+            ("split", &|| {
+                linear || !self.split_live || (xclear(&self.split) && xclear(&self.split_delta))
+            }),
+            ("shelves", &|| {
+                linear || !self.dyn_live || self.shelves.iter().flatten().all(Shelf::is_clear)
+            }),
+            ("linear split", &|| {
+                // Its blocks must fall where a new unit's would: started with the stream.
+                !linear
+                    || (self.lin_live
+                        && self.lin_origin == 0
+                        && self.lin.is_clear()
+                        && (0..n - 1).all(|c| self.lin.designed_at(c, self.xo_hz[c], s.slope)))
+            }),
+        ];
+        checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
     }
 
     /// Samples of silence skipped while at rest (ADR 0031 §5.1): the update grid, the
@@ -1075,7 +1087,7 @@ impl Multiplex {
         let listen = self.s.listen;
 
         // ---- detectors, gains, lookahead ----
-        self.quiet = if xl == 0.0 && xr == 0.0 {
+        self.quiet = if crate::rest::z(xl) && crate::rest::z(xr) {
             self.quiet.saturating_add(1)
         } else {
             0

@@ -13,20 +13,53 @@
 //! random-number state that advances on silence, and any meter the audio depends on
 //! (auto gain, program-dependent release, a loudness match).
 //!
+//! **Zero means +0.0, bit for bit.** A state holding −0.0 (the last input was −0.0) can
+//! turn the next −0.0 input into −0.0 where a new unit gives +0.0: the same number, not
+//! the same bits. Silence as the engine gathers it is +0.0 (ADR 0031 §1.3), so a unit that
+//! has heard it holds +0.0 and comes to rest; the helpers here compare bits.
+//!
 //! Long lines are not scanned when the engine asks: a [`ZeroRun`] beside the line counts
 //! the zeros written into it in a row, after each block, from the end of what was written
 //! (one comparison when the block carried sound), so `at_rest` stays a few comparisons.
 
-/// Every value is zero (of either sign).
+/// +0.0, bit for bit.
 #[inline]
-pub fn all_zero(x: &[f32]) -> bool {
-    x.iter().all(|v| *v == 0.0)
+pub fn z(x: f32) -> bool {
+    x.to_bits() == 0
 }
 
-/// Every value is zero (of either sign).
+/// +0.0, bit for bit.
+#[inline]
+pub fn z64(x: f64) -> bool {
+    x.to_bits() == 0
+}
+
+/// Every value is +0.0.
+#[inline]
+pub fn all_zero(x: &[f32]) -> bool {
+    x.iter().all(|v| v.to_bits() == 0)
+}
+
+/// Every value is +0.0.
 #[inline]
 pub fn all_zero_f64(x: &[f64]) -> bool {
-    x.iter().all(|v| *v == 0.0)
+    x.iter().all(|v| v.to_bits() == 0)
+}
+
+/// Whether a one-pole glide written `v += (t − v)·k`, landing on `t` once within `snap`,
+/// will never move again: landed, or stalled — `(t − v)·k` under half an ulp of `v`, so
+/// the step rounds away and the value stays where it is for good (ADR 0031 §5.1).
+#[inline]
+pub fn glide_still(v: f32, t: f32, k: f32, snap: f32) -> bool {
+    if v == t {
+        return true;
+    }
+    let mut n = v;
+    n += (t - v) * k;
+    if (n - t).abs() < snap {
+        n = t;
+    }
+    n.to_bits() == v.to_bits()
 }
 
 /// How many zeros a ring has received in a row, counted back from its newest write. When
@@ -62,7 +95,7 @@ impl ZeroRun {
     /// One value was written.
     #[inline]
     pub fn push(&mut self, x: f32) {
-        self.run = if x == 0.0 {
+        self.run = if x.to_bits() == 0 {
             self.run.saturating_add(1)
         } else {
             0
@@ -82,7 +115,7 @@ impl ZeroRun {
         // The newest `m` writes are ring[..end] (newest last) and then ring[len - (m - end)..]
         // when they wrap.
         let head = &ring[end - end.min(m)..end];
-        let trailing = |s: &[f32]| s.iter().rev().take_while(|v| **v == 0.0).count();
+        let trailing = |s: &[f32]| s.iter().rev().take_while(|v| v.to_bits() == 0).count();
         let t_head = trailing(head);
         let t = if t_head < head.len() {
             t_head
@@ -128,7 +161,7 @@ mod tests {
             at += b;
             assert_eq!(
                 run.covers(len),
-                ring.iter().all(|v| *v == 0.0),
+                ring.iter().all(|v| v.to_bits() == 0),
                 "len {len} after {at} writes"
             );
         }

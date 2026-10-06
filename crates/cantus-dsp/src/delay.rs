@@ -108,8 +108,8 @@ impl StereoDelay {
     /// the write position that [`Self::skip`] keeps.
     pub fn at_rest(&self) -> bool {
         let len = self.buf_l.len();
-        self.lp_l == 0.0
-            && self.lp_r == 0.0
+        crate::rest::z(self.lp_l)
+            && crate::rest::z(self.lp_r)
             && self.time.is_settled()
             && self.mix.is_settled()
             && self.quiet[0].covers(len)

@@ -64,6 +64,12 @@ pub trait FxUnit: Send + std::fmt::Debug {
     fn at_rest(&self) -> bool {
         false
     }
+    /// Why the unit is not at rest, when it can say: the first condition that fails, by
+    /// name — for the tests and a profiler that shows why a node keeps running. `None`
+    /// exactly when [`Self::at_rest`] is true.
+    fn rest_blocker(&self) -> Option<&'static str> {
+        (!self.at_rest()).then_some("not at rest")
+    }
     /// The engine did not call `process` for `frames` samples of silence (silent key, no
     /// note) because the unit was [at rest](Self::at_rest): advance whatever counts samples
     /// — a ring's write position, the grid a unit updates its coefficients on, a meter's

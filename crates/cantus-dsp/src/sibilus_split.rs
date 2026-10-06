@@ -67,7 +67,7 @@ impl Line {
 
     #[inline]
     pub fn push(&mut self, x: f32) {
-        self.quiet = if x == 0.0 {
+        self.quiet = if x.to_bits() == 0 {
             self.quiet.saturating_add(1)
         } else {
             0

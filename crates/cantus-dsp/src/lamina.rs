@@ -287,6 +287,8 @@ pub struct Lamina {
     depth: Glide,
     trem_phase: u32,
     trem_inc: u32,
+    /// Samples since the last reset (ADR 0031 §5.1): where a new unit's tremolo would be.
+    clock: u64,
     quiet: u32,
     sleep_after: u32,
     asleep: bool,
@@ -321,6 +323,7 @@ impl Lamina {
             depth: glide(0.0),
             trem_phase: 0,
             trem_inc: 0,
+            clock: 0,
             quiet: 0,
             sleep_after: ((0.1 * sr) as u32).max(1),
             asleep: true,
@@ -531,9 +534,39 @@ impl Lamina {
             b.reset();
         }
         self.trem_phase = 0;
+        self.clock = 0;
         self.asleep = true;
         self.quiet = 0;
         self.meter = LaminaMeter::default();
+    }
+
+    /// At rest (ADR 0031 §5.1): asleep with every voice free and no note held, the pedal up
+    /// and the wheels home, every glide landed, and the tremolo either silent or where a new
+    /// unit's would be after as many samples (it runs on the sample clock, so it can rest
+    /// while it turns). Asleep, the tone filters and the clipper were cleared when it fell
+    /// asleep.
+    pub fn at_rest(&self) -> bool {
+        let landed = |g: &Glide| !g.moving() && g.value == g.target();
+        let trem_still = self.depth.value == 0.0 && self.depth.target() == 0.0;
+        self.asleep
+            && self.voices.iter().all(|v| !v.active)
+            && self.alloc.is_clear()
+            && self.pedal.to_bits() == 0
+            && self.bend == 1.0
+            && self.expr.value == 1.0
+            && [&self.drive, &self.post, &self.out, &self.expr, &self.depth]
+                .iter()
+                .all(|g| landed(g))
+            && (trem_still || self.trem_phase == (self.clock as u32).wrapping_mul(self.trem_inc))
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): the tremolo turns on, as it does
+    /// asleep.
+    pub fn skip(&mut self, frames: usize) {
+        self.trem_phase = self
+            .trem_phase
+            .wrapping_add(self.trem_inc.wrapping_mul(frames as u32));
+        self.clock += frames as u64;
     }
 
     pub fn active_voices(&self) -> usize {
@@ -584,6 +617,7 @@ impl Lamina {
             v.swing_lo = v.x;
             v.swing_hi = v.x;
         }
+        self.clock += n as u64;
         if self.asleep && self.voices.iter().all(|v| !v.active) {
             self.trem_phase = self
                 .trem_phase

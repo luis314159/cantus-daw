@@ -309,6 +309,16 @@ impl InstrumentUnit for Unit {
         self.dsp.reset();
     }
 
+    /// Lamina at rest, and every played source (wheel, pressure, bend, expression, pedal)
+    /// where a new unit has it, so the modulated settings are a new unit's too.
+    fn at_rest(&self) -> bool {
+        self.sources[SRC_MW..=SRC_SUS].iter().all(|v| *v == 0.0) && self.dsp.at_rest()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
         self.dsp.process(left, right)
     }

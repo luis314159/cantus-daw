@@ -312,10 +312,10 @@ impl Chan {
     fn wet_clear(&self) -> bool {
         [&self.lo, &self.pre, &self.post, &self.tone, &self.hi]
             .iter()
-            .all(|b| b.z1 == 0.0 && b.z2 == 0.0)
-            && self.dc_x1 == 0.0
-            && self.dc_y1 == 0.0
-            && self.hold == 0.0
+            .all(|b| crate::rest::z64(b.z1) && crate::rest::z64(b.z2))
+            && crate::rest::z64(self.dc_x1)
+            && crate::rest::z64(self.dc_y1)
+            && crate::rest::z(self.hold)
             && self.os.is_clear()
     }
 

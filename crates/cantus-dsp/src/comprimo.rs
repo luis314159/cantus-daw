@@ -448,7 +448,23 @@ struct Hpf {
     y1: f32,
 }
 
+/// Whether the auto gain's (or the compare's) glide, `next = t + (v − t)·s` every
+/// `MATCH_STEP` samples landing within 10⁻⁴, will never move again: landed, or stalled
+/// where the step rounds away (ADR 0031 §5.1).
+fn step_still(v: f32, t: f32, s: f32) -> bool {
+    if v == t {
+        return true;
+    }
+    let next = t + (v - t) * s;
+    let next = if (next - t).abs() < 1e-4 { t } else { next };
+    next.to_bits() == v.to_bits()
+}
+
 impl Hpf {
+    fn is_clear(&self) -> bool {
+        crate::rest::z(self.x1) && crate::rest::z(self.y1)
+    }
+
     fn set(&mut self, hz: f32, sr: f32) {
         self.a = if hz <= 20.0 {
             1.0
@@ -483,6 +499,10 @@ impl Delay {
             buf: vec![[0.0; 2]; capacity.max(1)],
             pos: 0,
         }
+    }
+
+    fn is_clear(&self) -> bool {
+        self.buf.iter().all(|x| crate::rest::all_zero(x))
     }
 
     #[inline]
@@ -733,14 +753,59 @@ impl Comprimo {
         self.g_static = Self::db_gain(self.s.mix * self.s.makeup_db + self.auto_db);
     }
 
-    /// Samples skipped while at rest (ADR 0031 §5.1): nothing counts samples here.
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the 100 ms steps the
+    /// loudness meters and the auto gain's glide run on go on, each one silent.
     pub fn skip(&mut self, frames: usize) {
-        let _ = frames;
+        let total = self.hop_pos + frames;
+        let hops = total / self.hop_len;
+        self.hop_pos = total % self.hop_len;
+        if hops > 0 {
+            for m in [&mut self.lm_in, &mut self.lm_wet, &mut self.lm_out] {
+                m.skip_hops(hops);
+            }
+            self.hops += hops as u64;
+        }
     }
 
-    /// At rest (ADR 0031 §5.1). Not yet proven: `false`.
+    /// At rest (ADR 0031 §5.1): no reduction anywhere (fast, slow, held, the work that
+    /// slows the release), every filter, detector, line and oversampler empty, the auto
+    /// gain and the compare landed — and where a new unit has them when they are heard —
+    /// and the three loudness meters' windows all silence, so no step to come can move
+    /// them. The statistics and block loudness are the editor's.
     pub fn at_rest(&self) -> bool {
-        false
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::{all_zero, z64};
+        let s = &self.s;
+        let goal = if s.auto_gain { self.auto_target } else { 0.0 };
+        let checks: [(&'static str, &dyn Fn() -> bool); 14] = [
+            ("auto gain glide", &|| step_still(self.auto_db, goal, self.smooth)),
+            ("auto gain", &|| !s.auto_gain || self.auto_db == 0.0),
+            ("compare glide", &|| step_still(self.compare_db, self.compare_target, self.smooth)),
+            ("compare", &|| s.listen != Listen::Compare || self.compare_db == 0.0),
+            ("reduction", &|| {
+                all_zero(&self.gr) && all_zero(&self.fast) && all_zero(&self.slow)
+            }),
+            ("detector", &|| all_zero(&self.ms) && self.hold_left == [0; 2]),
+            ("programme memory", &|| self.work.to_bits() == 0),
+            ("gain stage", &|| self.g_last == [1.0; 2] && self.g_prev == [1.0; 2]),
+            ("key filters", &|| {
+                self.hpf.iter().all(Hpf::is_clear)
+                    && self.key_z.iter().flatten().flatten().flatten().all(|v| z64(*v))
+            }),
+            ("loudness meters", &|| {
+                [&self.lm_in, &self.lm_wet, &self.lm_out].iter().all(|m| m.is_clear())
+            }),
+            ("oversampler", &|| self.os.is_clear()),
+            ("key oversampler", &|| self.os_key.is_clear()),
+            ("audio line", &|| self.audio.is_clear()),
+            ("key line", &|| self.key.is_clear()),
+        ];
+        checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
     }
 
     pub fn reset(&mut self) {

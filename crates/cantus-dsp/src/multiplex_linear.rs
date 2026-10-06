@@ -309,7 +309,7 @@ impl Linear {
     #[inline]
     pub fn frame(&mut self, l: f32, r: f32, crossovers: usize) -> (f32, f32) {
         let b = self.block;
-        self.quiet = if l == 0.0 && r == 0.0 {
+        self.quiet = if crate::rest::z(l) && crate::rest::z(r) {
             self.quiet.saturating_add(1)
         } else {
             0

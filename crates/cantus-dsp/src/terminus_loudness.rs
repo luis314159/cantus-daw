@@ -115,7 +115,7 @@ impl KWeighting {
 
     /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
     pub fn is_clear(&self) -> bool {
-        self.shelf.z == [0.0; 2] && self.highpass.z == [0.0; 2]
+        crate::rest::all_zero_f64(&self.shelf.z) && crate::rest::all_zero_f64(&self.highpass.z)
     }
 
     #[inline]

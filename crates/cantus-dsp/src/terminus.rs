@@ -337,6 +337,23 @@ fn db(lin: f32) -> f32 {
     }
 }
 
+/// A value that is exactly a new line's (ADR 0031 §5.1): +0.0 bit for bit, or 0.
+trait Zero {
+    fn is_zero(&self) -> bool;
+}
+
+impl Zero for f32 {
+    fn is_zero(&self) -> bool {
+        self.to_bits() == 0
+    }
+}
+
+impl Zero for i64 {
+    fn is_zero(&self) -> bool {
+        *self == 0
+    }
+}
+
 /// A delay line of up to `cap − 1` samples.
 #[derive(Clone, Debug)]
 struct Delay<T: Copy + Default> {
@@ -357,13 +374,12 @@ impl<T: Copy + Default> Delay<T> {
         self.pos = 0;
     }
 
-    /// Holds only defaults (zeros): the position does not matter then.
+    /// Holds only zeros (+0.0): the position does not matter then.
     fn is_clear(&self) -> bool
     where
-        T: PartialEq,
+        T: Zero,
     {
-        let zero = T::default();
-        self.buf.iter().all(|x| *x == zero)
+        self.buf.iter().all(Zero::is_zero)
     }
 
     #[inline]
@@ -697,7 +713,7 @@ struct DcBlock {
 
 impl DcBlock {
     fn is_clear(&self) -> bool {
-        self.x1 == 0.0 && self.y1 == 0.0
+        crate::rest::z(self.x1) && crate::rest::z(self.y1)
     }
 
     #[inline]
@@ -1003,37 +1019,43 @@ impl Terminus {
     /// back to its seed, so a new unit would dither the next sound with other noise. When
     /// the dither becomes counter-based this can hold after its shaping state clears.
     pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::{all_zero_f64, z, z64};
         let s = &self.s;
         let spec = s.style.spec();
         let a = &self.acc;
-        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0
-            || self.gain != self.gain_target
-            || self.ceiling_db != s.ceiling_db
-            || self.match_gain != self.match_target
-            || (s.monitor == Monitor::Match && self.match_gain != 1.0)
-            || (spec.program > 0.0 && !self.work_is_nothing())
-            || self.r_env != [0.0; 2]
-            || a.energy != 0.0
-            || a.energy_in != 0.0
-            || !self.dc.iter().all(DcBlock::is_clear)
-            || !self.k_in.iter().chain(&self.k_out).all(KWeighting::is_clear)
-        {
-            return false;
-        }
-        crate::rest::all_zero_f64(&self.st_in)
-            && crate::rest::all_zero_f64(&self.st_out)
-            && self.det.iter().chain(&self.safe_det).all(TruePeak::is_clear)
-            && self.t_stage.iter().all(Lookahead::is_clear)
-            && self.safe.is_clear()
-            && self.clip.iter().all(Clipper::is_clear)
-            && self.t_pre.iter().all(Delay::is_clear)
-            && self
-                .r_delay
-                .iter()
-                .chain(&self.audio)
-                .chain(&self.safe_audio)
-                .chain(&self.dry)
-                .all(Delay::is_clear)
+        let checks: [(&'static str, &dyn Fn() -> bool); 20] = [
+            ("dither", &|| DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] == 0),
+            ("gain glide", &|| self.gain == self.gain_target),
+            ("ceiling glide", &|| self.ceiling_db == s.ceiling_db),
+            ("match glide", &|| {
+                crate::rest::glide_still(self.match_gain, self.match_target, self.match_glide, 1e-6)
+            }),
+            ("match gain", &|| s.monitor != Monitor::Match || self.match_gain == 1.0),
+            ("programme memory", &|| spec.program <= 0.0 || self.work_is_nothing()),
+            ("release envelope", &|| z(self.r_env[0]) && z(self.r_env[1])),
+            ("column energy", &|| z64(a.energy) && z64(a.energy_in)),
+            ("dc blocker", &|| self.dc.iter().all(DcBlock::is_clear)),
+            ("loudness filters", &|| {
+                self.k_in.iter().chain(&self.k_out).all(KWeighting::is_clear)
+            }),
+            ("match window", &|| all_zero_f64(&self.st_in) && all_zero_f64(&self.st_out)),
+            ("detectors", &|| self.det.iter().chain(&self.safe_det).all(TruePeak::is_clear)),
+            ("transient stage", &|| self.t_stage.iter().all(Lookahead::is_clear)),
+            ("safety stage", &|| self.safe.is_clear()),
+            ("clipper", &|| self.clip.iter().all(Clipper::is_clear)),
+            ("requirement line", &|| self.t_pre.iter().all(Delay::is_clear)),
+            ("release line", &|| self.r_delay.iter().all(Delay::is_clear)),
+            ("audio line", &|| self.audio.iter().all(Delay::is_clear)),
+            ("safety line", &|| self.safe_audio.iter().all(Delay::is_clear)),
+            ("dry line", &|| self.dry.iter().all(Delay::is_clear)),
+        ];
+        checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
     }
 
     /// Whether the programme-dependent release's memory (`work`) is as good as zero. It

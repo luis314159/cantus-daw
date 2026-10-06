@@ -73,7 +73,7 @@ impl Comb {
     }
 
     fn at_rest(&self) -> bool {
-        self.store == 0.0 && self.quiet.covers(self.buf.len())
+        crate::rest::z(self.store) && self.quiet.covers(self.buf.len())
     }
 }
 

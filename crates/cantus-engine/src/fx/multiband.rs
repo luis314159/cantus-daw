@@ -119,6 +119,10 @@ impl FxUnit for Unit {
         self.dsp.at_rest()
     }
 
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
     fn skip(&mut self, frames: usize) {
         self.dsp.skip(frames);
     }

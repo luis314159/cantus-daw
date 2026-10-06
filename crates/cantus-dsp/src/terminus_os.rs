@@ -254,8 +254,8 @@ impl TruePeak {
 
     /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
     pub fn is_clear(&self) -> bool {
-        self.before == 0.0
-            && self.last_interval == 0.0
+        crate::rest::z(self.before)
+            && crate::rest::z(self.last_interval)
             && crate::rest::all_zero(&self.prev)
             && self.interp.is_clear()
     }

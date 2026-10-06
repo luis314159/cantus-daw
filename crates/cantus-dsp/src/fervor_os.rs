@@ -274,7 +274,7 @@ impl IirStage {
         self.up
             .iter()
             .chain(self.down.iter())
-            .all(|s| s.x1 == 0.0 && s.y1 == 0.0)
+            .all(|s| crate::rest::z(s.x1) && crate::rest::z(s.y1))
     }
 
     fn reset(&mut self) {

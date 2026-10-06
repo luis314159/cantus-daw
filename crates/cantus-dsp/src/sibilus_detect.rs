@@ -317,13 +317,13 @@ impl Detector {
             .iter()
             .chain(self.lp.iter())
             .chain(self.sub.iter().flatten())
-            .all(|b| b.z1 == 0.0 && b.z2 == 0.0)
-            && self.dc_x == 0.0
-            && self.dc_y == 0.0
-            && self.e_full == 0.0
-            && self.e_band == 0.0
-            && self.e_sub.iter().all(|e| *e == 0.0)
-            && self.ms == 0.0
+            .all(|b| crate::rest::z(b.z1) && crate::rest::z(b.z2))
+            && crate::rest::z(self.dc_x)
+            && crate::rest::z(self.dc_y)
+            && crate::rest::z(self.e_full)
+            && crate::rest::z(self.e_band)
+            && crate::rest::all_zero(&self.e_sub)
+            && crate::rest::z(self.ms)
             && self.features.confidence == 0.0
     }
 

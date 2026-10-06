@@ -859,7 +859,14 @@ impl Porta {
                 && self.target_db == closed
                 && self.ramp == closed
                 && self.smooth == closed);
-        still && self.is_quiet() && self.quiet.iter().all(|q| q.covers(self.cap))
+        still
+            && self.env.iter().all(|e| crate::rest::z(*e))
+            && self
+                .filt
+                .iter()
+                .flatten()
+                .all(|s| crate::rest::z(s.z1) && crate::rest::z(s.z2))
+            && self.quiet.iter().all(|q| q.covers(self.cap))
     }
 
     /// Samples of silence skipped while at rest (ADR 0031 §5.1): what the first of them

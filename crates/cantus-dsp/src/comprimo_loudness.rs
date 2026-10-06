@@ -160,6 +160,14 @@ impl KWeighting {
             }
         }
     }
+
+    /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.stages
+            .iter()
+            .flatten()
+            .all(|s| crate::rest::z64(s.z1) && crate::rest::z64(s.z2))
+    }
 }
 
 /// A loudness meter on the 100 ms grid: feed it samples, close each step with
@@ -218,6 +226,17 @@ impl Meter {
         self.acc = 0.0;
         self.ring = [0.0; SHORT_HOPS];
         self.pos = 0;
+    }
+
+    /// Nothing heard in its whole window and nothing in its filter or the step being
+    /// summed: as [`Self::reset`] leaves it, but for the ring's position (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        crate::rest::z64(self.acc) && self.k.is_clear() && crate::rest::all_zero_f64(&self.ring)
+    }
+
+    /// `hops` silent steps, not summed: the ring moves on, holding silence.
+    pub fn skip_hops(&mut self, hops: usize) {
+        self.pos = (self.pos + hops % SHORT_HOPS) % SHORT_HOPS;
     }
 }
 

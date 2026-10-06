@@ -157,3 +157,69 @@ pub fn random_instrument(kind: InstrumentKind, p: f32, rng: &mut Rng) -> NativeS
     }
     s
 }
+
+/// Denormals flushed to zero (FTZ and DAZ on x86-64, FZ on AArch64) while it lives, as the
+/// engine's `process` will run (ADR 0031 §5.2): a copy of `cantus-plugins`' guard. Some
+/// state decays by multiplication alone and stops in the subnormals without it — there a
+/// unit can be exact and still never come to rest.
+pub struct Flush {
+    #[allow(dead_code)]
+    saved: u64,
+}
+
+impl Flush {
+    #[cfg(target_arch = "x86_64")]
+    pub fn new() -> Flush {
+        let mut csr: u32 = 0;
+        // SAFETY: stmxcsr/ldmxcsr only read and write the SSE control register; the value
+        // written is the current one with two mode bits set.
+        unsafe {
+            std::arch::asm!("stmxcsr [{}]", in(reg) &mut csr, options(nostack, preserves_flags));
+            let flushed = csr | 0x8040;
+            std::arch::asm!("ldmxcsr [{}]", in(reg) &flushed, options(nostack, preserves_flags));
+        }
+        Flush { saved: csr as u64 }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn new() -> Flush {
+        let fpcr: u64;
+        // SAFETY: reads and writes the floating-point control register only.
+        unsafe {
+            std::arch::asm!("mrs {}, fpcr", out(reg) fpcr, options(nomem, nostack, preserves_flags));
+            std::arch::asm!("msr fpcr, {}", in(reg) fpcr | (1 << 24), options(nomem, nostack, preserves_flags));
+        }
+        Flush { saved: fpcr }
+    }
+
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    pub fn new() -> Flush {
+        Flush { saved: 0 }
+    }
+}
+
+impl Default for Flush {
+    fn default() -> Self {
+        Flush::new()
+    }
+}
+
+impl Drop for Flush {
+    fn drop(&mut self) {
+        #[cfg(target_arch = "x86_64")]
+        {
+            let csr = self.saved as u32;
+            // SAFETY: restores the value read in `new`.
+            unsafe {
+                std::arch::asm!("ldmxcsr [{}]", in(reg) &csr, options(nostack, preserves_flags));
+            }
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            // SAFETY: restores the value read in `new`.
+            unsafe {
+                std::arch::asm!("msr fpcr, {}", in(reg) self.saved, options(nomem, nostack, preserves_flags));
+            }
+        }
+    }
+}

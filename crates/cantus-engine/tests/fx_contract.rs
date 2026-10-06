@@ -304,6 +304,9 @@ fn twins(
             break;
         }
         if silent > cap {
+            if let Some(why) = a.rest_blocker() {
+                eprintln!("  (not at rest: {why})");
+            }
             return Ok(None);
         }
         let n = rng.block();
@@ -399,16 +402,22 @@ fn at_rest_is_exact(kind: EffectKind) {
         let cap = if fixed { 30 * 48_000 } else { 4 * 48_000 };
         let must = (label == "default" && rest_default) || (label == "heavy" && rest_heavy);
         for trial in 0..3 {
+            // The first trial as the tests run, the others as the engine's `process` will
+            // (denormals flushed): exact in both, but some state only reaches zero in the
+            // second, so rest is required only there.
+            let flushed = trial != 0;
+            let _flush = flushed.then(heavy::Flush::new);
             let change = (trial == 2).then(|| heavy::random_effect(kind, 0.5, &mut rng));
             let seed = rng.next_u64();
             match twins(kind, &spec, seed, cap, change.as_ref()) {
                 Ok(Some(after)) => report.push(format!(
-                    "{label} #{trial}: at rest after {:.2} s",
-                    after as f32 / SAMPLE_RATE
+                    "{label} #{trial}: at rest after {:.2} s{}",
+                    after as f32 / SAMPLE_RATE,
+                    if flushed { " (FTZ)" } else { "" }
                 )),
                 Ok(None) => {
                     report.push(format!("{label} #{trial}: no rest"));
-                    if must {
+                    if must && flushed {
                         failures.push(format!(
                             "{kind:?} {label} #{trial}: no rest within {} s of silence",
                             cap / 48_000

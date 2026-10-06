@@ -376,6 +376,16 @@ impl EffectUnit {
         }
     }
 
+    /// Why the unit is not at rest, by name; `None` exactly when [`Self::at_rest`] is true.
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        match &self.dsp {
+            Dsp::Eq(e) => e.rest_blocker(),
+            Dsp::Comp(c) => c.rest_blocker(),
+            Dsp::Fx(u) => u.rest_blocker(),
+            _ => (!self.at_rest()).then_some("not at rest"),
+        }
+    }
+
     /// The engine skipped `frames` samples of silence while the unit was at rest
     /// ([`crate::fx::FxUnit::skip`]): advance whatever counts samples. Cheap.
     pub fn skip(&mut self, frames: usize) {

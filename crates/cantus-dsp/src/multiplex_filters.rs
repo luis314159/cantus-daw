@@ -156,7 +156,7 @@ impl Svf {
     /// Empty, as `default()` makes it (ADR 0031 §5.1).
     #[inline]
     pub fn is_clear(&self) -> bool {
-        self.ic1 == 0.0 && self.ic2 == 0.0
+        crate::rest::z(self.ic1) && crate::rest::z(self.ic2)
     }
 }
 
@@ -181,7 +181,7 @@ impl OnePole {
     /// Empty, as `default()` makes it (ADR 0031 §5.1).
     #[inline]
     pub fn is_clear(&self) -> bool {
-        self.s == 0.0
+        crate::rest::z(self.s)
     }
 }
 

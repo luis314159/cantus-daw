@@ -224,22 +224,41 @@ impl Culmen {
     /// three-second window all silence, its gain landed, and at unity in Match mode, as a
     /// new unit's is. **Never with dither on** (R10, as Terminus).
     pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
         let s = &self.s;
-        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0
-            || self.drive != self.drive_target
-            || self.match_gain != self.match_target
-            || (s.monitor == Monitor::Match && self.match_gain != 1.0)
-            || self.acc.energy_in != 0.0
-            || !self.k_in.iter().all(KWeighting::is_clear)
-        {
-            return false;
+        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0 {
+            return Some("dither");
         }
-        crate::rest::all_zero_f64(&self.st_in)
-            && crate::rest::all_zero_f64(&self.st_out)
-            && self.ref_a.iter().chain(&self.ref_t).all(Line::is_clear)
-            && self.bands.at_rest()
-            && self.full.at_rest()
-            && self.lim.at_rest()
+        if self.drive != self.drive_target {
+            return Some("drive glide");
+        }
+        if !crate::rest::glide_still(self.match_gain, self.match_target, self.match_glide, 1e-6) {
+            return Some("match glide");
+        }
+        if s.monitor == Monitor::Match && self.match_gain != 1.0 {
+            return Some("match gain");
+        }
+        if !crate::rest::z64(self.acc.energy_in) || !self.k_in.iter().all(KWeighting::is_clear) {
+            return Some("input loudness");
+        }
+        if !crate::rest::all_zero_f64(&self.st_in) || !crate::rest::all_zero_f64(&self.st_out) {
+            return Some("match window");
+        }
+        if !self.ref_a.iter().chain(&self.ref_t).all(Line::is_clear) {
+            return Some("reference lines");
+        }
+        if let Some(b) = self.bands.rest_blocker() {
+            return Some(b);
+        }
+        if let Some(b) = self.full.rest_blocker() {
+            return Some(b);
+        }
+        self.lim.rest_blocker()
     }
 
     /// Samples of silence skipped while at rest (ADR 0031 §5.1): each stage skips them, and
