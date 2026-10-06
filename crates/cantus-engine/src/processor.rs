@@ -468,7 +468,11 @@ impl Processor {
         };
         match node {
             Node::Engine => None,
-            Node::Track(s) => self.slots.get(s).and_then(|t| t.id).map(Culprit::Instrument),
+            Node::Track(s) => self
+                .slots
+                .get(s)
+                .and_then(|t| t.id)
+                .map(Culprit::Instrument),
             Node::Strip(s) => self.strips.get(s).and_then(|t| t.id).map(Culprit::Strip),
             Node::Insert(s, i) => self.strips.get(s).and_then(|st| {
                 insert(st.id, &st.effects, i).map(|(strip, effect)| Culprit::Insert {

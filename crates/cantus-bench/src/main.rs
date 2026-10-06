@@ -96,7 +96,9 @@ fn compare_cmd(args: &[String]) -> ExitCode {
         }
     }
     let [current, baseline] = files.as_slice() else {
-        eprintln!("usage: cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]");
+        eprintln!(
+            "usage: cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]"
+        );
         return ExitCode::from(2);
     };
     let (c, b) = match (Report::load(current), Report::load(baseline)) {

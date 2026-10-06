@@ -43,7 +43,10 @@ fn scaled_sessions_have_the_tracks_asked_for_with_fresh_ids() {
             .iter()
             .filter(|t| t.clips.iter().any(|c| c.start < l.end && c.end() > l.start))
             .count();
-        assert!(playing * 10 >= n * 7, "s{n}: only {playing} tracks play in the loop");
+        assert!(
+            playing * 10 >= n * 7,
+            "s{n}: only {playing} tracks play in the loop"
+        );
     }
 }
 
@@ -54,7 +57,10 @@ fn the_dawbench_sessions_are_built_as_the_method_says() {
     for t in &p.tracks {
         let s = p.strip(t.strip.expect("a strip")).unwrap();
         assert_eq!(s.effects.len(), 8);
-        assert!(s.effects.iter().all(|e| e.spec.kind == EffectKind::Compressor));
+        assert!(s
+            .effects
+            .iter()
+            .all(|e| e.spec.kind == EffectKind::Compressor));
         assert_eq!(s.effects[0].spec.get("thr"), -30.0);
     }
     let p = sessions::vi(3, InstrumentKind::Analog);

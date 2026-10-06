@@ -74,21 +74,10 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
     let _ = std::fs::remove_dir_all(&dir);
     let col = |i: usize| -> Vec<f64> { runs.iter().map(|r| r[i]).collect() };
     vec![
-        Metric::new(
-            "startup.ready",
-            "ms",
-            Better::Lower,
-            Summary::of(&col(0)),
-        )
-        .ungated()
-        .note("spawn to the main window's second frame, fresh data folder, warm file cache"),
-        Metric::new(
-            "startup.splash",
-            "ms",
-            Better::Lower,
-            Summary::of(&col(1)),
-        )
-        .ungated(),
+        Metric::new("startup.ready", "ms", Better::Lower, Summary::of(&col(0)))
+            .ungated()
+            .note("spawn to the main window's second frame, fresh data folder, warm file cache"),
+        Metric::new("startup.splash", "ms", Better::Lower, Summary::of(&col(1))).ungated(),
         Metric::new("startup.app", "ms", Better::Lower, Summary::of(&col(2))).ungated(),
     ]
 }

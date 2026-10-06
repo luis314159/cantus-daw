@@ -151,7 +151,8 @@ pub fn render_speed(plan: &Plan) -> Vec<Metric> {
             ..Default::default()
         };
         let (mut xrt, mut xrt_cpu) = (Vec::new(), Vec::new());
-        for _ in 0..plan.runs {
+        // A whole song takes minutes; three runs of it say as much as five.
+        for _ in 0..plan.runs.min(3) {
             let (r, wall, cpu) = crate::cpu::timed(|| render(snap.clone(), &opts));
             let r = r.expect("renders");
             std::hint::black_box(r.peak);

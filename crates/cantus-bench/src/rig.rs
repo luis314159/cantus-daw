@@ -64,7 +64,8 @@ impl Run {
 
     /// The share of a core the run got, percent (100 on an idle machine).
     pub fn cpu_share_pct(&self) -> Option<f64> {
-        self.cpu_seconds.map(|c| c / self.wall_seconds().max(1e-9) * 100.0)
+        self.cpu_seconds
+            .map(|c| c / self.wall_seconds().max(1e-9) * 100.0)
     }
 }
 

@@ -120,12 +120,7 @@ fn clip_of(p: &mut Project, beats: i64, notes: &[(u8, f64, f64, u8)]) -> cantus_
     let mut clip = p.make_clip("Bench", Ticks::ZERO, Ticks::beats(beats));
     for &(pitch, at, len, vel) in notes {
         let q = Ticks::QUARTER.0 as f64;
-        let n = p.make_note(
-            Ticks((at * q) as i64),
-            Ticks((len * q) as i64),
-            pitch,
-            vel,
-        );
+        let n = p.make_note(Ticks((at * q) as i64), Ticks((len * q) as i64), pitch, vel);
         clip.notes.push(n);
     }
     clip

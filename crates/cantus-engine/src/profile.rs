@@ -370,7 +370,10 @@ mod tests {
         let p50 = h.quantile(0.5);
         assert!((100.0..=100.0 * 2f64.powf(0.25)).contains(&p50), "{p50}");
         let max = h.quantile(1.0);
-        assert!((3_000.0..=3_000.0 * 2f64.powf(0.25)).contains(&max), "{max}");
+        assert!(
+            (3_000.0..=3_000.0 * 2f64.powf(0.25)).contains(&max),
+            "{max}"
+        );
         assert_eq!(h.at_least(2_000.0), 1);
         let before = h;
         h.record(5.0);
@@ -390,7 +393,10 @@ mod tests {
         ] {
             assert_eq!(Node::from_index(n.index()), n);
         }
-        assert_eq!(Node::MasterInsert(MAX_EFFECTS_PER_TRACK - 1).index(), NODES - 1);
+        assert_eq!(
+            Node::MasterInsert(MAX_EFFECTS_PER_TRACK - 1).index(),
+            NODES - 1
+        );
     }
 
     #[test]
@@ -408,7 +414,11 @@ mod tests {
         assert_eq!(node, Node::Insert(1, 4));
         assert!(ns >= 12_000_000, "{ns}");
         let sum: u64 = p.totals().map(|(_, ns)| ns).sum();
-        assert_eq!(sum, (end - t0).as_nanos() as u64, "time charged twice or lost");
+        assert_eq!(
+            sum,
+            (end - t0).as_nanos() as u64,
+            "time charged twice or lost"
+        );
         assert_eq!(p.total_ns(), sum);
         p.set_on(false);
         p.begin(Instant::now());
