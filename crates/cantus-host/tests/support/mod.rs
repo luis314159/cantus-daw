@@ -13,6 +13,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 pub mod synth;
+#[allow(unused_imports)] // not every test plays the instrument
 pub use synth::*;
 
 pub const PLUGIN_ID: &str = "org.cantus.test.gain";
@@ -34,6 +35,9 @@ pub fn test_plugin_dll() -> PathBuf {
                 .expect("the workspace root")
                 .to_path_buf();
             let target = workspace.join("target").join("test-plugins");
+            if let Some(built) = prebuilt(&target, "cantus_test_clap") {
+                return built;
+            }
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
             let status = Process::new(cargo)
                 .args(["build", "-p", "cantus-test-clap", "--target-dir"])
@@ -258,4 +262,21 @@ pub fn render_plain(project: &Project, frames: usize) -> Vec<f32> {
     rig.sync();
     rig.settle();
     rig.play(frames, 256)
+}
+
+/// With `CANTUS_TEST_PLUGINS_PREBUILT` set, the test plug-in already in
+/// `target/test-plugins` (`stem` without prefix or extension) is used as it is, instead of
+/// asking cargo again: where several builds share cargo's package lock, each no-op build
+/// can wait minutes for it.
+pub fn prebuilt(target: &Path, stem: &str) -> Option<PathBuf> {
+    std::env::var_os("CANTUS_TEST_PLUGINS_PREBUILT")?;
+    let file = if cfg!(windows) {
+        format!("{stem}.dll")
+    } else if cfg!(target_os = "macos") {
+        format!("lib{stem}.dylib")
+    } else {
+        format!("lib{stem}.so")
+    };
+    let path = target.join("debug").join(file);
+    path.is_file().then_some(path)
 }

@@ -16,6 +16,17 @@ fn test_synth() -> std::path::PathBuf {
         .join("..")
         .join("..");
     let target = root.join("target").join("test-plugins");
+    let file = target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap_synth.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap_synth.dylib"
+    } else {
+        "libcantus_test_clap_synth.so"
+    });
+    // As the host's tests: with CANTUS_TEST_PLUGINS_PREBUILT, a built one is used as it is.
+    if std::env::var_os("CANTUS_TEST_PLUGINS_PREBUILT").is_some() && file.is_file() {
+        return file;
+    }
     let status =
         std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
             .args(["build", "-p", "cantus-test-clap-synth", "--target-dir"])
@@ -24,13 +35,7 @@ fn test_synth() -> std::path::PathBuf {
             .status()
             .expect("cargo");
     assert!(status.success());
-    target.join("debug").join(if cfg!(windows) {
-        "cantus_test_clap_synth.dll"
-    } else if cfg!(target_os = "macos") {
-        "libcantus_test_clap_synth.dylib"
-    } else {
-        "libcantus_test_clap_synth.so"
-    })
+    file
 }
 
 /// The app's plug-in database knows the test instrument, as after a scan.

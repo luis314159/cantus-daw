@@ -28,6 +28,9 @@ pub fn synth_dll() -> PathBuf {
                 .expect("the workspace root")
                 .to_path_buf();
             let target = workspace.join("target").join("test-plugins");
+            if let Some(built) = super::prebuilt(&target, "cantus_test_clap_synth") {
+                return built;
+            }
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
             let status = Process::new(cargo)
                 .args(["build", "-p", "cantus-test-clap-synth", "--target-dir"])
