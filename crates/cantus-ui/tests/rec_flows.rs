@@ -334,7 +334,10 @@ fn an_armed_audio_track_with_no_device_says_so_and_does_not_start() {
     a.start_recording();
     assert!(!a.is_recording(), "no input device: nothing to record");
     assert!(a.status.error, "the status says why");
-    assert!(a.show_settings, "and the settings are one look away");
+    assert!(
+        a.audio_setup.popover,
+        "and the audio popover — where the input is chosen — is open (round 20)"
+    );
 }
 
 #[test]

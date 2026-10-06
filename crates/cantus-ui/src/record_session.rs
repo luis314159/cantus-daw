@@ -90,6 +90,10 @@ impl Live {
 /// "In 1", "In 1-2": a track input as the header and the menus show it.
 pub fn input_label(input: &TrackInput, b: &mut String) {
     use std::fmt::Write as _;
+    // The interface's own names for its channels, when given (round 20).
+    if crate::audio_setup::names::write_input(input.first as usize, input.stereo, b) {
+        return;
+    }
     let n = input.first as u32 + 1;
     if input.stereo {
         let _ = write!(b, "{} {n}-{}", t("rec.in"), n + 1);
@@ -486,9 +490,11 @@ impl CantusApp {
         let mut audio_on = false;
         if !plan.audio_tracks.is_empty() {
             if self.input_channels() == 0 {
-                // Honest about it, and one click from the cure.
+                // Honest about it, and one click from the cure: the audio popover, where
+                // the input is chosen in place (round 20).
                 self.set_error(t("rec.no_input"));
-                self.show_settings = true;
+                self.audio_setup.popover = true;
+                self.audio_setup.request_scan();
                 plan.audio_tracks.clear();
             } else {
                 let dir = self.audio_record_dir();

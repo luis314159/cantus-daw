@@ -41,3 +41,104 @@ devices.band.inputs = Inputs
 devices.inputs.none = No input is open.
 devices.inputs.device = {name} · {n} channels
 devices.inputs.meter = Input {ch}
+
+# --- round 20: the audio chip, its popover, first-run setup, plug-and-play, routing ---
+devices.auto = Auto
+devices.scanning = Looking for interfaces…
+devices.busy_recording = Stop recording before changing the audio device.
+devices.switched = Now playing through {name}.
+devices.status.engine = CPU {load}% · dropouts {overruns} · voices {voices}
+
+devices.chip.text = {name} · {driver} · {rate} · {buffer} · {latency}
+devices.chip.none = No audio — click to set up
+devices.chip.lost = {name} · disconnected
+devices.chip.tip = Audio device — click to change interface, driver, rate and buffer
+
+devices.state.good = Running
+devices.state.warn = Needs a look
+devices.state.lost = No sound
+
+devices.kind.interface = Audio interface
+devices.kind.builtin = This computer
+devices.kind.headphones = Headphones
+devices.kind.display = Screen speakers
+devices.kind.virtual = Virtual device
+
+devices.pop.interface = Interface
+devices.pop.rate = Rate
+devices.pop.buffer = Buffer · round trip
+devices.pop.buffer_tip = {n} samples: {ms} from what you play to what you hear
+devices.pop.running = {driver} · {rate} · {buffer} samples · {ins} in / {outs} out
+devices.pop.asio_input = All {n} inputs of the driver
+devices.pop.measured = Measured now: input {in} ms · output {out} ms · round trip {rt} ms
+devices.pop.routing = Channels & routing…
+devices.pop.assistant = Setup assistant…
+devices.pop.settings = All audio settings
+
+devices.tone.play = Test tone
+devices.tone.stop = Stop tone
+
+devices.feel.tight = tight enough to play through, like an amp
+devices.feel.fine = fine for most playing
+devices.feel.loose = best for mixing; choose a smaller buffer to play through it
+
+devices.problem.lost = {name} was disconnected. Your song stays open and editable; Cantus opens it again when it returns.
+devices.problem.stalled = The device stopped playing. Restarting the audio usually brings it back.
+devices.problem.stalled_asio = The ASIO driver stopped responding. Restart the audio; if it stops again, choose WASAPI for this interface.
+devices.problem.open = No sound: the device would not open ({error}).
+devices.problem.busy = Another application holds {name} exclusively. Close it, or let it share the device, then try again.
+devices.problem.rates = The input runs at {input} kHz and the output at {output} kHz. Use one interface for both, or run both at {input} kHz.
+devices.problem.input = The input did not open: {error}
+devices.problem.dropouts = The sound broke up {n} times in the last half minute: {buffer} samples is too short a buffer for this song.
+devices.fix.restart = Restart audio
+devices.fix.default = Use this computer’s audio
+devices.fix.run_at = Run at {rate} kHz
+devices.fix.own_input = Use the interface’s input
+devices.fix.buffer = Use {n} samples
+
+devices.notice.connected = {name} connected
+devices.notice.connected_body = Play and record through it? Cantus remembers how you set it up.
+devices.notice.switch = Switch to it
+devices.notice.not_now = Not now
+devices.notice.lost = {name} was disconnected
+devices.notice.lost_body = Keep working: nothing is lost. It opens again by itself when you plug it back in.
+devices.notice.reconnected = {name} is back
+devices.notice.ok = OK
+
+devices.first.title = Set up your audio
+devices.first.intro = Choose what you play through. Cantus picks the best driver and buffer for it — you can change them any time from the audio chip at the bottom right.
+devices.first.choose = Choose your interface
+devices.first.listen = Listen
+devices.first.play = Play or speak — the meter should move
+devices.first.latency = Latency
+devices.first.none = No audio device was found. Plug one in: it appears here by itself.
+devices.first.tone_hint = You should hear a soft tone from your speakers or headphones.
+devices.first.tone_on = Playing a tone on outputs 1–2. Hear it? Then the outputs are right.
+devices.first.no_inputs = This device has no input to record from: choose an interface with inputs.
+devices.first.input_n = Input {n}
+devices.first.heard = {name} is moving: that is the one to record from.
+devices.first.play_hint = Strum, sing or speak into what is plugged in.
+devices.first.chosen = {driver} at {rate} with a buffer of {buffer} samples: about {ms} ms from string to speaker — {feel}.
+devices.first.measure = Measure latency
+devices.first.measure_hint = Optional: connect output 1 to input 1 with a cable, then measure, so takes land exactly in time.
+devices.first.measured = Measured {ms} ms round trip; takes now move by {offset} samples more.
+devices.first.skip = Skip
+devices.first.done = Done
+devices.first.record_on = Record on {name}
+devices.first.ready = Armed on input {n}: press record when ready.
+
+devices.routing.title = Channels & routing
+devices.routing.for = For {name}: remembered with this interface.
+devices.routing.outputs = Outputs
+devices.routing.inputs = Inputs
+devices.routing.main = Main output
+devices.routing.cue = Headphone cue
+devices.routing.cue_level = Cue level
+devices.routing.level = Level
+devices.routing.cue_hint = A copy of the master on its own pair, at its own level.
+devices.routing.tone = Test tone
+devices.routing.off = Off
+devices.routing.in_n = Input {n}
+devices.routing.out_n = Output {n}
+devices.routing.name_in = Name it — Guitar, Mic 1…
+devices.routing.name_out = Name it — Monitors L…

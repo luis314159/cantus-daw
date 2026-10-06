@@ -128,6 +128,9 @@ pub struct Settings {
     pub mixer_density: MixerDensity,
     /// Show each strip's recent level as a scrolling envelope (FL's meter-wave view).
     pub mixer_meter_wave: bool,
+    /// What is remembered per interface, and whether the first-run setup was done
+    /// (round 20, `audio_setup::memory`).
+    pub audio_setup: crate::audio_setup::memory::AudioMemory,
 }
 
 impl Default for Settings {
@@ -139,6 +142,7 @@ impl Default for Settings {
             ui_scale: DEFAULT_UI_SCALE,
             mixer_density: MixerDensity::Normal,
             mixer_meter_wave: false,
+            audio_setup: Default::default(),
         }
     }
 }
@@ -211,6 +215,7 @@ mod tests {
             ui_scale: 1.25,
             mixer_density: MixerDensity::Compact,
             mixer_meter_wave: true,
+            ..Default::default()
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

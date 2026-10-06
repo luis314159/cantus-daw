@@ -73,21 +73,19 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
             width,
         });
     };
-    let engine = if key.live {
-        tf(
-            "status.engine",
+    // The device, its rate and its latency are the audio chip's (round 20); the engine's
+    // own numbers stay here.
+    if key.live {
+        let engine = tf(
+            "devices.status.engine",
             &[
-                ("device", &app.engine.device_name),
-                ("rate", &key.rate),
                 ("load", &key.load),
                 ("overruns", &key.overruns),
                 ("voices", &key.voices),
             ],
-        )
-    } else {
-        t("status.no_audio")
-    };
-    push(engine, key.overruns > 0, None, 4);
+        );
+        push(engine, key.overruns > 0, None, 4);
+    }
     // Plug-in latency is compensated, never silent: shown whenever there is some, in the
     // warning colour when a path could not be given a delay line.
     if key.latency > 0 || key.unserved > 0 {
@@ -182,7 +180,13 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         ppp: ctx.pixels_per_point().to_bits(),
     };
 
-    let right_edge = insp_r.left() - pad;
+    // The audio chip, first from the right: always there (round 20).
+    let chip_w = super::audio_chip::width(app, &ctx);
+    let chip_r = Rect::from_min_max(
+        Pos2::new(insp_r.left() - pad - chip_w, rect.top() + 2.0 * k),
+        Pos2::new(insp_r.left() - pad, rect.bottom() - 2.0 * k),
+    );
+    let right_edge = chip_r.left() - gap * 0.5;
     let left_edge = lower_r.right() + pad;
     let painter = ui.painter_at(rect);
     CACHE.with(|cell| {
@@ -315,6 +319,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
                 let _ = text::paint(b, r.shrink2(Vec2::new(gap * 0.5, 0.0)), &tt, tk);
                 divider(b, r.left(), rect, k, tok.panel);
             }
+            divider(b, chip_r.left() - gap * 0.25, rect, k, tok.panel);
             if let Some(r) = stats_r {
                 let tt = Text::new(&c.stats, Role::Label, tok.text_dim)
                     .align(Align2::RIGHT_CENTER)
@@ -324,6 +329,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             }
         });
     });
+    super::audio_chip::show(app, ui, chip_r);
 }
 
 /// The hint of the editor being worked in — what the hint panel says when nothing is
