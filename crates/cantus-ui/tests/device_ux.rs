@@ -642,8 +642,14 @@ fn a_choice_that_does_not_fit_changes_nothing() {
         editor: false,
         features: Vec::new(),
     };
-    assert!(!cantus_ui::swap::available(
+    // A hosted instrument fits a track (ADR 0028); this one is installed nowhere, so the
+    // host cannot load it and the swap changes nothing (it says why on the status line).
+    assert!(cantus_ui::swap::available(
         &PickPurpose::ReplaceInstrument { track },
+        &PickChoice::Hosted(Box::new(hosted.clone()))
+    ));
+    assert!(!cantus_ui::swap::available(
+        &PickPurpose::AddEffect { strip },
         &PickChoice::Hosted(Box::new(hosted.clone()))
     ));
     a.apply_pick(
