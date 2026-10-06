@@ -150,7 +150,7 @@ fn the_routing_page_sends_a_headphone_cue_and_moves_the_main_pair() {
         cantus_ui::i18n::default_thread_locale(loc);
         a.audio_setup.popover = true;
         a.audio_setup.first_run = Some(Default::default());
-        let text = support::paint(&ctx, egui::vec2(1280.0, 720.0), 3, |ui| a.frame(ui));
+        let text = support::paint(&support::ctx(), egui::vec2(1280.0, 720.0), 3, |ui| a.frame(ui));
         assert!(!text.contains("devices."), "{loc:?}: a key shows: {text}");
         a.audio_setup.first_run = None;
     }
