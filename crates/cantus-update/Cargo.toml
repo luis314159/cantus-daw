@@ -1,0 +1,22 @@
+[package]
+name = "cantus-update"
+description = "Cantus — checking GitHub Releases for a newer version, verifying it, installing it on quit (ADR 0030)."
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+log.workspace = true
+# HTTPS through the operating system's own TLS stack and trust store (SChannel on
+# Windows): a corporate proxy that inspects TLS has its root installed there by IT, so
+# the check works behind it without turning any verification off (ADR 0030 §6).
+ureq = { version = "3", default-features = false, features = ["native-tls-no-default"] }
+
+[dev-dependencies]
+tempfile = "3"

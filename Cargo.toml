@@ -12,6 +12,7 @@ members = [
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-plugins",
+    "crates/cantus-update",
     "xtask",
 ]
 # `cargo build` and `cargo run` at the root build the DAW only, as before: the exported
@@ -25,6 +26,7 @@ default-members = [
     "crates/cantus-host",
     "crates/cantus-ui",
     "crates/cantus-app",
+    "crates/cantus-update",
 ]
 
 [workspace.package]
@@ -44,6 +46,7 @@ cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
 cantus-host = { path = "crates/cantus-host" }
 cantus-ui = { path = "crates/cantus-ui" }
+cantus-update = { path = "crates/cantus-update" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
