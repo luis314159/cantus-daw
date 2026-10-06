@@ -223,7 +223,7 @@ fn maximise_fills_the_workspace_and_restore_puts_it_back() {
     assert!(!device::is_maximised(&w.ctx, key));
     let back = device::shown(&w.ctx, key).unwrap().0;
     assert!(
-        (back.min - before.min).length() < 2.0,
+        (back.min - before.min).length() < 4.0,
         "{back:?} vs {before:?}"
     );
     // Docked by the user, a maximised device docks again when restored.

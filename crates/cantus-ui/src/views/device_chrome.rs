@@ -202,7 +202,10 @@ impl Workspace {
                 }
                 Pending::Restore => {
                     match restore {
-                        Some(r) => self.refloat(pane, r),
+                        Some(r) => {
+                            self.refloat(pane, r);
+                            device::settle(ctx, key, r.min);
+                        }
                         // It was docked: back into the dock.
                         None => {
                             self.hide(pane);
@@ -213,6 +216,16 @@ impl Workspace {
                 }
             }
             ctx.request_repaint();
+        }
+        let mut settles = Vec::new();
+        device::take_settles(ctx, &mut settles);
+        for (key, at) in settles {
+            let path = self
+                .find(Pane::Device(key))
+                .filter(|p| !p.surface.is_main());
+            if let Some(w) = path.and_then(|p| self.dock.get_window_state_mut(p.surface)) {
+                w.set_position(at);
+            }
         }
         // Where each device tab is: floating windows are remembered, docked ones forgotten.
         let tabs: Vec<(DeviceKey, egui_dock::TabPath)> = self
@@ -278,20 +291,21 @@ impl Workspace {
             if let Some(w) = self.dock.get_window_state_mut(surface) {
                 w.set_position(rect.min).set_size(rect.size());
             }
+            device::settle(ctx, key, rect.min);
         }
     }
 }
 
 impl Workspace {
     /// Where a floating tab's window is, as `set_position` and `set_size` take it back: the
-    /// window's corner and its content's size. egui_dock 0.21 never fills in
-    /// `WindowState::rect`; the window's egui area remembers its corner (as the
-    /// workspace's snapping reads it) and the leaf its content.
+    /// window's corner and its content's size, from its leaf (egui_dock 0.21 never fills in
+    /// `WindowState::rect`).
     fn float_rect(&self, ctx: &Context, path: egui_dock::TabPath) -> Option<Rect> {
-        let id = egui::Id::new(format!("window {:?}", path.surface));
-        let corner = egui::AreaState::load(ctx, id)?.rect().min;
-        let size = self.dock.leaf(path.node_path()).ok()?.rect.size();
-        let r = Rect::from_min_size(corner, size);
+        let leaf = self.dock.leaf(path.node_path()).ok()?.rect;
+        // The window's frame sits around its leaf by the window margin.
+        let m = ctx.global_style().spacing.window_margin;
+        let corner = leaf.min - Vec2::new(m.leftf(), m.topf());
+        let r = Rect::from_min_size(corner, leaf.size());
         r.is_positive().then_some(r)
     }
 }

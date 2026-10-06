@@ -105,6 +105,10 @@ pub struct Registry {
     /// Where each device floated last, for the session: it opens there again. A device
     /// docked by the user is forgotten here, and docks again.
     pub places: HashMap<DeviceKey, Rect>,
+    /// Floating windows to put at a place again for a few frames: egui keeps a window's
+    /// old size for the frame it moves, and a window that was maximised is pushed back
+    /// against the workspace's corner by it.
+    pub settle: Vec<(DeviceKey, Pos2, u8)>,
 }
 
 impl Registry {
@@ -444,6 +448,26 @@ pub fn inherit_place(ctx: &Context, from: DeviceKey, to: DeviceKey) {
         if let Some(p) = r.places.get(&from).copied() {
             r.places.insert(to, p);
         }
+    });
+}
+
+/// Put `key`'s floating window at `at` for the next few frames.
+pub fn settle(ctx: &Context, key: DeviceKey, at: Pos2) {
+    with_registry(ctx, |r| {
+        r.settle.retain(|s| s.0 != key);
+        r.settle.push((key, at, 3));
+    });
+}
+
+/// The settles still to apply this frame (each counted down once).
+pub fn take_settles(ctx: &Context, out: &mut Vec<(DeviceKey, Pos2)>) {
+    out.clear();
+    with_registry(ctx, |r| {
+        for s in &mut r.settle {
+            out.push((s.0, s.1));
+            s.2 = s.2.saturating_sub(1);
+        }
+        r.settle.retain(|s| s.2 > 0);
     });
 }
 
