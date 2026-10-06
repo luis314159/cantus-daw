@@ -130,6 +130,10 @@ macro_rules! buggify {
         {
             $crate::sched::Chaos::at($chaos, $site, $slot);
         }
+        #[cfg(not(feature = "fuzz"))]
+        {
+            let _ = $site;
+        }
     }};
 }
 pub(crate) use buggify;

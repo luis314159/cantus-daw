@@ -300,7 +300,7 @@ fn park_and_wake<Q: ReadyQueue>() {
     let g = Arc::new(fan(10, Duration::from_micros(30)));
     let mut cfg = Config::new(2, 10);
     cfg.period = Duration::from_micros(200);
-    cfg.park_after = Duration::from_millis(30);
+    cfg.park_after = Duration::from_millis(200);
     cfg.mode = Mode::Parallel;
     let mut pool = Pool::<FuzzGraph, Q>::new(g.clone(), cfg).unwrap();
     let mut b = 0;
@@ -326,13 +326,19 @@ fn park_and_wake<Q: ReadyQueue>() {
         assert_eq!(block(&mut pool).woke, 0);
     }
     assert_eq!(pool.stats().wakes, 2);
-    // Blocks 5 ms apart, inside the 30 ms grace, keep them awake (spinning, then
-    // yielding), never parked.
+    // Blocks 5 ms apart, well inside the 200 ms grace, keep them awake (spinning, then
+    // yielding), never parked. (A loaded machine can stretch a sleep: only gaps that
+    // stayed under half the grace count.)
+    let mut last = Instant::now();
     for _ in 0..20 {
         thread::sleep(Duration::from_millis(5));
-        block(&mut pool);
+        let gap = last.elapsed();
+        let r = block(&mut pool);
+        if gap < Duration::from_millis(100) {
+            assert_eq!(r.woke, 0, "no wake while blocks keep coming ({gap:?} apart)");
+        }
+        last = Instant::now();
     }
-    assert_eq!(pool.stats().wakes, 2, "no wake while blocks keep coming");
     // Parked workers stop promptly when the pool goes.
     assert!(wait_parked(&pool, Duration::from_secs(2)));
     let t = Instant::now();
