@@ -28,6 +28,8 @@ use serde::{Deserialize, Serialize};
 
 /// The inspector's width by default, in points (ADR 0024 §7).
 pub const INSPECTOR_W: f32 = 280.0;
+/// The sample browser's width when it opens, in points.
+pub const BROWSER_W: f32 = 260.0;
 /// The share of the height the arrangement takes above the lower zone by default.
 pub const ARRANGEMENT_SHARE: f32 = 0.46;
 /// How close a floating window's edge must come to another edge to snap to it, in points.
@@ -44,6 +46,8 @@ pub enum Pane {
     /// The devices panel: every instrument and effect to browse and drag (round 20,
     /// `views::picker_panel`), docked at the left like FL's browser.
     Devices,
+    /// The sample browser (ADR 0030): FL's browser, at the left.
+    Browser,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -68,6 +72,7 @@ impl Pane {
             Pane::Mixer => "workspace.pane.mixer",
             Pane::Inspector => "workspace.pane.inspector",
             Pane::Devices => "picker.panel.title",
+            Pane::Browser => "samples.title",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -81,6 +86,7 @@ impl Pane {
             Pane::Mixer => "workspace.toggle.mixer",
             Pane::Inspector => "workspace.toggle.inspector",
             Pane::Devices => "picker.menu.view_devices",
+            Pane::Browser => "samples.toggle",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -93,6 +99,7 @@ impl Pane {
             Pane::Mixer => Glyph::Mixer,
             Pane::Inspector => Glyph::Inspector,
             Pane::Devices => Glyph::Browser,
+            Pane::Browser => Glyph::Browser,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -350,6 +357,13 @@ impl Workspace {
                 // `split_left` gives the new (left) node `fraction` of the width.
                 let share = (260.0 / width).clamp(0.12, 0.3);
                 s.split_left(NodeIndex::root(), share, vec![Pane::Devices]);
+            }
+            Pane::Browser => {
+                // At the left of everything, as wide as FL's browser. `split_left` gives
+                // the new (left) node `fraction` of the width (egui_dock's SplitNode keeps
+                // the left child's share, whatever its docs say).
+                let share = (BROWSER_W / width).clamp(0.12, 0.3);
+                s.split_left(NodeIndex::root(), share, vec![Pane::Browser]);
             }
             Pane::Device(_) => match arrangement.or(lower) {
                 Some(node) => append(s, node, pane),

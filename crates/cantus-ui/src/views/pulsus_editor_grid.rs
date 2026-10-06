@@ -80,8 +80,14 @@ pub(super) fn show(
     let mut hovered = None;
     let mut menu_for = None;
     let mut resps = Vec::with_capacity(kit.pads.len());
-    for (pad, rect) in kit.pads.iter().zip(&rects) {
+    for (i, (pad, rect)) in kit.pads.iter().zip(&rects).enumerate() {
         let resp = ui.allocate_rect(*rect, Sense::click());
+        // A sample from the browser makes this pad play it (ADR 0030).
+        crate::samples::drop::publish(
+            ui.ctx(),
+            *rect,
+            crate::samples::drop::Target::Pad { track, pad: i },
+        );
         if resp.hovered() {
             hovered = Some(pad.id);
             crate::kit::hint::set_text(

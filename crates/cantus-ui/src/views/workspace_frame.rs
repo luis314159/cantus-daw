@@ -114,6 +114,7 @@ impl TabViewer for Viewer<'_> {
             Pane::Mixer => super::mixer::show(app, ui),
             Pane::Inspector => super::inspector::show(app, ui),
             Pane::Devices => super::picker_panel::show(app, ui),
+            Pane::Browser => super::samples_browser::show(app, ui),
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }

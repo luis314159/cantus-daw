@@ -567,6 +567,12 @@ fn color_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
+    // A sample from the browser lands here as an audio clip (ADR 0030).
+    crate::samples::drop::publish(
+        ui.ctx(),
+        ui.max_rect(),
+        crate::samples::drop::Target::Arrangement,
+    );
     toolbar(app, ui);
     let s = Style::current();
     let full = ui.available_rect_before_wrap();

@@ -1,0 +1,66 @@
+# Área: el explorador de sonidos y el gestor de contenido (ronda 20, ADR 0030). Cada clave necesita su gemela en samples.en.txt.
+
+samples.title = Explorador
+samples.toggle = Mostrar u ocultar el explorador
+action.toggle-browser = Explorador
+samples.content = Paquetes de sonidos…
+samples.add_folder = Añadir una carpeta propia
+samples.search = Buscar sonidos
+samples.searching = Buscando entre tus sonidos…
+samples.no_results = Nada se llama «{query}»
+samples.section.packs = Paquetes
+samples.section.folders = Mis carpetas
+samples.folders.empty = Añade una carpeta con la tecla + de arriba
+samples.hint.file = Clic para oír · arrastra a un pad, al rack o al arreglo
+samples.foot.hint = Clic para oír · arrastra a un pad, al rack o al arreglo
+samples.cancel = Cancelar
+
+# La oferta de un clic mientras no hay nada instalado.
+samples.starter.title = Empieza con una batería
+samples.starter.body = {pack}: bombos, cajas, charles, toms, platillos, palmas — {mb} MB
+samples.starter.licence = CC0: tuyo para cualquier canción, gratis, sin tener que citar
+samples.starter.download = Descargar
+samples.more_packs = Más paquetes…
+
+# Lo que pasó, al pie del explorador.
+samples.notice.installed = {pack} está instalado
+samples.notice.failed = {pack} no se instaló: {why}
+samples.notice.dropped = {name} colocado
+samples.notice.removed = {pack} se quitó
+
+# La ventana de paquetes de sonidos.
+samples.content.title = Paquetes de sonidos
+samples.phase.starting = Empezando…
+samples.phase.downloading = Descargando {done} de {total} MB
+samples.phase.retrying = Esperando a la red ({why}); se reintenta en {s} s
+samples.phase.verifying = Comprobando cada byte…
+samples.phase.unpacking = Desempaquetando…
+samples.state.installed = Instalado
+samples.state.update = Actualizar
+samples.state.busy = Instalando
+samples.detail.download = Descarga
+samples.detail.on_disk = En disco
+samples.detail.files = Archivos
+samples.detail.licence = Licencia
+samples.detail.checked = Licencia leída
+samples.detail.credits = Hecho por
+samples.detail.licence_kept = La licencia se guarda junto a los sonidos, en {file}.
+samples.detail.actions = Paquete
+samples.licence.cc0 = dominio público, libre para cualquier uso
+samples.install = Instalar
+samples.update = Actualizar
+samples.reinstall = Instalar de nuevo
+samples.remove = Quitar
+samples.remove_confirm = Quitarlo de este equipo
+samples.show_folder = Mostrar la carpeta
+samples.from_file = Instalar desde un archivo…
+
+# Categorías de paquetes.
+samples.cat.drums = Baterías
+samples.cat.percussion = Percusión
+samples.cat.one_shots = Golpes sueltos
+samples.cat.instruments = Instrumentos
+samples.cat.fx = Efectos y foley
+
+# Historial de deshacer.
+cmd.samples_add_channel = Añadir un canal de muestra

@@ -96,7 +96,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         (Group::Tools, 2.0 * key + 4.0 * k),
         (Group::Undo, 2.0 * key + 2.0 * k),
         (Group::ClockSide, side_w),
-        (Group::Windows, 5.0 * key + 8.0 * k),
+        (Group::Windows, 6.0 * key + 10.0 * k),
         (Group::Modes, 3.0 * key + 4.0 * k),
         (Group::Meter, 104.0 * k),
         (Group::Tempo, 104.0 * k),
@@ -587,12 +587,14 @@ fn window_keys(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     use crate::keymap::Action;
     let cy = r.center().y;
     let mut x = r.left();
-    for pane in Pane::ZONES {
+    // The browser first, as in FL's toolbar.
+    for pane in std::iter::once(Pane::Browser).chain(Pane::ZONES) {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
             Pane::ChannelRack => Action::ViewChannelRack,
             Pane::PianoRoll => Action::ViewPianoRoll,
             Pane::Mixer => Action::ViewMixer,
+            Pane::Browser => Action::ToggleBrowser,
             _ => Action::ToggleInspector,
         };
         let lit = app.workspace.is_visible(pane);
@@ -910,12 +912,13 @@ fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
     // Every area, with its key: the same toggles as the toolbar's window keys.
-    for pane in Pane::ZONES {
+    for pane in std::iter::once(Pane::Browser).chain(Pane::ZONES) {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
             Pane::ChannelRack => Action::ViewChannelRack,
             Pane::PianoRoll => Action::ViewPianoRoll,
             Pane::Mixer => Action::ViewMixer,
+            Pane::Browser => Action::ToggleBrowser,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);

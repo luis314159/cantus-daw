@@ -27,6 +27,7 @@ pub mod raster;
 pub mod record_pass;
 pub mod record_session;
 pub mod recording;
+pub mod samples;
 pub mod settings;
 pub mod takes;
 pub mod theme;

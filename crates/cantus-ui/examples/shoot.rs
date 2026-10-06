@@ -11,6 +11,8 @@ use cantus_engine::EngineHandle;
 
 #[path = "shoot_audio/scene.rs"]
 mod audio_scene;
+#[path = "shoot_samples/scene.rs"]
+mod samples_scene;
 use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
@@ -63,7 +65,17 @@ fn main() {
             return;
         }
     }
-    let kinds: Vec<String> = kinds.into_iter().filter(|k| k != "audio").collect();
+    // `samples`: the sample browser and the Sound packs window (round 20).
+    if kinds.iter().any(|k| k == "samples") {
+        samples_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    let kinds: Vec<String> = kinds
+        .into_iter()
+        .filter(|k| k != "audio" && k != "samples")
+        .collect();
     let kinds: Vec<String> = if kinds.is_empty() {
         [
             "eq",

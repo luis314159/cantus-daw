@@ -16,6 +16,7 @@ pub mod loopback;
 pub mod messages;
 pub mod midi;
 pub mod pdc;
+pub mod preview;
 pub mod processor;
 pub mod pulsus_kit;
 pub mod recorder;

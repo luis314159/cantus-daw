@@ -97,6 +97,8 @@ pub enum Action {
     ViewArrangement,
     /// Show or hide the inspector (I).
     ToggleInspector,
+    /// Show or hide the sample browser (FL's Alt+F8; ADR 0030).
+    ToggleBrowser,
     /// Close every floating device window (F12).
     CloseFloating,
     /// The interface's zoom: Ctrl +, Ctrl −, Ctrl 0 (ADR 0024 §11).
@@ -170,7 +172,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 70] = [
+    pub const ALL: [Action; 71] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -225,6 +227,7 @@ impl Action {
         Action::ViewMixer,
         Action::ViewArrangement,
         Action::ToggleInspector,
+        Action::ToggleBrowser,
         Action::CloseFloating,
         Action::ZoomIn,
         Action::ZoomOut,
@@ -300,6 +303,7 @@ impl Action {
             Action::ViewMixer => "view-mixer",
             Action::ViewArrangement => "view-arrangement",
             Action::ToggleInspector => "toggle-inspector",
+            Action::ToggleBrowser => "toggle-browser",
             Action::CloseFloating => "close-floating",
             Action::ZoomIn => "zoom-in",
             Action::ZoomOut => "zoom-out",
@@ -348,7 +352,7 @@ impl Action {
             | ToolPlayback => Category::Tools,
             ToggleTypingPiano | ViewPianoRoll | ViewChannelRack | ViewMixer | ViewArrangement
             | ToggleInspector | CloseFloating | ZoomIn | ZoomOut | ZoomReset | PickElement
-            | ToggleDeviceKeyboard => Category::View,
+            | ToggleDeviceKeyboard | ToggleBrowser => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave => Category::Mixer,
         }
@@ -613,6 +617,7 @@ fn common() -> Vec<(Action, Binding)> {
         // reads a key held with a modifier (`KeyboardPiano::poll`).
         (ToggleInspector, Binding::key(Key::I)),
         (ToggleInspector, Binding::alt(Key::I)),
+        (ToggleBrowser, Binding::alt(Key::F8)),
         (ToggleDeviceKeyboard, Binding::alt(Key::K)),
         (CloseFloating, Binding::key(Key::F12)),
         (ZoomIn, Binding::cmd(Key::Plus)),
@@ -899,6 +904,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 2 {
             map.fill_in(&NEW_IN_V2);
         }
+        if file.version.unwrap_or(1) < 3 {
+            map.fill_in(&NEW_IN_V3);
+        }
         Ok(map)
     }
 
@@ -968,8 +976,12 @@ struct KeymapFile {
     bindings: BTreeMap<String, Vec<String>>,
 }
 
-/// The file format. Version 2 added the workspace's actions (round 18).
-pub const FILE_VERSION: u32 = 2;
+/// The file format. Version 2 added the workspace's actions (round 18); version 3 the
+/// sample browser's key (round 20).
+pub const FILE_VERSION: u32 = 3;
+
+/// Actions added in version 3.
+const NEW_IN_V3: [Action; 1] = [Action::ToggleBrowser];
 
 /// Actions added in version 2: a file written before them gets the preset's bindings for
 /// them, where those keys are still free — an old file never mentions them, and "no line"

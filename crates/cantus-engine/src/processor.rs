@@ -295,6 +295,8 @@ pub struct Processor {
     dry_l: Vec<f32>,
     dry_r: Vec<f32>,
     click: Click,
+    /// The browser's audition voice, mixed after the master strip like the click.
+    preview: crate::preview::Preview,
     metronome: bool,
     next_beat_tick: f64,
     live_track: Option<TrackId>,
@@ -395,6 +397,7 @@ impl Processor {
             dry_l: vec![0.0; MAX_BLOCK_FRAMES],
             dry_r: vec![0.0; MAX_BLOCK_FRAMES],
             click: Click::new(sr),
+            preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
             next_beat_tick: 0.0,
             live_track: None,
@@ -624,6 +627,9 @@ impl Processor {
         self.was_playing = self.transport.is_playing();
 
         self.render(output, channels, frames);
+        if let Some(done) = self.preview.mix(output, channels, frames) {
+            self.give_back_preview(done);
+        }
 
         // Instrumentation.
         let elapsed = started.elapsed().as_secs_f64() * 1e6;
@@ -749,6 +755,12 @@ impl Processor {
                 EngineMessage::SetRecordStart(at) => {
                     self.live.record_start = at.map(|t| t.0 as f64);
                 }
+                EngineMessage::Preview(Some((sample, gain))) => {
+                    if let Some(old) = self.preview.start(sample, gain) {
+                        self.give_back_preview(old);
+                    }
+                }
+                EngineMessage::Preview(None) => self.preview.stop(),
             }
         }
     }
@@ -1389,6 +1401,15 @@ impl Processor {
         unit.stop();
         if self.tx.push(EngineEvent::GarbageEffect(unit)).is_err() {
             // Queue full: the box is freed here. Extremely unlikely (queue holds 4096).
+            self.stats.dropped_events += 1;
+        }
+    }
+
+    /// An audition's sample goes back to the UI to be freed there. The queue holds
+    /// thousands of events; were it full, the UI's own copy in its preview cache still
+    /// keeps this from being the last reference.
+    fn give_back_preview(&mut self, s: Arc<cantus_core::SampleData>) {
+        if self.tx.push(EngineEvent::GarbagePreview(s)).is_err() {
             self.stats.dropped_events += 1;
         }
     }

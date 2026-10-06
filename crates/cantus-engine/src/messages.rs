@@ -132,6 +132,10 @@ pub enum EngineMessage {
     AttachRecorder(Box<crate::recorder::RecordRings>),
     /// Stop writing into the rings and hand them back.
     DetachRecorder,
+    /// Audition a sample from the browser (ADR 0030), replacing any audition playing;
+    /// `None` fades the audition out. A sample the voice lets go of comes back as
+    /// [`EngineEvent::GarbagePreview`].
+    Preview(Option<(Arc<cantus_core::SampleData>, f32)>),
     /// Where the take begins when recording starts with a count-in (`ClickMode::CountInOnly`
     /// clicks only before it); `None` when not counting in.
     SetRecordStart(Option<Ticks>),
@@ -289,4 +293,6 @@ pub enum EngineEvent {
     Record(crate::recorder::RecordMark),
     /// Recording rings handed back; the UI drops them.
     GarbageRecorder(Box<crate::recorder::RecordRings>),
+    /// An audition's sample the engine let go of; the UI drops it.
+    GarbagePreview(Arc<cantus_core::SampleData>),
 }
