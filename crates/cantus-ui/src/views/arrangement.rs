@@ -760,29 +760,36 @@ fn corner(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
         )
     });
     let resp = if resp.hovered() {
-        let tip = t("track.add");
+        let tip = t("swap.add_track_tip");
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         resp.on_hover_text(tip)
     } else {
         resp
     };
+    // Round 20: the key opens the device picker on the instruments; the new track hosts
+    // the one chosen.
     if resp.clicked() {
-        app.add_track();
+        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
     }
-    // Right-click: an instrument track or an audio track (ADR 0025).
+    // Right-click: an instrument from the picker, a plain track, or an audio track.
     egui::Popup::context_menu(&resp)
         .frame(chrome::menu_frame())
         .show(|ui| {
             let items = [
-                Item::action(Src::Key("track.add")),
+                Item::action(Src::Key("swap.add_instrument")),
+                Item::action(Src::Key("swap.add_plain_track")),
                 Item::action(Src::Key("rec.add_audio_track")),
             ];
             match kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
                 Some(0) => {
-                    app.add_track();
+                    app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
                     ui.close();
                 }
                 Some(1) => {
+                    app.add_track();
+                    ui.close();
+                }
+                Some(2) => {
                     app.add_audio_track();
                     ui.close();
                 }
@@ -870,13 +877,18 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 n += 1;
             }
         });
-        // The icons are the house's vector icons, drawn over the headers' mesh.
+        // The icons are the house's vector icons, drawn over the headers' mesh; the one
+        // under the pointer is raised into the instrument chip that swaps it (round 20).
         for (i, row) in geo.rows.iter().enumerate() {
             let Some(track) = a.project().tracks.get(i).filter(|_| visible(row)) else {
                 continue;
             };
             let hr = paint::header_rects(row_rect(row), s);
             let tint = scratch.tints.of(theme::track_color(track.color), s);
+            let over = pointer.is_some_and(|q| hr.icon.expand(s.s(3.0)).contains(q));
+            kit::with_brush(&p, |b| {
+                super::device_chrome::chip_plate(b, hr.icon, over, tint.on_large, s.k)
+            });
             icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
         }
     }
@@ -943,6 +955,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             });
         }
         rename_in_place(app, ui, id, hr.name);
+        super::device_chrome::chip_input(app, ui, hr.icon, id, s.k);
         if let Some(rr) = &rr {
             rec::header_input(app, ui, id, rr, s);
         }
@@ -1956,12 +1969,12 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         Entry::Run(Action::Paste, "menu.paste"),
         Entry::Run(Action::SelectAll, "menu.select_all"),
         Entry::Separator,
-        Entry::Own("track.add"),
+        Entry::Own("swap.add_instrument"),
         Entry::Run(Action::AddAudioTrack, "rec.add_audio_track"),
     ];
     match menu(app, ui, &entries) {
         Some(3) => {
-            app.add_track();
+            app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
             ui.close();
         }
         Some(_) => ui.close(),

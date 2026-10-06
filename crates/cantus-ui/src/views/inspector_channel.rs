@@ -202,12 +202,21 @@ fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: Chain<'_>) {
             mini::show(sh, &mut st.mini, app, ms.id, slot);
         }
     }
+    // Round 20: a click on an empty slot opens the device picker on the effects; a
+    // right-click, the quick list.
     for i in n..MAX_INSERTS {
-        if let Some(anchor) = empty_tile(sh, i, false) {
-            *sh.menu = Some(MenuOpen {
-                id: MenuId::AddInsert(id),
-                anchor,
-            });
+        match empty_tile(sh, i, false) {
+            Some((anchor, true)) => {
+                *sh.menu = Some(MenuOpen {
+                    id: MenuId::AddInsert(id),
+                    anchor,
+                });
+            }
+            Some((_, false)) => {
+                *sh.menu = None;
+                sh.acts.push(Act::Pick(crate::picker::PickPurpose::AddEffect { strip: id }));
+            }
+            None => {}
         }
     }
     // A tile being dragged: a line in the selection colour where it would land.
@@ -435,8 +444,8 @@ fn insert_name(slot: &EffectSlot) -> Src<'_> {
 }
 
 /// An empty slot: "Slot 6" in italics. A click returns its rect (the add menu hangs
-/// from it).
-pub fn empty_tile(sh: &mut Sheet<'_>, i: usize, dim: bool) -> Option<Rect> {
+/// from it) and whether it was the right button.
+pub fn empty_tile(sh: &mut Sheet<'_>, i: usize, dim: bool) -> Option<(Rect, bool)> {
     let s = sh.s;
     let rect = tile_rect(sh);
     let r = sh
@@ -470,5 +479,5 @@ pub fn empty_tile(sh: &mut Sheet<'_>, i: usize, dim: bool) -> Option<Rect> {
             },
         );
     }
-    (!dim && (r.clicked() || r.secondary_clicked())).then_some(rect)
+    (!dim && (r.clicked() || r.secondary_clicked())).then_some((rect, r.secondary_clicked()))
 }

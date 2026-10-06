@@ -150,20 +150,29 @@ impl CantusApp {
         }
     }
 
-    /// F8: the selected track's instrument window — open it when it is closed, bring it
-    /// back when it is minimised, close it when it shows.
-    pub fn toggle_instrument_window(&mut self) {
-        let Some(track) = self.selected_track else {
-            return;
-        };
-        let minimised = match (self.theme_ctx.clone(), self.instrument_window_key(track)) {
-            (Some(ctx), Some(key)) => device::is_minimised(&ctx, key),
+    /// Whether `track`'s instrument window is on screen: open and not minimised.
+    pub fn instrument_window_shown(&self, track: TrackId) -> bool {
+        let minimised = match (&self.theme_ctx, self.instrument_window_key(track)) {
+            (Some(ctx), Some(key)) => device::is_minimised(ctx, key),
             _ => false,
         };
-        if self.instrument_window_open(track) && !minimised {
+        self.instrument_window_open(track) && !minimised
+    }
+
+    /// `track`'s instrument window: open it when it is closed, bring it back when it is
+    /// minimised, close it when it shows (F8, and a click on the rack's channel button).
+    pub fn toggle_instrument_window_of(&mut self, track: TrackId) {
+        if self.instrument_window_shown(track) {
             self.close_instrument_window(track);
         } else {
             self.open_instrument_window(track);
+        }
+    }
+
+    /// F8: the selected track's instrument window, open or closed.
+    pub fn toggle_instrument_window(&mut self) {
+        if let Some(track) = self.selected_track {
+            self.toggle_instrument_window_of(track);
         }
     }
 }
@@ -369,4 +378,152 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
         });
     }
     end
+}
+
+// ---- entry points: the small affordances the views share ----------------------------------
+
+/// The swap badge's side at 100 %: a square at the right end of a slot or a button.
+pub const BADGE: f32 = 16.0;
+
+/// Where the swap badge of `rect` goes: a square at its right end, inset by 1 pt.
+pub fn badge_rect(rect: Rect, k: f32) -> Rect {
+    let side = (BADGE * k).min(rect.height() - 2.0).max(8.0);
+    Rect::from_center_size(
+        Pos2::new(rect.right() - side * 0.5 - 2.0 * k, rect.center().y),
+        Vec2::splat(side),
+    )
+}
+
+/// The swap badge over a slot, a channel button or a header chip (round 20): shown while
+/// the pointer is over `rect` — a raised square with the swap glyph — and a click on it
+/// opens the picker for `purpose`. Registered after the slot's own response, so it takes
+/// the click where it is. Paints into `b`; returns whether it was clicked.
+#[allow(clippy::too_many_arguments)]
+pub fn swap_badge(
+    app: &mut CantusApp,
+    ui: &Ui,
+    b: &mut crate::kit::Brush,
+    rect: Rect,
+    id: egui::Id,
+    k: f32,
+    purpose: PickPurpose,
+    tip_key: &'static str,
+) -> bool {
+    if !ui.rect_contains_pointer(rect) || ui.ctx().dragged_id().is_some() {
+        return false;
+    }
+    let r = badge_rect(rect, k);
+    let resp = ui.interact(r, id, Sense::click());
+    let s = Style::current();
+    let t = &s.t;
+    let st = State {
+        hovered: resp.hovered(),
+        active: resp.is_pointer_button_down_on(),
+        ..State::REST
+    };
+    let look = cap::CapLook {
+        base: Some(shade(t.panel_raised, if t.dark { 0.06 } else { 0.03 })),
+        radius: Some(2.5),
+        ..cap::CapLook::default()
+    };
+    b.register(r, "swap_badge", crate::kit::window_ctl::TOKENS, &[]);
+    cap::paint(b, b.snap_rect(r), &s, st, &look);
+    let ink = if st.hovered { t.text } else { t.text_dim };
+    glyph::paint(b, r.shrink(r.width() * 0.16), Glyph::Replace, ink);
+    if resp.hovered() {
+        let tip = crate::i18n::t(tip_key);
+        crate::kit::hint::set_text(ui.ctx(), &tip, "", crate::kit::hint::Caps::NONE);
+        let _ = resp.clone().on_hover_text(tip);
+    }
+    if resp.clicked() {
+        app.open_picker(purpose);
+        return true;
+    }
+    false
+}
+
+/// The track header's instrument chip (round 20): the instrument's icon, raised into a
+/// key while the pointer is on it, with a ▾ that says it opens a choice. A click opens
+/// the picker to swap the instrument ([`chip_input`]). Paints the key into `b`; the icon
+/// itself is drawn over it by the caller.
+pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egui::Color32, k: f32) {
+    if !hovered {
+        return;
+    }
+    let s = Style::current();
+    let t = &s.t;
+    let r = icon.expand(3.0 * k);
+    b.register(r, "instrument_chip", crate::kit::window_ctl::TOKENS, &[]);
+    b.rrect(
+        b.snap_rect(r),
+        3.0 * k,
+        Fill::Solid(crate::kit::color::with_alpha(t.dark_shade, 0.22)),
+    );
+    b.rrect_stroke(b.snap_rect(r), 3.0 * k, b.px(), crate::kit::color::with_alpha(ink, 0.45));
+    let down = Rect::from_center_size(
+        Pos2::new(r.right() - 1.0 * k, r.bottom() - 1.0 * k),
+        Vec2::splat(7.0 * k),
+    );
+    glyph::paint(b, down, Glyph::Down, ink);
+}
+
+/// The instrument chip's input: a click opens the picker to swap `track`'s instrument.
+pub fn chip_input(app: &mut CantusApp, ui: &Ui, icon: Rect, track: TrackId, k: f32) {
+    let r = icon.expand(3.0 * k);
+    let resp = ui.interact(r, ui.id().with(("instrument-chip", track.0)), Sense::click());
+    if resp.hovered() {
+        let name = app
+            .project()
+            .track(track)
+            .map(|t| crate::swap::instrument_name(&t.instrument))
+            .unwrap_or_default();
+        let tip = tf("swap.chip.tip", &[("name", &name)]);
+        crate::kit::hint::set_text(ui.ctx(), &tip, "", crate::kit::hint::Caps::NONE);
+        let _ = resp.clone().on_hover_text(tip);
+    }
+    if resp.clicked() {
+        app.select_track(track);
+        app.open_picker(PickPurpose::ReplaceInstrument { track });
+    }
+}
+
+// ---- published geometry -------------------------------------------------------------------
+
+/// A place that opens the picker or a device, published for tests: where it was drawn
+/// last.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Spot {
+    /// The track header's instrument chip.
+    Chip(TrackId),
+    /// The channel rack's channel button.
+    RackButton(TrackId),
+    /// The inspector's instrument field.
+    InspectorInstrument(TrackId),
+    /// The inspector's empty insert tile `n` (0-based).
+    InspectorEmptySlot(usize),
+    /// The arrangement's add-track key.
+    AddTrack,
+}
+
+type Spots = std::sync::Arc<std::sync::Mutex<std::collections::HashMap<Spot, Rect>>>;
+
+fn spots(ctx: &Context) -> Spots {
+    ctx.data_mut(|d| {
+        d.get_temp_mut_or_insert_with(egui::Id::new("cantus-device-spots"), Spots::default)
+            .clone()
+    })
+}
+
+/// Publish where `spot` was drawn this frame.
+pub fn publish(ctx: &Context, spot: Spot, rect: Rect) {
+    let s = spots(ctx);
+    let mut g = s.lock().unwrap_or_else(|e| e.into_inner());
+    g.insert(spot, rect);
+}
+
+/// Where `spot` was drawn last, if it was.
+pub fn spot(ctx: &Context, spot: Spot) -> Option<Rect> {
+    let s = spots(ctx);
+    let g = s.lock().unwrap_or_else(|e| e.into_inner());
+    g.get(&spot).copied()
 }

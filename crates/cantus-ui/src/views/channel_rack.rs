@@ -878,8 +878,34 @@ fn track_controls(
     if button.hovered() {
         hint::set_text(ui.ctx(), chrome::word("rack.channel_tip"), "", Caps::NONE);
     }
-    if button.clicked() {
+    // Round 20, as FL: a click opens or closes the channel's instrument; a right-click,
+    // or the swap badge that shows on the button, swaps it for another.
+    let swap = crate::picker::PickPurpose::ReplaceInstrument { track: id };
+    let badge = kit::with_brush(&ui.painter().clone(), |b| {
+        crate::views::device_chrome::swap_badge(
+            app,
+            ui,
+            b,
+            rr.button,
+            ui.id().with(("rack-swap", id.0)),
+            1.0,
+            swap.clone(),
+            "swap.tip.instrument",
+        )
+    });
+    if button.clicked() && !badge {
         focus_track(app, id, pattern, 0);
+        // The selector beside the button only selects (FL).
+        let on_button = button
+            .interact_pointer_pos()
+            .is_some_and(|p| rr.button.contains(p));
+        if on_button && app.instrument_window_key(id).is_some() {
+            app.toggle_instrument_window_of(id);
+        }
+    }
+    if button.secondary_clicked() {
+        app.select_track(id);
+        app.open_picker(swap);
     }
 }
 

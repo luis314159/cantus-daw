@@ -1,1 +1,35 @@
 # Área: device windows, swapping instruments and effects (round 20). Cada clave necesita su gemela en swap.en.txt.
+
+# --- los botones propios de la ventana de un dispositivo (el extremo derecho de la barra de título) ---
+swap.button = Cambiar
+swap.tip.instrument = Cambiar este instrumento por otro: sus notas, clips, canal del mezclador y efectos se quedan
+swap.tip.effect = Cambiar este efecto por otro en la misma ranura: su lugar, mezcla y bypass se quedan
+swap.tip.minimise = Minimizar a la bandeja de dispositivos (la barra de estado lo trae de vuelta)
+swap.tip.maximise = Maximizar sobre el espacio de trabajo
+swap.tip.restore = Restaurar su tamaño y lugar
+swap.tip.close = Cerrar (Esc)
+
+# --- la bandeja de dispositivos en la barra de estado ---
+swap.tray.restore = Traer de vuelta {name}
+swap.tray.close = Cerrar {name}
+
+# --- lo que dice un cambio ---
+swap.status.instrument = Cambiado por {name}: se conservan notas, clips y el canal del mezclador (Ctrl+Z lo deshace)
+swap.status.instrument_kept = Cambiado por {name}, conservando {n} ajustes en común (Ctrl+Z lo deshace)
+swap.status.effect = Cambiado por {name} en la misma ranura (Ctrl+Z lo deshace)
+swap.status.hosted_instrument = Los instrumentos CLAP/VST3 alojados en pistas aún no están disponibles
+
+# --- los puntos de entrada: la cabecera de pista, el rack, el inspector, el mezclador ---
+swap.chip.tip = {name}: haz clic para cambiarlo por otro instrumento
+swap.add_instrument = Añadir pista de instrumento…
+swap.add_plain_track = Añadir pista vacía
+swap.add_track_tip = Añadir una pista: elige su instrumento
+swap.menu.swap_effect = Cambiar por otro efecto…
+swap.menu.browse_effects = Todos los efectos…
+
+# --- el historial ---
+cmd.replace_effect = cambiar efecto
+cmd.replace_instrument = cambiar instrumento
+
+# --- el mapa de teclas ---
+action.toggle-instrument-window = Abrir o cerrar el instrumento de la pista seleccionada

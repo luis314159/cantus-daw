@@ -101,6 +101,9 @@ enum Act {
     SoloOff,
     AddStrip,
     AddEffect(StripId, EffectKind),
+    /// Round 20: the device picker — every effect for this strip, or a swap in place.
+    BrowseEffects(StripId),
+    SwapEffect(StripId, EffectId),
     OpenEffect(StripId, EffectId),
     Bypass(StripId, EffectId, bool),
     MoveEffect(StripId, EffectId, usize),
@@ -494,6 +497,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Label::Key("mixer.menu.open_editor"),
                 Act::OpenEffect(id, fx),
             ));
+            e.push(Entry::act(
+                Label::Key("swap.menu.swap_effect"),
+                Act::SwapEffect(id, fx),
+            ));
             e.push(
                 Entry::act(Label::Key("effect.bypass"), Act::Bypass(id, fx, !bypass))
                     .check(on(bypass)),
@@ -674,6 +681,10 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
         }
         Sub::AddEffect(id) => {
             let full = p.effects_of(id).is_none_or(|s| s.len() >= MAX_INSERTS);
+            e.push(
+                Entry::act(Label::Key("swap.menu.browse_effects"), Act::BrowseEffects(id))
+                    .enabled(!full),
+            );
             e.push(Entry::band("effect.add"));
             for kind in EffectKind::ALL {
                 e.push(
@@ -1091,6 +1102,12 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         Act::SoloOff => app.clear_strip_solos(),
         Act::AddStrip => app.add_strip(),
         Act::AddEffect(id, kind) => app.add_effect(id, kind),
+        Act::BrowseEffects(strip) => {
+            app.open_picker(crate::picker::PickPurpose::AddEffect { strip });
+        }
+        Act::SwapEffect(strip, effect) => {
+            app.open_picker(crate::picker::PickPurpose::ReplaceEffect { strip, effect });
+        }
         Act::OpenEffect(id, fx) => app.open_effect_editor(id, fx),
         Act::Bypass(strip, effect, bypass) => {
             app.exec(Command::SetEffectBypass {

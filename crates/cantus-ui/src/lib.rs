@@ -25,6 +25,7 @@ pub mod record_pass;
 pub mod record_session;
 pub mod recording;
 pub mod settings;
+pub mod swap;
 pub mod takes;
 pub mod theme;
 pub mod views;

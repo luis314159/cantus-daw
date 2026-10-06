@@ -1,1 +1,35 @@
 # Area: device windows, swapping instruments and effects (round 20). Every key here needs its twin in swap.es.txt.
+
+# --- a device window's own buttons (the title bar's right end) ---
+swap.button = Swap
+swap.tip.instrument = Swap this instrument for another: its notes, clips, mixer channel and effects stay
+swap.tip.effect = Swap this effect for another in the same slot: its place, mix and bypass stay
+swap.tip.minimise = Minimise to the device tray (the status bar brings it back)
+swap.tip.maximise = Maximise over the workspace
+swap.tip.restore = Restore to its size and place
+swap.tip.close = Close (Esc)
+
+# --- the device tray in the status bar ---
+swap.tray.restore = Bring back {name}
+swap.tray.close = Close {name}
+
+# --- what a swap says it did ---
+swap.status.instrument = Swapped for {name}: notes, clips and the mixer channel kept (Ctrl+Z undoes it)
+swap.status.instrument_kept = Swapped for {name}, keeping {n} matching settings (Ctrl+Z undoes it)
+swap.status.effect = Swapped for {name} in the same slot (Ctrl+Z undoes it)
+swap.status.hosted_instrument = Hosted CLAP/VST3 instruments on tracks are not available yet
+
+# --- the entry points: the track header, the rack, the inspector, the mixer ---
+swap.chip.tip = {name}: click to swap it for another instrument
+swap.add_instrument = Add instrument track…
+swap.add_plain_track = Add empty track
+swap.add_track_tip = Add a track: choose its instrument
+swap.menu.swap_effect = Swap for another effect…
+swap.menu.browse_effects = All effects…
+
+# --- the history ---
+cmd.replace_effect = swap effect
+cmd.replace_instrument = swap instrument
+
+# --- the keymap ---
+action.toggle-instrument-window = Open or close the selected track's instrument

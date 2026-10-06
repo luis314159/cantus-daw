@@ -562,6 +562,46 @@ impl<'a> Sheet<'a> {
         r
     }
 
+    /// A field that opens the device picker for `purpose` (round 20): the gallery is the
+    /// list. A right-click opens `menu`, the quick list, instead.
+    pub fn pick_field(
+        &mut self,
+        rect: Rect,
+        value: &str,
+        purpose: crate::picker::PickPurpose,
+        menu: MenuId,
+        tip_key: &str,
+    ) -> Response {
+        let r = self
+            .ui
+            .interact(rect, Id::new(("insp-pick", menu)), Sense::click());
+        let open = self.menu.as_ref().is_some_and(|m| m.id == menu);
+        if r.clicked() {
+            *self.menu = None;
+            self.acts.push(Act::Pick(purpose));
+        } else if r.secondary_clicked() {
+            *self.menu = (!open).then_some(MenuOpen {
+                id: menu,
+                anchor: rect,
+            });
+        }
+        if r.hovered() {
+            let tip = crate::i18n::t(tip_key);
+            hint::set_text(
+                self.ui.ctx(),
+                value,
+                "",
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
+            );
+            let _ = r.clone().on_hover_text(tip);
+        }
+        well::menu_field(self.b, rect, &self.s, State::of(&r, open), value, false);
+        r
+    }
+
     /// A row holding an on/off: an LED button across the value column. Returns a click.
     pub fn led_row(
         &mut self,

@@ -144,6 +144,8 @@ pub struct CantusApp {
     pub rec: crate::record_session::RecSession,
     /// The device picker, when open, and what it was opened for (`crate::picker`).
     pub picker: Option<crate::picker::PickPurpose>,
+    /// What swapping a device keeps beyond what it always keeps (round 20, `crate::swap`).
+    pub swap_keep: crate::swap::Keep,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -349,6 +351,7 @@ impl CantusApp {
             peaks: Default::default(),
             rec: Default::default(),
             picker: None,
+            swap_keep: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,

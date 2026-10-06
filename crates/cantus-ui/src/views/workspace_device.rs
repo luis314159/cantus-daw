@@ -418,6 +418,15 @@ pub fn forget_place(ctx: &Context, key: DeviceKey) {
     });
 }
 
+/// A device took another's place (a swap): it floats where that one floated.
+pub fn inherit_place(ctx: &Context, from: DeviceKey, to: DeviceKey) {
+    with_registry(ctx, |r| {
+        if let Some(p) = r.places.get(&from).copied() {
+            r.places.insert(to, p);
+        }
+    });
+}
+
 /// Where a device floated last, if it did.
 pub fn place_of(ctx: &Context, key: DeviceKey) -> Option<Rect> {
     with_registry(ctx, |r| r.places.get(&key).copied())
