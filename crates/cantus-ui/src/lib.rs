@@ -126,9 +126,11 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     eframe::run_native(
         "Cantus",
         native,
-        Box::new(move |cc| Ok(Box::new(boot::Shell::Booting(
+        Box::new(move |cc| {
+            Ok(Box::new(boot::Shell::Booting(
                 boot::Boot::new(cc, options).with_verse(verse),
-            )))),
+            )))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("{e}"))
 }

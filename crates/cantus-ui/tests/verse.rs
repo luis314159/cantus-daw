@@ -250,9 +250,11 @@ fn the_switch_is_on_by_default_and_hides_the_verse() {
     assert!(Launch::from_settings(&Settings::default(), 7)
         .shown
         .is_some());
-    let mut off = Settings::default();
-    off.verse = VerseSettings {
-        show: false,
+    let off = Settings {
+        verse: VerseSettings {
+            show: false,
+            ..Default::default()
+        },
         ..Default::default()
     };
     assert_eq!(Launch::from_settings(&off, 7).shown, None);
