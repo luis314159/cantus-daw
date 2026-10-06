@@ -180,9 +180,22 @@ impl MainThread for MainHalf {
 
     fn params(&self) -> Vec<ParamInfo> {
         let paths = self.unit_paths();
+        // A parameter the controller maps a MIDI controller to (`IMidiMapping`: JUCE makes
+        // 2 000 "MIDI CC" ones) is an input the notes drive, not a setting: hidden and
+        // read-only, so it is neither listed in the generic editor nor kept in a project
+        // (round 20, ADR 0028).
+        let midi: std::collections::HashSet<u32> = self
+            .inst
+            .midi_map
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|id| *id != super::instance::NO_MIDI_PARAM)
+            .collect();
         self.infos()
             .iter()
             .map(|i| {
+                let from_midi = midi.contains(&i.id);
                 let default = self.plain(i.id, i.defaultNormalizedValue);
                 ParamInfo {
                     id: i.id,
@@ -193,8 +206,8 @@ impl MainThread for MainHalf {
                     default,
                     stepped: i.stepCount > 0,
                     automatable: i.flags & kCanAutomate != 0,
-                    hidden: i.flags & kIsHidden != 0,
-                    read_only: i.flags & kIsReadOnly != 0,
+                    hidden: i.flags & kIsHidden != 0 || from_midi,
+                    read_only: i.flags & kIsReadOnly != 0 || from_midi,
                 }
             })
             .collect()

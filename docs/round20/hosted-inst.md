@@ -64,6 +64,16 @@ Always run (repository test plug-ins):
 - `cantus-core`: undo fuzz arms; `a_hosted_instrument_round_trips_through_json`.
 - `cantus-project`: `a_missing_hosted_instrument_opens_with_its_data_intact` (v19).
 
+On a machine where several builds share cargo's package lock, every test binary's
+no-op `cargo build` of a test plug-in can wait minutes for it:
+`CANTUS_TEST_PLUGINS_PREBUILT=1` makes the host's and the UI's tests use the plug-ins
+already in `target/test-plugins` (the host suite then runs in about two minutes).
+
+Screens: `cargo run -p cantus-ui --example shoot_hosted -- <dir> [ppp] [es]` renders the
+inspector with a hosted instrument loaded and missing, in Slate and Paper; looked at in
+both languages (the track row shows the plug-in's own name; *Missing: silent* dims the
+status row and its tip gives the reason).
+
 Real instruments (ignored; `CANTUS_PLUGINS` names the folder):
 
 ```text
@@ -80,7 +90,76 @@ played again). The table is written to `target/real-instruments.md`.
 
 ## Compatibility (2026-10-05, Windows 11 x64, 48 kHz)
 
-COMPAT_TABLE
+Eight products, nineteen plug-ins (Six Sines and sfizz ship a multi-output variant too);
+every one **loads, plays, keeps its state and reopens** in Cantus. Columns: *Chord* is
+the adapter's peak for a four-note chord at velocity 0.8 (with the mod wheel and a bend
+in the middle); *Repeatable* is a fresh instance giving the same samples at the same
+blocks; *Blocks* is the same at blocks of 512 and of 97; *Params (stored)* is what
+the plug-in lists and, in brackets, what a project keeps (MIDI-CC inputs excluded);
+*Values back* counts stored parameters equal after saving the state and loading it into
+a fresh instance; *Bytes* says whether that instance saves the same bytes again; *In Cantus* is the peak of the
+riff played through the whole host (track, strip, master), and *Reopened* means saved
+to a `.cantus` file, opened in a fresh host, loaded and sounding.
+
+| Instrument (version, licence) | Format | Load | Params (stored) | Latency | Chord dBFS | Repeatable | Blocks | Values back | Bytes | In Cantus dBFS | Reopened | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Surge XT 1.3.4, GPL-3.0 | CLAP | 10.5 s | 775 | 0 | −4.1 | no | no | 775/775 | same | −16.5 | yes | needs `SurgeXTData` beside it for its factory patches (portable layout); loading is mostly its data scan (2.4–10 s, by disk cache) |
+| Surge XT | VST3 | 10.6 s | 2855 (775) | 0 | −4.7 | no | no | 775/775 | same | −16.5 | yes | 2 080 of its parameters are MIDI-CC inputs, now hidden and not stored |
+| Dexed 1.0.1, GPL-3.0 | CLAP | 2.7 s | 156 | 0 | −6.7 | varies | no | 156/156 | same | −20.4 | yes | |
+| Dexed | VST3 | 1.6 s | 2238 (158) | 0 | −6.7 | varies | no | 158/158 | same | −20.4 | yes | |
+| OB-Xf 1.0.3, GPL-3.0 | CLAP | 0.9 s | 102 | 0 | −8.0 | no | no | 102/102 | same | −20.8 | yes | factory patches are a separate download (not needed to play) |
+| OB-Xf | VST3 | 1.4 s | 2183 (103) | 0 | −8.5 | no | no | 103/103 | same | −21.2 | yes | |
+| Six Sines 1.2.1, MIT | CLAP | 3.1 s | 2554 | 0 | −5.5 | yes | no | 2554/2554 | same | −16.0 | yes | prints *"thread-error: this code must be running on the main thread"* in the whole-host test (see below) |
+| Six Sines | VST3 | 0.4 s | 4650 (2570) | 0 | −5.5 | yes | no | 2570/2570 | same | −19.2 | yes | single-file VST3 (old layout): found and loaded |
+| Six Sines, Seven Outs | CLAP / VST3 | 1.6 / 0.4 s | 2554 / 4650 | 0 | −5.5 | yes | no | all | same | −16.0 / −19.2 | yes | only the main stereo out is heard (multi-out is left) |
+| Firefly Synth 2 2.1.6, MIT | CLAP | 2.8 s | 3324 | **16** | −7.5 | yes | no | 2028/2028 | differ | −20.0 | yes | a **CLAP bundle folder** on Windows: the scanner walks into it and finds the binary; 16 samples of latency, compensated; a 1.4 MB state |
+| Firefly Synth 2 | VST3 | 7.0 s | 3454 (2028) | **16** | −7.5 | yes | no | 2028/2028 | same | −20.0 | yes | |
+| JC303 0.13.0, GPL-3.0 | CLAP | 1.9 s | 40 | 0 | −12.3 | yes | no | 40/40 | differ | −21.5 | yes | |
+| JC303 | VST3 | 1.7 s | 2121 (41) | 0 | −12.3 | yes | no | 41/41 | differ | −21.5 | yes | |
+| RipplerX 1.5.19, GPL-3.0 | VST3 | 1.1 s | 2159 (79) | 0 | −0.3 | yes | no | 79/79 | same | −11.5 | yes | VST3 only (no Windows CLAP) |
+| sfizz 1.2.3, BSD-2-Clause | VST3 | 5.6 s | 543 (396) | 0 | +3.4 | yes | no | 396/396 | same | −13.0 | yes | no SFZ loaded: plays its built-in sine (loud by design); VST3 only; *sfizz-multi* (16 outs) the same |
+
+**Not tested**, and why: Odin 2 and Geonkick ship only Inno Setup installers this machine
+cannot unpack without running them (not done); Vitalium has no Windows binaries in its
+GitHub release; OB-Xd 2 is installer-only with an unclear licence (OB-Xf replaces it).
+Sources, hashes and file paths: `C:\projects\daw-r20\plugins\SOURCES.md` (outside the
+repository).
+
+What the table says:
+
+- **Everything plays and comes back.** All 19 load in the scanner's separate process and
+  in Cantus, play a chord with finite output, follow the transport, take the mod wheel and
+  a pitch bend without complaint, return every writable value through their state, and
+  reopen from a saved project with their sound.
+- **No real plug-in is identical across block sizes**, and several are not even
+  repeatable from one fresh instance to the next (Surge XT, OB-Xf, at times Dexed —
+  presumably free-running oscillator phases and analogue-style drift). Cantus gives every
+  note to the sample (the repository's synth proves it to the bit); synths like these render in internal sub-blocks (Surge XT's is 32 samples) and
+  run their modulation per sub-block, so where a host's block boundaries fall changes
+  their output slightly. A bounce of a project with such a plug-in therefore matches
+  playback exactly only at the same block size.
+- **"Bytes differ"** (Firefly CLAP, JC303) means the state written again after loading is
+  not byte-identical (something in it changes on each save); every value still comes
+  back, so nothing audible is lost.
+- **CLAP and VST3 of one synth sound alike through the adapter**: identical peaks for the
+  repeatable ones (Dexed, Six Sines, Firefly, JC303), within their own run-to-run spread
+  for the others, the bend reaching VST3 through `IMidiMapping`. Six Sines plays the riff 3 dB louder as CLAP
+  than as VST3 through the whole host while its chord is identical in both; the cause
+  was not investigated (the riff's notes are shorter and overlap, so the two builds may
+  differ in voice handling).
+- **The mod wheel reaches VST3 plug-ins as the parameter their controller maps it to**
+  (sfizz's *Controller 1* showed it). The runs found two defects, both fixed: MIDI-mapped
+  changes were not echoed to the controller (they are now, as the host's own changes
+  always were), and those parameters were treated as settings — JUCE plug-ins expose
+  about 2 000 of them, which the project stored and the generic editor would have listed;
+  the VST3 backend now reports them hidden and read-only.
+- **Six Sines' thread message** appears only in the whole-host part of the test, where one
+  thread runs both the processor and the host's frame (the adapter part, where nothing
+  calls the plug-in's `on_main_thread`, is silent). Cantus's thread check answers
+  correctly for each call (main outside processing, audio inside it), so the likeliest
+  cause is a check of Six Sines' own against the thread it saw processing; in the
+  application the audio callback has a thread of its own. Not yet confirmed in the
+  running application; sound, state and values are unaffected.
 
 ## Left
 
@@ -94,6 +173,10 @@ COMPAT_TABLE
 - CLAP `render` (offline mode hint), `voice-info`, `note-name`; VST3 `INoteExpressionController`.
 - Crash isolation for a running plug-in (unchanged from ADR 0019).
 - A screenshot pass of the picker's hosted entries belongs to browser's gallery.
+- Six Sines (CLAP) prints a thread-check message in the whole-host test; confirm it is
+  silent in the running application, where audio has its own thread.
+- The plug-in's window is opened, focused and closed through the existing native window
+  code; a lit "window open" state on the track header is device-ux's chrome.
 
 ## Notes for others
 

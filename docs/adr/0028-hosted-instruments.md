@@ -85,7 +85,10 @@ engine stays format-free:
   bend as a channel-wide tuning expression; a port that speaks only MIDI gets its notes as
   MIDI too (`NoteDialects`, read from `note-ports`). VST3 has no CC events: the controller's
   `IMidiMapping` is read once at activation (16 channels × 130 controllers) and a message
-  becomes a parameter change on the parameter it names.
+  becomes a parameter change on the parameter it names (and is echoed to the controller,
+  as the host's own changes are). Those parameters are inputs, not settings — JUCE
+  plug-ins expose about 2 000 "MIDI CC" ones — so the VST3 backend now reports them hidden
+  and read-only: the generic editor does not list them and a project does not store them.
 - **Values and gestures** share the insert's machinery, extracted from `HostedUnit` into
   `unit::ParamSync`: snapshot values diffed without allocation, the no-echo rule, a
   gesture in the plug-in's window as one undo step.

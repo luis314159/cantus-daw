@@ -28,7 +28,11 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     swatches(sh, id, track.color);
     // An audio track plays no instrument: its input and its audio are what it is.
     if !crate::record_session::is_audio_track(track) {
-        let name = sheet::name(sh.fmt.tr(track.instrument.name_key()));
+        // A hosted instrument goes by its own name (ADR 0028), not the word "Plug-in".
+        let name = match track.instrument.external() {
+            Some(p) => sheet::name(&p.name),
+            None => sheet::name(sh.fmt.tr(track.instrument.name_key())),
+        };
         sh.menu_row("inspector.title", &name, MenuId::Instrument(id), false);
     }
     sh.param_row(
