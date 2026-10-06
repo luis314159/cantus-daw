@@ -109,13 +109,16 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         own.as_deref(),
         n,
     );
+    // Placed from its own height (last frame's), so its rows stay where they were drawn.
+    let h = app.audio_setup.pop_h.max(200.0 * k);
+    let top_left = Pos2::new(
+        (anchor.x - WIDTH * k).max(screen.left() + 4.0),
+        (anchor.y - h).max(screen.top() + 4.0),
+    );
     let area = egui::Area::new(Id::new("cantus-audio-popover"))
         .order(egui::Order::Foreground)
-        .pivot(Align2::RIGHT_BOTTOM)
-        .fixed_pos(anchor)
-        .constrain(true)
+        .fixed_pos(top_left)
         .show(ctx, |ui| {
-            let h = app.audio_setup.pop_h.max(200.0 * k);
             let rect = Rect::from_min_size(ui.max_rect().min, Vec2::new(WIDTH * k, h));
             ui.set_min_size(rect.size());
             parts::panel(ui, rect, &s);
