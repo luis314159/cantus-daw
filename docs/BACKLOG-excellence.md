@@ -234,7 +234,7 @@ language — our DAW has Christian values."* (The project's motto is Colossians 
   when the GPL lets others sell copies — ask SBU/ABS in writing, or keep the verse file as
   separately licensed data that downstream sellers must drop; (2) the same terms for the
   other locales' modern translations; (3) read the terms on the publisher's own page, not
-  only a search excerpt. Until a written answer, ship RV1909.
+  only a search excerpt. **Decision (owner, 2026-10-05, later the same day): ship the RVR1960** under its quotation allowance — under 500 verses (aim 200–300), the acknowledgement in About and *RVR1960* after each reference — with the public-domain RV1909 kept as a selectable fallback. A written confirmation from SBU/ABS about the non-commercial clause is still worth asking for.
 - **On by default, with an On/Off switch** (decided by the owner, 2026-10-05: *"so someone
   who does not share our beliefs and is bothered by it can turn it off — but ON by
   default"*): Settings ▸ General ▸ *Show a verse at start*, plus a small *don't show* link
