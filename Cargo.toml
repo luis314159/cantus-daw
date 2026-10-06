@@ -19,6 +19,8 @@ members = [
     "crates/cantus-bench",
     "xtask",
 ]
+# The patched cpal and asio-sys (ASIO duplex; see third_party/README.md) are not members.
+exclude = ["third_party"]
 # `cargo build` and `cargo run` at the root build the DAW only, as before: the exported
 # plug-ins (ADR 0020) are built on purpose, with `cargo run -p xtask -- bundle`.
 default-members = [
@@ -117,3 +119,9 @@ debug = 0
 [profile.bench]
 inherits = "release"
 debug = true
+
+# cpal 0.18.2 and asio-sys 0.4.0 with Cantus's ASIO fixes (third_party/README.md says
+# exactly what changed and why; both Apache-2.0). Drop these lines once upstream has them.
+[patch.crates-io]
+cpal = { path = "third_party/cpal" }
+asio-sys = { path = "third_party/asio-sys" }

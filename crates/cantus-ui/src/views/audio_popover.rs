@@ -178,9 +178,15 @@ fn header(app: &mut CantusApp, ui: &mut Ui, live: &Live, key: Option<&str>) {
         );
     }
     let state = match health {
+        super::audio_chip::Health::Good
+            if live.device_state() == cantus_engine::DeviceState::Starting =>
+        {
+            t("devices.state.starting")
+        }
         super::audio_chip::Health::Good => t("devices.state.good"),
         super::audio_chip::Health::Warn => t("devices.state.warn"),
         super::audio_chip::Health::Lost => t("devices.state.lost"),
+        super::audio_chip::Health::Stalled => t("devices.state.stalled"),
     };
     with_brush(ui.painter(), |b| {
         let pic = Rect::from_min_size(rect.min, Vec2::new(84.0 * k, rect.height()));

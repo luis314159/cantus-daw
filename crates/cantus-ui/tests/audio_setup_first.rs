@@ -65,7 +65,7 @@ fn a_first_time_musician_is_armed_on_the_guitar_in_three_clicks() {
     assert_eq!(a.settings.audio.device.as_deref(), Some(demo::UMC_OUT));
     assert_eq!(
         a.settings.audio.buffer_frames,
-        Some(if cantus_engine::devices::ASIO_BUILT {
+        Some(if cantus_engine::devices::asio_built() {
             128
         } else {
             256

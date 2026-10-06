@@ -31,7 +31,7 @@ pub mod transport;
 
 pub use automation::Runtime as AutomationRuntime;
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
-pub use devices::{DeviceLatency, DriverInfo, InputDeviceInfo};
+pub use devices::{DeviceLatency, DeviceState, DriverInfo, InputDeviceInfo};
 pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed};
 pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
 pub use inst::{

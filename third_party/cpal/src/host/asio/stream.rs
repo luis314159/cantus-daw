@@ -99,7 +99,13 @@ impl Stream {
     }
 
     pub fn play(&self) -> Result<(), Error> {
+        // CANTUS PATCH: building a stream no longer starts the driver. The first `play`
+        // creates the buffers of every direction built so far in one `ASIOCreateBuffers`
+        // and calls `ASIOStart` once, so a duplex pair never stops, disposes and re-creates
+        // a running driver's buffers (which many drivers do not survive).
+        start_driver(&self.driver, &self.asio_streams)?;
         StreamState::Playing.store(&self.state, Ordering::Release);
+        trace(|| "stream playing".into());
         Ok(())
     }
 
@@ -172,7 +178,8 @@ impl Device {
         }
 
         let num_channels = config.channels;
-        let buffer_size = self.get_or_create_input_stream(&driver, config, sample_format)?;
+        let (buffer_size, was_running) =
+            self.get_or_create_stream(&driver, config, sample_format, true)?;
         let cpal_num_samples = buffer_size * num_channels as usize;
 
         // Create the buffer depending on the size of the data type.
@@ -190,6 +197,9 @@ impl Device {
         ));
 
         let state = Arc::new(AtomicU8::new(StreamState::Starting as u8));
+        // CANTUS PATCH: set by the first buffer callback (see `add_event_callback`).
+        let streaming = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let streaming_cb = Arc::clone(&streaming);
         let driver_event_callback_id = self
             .add_event_callback(
                 &driver,
@@ -197,6 +207,7 @@ impl Device {
                 Arc::clone(&hardware_input_latency),
                 true,
                 Arc::clone(&state),
+                Arc::clone(&streaming),
             )
             .inspect_err(|_| {
                 // Roll back the input stream stored by get_or_create_input_stream.
@@ -209,13 +220,24 @@ impl Device {
         let asio_streams = driver.streams();
         let mut current_buffer_size = buffer_size as i32;
         let mut last_buffer_index: i32 = -1;
+        let mut traced_first = false;
 
         let time_base = Arc::new(TimeBase::default());
         let time_base_cb = Arc::clone(&time_base);
 
         // Set the input callback.
         // This is most performance critical part of the ASIO bindings.
+        let mut raw_calls = 0u32;
         let callback_id = driver.add_callback(move |callback_info| unsafe {
+            // CANTUS PATCH: the driver delivers buffers (whatever this stream's state).
+            if !streaming_cb.load(Ordering::Relaxed) {
+                streaming_cb.store(true, Ordering::Release);
+            }
+            if raw_calls < 8 {
+                raw_calls += 1;
+                let index = callback_info.buffer_index;
+                trace(|| format!("bufferSwitch #{raw_calls}: index {index}"));
+            }
             // If not playing, return early.
             if StreamState::load(&state_cb, Ordering::Acquire) != StreamState::Playing {
                 return;
@@ -228,6 +250,10 @@ impl Device {
                 return;
             }
             last_buffer_index = callback_info.buffer_index;
+            if !traced_first {
+                traced_first = true;
+                trace(|| "first buffer callback".into());
+            }
 
             // There is 0% chance of lock contention the host only locks when recreating streams.
             let stream_lock = asio_streams.lock().unwrap();
@@ -439,13 +465,17 @@ impl Device {
         let driver = Arc::new(driver);
         let asio_streams = driver.streams();
 
-        if let Err(e) = driver.start() {
-            driver.remove_event_callback(driver_event_callback_id);
-            driver.remove_callback(callback_id);
-            if let Ok(mut streams) = asio_streams.lock() {
-                streams.input = None;
+        // CANTUS PATCH: restart a driver this build stopped (another stream was playing on
+        // it); otherwise `play` starts it, once every direction is built.
+        if was_running {
+            if let Err(e) = driver.start() {
+                driver.remove_event_callback(driver_event_callback_id);
+                driver.remove_callback(callback_id);
+                if let Ok(mut streams) = asio_streams.lock() {
+                    streams.input = None;
+                }
+                return Err(build_stream_err(e));
             }
-            return Err(build_stream_err(e));
         }
 
         StreamState::Paused.store(&state, Ordering::Release);
@@ -509,7 +539,8 @@ impl Device {
         }
 
         let num_channels = config.channels;
-        let buffer_size = self.get_or_create_output_stream(&driver, config, sample_format)?;
+        let (buffer_size, was_running) =
+            self.get_or_create_stream(&driver, config, sample_format, false)?;
         let cpal_num_samples = buffer_size * num_channels as usize;
 
         // Create the buffer depending on data type.
@@ -528,6 +559,9 @@ impl Device {
         ));
 
         let state = Arc::new(AtomicU8::new(StreamState::Starting as u8));
+        // CANTUS PATCH: set by the first buffer callback (see `add_event_callback`).
+        let streaming = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let streaming_cb = Arc::clone(&streaming);
         let driver_event_callback_id = self
             .add_event_callback(
                 &driver,
@@ -535,6 +569,7 @@ impl Device {
                 Arc::clone(&hardware_output_latency),
                 false,
                 Arc::clone(&state),
+                Arc::clone(&streaming),
             )
             .inspect_err(|_| {
                 // Roll back the output stream stored by get_or_create_output_stream.
@@ -547,11 +582,22 @@ impl Device {
         let asio_streams = driver.streams();
         let mut current_buffer_size = buffer_size as i32;
         let mut last_buffer_index: i32 = -1;
+        let mut traced_first = false;
 
         let time_base = Arc::new(TimeBase::default());
         let time_base_cb = Arc::clone(&time_base);
 
+        let mut raw_calls = 0u32;
         let callback_id = driver.add_callback(move |callback_info| unsafe {
+            // CANTUS PATCH: the driver delivers buffers (whatever this stream's state).
+            if !streaming_cb.load(Ordering::Relaxed) {
+                streaming_cb.store(true, Ordering::Release);
+            }
+            if raw_calls < 8 {
+                raw_calls += 1;
+                let index = callback_info.buffer_index;
+                trace(|| format!("bufferSwitch #{raw_calls}: index {index}"));
+            }
             // If not playing, return early.
             if StreamState::load(&state_cb, Ordering::Acquire) != StreamState::Playing {
                 return;
@@ -564,6 +610,10 @@ impl Device {
                 return;
             }
             last_buffer_index = callback_info.buffer_index;
+            if !traced_first {
+                traced_first = true;
+                trace(|| "first buffer callback".into());
+            }
 
             // There is 0% chance of lock contention the host only locks when recreating streams.
             let mut stream_lock = asio_streams.lock().unwrap();
@@ -826,13 +876,17 @@ impl Device {
         let driver = Arc::new(driver);
         let asio_streams = driver.streams();
 
-        if let Err(e) = driver.start() {
-            driver.remove_event_callback(driver_event_callback_id);
-            driver.remove_callback(callback_id);
-            if let Ok(mut streams) = asio_streams.lock() {
-                streams.output = None;
+        // CANTUS PATCH: restart a driver this build stopped (another stream was playing on
+        // it); otherwise `play` starts it, once every direction is built.
+        if was_running {
+            if let Err(e) = driver.start() {
+                driver.remove_event_callback(driver_event_callback_id);
+                driver.remove_callback(callback_id);
+                if let Ok(mut streams) = asio_streams.lock() {
+                    streams.output = None;
+                }
+                return Err(build_stream_err(e));
             }
-            return Err(build_stream_err(e));
         }
 
         StreamState::Paused.store(&state, Ordering::Release);
@@ -846,92 +900,109 @@ impl Device {
         })
     }
 
-    /// Create a new CPAL Input Stream.
+    /// Register this direction on the driver. CANTUS PATCH (replaces cpal's
+    /// `get_or_create_input_stream` / `get_or_create_output_stream`).
     ///
-    /// If there is no existing ASIO Input Stream it will be created.
+    /// On a driver that is not running, the direction is only *recorded* (channels and
+    /// buffer size); `Stream::play` creates the buffers of every recorded direction in one
+    /// `ASIOCreateBuffers` before the driver's first `ASIOStart`. On a running driver (a
+    /// stream added while another plays) the driver is stopped **before** the streams'
+    /// lock is taken — the buffer callbacks take that lock, and `ASIOStop` waits for the
+    /// callback in progress, so stopping under the lock could deadlock or hang the driver —
+    /// then both directions are created at once, and the caller restarts it.
     ///
-    /// On success, the buffer size of the stream is returned.
-    fn get_or_create_input_stream(
+    /// Returns the buffer size and whether the driver was running (stopped here).
+    fn get_or_create_stream(
         &self,
         driver: &sys::Driver,
         config: StreamConfig,
         sample_format: SampleFormat,
-    ) -> Result<usize, Error> {
-        let num_asio_channels = self.default_input_config()?.channels;
+        is_input: bool,
+    ) -> Result<(usize, bool), Error> {
+        let num_asio_channels = if is_input {
+            self.default_input_config()?.channels
+        } else {
+            self.default_output_config()?.channels
+        };
         check_config(driver, config, sample_format, num_asio_channels)?;
         let num_channels = config.channels as usize;
-        let asio_streams = driver.streams();
-        let mut streams = asio_streams.lock().map_err(|_| {
-            Error::with_message(ErrorKind::StreamInvalidated, "Stream lock poisoned")
-        })?;
-
-        let buffer_size = match config.buffer_size {
+        let requested = match config.buffer_size {
             BufferSize::Fixed(v) => Some(v as i32),
             BufferSize::Default => None,
         };
 
-        // Either create a stream if thers none or had back the
-        // size of the current one.
-        match streams.input {
-            Some(ref input) => Ok(input.buffer_size as usize),
-            None => {
-                let output = streams.output.take();
-                driver
-                    .prepare_input_stream(output, num_channels, buffer_size)
-                    .map(|new_streams| {
-                        let bs = match new_streams.input {
-                            Some(ref inp) => inp.buffer_size as usize,
-                            None => unreachable!(),
-                        };
-                        *streams = new_streams;
-                        bs
-                    })
-                    .map_err(build_stream_err)
-            }
+        let was_running = driver.is_running();
+        if was_running {
+            trace(|| "stopping the running driver to add a direction".into());
+            driver.stop().map_err(build_stream_err)?;
         }
-    }
-
-    /// Create a new CPAL Output Stream.
-    ///
-    /// If there is no existing ASIO Output Stream it will be created.
-    fn get_or_create_output_stream(
-        &self,
-        driver: &sys::Driver,
-        config: StreamConfig,
-        sample_format: SampleFormat,
-    ) -> Result<usize, Error> {
-        let num_asio_channels = self.default_output_config()?.channels;
-        check_config(driver, config, sample_format, num_asio_channels)?;
-        let num_channels = config.channels as usize;
         let asio_streams = driver.streams();
         let mut streams = asio_streams.lock().map_err(|_| {
             Error::with_message(ErrorKind::StreamInvalidated, "Stream lock poisoned")
         })?;
-
-        let buffer_size = match config.buffer_size {
-            BufferSize::Fixed(v) => Some(v as i32),
-            BufferSize::Default => None,
+        let (mine, other) = if is_input {
+            (&streams.input, &streams.output)
+        } else {
+            (&streams.output, &streams.input)
         };
+        if let Some(existing) = mine {
+            return Ok((existing.buffer_size as usize, was_running));
+        }
 
-        // Either create a stream if thers none or had back the
-        // size of the current one.
-        match streams.output {
-            Some(ref output) => Ok(output.buffer_size as usize),
-            None => {
-                let input = streams.input.take();
-                driver
-                    .prepare_output_stream(input, num_channels, buffer_size)
-                    .map(|new_streams| {
-                        let bs = match new_streams.output {
-                            Some(ref out) => out.buffer_size as usize,
-                            None => unreachable!(),
-                        };
-                        *streams = new_streams;
-                        bs
-                    })
-                    .map_err(build_stream_err)
+        if was_running {
+            // Both directions now, in one ASIOCreateBuffers; the caller restarts the driver.
+            let other = if is_input {
+                streams.output.take()
+            } else {
+                streams.input.take()
+            };
+            let prepared = if is_input {
+                driver.prepare_input_stream(other, num_channels, requested)
+            } else {
+                driver.prepare_output_stream(other, num_channels, requested)
+            };
+            let new_streams = prepared.map_err(build_stream_err)?;
+            let size = if is_input {
+                new_streams.input.as_ref()
+            } else {
+                new_streams.output.as_ref()
+            }
+            .map(|s| s.buffer_size)
+            .expect("the direction just created");
+            *streams = new_streams;
+            return Ok((size as usize, true));
+        }
+
+        // Recorded only: one size for both directions (one ASIOCreateBuffers has one).
+        let size = match requested {
+            Some(v) => v,
+            None => match other {
+                Some(o) => o.buffer_size,
+                None => preferred_buffer_size(driver)?,
+            },
+        };
+        let pending = sys::AsioStream {
+            buffer_infos: pending_buffer_infos(is_input, num_channels),
+            buffer_size: size,
+        };
+        if is_input {
+            streams.input = Some(pending);
+            if let Some(o) = streams.output.as_mut() {
+                o.buffer_size = size;
+            }
+        } else {
+            streams.output = Some(pending);
+            if let Some(i) = streams.input.as_mut() {
+                i.buffer_size = size;
             }
         }
+        trace(|| {
+            format!(
+                "{} recorded: {num_channels} ch, buffer {size} (created on play)",
+                if is_input { "input" } else { "output" }
+            )
+        });
+        Ok((size as usize, false))
     }
 
     fn add_event_callback<E>(
@@ -941,6 +1012,7 @@ impl Device {
         hardware_latency: Arc<AtomicU32>,
         is_input: bool,
         state: Arc<AtomicU8>,
+        streaming: Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<sys::DriverEventCallbackId, Error>
     where
         E: FnMut(Error) + Send + 'static,
@@ -997,6 +1069,14 @@ impl Device {
             })?;
 
         Ok(driver.add_event_callback(move |event| {
+            trace(|| {
+                format!(
+                    "driver event {event:?} ({} stream, state {}, buffers flowing {})",
+                    if is_input { "input" } else { "output" },
+                    state.load(Ordering::Acquire),
+                    streaming.load(Ordering::Acquire)
+                )
+            });
             match event {
                 sys::AsioDriverEvent::Message {
                     selector: msg,
@@ -1013,7 +1093,12 @@ impl Device {
                     sys::AsioMessageSelectors::kAsioResetRequest => {
                         // Guard on Starting: some USB ASIO drivers (ASIO4ALL, Focusrite, etc.)
                         // fire spurious reset/resync requests during driver.start().
-                        if StreamState::load(&state, Ordering::Acquire) != StreamState::Starting {
+                        // CANTUS PATCH: and until the driver's first buffer: ASIO4ALL v2 sends
+                        // one ~0.7 s after ASIOStart, before its first buffer (~1.1 s), then
+                        // streams steadily — it is part of its start-up, not a request.
+                        if StreamState::load(&state, Ordering::Acquire) != StreamState::Starting
+                            && streaming.load(Ordering::Acquire)
+                        {
                             let _ = timer_tx.send(Error::with_message(
                                 ErrorKind::StreamInvalidated,
                                 "Stream reset was requested by the ASIO driver",
@@ -1024,8 +1109,11 @@ impl Device {
                     sys::AsioMessageSelectors::kAsioResyncRequest => {
                         // Per the ASIO spec (and matching JUCE's behavior), kAsioResyncRequest
                         // means the driver needs a full stop/reinit/start. It is *not* a simple
-                        // xrun notification.
-                        if StreamState::load(&state, Ordering::Acquire) != StreamState::Starting {
+                        // xrun notification. CANTUS PATCH: ignored before the first buffer,
+                        // as the reset request above.
+                        if StreamState::load(&state, Ordering::Acquire) != StreamState::Starting
+                            && streaming.load(Ordering::Acquire)
+                        {
                             let _ = timer_tx.send(Error::with_message(
                                 ErrorKind::StreamInvalidated,
                                 "Stream resynchronization was requested by the ASIO driver",
@@ -1097,6 +1185,88 @@ impl Drop for Stream {
         self.driver.remove_callback(self.callback_id);
         self.driver
             .remove_event_callback(self.driver_event_callback_id);
+    }
+}
+
+/// CANTUS PATCH: buffer infos for a direction whose buffers are not created yet (null
+/// pointers until `ASIOCreateBuffers` fills them).
+fn pending_buffer_infos(is_input: bool, channels: usize) -> Vec<sys::AsioBufferInfo> {
+    (0..channels)
+        .map(|ch| sys::AsioBufferInfo {
+            is_input: is_input as i32,
+            channel_num: ch as i32,
+            buffers: [std::ptr::null_mut(); 2],
+        })
+        .collect()
+}
+
+/// CANTUS PATCH: whether a direction is recorded but its buffers not created yet.
+fn is_pending(stream: &Option<sys::AsioStream>) -> bool {
+    stream.as_ref().is_some_and(|s| {
+        s.buffer_infos
+            .first()
+            .is_none_or(|b| ({ b.buffers })[0].is_null())
+    })
+}
+
+/// CANTUS PATCH: the size the driver prefers (what `ASIOCreateBuffers` gets by default).
+fn preferred_buffer_size(driver: &sys::Driver) -> Result<i32, Error> {
+    let range = driver.buffersize_range().map_err(build_stream_err)?;
+    Ok(match range.preferred {
+        sys::BufferPreference::Only(v)
+        | sys::BufferPreference::Preferred(v)
+        | sys::BufferPreference::Stepped { preferred: v, .. } => v as i32,
+    })
+}
+
+/// CANTUS PATCH: create the buffers of every recorded direction together (one
+/// `ASIOCreateBuffers`) if any is still pending, then start the driver (`ASIOStart`; a
+/// no-op when it runs). Called by `Stream::play`.
+fn start_driver(
+    driver: &sys::Driver,
+    asio_streams: &Arc<Mutex<sys::AsioStreams>>,
+) -> Result<(), Error> {
+    if driver.is_running() {
+        return Ok(());
+    }
+    {
+        let mut streams = asio_streams.lock().map_err(|_| {
+            Error::with_message(ErrorKind::StreamInvalidated, "Stream lock poisoned")
+        })?;
+        if is_pending(&streams.input) || is_pending(&streams.output) {
+            let input = streams.input.take();
+            let output = streams.output.take();
+            let (ins, outs) = (
+                input.as_ref().map_or(0, |s| s.buffer_infos.len()),
+                output.as_ref().map_or(0, |s| s.buffer_infos.len()),
+            );
+            let size = input
+                .as_ref()
+                .or(output.as_ref())
+                .map(|s| s.buffer_size)
+                .expect("a pending direction");
+            trace(|| format!("ASIOCreateBuffers: {ins} in + {outs} out, buffer {size}"));
+            let created = match input {
+                Some(_) => driver.prepare_input_stream(output, ins, Some(size)),
+                None => driver.prepare_output_stream(None, outs, Some(size)),
+            }
+            .map_err(build_stream_err)?;
+            *streams = created;
+        }
+    }
+    trace(|| "ASIOStart".into());
+    driver.start().map_err(build_stream_err)
+}
+
+/// CANTUS PATCH: `CPAL_ASIO_TRACE=1` prints what the host does with the driver and every
+/// message the driver sends, with the time since the first trace (diagnosis only).
+pub(super) fn trace(message: impl FnOnce() -> String) {
+    use std::sync::OnceLock;
+    static ON: OnceLock<Option<std::time::Instant>> = OnceLock::new();
+    if let Some(t0) = ON.get_or_init(|| {
+        std::env::var_os("CPAL_ASIO_TRACE").map(|_| std::time::Instant::now())
+    }) {
+        eprintln!("[cpal-asio {:>8.3} s] {}", t0.elapsed().as_secs_f64(), message());
     }
 }
 

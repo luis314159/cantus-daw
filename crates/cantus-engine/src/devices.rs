@@ -13,8 +13,19 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// Whether this build can open ASIO drivers (the `asio` feature, Windows only).
-pub const ASIO_BUILT: bool = cfg!(all(windows, feature = "asio"));
+/// Whether this build can open ASIO drivers: built with the `asio` feature (Windows) **and**
+/// with the Steinberg SDK linked (round 21: without the SDK the patched `asio-sys` builds
+/// stub bindings and cpal does not offer the ASIO host). Every released build has it
+/// (`xtask package` refuses to build without it); a developer build may not.
+pub fn asio_built() -> bool {
+    static BUILT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *BUILT.get_or_init(|| {
+        cfg!(all(windows, feature = "asio"))
+            && cpal::available_hosts()
+                .iter()
+                .any(|id| id.name().eq_ignore_ascii_case("ASIO"))
+    })
+}
 
 /// A driver type the machine offers, by cpal's host name ("WASAPI", "ASIO").
 #[derive(Clone, Debug, PartialEq)]
@@ -355,9 +366,20 @@ pub struct DeviceTelemetry {
     pub output_callbacks: AtomicU64,
     /// While set, the input goes to the loopback probe's ring instead of the processor's.
     pub probing: AtomicBool,
-    /// A stream reported that its device is gone or its stream must be rebuilt
-    /// (unplugged, or the driver reset): the device is lost until it is opened again.
+    /// A stream reported that its device is gone (unplugged, the driver unloaded): the
+    /// device is lost until it is opened again.
     pub stream_lost: AtomicBool,
+    /// A stream reported that it must be rebuilt while its device is still there: an ASIO
+    /// driver asked for a reset or a resync, or changed its rate; WASAPI invalidated the
+    /// stream's resources (the format changed in Windows' settings). Reopening the same
+    /// device fixes it (round 21).
+    pub restart_requested: AtomicBool,
+    /// Frames in the output's last callback: the buffer the driver really runs.
+    pub output_frames: AtomicU32,
+    /// When each stream last called back (round 21): a driver that stops calling back is
+    /// told from one that is slow to start, whatever the UI's frame rate.
+    pub output_beat: Beat,
+    pub input_beat: Beat,
     /// Underruns and overruns the driver reported (cpal's `Xrun`): dropouts.
     pub xruns: AtomicU64,
     /// When the input's last buffer arrived, and how long it was: what the processor and
@@ -425,6 +447,107 @@ pub fn queue_wait(avail: f64, block: f64, clock: Option<(f64, f64)>) -> f64 {
     avail - b_in + age
 }
 
+/// When a stream last called back, on a monotonic clock. Written by the callback (one
+/// atomic store; `Instant::now` reads QPC — no lock, no allocation), read by the UI.
+#[derive(Debug)]
+pub struct Beat {
+    base: std::time::Instant,
+    /// Nanoseconds from `base` to the last callback, plus one (0: none yet).
+    last: AtomicU64,
+}
+
+impl Default for Beat {
+    fn default() -> Self {
+        Beat {
+            base: std::time::Instant::now(),
+            last: AtomicU64::new(0),
+        }
+    }
+}
+
+impl Beat {
+    /// A callback ran now.
+    pub fn tick(&self) {
+        let ns = self.base.elapsed().as_nanos() as u64;
+        self.last.store(ns.saturating_add(1), Ordering::Release);
+    }
+
+    /// How long ago the last callback ran; `None` before the first.
+    pub fn since(&self) -> Option<std::time::Duration> {
+        let last = self.last.load(Ordering::Acquire);
+        (last != 0).then(|| {
+            self.base
+                .elapsed()
+                .saturating_sub(std::time::Duration::from_nanos(last - 1))
+        })
+    }
+}
+
+/// How long a device that has just opened may take to call back the first time before it
+/// counts as stalled. ASIO4ALL took over a second here (it opens kernel streaming first).
+pub const START_GRACE: std::time::Duration = std::time::Duration::from_secs(4);
+/// No callback for this long, once running: the driver stopped responding.
+pub const STALL_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The state of the open device, as the UI says it (round 21). Only [`DeviceState::Lost`]
+/// means the device is gone; a driver that stopped calling back or asked to be reset is
+/// still there, and restarting the audio is the cure.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum DeviceState {
+    /// No device open (a dummy or manual handle).
+    #[default]
+    Off,
+    /// Opened, waiting for the first callback (within [`START_GRACE`]).
+    Starting,
+    Running,
+    /// The driver stopped calling back (or never started) while the device is present.
+    Stalled,
+    /// The driver asked for its streams to be rebuilt (an ASIO reset request, a rate it
+    /// changed, WASAPI's invalidated stream).
+    RestartRequested,
+    /// The device is gone (unplugged, its driver unloaded).
+    Lost,
+}
+
+impl DeviceState {
+    /// Whether nothing is heard in this state.
+    pub fn is_silent(self) -> bool {
+        matches!(
+            self,
+            DeviceState::Stalled | DeviceState::RestartRequested | DeviceState::Lost
+        )
+    }
+}
+
+/// What the device's state is, from what the streams reported: gone, asked to restart,
+/// and how long ago each direction last called back (`input`: `None` when no input is
+/// open, `Some(None)` when it is open but has not called back). Pure, for the tests.
+pub fn classify(
+    lost: bool,
+    restart: bool,
+    since_open: std::time::Duration,
+    output: Option<std::time::Duration>,
+    input: Option<Option<std::time::Duration>>,
+) -> DeviceState {
+    if lost {
+        return DeviceState::Lost;
+    }
+    if restart {
+        return DeviceState::RestartRequested;
+    }
+    let stalled = |since: Option<std::time::Duration>| match since {
+        None => since_open >= START_GRACE,
+        Some(d) => d > STALL_AFTER,
+    };
+    if stalled(output) || input.is_some_and(stalled) {
+        DeviceState::Stalled
+    } else if output.is_none() {
+        DeviceState::Starting
+    } else {
+        DeviceState::Running
+    }
+}
+
 impl DeviceTelemetry {
     pub fn input_latency(&self) -> u32 {
         self.input_latency.load(Ordering::Relaxed)
@@ -436,15 +559,22 @@ impl DeviceTelemetry {
 
 /// What a stream's error callback does: log it, and count what the UI shows — a device
 /// that is gone (lost), an xrun (a dropout). Atomics only; the callback never blocks.
-pub(crate) fn stream_error(telemetry: &DeviceTelemetry, e: &cpal::Error, which: &str) {
+pub fn stream_error(telemetry: &DeviceTelemetry, e: &cpal::Error, which: &str) {
     use cpal::ErrorKind as K;
     match e.kind() {
         K::Xrun => {
             telemetry.xruns.fetch_add(1, Ordering::Relaxed);
         }
-        K::DeviceNotAvailable | K::StreamInvalidated | K::HostUnavailable => {
+        K::DeviceNotAvailable | K::HostUnavailable => {
             telemetry.stream_lost.store(true, Ordering::Release);
             log::error!("audio {which} lost: {e}");
+        }
+        // The device is still there; its stream must be built again (an ASIO reset
+        // request, a rate the driver changed, WASAPI's invalidated resources). Not "lost":
+        // the UI restarts the audio instead of saying the interface was disconnected.
+        K::StreamInvalidated => {
+            telemetry.restart_requested.store(true, Ordering::Release);
+            log::warn!("audio {which} needs a restart: {e}");
         }
         _ => log::error!("audio {which} error: {e}"),
     }
@@ -509,6 +639,7 @@ impl InputSink {
         self.telemetry
             .input_callbacks
             .fetch_add(1, Ordering::Relaxed);
+        self.telemetry.input_beat.tick();
         let ring = if self.telemetry.probing.load(Ordering::Acquire) {
             &mut self.probe
         } else {
@@ -548,13 +679,14 @@ pub(crate) struct InputRings {
 }
 
 impl InputPlan {
-    /// Start the input stream, its callback feeding the rings.
-    pub fn start(
+    /// Build the input stream, its callback feeding the rings. It is started by the
+    /// caller, after the output's is built (round 21: both directions are built before
+    /// either starts, so an ASIO driver prepares both at once).
+    pub fn build(
         self,
         telemetry: &Arc<DeviceTelemetry>,
         rate: u32,
     ) -> Result<cpal::Stream, String> {
-        use cpal::traits::StreamTrait;
         let name = self.name;
         let sink = InputSink {
             ring: self.ring,
@@ -564,11 +696,55 @@ impl InputPlan {
             latency: Smoothed::default(),
             channels: self.channels,
         };
-        let stream = build_input(&self.device, &self.supported, self.buffer, sink)
-            .map_err(|e| format!("{name}: {e}"))?;
-        stream.play().map_err(|e| format!("{name}: {e}"))?;
-        log::info!("audio input: {name} @ {rate} Hz, {} ch", self.channels);
-        Ok(stream)
+        build_input(&self.device, &self.supported, self.buffer, sink)
+            .map_err(|e| format!("{name}: {e}"))
+    }
+}
+
+/// The output's rate: the one asked for when the device can run at it, else the device's
+/// own — and on ASIO, which refuses a rate it does not offer, the rate asked for when it
+/// is refused (shown to the user). A device that reports no rate yet (Realtek's ASIO
+/// before it runs) gets 48 kHz, or 44.1, or the highest it offers.
+pub(crate) fn output_rate(
+    host: &cpal::Host,
+    device: &cpal::Device,
+    default: &cpal::SupportedStreamConfig,
+    asked: Option<u32>,
+) -> (u32, Option<u32>) {
+    let ranges: Vec<cpal::SupportedStreamConfigRange> = device
+        .supported_output_configs()
+        .map(|it| it.collect())
+        .unwrap_or_default();
+    let offers = |r: u32| ranges.is_empty() || ranges.iter().any(|c| c.contains_rate(r));
+    let own = if default.sample_rate() > 0 {
+        default.sample_rate()
+    } else {
+        [48_000, 44_100]
+            .into_iter()
+            .find(|r| offers(*r))
+            .or_else(|| ranges.iter().map(|c| c.max_sample_rate()).max())
+            .unwrap_or(48_000)
+    };
+    match asked {
+        // WASAPI converts a rate its mix format does not run at; only ASIO refuses.
+        Some(r) if !is_asio(host) || offers(r) => (r, None),
+        Some(r) => (own, Some(r)),
+        None => (own, None),
+    }
+}
+
+/// The buffer to ask the driver for: the size asked when the device can take it, else the
+/// driver's own (which the handle reads back, [`crate::EngineHandle::device_buffer`]).
+pub(crate) fn buffer_request(
+    asked: Option<u32>,
+    supported: &cpal::SupportedBufferSize,
+) -> cpal::BufferSize {
+    match (asked, supported) {
+        (Some(n), cpal::SupportedBufferSize::Range { min, max }) if (*min..=*max).contains(&n) => {
+            cpal::BufferSize::Fixed(n)
+        }
+        (Some(n), cpal::SupportedBufferSize::Unknown) => cpal::BufferSize::Fixed(n),
+        _ => cpal::BufferSize::Default,
     }
 }
 
@@ -578,14 +754,20 @@ pub(crate) fn ring_frames(buffer_frames: Option<u32>) -> usize {
     (buffer_frames.unwrap_or(1024) as usize * 8).max(16_384)
 }
 
-/// The input device the configuration names: `None` the driver's default (on ASIO the
-/// output device itself when it records, so one driver serves both directions),
-/// `Some("")` none at all, a name that is gone the default.
+/// The input device the configuration names: `None` the driver's default, `Some("")` none
+/// at all, a name that is gone the default. On ASIO, which runs one driver at a time, the
+/// input is always the output's driver (when it records) — a different name cannot open.
 pub(crate) fn pick_input(
     host: &cpal::Host,
     config: &AudioConfig,
     output: &cpal::Device,
 ) -> Option<cpal::Device> {
+    if is_asio(host) {
+        return match config.input_device_name.as_deref() {
+            Some("") => None,
+            _ => output.supports_input().then(|| output.clone()),
+        };
+    }
     match config.input_device_name.as_deref() {
         Some("") => None,
         Some(name) => host
@@ -593,13 +775,31 @@ pub(crate) fn pick_input(
             .ok()
             .and_then(|mut it| it.find(|d| name_of(d).as_deref() == Some(name)))
             .or_else(|| host.default_input_device()),
-        None => {
-            if is_asio(host) && output.supports_input() {
-                Some(output.clone())
-            } else {
-                host.default_input_device()
-            }
-        }
+        None => host.default_input_device(),
+    }
+}
+
+/// The output device the configuration names (`None`: the driver's default). On ASIO only
+/// the driver named is loaded — never the others, so an unplugged interface's driver is
+/// not touched on the way (the patched cpal's `device_by_id`) — and a driver that does not
+/// load is an error, not a quiet switch to another driver. Elsewhere a name that is gone
+/// falls back to the default.
+pub(crate) fn pick_output(host: &cpal::Host, name: Option<&str>) -> Result<cpal::Device, String> {
+    match name {
+        Some(name) if is_asio(host) => host
+            .device_by_id(&cpal::DeviceId::new(host.id(), name))
+            .ok_or_else(|| {
+                format!("the ASIO driver {name} did not load (is its interface connected?)")
+            }),
+        Some(name) => host
+            .output_devices()
+            .map_err(|e| e.to_string())?
+            .find(|d| name_of(d).as_deref() == Some(name))
+            .or_else(|| host.default_output_device())
+            .ok_or_else(|| "no output device".to_string()),
+        None => host
+            .default_output_device()
+            .ok_or_else(|| "no output device".to_string()),
     }
 }
 
@@ -761,8 +961,13 @@ pub(crate) struct HandleDevices {
     pub probe_back: Option<rtrb::Consumer<Box<crate::loopback::Probe>>>,
     /// When the running probe was sent.
     pub probe_sent: Option<std::time::Instant>,
-    /// The output callbacks counted at the last poll that saw them move, and when.
-    pub out_seen: (u64, Option<std::time::Instant>),
+    /// When the streams were opened (the start grace counts from here).
+    pub opened: Option<std::time::Instant>,
+    /// The buffer the output stream reported when it opened (ASIO: what the driver
+    /// created, which the driver may dictate), before any callback says.
+    pub stream_buffer: Option<u32>,
+    /// The rate asked for when the device could not run at it and runs at its own.
+    pub rate_refused: Option<u32>,
     /// The output's routing, shared with its callback (round 20).
     pub routing: Option<Arc<crate::routing::OutputRouting>>,
 }
@@ -811,15 +1016,53 @@ impl crate::backend::EngineHandle {
             .map_or(0, |t| t.input_dropped.load(Ordering::Relaxed))
     }
 
-    /// Whether the output has stopped calling back for more than a second while open — a
-    /// driver that stalled (unplugged, or an ASIO driver that cannot run both directions).
+    /// The device's state now: running, starting, stalled, asked to restart, lost
+    /// (round 21). Read from the streams' own clocks, so a slow UI frame never makes a
+    /// running device look stalled.
+    pub fn device_state(&self) -> DeviceState {
+        let (Some(t), Some(opened)) = (self.dev.telemetry.as_ref(), self.dev.opened) else {
+            return DeviceState::Off;
+        };
+        if !self.is_live() {
+            return DeviceState::Off;
+        }
+        classify(
+            t.stream_lost.load(Ordering::Acquire),
+            t.restart_requested.load(Ordering::Acquire),
+            opened.elapsed(),
+            t.output_beat.since(),
+            (self.rec.input_channels > 0).then(|| t.input_beat.since()),
+        )
+    }
+
+    /// Whether the output (or the input) has stopped calling back while the device is
+    /// still there — a driver that stopped responding, not an unplugged interface.
     pub fn output_stalled(&self) -> bool {
-        self.is_live()
-            && self
-                .dev
-                .out_seen
-                .1
-                .is_some_and(|at| at.elapsed() > std::time::Duration::from_secs(1))
+        self.device_state() == DeviceState::Stalled
+    }
+
+    /// Whether the driver asked for its streams to be rebuilt (see [`DeviceState`]).
+    pub fn restart_requested(&self) -> bool {
+        self.device_state() == DeviceState::RestartRequested
+    }
+
+    /// The buffer the device really runs, in frames: the output's last callback, else what
+    /// the stream reported when it opened, else what was asked for. ASIO drivers often
+    /// dictate it (their control panel's setting), so it is read back, never assumed.
+    pub fn device_buffer(&self) -> Option<u32> {
+        self.dev
+            .telemetry
+            .as_ref()
+            .map(|t| t.output_frames.load(Ordering::Relaxed))
+            .filter(|n| *n > 0)
+            .or(self.dev.stream_buffer)
+            .or(self.dev.buffer_frames)
+    }
+
+    /// The rate asked for when the device could not run at it (it runs at
+    /// [`Self::sample_rate`] instead).
+    pub fn rate_refused(&self) -> Option<u32> {
+        self.dev.rate_refused
     }
 
     /// Callbacks so far on the input and the output streams (a stalled stream stands
@@ -836,10 +1079,6 @@ impl crate::backend::EngineHandle {
     /// Fold what the stream threads published into the handle. Called from `poll`.
     pub(crate) fn sync_devices(&mut self) {
         if let Some(t) = self.dev.telemetry.as_ref() {
-            let n = t.output_callbacks.load(Ordering::Relaxed);
-            if n != self.dev.out_seen.0 || self.dev.out_seen.1.is_none() {
-                self.dev.out_seen = (n, Some(std::time::Instant::now()));
-            }
             if self.rec.input_channels > 0 {
                 self.rec.set_input_latency(t.input_latency());
             }
@@ -870,10 +1109,14 @@ pub(crate) struct OutputDriver {
 }
 
 impl OutputDriver {
-    fn note_latency(&mut self, info: &cpal::OutputCallbackInfo) {
+    fn note_latency(&mut self, info: &cpal::OutputCallbackInfo, samples: usize) {
         self.telemetry
             .output_callbacks
             .fetch_add(1, Ordering::Relaxed);
+        self.telemetry
+            .output_frames
+            .store((samples / self.channels.max(1)) as u32, Ordering::Relaxed);
+        self.telemetry.output_beat.tick();
         let ts = info.timestamp();
         if let Some(d) = ts.playback.checked_duration_since(ts.callback) {
             self.latency
@@ -891,13 +1134,13 @@ impl OutputDriver {
 
     /// The callback for an `f32` device.
     pub fn render_f32(&mut self, data: &mut [f32], info: &cpal::OutputCallbackInfo) {
-        self.note_latency(info);
+        self.note_latency(info, data.len());
         self.fill(data);
     }
 
     /// The callback for any other format: render into the scratch, convert.
     pub fn render<T: OutputSample>(&mut self, data: &mut [T], info: &cpal::OutputCallbackInfo) {
-        self.note_latency(info);
+        self.note_latency(info, data.len());
         let mut scratch = std::mem::take(&mut self.scratch);
         let step = (scratch.len() / self.channels).max(1) * self.channels;
         for chunk in data.chunks_mut(step) {

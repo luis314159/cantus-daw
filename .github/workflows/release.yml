@@ -28,7 +28,10 @@ env:
   # NSIS 3.11, portable; SHA-256 as SourceForge lists it.
   NSIS_URL: https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip
   NSIS_SHA256: c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1
-  # The Steinberg ASIO SDK 2.3.4 (GPL-3-compatible); docs/round19/devices.md.
+  # The Steinberg ASIO SDK 2.3.4 (GPL-3-compatible). Every release has ASIO next to WASAPI
+  # (one edition, ADR 0025 §10): `xtask asio-sdk` fetches this zip into
+  # %LOCALAPPDATA%\cantus-build-tools and refuses it unless its SHA-256 is this one (pinned
+  # in xtask/src/asio_sdk.rs too; a test keeps the two equal). LLVM is on the runner.
   ASIO_URL: https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip
   ASIO_SHA256: d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca
 
@@ -41,6 +44,8 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      # The SDK first, so the workspace is built and tested with ASIO as it ships.
+      - run: cargo run -p xtask -- asio-sdk
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
         env:
@@ -76,17 +81,8 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           "CANTUS_MAKENSIS=$env:RUNNER_TEMP\nsis-3.11\makensis.exe" >> $env:GITHUB_ENV
 
-      - name: ASIO SDK (verified) and LLVM
-        shell: pwsh
-        run: |
-          $zip = "$env:RUNNER_TEMP\asiosdk.zip"
-          Invoke-WebRequest $env:ASIO_URL -OutFile $zip
-          $h = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          if ($h -ne $env:ASIO_SHA256) { throw "ASIO SDK zip hash $h" }
-          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\asio"
-          $sdk = Get-ChildItem "$env:RUNNER_TEMP\asio" -Recurse -Directory -Filter ASIOSDK | Select-Object -First 1
-          "CPAL_ASIO_DIR=$($sdk.FullName)" >> $env:GITHUB_ENV
-          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+      - name: ASIO SDK (verified against the pinned SHA-256)
+        run: cargo run -p xtask -- asio-sdk
 
       - name: Signing with a PFX (when its secret exists)
         shell: pwsh
@@ -121,13 +117,13 @@ jobs:
           "CANTUS_SIGN_AZURE_METADATA=$meta" >> $env:GITHUB_ENV
           "SIGN_FLAG=--sign" >> $env:GITHUB_ENV
 
-      - name: Package both flavours
+      - name: Package (one edition, ASIO and WASAPI)
         shell: bash
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: cargo run -p xtask -- package --all $SIGN_FLAG
+        run: cargo run -p xtask -- package $SIGN_FLAG
 
       - name: Forget the certificate file
         if: always()

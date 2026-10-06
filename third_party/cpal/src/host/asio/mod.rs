@@ -52,12 +52,21 @@ impl HostTrait for Host {
     type Device = Device;
 
     fn is_available() -> bool {
-        true
-        //unimplemented!("check how to do this using asio-sys")
+        // CANTUS PATCH: a build made without the Steinberg SDK (asio-sys's stub bindings)
+        // can load no driver; it does not offer the host at all.
+        sys::SDK_LINKED
     }
 
     fn devices(&self) -> Result<Self::Devices, Error> {
         Devices::new(self.asio.clone())
+    }
+
+    /// CANTUS PATCH: loads only the driver the id names (its name), never the others.
+    fn device_by_id(&self, id: &DeviceId) -> Option<Self::Device> {
+        if id.host() != crate::platform::HostId::Asio {
+            return None;
+        }
+        Devices::named(self.asio.clone(), id.id()).ok()?.next()
     }
 
     fn default_input_device(&self) -> Option<Self::Device> {

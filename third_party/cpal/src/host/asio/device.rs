@@ -167,6 +167,25 @@ impl Devices {
     }
 }
 
+impl Devices {
+    /// CANTUS PATCH: only the driver named (when installed), so finding one device does
+    /// not load every driver listed before it — loading a driver whose interface is
+    /// unplugged, then another, crashed a process here (round 19).
+    pub fn named(asio: Arc<sys::Asio>, name: &str) -> Result<Self, Error> {
+        com::com_initialized();
+        let drivers: Vec<String> = asio
+            .driver_names()
+            .into_iter()
+            .filter(|n| n == name)
+            .collect();
+        Ok(Self {
+            asio,
+            drivers: drivers.into_iter(),
+            current_driver: None,
+        })
+    }
+}
+
 impl Iterator for Devices {
     type Item = Device;
 
@@ -179,10 +198,15 @@ impl Iterator for Devices {
             let name = self.drivers.next()?;
             match self.asio.load_driver(&name) {
                 Ok(driver) => {
-                    let Ok(channels) = driver.channels() else {
-                        continue;
+                    let channels = match driver.channels() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            super::stream::trace(|| format!("{name}: ASIOGetChannels failed: {e}"));
+                            continue;
+                        }
                     };
                     if channels.ins == 0 && channels.outs == 0 {
+                        super::stream::trace(|| format!("{name}: no channels"));
                         continue;
                     }
 
@@ -190,8 +214,12 @@ impl Iterator for Devices {
                     // stream is active. Treat 0 as "not yet known" rather than skipping.
                     let sample_rate = driver.sample_rate().unwrap_or(0.0);
 
-                    let Ok(buffer_size_range) = driver.buffersize_range() else {
-                        continue;
+                    let buffer_size_range = match driver.buffersize_range() {
+                        Ok(r) => r,
+                        Err(e) => {
+                            super::stream::trace(|| format!("{name}: ASIOGetBufferSize failed: {e}"));
+                            continue;
+                        }
                     };
 
                     let input_sample_format = driver
@@ -229,7 +257,10 @@ impl Iterator for Devices {
                 // cleanly rather than spinning through the rest of the list.
                 Err(sys::LoadDriverError::DriverAlreadyExists) => return None,
                 // Driver failed to load for its own reasons; skip and try the next.
-                Err(_) => continue,
+                Err(e) => {
+                    super::stream::trace(|| format!("{name}: did not load: {e}"));
+                    continue;
+                }
             }
         }
     }

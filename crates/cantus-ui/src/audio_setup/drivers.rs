@@ -252,3 +252,22 @@ pub fn open_url(url: &str) {
         log::warn!("cannot open {url}: {e}");
     }
 }
+
+/// What `cantus --audio-drivers` prints: the driver types this build offers and whether
+/// the ASIO SDK is linked in (`xtask package` refuses a release without ASIO by reading it).
+pub fn report() -> String {
+    let names: Vec<String> = cantus_engine::devices::drivers()
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    format!(
+        "audio drivers: {}\nasio sdk: {}\nasio drivers installed: {}",
+        names.join(", "),
+        if cantus_engine::devices::asio_built() {
+            "linked"
+        } else {
+            "not linked"
+        },
+        cantus_engine::devices::installed_asio_drivers().join(", ")
+    )
+}

@@ -646,6 +646,10 @@ impl CantusApp {
     /// engine that is already running is left alone. Either way the status line names the
     /// device actually in use, so a fallback is visible rather than mysterious.
     pub fn restart_audio(&mut self) {
+        // The running device is closed before the new one opens (round 21): ASIO loads one
+        // driver at a time, and ASIO4ALL cannot open a device whose endpoint Cantus still
+        // holds through WASAPI — opening the new engine first left it silent.
+        self.engine = EngineHandle::dummy();
         match EngineHandle::start(&self.settings.audio.to_config()) {
             Ok(engine) => {
                 self.engine = engine;

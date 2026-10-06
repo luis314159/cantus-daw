@@ -4,7 +4,7 @@
 devices.band.device = Dispositivo de audio
 devices.driver = Controlador
 devices.driver.hint = El tipo de controlador: WASAPI es el de Windows; ASIO habla directamente con la interfaz, con la menor latencia.
-devices.driver.no_asio = ASIO no está en esta compilación (la característica asio).
+devices.driver.no_asio = Falta ASIO en esta compilación de desarrollo: se compiló sin el SDK de ASIO. Cantus publicado siempre lo trae; para compilarlo tú, ejecuta cargo run -p xtask -- asio-sdk y vuelve a compilar.
 devices.output = Dispositivo de salida
 devices.input = Dispositivo de entrada
 devices.input.none = Sin entrada
@@ -83,8 +83,8 @@ devices.feel.fine = bien para tocar casi todo
 devices.feel.loose = mejor para mezclar; elige un búfer menor para tocar a través de él
 
 devices.problem.lost = {name} se desconectó. Tu canción sigue abierta y editable; Cantus la abre de nuevo cuando vuelva.
-devices.problem.stalled = El dispositivo dejó de sonar. Reiniciar el audio suele recuperarlo.
-devices.problem.stalled_asio = El controlador ASIO dejó de responder. Reinicia el audio; si vuelve a detenerse, usa WASAPI con esta interfaz.
+devices.problem.stalled = El dispositivo dejó de responder. Reinicia el audio para recuperarlo; no se pierde nada de tu canción.
+devices.problem.stalled_asio = El controlador ASIO dejó de responder. Reinicia el audio para recuperarlo; si vuelve a detenerse, abre el panel del controlador o usa WASAPI con esta interfaz.
 devices.problem.open = Sin sonido: el dispositivo no se pudo abrir ({error}).
 devices.problem.busy = Otra aplicación tiene {name} en uso exclusivo. Ciérrala o deja que lo comparta, y vuelve a intentarlo.
 devices.problem.rates = La entrada va a {input} kHz y la salida a {output} kHz. Usa una sola interfaz para ambas, o pon las dos a {input} kHz.
@@ -153,7 +153,7 @@ devices.drivers.none_installed = No hay ningún controlador ASIO instalado.
 devices.drivers.installed = Instalados: {list}
 devices.drivers.rescan = Volver a buscar
 devices.drivers.where = Elígelos en el chip de audio: Controlador ▸ ASIO y luego el controlador ASIO.
-devices.drivers.no_asio_build = Esta compilación de Cantus se hizo sin ASIO, así que no puede usar controladores ASIO aunque estén instalados. Instala la edición ASIO de Cantus para usarlos; mientras tanto WASAPI sigue funcionando.
+devices.drivers.no_asio_build = Esta es una compilación de desarrollo de Cantus hecha sin el SDK de ASIO, así que no puede usar controladores ASIO aunque estén instalados. Cantus publicado incluye ASIO; para compilarlo tú, ejecuta cargo run -p xtask -- asio-sdk y vuelve a compilar. Mientras tanto WASAPI sigue funcionando.
 devices.drivers.flex = FlexASIO — libre y de código abierto
 devices.drivers.flex_body = Un controlador ASIO universal para cualquier dispositivo, de Etienne Dechamps (licencia MIT).
 devices.drivers.flex_open = Abrir la última versión de FlexASIO
@@ -170,3 +170,13 @@ devices.drivers.quarantined = La red respondió con una página web en lugar del
 devices.drivers.not_installer = Lo que llegó no es un programa de Windows.
 devices.drivers.size = El archivo tiene {got} bytes; GitHub dice {want}.
 devices.drivers.network = No se pudo llegar a GitHub: {error}
+
+# --- ronda 21: un controlador que se detiene no es un dispositivo perdido; lo que dicta el controlador ---
+devices.problem.reset = El controlador de audio pidió reiniciarse (cambiaron sus ajustes o perdió la sincronía). Reinicia el audio para seguir.
+devices.problem.reset_asio = El controlador ASIO pidió reiniciarse (cambió su panel de control o perdió la sincronía). Reinicia el audio para seguir.
+devices.problem.dictated = El controlador usa {runs} muestras, no las {asked} elegidas: los controladores ASIO suelen fijar el búfer en su propio panel.
+devices.problem.rate_refused = El controlador no puede funcionar a {asked} kHz, así que funciona a {runs} kHz.
+devices.auto_restarted = El controlador de audio dejó de responder; Cantus reinició el audio.
+devices.state.stalled = No responde
+devices.state.starting = Iniciando…
+devices.chip.stalled = {name} · no responde

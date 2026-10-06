@@ -5,7 +5,7 @@
 use crate::archive;
 use crate::nsis;
 use crate::package::{self, Inputs, InstallerJob};
-use cantus_update::release::{self, Flavor};
+use cantus_update::release;
 use std::path::Path;
 
 const V: &str = "0.2.0";
@@ -15,7 +15,7 @@ fn write(p: &Path, bytes: &[u8]) {
     std::fs::write(p, bytes).unwrap();
 }
 
-/// Two plug-ins laid out as `xtask bundle` lays them out, two executables, the texts.
+/// Two plug-ins laid out as `xtask bundle` lays them out, the program, the texts.
 fn stand_ins(root: &Path) -> Inputs {
     let bundled = root.join("bundled");
     let names = ["Cantus Aequalis", "Cantus Porta"];
@@ -30,16 +30,12 @@ fn stand_ins(root: &Path) -> Inputs {
             b"{}",
         );
     }
-    write(&root.join("std/cantus.exe"), b"MZ standard");
-    write(&root.join("asio/cantus.exe"), b"MZ asio");
+    write(&root.join("app/cantus.exe"), b"MZ cantus");
     write(&root.join("LICENSE-GPL"), b"GNU GENERAL PUBLIC LICENSE");
     write(&root.join("LICENSE"), b"Cantus is dual-licensed by crate.");
     write(&root.join("README.txt"), b"Cantus {version}\nline two\n");
     Inputs {
-        exes: vec![
-            (Flavor::Standard, root.join("std/cantus.exe")),
-            (Flavor::Asio, root.join("asio/cantus.exe")),
-        ],
+        exe: root.join("app/cantus.exe"),
         bundled,
         plugins: names.iter().map(|s| s.to_string()).collect(),
         license: root.join("LICENSE-GPL"),
@@ -70,18 +66,18 @@ fn the_package_task_produces_the_expected_file_list() {
     let dist = package::assemble(&inputs, &out, V, None, None);
 
     let got: Vec<String> = archive::walk(&dist).into_iter().map(|e| e.name).collect();
-    assert_eq!(got, package::dist_names(V, &Flavor::ALL, false));
+    assert_eq!(got, package::dist_names(V, false));
+    // One Windows edition, every driver in it (round 21): no "-asio" files.
     assert_eq!(
         got,
         [
             "Cantus-0.2.0-plugins-windows-x64.zip",
-            "Cantus-0.2.0-windows-x64-asio-portable.zip",
             "Cantus-0.2.0-windows-x64-portable.zip",
             "SHA256SUMS.txt",
         ]
     );
     assert_eq!(
-        package::dist_names(V, &[Flavor::Standard], true),
+        package::dist_names(V, true),
         [
             "Cantus-0.2.0-plugins-windows-x64.zip",
             "Cantus-0.2.0-windows-x64-portable.zip",
@@ -103,13 +99,7 @@ fn the_package_task_produces_the_expected_file_list() {
     .collect();
     want.extend(plugin_files("Cantus-0.2.0/plugins/"));
     want.sort();
-    assert_eq!(
-        archive::names(&dist.join(release::portable_name(V, Flavor::Standard))),
-        want
-    );
-    let asio = archive::names(&dist.join(release::portable_name(V, Flavor::Asio)));
-    assert!(asio.iter().all(|n| n.starts_with("Cantus-0.2.0-asio/")));
-    assert_eq!(asio.len(), want.len());
+    assert_eq!(archive::names(&dist.join(release::portable_name(V))), want);
 
     // The plug-ins zip: no program, the texts, CLAP/ and VST3/.
     let mut want: Vec<String> = ["COPYRIGHT.txt", "LICENSE.txt", "README.txt"]
@@ -120,10 +110,10 @@ fn the_package_task_produces_the_expected_file_list() {
     want.sort();
     assert_eq!(archive::names(&dist.join(release::plugins_name(V))), want);
 
-    // Each flavour's own program; the readme carries the version, in CRLF.
-    let staged_exe = std::fs::read(out.join("stage/asio/app/cantus.exe")).unwrap();
-    assert_eq!(staged_exe, b"MZ asio");
-    let readme = std::fs::read_to_string(out.join("stage/standard/app/README.txt")).unwrap();
+    // The program; the readme carries the version, in CRLF.
+    let staged_exe = std::fs::read(out.join("stage/app/cantus.exe")).unwrap();
+    assert_eq!(staged_exe, b"MZ cantus");
+    let readme = std::fs::read_to_string(out.join("stage/app/README.txt")).unwrap();
     assert_eq!(readme, "Cantus 0.2.0\r\nline two\r\n");
 
     // The sums cover every other file, and match.
@@ -141,7 +131,7 @@ fn the_package_task_produces_the_expected_file_list() {
 fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     let dir = tempfile::tempdir().unwrap();
     let inputs = stand_ins(dir.path());
-    let staged = package::stage(&inputs, &inputs.exes[0].1, &dir.path().join("stage"), V);
+    let staged = package::stage(&inputs, &inputs.exe, &dir.path().join("stage"), V);
     let nsh = nsis::files_nsh(&staged);
     let macro_body = |name: &str| -> Vec<String> {
         let start = nsh.find(&format!("!macro {name}\n")).unwrap();
@@ -246,7 +236,7 @@ fn an_installer_compiles_when_nsis_is_here() {
         return;
     };
     let dir = tempfile::tempdir().unwrap();
-    // Both flavours: the ASIO one compiles the FlexASIO component too.
+    // The one edition, with its FlexASIO component.
     let inputs = stand_ins(dir.path());
     let out = dir.path().join("package");
     // NSIS's own icon stands in for the app's (which the app's build script renders).
@@ -288,10 +278,10 @@ fn an_installer_compiles_when_nsis_is_here() {
     let dist = package::assemble(&inputs, &out, V, Some(&job), None);
     assert_eq!(
         archive::walk(&dist).len(),
-        package::dist_names(V, &Flavor::ALL, true).len()
+        package::dist_names(V, true).len()
     );
-    for f in Flavor::ALL {
-        let setup = dist.join(release::installer_name(V, f));
+    {
+        let setup = dist.join(release::installer_name(V));
         let bytes = std::fs::read(&setup).unwrap();
         assert_eq!(&bytes[..2], b"MZ", "a Windows program");
         assert!(bytes.len() > 30_000);
@@ -302,4 +292,39 @@ fn an_installer_compiles_when_nsis_is_here() {
             std::fs::copy(&setup, keep.join(setup.file_name().unwrap())).unwrap();
         }
     }
+}
+
+/// The SDK's checks: the pinned hash, a proxy's page refused, the SDK found in a tree,
+/// and the built program's answer read.
+#[test]
+fn the_asio_sdk_is_checked_and_found() {
+    use crate::asio_sdk;
+    // A proxy's quarantine page and any other file are refused, with a reason.
+    let page = b"<!DOCTYPE html><html><title>Zscaler</title></html>";
+    assert!(asio_sdk::refuse_zip(page).unwrap().contains("web page"));
+    assert!(asio_sdk::refuse_zip(b"PK\x03\x04 not the sdk").unwrap().contains("SHA-256"));
+    assert_eq!(asio_sdk::SDK_SHA256.len(), 64);
+    // The workflow pins the same hash.
+    let wf = std::fs::read_to_string(crate::workspace().join(".github/workflows/release.yml"))
+        .unwrap();
+    assert!(wf.contains(asio_sdk::SDK_SHA256), "release.yml pins another SDK hash");
+    // The zip's top folder is found however it is named.
+    let dir = tempfile::tempdir().unwrap();
+    let sdk = dir.path().join("asiosdk_2.3.4_2025-10-15/ASIOSDK");
+    write(&sdk.join("common/asio.h"), b"//");
+    write(&sdk.join("host/asiodrivers.h"), b"//");
+    assert_eq!(asio_sdk::find_sdk_in(dir.path()), Some(sdk.clone()));
+    assert!(asio_sdk::is_sdk(&sdk));
+    assert_eq!(asio_sdk::find_sdk_in(&dir.path().join("asiosdk_2.3.4_2025-10-15/ASIOSDK/common")), None);
+    // Unpacked from a zip into the cache layout.
+    let z = dir.path().join("sdk.zip");
+    archive::zip(&z, "ASIOSDK_2.3.4", &archive::walk(&sdk));
+    let cache = dir.path().join("cache");
+    let got = asio_sdk::unpack(&z, &cache).unwrap();
+    assert_eq!(got, cache.join(asio_sdk::SDK_DIR));
+    assert!(asio_sdk::is_sdk(&got));
+    // `cantus --audio-drivers`.
+    assert!(asio_sdk::lists_asio("audio drivers: WASAPI, ASIO\nasio sdk: linked\n"));
+    assert!(!asio_sdk::lists_asio("audio drivers: WASAPI\nasio sdk: not linked\n"));
+    assert!(!asio_sdk::lists_asio(""));
 }

@@ -5,7 +5,7 @@
 use crate::install::InstallKind;
 use crate::net::{Fetch, NetError};
 use crate::notes::{self, NoteLine};
-use crate::release::{self, Asset, Flavor, ParseError, Release};
+use crate::release::{self, Asset, ParseError, Release};
 use crate::schedule::{self, State};
 use crate::verify::{self, VerifyError};
 use crate::version::Version;
@@ -27,7 +27,6 @@ pub const HELD_ATTEMPTS: u32 = 6;
 pub struct Config {
     pub repo: String,
     pub current: Version,
-    pub flavor: Flavor,
     pub kind: InstallKind,
     pub state_path: PathBuf,
     pub downloads: PathBuf,
@@ -275,7 +274,7 @@ impl Updater {
             notes: notes::read(r.body.as_deref().unwrap_or(""), NOTE_LINES),
             page: r.html_url.clone(),
             installer: (self.config.kind == InstallKind::Installed)
-                .then(|| r.installer(self.config.flavor).cloned())
+                .then(|| r.installer().cloned())
                 .flatten(),
             sums_url: r.sums().map(|a| a.browser_download_url.clone()),
             version,

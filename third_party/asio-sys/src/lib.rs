@@ -9,3 +9,7 @@ pub use bindings::{
     errors::{AsioError, LoadDriverError},
     *,
 };
+
+/// Whether this build links the Steinberg ASIO SDK (CANTUS PATCH). Without it the crate
+/// builds stub bindings: it compiles and runs, but no driver is ever listed or loaded.
+pub const SDK_LINKED: bool = cfg!(asio_sdk);

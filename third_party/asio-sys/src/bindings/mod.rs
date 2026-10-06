@@ -869,6 +869,19 @@ impl Driver {
         Ok(())
     }
 
+    /// Whether the driver is started (`ASIOStart` called and not stopped since).
+    ///
+    /// CANTUS PATCH: lets the host add a direction to a running driver by stopping it
+    /// *before* it takes the lock the buffer callbacks take (see cpal's ASIO stream).
+    pub fn is_running(&self) -> bool {
+        *self.inner.lock_state() == DriverState::Running
+    }
+
+    /// Whether buffers exist (`Prepared` or `Running`). CANTUS PATCH.
+    pub fn has_buffers(&self) -> bool {
+        *self.inner.lock_state() != DriverState::Initialized
+    }
+
     /// Stops ASIO streams playing.
     ///
     /// No-op if the state is not `Running`.

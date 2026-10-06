@@ -217,17 +217,13 @@ impl crate::backend::EngineHandle {
         self.channels
     }
 
-    /// Whether the device is gone: a stream said so (unplugged, the driver reset) or the
-    /// output stopped calling back. The handle keeps working — messages are accepted and
-    /// dropped — so the session stays editable until the device is opened again.
+    /// Whether the device is **gone**: a stream said its device is not available
+    /// (unplugged, its driver unloaded). A driver that stopped calling back or asked to be
+    /// reset is not lost — see [`Self::device_state`] (round 21). The handle keeps working
+    /// — messages are accepted and dropped — so the session stays editable until the
+    /// device is opened again.
     pub fn device_lost(&self) -> bool {
-        self.is_live()
-            && (self.output_stalled()
-                || self
-                    .dev
-                    .telemetry
-                    .as_ref()
-                    .is_some_and(|t| t.stream_lost.load(std::sync::atomic::Ordering::Acquire)))
+        self.device_state() == crate::devices::DeviceState::Lost
     }
 
     /// Underruns and overruns the driver reported since the device opened.

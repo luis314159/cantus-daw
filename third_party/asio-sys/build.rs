@@ -11,18 +11,20 @@ use std::{
 use walkdir::WalkDir;
 
 const CPAL_ASIO_DIR: &str = "CPAL_ASIO_DIR";
-const ASIO_SDK_URL: &str = "https://www.steinberg.net/asiosdk";
 
 const ASIO_HEADER: &str = "asio.h";
 const ASIO_SYS_HEADER: &str = "asiosys.h";
 const ASIO_DRIVERS_HEADER: &str = "asiodrivers.h";
 
-/// Checks if the host OS is Windows
-fn host_os_is_windows() -> bool {
-    std::env::consts::OS == "windows"
-}
+/// Where `cargo run -p xtask -- asio-sdk` (Cantus) unpacks the SDK, under `%LOCALAPPDATA%`.
+/// CANTUS PATCH: a known place to look when `CPAL_ASIO_DIR` is not set.
+const CANTUS_SDK_CACHE: &str = r"cantus-build-tools\asiosdk-2.3.4\ASIOSDK";
+/// Set to `1` to fail the build instead of building without the SDK (release builds).
+const REQUIRE_SDK: &str = "ASIO_SYS_REQUIRE_SDK";
 
 fn main() {
+    // CANTUS PATCH: declare the cfg the library reads (`SDK_LINKED`).
+    println!("cargo::rustc-check-cfg=cfg(asio_sdk)");
     // ASIO is Windows-only. Skip build on non-Windows platforms and on docs.rs.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows")
         || std::env::var("DOCS_RS").is_ok()
@@ -35,13 +37,55 @@ fn main() {
     let is_msvc = std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
 
     println!("cargo:rerun-if-env-changed={}", CPAL_ASIO_DIR);
-
-    // ASIO SDK directory
-    let cpal_asio_dir = get_asio_dir();
-    println!("cargo:rerun-if-changed={}", cpal_asio_dir.display());
-
+    println!("cargo:rerun-if-env-changed=LIBCLANG_PATH");
+    println!("cargo:rerun-if-env-changed={REQUIRE_SDK}");
+    println!("cargo:rerun-if-changed=build.rs");
     // Directory where bindings and library are created
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("bad path"));
+
+    // CANTUS PATCH: the SDK and libclang are looked for, never downloaded by the build
+    // (a proxy that answers with its own page broke the download). Without them the crate
+    // builds stub bindings — no driver ever loads, `SDK_LINKED` is false — and says so,
+    // unless `ASIO_SYS_REQUIRE_SDK=1` asks for a hard error (release builds).
+    let sdk = find_asio_dir();
+    let clang = find_libclang();
+    let (cpal_asio_dir, clang) = match (sdk, clang) {
+        (Some(sdk), Some(clang)) => (sdk, clang),
+        (sdk, clang) => {
+            let mut why = Vec::new();
+            if sdk.is_none() {
+                why.push(format!(
+                    "the Steinberg ASIO SDK was not found ({CPAL_ASIO_DIR} is not set and \
+                     %LOCALAPPDATA%\\{CANTUS_SDK_CACHE} does not exist)"
+                ));
+            }
+            if clang.is_none() {
+                why.push(
+                    r"LLVM's libclang.dll was not found (LIBCLANG_PATH, C:\Program Files\LLVM\bin)"
+                        .to_string(),
+                );
+            }
+            let why = why.join("; ");
+            if env::var(REQUIRE_SDK).is_ok_and(|v| v == "1") {
+                panic!("ASIO is required for this build, but {why}");
+            }
+            println!("cargo:warning=building WITHOUT ASIO: {why}.");
+            println!(
+                "cargo:warning=run `cargo run -p xtask -- asio-sdk` to fetch the SDK (and install LLVM: winget install LLVM.LLVM), then build again."
+            );
+            if let Some(root) = cache_root() {
+                // Rebuild by itself once the SDK appears there.
+                if root.is_dir() {
+                    println!("cargo:rerun-if-changed={}", root.display());
+                }
+            }
+            create_stub_bindings(&out_dir);
+            return;
+        }
+    };
+    println!("cargo:rerun-if-changed={}", cpal_asio_dir.display());
+    // bindgen loads libclang at run time from LIBCLANG_PATH.
+    env::set_var("LIBCLANG_PATH", &clang);
 
     // Check if library exists,
     // if it doesn't create it
@@ -61,6 +105,9 @@ fn main() {
     println!("cargo:rustc-link-search={}", out_dir.display());
     println!("cargo:rustc-link-lib=static=asio");
     println!("cargo:rustc-cfg=asio");
+    println!("cargo:rustc-cfg=asio_sdk");
+    // Dependents that link this crate directly read `DEP_ASIO_SDK`.
+    println!("cargo:sdk=1");
 
     // Check if bindings exist
     // If they don't create them
@@ -72,6 +119,42 @@ fn main() {
         }
         create_bindings(&cpal_asio_dir);
     }
+}
+
+/// `%LOCALAPPDATA%\cantus-build-tools` (CANTUS PATCH).
+fn cache_root() -> Option<PathBuf> {
+    env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("cantus-build-tools"))
+}
+
+/// The SDK: `CPAL_ASIO_DIR` when set (it must hold the SDK), else Cantus's cache.
+fn find_asio_dir() -> Option<PathBuf> {
+    if let Ok(path) = env::var(CPAL_ASIO_DIR) {
+        let dir = PathBuf::from(&path);
+        if !dir.join("common").join("asio.h").is_file() {
+            panic!("{CPAL_ASIO_DIR}={path} does not hold the ASIO SDK (common\\asio.h is missing)");
+        }
+        println!("CPAL_ASIO_DIR is set at {path}");
+        return Some(dir);
+    }
+    let dir = env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join(CANTUS_SDK_CACHE))?;
+    dir.join("common").join("asio.h").is_file().then(|| {
+        println!("ASIO SDK found at {}", dir.display());
+        dir
+    })
+}
+
+/// The folder holding `libclang.dll`: `LIBCLANG_PATH`, else LLVM's default install.
+fn find_libclang() -> Option<PathBuf> {
+    let candidates = env::var_os("LIBCLANG_PATH")
+        .map(PathBuf::from)
+        .into_iter()
+        .chain([PathBuf::from(r"C:\Program Files\LLVM\bin")]);
+    for dir in candidates {
+        if dir.join("libclang.dll").is_file() {
+            return Some(dir);
+        }
+    }
+    None
 }
 
 fn create_lib(cpal_asio_dir: &Path) {
@@ -241,132 +324,6 @@ fn create_bindings(cpal_asio_dir: &PathBuf) {
     bindings
         .write_to_file(out_path.join("asio_bindings.rs"))
         .expect("Couldn't write bindings!");
-}
-
-/// Gets the ASIO SDK directory
-///
-/// If the CPAL_ASIO_DIR env var is set, it will use that.
-///
-/// If not set, it will check the temp directory for the ASIO SDK.
-///
-/// If not found, it will download the ASIO SDK to the temp directory.
-///
-/// It will then move the contents of the inner directory to the temp directory.
-///
-/// It will then return the path to the ASIO SDK directory.
-fn get_asio_dir() -> PathBuf {
-    // Check if CPAL_ASIO_DIR env var is set
-    if let Ok(path) = env::var(CPAL_ASIO_DIR) {
-        println!("CPAL_ASIO_DIR is set at {path}");
-        return PathBuf::from(path);
-    }
-
-    // If not set, check temp directory for ASIO SDK, maybe it is previously downloaded
-    let temp_dir = env::temp_dir();
-    let asio_dir = temp_dir.join("asio_sdk");
-    if asio_dir.exists() {
-        println!("CPAL_ASIO_DIR is set at {}", asio_dir.display());
-        return asio_dir;
-    }
-
-    // If not found, download ASIO SDK using PowerShell's Invoke-WebRequest
-    println!("CPAL_ASIO_DIR is not set or contents are cached downloading from {ASIO_SDK_URL}",);
-
-    download_asio_sdk_to_temp_dir(&temp_dir);
-
-    // Move the contents of the inner directory to asio_dir
-    for entry in walkdir::WalkDir::new(&temp_dir).min_depth(1).max_depth(1) {
-        let entry = entry.unwrap();
-        if entry.file_type().is_dir()
-            && entry
-                .file_name()
-                .to_string_lossy()
-                .to_lowercase()
-                .starts_with("asio")
-        {
-            std::fs::rename(entry.path(), &asio_dir).expect("Failed to rename directory");
-            break;
-        }
-    }
-    println!("CPAL_ASIO_DIR is set at {}", asio_dir.display());
-    asio_dir
-}
-
-/// Downloads the ASIO SDK to the temp directory of the host OS
-///
-/// It uses powershell's Invoke-WebRequest on Windows and curl on other platforms to download the SDK.
-///
-/// It then extracts the SDK using powershell's Expand-Archive on Windows and unzip on other platforms.
-fn download_asio_sdk_to_temp_dir(temp_dir: &Path) {
-    let asio_zip_path = temp_dir.join("asio_sdk.zip");
-    if host_os_is_windows() {
-        let status = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "Invoke-WebRequest -Uri {ASIO_SDK_URL} -OutFile {}",
-                    asio_zip_path.display()
-                ),
-            ])
-            .status()
-            .expect("Failed to execute PowerShell command");
-
-        if !status.success() {
-            panic!("Failed to download ASIO SDK");
-        }
-        println!("Downloaded ASIO SDK successfully");
-
-        // Unzip using PowerShell's Expand-Archive
-        println!("Extracting ASIO SDK..");
-        let status = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "Expand-Archive -Path {} -DestinationPath {} -Force",
-                    asio_zip_path.display(),
-                    temp_dir.display()
-                ),
-            ])
-            .status()
-            .expect("Failed to execute PowerShell command for extracting ASIO SDK");
-
-        if !status.success() {
-            panic!("Failed to extract ASIO SDK");
-        }
-    } else {
-        let status = Command::new("sh")
-            .arg("-c")
-            .arg(&format!(
-                "curl -L --fail --output {} {}",
-                asio_zip_path.display(),
-                "https://www.steinberg.net/asiosdk" // Replace with the actual ASIO SDK URL
-            ))
-            .status()
-            .expect("Failed to execute curl command");
-
-        if !status.success() {
-            panic!("Failed to download ASIO SDK");
-        }
-        println!("Downloaded ASIO SDK successfully");
-
-        // Extract using `unzip`
-        println!("Extracting ASIO SDK..");
-        let status = Command::new("unzip")
-            .args([
-                "-o",
-                asio_zip_path.to_str().unwrap(),
-                "-d",
-                temp_dir.to_str().unwrap(),
-            ])
-            .status()
-            .expect("Failed to execute unzip command for extracting ASIO SDK");
-
-        if !status.success() {
-            panic!("Failed to extract ASIO SDK");
-        }
-    }
 }
 
 /// Invokes `vcvarsall.bat` to initialize the environment for building with MSVC

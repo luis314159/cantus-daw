@@ -102,11 +102,37 @@ the snapshot as `AudioClipSnapshot::data`. Offline render and stems use the same
 bounce is bit-identical to what is heard. Disk streaming is a later step once projects
 outgrow memory.
 
-**10. Drivers.** WASAPI shared mode is the default on Windows; **ASIO** is offered when
-Cantus is built with it (cpal's `asio` feature; the ASIO SDK is GPL-3-compatible since
-2025 and Cantus is GPL per ADR 0001). The input device and the output device may differ;
-with two clocks the input ring absorbs drift by dropping or repeating a frame, and counts
-it.
+**10. Drivers.** WASAPI shared mode is the default on Windows; **ASIO** is offered next to
+it (cpal's `asio` feature; the ASIO SDK is GPL-3-compatible since 2025 and Cantus is GPL
+per ADR 0001). The input device and the output device may differ; with two clocks the
+input ring absorbs drift by dropping or repeating a frame, and counts it.
+
+*Amended in round 21 (the owner: "shouldn't we be able to use any driver with one
+build?").* **One build has every driver.** There is no build without ASIO for users: every
+distributed Cantus is built with WASAPI and ASIO together, and the release task refuses
+to package a program that does not list ASIO (`cantus --audio-drivers`). For developers,
+`cargo build -p cantus` turns the `asio` feature on by default; it needs the Steinberg SDK
+(fetched once by `cargo run -p xtask -- asio-sdk` into `%LOCALAPPDATA%\cantus-build-tools`,
+checked against a pinned SHA-256, never committed) and LLVM's libclang. A developer
+without them still builds: the patched `asio-sys` (`third_party/`) builds stub bindings,
+prints a cargo warning that says how to get the SDK, and the app offers WASAPI only and
+says it is a *developer build* without the SDK — never that the user should find
+"another edition". Chosen over keeping ASIO opt-in because the user-facing promise is one
+download that works with any interface, and over requiring the SDK for every build because
+a contributor must be able to build with nothing but Rust.
+
+ASIO streams are opened **both directions first, then started**: the patched cpal creates
+the input's and the output's buffers in one `ASIOCreateBuffers` before the driver's first
+`ASIOStart` (cpal 0.18 stopped and rebuilt a running driver to add the second direction,
+which stalled Realtek's driver). Only the driver named is loaded (never every installed
+driver on the way). The rate and buffer a driver runs are **read back and shown** (ASIO
+drivers often dictate the buffer from their control panel); a rate the driver refuses
+falls back to its own and is said. A driver that stops calling back, or asks to be reset
+(`kAsioResetRequest`, a rate it changed), is a **stalled** device, not a lost one: Cantus
+says "the driver stopped responding", restarts the audio once by itself, and then offers
+*Restart audio*; only a device that is gone (`DeviceNotAvailable`) is "disconnected".
+A deliberate reopen closes the running device first and holds the hot-plug watcher's news
+for a moment, so it is never taken for an unplug. Details: `docs/round21/asio.md`.
 
 **11. Setting the device up is direct (round 20, amendment).** The device is configured
 where the musician is, not in Settings: an **audio chip** always in the status bar

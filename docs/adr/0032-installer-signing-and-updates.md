@@ -46,13 +46,17 @@ marker keeps settings, presets and autosaves in `data\` beside the executable
 (`app.rs::directories_fallback`, three lines) and writes nothing to the profile or the
 registry.
 
-**ASIO.** The `asio` flavour (ADR 0025 §10) is a second set of files with `-asio` in their
-names; it installs over the same folder (a user has one or the other) and updates to its
-own flavour. The ASIO SDK is GPL-3-compatible since 2025, so the binary can be shipped; the
-SDK itself is never committed.
+**ASIO — one edition** (amended in round 21; ADR 0025 §10). There is a single Windows
+edition and it has every driver, WASAPI and ASIO; the round-20 `-asio` flavour and its file
+names are gone (`cantus_update::release` names one installer and one portable zip, and the
+updater no longer has a flavour). The installer removes the `Flavor` value an earlier ASIO
+build stored. The ASIO SDK is GPL-3-compatible since 2025, so the binary can be shipped; the
+SDK itself is never committed: `xtask asio-sdk` fetches it into a cache outside the
+repository and checks its pinned SHA-256, and `xtask package` builds with
+`ASIO_SYS_REQUIRE_SDK=1` and then asks the built program for its driver types, refusing a
+release without ASIO.
 
-**FlexASIO, fetched, never bundled** (the owner, 2026-10-06). The ASIO flavour's installer
-offers an unticked component, *FlexASIO driver (downloaded now)*. When ticked it runs
+**FlexASIO, fetched, never bundled** (the owner, 2026-10-06). The installer offers an unticked component, *FlexASIO driver (downloaded now)*. When ticked it runs
 `flexasio.ps1` (embedded in the installer): it asks GitHub for FlexASIO's **latest**
 release, takes its `FlexASIO-<version>.exe`, checks that what arrived is a Windows
 program (`MZ`), not a proxy's page, of exactly the size GitHub reports (and its SHA-256
@@ -68,8 +72,9 @@ bundled: its licence forbids redistribution, so the app only links to its page.
 
 ### 2. One task makes a release
 
-`cargo run -p xtask -- package [--asio|--all] [--sign|--sign-test] [--no-build]
-[--no-installer]` builds, bundles the plug-ins (ADR 0020's `bundle`), stages each flavour,
+`cargo run -p xtask -- package [--sign|--sign-test] [--no-build] [--no-installer]`
+fetches and checks the ASIO SDK, builds the one edition with ASIO, checks it lists ASIO,
+bundles the plug-ins (ADR 0020's `bundle`), stages the release,
 signs, zips, generates `config.nsh`/`files.nsh`/`strings.nsh` beside the hand-written
 `xtask/installer/cantus.nsi`, runs `makensis`, signs the installer, and writes
 `SHA256SUMS.txt`. The file names are made in one place, `cantus_update::release`, which
@@ -101,7 +106,7 @@ HTML) are shown in the update window. *Skip this version* is remembered.
 
 ### 5. Verify before anything runs
 
-An installed copy downloads its flavour's installer into `…\Cantus\updates\` and checks:
+An installed copy downloads the installer into `…\Cantus\updates\` and checks:
 not empty and not an HTML page; the size GitHub reported; the SHA-256 in the asset's
 `digest` (GitHub computes it at upload) **and** the line in the release's
 `SHA256SUMS.txt` — every hash present must match, and at least one must exist; and, when
@@ -126,8 +131,9 @@ minutes, six times — about the ten minutes such a hold lasts.
 ### 7. A release is a tag
 
 `.github/workflows/release.yml` runs on a pushed `v*.*.*` tag (the owner decides when):
-tests, the tag must equal the workspace version, NSIS and the ASIO SDK are fetched and
-verified by SHA-256, both flavours are packaged and signed when signing secrets exist, and
+tests (built with the ASIO SDK, as shipped), the tag must equal the workspace version, NSIS
+and the ASIO SDK are fetched and verified by SHA-256 (the SDK through `xtask asio-sdk`), the
+one edition is packaged and signed when signing secrets exist, and
 `gh release create` publishes the files with notes from `docs/releases/<tag>.md` (or
 GitHub's generated notes). `workflow_dispatch` builds without publishing.
 

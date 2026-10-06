@@ -18,7 +18,6 @@ use crate::kit::{with_brush, Fill, Style};
 use crate::views::workspace_ticker::{self as ticker, Reason};
 use cantus_update::install::{self, InstallKind};
 use cantus_update::notes::LineKind;
-use cantus_update::release::Flavor;
 use cantus_update::{net, schedule, updater, verify, Config, Status, Updater, Version};
 use egui::{Align2, Color32, Context, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::sync::Arc;
@@ -72,14 +71,6 @@ impl UpdateUi {
     }
 }
 
-fn flavor() -> Flavor {
-    if cantus_engine::devices::ASIO_BUILT {
-        Flavor::Asio
-    } else {
-        Flavor::Standard
-    }
-}
-
 fn ensure(app: &mut CantusApp) -> &Updater {
     let kind = app.update.kind();
     let proxy = app.settings.updates.proxy.clone();
@@ -92,7 +83,6 @@ fn ensure(app: &mut CantusApp) -> &Updater {
                 patch: 0,
                 pre: Vec::new(),
             }),
-            flavor: flavor(),
             kind,
             state_path: schedule::state_path(&config_dir()),
             downloads: install::updates_dir(&data_dir()),
@@ -637,7 +627,7 @@ pub fn demo_setup(app: &mut CantusApp, kind: &str) {
         notes: cantus_update::notes::read(md, updater::NOTE_LINES),
         page: "https://github.com/luis314159/cantus/releases/tag/v0.2.0".into(),
         installer: Some(cantus_update::release::Asset {
-            name: cantus_update::release::installer_name("0.2.0", Flavor::Standard),
+            name: cantus_update::release::installer_name("0.2.0"),
             size: 14_200_000,
             browser_download_url: String::new(),
             digest: None,

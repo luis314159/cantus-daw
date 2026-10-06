@@ -386,3 +386,159 @@ fn live_loopback() {
         w.finalize().unwrap();
     }
 }
+
+/// Runs the configured devices for `CANTUS_TEST_SECONDS` (60 by default) and fails when
+/// either direction stops calling back for half a second once it has started, or when the
+/// device is reported lost. Plays nothing (the engine's output is silence without a
+/// project). `CANTUS_TEST_INPUT=none` runs the output alone.
+#[test]
+#[ignore = "opens the machine's audio devices for a minute"]
+fn live_streams_run_without_a_stall() {
+    use std::time::{Duration, Instant};
+    let secs: u64 = std::env::var("CANTUS_TEST_SECONDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60);
+    let t0 = Instant::now();
+    let mut h = EngineHandle::start(&live_config()).expect("an output device");
+    println!(
+        "started {} {} in {:?}: {} Hz, buffer {:?} (asked {:?}), input {:?} ({} ch), error {:?}",
+        h.driver_name(),
+        h.device_name,
+        t0.elapsed(),
+        h.sample_rate,
+        h.device_buffer(),
+        h.requested_buffer(),
+        h.input_device_name(),
+        h.input_channel_count(),
+        h.input_error(),
+    );
+    let duplex = h.input_channel_count() > 0;
+    let t0 = Instant::now();
+    let (mut seen, mut since) = ((0u64, 0u64), (t0, t0));
+    let (mut worst_out, mut worst_in) = (Duration::ZERO, Duration::ZERO);
+    let mut first = (None, None);
+    let mut last_print = t0;
+    while t0.elapsed() < Duration::from_secs(secs) {
+        std::thread::sleep(Duration::from_millis(20));
+        h.poll();
+        let (i, o) = h.device_callbacks();
+        let now = Instant::now();
+        if o != seen.1 {
+            if first.1.is_none() {
+                first.1 = Some(t0.elapsed());
+            } else {
+                worst_out = worst_out.max(now - since.1);
+            }
+            since.1 = now;
+        }
+        if i != seen.0 {
+            if first.0.is_none() {
+                first.0 = Some(t0.elapsed());
+            } else {
+                worst_in = worst_in.max(now - since.0);
+            }
+            since.0 = now;
+        }
+        seen = (i, o);
+        if now - last_print >= Duration::from_secs(5) {
+            last_print = now;
+            println!(
+                "{:>5.1} s: callbacks in {i} out {o}, state {:?}",
+                t0.elapsed().as_secs_f64(),
+                h.device_state()
+            );
+        }
+    }
+    // A direction that stopped and never came back counts up to the end.
+    let now = Instant::now();
+    worst_out = worst_out.max(now - since.1);
+    if duplex {
+        worst_in = worst_in.max(now - since.0);
+    }
+    println!(
+        "first callback in {:?} out {:?}; longest gap in {worst_in:?} out {worst_out:?}; \
+         callbacks {:?}; xruns {}; state {:?}; buffer {:?}",
+        first.0,
+        first.1,
+        h.device_callbacks(),
+        h.xruns(),
+        h.device_state(),
+        h.device_buffer(),
+    );
+    assert!(first.1.is_some(), "the output never called back");
+    assert!(worst_out < Duration::from_millis(500), "the output stalled for {worst_out:?}");
+    if duplex {
+        assert!(first.0.is_some(), "the input never called back");
+        assert!(worst_in < Duration::from_millis(500), "the input stalled for {worst_in:?}");
+    }
+    assert!(!h.device_lost(), "the device was reported lost");
+}
+
+// --- the device's state (round 21): stalled is not lost -----------------------------------
+
+#[test]
+fn a_stalled_driver_is_stalled_not_lost() {
+    use devices::{classify, DeviceState as S, START_GRACE, STALL_AFTER};
+    use std::time::Duration;
+    let ms = Duration::from_millis;
+    let open = ms(10_000);
+    // Running: both directions called back a moment ago.
+    assert_eq!(classify(false, false, open, Some(ms(5)), Some(Some(ms(5)))), S::Running);
+    // The output stopped calling back while the device is still there: stalled — never
+    // lost, which is only what a stream says when its device is gone.
+    let stalled = classify(false, false, open, Some(STALL_AFTER + ms(1)), None);
+    assert_eq!(stalled, S::Stalled);
+    assert!(stalled.is_silent());
+    // The input stopped while the output runs (the duplex stall of round 19): stalled too.
+    assert_eq!(classify(false, false, open, Some(ms(5)), Some(Some(ms(1_500)))), S::Stalled);
+    // An input that never called back, past the grace.
+    assert_eq!(classify(false, false, open, Some(ms(5)), Some(None)), S::Stalled);
+    // Slow to start (ASIO4ALL takes a second): starting, then stalled after the grace.
+    assert_eq!(classify(false, false, ms(1_200), None, Some(None)), S::Starting);
+    assert_eq!(classify(false, false, START_GRACE, None, None), S::Stalled);
+    // The driver asked to be reset: a restart, not a lost device.
+    assert_eq!(classify(false, true, open, Some(ms(5)), None), S::RestartRequested);
+    // Gone is gone, whatever else.
+    assert_eq!(classify(true, true, open, Some(ms(5)), None), S::Lost);
+}
+
+#[test]
+fn the_beat_says_how_long_ago_a_callback_ran() {
+    let beat = devices::Beat::default();
+    assert_eq!(beat.since(), None);
+    beat.tick();
+    let since = beat.since().expect("a callback ran");
+    assert!(since < std::time::Duration::from_secs(1));
+}
+
+#[test]
+fn a_handle_without_a_device_is_off() {
+    let h = EngineHandle::dummy();
+    assert_eq!(h.device_state(), devices::DeviceState::Off);
+    assert!(!h.device_lost());
+    assert!(!h.output_stalled());
+    assert_eq!(h.device_buffer(), None);
+}
+
+#[test]
+fn a_reset_request_asks_for_a_restart_and_an_unplug_is_lost() {
+    use std::sync::atomic::Ordering;
+    let t = devices::DeviceTelemetry::default();
+    // What cpal's ASIO host sends for a driver's reset/resync request or a rate it
+    // changed, and WASAPI for invalidated resources: the device is still there.
+    let reset = cpal::Error::with_message(
+        cpal::ErrorKind::StreamInvalidated,
+        "Stream reset was requested by the ASIO driver",
+    );
+    devices::stream_error(&t, &reset, "output");
+    assert!(t.restart_requested.load(Ordering::Acquire));
+    assert!(!t.stream_lost.load(Ordering::Acquire));
+    // A dropout is counted, nothing else.
+    devices::stream_error(&t, &cpal::Error::new(cpal::ErrorKind::Xrun), "output");
+    assert_eq!(t.xruns.load(Ordering::Relaxed), 1);
+    assert!(!t.stream_lost.load(Ordering::Acquire));
+    // The device went away: lost.
+    devices::stream_error(&t, &cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable), "input");
+    assert!(t.stream_lost.load(Ordering::Acquire));
+}

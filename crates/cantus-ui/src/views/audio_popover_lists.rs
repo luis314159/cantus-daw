@@ -40,7 +40,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context, key: Option<&str>) {
             Some(sc) if !sc.interfaces.is_empty() => {
                 for i in &sc.interfaces {
                     let mut side = t(kind_key(i.kind));
-                    if i.has_asio() && cantus_engine::devices::ASIO_BUILT {
+                    if i.has_asio() && cantus_engine::devices::asio_built() {
                         side.push_str(" · ASIO");
                     }
                     labels.push((

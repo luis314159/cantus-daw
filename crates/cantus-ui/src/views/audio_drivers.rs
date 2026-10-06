@@ -94,7 +94,7 @@ fn page(app: &mut CantusApp, ui: &mut Ui) {
         }
         parts::paragraph(ui, &line, Role::Body, s.t.text);
     });
-    if !cantus_engine::devices::ASIO_BUILT {
+    if !cantus_engine::devices::asio_built() {
         warn(ui, &t("devices.drivers.no_asio_build"));
     } else if !installed.is_empty() {
         super::workspace_settings::note(ui, &t("devices.drivers.where"), false);

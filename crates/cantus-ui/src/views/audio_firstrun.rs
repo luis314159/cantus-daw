@@ -203,7 +203,7 @@ fn card(ui: &Ui, r: Rect, iface: &interfaces::Interface, st: State) {
         interfaces::Kind::Virtual => "devices.kind.virtual",
     };
     let mut sub = t(kind);
-    if iface.has_asio() && cantus_engine::devices::ASIO_BUILT {
+    if iface.has_asio() && cantus_engine::devices::asio_built() {
         sub.push_str(" · ASIO");
     }
     with_brush(ui.painter(), |b| {
@@ -409,7 +409,7 @@ fn latency_step(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
         .scan
         .as_ref()
         .is_some_and(|sc| sc.asio.is_empty())
-        || !cantus_engine::devices::ASIO_BUILT;
+        || !cantus_engine::devices::asio_built();
     if no_asio || !live.driver.eq_ignore_ascii_case("ASIO") {
         ui.horizontal(|ui| {
             let r = parts::button(ui, &t("devices.drivers.get"), false, true, 0.0);

@@ -1,5 +1,5 @@
 # Fetch the latest FlexASIO (MIT, https://github.com/dechamps/FlexASIO) and run its
-# installer elevated. Called by the Cantus installer (ASIO flavour) when the user ticks
+# installer elevated. Called by the Cantus installer when the user ticks
 # "Install FlexASIO"; never during a silent install or update. Nothing is bundled.
 #
 # Exit codes: 0 installed (or downloaded, with -DownloadOnly); 10 GitHub unreachable;

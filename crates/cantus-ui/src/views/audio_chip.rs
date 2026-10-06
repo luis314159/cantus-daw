@@ -28,6 +28,9 @@ pub enum Health {
     Warn,
     /// No sound: the device is lost or none is open.
     Lost,
+    /// No sound: the driver stopped responding (or asked to be restarted) while the device
+    /// is still there — not "disconnected" (round 21).
+    Stalled,
 }
 
 impl Health {
@@ -35,7 +38,7 @@ impl Health {
         match self {
             Health::Good => Tok::Led,
             Health::Warn => Tok::MeterHigh,
-            Health::Lost => Tok::Danger,
+            Health::Lost | Health::Stalled => Tok::Danger,
         }
     }
 }
@@ -43,16 +46,19 @@ impl Health {
 /// The lamp's state now. Reads atomics and counters; allocates nothing.
 pub fn health(app: &CantusApp) -> Health {
     let now = Instant::now();
-    let (live, lost, input_bad) = match &app.audio_setup.demo {
-        Some(d) => (d.live, d.lost, d.input_error.is_some()),
+    let (live, state, input_bad) = match &app.audio_setup.demo {
+        Some(d) => (d.live, d.device_state(), d.input_error.is_some()),
         None => (
             app.engine.is_live(),
-            app.engine.device_lost(),
+            app.engine.device_state(),
             app.engine.input_error().is_some(),
         ),
     };
-    if !live || lost || app.audio_setup.plug.lost.is_some() {
+    use cantus_engine::DeviceState as S;
+    if !live || state == S::Lost || app.audio_setup.plug.lost.is_some() {
         Health::Lost
+    } else if matches!(state, S::Stalled | S::RestartRequested) {
+        Health::Stalled
     } else if input_bad || app.audio_setup.dropouts.within(Duration::from_secs(5), now) > 0 {
         Health::Warn
     } else {
@@ -69,6 +75,7 @@ struct Key {
     block: u32,
     lat10: u32,
     lost: bool,
+    stalled: bool,
     live: bool,
     locale: Option<Locale>,
     tk: u32,
@@ -87,7 +94,7 @@ thread_local! {
 
 /// The numbers the chip prints, without allocating unless they changed.
 fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
-    let (live, device, driver, rate, block, rt, lost) = match &app.audio_setup.demo {
+    let (live, device, driver, rate, block, rt, state) = match &app.audio_setup.demo {
         Some(d) => (
             d.live,
             d.device.as_str(),
@@ -95,14 +102,18 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             d.rate,
             d.block,
             d.latency.round_trip(),
-            d.lost,
+            d.device_state(),
         ),
         None => {
             let e = &app.engine;
-            let block = match e.stats().block_frames {
-                0 => e.requested_buffer().unwrap_or(0),
-                b => b as u32,
-            };
+            // What the driver runs, read back (an ASIO driver may dictate it).
+            let block = e
+                .device_buffer()
+                .or(match e.stats().block_frames {
+                    0 => None,
+                    b => Some(b as u32),
+                })
+                .unwrap_or(0);
             (
                 e.is_live(),
                 e.device_name.as_str(),
@@ -110,11 +121,13 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
                 e.sample_rate,
                 block,
                 e.device_latency().round_trip(),
-                e.device_lost(),
+                e.device_state(),
             )
         }
     };
-    let lost = lost || app.audio_setup.plug.lost.is_some();
+    use cantus_engine::DeviceState as S;
+    let lost = state == S::Lost || app.audio_setup.plug.lost.is_some();
+    let stalled = !lost && matches!(state, S::Stalled | S::RestartRequested);
     let ms = if rate > 0.0 {
         rt as f64 / rate * 1000.0
     } else {
@@ -129,6 +142,7 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             && k.block == block
             && k.lat10 == (ms * 10.0).round() as u32
             && k.lost == lost
+            && k.stalled == stalled
             && k.live == live
             && k.locale == Some(crate::i18n::locale())
             && k.tk == s.tk().to_bits();
@@ -146,6 +160,8 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             t("devices.chip.none")
         } else if lost {
             tf("devices.chip.lost", &[("name", &name)])
+        } else if stalled {
+            tf("devices.chip.stalled", &[("name", &name)])
         } else {
             let mut lat = String::new();
             if rt > 0 {
@@ -175,6 +191,7 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             block,
             lat10: (ms * 10.0).round() as u32,
             lost,
+            stalled,
             live,
             locale: Some(crate::i18n::locale()),
             tk: s.tk().to_bits(),
