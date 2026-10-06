@@ -68,7 +68,7 @@ impl Processor {
                     }
                 }
             }
-            self.track_segment(track, ti, slot, p0, sub, end);
+            self.track_segment(track, slot, p0, sub, end);
             sub = end;
         }
     }
@@ -78,7 +78,6 @@ impl Processor {
     fn track_segment(
         &mut self,
         track: &cantus_core::TrackSnapshot,
-        ti: usize,
         slot: usize,
         p0: usize,
         sub: usize,
@@ -157,7 +156,6 @@ impl Processor {
             &transport,
             self.recording,
         );
-        let _ = ti;
         let line = self.track_line[slot];
         let line_ringing = line.is_some_and(|i| self.pdc.lines[i].ringing());
         let out = &mut self.track_out[slot];

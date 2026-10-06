@@ -126,6 +126,7 @@ impl Processor {
     ) -> bool {
         let slot = self.strip_play_order[place];
         let node = self.plan.strip_node(place);
+        self.prof.enter(Node::Strip(slot));
         // ---- gather, in canonical order, into the scratch pair --------------------------
         let any = {
             let produced = produced!(self);
@@ -152,7 +153,6 @@ impl Processor {
             self.buf_l[..n].iter_mut().for_each(|x| *x = 0.0);
             self.buf_r[..n].iter_mut().for_each(|x| *x = 0.0);
         }
-        self.prof.enter(Node::Strip(slot));
         let (gl, gr, muted) = self.strip_chain(slot, p0, n, position, law);
         self.strip_outputs(slot, p0, n, gl, gr, muted);
         true
