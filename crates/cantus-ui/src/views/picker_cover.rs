@@ -50,24 +50,49 @@ fn ground(s: &Style, hue: Color32) -> (Color32, Color32) {
 pub fn card(b: &mut Brush, rect: Rect, r: f32, s: &Style, d: &Device) {
     let hue = hue(d, s);
     let (top, bottom) = ground(s, hue);
-    b.register(rect, "picker-cover", &[Tok::Ink, Tok::Panel, Tok::PanelLight], &[]);
+    b.register(
+        rect,
+        "picker-cover",
+        &[Tok::Ink, Tok::Panel, Tok::PanelLight],
+        &[],
+    );
     b.rrect(rect, r, Fill::V(top, bottom));
     let ink = on_fill(mix(top, bottom, 0.5));
     // A quiet pattern: arcs from the lower right, spaced by the device's key.
     let seed = crate::kit::cache::key(&d.key);
-    let centre = pos2(rect.right() + rect.width() * 0.05, rect.bottom() + rect.height() * 0.1);
+    let centre = pos2(
+        rect.right() + rect.width() * 0.05,
+        rect.bottom() + rect.height() * 0.1,
+    );
     let step = rect.height() * (0.16 + (seed % 5) as f32 * 0.015);
     for i in 1..9 {
         let rad = step * i as f32;
-        b.arc(centre, rad, PI, PI * 1.5, s.s(1.0), with_alpha(ink, 0.07), false);
+        b.arc(
+            centre,
+            rad,
+            PI,
+            PI * 1.5,
+            s.s(1.0),
+            with_alpha(ink, 0.07),
+            false,
+        );
     }
     // The category's glyph, large, right of centre.
     let g = rect.height() * 0.46;
     let gr = Rect::from_center_size(
-        pos2(rect.right() - g * 0.75, rect.center().y - rect.height() * 0.06),
+        pos2(
+            rect.right() - g * 0.75,
+            rect.center().y - rect.height() * 0.06,
+        ),
         Vec2::splat(g),
     );
-    glyph(b, gr, d.primary(), with_alpha(mix(hue, ink, 0.35), 0.85), s.s(2.4).max(1.5));
+    glyph(
+        b,
+        gr,
+        d.primary(),
+        with_alpha(mix(hue, ink, 0.35), 0.85),
+        s.s(2.4).max(1.5),
+    );
     // Words: the vendor in small capitals, the name, the badge.
     let pad = s.s(10.0);
     let vendor = Rect::from_min_size(
@@ -124,7 +149,17 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
     match cat {
         Category::Synths => {
             // A saw, then a sine: what a synth starts from.
-            wave(b, &|u| if u < 0.5 { 1.0 - 4.0 * (u % 0.25) * 2.0 } else { (u * TAU * 2.0).sin() }, 0.32);
+            wave(
+                b,
+                &|u| {
+                    if u < 0.5 {
+                        1.0 - 4.0 * (u % 0.25) * 2.0
+                    } else {
+                        (u * TAU * 2.0).sin()
+                    }
+                },
+                0.32,
+            );
         }
         Category::Keys => {
             let kw = ww / 4.0;
@@ -178,7 +213,13 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
         }
         Category::Dynamics => {
             let pts = [at(0.06, 0.94), at(0.5, 0.5), at(0.94, 0.3)];
-            b.segment(at(0.06, 0.94), at(0.94, 0.06), w * 0.5, with_alpha(c, 0.4), true);
+            b.segment(
+                at(0.06, 0.94),
+                at(0.94, 0.06),
+                w * 0.5,
+                with_alpha(c, 0.4),
+                true,
+            );
             b.polyline(&pts, w, c);
             b.circle(pts[1], w * 1.4, Fill::Solid(c));
         }
@@ -208,7 +249,13 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
             for i in 0..n {
                 let u = (i as f32 + 0.5) / n as f32;
                 let a = 0.2 + 0.62 * ((u * 7.3).sin() * 0.5 + 0.5).powf(0.6);
-                b.segment(at(u, 0.94), at(u, 0.94 - a.min(0.74)), w * 0.9, with_alpha(c, 0.8), true);
+                b.segment(
+                    at(u, 0.94),
+                    at(u, 0.94 - a.min(0.74)),
+                    w * 0.9,
+                    with_alpha(c, 0.8),
+                    true,
+                );
             }
         }
         Category::Utility => {

@@ -51,7 +51,11 @@ pub fn step(tiles: &[Rect], from: usize, dir: Dir, page: f32) -> usize {
                 r.center().y < here.y - 1.0
             }
         };
-        let ys: Vec<f32> = tiles.iter().filter(|r| side(r)).map(|r| r.center().y).collect();
+        let ys: Vec<f32> = tiles
+            .iter()
+            .filter(|r| side(r))
+            .map(|r| r.center().y)
+            .collect();
         if ys.is_empty() {
             return from;
         }
@@ -85,7 +89,11 @@ fn nearest(tiles: &[Rect], p: Pos2) -> Option<usize> {
         .iter()
         .enumerate()
         .filter(|(_, r)| (r.center().y - p.y).abs() < 1.0)
-        .min_by(|(_, a), (_, b)| (a.center().x - p.x).abs().total_cmp(&(b.center().x - p.x).abs()))
+        .min_by(|(_, a), (_, b)| {
+            (a.center().x - p.x)
+                .abs()
+                .total_cmp(&(b.center().x - p.x).abs())
+        })
         .map(|(i, _)| i)
 }
 

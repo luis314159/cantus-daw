@@ -80,14 +80,14 @@ pub fn run(devices: &[Device], q: &Query, prefs: &Prefs) -> Vec<usize> {
         sb.cmp(&sa).then_with(|| {
             let (da, db) = (&devices[a], &devices[b]);
             match q.sort {
-                Sort::Curated => (da.role != Role::Instrument, da.order, name(a))
-                    .cmp(&(db.role != Role::Instrument, db.order, name(b))),
+                Sort::Curated => (da.role != Role::Instrument, da.order, name(a)).cmp(&(
+                    db.role != Role::Instrument,
+                    db.order,
+                    name(b),
+                )),
                 Sort::Name => name(a).cmp(&name(b)),
                 Sort::Vendor => (fold(&da.vendor), name(a)).cmp(&(fold(&db.vendor), name(b))),
-                Sort::Recent => (
-                    prefs.recency(&da.key).unwrap_or(usize::MAX),
-                    name(a),
-                )
+                Sort::Recent => (prefs.recency(&da.key).unwrap_or(usize::MAX), name(a))
                     .cmp(&(prefs.recency(&db.key).unwrap_or(usize::MAX), name(b))),
             }
         })

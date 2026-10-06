@@ -82,7 +82,10 @@ fn nested(dark: bool) {
         for (name, s) in subjects() {
             eprintln!("round {round} {name} …");
             let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
                 ..Default::default()
             };
             let mut out = ctx.run_ui(input, |ui| {
@@ -98,7 +101,14 @@ fn nested(dark: bool) {
     }
 }
 
-fn hosted(format: Format, id: &str, name: &str, vendor: &str, kind: PluginKind, f: &[&str]) -> PluginInfo {
+fn hosted(
+    format: Format,
+    id: &str,
+    name: &str,
+    vendor: &str,
+    kind: PluginKind,
+    f: &[&str],
+) -> PluginInfo {
     PluginInfo {
         format,
         id: id.into(),
@@ -120,18 +130,102 @@ fn database() -> cantus_host::PluginDb {
     use Format::*;
     use PluginKind::*;
     let list = [
-        hosted(Clap, "org.surge-synth-team.surge-xt", "Surge XT", "Surge Synth Team", Instrument, &["instrument", "synthesizer"]),
-        hosted(Vst3, "D0E1", "Dexed", "Digital Suburban", Instrument, &["Instrument|Synth"]),
-        hosted(Clap, "com.sfztools.sfizz", "sfizz", "SFZTools", Instrument, &["instrument", "sampler"]),
-        hosted(Vst3, "0B1D", "OB-Xd", "discoDSP", Instrument, &["Instrument|Synth"]),
-        hosted(Clap, "org.odin2", "Odin 2", "The Wave Warden", Instrument, &["instrument", "synthesizer"]),
-        hosted(Clap, "geonkick", "Geonkick", "Iurie Nistor", Instrument, &["instrument", "drum"]),
-        hosted(Clap, "com.airwindows.consolidated", "Airwindows Consolidated", "Airwindows", Effect, &["audio-effect", "utility"]),
-        hosted(Vst3, "0A11", "Dragonfly Hall Reverb", "Michael Willis", Effect, &["Fx|Reverb"]),
-        hosted(Clap, "com.chowdsp.chowtapemodel", "CHOW Tape Model", "chowdsp", Effect, &["audio-effect", "distortion"]),
-        hosted(Vst3, "0C0D", "TDR Nova", "Tokyo Dawn Labs", Effect, &["Fx|EQ"]),
-        hosted(Clap, "org.lsp.compressor", "LSP Compressor Stereo", "LSP", Effect, &["audio-effect", "compressor"]),
-        hosted(Vst3, "0D0E", "Valhalla Supermassive", "Valhalla DSP", Effect, &["Fx|Delay|Reverb"]),
+        hosted(
+            Clap,
+            "org.surge-synth-team.surge-xt",
+            "Surge XT",
+            "Surge Synth Team",
+            Instrument,
+            &["instrument", "synthesizer"],
+        ),
+        hosted(
+            Vst3,
+            "D0E1",
+            "Dexed",
+            "Digital Suburban",
+            Instrument,
+            &["Instrument|Synth"],
+        ),
+        hosted(
+            Clap,
+            "com.sfztools.sfizz",
+            "sfizz",
+            "SFZTools",
+            Instrument,
+            &["instrument", "sampler"],
+        ),
+        hosted(
+            Vst3,
+            "0B1D",
+            "OB-Xd",
+            "discoDSP",
+            Instrument,
+            &["Instrument|Synth"],
+        ),
+        hosted(
+            Clap,
+            "org.odin2",
+            "Odin 2",
+            "The Wave Warden",
+            Instrument,
+            &["instrument", "synthesizer"],
+        ),
+        hosted(
+            Clap,
+            "geonkick",
+            "Geonkick",
+            "Iurie Nistor",
+            Instrument,
+            &["instrument", "drum"],
+        ),
+        hosted(
+            Clap,
+            "com.airwindows.consolidated",
+            "Airwindows Consolidated",
+            "Airwindows",
+            Effect,
+            &["audio-effect", "utility"],
+        ),
+        hosted(
+            Vst3,
+            "0A11",
+            "Dragonfly Hall Reverb",
+            "Michael Willis",
+            Effect,
+            &["Fx|Reverb"],
+        ),
+        hosted(
+            Clap,
+            "com.chowdsp.chowtapemodel",
+            "CHOW Tape Model",
+            "chowdsp",
+            Effect,
+            &["audio-effect", "distortion"],
+        ),
+        hosted(
+            Vst3,
+            "0C0D",
+            "TDR Nova",
+            "Tokyo Dawn Labs",
+            Effect,
+            &["Fx|EQ"],
+        ),
+        hosted(
+            Clap,
+            "org.lsp.compressor",
+            "LSP Compressor Stereo",
+            "LSP",
+            Effect,
+            &["audio-effect", "compressor"],
+        ),
+        hosted(
+            Vst3,
+            "0D0E",
+            "Valhalla Supermassive",
+            "Valhalla DSP",
+            Effect,
+            &["Fx|Delay|Reverb"],
+        ),
     ];
     let mut db = cantus_host::PluginDb::default();
     for (i, p) in list.into_iter().enumerate() {
@@ -148,7 +242,13 @@ fn database() -> cantus_host::PluginDb {
 }
 
 /// Run the whole window until the picker's pictures are in, then write the last frame.
-fn window(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, path: &Path, events: Vec<egui::Event>) {
+fn window(
+    app: &mut CantusApp,
+    ctx: &egui::Context,
+    size: egui::Vec2,
+    path: &Path,
+    events: Vec<egui::Event>,
+) {
     let mut textures = Textures::default();
     let start = Instant::now();
     let mut frame = 0;
@@ -157,7 +257,11 @@ fn window(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, path: &Pat
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
             time: Some(frame as f64 * 0.25),
             predicted_dt: 0.25,
-            events: if frame == 2 { events.clone() } else { Vec::new() },
+            events: if frame == 2 {
+                events.clone()
+            } else {
+                Vec::new()
+            },
             ..Default::default()
         };
         let mut o = ctx.run_ui(input, |root| app.frame(root));
@@ -174,19 +278,35 @@ fn window(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, path: &Pat
         std::thread::sleep(std::time::Duration::from_millis(30));
     };
     let prims = ctx.tessellate(o.shapes, o.pixels_per_point);
-    let mut canvas = Canvas::new(size.x as usize, size.y as usize, ctx.global_style().visuals.panel_fill);
+    let mut canvas = Canvas::new(
+        size.x as usize,
+        size.y as usize,
+        ctx.global_style().visuals.panel_fill,
+    );
     canvas.paint(&prims, &textures, o.pixels_per_point);
     let _ = canvas.write_png(path);
-    println!("wrote {} ({frame} frames, {:?})", path.display(), app.picker_view.thumbs.stats);
+    println!(
+        "wrote {} ({frame} frames, {:?})",
+        path.display(),
+        app.picker_view.thumbs.stats
+    );
 }
 
 fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
     use cantus_ui::kit::appearance::Mode;
-    let locale = if spanish { cantus_ui::i18n::Locale::Es } else { cantus_ui::i18n::Locale::En };
+    let locale = if spanish {
+        cantus_ui::i18n::Locale::Es
+    } else {
+        cantus_ui::i18n::Locale::En
+    };
     cantus_ui::i18n::set_locale(locale);
     eprintln!("picker {what} dark={dark} es={spanish}");
     let ctx = themed_ctx(dark);
-    let mut app = CantusApp::from_parts(Some(cantus_ui::demos::startup_project()), EngineHandle::dummy(), false);
+    let mut app = CantusApp::from_parts(
+        Some(cantus_ui::demos::startup_project()),
+        EngineHandle::dummy(),
+        false,
+    );
     let tmp = std::env::temp_dir().join("cantus-shoot-picker");
     app.settings_path = tmp.join("settings.json");
     app.layouts_path = tmp.join("layouts.json");
@@ -198,7 +318,12 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
     app.picker_view.thumbs.enable(Some(tmp.join("thumbs")));
     app.picker_view.prefs.favourites = vec!["cantus:unda".into(), "cantus:culmen".into()];
     app.picker_view.prefs.recent = vec!["cantus:lamina".into(), "cantus:comprimo".into()];
-    let strip = app.project().tracks.get(5).and_then(|t| t.strip).unwrap_or(cantus_core::StripId::MASTER);
+    let strip = app
+        .project()
+        .tracks
+        .get(5)
+        .and_then(|t| t.strip)
+        .unwrap_or(cantus_core::StripId::MASTER);
     let track = app.project().tracks[0].id;
     let mut events = Vec::new();
     match what {
@@ -216,8 +341,18 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
         _ => {}
     }
     eprintln!("opened: {:?}", app.picker);
-    let tag = format!("picker-{what}-{}{}", if dark { "dark" } else { "light" }, if spanish { "-es" } else { "" });
-    window(&mut app, &ctx, egui::vec2(1920.0, 1080.0), &dir.join(format!("{tag}.png")), events);
+    let tag = format!(
+        "picker-{what}-{}{}",
+        if dark { "dark" } else { "light" },
+        if spanish { "-es" } else { "" }
+    );
+    window(
+        &mut app,
+        &ctx,
+        egui::vec2(1920.0, 1080.0),
+        &dir.join(format!("{tag}.png")),
+        events,
+    );
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
 

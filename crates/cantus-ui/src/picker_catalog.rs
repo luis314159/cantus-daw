@@ -153,9 +153,7 @@ impl Category {
     pub fn hue(self) -> Function {
         match self {
             Category::Synths | Category::Samplers | Category::OtherInstruments => Function::Source,
-            Category::Keys | Category::Bass | Category::Eq | Category::Distortion => {
-                Function::Tone
-            }
+            Category::Keys | Category::Bass | Category::Eq | Category::Distortion => Function::Tone,
             Category::Drums | Category::Dynamics | Category::Mastering => Function::Dynamics,
             Category::Modulation => Function::Mod,
             Category::Space | Category::Stereo => Function::Space,
@@ -229,27 +227,71 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
     use EffectKind as E;
     use InstrumentKind as I;
     let mut v = vec![
-        ("unda", PickChoice::Instrument(I::Wavetable), vec![C::Synths]),
+        (
+            "unda",
+            PickChoice::Instrument(I::Wavetable),
+            vec![C::Synths],
+        ),
         ("calor", PickChoice::Instrument(I::Analog), vec![C::Synths]),
-        ("modulus", PickChoice::Instrument(I::Fm), vec![C::Synths, C::Keys]),
+        (
+            "modulus",
+            PickChoice::Instrument(I::Fm),
+            vec![C::Synths, C::Keys],
+        ),
         ("firmus", PickChoice::Firmus, vec![C::Synths]),
-        ("lamina", PickChoice::Instrument(I::ElectricPiano), vec![C::Keys]),
+        (
+            "lamina",
+            PickChoice::Instrument(I::ElectricPiano),
+            vec![C::Keys],
+        ),
         ("organum", PickChoice::Instrument(I::Organ), vec![C::Keys]),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
-        ("exemplar", PickChoice::Instrument(I::Sampler), vec![C::Samplers]),
-        ("aequalis", PickChoice::Effect(E::Eq), vec![C::Eq, C::Mastering]),
-        ("comprimo", PickChoice::Effect(E::Compressor), vec![C::Dynamics]),
+        (
+            "exemplar",
+            PickChoice::Instrument(I::Sampler),
+            vec![C::Samplers],
+        ),
+        (
+            "aequalis",
+            PickChoice::Effect(E::Eq),
+            vec![C::Eq, C::Mastering],
+        ),
+        (
+            "comprimo",
+            PickChoice::Effect(E::Compressor),
+            vec![C::Dynamics],
+        ),
         ("porta", PickChoice::Effect(E::Gate), vec![C::Dynamics]),
         ("sibilus", PickChoice::Effect(E::DeEsser), vec![C::Dynamics]),
-        ("multiplex", PickChoice::Effect(E::Multiband), vec![C::Dynamics, C::Mastering]),
-        ("terminus", PickChoice::Effect(E::Limiter), vec![C::Dynamics, C::Mastering]),
-        ("culmen", PickChoice::Effect(E::Maximizer), vec![C::Mastering, C::Dynamics]),
+        (
+            "multiplex",
+            PickChoice::Effect(E::Multiband),
+            vec![C::Dynamics, C::Mastering],
+        ),
+        (
+            "terminus",
+            PickChoice::Effect(E::Limiter),
+            vec![C::Dynamics, C::Mastering],
+        ),
+        (
+            "culmen",
+            PickChoice::Effect(E::Maximizer),
+            vec![C::Mastering, C::Dynamics],
+        ),
         ("spatium", PickChoice::Effect(E::Space), vec![C::Space]),
         ("delay", PickChoice::Effect(E::Delay), vec![C::Space]),
         ("reverb", PickChoice::Effect(E::Reverb), vec![C::Space]),
-        ("fervor", PickChoice::Effect(E::Saturator), vec![C::Distortion, C::Mastering]),
-        ("latitudo", PickChoice::Effect(E::Stereo), vec![C::Stereo, C::Mastering]),
+        (
+            "fervor",
+            PickChoice::Effect(E::Saturator),
+            vec![C::Distortion, C::Mastering],
+        ),
+        (
+            "latitudo",
+            PickChoice::Effect(E::Stereo),
+            vec![C::Stereo, C::Mastering],
+        ),
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {
@@ -363,16 +405,37 @@ pub fn hosted_categories(info: &PluginInfo) -> Vec<Category> {
             if has(&["eq", "equalizer", "equaliser", "filter"]) {
                 push(&mut out, C::Eq);
             }
-            if has(&["dynamics", "compressor", "limiter", "gate", "expander", "transient"]) {
+            if has(&[
+                "dynamics",
+                "compressor",
+                "limiter",
+                "gate",
+                "expander",
+                "transient",
+            ]) {
                 push(&mut out, C::Dynamics);
             }
             if has(&["reverb", "delay", "echo", "spatial", "room"]) {
                 push(&mut out, C::Space);
             }
-            if has(&["distortion", "saturation", "saturator", "overdrive", "amp", "bitcrusher"]) {
+            if has(&[
+                "distortion",
+                "saturation",
+                "saturator",
+                "overdrive",
+                "amp",
+                "bitcrusher",
+            ]) {
                 push(&mut out, C::Distortion);
             }
-            if has(&["modulation", "chorus", "flanger", "phaser", "tremolo", "vibrato"]) {
+            if has(&[
+                "modulation",
+                "chorus",
+                "flanger",
+                "phaser",
+                "tremolo",
+                "vibrato",
+            ]) {
                 push(&mut out, C::Modulation);
             }
             if has(&["stereo", "surround", "imager", "panner", "width"]) {
@@ -381,7 +444,15 @@ pub fn hosted_categories(info: &PluginInfo) -> Vec<Category> {
             if has(&["mastering", "maximizer", "loudness"]) {
                 push(&mut out, C::Mastering);
             }
-            if has(&["utility", "tools", "analyzer", "analyser", "meter", "gain", "restoration"]) {
+            if has(&[
+                "utility",
+                "tools",
+                "analyzer",
+                "analyser",
+                "meter",
+                "gain",
+                "restoration",
+            ]) {
                 push(&mut out, C::Utility);
             }
             if out.is_empty() {
@@ -493,7 +564,11 @@ pub fn score(device: &Device, query: &str) -> Option<u32> {
             80
         } else if name.contains(word) {
             60
-        } else if device.haystack.split_whitespace().any(|w| w.starts_with(word)) {
+        } else if device
+            .haystack
+            .split_whitespace()
+            .any(|w| w.starts_with(word))
+        {
             30
         } else if device.haystack.contains(word) {
             10

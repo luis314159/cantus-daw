@@ -151,7 +151,12 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
         v.scroll -= dy;
     }
     if std::mem::take(&mut v.reveal) {
-        if let Some((_, r)) = v.geo.tiles.iter().find(|t| Some(&t.0) == v.selected.as_ref()) {
+        if let Some((_, r)) = v
+            .geo
+            .tiles
+            .iter()
+            .find(|t| Some(&t.0) == v.selected.as_ref())
+        {
             let margin = s.s(PAD);
             // The tops of the rows and headings: a scroll that starts on one shows whole
             // tiles at the top of the gallery, never a cut row.
@@ -197,9 +202,17 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
             continue;
         }
         let key = v.catalog[*i].key.clone();
-        let resp = ui.interact(r.intersect(view), Id::new(("picker-tile", &key)), Sense::click());
+        let resp = ui.interact(
+            r.intersect(view),
+            Id::new(("picker-tile", &key)),
+            Sense::click(),
+        );
         let star = star_rect(r, s);
-        let star_resp = ui.interact(star.intersect(view), Id::new(("picker-star", &key)), Sense::click());
+        let star_resp = ui.interact(
+            star.intersect(view),
+            Id::new(("picker-star", &key)),
+            Sense::click(),
+        );
         if resp.hovered() || star_resp.hovered() {
             hovered_key = Some(key.clone());
             let d = &v.catalog[*i];
@@ -312,7 +325,10 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
 /// Where a tile's star sits: the picture's top-right corner.
 pub fn star_rect(tile: Rect, s: &Style) -> Rect {
     let z = s.s(22.0);
-    Rect::from_min_size(pos2(tile.right() - z - s.s(5.0), tile.top() + s.s(5.0)), Vec2::splat(z))
+    Rect::from_min_size(
+        pos2(tile.right() - z - s.s(5.0), tile.top() + s.s(5.0)),
+        Vec2::splat(z),
+    )
 }
 
 /// A shelf's heading: its name, its count, a hairline to the edge.
@@ -320,7 +336,10 @@ fn heading(b: &mut Brush, r: Rect, c: Category, n: usize, s: &Style) {
     let name = crate::i18n::t(c.key());
     let t = Text::new(&name, Role::Section, s.t.label).align(Align2::LEFT_CENTER);
     let w = text::measure(b.ctx(), &t, s.tk()).x;
-    let gr = Rect::from_center_size(pos2(r.left() + s.s(7.0), r.center().y), Vec2::splat(s.s(14.0)));
+    let gr = Rect::from_center_size(
+        pos2(r.left() + s.s(7.0), r.center().y),
+        Vec2::splat(s.s(14.0)),
+    );
     super::picker_cover::glyph(b, gr, c, s.t.hue(c.hue()), s.s(1.4));
     let tr = Rect::from_min_max(pos2(r.left() + s.s(20.0), r.top()), r.max);
     let _ = text::paint(b, tr, &t, s.tk());
@@ -329,7 +348,13 @@ fn heading(b: &mut Brush, r: Rect, c: Category, n: usize, s: &Style) {
     let cr = Rect::from_min_max(pos2(tr.left() + w + s.s(8.0), r.top()), r.max);
     let _ = text::paint(b, cr, &ct, s.tk());
     let x0 = cr.left() + s.s(26.0);
-    b.hline(x0, r.right(), b.snap_mid(r.center().y), b.px(), with_alpha(s.t.edge, 0.35));
+    b.hline(
+        x0,
+        r.right(),
+        b.snap_mid(r.center().y),
+        b.px(),
+        with_alpha(s.t.edge, 0.35),
+    );
 }
 
 /// A tile's face: nothing at rest (the picture stands on the ground), a raised card on
@@ -362,33 +387,64 @@ fn face(b: &mut Brush, r: Rect, s: &Style, sel: bool, hov: bool) {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn overlay(b: &mut Brush, r: Rect, s: &Style, d: &Device, sel: bool, hov: bool, fav: bool, current: bool) {
+fn overlay(
+    b: &mut Brush,
+    r: Rect,
+    s: &Style,
+    d: &Device,
+    sel: bool,
+    hov: bool,
+    fav: bool,
+    current: bool,
+) {
     let pic = picture(r);
     b.rrect_stroke(pic, s.r(6.0), b.px(), with_alpha(s.t.dark_shade, 0.5));
     // The name, and what it is.
-    let name_r = Rect::from_min_size(pos2(r.left() + s.s(2.0), pic.bottom() + s.s(6.0)), vec2(r.width() - s.s(4.0), s.s(17.0)));
+    let name_r = Rect::from_min_size(
+        pos2(r.left() + s.s(2.0), pic.bottom() + s.s(6.0)),
+        vec2(r.width() - s.s(4.0), s.s(17.0)),
+    );
     let what_r = name_r.translate(vec2(0.0, s.s(16.0)));
-    let ink = if sel { s.t.text } else { crate::kit::color::mix(s.t.text, s.t.text_dim, 0.15) };
-    let nt = Text::new(&d.name, Role::Title, ink).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End));
+    let ink = if sel {
+        s.t.text
+    } else {
+        crate::kit::color::mix(s.t.text, s.t.text_dim, 0.15)
+    };
+    let nt = Text::new(&d.name, Role::Title, ink)
+        .align(Align2::LEFT_CENTER)
+        .policy(Policy::Elide(Elide::End));
     let _ = text::paint(b, name_r, &nt, s.tk());
     let what = match d.source.badge() {
         Some(_) => format!("{} · {}", d.vendor, d.what),
         None => d.what.clone(),
     };
-    let wt = Text::new(&what, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End));
+    let wt = Text::new(&what, Role::Label, s.t.text_dim)
+        .align(Align2::LEFT_CENTER)
+        .policy(Policy::Elide(Elide::End));
     let _ = text::paint(b, what_r, &wt, s.tk());
     // The star: always when set, on hover otherwise.
     if fav || hov {
         let z = star_rect(r, s);
-        b.circle(z.center(), z.width() * 0.5, Fill::Solid(with_alpha(s.t.ink, 0.62)));
-        let (g, c) = if fav { (Glyph::StarFilled, s.t.brand_bright) } else { (Glyph::Star, s.t.text_dim) };
+        b.circle(
+            z.center(),
+            z.width() * 0.5,
+            Fill::Solid(with_alpha(s.t.ink, 0.62)),
+        );
+        let (g, c) = if fav {
+            (Glyph::StarFilled, s.t.brand_bright)
+        } else {
+            (Glyph::Star, s.t.text_dim)
+        };
         crate::kit::glyph::paint(b, z.shrink(s.s(4.0)), g, c);
     }
     if current {
         let label = crate::i18n::t("picker.current");
         let t = Text::new(&label, Role::Micro, s.t.highlight_glyph).caps(true);
         let w = text::measure(b.ctx(), &t, s.tk()).x + s.s(10.0);
-        let cr = Rect::from_min_size(pic.left_top() + vec2(s.s(6.0), s.s(6.0)), vec2(w, s.s(16.0)));
+        let cr = Rect::from_min_size(
+            pic.left_top() + vec2(s.s(6.0), s.s(6.0)),
+            vec2(w, s.s(16.0)),
+        );
         b.rrect(cr, s.r(3.0), Fill::Solid(s.t.highlight));
         let _ = text::paint(b, cr, &t, s.tk());
     }
@@ -402,7 +458,10 @@ fn overlay(b: &mut Brush, r: Rect, s: &Style, d: &Device, sel: bool, hov: bool, 
 fn empty(v: &PickerView, ui: &Ui, view: Rect, s: &Style) {
     use crate::i18n::{t, tf};
     let (line, hint) = if !v.query.text.trim().is_empty() {
-        (tf("picker.empty", &[("q", &v.query.text.trim())]), t("picker.empty.hint"))
+        (
+            tf("picker.empty", &[("q", &v.query.text.trim())]),
+            t("picker.empty.hint"),
+        )
     } else {
         match v.query.shelf {
             Shelf::Favourites => (t("picker.empty.favourites"), String::new()),
@@ -415,10 +474,20 @@ fn empty(v: &PickerView, ui: &Ui, view: Rect, s: &Style) {
         let g = Rect::from_center_size(c - vec2(0.0, s.s(40.0)), Vec2::splat(s.s(36.0)));
         super::picker_layout::magnifier(b, g, with_alpha(s.t.text_dim, 0.6), s.s(2.4));
         let r = Rect::from_center_size(c, vec2(view.width() - s.s(80.0), s.s(24.0)));
-        let _ = text::paint(b, r, &Text::new(&line, Role::Title, s.t.text).policy(Policy::Elide(Elide::End)), s.tk());
+        let _ = text::paint(
+            b,
+            r,
+            &Text::new(&line, Role::Title, s.t.text).policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
         if !hint.is_empty() {
             let r = r.translate(vec2(0.0, s.s(24.0)));
-            let _ = text::paint(b, r, &Text::new(&hint, Role::Body, s.t.text_dim).policy(Policy::Elide(Elide::End)), s.tk());
+            let _ = text::paint(
+                b,
+                r,
+                &Text::new(&hint, Role::Body, s.t.text_dim).policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
         }
     });
 }

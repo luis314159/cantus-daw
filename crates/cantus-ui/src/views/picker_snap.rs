@@ -164,7 +164,10 @@ pub fn capture(outer: &Context, subject: Subject, ppp: f32) -> Option<Frame> {
     let rect = match subject {
         Subject::Effect(kind) => {
             let k = crate::views::fx::frame::shell_of(kind).scale(&ctx);
-            Rect::from_min_size(egui::Pos2::ZERO, crate::views::fx::frame::designed_size(kind) * k)
+            Rect::from_min_size(
+                egui::Pos2::ZERO,
+                crate::views::fx::frame::designed_size(kind) * k,
+            )
         }
         _ => body?,
     };
@@ -233,7 +236,14 @@ pub fn round_corners(img: &mut ColorImage, r: f32) {
 }
 
 /// The region `(x0, y0, w, h)` of `canvas`, averaged down to `width` pixels across.
-pub fn shrink(canvas: &Canvas, x0: usize, y0: usize, w: usize, h: usize, width: usize) -> ColorImage {
+pub fn shrink(
+    canvas: &Canvas,
+    x0: usize,
+    y0: usize,
+    w: usize,
+    h: usize,
+    width: usize,
+) -> ColorImage {
     let width = width.clamp(1, w.max(1));
     let height = ((h as f32 * width as f32 / w.max(1) as f32).round() as usize).max(1);
     let mut px = Vec::with_capacity(width * height * 4);

@@ -41,22 +41,47 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, screen: Rect, purpose: &PickPurpos
     with_brush(ui.painter(), |b| {
         b.register(screen, "picker-scrim", &[Tok::MeterWell], &[]);
         // The meters' well is dark in every theme: the workspace sinks under the panel.
-        b.rect(screen, Fill::Solid(with_alpha(s.t.meter_well, if s.t.dark { 0.6 } else { 0.42 })));
-        b.rrect_soft(panel.translate(vec2(0.0, s.s(10.0))), s.r(12.0), Fill::Solid(with_alpha(s.t.meter_well, 0.55)), s.s(28.0));
+        b.rect(
+            screen,
+            Fill::Solid(with_alpha(
+                s.t.meter_well,
+                if s.t.dark { 0.6 } else { 0.42 },
+            )),
+        );
+        b.rrect_soft(
+            panel.translate(vec2(0.0, s.s(10.0))),
+            s.r(12.0),
+            Fill::Solid(with_alpha(s.t.meter_well, 0.55)),
+            s.s(28.0),
+        );
         b.rrect(panel, s.r(10.0), Fill::Solid(s.t.panel));
     });
     // The panel swallows clicks so they do not reach the scrim.
     let _ = ui.interact(panel, Id::new("picker-panel"), Sense::click());
-    if scrim.clicked() && !scrim.interact_pointer_pos().is_some_and(|p| panel.contains(p)) {
+    if scrim.clicked()
+        && !scrim
+            .interact_pointer_pos()
+            .is_some_and(|p| panel.contains(p))
+    {
         action = Action::Close;
     }
     let header = Rect::from_min_size(panel.min, vec2(panel.width(), s.s(HEADER)));
     let footer = Rect::from_min_max(pos2(panel.left(), panel.bottom() - s.s(FOOTER)), panel.max);
-    let body = Rect::from_min_max(pos2(panel.left(), header.bottom()), pos2(panel.right(), footer.top()));
+    let body = Rect::from_min_max(
+        pos2(panel.left(), header.bottom()),
+        pos2(panel.right(), footer.top()),
+    );
     let side = Rect::from_min_size(body.min, vec2(s.s(SIDE), body.height()));
-    let details_w = if v.prefs.details && panel.width() > s.s(900.0) { s.s(DETAILS) } else { 0.0 };
+    let details_w = if v.prefs.details && panel.width() > s.s(900.0) {
+        s.s(DETAILS)
+    } else {
+        0.0
+    };
     let details = Rect::from_min_max(pos2(body.right() - details_w, body.top()), body.max);
-    let grid = Rect::from_min_max(pos2(side.right(), body.top()), pos2(details.left(), body.bottom()));
+    let grid = Rect::from_min_max(
+        pos2(side.right(), body.top()),
+        pos2(details.left(), body.bottom()),
+    );
     if head(v, ui, header, &s, &title, &context) {
         action = Action::Close;
     }
@@ -75,27 +100,95 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, screen: Rect, purpose: &PickPurpos
     }
     // The panel's rim, over everything.
     with_brush(ui.painter(), |b| {
-        b.rrect_stroke(panel, s.r(10.0), b.px(), shade(s.t.panel, if s.t.dark { -0.12 } else { -0.2 }));
-        b.vline(b.snap_mid(side.right()), body.top(), body.bottom(), b.px(), shade(s.t.panel, -0.1));
+        b.rrect_stroke(
+            panel,
+            s.r(10.0),
+            b.px(),
+            shade(s.t.panel, if s.t.dark { -0.12 } else { -0.2 }),
+        );
+        b.vline(
+            b.snap_mid(side.right()),
+            body.top(),
+            body.bottom(),
+            b.px(),
+            shade(s.t.panel, -0.1),
+        );
         if details_w > 0.0 {
-            b.vline(b.snap_mid(details.left()), body.top(), body.bottom(), b.px(), shade(s.t.panel, -0.1));
+            b.vline(
+                b.snap_mid(details.left()),
+                body.top(),
+                body.bottom(),
+                b.px(),
+                shade(s.t.panel, -0.1),
+            );
         }
     });
     action
 }
 
 /// A push button in `rect`: a cap with its word; `primary` wears the highlight.
-pub fn button(ui: &Ui, rect: Rect, id: Id, label: &str, primary: bool, enabled: bool) -> egui::Response {
+pub fn button(
+    ui: &Ui,
+    rect: Rect,
+    id: Id,
+    label: &str,
+    primary: bool,
+    enabled: bool,
+) -> egui::Response {
     let s = Style::current();
-    let resp = ui.interact(rect, id, if enabled { Sense::click() } else { Sense::hover() });
+    let resp = ui.interact(
+        rect,
+        id,
+        if enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        },
+    );
     let mut st = State::of(&resp, false);
     st.disabled = !enabled;
     with_brush(ui.painter(), |b| {
-        b.register(rect, "picker-button", &[Tok::PanelRaised, Tok::Highlight, Tok::HighlightGlyph, Tok::Text], &[]);
-        let base = if primary { s.t.highlight } else { s.t.panel_raised };
-        let base = if st.active { shade(base, -0.03) } else if st.hovered { shade(base, 0.05) } else { base };
-        light::raised(b, rect, s.r(4.0), base, light::RaisedOpts { drop: !st.active, k: s.k, alpha: st.alpha(), depth: s.t.depth, ..Default::default() });
-        let ink = if primary { s.t.highlight_glyph } else { s.t.text };
+        b.register(
+            rect,
+            "picker-button",
+            &[
+                Tok::PanelRaised,
+                Tok::Highlight,
+                Tok::HighlightGlyph,
+                Tok::Text,
+            ],
+            &[],
+        );
+        let base = if primary {
+            s.t.highlight
+        } else {
+            s.t.panel_raised
+        };
+        let base = if st.active {
+            shade(base, -0.03)
+        } else if st.hovered {
+            shade(base, 0.05)
+        } else {
+            base
+        };
+        light::raised(
+            b,
+            rect,
+            s.r(4.0),
+            base,
+            light::RaisedOpts {
+                drop: !st.active,
+                k: s.k,
+                alpha: st.alpha(),
+                depth: s.t.depth,
+                ..Default::default()
+            },
+        );
+        let ink = if primary {
+            s.t.highlight_glyph
+        } else {
+            s.t.text
+        };
         let t = Text::new(label, Role::Control, ink.gamma_multiply(st.alpha()));
         let _ = text::paint(b, rect, &t, s.tk());
     });
@@ -110,7 +203,9 @@ fn key(ui: &Ui, rect: Rect, id: Id, g: Glyph, lit: bool, name: &str) -> egui::Re
     if st.hovered {
         crate::kit::hint::set_text(ui.ctx(), name, "", crate::kit::hint::Caps::NONE);
     }
-    with_brush(ui.painter(), |b| cap::toolbar_key(b, rect, &s, st, KeyFace::Glyph(g)));
+    with_brush(ui.painter(), |b| {
+        cap::toolbar_key(b, rect, &s, st, KeyFace::Glyph(g))
+    });
     resp.on_hover_text(name)
 }
 
@@ -118,17 +213,42 @@ fn key(ui: &Ui, rect: Rect, id: Id, g: Glyph, lit: bool, name: &str) -> egui::Re
 fn head(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, title: &str, context: &str) -> bool {
     let pad = s.s(16.0);
     with_brush(ui.painter(), |b| {
-        b.register(r, "picker-header", &[Tok::Toolbar, Tok::Text, Tok::TextDim], &[]);
+        b.register(
+            r,
+            "picker-header",
+            &[Tok::Toolbar, Tok::Text, Tok::TextDim],
+            &[],
+        );
         let top = Rect::from_min_max(r.min, pos2(r.right(), r.bottom()));
-        b.rrect(top, s.r(10.0), Fill::V(shade(s.t.toolbar, 0.02), s.t.toolbar));
-        b.rect(Rect::from_min_max(pos2(r.left(), r.bottom() - s.s(10.0)), r.max), Fill::Solid(s.t.toolbar));
-        b.hline(r.left(), r.right(), b.snap_mid(r.bottom()), b.px(), shade(s.t.toolbar, -0.14));
+        b.rrect(
+            top,
+            s.r(10.0),
+            Fill::V(shade(s.t.toolbar, 0.02), s.t.toolbar),
+        );
+        b.rect(
+            Rect::from_min_max(pos2(r.left(), r.bottom() - s.s(10.0)), r.max),
+            Fill::Solid(s.t.toolbar),
+        );
+        b.hline(
+            r.left(),
+            r.right(),
+            b.snap_mid(r.bottom()),
+            b.px(),
+            shade(s.t.toolbar, -0.14),
+        );
         // What is being chosen, set large, and for what, dimmed.
-        let tr = Rect::from_min_size(pos2(r.left() + pad, r.top() + s.s(8.0)), vec2(s.s(300.0), s.s(24.0)));
-        let tt = Text::new(title, Role::Title, s.t.text).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End));
+        let tr = Rect::from_min_size(
+            pos2(r.left() + pad, r.top() + s.s(8.0)),
+            vec2(s.s(300.0), s.s(24.0)),
+        );
+        let tt = Text::new(title, Role::Title, s.t.text)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
         let _ = text::paint(b, tr, &tt, s.tk() * 1.3);
         let cr = tr.translate(vec2(0.0, s.s(22.0)));
-        let ct = Text::new(context, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End));
+        let ct = Text::new(context, Role::Label, s.t.text_dim)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
         let _ = text::paint(b, cr, &ct, s.tk());
     });
     // Right to left: close, details, size, sort; the search takes what is left.
@@ -139,9 +259,15 @@ fn head(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, title: &str, contex
     x = close.left() - s.s(8.0);
     let dt = Rect::from_min_size(pos2(x - h, y), vec2(h, h));
     x = dt.left() - s.s(12.0);
-    let size = Rect::from_min_size(pos2(x - s.s(96.0), y + s.s(2.0)), vec2(s.s(96.0), s.s(24.0)));
+    let size = Rect::from_min_size(
+        pos2(x - s.s(96.0), y + s.s(2.0)),
+        vec2(s.s(96.0), s.s(24.0)),
+    );
     x = size.left() - s.s(10.0);
-    let sort = Rect::from_min_size(pos2(x - s.s(320.0), y + s.s(2.0)), vec2(s.s(320.0), s.s(24.0)));
+    let sort = Rect::from_min_size(
+        pos2(x - s.s(320.0), y + s.s(2.0)),
+        vec2(s.s(320.0), s.s(24.0)),
+    );
     x = sort.left() - s.s(16.0);
     let left = r.left() + pad + s.s(300.0) + s.s(16.0);
     let search = Rect::from_min_max(pos2(left, y), pos2(x.max(left + s.s(160.0)), y + h));
@@ -150,24 +276,53 @@ fn head(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, title: &str, contex
     v.geo.size = size;
     v.geo.sort = sort;
     v.geo.search = search;
-    let closed = key(ui, close, Id::new("picker-close"), Glyph::Close, false, &t("picker.close")).clicked();
-    if key(ui, dt, Id::new("picker-details-toggle"), Glyph::Inspector, v.prefs.details, &t("picker.details.toggle")).clicked() {
+    let closed = key(
+        ui,
+        close,
+        Id::new("picker-close"),
+        Glyph::Close,
+        false,
+        &t("picker.close"),
+    )
+    .clicked();
+    if key(
+        ui,
+        dt,
+        Id::new("picker-details-toggle"),
+        Glyph::Inspector,
+        v.prefs.details,
+        &t("picker.details.toggle"),
+    )
+    .clicked()
+    {
         v.prefs.details = !v.prefs.details;
         v.store_prefs();
     }
     let sizes: Vec<Src> = TileSize::ALL.iter().map(|z| Src::Key(z.key())).collect();
-    let cur = TileSize::ALL.iter().position(|z| *z == v.prefs.tile).unwrap_or(1);
+    let cur = TileSize::ALL
+        .iter()
+        .position(|z| *z == v.prefs.tile)
+        .unwrap_or(1);
     let name_size = t("picker.size");
-    let (_, pick) = Segmented::new(cur, &sizes).name(&name_size).id(Id::new("picker-size")).show_at(ui, size);
+    let (_, pick) = Segmented::new(cur, &sizes)
+        .name(&name_size)
+        .id(Id::new("picker-size"))
+        .show_at(ui, size);
     if let Some(i) = pick {
         v.prefs.tile = TileSize::ALL[i];
         v.reveal = true;
         v.store_prefs();
     }
     let sorts: Vec<Src> = Sort::ALL.iter().map(|z| Src::Key(z.key())).collect();
-    let cur = Sort::ALL.iter().position(|z| *z == v.query.sort).unwrap_or(0);
+    let cur = Sort::ALL
+        .iter()
+        .position(|z| *z == v.query.sort)
+        .unwrap_or(0);
     let name_sort = t("picker.sort");
-    let (_, pick) = Segmented::new(cur, &sorts).name(&name_sort).id(Id::new("picker-sort")).show_at(ui, sort);
+    let (_, pick) = Segmented::new(cur, &sorts)
+        .name(&name_sort)
+        .id(Id::new("picker-sort"))
+        .show_at(ui, sort);
     if let Some(i) = pick {
         v.query.sort = Sort::ALL[i];
         v.prefs.sort = Sort::ALL[i];
@@ -180,17 +335,34 @@ fn head(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, title: &str, contex
 
 /// The search: a well with a magnifier, the words, and a clear key.
 fn search_field(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
-    let st = if ui.memory(|m| m.has_focus(search_id())) { State::FOCUS } else { State::REST };
+    let st = if ui.memory(|m| m.has_focus(search_id())) {
+        State::FOCUS
+    } else {
+        State::REST
+    };
     with_brush(ui.painter(), |b| {
         crate::kit::well::paint(b, r, s, st, None);
-        let g = Rect::from_center_size(pos2(r.left() + s.s(15.0), r.center().y), egui::Vec2::splat(s.s(13.0)));
+        let g = Rect::from_center_size(
+            pos2(r.left() + s.s(15.0), r.center().y),
+            egui::Vec2::splat(s.s(13.0)),
+        );
         magnifier(b, g, s.t.text_dim, s.s(1.6));
     });
-    let clear = Rect::from_center_size(pos2(r.right() - s.s(14.0), r.center().y), egui::Vec2::splat(s.s(18.0)));
-    let inner = Rect::from_min_max(pos2(r.left() + s.s(28.0), r.top() + s.s(3.0)), pos2(clear.left() - s.s(4.0), r.bottom() - s.s(3.0)));
+    let clear = Rect::from_center_size(
+        pos2(r.right() - s.s(14.0), r.center().y),
+        egui::Vec2::splat(s.s(18.0)),
+    );
+    let inner = Rect::from_min_max(
+        pos2(r.left() + s.s(28.0), r.top() + s.s(3.0)),
+        pos2(clear.left() - s.s(4.0), r.bottom() - s.s(3.0)),
+    );
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     let mut text = v.query.text.clone();
-    let n = v.catalog.iter().filter(|d| v.query.role.is_none_or(|r| d.role == r)).count();
+    let n = v
+        .catalog
+        .iter()
+        .filter(|d| v.query.role.is_none_or(|r| d.role == r))
+        .count();
     let hint = tf("picker.search", &[("n", &n)]);
     let resp = child.add_sized(
         inner.size(),
@@ -228,30 +400,73 @@ pub fn magnifier(b: &mut Brush, r: Rect, c: egui::Color32, w: f32) {
     let ctr = r.left_top() + vec2(rad + w, rad + w);
     b.circle_stroke(ctr, rad, w, c);
     let d = std::f32::consts::FRAC_1_SQRT_2;
-    b.segment(ctr + vec2(rad * d, rad * d), r.right_bottom() - vec2(w * 0.5, w * 0.5), w * 1.2, c, true);
+    b.segment(
+        ctr + vec2(rad * d, rad * d),
+        r.right_bottom() - vec2(w * 0.5, w * 0.5),
+        w * 1.2,
+        c,
+        true,
+    );
 }
 
 fn foot(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, verb: &str) -> Option<Action> {
     let pad = s.s(16.0);
     let shown = v.geo.tiles.len();
-    let count = if shown == 1 { t("picker.count.one") } else { tf("picker.count", &[("n", &shown)]) };
+    let count = if shown == 1 {
+        t("picker.count.one")
+    } else {
+        tf("picker.count", &[("n", &shown)])
+    };
     with_brush(ui.painter(), |b| {
         b.register(r, "picker-footer", &[Tok::Panel, Tok::TextDim], &[]);
-        b.hline(r.left(), r.right(), b.snap_mid(r.top()), b.px(), shade(s.t.panel, -0.1));
+        b.hline(
+            r.left(),
+            r.right(),
+            b.snap_mid(r.top()),
+            b.px(),
+            shade(s.t.panel, -0.1),
+        );
         let cr = Rect::from_min_size(pos2(r.left() + pad, r.top()), vec2(s.s(110.0), r.height()));
-        let _ = text::paint(b, cr, &Text::new(&count, Role::Control, s.t.text).align(Align2::LEFT_CENTER), s.tk());
-        let hr = Rect::from_min_max(pos2(cr.right() + s.s(8.0), r.top()), pos2(r.right() - s.s(260.0), r.bottom()));
+        let _ = text::paint(
+            b,
+            cr,
+            &Text::new(&count, Role::Control, s.t.text).align(Align2::LEFT_CENTER),
+            s.tk(),
+        );
+        let hr = Rect::from_min_max(
+            pos2(cr.right() + s.s(8.0), r.top()),
+            pos2(r.right() - s.s(260.0), r.bottom()),
+        );
         let keys = t("picker.hint.keys");
-        let _ = text::paint(b, hr, &Text::new(&keys, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
+        let _ = text::paint(
+            b,
+            hr,
+            &Text::new(&keys, Role::Label, s.t.text_dim)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
     });
     let h = s.s(28.0);
     let y = r.center().y - h * 0.5;
     let choose = Rect::from_min_size(pos2(r.right() - pad - s.s(112.0), y), vec2(s.s(112.0), h));
-    let cancel = Rect::from_min_size(pos2(choose.left() - s.s(10.0) - s.s(92.0), y), vec2(s.s(92.0), h));
+    let cancel = Rect::from_min_size(
+        pos2(choose.left() - s.s(10.0) - s.s(92.0), y),
+        vec2(s.s(92.0), h),
+    );
     v.geo.choose = choose;
     v.geo.cancel = cancel;
     let mut out = None;
-    if button(ui, cancel, Id::new("picker-cancel"), &t("picker.cancel"), false, true).clicked() {
+    if button(
+        ui,
+        cancel,
+        Id::new("picker-cancel"),
+        &t("picker.cancel"),
+        false,
+        true,
+    )
+    .clicked()
+    {
         out = Some(Action::Close);
     }
     let can = v.selection().is_some();

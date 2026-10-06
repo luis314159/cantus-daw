@@ -48,29 +48,63 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         b.register(full, "devices-panel", &[Tok::Ink, Tok::Strip], &[]);
         b.rect(top, Fill::Solid(s.t.strip));
         b.rect(list, Fill::Solid(s.t.ink));
-        b.hline(full.left(), full.right(), b.snap_mid(top.bottom()), b.px(), shade(s.t.strip, -0.12));
+        b.hline(
+            full.left(),
+            full.right(),
+            b.snap_mid(top.bottom()),
+            b.px(),
+            shade(s.t.strip, -0.12),
+        );
     });
     // Instruments | Effects, the full picker's key, the search.
-    let seg = Rect::from_min_size(top.min + vec2(pad, pad), vec2(full.width() - 3.0 * pad - s.s(26.0), s.s(24.0)));
-    let labels = [Src::Key("picker.panel.instruments"), Src::Key("picker.panel.effects")];
-    let (_, pick) = Segmented::new(v.panel.effects as usize, &labels).id(Id::new("devices-role")).show_at(ui, seg);
+    let seg = Rect::from_min_size(
+        top.min + vec2(pad, pad),
+        vec2(full.width() - 3.0 * pad - s.s(26.0), s.s(24.0)),
+    );
+    let labels = [
+        Src::Key("picker.panel.instruments"),
+        Src::Key("picker.panel.effects"),
+    ];
+    let (_, pick) = Segmented::new(v.panel.effects as usize, &labels)
+        .id(Id::new("devices-role"))
+        .show_at(ui, seg);
     if let Some(i) = pick {
         v.panel.effects = i == 1;
         v.panel.scroll = 0.0;
     }
-    let open = Rect::from_min_size(pos2(seg.right() + pad, seg.top() - s.s(1.0)), vec2(s.s(26.0), s.s(26.0)));
-    let open_resp = ui.interact(open, Id::new("devices-open-picker"), Sense::click()).on_hover_text(t("picker.panel.open"));
+    let open = Rect::from_min_size(
+        pos2(seg.right() + pad, seg.top() - s.s(1.0)),
+        vec2(s.s(26.0), s.s(26.0)),
+    );
+    let open_resp = ui
+        .interact(open, Id::new("devices-open-picker"), Sense::click())
+        .on_hover_text(t("picker.panel.open"));
     with_brush(ui.painter(), |b| {
         let st = crate::kit::State::of(&open_resp, false);
-        crate::kit::cap::toolbar_key(b, open, &s, st, crate::kit::cap::KeyFace::Glyph(Glyph::Resize));
+        crate::kit::cap::toolbar_key(
+            b,
+            open,
+            &s,
+            st,
+            crate::kit::cap::KeyFace::Glyph(Glyph::Resize),
+        );
     });
-    let search = Rect::from_min_size(pos2(full.left() + pad, seg.bottom() + s.s(6.0)), vec2(full.width() - 2.0 * pad, s.s(24.0)));
+    let search = Rect::from_min_size(
+        pos2(full.left() + pad, seg.bottom() + s.s(6.0)),
+        vec2(full.width() - 2.0 * pad, s.s(24.0)),
+    );
     with_brush(ui.painter(), |b| {
         crate::kit::well::paint(b, search, &s, crate::kit::State::REST, None);
-        let g = Rect::from_center_size(pos2(search.left() + s.s(13.0), search.center().y), egui::Vec2::splat(s.s(12.0)));
+        let g = Rect::from_center_size(
+            pos2(search.left() + s.s(13.0), search.center().y),
+            egui::Vec2::splat(s.s(12.0)),
+        );
         super::picker_layout::magnifier(b, g, s.t.text_dim, s.s(1.5));
     });
-    let inner = Rect::from_min_max(pos2(search.left() + s.s(24.0), search.top() + s.s(2.0)), pos2(search.right() - s.s(6.0), search.bottom() - s.s(2.0)));
+    let inner = Rect::from_min_max(
+        pos2(search.left() + s.s(24.0), search.top() + s.s(2.0)),
+        pos2(search.right() - s.s(6.0), search.bottom() - s.s(2.0)),
+    );
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     let hint = t("picker.search.name");
     child.add_sized(
@@ -82,7 +116,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             .text_color(s.t.text)
             .hint_text(egui::RichText::new(hint).color(s.t.placeholder)),
     );
-    let role = if v.panel.effects { DeviceRole::Effect } else { DeviceRole::Instrument };
+    let role = if v.panel.effects {
+        DeviceRole::Effect
+    } else {
+        DeviceRole::Instrument
+    };
     let chosen = rows(v, ui, list, &s, role);
     if open_resp.clicked() {
         let purpose = match role {
@@ -127,8 +165,18 @@ pub fn add(app: &mut CantusApp, key: &str) {
 }
 
 /// The rows: headings and devices, culled to the viewport. Returns a double-clicked key.
-fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole) -> Option<String> {
-    let q = Query { role: Some(role), text: v.panel.text.clone(), ..Default::default() };
+fn rows(
+    v: &mut PickerView,
+    ui: &mut Ui,
+    view: Rect,
+    s: &Style,
+    role: DeviceRole,
+) -> Option<String> {
+    let q = Query {
+        role: Some(role),
+        text: v.panel.text.clone(),
+        ..Default::default()
+    };
     let gs = groups(&v.catalog, &q, &v.prefs);
     // Lay out: (heading or device index, y in content).
     let mut items: Vec<(Option<usize>, Option<crate::picker_catalog::Category>, f32)> = Vec::new();
@@ -147,7 +195,10 @@ fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole
     if ui.rect_contains_pointer(view) {
         v.panel.scroll -= ui.input(|i| i.smooth_scroll_delta.y);
     }
-    v.panel.scroll = v.panel.scroll.clamp(0.0, (content - view.height()).max(0.0));
+    v.panel.scroll = v
+        .panel
+        .scroll
+        .clamp(0.0, (content - view.height()).max(0.0));
     let off = view.top() - v.panel.scroll;
     let painter = ui.painter().with_clip_rect(view);
     let mut chosen = None;
@@ -155,12 +206,19 @@ fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole
     let mut hovered = None;
     for (idx, _, y) in &items {
         let Some(i) = idx else { continue };
-        let r = Rect::from_min_size(pos2(view.left() + s.s(4.0), off + y), vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)));
+        let r = Rect::from_min_size(
+            pos2(view.left() + s.s(4.0), off + y),
+            vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)),
+        );
         if !r.intersects(view) {
             continue;
         }
         let key = v.catalog[*i].key.clone();
-        let resp = ui.interact(r.intersect(view), Id::new(("devices-row", &key)), Sense::click_and_drag());
+        let resp = ui.interact(
+            r.intersect(view),
+            Id::new(("devices-row", &key)),
+            Sense::click_and_drag(),
+        );
         if resp.hovered() {
             hovered = Some(key.clone());
         }
@@ -181,14 +239,25 @@ fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole
     with_brush(&painter, |b| {
         for (idx, cat, y) in &items {
             if let Some(c) = cat {
-                let r = Rect::from_min_size(pos2(view.left() + s.s(10.0), off + y), vec2(view.width() - s.s(20.0), s.s(HEAD)));
+                let r = Rect::from_min_size(
+                    pos2(view.left() + s.s(10.0), off + y),
+                    vec2(view.width() - s.s(20.0), s.s(HEAD)),
+                );
                 if r.intersects(view) {
                     let name = t(c.key());
-                    let _ = text::paint(b, r, &Text::new(&name, Role::Section, s.t.label).align(Align2::LEFT_CENTER), s.tk());
+                    let _ = text::paint(
+                        b,
+                        r,
+                        &Text::new(&name, Role::Section, s.t.label).align(Align2::LEFT_CENTER),
+                        s.tk(),
+                    );
                 }
             }
             let Some(i) = idx else { continue };
-            let r = Rect::from_min_size(pos2(view.left() + s.s(4.0), off + y), vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)));
+            let r = Rect::from_min_size(
+                pos2(view.left() + s.s(4.0), off + y),
+                vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)),
+            );
             if !r.intersects(view) {
                 continue;
             }
@@ -196,27 +265,66 @@ fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole
             let sel = v.panel.selected.as_deref() == Some(d.key.as_str());
             let hov = hovered.as_deref() == Some(d.key.as_str());
             if sel || hov {
-                let base = if sel { mix(s.t.ink, s.t.selection, 0.18) } else { shade(s.t.ink, if s.t.dark { 0.05 } else { -0.04 }) };
+                let base = if sel {
+                    mix(s.t.ink, s.t.selection, 0.18)
+                } else {
+                    shade(s.t.ink, if s.t.dark { 0.05 } else { -0.04 })
+                };
                 b.rrect(r, s.r(5.0), Fill::Solid(base));
             }
-            let pic = Rect::from_min_size(r.min + vec2(s.s(4.0), s.s(4.0)), vec2((r.height() - s.s(8.0)) * 1.6, r.height() - s.s(8.0)));
-            let has = super::picker_grid::subject(d).and_then(|x| v.thumbs.get(x)).is_some();
+            let pic = Rect::from_min_size(
+                r.min + vec2(s.s(4.0), s.s(4.0)),
+                vec2((r.height() - s.s(8.0)) * 1.6, r.height() - s.s(8.0)),
+            );
+            let has = super::picker_grid::subject(d)
+                .and_then(|x| v.thumbs.get(x))
+                .is_some();
             if !has {
-                b.rrect(pic, s.r(4.0), Fill::V(mix(s.t.ink, super::picker_cover::hue(d, s), 0.5), mix(s.t.ink, super::picker_cover::hue(d, s), 0.2)));
+                b.rrect(
+                    pic,
+                    s.r(4.0),
+                    Fill::V(
+                        mix(s.t.ink, super::picker_cover::hue(d, s), 0.5),
+                        mix(s.t.ink, super::picker_cover::hue(d, s), 0.2),
+                    ),
+                );
                 let g = Rect::from_center_size(pic.center(), egui::Vec2::splat(pic.height() * 0.8));
                 super::picker_cover::glyph(b, g, d.primary(), with_alpha(s.t.text, 0.8), s.s(1.4));
             }
             let tx = pic.right() + s.s(8.0);
-            let nr = Rect::from_min_max(pos2(tx, r.top() + s.s(5.0)), pos2(r.right() - s.s(22.0), r.center().y + s.s(1.0)));
-            let _ = text::paint(b, nr, &Text::new(&d.name, Role::Title, s.t.text).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
-            let wr = Rect::from_min_max(pos2(tx, r.center().y), pos2(r.right() - s.s(6.0), r.bottom() - s.s(4.0)));
+            let nr = Rect::from_min_max(
+                pos2(tx, r.top() + s.s(5.0)),
+                pos2(r.right() - s.s(22.0), r.center().y + s.s(1.0)),
+            );
+            let _ = text::paint(
+                b,
+                nr,
+                &Text::new(&d.name, Role::Title, s.t.text)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+            let wr = Rect::from_min_max(
+                pos2(tx, r.center().y),
+                pos2(r.right() - s.s(6.0), r.bottom() - s.s(4.0)),
+            );
             let what = match d.source.badge() {
                 Some(bdg) => format!("{} · {bdg}", d.vendor),
                 None => d.what.clone(),
             };
-            let _ = text::paint(b, wr, &Text::new(&what, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
+            let _ = text::paint(
+                b,
+                wr,
+                &Text::new(&what, Role::Label, s.t.text_dim)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
             if v.prefs.is_favourite(&d.key) {
-                let z = Rect::from_center_size(pos2(r.right() - s.s(12.0), r.top() + s.s(13.0)), egui::Vec2::splat(s.s(12.0)));
+                let z = Rect::from_center_size(
+                    pos2(r.right() - s.s(12.0), r.top() + s.s(13.0)),
+                    egui::Vec2::splat(s.s(12.0)),
+                );
                 glyph::paint(b, z, Glyph::StarFilled, s.t.brand_bright);
             }
         }
@@ -225,12 +333,20 @@ fn rows(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style, role: DeviceRole
     let mut mesh = egui::Mesh::default();
     for (idx, _, y) in &items {
         let Some(i) = idx else { continue };
-        let r = Rect::from_min_size(pos2(view.left() + s.s(4.0), off + y), vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)));
+        let r = Rect::from_min_size(
+            pos2(view.left() + s.s(4.0), off + y),
+            vec2(view.width() - s.s(8.0), s.s(ROW) - s.s(2.0)),
+        );
         if !r.intersects(view) {
             continue;
         }
-        if let Some((tex, uv)) = super::picker_grid::subject(&v.catalog[*i]).and_then(|x| v.thumbs.get(x)) {
-            let pic = Rect::from_min_size(r.min + vec2(s.s(4.0), s.s(4.0)), vec2((r.height() - s.s(8.0)) * 1.6, r.height() - s.s(8.0)));
+        if let Some((tex, uv)) =
+            super::picker_grid::subject(&v.catalog[*i]).and_then(|x| v.thumbs.get(x))
+        {
+            let pic = Rect::from_min_size(
+                r.min + vec2(s.s(4.0), s.s(4.0)),
+                vec2((r.height() - s.s(8.0)) * 1.6, r.height() - s.s(8.0)),
+            );
             mesh.texture_id = tex;
             mesh.add_rect_with_uv(pic, uv, egui::Color32::WHITE);
         }

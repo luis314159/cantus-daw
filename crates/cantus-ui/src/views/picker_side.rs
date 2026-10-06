@@ -41,7 +41,10 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
         } else {
             None
         };
-        let row = Rect::from_min_size(pos2(r.left() + pad * 0.6, y), vec2(r.width() - pad * 1.2, s.s(ROW)));
+        let row = Rect::from_min_size(
+            pos2(r.left() + pad * 0.6, y),
+            vec2(r.width() - pad * 1.2, s.s(ROW)),
+        );
         rows.push((shelf, row, heading));
         y += s.s(ROW);
     }
@@ -52,7 +55,11 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
         if row.bottom() > r.bottom() {
             break;
         }
-        let resp = ui.interact(*row, Id::new(("picker-shelf", format!("{shelf:?}"))), Sense::click());
+        let resp = ui.interact(
+            *row,
+            Id::new(("picker-shelf", format!("{shelf:?}"))),
+            Sense::click(),
+        );
         if resp.clicked() {
             clicked = Some(*shelf);
         }
@@ -65,13 +72,23 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
     }
     let painter = ui.painter().with_clip_rect(r);
     with_brush(&painter, |b| {
-        b.register(r, "picker-shelves", &[Tok::Strip, Tok::Text, Tok::TextDim, Tok::Selection], &[]);
+        b.register(
+            r,
+            "picker-shelves",
+            &[Tok::Strip, Tok::Text, Tok::TextDim, Tok::Selection],
+            &[],
+        );
         b.rect(r, Fill::Solid(s.t.strip));
         for (shelf, row, heading) in &rows {
             if let Some(key) = heading {
-                let hr = Rect::from_min_size(pos2(row.left() + s.s(6.0), row.top() - s.s(BAND)), vec2(row.width(), s.s(BAND)));
+                let hr = Rect::from_min_size(
+                    pos2(row.left() + s.s(6.0), row.top() - s.s(BAND)),
+                    vec2(row.width(), s.s(BAND)),
+                );
                 let label = t(key);
-                let tt = Text::new(&label, Role::Section, s.t.label).align(Align2::LEFT_BOTTOM).policy(Policy::Elide(Elide::End));
+                let tt = Text::new(&label, Role::Section, s.t.label)
+                    .align(Align2::LEFT_BOTTOM)
+                    .policy(Policy::Elide(Elide::End));
                 let _ = text::paint(b, hr.shrink2(vec2(0.0, s.s(4.0))), &tt, s.tk());
             }
             let n = count(&v.catalog, v.query.role, *shelf, &v.prefs);
@@ -88,14 +105,28 @@ fn row_paint(b: &mut Brush, row: Rect, s: &Style, shelf: Shelf, n: usize, on: bo
         _ => s.t.selection,
     };
     if on {
-        let face = if s.t.dark { mix(s.t.strip, s.t.selection, 0.2) } else { s.t.panel_raised };
+        let face = if s.t.dark {
+            mix(s.t.strip, s.t.selection, 0.2)
+        } else {
+            s.t.panel_raised
+        };
         b.rrect(row, s.r(4.0), Fill::Solid(face));
-        let bar = Rect::from_min_size(row.min + vec2(0.0, s.s(5.0)), vec2(s.s(3.0), row.height() - s.s(10.0)));
+        let bar = Rect::from_min_size(
+            row.min + vec2(0.0, s.s(5.0)),
+            vec2(s.s(3.0), row.height() - s.s(10.0)),
+        );
         b.rrect(bar, s.r(1.5), Fill::Solid(s.t.selection));
     } else if hov {
-        b.rrect(row, s.r(4.0), Fill::Solid(shade(s.t.strip, if s.t.dark { 0.04 } else { -0.03 })));
+        b.rrect(
+            row,
+            s.r(4.0),
+            Fill::Solid(shade(s.t.strip, if s.t.dark { 0.04 } else { -0.03 })),
+        );
     }
-    let g = Rect::from_center_size(pos2(row.left() + s.s(17.0), row.center().y), egui::Vec2::splat(s.s(14.0)));
+    let g = Rect::from_center_size(
+        pos2(row.left() + s.s(17.0), row.center().y),
+        egui::Vec2::splat(s.s(14.0)),
+    );
     let gc = if on { hue } else { with_alpha(hue, 0.85) };
     match shelf {
         Shelf::All => glyph::paint(b, g, Glyph::Browser, gc),
@@ -105,12 +136,36 @@ fn row_paint(b: &mut Brush, row: Rect, s: &Style, shelf: Shelf, n: usize, on: bo
         Shelf::Source(_) => glyph::paint(b, g, Glyph::Device, gc),
     }
     let name = t(shelf.key());
-    let ink = if on { s.t.text } else if n == 0 { s.t.placeholder } else { mix(s.t.text, s.t.text_dim, 0.25) };
-    let nr = Rect::from_min_max(pos2(row.left() + s.s(32.0), row.top()), pos2(row.right() - s.s(34.0), row.bottom()));
-    let _ = text::paint(b, nr, &Text::new(&name, Role::Body, ink).align(Align2::LEFT_CENTER).policy(Policy::Elide(Elide::End)), s.tk());
-    let cr = Rect::from_min_max(pos2(row.right() - s.s(34.0), row.top()), pos2(row.right() - s.s(8.0), row.bottom()));
+    let ink = if on {
+        s.t.text
+    } else if n == 0 {
+        s.t.placeholder
+    } else {
+        mix(s.t.text, s.t.text_dim, 0.25)
+    };
+    let nr = Rect::from_min_max(
+        pos2(row.left() + s.s(32.0), row.top()),
+        pos2(row.right() - s.s(34.0), row.bottom()),
+    );
+    let _ = text::paint(
+        b,
+        nr,
+        &Text::new(&name, Role::Body, ink)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
+        s.tk(),
+    );
+    let cr = Rect::from_min_max(
+        pos2(row.right() - s.s(34.0), row.top()),
+        pos2(row.right() - s.s(8.0), row.bottom()),
+    );
     let count = n.to_string();
-    let _ = text::paint(b, cr, &Text::new(&count, Role::Label, s.t.text_dim).align(Align2::RIGHT_CENTER), s.tk());
+    let _ = text::paint(
+        b,
+        cr,
+        &Text::new(&count, Role::Label, s.t.text_dim).align(Align2::RIGHT_CENTER),
+        s.tk(),
+    );
 }
 
 /// A clock face: the recent shelf.

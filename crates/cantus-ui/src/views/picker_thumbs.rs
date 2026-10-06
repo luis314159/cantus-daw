@@ -211,7 +211,10 @@ impl Thumbs {
             }
         }
         if !self.idle() {
-            crate::views::workspace_ticker::moving(ctx, crate::views::workspace_ticker::Reason::Background);
+            crate::views::workspace_ticker::moving(
+                ctx,
+                crate::views::workspace_ticker::Reason::Background,
+            );
         }
     }
 
