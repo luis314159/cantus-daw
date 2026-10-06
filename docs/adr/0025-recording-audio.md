@@ -108,6 +108,24 @@ Cantus is built with it (cpal's `asio` feature; the ASIO SDK is GPL-3-compatible
 with two clocks the input ring absorbs drift by dropping or repeating a frame, and counts
 it.
 
+**11. Setting the device up is direct (round 20, amendment).** The device is configured
+where the musician is, not in Settings: an **audio chip** always in the status bar
+(interface · driver · rate · buffer · round trip; a lamp green, amber for 5 s after a
+dropout — driver xruns, processor overruns, dropped input — red when the device is lost
+or none is open) opens a **popover** that applies every choice at once and shows each
+buffer size's round trip before it is chosen (`2 × buffer + overhead`, the overhead
+measured on the running device). Devices are grouped into **interfaces** by the adapter
+name WASAPI puts in parentheses, and ASIO drivers matched to them by name. Settings are
+**remembered per interface** (`settings.json`, `audio_setup.profiles`), with the channel
+names and the output routing. A **watcher thread** lists the system driver's endpoints
+every 1.5 s and reports only changes: the interface in use disappearing makes it *lost*
+(the session stays editable; it is reopened by itself when it returns), a new one is
+offered. The **output routing** (the master on another pair, a headphone cue copying the
+master at its own level, a −18 dBFS test tone) runs in the output callback after the
+processor, through atomics; with its defaults it touches nothing (null test). Problems
+are diagnosed from the engine's state and said in words with a fix. A **first-run setup**
+opens once for someone who never set audio up. Details: `docs/round20/audio-setup.md`.
+
 ## Consequences
 
 - Schema 18; every new field defaults to the old behaviour (`migrate_17_to_18` writes

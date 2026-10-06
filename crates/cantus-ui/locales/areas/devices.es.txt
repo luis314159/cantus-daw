@@ -41,3 +41,132 @@ devices.band.inputs = Entradas
 devices.inputs.none = No hay ninguna entrada abierta.
 devices.inputs.device = {name} · {n} canales
 devices.inputs.meter = Entrada {ch}
+
+# --- ronda 20: el chip de audio, su panel, la configuración inicial, conectar y usar, ruteo ---
+devices.auto = Auto
+devices.scanning = Buscando interfaces…
+devices.busy_recording = Detén la grabación antes de cambiar el dispositivo de audio.
+devices.switched = Ahora suena por {name}.
+devices.status.engine = CPU {load}% · cortes {overruns} · voces {voices}
+
+devices.chip.text = {name} · {driver} · {rate} · {buffer} · {latency}
+devices.chip.none = Sin audio — haz clic para configurarlo
+devices.chip.lost = {name} · desconectada
+devices.chip.tip = Dispositivo de audio — haz clic para cambiar interfaz, controlador, frecuencia y búfer
+
+devices.state.good = Funcionando
+devices.state.warn = Revisar
+devices.state.lost = Sin sonido
+
+devices.kind.interface = Interfaz de audio
+devices.kind.builtin = Este equipo
+devices.kind.headphones = Audífonos
+devices.kind.display = Bocinas de pantalla
+devices.kind.virtual = Dispositivo virtual
+
+devices.pop.interface = Interfaz
+devices.pop.rate = Frecuencia
+devices.pop.buffer = Búfer · ida y vuelta
+devices.pop.buffer_tip = {n} muestras: {ms} de lo que tocas a lo que oyes
+devices.pop.running = {driver} · {rate} · {buffer} muestras · {ins} ent. / {outs} sal.
+devices.pop.asio_input = Las {n} entradas del controlador
+devices.pop.measured = Medido ahora: entrada {in} ms · salida {out} ms · ida y vuelta {rt} ms
+devices.pop.routing = Canales y ruteo…
+devices.pop.assistant = Asistente…
+devices.pop.settings = Todos los ajustes de audio
+
+devices.tone.play = Tono de prueba
+devices.tone.stop = Detener tono
+
+devices.feel.tight = tan justo que puedes tocar a través de él, como un amplificador
+devices.feel.fine = bien para tocar casi todo
+devices.feel.loose = mejor para mezclar; elige un búfer menor para tocar a través de él
+
+devices.problem.lost = {name} se desconectó. Tu canción sigue abierta y editable; Cantus la abre de nuevo cuando vuelva.
+devices.problem.stalled = El dispositivo dejó de sonar. Reiniciar el audio suele recuperarlo.
+devices.problem.stalled_asio = El controlador ASIO dejó de responder. Reinicia el audio; si vuelve a detenerse, usa WASAPI con esta interfaz.
+devices.problem.open = Sin sonido: el dispositivo no se pudo abrir ({error}).
+devices.problem.busy = Otra aplicación tiene {name} en uso exclusivo. Ciérrala o deja que lo comparta, y vuelve a intentarlo.
+devices.problem.rates = La entrada va a {input} kHz y la salida a {output} kHz. Usa una sola interfaz para ambas, o pon las dos a {input} kHz.
+devices.problem.input = La entrada no se abrió: {error}
+devices.problem.dropouts = El sonido se cortó {n} veces en el último medio minuto: un búfer de {buffer} muestras es muy corto para esta canción.
+devices.fix.restart = Reiniciar audio
+devices.fix.default = Usar el audio de este equipo
+devices.fix.run_at = Usar {rate} kHz
+devices.fix.own_input = Usar la entrada de la interfaz
+devices.fix.buffer = Usar {n} muestras
+
+devices.notice.connected = {name} conectada
+devices.notice.connected_body = ¿Tocar y grabar con ella? Cantus recuerda cómo la configuraste.
+devices.notice.switch = Cambiar a ella
+devices.notice.not_now = Ahora no
+devices.notice.lost = {name} se desconectó
+devices.notice.lost_body = Sigue trabajando: no se pierde nada. Se abre sola cuando la vuelvas a conectar.
+devices.notice.reconnected = {name} volvió
+devices.notice.ok = Aceptar
+
+devices.first.title = Configura tu audio
+devices.first.intro = Elige por dónde tocas. Cantus escoge el mejor controlador y búfer para ello; puedes cambiarlos cuando quieras desde el chip de audio, abajo a la derecha.
+devices.first.choose = Elige tu interfaz
+devices.first.listen = Escucha
+devices.first.play = Toca o habla — el medidor debe moverse
+devices.first.latency = Latencia
+devices.first.none = No se encontró ningún dispositivo de audio. Conecta uno: aparecerá aquí solo.
+devices.first.tone_hint = Deberías oír un tono suave en tus bocinas o audífonos.
+devices.first.tone_on = Sonando un tono en las salidas 1–2. ¿Lo oyes? Entonces las salidas están bien.
+devices.first.no_inputs = Este dispositivo no tiene entradas para grabar: elige una interfaz con entradas.
+devices.first.input_n = Entrada {n}
+devices.first.heard = {name} se mueve: es la que vas a grabar.
+devices.first.play_hint = Rasguea, canta o habla en lo que tengas conectado.
+devices.first.chosen = {driver} a {rate} con un búfer de {buffer} muestras: unos {ms} ms de la cuerda a la bocina — {feel}.
+devices.first.measure = Medir latencia
+devices.first.measure_hint = Opcional: conecta la salida 1 a la entrada 1 con un cable y mide, para que las tomas caigan justo a tiempo.
+devices.first.measured = Medido: {ms} ms de ida y vuelta; las tomas se corren {offset} muestras más.
+devices.first.skip = Omitir
+devices.first.done = Listo
+devices.first.record_on = Grabar en {name}
+devices.first.ready = Armada en la entrada {n}: pulsa grabar cuando estés listo.
+
+devices.routing.title = Canales y ruteo
+devices.routing.for = Para {name}: se recuerda con esta interfaz.
+devices.routing.outputs = Salidas
+devices.routing.inputs = Entradas
+devices.routing.main = Salida principal
+devices.routing.cue = Mezcla de audífonos
+devices.routing.cue_level = Nivel de audífonos
+devices.routing.level = Nivel dB
+devices.routing.cue_hint = Una copia del máster en su propio par, con su propio nivel.
+devices.routing.tone = Tono de prueba
+devices.routing.off = No
+devices.routing.in_n = Entrada {n}
+devices.routing.out_n = Salida {n}
+devices.routing.name_in = Ponle nombre — Guitarra, Mic 1…
+devices.routing.name_out = Ponle nombre — Monitores I…
+
+# --- ronda 20: obtener un controlador de baja latencia (ASIO) ---
+devices.pop.asio_driver = Controlador ASIO
+devices.drivers.get = Obtener un controlador de baja latencia…
+devices.drivers.get_short = Obtener ASIO…
+devices.drivers.title = Obtener un controlador de baja latencia
+devices.drivers.intro = Los controladores ASIO hablan directo con la interfaz: unos milisegundos de la cuerda a la bocina en vez de decenas. Usa el controlador propio de tu interfaz si lo tiene; si no, FlexASIO o ASIO4ALL funcionan con cualquier dispositivo.
+devices.drivers.none_installed = No hay ningún controlador ASIO instalado.
+devices.drivers.installed = Instalados: {list}
+devices.drivers.rescan = Volver a buscar
+devices.drivers.where = Elígelos en el chip de audio: Controlador ▸ ASIO y luego el controlador ASIO.
+devices.drivers.no_asio_build = Esta compilación de Cantus se hizo sin ASIO, así que no puede usar controladores ASIO aunque estén instalados. Instala la edición ASIO de Cantus para usarlos; mientras tanto WASAPI sigue funcionando.
+devices.drivers.flex = FlexASIO — libre y de código abierto
+devices.drivers.flex_body = Un controlador ASIO universal para cualquier dispositivo, de Etienne Dechamps (licencia MIT).
+devices.drivers.flex_open = Abrir la última versión de FlexASIO
+devices.drivers.flex_how = Descarga el .exe, ejecútalo (Windows pide permiso: un controlador se instala para todos los usuarios), vuelve y pulsa Volver a buscar.
+devices.drivers.a4a = ASIO4ALL
+devices.drivers.a4a_open = Abrir asio4all.org
+devices.drivers.a4a_body = Su licencia no permite que Cantus lo incluya: descárgalo de su propio sitio.
+devices.drivers.own = El controlador de tu interfaz
+devices.drivers.own_hint = La mejor opción si tu interfaz lo tiene: la página de controladores de su fabricante.
+devices.drivers.detected = Tu interfaz
+devices.drivers.first_hint = Para menos latencia, instala un controlador ASIO.
+devices.drivers.first_hint_some = Un controlador ASIO da la menor latencia.
+devices.drivers.quarantined = La red respondió con una página web en lugar del archivo (un proxy puede estar revisándolo). Inténtalo de nuevo en unos minutos.
+devices.drivers.not_installer = Lo que llegó no es un programa de Windows.
+devices.drivers.size = El archivo tiene {got} bytes; GitHub dice {want}.
+devices.drivers.network = No se pudo llegar a GitHub: {error}

@@ -123,7 +123,7 @@ impl EngineHandle {
         let device_name = crate::devices::name_of(&device).unwrap_or_default();
         let default = device
             .default_output_config()
-            .map_err(|e| EngineError::Config(e.to_string()))?;
+            .map_err(|e| EngineError::Config(crate::devices::describe_error(&e)))?;
         let channels = default.channels().max(1) as usize;
         let sample_rate = config.sample_rate.unwrap_or(default.sample_rate());
         // `f32` when the device plays it at this rate, its own format otherwise (ASIO
@@ -176,6 +176,7 @@ impl EngineHandle {
         };
         let (probe_tx, probe_rx) = RingBuffer::new(2);
         let (done_tx, done_rx) = RingBuffer::new(2);
+        let routing = Arc::new(crate::routing::OutputRouting::default());
         let driver = crate::devices::OutputDriver {
             processor,
             channels,
@@ -190,12 +191,14 @@ impl EngineHandle {
             },
             scratch: Vec::new(),
             latency: Default::default(),
+            routing: routing.clone(),
+            tone: Default::default(),
         };
         let stream = crate::devices::build_output(&device, stream_config, format, driver)
             .map_err(EngineError::Stream)?;
         stream
             .play()
-            .map_err(|e| EngineError::Stream(e.to_string()))?;
+            .map_err(|e| EngineError::Stream(crate::devices::describe_error(&e)))?;
         // The input starts once the output runs. If it cannot, the processor keeps a ring
         // nothing fills (silence) and the handle reports no input.
         let input_stream = plan.and_then(|plan| {
@@ -256,6 +259,7 @@ impl EngineHandle {
             probe_back: Some(done_rx),
             probe_sent: None,
             out_seen: (0, None),
+            routing: Some(routing),
         };
         Ok(handle)
     }

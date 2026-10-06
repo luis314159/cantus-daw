@@ -97,11 +97,18 @@ fn is_asio(host: &cpal::Host) -> bool {
     host.id().name().eq_ignore_ascii_case("ASIO")
 }
 
+/// The ASIO drivers installed, by name, whether or not this build can open them (the
+/// setup says so when it cannot). Read from the registry; no driver is loaded.
+///
 /// The ASIO drivers installed, by name, read from the registry where drivers register
 /// themselves (`HKLM\SOFTWARE\ASIO`) — without loading any. cpal's ASIO device list loads
 /// every driver in turn to read its channels; on this machine loading a driver whose
 /// interface is unplugged and then opening another crashed the process, and a scan must
 /// not load a driver while the engine holds one. The first is the default, as in cpal.
+pub fn installed_asio_drivers() -> Vec<String> {
+    asio_driver_names()
+}
+
 fn asio_driver_names() -> Vec<String> {
     #[cfg(windows)]
     {
@@ -348,6 +355,11 @@ pub struct DeviceTelemetry {
     pub output_callbacks: AtomicU64,
     /// While set, the input goes to the loopback probe's ring instead of the processor's.
     pub probing: AtomicBool,
+    /// A stream reported that its device is gone or its stream must be rebuilt
+    /// (unplugged, or the driver reset): the device is lost until it is opened again.
+    pub stream_lost: AtomicBool,
+    /// Underruns and overruns the driver reported (cpal's `Xrun`): dropouts.
+    pub xruns: AtomicU64,
     /// When the input's last buffer arrived, and how long it was: what the processor and
     /// the loopback probe need to know how long the frames they pop have waited
     /// (ADR 0025 §7).
@@ -421,6 +433,35 @@ impl DeviceTelemetry {
         self.output_latency.load(Ordering::Relaxed)
     }
 }
+
+/// What a stream's error callback does: log it, and count what the UI shows — a device
+/// that is gone (lost), an xrun (a dropout). Atomics only; the callback never blocks.
+pub(crate) fn stream_error(telemetry: &DeviceTelemetry, e: &cpal::Error, which: &str) {
+    use cpal::ErrorKind as K;
+    match e.kind() {
+        K::Xrun => {
+            telemetry.xruns.fetch_add(1, Ordering::Relaxed);
+        }
+        K::DeviceNotAvailable | K::StreamInvalidated | K::HostUnavailable => {
+            telemetry.stream_lost.store(true, Ordering::Release);
+            log::error!("audio {which} lost: {e}");
+        }
+        _ => log::error!("audio {which} error: {e}"),
+    }
+}
+
+/// An error's text for the user, with a tag the UI recognises when another application
+/// holds the device (cpal's `DeviceBusy`, WASAPI's `AUDCLNT_E_DEVICE_IN_USE`).
+pub fn describe_error(e: &cpal::Error) -> String {
+    if e.kind() == cpal::ErrorKind::DeviceBusy {
+        format!("{e} {BUSY_TAG}")
+    } else {
+        e.to_string()
+    }
+}
+
+/// The tag [`describe_error`] puts on a device another application holds.
+pub const BUSY_TAG: &str = "[device busy]";
 
 /// Frames in a duration at a rate.
 pub(crate) fn frames_in(d: std::time::Duration, rate: f64) -> f64 {
@@ -607,7 +648,8 @@ pub(crate) fn build_input(
         sample_rate: supported.sample_rate(),
         buffer_size: buffer,
     };
-    let err = |e: cpal::Error| log::error!("audio input error: {e}");
+    let telemetry = sink.telemetry.clone();
+    let err = move |e: cpal::Error| stream_error(&telemetry, &e, "input");
     macro_rules! build {
         ($t:ty) => {
             device.build_input_stream::<$t, _, _>(
@@ -638,7 +680,7 @@ pub(crate) fn build_input(
             ))
         }
     };
-    stream.map_err(|e| e.to_string())
+    stream.map_err(|e| describe_error(&e))
 }
 
 /// Choose the input the configuration names, for an output running at `rate`, and make
@@ -721,6 +763,8 @@ pub(crate) struct HandleDevices {
     pub probe_sent: Option<std::time::Instant>,
     /// The output callbacks counted at the last poll that saw them move, and when.
     pub out_seen: (u64, Option<std::time::Instant>),
+    /// The output's routing, shared with its callback (round 20).
+    pub routing: Option<Arc<crate::routing::OutputRouting>>,
 }
 
 impl crate::backend::EngineHandle {
@@ -820,6 +864,9 @@ pub(crate) struct OutputDriver {
     pub probe: crate::loopback::ProbeSlot,
     pub scratch: Vec<f32>,
     pub latency: Smoothed,
+    /// Where the master goes, the cue and the test tone (round 20, `routing.rs`).
+    pub routing: Arc<crate::routing::OutputRouting>,
+    pub tone: crate::routing::Tone,
 }
 
 impl OutputDriver {
@@ -837,6 +884,8 @@ impl OutputDriver {
     fn fill(&mut self, data: &mut [f32]) {
         if !self.probe.run(data, self.channels) {
             self.processor.process(data, self.channels);
+            let route = self.routing.read();
+            crate::routing::route(data, self.channels, self.rate, route, &mut self.tone);
         }
     }
 
@@ -871,7 +920,8 @@ pub(crate) fn build_output(
     mut driver: OutputDriver,
 ) -> Result<cpal::Stream, String> {
     driver.scratch = vec![0.0; SCRATCH_FRAMES * driver.channels.max(1)];
-    let err = |e: cpal::Error| log::error!("audio stream error: {e}");
+    let telemetry = driver.telemetry.clone();
+    let err = move |e: cpal::Error| stream_error(&telemetry, &e, "output");
     macro_rules! build {
         ($t:ty) => {
             device.build_output_stream::<$t, _, _>(
@@ -903,5 +953,5 @@ pub(crate) fn build_output(
             ))
         }
     };
-    stream.map_err(|e| e.to_string())
+    stream.map_err(|e| describe_error(&e))
 }

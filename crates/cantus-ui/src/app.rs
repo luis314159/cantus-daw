@@ -150,6 +150,8 @@ pub struct CantusApp {
     pub picker: Option<crate::picker::PickPurpose>,
     /// The device picker's view: the catalogue, the search, favourites, thumbnails.
     pub picker_view: views::picker::PickerView,
+    /// The audio chip, its popover, the first-run setup, plug-and-play (round 20).
+    pub audio_setup: crate::audio_setup::AudioSetup,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -312,6 +314,7 @@ impl CantusApp {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
         }
+        crate::audio_setup::arm_first_run(&mut app);
         app
     }
 
@@ -369,6 +372,7 @@ impl CantusApp {
             rec: Default::default(),
             picker: None,
             picker_view: Default::default(),
+            audio_setup: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,
@@ -657,6 +661,7 @@ impl CantusApp {
                 self.live_track_sent = None;
                 self.sync_engine();
                 self.sync_live_track();
+                crate::audio_setup::apply_routing(self);
                 self.audio_error = None;
                 self.set_status(tf(
                     "settings.audio_opened",
@@ -3378,6 +3383,7 @@ impl CantusApp {
         let frame_start = Instant::now();
         self.engine.poll();
         self.poll_samples(ctx);
+        crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         self.host_notices(notices);
@@ -3425,6 +3431,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
+        views::audio_setup::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
         design::paint_focus_ring(ctx, &theme::p());

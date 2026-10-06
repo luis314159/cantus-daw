@@ -134,6 +134,9 @@ pub struct Settings {
     pub sample_audition: bool,
     /// The verse at start (BACKLOG §6c): on by default, and which Spanish translation.
     pub verse: crate::verse::VerseSettings,
+    /// What is remembered per interface, and whether the first-run setup was done
+    /// (round 20, `audio_setup::memory`).
+    pub audio_setup: crate::audio_setup::memory::AudioMemory,
 }
 
 impl Default for Settings {
@@ -148,6 +151,7 @@ impl Default for Settings {
             sample_folders: Vec::new(),
             sample_audition: true,
             verse: crate::verse::VerseSettings::default(),
+            audio_setup: Default::default(),
         }
     }
 }
@@ -226,6 +230,7 @@ mod tests {
                 show: false,
                 spanish: crate::verse::Spanish::Rv1909,
             },
+            ..Default::default()
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
