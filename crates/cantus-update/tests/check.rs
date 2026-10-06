@@ -28,10 +28,17 @@ fn a_recorded_github_answer_parses() {
     assert!(r.assets.len() > 10);
     let a = &r.assets[0];
     assert!(a.browser_download_url.starts_with("https://github.com/"));
-    assert_eq!(a.sha256().map(|h| h.len()), Some(64), "GitHub's digest is read");
+    assert_eq!(
+        a.sha256().map(|h| h.len()),
+        Some(64),
+        "GitHub's digest is read"
+    );
     // Another project's release has no Cantus installer.
     assert!(r.installer(Flavor::Standard).is_none());
-    assert!(r.body.as_deref().is_some_and(|b| !b.is_empty()), "notes are read");
+    assert!(
+        r.body.as_deref().is_some_and(|b| !b.is_empty()),
+        "notes are read"
+    );
 }
 
 #[test]
@@ -65,8 +72,14 @@ fn versions_compare_and_only_newer_releases_are_offered() {
     assert!(!r.is_update_for(&v("0.10.0")));
     let mut pre = r.clone();
     pre.prerelease = true;
-    assert!(!pre.is_update_for(&v("0.1.0")), "a stable build is not offered a pre-release");
-    assert!(pre.is_update_for(&v("0.2.0-beta.1")), "a pre-release build is");
+    assert!(
+        !pre.is_update_for(&v("0.1.0")),
+        "a stable build is not offered a pre-release"
+    );
+    assert!(
+        pre.is_update_for(&v("0.2.0-beta.1")),
+        "a pre-release build is"
+    );
     let mut draft = r;
     draft.draft = true;
     assert!(!draft.is_update_for(&v("0.1.0")));
@@ -93,7 +106,10 @@ fn what_is_not_a_release_is_refused() {
 #[test]
 fn sums_files_read_both_shapes_and_skip_the_rest() {
     let h = "a".repeat(64);
-    let text = format!("# sums\n{h}  one.exe\n{} *two.zip\nnot a line\n{h}\n", "B".repeat(64));
+    let text = format!(
+        "# sums\n{h}  one.exe\n{} *two.zip\nnot a line\n{h}\n",
+        "B".repeat(64)
+    );
     let sums = release::parse_sums(&text);
     assert_eq!(sums.len(), 2);
     assert_eq!(sums["two.zip"], "b".repeat(64));
@@ -120,7 +136,10 @@ fn a_bad_hash_a_wrong_size_and_a_proxy_page_are_refused() {
     ));
     assert!(matches!(
         verify::check_file(&f, Some(99), &[good.clone()]),
-        Err(VerifyError::Size { expected: 99, got: 18 })
+        Err(VerifyError::Size {
+            expected: 99,
+            got: 18
+        })
     ));
     assert_eq!(verify::check_file(&f, None, &[]), Err(VerifyError::NoHash));
     std::fs::write(&f, PROXY_PAGE).unwrap();
@@ -128,7 +147,10 @@ fn a_bad_hash_a_wrong_size_and_a_proxy_page_are_refused() {
     assert_eq!(e, VerifyError::Html);
     assert!(e.worth_retrying());
     std::fs::write(&f, b"").unwrap();
-    assert_eq!(verify::check_file(&f, None, &["0".repeat(64)]), Err(VerifyError::Empty));
+    assert_eq!(
+        verify::check_file(&f, None, &["0".repeat(64)]),
+        Err(VerifyError::Empty)
+    );
 }
 
 #[test]
@@ -156,7 +178,10 @@ fn a_signature_must_be_valid_and_the_publisher_s() {
         verify::check_signature(&sig("Valid", "CN=Someone Else"), me),
         Err(VerifyError::Publisher { .. })
     ));
-    assert_eq!(verify::common_name("CN=\"Doe, Jane\", O=X"), Some("Doe, Jane"));
+    assert_eq!(
+        verify::common_name("CN=\"Doe, Jane\", O=X"),
+        Some("Doe, Jane")
+    );
 }
 
 /// A network that is a table: url → answer, url → bytes for downloads.
@@ -215,7 +240,11 @@ impl Fetch for Table {
     ) -> Result<(), NetError> {
         let mut files = self.files.lock().unwrap();
         let list = files.get_mut(url).ok_or(NetError::Status(404))?;
-        let body = if list.len() > 1 { list.remove(0) } else { list[0].clone() };
+        let body = if list.len() > 1 {
+            list.remove(0)
+        } else {
+            list[0].clone()
+        };
         std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
         std::fs::write(dest, &body).unwrap();
         progress(body.len() as u64, Some(body.len() as u64));
@@ -260,8 +289,14 @@ fn net_with_release() -> Arc<Table> {
 fn a_check_offers_downloads_verifies_and_is_ready_to_install() {
     let dir = tempfile::tempdir().unwrap();
     let net = net_with_release();
-    net.file(&format!("{DL}Cantus-0.2.0-windows-x64-setup.exe"), &[b"installer standard"]);
-    let u = Updater::new(config(dir.path(), "0.1.0", InstallKind::Installed), net.clone());
+    net.file(
+        &format!("{DL}Cantus-0.2.0-windows-x64-setup.exe"),
+        &[b"installer standard"],
+    );
+    let u = Updater::new(
+        config(dir.path(), "0.1.0", InstallKind::Installed),
+        net.clone(),
+    );
     u.check_at(false, 1_000_000);
     let Status::Available(offer) = settle(&u) else {
         panic!("offered: {:?}", u.status())
@@ -269,7 +304,10 @@ fn a_check_offers_downloads_verifies_and_is_ready_to_install() {
     assert_eq!(offer.version, "0.2.0");
     assert_eq!(offer.title, "Cantus 0.2.0");
     assert_eq!(offer.notes[0].text, "What is new");
-    assert_eq!(offer.notes[2].text, "Automation clips: draw a curve on any knob.");
+    assert_eq!(
+        offer.notes[2].text,
+        "Automation clips: draw a curve on any knob."
+    );
     assert!(offer.page.ends_with("/releases/tag/v0.2.0"));
     u.download();
     let Status::Ready { installer, .. } = settle(&u) else {
@@ -279,16 +317,29 @@ fn a_check_offers_downloads_verifies_and_is_ready_to_install() {
 
     // The next start: no check due, no request, and the verified download is reused.
     let before = net.gets.load(Ordering::SeqCst);
-    let again = Updater::new(config(dir.path(), "0.1.0", InstallKind::Installed), net.clone());
+    let again = Updater::new(
+        config(dir.path(), "0.1.0", InstallKind::Installed),
+        net.clone(),
+    );
     again.check_at(false, 1_000_000 + 3600);
     assert!(matches!(settle(&again), Status::Ready { .. }));
-    assert_eq!(net.gets.load(Ordering::SeqCst), before, "at most once a day");
+    assert_eq!(
+        net.gets.load(Ordering::SeqCst),
+        before,
+        "at most once a day"
+    );
 
     // A day later the check asks again, with the ETag: GitHub answers 304.
     again.check_at(false, 1_000_000 + schedule_day());
     assert!(matches!(settle(&again), Status::Ready { .. }));
     assert_eq!(
-        net.etags_sent.lock().unwrap().last().cloned().flatten().as_deref(),
+        net.etags_sent
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .flatten()
+            .as_deref(),
         Some("W/\"e1\"")
     );
 }
@@ -302,7 +353,10 @@ fn a_download_with_a_bad_hash_is_refused_and_deleted() {
     let dir = tempfile::tempdir().unwrap();
     let net = net_with_release();
     // Same size as the real one, different bytes.
-    net.file(&format!("{DL}Cantus-0.2.0-windows-x64-setup.exe"), &[b"installer TAMPERED"]);
+    net.file(
+        &format!("{DL}Cantus-0.2.0-windows-x64-setup.exe"),
+        &[b"installer TAMPERED"],
+    );
     let u = Updater::new(config(dir.path(), "0.1.0", InstallKind::Installed), net);
     u.check_at(true, 5);
     assert!(matches!(settle(&u), Status::Available(_)));
@@ -312,8 +366,14 @@ fn a_download_with_a_bad_hash_is_refused_and_deleted() {
         panic!("refused: {s:?}")
     };
     assert_eq!(*key, "update.error.hash");
-    assert!(offer.is_some(), "the offer stays, to try again or open the page");
-    assert!(!dir.path().join("updates/Cantus-0.2.0-windows-x64-setup.exe").exists());
+    assert!(
+        offer.is_some(),
+        "the offer stays, to try again or open the page"
+    );
+    assert!(!dir
+        .path()
+        .join("updates/Cantus-0.2.0-windows-x64-setup.exe")
+        .exists());
 }
 
 #[test]
@@ -337,7 +397,10 @@ fn the_checks_failures_say_why() {
     let cases: [(Option<(u16, &[u8])>, &str); 4] = [
         (None, "update.error.offline"),
         (Some((200, PROXY_PAGE)), "update.error.held"),
-        (Some((403, b"{\"message\":\"API rate limit exceeded\"}")), "update.error.rate_limited"),
+        (
+            Some((403, b"{\"message\":\"API rate limit exceeded\"}")),
+            "update.error.rate_limited",
+        ),
         (Some((500, b"")), "update.error.answer"),
     ];
     for (answer, want) in cases {
@@ -364,18 +427,27 @@ fn the_checks_failures_say_why() {
 fn the_same_version_a_skipped_one_and_a_portable_copy() {
     let dir = tempfile::tempdir().unwrap();
     let net = net_with_release();
-    let u = Updater::new(config(dir.path(), "0.2.0", InstallKind::Installed), net.clone());
+    let u = Updater::new(
+        config(dir.path(), "0.2.0", InstallKind::Installed),
+        net.clone(),
+    );
     u.check_at(true, 5);
     assert!(matches!(settle(&u), Status::UpToDate { .. }));
 
-    let u = Updater::new(config(dir.path(), "0.1.0", InstallKind::Installed), net.clone());
+    let u = Updater::new(
+        config(dir.path(), "0.1.0", InstallKind::Installed),
+        net.clone(),
+    );
     u.check_at(true, 5);
     assert!(matches!(settle(&u), Status::Available(_)));
     u.skip();
     u.check_at(false, 5 + schedule_day());
     assert!(matches!(settle(&u), Status::UpToDate { .. }), "skipped");
     u.check_at(true, 6 + schedule_day());
-    assert!(matches!(settle(&u), Status::Available(_)), "asked for: shown");
+    assert!(
+        matches!(settle(&u), Status::Available(_)),
+        "asked for: shown"
+    );
 
     // A portable copy is told, with the page, but has nothing to install.
     let p = Updater::new(config(dir.path(), "0.1.0", InstallKind::Portable), net);
@@ -408,7 +480,10 @@ const FLEXASIO: &str = include_str!("fixtures/flexasio-latest-recorded.json");
 fn flexasio_s_latest_release_names_its_installer() {
     use cantus_update::flexasio;
     let r = flexasio::parse(FLEXASIO.as_bytes()).expect("the recorded answer parses");
-    assert!(r.tag_name.starts_with("flexasio-"), "not SemVer, still read");
+    assert!(
+        r.tag_name.starts_with("flexasio-"),
+        "not SemVer, still read"
+    );
     let a = flexasio::installer(&r).expect("an .exe");
     assert!(a.name.starts_with("FlexASIO-") && a.name.ends_with(".exe"));
     assert!(a.size > 1_000_000);
@@ -425,7 +500,10 @@ fn flexasio_s_latest_release_names_its_installer() {
     asset.size = 4096;
     assert_eq!(flexasio::check(&f, &asset), Ok(()));
     asset.size = 4097;
-    assert!(matches!(flexasio::check(&f, &asset), Err(VerifyError::Size { .. })));
+    assert!(matches!(
+        flexasio::check(&f, &asset),
+        Err(VerifyError::Size { .. })
+    ));
     std::fs::write(&f, PROXY_PAGE).unwrap();
     assert_eq!(flexasio::check(&f, &asset), Err(VerifyError::Html));
     std::fs::write(&f, b"PK\x03\x04 a zip").unwrap();

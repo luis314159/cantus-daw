@@ -24,9 +24,9 @@
 mod archive;
 mod nsis;
 mod package;
-mod sign;
 #[cfg(test)]
 mod package_tests;
+mod sign;
 
 use cantus_plugins::desc::{self, Descriptor};
 use std::path::{Path, PathBuf};

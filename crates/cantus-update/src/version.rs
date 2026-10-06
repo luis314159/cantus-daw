@@ -52,10 +52,7 @@ impl Version {
             Some(p) => {
                 let ids: Vec<String> = p.split('.').map(str::to_owned).collect();
                 let valid = |id: &String| {
-                    !id.is_empty()
-                        && id
-                            .bytes()
-                            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
                 };
                 if !ids.iter().all(valid) {
                     return None;
@@ -144,8 +141,18 @@ mod tests {
     #[test]
     fn what_is_not_a_version_is_refused() {
         for bad in [
-            "", "v", "1", "1.2", "1.2.3.4", "01.2.3", "1.x.3", "1.2.3-", "1.2.3-a..b", "latest",
-            "1.2.-3", "-1.2.3",
+            "",
+            "v",
+            "1",
+            "1.2",
+            "1.2.3.4",
+            "01.2.3",
+            "1.x.3",
+            "1.2.3-",
+            "1.2.3-a..b",
+            "latest",
+            "1.2.-3",
+            "-1.2.3",
         ] {
             assert!(Version::parse(bad).is_none(), "{bad:?} must not parse");
         }

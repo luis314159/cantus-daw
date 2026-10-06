@@ -24,14 +24,23 @@ pub enum VerifyError {
     Empty,
     /// The file is a web page: most likely a proxy holding the download. Try later.
     Html,
-    Size { expected: u64, got: u64 },
-    Hash { expected: String, got: String },
+    Size {
+        expected: u64,
+        got: u64,
+    },
+    Hash {
+        expected: String,
+        got: String,
+    },
     /// No hash to check against: the release published none.
     NoHash,
     Unsigned,
     /// Windows did not accept the signature (its status: `HashMismatch`, `NotTrusted`, …).
     Signature(String),
-    Publisher { expected: String, got: String },
+    Publisher {
+        expected: String,
+        got: String,
+    },
 }
 
 impl VerifyError {
@@ -50,7 +59,10 @@ impl VerifyError {
 
     /// Whether waiting and downloading again may help (a proxy's quarantine).
     pub fn worth_retrying(&self) -> bool {
-        matches!(self, VerifyError::Empty | VerifyError::Html | VerifyError::Io(_))
+        matches!(
+            self,
+            VerifyError::Empty | VerifyError::Html | VerifyError::Io(_)
+        )
     }
 }
 

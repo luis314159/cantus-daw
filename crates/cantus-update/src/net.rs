@@ -210,11 +210,7 @@ impl Fetch for Https {
             std::fs::create_dir_all(dir).map_err(|e| NetError::Io(e.to_string()))?;
         }
         let mut file = std::fs::File::create(&part).map_err(|e| NetError::Io(e.to_string()))?;
-        let mut reader = resp
-            .body_mut()
-            .with_config()
-            .limit(MAX_DOWNLOAD)
-            .reader();
+        let mut reader = resp.body_mut().with_config().limit(MAX_DOWNLOAD).reader();
         let mut buf = vec![0u8; 1 << 16];
         let mut got = 0u64;
         loop {
@@ -247,7 +243,10 @@ mod tests {
 
     #[test]
     fn windows_fixed_proxy_settings_read_either_way() {
-        assert_eq!(parse_windows_proxy("proxy.corp:8080").as_deref(), Some("proxy.corp:8080"));
+        assert_eq!(
+            parse_windows_proxy("proxy.corp:8080").as_deref(),
+            Some("proxy.corp:8080")
+        );
         assert_eq!(
             parse_windows_proxy("http=a:80;https=b:443;ftp=c:21").as_deref(),
             Some("b:443")

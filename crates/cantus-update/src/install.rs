@@ -11,7 +11,8 @@ pub const UNINSTALLER: &str = "uninstall.exe";
 pub const PORTABLE_DATA: &str = "data";
 
 /// What the marker says, for whoever opens it.
-pub const PORTABLE_MARKER_TEXT: &str = "This copy of Cantus is portable: it keeps its settings, presets and \
+pub const PORTABLE_MARKER_TEXT: &str =
+    "This copy of Cantus is portable: it keeps its settings, presets and \
 autosaves in the \"data\" folder beside cantus.exe, and leaves nothing in the user's profile.\r\n\
 Delete this file to make it use the profile like an installed Cantus.\r\n\
 \r\n\

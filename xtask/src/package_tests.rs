@@ -52,8 +52,12 @@ fn plugin_files(prefix: &str) -> Vec<String> {
     let mut v = Vec::new();
     for n in ["Cantus Aequalis", "Cantus Porta"] {
         v.push(format!("{prefix}CLAP/{n}.clap"));
-        v.push(format!("{prefix}VST3/{n}.vst3/Contents/Resources/moduleinfo.json"));
-        v.push(format!("{prefix}VST3/{n}.vst3/Contents/x86_64-win/{n}.vst3"));
+        v.push(format!(
+            "{prefix}VST3/{n}.vst3/Contents/Resources/moduleinfo.json"
+        ));
+        v.push(format!(
+            "{prefix}VST3/{n}.vst3/Contents/x86_64-win/{n}.vst3"
+        ));
     }
     v
 }
@@ -142,26 +146,60 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     let macro_body = |name: &str| -> Vec<String> {
         let start = nsh.find(&format!("!macro {name}\n")).unwrap();
         let end = start + nsh[start..].find("!macroend").unwrap();
-        nsh[start..end].lines().skip(1).map(|l| l.trim().to_owned()).collect()
+        nsh[start..end]
+            .lines()
+            .skip(1)
+            .map(|l| l.trim().to_owned())
+            .collect()
     };
-    let files = |m: &str| macro_body(m).iter().filter(|l| l.starts_with("File ")).count();
-    let deletes = |m: &str| macro_body(m).iter().filter(|l| l.starts_with("Delete ")).count();
-    assert_eq!((files("CANTUS_APP_FILES"), deletes("CANTUS_APP_REMOVE")), (4, 4));
-    assert_eq!((files("CANTUS_CLAP_FILES"), deletes("CANTUS_CLAP_REMOVE")), (2, 2));
-    assert_eq!((files("CANTUS_VST3_FILES"), deletes("CANTUS_VST3_REMOVE")), (4, 4));
+    let files = |m: &str| {
+        macro_body(m)
+            .iter()
+            .filter(|l| l.starts_with("File "))
+            .count()
+    };
+    let deletes = |m: &str| {
+        macro_body(m)
+            .iter()
+            .filter(|l| l.starts_with("Delete "))
+            .count()
+    };
+    assert_eq!(
+        (files("CANTUS_APP_FILES"), deletes("CANTUS_APP_REMOVE")),
+        (4, 4)
+    );
+    assert_eq!(
+        (files("CANTUS_CLAP_FILES"), deletes("CANTUS_CLAP_REMOVE")),
+        (2, 2)
+    );
+    assert_eq!(
+        (files("CANTUS_VST3_FILES"), deletes("CANTUS_VST3_REMOVE")),
+        (4, 4)
+    );
 
+    // The roots are NSIS expressions, written as they are (`$$INSTDIR` would be a folder
+    // literally named "$INSTDIR").
+    assert!(!nsh.contains("$$"), "{nsh}");
+    assert!(macro_body("CANTUS_APP_FILES").contains(&"SetOutPath \"$INSTDIR\"".to_string()));
+    assert!(macro_body("CANTUS_CLAP_REMOVE").contains(&"RMDir \"${CLAP_DIR}\"".to_string()));
     let vst3 = macro_body("CANTUS_VST3_REMOVE");
     assert!(vst3.contains(
-        &"Delete \"${VST3_DIR}\\Cantus Porta.vst3\\Contents\\x86_64-win\\Cantus Porta.vst3\"".to_string()
+        &"Delete \"${VST3_DIR}\\Cantus Porta.vst3\\Contents\\x86_64-win\\Cantus Porta.vst3\""
+            .to_string()
     ));
     // Folders go deepest first, only once empty (no /r), and the Cantus folder last.
     let rmdirs: Vec<&String> = vst3.iter().filter(|l| l.starts_with("RMDir")).collect();
     assert!(rmdirs.iter().all(|l| !l.contains("/r")));
     assert_eq!(rmdirs.last().unwrap().as_str(), "RMDir \"${VST3_DIR}\"");
     let pos = |s: &str| rmdirs.iter().position(|l| l.ends_with(s)).unwrap();
-    assert!(pos("Cantus Porta.vst3\\Contents\\x86_64-win\"") < pos("Cantus Porta.vst3\\Contents\""));
+    assert!(
+        pos("Cantus Porta.vst3\\Contents\\x86_64-win\"") < pos("Cantus Porta.vst3\\Contents\"")
+    );
     assert!(pos("Cantus Porta.vst3\\Contents\"") < pos("Cantus Porta.vst3\""));
-    assert!(!nsh.contains("RMDir \"$INSTDIR\"\n"), "the script removes $INSTDIR itself, last");
+    assert!(
+        !nsh.contains("RMDir \"$INSTDIR\"\n"),
+        "the script removes $INSTDIR itself, last"
+    );
     assert!(nsh.contains("!define EST_SIZE_KB "));
 }
 
@@ -208,8 +246,8 @@ fn an_installer_compiles_when_nsis_is_here() {
         return;
     };
     let dir = tempfile::tempdir().unwrap();
-    let mut inputs = stand_ins(dir.path());
-    inputs.exes.truncate(1);
+    // Both flavours: the ASIO one compiles the FlexASIO component too.
+    let inputs = stand_ins(dir.path());
     let out = dir.path().join("package");
     // NSIS's own icon stands in for the app's (which the app's build script renders).
     let Some(icon) = makensis
@@ -227,9 +265,20 @@ fn an_installer_compiles_when_nsis_is_here() {
         env: Vec::new(),
     };
     let dist = package::assemble(&inputs, &out, V, Some(&job), None);
-    let setup = dist.join(release::installer_name(V, Flavor::Standard));
-    let bytes = std::fs::read(&setup).unwrap();
-    assert_eq!(&bytes[..2], b"MZ", "a Windows program");
-    assert!(bytes.len() > 30_000);
+    assert_eq!(
+        archive::walk(&dist).len(),
+        package::dist_names(V, &Flavor::ALL, true).len()
+    );
+    for f in Flavor::ALL {
+        let setup = dist.join(release::installer_name(V, f));
+        let bytes = std::fs::read(&setup).unwrap();
+        assert_eq!(&bytes[..2], b"MZ", "a Windows program");
+        assert!(bytes.len() > 30_000);
+        // `CANTUS_KEEP_INSTALLER=<dir>` keeps them, to install and uninstall by hand.
+        if let Some(keep) = std::env::var_os("CANTUS_KEEP_INSTALLER") {
+            let keep = std::path::PathBuf::from(keep);
+            std::fs::create_dir_all(&keep).unwrap();
+            std::fs::copy(&setup, keep.join(setup.file_name().unwrap())).unwrap();
+        }
+    }
 }
-

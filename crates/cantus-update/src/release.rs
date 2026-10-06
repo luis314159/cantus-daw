@@ -34,7 +34,10 @@ pub fn installer_name(version: &str, flavor: Flavor) -> String {
 
 /// `Cantus-0.2.0-windows-x64-portable.zip`, `…-asio-portable.zip`.
 pub fn portable_name(version: &str, flavor: Flavor) -> String {
-    format!("Cantus-{version}-windows-x64{}-portable.zip", flavor.suffix())
+    format!(
+        "Cantus-{version}-windows-x64{}-portable.zip",
+        flavor.suffix()
+    )
 }
 
 /// The CLAP and VST3 plug-ins alone, for people who use them in another DAW.

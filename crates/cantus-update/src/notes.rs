@@ -132,7 +132,10 @@ pub fn read(md: &str, max: usize) -> Vec<NoteLine> {
             continue;
         }
         // A wrapped bullet continues on an indented line.
-        if line.starts_with("  ") && lines.last().is_some_and(|l| l.kind == LineKind::Bullet) && para.is_empty() {
+        if line.starts_with("  ")
+            && lines.last().is_some_and(|l| l.kind == LineKind::Bullet)
+            && para.is_empty()
+        {
             let last = lines.last_mut().expect("checked");
             last.text.push(' ');
             last.text.push_str(&inline(trimmed));
@@ -159,7 +162,10 @@ mod tests {
             inline("[PERF #3293](https://example.com/3293): **faster** `scan` *now*"),
             "PERF #3293: faster scan now"
         );
-        assert_eq!(inline("a \\* b, __strong__, ![logo](x.png)"), "a * b, strong, logo");
+        assert_eq!(
+            inline("a \\* b, __strong__, ![logo](x.png)"),
+            "a * b, strong, logo"
+        );
         assert_eq!(inline("[not a link] (x)"), "[not a link] (x)");
     }
 
@@ -169,7 +175,10 @@ mod tests {
         let lines = read(md, 100);
         let kinds: Vec<LineKind> = lines.iter().map(|l| l.kind).collect();
         use LineKind::*;
-        assert_eq!(kinds, [Heading, Gap, Text, Gap, Bullet, Bullet, Bullet, Gap, Text]);
+        assert_eq!(
+            kinds,
+            [Heading, Gap, Text, Gap, Bullet, Bullet, Bullet, Gap, Text]
+        );
         assert_eq!(lines[0].text, "What is new");
         assert_eq!(lines[2].text, "The mixer is faster.");
         assert_eq!(lines[4].text, "one wrapped");

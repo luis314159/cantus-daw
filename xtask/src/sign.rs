@@ -49,9 +49,7 @@ pub fn from_env() -> Result<Option<Signer>, String> {
             dlib: need("CANTUS_SIGN_AZURE_DLIB")?.into(),
             metadata: need("CANTUS_SIGN_AZURE_METADATA")?.into(),
         })),
-        Some(other) => Err(format!(
-            "CANTUS_SIGN={other}: expected pfx, store or azure"
-        )),
+        Some(other) => Err(format!("CANTUS_SIGN={other}: expected pfx, store or azure")),
     }
 }
 
@@ -59,8 +57,9 @@ pub fn from_env() -> Result<Option<Signer>, String> {
 pub fn test_signer(target: &Path) -> Result<Signer, String> {
     let dir = target.join("signing-test");
     let file = dir.join("cantus-test.pfx");
-    let password = std::fs::read_to_string(dir.join("password.txt"))
-        .map_err(|_| "no test certificate: run `cargo run -p xtask -- sign-test-cert`".to_string())?;
+    let password = std::fs::read_to_string(dir.join("password.txt")).map_err(|_| {
+        "no test certificate: run `cargo run -p xtask -- sign-test-cert`".to_string()
+    })?;
     Ok(Signer::Pfx {
         file,
         password: password.trim().to_owned(),
@@ -72,7 +71,10 @@ pub fn test_signer(target: &Path) -> Result<Signer, String> {
 pub fn sign_args(signer: &Signer, timestamp: Option<&str>, file: &Path) -> Vec<OsString> {
     let mut a: Vec<OsString> = ["sign", "/fd", "SHA256"].map(OsString::from).to_vec();
     match signer {
-        Signer::Pfx { file: pfx, password } => {
+        Signer::Pfx {
+            file: pfx,
+            password,
+        } => {
             a.push("/f".into());
             a.push(pfx.into());
             a.push("/p".into());
@@ -148,7 +150,11 @@ pub fn signtool() -> Option<PathBuf> {
     versions.sort_by_key(|p| {
         p.file_name()
             .and_then(|n| n.to_str())
-            .map(|n| n.split('.').filter_map(|x| x.parse::<u32>().ok()).collect::<Vec<_>>())
+            .map(|n| {
+                n.split('.')
+                    .filter_map(|x| x.parse::<u32>().ok())
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default()
     });
     versions.pop().map(|p| p.join(r"x64\signtool.exe"))
@@ -165,7 +171,10 @@ pub fn sign(signer: &Signer, files: &[PathBuf]) {
     for f in files {
         let args = sign_args(signer, ts.as_deref(), f);
         eprintln!("> signtool {}", shown(&args));
-        let out = Command::new(&tool).args(&args).output().expect("run signtool");
+        let out = Command::new(&tool)
+            .args(&args)
+            .output()
+            .expect("run signtool");
         if !out.status.success() {
             eprintln!(
                 "signing {} failed:\n{}{}",

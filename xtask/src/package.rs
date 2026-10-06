@@ -152,7 +152,10 @@ pub fn plugin_entries(s: &Staged) -> Vec<Entry> {
 
 /// The release's file names, sorted — what `dist/` must hold.
 pub fn dist_names(version: &str, flavors: &[Flavor], installer: bool) -> Vec<String> {
-    let mut v = vec![release::plugins_name(version), release::SUMS_NAME.to_owned()];
+    let mut v = vec![
+        release::plugins_name(version),
+        release::SUMS_NAME.to_owned(),
+    ];
     for &f in flavors {
         v.push(release::portable_name(version, f));
         if installer {
@@ -261,7 +264,11 @@ pub fn write_sums(dist: &Path) {
         let hex = cantus_update::verify::sha256_file(&e.src).unwrap();
         entries.push((e.name, hex));
     }
-    std::fs::write(dist.join(release::SUMS_NAME), release::format_sums(&entries)).unwrap();
+    std::fs::write(
+        dist.join(release::SUMS_NAME),
+        release::format_sums(&entries),
+    )
+    .unwrap();
 }
 
 /// The newest icon the app's build script rendered (`crates/cantus-app/build.rs`).
@@ -347,7 +354,11 @@ pub fn package(args: &[String]) {
         }
         exes.push((f, exe));
     }
-    crate::bundle(&if build { vec![] } else { vec!["--no-build".to_string()] });
+    crate::bundle(&if build {
+        vec![]
+    } else {
+        vec!["--no-build".to_string()]
+    });
 
     let ws = workspace();
     let inputs = Inputs {

@@ -43,7 +43,8 @@ pub fn version4(v: &str) -> String {
     format!("{}.{}.{}.0", n[0], n[1], n[2])
 }
 
-/// Install and remove lines for `entries` under `root` (an NSIS path expression).
+/// Install and remove lines for `entries` under `root` — an NSIS path expression such as
+/// `$INSTDIR` or `${CLAP_DIR}`, written as it is; only the names below it are escaped.
 fn block(entries: &[Entry], root: &str) -> (String, String) {
     let mut install = String::new();
     let mut remove = String::new();
@@ -51,17 +52,17 @@ fn block(entries: &[Entry], root: &str) -> (String, String) {
     let mut current: Option<String> = None;
     for e in entries {
         let (dir, _file) = match e.name.rsplit_once('/') {
-            Some((d, f)) => (format!("{root}\\{}", d.replace('/', "\\")), f),
+            Some((d, f)) => (format!("{root}\\{}", escape(&d.replace('/', "\\"))), f),
             None => (root.to_owned(), e.name.as_str()),
         };
         if current.as_deref() != Some(dir.as_str()) {
-            install.push_str(&format!("  SetOutPath \"{}\"\n", escape(&dir)));
+            install.push_str(&format!("  SetOutPath \"{dir}\"\n"));
             current = Some(dir.clone());
         }
         install.push_str(&format!("  File \"{}\"\n", win(&e.src)));
         remove.push_str(&format!(
             "  Delete \"{}\\{}\"\n",
-            escape(root),
+            root,
             escape(&e.name.replace('/', "\\"))
         ));
         // Every folder between the file and the root, to remove once empty.
@@ -78,11 +79,11 @@ fn block(entries: &[Entry], root: &str) -> (String, String) {
     for d in sorted {
         remove.push_str(&format!(
             "  RMDir \"{}\\{}\"\n",
-            escape(root),
+            root,
             escape(&d.replace('/', "\\"))
         ));
     }
-    remove.push_str(&format!("  RMDir \"{}\"\n", escape(root)));
+    remove.push_str(&format!("  RMDir \"{root}\"\n"));
     (install, remove)
 }
 
@@ -196,7 +197,11 @@ pub fn makensis() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("CANTUS_MAKENSIS") {
         return Some(PathBuf::from(p));
     }
-    let exe = if cfg!(windows) { "makensis.exe" } else { "makensis" };
+    let exe = if cfg!(windows) {
+        "makensis.exe"
+    } else {
+        "makensis"
+    };
     if let Some(path) = std::env::var_os("PATH") {
         for d in std::env::split_paths(&path) {
             if d.join(exe).is_file() {

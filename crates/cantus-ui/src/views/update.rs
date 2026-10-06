@@ -197,14 +197,23 @@ pub fn status_line(app: &UpdateUi, status: &Status) -> (String, bool) {
             .and_then(Updater::last_checked)
             .map_or_else(
                 || t("update.never_checked"),
-                |c| tf("update.last_checked", &[("when", &ago(c, schedule::now_unix()))]),
+                |c| {
+                    tf(
+                        "update.last_checked",
+                        &[("when", &ago(c, schedule::now_unix()))],
+                    )
+                },
             )
     };
     match status {
         Status::Idle => (last(), false),
         Status::Checking => (t("update.checking"), false),
         Status::UpToDate { .. } => (
-            format!("{} {}", tf("update.up_to_date", &[("version", &APP_VERSION)]), last()),
+            format!(
+                "{} {}",
+                tf("update.up_to_date", &[("version", &APP_VERSION)]),
+                last()
+            ),
             false,
         ),
         Status::Available(o) => (
@@ -439,33 +448,40 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
             let rect = ui.max_rect();
             window_face(ui, rect, &s);
             let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
-            let closed = title(ui, header, &s, Glyph::Down, "update.title");
+            let closed = title(ui, header, &s, Glyph::Loop, "update.title");
             let body = Rect::from_min_max(
                 Pos2::new(rect.left() + 12.0 * s.k, header.bottom() + 8.0 * s.k),
                 Pos2::new(rect.right() - 12.0 * s.k, rect.bottom() - 10.0 * s.k),
             );
-            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
-            let ui = &mut child;
+            // The buttons sit at the foot; above them the status and the notes scroll.
+            let foot_h = 62.0 * s.k;
+            let top = Rect::from_min_max(body.min, Pos2::new(body.right(), body.bottom() - foot_h));
+            let foot =
+                Rect::from_min_max(Pos2::new(body.left(), top.bottom() + 8.0 * s.k), body.max);
+            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(top));
+            egui::ScrollArea::vertical()
+                .id_salt("cantus-update-body")
+                .auto_shrink([false, false])
+                .show(&mut child, |ui| {
+                    ui.set_width(top.width() - 14.0 * s.k);
+                    ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
+                    w::band(ui, Src::Key("update.band.status"));
+                    let (text_now, warn) = status_line(&app.update, status);
+                    let width = ui.available_width();
+                    for l in wrap(ui.ctx(), &text_now, Role::Label, width, s.tk()) {
+                        note(ui, &l, warn);
+                    }
+                    if let Some(e) = app.update.launch_error.clone() {
+                        note(ui, &e, true);
+                    }
+                    if let Some(offer) = status.offer().cloned() {
+                        w::band(ui, Src::Str(&offer.title));
+                        notes(ui, &offer);
+                    }
+                });
+            let mut footer = ui.new_child(egui::UiBuilder::new().max_rect(foot));
+            let ui = &mut footer;
             ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
-            w::band(ui, Src::Key("update.band.status"));
-            let (text_now, warn) = status_line(&app.update, status);
-            let width = ui.available_width();
-            for l in wrap(ui.ctx(), &text_now, Role::Label, width, s.tk()) {
-                note(ui, &l, warn);
-            }
-            if let Some(e) = app.update.launch_error.clone() {
-                note(ui, &e, true);
-            }
-            if let Some(offer) = status.offer().cloned() {
-                w::band(ui, Src::Str(&offer.title));
-                let notes_h = (ui.available_height() - 80.0 * s.k).max(60.0 * s.k);
-                egui::ScrollArea::vertical()
-                    .id_salt("cantus-update-notes")
-                    .max_height(notes_h)
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| notes(ui, &offer));
-            }
-            ui.add_space(6.0 * s.k);
             asked = buttons(app, ui, status);
             asked.close |= closed || ui.input(|i| i.key_pressed(egui::Key::Escape));
         });

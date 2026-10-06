@@ -55,14 +55,30 @@ pub struct Offer {
 pub enum Status {
     Idle,
     Checking,
-    UpToDate { checked: u64 },
+    UpToDate {
+        checked: u64,
+    },
     Available(Offer),
-    Downloading { offer: Offer, got: u64, total: Option<u64> },
+    Downloading {
+        offer: Offer,
+        got: u64,
+        total: Option<u64>,
+    },
     /// A proxy answered with its own page instead of the file: tried again later.
-    Held { offer: Offer, attempt: u32 },
-    Ready { offer: Offer, installer: PathBuf },
+    Held {
+        offer: Offer,
+        attempt: u32,
+    },
+    Ready {
+        offer: Offer,
+        installer: PathBuf,
+    },
     /// `key` is a locale key in the `update` area; `detail` is for the log and the hint.
-    Failed { key: &'static str, detail: String, offer: Option<Offer> },
+    Failed {
+        key: &'static str,
+        detail: String,
+        offer: Option<Offer>,
+    },
 }
 
 impl Status {
@@ -145,14 +161,21 @@ impl Updater {
         }
         let due = force || self.shared.state.lock().expect("state").due(now);
         if !due {
-            let kept = self.shared.state.lock().expect("state").release_json.clone();
+            let kept = self
+                .shared
+                .state
+                .lock()
+                .expect("state")
+                .release_json
+                .clone();
             if let Some(r) = kept.and_then(|j| Release::parse(j.as_bytes()).ok()) {
                 self.decide(&r, false, now);
             }
             return;
         }
         self.set(Status::Checking);
-        let (config, fetch, shared) = (self.config.clone(), self.fetch.clone(), self.shared.clone());
+        let (config, fetch, shared) =
+            (self.config.clone(), self.fetch.clone(), self.shared.clone());
         let me = Updater {
             config,
             fetch,
@@ -237,12 +260,18 @@ impl Updater {
     fn decide(&self, r: &Release, force: bool, now: u64) {
         let skipped = self.shared.state.lock().expect("state").skipped.clone();
         let version = r.version_text();
-        if !r.is_update_for(&self.config.current) || (!force && skipped.as_deref() == Some(&version)) {
+        if !r.is_update_for(&self.config.current)
+            || (!force && skipped.as_deref() == Some(&version))
+        {
             self.set(Status::UpToDate { checked: now });
             return;
         }
         let offer = Offer {
-            title: r.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| format!("Cantus {version}")),
+            title: r
+                .name
+                .clone()
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| format!("Cantus {version}")),
             notes: notes::read(r.body.as_deref().unwrap_or(""), NOTE_LINES),
             page: r.html_url.clone(),
             installer: (self.config.kind == InstallKind::Installed)
@@ -334,7 +363,10 @@ impl Updater {
                     match sums.get(&asset.name) {
                         Some(h) => out.push(h.clone()),
                         None => {
-                            return Err(fail("update.error.hash", format!("{} not in SHA256SUMS", asset.name)))
+                            return Err(fail(
+                                "update.error.hash",
+                                format!("{} not in SHA256SUMS", asset.name),
+                            ))
                         }
                     }
                 }
@@ -371,9 +403,12 @@ impl Updater {
                     };
                 }
             };
-            let got = self
-                .fetch
-                .download(&asset.browser_download_url, &dest, &progress, &self.shared.cancel);
+            let got = self.fetch.download(
+                &asset.browser_download_url,
+                &dest,
+                &progress,
+                &self.shared.cancel,
+            );
             let checked = match got {
                 Err(NetError::Cancelled) => return self.set(Status::Available(offer)),
                 Err(e) => Err(Status::Failed {
