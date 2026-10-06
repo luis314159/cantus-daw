@@ -262,9 +262,10 @@ pub struct EngineStats {
     /// snapshot whose routing changed came without one — a test, or a full queue. The
     /// application sends the plan, so this stays at zero there.
     pub plans_compiled: u64,
-    /// System calls made to raise the callback's thread (once per stream start, ADR 0031
-    /// R1; the amended ADR 0005 rule 3 counts them).
-    pub promotions: u64,
+    /// System calls the real-time path makes by permission (the amended ADR 0005 rule 3):
+    /// raising the callback's thread once per stream start (ADR 0031 R1), and from Phase 1
+    /// the pool's idle → busy wakes.
+    pub wakes: u64,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**

@@ -160,6 +160,10 @@ impl EngineHandle {
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
         processor.attach_analyser(analyser_tx);
+        // The callback's first block raises its own thread (ADR 0031 R1; nothing on ASIO).
+        processor.promote_on_first_block(crate::processor::AudioHost::from_driver_name(
+            host.id().name(),
+        ));
 
         // The input, at the output's rate, into the processor's ring.
         let telemetry = Arc::new(crate::devices::DeviceTelemetry::default());

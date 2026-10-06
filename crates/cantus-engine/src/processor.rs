@@ -69,6 +69,7 @@ mod rt_shim;
 use master::MasterStrip;
 use strip::{produced, StripOut};
 use track::TrackOut;
+pub use rt_shim::AudioHost;
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
@@ -389,9 +390,9 @@ pub struct Processor {
     note_at: u64,
     /// The captured strip ran this pass (otherwise its take records silence).
     strip_captured: bool,
-    /// The first block after the stream started promotes the callback's thread
-    /// (`cantus_rt::promote_callback`, ADR 0031 R1); a processor for a device starts armed.
-    promote: bool,
+    /// The first block after a stream starts promotes the callback's thread
+    /// (`cantus_rt::promote_callback`, ADR 0031 R1), on the driver API the stream set.
+    promote: Option<AudioHost>,
     /// FTZ/DAZ inside `process` (on; off only for the test that compares the two).
     flush_denormals: bool,
     /// The input stream's end and the recording rings (ADR 0025, `crate::recorder`).
@@ -485,7 +486,7 @@ impl Processor {
             clock: 0,
             note_at: 0,
             strip_captured: false,
-            promote: true,
+            promote: None,
             flush_denormals: true,
             input: Default::default(),
             record_rings: None,
@@ -494,6 +495,14 @@ impl Processor {
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
         }
+    }
+
+    /// Ask the first block to promote the calling (callback) thread for the driver API
+    /// `host` (ADR 0031 R1). For the device code that builds the output stream; never the
+    /// offline renderer, the stems, the bench or the tests, which must not touch thread
+    /// priority.
+    pub fn promote_on_first_block(&mut self, host: AudioHost) {
+        self.promote = Some(host);
     }
 
     /// Flush denormals inside `process` (on, always, in the application). Off exists for
@@ -707,10 +716,7 @@ impl Processor {
     ) -> Self {
         let (_p, c) = RingBuffer::<MidiEvent>::new(1);
         // The producer is dropped: the consumer simply stays empty forever.
-        let mut p = Self::new(sample_rate, rx, tx, c);
-        // No device's callback: an offline render or a test thread is never promoted.
-        p.promote = false;
-        p
+        Self::new(sample_rate, rx, tx, c)
     }
 
     pub fn transport(&self) -> &Transport {
@@ -729,16 +735,17 @@ impl Processor {
         // every test then run in the same floating-point mode.
         let _ftz = self.flush_denormals.then(rt_shim::DenormalGuard::new);
         let started = Instant::now();
-        // The first block after a stream start raises the callback's own thread (R1).
-        if self.promote {
-            self.promote = false;
-            if rt_shim::promote_callback() {
-                self.stats.promotions += 1;
-            }
-        }
         self.prof.begin(started);
         let channels = channels.max(1);
         let frames = (output.len() / channels).min(MAX_BLOCK_FRAMES);
+        // The first block after a stream start raises the callback's own thread (R1): one
+        // system call per stream start, counted as the amended ADR 0005 rule 3 asks.
+        if let Some(host) = self.promote.take() {
+            let period = std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate);
+            if rt_shim::promote_callback(host, period) {
+                self.stats.wakes += 1;
+            }
+        }
         output.iter_mut().for_each(|s| *s = 0.0);
         // Notes sent before the first segment (live notes, a stop, a seek) are this
         // block's first sample.

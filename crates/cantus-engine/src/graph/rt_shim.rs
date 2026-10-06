@@ -18,12 +18,39 @@
 //! dependencies, and `lib.rs` goes back to `forbid(unsafe_code)`. Nothing else in the
 //! engine changes.
 
+/// The driver API a stream runs on — `cantus_rt::AudioHost`'s shape, so the merge only
+/// swaps this file's body.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum AudioHost {
+    Asio,
+    Wasapi,
+    CoreAudio,
+    Jack,
+    Alsa,
+    Other,
+}
+
+impl AudioHost {
+    /// From a driver API's name as cpal gives it (`HostId::name()`), case-insensitive.
+    pub fn from_driver_name(name: &str) -> AudioHost {
+        match name.to_ascii_lowercase().as_str() {
+            "asio" => AudioHost::Asio,
+            "wasapi" => AudioHost::Wasapi,
+            "coreaudio" => AudioHost::CoreAudio,
+            "jack" => AudioHost::Jack,
+            "alsa" => AudioHost::Alsa,
+            _ => AudioHost::Other,
+        }
+    }
+}
+
 /// Raise the audio callback's own thread — MMCSS "Pro Audio" at high priority on WASAPI,
 /// nothing on ASIO (whose driver owns the thread) — once, on the first block after a
-/// stream starts. Returns whether a system call was made (`EngineStats::promotions`).
-/// Until `cantus-rt` lands: nothing, `false`.
+/// stream starts (`cantus_rt::promote_callback(host, period)`). Returns whether a system
+/// call was made (`EngineStats::wakes`). Until `cantus-rt` lands: nothing, `false`.
 #[inline]
-pub(super) fn promote_callback() -> bool {
+pub(super) fn promote_callback(host: AudioHost, period: std::time::Duration) -> bool {
+    let _ = (host, period);
     false
 }
 
