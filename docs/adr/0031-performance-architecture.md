@@ -59,7 +59,7 @@ can be checked by the gate, not by argument.
 | **Ableton Live** | independent signal paths on separate threads; one track's chain **cannot** be split across cores; tracks tied by sidechains or returns are one path [11] | — (Freeze, by hand) | effects with no input are deactivated after their tail; lowers the average, *not the peak* [12] | — |
 | **FL Studio** | multithreaded generator and mixer processing, per plug-in opt-out [13] | — | **Smart disable**, global and per plug-in; can break time- or envelope-based plug-ins [13][14] | *Make bridged*: a separate process, ~1–2 % CPU each [14] |
 | **Logic Pro** | "Playback Tracks" vs "Playback & Live Tracks" threading [15] | non-live tracks at the *Process Buffer Range*; the **selected** instrument track is live — Apple's advice is to select an empty track for playback [16] | — | — (AU out-of-process on Apple silicon) |
-| **Ardour** (open source) | a process graph with a trigger queue, worker threads woken by a semaphore every cycle (`libs/ardour/graph.cc`) | — | — | — |
+| **Ardour** (open source) | a process graph with a trigger queue, worker threads woken by a semaphore every cycle (`libs/ardour/graph.cc`; from its source, not re-fetched for this ADR) | — | — | — |
 
 What nobody ships, and §4b asks for: an automatic, invalidating **render cache** (all of
 them freeze by hand), a dropout **with the node to blame** (Cubase 14 lists tracks with
