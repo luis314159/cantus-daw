@@ -159,7 +159,7 @@ only read after the writer's node has finished (the edge is a dependency):
   beside it), its **delayed-edge** buffers (one per edge with a line), its **key** buffer,
   a track's **note outbox**: written by the node, read by its successors;
 - **scratch** (`dry`, `edge`, `mono`, the analyser's input): per *worker*, not per
-  processor, so no two nodes share one;
+  processor, so no two nodes running at the same time share one;
 - **meters and telemetry**: per node, cache-line padded (§5.4), folded into `Meters` by the
   callback after the graph.
 
@@ -189,9 +189,10 @@ whole block. The click splits only itself. Why this keeps the bits:
 
 - every native unit is already required to be split-invariant: `fx_contract.rs` and
   `inst_contract.rs` render every kind at blocks of 1, 64 and 1000 to the same bits, and
-  the units' own tests go to 7 and 4096; an
-  instrument receives notes *between* `process` calls, and gets the same calls at the same
-  note samples whether or not another track had an event in between;
+  the units' own tests go to 7 and 4096. An instrument still receives its notes
+  *between* `process` calls at exactly the same samples; what changes is only that its
+  calls are no longer *also* cut at other tracks' events, which is a split the contract
+  already makes irrelevant;
 - notes into effects carry an *offset* "always inside" the next `process` call — ADR 0022
   wrote that delivery is "independent of the segment structure — a whole-block strip stage
   (planned after this round) keeps it sample-accurate with no change to the contract".
@@ -411,11 +412,19 @@ or an ahead worker — renders it from `cursor`; consumers read any range below 
   render `[cursor, cursor + C)` in one call per pass (chunks of `C` = 512–2048 frames), and
   publish the new cursor (`Release`). A chunk ends at or before `now + H`.
 
-**The claim rule** keeps the two from ever waiting on each other: an ahead worker may claim
-a node only while `cursor ≥ now + G`, with the guard `G` = two device blocks. The live graph
-needs `[now, now + b)` with `b ≤ G/2`, so a node an ahead worker holds has already rendered
-what the live graph needs from it — the live side reads the ring and never waits for an
-ahead chunk to finish. A node that falls behind the guard (the machine is overloaded, the
+**The claim rule** keeps the two from waiting on each other: an ahead worker may claim a
+node only while `cursor ≥ now + G`, where the guard `G` is two device blocks **plus four
+times the node's measured chunk time** (the profiler knows it). The live graph needs
+`[now, now + b)`, so a node an ahead worker holds has, unless something extraordinary
+happens, already rendered what the live graph needs from it — the live side reads the ring
+and does not wait for the chunk to finish. The extraordinary case is the OS preempting the
+ahead worker mid-chunk for longer than the guard: then the live graph finds the node held
+and its cursor short of `now + b`. It spins until the block's *late* threshold (half the
+remaining budget), and if the cursor still has not arrived it mixes that node's
+contribution as silence for this block — a local, counted glitch (`EngineStats::ahead_late`,
+named by the blame like a dropout) instead of a whole-output dropout — and doubles that
+node's guard. Ahead workers live on cores the live workers do not use (§2.1), so our own
+threads never cause this; only the rest of the system can. A node that falls behind the guard (the machine is overloaded, the
 node just became eligible, the transport just started) is simply run by the live graph
 until the ahead workers get in front again: **anticipation degrades into the engine of §2,
 never into a dropout of its own making.** Eligibility does not even need to be propagated
@@ -436,7 +445,8 @@ any of these holds; everything else is eligible:
 
 When nothing is live — playback of a finished song, the commonest case — **the whole graph
 including the master renders ahead**, and the callback copies the master's ring to the
-device. That is where the market's 3× "plays sessions others choke on" comes from.
+device. That is how REAPER plays sessions others choke on.
+
 **The selected track.** The UI makes the selected track the keyboard's target
 (`cantus-ui/src/app.rs`: `set_live_track(self.selected_track)`), which is Logic's model —
 the selected instrument track is live, and Apple's advice is to select an empty track for
@@ -498,7 +508,8 @@ tests of exactly that protocol.
    content (which still holds the "would-have-been" audio) to the new rendering, so a stop
    never clicks. Play from stopped starts every node at its cursor with nothing ahead; the
    live graph renders them until the ahead workers have caught up (§3.1's degradation),
-   which takes `H × f / (1 − f)` of real time when ahead work keeps a fraction `f` of the ahead workers busy — 85 ms at Normal for `f = ½`.
+   which takes `H × f / (1 − f)` of real time when keeping pace needs a fraction `f` of
+   the ahead workers — 85 ms at Normal for `f = ½`.
 
 **3.6 What it keeps exact.** With no edit during playback, *ahead == live == offline* to the
 bit: a node's output depends only on its state and inputs, which are the same; only the
@@ -544,20 +555,27 @@ key(node, k) = H( DSP_VERSION, sample rate, tempo map,
                   node's static key   — kinds, every parameter value, bypass/mix/switches,
                                          the instrument spec, sample and asset content
                                          hashes, a hosted plug-in's id, version and state
-                                         hash, its edges' delays and gains,
+                                         hash, the delays of its own lines,
                   page inputs (k)     — a track: its events, automation and audio-clip
                                          windows (with source content hashes) that touch
-                                         page k; a strip: key(pred, k) of every input in
-                                         canonical order, of its key and its note source,
+                                         page k; a strip: for every input in canonical
+                                         order, key(pred, k) *and* what the predecessor
+                                         does after its own cache point (a track's level
+                                         and balance, a strip's EQ, width, pan, fader,
+                                         send level — and their automation on page k);
+                                         the same for its key source and note source,
                   state (k)           — SETTLED if the node was at rest (§5.1) at the
                                          page's first sample, else key(node, k − 1) )
 ```
 
 The `state` term is what makes it exact: a page depends on everything before it *unless*
-the node was at rest when the page began, and the render records, per page, whether it
-was. So the chain restarts at every **settle point** — the silence between phrases, the
-end of a reverb — and an edit at bar 30 invalidates from its page to the node's next
-settle point, not to the end of the song. The key function destructures every snapshot
+the node was at rest when the page began, and every render records, per page, whether it
+ended at rest. So the chain restarts at every **settle point** — the silence between
+phrases, the end of a reverb. After an edit on page *j* nobody knows yet where the new
+render will come to rest (the edit may lengthen a tail), so the pages from *j* on are
+re-rendered until one ends at rest; from there the old keys are recomputed equal and the
+old pages are used again. An edit at bar 30 costs the pages from bar 30 to the node's next
+settle point, not the rest of the song. The key function destructures every snapshot
 field it reads without `..`, so a field added to the model fails to compile until someone
 decides whether it belongs in the key.
 
@@ -849,7 +867,7 @@ the cache is an ahead renderer; the sandbox is an external task of the pool.
   `sched/` (pool, queues), `ahead/`, `cache/`. `processor.rs` becomes the control phase
   and the glue.
 - `EngineMessage::SetSnapshot` carries an optional plan; new `SetPromoted`, `GraphNeed`
-  (event), `EngineStats::{schedule_conflicts, wakes, sandbox_late, ahead_lead}`.
+  (event), `EngineStats::{schedule_conflicts, wakes, sandbox_late, ahead_lead, ahead_late}`.
 - Contracts: `FxUnit::at_rest`, `InstrumentUnit::at_rest` (default `false`). The
   `fx_notes` queue becomes outboxes; the contract of `FxUnit::note` is unchanged.
 - ADR 0005 rule 3 is amended (§2.4). ADR 0019's "whole-block processing for hosted units"
