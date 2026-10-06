@@ -15,7 +15,7 @@ otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y 
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
-**(6)** producto: instalador, actualizaciones, firma de código, manual y tutoriales,
+**(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque; producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
@@ -172,6 +172,59 @@ real-time path wait.**
 - **Licensing and legal**: the decisions in `research/content/README.md` and
   `research/ai/README.md`; the trademark search for "Cantus"; credits/attribution screen.
 - An opt-in crash reporter; a website; a community (forum/Discord).
+
+## 6b. Audio setup that is direct (requested 2026-10-05)
+
+Today the audio device lives in Settings ▸ Audio (round 19 made it complete); the owner
+wants configuring audio — interface, driver, inputs/outputs, rate, buffer — to be easier
+and more direct.
+
+- **An audio chip always visible** in the transport or status bar: the interface's name,
+  driver, rate, buffer and round-trip latency (e.g. `UMC204HD · ASIO · 48 k · 128 · 6.1 ms`),
+  a light that turns amber on dropouts and red when the device is lost. One click opens a
+  compact popover to switch interface, driver, rate and buffer *in place*, with the
+  latency shown for each buffer size before choosing.
+- **First-run setup**: pick the interface from pictures/names of what is connected,
+  play a test tone on the chosen outputs, show live input meters ("speak or play — the
+  meter should move"), suggest the best driver (ASIO when the interface has one) and a
+  buffer, and offer the loopback calibration.
+- **Plug-and-play**: detect an interface being connected or removed and offer to switch
+  (and back) without restarting; remember settings **per interface**; recover cleanly
+  when a device disappears mid-session (keep editing, say so, reconnect when it returns).
+- **Inputs and outputs named and routed simply**: name the device's channels ("Mic 1",
+  "Guitar", "Monitors L/R"), a routing matrix page, output to a second pair for a
+  headphone cue mix.
+- **Problems explained in words with a fix**: "the input runs at 44.1 kHz and the output
+  at 48 kHz — use one interface or set both to 48 kHz [Fix]", "another app holds the
+  device exclusively", "the ASIO driver stopped responding — [Restart audio]".
+- *Done when:* a musician who has never opened Cantus records a guitar through a new
+  interface in under a minute without opening Settings.
+
+## 6c. A verse at every start — Cantus's Christian values (requested 2026-10-05)
+
+The owner: *"every time it starts, show a verse from the Reina-Valera in the configured
+language — our DAW has Christian values."* (The project's motto is Colossians 3:23.)
+
+- On the splash screen (round 18 made one) and in the welcome/start view, a verse with its
+  reference, in the interface language, chosen at random (or one per day), from a curated
+  list — verses of encouragement, work, creativity, praise and music (Psalms 33:3, 96:1,
+  150; Colossians 3:23; Ephesians 5:19; Exodus 35:31–35; 1 Chronicles 15:16…).
+- **Translations and licences (decide before shipping):** Spanish **Reina-Valera 1909 is
+  public domain** and can be bundled; **RVR1960 and RVR1995 are under copyright
+  (Sociedades Bíblicas Unidas / American Bible Society)** and need written permission or
+  their licence terms (usually a limit on how many verses may be quoted without
+  permission — a curated list of a few hundred verses may fall inside a quotation
+  allowance; check). English: the **King James Version** is public domain outside the UK
+  (Crown patent in the UK); the World English Bible (WEB) is public domain everywhere.
+  Other languages: public-domain translations per locale (e.g. Almeida for Portuguese,
+  Louis Segond 1910 for French, Luther 1912 for German).
+- Bundled as a small text file per locale (`locales/verses/<lang>.txt`), the reference
+  shown in that language's book names; the translation's name and licence credited in
+  About.
+- A setting to choose the translation where several are available; the owner decides
+  whether it can be turned off.
+- *Done when:* every start shows a verse in the current language, from a translation
+  whose licence allows it, credited in About.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
