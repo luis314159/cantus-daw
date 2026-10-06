@@ -36,6 +36,8 @@ saturator = []
 cantus-core.workspace = true
 cantus-dsp.workspace = true
 cantus-engine.workspace = true
+# The denormal guard (`ftz.rs` re-exports it); without rtkit, so a plug-in never links D-Bus.
+cantus-rt.workspace = true
 serde_json.workspace = true
 rtrb.workspace = true
 clap-sys = "0.5"

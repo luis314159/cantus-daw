@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/cantus-core",
     "crates/cantus-dsp",
+    "crates/cantus-rt",
     "crates/cantus-engine",
     "crates/cantus-project",
     "crates/cantus-ai",
@@ -24,6 +25,7 @@ members = [
 default-members = [
     "crates/cantus-core",
     "crates/cantus-dsp",
+    "crates/cantus-rt",
     "crates/cantus-engine",
     "crates/cantus-project",
     "crates/cantus-ai",
@@ -46,6 +48,7 @@ homepage = "https://github.com/lalmazan/cantus"
 # Internal crates
 cantus-core = { path = "crates/cantus-core" }
 cantus-dsp = { path = "crates/cantus-dsp" }
+cantus-rt = { path = "crates/cantus-rt", default-features = false }
 cantus-engine = { path = "crates/cantus-engine" }
 cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
