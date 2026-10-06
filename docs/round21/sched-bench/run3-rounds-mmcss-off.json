@@ -1,0 +1,65 @@
+round 1/5
+round 2/5
+round 3/5
+round 4/5
+round 5/5
+{"name":"sched.s64.serial.w0.normal","p50_us":29913.2,"p99_us":36725.2,"best_p99_us":36725.2,"worst_max_us":38273.7,"rounds":1,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w1.normal","p50_us":15742.6,"p99_us":17717.6,"best_p99_us":6827.1,"worst_max_us":24689.2,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w1.normal","p50_us":15691.3,"p99_us":18331.0,"best_p99_us":6963.4,"worst_max_us":46491.2,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w1.stalled","p50_us":16125.2,"p99_us":17967.2,"best_p99_us":7160.0,"worst_max_us":38441.8,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w1.stalled","p50_us":15986.5,"p99_us":17864.9,"best_p99_us":7113.1,"worst_max_us":26251.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w2.normal","p50_us":11448.3,"p99_us":15496.1,"best_p99_us":4948.6,"worst_max_us":85948.0,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w2.normal","p50_us":6616.1,"p99_us":16711.4,"best_p99_us":6130.5,"worst_max_us":38958.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w2.stalled","p50_us":4654.8,"p99_us":5470.2,"best_p99_us":4731.8,"worst_max_us":45586.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w2.stalled","p50_us":4542.5,"p99_us":5755.9,"best_p99_us":4642.6,"worst_max_us":21317.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w3.normal","p50_us":4519.4,"p99_us":11979.1,"best_p99_us":3587.5,"worst_max_us":37012.6,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w3.normal","p50_us":3503.2,"p99_us":4785.9,"best_p99_us":3613.4,"worst_max_us":45244.2,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w3.stalled","p50_us":4526.1,"p99_us":12972.8,"best_p99_us":3980.5,"worst_max_us":71939.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w3.stalled","p50_us":4428.0,"p99_us":11587.9,"best_p99_us":3509.9,"worst_max_us":42883.6,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w4.normal","p50_us":3459.7,"p99_us":9786.6,"best_p99_us":3177.9,"worst_max_us":66234.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w4.normal","p50_us":3466.0,"p99_us":33937.8,"best_p99_us":12299.9,"worst_max_us":45130.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.vyukov.w4.stalled","p50_us":4546.3,"p99_us":38658.6,"best_p99_us":2900.1,"worst_max_us":48136.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.chase-lev.w4.stalled","p50_us":3473.6,"p99_us":10991.3,"best_p99_us":3649.8,"worst_max_us":47356.3,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.serial.w0.normal","p50_us":17437.9,"p99_us":19214.5,"best_p99_us":19214.5,"worst_max_us":34781.9,"rounds":1,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w1.normal","p50_us":9558.7,"p99_us":12236.2,"best_p99_us":10053.7,"worst_max_us":32030.6,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w1.normal","p50_us":9354.6,"p99_us":12168.4,"best_p99_us":9577.1,"worst_max_us":41334.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w1.stalled","p50_us":19664.7,"p99_us":20707.2,"best_p99_us":9804.4,"worst_max_us":43768.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w1.stalled","p50_us":20028.5,"p99_us":22005.5,"best_p99_us":9619.8,"worst_max_us":43016.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w2.normal","p50_us":13798.6,"p99_us":16311.4,"best_p99_us":6438.5,"worst_max_us":41261.6,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w2.normal","p50_us":14537.1,"p99_us":22049.9,"best_p99_us":6626.2,"worst_max_us":61525.9,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w2.stalled","p50_us":14586.6,"p99_us":23672.2,"best_p99_us":6421.5,"worst_max_us":61250.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w2.stalled","p50_us":13703.8,"p99_us":17424.8,"best_p99_us":6528.0,"worst_max_us":75187.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w3.normal","p50_us":10634.0,"p99_us":38242.5,"best_p99_us":12109.9,"worst_max_us":48094.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w3.normal","p50_us":10878.3,"p99_us":16161.3,"best_p99_us":6068.5,"worst_max_us":37521.9,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w3.stalled","p50_us":10826.6,"p99_us":38407.6,"best_p99_us":5458.5,"worst_max_us":71558.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w3.stalled","p50_us":10806.6,"p99_us":17563.4,"best_p99_us":8930.5,"worst_max_us":111010.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w4.normal","p50_us":11818.2,"p99_us":42785.5,"best_p99_us":10892.0,"worst_max_us":154821.6,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w4.normal","p50_us":11845.7,"p99_us":58366.7,"best_p99_us":10083.3,"worst_max_us":105271.8,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.vyukov.w4.stalled","p50_us":11211.2,"p99_us":37694.2,"best_p99_us":11873.5,"worst_max_us":77714.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s100.chase-lev.w4.stalled","p50_us":12167.8,"p99_us":42276.8,"best_p99_us":13396.7,"worst_max_us":112303.9,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.serial.w0.normal","p50_us":6840.1,"p99_us":7419.9,"best_p99_us":7419.9,"worst_max_us":7589.0,"rounds":1,"stalled_blocks":0}
+{"name":"sched.fan.vyukov.w1.normal","p50_us":4054.9,"p99_us":5024.3,"best_p99_us":4248.7,"worst_max_us":35469.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.chase-lev.w1.normal","p50_us":4080.4,"p99_us":5390.9,"best_p99_us":5348.7,"worst_max_us":35066.9,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.vyukov.w1.stalled","p50_us":4502.1,"p99_us":5674.9,"best_p99_us":4636.4,"worst_max_us":13560.1,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.chase-lev.w1.stalled","p50_us":4336.9,"p99_us":6088.5,"best_p99_us":4866.2,"worst_max_us":13713.7,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.vyukov.w2.normal","p50_us":2644.3,"p99_us":4294.8,"best_p99_us":3656.7,"worst_max_us":30479.8,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.chase-lev.w2.normal","p50_us":3026.5,"p99_us":15210.9,"best_p99_us":1693.1,"worst_max_us":55369.3,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.vyukov.w2.stalled","p50_us":2972.5,"p99_us":3580.3,"best_p99_us":1446.2,"worst_max_us":23969.1,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.chase-lev.w2.stalled","p50_us":2968.2,"p99_us":4955.0,"best_p99_us":1956.9,"worst_max_us":72510.3,"rounds":5,"stalled_blocks":1440}
+{"name":"sched.fan.vyukov.w3.normal","p50_us":2024.6,"p99_us":32563.7,"best_p99_us":1156.8,"worst_max_us":51915.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.chase-lev.w3.normal","p50_us":1997.2,"p99_us":2314.5,"best_p99_us":1010.3,"worst_max_us":36024.5,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.vyukov.w3.stalled","p50_us":2103.6,"p99_us":5008.1,"best_p99_us":1634.3,"worst_max_us":33308.9,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.chase-lev.w3.stalled","p50_us":2135.9,"p99_us":33867.7,"best_p99_us":1088.1,"worst_max_us":35796.8,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.vyukov.w4.normal","p50_us":2024.0,"p99_us":32480.1,"best_p99_us":891.3,"worst_max_us":34156.8,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.chase-lev.w4.normal","p50_us":1683.9,"p99_us":32507.8,"best_p99_us":823.5,"worst_max_us":50327.2,"rounds":5,"stalled_blocks":0}
+{"name":"sched.fan.vyukov.w4.stalled","p50_us":1800.8,"p99_us":5446.1,"best_p99_us":1145.5,"worst_max_us":66498.6,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.fan.chase-lev.w4.stalled","p50_us":1809.3,"p99_us":32726.2,"best_p99_us":4248.1,"worst_max_us":34061.3,"rounds":5,"stalled_blocks":1500}
+{"name":"sched.s64.bare.serial.w0.normal","p50_us":4.2,"p99_us":5.9,"best_p99_us":2.8,"worst_max_us":91.8,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.vyukov.w1.normal","p50_us":51.4,"p99_us":77.9,"best_p99_us":27.8,"worst_max_us":544.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.chase-lev.w1.normal","p50_us":51.6,"p99_us":70.8,"best_p99_us":20.8,"worst_max_us":1149.4,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.vyukov.w2.normal","p50_us":59.7,"p99_us":92.9,"best_p99_us":27.3,"worst_max_us":2949.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.chase-lev.w2.normal","p50_us":46.7,"p99_us":67.8,"best_p99_us":19.0,"worst_max_us":32205.7,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.vyukov.w3.normal","p50_us":57.7,"p99_us":88.2,"best_p99_us":26.2,"worst_max_us":32228.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.chase-lev.w3.normal","p50_us":42.9,"p99_us":65.5,"best_p99_us":20.0,"worst_max_us":32180.1,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.vyukov.w4.normal","p50_us":57.5,"p99_us":94.9,"best_p99_us":28.0,"worst_max_us":32224.2,"rounds":5,"stalled_blocks":0}
+{"name":"sched.s64.bare.chase-lev.w4.normal","p50_us":40.8,"p99_us":65.2,"best_p99_us":17.7,"worst_max_us":78016.0,"rounds":5,"stalled_blocks":0}
