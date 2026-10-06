@@ -85,8 +85,7 @@ fn add_copy(p: &mut Project, src: &Project, ti: usize, shift: Ticks, window: (Ti
         clip.color = c.color;
         clip.audio = c.audio.clone();
         for n in &c.notes {
-            let mut note = p.make_note(n.start, n.length, n.pitch, n.velocity);
-            note.pitch = n.pitch;
+            let note = p.make_note(n.start, n.length, n.pitch, n.velocity);
             clip.notes.push(note);
         }
         t.clips.push(clip);
@@ -98,7 +97,7 @@ fn add_copy(p: &mut Project, src: &Project, ti: usize, shift: Ticks, window: (Ti
             s.gain_db = from.gain_db;
             s.pan = from.pan;
             s.width = from.width;
-            s.eq = from.eq.clone();
+            s.eq = from.eq;
             s.color = from.color;
             for e in &from.effects {
                 let mut slot = p.make_effect(e.spec.kind);

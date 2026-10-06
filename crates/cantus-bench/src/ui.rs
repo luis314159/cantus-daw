@@ -72,12 +72,15 @@ impl Rig {
     }
 }
 
+/// A scenario: its name, the project it opens, the view it shows.
+type Case = (&'static str, Box<dyn Fn() -> Project>, CentralView);
+
 /// The scenarios: the 64-track session in the mixer and in the piano roll (with the
 /// arrangement), and the project the program opens on.
 pub fn frames(plan: &Plan) -> Vec<Metric> {
     let mut out = Vec::new();
     let frames = if plan.quick { 60 } else { 200 };
-    let cases: Vec<(&str, Box<dyn Fn() -> Project>, CentralView)> = vec![
+    let cases: Vec<Case> = vec![
         (
             "s64.mixer",
             Box::new(|| sessions::scaled(64)),

@@ -14,6 +14,9 @@ use crate::stats::{quantile, Summary};
 use crate::{sessions, Plan};
 use cantus_core::{InstrumentKind, Project, Ticks};
 
+/// A session of `n` tracks.
+type Build<'a> = &'a dyn Fn(usize) -> Project;
+
 /// Compressors per track in the DSP session.
 pub const DSP_PER_TRACK: usize = 8;
 /// Voices per track in the VI session (its chords).
@@ -56,7 +59,7 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
     let runs = plan.runs.min(3);
     let dsp = |n: usize| sessions::dsp(n, DSP_PER_TRACK);
     let vi = |n: usize| sessions::vi(n, InstrumentKind::Analog);
-    let tests: [(&str, &dyn Fn(usize) -> Project, usize, &str); 2] = [
+    let tests: [(&str, Build, usize, &str); 2] = [
         ("dsp", &dsp, DSP_PER_TRACK, "Comprimo instances"),
         ("vi", &vi, VI_VOICES, "Calor voices"),
     ];

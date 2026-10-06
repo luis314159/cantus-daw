@@ -162,7 +162,7 @@ impl Rig {
         let total = prof.total_ns().max(1) as f64;
         let blocks = prof.total_blocks().max(1) as f64;
         let mut v: Vec<(Node, u64)> = prof.totals().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|n| std::cmp::Reverse(n.1));
         v.into_iter()
             .take(top)
             .map(|(node, ns)| crate::report::HotSpot {

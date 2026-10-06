@@ -71,8 +71,14 @@ pub fn culprit_text(p: &Project, c: Culprit) -> String {
     }
 }
 
+/// Milliseconds as a person reads a block: one decimal, two under a millisecond (a
+/// 64-sample buffer at 96 kHz is 0.67 ms).
 fn ms(us: f64) -> String {
-    format!("{:.1}", us / 1e3)
+    if us < 1_000.0 {
+        format!("{:.2}", us / 1e3)
+    } else {
+        format!("{:.1}", us / 1e3)
+    }
 }
 
 fn ms2(us: f64) -> String {

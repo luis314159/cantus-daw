@@ -94,7 +94,7 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
     let stats = app.engine.stats();
     let tip = key.live.then(|| crate::perf_status::histogram_text(stats));
     push(engine, key.overruns > 0, tip, 4);
-    if let Some(d) = stats.last_dropout.filter(|_| key.live) {
+    if let Some(d) = stats.last_dropout {
         let p = app.project();
         push(
             crate::perf_status::dropout_text(p, &d),
