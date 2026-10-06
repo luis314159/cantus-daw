@@ -175,6 +175,60 @@ language or the plug-in database changes.
 
 ## 9. Swapping (device-ux)
 
-*To be written by the device-ux builder: what `apply_pick` keeps when an instrument or an
-effect is swapped, `Command::ReplaceEffect`, the entry points that open the picker, the window
-chrome.*
+**What a swap keeps.** `apply_pick` (`crate::swap`) does every purpose as **one undo step**.
+An instrument swap is one `Batch` (`SetInstrument`, and `SetTrackName` when the name was a
+default one: empty, "Track *n*" in the interface's language, or the old instrument's own
+name); the track, its clips, notes, strip, inserts and colour are untouched, because an
+instrument is the only thing that changes — a note is a pitch for a kit and a synth alike,
+so a kit → melodic swap keeps every note. Between two native instruments the shared model
+(ADR 0023) lets the **matching settings** come along — the eight macros and their names,
+every number whose key the new kind also declares (clamped to its range), every
+non-file text it also takes, and the modulation connections whose source the new kind
+produces and whose target it has, compacted from slot 1. It is on by default and the
+application holds the choice (`CantusApp::swap_keep.matching`) for the picker to offer.
+The A/B side and the preset name of the old instrument are forgotten; the window that
+showed it shows the new one, where it was.
+
+**`Command::ReplaceEffect { strip, effect, slot }`** — rather than a remove and an insert —
+puts a whole new slot at the old one's index; its inverse is the same command with the old
+slot. It keeps the slot's **position**, **mix** and **bypass**, and its **key** and **note
+source** where the new kind takes them (a key into a kind with no detector, a note source
+into a kind that hears none, a key that would close a loop, an id already in the chain are
+refused, as their own commands refuse them; `apply_pick` drops a route the new kind cannot
+take, and retries without routes if the routing moved). The new slot has a **new id**: it is
+another device, and nothing that pointed at the old one (an open editor, an automation
+target, the engine's instance) silently changes kind under it. Parameters do not come along
+between effect kinds: they share no model.
+
+**Adding** names an instrument's track after it ("Organum", then "Organum 2"), inserts it
+where asked, selects it and opens its window; an effect goes at the end of the chain with its
+editor open (FL opens a plug-in it loads). A hosted instrument (ADR 0028) goes through `CantusApp::set_hosted_instrument`, which loads
+the plug-in first; one that will not load changes nothing and says why.
+
+**The entry points** (every one calls `open_picker` with the purpose its place means): the
+**Swap** cap in every device window's title bar; the track header's **instrument chip**
+(the icon, raised with a ▾ under the pointer); the arrangement's **+** and its empty-timeline
+menu; the channel rack's channel button (right-click, or the swap badge shown on hover; its
+left click now opens and closes the instrument, as FL's does); the inspector's instrument
+field, its empty insert tiles and its tiles' menu; the mixer's empty slots, the swap badge
+on a filled slot and its menu. A right-click keeps the old quick list where there was one,
+headed by *All effects…*. **Drop targets** read `DevicePayload`: a track header (swap its
+instrument), a mixer slot (add to an empty one, swap a filled one), outlined in the
+selection colour while a device that fits hovers them.
+
+**The device window's own buttons** (`kit::window_ctl`): Swap, minimise, maximise/restore
+and close at the right end of the header — every OS window's place for them, and FL's
+plug-in windows'. Minimise sends the device to a **tray** in the status bar (a chip with its
+mark in its hue and its name; a click restores it, its × closes it) and keeps it open;
+maximise fills the workspace and restore returns it docked or to its floating rect; **Esc**
+closes the device clicked last; **F8** toggles the selected track's instrument window
+(FL's F8 is its plug-in picker; Cantus's picker has its own entry points, and F8 here does
+what a musician reaches for most). Where each device floated is remembered for the session.
+Rejected: collapsing a window to its title bar (FL's) — a docked tab has no title bar to
+collapse to, and one behaviour everywhere is easier to learn than two.
+
+**Automation follows a swapped effect (integration, ADR 0027):** the swap's batch also points
+every automation clip on the old effect at the new one for each parameter key the new kind
+also has, so a lane survives a swap between kinds that share a parameter (Terminus's and
+Culmen's `ceiling`) and one undo brings both back; a lane on a key the new kind lacks keeps its
+clip and goes quiet (`tests/swap_automation.rs`).
