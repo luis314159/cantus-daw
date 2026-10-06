@@ -889,6 +889,14 @@ impl Multiplex {
                     self.lin_live = true;
                     self.lin_origin = (self.clock % self.lin.block_pos().1 as u64) as usize;
                 }
+                // A block that starts inside the span asks for its filters, as the linear
+                // path does at every block start (a new unit designs them there).
+                let (pos, block) = self.lin.block_pos();
+                if frames > 0 && (pos == 0 || pos + frames > block) {
+                    for i in 0..self.lay.n - 1 {
+                        self.lin.want(i, self.xo_hz[i], self.s.slope);
+                    }
+                }
                 self.lin.skip(frames);
             } else {
                 self.lin_live = false;

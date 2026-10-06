@@ -282,6 +282,11 @@ impl Culmen {
         self.col_n = total % self.col_len;
     }
 
+    #[doc(hidden)]
+    pub fn match_debug(&self) -> (f32, f32, f32) {
+        (self.match_gain, self.match_target, self.match_glide)
+    }
+
     /// Samples of delay: the band stage's (its linear-phase split) plus the brickwall's.
     pub fn latency(&self) -> usize {
         self.bands.latency() + self.full.latency() + self.lim.latency()
