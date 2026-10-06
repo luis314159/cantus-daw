@@ -119,10 +119,13 @@ fn a_real_overrun_reaches_the_status_bar() {
             time: Some(i as f64 * 0.25),
             ..Default::default()
         };
-        let out = ctx.run_ui(input, |root| {
+        let mut out = ctx.run_ui(input, |root| {
             let mut frame = eframe::Frame::_new_kittest();
             eframe::App::ui(&mut app, root, &mut frame);
         });
+        // No renderer applies the frame's textures here (the picker's thumbnails, the
+        // verse card…): drop them on purpose, as the other headless tests do.
+        out.textures_delta.clear();
         text = support::painted_text(&out.shapes);
     }
     assert!(text.contains("Dropout: "), "the readout is painted: {text}");

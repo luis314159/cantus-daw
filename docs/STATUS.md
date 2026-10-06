@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-06 (round 20: **automation, device windows and swapping, the device browser, hosted CLAP/VST3 instruments, rights-free sample packs, direct audio setup, a verse at start, the installer and updates, a benchmark** (ADR 0027–0032), and the performance architecture for round 21 (ADR 0031 with its state-of-the-art review); schema 20. Round 19: recording, the master chain, mastering effects, demos. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** see round 20, clippy clean
+**Updated:** 2026-10-06 (round 20: **automation, device windows and swapping, the device browser, hosted CLAP/VST3 instruments, rights-free sample packs, direct audio setup, a verse at start, the installer and updates, a benchmark** (ADR 0027–0032), and the performance architecture for round 21 (ADR 0031 with its state-of-the-art review); schema 20. Round 19: recording, the master chain, mastering effects, demos. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 616 green (152 test binaries), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
