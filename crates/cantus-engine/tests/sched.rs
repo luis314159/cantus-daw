@@ -530,17 +530,16 @@ fn a_replay_token_rebuilds_the_same_episode() {
 fn stalled_pusher_pool<Q: ReadyQueue>() -> Duration {
     use cantus_engine::sched::fuzz::Stall;
     use cantus_engine::sched::Site;
-    // Two layers of 12 that each feed 3 of the next: many tasks become ready at once, so
-    // workers push (not only continue).
-    let mut preds: Vec<Vec<u32>> = (0..12).map(|_| Vec::new()).collect();
-    for layer in 1..4u32 {
-        for i in 0..12u32 {
-            let base = (layer - 1) * 12;
-            let mut p = vec![base + i, base + (i + 1) % 12, base + (i + 5) % 12];
-            p.sort_unstable();
-            preds.push(p);
+    // Six sources, each fanning out to six tasks, all into one sink: a finished source
+    // readies six tasks at once, so its thread keeps one and *pushes* five. (Gathers alone
+    // never push: the last input readies one task, which the continuation slot takes.)
+    let mut preds: Vec<Vec<u32>> = (0..6).map(|_| Vec::new()).collect();
+    for src in 0..6u32 {
+        for _ in 0..6 {
+            preds.push(vec![src]);
         }
     }
+    preds.push((6..42).collect());
     let n = preds.len();
     let g = Arc::new(FuzzGraph::new(
         preds,
@@ -763,30 +762,36 @@ fn scaled(tracks: usize, per_ns: f64, zero: bool) -> Session {
     Session::new(&name, preds, cost, per_ns)
 }
 
-/// A wide graph that makes workers *push*: 6 layers of 24 tasks of 30 µs, each fed by
-/// three of the layer above (sends and buses everywhere).
-fn layered(per_ns: f64) -> Session {
-    let (layers, width) = (6u32, 24u32);
-    let mut preds: Vec<Vec<u32>> = (0..width).map(|_| Vec::new()).collect();
-    for layer in 1..layers {
-        let base = (layer - 1) * width;
-        for i in 0..width {
-            let mut p = vec![base + i, base + (i + 1) % width, base + (i + 7) % width];
-            p.sort_unstable();
-            preds.push(p);
+/// A synthetic fan-out graph that makes workers *push*: 8 sources (a track feeding
+/// many listeners) each readying 12 tasks of 30 µs at once, each group gathered by a bus,
+/// the buses by a master. Mixing sessions are gathers and almost never push.
+fn fanout(per_ns: f64) -> Session {
+    let mut preds: Vec<Vec<u32>> = (0..8).map(|_| Vec::new()).collect();
+    let mut cost = vec![30.; 8];
+    for src in 0..8u32 {
+        for _ in 0..12 {
+            preds.push(vec![src]);
+            cost.push(30.);
         }
     }
-    let n = preds.len();
-    Session::new("fan", preds, vec![30.; n], per_ns)
+    for src in 0..8u32 {
+        preds.push((8 + src * 12..8 + (src + 1) * 12).collect());
+        cost.push(10.);
+    }
+    preds.push((104..112).collect());
+    cost.push(50.);
+    Session::new("fan", preds, cost, per_ns)
 }
 
-/// Block wall times (sorted, ns) and the pool's counters for one configuration.
-fn measure<Q: ReadyQueue, C: Chaos>(
-    g: &Arc<Session>,
-    workers: usize,
-    chaos: C,
-    blocks: usize,
-) -> (Vec<u64>, cantus_engine::sched::PoolStats, u64) {
+/// One configuration's block wall times (sorted, ns): all blocks, and those in which a
+/// stall fired; and the pool's counters.
+struct Measured {
+    all: Vec<u64>,
+    stalled: Vec<u64>,
+    stats: cantus_engine::sched::PoolStats,
+}
+
+fn measure<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, workers: usize, chaos: C, blocks: usize) -> Measured {
     let mut cfg = Config::new(workers, g.len());
     cfg.mode = if workers == 0 { Mode::Serial } else { Mode::Parallel };
     let mut pool = Pool::<Session, Q, C>::with_chaos(g.clone(), cfg, chaos).unwrap();
@@ -794,16 +799,22 @@ fn measure<Q: ReadyQueue, C: Chaos>(
         pool.run_block();
     }
     let before = pool.stats();
-    let mut times = Vec::with_capacity(blocks);
+    let mut all = Vec::with_capacity(blocks);
+    let mut stalled = Vec::with_capacity(blocks);
     for _ in 0..blocks {
-        times.push(pool.run_block().wall_ns);
+        let f = stall_count(pool.chaos());
+        let t = pool.run_block().wall_ns;
+        all.push(t);
+        if stall_count(pool.chaos()) > f {
+            stalled.push(t);
+        }
     }
-    times.sort_unstable();
-    let mut s = pool.stats();
-    s.pushes -= before.pushes;
-    s.wakes -= before.wakes;
-    let fired = stall_count(pool.chaos());
-    (times, s, fired)
+    all.sort_unstable();
+    stalled.sort_unstable();
+    let mut stats = pool.stats();
+    stats.pushes -= before.pushes;
+    stats.wakes -= before.wakes;
+    Measured { all, stalled, stats }
 }
 
 /// The stalls a chaos made (only [`fuzz::Stall`] counts them).
@@ -813,38 +824,47 @@ fn stall_count<C: Chaos>(c: &C) -> u64 {
 }
 
 fn pct(sorted: &[u64], q: f64) -> f64 {
+    if sorted.is_empty() {
+        return f64::NAN;
+    }
     sorted[((sorted.len() - 1) as f64 * q).round() as usize] as f64 / 1000.0
 }
 
 fn row<Q: ReadyQueue, C: Chaos>(g: &Arc<Session>, w: usize, case: &str, chaos: C, blocks: usize) {
-    let (t, s, fired) = measure::<Q, C>(g, w, chaos, blocks);
+    let m = measure::<Q, C>(g, w, chaos, blocks);
+    let t = &m.all;
     let mean = t.iter().sum::<u64>() as f64 / t.len() as f64 / 1000.0;
     let queue = if w == 0 { "serial" } else { Q::NAME };
+    let pushes = m.stats.pushes as f64 / t.len() as f64;
     println!(
-        "| {:<9} | {:<9} | {} | {:<7} | {:>8.0} | {:>8.0} | {:>8.0} | {:>8.0} | {:>6.2} | {:>5} |",
+        "| {:<9} | {:<9} | {} | {:<7} | {:>7.0} | {:>7.0} | {:>7.0} | {:>7.0} | {:>6.1} | {:>4} | {:>7.0} | {:>7.0} |",
         g.name,
         queue,
         w,
         case,
-        pct(&t, 0.5),
-        pct(&t, 0.99),
+        pct(t, 0.5),
+        pct(t, 0.99),
         t[t.len() - 1] as f64 / 1000.0,
         mean,
-        s.pushes as f64 / t.len() as f64,
-        fired
+        pushes,
+        m.stalled.len(),
+        pct(&m.stalled, 0.5),
+        pct(&m.stalled, 0.99),
     );
     eprintln!(
-        "{{\"name\":\"sched.{}.{}.w{}.{}\",\"p50_us\":{:.1},\"p99_us\":{:.1},\"max_us\":{:.1},\"mean_us\":{:.1},\"pushes_per_block\":{:.2},\"stalls\":{}}}",
+        "{{\"name\":\"sched.{}.{}.w{}.{}\",\"p50_us\":{:.1},\"p99_us\":{:.1},\"max_us\":{:.1},\"mean_us\":{:.1},\"pushes_per_block\":{:.2},\"stalled_blocks\":{},\"stalled_p50_us\":{:.1},\"stalled_p99_us\":{:.1}}}",
         g.name,
         queue,
         w,
         case,
-        pct(&t, 0.5),
-        pct(&t, 0.99),
+        pct(t, 0.5),
+        pct(t, 0.99),
         t[t.len() - 1] as f64 / 1000.0,
         mean,
-        s.pushes as f64 / t.len() as f64,
-        fired
+        pushes,
+        m.stalled.len(),
+        pct(&m.stalled, 0.5),
+        pct(&m.stalled, 0.99),
     );
 }
 
@@ -862,7 +882,7 @@ fn bench_both_queues() {
     let graphs = [
         Arc::new(scaled(64, per_ns, false)),
         Arc::new(scaled(100, per_ns, false)),
-        Arc::new(layered(per_ns)),
+        Arc::new(fanout(per_ns)),
         Arc::new(scaled(64, per_ns, true)),
     ];
     for g in &graphs {
@@ -873,8 +893,8 @@ fn bench_both_queues() {
             g.total_us(),
             g.critical_us()
         );
-        println!("| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalls |");
-        println!("|---|---|---|---|---:|---:|---:|---:|---:|---:|");
+        println!("| graph | queue | W | case | p50 µs | p99 µs | max µs | mean µs | pushes/block | stalled blocks | stalled p50 | stalled p99 |");
+        println!("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|");
         let bare = g.name.ends_with("bare");
         let blocks = if bare { blocks * 10 } else { blocks };
         row::<Vyukov, _>(g, 0, "normal", cantus_engine::sched::Calm, blocks);
@@ -882,8 +902,16 @@ fn bench_both_queues() {
             row::<Vyukov, _>(g, w, "normal", cantus_engine::sched::Calm, blocks);
             row::<ChaseLev, _>(g, w, "normal", cantus_engine::sched::Calm, blocks);
             if cfg!(feature = "fuzz") && !bare {
+                // A worker stalled 500 µs mid-push, at one of its first 8 pushes of each
+                // block (which one varies by block).
                 let stall = || {
-                    fuzz::Stall::new(cantus_engine::sched::Site::Claimed, 0, Duration::from_micros(500))
+                    let mut s = fuzz::Stall::new(
+                        cantus_engine::sched::Site::Claimed,
+                        0,
+                        Duration::from_micros(500),
+                    );
+                    s.spread = 8;
+                    s
                 };
                 row::<Vyukov, _>(g, w, "stalled", stall(), blocks);
                 row::<ChaseLev, _>(g, w, "stalled", stall(), blocks);
