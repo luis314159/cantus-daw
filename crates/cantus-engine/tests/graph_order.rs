@@ -456,7 +456,8 @@ fn compiling_in_place_gives_the_same_plan_and_the_key_is_the_routing() {
     let mut reused = compile(&topology(&mut rng, 9, 7));
     for seed in 0..200u64 {
         let mut rng = Rng(seed);
-        let snap = topology(&mut rng, rng.below(10), rng.below(10));
+        let (t, s) = (rng.below(10), rng.below(10));
+        let snap = topology(&mut rng, t, s);
         let fresh = compile(&snap);
         reused.compile_into(&snap);
         assert_eq!(fresh.key(), reused.key());
