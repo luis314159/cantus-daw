@@ -28,6 +28,8 @@ use serde::{Deserialize, Serialize};
 
 /// The inspector's width by default, in points (ADR 0024 §7).
 pub const INSPECTOR_W: f32 = 280.0;
+/// The sample browser's width when it opens, in points.
+pub const BROWSER_W: f32 = 260.0;
 /// The share of the height the arrangement takes above the lower zone by default.
 pub const ARRANGEMENT_SHARE: f32 = 0.46;
 /// How close a floating window's edge must come to another edge to snap to it, in points.
@@ -41,6 +43,8 @@ pub enum Pane {
     ChannelRack,
     Mixer,
     Inspector,
+    /// The sample browser (ADR 0030): FL's browser, at the left.
+    Browser,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -64,6 +68,7 @@ impl Pane {
             Pane::ChannelRack => "workspace.pane.channel_rack",
             Pane::Mixer => "workspace.pane.mixer",
             Pane::Inspector => "workspace.pane.inspector",
+            Pane::Browser => "samples.title",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -76,6 +81,7 @@ impl Pane {
             Pane::ChannelRack => "workspace.toggle.channel_rack",
             Pane::Mixer => "workspace.toggle.mixer",
             Pane::Inspector => "workspace.toggle.inspector",
+            Pane::Browser => "samples.toggle",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -87,6 +93,7 @@ impl Pane {
             Pane::ChannelRack => Glyph::Rack,
             Pane::Mixer => Glyph::Mixer,
             Pane::Inspector => Glyph::Inspector,
+            Pane::Browser => Glyph::Browser,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -338,6 +345,11 @@ impl Workspace {
             },
             Pane::Inspector => {
                 s.split_right(NodeIndex::root(), inspector_share, vec![Pane::Inspector]);
+            }
+            Pane::Browser => {
+                // At the left of everything, as wide as FL's browser.
+                let share = (1.0 - BROWSER_W / width).clamp(0.6, 0.92);
+                s.split_left(NodeIndex::root(), share, vec![Pane::Browser]);
             }
             Pane::Device(_) => match arrangement.or(lower) {
                 Some(node) => append(s, node, pane),

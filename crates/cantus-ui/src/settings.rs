@@ -128,6 +128,10 @@ pub struct Settings {
     pub mixer_density: MixerDensity,
     /// Show each strip's recent level as a scrolling envelope (FL's meter-wave view).
     pub mixer_meter_wave: bool,
+    /// The user's own sample folders, listed in the sample browser under the packs.
+    pub sample_folders: Vec<std::path::PathBuf>,
+    /// Play a sample when it is clicked in the browser.
+    pub sample_audition: bool,
 }
 
 impl Default for Settings {
@@ -139,6 +143,8 @@ impl Default for Settings {
             ui_scale: DEFAULT_UI_SCALE,
             mixer_density: MixerDensity::Normal,
             mixer_meter_wave: false,
+            sample_folders: Vec::new(),
+            sample_audition: true,
         }
     }
 }
@@ -211,6 +217,8 @@ mod tests {
             ui_scale: 1.25,
             mixer_density: MixerDensity::Compact,
             mixer_meter_wave: true,
+            sample_folders: vec!["D:/Samples".into()],
+            sample_audition: false,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);

@@ -397,7 +397,7 @@ impl Processor {
             dry_l: vec![0.0; MAX_BLOCK_FRAMES],
             dry_r: vec![0.0; MAX_BLOCK_FRAMES],
             click: Click::new(sr),
-            preview: crate::preview::Preview::new(sr),
+            preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
             next_beat_tick: 0.0,
             live_track: None,

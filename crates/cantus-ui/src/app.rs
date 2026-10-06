@@ -125,6 +125,8 @@ pub struct CantusApp {
     pub interop: views::interop::Interop,
     /// File → Demo songs: the picker (round 19).
     pub demos: views::demos::Picker,
+    /// The sample browser and the content manager (ADR 0030).
+    pub samples: crate::samples::Samples,
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
@@ -339,6 +341,7 @@ impl CantusApp {
             fx: views::fx::FxEditors::default(),
             interop: Default::default(),
             demos: Default::default(),
+            samples: Default::default(),
             plugins,
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
@@ -3038,6 +3041,7 @@ impl CantusApp {
             ViewMixer => self.toggle_pane(Pane::Mixer),
             ViewArrangement => self.toggle_pane(Pane::Arrangement),
             ToggleInspector => self.toggle_pane(Pane::Inspector),
+            ToggleBrowser => self.toggle_pane(Pane::Browser),
             CloseFloating => {
                 if let Some(ctx) = self.theme_ctx.clone() {
                     self.workspace.close_floating_devices(&ctx);
@@ -3336,6 +3340,7 @@ impl CantusApp {
         }
         let frame_start = Instant::now();
         self.engine.poll();
+        self.poll_samples(ctx);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         self.host_notices(notices);
@@ -3380,6 +3385,7 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::demos::frame(self, ctx);
+        views::samples_browser::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
         design::paint_focus_ring(ctx, &theme::p());

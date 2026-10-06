@@ -225,6 +225,7 @@ pub fn hex(bytes: &[u8]) -> String {
 /// Download `url` into `part` (resuming what is there), check its size and SHA-256, and
 /// rename it to `dest`. `progress(bytes_so_far)` is called as bytes arrive. A cancelled
 /// or interrupted download keeps its `.part` for the next try; a wrong one is deleted.
+#[allow(clippy::too_many_arguments)]
 pub fn download(
     t: &dyn Transport,
     url: &str,

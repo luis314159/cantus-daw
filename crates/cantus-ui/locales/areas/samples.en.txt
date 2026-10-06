@@ -1,0 +1,66 @@
+# Area: the sample browser and the content manager (round 20, ADR 0030). Every key here needs its twin in samples.es.txt.
+
+samples.title = Browser
+samples.toggle = Show or hide the browser
+action.toggle-browser = Browser
+samples.content = Sound packs…
+samples.add_folder = Add a folder of your own
+samples.search = Search sounds
+samples.searching = Looking through your sounds…
+samples.no_results = Nothing called “{query}”
+samples.section.packs = Packs
+samples.section.folders = My folders
+samples.folders.empty = Add a folder with the + key above
+samples.hint.file = Click to hear · drag to a pad, the rack or the playlist
+samples.foot.hint = Click to hear · drag onto a pad, the rack or the playlist
+samples.cancel = Cancel
+
+# The one-click offer while nothing is installed.
+samples.starter.title = Start with a drum kit
+samples.starter.body = {pack}: kicks, snares, hats, toms, cymbals, claps — {mb} MB
+samples.starter.licence = CC0: yours to use in any song, free of charge, no credit needed
+samples.starter.download = Download
+samples.more_packs = More packs…
+
+# What happened, at the browser's foot.
+samples.notice.installed = {pack} is installed
+samples.notice.failed = {pack} was not installed: {why}
+samples.notice.dropped = {name} placed
+samples.notice.removed = {pack} was removed
+
+# The Sound packs window.
+samples.content.title = Sound packs
+samples.phase.starting = Starting…
+samples.phase.downloading = Downloading {done} of {total} MB
+samples.phase.retrying = Waiting for the network ({why}); trying again in {s} s
+samples.phase.verifying = Checking every byte…
+samples.phase.unpacking = Unpacking…
+samples.state.installed = Installed
+samples.state.update = Update
+samples.state.busy = Installing
+samples.detail.download = Download
+samples.detail.on_disk = On disk
+samples.detail.files = Files
+samples.detail.licence = Licence
+samples.detail.checked = Licence read
+samples.detail.credits = Made by
+samples.detail.licence_kept = The licence is kept beside the sounds, in {file}.
+samples.detail.actions = Pack
+samples.licence.cc0 = public domain, free for any use
+samples.install = Install
+samples.update = Update
+samples.reinstall = Install again
+samples.remove = Remove
+samples.remove_confirm = Remove it from this computer
+samples.show_folder = Show the folder
+samples.from_file = Install from a file…
+
+# Pack categories.
+samples.cat.drums = Drums
+samples.cat.percussion = Percussion
+samples.cat.one_shots = One-shots
+samples.cat.instruments = Instruments
+samples.cat.fx = Effects and foley
+
+# Undo history.
+cmd.samples_add_channel = Add a sample channel

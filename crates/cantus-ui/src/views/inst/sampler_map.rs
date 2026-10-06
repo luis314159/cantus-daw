@@ -510,6 +510,8 @@ pub fn map(
         k1,
     };
     let resp = ui.allocate_rect(map_rect, Sense::click_and_drag());
+    // A sample from the browser lands on the key under the pointer (ADR 0030).
+    crate::samples::drop::publish(ui.ctx(), map_rect, crate::samples::drop::Target::Exemplar { track, k0, k1 });
     let selected = app.inst.sampler.selected;
     let lit = sounding(app);
     let held = app.inst.held.clone();
