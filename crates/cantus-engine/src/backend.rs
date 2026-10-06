@@ -5,11 +5,11 @@
 //! effect instances in sync with the snapshots it sends.
 
 use crate::effects::EffectUnit;
+use crate::inst::UnitKind;
 use crate::messages::*;
 use crate::midi::MidiSender;
 use crate::processor::Processor;
 use crate::samples::SampleCache;
-use crate::inst::UnitKind;
 use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};

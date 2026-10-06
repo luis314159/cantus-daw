@@ -26,18 +26,46 @@ pub const P_GESTURE: u32 = 4;
 pub const PARAM_COUNT: usize = 5;
 
 /// One parameter: (id, name, module, min, max, default, stepped, hidden, read-only).
-pub type ParamRow = (u32, &'static str, &'static str, f64, f64, f64, bool, bool, bool);
+pub type ParamRow = (
+    u32,
+    &'static str,
+    &'static str,
+    f64,
+    f64,
+    f64,
+    bool,
+    bool,
+    bool,
+);
 
 pub const PARAMS: [ParamRow; PARAM_COUNT] = [
-    (P_GAIN, "Gain", "Main", -60.0, 12.0, 0.0, false, false, false),
+    (
+        P_GAIN, "Gain", "Main", -60.0, 12.0, 0.0, false, false, false,
+    ),
     (
         P_LATENCY, "Latency", "Timing", 0.0, 20_000.0, 0.0, true, false, false,
     ),
     (
-        P_TEMPO, "Tempo seen", "Host", 0.0, 1000.0, 0.0, false, false, true,
+        P_TEMPO,
+        "Tempo seen",
+        "Host",
+        0.0,
+        1000.0,
+        0.0,
+        false,
+        false,
+        true,
     ),
     (
-        P_PLAYING, "Playing seen", "Host", 0.0, 1.0, 0.0, true, false, true,
+        P_PLAYING,
+        "Playing seen",
+        "Host",
+        0.0,
+        1.0,
+        0.0,
+        true,
+        false,
+        true,
     ),
     (
         P_GESTURE, "Gesture", "Test", 0.0, 100.0, 0.0, true, true, false,
@@ -166,12 +194,9 @@ impl Plugin {
     fn midi(&mut self, data: [u8; 3]) {
         let channel = i16::from(data[0] & 15);
         match data[0] & 0xF0 {
-            0x90 if data[2] > 0 => self.note_on(
-                -1,
-                channel,
-                i16::from(data[1]),
-                f64::from(data[2]) / 127.0,
-            ),
+            0x90 if data[2] > 0 => {
+                self.note_on(-1, channel, i16::from(data[1]), f64::from(data[2]) / 127.0)
+            }
             0x80 | 0x90 => self.note_off(-1, channel, i16::from(data[1]), false),
             0xB0 if data[1] == 1 => self.mod_wheel = f64::from(data[2]) / 127.0,
             0xE0 => {
@@ -416,7 +441,8 @@ unsafe extern "C" fn process(
         let t = &*pr.transport;
         p.set(P_TEMPO, t.tempo);
         let playing = t.flags & CLAP_TRANSPORT_IS_PLAYING != 0;
-        p.values[P_PLAYING as usize].store(f64::from(u8::from(playing)).to_bits(), Ordering::Release);
+        p.values[P_PLAYING as usize]
+            .store(f64::from(u8::from(playing)).to_bits(), Ordering::Release);
     }
     // Events, sample-accurately: render up to each event's time, then apply it.
     let events = &*pr.in_events;
@@ -428,7 +454,11 @@ unsafe extern "C" fn process(
         } else {
             std::ptr::null()
         };
-        let until = if h.is_null() { n } else { ((*h).time as usize).min(n) };
+        let until = if h.is_null() {
+            n
+        } else {
+            ((*h).time as usize).min(n)
+        };
         if until > done {
             p.run(done, until - done, out_l, out_r);
             done = until;

@@ -250,7 +250,11 @@ fn main() {
     // Schema 19 (ADR 0028): a hosted CLAP instrument installed nowhere — it opens, plays
     // silence, and its state and values (0.1 + 0.2 to the bit) survive a round trip.
     let mut synth = p.make_track("Synth");
-    let mut plugin = ExternalPlugin::new(PluginFormat::Clap, "org.cantus.test.synth", "Cantus Test Synth");
+    let mut plugin = ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.cantus.test.synth",
+        "Cantus Test Synth",
+    );
     plugin.vendor = "Cantus Tests".into();
     plugin.state = PluginState::new(b"CTS1 opaque instrument state".to_vec());
     plugin.params.insert(0, -4.5);

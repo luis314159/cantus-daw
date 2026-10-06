@@ -32,8 +32,8 @@ pub mod window;
 
 pub use backend::*;
 pub use db::{DbEntry, PluginDb, ScanStatus};
-pub use scan::{ScanReport, Scanner};
 pub use inst_unit::HostedInstrument;
+pub use scan::{ScanReport, Scanner};
 pub use session::{HostNotice, HostedInst, PluginHost};
 pub use unit::HostedUnit;
 

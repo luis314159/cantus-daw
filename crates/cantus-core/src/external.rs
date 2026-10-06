@@ -243,7 +243,11 @@ mod tests {
     /// tagged enum, which serde buffers: its values must still come back, to the bit.
     #[test]
     fn a_hosted_instrument_round_trips_through_json() {
-        let mut p = ExternalPlugin::new(PluginFormat::Vst3, "0123456789ABCDEF0123456789ABCDEF", "Synth");
+        let mut p = ExternalPlugin::new(
+            PluginFormat::Vst3,
+            "0123456789ABCDEF0123456789ABCDEF",
+            "Synth",
+        );
         p.state = PluginState::new(vec![7, 0, 255]);
         p.params.insert(0, -4.5);
         p.params.insert(4_000_000, 0.1 + 0.2);

@@ -88,7 +88,12 @@ impl HostedInst {
 }
 
 /// The unit the engine runs for a loaded instrument.
-pub(super) fn make_unit(h: &HostedInst, track: TrackId, audio: Box<dyn AudioThread>, sr: f64) -> NativeUnit {
+pub(super) fn make_unit(
+    h: &HostedInst,
+    track: TrackId,
+    audio: Box<dyn AudioThread>,
+    sr: f64,
+) -> NativeUnit {
     let unit = HostedInstrument::new(
         audio,
         &h.params,

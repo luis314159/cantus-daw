@@ -36,7 +36,10 @@ fn notes_in_audio_out_sample_accurate() {
     let spec = rig.instrument(track).clone();
     assert_eq!(spec.id, SYNTH_ID);
     assert_eq!(spec.name, "Cantus Test Synth");
-    assert_eq!(spec.params[&S_GAIN], 0.0, "the values it starts with are the project's");
+    assert_eq!(
+        spec.params[&S_GAIN], 0.0,
+        "the values it starts with are the project's"
+    );
     assert!(!spec.state.is_empty(), "and so is its state");
     let out = rig.play(FRAMES, 256);
     assert!(out.iter().all(|x| x.is_finite()));
@@ -59,7 +62,11 @@ fn every_block_size_gives_the_same_samples() {
             .iter()
             .zip(&reference)
             .position(|(a, b)| a.to_bits() != b.to_bits());
-        assert_eq!(differing(&out, &reference), 0, "block {block}, first at {first:?}");
+        assert_eq!(
+            differing(&out, &reference),
+            0,
+            "block {block}, first at {first:?}"
+        );
     }
 }
 
@@ -82,9 +89,19 @@ fn an_offline_render_equals_playing_it() {
         .samples;
     rig.host.finish_render();
     assert!(rendered.len() >= played.len());
-    assert_eq!(differing(&played, &rendered[..played.len()]), 0, "the bounce is what was heard");
+    assert_eq!(
+        differing(&played, &rendered[..played.len()]),
+        0,
+        "the bounce is what was heard"
+    );
     assert!(peak(&played) > 0.02);
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(-6.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(-6.0)
+    );
 }
 
 #[test]
@@ -93,14 +110,26 @@ fn a_project_value_reaches_it_and_undo_takes_it_back() {
     let loud = rig.play(FRAMES, 256);
     rig.set_inst_param(track, S_GAIN, -20.0);
     rig.settle();
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(-20.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(-20.0)
+    );
     let quiet = rig.play(FRAMES, 256);
     let ratio = peak(&quiet) / peak(&loud);
     assert!((ratio - 0.1).abs() < 1e-3, "−20 dB is a tenth: {ratio}");
     rig.bus.undo();
     rig.sync();
     rig.settle();
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(0.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(0.0)
+    );
     assert_eq!(differing(&rig.play(FRAMES, 256), &loud), 0);
 }
 
@@ -121,7 +150,14 @@ fn its_state_round_trips_through_save_and_open() {
     // Another host, another engine: the same sound.
     let mut again = Rig::new(opened, host_with_synth());
     again.settle();
-    assert_eq!(again.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(-4.5));
+    assert_eq!(
+        again
+            .host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(-4.5)
+    );
     assert_eq!(differing(&again.play(FRAMES, 256), &before), 0);
 }
 
@@ -182,7 +218,10 @@ fn its_latency_is_compensated_against_an_inverted_twin() {
     });
     rig.settle();
     let alone = rig.play(FRAMES, 256);
-    let first = alone.chunks(2).position(|f| f[0] != 0.0).expect("it sounds");
+    let first = alone
+        .chunks(2)
+        .position(|f| f[0] != 0.0)
+        .expect("it sounds");
     assert_eq!(first, 24_101, "the latent path is really 100 samples late");
 }
 
@@ -196,18 +235,34 @@ fn a_gesture_in_its_window_is_one_undo_step() {
         rig.block(64);
     }
     assert_eq!(rig.bus.history().len(), before + 1, "one gesture, one step");
-    assert_eq!(rig.instrument(track).params[&S_GAIN], -5.0, "the gesture's last value");
+    assert_eq!(
+        rig.instrument(track).params[&S_GAIN],
+        -5.0,
+        "the gesture's last value"
+    );
     assert_eq!(rig.bus.undo_label_key(), Some("cmd.set_plugin_param"));
     for _ in 0..40 {
         rig.block(256);
     }
     assert_eq!(rig.bus.history().len(), before + 1, "nothing echoes");
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(-5.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(-5.0)
+    );
     rig.bus.undo();
     rig.sync();
     rig.settle();
     assert_eq!(rig.instrument(track).params[&S_GAIN], 0.0);
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(0.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(0.0)
+    );
 }
 
 #[test]
@@ -242,7 +297,10 @@ fn stopping_releases_every_note() {
         rig.block(256);
     }
     let after = rig.block(256);
-    assert!(after.iter().all(|x| *x == 0.0), "no note hangs after a stop");
+    assert!(
+        after.iter().all(|x| *x == 0.0),
+        "no note hangs after a stop"
+    );
 }
 
 #[test]
@@ -256,12 +314,25 @@ fn switching_back_to_firmus_and_undoing_brings_its_sound_back() {
         spec: Box::new(InstrumentSpec::default()),
     });
     rig.settle();
-    assert!(rig.host.hosted_instrument(track).is_none(), "unloaded with its track");
-    assert_ne!(differing(&rig.play(FRAMES, 256), &hosted), 0, "Firmus plays now");
+    assert!(
+        rig.host.hosted_instrument(track).is_none(),
+        "unloaded with its track"
+    );
+    assert_ne!(
+        differing(&rig.play(FRAMES, 256), &hosted),
+        0,
+        "Firmus plays now"
+    );
     rig.bus.undo();
     rig.sync();
     rig.settle();
-    assert_eq!(rig.host.hosted_instrument(track).unwrap().param_value(S_GAIN), Some(-3.0));
+    assert_eq!(
+        rig.host
+            .hosted_instrument(track)
+            .unwrap()
+            .param_value(S_GAIN),
+        Some(-3.0)
+    );
     assert_eq!(differing(&rig.play(FRAMES, 256), &hosted), 0);
 }
 

@@ -47,7 +47,12 @@ struct Row {
     latency: usize,
     peak_db: f32,
     finite: bool,
+    /// A fresh instance at the same block size gives the same samples (the plug-in is
+    /// deterministic).
+    repeat_same: Option<bool>,
     blocks_same: Option<bool>,
+    /// The values that did not come back, by name (at most three).
+    lost: Vec<String>,
     state_bytes: usize,
     state_values: Option<(usize, usize)>,
     state_identical: bool,
@@ -122,7 +127,10 @@ fn chord(unit: &mut HostedInstrument, block: usize) -> Vec<f32> {
     out
 }
 
-fn adapter(info: &PluginInfo, setup: AudioSetup) -> Result<(HostedInstrument, Box<dyn MainThread>), String> {
+fn adapter(
+    info: &PluginInfo,
+    setup: AudioSetup,
+) -> Result<(HostedInstrument, Box<dyn MainThread>), String> {
     let backend = backend_for(info.format).ok_or("format not hosted")?;
     let loaded = backend.load(info, setup).map_err(|e| e.to_string())?;
     let main = loaded.main;
@@ -138,7 +146,7 @@ fn adapter(info: &PluginInfo, setup: AudioSetup) -> Result<(HostedInstrument, Bo
     Ok((unit, main))
 }
 
-fn check(info: &PluginInfo, db: &cantus_host::PluginDb) -> Row {
+fn check(info: &PluginInfo, scanned: &cantus_host::PluginDb) -> Row {
     let mut row = Row {
         name: info.name.clone(),
         vendor: info.vendor.clone(),
@@ -170,13 +178,22 @@ fn check(info: &PluginInfo, db: &cantus_host::PluginDb) -> Row {
     row.peak_db = db(peak(&out));
     unit.stop();
     drop(unit);
-    // Again, in other blocks, from a fresh instance.
+    eprintln!("  [adapter done; fresh instances next]");
+    // Again from a fresh instance: the same blocks, then other blocks.
+    if let Ok((mut again, _m)) = adapter(info, setup) {
+        let same = chord(&mut again, 512);
+        row.repeat_same = Some(differing(&out, &same) == 0);
+        again.stop();
+    }
     if let Ok((mut again, _m)) = adapter(info, setup) {
         let other = chord(&mut again, 97);
         row.blocks_same = Some(differing(&out, &other) == 0);
         again.stop();
     }
-    // State: saved, loaded into a fresh instance, every value compared.
+    // State: saved, loaded into a fresh instance, every value compared — after a frame's
+    // idle, as the application runs one, so a VST3 controller has heard what its processor
+    // was sent (the mod wheel reaches sfizz as its CC 1 parameter).
+    let _ = main.idle();
     match main.save_state() {
         Ok(bytes) => {
             row.state_bytes = bytes.len();
@@ -186,20 +203,34 @@ fn check(info: &PluginInfo, db: &cantus_host::PluginDb) -> Row {
                     Ok(()) => {
                         let params = main.params();
                         let writable: Vec<_> = params.iter().filter(|p| !p.read_only).collect();
-                        let same = writable
-                            .iter()
-                            .filter(|p| {
-                                let a = main.param_value(p.id);
-                                let b = fresh.param_value(p.id);
-                                match (a, b) {
-                                    (Some(a), Some(b)) => (a - b).abs() <= 1e-6 * (p.max - p.min).abs().max(1.0),
-                                    (None, None) => true,
-                                    _ => false,
+                        let back = |p: &&&cantus_host::ParamInfo| {
+                            let a = main.param_value(p.id);
+                            let b = fresh.param_value(p.id);
+                            match (a, b) {
+                                (Some(a), Some(b)) => {
+                                    (a - b).abs() <= 1e-6 * (p.max - p.min).abs().max(1.0)
                                 }
+                                (None, None) => true,
+                                _ => false,
+                            }
+                        };
+                        let same = writable.iter().filter(back).count();
+                        row.lost = writable
+                            .iter()
+                            .filter(|p| !back(p))
+                            .take(3)
+                            .map(|p| {
+                                format!(
+                                    "{} ({:?} to {:?})",
+                                    p.name,
+                                    main.param_value(p.id),
+                                    fresh.param_value(p.id)
+                                )
                             })
-                            .count();
+                            .collect();
                         row.state_values = Some((same, writable.len()));
-                        row.state_identical = fresh.save_state().ok().as_deref() == Some(&bytes[..]);
+                        row.state_identical =
+                            fresh.save_state().ok().as_deref() == Some(&bytes[..]);
                     }
                     Err(e) => row.error = Some(format!("load_state: {e}")),
                 }
@@ -209,9 +240,10 @@ fn check(info: &PluginInfo, db: &cantus_host::PluginDb) -> Row {
     }
     drop(main);
     cantus_host::clap::collect_garbage();
+    eprintln!("  [state done; the whole host next]");
     // ---- through the whole host ---------------------------------------------------------
     let mut host = PluginHost::new(None, RATE);
-    host.db = db.clone();
+    host.db = scanned.clone();
     let project = demo_project();
     let track = project.tracks[0].id;
     let mut rig = Rig::new(project, host);
@@ -256,29 +288,45 @@ fn real_free_instruments_play_and_keep_their_state() {
     host.db.folders.push(folder.clone());
     let report = host.scan_now(false);
     eprintln!("scan: {report:?}");
-    let only = std::env::var("CANTUS_PLUGIN_FILTER").ok().map(|f| f.to_lowercase());
+    let only = std::env::var("CANTUS_PLUGIN_FILTER")
+        .ok()
+        .map(|f| f.to_lowercase());
     let mut infos: Vec<PluginInfo> = host
         .db
         .plugins()
         .into_iter()
         .filter(|p| p.kind == PluginKind::Instrument)
-        .filter(|p| only.as_ref().is_none_or(|f| p.name.to_lowercase().contains(f)))
+        .filter(|p| {
+            only.as_ref()
+                .is_none_or(|f| p.name.to_lowercase().contains(f))
+        })
         .cloned()
         .collect();
-    infos.sort_by(|a, b| (a.name.to_lowercase(), a.format as u8).cmp(&(b.name.to_lowercase(), b.format as u8)));
-    assert!(!infos.is_empty(), "no instruments found in {}", folder.display());
+    infos.sort_by(|a, b| {
+        (a.name.to_lowercase(), a.format as u8).cmp(&(b.name.to_lowercase(), b.format as u8))
+    });
+    assert!(
+        !infos.is_empty(),
+        "no instruments found in {}",
+        folder.display()
+    );
     let mut table = String::from(
-        "| Instrument | Maker | Format | Load ms | Params | Latency | Chord peak dBFS | Finite | Blocks 512 = 97 | State bytes | Values back | Same bytes | In Cantus dBFS | Reopened | Editor | Error |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        "| Instrument | Maker | Format | Load ms | Params | Latency | Chord peak dBFS | Finite | Repeatable | Blocks 512 = 97 | State bytes | Values back | Same bytes | In Cantus dBFS | Reopened | Editor | Notes |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let mut failures = Vec::new();
     for info in &infos {
-        eprintln!("--- {} ({:?}) {}", info.name, info.format, info.path.display());
+        eprintln!(
+            "--- {} ({:?}) {}",
+            info.name,
+            info.format,
+            info.path.display()
+        );
         let r = check(info, &host.db);
         eprintln!("{r:?}");
         let yes = |b: bool| if b { "yes" } else { "no" };
         let _ = writeln!(
             table,
-            "| {} | {} | {} | {} | {} | {} | {:.1} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} | {} | {} | {} | {} | {:.1} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             r.name,
             r.vendor,
             r.format,
@@ -287,6 +335,7 @@ fn real_free_instruments_play_and_keep_their_state() {
             r.latency,
             r.peak_db,
             yes(r.finite),
+            r.repeat_same.map_or("–", yes),
             r.blocks_same.map_or("–", yes),
             r.state_bytes,
             r.state_values.map_or("–".into(), |(a, b)| format!("{a}/{b}")),
@@ -294,7 +343,7 @@ fn real_free_instruments_play_and_keep_their_state() {
             r.host_peak_db.map_or("–".into(), |p| format!("{p:.1}")),
             r.reopened.map_or("–", yes),
             yes(r.editor),
-            r.error.as_deref().unwrap_or(""),
+            r.error.clone().unwrap_or_else(|| r.lost.join("; ")),
         );
         let silent = r.peak_db < -100.0;
         let lost = r.state_values.is_some_and(|(a, b)| a != b);

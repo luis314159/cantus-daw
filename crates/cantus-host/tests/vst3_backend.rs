@@ -936,7 +936,10 @@ fn a_vst3_instrument_plays_through_the_instrument_adapter() {
         Default::default(),
     );
     let (mut l, mut r) = (vec![0.0f32; 16], vec![0.0f32; 16]);
-    assert!(!unit.process(&mut l, &mut r), "nothing played, nothing written");
+    assert!(
+        !unit.process(&mut l, &mut r),
+        "nothing played, nothing written"
+    );
     // A note given between two calls is the first sample of the next one.
     unit.note_on(NoteOn {
         key: 60,

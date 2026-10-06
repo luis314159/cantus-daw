@@ -88,8 +88,11 @@ fn main() {
                     app.set_hosted_instrument(keys, &info);
                 }
             } else {
-                let mut plugin =
-                    ExternalPlugin::new(PluginFormat::Vst3, "0123456789ABCDEF0123456789ABCDEF", "Odin 2");
+                let mut plugin = ExternalPlugin::new(
+                    PluginFormat::Vst3,
+                    "0123456789ABCDEF0123456789ABCDEF",
+                    "Odin 2",
+                );
                 plugin.vendor = "The Wave Warden".into();
                 plugin.state = PluginState::new(vec![1, 2, 3]);
                 app.set_instrument(keys, InstrumentSpec::External(plugin));

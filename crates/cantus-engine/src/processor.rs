@@ -1395,9 +1395,10 @@ impl Processor {
     /// new ones in place of any waiting there.
     fn replace_instrument(&mut self, unit: Box<NativeUnit>) {
         let (track, kind) = (unit.track, unit.kind);
-        let running = self.slots.iter().position(|s| {
-            s.id == Some(track) && s.native.as_ref().is_some_and(|n| n.kind == kind)
-        });
+        let running = self
+            .slots
+            .iter()
+            .position(|s| s.id == Some(track) && s.native.as_ref().is_some_and(|n| n.kind == kind));
         if let Some(i) = running {
             if let Some(old) = self.slots[i].native.replace(unit) {
                 self.dispose_instrument(old);

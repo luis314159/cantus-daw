@@ -303,7 +303,13 @@ impl Instance {
     }
 
     /// The parameter a MIDI channel message drives, and its normalized value.
-    pub fn midi_param(&self, channel: u8, status: u8, data1: u8, data2: u8) -> Option<(ParamID, f64)> {
+    pub fn midi_param(
+        &self,
+        channel: u8,
+        status: u8,
+        data1: u8,
+        data2: u8,
+    ) -> Option<(ParamID, f64)> {
         let row = self.midi_map.get(usize::from(channel & 15))?;
         let (ctrl, value) = match status & 0xF0 {
             0xB0 if data1 < 128 => (usize::from(data1), f64::from(data2.min(127)) / 127.0),

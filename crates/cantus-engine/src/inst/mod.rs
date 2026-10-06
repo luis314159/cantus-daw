@@ -16,7 +16,9 @@
 //! or a per-note expression addresses one voice even when two notes share a key — CLAP's
 //! note id and VST3's note id map onto it one to one.
 
-use cantus_core::{ExternalPlugin, InstrumentKind, InstrumentSpec, NativeSpec, SampleData, TrackId};
+use cantus_core::{
+    ExternalPlugin, InstrumentKind, InstrumentSpec, NativeSpec, SampleData, TrackId,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 

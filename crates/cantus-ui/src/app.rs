@@ -2752,12 +2752,12 @@ impl CantusApp {
             .spawn(move || {
                 let result =
                     cantus_engine::render_with_instruments(snapshot, &opts, units, instruments)
-                    .and_then(|r| {
-                        cantus_engine::write_wav(&r, &path)?;
-                        Ok(r)
-                    })
-                    .map(|r| (path, r))
-                    .map_err(|e| e.to_string());
+                        .and_then(|r| {
+                            cantus_engine::write_wav(&r, &path)?;
+                            Ok(r)
+                        })
+                        .map(|r| (path, r))
+                        .map_err(|e| e.to_string());
                 let _ = tx.send(result);
             })
             .expect("spawn export thread");

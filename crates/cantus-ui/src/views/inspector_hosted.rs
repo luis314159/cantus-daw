@@ -46,7 +46,13 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     } else {
         "hosted.open_window"
     };
-    if sh.led_row("hosted.window", key, open, Function::Source, !h.has_editor()) {
+    if sh.led_row(
+        "hosted.window",
+        key,
+        open,
+        Function::Source,
+        !h.has_editor(),
+    ) {
         sh.acts.push(Act::ToggleInstrumentWindow(t));
     }
 }
