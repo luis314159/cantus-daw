@@ -381,6 +381,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
     match kind {
         EffectKind::Delay => (true, false), // heavy: 0.9 feedback rings for ~11 minutes
         EffectKind::Reverb => (true, false), // heavy: size 1 rings for over a minute
+        EffectKind::Stereo | EffectKind::Saturator => (true, true),
+        EffectKind::Multiband | EffectKind::DeEsser | EffectKind::Maximizer => (true, true),
+        EffectKind::Limiter => (true, false), // heavy: dithers (R10)
+        EffectKind::Gate => (false, false), // keyed, a reset gate starts open
         _ => (false, false),
     }
 }

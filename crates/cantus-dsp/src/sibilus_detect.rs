@@ -309,6 +309,24 @@ impl Detector {
         (b, (2.0 * self.ms).sqrt())
     }
 
+    /// As [`Self::clear`] leaves it, for what reaches the audio: every filter and average
+    /// empty and no confidence (what the classifier says of silence; the share and flatness
+    /// it reports beside it are the editor's).
+    pub fn is_clear(&self) -> bool {
+        self.hp
+            .iter()
+            .chain(self.lp.iter())
+            .chain(self.sub.iter().flatten())
+            .all(|b| b.z1 == 0.0 && b.z2 == 0.0)
+            && self.dc_x == 0.0
+            && self.dc_y == 0.0
+            && self.e_full == 0.0
+            && self.e_band == 0.0
+            && self.e_sub.iter().all(|e| *e == 0.0)
+            && self.ms == 0.0
+            && self.features.confidence == 0.0
+    }
+
     /// Re-run the classifier on the averaged features.
     pub fn classify(&mut self, sensitivity: f32) {
         self.features = classify(self.e_full, self.e_band, &self.e_sub, sensitivity);

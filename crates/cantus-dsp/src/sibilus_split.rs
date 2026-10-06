@@ -40,6 +40,8 @@ pub(super) struct Line {
     buf: Vec<f32>,
     cap: usize,
     w: usize,
+    /// Zeros pushed in a row (ADR 0031 §5.1).
+    quiet: usize,
 }
 
 impl Line {
@@ -48,16 +50,28 @@ impl Line {
             buf: vec![0.0; 2 * cap],
             cap,
             w: 0,
+            quiet: usize::MAX,
         }
     }
 
     pub fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.w = 0;
+        self.quiet = usize::MAX;
+    }
+
+    /// Holds only zeros (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.quiet >= self.cap
     }
 
     #[inline]
     pub fn push(&mut self, x: f32) {
+        self.quiet = if x == 0.0 {
+            self.quiet.saturating_add(1)
+        } else {
+            0
+        };
         self.w += 1;
         if self.w == self.cap {
             self.w = 0;

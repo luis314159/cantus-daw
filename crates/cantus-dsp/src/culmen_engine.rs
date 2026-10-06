@@ -44,6 +44,10 @@ impl Line {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.pos = 0;
     }
+
+    fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.buf)
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -213,6 +217,50 @@ impl Culmen {
         self.telemetry[tel::LATENCY] = self.latency() as f32;
         self.telemetry[tel::RATE] = self.sr;
         self.seq = 0;
+    }
+
+    /// At rest (ADR 0031 §5.1): the three stages at rest, the drive landed, the reference
+    /// lines and the input's loudness filter empty, and the Match monitor still — its
+    /// three-second window all silence, its gain landed, and at unity in Match mode, as a
+    /// new unit's is. **Never with dither on** (R10, as Terminus).
+    pub fn at_rest(&self) -> bool {
+        let s = &self.s;
+        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0
+            || self.drive != self.drive_target
+            || self.match_gain != self.match_target
+            || (s.monitor == Monitor::Match && self.match_gain != 1.0)
+            || self.acc.energy_in != 0.0
+            || !self.k_in.iter().all(KWeighting::is_clear)
+        {
+            return false;
+        }
+        crate::rest::all_zero_f64(&self.st_in)
+            && crate::rest::all_zero_f64(&self.st_out)
+            && self.ref_a.iter().chain(&self.ref_t).all(Line::is_clear)
+            && self.bands.at_rest()
+            && self.full.at_rest()
+            && self.lim.at_rest()
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): each stage skips them, and
+    /// the grid and the 10 ms columns go on as processing would have moved them — each
+    /// column silent, so the Match window stays all silence.
+    pub fn skip(&mut self, frames: usize) {
+        self.bands.skip(frames);
+        self.full.skip(frames);
+        self.lim.skip(frames);
+        self.clock = (self.clock + frames % GRID) % GRID;
+        let total = self.col_n + frames;
+        let cols = total / self.col_len;
+        if cols > 0 {
+            let len = self.st_in.len();
+            self.st_pos = (self.st_pos + cols % len) % len;
+            self.st_seen = self.st_seen.saturating_add(cols);
+            self.in_pos = (self.in_pos + cols % IN_RING) % IN_RING;
+            self.seq = ((self.seq as usize + cols % tel::WRAP as usize) % tel::WRAP as usize) as u32;
+            self.acc = Acc::default();
+        }
+        self.col_n = total % self.col_len;
     }
 
     /// Samples of delay: the band stage's (its linear-phase split) plus the brickwall's.

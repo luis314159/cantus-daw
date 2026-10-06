@@ -544,6 +544,16 @@ pub struct Multiplex {
     phase: usize,
     hold_pos: usize,
     hold: [HoldWindow; 2],
+    // ADR 0031 §5.1, at rest.
+    /// Frames since the last reset (what `skip` adds to as well).
+    clock: u64,
+    /// Where the linear split's blocks began, on that clock (mod its block).
+    lin_origin: usize,
+    /// Frames in a row in which the audio ring received silence.
+    quiet: usize,
+    /// Frames in a row in which every band in the layout wrote unity gain and no dynamic
+    /// gain into its rings.
+    unity_run: usize,
 }
 
 impl Multiplex {
@@ -604,6 +614,10 @@ impl Multiplex {
             phase: 0,
             hold_pos: 0,
             hold: [HoldWindow::default(); 2],
+            clock: 0,
+            lin_origin: 0,
+            quiet: usize::MAX,
+            unity_run: usize::MAX,
         }
     }
 
@@ -634,6 +648,10 @@ impl Multiplex {
         self.hold_pos = 0;
         self.hold = [HoldWindow::default(); 2];
         self.reset_stages();
+        self.clock = 0;
+        self.lin_origin = 0;
+        self.quiet = usize::MAX;
+        self.unity_run = usize::MAX;
     }
 
     fn reset_stages(&mut self) {
@@ -678,6 +696,9 @@ impl Multiplex {
         self.s = *s;
         let lay = Layout::of(&s.bands);
         let topology = snap || lay.n != self.lay.n || lay.order != self.lay.order;
+        if topology || s.bands.iter().zip(&self.live).any(|(a, l)| a.used != l.b.used) {
+            self.unity_run = 0;
+        }
         self.lay = lay;
         for (b, live) in self.live.iter_mut().enumerate() {
             let t = s.bands[b];
@@ -782,6 +803,92 @@ impl Multiplex {
         } else {
             0.0
         }
+    }
+
+    /// At rest (ADR 0031 §5.1): a wire; or every glide landed (band settings, crossovers,
+    /// output, solo and mute, bypass fades, the split's share), every band at unity with
+    /// no dynamic gain — in force and all through its lookahead ring, as a reset leaves
+    /// it — every detector, split, shelf and the audio ring empty, and in linear phase the
+    /// FFT blocks empty, on the grid a new unit's would run on, with filters designed exactly
+    /// where the crossovers are. A band with a static gain, or an expander that acts on
+    /// silence, is never at rest: a reset starts every band at unity and lets it move.
+    pub fn at_rest(&self) -> bool {
+        if !self.is_active() {
+            return true;
+        }
+        let s = &self.s;
+        let n = self.lay.n;
+        if self.quiet < self.ring_len
+            || self.unity_run < self.gain_len
+            || self.out_from != self.out_to
+            || self.out_to != db_to_lin(s.output_db)
+            || self.g0_from != [1.0; 2]
+            || self.g0_to != [1.0; 2]
+        {
+            return false;
+        }
+        for h in 0..2 {
+            for i in 0..MAX_XOVERS {
+                let base = (self.xo[i].g, 1.0);
+                if self.stage_from[h][i] != base || self.stage_to[h][i] != base {
+                    return false;
+                }
+            }
+        }
+        for &b in &self.lay.order[..n] {
+            let band = &s.bands[b];
+            let d = &self.det[b];
+            if self.live[b].b != *band
+                || self.g_now[b] != 1.0
+                || self.dyn_now[b] != 0.0
+                || self.audible[b] != self.audible_t[b]
+                || self.on_amt[b] != if band.on { 1.0 } else { 0.0 }
+                || d.env != 0.0
+                || !d.hp.iter().chain(&d.lp).flatten().all(Svf::is_clear)
+            {
+                return false;
+            }
+        }
+        if (0..n.saturating_sub(1)).any(|i| self.xo_hz[i] != self.lay.crossovers[i]) {
+            return false;
+        }
+        if s.mode == Mode::Linear && n > 0 {
+            // Its blocks must fall where a new unit's would: started with the stream.
+            self.lin_live
+                && self.lin_origin == 0
+                && self.lin.is_clear()
+                && (0..n - 1).all(|c| self.lin.designed_at(c, self.xo_hz[c], s.slope))
+        } else {
+            let clear = |x: &[[Xover; MAX_XOVERS]; 2]| x.iter().flatten().all(Xover::is_clear);
+            self.w == self.split_target()
+                && (!self.split_live || (clear(&self.split) && clear(&self.split_delta)))
+                && (!self.dyn_live || self.shelves.iter().flatten().all(Shelf::is_clear))
+        }
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the update grid, the
+    /// clock and the linear split's block position move on as processing silence would
+    /// have moved them.
+    pub fn skip(&mut self, frames: usize) {
+        if self.is_active() {
+            if self.s.mode == Mode::Linear && self.lay.n > 0 {
+                if !self.lin_live {
+                    self.lin.reset();
+                    self.lin_live = true;
+                    self.lin_origin = (self.clock % self.lin.block_pos().1 as u64) as usize;
+                }
+                self.lin.skip(frames);
+            } else {
+                self.lin_live = false;
+            }
+            self.quiet = self.quiet.saturating_add(frames);
+            self.unity_run = self.unity_run.saturating_add(frames);
+            // A band made later reads its old ring where processing would have left it.
+            self.ring_pos = (self.ring_pos + frames % self.ring_len) % self.ring_len;
+            self.gain_pos = (self.gain_pos + frames % self.gain_len) % self.gain_len;
+        }
+        self.phase = (self.phase + frames % UPDATE) % UPDATE;
+        self.clock += frames as u64;
     }
 
     /// Whether processing would change anything, or has anything to meter.
@@ -919,6 +1026,7 @@ impl Multiplex {
                 self.meter_frame(left[i], right[i], left[i], right[i]);
             }
             self.phase = (self.phase + n) % UPDATE;
+            self.clock += n as u64;
             return;
         }
         let mut i = 0;
@@ -967,6 +1075,12 @@ impl Multiplex {
         let listen = self.s.listen;
 
         // ---- detectors, gains, lookahead ----
+        self.quiet = if xl == 0.0 && xr == 0.0 {
+            self.quiet.saturating_add(1)
+        } else {
+            0
+        };
+        let mut unity = true;
         let mut key_out = (0.0f32, 0.0f32);
         let pos_w = self.ring_pos;
         let rl = self.ring_len;
@@ -1035,6 +1149,7 @@ impl Multiplex {
             // this band's gain by the difference.
             let delay = self.total - self.la[b].min(self.la_max);
             let at = (gp + gl - delay) % gl;
+            unity &= g == 1.0 && dyn_db == 0.0;
             let ring = &mut self.gain_ring[b * gl..(b + 1) * gl];
             ring[gp] = g;
             self.g_now[b] = ring[at];
@@ -1047,6 +1162,11 @@ impl Multiplex {
             }
             hw.level[b] = hw.level[b].max(level_db);
         }
+        self.unity_run = if unity {
+            self.unity_run.saturating_add(1)
+        } else {
+            0
+        };
         // ---- the audio, late by the lookahead ----
         let (dl, dr) = {
             self.audio_ring[0][pos_w] = xl;
@@ -1075,6 +1195,7 @@ impl Multiplex {
             if !self.lin_live {
                 self.lin.reset();
                 self.lin_live = true;
+                self.lin_origin = (self.clock % self.lin.block_pos().1 as u64) as usize;
             }
             self.split_live = false;
             self.dyn_live = false;
@@ -1144,6 +1265,7 @@ impl Multiplex {
             }
         }
         self.meter_frame(xl, xr, yl, yr);
+        self.clock += 1;
         (yl, yr)
     }
 

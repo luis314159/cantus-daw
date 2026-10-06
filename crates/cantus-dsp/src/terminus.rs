@@ -1011,7 +1011,7 @@ impl Terminus {
             || self.ceiling_db != s.ceiling_db
             || self.match_gain != self.match_target
             || (s.monitor == Monitor::Match && self.match_gain != 1.0)
-            || (spec.program > 0.0 && self.work != 0.0)
+            || (spec.program > 0.0 && !self.work_is_nothing())
             || self.r_env != [0.0; 2]
             || a.energy != 0.0
             || a.energy_in != 0.0
@@ -1034,6 +1034,16 @@ impl Terminus {
                 .chain(&self.safe_audio)
                 .chain(&self.dry)
                 .all(Delay::is_clear)
+    }
+
+    /// Whether the programme-dependent release's memory (`work`) is as good as zero. It
+    /// decays by `work / sr` a sample with no flush, so without FTZ it stops in the
+    /// subnormals (near 2⁻¹³⁴) instead of at zero. Any value below `f32::MIN_POSITIVE` is
+    /// exactly zero in every use: added to `1 / sr` it vanishes, and scaled by a difference
+    /// of two coefficients (under 1) and added to a release coefficient of at least ½ it is
+    /// far under half an ulp.
+    fn work_is_nothing(&self) -> bool {
+        self.work == 0.0 || (self.work < f32::MIN_POSITIVE && coef(self.s.release_ms, self.sr) >= 0.5)
     }
 
     /// Samples of silence skipped while at rest (ADR 0031 §5.1): the 10 ms columns the

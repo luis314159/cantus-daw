@@ -423,6 +423,26 @@ impl Sibilus {
         self.snap_band();
     }
 
+    /// At rest (ADR 0031 §5.1): the band edges landed (so the detectors and the split are
+    /// designed where a new unit's are), no reduction, both detectors empty, and the input,
+    /// band and reduction lines all zeros. The detector-level and confidence lines, the
+    /// columns and the event statistics are the editor's.
+    pub fn at_rest(&self) -> bool {
+        let (lo, hi) = band_edges(self.s.lo_hz, self.s.hi_hz, self.sr);
+        self.lo == lo
+            && self.hi == hi
+            && self.gr == [0.0; 2]
+            && self.det.iter().all(Detector::is_clear)
+            && self.audio.iter().chain(&self.trig).all(Line::is_clear)
+            && self.ctl[..2].iter().all(Line::is_clear)
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the clock the glide and
+    /// the classifier run on moves on.
+    pub fn skip(&mut self, frames: usize) {
+        self.t += frames as u64;
+    }
+
     /// Samples of delay this adds: lookahead, plus the split FIR's centre.
     pub fn latency(&self) -> usize {
         self.look + self.centre
