@@ -394,8 +394,10 @@ pub struct Out {
     pub more: Option<usize>,
     /// The header's background was dragged this much: move the window.
     pub moved: Vec2,
-    /// Close the window (asked from a menu).
+    /// Close the window (asked from a menu, or its close button).
     pub close: bool,
+    /// Where the window's own buttons were drawn (round 20), when it has them.
+    pub window: Option<crate::kit::window_ctl::WindowRects>,
 }
 
 impl Default for Out {
@@ -406,6 +408,7 @@ impl Default for Out {
             more: None,
             moved: Vec2::ZERO,
             close: false,
+            window: None,
         }
     }
 }
@@ -567,6 +570,7 @@ pub fn show(
         more,
         moved,
         close: std::mem::take(&mut chrome.close),
+        window: out.window,
     }
 }
 

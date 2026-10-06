@@ -749,6 +749,7 @@ fn corner(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
         vec2(s.s(26.0), s.s(24.0)),
     );
     let resp = ui.interact(key, ui.id().with("arr-add-track"), Sense::click());
+    super::device_chrome::publish(ui.ctx(), super::device_chrome::Spot::AddTrack, key);
     let st = kit::State::of(&resp, false);
     kit::with_brush(ui.painter(), |b| {
         kit::cap::toolbar_key(
@@ -956,6 +957,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         }
         rename_in_place(app, ui, id, hr.name);
         super::device_chrome::chip_input(app, ui, hr.icon, id, s.k);
+        // A device dragged from the browsing panel onto the header swaps its instrument.
+        let swap = crate::picker::PickPurpose::ReplaceInstrument { track: id };
+        super::device_chrome::drop_target(app, ui, &resp, swap);
         if let Some(rr) = &rr {
             rec::header_input(app, ui, id, rr, s);
         }

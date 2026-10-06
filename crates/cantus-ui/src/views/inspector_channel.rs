@@ -451,6 +451,11 @@ pub fn empty_tile(sh: &mut Sheet<'_>, i: usize, dim: bool) -> Option<(Rect, bool
     let r = sh
         .ui
         .interact(rect, Id::new(("insp-empty-slot", i)), Sense::click());
+    crate::views::device_chrome::publish(
+        sh.ui.ctx(),
+        crate::views::device_chrome::Spot::InspectorEmptySlot(i),
+        rect,
+    );
     let label = sh.fmt.get(
         cache::key(("insp-slot", i)),
         crate::i18n::locale() as u64,

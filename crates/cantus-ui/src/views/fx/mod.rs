@@ -345,7 +345,7 @@ pub fn open_window_sized(
     frame::place(ctx, id, at, size, |ui| out = add(ui));
     let whole = egui::Rect::from_min_size(at, size);
     let header = egui::Rect::from_min_max(at, egui::pos2(whole.right(), out.body.top()));
-    device::note_shown(ctx, key, whole, header);
+    device::note_shown(ctx, key, whole, header, out.window);
     if st.maximised.is_none() {
         let to = at + out.moved;
         *pos = Some(to);

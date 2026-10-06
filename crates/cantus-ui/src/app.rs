@@ -132,6 +132,8 @@ pub struct CantusApp {
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
     pub pulsus: views::pulsus_editor::State,
+    /// What swapping a device keeps beyond what it always keeps (round 20, `crate::swap`).
+    pub swap_keep: crate::swap::Keep,
     /// Where the recorder's samples are drained into each frame; reused, never shrunk.
     capture_scratch: Vec<f32>,
     pub central: CentralView,
@@ -144,8 +146,6 @@ pub struct CantusApp {
     pub rec: crate::record_session::RecSession,
     /// The device picker, when open, and what it was opened for (`crate::picker`).
     pub picker: Option<crate::picker::PickPurpose>,
-    /// What swapping a device keeps beyond what it always keeps (round 20, `crate::swap`).
-    pub swap_keep: crate::swap::Keep,
     pub midi_port_names: Vec<String>,
     midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
@@ -344,6 +344,7 @@ impl CantusApp {
             plugins,
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
+            swap_keep: Default::default(),
             capture_scratch: Vec::new(),
             central: CentralView::Mixer,
             workspace: Workspace::default(),
@@ -351,7 +352,6 @@ impl CantusApp {
             peaks: Default::default(),
             rec: Default::default(),
             picker: None,
-            swap_keep: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
             live_track_sent: None,

@@ -338,7 +338,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                 body(app, ui, track, &kit, s, body_rect);
             });
             let key = editor_id(track).value();
-            crate::views::workspace_device::note_shown(ctx, key, rect, out.header);
+            crate::views::workspace_device::note_shown(ctx, key, rect, out.header, out.window);
             events = out.events;
             rect
         });

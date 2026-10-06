@@ -23,7 +23,7 @@ use crate::picker::{PickChoice, PickPurpose};
 use crate::views::workspace_device as device;
 use cantus_core::inst::modulation::{self, MACRO_KEYS, MACRO_NAME_KEYS};
 use cantus_core::{
-    Command, EffectId, EffectKind, EffectSlot, InstrumentKind, InstrumentSpec, NativeSpec,
+    Command, EffectId, EffectSlot, InstrumentKind, InstrumentSpec, NativeSpec,
     PulsusParams, StripId, TrackId,
 };
 

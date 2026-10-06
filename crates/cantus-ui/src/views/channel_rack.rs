@@ -881,6 +881,11 @@ fn track_controls(
     // Round 20, as FL: a click opens or closes the channel's instrument; a right-click,
     // or the swap badge that shows on the button, swaps it for another.
     let swap = crate::picker::PickPurpose::ReplaceInstrument { track: id };
+    crate::views::device_chrome::publish(
+        ui.ctx(),
+        crate::views::device_chrome::Spot::RackButton(id),
+        rr.button,
+    );
     let badge = kit::with_brush(&ui.painter().clone(), |b| {
         crate::views::device_chrome::swap_badge(
             app,

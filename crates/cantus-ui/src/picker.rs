@@ -52,6 +52,25 @@ pub enum PickChoice {
     Hosted(Box<cantus_host::PluginInfo>),
 }
 
+/// What a device dragged out of the browsing panel carries (round 20): drop targets — a
+/// track header, the arrangement's empty lanes, a mixer slot — read it with
+/// `response.dnd_release_payload::<DevicePayload>()` and act with `apply_pick`, choosing
+/// the purpose their place means (an empty slot: `AddEffect`; a filled one:
+/// `ReplaceEffect`; a track: `ReplaceInstrument`; empty lanes: `AddInstrument`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DevicePayload(pub PickChoice);
+
+impl DevicePayload {
+    /// Whether it is an instrument (else an effect).
+    pub fn is_instrument(&self) -> bool {
+        match &self.0 {
+            PickChoice::Firmus | PickChoice::Pulsus | PickChoice::Instrument(_) => true,
+            PickChoice::Effect(_) => false,
+            PickChoice::Hosted(info) => info.kind == cantus_host::PluginKind::Instrument,
+        }
+    }
+}
+
 impl CantusApp {
     /// Open the picker for `purpose` (it is drawn by `views::picker`, owned by the browser
     /// builder). Contract version: remembers the purpose.

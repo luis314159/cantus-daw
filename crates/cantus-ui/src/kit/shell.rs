@@ -972,6 +972,8 @@ pub struct Output {
     pub footer: Rect,
     /// While the grip is dragged: the scale it would snap to on release.
     pub pending_scale: Option<f32>,
+    /// Where the window's own buttons were drawn (round 20), when the header has them.
+    pub window: Option<WindowRects>,
 }
 
 /// The shell as a widget: `Shell::new(id).show(ui, &header, &footer, |ui, style, body| …)`.
@@ -1209,6 +1211,7 @@ impl Shell {
             body: br,
             footer: fr,
             pending_scale,
+            window: r.window,
         }
     }
 }

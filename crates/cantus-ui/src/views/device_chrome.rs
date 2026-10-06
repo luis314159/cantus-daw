@@ -321,6 +321,8 @@ pub fn tray(ui: &mut Ui, rect: Rect, left: f32, k: f32) -> f32 {
             break;
         }
         end = chip.right() + 6.0 * k;
+        publish(&ctx, Spot::TrayChip(*key), chip);
+        publish(&ctx, Spot::TrayClose(*key), *close);
         let resp = ui.interact(chip, ui.id().with(("device-tray", *key)), Sense::click());
         let x = ui.interact(*close, ui.id().with(("device-tray-x", *key)), Sense::click());
         let over_x = x.hovered();
@@ -470,6 +472,7 @@ pub fn chip_plate(b: &mut crate::kit::Brush, icon: Rect, hovered: bool, ink: egu
 /// The instrument chip's input: a click opens the picker to swap `track`'s instrument.
 pub fn chip_input(app: &mut CantusApp, ui: &Ui, icon: Rect, track: TrackId, k: f32) {
     let r = icon.expand(3.0 * k);
+    publish(ui.ctx(), Spot::Chip(track), r);
     let resp = ui.interact(r, ui.id().with(("instrument-chip", track.0)), Sense::click());
     if resp.hovered() {
         let name = app
@@ -503,6 +506,9 @@ pub enum Spot {
     InspectorEmptySlot(usize),
     /// The arrangement's add-track key.
     AddTrack,
+    /// A minimised device's chip in the tray, and its ×.
+    TrayChip(DeviceKey),
+    TrayClose(DeviceKey),
 }
 
 type Spots = std::sync::Arc<std::sync::Mutex<std::collections::HashMap<Spot, Rect>>>;
@@ -526,4 +532,33 @@ pub fn spot(ctx: &Context, spot: Spot) -> Option<Rect> {
     let s = spots(ctx);
     let g = s.lock().unwrap_or_else(|e| e.into_inner());
     g.get(&spot).copied()
+}
+
+// ---- drop targets -------------------------------------------------------------------------
+
+/// A drop target for a device dragged out of the browsing panel (ADR 0029 §6): outlined in
+/// the selection colour while a device that fits hovers it, and `apply_pick` with
+/// `purpose` when it is let go there. Returns whether a device was dropped.
+pub fn drop_target(
+    app: &mut CantusApp,
+    ui: &Ui,
+    resp: &egui::Response,
+    purpose: PickPurpose,
+) -> bool {
+    use crate::picker::DevicePayload;
+    if let Some(p) = resp.dnd_hover_payload::<DevicePayload>() {
+        if crate::swap::available(&purpose, &p.0) {
+            let t = Style::current().t;
+            with_brush(ui.painter(), |b| {
+                b.rrect_stroke(b.snap_rect(resp.rect.shrink(1.0)), 3.0, 2.0, t.selection)
+            });
+        }
+    }
+    if let Some(p) = resp.dnd_release_payload::<DevicePayload>() {
+        if crate::swap::available(&purpose, &p.0) {
+            app.apply_pick(purpose, p.0.clone());
+            return true;
+        }
+    }
+    false
 }

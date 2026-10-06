@@ -242,7 +242,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             let out = shell.show(ui, &header, &footer, |ui, s, body_rect| {
                 shell_body(app, ui, track, &spec, s, body_rect);
             });
-            crate::views::workspace_device::note_shown(ctx, key, rect, out.header);
+            crate::views::workspace_device::note_shown(ctx, key, rect, out.header, out.window);
             events = out.events;
             rect
         });

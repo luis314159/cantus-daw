@@ -274,6 +274,8 @@ pub(super) fn inserts(
                 if hovered {
                     hint::set_text(&ctx, &v.words.slot_empty, "", Caps::NONE);
                 }
+                let add = crate::picker::PickPurpose::AddEffect { strip: sn.id };
+                crate::views::device_chrome::drop_target(app, ui, &resp, add);
                 let resp = resp.on_hover_text(&v.words.slot_empty);
                 // Round 20: a click opens the device picker on the effects; a right-click,
                 // the quick list.
@@ -317,6 +319,11 @@ pub(super) fn inserts(
         let Some(resp) = resp else {
             continue;
         };
+        let swap = crate::picker::PickPurpose::ReplaceEffect {
+            strip: sn.id,
+            effect,
+        };
+        crate::views::device_chrome::drop_target(app, ui, &resp, swap);
         if hovered {
             hint::set_text(
                 &ctx,

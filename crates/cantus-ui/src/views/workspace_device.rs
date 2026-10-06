@@ -74,6 +74,8 @@ pub struct Entry {
     /// Where it was drawn last, whole and its header (published geometry for tests and
     /// for the focus).
     pub shown: Option<(Rect, Rect)>,
+    /// Where its window buttons were drawn last (published geometry).
+    pub buttons: Option<crate::kit::window_ctl::WindowRects>,
 }
 
 /// A change of place the workspace carries out on a device's tab.
@@ -143,6 +145,7 @@ impl Entry {
             pending: None,
             hue: Function::Output,
             shown: None,
+            buttons: None,
         }
     }
 }
@@ -283,15 +286,22 @@ pub fn is_minimised(ctx: &Context, key: DeviceKey) -> bool {
     with_registry(ctx, |r| r.get(key).is_some_and(|e| e.minimised))
 }
 
-/// A device was drawn this frame at `whole`, its header at `header`: published for tests
-/// and the tray, and a press inside makes it the device Esc closes.
-pub fn note_shown(ctx: &Context, key: DeviceKey, whole: Rect, header: Rect) {
+/// A device was drawn this frame at `whole`, its header at `header`, its window buttons at
+/// `buttons`: published for tests, and a press inside makes it the device Esc closes.
+pub fn note_shown(
+    ctx: &Context,
+    key: DeviceKey,
+    whole: Rect,
+    header: Rect,
+    buttons: Option<crate::kit::window_ctl::WindowRects>,
+) {
     let pressed = ctx.input(|i| {
         i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|p| whole.contains(p))
     });
     with_registry(ctx, |r| {
         if let Some(e) = r.get_mut(key) {
             e.shown = Some((whole, header));
+            e.buttons = buttons;
         }
         if pressed {
             r.focused = Some(key);
@@ -309,6 +319,11 @@ pub fn set_title(ctx: &Context, key: DeviceKey, title: &str) {
             }
         }
     });
+}
+
+/// Where a device's window buttons were drawn last.
+pub fn buttons(ctx: &Context, key: DeviceKey) -> Option<crate::kit::window_ctl::WindowRects> {
+    with_registry(ctx, |r| r.get(key).and_then(|e| e.buttons))
 }
 
 /// Where a device was drawn last: (whole, header).

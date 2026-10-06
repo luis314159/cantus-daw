@@ -40,6 +40,11 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
             MenuId::Instrument(id),
             "swap.tip.instrument",
         );
+        crate::views::device_chrome::publish(
+            sh.ui.ctx(),
+            crate::views::device_chrome::Spot::InspectorInstrument(id),
+            row.value,
+        );
     }
     sh.param_row(
         "inspector.track_level",
