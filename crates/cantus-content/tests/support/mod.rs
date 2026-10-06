@@ -4,7 +4,9 @@
 #![allow(dead_code)]
 
 use cantus_content::fetch::{file_url, hex};
-use cantus_content::manifest::{Category, Credit, FileEntry, Manifest, Pack, Source, Text, ZipSource};
+use cantus_content::manifest::{
+    Category, Credit, FileEntry, Manifest, Pack, Source, Text, ZipSource,
+};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -62,14 +64,19 @@ pub fn files_pack(id: &str, src: &Path, files: &[(&str, Vec<u8>)]) -> Pack {
             sha256: sha(bytes),
         });
     }
-    let licence = files.iter().find(|(to, _)| to.contains("LICENSE")).map(|f| f.0).unwrap_or("LICENSE");
+    let licence = files
+        .iter()
+        .find(|(to, _)| to.contains("LICENSE"))
+        .map(|f| f.0)
+        .unwrap_or("LICENSE");
     pack(id, licence, Source::Files(list))
 }
 
 /// Build a zip (stored, no compression) with `entries`.
 pub fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let opts =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for (name, bytes) in entries {
         w.start_file(*name, opts).unwrap();
         w.write_all(bytes).unwrap();
@@ -77,7 +84,14 @@ pub fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
     w.finish().unwrap().into_inner()
 }
 
-pub fn zip_pack(id: &str, url: String, bytes: &[u8], strip: &str, include: &[&str], licence: &str) -> Pack {
+pub fn zip_pack(
+    id: &str,
+    url: String,
+    bytes: &[u8],
+    strip: &str,
+    include: &[&str],
+    licence: &str,
+) -> Pack {
     pack(
         id,
         licence,
@@ -120,8 +134,12 @@ pub fn serve(respond: impl Fn(&str, Option<u64>) -> Vec<u8> + Send + 'static) ->
             let path = text.split_whitespace().nth(1).unwrap_or("/").to_string();
             let range = text.lines().find_map(|l| {
                 let l = l.to_ascii_lowercase();
-                l.strip_prefix("range: bytes=")
-                    .and_then(|r| r.trim_end_matches('-').trim_end_matches(|c: char| !c.is_ascii_digit()).parse().ok())
+                l.strip_prefix("range: bytes=").and_then(|r| {
+                    r.trim_end_matches('-')
+                        .trim_end_matches(|c: char| !c.is_ascii_digit())
+                        .parse()
+                        .ok()
+                })
             });
             let _ = s.write_all(&respond(&path, range));
             let _ = s.flush();

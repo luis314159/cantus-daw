@@ -15,9 +15,14 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Status {
     NotInstalled,
-    Installed { version: u32 },
+    Installed {
+        version: u32,
+    },
     /// Installed, and the manifest has a newer version.
-    Update { have: u32, new: u32 },
+    Update {
+        have: u32,
+        new: u32,
+    },
     /// Installing; the last phase reported, if any yet.
     Busy(Option<Phase>),
 }
@@ -104,7 +109,11 @@ impl Manager {
         if let Some(r) = self.running.get(id) {
             return Status::Busy(r.phase.clone());
         }
-        let have = self.installed.iter().find(|r| r.id == id).map(|r| r.version);
+        let have = self
+            .installed
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| r.version);
         let new = self.manifest.pack(id).map(|p| p.version);
         match (have, new) {
             (None, _) => Status::NotInstalled,
@@ -223,7 +232,9 @@ impl Manager {
 
     /// The pack the browser offers when nothing is installed, unless it is.
     pub fn starter(&self) -> Option<&Pack> {
-        self.manifest.recommended().filter(|p| !self.is_installed(&p.id))
+        self.manifest
+            .recommended()
+            .filter(|p| !self.is_installed(&p.id))
     }
 }
 

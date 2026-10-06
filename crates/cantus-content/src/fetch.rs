@@ -38,9 +38,7 @@ pub enum FetchError {
 impl FetchError {
     /// How long to wait before trying again, or `None` when trying again cannot help.
     pub fn retry_after(&self, attempt: u32) -> Option<Duration> {
-        let backoff = |base: u64, cap: u64| {
-            Duration::from_secs((base << attempt.min(6)).min(cap))
-        };
+        let backoff = |base: u64, cap: u64| Duration::from_secs((base << attempt.min(6)).min(cap));
         match self {
             FetchError::Network(_) | FetchError::Incomplete { .. } => Some(backoff(2, 60)),
             // A quarantine lasts minutes: wait long enough not to hammer it.
@@ -252,7 +250,11 @@ pub fn download(
         if opened.html {
             return Err(FetchError::Intercepted);
         }
-        let mut file = OpenOptions::new().create(true).write(true).truncate(false).open(part)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(part)?;
         if !opened.resumed {
             have = 0;
         }

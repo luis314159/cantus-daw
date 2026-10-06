@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver};
 
 /// The files the browser lists and Cantus can decode.
-pub const AUDIO_EXTENSIONS: [&str; 8] = ["wav", "wave", "aif", "aiff", "aifc", "flac", "ogg", "oga"];
+pub const AUDIO_EXTENSIONS: [&str; 8] =
+    ["wav", "wave", "aif", "aiff", "aifc", "flac", "ogg", "oga"];
 
 pub fn is_audio(path: &Path) -> bool {
     path.extension()
@@ -138,7 +139,8 @@ impl Index {
                 }
             }
         }
-        idx.hits.sort_by(|a, b| a.root.cmp(&b.root).then_with(|| natural(&a.key, &b.key)));
+        idx.hits
+            .sort_by(|a, b| a.root.cmp(&b.root).then_with(|| natural(&a.key, &b.key)));
         idx
     }
 

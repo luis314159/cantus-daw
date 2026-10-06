@@ -60,7 +60,10 @@ fn sample(rate: u32, channels: u8, frames: usize) -> Arc<SampleData> {
     Arc::new(SampleData {
         rate,
         channels,
-        frames: (0..n).map(|i| ((i as f32) * 0.05).sin() * 0.5).collect::<Vec<_>>().into(),
+        frames: (0..n)
+            .map(|i| ((i as f32) * 0.05).sin() * 0.5)
+            .collect::<Vec<_>>()
+            .into(),
     })
 }
 
@@ -77,7 +80,10 @@ fn an_audition_starts_replaces_finishes_and_stops_without_touching_the_heap() {
 
     ui.preview(Some((kick.clone(), 1.0)));
     let ((), n) = armed(|| p.process(&mut buf, 2));
-    assert_eq!(n, 0, "starting an audition allocated or freed on the audio thread");
+    assert_eq!(
+        n, 0,
+        "starting an audition allocated or freed on the audio thread"
+    );
     assert!(buf.iter().any(|s| s.abs() > 0.01), "the audition is heard");
 
     ui.preview(Some((hat.clone(), 0.5)));
@@ -105,8 +111,16 @@ fn an_audition_starts_replaces_finishes_and_stops_without_touching_the_heap() {
 
     // Every sample the voice held came back: only our copies remain once the UI drains.
     ui.poll();
-    assert_eq!(Arc::strong_count(&kick), 1, "the kick came back to be dropped here");
-    assert_eq!(Arc::strong_count(&hat), 1, "the hat came back to be dropped here");
+    assert_eq!(
+        Arc::strong_count(&kick),
+        1,
+        "the kick came back to be dropped here"
+    );
+    assert_eq!(
+        Arc::strong_count(&hat),
+        1,
+        "the hat came back to be dropped here"
+    );
 }
 
 #[test]

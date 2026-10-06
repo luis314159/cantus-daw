@@ -37,7 +37,11 @@ fn id() -> Id {
 
 /// Publish a drop target for this frame.
 pub fn publish(ctx: &Context, rect: Rect, target: Target) {
-    ctx.data_mut(|d| d.get_temp_mut_or_default::<Targets>(id()).current.push((rect, target)));
+    ctx.data_mut(|d| {
+        d.get_temp_mut_or_default::<Targets>(id())
+            .current
+            .push((rect, target))
+    });
 }
 
 /// Start a frame: what the last frame published becomes what drops are resolved against.
@@ -50,12 +54,19 @@ pub fn begin_frame(ctx: &Context) {
 
 /// The targets the last complete frame drew, bottom first.
 pub fn targets(ctx: &Context) -> Vec<(Rect, Target)> {
-    ctx.data(|d| d.get_temp::<Targets>(id()).map(|t| t.last).unwrap_or_default())
+    ctx.data(|d| {
+        d.get_temp::<Targets>(id())
+            .map(|t| t.last)
+            .unwrap_or_default()
+    })
 }
 
 /// The target a release at `pos` would land on: the last drawn that contains it.
 pub fn target_at(ctx: &Context, pos: Pos2) -> Option<(Rect, Target)> {
-    targets(ctx).into_iter().rev().find(|(r, _)| r.contains(pos))
+    targets(ctx)
+        .into_iter()
+        .rev()
+        .find(|(r, _)| r.contains(pos))
 }
 
 /// Resolve a release remembered last frame. Called once a frame, first thing.
@@ -78,14 +89,17 @@ pub fn land(app: &mut CantusApp, path: &Path, target: Target, rect: Rect, pos: P
         Target::Pad { track, pad } => app.set_pad_sample(track, pad, Some(text)),
         Target::Exemplar { track, k0, k1 } => {
             let w = rect.width() / (k1 as f32 - k0 as f32 + 1.0);
-            let key = (k0 as f32 + ((pos.x - rect.left()) / w.max(1e-3)).floor()).clamp(0.0, 127.0) as u8;
+            let key =
+                (k0 as f32 + ((pos.x - rect.left()) / w.max(1e-3)).floor()).clamp(0.0, 127.0) as u8;
             crate::views::inst::sampler::drop_files(app, track, &[path.to_path_buf()], key);
         }
         Target::Rack => {
-            let row = app
-                .rack
-                .geometry()
-                .and_then(|g| g.rows.iter().find(|r| pos.y >= r.top && pos.y < r.top + r.height).map(|r| r.track));
+            let row = app.rack.geometry().and_then(|g| {
+                g.rows
+                    .iter()
+                    .find(|r| pos.y >= r.top && pos.y < r.top + r.height)
+                    .map(|r| r.track)
+            });
             // On a one-pad channel: its sample. Anywhere else: a new channel below.
             let one_pad = row.and_then(|i| {
                 let t = app.project().tracks.get(i)?;
@@ -103,7 +117,10 @@ pub fn land(app: &mut CantusApp, path: &Path, target: Target, rect: Rect, pos: P
             crate::audio_files::drop_audio(app, &[path.to_path_buf()], Some(pos));
         }
     }
-    app.samples.notice = Some(crate::i18n::tf("samples.notice.dropped", &[("name", &name)]));
+    app.samples.notice = Some(crate::i18n::tf(
+        "samples.notice.dropped",
+        &[("name", &name)],
+    ));
 }
 
 fn file_stem(path: &Path) -> String {
@@ -124,7 +141,9 @@ impl CantusApp {
         let mut track = self.bus.new_track(name);
         let n = self.project().tracks.len();
         track.color = cantus_core::Color::PALETTE[n % cantus_core::Color::PALETTE.len()];
-        track.strip = crate::audio_files::free_strips(self.project()).first().copied();
+        track.strip = crate::audio_files::free_strips(self.project())
+            .first()
+            .copied();
         track.instrument = InstrumentSpec::Pulsus(PulsusParams::single(pad));
         let id = track.id;
         self.engine.samples.retry(path);

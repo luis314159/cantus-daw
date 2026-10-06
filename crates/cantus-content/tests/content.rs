@@ -25,8 +25,17 @@ fn the_bundled_manifest_is_valid_and_only_cc0() {
     for p in &m.packs {
         // ADR 0001: bundled or offered by default means original or CC0.
         assert!(p.is_cc0(), "{} is {}", p.id, p.licence);
-        assert!(!p.credits.is_empty() && p.credits.iter().all(|c| c.licence_url.starts_with("https://")));
-        assert!(p.name.es.len() > 1 && p.description.es.len() > 1, "{} needs Spanish", p.id);
+        assert!(
+            !p.credits.is_empty()
+                && p.credits
+                    .iter()
+                    .all(|c| c.licence_url.starts_with("https://"))
+        );
+        assert!(
+            p.name.es.len() > 1 && p.description.es.len() > 1,
+            "{} needs Spanish",
+            p.id
+        );
         assert!(p.installed_size > 0);
         match &p.source {
             Source::Files(f) => assert!(f.iter().all(|f| f.url.starts_with("https://"))),
@@ -35,21 +44,34 @@ fn the_bundled_manifest_is_valid_and_only_cc0() {
     }
     let starter = m.recommended().expect("a recommended pack");
     assert!(matches!(starter.source, Source::Files(_)));
-    assert!(starter.download_size() < 60_000_000, "the starter kit stays small");
+    assert!(
+        starter.download_size() < 60_000_000,
+        "the starter kit stays small"
+    );
     assert_eq!(m.packs.iter().filter(|p| p.recommended).count(), 1);
 }
 
 #[test]
 fn a_manifest_from_a_newer_cantus_is_refused_by_name() {
-    let text = format!(r#"{{"format": {}, "updated": "2030-01-01", "packs": [], "mirrors": []}}"#, FORMAT + 1);
-    assert_eq!(Manifest::parse(&text), Err(ManifestError::TooNew(FORMAT + 1)));
+    let text = format!(
+        r#"{{"format": {}, "updated": "2030-01-01", "packs": [], "mirrors": []}}"#,
+        FORMAT + 1
+    );
+    assert_eq!(
+        Manifest::parse(&text),
+        Err(ManifestError::TooNew(FORMAT + 1))
+    );
     assert!(matches!(Manifest::parse("{"), Err(ManifestError::Json(_))));
 }
 
 #[test]
 fn validation_catches_what_would_hurt() {
     let dir = tempfile::tempdir().unwrap();
-    let good = files_pack("ok", dir.path(), &[("A/kick.wav", wav(3, 64)), ("LICENSE", b"CC0".to_vec())]);
+    let good = files_pack(
+        "ok",
+        dir.path(),
+        &[("A/kick.wav", wav(3, 64)), ("LICENSE", b"CC0".to_vec())],
+    );
     assert_eq!(manifest(vec![good.clone()]).validate(), Ok(()));
 
     let reject = |edit: &dyn Fn(&mut cantus_content::Pack), why: &str| {
@@ -60,7 +82,10 @@ fn validation_catches_what_would_hurt() {
     reject(&|p| p.id = "Bad Id".into(), "id with spaces");
     reject(&|p| p.licence_url = "http://x".into(), "plain http licence");
     reject(&|p| p.credits.clear(), "no credit");
-    reject(&|p| p.licence_file = "NOTICE".into(), "licence file not shipped");
+    reject(
+        &|p| p.licence_file = "NOTICE".into(),
+        "licence file not shipped",
+    );
     let reject_file = |edit: &dyn Fn(&mut cantus_content::manifest::FileEntry), why: &str| {
         reject(
             &|p: &mut cantus_content::Pack| {
@@ -77,7 +102,10 @@ fn validation_catches_what_would_hurt() {
     reject_file(&|f| f.sha256 = "ABC".into(), "short hash");
     reject_file(&|f| f.url = "http://example.org/x.wav".into(), "plain http");
     reject_file(&|f| f.to = "LICENSE".into(), "two files land in one place");
-    assert!(manifest(vec![good.clone(), good]).validate().is_err(), "duplicate id");
+    assert!(
+        manifest(vec![good.clone(), good]).validate().is_err(),
+        "duplicate id"
+    );
 }
 
 #[test]
@@ -96,17 +124,29 @@ fn a_files_pack_installs_with_its_licence_and_a_receipt() {
     let mut m = manager(root.path(), manifest(vec![p]));
     assert_eq!(m.status("kit"), Status::NotInstalled);
     assert!(m.install("kit"));
-    assert!(matches!(m.status("kit"), Status::Busy(_)), "the install runs off the caller's thread");
+    assert!(
+        matches!(m.status("kit"), Status::Busy(_)),
+        "the install runs off the caller's thread"
+    );
     let done = m.wait_idle(WAIT);
     assert_eq!(done.len(), 1);
     let receipt = done[0].result.clone().expect("installed");
-    assert_eq!((receipt.files, receipt.bytes), (3, 16 + 500 + 16 + 300 + 17));
+    assert_eq!(
+        (receipt.files, receipt.bytes),
+        (3, 16 + 500 + 16 + 300 + 17)
+    );
     let dir = m.pack_dir("kit");
-    assert_eq!(std::fs::read(dir.join("Kicks/Kick 1.wav")).unwrap(), wav(1, 500));
+    assert_eq!(
+        std::fs::read(dir.join("Kicks/Kick 1.wav")).unwrap(),
+        wav(1, 500)
+    );
     assert!(dir.join("Licences/LICENSE.txt").is_file());
     assert!(dir.join(install::RECEIPT).is_file());
     assert_eq!(m.status("kit"), Status::Installed { version: 1 });
-    assert!(!root.path().join(".staging").join("kit").exists(), "staging is moved, not copied");
+    assert!(
+        !root.path().join(".staging").join("kit").exists(),
+        "staging is moved, not copied"
+    );
 
     // A fresh manager finds it again from the receipt.
     let again = manager(root.path(), m.manifest().clone());
@@ -126,7 +166,11 @@ fn a_files_pack_installs_with_its_licence_and_a_receipt() {
 fn a_corrupted_download_is_refused_and_nothing_is_installed() {
     let src = tempfile::tempdir().unwrap();
     let root = tempfile::tempdir().unwrap();
-    let mut p = files_pack("bad", src.path(), &[("a.wav", wav(4, 100)), ("LICENSE", b"CC0".to_vec())]);
+    let mut p = files_pack(
+        "bad",
+        src.path(),
+        &[("a.wav", wav(4, 100)), ("LICENSE", b"CC0".to_vec())],
+    );
     // The file on the server is not the file the manifest names.
     if let Source::Files(f) = &p.source {
         std::fs::write(fetch::file_url_path(&f[0].url).unwrap(), wav(5, 100)).unwrap();
@@ -135,12 +179,18 @@ fn a_corrupted_download_is_refused_and_nothing_is_installed() {
     let mut m = manager(root.path(), manifest(vec![p]));
     m.install("bad");
     let done = m.wait_idle(WAIT);
-    assert!(matches!(done[0].result, Err(InstallError::Fetch(FetchError::Corrupt { .. }))));
+    assert!(matches!(
+        done[0].result,
+        Err(InstallError::Fetch(FetchError::Corrupt { .. }))
+    ));
     assert!(!m.pack_dir("bad").exists());
     assert_eq!(m.status("bad"), Status::NotInstalled);
     assert!(m.error("bad").is_some(), "the window can say why");
     // The bad bytes are not kept for a resume either.
-    let leftovers: Vec<_> = std::fs::read_dir(root.path().join(".downloads")).unwrap().flatten().collect();
+    let leftovers: Vec<_> = std::fs::read_dir(root.path().join(".downloads"))
+        .unwrap()
+        .flatten()
+        .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
 
@@ -158,7 +208,14 @@ fn a_zip_pack_keeps_only_what_it_includes_and_strips_its_folder() {
     ]);
     let path = src.path().join("kit.zip");
     std::fs::write(&path, &bytes).unwrap();
-    let mut p = zip_pack("zipkit", file_url(&path), &bytes, "Kit/", &["Samples/**", "Programs/*.sfz", "LICENSE"], "LICENSE");
+    let mut p = zip_pack(
+        "zipkit",
+        file_url(&path),
+        &bytes,
+        "Kit/",
+        &["Samples/**", "Programs/*.sfz", "LICENSE"],
+        "LICENSE",
+    );
     if let Source::Zip(z) = &mut p.source {
         z.exclude = vec!["Samples/wet/**".into()];
     }
@@ -170,9 +227,18 @@ fn a_zip_pack_keeps_only_what_it_includes_and_strips_its_folder() {
     let dir = m.pack_dir("zipkit");
     assert!(dir.join("Samples/kick/k1.flac").is_file());
     assert!(dir.join("Programs/kit.sfz").is_file());
-    assert!(!dir.join("Samples/wet").exists() && !dir.join("GUI").exists() && !dir.join("Manual.pdf").exists());
+    assert!(
+        !dir.join("Samples/wet").exists()
+            && !dir.join("GUI").exists()
+            && !dir.join("Manual.pdf").exists()
+    );
     // The downloaded archive is deleted once unpacked.
-    assert_eq!(std::fs::read_dir(root.path().join(".downloads")).unwrap().count(), 0);
+    assert_eq!(
+        std::fs::read_dir(root.path().join(".downloads"))
+            .unwrap()
+            .count(),
+        0
+    );
 }
 
 #[test]
@@ -198,7 +264,14 @@ fn an_offline_install_takes_the_users_archive_through_the_same_checks() {
     let mine = src.path().join("downloaded by hand.zip");
     std::fs::write(&mine, &bytes).unwrap();
     // The manifest's URL is unreachable; the user's copy is used instead.
-    let p = zip_pack("off", "https://unreachable.invalid/x.zip".into(), &bytes, "", &[], "LICENSE");
+    let p = zip_pack(
+        "off",
+        "https://unreachable.invalid/x.zip".into(),
+        &bytes,
+        "",
+        &[],
+        "LICENSE",
+    );
     let mut m = manager(root.path(), manifest(vec![p]));
     assert!(m.install_from_file("off", &mine));
     assert!(m.wait_idle(WAIT)[0].result.is_ok());
@@ -206,7 +279,10 @@ fn an_offline_install_takes_the_users_archive_through_the_same_checks() {
     std::fs::write(&mine, zip_bytes(&[("other.wav", b"RIFF")])).unwrap();
     m.remove("off").unwrap();
     m.install_from_file("off", &mine);
-    assert!(matches!(m.wait_idle(WAIT)[0].result, Err(InstallError::Fetch(FetchError::Corrupt { .. }))));
+    assert!(matches!(
+        m.wait_idle(WAIT)[0].result,
+        Err(InstallError::Fetch(FetchError::Corrupt { .. }))
+    ));
 }
 
 #[test]
@@ -216,15 +292,36 @@ fn a_proxy_page_is_recognised_and_never_written() {
     let base = serve(move |_, _| response("200 OK", "text/html; charset=utf-8", &b2, b2.len()));
     let dir = tempfile::tempdir().unwrap();
     let (part, dest) = (dir.path().join("x.part"), dir.path().join("x.wav"));
-    let r = fetch::download(&Net::new(), &format!("{base}/x.wav"), 1000, &sha(&wav(1, 984)), &part, &dest, &AtomicBool::new(false), &mut |_| {});
+    let r = fetch::download(
+        &Net::new(),
+        &format!("{base}/x.wav"),
+        1000,
+        &sha(&wav(1, 984)),
+        &part,
+        &dest,
+        &AtomicBool::new(false),
+        &mut |_| {},
+    );
     assert_eq!(r, Err(FetchError::Intercepted));
     assert!(!dest.exists());
     // And when the proxy lies about the type, the bytes give it away.
     let base = serve(move |_, _| response("200 OK", "application/octet-stream", &body, body.len()));
-    let r = fetch::download(&Net::new(), &format!("{base}/x.wav"), 1000, &sha(&wav(1, 984)), &part, &dest, &AtomicBool::new(false), &mut |_| {});
+    let r = fetch::download(
+        &Net::new(),
+        &format!("{base}/x.wav"),
+        1000,
+        &sha(&wav(1, 984)),
+        &part,
+        &dest,
+        &AtomicBool::new(false),
+        &mut |_| {},
+    );
     assert_eq!(r, Err(FetchError::Intercepted));
     assert!(!part.exists() && !dest.exists());
-    assert!(FetchError::Intercepted.retry_after(0).unwrap() >= Duration::from_secs(10), "a quarantine is waited out");
+    assert!(
+        FetchError::Intercepted.retry_after(0).unwrap() >= Duration::from_secs(10),
+        "a quarantine is waited out"
+    );
 }
 
 #[test]
@@ -250,15 +347,39 @@ fn an_interrupted_download_resumes_where_it_stopped() {
     let dir = tempfile::tempdir().unwrap();
     let (part, dest) = (dir.path().join("x.part"), dir.path().join("x.wav"));
     let url = format!("{base}/x.wav");
-    let first = fetch::download(&Net::new(), &url, total as u64, &sha(&file), &part, &dest, &AtomicBool::new(false), &mut |_| {});
-    assert!(matches!(first, Err(FetchError::Incomplete { .. }) | Err(FetchError::Network(_))), "{first:?}");
+    let first = fetch::download(
+        &Net::new(),
+        &url,
+        total as u64,
+        &sha(&file),
+        &part,
+        &dest,
+        &AtomicBool::new(false),
+        &mut |_| {},
+    );
+    assert!(
+        matches!(
+            first,
+            Err(FetchError::Incomplete { .. }) | Err(FetchError::Network(_))
+        ),
+        "{first:?}"
+    );
     let kept = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
     assert!(kept > 0, "the partial download is kept");
     assert!(first.unwrap_err().retry_after(0).is_some());
     let mut seen_from = None;
-    let second = fetch::download(&Net::new(), &url, total as u64, &sha(&file), &part, &dest, &AtomicBool::new(false), &mut |n| {
-        seen_from.get_or_insert(n);
-    });
+    let second = fetch::download(
+        &Net::new(),
+        &url,
+        total as u64,
+        &sha(&file),
+        &part,
+        &dest,
+        &AtomicBool::new(false),
+        &mut |n| {
+            seen_from.get_or_insert(n);
+        },
+    );
     assert_eq!(second, Ok(()));
     assert_eq!(seen_from, Some(kept), "it went on from where it stopped");
     assert_eq!(std::fs::read(&dest).unwrap(), file);
@@ -270,7 +391,16 @@ fn a_cancelled_download_stops_and_keeps_its_part() {
     let p = src.path().join("big.wav");
     std::fs::write(&p, wav(9, 200_000)).unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let r = fetch::download(&Net::new(), &file_url(&p), 200_016, &sha(&wav(9, 200_000)), &dir.path().join("a.part"), &dir.path().join("a.wav"), &AtomicBool::new(true), &mut |_| {});
+    let r = fetch::download(
+        &Net::new(),
+        &file_url(&p),
+        200_016,
+        &sha(&wav(9, 200_000)),
+        &dir.path().join("a.part"),
+        &dir.path().join("a.wav"),
+        &AtomicBool::new(true),
+        &mut |_| {},
+    );
     assert_eq!(r, Err(FetchError::Cancelled));
     assert!(!dir.path().join("a.wav").exists());
 }
@@ -290,7 +420,10 @@ fn a_server_error_is_retried_and_a_missing_file_is_not() {
     }
     let mut m = manager(&root.path().join("content"), manifest(vec![p]));
     m.install("gone");
-    assert!(matches!(m.wait_idle(WAIT)[0].result, Err(InstallError::Fetch(FetchError::Http(404)))));
+    assert!(matches!(
+        m.wait_idle(WAIT)[0].result,
+        Err(InstallError::Fetch(FetchError::Http(404)))
+    ));
 }
 
 #[test]

@@ -85,7 +85,10 @@ impl Default for Previewer {
 impl Previewer {
     /// The decoded sample, if it is among the recent ones.
     pub fn cached(&self, path: &Path) -> Option<Arc<SampleData>> {
-        self.recent.iter().find(|(p, _)| p == path).map(|(_, s)| s.clone())
+        self.recent
+            .iter()
+            .find(|(p, _)| p == path)
+            .map(|(_, s)| s.clone())
     }
 
     /// Ask for `path` to be decoded; [`Previewer::poll`] returns it when it is.
@@ -125,7 +128,9 @@ impl Previewer {
     }
 
     pub fn is_playing(&self, path: &Path) -> bool {
-        self.playing.as_ref().is_some_and(|(p, at, len)| p == path && at.elapsed() < *len)
+        self.playing
+            .as_ref()
+            .is_some_and(|(p, at, len)| p == path && at.elapsed() < *len)
     }
 }
 
@@ -211,7 +216,10 @@ impl Samples {
                 .content_root
                 .clone()
                 .unwrap_or_else(|| crate::app::data_dir().join("Content"));
-            let manifest = self.manifest.clone().unwrap_or_else(|| local_manifest(&root));
+            let manifest = self
+                .manifest
+                .clone()
+                .unwrap_or_else(|| local_manifest(&root));
             self.content = Some(Manager::new(root, manifest));
         }
         self.content.as_mut().expect("just made")
@@ -237,13 +245,15 @@ impl Samples {
             })
             .collect();
         out.sort_by(|a, b| library::natural(&a.label, &b.label));
-        out.extend(user.iter().map(|p| Root {
-            label: p
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| p.to_string_lossy().into_owned()),
-            path: p.clone(),
-            kind: RootKind::User,
+        out.extend(user.iter().map(|p| {
+            Root {
+                label: p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| p.to_string_lossy().into_owned()),
+                path: p.clone(),
+                kind: RootKind::User,
+            }
         }));
         out
     }
@@ -277,7 +287,12 @@ impl Samples {
             self.indexer = None;
         }
         let idx = self.index.as_ref()?;
-        Some(idx.search(&self.query, max).into_iter().map(|h| h.path.clone()).collect())
+        Some(
+            idx.search(&self.query, max)
+                .into_iter()
+                .map(|h| h.path.clone())
+                .collect(),
+        )
     }
 
     /// Whether the index is still being built (the view asks for another frame).
@@ -344,7 +359,9 @@ impl crate::app::CantusApp {
                     .unwrap_or(f.id.clone());
                 self.samples.notice = Some(match &f.result {
                     Ok(_) => crate::i18n::tf("samples.notice.installed", &[("pack", &name)]),
-                    Err(e) => crate::i18n::tf("samples.notice.failed", &[("pack", &name), ("why", &e)]),
+                    Err(e) => {
+                        crate::i18n::tf("samples.notice.failed", &[("pack", &name), ("why", &e)])
+                    }
                 });
                 self.samples.refresh();
             }

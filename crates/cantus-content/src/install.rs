@@ -55,11 +55,20 @@ pub struct Receipt {
 /// Where an install is.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Phase {
-    Downloading { done: u64, total: u64 },
+    Downloading {
+        done: u64,
+        total: u64,
+    },
     /// Waiting to try again after `error`.
-    Retrying { error: String, wait: Duration },
+    Retrying {
+        error: String,
+        wait: Duration,
+    },
     Verifying,
-    Unpacking { done: u64, total: u64 },
+    Unpacking {
+        done: u64,
+        total: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -157,7 +166,11 @@ fn with_retries<T>(
 }
 
 /// Install (or update) `pack`. Blocking: the manager runs it on a worker thread.
-pub fn install(job: &Job, pack: &Pack, report: &mut dyn FnMut(Phase)) -> Result<Receipt, InstallError> {
+pub fn install(
+    job: &Job,
+    pack: &Pack,
+    report: &mut dyn FnMut(Phase),
+) -> Result<Receipt, InstallError> {
     let staging = job.layout.staging(&pack.id);
     std::fs::create_dir_all(&staging)?;
     let (files, bytes) = match &pack.source {
@@ -182,12 +195,16 @@ pub fn install(job: &Job, pack: &Pack, report: &mut dyn FnMut(Phase)) -> Result<
         files,
         bytes,
     };
-    let json = serde_json::to_string_pretty(&receipt).map_err(|e| InstallError::Io(e.to_string()))?;
+    let json =
+        serde_json::to_string_pretty(&receipt).map_err(|e| InstallError::Io(e.to_string()))?;
     std::fs::write(staging.join(RECEIPT), json)?;
     // Swap into place: the old version (an update) goes to the trash first.
     let dest = job.layout.pack_dir(&pack.id);
     if dest.exists() {
-        let old = job.layout.trash().join(format!("{}-{}", pack.id, receipt.installed_at));
+        let old = job
+            .layout
+            .trash()
+            .join(format!("{}-{}", pack.id, receipt.installed_at));
         std::fs::create_dir_all(job.layout.trash())?;
         std::fs::rename(&dest, &old)?;
         let _ = std::fs::remove_dir_all(&old);
@@ -217,7 +234,12 @@ fn install_files(
                 &part,
                 &dest,
                 job.cancel,
-                &mut |n| report(Phase::Downloading { done: base + n, total }),
+                &mut |n| {
+                    report(Phase::Downloading {
+                        done: base + n,
+                        total,
+                    })
+                },
             )
         })?;
         done += f.size;
@@ -243,7 +265,12 @@ fn install_zip(
             &part,
             &archive,
             job.cancel,
-            &mut |n| report(Phase::Downloading { done: n, total: z.size }),
+            &mut |n| {
+                report(Phase::Downloading {
+                    done: n,
+                    total: z.size,
+                })
+            },
         )
     })?;
     report(Phase::Verifying);
@@ -271,12 +298,17 @@ pub fn unpack(
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(FetchError::Cancelled.into());
         }
-        let mut entry = zip.by_index(i).map_err(|e| InstallError::Archive(e.to_string()))?;
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| InstallError::Archive(e.to_string()))?;
         if entry.is_dir() {
             continue;
         }
         let Some(name) = entry.enclosed_name() else {
-            return Err(InstallError::Archive(format!("unsafe entry name {}", entry.name())));
+            return Err(InstallError::Archive(format!(
+                "unsafe entry name {}",
+                entry.name()
+            )));
         };
         let name = name.to_string_lossy().replace('\\', "/");
         let Some(rel) = name.strip_prefix(z.strip.as_str()) else {
@@ -294,7 +326,10 @@ pub fn unpack(
         bytes += std::io::copy(&mut entry, &mut w)?;
         files += 1;
         if i % 16 == 0 {
-            report(Phase::Unpacking { done: i as u64, total });
+            report(Phase::Unpacking {
+                done: i as u64,
+                total,
+            });
         }
     }
     report(Phase::Unpacking { done: total, total });
@@ -313,8 +348,13 @@ pub fn glob(pattern: &str, path: &str) -> bool {
         match p.first() {
             None => s.is_empty(),
             Some(b'*') if p.get(1) == Some(&b'*') => {
-                let rest = if p.get(2) == Some(&b'/') { &p[3..] } else { &p[2..] };
-                (0..=s.len()).any(|i| (i == 0 || s[i - 1] == b'/' || rest.is_empty()) && m(rest, &s[i..]))
+                let rest = if p.get(2) == Some(&b'/') {
+                    &p[3..]
+                } else {
+                    &p[2..]
+                };
+                (0..=s.len())
+                    .any(|i| (i == 0 || s[i - 1] == b'/' || rest.is_empty()) && m(rest, &s[i..]))
             }
             Some(b'*') => (0..=s.len())
                 .take_while(|&i| i == 0 || s[i - 1] != b'/')

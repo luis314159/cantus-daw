@@ -213,7 +213,9 @@ impl Manifest {
                     .chars()
                     .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
             {
-                return Err(bad("the id must be lowercase letters, digits and '-'".into()));
+                return Err(bad(
+                    "the id must be lowercase letters, digits and '-'".into()
+                ));
             }
             if !ids.insert(p.id.as_str()) {
                 return Err(bad("the id is used twice".into()));
@@ -277,7 +279,10 @@ pub fn check_path(p: &str) -> Result<(), String> {
 }
 
 fn check_sha(s: &str) -> Result<(), String> {
-    if s.len() == 64 && s.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)) {
+    if s.len() == 64
+        && s.chars()
+            .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    {
         Ok(())
     } else {
         Err("a SHA-256 is 64 lowercase hex digits".into())

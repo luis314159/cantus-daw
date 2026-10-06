@@ -13,10 +13,16 @@ use std::time::{Duration, Instant};
 
 fn wav(path: &Path) {
     std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
-    let spec = hound::WavSpec { channels: 1, sample_rate: 44_100, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 44_100,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
     let mut w = hound::WavWriter::create(path, spec).expect("wav");
     for i in 0..441 {
-        w.write_sample(((i as f32 * 0.07).sin() * 9000.0) as i16).expect("sample");
+        w.write_sample(((i as f32 * 0.07).sin() * 9000.0) as i16)
+            .expect("sample");
     }
     w.finalize().expect("finalize");
 }
@@ -49,19 +55,35 @@ fn install_fake_starter(content: &Path) {
         files: 81,
         bytes: pack.installed_size,
     };
-    std::fs::write(dir.join(cantus_content::install::RECEIPT), serde_json::to_string(&r).expect("json")).expect("receipt");
+    std::fs::write(
+        dir.join(cantus_content::install::RECEIPT),
+        serde_json::to_string(&r).expect("json"),
+    )
+    .expect("receipt");
     // A second small pack, to show more than one root.
     let afr = content.join("afr-kicks-2024");
-    for n in ["606 classic.wav", "808 classic.wav", "909 classic.wav", "deephouse classic.wav"] {
+    for n in [
+        "606 classic.wav",
+        "808 classic.wav",
+        "909 classic.wav",
+        "deephouse classic.wav",
+    ] {
         wav(&afr.join(n));
     }
     std::fs::write(afr.join("CC0-license.txt"), "CC0").expect("licence");
     let r = Receipt {
         id: "afr-kicks-2024".into(),
-        name: Text { en: "AFR Kicks 2024".into(), es: "AFR Kicks 2024".into() },
+        name: Text {
+            en: "AFR Kicks 2024".into(),
+            es: "AFR Kicks 2024".into(),
+        },
         ..r
     };
-    std::fs::write(afr.join(cantus_content::install::RECEIPT), serde_json::to_string(&r).expect("json")).expect("receipt");
+    std::fs::write(
+        afr.join(cantus_content::install::RECEIPT),
+        serde_json::to_string(&r).expect("json"),
+    )
+    .expect("receipt");
 }
 
 pub fn shots(out: &Path, scale: f32) {
@@ -74,7 +96,10 @@ pub fn shots(out: &Path, scale: f32) {
         wav(&user.join("Chops").join(n));
     }
     wav(&user.join("Guitar stab.wav"));
-    let themes = [("slate", cantus_ui::theme::slate()), ("paper", cantus_ui::theme::paper())];
+    let themes = [
+        ("slate", cantus_ui::theme::slate()),
+        ("paper", cantus_ui::theme::paper()),
+    ];
     let context = |theme: &cantus_ui::theme::Theme| {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
@@ -83,7 +108,11 @@ pub fn shots(out: &Path, scale: f32) {
         ctx
     };
     let app_with = |root: &Path| {
-        let mut app = CantusApp::from_parts(Some(cantus_ui::welcome_project()), EngineHandle::dummy(), false);
+        let mut app = CantusApp::from_parts(
+            Some(cantus_ui::welcome_project()),
+            EngineHandle::dummy(),
+            false,
+        );
         app.settings_path = tmp.join("settings.json");
         app.samples.content_root = Some(root.to_path_buf());
         app.settings.sample_folders = vec![user.clone()];
@@ -93,7 +122,12 @@ pub fn shots(out: &Path, scale: f32) {
         // The browser: the starter open at its kicks and snares, a kick playing.
         let mut app = app_with(&content);
         let starter = content.join("cantus-starter-drums");
-        for p in [starter.clone(), starter.join("Kicks"), starter.join("Snares"), user.clone()] {
+        for p in [
+            starter.clone(),
+            starter.join("Kicks"),
+            starter.join("Snares"),
+            user.clone(),
+        ] {
             app.samples.open.insert(p);
         }
         let kick = starter.join("Kicks/Acoustic Kick hard 1.flac");
@@ -101,19 +135,37 @@ pub fn shots(out: &Path, scale: f32) {
         app.samples.preview.playing = Some((kick, Instant::now(), Duration::from_secs(600)));
         let path = out.join(format!("samples-browser-{tn}.png"));
         let ctx = context(theme);
-        shoot(&ctx, egui::vec2(300.0, 820.0), scale, 4, Some(&path), |root| {
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(root, |ui| views::samples_browser::show(&mut app, ui));
-        });
+        shoot(
+            &ctx,
+            egui::vec2(300.0, 820.0),
+            scale,
+            4,
+            Some(&path),
+            |root| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(root, |ui| views::samples_browser::show(&mut app, ui));
+            },
+        );
         println!("wrote {}", path.display());
 
         // The browser with a search typed.
         app.samples.query = "kick".into();
         let path = out.join(format!("samples-search-{tn}.png"));
         let ctx = context(theme);
-        shoot(&ctx, egui::vec2(300.0, 520.0), scale, 40, Some(&path), |root| {
-            std::thread::sleep(Duration::from_millis(10));
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(root, |ui| views::samples_browser::show(&mut app, ui));
-        });
+        shoot(
+            &ctx,
+            egui::vec2(300.0, 520.0),
+            scale,
+            40,
+            Some(&path),
+            |root| {
+                std::thread::sleep(Duration::from_millis(10));
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(root, |ui| views::samples_browser::show(&mut app, ui));
+            },
+        );
         println!("wrote {}", path.display());
 
         // Nothing installed: the one-click offer.
@@ -121,9 +173,18 @@ pub fn shots(out: &Path, scale: f32) {
         app.settings.sample_folders.clear();
         let path = out.join(format!("samples-starter-{tn}.png"));
         let ctx = context(theme);
-        shoot(&ctx, egui::vec2(300.0, 520.0), scale, 4, Some(&path), |root| {
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(root, |ui| views::samples_browser::show(&mut app, ui));
-        });
+        shoot(
+            &ctx,
+            egui::vec2(300.0, 520.0),
+            scale,
+            4,
+            Some(&path),
+            |root| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(root, |ui| views::samples_browser::show(&mut app, ui));
+            },
+        );
         println!("wrote {}", path.display());
 
         // The Sound packs window, the starter installed and selected.
@@ -131,14 +192,21 @@ pub fn shots(out: &Path, scale: f32) {
         app.samples.window.open = true;
         let path = out.join(format!("samples-content-{tn}.png"));
         let ctx = context(theme);
-        shoot(&ctx, egui::vec2(900.0, 680.0), scale, 4, Some(&path), |root| {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE.fill(cantus_ui::kit::Style::current().t.panel))
-                .show(root, |ui| {
-                    let ctx = ui.ctx().clone();
-                    views::samples_content::window(&mut app, &ctx);
-                });
-        });
+        shoot(
+            &ctx,
+            egui::vec2(900.0, 680.0),
+            scale,
+            4,
+            Some(&path),
+            |root| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE.fill(cantus_ui::kit::Style::current().t.panel))
+                    .show(root, |ui| {
+                        let ctx = ui.ctx().clone();
+                        views::samples_content::window(&mut app, &ctx);
+                    });
+            },
+        );
         println!("wrote {}", path.display());
     }
     let _ = std::fs::remove_dir_all(&tmp);

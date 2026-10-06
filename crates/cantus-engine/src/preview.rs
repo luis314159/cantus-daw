@@ -65,7 +65,12 @@ impl Preview {
 
     /// Add the voice to `frames` frames of interleaved `out`. Returns the sample when it
     /// has finished (to hand back), `None` otherwise.
-    pub fn mix(&mut self, out: &mut [f32], channels: usize, frames: usize) -> Option<Arc<SampleData>> {
+    pub fn mix(
+        &mut self,
+        out: &mut [f32],
+        channels: usize,
+        frames: usize,
+    ) -> Option<Arc<SampleData>> {
         let s = self.sample.as_ref()?;
         let len = s.len_frames();
         let src_ch = s.channels.max(1) as usize;
@@ -121,7 +126,10 @@ mod tests {
         Arc::new(SampleData {
             rate,
             channels: 1,
-            frames: (0..frames).map(|i| (i as f32 * 0.01).sin()).collect::<Vec<_>>().into(),
+            frames: (0..frames)
+                .map(|i| (i as f32 * 0.01).sin())
+                .collect::<Vec<_>>()
+                .into(),
         })
     }
 
@@ -134,7 +142,10 @@ mod tests {
         assert!(out.iter().any(|s| s.abs() > 0.1));
         assert_eq!(out[0], 0.0, "the start fades in");
         let mut out = vec![0.0f32; 2 * 512];
-        assert!(p.mix(&mut out, 2, 512).is_some(), "the finished sample comes back");
+        assert!(
+            p.mix(&mut out, 2, 512).is_some(),
+            "the finished sample comes back"
+        );
         assert!(!p.is_playing());
     }
 
@@ -147,7 +158,10 @@ mod tests {
         p.stop();
         let mut out = vec![0.0f32; 2 * 256];
         assert!(p.mix(&mut out, 2, 256).is_some());
-        assert!(out[2 * 200..].iter().all(|s| *s == 0.0), "silent after the fade");
+        assert!(
+            out[2 * 200..].iter().all(|s| *s == 0.0),
+            "silent after the fade"
+        );
     }
 
     #[test]

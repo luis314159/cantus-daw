@@ -17,9 +17,13 @@ use egui::{pos2, vec2, Align2, Context, Id, Pos2, Rect, Sense, Ui, UiBuilder, Ve
 /// How far an install has got, 0..1.
 pub fn fraction(phase: Option<&Phase>) -> f32 {
     match phase {
-        Some(Phase::Downloading { done, total }) => (*done as f64 / (*total).max(1) as f64) as f32 * 0.9,
+        Some(Phase::Downloading { done, total }) => {
+            (*done as f64 / (*total).max(1) as f64) as f32 * 0.9
+        }
         Some(Phase::Verifying) => 0.9,
-        Some(Phase::Unpacking { done, total }) => 0.9 + 0.1 * (*done as f64 / (*total).max(1) as f64) as f32,
+        Some(Phase::Unpacking { done, total }) => {
+            0.9 + 0.1 * (*done as f64 / (*total).max(1) as f64) as f32
+        }
         _ => 0.0,
     }
 }
@@ -29,8 +33,14 @@ pub fn phase_text(phase: Option<&Phase>) -> String {
     let mb = |b: u64| format!("{:.1}", b as f64 / 1e6);
     match phase {
         None => t("samples.phase.starting"),
-        Some(Phase::Downloading { done, total }) => tf("samples.phase.downloading", &[("done", &mb(*done)), ("total", &mb(*total))]),
-        Some(Phase::Retrying { error, wait }) => tf("samples.phase.retrying", &[("why", error), ("s", &wait.as_secs())]),
+        Some(Phase::Downloading { done, total }) => tf(
+            "samples.phase.downloading",
+            &[("done", &mb(*done)), ("total", &mb(*total))],
+        ),
+        Some(Phase::Retrying { error, wait }) => tf(
+            "samples.phase.retrying",
+            &[("why", error), ("s", &wait.as_secs())],
+        ),
         Some(Phase::Verifying) => t("samples.phase.verifying"),
         Some(Phase::Unpacking { .. }) => t("samples.phase.unpacking"),
     }
@@ -58,7 +68,10 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
         .resizable(true)
         .default_size(size)
         .min_size(Vec2::new(560.0, 360.0).min(size))
-        .default_pos(Pos2::new(screen.center().x - size.x * 0.5, screen.top() + 70.0))
+        .default_pos(Pos2::new(
+            screen.center().x - size.x * 0.5,
+            screen.top() + 70.0,
+        ))
         .constrain(true)
         .show(ctx, |ui| {
             let rect = ui.max_rect();
@@ -67,7 +80,12 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
             if title(ui, header, &s, Glyph::Browser, "samples.content.title") {
                 open = false;
             }
-            body(app, ui, &s, Rect::from_min_max(pos2(rect.left(), header.bottom()), rect.max));
+            body(
+                app,
+                ui,
+                &s,
+                Rect::from_min_max(pos2(rect.left(), header.bottom()), rect.max),
+            );
         });
     if !open {
         app.samples.window.open = false;
@@ -76,67 +94,127 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
 
 fn body(app: &mut CantusApp, ui: &mut Ui, s: &Style, area: Rect) {
     let k = s.k;
-    let packs: Vec<Pack> = app.samples.content().manifest().packs.clone();
+    let mut packs: Vec<Pack> = app.samples.content().manifest().packs.clone();
+    // Grouped by category, in the manifest's order within each.
+    packs.sort_by_key(|p| p.category as u8);
     if app.samples.window.selected.is_none() {
         app.samples.window.selected = packs.first().map(|p| p.id.clone());
     }
     let list_w = (area.width() * 0.42).clamp(240.0 * k, 360.0 * k);
-    let list = Rect::from_min_max(area.min + vec2(8.0, 8.0) * k, pos2(area.left() + list_w, area.bottom() - 8.0 * k));
-    let detail = Rect::from_min_max(pos2(list.right() + 12.0 * k, area.top() + 10.0 * k), area.max - vec2(14.0, 10.0) * k);
+    let list = Rect::from_min_max(
+        area.min + vec2(8.0, 8.0) * k,
+        pos2(area.left() + list_w, area.bottom() - 8.0 * k),
+    );
+    let detail = Rect::from_min_max(
+        pos2(list.right() + 12.0 * k, area.top() + 10.0 * k),
+        area.max - vec2(14.0, 10.0) * k,
+    );
     with_brush(ui.painter(), |b| {
         crate::kit::well::paint(b, list, s, crate::kit::State::REST, None);
     });
     let lang = crate::i18n::locale().code();
     let mut child = ui.new_child(UiBuilder::new().max_rect(list.shrink(2.0 * k)));
-    egui::ScrollArea::vertical().id_salt("content-list").auto_shrink([false, false]).show(&mut child, |ui| {
-        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        let width = ui.available_width();
-        let mut last_cat = None;
-        for p in &packs {
-            if last_cat != Some(p.category) {
-                last_cat = Some(p.category);
-                let (r, _) = ui.allocate_exact_size(vec2(width, 24.0 * k), Sense::hover());
-                with_brush(ui.painter(), |b| paint::section(b, r, s, p.category.key()));
+    egui::ScrollArea::vertical()
+        .id_salt("content-list")
+        .auto_shrink([false, false])
+        .show(&mut child, |ui| {
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            let width = ui.available_width();
+            let mut last_cat = None;
+            for p in &packs {
+                if last_cat != Some(p.category) {
+                    last_cat = Some(p.category);
+                    let (r, _) = ui.allocate_exact_size(vec2(width, 24.0 * k), Sense::hover());
+                    with_brush(ui.painter(), |b| paint::section(b, r, s, p.category.key()));
+                }
+                let (r, resp) = ui.allocate_exact_size(vec2(width, 40.0 * k), Sense::click());
+                let status = app.samples.content().status(&p.id);
+                let selected = app.samples.window.selected.as_deref() == Some(p.id.as_str());
+                with_brush(ui.painter(), |b| {
+                    pack_row(b, r, s, p, &status, selected, resp.hovered(), lang)
+                });
+                if resp.clicked() {
+                    app.samples.window.selected = Some(p.id.clone());
+                    app.samples.window.confirm_remove = None;
+                }
             }
-            let (r, resp) = ui.allocate_exact_size(vec2(width, 40.0 * k), Sense::click());
-            let status = app.samples.content().status(&p.id);
-            let selected = app.samples.window.selected.as_deref() == Some(p.id.as_str());
-            with_brush(ui.painter(), |b| pack_row(b, r, s, p, &status, selected, resp.hovered(), lang));
-            if resp.clicked() {
-                app.samples.window.selected = Some(p.id.clone());
-                app.samples.window.confirm_remove = None;
-            }
-        }
-    });
-    let Some(pack) = app.samples.window.selected.as_ref().and_then(|id| packs.iter().find(|p| &p.id == id)).cloned() else {
+        });
+    let Some(pack) = app
+        .samples
+        .window
+        .selected
+        .as_ref()
+        .and_then(|id| packs.iter().find(|p| &p.id == id))
+        .cloned()
+    else {
         return;
     };
     let mut child = ui.new_child(UiBuilder::new().max_rect(detail));
-    egui::ScrollArea::vertical().id_salt("content-detail").auto_shrink([false, false]).show(&mut child, |ui| {
-        ui.set_width(detail.width() - 12.0 * k);
-        ui.spacing_mut().item_spacing = vec2(6.0 * k, 6.0 * k);
-        details(app, ui, s, &pack, lang);
-    });
+    egui::ScrollArea::vertical()
+        .id_salt("content-detail")
+        .auto_shrink([false, false])
+        .show(&mut child, |ui| {
+            ui.set_width(detail.width() - 12.0 * k);
+            ui.spacing_mut().item_spacing = vec2(6.0 * k, 6.0 * k);
+            details(app, ui, s, &pack, lang);
+        });
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pack_row(b: &mut crate::kit::Brush, r: Rect, s: &Style, p: &Pack, status: &Status, selected: bool, hovered: bool, lang: &str) {
+fn pack_row(
+    b: &mut crate::kit::Brush,
+    r: Rect,
+    s: &Style,
+    p: &Pack,
+    status: &Status,
+    selected: bool,
+    hovered: bool,
+    lang: &str,
+) {
     let k = s.k;
     if selected {
-        b.rect(r, Fill::Solid(with_alpha(s.t.selection, 0.55)));
-        b.rect(Rect::from_min_size(r.min, vec2(2.0 * k, r.height())), Fill::Solid(s.t.highlight));
+        b.rect(r, Fill::Solid(with_alpha(s.t.selection, 0.32)));
+        b.rect(
+            Rect::from_min_size(r.min, vec2(2.0 * k, r.height())),
+            Fill::Solid(s.t.highlight),
+        );
     } else if hovered {
         b.rect(r, Fill::Solid(crate::theme::tint(s.t.well, s.t.text, 0.06)));
     }
-    let ir = Rect::from_center_size(pos2(r.left() + 20.0 * k, r.center().y), vec2(18.0, 15.0) * k);
+    let ir = Rect::from_center_size(
+        pos2(r.left() + 20.0 * k, r.center().y),
+        vec2(18.0, 15.0) * k,
+    );
     paint::paint_icon(b, ir, s, Icon::Pack, s.t.text_dim);
     let x = ir.right() + 10.0 * k;
     let badge_w = 74.0 * k;
-    let name_r = Rect::from_min_max(pos2(x, r.top() + 4.0 * k), pos2(r.right() - badge_w - 6.0 * k, r.center().y + 2.0 * k));
-    paint::line(b, name_r, s, Src::Str(p.name.get(lang)), Role::Control, s.t.text, Align2::LEFT_CENTER);
+    let name_r = Rect::from_min_max(
+        pos2(x, r.top() + 4.0 * k),
+        pos2(r.right() - badge_w - 6.0 * k, r.center().y + 2.0 * k),
+    );
+    paint::line(
+        b,
+        name_r,
+        s,
+        Src::Str(p.name.get(lang)),
+        Role::Control,
+        s.t.text,
+        Align2::LEFT_CENTER,
+    );
     let meta = format!("{} · {}", size(p.download_size()), p.licence);
-    let meta_r = Rect::from_min_max(pos2(x, r.center().y), pos2(r.right() - badge_w - 6.0 * k, r.bottom() - 4.0 * k));
-    paint::line(b, meta_r, s, Src::Str(&meta), Role::Micro, s.t.text_dim, Align2::LEFT_CENTER);
+    let meta_r = Rect::from_min_max(
+        pos2(x, r.center().y),
+        pos2(r.right() - badge_w - 6.0 * k, r.bottom() - 4.0 * k),
+    );
+    paint::line(
+        b,
+        meta_r,
+        s,
+        Src::Str(&meta),
+        Role::Micro,
+        s.t.text_dim,
+        Align2::LEFT_CENTER,
+    );
     // The state, as a chip at the right.
     let (key, tone) = match status {
         Status::NotInstalled => (None, s.t.text_dim),
@@ -145,12 +223,33 @@ fn pack_row(b: &mut crate::kit::Brush, r: Rect, s: &Style, p: &Pack, status: &St
         Status::Busy(_) => (Some("samples.state.busy"), s.t.highlight),
     };
     if let Some(key) = key {
-        let chip = Rect::from_center_size(pos2(r.right() - badge_w * 0.5 - 6.0 * k, r.center().y), vec2(badge_w, 18.0 * k));
-        b.rrect(chip, 9.0 * k, Fill::Solid(crate::theme::tint(s.t.well, tone, 0.22)));
+        let chip = Rect::from_center_size(
+            pos2(r.right() - badge_w * 0.5 - 6.0 * k, r.center().y),
+            vec2(badge_w, 18.0 * k),
+        );
+        b.rrect(
+            chip,
+            9.0 * k,
+            Fill::Solid(crate::theme::tint(s.t.well, tone, 0.22)),
+        );
         b.rrect_stroke(chip, 9.0 * k, b.px(), with_alpha(tone, 0.6));
-        paint::line(b, chip, s, Src::Key(key), Role::Micro, s.t.text, Align2::CENTER_CENTER);
+        paint::line(
+            b,
+            chip,
+            s,
+            Src::Key(key),
+            Role::Micro,
+            s.t.text,
+            Align2::CENTER_CENTER,
+        );
     }
-    b.hline(r.left() + 8.0 * k, r.right() - 8.0 * k, r.bottom() - b.px() * 0.5, b.px(), shade(s.t.well, -0.08));
+    b.hline(
+        r.left() + 8.0 * k,
+        r.right() - 8.0 * k,
+        r.bottom() - b.px() * 0.5,
+        b.px(),
+        shade(s.t.well, -0.08),
+    );
 }
 
 /// Text that wraps to the width it is given (descriptions, credits, errors).
@@ -168,24 +267,70 @@ fn text_block(ui: &mut Ui, s: &Style, src: Src<'_>, role: Role, color: egui::Col
 fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str) {
     let status = app.samples.content().status(&pack.id);
     let error = app.samples.content().error(&pack.id).map(|e| e.to_string());
-    text_block(ui, s, Src::Str(pack.name.get(lang)), Role::Title, s.t.text, 1.4);
-    text_block(ui, s, Src::Str(pack.description.get(lang)), Role::Body, s.t.text_dim, 3.0);
+    text_block(
+        ui,
+        s,
+        Src::Str(pack.name.get(lang)),
+        Role::Title,
+        s.t.text,
+        1.4,
+    );
+    text_block(
+        ui,
+        s,
+        Src::Str(pack.description.get(lang)),
+        Role::Body,
+        s.t.text_dim,
+        3.0,
+    );
     let files = match &pack.source {
         Source::Files(f) => f.len().to_string(),
         Source::Zip(_) => "—".into(),
     };
-    for (label, value) in [
-        (t("samples.detail.download"), size(pack.download_size())),
-        (t("samples.detail.on_disk"), size(pack.installed_size)),
-        (t("samples.detail.files"), files),
-        (t("samples.detail.licence"), format!("{} — {}", pack.licence, t("samples.licence.cc0"))),
-        (t("samples.detail.checked"), pack.checked.clone()),
+    for (label, value, role) in [
+        (
+            t("samples.detail.download"),
+            size(pack.download_size()),
+            Role::Value,
+        ),
+        (
+            t("samples.detail.on_disk"),
+            size(pack.installed_size),
+            Role::Value,
+        ),
+        (t("samples.detail.files"), files, Role::Value),
+        (
+            t("samples.detail.licence"),
+            format!("{} — {}", pack.licence, t("samples.licence.cc0")),
+            Role::Body,
+        ),
+        (
+            t("samples.detail.checked"),
+            pack.checked.clone(),
+            Role::Value,
+        ),
     ] {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0 * s.k), Sense::hover());
         with_brush(ui.painter(), |b| {
             let lw = 110.0 * s.k;
-            paint::line(b, Rect::from_min_max(r.min, pos2(r.left() + lw, r.bottom())), s, Src::Str(&label), Role::Body, s.t.text_dim, Align2::LEFT_CENTER);
-            paint::line(b, Rect::from_min_max(pos2(r.left() + lw, r.top()), r.max), s, Src::Str(&value), Role::Value, s.t.text, Align2::LEFT_CENTER);
+            paint::line(
+                b,
+                Rect::from_min_max(r.min, pos2(r.left() + lw, r.bottom())),
+                s,
+                Src::Str(&label),
+                Role::Body,
+                s.t.text_dim,
+                Align2::LEFT_CENTER,
+            );
+            paint::line(
+                b,
+                Rect::from_min_max(pos2(r.left() + lw, r.top()), r.max),
+                s,
+                Src::Str(&value),
+                role,
+                s.t.text,
+                Align2::LEFT_CENTER,
+            );
         });
     }
     form::band(ui, "samples.detail.credits");
@@ -193,12 +338,29 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         text_block(ui, s, Src::Str(&c.name), Role::Body, s.t.text, 1.0);
         text_block(ui, s, Src::Str(&c.url), Role::Micro, s.t.text_dim, 1.0);
     }
-    text_block(ui, s, Src::Str(&tf("samples.detail.licence_kept", &[("file", &pack.licence_file)])), Role::Micro, s.t.text_dim, 2.0);
+    text_block(
+        ui,
+        s,
+        Src::Str(&tf(
+            "samples.detail.licence_kept",
+            &[("file", &pack.licence_file)],
+        )),
+        Role::Micro,
+        s.t.text_dim,
+        2.0,
+    );
     form::band(ui, "samples.detail.actions");
     match &status {
         Status::Busy(phase) => {
             form::progress(ui, fraction(phase.as_ref()));
-            text_block(ui, s, Src::Str(&phase_text(phase.as_ref())), Role::Micro, s.t.text_dim, 1.0);
+            text_block(
+                ui,
+                s,
+                Src::Str(&phase_text(phase.as_ref())),
+                Role::Micro,
+                s.t.text_dim,
+                1.0,
+            );
             if form::button(ui, &t("samples.cancel"), false, true) {
                 app.samples.content().cancel(&pack.id);
             }
@@ -211,7 +373,12 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                     Status::Installed { .. } => t("samples.reinstall"),
                     _ => t("samples.install"),
                 };
-                if form::button(ui, &label, !installed || matches!(status, Status::Update { .. }), true) {
+                if form::button(
+                    ui,
+                    &label,
+                    !installed || matches!(status, Status::Update { .. }),
+                    true,
+                ) {
                     app.samples.content().install(&pack.id);
                 }
                 if installed {
@@ -220,7 +387,9 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                             let r = app.samples.content().remove(&pack.id);
                             app.samples.window.confirm_remove = None;
                             app.samples.notice = Some(match r {
-                                Ok(()) => tf("samples.notice.removed", &[("pack", &pack.name.get(lang))]),
+                                Ok(()) => {
+                                    tf("samples.notice.removed", &[("pack", &pack.name.get(lang))])
+                                }
                                 Err(e) => e.to_string(),
                             });
                             app.samples.refresh();
@@ -233,8 +402,13 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                         let _ = crate::app::reveal(&dir);
                     }
                 }
-                if matches!(pack.source, Source::Zip(_)) && form::button(ui, &t("samples.from_file"), false, true) {
-                    if let Some(f) = rfd::FileDialog::new().add_filter("zip", &["zip"]).pick_file() {
+                if matches!(pack.source, Source::Zip(_))
+                    && form::button(ui, &t("samples.from_file"), false, true)
+                {
+                    if let Some(f) = rfd::FileDialog::new()
+                        .add_filter("zip", &["zip"])
+                        .pick_file()
+                    {
                         app.samples.content().install_from_file(&pack.id, &f);
                     }
                 }
