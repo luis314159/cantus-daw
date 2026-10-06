@@ -76,6 +76,8 @@ fn wrap_uncached(ctx: &Context, s: &str, role: Role, k: f32, width: f32) -> Line
             widest: galley.size().x,
         };
     }
+    // A line is painted on its own, fitted to whole pixels: leave it a pixel and a point.
+    let room = width - 1.0 - 1.0 / ctx.pixels_per_point();
     let left = |i: usize| glyphs[i].pos.x;
     let right = |i: usize| glyphs[i].pos.x + glyphs[i].advance_width;
     let mut lines = Vec::new();
@@ -94,7 +96,7 @@ fn wrap_uncached(ctx: &Context, s: &str, role: Role, k: f32, width: f32) -> Line
         while end < chars.len() {
             if chars[end] == ' ' {
                 last_break = Some(end);
-            } else if right(end) - x0 > width + 0.01 {
+            } else if right(end) - x0 > room {
                 break;
             }
             end += 1;
@@ -110,7 +112,11 @@ fn wrap_uncached(ctx: &Context, s: &str, role: Role, k: f32, width: f32) -> Line
                     .unwrap_or(chars.len()),
             }
         };
-        let line: String = chars[start..stop].iter().collect::<String>().trim_end().to_string();
+        let line: String = chars[start..stop]
+            .iter()
+            .collect::<String>()
+            .trim_end()
+            .to_string();
         let mut last = stop;
         while last > start && chars[last - 1] == ' ' {
             last -= 1;

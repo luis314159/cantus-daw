@@ -132,7 +132,10 @@ impl Translation {
                 })
             })
         });
-        let i = Translation::ALL.iter().position(|t| *t == self).unwrap_or(0);
+        let i = Translation::ALL
+            .iter()
+            .position(|t| *t == self)
+            .unwrap_or(0);
         &all[i]
     }
 
@@ -176,7 +179,10 @@ impl Reference {
     /// `PSA 33:3` or `LAM 3:22-23`.
     pub fn parse(s: &'static str) -> Option<Reference> {
         let (book, cv) = s.trim().split_once(' ')?;
-        let ok = book.len() == 3 && book.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit());
+        let ok = book.len() == 3
+            && book
+                .bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit());
         if !ok {
             return None;
         }
@@ -213,7 +219,10 @@ impl Reference {
         if self.first == self.last {
             format!("{book} {}:{}", self.chapter, self.first)
         } else {
-            format!("{book} {}:{}\u{2013}{}", self.chapter, self.first, self.last)
+            format!(
+                "{book} {}:{}\u{2013}{}",
+                self.chapter, self.first, self.last
+            )
         }
     }
 }
@@ -252,7 +261,11 @@ pub fn parse(src: &'static str) -> Result<Vec<Verse>, String> {
 
 /// Every passage, in the list's order (the English file's: every file holds the same).
 pub fn references() -> Vec<Reference> {
-    Translation::Web.verses().iter().map(|v| v.reference).collect()
+    Translation::Web
+        .verses()
+        .iter()
+        .map(|v| v.reference)
+        .collect()
 }
 
 /// A passage chosen by `seed`.
@@ -294,14 +307,22 @@ impl Shown {
     pub fn text(self) -> &'static str {
         let t = self.translation();
         t.passage(self.reference)
-            .or_else(|| Translation::Rv1909.passage(self.reference).filter(|_| t.locale() == Locale::Es))
+            .or_else(|| {
+                Translation::Rv1909
+                    .passage(self.reference)
+                    .filter(|_| t.locale() == Locale::Es)
+            })
             .or_else(|| Translation::Web.passage(self.reference))
             .map_or("", |v| v.text)
     }
 
     /// "Colossians 3:23 · WEB".
     pub fn citation(self) -> String {
-        format!("{} \u{00b7} {}", self.reference.label(), self.translation().abbrev())
+        format!(
+            "{} \u{00b7} {}",
+            self.reference.label(),
+            self.translation().abbrev()
+        )
     }
 }
 
@@ -329,10 +350,15 @@ impl Launch {
     }
 
     pub fn from_settings(settings: &Settings, seed: u64) -> Launch {
-        let shown = settings.verse.show.then(|| pick(seed)).flatten().map(|reference| Shown {
-            reference,
-            spanish: settings.verse.spanish,
-        });
+        let shown = settings
+            .verse
+            .show
+            .then(|| pick(seed))
+            .flatten()
+            .map(|reference| Shown {
+                reference,
+                spanish: settings.verse.spanish,
+            });
         Launch { shown }
     }
 }

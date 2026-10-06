@@ -85,7 +85,14 @@ pub struct Painted {
 }
 
 /// The reference line: "COLOSSIANS 3:23 · WEB".
-fn citation(b: &mut Brush, rect: Rect, s: &str, color: egui::Color32, k: f32, align: Align2) -> (Rect, bool) {
+fn citation(
+    b: &mut Brush,
+    rect: Rect,
+    s: &str,
+    color: egui::Color32,
+    k: f32,
+    align: Align2,
+) -> (Rect, bool) {
     text::paint(
         b,
         rect,
@@ -111,7 +118,13 @@ fn hide_link(b: &mut Brush, rect: Rect, t: &Tokens, k: f32, hovered: bool, align
     );
     let r = p.map_or(Rect::NOTHING, |p| p.rect);
     if hovered && r.is_positive() {
-        b.hline(r.left(), r.right(), r.bottom() + k, b.px(), with_alpha(color, 0.7));
+        b.hline(
+            r.left(),
+            r.right(),
+            r.bottom() + k,
+            b.px(),
+            with_alpha(color, 0.7),
+        );
     }
     r
 }
@@ -144,13 +157,26 @@ const SPLASH_MARGIN: f32 = 40.0;
 
 /// Paint the splash's verse band in `band` at the splash's scale `k`; `hover` is where
 /// the pointer is. Returns where everything went.
-pub fn paint_splash(b: &mut Brush, band: Rect, shown: Shown, t: &Tokens, k: f32, hover: Option<Pos2>) -> Painted {
+pub fn paint_splash(
+    b: &mut Brush,
+    band: Rect,
+    shown: Shown,
+    t: &Tokens,
+    k: f32,
+    hover: Option<Pos2>,
+) -> Painted {
     let ctx = b.ctx().clone();
     let inner = Rect::from_min_max(
         Pos2::new(band.left() + SPLASH_MARGIN * k, band.top()),
         Pos2::new(band.right() - SPLASH_MARGIN * k, band.bottom()),
     );
-    ornament(b, Pos2::new(inner.center().x, inner.top() + 6.0 * k), inner.width() * 0.5, t, k);
+    ornament(
+        b,
+        Pos2::new(inner.center().x, inner.top() + 6.0 * k),
+        inner.width() * 0.5,
+        t,
+        k,
+    );
     let f = fit(&ctx, shown.text(), inner.width(), k);
     let cite_h = 16.0 * k;
     let gap = 8.0 * k;
@@ -162,13 +188,31 @@ pub fn paint_splash(b: &mut Brush, band: Rect, shown: Shown, t: &Tokens, k: f32,
     );
     let block = f.lines.height() + gap + cite_h;
     let top = room.top() + ((room.height() - block) * 0.5).max(0.0);
-    let text_rect = Rect::from_min_size(Pos2::new(inner.left(), top), Vec2::new(inner.width(), f.lines.height()));
-    let (painted_text, short_text) = prose::paint(b, text_rect, &f.lines, ROLE, k * f.scale, t.text, Align2::CENTER_TOP);
+    let text_rect = Rect::from_min_size(
+        Pos2::new(inner.left(), top),
+        Vec2::new(inner.width(), f.lines.height()),
+    );
+    let (painted_text, short_text) = prose::paint(
+        b,
+        text_rect,
+        &f.lines,
+        ROLE,
+        k * f.scale,
+        t.text,
+        Align2::CENTER_TOP,
+    );
     let cite_rect = Rect::from_min_size(
         Pos2::new(inner.left(), text_rect.bottom() + gap),
         Vec2::new(inner.width(), cite_h),
     );
-    let (painted_cite, short_cite) = citation(b, cite_rect, &shown.citation(), t.brand, k, Align2::CENTER_CENTER);
+    let (painted_cite, short_cite) = citation(
+        b,
+        cite_rect,
+        &shown.citation(),
+        t.brand,
+        k,
+        Align2::CENTER_CENTER,
+    );
     let link_rect = Rect::from_min_max(
         Pos2::new(inner.left(), inner.bottom() - link_h - 6.0 * k),
         Pos2::new(inner.right(), inner.bottom() - 6.0 * k),
@@ -190,7 +234,10 @@ pub fn paint_splash(b: &mut Brush, band: Rect, shown: Shown, t: &Tokens, k: f32,
 pub fn splash_hide_rect(band: Rect, k: f32) -> Rect {
     let right = band.right() - SPLASH_MARGIN * k;
     let bottom = band.bottom() - 6.0 * k;
-    Rect::from_min_max(Pos2::new(right - 150.0 * k, bottom - 18.0 * k), Pos2::new(right + 4.0 * k, bottom + 2.0 * k))
+    Rect::from_min_max(
+        Pos2::new(right - 150.0 * k, bottom - 18.0 * k),
+        Pos2::new(right + 4.0 * k, bottom + 2.0 * k),
+    )
 }
 
 // ---- the start card ----------------------------------------------------------------------
@@ -325,7 +372,10 @@ fn card_rows(rect: Rect, f: &Fit) -> (Rect, Rect, Rect) {
 /// Where *Don't show again* answers the pointer on the card.
 fn hide_rect_in_card(rect: Rect, f: &Fit) -> Rect {
     let (_, _, link) = card_rows(rect, f);
-    Rect::from_min_size(link.min - Vec2::new(4.0, 2.0), Vec2::new(170.0, link.height() + 4.0))
+    Rect::from_min_size(
+        link.min - Vec2::new(4.0, 2.0),
+        Vec2::new(170.0, link.height() + 4.0),
+    )
 }
 
 /// Paint the card's face in `rect` (the panel is already drawn): the gold edge, the
@@ -378,7 +428,10 @@ pub fn settings(app: &mut CantusApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         w::row_label(ui, "verse.settings.show", LABEL_W, 24.0);
         let mut sel = usize::from(!app.settings.verse.show);
-        let labels = [Src::Key("verse.settings.on"), Src::Key("verse.settings.off")];
+        let labels = [
+            Src::Key("verse.settings.on"),
+            Src::Key("verse.settings.off"),
+        ];
         if segmented(ui, &mut sel, &labels, &t("verse.settings.show"), 160.0).changed() {
             app.settings.verse.show = sel == 0;
             if !app.settings.verse.show {

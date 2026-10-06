@@ -364,9 +364,9 @@ fn paint(
         );
         b.rrect(b.snap_rect(done), 2.0 * k, Fill::Solid(t.brand));
         let painted = match verse {
-            SplashVerse::Shown(v) if fonts => Some(crate::views::verse::paint_splash(
-                b, band, v, &t, k, hover,
-            )),
+            SplashVerse::Shown(v) if fonts => {
+                Some(crate::views::verse::paint_splash(b, band, v, &t, k, hover))
+            }
             SplashVerse::Hidden if fonts => {
                 let _ = text::paint(
                     b,
