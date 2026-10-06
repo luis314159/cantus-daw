@@ -65,7 +65,8 @@ pub mod voices;
 /// | Version | Change |
 /// |---|---|
 /// | 1 | the version that introduced the constant (round 21): std's transcendentals |
-pub const DSP_VERSION: u32 = 1;
+/// | 2 | [`math`]: every transcendental from the pinned pure-Rust `libm` (ADR 0031 R9) |
+pub const DSP_VERSION: u32 = 2;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

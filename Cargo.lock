@@ -830,6 +830,7 @@ name = "cantus-dsp"
 version = "0.1.0"
 dependencies = [
  "hound",
+ "libm",
 ]
 
 [[package]]

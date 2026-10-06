@@ -206,9 +206,11 @@ fn the_v14_fixture_kit_renders_exactly_as_it_did() {
 }
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
-const GOLDEN_V1_KIT: &str = "f62e0826f462992c457ab0426add219761236867e2a2b579e94aa3e3e3975a52";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
+const GOLDEN_V1_KIT: &str = "0749b097ff0d24febc9c54a5c5bd11a7d3704466feae692e36099c026911c0a6";
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
-const GOLDEN_V14_KIT: &str = "e406798eb654ac64c1013bfdddc524a8afa8968db1efa7ce66e26e55e8e7c9de";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.0e-8 (−150.5 dBFS).
+const GOLDEN_V14_KIT: &str = "20142bf8f3bbc7dfbd4fffdb55033257f5e3f39529b80ea2510063401bd56c13";
 
 /// Model 1 keeps even its defect: its noise is seeded by a hit count that a seek resets,
 /// so a render that starts at bar 2 is pinned too — as Pulsus I rendered it.
@@ -231,8 +233,9 @@ fn a_pulsus_one_kit_rendered_from_bar_two_is_as_it_was() {
 }
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
 const GOLDEN_V1_FROM_BAR_2: &str =
-    "3569a15954627d41bab23a1d5596d1fbb00cd9d83ebd40a8923f2d5fb226599f";
+    "7cad1abd2d1e992b42c9a8a1febf6fbb8e04049df48133e41be6112b59f10c05";
 
 // ---- Pulsus II through the engine ---------------------------------------------------------
 

@@ -9,6 +9,8 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Pure-Rust transcendentals: the same bits on every machine (src/math.rs).
+libm.workspace = true
 
 [dev-dependencies]
 hound.workspace = true

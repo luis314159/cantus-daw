@@ -787,7 +787,8 @@ fn a_pre_strip_project_renders_exactly_as_it_did() {
 }
 
 /// Computed on 2026-09-10 from the render above, before the mixer strips existed.
-const GOLDEN_V5: &str = "d47497de29167fd194d899446e580602c8e655fb25c47c81a4c29672dee073b3";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 2.6e-5 (−91.8 dBFS).
+const GOLDEN_V5: &str = "26f7d439298f96403a574357f356ad9f2ecedd5b0a8dd84cd3100f23f7db3566";
 
 /// With `CANTUS_GOLDEN_DUMP=<folder>`, writes a golden's samples there (`<name>.f32`, raw
 /// little-endian) so a reviewed `DSP_VERSION` bump can state how far each golden moved
