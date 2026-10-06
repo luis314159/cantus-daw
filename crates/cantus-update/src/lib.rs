@@ -12,6 +12,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod flexasio;
 pub mod install;
 pub mod net;
 pub mod notes;

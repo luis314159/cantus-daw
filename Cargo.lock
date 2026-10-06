@@ -908,6 +908,7 @@ dependencies = [
  "cantus-engine",
  "cantus-host",
  "cantus-project",
+ "cantus-update",
  "eframe",
  "egui",
  "egui_dock",

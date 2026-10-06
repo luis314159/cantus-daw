@@ -38,6 +38,8 @@ pub struct UpdateUi {
     kind: Option<InstallKind>,
     /// The proxy field's text while it is edited.
     proxy: Option<String>,
+    /// A status to show instead of the updater's (the screenshots, `demo_setup`).
+    demo: Option<Status>,
 }
 
 impl Default for UpdateUi {
@@ -52,6 +54,7 @@ impl Default for UpdateUi {
             launch_error: None,
             kind: None,
             proxy: None,
+            demo: None,
         }
     }
 }
@@ -62,6 +65,9 @@ impl UpdateUi {
     }
 
     pub fn status(&self) -> Status {
+        if let Some(d) = &self.demo {
+            return d.clone();
+        }
         self.updater.as_ref().map_or(Status::Idle, Updater::status)
     }
 }
@@ -591,4 +597,45 @@ pub fn settings_section(app: &mut CantusApp, ui: &mut Ui) {
         let (line_text, warn) = status_line(&app.update, &app.update.status());
         note(ui, &line_text, warn);
     });
+}
+
+/// The screenshots' states (`examples/shoot.rs`): `update` (a release offered),
+/// `update-ready` (downloaded and verified), `update-notice` (the notice alone),
+/// `update-held` (a proxy holding the download).
+pub fn demo_setup(app: &mut CantusApp, kind: &str) {
+    let md = "## What is new
+
+* **Automation clips**: draw a curve on any knob, and see it under the clip.
+* The device picker shows [every instrument and effect](https://example.com) at once, with drawn thumbnails.
+* Swap an instrument for another and keep its notes, its mixer strip and its effects.
+
+## Fixed
+
+- The mixer no longer clicks when a send is muted while playing.
+- Recording with ASIO at 32 samples keeps every take aligned.
+";
+    let offer = cantus_update::Offer {
+        version: "0.2.0".into(),
+        title: "Cantus 0.2.0".into(),
+        notes: cantus_update::notes::read(md, updater::NOTE_LINES),
+        page: "https://github.com/luis314159/cantus/releases/tag/v0.2.0".into(),
+        installer: Some(cantus_update::release::Asset {
+            name: cantus_update::release::installer_name("0.2.0", Flavor::Standard),
+            size: 14_200_000,
+            browser_download_url: String::new(),
+            digest: None,
+        }),
+        sums_url: None,
+    };
+    app.update.kind = Some(InstallKind::Installed);
+    app.update.started = true;
+    app.update.demo = Some(match kind {
+        "update-ready" => Status::Ready {
+            offer,
+            installer: std::path::PathBuf::from("Cantus-0.2.0-windows-x64-setup.exe"),
+        },
+        "update-held" => Status::Held { offer, attempt: 2 },
+        _ => Status::Available(offer),
+    });
+    app.update.open = kind != "update-notice";
 }

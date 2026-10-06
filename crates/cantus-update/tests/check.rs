@@ -394,10 +394,40 @@ fn windows_reads_an_unsigned_file_as_unsigned() {
     let f: PathBuf = dir.path().join("unsigned.exe");
     std::fs::copy(std::env::current_exe().unwrap(), &f).unwrap();
     let sig = verify::authenticode(&f).expect("powershell answers");
-    assert_eq!(sig.status, "NotSigned");
+    assert_eq!(sig.status, "NotSigned", "{sig:?}");
     assert_eq!(
-        verify::check_publisher(&f, Some("Anyone")),
+        verify::check_signature(&sig, "Anyone"),
         Err(VerifyError::Unsigned)
     );
     assert_eq!(verify::check_publisher(&f, None), Ok(()));
+}
+
+const FLEXASIO: &str = include_str!("fixtures/flexasio-latest-recorded.json");
+
+#[test]
+fn flexasio_s_latest_release_names_its_installer() {
+    use cantus_update::flexasio;
+    let r = flexasio::parse(FLEXASIO.as_bytes()).expect("the recorded answer parses");
+    assert!(r.tag_name.starts_with("flexasio-"), "not SemVer, still read");
+    let a = flexasio::installer(&r).expect("an .exe");
+    assert!(a.name.starts_with("FlexASIO-") && a.name.ends_with(".exe"));
+    assert!(a.size > 1_000_000);
+    assert_eq!(flexasio::parse(PROXY_PAGE), Err(ParseError::Html));
+
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join(&a.name);
+    let mut asset = a.clone();
+    // A program of the reported size passes; a proxy page, a wrong size or a non-program
+    // does not, and none of them is ever run.
+    let mut program = b"MZ".to_vec();
+    program.resize(4096, 0);
+    std::fs::write(&f, &program).unwrap();
+    asset.size = 4096;
+    assert_eq!(flexasio::check(&f, &asset), Ok(()));
+    asset.size = 4097;
+    assert!(matches!(flexasio::check(&f, &asset), Err(VerifyError::Size { .. })));
+    std::fs::write(&f, PROXY_PAGE).unwrap();
+    assert_eq!(flexasio::check(&f, &asset), Err(VerifyError::Html));
+    std::fs::write(&f, b"PK\x03\x04 a zip").unwrap();
+    assert_eq!(flexasio::check(&f, &asset), Err(VerifyError::Html));
 }

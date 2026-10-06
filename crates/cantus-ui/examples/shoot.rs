@@ -142,6 +142,8 @@ fn main() {
         if kind == "settings" {
             views::settings_audio::demo_setup(&mut app);
             app.show_settings = true;
+        } else if kind.starts_with("update") {
+            views::update::demo_setup(&mut app, kind);
         } else if hosted {
             cantus_ui::views::plugins::demo_setup(&mut app, &test_plugin(), kind == "plugin");
         } else if kind == "master" {
@@ -235,7 +237,9 @@ fn main() {
             }
             views::fx::demo_feed(&mut app, cantus_core::EffectKind::Eq);
         }
-        if !matches!(kind, "" | "eq" | "comp" | "plugin" | "plugins" | "settings") {
+        if !matches!(kind, "" | "eq" | "comp" | "plugin" | "plugins" | "settings")
+            && !kind.starts_with("update")
+        {
             if let Some((_, _, k)) = app.fx.open {
                 views::fx::demo_feed(&mut app, k);
             }
@@ -287,6 +291,9 @@ fn main() {
                 }
                 views::inst::window(&mut app, &ctx);
                 views::pulsus_editor::window(&mut app, &ctx);
+                if kind.starts_with("update") {
+                    views::update::frame(&mut app, &ctx);
+                }
             },
         );
         println!("wrote {}", path.display());

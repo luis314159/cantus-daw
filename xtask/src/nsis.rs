@@ -181,6 +181,12 @@ pub fn write_work(work: &Path, s: &Staged, c: &Config) -> PathBuf {
     std::fs::write(work.join("strings.nsh"), strings_nsh(&en, &es)).unwrap();
     let nsi = work.join("cantus.nsi");
     std::fs::copy(ws.join("xtask/installer/cantus.nsi"), &nsi).unwrap();
+    // The ASIO flavour's optional FlexASIO step (the script is the same for both).
+    std::fs::copy(
+        ws.join("xtask/installer/flexasio.ps1"),
+        work.join("flexasio.ps1"),
+    )
+    .unwrap();
     nsi
 }
 

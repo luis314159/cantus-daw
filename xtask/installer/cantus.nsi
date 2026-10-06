@@ -162,6 +162,32 @@ Section "$(CANTUS_SECTION_VST3)" SecVst3
   !insertmacro CANTUS_VST3_FILES
 SectionEnd
 
+!if "${FLAVOR}" == "asio"
+; FlexASIO (MIT): fetched at install time, the latest release, never bundled; checked
+; (a program, the size GitHub reports) and run elevated by flexasio.ps1. Off by default,
+; never in a silent install or update, and not remembered. ASIO4ALL is not offered: its
+; licence forbids redistribution (the app links to it).
+Section /o "$(CANTUS_SECTION_FLEXASIO)" SecFlexAsio
+  ${If} ${Silent}
+    Return
+  ${EndIf}
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File "flexasio.ps1"
+  DetailPrint "$(CANTUS_FLEXASIO_FETCHING)"
+  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIRlexasio.ps1" -Dest "$PLUGINSDIR"'
+  Pop $0
+  ${If} $0 == 0
+    DetailPrint "$(CANTUS_FLEXASIO_DONE)"
+  ${ElseIf} $0 == 11
+    DetailPrint "$(CANTUS_FLEXASIO_HELD)"
+  ${Else}
+    DetailPrint "$(CANTUS_FLEXASIO_FAILED)"
+  ${EndIf}
+  SetOutPath "$INSTDIR"
+SectionEnd
+!endif
+
 !macro REMEMBER SEC NAME
   ${If} ${SectionIsSelected} ${SEC}
     WriteRegDWORD HKCU "${REG_APP}" "${NAME}" 1
@@ -200,6 +226,9 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "$(CANTUS_DESC_DESKTOP)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecClap} "$(CANTUS_DESC_CLAP)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecVst3} "$(CANTUS_DESC_VST3)"
+  !if "${FLAVOR}" == "asio"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecFlexAsio} "$(CANTUS_DESC_FLEXASIO)"
+  !endif
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; A choice stored by an earlier install (1 or 0) wins over the section's default.
