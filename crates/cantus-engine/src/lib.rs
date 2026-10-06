@@ -26,6 +26,7 @@ pub mod recorder;
 pub mod render;
 pub mod routing;
 pub mod samples;
+pub mod sched;
 pub mod stems;
 pub mod transport;
 

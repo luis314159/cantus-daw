@@ -26,6 +26,9 @@ lewton = "0.10"
 # cpal's build script downloads it) and LLVM's libclang for bindgen (`LIBCLANG_PATH`).
 # See docs/round19/devices.md for the exact steps.
 asio = ["cpal/asio"]
+# The scheduler's `buggify!` sites (ADR 0031 R13): compiled in only for the schedule fuzz
+# (`cargo test -p cantus-engine --features fuzz --test sched`); never in a release build.
+fuzz = []
 
 [dev-dependencies]
 tempfile = "3"
