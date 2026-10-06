@@ -221,6 +221,20 @@ language — our DAW has Christian values."* (The project's motto is Colossians 
 - Bundled as a small text file per locale (`locales/verses/<lang>.txt`), the reference
   shown in that language's book names; the translation's name and licence credited in
   About.
+- **The owner's choice of translation (2026-10-05): RVR1960 with a short list if its
+  terms allow it; otherwise the public-domain RV1909.** What was found (search on
+  2026-10-05, American Bible Society rights page,
+  https://bibles.com/pages/american-bible-society-rights-and-permissions): the RVR1960 may
+  be quoted, in any form including electronic, **up to 500 verses without written
+  permission**, provided the verses are not 50 % of a book of the Bible, are under 25 %
+  of the total text of the work, **the work is available for non-commercial use**, and it
+  carries the acknowledgement *"Reina-Valera 1960 © Sociedades Bíblicas en América
+  Latina, 1960. Renovado © Sociedades Bíblicas Unidas, 1988. Utilizado con permiso."*
+  **To research before shipping:** (1) whether a free GPL app counts as non-commercial
+  when the GPL lets others sell copies — ask SBU/ABS in writing, or keep the verse file as
+  separately licensed data that downstream sellers must drop; (2) the same terms for the
+  other locales' modern translations; (3) read the terms on the publisher's own page, not
+  only a search excerpt. Until a written answer, ship RV1909.
 - **On by default, with an On/Off switch** (decided by the owner, 2026-10-05: *"so someone
   who does not share our beliefs and is bothered by it can turn it off — but ON by
   default"*): Settings ▸ General ▸ *Show a verse at start*, plus a small *don't show* link
