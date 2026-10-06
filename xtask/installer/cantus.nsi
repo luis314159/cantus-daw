@@ -175,6 +175,8 @@ Section /o "$(CANTUS_SECTION_FLEXASIO)" SecFlexAsio
   SetOutPath "$PLUGINSDIR"
   File "flexasio.ps1"
   DetailPrint "$(CANTUS_FLEXASIO_FETCHING)"
+  ; Windows PowerShell builds its own module path (one inherited from PowerShell 7 breaks it).
+  System::Call 'Kernel32::SetEnvironmentVariable(t "PSModulePath", p 0)'
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\flexasio.ps1" -Dest "$PLUGINSDIR"'
   Pop $0
   ${If} $0 == 0

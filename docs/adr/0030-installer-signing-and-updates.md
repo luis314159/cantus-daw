@@ -51,6 +51,21 @@ names; it installs over the same folder (a user has one or the other) and update
 own flavour. The ASIO SDK is GPL-3-compatible since 2025, so the binary can be shipped; the
 SDK itself is never committed.
 
+**FlexASIO, fetched, never bundled** (the owner, 2026-10-06). The ASIO flavour's installer
+offers an unticked component, *FlexASIO driver (downloaded now)*. When ticked it runs
+`flexasio.ps1` (embedded in the installer): it asks GitHub for FlexASIO's **latest**
+release, takes its `FlexASIO-<version>.exe`, checks that what arrived is a Windows
+program (`MZ`), not a proxy's page, of exactly the size GitHub reports (and its SHA-256
+when GitHub gives a digest — FlexASIO's assets have none today, and its `.sigstore`
+bundle needs a verifier we do not ship), and runs it elevated (UAC). Anything else is
+skipped with a line in the install log and nothing is run; a silent install or update
+never does it. PowerShell's `Invoke-WebRequest` was chosen over an NSIS download plug-in
+because it uses Windows' own proxy settings, PAC scripts included, and certificate store
+— the one way to behave as the browser does behind a corporate proxy — and NSIS needs no
+third-party plug-ins. The same checks are in `cantus_update::flexasio` for the app's
+audio setup (the audio-setup builder's first-run offer). ASIO4ALL is never downloaded or
+bundled: its licence forbids redistribution, so the app only links to its page.
+
 ### 2. One task makes a release
 
 `cargo run -p xtask -- package [--asio|--all] [--sign|--sign-test] [--no-build]

@@ -74,6 +74,7 @@ pub fn run_elevated(installer: &Path) -> std::io::Result<bool> {
     let status = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("CANTUS_FLEXASIO", installer)
+        .env_remove("PSModulePath")
         .status()?;
     Ok(status.success())
 }

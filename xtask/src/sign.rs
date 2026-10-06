@@ -185,6 +185,7 @@ pub fn status(file: &Path) -> (String, String) {
     let out = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("CANTUS_VERIFY_PATH", file)
+        .env_remove("PSModulePath")
         .output()
         .expect("run powershell");
     let text = String::from_utf8_lossy(&out.stdout).trim().to_owned();
@@ -245,6 +246,7 @@ pub fn make_test_cert(target: &Path) {
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("CANTUS_TEST_PFX", &pfx)
         .env("CANTUS_TEST_PFX_PASSWORD", &password)
+        .env_remove("PSModulePath")
         .output()
         .expect("run powershell");
     if !out.status.success() {

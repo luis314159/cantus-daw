@@ -312,7 +312,7 @@ fn notes(ui: &mut Ui, offer: &cantus_update::Offer) {
                             Vec2::splat(4.0 * s.k),
                         );
                         with_brush(ui.painter(), |b| {
-                            b.rrect(dot, 2.0 * s.k, Fill::Solid(s.t.gold));
+                            b.rrect(dot, 2.0 * s.k, Fill::Solid(s.t.brand));
                         });
                     }
                 }
@@ -510,7 +510,7 @@ fn notice(app: &mut CantusApp, ctx: &Context, status: &Status) {
                     Pos2::new(rect.left() + 16.0 * k, rect.center().y),
                     Vec2::splat(8.0 * k),
                 );
-                b.rrect(dot, 4.0 * k, Fill::Solid(s.t.gold));
+                b.rrect(dot, 4.0 * k, Fill::Solid(s.t.brand));
                 let tr = Rect::from_min_max(
                     Pos2::new(dot.right() + 10.0 * k, rect.top()),
                     Pos2::new(rect.right() - 36.0 * k, rect.bottom()),

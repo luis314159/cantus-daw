@@ -166,7 +166,9 @@ pub fn check_signature(sig: &Signature, publisher: &str) -> Result<(), VerifyErr
 pub fn authenticode(path: &Path) -> Result<Signature, String> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let script = "$s = Get-AuthenticodeSignature -LiteralPath $env:CANTUS_VERIFY_PATH; \
+    let script = "$ErrorActionPreference = 'Stop'; \
+        [Console]::OutputEncoding = [Text.Encoding]::UTF8; \
+        $s = Get-AuthenticodeSignature -LiteralPath $env:CANTUS_VERIFY_PATH; \
         [pscustomobject]@{ status = [string]$s.Status; \
         subject = [string]$s.SignerCertificate.Subject; \
         thumbprint = [string]$s.SignerCertificate.Thumbprint; \
@@ -174,15 +176,24 @@ pub fn authenticode(path: &Path) -> Result<Signature, String> {
     let out = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("CANTUS_VERIFY_PATH", path)
+        // A PowerShell 7 parent leaves its module path behind, and Windows PowerShell then
+        // fails to load its own Security module: let it build its default path.
+        .env_remove("PSModulePath")
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
     }
+    // UTF-8 asked for above; lossy all the same, so a localised message never fails it.
+    let text = String::from_utf8_lossy(&out.stdout);
+    let json = text.trim().trim_start_matches('\u{feff}');
     let v: serde_json::Value =
-        serde_json::from_slice(&out.stdout).map_err(|e| format!("powershell: {e}"))?;
+        serde_json::from_str(json).map_err(|e| format!("powershell: {e}"))?;
     let field = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_owned();
+    if field("status").is_empty() {
+        return Err("powershell gave no signature status".into());
+    }
     Ok(Signature {
         status: field("status"),
         subject: field("subject"),
