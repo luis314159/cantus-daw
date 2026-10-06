@@ -507,3 +507,349 @@ prefetch mode and runs in its realtime render mode, since rendering ahead is sti
 real-time quality. A plug-in whose output changes with *wall time* rather than its input
 (a network or hardware device) declares it (`has_hard_realtime_requirement`) or is marked
 by the user, and stays live.
+
+### 4. The render cache: automatic background freeze
+
+Every DAW freezes by hand (Ableton's *Freeze Track* even locks the device's parameters).
+Cantus freezes by itself, invisibly, and exactly: a node whose inputs have not changed
+since it was last rendered is **played from its earlier output** instead of being computed.
+Heavy synths and long reverbs cost nothing once they stop changing; any edit invalidates
+exactly what it touches.
+
+**4.1 What is cached, and where.** The output of an *expensive* node at its **pre-fader**
+point, so that the cheapest and most frequent edits — a fader, a pan, a send level, a
+mute — never invalidate it:
+
+- a **track**: the instrument with its clips, *before* the channel's level and balance;
+- a **strip**: the gathered input through the insert chain, *before* the EQ, width, pan
+  and fader (the EQ is the strip's cheapest stage and the most often touched);
+- never a live node (§3.2): its input is not reproducible.
+
+"Expensive" is measured, not guessed: the profiler's running cost of the node (§2.9); the
+nodes with the highest cost per cached byte are cached first, within the disk budget
+(§4.6).
+
+**4.2 The fingerprint: a chain over time pages.** The song is cut into **pages** of
+2¹⁵ frames (0.68 s at 48 kHz), counted from engine sample 0 of the timeline. A page's key
+is a 128-bit hash of everything its output can depend on:
+
+```
+key(node, k) = H( DSP_VERSION, sample rate, tempo map,
+                  node's static key   — kinds, every parameter value, bypass/mix/switches,
+                                         the instrument spec, sample and asset content
+                                         hashes, a hosted plug-in's id, version and state
+                                         hash, its edges' delays and gains,
+                  page inputs (k)     — a track: its events, automation and audio-clip
+                                         windows (with source content hashes) that touch
+                                         page k; a strip: key(pred, k) of every input in
+                                         canonical order, of its key and its note source,
+                  state (k)           — SETTLED if the node was at rest (§5.1) at the
+                                         page's first sample, else key(node, k − 1) )
+```
+
+The `state` term is what makes it exact: a page depends on everything before it *unless*
+the node was at rest when the page began, and the render records, per page, whether it
+was. So the chain restarts at every **settle point** — the silence between phrases, the
+end of a reverb — and an edit at bar 30 invalidates from its page to the node's next
+settle point, not to the end of the song. The key function destructures every snapshot
+field it reads without `..`, so a field added to the model fails to compile until someone
+decides whether it belongs in the key.
+
+**4.3 Playing from the cache.** A cached node is an *ahead* node (§3) whose "render" is a
+copy: an ahead worker copies the page from memory into the node's ring. Switching between
+cached and computed respects the node's state:
+
+- **computed → cached** at any page boundary: the output is known, the state is simply no
+  longer advanced (the node becomes *cold*);
+- **cached → computed** only at a page whose start is a settle point (the node is reset,
+  which is its state there by definition) — or after **warming**: an ahead worker runs the
+  cold node from the last settle point before the transition, output discarded, so its
+  state is right when playback arrives. If it cannot finish in time, the node computes from
+  where play started instead: slower, never wrong.
+
+Pages are read from disk by the streaming reader (the backlog's disk item) into a pool of
+preallocated page buffers, at least two seconds ahead of the playhead; the audio side only
+ever sees resident pages. *Play* waits for the first page of each cached node, as disk
+streaming waits for its first buffers (on NVMe, 100 nodes × 256 KiB is a few tens of
+milliseconds). A page that is not resident in time is a **disk overload**, reported like
+one ("the disk is too slow for the render cache: Pad"), and the node falls back to
+computing from its last settle point.
+
+**4.4 Writing it: for free while playing, in the background when idle.** (a) Whatever an
+eligible node renders during playback is copied, as a by-product, into a write-behind ring
+that a disk thread drains (no I/O on any real-time thread; a full ring drops the page from
+the cache, never audio). (b) When the transport is stopped, **background freeze** threads
+(lowest priority, E-cores first; §2.6) render invalid pages of the most expensive nodes with
+the offline executor (§7), in large blocks, starting from each node's settle points and
+nearest the playhead first. It stops the moment the user plays and resumes after.
+
+**4.5 Hosted plug-ins.** Native units are deterministic by ADR 0005. A hosted plug-in is
+cached only when both hold:
+
+1. **Its state is fingerprinted.** Parameter values are in the snapshot; for state that is
+   not a parameter, the host saves the plug-in's state on the main thread when it says it
+   changed (CLAP `state.mark_dirty`, VST3 `setDirty` / `restartComponent`) and hashes the
+   blob. A plug-in that never says so is hashed on each save of the project, and is cached
+   only between saves.
+2. **It passed the determinism probe.** The first page cached for a plug-in is rendered a
+   second time by a fresh instance loaded with the same state (the offline render already
+   builds such instances, ADR 0019) and the two compared bit for bit. Different — a
+   random seed from the clock, analog drift, internal threads racing — and the plug-in is
+   **never cached**, which the plug-in manager says ("its output differs between runs").
+   The user can override in both directions.
+
+**4.6 On disk.** Content-addressed, per user, shared across projects:
+`%LOCALAPPDATA%\Cantus\cache\render\ab\abcdef….page`, one file per page, named by its key.
+Undo restores old keys, so undoing an edit finds its pages still there — the cache does not
+just survive undo, undo is free. A page file: a 64-byte header (magic `CNTSRPG1`, format
+version, rate, frames, channels, flags `silent` / `settled_at_start` / `settled_at_end`,
+the key, a CRC-32 of the payload), then planar little-endian `f32` (left, then right) —
+256 KiB a page, **nothing** for a silent one. Raw, not compressed: a general-purpose
+lossless codec saves little on float audio and costs CPU on the read path; revisited if
+the budget bites. Budget: a setting, default 10 GiB, least-recently-used eviction weighted
+by the node's cost per byte. A three-minute stereo node is 69 MB; a 100-node song fully
+cached is about 7 GB, so the budget is what makes "cache the expensive nodes first" a rule.
+
+**4.7 Trusting it.** A stale page is the worst bug a DAW can have — the user hears
+yesterday's mix. So: the key covers the snapshot by construction (4.2); `DSP_VERSION` is
+bumped whenever any kernel's output changes (§5.3), which invalidates every page at once;
+and an **audit** re-renders a random cached page per minute of background time and compares
+bits — any difference disables the cache for that node kind and is reported as a bug. The
+cache ships **off by default** until the audit has run clean through a round of real use.
+
+### 5. Silence, denormals, SIMD and memory
+
+**5.1 At rest: suspension that is exact.** Today a strip with an insert runs every
+segment of every block, silent or not. FL's *Smart disable* and REAPER's auto-bypass
+suspend plug-ins by *detecting* silence, and FL's manual warns that it breaks time- and
+envelope-based plug-ins — because detection guesses. Cantus asks the unit instead. The
+contracts gain one method each, default `false` (so nothing changes until a unit opts in):
+
+```rust
+/// True when the unit is **at rest**: its state is bit-identical to a freshly reset and
+/// configured unit's, so that with silent input (and silent key, and no note) `process`
+/// would output exact zeros and leave the state unchanged. Skipping such calls, and
+/// resetting the unit before the next non-silent one, changes no sample.
+fn at_rest(&self) -> bool { false }        // FxUnit; InstrumentUnit likewise
+```
+
+A node whose units are all at rest, whose gathered input is all-zero this pass (§1.3
+already knows: every contribution was skipped) and whose delay lines are empty is
+**suspended** — not called at all, its output marked silent. A strip whose inputs are all
+suspended is suspended in turn, so a whole silent bus subtree costs a few comparisons. It
+wakes on the next non-zero input, note or parameter change, by `reset` + `configure`,
+which by the definition above is the state it would have had. A unit whose state moves
+without input — a free-running LFO, a smoother still gliding, a meter's integration
+window — is not at rest until it truly is; an LFO that follows song position (a function
+of the sample clock, not an accumulator) can be at rest. The *same* predicate marks the
+render cache's settle points (§4.2) and the time-parallel export's split points (§7.3):
+three features from one honest method.
+
+Hosted plug-ins: CLAP's process status says it for them — `CLAP_PROCESS_SLEEP` ("no more
+processing is required until the next event or variation in audio input"),
+`CONTINUE_IF_NOT_QUIET`, `TAIL` with the `tail` extension — and `constant_mask` lets the
+host pass a silent buffer without filling it; VST3 has `getTailSamples` and per-channel
+`silenceFlags`. A hosted node is suspended when the plug-in says so; its bits are then the
+plug-in's own business, as the standards intend.
+
+*What it buys, honestly:* Ableton's manual says it of its own device deactivation — it
+lowers the **average** load, not the **peak**. A silent section is cheap; the busiest bar is
+not made cheaper. Suspension pays in the ahead path, the export and the battery; the peak
+is the scheduler's job (§2) and anticipation's (§3).
+
+**Exactness test** (`fx_contract.rs`, `inst_contract.rs`, every kind, defaults and the
+bench's *heavy* settings): feed signal, then silence until `at_rest()`; a twin that is
+reset there and a twin that keeps processing zeros must produce the same bits when signal
+returns at a random sample, at random block sizes. A unit that fails keeps the default.
+
+**5.2 FTZ/DAZ.** `Processor::process` sets the flags at entry and restores them at exit
+through `cantus_rt::DenormalGuard` (the guard from `cantus-plugins/src/ftz.rs`, moved), and
+every pool thread sets them when it starts and re-asserts them before each node — a
+hosted plug-in may change MXCSR and not put it back, and `ldmxcsr` is a handful of cycles.
+The point of doing it inside `process` rather than in the callback is **determinism**: the
+callback, the offline render, the stems, the bench and every test then run in the same
+floating-point mode, so the null tests keep comparing like with like. The DSP already
+flushes its own state in software (round 17 measured FTZ changing no sample of Sibilus
+while making it 6 % faster); Phase 0 proves it for the whole corpus — every null test and
+the `v5.cantus` hash with the flags on. A hash that moved would mean a kernel relied on
+subnormal arithmetic, and its change would be a reviewed `DSP_VERSION` bump, not an
+accident.
+
+**5.3 SIMD: whole-program first, hand kernels where the profile says.**
+
+- **The build targets x86-64-v3** (AVX2, FMA, BMI2 — every Intel since Haswell, every AMD
+  since Excavator) with an **x86-64-v2 fallback binary** chosen at start-up by a stub that
+  checks `is_x86_feature_detected!`; ARM64 has NEON as its baseline. STATUS measured the v3
+  build of the exported plug-ins 15–25 % faster on the heavy effects, for nothing. It is
+  also bit-identical: Rust never contracts `a * b + c` into an FMA by itself and LLVM does
+  not reorder float reductions without fast-math, so the same source gives the same bits
+  at v2 and v3 — which a CI job proves by comparing the null-test hashes of both builds.
+- **Hand kernels** with portable SIMD (`wide`, safe, compiled for the binary's target), in
+  the order the bench's hot-spot list gives — likely the oversampling FIR halfbands
+  (Comprimo, Fervor at 4×), the linear-phase EQ's FFT convolution (`realfft` / `rustfft`,
+  which already dispatch AVX at run time inside their own audited `unsafe`), biquad
+  cascades across the two channels, and the synths' oscillators and filters.
+- **Synth voices in structure-of-arrays**: a voice bank of `[f32; 8]` fields processed
+  eight voices to an AVX2 register (four to NEON), each voice keeping its lane for its life.
+  Bit-identical by construction: each lane does exactly the scalar voice's operations,
+  and the voices are summed **in voice order**, lane by lane, as the scalar loop does
+  (a horizontal SIMD add would reorder the sum and change bits). Transcendentals use one
+  polynomial for scalar and SIMD. Where a kernel *cannot* keep the bits (a new polynomial,
+  a fused multiply-add on purpose), it is a reviewed `DSP_VERSION` bump: goldens updated in
+  the same commit, render-cache pages invalidated (§4.7), the change written in STATUS.
+- **AVX-512** only as a third binary (x86-64-v4) if the bench shows it pays: Intel's client
+  CPUs (this 12th-gen laptop included) do not have it; Zen 4/5 do.
+
+**5.4 Memory.**
+
+- **Nothing allocates on the callback or on any pool thread** — ADR 0005 extended to every
+  thread that renders. `tests/rt_memory.rs`'s per-thread counting allocator counts every
+  thread the pool marks real-time.
+- **One slab per plan** (§1.4) instead of hundreds of `Vec`s: node buffers 64-byte aligned
+  (a cache line, an AVX-512 register) and padded to whole lines, so two nodes written by
+  two workers never share a line.
+- **Per-node hot scalars** — pending count, cursor, flags, peaks — each in its own
+  cache-line-padded cell (128 bytes on Apple silicon, whose lines are 128), separate from
+  the cold configuration the plan holds read-only.
+- **Per-worker scratch** (`dry`, `edge`, `mono`, the analyser's input) allocated by the
+  worker on its own thread at pool start, so it lives in that core's cache.
+- Unit state stays where ADR 0005 put it: built on the UI thread, delivered in a `Box`,
+  returned as garbage.
+
+### 6. Plug-in sandboxing at scale (designed now, built after the scheduler)
+
+ADR 0019 isolates the *scan*; a plug-in that crashes in `process` still takes Cantus
+down. The model is Bitwig's: a hosting mode per plug-in — **Within Cantus**, **Together**
+(one sandbox for every third-party plug-in), **By vendor**, **By plug-in**, **Individually**
+— with **Together** the default for third-party plug-ins (one crash cannot reach the engine,
+and one process boundary per wave of the graph, not per plug-in) and our own units always
+within. REAPER's "separate" and "dedicated" process modes are the same idea in two
+settings; FL's bridge costs it ~1–2 % CPU per plug-in.
+
+- **The sandbox** is a `cantus-sandbox` executable running `cantus-host` as today (the
+  same `AudioThread`/`MainThread` halves, its own main-thread pump for windows and state),
+  started per group, MMCSS "Pro Audio" on its processing threads.
+- **Shared memory** (one mapping per group, from `cantus-rt`): per instance, its input,
+  key and output buffers, its event lists (notes, parameters, transport) and a
+  **job/completion** pair of sequence numbers; per group, a job ring. All fixed-size,
+  built when the instance is loaded.
+- **No host thread waits on another process.** A sandboxed node is an *external task*: the
+  worker that would run it writes its inputs and events, bumps the job number, and goes on
+  with other ready nodes; the scheduler loop polls the completion numbers it is waiting
+  for (a load per in-flight job) and makes the successors ready when one lands. The
+  sandbox's threads spin on the job ring while the transport plays and park on an event
+  when idle — the same spin-then-park policy as §2.4, and Windows' `WaitOnAddress` does not
+  cross processes, so the park is a named event. A round trip costs two context switches
+  when the sandbox has parked, a cache-line handoff when it spins; Phase 6 measures both
+  before it is built, against a 64-sample budget.
+- **Ahead nodes hide it entirely**: a sandboxed plug-in that is not live (§3.2) runs in
+  the ahead path, where a few tens of microseconds of round trip are nothing.
+- **A crash or a hang** (a job not completed by the block's deadline): the node's output
+  is its dry input for that block, counted (`EngineStats::sandbox_late`), never waited
+  for; a dead process turns every instance in it into a wire and the device into a
+  *Reload / Reload all* notice, as Bitwig does. The engine never stalls.
+- **Per-plug-in CPU**: the sandbox writes each instance's nanoseconds per job beside its
+  completion number, so the profiler's blame (§2.9) names a sandboxed plug-in as it names
+  a native one.
+- **Latency changes without a dropout**: the restart a latency change needs (ADR 0019)
+  happens in the sandbox beside the running instance; the new one is swapped in at a
+  structural switch point (§3.5) with compensation re-planned there.
+
+### 7. Export in parallel, at many times real time
+
+The export (`render.rs`, stems) drives the *same* processor and keeps every bit; it gets the
+same graph and executor with the brakes off:
+
+1. **All cores, no deadline**: every P- and E-core at normal priority, blocks of
+   `MAX_BLOCK_FRAMES` (8 192) — longer calls amortise every unit's per-call overhead, and
+   block-size independence keeps the bits. Hosted plug-ins in their offline mode (CLAP
+   `render` OFFLINE, VST3 `kOffline`), which ADR 0019 left unused.
+2. **Pipelined across time**: every edge carries a ring of a few blocks, so a node can
+   render block *k + 1* while its consumer renders block *k*. A chain of *L* nodes then
+   keeps *L* cores busy. In export and in the ahead path (never live, where it would add
+   latency) **each insert is its own node**, so one strip with five heavy plug-ins — the
+   case Ableton says cannot be spread across cores — is a five-stage pipeline. The master
+   chain of a mastering session is exactly that case.
+3. **Parallel across time**, at settle points (§5.1): a node that is at rest at bar 33 can
+   render bars 1–32 and 33–64 on two cores with two instances (a native unit is rebuilt off
+   the audio thread; a hosted one loaded with the same state), because at a settle point
+   the state *is* a fresh unit's. Bit-identical by the same argument as the cache, and the
+   way past the critical path on a song with pauses. Built last of the export work, behind
+   the at-rest tests.
+4. **The render cache** (§4): pages already valid are copied; a re-export after a mix tweak
+   recomputes only what the tweak touched.
+
+What "many times real time" means is arithmetic, not a promise. A session the serial
+engine plays at load *ℓ* (fraction of one core at real time) exports serially at `1/ℓ` ×
+real time; with *c* effective cores and pipelining, at most `c/ℓ`. A session at 50 % of a
+core exports at ≈ 2× serial today and ≈ 20× on ten effective cores. §4b's 50–200× is
+reachable for lighter sessions and with the cache, and the bench's `render.*` metrics
+are where it is measured, per session, against the other DAWs' export times.
+
+### 8. Risks, and the order of work
+
+The order is in `docs/perf/plan.md` with each phase's builders, files and tests; here is
+why it is that order.
+
+| # | Risk | What contains it |
+|---|---|---|
+| 1 | Per-node segmentation moves bits: a unit that is split-invariant at its defaults and not at some setting | Phase 0 runs first, serial, alone; before it, `fx_contract`/`inst_contract` are extended to the bench's heavy settings and random split points; the `v5.cantus` hash and every null test gate it |
+| 2 | A preempted worker makes the parallel engine drop out where the serial one would not | MMCSS / workgroups / FIFO; a core left free (§2.1); the serial fallback (§2.5); blame that says *preempted* (§2.9); anticipation (§3) takes most nodes off the deadline |
+| 3 | Hosted plug-ins that assume one thread (thread-local caches, a VST3 that dislikes a new thread each block) | a per-plug-in *home worker* (its node only ever runs on one worker; costs scheduling freedom, keeps the plug-in happy), a compatibility list in the plug-in database |
+| 4 | Anticipation's switch points and re-anchoring are where subtle bugs live | the edit-at-`S` oracle (a serial engine given the same edit at `S` must match to the bit), a seeded scheduler that randomises interleavings and chunk sizes in tests, the stop crossfade bounded by a test |
+| 5 | A stale render-cache page — the user hears an old mix | the key's exhaustive destructuring, `DSP_VERSION`, the bit audit, off by default for a round (§4.7) |
+| 6 | The C runtime's `sin`/`exp` may pick code paths by CPU at run time: renders could differ *between machines* (true today, unrelated to threads) | the null tests compare within a machine; the render cache key includes the CPU's feature class; DSP that the corpus covers uses its own approximations |
+| 7 | `unsafe` in `cantus-rt` is unsound | small crate, `SAFETY` comments, Miri and `loom` in CI, nothing audio-specific in it |
+| 8 | Spinning burns battery and heat on a laptop | park after 100 ms of silence (§2.4); an *Eco* setting that parks between blocks and accepts the 55 µs wake |
+| 9 | Builders collide in `processor.rs` | Phase 0 splits it into node files with one owner each (`plan.md`) before anyone else touches it |
+| 10 | There are no baseline numbers yet | every target below is relative to `cantus-bench`'s own baseline on the same machine class, so it is checkable the day `baseline.md` lands |
+
+**Order:** (0) the graph in the serial engine — per-node segments, canonical gather,
+outboxes, FTZ in `process`, the `cantus-rt` crate, the at-rest contracts, limits to 256;
+(1) the live pool; (2) the parallel export and suspension; (3) SIMD and the v3 build, in
+parallel with 1–2; (4) anticipation; (5) the render cache; (6) sandboxing. Each one is
+useful alone and measurable by the bench, and each later one stands on the earlier ones
+exactly where the dependency is real: anticipation needs the node cursors and the pool;
+the cache is an ahead renderer; the sandbox is an external task of the pool.
+
+**Targets** (`cantus-bench` metric names; "×" is against that machine class's baseline):
+
+| Phase | Target |
+|---|---|
+| 0 | every null test, the `v5.cantus` hash, `rt_memory` unchanged; `engine.s64.b128` median ≤ 0.9× (fewer calls per strip); `engine.s100` plays all 100 tracks |
+| 1 | `engine.s64.b128` median ≤ 0.45× and p99 ≤ 0.6× on 6 P-cores (the master chain stays serial: Amdahl's share); `engine.s100.b128` p99 under 80 % of budget; `dawbench.dsp.b64` ≥ 3×; zero `schedule_conflicts`; parallel = serial on the whole corpus under 1 000 seeded schedules |
+| 2 | `render.*` ≥ 4× its baseline on 14 cores; a silent half of the scaled session costs ≤ 10 % of its playing half |
+| 3 | heavy kernels ≥ 1.3× (`fx.*.heavy`), `inst.*.v32` ≥ 2× where SoA lands, hashes equal at v2 and v3 |
+| 4 | `dawbench.dsp.b64` ≥ 1.5× Phase 1 with nothing live (larger calls, E-cores working); a live armed track at 64 samples with the rest ahead: zero dropouts over the bench's run; ahead = live = offline to the bit |
+| 5 | an unchanged re-export ≥ 50× real time; an edit invalidates only its pages to the next settle point (a test counts them); audit clean |
+| 6 | a crashing plug-in in *Together* leaves audio running; round trip measured ≤ 5 % of a 64-sample budget per group, or the default stays *Within Cantus* |
+
+## What the tests hold (summary; per phase in `plan.md`)
+
+- **Bits:** every existing null test, block-size test and the `v5.cantus` SHA-256, run with
+  `W = 0` and with `W ∈ {1, 3, 7}`; a *schedule fuzz* that randomises the ready queue's
+  order, the continuation slot and chunk sizes (seeded, 1 000 seeds in CI) and asserts
+  parallel = serial; ahead = live = offline at each anticipation level; cached = computed.
+- **Real time:** `rt_memory` on the callback and every pool thread; `schedule_conflicts`
+  zero; `EngineStats::wakes` only at idle → busy transitions.
+- **Semantics:** the edit-at-`S` oracle; the stop crossfade's bound; the at-rest twin test
+  for every unit; the cache's invalidation counts; a crashing test plug-in in a sandbox.
+- **Speed:** `xtask perf` gates the targets above per machine class.
+
+## Consequences
+
+- New crates: `cantus-rt` (the only `unsafe`: OS threads, denormals, rings, shared
+  memory); later `cantus-sandbox` (a binary). New engine modules: `graph/` (plan, nodes),
+  `sched/` (pool, queues), `ahead/`, `cache/`. `processor.rs` becomes the control phase
+  and the glue.
+- `EngineMessage::SetSnapshot` carries an optional plan; new `SetPromoted`, `GraphNeed`
+  (event), `EngineStats::{schedule_conflicts, wakes, sandbox_late, ahead_lead}`.
+- Contracts: `FxUnit::at_rest`, `InstrumentUnit::at_rest` (default `false`). The
+  `fx_notes` queue becomes outboxes; the contract of `FxUnit::note` is unchanged.
+- ADR 0005 rule 3 is amended (§2.4). ADR 0019's "whole-block processing for hosted units"
+  and CLAP `render`/`tail`/`thread-pool` are taken up; ADR 0018's pool of lines stays.
+- `MAX_TRACKS`/`MAX_STRIPS` 256. Settings: worker count, anticipation level, render-cache
+  budget and switch, per-plug-in *never ahead*, *home worker*, hosting mode.
+- What the user sees: the engine readout gains *ahead lead* (how far ahead the anticipative
+  path is) beside the load; the dropout notice names the node, or says *preempted*; the
+  plug-in manager says which plug-ins are not cacheable and why.
