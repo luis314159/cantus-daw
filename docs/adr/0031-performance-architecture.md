@@ -1,9 +1,9 @@
 # ADR 0031 — The performance architecture: a compiled graph, a real-time pool, rendering ahead, and never doing work twice
 
-**Status:** Proposed · **Date:** 2026-10-05 · **Extends:** ADR 0005 (real-time rules), · **Reviewed:** 2026-10-06 against the state of the art (last section)
+**Status:** Proposed · **Date:** 2026-10-05 · **Extends:** ADR 0005 (real-time rules),
 ADR 0014/0015 (strips, sends), ADR 0018/0022 (delay compensation, notes into effects),
 ADR 0019 (hosting), ADR 0023 (instruments), ADR 0025 (recording), ADR 0026 (the master
-chain) · **Plan:** `docs/perf/plan.md` · **Prototype:** `docs/perf/proto/`
+chain) · **Plan:** `docs/perf/plan.md` · **Prototype:** `docs/perf/proto/` · **Reviewed:** 2026-10-06 against the state of the art (last section)
 
 ## Context
 
@@ -951,7 +951,7 @@ at MMCSS HIGH the one thread every block waits on would be the lowest-priority t
 the engine. Amend §2.6: *"the callback thread belongs to the driver"* holds for ASIO only;
 on WASAPI the control phase calls `cantus_rt::promote_callback()` on the first block after a
 stream starts — `AvSetMmThreadCharacteristicsW("Pro Audio")` + `AvSetMmThreadPriority(HIGH)`
-— one system call per stream start, counted with `EngineStats::wakes`' kind under ADR 0005's
+— one system call per stream start, counted like `EngineStats::wakes` under ADR 0005's
 amended rule 3. At start-up the process opts out of EcoQoS
 (`SetProcessInformation(ProcessPowerThrottling)`, `ControlMask = EXECUTION_SPEED,
 StateMask = 0`), which is what Steinberg's knowledge base tells Cubase users to do by hand
