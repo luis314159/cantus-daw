@@ -28,6 +28,12 @@ pub struct Device {
     supported_sample_rates: Box<[SampleRate]>,
 
     pub(super) current_callback_flag: Arc<AtomicU32>,
+
+    /// CANTUS PATCH: the loaded driver, kept while this device (from `device_by_id`) lives,
+    /// so building its streams does not unload and load the driver again — loading
+    /// ASIO4ALL took 9-13 s here, each time.
+    #[allow(dead_code)] // held for its drop: the driver stays loaded while the device lives
+    keep: Option<sys::Driver>,
 }
 
 /// All available devices.
@@ -35,6 +41,8 @@ pub struct Devices {
     asio: Arc<sys::Asio>,
     drivers: std::vec::IntoIter<String>,
     current_driver: Option<sys::Driver>,
+    /// CANTUS PATCH: the devices returned keep their driver loaded (`named` only).
+    keep: bool,
 }
 
 impl Device {
@@ -163,6 +171,7 @@ impl Devices {
             asio,
             drivers,
             current_driver: None,
+            keep: false,
         })
     }
 }
@@ -182,6 +191,7 @@ impl Devices {
             asio,
             drivers: drivers.into_iter(),
             current_driver: None,
+            keep: true,
         })
     }
 }
@@ -231,12 +241,26 @@ impl Iterator for Devices {
                         .ok()
                         .and_then(|t| convert_data_type(&t));
 
+                    super::stream::trace(|| format!("{name}: probing rates"));
                     let supported_sample_rates: Box<[SampleRate]> = crate::COMMON_SAMPLE_RATES
                         .iter()
                         .copied()
                         .filter(|&r| driver.can_sample_rate(r.into()).unwrap_or(false))
                         .collect();
 
+                    // CANTUS PATCH: Realtek's ASIO driver refuses every rate in
+                    // `ASIOCanSampleRate` (even the one it runs at), which left the device
+                    // with no input or output configuration at all. A driver runs at least
+                    // at its current rate.
+                    let supported_sample_rates = if supported_sample_rates.is_empty()
+                        && sample_rate > 0.0
+                    {
+                        Box::from([sample_rate as SampleRate])
+                    } else {
+                        supported_sample_rates
+                    };
+                    super::stream::trace(|| format!("{name}: rates {supported_sample_rates:?}"));
+                    let keep = self.keep.then(|| driver.clone());
                     self.current_driver = Some(driver);
 
                     return Some(Device {
@@ -251,6 +275,7 @@ impl Iterator for Devices {
                         supported_sample_rates,
                         // Initialize with sentinel value so it never matches global flag state (0 or 1).
                         current_callback_flag: Arc::new(AtomicU32::new(u32::MAX)),
+                        keep,
                     });
                 }
                 // A different driver is already loaded (e.g. an active Stream holds it). Stop

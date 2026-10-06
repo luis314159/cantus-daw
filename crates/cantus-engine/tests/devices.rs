@@ -275,7 +275,9 @@ fn live_config() -> AudioConfig {
                 v
             }
         }),
-        ..Default::default()
+        // `CANTUS_TEST_RATE`, `CANTUS_TEST_BUFFER`: ask for a rate and a buffer.
+        sample_rate: var("CANTUS_TEST_RATE").and_then(|v| v.parse().ok()),
+        buffer_frames: var("CANTUS_TEST_BUFFER").and_then(|v| v.parse().ok()),
     }
 }
 

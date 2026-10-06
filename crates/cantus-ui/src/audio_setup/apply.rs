@@ -261,7 +261,10 @@ pub fn tick(app: &mut CantusApp) {
     plug::poll(app);
     let now = Instant::now();
     let (total, lost) = match &app.audio_setup.demo {
-        Some(d) => (d.dropouts, d.lost),
+        Some(d) => (
+            d.dropouts,
+            d.device_state() == cantus_engine::DeviceState::Lost,
+        ),
         None => {
             let e = &app.engine;
             (

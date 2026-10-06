@@ -371,6 +371,27 @@ static CALLBACK_FLAG: AtomicU32 = AtomicU32::new(0);
 
 /// Indicates that ASIOOutputReady should be called
 static CALL_OUTPUT_READY: AtomicBool = AtomicBool::new(false);
+
+/// CANTUS PATCH: `CPAL_ASIO_TRACE=1` prints the first buffer switches step by step (where
+/// a driver that stops calling back stops), with the time since the first trace.
+pub fn trace(message: impl FnOnce() -> String) {
+    use std::sync::OnceLock;
+    static ON: OnceLock<Option<std::time::Instant>> = OnceLock::new();
+    if let Some(t0) = ON.get_or_init(|| {
+        std::env::var_os("CPAL_ASIO_TRACE").map(|_| std::time::Instant::now())
+    }) {
+        eprintln!(
+            "[asio-sys {:>8.3} s, thread {:?}] {}",
+            t0.elapsed().as_secs_f64(),
+            std::thread::current().id(),
+            message()
+        );
+    }
+}
+
+/// CANTUS PATCH: buffer switches traced so far (only the first few are).
+static TRACED_SWITCHES: AtomicU32 = AtomicU32::new(0);
+
 static CURRENT_SAMPLE_RATE: AtomicU64 = AtomicU64::new(0);
 
 /// Identifies a driver event callback registered via [`Driver::add_event_callback`].
@@ -462,12 +483,15 @@ impl Asio {
             CString::new(driver_name).map_err(|_| LoadDriverError::LoadDriverFailed)?;
         let mut driver_info = std::mem::MaybeUninit::<ai::ASIODriverInfo>::uninit();
 
+        trace(|| format!("load {driver_name}: loading"));
         unsafe {
             match ai::load_asio_driver(driver_name_cstring.as_ptr() as *mut c_char) {
                 false => Err(LoadDriverError::LoadDriverFailed),
                 true => {
+                    trace(|| format!("load {driver_name}: ASIOInit"));
                     // Initialize ASIO.
                     asio_result!(ai::ASIOInit(driver_info.as_mut_ptr()))?;
+                    trace(|| format!("load {driver_name}: initialised"));
                     let _driver_info = driver_info.assume_init();
                     let mut rate: c_double = 0.0;
                     let _ = asio_result!(ai::get_sample_rate(&mut rate));
@@ -585,6 +609,7 @@ impl Driver {
 
     /// Set the sample rate for the driver.
     pub fn set_sample_rate(&self, sample_rate: f64) -> Result<(), AsioError> {
+        trace(|| format!("set_sample_rate {sample_rate}"));
         let actual = {
             let _guard = self.inner.lock_state();
             unsafe { asio_result!(ai::set_sample_rate(sample_rate))? };
@@ -705,10 +730,10 @@ impl Driver {
             None => buffer_sizes.pref,
         };
 
-        CALL_OUTPUT_READY.store(
-            asio_result!(unsafe { ai::ASIOOutputReady() }).is_ok(),
-            Ordering::Release,
-        );
+        let output_ready = asio_result!(unsafe { ai::ASIOOutputReady() }).is_ok();
+        trace(|| format!("ASIOOutputReady supported: {output_ready}"));
+        TRACED_SWITCHES.store(0, Ordering::Relaxed);
+        CALL_OUTPUT_READY.store(output_ready, Ordering::Release);
 
         // Ensure the driver is in the `Initialized` state.
         if let DriverState::Running = *state {
@@ -862,9 +887,11 @@ impl Driver {
         if let DriverState::Running = *state {
             return Ok(());
         }
+        trace(|| "ASIOStart: call".into());
         unsafe {
             asio_result!(ai::ASIOStart())?;
         }
+        trace(|| "ASIOStart: returned".into());
         *state = DriverState::Running;
         Ok(())
     }
@@ -998,6 +1025,7 @@ impl DriverState {
     }
 
     fn destroy(&mut self) -> Result<(), AsioError> {
+        trace(|| "unloading the driver (ASIOExit)".into());
         if let DriverState::Running = *self {
             self.stop()?;
         }
@@ -1155,6 +1183,7 @@ extern "C" fn asio_message(
     _message: *mut (),
     _opt: *mut c_double,
 ) -> c_long {
+    trace(|| format!("asioMessage selector {selector} value {value}"));
     match AsioMessageSelectors::from_i64(selector as i64) {
         Some(AsioMessageSelectors::kAsioSelectorSupported) => {
             // For selectors that asio-sys itself always handles, advertise support
@@ -1238,6 +1267,11 @@ extern "C" fn buffer_switch_time_info(
     double_buffer_index: c_long,
     _direct_process: c_long,
 ) -> *mut ai::ASIOTime {
+    let n = TRACED_SWITCHES.fetch_add(1, Ordering::Relaxed);
+    let traced = n < 6;
+    if traced {
+        trace(|| format!("bufferSwitchTimeInfo #{n} index {double_buffer_index}: enter"));
+    }
     // This lock is probably unavoidable, but locks in the audio stream are not great.
     let mut bcs = BUFFER_CALLBACK.lock().unwrap();
     let asio_time: &mut AsioTime = unsafe { &mut *(time as *mut AsioTime) };
@@ -1252,9 +1286,16 @@ extern "C" fn buffer_switch_time_info(
     for &mut (_, ref mut bc) in bcs.iter_mut() {
         bc.run(&callback_info);
     }
+    drop(bcs);
+    if traced {
+        trace(|| format!("bufferSwitchTimeInfo #{n}: callbacks done"));
+    }
 
     if CALL_OUTPUT_READY.load(Ordering::Acquire) {
         unsafe { ai::ASIOOutputReady() };
+        if traced {
+            trace(|| format!("bufferSwitchTimeInfo #{n}: ASIOOutputReady done"));
+        }
     }
 
     time
@@ -1268,6 +1309,9 @@ extern "C" fn buffer_switch_time_info(
 extern "C" fn buffer_switch(double_buffer_index: c_long, direct_process: c_long) {
     // Emulate the time info provided by the `buffer_switch_time_info` callback.
     // This is an attempt at matching the behaviour in `hostsample.cpp` from the SDK.
+    if TRACED_SWITCHES.load(Ordering::Relaxed) < 6 {
+        trace(|| format!("bufferSwitch index {double_buffer_index} (no time info)"));
+    }
     let mut time = unsafe {
         let mut time: AsioTime = std::mem::zeroed();
         let res = ai::ASIOGetSamplePosition(

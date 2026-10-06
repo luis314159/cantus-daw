@@ -22,6 +22,9 @@ fn main() {
     let name = args.get(1).cloned().unwrap_or_else(|| "ASIO4ALL v2".into());
     let mode = args.get(2).cloned().unwrap_or_else(|| "duplex".into());
     let secs: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(10);
+    // `pump`: dispatch this thread's window messages while waiting, as a GUI thread does
+    // (an apartment-threaded ASIO driver may run on the loading thread's messages).
+    let pump = args.get(4).is_some_and(|a| a == "pump");
 
     let host = cpal::host_from_id(cpal::HostId::Asio).expect("the ASIO host");
     // Only the driver named is loaded (the patched cpal's `device_by_id`), never the
@@ -121,7 +124,15 @@ fn main() {
     let (mut worst_out, mut worst_in) = (Duration::ZERO, Duration::ZERO);
     let step = Duration::from_millis(250);
     while t0.elapsed() < Duration::from_secs(secs) {
-        std::thread::sleep(step);
+        if pump {
+            let until = Instant::now() + step;
+            while Instant::now() < until {
+                win::pump();
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        } else {
+            std::thread::sleep(step);
+        }
         let (o, i) = (outs.load(Ordering::Relaxed), ins.load(Ordering::Relaxed));
         // Gaps count once a direction has started (ASIO4ALL takes a second to start).
         still_out = if o == last_out && o > 0 { still_out + step } else { Duration::ZERO };
@@ -151,4 +162,35 @@ fn main() {
         if stalled { "STALLED" } else { "ok" }
     );
     drop(streams);
+}
+
+/// The calling thread's window messages, dispatched (what a GUI thread's loop does).
+mod win {
+    #[repr(C)]
+    struct Msg {
+        hwnd: isize,
+        message: u32,
+        wparam: usize,
+        lparam: isize,
+        time: u32,
+        pt: [i32; 2],
+        private: u32,
+    }
+    #[link(name = "user32")]
+    extern "system" {
+        fn PeekMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32, remove: u32) -> i32;
+        fn TranslateMessage(msg: *const Msg) -> i32;
+        fn DispatchMessageW(msg: *const Msg) -> isize;
+    }
+    pub fn pump() {
+        const PM_REMOVE: u32 = 1;
+        let mut m = std::mem::MaybeUninit::<Msg>::zeroed();
+        // SAFETY: plain Win32 calls on this thread's queue with a zeroed MSG.
+        unsafe {
+            while PeekMessageW(m.as_mut_ptr(), 0, 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(m.as_ptr());
+                DispatchMessageW(m.as_ptr());
+            }
+        }
+    }
 }

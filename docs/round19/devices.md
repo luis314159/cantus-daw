@@ -1,5 +1,9 @@
 # Round 19 — devices (drivers, the input stream, latency, the Audio page)
 
+> **Round 21:** ASIO is on by default in `cargo build -p cantus`; `cargo run -p xtask --
+> asio-sdk` fetches and checks the SDK (no `CPAL_ASIO_DIR` needed). cpal and asio-sys are
+> patched (`third_party/`) so duplex ASIO works. See `docs/round21/asio.md`.
+
 Builder: **devices**, branch `r19/devices`. ADR 0025 §7, §8, §10.
 
 ## What is done
