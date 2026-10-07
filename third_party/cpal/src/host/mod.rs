@@ -239,6 +239,9 @@ pub(crate) use error_emit::try_emit_error;
     feature = "audioworklet",
 ))]
 #[inline]
+// CANTUS PATCH: unused in a Windows build without `asio`; as a path dependency cpal's
+// warnings are not capped, and CI denies warnings.
+#[allow(dead_code)]
 pub(crate) fn frames_to_duration(
     frames: crate::FrameCount,
     rate: crate::SampleRate,
