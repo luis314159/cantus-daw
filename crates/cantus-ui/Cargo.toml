@@ -17,6 +17,7 @@ cantus-ai.workspace = true
 cantus-host.workspace = true
 cantus-content.workspace = true
 cantus-update.workspace = true
+cantus-export.workspace = true
 raw-window-handle = "0.6"
 egui.workspace = true
 eframe.workspace = true

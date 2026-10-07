@@ -21,9 +21,8 @@ use cantus_core::{
     Clip, ClipId, Color, Command, CommandBus, Dock, EffectId, EffectKind, GroupId, InstrumentSpec,
     MergeKey, Origin, Project, Send, StripId, Ticks, TrackId, MAX_GAIN_DB, MIN_GAIN_DB,
 };
-use cantus_engine::{CaptureTarget, EngineHandle, MidiInputs, RenderOptions, Rendered};
+use cantus_engine::{CaptureTarget, EngineHandle, MidiInputs};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -212,7 +211,8 @@ pub struct CantusApp {
     last_autosave: Instant,
     autosaved_revision: u64,
     autosave_dir: PathBuf,
-    export: Option<mpsc::Receiver<Result<(PathBuf, Rendered), String>>>,
+    /// The export dialog and a running export (ADR 0033).
+    pub export: views::export::ExportUi,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
@@ -416,7 +416,7 @@ impl CantusApp {
             last_autosave: Instant::now(),
             autosaved_revision: 0,
             autosave_dir,
-            export: None,
+            export: Default::default(),
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
@@ -2748,93 +2748,42 @@ impl CantusApp {
         }
     }
 
+    /// File ▸ Export… (Ctrl+E): the export dialog (ADR 0033).
     pub fn export_dialog(&mut self) {
-        if self.export.is_some() {
-            return;
+        if !self.export.busy() {
+            views::export::open(self, None);
         }
-        let name = format!("{}.wav", self.project().name);
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("WAV", &["wav"])
-            .set_file_name(name)
-            .save_file()
-        else {
-            return;
-        };
-        self.export_to(path);
     }
 
-    /// Render the project to a WAV file on a background thread; poll with
+    /// Export the song to `path` on a background thread, in the format its extension
+    /// names (WAV, FLAC, MP3, Ogg) with the remembered choices; poll with
     /// [`CantusApp::poll_export`] (called every frame) or [`CantusApp::export_in_progress`].
     pub fn export_to(&mut self, path: PathBuf) {
-        if self.export.is_some() {
+        if self.export.busy() {
             return;
         }
-        let snapshot = self.engine.compile(self.bus.project(), self.bus.revision());
-        let opts = RenderOptions {
-            sample_rate: self.engine.sample_rate.round() as u32,
-            ..Default::default()
-        };
-        // Hosted plug-ins render through instances of their own, loaded here on the main
-        // thread with the live ones' state (ADR 0019).
-        let units = self
-            .plugins
-            .render_units(self.bus.project(), f64::from(opts.sample_rate));
-        let instruments = self
-            .plugins
-            .render_instruments(self.bus.project(), f64::from(opts.sample_rate));
-        let (tx, rx) = mpsc::channel();
-        std::thread::Builder::new()
-            .name("cantus-export".into())
-            .spawn(move || {
-                let result =
-                    cantus_engine::render_with_instruments(snapshot, &opts, units, instruments)
-                        .and_then(|r| {
-                            cantus_engine::write_wav(&r, &path)?;
-                            Ok(r)
-                        })
-                        .map(|r| (path, r))
-                        .map_err(|e| e.to_string());
-                let _ = tx.send(result);
-            })
-            .expect("spawn export thread");
-        self.export = Some(rx);
-        self.set_status(t("status.exporting"));
+        let mut d = self.export.dialog.clone().unwrap_or_else(|| {
+            let mut d = self.settings.export.clone();
+            d.tags.title = self.project().name.clone();
+            d
+        });
+        if let Some(f) = views::export::format_of(&path) {
+            d.format = f;
+        }
+        if d.scope == cantus_export::Scope::Stems {
+            d.scope = cantus_export::Scope::Song;
+        }
+        let was_open = self.export.dialog.replace(d);
+        views::export::start(self, &path);
+        self.export.dialog = was_open;
     }
 
     pub fn export_in_progress(&self) -> bool {
-        self.export.is_some()
+        self.export.busy()
     }
 
     pub fn poll_export(&mut self) {
-        let Some(rx) = &self.export else { return };
-        let result = rx.try_recv();
-        if !matches!(result, Err(mpsc::TryRecvError::Empty)) {
-            // The render is over: the plug-in instances it used go, on this thread.
-            self.plugins.finish_render();
-        }
-        match result {
-            Ok(Ok((path, r))) => {
-                self.export = None;
-                let peak_db = cantus_core::linear_to_db(r.peak);
-                self.set_status(tf(
-                    "status.exported",
-                    &[
-                        ("path", &path.display()),
-                        ("seconds", &format!("{:.1}", r.duration_seconds())),
-                        ("peak", &format!("{peak_db:.1}")),
-                    ],
-                ));
-            }
-            Ok(Err(e)) => {
-                self.export = None;
-                self.set_error(tf("status.export_failed", &[("error", &e)]));
-            }
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => {
-                self.export = None;
-                self.set_error(tf("status.export_failed", &[("error", &"thread died")]));
-            }
-        }
+        views::export::poll(self);
     }
 
     // ---- per-frame ------------------------------------------------------------------
@@ -3418,6 +3367,7 @@ impl CantusApp {
             .show(root, |ui| views::workspace::show(self, ui));
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
+        views::export_dialog::show(self, ctx);
         views::demos::frame(self, ctx);
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);

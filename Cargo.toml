@@ -9,6 +9,7 @@ members = [
     "crates/cantus-ai",
     "crates/cantus-host",
     "crates/cantus-content",
+    "crates/cantus-export",
     "crates/cantus-test-plugins/clap-gain",
     "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
@@ -33,6 +34,7 @@ default-members = [
     "crates/cantus-ai",
     "crates/cantus-host",
     "crates/cantus-content",
+    "crates/cantus-export",
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-update",
@@ -59,6 +61,7 @@ cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
 cantus-host = { path = "crates/cantus-host" }
 cantus-content = { path = "crates/cantus-content" }
+cantus-export = { path = "crates/cantus-export" }
 cantus-ui = { path = "crates/cantus-ui" }
 cantus-update = { path = "crates/cantus-update" }
 

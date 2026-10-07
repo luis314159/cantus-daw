@@ -121,7 +121,7 @@ pub fn report_line(item: &cantus_project::ReportItem) -> String {
 
 // ---- the File menu ------------------------------------------------------------------
 
-/// The interchange entries of the File menu, after "Export WAV…".
+/// The interchange entries of the File menu, after "Export audio…".
 pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
     ui.separator();
     if ui.button(t("interop.menu.import_midi")).clicked() {
@@ -145,13 +145,14 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
             ppq: midi::DEFAULT_PPQ,
         });
     }
-    let busy = app.interop.busy();
+    // Stems in any format, from the export dialog (ADR 0033).
+    let busy = app.interop.busy() || app.export.busy();
     if ui
         .add_enabled(!busy, egui::Button::new(t("interop.menu.export_stems")))
         .clicked()
     {
         ui.close();
-        app.interop.stems.get_or_insert_with(StemsDialog::default);
+        crate::views::export::open(app, Some(cantus_export::Scope::Stems));
     }
     ui.separator();
     if ui.button(t("interop.menu.import_dawproject")).clicked() {
