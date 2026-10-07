@@ -209,6 +209,8 @@ pub struct CantusApp {
     pub show_shortcuts: bool,
     pub request_quit: bool,
     synced_revision: u64,
+    /// The effects of the last snapshot sent (`sync_engine` checks the engine has them).
+    sent_effects: Vec<cantus_core::EffectId>,
     last_autosave: Instant,
     autosaved_revision: u64,
     /// Where unsaved projects autosave (and saved ones whose folder cannot be written).
@@ -425,6 +427,7 @@ impl CantusApp {
             show_shortcuts: false,
             request_quit: false,
             synced_revision: u64::MAX,
+            sent_effects: Vec::new(),
             last_autosave: Instant::now(),
             autosaved_revision: 0,
             autosave_dir,
@@ -2913,10 +2916,23 @@ impl CantusApp {
         if self.engine.samples.poll_loaded() {
             self.synced_revision = u64::MAX;
         }
+        // An effect the last snapshot holds that the engine has no unit for: a remove and
+        // its undo both went out before the engine handed the removed unit back, so the
+        // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.
+        if self
+            .sent_effects
+            .iter()
+            .any(|id| !self.engine.knows_effect(*id))
+        {
+            self.synced_revision = u64::MAX;
+        }
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
             let snapshot = self.engine.compile(self.bus.project(), rev);
+            self.sent_effects.clear();
+            self.sent_effects
+                .extend(snapshot.effect_slots().map(|s| s.id));
             // Hosted plug-ins' units reach the engine before the snapshot that holds them.
             let notices = self.plugins.sync(self.bus.project(), &mut self.engine);
             self.host_notices(notices);

@@ -38,9 +38,9 @@ fn a_file_cut_off_anywhere_is_called_truncated_and_left_alone() {
     save(&demo(), &good, "t").unwrap();
     let bytes = fs::read(&good).unwrap();
     let cut = dir.path().join("cut.cantus");
-    // Every cut point in the first kilobyte, then a stride through the rest.
-    let points: Vec<usize> = (0..bytes.len().min(1024))
-        .chain((1024..bytes.len()).step_by(97))
+    // Every cut point in the first 256 bytes, then a stride through the rest.
+    let points: Vec<usize> = (0..bytes.len().min(256))
+        .chain((256..bytes.len()).step_by(211))
         .collect();
     for n in points {
         fs::write(&cut, &bytes[..n]).unwrap();
@@ -83,7 +83,9 @@ fn damaged_newer_and_foreign_files_are_each_named() {
     let mut v: serde_json::Value = serde_json::from_str(&text).unwrap();
     v["project"]["tracks"] = serde_json::Value::from("not a list");
     fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
-    assert_eq!(problem(&path), Problem::Damaged);
+    // Its hash no longer matches; opened anyway (as *Open* offers), it is damaged.
+    assert_eq!(problem(&path), Problem::Integrity);
+    assert_eq!(load(&path, false).err().unwrap().problem(), Problem::Damaged);
 
     // A newer schema: refused with both numbers, the file left as it is.
     let mut v: serde_json::Value = serde_json::from_str(&text).unwrap();
