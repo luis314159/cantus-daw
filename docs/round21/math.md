@@ -176,7 +176,7 @@ graph-owned sites listed in the request (`processor_rec.rs` 319/332, `profile.rs
   **`hosted_in_cantus`** — every exported plug-in hosted by Cantus sounds as the native
   insert, to the bit — passes on libm. New: `math::tests::the_bits_are_the_pinned_ones`,
   `powi_squares_as_compiler_rt_does`.
-- `cantus-ui`: see the report (run last).
+- `cantus-ui` on libm (it reads `cantus-core`'s gains): 599 passed, 0 failed.
 
 ## Left
 
