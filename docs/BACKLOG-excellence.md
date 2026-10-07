@@ -13,7 +13,7 @@ Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
-learn, crossfades, congelar pistas, marcadores, un editor de audio; **(4)** rendimiento con
+learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
@@ -74,6 +74,66 @@ macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles 
   sample browser), autosave and crash recovery proven under real crashes.
 - **Export**: MP3/AAC/FLAC/Ogg encoders, export presets (streaming, CD, stems for a
   mastering engineer), render the time selection, loudness-normalised export.
+
+## 3b. More effects — the family a top DAW ships (requested 2026-10-07)
+
+*The owner: "more effects — distortion pedals, chorus, flanger, fuzz, pitch correction,
+time manipulation, a Distructor, a formula controller, a clipper, a Wave Candy, an X-Y
+controller, a transient splitter, a transient processor, or more of what the most
+professional DAWs and the top plug-ins have." Backlog only, not scheduled.*
+
+What exists: Aequalis (EQ), Comprimo (compressor), Terminus (limiter), Spatium (reverb),
+Multiplex (multiband), Sibilus (de-esser), Porta (gate), Fervor (saturation/waveshaper —
+the Blood Overdrive/WaveShaper role), Latitudo (stereo/mid-side), Culmen (maximizer), a
+delay, the strip EQ. Each new one follows the family's rules (ADR 0018): a null test at
+its defaults, block-size independence, exact rest (`at_rest`/`skip`), deterministic
+maths, the hand-drawn kit UI, a page in `docs/plugins/`, and the CLAP/VST3 export
+bit-identical. Ours should end up better than the reference, not a clone.
+
+**Asked for by name:**
+
+| Effect | Reference | What makes it first-rank | Done when |
+|---|---|---|---|
+| **Distortion pedals** | Boss DS-1/RAT/Tube Screamer models, FL's Distructor chain | circuit-modelled stages (clipping diodes, tone stacks), oversampled, a pedalboard view | three pedal models sound like their circuits in a blind A/B against references |
+| **Fuzz** | Fuzz Face, Big Muff | the transistor's bias/starve and gating, gated-fuzz splat | the bias knob reproduces the "dying battery" sound |
+| **Chorus** | Juno-60 chorus, Dimension D, FL's Chorus | BBD-style modulated delays, 1–4 voices, stereo spread, mono-safe | Juno I/II/I+II modes and a mono-compatibility meter |
+| **Flanger** | FL's Flanger, MXR/Electric Mistress | through-zero flanging, feedback ±, tempo-synced LFO and an envelope mode | through-zero null at the centre point holds to the bit |
+| **Distructor-like multi-effect** | FL's Distructor | a rack of distortion + filter + modulation + delay modules in any order, macros, randomise | presets travel; each module is one of our units |
+| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (Auto-Tune style: key, retune speed, humanise, formant) **and** a graphic note editor (Newtone/Melodyne: blobs, pitch drift, vibrato, formant, timing) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
+| **Time manipulation** | Gross Beat, NewTime, Ableton Warp, élastique | Gross Beat-style time/volume envelopes (stutter, half-time, tape stop, scratch) and NewTime-style warp markers/slices on audio | tape stop, half-time and stutter presets sample-exact at any tempo; warp markers on a clip (ties to §3 *Time*) |
+| **Automation controller** | Fruity Formula Controller, Peak Controller, LFO Tool | a formula (sin, saw, inputs a/b/c, time, beat) or LFO/envelope drawing driving any parameter; an envelope follower from any strip | one controller drives several targets, recorded as automation if asked |
+| **Clipper** | Fruity Soft Clipper, StandardCLIP, KClip | hard/soft/analog curves, oversampling, true-peak aware, clip meter | at threshold 0 dB it is a null; inter-sample overs measured |
+| **Analysis and visualisation** | Wave Candy, SPAN, Insight, MiniMeters | oscilloscope, spectrum (FFT/constant-Q), spectrogram, vectorscope/goniometer, correlation, loudness (LUFS momentary/short/integrated, LRA, true peak), peak/RMS — resizable, docked or floating | it reads the same LUFS as the EBU test vectors; drawn at 60 fps under the frame budget |
+| **X-Y controller** | Fruity X-Y Controller, XY pads | two (or more) parameters on one pad, inertia and paths, recordable, MIDI/automation mapping | a pad gesture records as two automation lanes |
+| **Transient splitter** (the owner's "Transmitter") | Eventide SplitEQ (structural split), transient/tonal separators | low- or zero-latency transient detection splitting the signal into transient and sustain/tonal parts, each with its own dynamics and EQ, summing back to a null | both parts summed with no processing equal the input to the bit; zero-latency mode |
+| **Transient processor** | FL's Transient Processor, SPL Transient Designer | attack/sustain gain, detection on level not threshold, split-band option, sidechain | a drum loop shaped without a threshold; default is a null |
+
+**Others the most professional DAWs and plug-in makers ship** (in rough order of use):
+
+- **Modulation**: phaser (4–12 stages, Small Stone/Phase 90 models), tremolo and
+  auto-pan (tempo-synced), vibrato, rotary speaker (Leslie), ring modulator, frequency
+  shifter, a Kickstart/LFO Tool-style **volume shaper** for sidechain pumping without a key.
+- **Delay family**: tape echo (Space Echo), ping-pong and multi-tap, a ducking delay,
+  reverse delay, a dub-style feedback filter — Valhalla/Echoboy as the bar.
+- **Reverbs**: convolution (impulse responses, user IRs), plate and spring, shimmer — on
+  top of Spatium's algorithmic halls.
+- **Pitch and creative**: pitch shifter and harmonizer, formant shifter, vocoder
+  (FL's Vocodex as the bar), granular effect, bitcrusher/sample-rate reducer, glitch/
+  stutter, a filter with envelope and LFO (Autofilter), comb and resonator.
+- **Dynamics**: dynamic EQ as its own unit and spectral dynamics (soothe-class resonance
+  suppression), upward compression, a bus-glue compressor (SSL-style), opto and vari-mu
+  models, a ducker.
+- **Colour and analogue**: tape machine (wow/flutter, head bump, hiss), console channel
+  emulation, an exciter/enhancer, amp and cabinet simulation with IR loading (guitar and
+  bass — ties to recording), a lo-fi/vinyl unit.
+- **Utility and repair**: tuner, phase/polarity and alignment, gain/utility, noise
+  reduction and de-hum, de-click, de-reverb (the audio editor of §3 *Editing*), a
+  mid/side and stereo imager beyond Latitudo, a loudness-match A/B.
+- **Mastering extras**: linear-phase multiband, a mastering EQ with M/S per band (Aequalis
+  has M/S), a reference-track comparator, a dither/noise-shaping unit on its own.
+
+**Done when** each shipped unit passes the family's contract tests, has its manual page in
+both languages, and holds up in a blind comparison against its reference.
 
 ## 4. Performance at scale
 
