@@ -22,7 +22,7 @@ The owner's goal is the first public beta (`docs/BETA.md`). Next, in order:
    meters; a quiet-machine `xtask perf --full --save` (every round-22 number was taken on a
    machine loaded by the other builders); `loom` models of the queues and cells; CI with
    `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`.
-3. **The owner**: try the round-22 build (`C:\projects\daw-r22uilds\cantus.exe` on the first machine; elsewhere `cargo build --release -p cantus`) with the Behringer UMC; apply for SignPath; a
+3. **The owner**: try the round-22 build (`C:\projects\daw-r22\builds\cantus.exe` on the first machine; elsewhere `cargo build --release -p cantus`) with the Behringer UMC; apply for SignPath; a
    trademark search for "Cantus"; make two or three songs and log the friction; decide on
    mirroring the ASIO SDK zip as a release asset (beta-docs' note) and on the in-app
    FlexASIO install; before the repository is ever made public, take the research
@@ -53,7 +53,7 @@ published); `DSP_VERSION` 3. Briefs and reports in `docs/round22/`.
 | export | *File ▸ Export audio…*: WAV 16/24/32f, FLAC (flacenc), MP3 (LAME, CBR/VBR, gapless), Ogg Vorbis; song, selection or stems (per strip or track, optionally through the master chain); dither; BS.1770 loudness targets with a true-peak ceiling held by Culmen's limiter; tags; presets Streaming, CD, Stems, Podcast; background render, *Stop* leaves no partial file |
 | soak | a soak harness (40-minute runs, no leak, no hang); **crash recovery** (a session journal and *Recover your work* at start, takes included, one undo step); autosave on its own thread (it froze the window up to 8.9 s); clean refusals of damaged or newer files; the `.bak` kept good; New/Open ask about unsaved work; a new audio track comes armed; the count-in clicks without the metronome |
 | beta-docs | `THIRD-PARTY-NOTICES.md` generated (`xtask notices`, 298 crates, an allow-list test), `PRIVACY.md`, the About window, the EN/ES manual (`xtask manual`), issue templates, release notes, version `0.1.0-beta.1` (no tag) |
-| integrator | `CLAUDE.md`, `rust-toolchain.toml` (1.97.1), `docs/DEVELOPING.md` (a new machine from a fresh clone — proved on 2026-10-07: a clone into an empty folder fetched the SDK, built the release with WASAPI and ASIO (it found ASIO4ALL, Realtek and the UMC) and ran the suite: green but for two CPU-timing tests (`inst_bass::a_cpu_budget_holds`, Calor's per-voice cost) that fail only while the machine is loaded and pass alone), `docs/instruments/TEST-PLUGINS.md`, the research screenshots and `docs/claude-memory/` in the repository (the owner's request; the repository is private), the manual and release notes brought up to the soak's fixes |
+| integrator | `CLAUDE.md`, `rust-toolchain.toml` (1.97.1), `docs/DEVELOPING.md` (a new machine from a fresh clone — proved on 2026-10-07: a clone into an empty folder fetched the SDK, built the release with WASAPI and ASIO (it found ASIO4ALL, Realtek and the UMC) and ran the suite: 1 823 of 1 824 green, the one failure a CPU-timing test (`inst_bass::a_cpu_budget_holds`; Calor's per-voice cost did the same in the integration run) that fails only while the machine is loaded and passes alone), `docs/instruments/TEST-PLUGINS.md`, the research screenshots and `docs/claude-memory/` in the repository (the owner's request; the repository is private), the manual and release notes brought up to the soak's fixes |
 
 ## The next session: what round 21 left
 
