@@ -4,7 +4,7 @@
 //! are not in the repository):
 //!
 //! ```text
-//! set CANTUS_PLUGINS=C:\projects\daw-r20\plugins
+//! set CANTUS_PLUGINS=D:\cantus-plugins   (what to download: docs/instruments/TEST-PLUGINS.md)
 //! cargo test -p cantus-host --test real_instruments -- --ignored --nocapture --test-threads 1
 //! ```
 //!

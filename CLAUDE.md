@@ -46,6 +46,25 @@ The bar is the best DAWs on the market, and excellence over speed.
   new crate has no notice or an unapproved licence.
 - Commit only when the owner asks; never stage or discard the owner's own uncommitted work.
 
+## The owner's standing direction
+
+- **FL Studio is the reference** — for the mixer (feature by feature), the workflow and the
+  look — with the best ideas of Ableton, Bitwig, Logic, Studio One and FabFilter-class
+  plug-ins on top. Ours should end up *better*, not a clone. Research notes live in
+  `research/` (third-party screenshots are git-ignored and never committed).
+- **The UI must look first-rank** (the owner found an earlier one "ugly, plain"): clear
+  label/value units, no loose words, nothing that overlaps, panels resizable and movable,
+  every overflowing area scrollable, navigation fast. Hand-drawn vector components, with a
+  measured frame budget.
+- **Performance better than anything on the market** is the current priority after the
+  beta blockers (`docs/BACKLOG-excellence.md` §4b, ADR 0031): take the best ideas of current
+  engines and of the papers.
+- **Christian values, respected choices:** a Reina-Valera verse (RVR1960 within its
+  quotation allowance) greets the user at start in the interface's language — on by
+  default, with an off switch for those who do not share the belief.
+- **Professional recording, mastering on the master channel, free instruments and sounds**
+  (sample packs download on demand, never in the repository — ADR 0030).
+
 ## Parallel builders (how the big rounds are run)
 
 1. A **contract commit** declares the shared types, signatures, schema/ADR numbers and empty
