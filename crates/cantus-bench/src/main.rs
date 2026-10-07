@@ -6,6 +6,8 @@
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
 //! cantus-bench hashes [--whole] [--out <file>]  # the null corpus as SHA-256s (hashes.rs)
+//! cantus-bench paced [--frames 256] [--seconds 120] [--songs startup,house,…]
+//!                    [--workers auto|N] [--promote 1|0] [--spin 0|1] [--share 0.1] [--callback mmcss|normal]
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -22,6 +24,7 @@ fn main() -> ExitCode {
         Some("compare") => compare_cmd(&args[1..]),
         Some("table") => table_cmd(&args[1..]),
         Some("hashes") => hashes_cmd(&args[1..]),
+        Some("paced") => paced_cmd(&args[1..]),
         _ => run_cmd(&args),
     }
 }
@@ -183,4 +186,62 @@ fn hashes_cmd(args: &[String]) -> ExitCode {
         None => print!("{text}"),
     }
     ExitCode::SUCCESS
+}
+
+/// The real processor at the device period: every demo and the startup song, a miss
+/// counted whenever a block ends after its period (`cantus_bench::paced`).
+fn paced_cmd(args: &[String]) -> ExitCode {
+    let (mut frames, mut seconds) = (256usize, 120.0f64);
+    let mut only: Vec<String> = Vec::new();
+    let mut workers = cantus_engine::Workers::auto();
+    let (mut promote, mut spin, mut callback) = (true, false, true);
+    let mut share = 0.1f32;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        let v = it.next();
+        match (a.as_str(), v) {
+            ("--frames", Some(v)) => frames = v.parse().unwrap_or(frames),
+            ("--seconds", Some(v)) => seconds = v.parse().unwrap_or(seconds),
+            ("--songs", Some(v)) => only = v.split(',').map(|s| s.trim().to_string()).collect(),
+            ("--promote", Some(v)) => promote = v == "1",
+            ("--spin", Some(v)) => spin = v == "1",
+            ("--share", Some(v)) => share = v.parse().unwrap_or(share),
+            ("--callback", Some(v)) => callback = v == "mmcss",
+            ("--workers", Some(v)) => {
+                workers = match v.as_str() {
+                    "auto" => cantus_engine::Workers::auto(),
+                    n => cantus_engine::Workers::live(n.parse().unwrap_or(0)),
+                }
+            }
+            _ => {
+                eprintln!("cantus-bench paced: unknown argument {a:?}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    workers.promote = promote;
+    workers.spin = spin;
+    workers.spin_share = share;
+    println!(
+        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers (promoted: {promote}, spinning: {spin}, spin share {share}), callback {}
+",
+        frames as f64 / 48.0,
+        workers.count(),
+        if callback { "in MMCSS" } else { "at normal priority" }
+    );
+    println!("{}", cantus_bench::paced::HEADER);
+    let mut misses = 0;
+    for (name, p) in cantus_bench::paced::songs() {
+        if !only.is_empty() && !only.contains(&name) {
+            continue;
+        }
+        let r = cantus_bench::paced::run(&name, &p, frames, seconds, workers.clone(), callback);
+        misses += r.misses;
+        println!("{}", cantus_bench::paced::row(&r));
+    }
+    if misses == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }

@@ -9,6 +9,8 @@
 //! - [`topology`]: physical cores, performance and efficiency classes, last-level-cache
 //!   domains, and where each kind of pool thread goes.
 //! - [`pad`]: 128-byte cache padding.
+//! - [`cell`]: try-only `AtomicRefCell`s for the state the engine's pool shares
+//!   ([`cell::NodeCell`], [`cell::ShareCell`]).
 //! - [`memory`]: pre-faulting and best-effort locking, so the audio thread never takes a
 //!   page fault.
 //! - [`fpenv`] and [`denormal`]: the floating-point environment — FTZ/DAZ for a block and its
@@ -21,6 +23,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_debug_implementations)]
 
+pub mod cell;
 pub mod denormal;
 pub mod fpenv;
 pub mod memory;
@@ -28,6 +31,7 @@ pub mod pad;
 pub mod thread;
 pub mod topology;
 
+pub use cell::{NodeCell, ShareCell};
 pub use denormal::DenormalGuard;
 pub use pad::CachePadded;
 pub use thread::{promote_callback, AudioHost, Promotion};

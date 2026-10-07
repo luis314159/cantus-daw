@@ -73,6 +73,9 @@ pub struct AudioSettings {
     pub input_device: Option<String>,
     /// Recording latency correction in frames, measured by the loopback test or typed.
     pub record_offset_frames: i64,
+    /// Cores helping the audio thread (ADR 0031 §2.1): `None` = automatic (performance
+    /// cores minus two), `Some(0)` = the audio thread alone.
+    pub workers: Option<u32>,
 }
 
 impl AudioSettings {
@@ -83,6 +86,7 @@ impl AudioSettings {
             device_name: self.device.clone(),
             sample_rate: self.sample_rate,
             buffer_frames: self.buffer_frames,
+            workers: self.workers.map(|n| n as usize),
         }
     }
 
@@ -375,6 +379,7 @@ mod tests {
                 sample_rate: Some(96_000),
                 buffer_frames: Some(128),
                 record_offset_frames: -42,
+                workers: Some(3),
             },
             ..Default::default()
         };

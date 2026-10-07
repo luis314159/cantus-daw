@@ -91,8 +91,10 @@ pub trait ReadyQueue: Send + Sync + 'static {
     fn new(tasks: usize, slots: usize) -> Self;
 
     /// Make the block's sources ready. Callback only, while arming (nothing in flight);
-    /// `sources` are critical path first.
-    fn seed(&self, sources: &[u32], meta: &Meta);
+    /// `sources` are critical path first. `avail` has bit `s` set for every slot that
+    /// takes part (the callback's bit 0 always): a queue that seeds per slot gives the
+    /// others' share to the callback.
+    fn seed(&self, sources: &[u32], meta: &Meta, avail: u64);
 
     /// Slot `slot` makes `task` ready. `between` runs between the claim and the publish
     /// (the schedule fuzz's stall site). Returns `false` if the queue is full (the caller
@@ -224,7 +226,7 @@ impl ReadyQueue for Vyukov {
         }
     }
 
-    fn seed(&self, sources: &[u32], meta: &Meta) {
+    fn seed(&self, sources: &[u32], meta: &Meta, _avail: u64) {
         for &t in sources {
             while !self.lane(t, meta).push_with(t, || ()) {
                 std::hint::spin_loop();
@@ -403,14 +405,16 @@ impl ReadyQueue for ChaseLev {
         }
     }
 
-    fn seed(&self, sources: &[u32], meta: &Meta) {
+    fn seed(&self, sources: &[u32], meta: &Meta, avail: u64) {
         let n = self.mail.len();
         for m in self.mail.iter() {
             m.fill.store(0, Relaxed);
         }
         for &t in sources {
             let h = meta.home(t);
-            let m = &self.mail[if h < n { h } else { t as usize % n }];
+            // A home that is not taking part (a worker not started yet): the callback's.
+            let h = if h < n && avail & (1 << h) != 0 { h } else { 0 };
+            let m = &self.mail[h];
             let i = m.fill.load(Relaxed) as usize;
             if let Some(cell) = m.items.get(i) {
                 cell.store(t, Relaxed);

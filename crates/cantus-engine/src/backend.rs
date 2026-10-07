@@ -54,6 +54,9 @@ pub struct AudioConfig {
     pub input_device_name: Option<String>,
     pub sample_rate: Option<u32>,
     pub buffer_frames: Option<u32>,
+    /// Live workers helping the audio callback (ADR 0031 §2.1); `None` is the machine's
+    /// default (performance cores minus two), `Some(0)` the callback alone.
+    pub workers: Option<usize>,
 }
 
 pub struct EngineHandle {
@@ -152,7 +155,22 @@ impl EngineHandle {
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
+        // The process leaves EcoQoS before any audio runs (ADR 0031 R1): a throttled core
+        // under the pool's workers or the callback is a dropout. Process-wide, idempotent.
+        static ECO: std::sync::Once = std::sync::Once::new();
+        ECO.call_once(|| {
+            log::info!(
+                "real-time: {}",
+                cantus_rt::thread::opt_out_of_power_throttling()
+            )
+        });
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        // The pool (ADR 0031 §2): its workers start now and wait for the stream's first
+        // block, which tells them the period; each joins once it has promoted itself.
+        processor.set_workers(match config.workers {
+            None => crate::processor::Workers::auto(),
+            Some(n) => crate::processor::Workers::live(n),
+        });
         let (capture_tx, capture_rx) = RingBuffer::<f32>::new(CAPTURE_SAMPLES);
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
@@ -534,6 +552,11 @@ impl EngineHandle {
 
     /// Send a snapshot, first delivering units for any effect the engine does not have.
     pub fn set_snapshot(&mut self, snapshot: Arc<Snapshot>) {
+        // An effect this snapshot no longer has is forgotten now, not when the engine hands
+        // its unit back: a remove and its undo in quick succession then send a fresh unit
+        // with the undo's snapshot (round 22, the soak builder's E1).
+        self.known_effects
+            .retain(|id| snapshot.effect_slots().any(|s| s.id == *id));
         // The strips' inserts and the master's (ADR 0026).
         for slot in snapshot.effect_slots() {
             if !self.known_effects.contains(&slot.id) {
@@ -680,8 +703,14 @@ impl EngineHandle {
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
                 EngineEvent::Garbage(old) => drop(old),
                 EngineEvent::GarbageEffect(unit) => {
-                    // A replaced unit's id lives on in its successor.
-                    if !unit.replaced {
+                    // A replaced unit's id lives on in its successor; so does one whose id the
+                    // last snapshot sent still has (a new unit went with it).
+                    let resent = self
+                        .rec
+                        .snapshot
+                        .as_ref()
+                        .is_some_and(|s| s.effect_slots().any(|e| e.id == unit.id));
+                    if !unit.replaced && !resent {
                         self.known_effects.remove(&unit.id);
                     }
                     drop(unit);

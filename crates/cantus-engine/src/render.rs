@@ -18,6 +18,37 @@ pub enum RenderError {
     Empty,
     #[error("wav error: {0}")]
     Wav(#[from] hound::Error),
+    #[error("the render was cancelled")]
+    Cancelled,
+}
+
+/// A render's progress, for a dialog that shows it and may stop it
+/// ([`render_with_progress`]): the renderer stores the frames done and the total, and reads
+/// `cancel` between blocks. Shared with the UI through an `Arc`; every field is an atomic.
+#[derive(Debug, Default)]
+pub struct RenderProgress {
+    pub done: std::sync::atomic::AtomicU64,
+    pub total: std::sync::atomic::AtomicU64,
+    pub cancel: std::sync::atomic::AtomicBool,
+}
+
+impl RenderProgress {
+    /// Done over total, 0…1 (0 before the total is known).
+    pub fn fraction(&self) -> f32 {
+        use std::sync::atomic::Ordering::Relaxed;
+        let t = self.total.load(Relaxed);
+        if t == 0 {
+            0.0
+        } else {
+            (self.done.load(Relaxed) as f64 / t as f64).min(1.0) as f32
+        }
+    }
+
+    /// Ask the render to stop at its next block ([`RenderError::Cancelled`]).
+    pub fn cancel(&self) {
+        self.cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,9 +122,23 @@ pub fn render_with_units(
 pub fn render_with_instruments(
     snapshot: Arc<Snapshot>,
     opts: &RenderOptions,
-    mut units: Vec<EffectUnit>,
+    units: Vec<EffectUnit>,
     hosted: Vec<crate::inst::NativeUnit>,
 ) -> Result<Rendered, RenderError> {
+    render_with_progress(snapshot, opts, units, hosted, &RenderProgress::default())
+}
+
+/// [`render_with_instruments`], reporting its progress into `progress` (frames done of the
+/// total, after every block) and stopping with [`RenderError::Cancelled`] at the first
+/// block after `progress.cancel` is set — the export dialog's bar and its Stop.
+pub fn render_with_progress(
+    snapshot: Arc<Snapshot>,
+    opts: &RenderOptions,
+    mut units: Vec<EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+    progress: &RenderProgress,
+) -> Result<Rendered, RenderError> {
+    use std::sync::atomic::Ordering::Relaxed;
     let end = opts.end.unwrap_or(snapshot.content_end);
     if end <= opts.start && opts.end.is_none() {
         return Err(RenderError::Empty);
@@ -168,13 +213,19 @@ pub fn render_with_instruments(
     let mut out = vec![0f32; total_frames * channels];
     let mut buf = vec![0f32; block * channels];
 
+    progress.total.store(total_frames as u64, Relaxed);
+    progress.done.store(0, Relaxed);
     let mut done = 0;
     while done < total_frames {
+        if progress.cancel.load(Relaxed) {
+            return Err(RenderError::Cancelled);
+        }
         let n = block.min(total_frames - done);
         let chunk = &mut buf[..n * channels];
         p.process(chunk, channels);
         out[done * channels..(done + n) * channels].copy_from_slice(chunk);
         done += n;
+        progress.done.store(done as u64, Relaxed);
         // Keep the event queue from filling (it is tiny on purpose).
         while rx.pop().is_ok() {}
     }

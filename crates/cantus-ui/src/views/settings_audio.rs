@@ -35,6 +35,8 @@ pub enum List {
     Input,
     Rate,
     Buffer,
+    /// The cores helping the audio thread (ADR 0031 §2.1).
+    Workers,
 }
 
 /// The devices as last scanned, for one driver.
@@ -74,6 +76,9 @@ pub struct Facts {
     pub input_error: Option<String>,
     /// The output stopped calling back.
     pub stalled: bool,
+    /// The pool's workers running now, and whether the last block used them.
+    pub workers: u32,
+    pub parallel: bool,
 }
 
 /// Where the loopback measurement is.
@@ -114,6 +119,8 @@ fn facts(app: &mut CantusApp) -> Facts {
         dropped: e.input_dropped(),
         input_error: e.input_error().map(str::to_string),
         stalled: e.output_stalled(),
+        workers: e.stats().workers,
+        parallel: e.stats().parallel,
     }
 }
 
@@ -173,7 +180,30 @@ fn value(list: List, p: &AudioSettings, scan: &Scan, rate: f64) -> String {
             (Some(b), None) => b.to_string(),
             (None, _) => default,
         },
+        List::Workers => workers_label(p.workers),
     }
+}
+
+/// How a cores setting reads: automatic (with what that is on this machine), the audio
+/// thread alone, or a number.
+fn workers_label(w: Option<u32>) -> String {
+    match w {
+        None => tf(
+            "settings.workers.auto",
+            &[("n", &cantus_engine::processor::default_workers())],
+        ),
+        Some(0) => t("settings.workers.off"),
+        Some(n) => n.to_string(),
+    }
+}
+
+/// The counts the cores list offers: up to the machine's logical processors less two,
+/// at most the engine's limit.
+fn worker_counts() -> std::ops::RangeInclusive<u32> {
+    let cpus = std::thread::available_parallelism().map_or(4, |n| n.get());
+    1..=(cpus
+        .saturating_sub(2)
+        .clamp(1, cantus_engine::processor::MAX_WORKERS) as u32)
 }
 
 /// The page: three bands in the settings window's row grammar.
@@ -221,6 +251,7 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         (List::Input, "devices.input"),
         (List::Rate, "settings.sample_rate"),
         (List::Buffer, "settings.buffer"),
+        (List::Workers, "settings.workers"),
     ] {
         let v = value(list, &p, &scan, f.rate);
         field_row(app, ui, list, key, &v);
@@ -234,6 +265,17 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
                 .any(|d| d.name.eq_ignore_ascii_case("ASIO"))
         {
             indented_note(ui, &t("devices.driver.no_asio"), false);
+        }
+        // What the pool is doing now.
+        if list == List::Workers && f.live {
+            let now = if f.workers == 0 {
+                t("settings.workers.now_off")
+            } else if f.parallel {
+                tf("settings.workers.now", &[("n", &f.workers)])
+            } else {
+                tf("settings.workers.now_quiet", &[("n", &f.workers)])
+            };
+            indented_note(ui, &now, false);
         }
     }
     ui.horizontal(|ui| {
@@ -573,6 +615,13 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
                 rows.push((b.to_string(), p.buffer_frames == Some(b)));
             }
         }
+        List::Workers => {
+            rows.push((workers_label(None), p.workers.is_none()));
+            rows.push((workers_label(Some(0)), p.workers == Some(0)));
+            for n in worker_counts() {
+                rows.push((n.to_string(), p.workers == Some(n)));
+            }
+        }
     }
     let items: Vec<Item<'_>> = rows
         .iter()
@@ -622,6 +671,13 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
             }
             List::Rate => p.sample_rate = i.checked_sub(1).map(|i| SAMPLE_RATES[i]),
             List::Buffer => p.buffer_frames = i.checked_sub(1).map(|i| BUFFER_SIZES[i]),
+            List::Workers => {
+                p.workers = match i {
+                    0 => None,
+                    1 => Some(0),
+                    i => worker_counts().nth(i - 2),
+                }
+            }
         }
         app.settings_page.pending = Some(p);
     }
@@ -682,6 +738,8 @@ pub fn demo_setup(app: &mut CantusApp) {
         dropped: 0,
         input_error: None,
         stalled: false,
+        workers: 4,
+        parallel: true,
     });
     st.hold = vec![-6.0, -7.5, -24.0, MIN_DB, -0.6, MIN_DB, MIN_DB, MIN_DB];
     st.measure = Measure::Done(LoopbackResult {

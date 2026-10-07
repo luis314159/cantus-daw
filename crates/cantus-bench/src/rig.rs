@@ -74,6 +74,16 @@ impl Rig {
     /// `frames`. Loop the project yourself (`Project::loop_region`) if the run is longer
     /// than the music.
     pub fn new(project: &Project, start: Ticks, frames: usize) -> Rig {
+        Self::with_workers(project, start, frames, cantus_engine::Workers::from_env())
+    }
+
+    /// [`Rig::new`] with the pool's live workers given (`CANTUS_WORKERS` otherwise).
+    pub fn with_workers(
+        project: &Project,
+        start: Ticks,
+        frames: usize,
+        workers: cantus_engine::Workers,
+    ) -> Rig {
         let snap = Arc::new(Snapshot::compile(project, 1));
         let effects: usize = snap.effect_slots().count();
         let instruments = inst::units_for(&snap, SAMPLE_RATE as f32, |_, _| false);
@@ -81,6 +91,7 @@ impl Rig {
             rtrb::RingBuffer::<EngineMessage>::new(64 + effects + instruments.len());
         let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
         let mut p = Processor::without_midi(SAMPLE_RATE, rx_engine, tx_engine);
+        p.set_workers(workers);
         for slot in snap.effect_slots() {
             let unit = EffectUnit::new(slot, SAMPLE_RATE as f32);
             tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();

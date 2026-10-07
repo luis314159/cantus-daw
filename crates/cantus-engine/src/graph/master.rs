@@ -145,7 +145,9 @@ impl Processor {
             };
             self.master.key[i] = k;
             if let Some(k) = k {
-                self.strips[k].is_key = true;
+                if let Some(mut s) = self.nodes.strip(k) {
+                    s.is_key = true;
+                }
             }
         }
     }
@@ -167,8 +169,7 @@ impl Processor {
                 (e.id, e.latency())
             };
             self.pdc.want(kept, Edge::MasterDry(i), latency);
-            let track = self.master.midi_id[i]
-                .and_then(|id| self.slots.iter().position(|s| s.id == Some(id)));
+            let track = self.master.midi_id[i].and_then(|id| self.slot_for(id));
             if let Some(track) = track {
                 self.master.listener[i] = self.listen(track, effect, ahead);
             }
@@ -181,22 +182,28 @@ impl Processor {
     /// samples late: its place among the listeners. A listener that was already there
     /// keeps its cursor, so a new snapshot loses no note on its way.
     pub(super) fn listen(&mut self, track: usize, effect: EffectId, delay: u64) -> Option<u16> {
-        if self.listeners.len() >= self.listeners.capacity() {
+        if self.listener_count >= MAX_LISTENERS {
             return None;
         }
+        let nodes = &*self.nodes;
+        let written = nodes
+            .read(&nodes.tracks[track].outbox)
+            .map_or(0, |o| o.written());
         let cursor = self
             .listeners_prev
             .iter()
             .find(|l| l.effect == effect && l.track == track)
-            .map_or(self.slots[track].outbox.written(), |l| l.cursor);
-        self.listeners.push(Listener {
+            .map_or(written, |l| l.cursor);
+        let at = self.listener_count;
+        *nodes.listener(at)? = Listener {
             track,
             effect,
             delay,
             cursor,
-        });
+        };
+        self.listener_count += 1;
         self.listened[track] = true;
-        Some((self.listeners.len() - 1) as u16)
+        Some(at as u16)
     }
 
     /// Every unit on the master, for the messages that look for an effect by id (memory,

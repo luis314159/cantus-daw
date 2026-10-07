@@ -15,7 +15,9 @@
 
 use cantus_engine::sched::fuzz::{self, Episode, FuzzGraph, Token};
 use cantus_engine::sched::queue::{Deque, Mpmc, Steal};
-use cantus_engine::sched::{Chaos, ChaseLev, Config, Graph, Meta, Mode, Pool, ReadyQueue, Vyukov};
+use cantus_engine::sched::{
+    Chaos, ChaseLev, Config, Graph, Idle, Meta, Mode, Pool, ReadyQueue, Topology, Vyukov,
+};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::*};
@@ -286,6 +288,16 @@ fn fan(n: usize, cost: Duration) -> FuzzGraph {
     FuzzGraph::new(preds, costs, (0..n as u32).collect())
 }
 
+/// Wait until every worker of `pool` has started and joined (a worker counts only once it
+/// has run its start hook, round 22).
+fn wait_ready<G: Graph, Q: ReadyQueue, C: Chaos>(pool: &Pool<G, Q, C>) {
+    let until = Instant::now() + Duration::from_secs(5);
+    while pool.available() < pool.workers() && Instant::now() < until {
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(pool.available(), pool.workers(), "every worker joined");
+}
+
 fn block_ok(g: &FuzzGraph, b: u64) {
     let (missed, _) = g.end(b);
     assert_eq!(missed, 0);
@@ -307,9 +319,12 @@ fn park_and_wake<Q: ReadyQueue>() {
     let g = Arc::new(fan(10, Duration::from_micros(30)));
     let mut cfg = Config::new(2, 10);
     cfg.period = Duration::from_micros(200);
-    cfg.park_after = Duration::from_millis(200);
+    cfg.idle = Idle::Spin {
+        periods: 1.5,
+        park_after: Duration::from_millis(200),
+    };
     cfg.mode = Mode::Parallel;
-    let mut pool = Pool::<FuzzGraph, Q>::new(g.clone(), cfg).unwrap();
+    let mut pool = Pool::<FuzzGraph, Q>::for_graph(g.clone(), cfg).unwrap();
     let mut b = 0;
     let mut block = |pool: &mut Pool<FuzzGraph, Q>| {
         b += 1;
@@ -372,7 +387,8 @@ fn workers_park_after_silence_and_wake_once_chase_lev() {
 fn serial_fallback<Q: ReadyQueue>() {
     // 8 tasks of 150 µs: 1.2 ms of work, 45 % of a 2.67 ms period.
     let g = Arc::new(fan(10, Duration::from_micros(150)));
-    let mut pool = Pool::<FuzzGraph, Q>::new(g.clone(), Config::new(2, 10)).unwrap();
+    let mut pool = Pool::<FuzzGraph, Q>::for_graph(g.clone(), Config::new(2, 10)).unwrap();
+    wait_ready(&pool);
     let mut b = 0;
     let mut block = |pool: &mut Pool<FuzzGraph, Q>, jitter: u32| {
         b += 1;
@@ -417,19 +433,20 @@ fn the_serial_fallback_has_hysteresis_chase_lev() {
 #[test]
 fn no_workers_is_the_serial_engine_and_a_graph_too_big_is_refused() {
     let g = Arc::new(fan(12, Duration::ZERO));
-    let mut pool = Pool::<FuzzGraph, ChaseLev>::new(g.clone(), Config::new(0, 12)).unwrap();
+    let mut pool = Pool::<FuzzGraph, ChaseLev>::for_graph(g.clone(), Config::new(0, 12)).unwrap();
     assert_eq!(pool.workers(), 0);
     g.begin(1, 1);
     assert!(pool.run_block().serial);
     block_ok(&g, 1);
-    let mut small = Pool::<FuzzGraph, Vyukov>::new(g.clone(), Config::new(2, 8)).unwrap();
+    let mut small = Pool::<FuzzGraph, Vyukov>::for_graph(g.clone(), Config::new(2, 8)).unwrap();
     assert!(
         small.run_block().too_big,
         "12 tasks in a pool built for 8: refused, not overrun"
     );
     // The empty graph.
     let e = Arc::new(FuzzGraph::new(Vec::new(), Vec::new(), Vec::new()));
-    let mut pool = Pool::<FuzzGraph, Vyukov>::new(e, Config::new(2, 4)).unwrap();
+    let mut pool = Pool::<FuzzGraph, Vyukov>::for_graph(e, Config::new(2, 4)).unwrap();
+    wait_ready(&pool);
     pool.set_mode(Mode::Parallel);
     assert_eq!(pool.run_block().work_ns, 0);
 }
@@ -444,9 +461,15 @@ fn no_allocation<Q: ReadyQueue>() {
     ));
     let mut cfg = Config::new(3, n);
     cfg.period = Duration::from_micros(100);
-    cfg.park_after = Duration::from_millis(20);
-    cfg.on_start = Some(Arc::new(|_slot| COUNTED.with(|c| c.set(true))));
-    let mut pool = Pool::<FuzzGraph, Q>::new(g.clone(), cfg).unwrap();
+    cfg.idle = Idle::Spin {
+        periods: 1.5,
+        park_after: Duration::from_millis(20),
+    };
+    cfg.on_start = Some(Arc::new(|_slot, _period, serve: &mut dyn FnMut()| {
+        COUNTED.with(|c| c.set(true));
+        serve();
+    }));
+    let mut pool = Pool::<FuzzGraph, Q>::for_graph(g.clone(), cfg).unwrap();
     COUNTED.with(|c| c.set(true));
     let mut b = 0;
     let mut run = |pool: &mut Pool<FuzzGraph, Q>, blocks: usize, mode: Mode| {
@@ -586,7 +609,9 @@ fn stalled_pusher_pool<Q: ReadyQueue>() -> Duration {
     let mut cfg = Config::new(3, n);
     cfg.mode = Mode::Parallel;
     let chaos = Stall::new(Site::Claimed, 0, Duration::from_millis(2));
-    let mut pool = Pool::<FuzzGraph, Q, Stall>::with_chaos(g.clone(), cfg, chaos).unwrap();
+    let mut pool =
+        Pool::<FuzzGraph, Q, Stall>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
+    wait_ready(&pool);
     let t = Instant::now();
     for b in 1..=50 {
         g.begin(b, 1);
@@ -624,7 +649,8 @@ fn the_callback_never_waits_on_a_worker_waking() {
     let mut cfg = Config::new(2, 10);
     cfg.mode = Mode::Parallel;
     let chaos = Sleepy(Default::default());
-    let mut pool = Pool::<FuzzGraph, ChaseLev, Sleepy>::with_chaos(g.clone(), cfg, chaos).unwrap();
+    let mut pool =
+        Pool::<FuzzGraph, ChaseLev, Sleepy>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
     thread::sleep(Duration::from_millis(20));
     let t = Instant::now();
     for b in 1..=10 {
@@ -728,7 +754,7 @@ impl Session {
     }
 }
 
-impl Graph for Session {
+impl Topology for Session {
     fn len(&self) -> usize {
         self.preds.len()
     }
@@ -741,6 +767,9 @@ impl Graph for Session {
     fn ranks(&self) -> &[u32] {
         &self.ranks
     }
+}
+
+impl Graph for Session {
     fn run(&self, task: u32, _slot: usize) {
         let v = burn(self.iters[task as usize], 1.0 + task as f64);
         self.sink[task as usize].store(v.to_bits(), Relaxed);
@@ -881,10 +910,11 @@ fn measure<Q: ReadyQueue, C: Chaos>(
     } else {
         Mode::Parallel
     };
-    cfg.on_start = Some(Arc::new(|_slot| {
+    cfg.on_start = Some(Arc::new(|_slot, _period, serve: &mut dyn FnMut()| {
         mmcss::promote();
+        serve();
     }));
-    let mut pool = Pool::<Session, Q, C>::with_chaos(g.clone(), cfg, chaos).unwrap();
+    let mut pool = Pool::<Session, Q, C>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
     for _ in 0..blocks / 8 + 10 {
         pool.run_block();
     }

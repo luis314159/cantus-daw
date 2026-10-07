@@ -5,8 +5,7 @@
 //! drives the same processor offline for bit-identical bounces; [`midi`] feeds hardware
 //! MIDI into the engine from its own threads.
 
-// `deny`, not `forbid`, only while `processor`'s `rt_shim` holds the denormal guard
-// until `cantus-rt` merges (see `graph/rt_shim.rs`); then `forbid` again.
+// Every `unsafe` the engine needs (OS calls, the pool's cells) lives in `cantus-rt`.
 #![forbid(unsafe_code)]
 
 pub mod automation;
@@ -48,14 +47,14 @@ pub use messages::{
     MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
 pub use midi::{list_ports, MidiInputs, MidiSender};
-pub use processor::Processor;
+pub use processor::{Processor, Workers};
 pub use profile::{BlockHistogram, Culprit, Dropout};
 pub use recorder::{
     FinishedTake, LivePeaks, RecordLatency, RecordMark, RecordRings, MAX_INPUTS, PEAK_FRAMES,
 };
 pub use render::{
-    render, render_to_wav, render_with_instruments, render_with_units, write_wav, RenderError,
-    RenderOptions, Rendered,
+    render, render_to_wav, render_with_instruments, render_with_progress, render_with_units,
+    write_wav, RenderError, RenderOptions, RenderProgress, Rendered,
 };
 pub use samples::{SampleCache, SampleStatus};
 pub use stems::{

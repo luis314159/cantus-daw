@@ -284,11 +284,7 @@ impl Profiler {
     fn charge(&mut self, now: Instant) {
         if let Some(m) = self.mark {
             let ns = now.saturating_duration_since(m).as_nanos() as u64;
-            let slot = &mut self.block[self.current];
-            if *slot == 0 && ns > 0 && self.touched.len() < self.touched.capacity() {
-                self.touched.push(self.current as u16);
-            }
-            *slot += ns;
+            self.add(self.current, ns);
         }
         self.mark = Some(now);
     }
@@ -296,6 +292,18 @@ impl Profiler {
     /// The block ends at `end`. Its nodes are added to the totals and cleared; when
     /// `blame` is set, the node that took longest is returned with its nanoseconds.
     pub fn end(&mut self, end: Instant, blame: bool) -> Option<(Node, u64)> {
+        self.end_among(end, blame, |_| true)
+    }
+
+    /// [`Profiler::end`], blaming only among the nodes `eligible` accepts — with a pool,
+    /// the late block's critical path (ADR 0031 §2.9): a node that ran beside it on another
+    /// core made nobody late.
+    pub fn end_among(
+        &mut self,
+        end: Instant,
+        blame: bool,
+        eligible: impl Fn(Node) -> bool,
+    ) -> Option<(Node, u64)> {
         if !self.on {
             return None;
         }
@@ -307,7 +315,7 @@ impl Profiler {
             let i = i as usize;
             let ns = self.block[i];
             block_ns += ns;
-            if blame && worst.is_none_or(|(_, w)| ns > w) {
+            if blame && worst.is_none_or(|(_, w)| ns > w) && eligible(Node::from_index(i)) {
                 worst = Some((i, ns));
             }
             self.totals[i] += ns;
@@ -317,6 +325,58 @@ impl Profiler {
         self.total_blocks += 1;
         self.total_ns += block_ns;
         worst.map(|(i, ns)| (Node::from_index(i), ns))
+    }
+
+    /// From now on time is `node`'s, but `elsewhere_ns` of the time since the last mark
+    /// was already charged by a slot's own profiler (the callback running nodes as slot 0
+    /// of the pool): only the rest goes to the node being left.
+    pub fn enter_except(&mut self, node: Node, elsewhere_ns: u64) {
+        if !self.on {
+            return;
+        }
+        let now = Instant::now();
+        if let Some(m) = self.mark {
+            let ns = now
+                .saturating_duration_since(m)
+                .as_nanos()
+                .saturating_sub(elsewhere_ns as u128) as u64;
+            self.add(self.current, ns);
+        }
+        self.mark = Some(now);
+        self.current = node.index();
+    }
+
+    /// From now on time is `node`'s, and the time since the last mark is charged to no
+    /// one (the callback waiting on a parallel pass's last task).
+    pub fn restart(&mut self, node: Node) {
+        if self.on {
+            self.mark = Some(Instant::now());
+            self.current = node.index();
+        }
+    }
+
+    /// Take what a slot's profiler charged this block (ADR 0031 §2.9: each node on the
+    /// worker that ran it), leaving it empty.
+    pub fn fold(&mut self, slot: &mut SlotProfile) {
+        for &i in &slot.touched {
+            let i = i as usize;
+            let ns = std::mem::take(&mut slot.block[i]);
+            self.add(i, ns);
+        }
+        slot.touched.clear();
+    }
+
+    /// What this block has charged to `node` so far (before [`Profiler::end`]).
+    pub fn block_ns(&self, node: Node) -> u64 {
+        self.block[node.index()]
+    }
+
+    fn add(&mut self, i: usize, ns: u64) {
+        let slot = &mut self.block[i];
+        if *slot == 0 && ns > 0 && self.touched.len() < self.touched.capacity() {
+            self.touched.push(i as u16);
+        }
+        *slot += ns;
     }
 
     /// Every node that has been charged since the last reset, with its nanoseconds.
@@ -343,6 +403,86 @@ impl Profiler {
         self.totals.iter_mut().for_each(|x| *x = 0);
         self.total_blocks = 0;
         self.total_ns = 0;
+    }
+}
+
+/// One pool slot's profiler (ADR 0031 §2.9): what the nodes it ran took, charged as on
+/// the callback's [`Profiler`] and folded into it after the block. Each thread of the pool
+/// owns one (in its scratch), so charging needs no atomics.
+#[derive(Debug)]
+pub struct SlotProfile {
+    on: bool,
+    current: usize,
+    mark: Option<Instant>,
+    block: Vec<u64>,
+    touched: Vec<u16>,
+    /// Nanoseconds charged since [`SlotProfile::take_charged`].
+    charged: u64,
+}
+
+impl Default for SlotProfile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SlotProfile {
+    /// Allocates: built with the pool's scratch.
+    pub fn new() -> Self {
+        SlotProfile {
+            on: true,
+            current: 0,
+            mark: None,
+            block: vec![0; NODES],
+            touched: Vec::with_capacity(NODES),
+            charged: 0,
+        }
+    }
+
+    #[inline]
+    pub fn set_on(&mut self, on: bool) {
+        if !on {
+            self.mark = None;
+        }
+        self.on = on;
+    }
+
+    /// From now on, time is `node`'s.
+    #[inline]
+    pub fn enter(&mut self, node: Node) {
+        if !self.on {
+            return;
+        }
+        let now = Instant::now();
+        self.charge(now);
+        self.current = node.index();
+    }
+
+    /// The node being charged ends at `now`; nothing is charged until the next `enter`.
+    #[inline]
+    pub fn stop(&mut self, now: Instant) {
+        if self.on {
+            self.charge(now);
+            self.mark = None;
+        }
+    }
+
+    fn charge(&mut self, now: Instant) {
+        if let Some(m) = self.mark {
+            let ns = now.saturating_duration_since(m).as_nanos() as u64;
+            let slot = &mut self.block[self.current];
+            if *slot == 0 && ns > 0 && self.touched.len() < self.touched.capacity() {
+                self.touched.push(self.current as u16);
+            }
+            *slot += ns;
+            self.charged += ns;
+        }
+        self.mark = Some(now);
+    }
+
+    /// Nanoseconds charged since the last call.
+    pub fn take_charged(&mut self) -> u64 {
+        std::mem::take(&mut self.charged)
     }
 }
 

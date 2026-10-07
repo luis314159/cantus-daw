@@ -130,5 +130,17 @@ pub fn histogram_text(stats: &EngineStats) -> String {
             ("budget", &ms2(budget)),
             ("overruns", &stats.overruns),
         ],
-    )
+    ) + "
+" + &pool_text(stats)
+}
+
+/// What the engine's pool is doing (ADR 0031 §2), for the same tooltip.
+pub fn pool_text(stats: &EngineStats) -> String {
+    if stats.workers == 0 {
+        t("settings.workers.now_off")
+    } else if stats.parallel {
+        tf("settings.workers.now", &[("n", &stats.workers)])
+    } else {
+        tf("settings.workers.now_quiet", &[("n", &stats.workers)])
+    }
 }

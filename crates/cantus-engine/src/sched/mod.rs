@@ -1,11 +1,12 @@
 //! # The real-time multicore scheduler (ADR 0031 §2; amendments R2, R5, R13)
 //!
 //! A pool of live workers plus the driver's callback thread runs a static task graph once
-//! per audio block. The graph is anything that implements [`Graph`]: a number of tasks,
-//! each task's predecessor count and successors, a *ranks* array (every task once,
-//! critical path first) and a way to run a task. This wave the scheduler runs against mock
-//! graphs only (`tests/sched.rs`, [`fuzz`]); the next wave connects the engine's compiled
-//! graph to it.
+//! per audio block. The graph is anything that implements [`Graph`] (a way to run a task);
+//! its shape — each task's predecessor count and successors, a *ranks* array (every task
+//! once, critical path first) — is a [`Topology`] the callback hands the pool between
+//! blocks ([`Pool::set_topology`]), which keeps its own copy. Round 21 ran it against mock
+//! graphs (`tests/sched.rs`, [`fuzz`]); round 22 connects the engine's graph to it
+//! (`graph/exec.rs`, `graph/cluster.rs`).
 //!
 //! **The block protocol** ([`Pool::run_block`], ADR 0031 §2.2): the callback *arms* the
 //! block — every pending count reset from the graph, every task without a predecessor made
@@ -25,12 +26,15 @@
 //! and publishing it hides every later push from every consumer; a preempted deque owner
 //! hides only the one task it was pushing. `docs/round21/sched.md` measures both.
 //!
-//! **Idle** ([`pool`], ADR 0031 §2.4 and amended ADR 0005 rule 3): a worker that finishes a
-//! block spins for a *time* budget (1.5 device periods; R5's progressive backoff, the clock
-//! read every few hundred polls), then yields, and **parks** only after ~100 ms without a
-//! block. The callback wakes a parked worker with one non-blocking `unpark` at the first
-//! block after the silence, never waits for it, and never makes a system call on a block
-//! whose workers are spinning; each wake is counted ([`PoolStats::wakes`]).
+//! **Idle** ([`pool`], ADR 0031 §2.4, amended ADR 0005 rule 3, and rt's round-21 finding):
+//! [`Idle::Spin`] spins 1.5 periods, yields, and parks after ~100 ms without a block — for
+//! workers outside any throttled real-time class; [`Idle::BOUNDED`] (the engine's) spins
+//! until half a period after the block was armed, then parks, so a worker in MMCSS "Pro
+//! Audio" is never busy past its share and never throttles the callback. The callback wakes
+//! a parked worker with one non-blocking `unpark` when it arms the next block (an idle →
+//! busy transition, counted in [`PoolStats::wakes`]), never waits for it, and never makes a
+//! system call for a worker that is spinning. A worker counts as available only once its
+//! start hook (promotion, placement) has run.
 //!
 //! **Serial when parallel does not pay** (§2.5): below 25 % load for 32 blocks the callback
 //! runs the graph alone (the workers spin out their budget and park); above 35 % it is
@@ -51,22 +55,28 @@ pub mod fuzz;
 pub mod pool;
 pub mod queue;
 
-pub use pool::{default_workers, BlockReport, Config, Mode, Pool, PoolStats};
+pub use pool::{default_workers, BlockReport, Config, Idle, Mode, Pool, PoolStats, StartHook};
 pub use queue::{ChaseLev, Meta, ReadyQueue, Vyukov};
 
 use std::ops::Deref;
 
-/// What the scheduler runs. Implemented by the engine's compiled graph (next wave) and by
-/// the mock graphs of the tests.
+/// What the scheduler runs: a way to run a task. Implemented by the engine's graph
+/// (`crate::graph`) and by the mock graphs of the tests.
 ///
-/// **Contract.** The topology (`len`, `preds`, `succs`, `ranks`) changes only *between*
-/// blocks, on the callback thread (through the implementor's own interior mutability);
-/// during a block every thread reads the same topology. `run` is called exactly once per
-/// task per block, on any thread of the pool, after every predecessor's `run` has
-/// returned (and with a happens-before edge from it). `run` must not block, allocate or
-/// panic (ADR 0005).
+/// **Contract.** `run` is called exactly once per task per block, on any thread of the
+/// pool, after every predecessor's `run` has returned (and with a happens-before edge from
+/// it). `run` must not block, allocate or panic (ADR 0005).
 pub trait Graph: Send + Sync + 'static {
-    /// How many tasks the graph has this block (tasks are `0..len`).
+    /// Run `task` on pool slot `slot` (0 is the callback, `1..=W` the workers — per-slot
+    /// scratch belongs to the slot).
+    fn run(&self, task: u32, slot: usize);
+}
+
+/// The shape of a task graph, read by the callback only, when it installs it
+/// ([`Pool::set_topology`]) — the pool keeps its own copy, so the graph may change it
+/// between blocks without the workers seeing a half-written shape.
+pub trait Topology {
+    /// How many tasks the graph has (tasks are `0..len`).
     fn len(&self) -> usize;
     /// Whether the graph has no task (then a block does nothing).
     fn is_empty(&self) -> bool {
@@ -80,11 +90,8 @@ pub trait Graph: Send + Sync + 'static {
     /// It need not be a topological order; the scheduler never relies on it for
     /// correctness, only for priority.
     fn ranks(&self) -> &[u32];
-    /// Run `task` on pool slot `slot` (0 is the callback, `1..=W` the workers — per-slot
-    /// scratch belongs to the slot).
-    fn run(&self, task: u32, slot: usize);
-    /// `true` when the graph knows parallel will not pay this block (one long chain: the
-    /// critical path above 80 % of the total cost, §2.5). The pool then runs it serially.
+    /// `true` when the graph knows parallel will not pay (one long chain: the critical
+    /// path above 80 % of the total cost, §2.5). The pool then runs it serially.
     fn serial_hint(&self) -> bool {
         false
     }
@@ -120,6 +127,27 @@ pub trait Chaos: Send + Sync + 'static {
 pub struct Calm;
 
 impl Chaos for Calm {}
+
+/// A chaos hook chosen at run time: none (production, one branch per arm), or a test's —
+/// the engine's pool type cannot be generic over its tests' hooks.
+#[derive(Clone, Default)]
+pub struct DynChaos(pub Option<std::sync::Arc<dyn Chaos>>);
+
+impl Chaos for DynChaos {
+    #[inline]
+    fn arm(&self, block: u64) {
+        if let Some(c) = &self.0 {
+            c.arm(block);
+        }
+    }
+
+    #[inline]
+    fn at(&self, site: Site, slot: usize) {
+        if let Some(c) = &self.0 {
+            c.at(site, slot);
+        }
+    }
+}
 
 /// `buggify!(chaos, site, slot)`: call the chaos hook at a named site — only when the crate
 /// is built with the `fuzz` feature; otherwise nothing is evaluated (FoundationDB's

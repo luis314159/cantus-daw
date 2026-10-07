@@ -294,6 +294,7 @@ pub fn suggest(iface: &Interface, asio_built: bool) -> AudioSettings {
             sample_rate: Some(48_000),
             buffer_frames: Some(128),
             record_offset_frames: 0,
+            workers: None,
         }
     } else {
         AudioSettings {
@@ -305,6 +306,7 @@ pub fn suggest(iface: &Interface, asio_built: bool) -> AudioSettings {
             sample_rate: None,
             buffer_frames: Some(256),
             record_offset_frames: 0,
+            workers: None,
         }
     }
 }

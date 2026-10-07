@@ -24,6 +24,7 @@ pub mod cpu;
 pub mod dawbench;
 pub mod hashes;
 pub mod kernels;
+pub mod paced;
 pub mod report;
 pub mod rig;
 pub mod sessions;
