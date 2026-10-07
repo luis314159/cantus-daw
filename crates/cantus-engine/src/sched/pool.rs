@@ -534,6 +534,12 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
         }
         sh.remaining.store(n, Relaxed);
         // Only the callback and the workers that have joined are seeded.
+        // The critical path's head goes to the callback: the one thread certainly awake,
+        // where a worker woken from a park would start it 50–300 µs late (its home stays
+        // the callback, so its state stays in one core's cache too).
+        if let Some(&head) = self.sources.first() {
+            sh.meta.set_home(head, 0);
+        }
         sh.queue.seed(&self.sources, &sh.meta, avail | 1);
         sh.chaos.arm(self.block);
         sh.armed_ns.store(
