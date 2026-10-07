@@ -13,7 +13,7 @@ Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
-learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(4)** rendimiento con
+learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
@@ -99,7 +99,7 @@ bit-identical. Ours should end up better than the reference, not a clone.
 | **Chorus** | Juno-60 chorus, Dimension D, FL's Chorus | BBD-style modulated delays, 1–4 voices, stereo spread, mono-safe | Juno I/II/I+II modes and a mono-compatibility meter |
 | **Flanger** | FL's Flanger, MXR/Electric Mistress | through-zero flanging, feedback ±, tempo-synced LFO and an envelope mode | through-zero null at the centre point holds to the bit |
 | **Distructor-like multi-effect** | FL's Distructor | a rack of distortion + filter + modulation + delay modules in any order, macros, randomise | presets travel; each module is one of our units |
-| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (Auto-Tune style: key, retune speed, humanise, formant) **and** a graphic note editor (Newtone/Melodyne: blobs, pitch drift, vibrato, formant, timing) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
+| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (Auto-Tune style: key, retune speed, humanise, formant) **and** a graphic note editor for recordings (§3c) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
 | **Time manipulation** | Gross Beat, NewTime, Ableton Warp, élastique | Gross Beat-style time/volume envelopes (stutter, half-time, tape stop, scratch) and NewTime-style warp markers/slices on audio | tape stop, half-time and stutter presets sample-exact at any tempo; warp markers on a clip (ties to §3 *Time*) |
 | **Automation controller** | Fruity Formula Controller, Peak Controller, LFO Tool | a formula (sin, saw, inputs a/b/c, time, beat) or LFO/envelope drawing driving any parameter; an envelope follower from any strip | one controller drives several targets, recorded as automation if asked |
 | **Clipper** | Fruity Soft Clipper, StandardCLIP, KClip | hard/soft/analog curves, oversampling, true-peak aware, clip meter | at threshold 0 dB it is a null; inter-sample overs measured |
@@ -134,6 +134,51 @@ bit-identical. Ours should end up better than the reference, not a clone.
 
 **Done when** each shipped unit passes the family's contract tests, has its manual page in
 both languages, and holds up in a blind comparison against its reference.
+
+### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07)
+
+*The owner: "a tuner that works from a recording, to fix vocals and the like — Newtone or
+something more professional." The real-time tuner of §3b is for the effect sound; this is
+the editor for **fixing a performance** after it was recorded.*
+
+**Reference and bar:** Celemony Melodyne (the standard), Synchro Arts RePitch, FL's
+Newtone, Logic's Flex Pitch, Cubase VariAudio. The bar is Melodyne's: a corrected vocal
+that nobody can hear was corrected.
+
+**How it works:**
+
+1. **Analysis** on a worker when a take lands (or on demand), cached beside the audio
+   file: a pitch track (pYIN-style probabilistic YIN, or a small neural tracker of the
+   CREPE kind if its licence and size fit), voiced/unvoiced, sibilants and breaths, then
+   **notes** — each a blob with its centre pitch, its drift and its vibrato kept apart.
+2. **The editor**: blobs on a piano-roll grid over the waveform. Per note: move pitch
+   (snap to scale or free), *pitch centre* (pull toward the note, keeping the natural
+   drift), *pitch drift* and *vibrato* depth, *formant*, *amplitude*, start/end and
+   *timing* (stretch a note without touching its neighbours), split and join. Macros for
+   the whole selection: *correct pitch* (%), *correct drift* (%), *quantise timing* to the
+   grid or to another track. The key and scale detected from the take, editable.
+3. **Resynthesis** that keeps the voice: a formant-preserving method (PSOLA for
+   monophonic voice, or a WORLD-style vocoder — BSD), with transitions between notes
+   smoothed so a moved note never clicks. The edit is **non-destructive**: the original
+   file is never touched; the clip carries the edits (a schema bump) and renders them,
+   offline equal to real time, so bounce and stems hear exactly what the editor plays.
+4. **Workflow**: open from a clip (double-click → *Pitch*), A/B against the original,
+   undo per edit (each a `Command`), a *Pitch* lane in the arrangement for small fixes,
+   MIDI out of the detected notes (melody to an instrument), and doubling (a second voice a
+   third above from the same take).
+
+**Later, the hard part:** polyphonic editing (Melodyne's DNA — chords in a guitar or
+piano recording), and **ARA 2 hosting** so a user who owns Melodyne or RePitch can use it
+inside Cantus the way Studio One, Cubase and Logic do (ARA is a Celemony SDK under the
+Apache licence — check its terms).
+
+**Licences to check before choosing:** Rubber Band (GPL — compatible with Cantus's
+GPL-3.0-or-later), WORLD (BSD), pYIN's reference code (GPL), CREPE (MIT, a model file of
+some megabytes). Our own implementation stays the default for deterministic renders.
+
+**Done when** a real sung take (the owner's) is corrected in the editor with no audible
+artefact at moderate corrections, formants preserved at ± 3 semitones, timing edits clean,
+and the result bounces bit-identical to playback.
 
 ## 4. Performance at scale
 
