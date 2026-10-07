@@ -10,9 +10,11 @@ The owner, after trying round 20:
 2. *"Even the ASIO build you gave me fails."* — Driver ASIO → ASIO4ALL v2 showed **No
    sound** and "ASIO4ALL v2 was disconnected…".
 
-Both are fixed. Every distributed build has ASIO and WASAPI; ASIO4ALL runs input and output
-together for a minute without a gap, and a driver that stops is no longer called
-"disconnected".
+Both are fixed. Every distributed build has ASIO and WASAPI; ASIO4ALL (on a USB device)
+runs input and output together for a minute without a gap, and a driver that stops is no
+longer called "disconnected". Realtek's ASIO driver — and ASIO4ALL pointed at the same
+built-in hardware — never stream on this laptop in any host (§1); Cantus says so and
+offers the fix instead of claiming the device was unplugged.
 
 ## 1. What was wrong with ASIO (root cause, with evidence)
 
@@ -39,7 +41,11 @@ endpoint's audio sessions: all inactive), with the host thread pumping window me
 with `ASIOOutputReady` forced on, and with no `ASIOGetSamplePosition` calls. Our callbacks
 return in microseconds (traced: *enter → callbacks done* on the driver's thread). It also
 refuses every rate in `ASIOCanSampleRate` and now offers only a 1 024 buffer, where round 19
-saw ~480. That is the driver (`rthdasio64.dll`), not the host; Cantus now reports it as
+saw ~480. Later the same day, with the Jabra USB headset unplugged, **ASIO4ALL** — then
+exposing the same built-in hardware (4 inputs, 256 buffer) — gave no buffer at all either,
+cpal-only example included. The built-in Realtek/Intel SST audio does not stream through
+ASIO or kernel streaming on this laptop: that is the driver and hardware
+(`rthdasio64.dll`, the SST path), not the host. Cantus now reports it as
 *"The ASIO driver stopped responding"* with *Restart audio*, restarts once by itself, and
 the audio setup keeps suggesting WASAPI for the computer's own audio (as round 20 did).
 
@@ -149,17 +155,79 @@ Always run (fakes, no device):
 Live (this machine; `CANTUS_TEST_SECONDS=60`; `live_streams_run_without_a_stall` fails on a
 gap of 0.5 s in either direction once started, or a lost device):
 
-RESULTS_TABLE
+| Driver, mode | Result |
+|---|---|
+| ASIO4ALL v2, **duplex** (in + out), 60 s | **pass** — one driver load (6 s, ASIO4ALL's own), `ASIOCreateBuffers: 2 in + 2 out`, one `ASIOStart`; the start-up reset request ignored; first buffer at 1.6 s; 5 033 callbacks each way, longest gap 69 ms, 0 xruns, state Running, 44.1 kHz / 512 read back |
+| ASIO4ALL v2, **output only**, 60 s | **pass** — 5 014 callbacks, longest gap 75 ms |
+| WASAPI (default devices), duplex, 60 s | **pass** — 5 997 / 5 969 callbacks, longest gap 95 ms, buffer 480 read back (5 capture xruns under a heavily loaded machine; no stall) |
+| Realtek ASIO, output only / duplex | **fails, in the driver** — 3 pre-roll buffers then nothing (state Stalled after 1 s; the app says "not responding"); same on unpatched cpal, which cannot even open it (see §1) |
+| ASIO4ALL v2 after the Jabra USB headset was unplugged (later the same day) | **no callbacks at all**, output only too, cpal-only example included — ASIO4ALL now exposes the built-in Realtek/Intel SST hardware (4 inputs, 256 buffer) and that hardware never streams through kernel streaming, exactly like Realtek's own ASIO driver. The passing runs above were ASIO4ALL on the **Jabra EVOLVE 20** (USB, 2 in / 2 out at 44.1 kHz). Cantus reports it as stalled, restarts once, then offers *Restart audio*; it is never "disconnected". |
+
+Commands: `CANTUS_TEST_SECONDS=60 CANTUS_TEST_DRIVER=ASIO CANTUS_TEST_OUTPUT="ASIO4ALL v2"
+[CANTUS_TEST_INPUT=none] [CANTUS_TEST_RATE=48000] [CANTUS_TEST_BUFFER=256] cargo test -p
+cantus-engine --features asio --test devices -- --ignored --nocapture
+live_streams_run_without_a_stall` (add `CPAL_ASIO_TRACE=1` for the trace).
+
+Suites (this branch, `--features asio`, SDK linked): `cantus-engine` all pass (devices: 12 +
+3 ignored live); `cantus-ui` **602 passed, 0 failed** (`samples_browser`'s
+`the_starter_offer_installs_the_recommended_pack_in_one_click` failed once inside the full
+run on a machine loaded by the parallel round and passed alone — not this area);
+`cantus-update` 24 pass; `xtask` 7 pass (the installer compiled with NSIS 3.11).
+
+Release: `cargo run -p xtask -- asio-sdk` fetched the SDK through the Zscaler proxy
+(PowerShell's request failed once, `curl.exe` got it; hash matched), then `cargo run -p
+xtask -- package` built `cantus` (release) with `ASIO_SYS_REQUIRE_SDK=1`, checked
+`cantus.exe --audio-drivers` → `audio drivers: WASAPI, ASIO` / `asio sdk: linked`, bundled
+the 10 plug-ins and wrote `Cantus-0.1.0-windows-x64-setup.exe` (25.7 MB),
+`…-portable.zip` (64.4 MB), `Cantus-0.1.0-plugins-windows-x64.zip` (52.0 MB) and
+`SHA256SUMS.txt` — one edition, no `-asio` files. `package --no-build --no-installer`
+then wrote the same names. **Found on the way (round 20's, not changed here):** `bundle
+--no-build` lays out the *last* plug-in library built under every plug-in's name (each
+became the 12 MB Fervor), so `package --no-build` must follow a full `package` only if
+nothing else was bundled since — the integrator may want `bundle` to keep one library per
+plug-in. The owner's copy: `C:\projects\daw-r21\builds\cantus.exe` (the release
+program, ASIO linked).
 
 ## 5. Files
 
-FILES_LIST
+- **Patched crates** (new): `third_party/cpal/` (cpal 0.18.2; `src/host/asio/{stream,device,mod}.rs`
+  changed), `third_party/asio-sys/` (0.4.0; `build.rs`, `src/lib.rs`,
+  `src/bindings/mod.rs` changed; `LICENSE` added), `third_party/README.md`; workspace
+  `Cargo.toml` (`[patch.crates-io]`, `exclude`), `Cargo.lock`.
+- `cantus-engine`: `src/devices.rs` (`asio_built()`, `DeviceState`, `classify`, `Beat`,
+  `restart_requested`/`output_frames` telemetry, `stream_error` mapping, `pick_output`,
+  `pick_input` on ASIO, `output_rate`, `buffer_request`, `InputPlan::build`,
+  `device_state`/`device_buffer`/`rate_refused`), `src/backend.rs` (**only
+  `EngineHandle::start`**: device lookup, rate/buffer read back, build both then start; plus
+  a marked TODO for the rt builder's MMCSS hook), `src/routing.rs` (`device_lost` = gone
+  only), `src/lib.rs` (export), `Cargo.toml` (feature note, example), `examples/asio_duplex.rs`
+  (new), `tests/devices.rs` (4 always-run tests, a 60 s live test, rate/buffer variables).
+- `cantus-ui`: `src/app.rs` (`restart_audio` closes the old device first),
+  `src/audio_setup/{mod,apply,plug,problems,demo,drivers}.rs` (state in `Live`, automatic
+  restart, reopen quiet, `Reset`/`Dictated`/`RateRefused` problems, `report()`),
+  `src/views/{audio_chip,audio_popover,audio_drivers,audio_firstrun,audio_popover_lists,settings_audio,update}.rs`,
+  `locales/areas/devices.{en,es}.txt`, `tests/audio_setup_flows.rs` (3 tests),
+  `tests/audio_setup_first.rs` (build-agnostic suggestion).
+- `cantus-app`: `Cargo.toml` (`default = ["asio"]`), `src/main.rs` (`--audio-drivers`).
+- `cantus-update`: `src/release.rs` (no flavour), `src/updater.rs`, `src/lib.rs`,
+  `src/flexasio.rs` (comment), `tests/check.rs`, `tests/fixtures/{cantus-latest.json,SHA256SUMS.txt}`.
+- `xtask`: `src/asio_sdk.rs` (new), `src/package.rs`, `src/package_tests.rs`, `src/nsis.rs`,
+  `src/main.rs`, `installer/cantus.nsi`, `installer/flexasio.ps1`.
+- `.github/workflows/release.yml`; ADR 0025 §10, ADR 0032; notes at the top of
+  `docs/round19/devices.md` and `docs/round20/packaging.md`; this file.
+
+**For the integrator:** the rt builder's request — `processor.promote_on_first_block(
+AudioHost::from_driver_name(..))` — is a marked one-line TODO in `EngineHandle::start`
+(`backend.rs`, right after the processor is made; `host.id().name()` is the driver name).
+The graph builder owns the rest of `backend.rs`; this branch changed only `start` there.
+`cargo test --workspace` now builds asio-sys (stubs when the SDK is absent, with a cargo
+warning); CI fetches the SDK first.
 
 ## 6. For the owner — the Behringer UMC
 
-1. Install the new build (`C:\projects\daw-r21\builds\cantus.exe`, or the setup from
-   `xtask package`). It has ASIO without any special edition: Help is not needed —
-   the audio chip ▸ Driver ▸ **ASIO**.
+1. Run the new build (`C:\projects\daw-r21\builds\cantus.exe`, or the setup from
+   `xtask package`). It has ASIO without any special edition: audio chip ▸ Driver ▸
+   **ASIO**. `cantus.exe --audio-drivers` prints `audio drivers: WASAPI, ASIO`.
 2. Plug the UMC in **before** choosing *UMC ASIO Driver* (with the interface absent its
    driver must not be loaded; Cantus no longer loads it on the way to another driver).
 3. Choose the UMC's card (or Driver ASIO ▸ *UMC ASIO Driver*). Input and output open
@@ -170,5 +238,8 @@ FILES_LIST
    it again, click *Restart audio* and tell me what the status line said.
 5. To send me a trace: start Cantus from a terminal with `set CPAL_ASIO_TRACE=1` and
    `set RUST_LOG=info`, reproduce, and copy what it prints.
-6. Realtek's own ASIO driver is not usable on this laptop (it stops after three buffers in
-   every host); use WASAPI or ASIO4ALL for the built-in sound.
+6. The laptop's built-in sound (Realtek on Intel Smart Sound) does not stream through ASIO
+   here — neither Realtek's own ASIO driver nor ASIO4ALL pointed at it gets past three
+   buffers, in any host. Use WASAPI for the built-in sound; ASIO4ALL works with a USB
+   device (it ran the Jabra headset for a minute without a gap). The UMC's own driver is
+   the one to use with the UMC.

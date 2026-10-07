@@ -116,9 +116,9 @@ fn the_package_task_produces_the_expected_file_list() {
     let readme = std::fs::read_to_string(out.join("stage/app/README.txt")).unwrap();
     assert_eq!(readme, "Cantus 0.2.0\r\nline two\r\n");
 
-    // The sums cover every other file, and match.
+    // The sums cover every other file (the two zips here), and match.
     let sums = release::parse_sums(&std::fs::read_to_string(dist.join("SHA256SUMS.txt")).unwrap());
-    assert_eq!(sums.len(), 3);
+    assert_eq!(sums.len(), 2);
     for (name, hex) in &sums {
         assert_eq!(
             &cantus_update::verify::sha256_file(&dist.join(name)).unwrap(),

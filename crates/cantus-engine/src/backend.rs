@@ -153,6 +153,8 @@ impl EngineHandle {
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        // TODO(integrator, r21/rt): once `cantus-rt` and the graph builder's processor flag are merged:
+        // processor.promote_on_first_block(cantus_rt::AudioHost::from_driver_name(host.id().name())); // MMCSS "Pro Audio" on WASAPI, nothing on ASIO
         let (capture_tx, capture_rx) = RingBuffer::<f32>::new(CAPTURE_SAMPLES);
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
