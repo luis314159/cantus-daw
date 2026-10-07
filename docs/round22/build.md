@@ -261,13 +261,15 @@ two `cantus-plugins` dead-code warnings under `--no-default-features` are round 
 
 - `crates/cantus-bench/` (round 20's bench, no owner this round): `src/hashes.rs` (new),
   `src/main.rs` (the `hashes` subcommand), `src/lib.rs` (one line), `src/sessions.rs`
-  (`full_band_bar` made `pub`), `Cargo.toml` (`cantus-dsp`, `sha2`).
+  (`full_band_bar` made `pub`), `src/suites.rs` (`CANTUS_BENCH_SIZES` filters the engine
+  sessions), `tests/bench.rs` (one test), `Cargo.toml` (`cantus-dsp`, `sha2`).
 - `crates/cantus-app/`: `build.rs` split into `icon.rs` (shared with the launcher's build
   script), `src/main.rs` (the AppUserModelID first thing, the level in `--version` and the
   start-up log line), `Cargo.toml` (`cantus-launch`). *beta-docs* bumps the version and may
   touch `main.rs`'s `--version`: keep the `({level})` suffix, `xtask package` checks it.
 - Workspace `Cargo.toml` (member, default member, workspace dependency), `Cargo.lock`.
-- `docs/adr/0032-…` (§1 and §2 amended), `.github/workflows/ci.yml` (two jobs),
+- `docs/adr/0031-…` (§5.3: what was built and measured), `docs/adr/0032-…` (§1 and §2
+  amended), `.github/workflows/ci.yml` (two jobs),
   `release.yml` (a step's name).
 
 ## 8. Left
