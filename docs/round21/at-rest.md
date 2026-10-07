@@ -162,8 +162,10 @@ setting, with the reason.
 
 ## Bits
 
-Four commits change DSP behaviour on purpose, each with its reason: the three flushes
-(finding 2) and the two resets (finding 7). `null_tests.rs`, the `v5.cantus` hash and every
+Three commits change DSP behaviour on purpose, each alone and with its reason — the three
+flushes of finding 2 (`ca3bfc4` Comprimo's meters, `556b925` Terminus's loudness sections, `de5540e`
+Multiplex's detectors) — and two lines of the instruments' commit (`1437010`) make a reset
+bass unit and a reset Modulus restart their clocks (finding 7). `null_tests.rs`, the `v5.cantus` hash and every
 test in `crates/cantus-engine/tests` and `crates/cantus-dsp` pass unchanged on this branch
 (see the report). Everything else is additive: new methods, new counters beside the state
 (`ZeroRun`, quiet and unity counts, clocks) that no output reads.
