@@ -5,8 +5,7 @@
 //! drives the same processor offline for bit-identical bounces; [`midi`] feeds hardware
 //! MIDI into the engine from its own threads.
 
-// `deny`, not `forbid`, only while `processor`'s `rt_shim` holds the denormal guard
-// until `cantus-rt` merges (see `graph/rt_shim.rs`); then `forbid` again.
+// Every `unsafe` the engine needs (OS calls, the pool's cells) lives in `cantus-rt`.
 #![forbid(unsafe_code)]
 
 pub mod automation;

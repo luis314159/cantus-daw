@@ -376,6 +376,7 @@ mod tests {
                 sample_rate: Some(96_000),
                 buffer_frames: Some(128),
                 record_offset_frames: -42,
+                workers: Some(3),
             },
             ..Default::default()
         };

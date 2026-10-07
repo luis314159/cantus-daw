@@ -1,11 +1,12 @@
 //! # The real-time multicore scheduler (ADR 0031 §2; amendments R2, R5, R13)
 //!
 //! A pool of live workers plus the driver's callback thread runs a static task graph once
-//! per audio block. The graph is anything that implements [`Graph`]: a number of tasks,
-//! each task's predecessor count and successors, a *ranks* array (every task once,
-//! critical path first) and a way to run a task. Round 21 ran it against mock graphs
-//! (`tests/sched.rs`, [`fuzz`]); round 22 connects the engine's compiled graph to it
-//! (`crate::graph::exec`).
+//! per audio block. The graph is anything that implements [`Graph`] (a way to run a task);
+//! its shape — each task's predecessor count and successors, a *ranks* array (every task
+//! once, critical path first) — is a [`Topology`] the callback hands the pool between
+//! blocks ([`Pool::set_topology`]), which keeps its own copy. Round 21 ran it against mock
+//! graphs (`tests/sched.rs`, [`fuzz`]); round 22 connects the engine's graph to it
+//! (`graph/exec.rs`, `graph/cluster.rs`).
 //!
 //! **The block protocol** ([`Pool::run_block`], ADR 0031 §2.2): the callback *arms* the
 //! block — every pending count reset from the graph, every task without a predecessor made
@@ -25,12 +26,15 @@
 //! and publishing it hides every later push from every consumer; a preempted deque owner
 //! hides only the one task it was pushing. `docs/round21/sched.md` measures both.
 //!
-//! **Idle** ([`pool`], ADR 0031 §2.4 and amended ADR 0005 rule 3): a worker that finishes a
-//! block spins for a *time* budget (1.5 device periods; R5's progressive backoff, the clock
-//! read every few hundred polls), then yields, and **parks** only after ~100 ms without a
-//! block. The callback wakes a parked worker with one non-blocking `unpark` at the first
-//! block after the silence, never waits for it, and never makes a system call on a block
-//! whose workers are spinning; each wake is counted ([`PoolStats::wakes`]).
+//! **Idle** ([`pool`], ADR 0031 §2.4, amended ADR 0005 rule 3, and rt's round-21 finding):
+//! [`Idle::Spin`] spins 1.5 periods, yields, and parks after ~100 ms without a block — for
+//! workers outside any throttled real-time class; [`Idle::BOUNDED`] (the engine's) spins
+//! until half a period after the block was armed, then parks, so a worker in MMCSS "Pro
+//! Audio" is never busy past its share and never throttles the callback. The callback wakes
+//! a parked worker with one non-blocking `unpark` when it arms the next block (an idle →
+//! busy transition, counted in [`PoolStats::wakes`]), never waits for it, and never makes a
+//! system call for a worker that is spinning. A worker counts as available only once its
+//! start hook (promotion, placement) has run.
 //!
 //! **Serial when parallel does not pay** (§2.5): below 25 % load for 32 blocks the callback
 //! runs the graph alone (the workers spin out their budget and park); above 35 % it is

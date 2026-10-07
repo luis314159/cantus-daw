@@ -33,15 +33,15 @@ thread_local! {
     static FIRST: Cell<isize> = const { Cell::new(0) };
 }
 
-/// Pool workers mark themselves; their heap events count while any test counts.
+// Pool workers mark themselves; their heap events count while any test counts.
 thread_local! {
     static WORKER: Cell<bool> = const { Cell::new(false) };
 }
 static COUNTING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static WORKER_EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-fn mark_worker(_slot: usize) {
-    WORKER.with(|w| w.set(true));
+fn mark_worker(_slot: usize, serving: bool) {
+    WORKER.with(|w| w.set(serving));
 }
 
 fn count(bytes: isize) {

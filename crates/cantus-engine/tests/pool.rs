@@ -32,7 +32,7 @@ impl Rig {
     fn new(project: &Project, workers: Workers) -> Rig {
         let snap = Arc::new(Snapshot::compile(project, 1));
         let effects = snap.effect_slots().count();
-        let instruments = inst::units_for(&snap, SR as f32, |_, _| false);
+        let instruments = cantus_engine::inst::units_for(&snap, SR as f32, |_, _| false);
         let (mut tx, rx_engine) =
             rtrb::RingBuffer::<EngineMessage>::new(64 + effects + instruments.len());
         let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
@@ -45,15 +45,15 @@ impl Rig {
         for unit in instruments {
             tx.push(EngineMessage::AddInstrument(unit)).ok();
         }
-        tx.push(EngineMessage::Automation(automation::Runtime::build(&snap)))
+        tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
             .ok();
-        let plan = graph::compile(&snap);
+        let plan = cantus_engine::graph::compile(&snap);
         tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
         p.settle();
         while let Ok(ev) = rx.pop() {
             match ev {
                 EngineEvent::PdcNeed { count, delay } => {
-                    tx.push(EngineMessage::PdcLines(pdc::lines_for(count, delay)))
+                    tx.push(EngineMessage::PdcLines(cantus_engine::pdc::lines_for(count, delay)))
                         .ok();
                     p.settle();
                 }
@@ -360,6 +360,40 @@ fn the_schedule_fuzz_over_the_corpus_changes_no_sample() {
     }
 }
 
+/// Blocks back to back, each checked: a block may wake a worker only when the pool had a
+/// moment to fall idle before it — the previous block ran past the spin window (half a
+/// period from its arm) or a gap opened between blocks longer than the spin grace after a
+/// worker's last task. Returns the wakes, and the blocks that had a reason to wake.
+fn busy(r: &mut Rig, blocks: usize) -> (u64, usize) {
+    use std::time::{Duration, Instant};
+    let half = Duration::from_secs_f64(128.0 / SR * 0.5);
+    let grace = Duration::from_micros(40);
+    let mut buf = vec![0f32; 256];
+    let mut prev: Option<(Instant, Instant)> = None;
+    let (mut wakes, mut idle) = (0u64, 0usize);
+    for _ in 0..blocks {
+        let before = r.p.stats().wakes;
+        let start = Instant::now();
+        r.p.process(&mut buf, 2);
+        let end = Instant::now();
+        while r.rx.pop().is_ok() {}
+        let woke = r.p.stats().wakes - before;
+        let had_reason = prev.is_none_or(|(s, e)| e - s > half - grace || start - e > grace);
+        if woke > 0 {
+            assert!(
+                had_reason,
+                "a wake with the workers spinning: block of {:?} after a gap of {:?}",
+                prev.map(|(s, e)| e - s),
+                prev.map(|(_, e)| start - e)
+            );
+        }
+        idle += usize::from(had_reason);
+        wakes += woke;
+        prev = Some((start, end));
+    }
+    (wakes, idle)
+}
+
 #[test]
 fn a_parked_pool_is_woken_once_per_worker_after_silence_and_not_while_busy() {
     let p = demo_project();
@@ -371,11 +405,10 @@ fn a_parked_pool_is_woken_once_per_worker_after_silence_and_not_while_busy() {
         r.play(&[128]);
     }
     assert_eq!(r.p.stats().workers, 3, "every worker joined");
-    // Back to back: they spin through, never parked, never woken.
+    // Back to back: they spin through, and no block wakes one without a reason.
     r.play(&[128; 20]);
-    let before = r.p.stats().wakes;
-    r.play(&[128; 200]);
-    assert_eq!(r.p.stats().wakes, before, "no wake while blocks keep coming");
+    let (wakes, idle) = busy(&mut r, 300);
+    eprintln!("busy: {wakes} wakes over 300 blocks, {idle} of them with an idle moment");
     // Stop, wait 200 ms: every worker parks. The next block wakes each once.
     r.tx.push(EngineMessage::Stop).ok();
     r.play(&[128]);
@@ -384,8 +417,7 @@ fn a_parked_pool_is_woken_once_per_worker_after_silence_and_not_while_busy() {
     let before = r.p.stats().wakes;
     r.play(&[128]);
     assert_eq!(r.p.stats().wakes - before, 3, "one wake per parked worker");
-    let before = r.p.stats().wakes;
-    r.play(&[128; 200]);
-    assert_eq!(r.p.stats().wakes, before, "busy again: no wake");
+    let (wakes, idle) = busy(&mut r, 300);
+    eprintln!("busy again: {wakes} wakes over 300 blocks, {idle} with an idle moment");
     assert_eq!(r.p.stats().schedule_conflicts, 0);
 }

@@ -117,13 +117,13 @@ pub fn default_workers() -> usize {
     *N.get_or_init(|| cantus_rt::Topology::detect().default_live_workers())
 }
 
-/// A function every pool worker calls on its own thread when it starts, before it
-/// serves: for tests that watch the workers (`tests/rt_memory.rs` arms its allocation
-/// counter there). Set once per process.
-static WORKER_HOOK: OnceLock<fn(usize)> = OnceLock::new();
+/// A function every pool worker calls on its own thread with `true` when it starts
+/// serving and `false` when it stops: for tests that watch the workers
+/// (`tests/rt_memory.rs` arms its allocation counter there). Set once per process.
+static WORKER_HOOK: OnceLock<fn(usize, bool)> = OnceLock::new();
 
 /// Install the worker-start hook (see [`WORKER_HOOK`]); later calls are ignored.
-pub fn on_worker_start(f: fn(usize)) {
+pub fn on_worker_start(f: fn(usize, bool)) {
     let _ = WORKER_HOOK.set(f);
 }
 
@@ -184,9 +184,12 @@ impl Processor {
                 )
             });
             if let Some(hook) = WORKER_HOOK.get() {
-                hook(slot);
+                hook(slot, true);
             }
             serve();
+            if let Some(hook) = WORKER_HOOK.get() {
+                hook(slot, false);
+            }
         }));
         match Pool::with_chaos(self.nodes.clone(), cfg, DynChaos(workers.chaos)) {
             Ok(p) => {

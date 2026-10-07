@@ -610,6 +610,7 @@ fn stalled_pusher_pool<Q: ReadyQueue>() -> Duration {
     cfg.mode = Mode::Parallel;
     let chaos = Stall::new(Site::Claimed, 0, Duration::from_millis(2));
     let mut pool = Pool::<FuzzGraph, Q, Stall>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
+    wait_ready(&pool);
     let t = Instant::now();
     for b in 1..=50 {
         g.begin(b, 1);
