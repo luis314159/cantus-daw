@@ -34,6 +34,8 @@ pub struct Paced {
     pub conflicts: u64,
     /// The last overrun's culprit, in the project's words (the profiler's blame).
     pub culprit: String,
+    /// The heaviest nodes, µs per block on average.
+    pub heaviest: String,
 }
 
 /// The songs a paced run plays: the startup project and every demo.
@@ -87,6 +89,7 @@ pub fn run(
         if k == warm {
             due = Instant::now();
             stats0 = Some(*rig.processor.stats());
+            rig.processor.profiler_mut().reset_totals();
         }
         let now = Instant::now();
         if due > now {
@@ -140,13 +143,19 @@ pub fn run(
                 )
             })
             .unwrap_or_default(),
+        heaviest: rig
+            .hot_spots(name, 3)
+            .iter()
+            .map(|h| format!("{} {:.0}", h.node, h.us_per_block))
+            .collect::<Vec<_>>()
+            .join(", "),
     }
 }
 
 /// A table row.
 pub fn row(r: &Paced) -> String {
     format!(
-        "| {} | {} | {} | **{}** | {} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {} | {:.0} % | {} | {} |",
+        "| {} | {} | {} | **{}** | {} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {} | {:.0} % | {} | {} | {} |",
         r.song,
         r.frames,
         r.blocks,
@@ -160,8 +169,9 @@ pub fn row(r: &Paced) -> String {
         r.wakes,
         r.parallel_share * 100.0,
         r.conflicts,
-        r.culprit
+        r.culprit,
+        r.heaviest
     )
 }
 
-pub const HEADER: &str = "| Song | Frames | Blocks | Misses | Overruns | Late p99 µs | Block p50 µs | Block p99 µs | Block max µs | Workers | Wakes | Parallel | Conflicts | Last overrun |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|";
+pub const HEADER: &str = "| Song | Frames | Blocks | Misses | Overruns | Late p99 µs | Block p50 µs | Block p99 µs | Block max µs | Workers | Wakes | Parallel | Conflicts | Last overrun | Heaviest (µs/block) |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|";

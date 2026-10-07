@@ -6,7 +6,7 @@
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
 //! cantus-bench paced [--frames 256] [--seconds 120] [--songs startup,house,…]
-//!                    [--workers auto|N] [--promote 1|0] [--spin 0|1] [--callback mmcss|normal]
+//!                    [--workers auto|N] [--promote 1|0] [--spin 0|1] [--share 0.1] [--callback mmcss|normal]
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -153,6 +153,7 @@ fn paced_cmd(args: &[String]) -> ExitCode {
     let mut only: Vec<String> = Vec::new();
     let mut workers = cantus_engine::Workers::auto();
     let (mut promote, mut spin, mut callback) = (true, false, true);
+    let mut share = 0.1f32;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let v = it.next();
@@ -162,6 +163,7 @@ fn paced_cmd(args: &[String]) -> ExitCode {
             ("--songs", Some(v)) => only = v.split(',').map(|s| s.trim().to_string()).collect(),
             ("--promote", Some(v)) => promote = v == "1",
             ("--spin", Some(v)) => spin = v == "1",
+            ("--share", Some(v)) => share = v.parse().unwrap_or(share),
             ("--callback", Some(v)) => callback = v == "mmcss",
             ("--workers", Some(v)) => {
                 workers = match v.as_str() {
@@ -177,8 +179,9 @@ fn paced_cmd(args: &[String]) -> ExitCode {
     }
     workers.promote = promote;
     workers.spin = spin;
+    workers.spin_share = share;
     println!(
-        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers (promoted: {promote}, spinning: {spin}), callback {}
+        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers (promoted: {promote}, spinning: {spin}, spin share {share}), callback {}
 ",
         frames as f64 / 48.0,
         workers.count(),

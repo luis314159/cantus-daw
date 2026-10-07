@@ -32,6 +32,11 @@ pub struct Workers {
     /// only after 100 ms of silence — a promoted worker then gets the highest priority no
     /// OS throttles instead (`Waiting::Spins`: Windows TIME_CRITICAL, no MMCSS).
     pub spin: bool,
+    /// For bounded workers: the share of a period after the block's arm they spin before
+    /// parking (at most 0.65, what MMCSS allows with margin). 0.1 by default: round 22's
+    /// paced runs missed fewer periods at 0.1 than at 0.5 in every pair — a laptop's power
+    /// budget, its turbo clock, is better spent on the threads doing the work.
+    pub spin_share: f32,
     /// The schedule fuzz's hook (`sched::fuzz`), and a seed that shuffles the tasks'
     /// priorities and switches clustering — a test's way of trying other schedules.
     pub chaos: Option<Arc<dyn Chaos>>,
@@ -45,6 +50,7 @@ impl Workers {
         mode: Mode::Serial,
         promote: false,
         spin: false,
+        spin_share: 0.1,
         chaos: None,
         shuffle: None,
     };
@@ -56,6 +62,7 @@ impl Workers {
             mode: Mode::Auto,
             promote: true,
             spin: false,
+            spin_share: 0.1,
             chaos: None,
             shuffle: None,
         }
@@ -73,6 +80,7 @@ impl Workers {
             mode: Mode::Parallel,
             promote: false,
             spin: false,
+            spin_share: 0.1,
             chaos: None,
             shuffle: None,
         }
@@ -98,6 +106,12 @@ impl Workers {
         };
         w.promote = std::env::var("CANTUS_WORKERS_PROMOTE").is_ok_and(|p| p == "1");
         w.spin = std::env::var("CANTUS_WORKERS_SPIN").is_ok_and(|p| p == "1");
+        if let Some(share) = std::env::var("CANTUS_WORKERS_SHARE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+        {
+            w.spin_share = share;
+        }
         if w.count == 0 {
             return Workers::SERIAL;
         }
@@ -116,6 +130,7 @@ impl std::fmt::Debug for Workers {
             .field("mode", &self.mode)
             .field("promote", &self.promote)
             .field("spin", &self.spin)
+            .field("spin_share", &self.spin_share)
             .field("chaos", &self.chaos.is_some())
             .field("shuffle", &self.shuffle)
             .finish()
@@ -177,12 +192,17 @@ impl Processor {
                 park_after: std::time::Duration::from_millis(100),
             }
         } else {
-            Idle::BOUNDED
+            Idle::Bounded {
+                share: f64::from(workers.spin_share.clamp(0.0, 0.65)),
+                min_spin: std::time::Duration::from_micros(50),
+            }
         };
         let waiting = if workers.spin {
             cantus_rt::thread::Waiting::Spins
         } else {
-            cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 }
+            cantus_rt::thread::Waiting::Bounded {
+                busy_share: workers.spin_share.clamp(0.5, 0.65),
+            }
         };
         cfg.mode = workers.mode;
         let placement = if workers.promote {
