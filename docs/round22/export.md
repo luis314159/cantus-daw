@@ -63,11 +63,41 @@ is above the mask; machine shared with five builders, so speeds are indicative):
 LAME q0 vs q2 at 320: −26.2 vs −26.1 dB, 4× vs 13× real time → q2. The program is in
 `docs/round22/mp3-eval/` (standalone; `cargo run --release --manifest-path …`).
 
-RESULTS-PLACEHOLDER
+What the tests measured on the written files: FLAC and integer WAV decode to **exactly**
+the integers the pipeline made (16/24 bit, dither off, TPDF, shaped); MP3 (CBR 128/320,
+VBR V0/V4) and Ogg (q3/6/10) come back at **exactly** their length (LAME's info tag,
+Vorbis's granule position), within 0.25 dB of level (0.6 dB at 128 kbps and V4, which
+low-pass above 16–17 kHz) and 1 dB per octave band 63 Hz–8 kHz; a 48 → 44.1 kHz WAV
+within 0.05 dB of level; loudness-normalised exports land within ±0.5 LU of −14, −9 and
+−16 (mono, dual-mono measure), the true peak under the −1 dBTP ceiling when limiting.
 
 ## Tests
 
-TESTS-PLACEHOLDER
+36 new tests, all green; clippy clean on `cantus-export` and `cantus-ui` (tests and
+examples).
+
+- `crates/cantus-export` (28): `round_trip.rs` (7: FLAC bit-exact ×4 settings, WAV exact
+  in 16/24/32f, MP3 length/level/spectrum ×4 modes, mono 48 kHz MP3 and its bitrate, Ogg
+  ×3 qualities, rate conversion, MP3 rate fallback), `tags.rs` (5: MP3, WAV, FLAC, Ogg read
+  back by symphonia/claxon/lewton, empty tags left out with the credit kept),
+  `loudness.rs` (7: quiet mix raised, loud target limited, limiter off stops at the
+  ceiling, Streaming preset as MP3, Podcast preset mono, silence untouched, stems never
+  normalised), `jobs.rs` (5: the mix equals the engine's render to the bit, stems in all
+  four formats with FLAC stems equal to the engine's to the bit, a stop at 30 % in every
+  format leaves nothing, a stems export stopped rendering or encoding leaves nothing, an
+  old file is replaced only by a whole one), unit tests (4: ID3 size, RIFF padding, the
+  Vorbis block, stem names).
+- `crates/cantus-ui/tests/export_dialog.rs` (8): opens with the last choices and the
+  song's title (and on stems from the menu; a missing selection falls back to the song),
+  the choices persist in `settings.json` and read back, an export runs off the interface
+  thread and the status says so, `export_to` takes the format from the extension, a stop
+  leaves no file, stems in the chosen format, the dialog renders in both themes × both
+  languages × every preset, every key has words in both languages.
+- Unchanged and still green: `app_flows` (its WAV export now goes through the new path),
+  `interop_flows`, `kit_lint`, the settings unit tests.
+- Shots: `cargo run -p cantus-ui --example shoot_export -- <dir> 1 [es]` — Streaming,
+  stems for mastering, podcast, a custom FLAC with tags and an export under way, light
+  and dark, EN and ES (20 images); looked at in both themes and languages.
 
 ## Files outside my area
 
@@ -96,9 +126,23 @@ TESTS-PLACEHOLDER
 ## Notes for the integrator
 
 - ADR number **0033**: rename if another branch took it.
-- `THIRD-PARTY-NOTICES` (beta-docs): LAME (LGPL-2.0-or-later, via `mp3lame-sys`),
-  libvorbis/libogg (BSD-3-Clause, with the aoTuV/Lancer patches), flacenc (Apache-2.0);
-  symphonia (MPL-2.0) is a test dependency only.
+- **Notices**: `mp3lame-encoder`/`mp3lame-sys` declare `LGPL-3.0`; per the integrator's
+  ruling the `xtask notices` allow-list needs the LGPL ids (exact lines and every crate
+  this branch adds, with licences, in `docs/round22/requests.md`), then
+  `cargo run -p xtask -- notices`. The generator is on `r22/beta-docs` only, so it is not
+  changed here. symphonia (MPL-2.0) is a test dependency only.
+- **Manual and release notes** (beta-docs' chapter 8 and the "WAV only" known issue): the
+  formats are WAV (16-bit, 24-bit, 32-bit float), FLAC (16, 24-bit), MP3 (CBR 128, 160,
+  192, 224, 256, 320 kbps; VBR V0, V2, V4, V6; 32/44.1/48 kHz; mono or stereo) and Ogg
+  Vorbis (quality 3, 4, 5, 6, 8, 10); sample rate: the session's, 44.1, 48, 88.2, 96 or
+  192 kHz (MP3 falls back to 44.1/48); dither off, TPDF or shaped (16/24-bit only);
+  loudness off or −9, −11, −14, −16, −19, −23 LUFS with a −0.1, −0.3, −1 or −2 dBTP
+  ceiling and an optional true-peak limiter; tags title, artist, album, year, comment;
+  song, time selection or stems (strips or tracks), all formats. Presets: **Streaming**
+  (MP3 320 CBR, 44.1 kHz, −14 LUFS, −1 dBTP), **CD** (WAV 16-bit, 44.1 kHz, shaped
+  dither), **Stems for mastering** (every strip, WAV 24-bit, session rate, no
+  normalisation), **Podcast** (mono MP3 128 CBR, 44.1 kHz, −16 LUFS, −1 dBTP). Menu:
+  *File ▸ Export audio…* (Ctrl+E) and *File ▸ Export stems…*.
 - **math2** changes Terminus's `Ditherer` to counter-based TPDF: `process::quantise` calls
   `Ditherer::new(seed)` and `process(x, bits, shaping)`. If the signature changes, that
   one function follows; the FLAC/WAV round-trip tests compare against `quantise` itself,
