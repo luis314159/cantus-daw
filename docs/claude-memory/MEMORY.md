@@ -1,0 +1,11 @@
+- [Mixer direction: FL parity](mixer-direction-fl-parity.md) — user wants FL's mixer feature by feature; priority order and what is still open
+- [Cantus workflow habits](cantus-workflow-habits.md) — null tests first, ADR per decision, schema bump + fixture, undo fuzz, both locales; Bash heredoc `EOF` quirk
+- [DAW interop](daw-interop-later.md) — round 17 merged: CLAP/VST3 hosting, our effects as a separate CLAP/VST3 build (bit-identical), MIDI/stems/DAWproject; schema 15; instruments are daw-b0's
+- [Parallel builders](cantus-parallel-builders.md) — snapshot commit via temp index, worktree per builder, file-by-file 3-way merge; never stage the user's changes
+- [Instruments, rounds 17-18](instruments-round-17.md) — 8 instruments + kit-shell redesign in the main tree; committed e25c393, pushed with master be216de (2026-10-06); worktree cleanup pending user OK
+- [UI quality bar](ui-quality-bar.md) — user found the UI ugly (2026-09-25): redesign to top-DAW level, FL Studio as reference, resizable/movable panels, no loose-word labels, mixer scroll
+- [Round 19: recording, master FX, demos](round-19-recording.md) — merged r19/integration 1422cdc, applied uncommitted to C:\projects\daw (2026-10-05); 1422 tests; what is left
+- [Round 20: automation, browser, swaps, hosted instruments, AI research](round-20.md) — started 2026-10-05; contract 403ca06; six agents in C:\projects\daw-r20
+- [One build, every driver](feedback-one-build-all-drivers.md) — distributed builds always include ASIO+WASAPI; test real drivers in duplex before calling device work done
+- [Round 21: performance wave 1 + ASIO fix](round-21.md) — started 2026-10-06; base 49f02f3; r20 pushed (master be216de)
+- [Round 22: multicore pool + beta hardening](round-22.md) — started 2026-10-07; base c8bc9f2; r21 not yet pushed

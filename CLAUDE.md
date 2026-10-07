@@ -14,6 +14,8 @@ The bar is the best DAWs on the market, and excellence over speed.
 4. `docs/adr/` — every structural decision (Context / Decision / Consequences / what the
    tests hold). `docs/BACKLOG-excellence.md` — what stands between Cantus and excellent.
 5. The newest `docs/roundNN/` — the briefs and every builder's report.
+6. `docs/claude-memory/` — Claude Code's memory from the first machine; its README says how
+   to restore it on a new one. Copy the memory back there at the end of each round.
 
 ## How work is done here
 
