@@ -246,9 +246,13 @@ likely code layout (alignment of hot loops) rather than instructions; worth a lo
 | `cantus-launch/tests/launch.rs` (2, Windows) | the real launcher, copied in as `cantus.exe` beside copies of `cmd.exe` as `cantus-x86-64-v2.exe`/`-v3.exe`: the right one starts (its command line echoed), arguments pass untouched, exit codes 7 and 300 come back, `CANTUS_CPU=v2` steps down, `--launcher-info` reports; with no program, the report says nothing starts |
 | `cantus-launch/tests/appid.rs` (1) | the process takes `Cantus.Cantus`, read back from Windows |
 | `xtask` `package_tests` (6, 2 new) | the dist list unchanged (one edition, same names); the portable zip holds `cantus.exe`, both programs, the scanner, the marker, the plug-ins; the plug-ins zip no `.exe`; the staged launcher and programs are the right files; the uninstaller's `File`/`Delete` symmetry with 7 app files; `CANTUS_PROGRAMS_BUSY` names every program and `WAIT_FOR_CANTUS` uses it; every shortcut, association command and the finish page name `$INSTDIR\cantus.exe`, never a level's program; each `CreateShortcut` is followed by `CANTUS_SET_APP_ID`; `config.nsh` defines `APP_ID` from `cantus_launch::APP_ID`; **a real installer compiles with NSIS 3.11** from the stand-ins (the new macros and `appid.nsh` included) |
+| `cantus-bench/tests/bench.rs` (1 new) | the null corpus: the math sweeps the same twice in one process, 39 + 24 items named once each, every effect audible at 2 × 96 000 samples, the report's format (64-hex hash per line, header) |
 | `xtask` `levels_tests` (3) | the null-hash comparison (headers ignored; each differing or missing item named); the paired table (median of per-pair ratios, range, "better in k of n", higher-is-better metrics) |
 
-`cargo test -p cantus-launch -p xtask`: 9 + 11 pass. `cargo clippy --tests` clean on
+`cargo test -p cantus-launch -p xtask`: 9 + 11 pass; `cargo test -p cantus-bench --test
+bench`: 6 pass. `xtask null-hashes --no-build` with the default corpus (demos as eight
+bars): v2 = v3, 97 items, 117 s and 161 s of hashing on the loaded machine (demos 107 s of
+it). `cargo clippy --tests` clean on
 `cantus-launch`, `xtask`, `cantus-bench`, `cantus` (the two `cantus-plugins` dead-code
 warnings under `--no-default-features` are round 20's).
 
@@ -284,10 +288,10 @@ warnings under `--no-default-features` are round 20's).
 - **CI cost**: `null-hashes` builds the bench three times per OS (plain, v2, v3). If that is
   too long for every pull request, run it on pushes to `master` only, or drop
   `--baseline` (the goldens' tests already run the plain build).
-- **Clean-up done**: this worktree's `target/cpu-x86-64-v2`, `target/cpu-x86-64-v3`,
-  `target/package`, `target/plugin`, `target/null-hashes`, `target/perf` were deleted at
-  the end (≈ 6 GB); the hash lists and the A/B reports were copied to the session scratch
-  folder first and are quoted here.
+- **Clean-up done**: this worktree's whole `target/` (the plain, v2, v3, plug-in and debug
+  builds, ≈ 8 GB) was deleted at the end except `target/package/dist/` — the release made
+  in §2 (installer, portable zip, plug-ins zip, sums; 166 MB), kept for the owner to try. The
+  hash lists and the A/B reports quoted here were copied out first (session scratch).
 
 ## 9. Notes for the integrator
 

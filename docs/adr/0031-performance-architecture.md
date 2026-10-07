@@ -723,6 +723,15 @@ accident.
   the same commit, render-cache pages invalidated (§4.7), the change written in STATUS.
 - **AVX-512** only as a third binary (x86-64-v4) if the bench shows it pays: Intel's client
   CPUs (this 12th-gen laptop included) do not have it; Zen 4/5 do.
+- *Built in round 22 (`docs/round22/build.md`):* the release carries `cantus-x86-64-v3.exe`
+  and `cantus-x86-64-v2.exe` (`--v4` adds a third) behind `cantus.exe`, a launcher built for
+  the plain baseline (`crates/cantus-launch`), whose feature lists are rustc's own for each
+  level. **Bit-identical, measured:** the null corpus (97 renders and function sweeps, the
+  demo songs whole) hashes the same at x86-64, v2 and v3; CI repeats it on Windows and Linux.
+  **Not faster, measured:** on today's code v3 equals v2 within the noise (heavy kernels
+  0.94–1.03×, `engine.s64.b128` 1.004× best-of-12 and 0.985×/1.004× in the two quiet pairs),
+  because nothing fuses or vectorises beyond what SSE already does; the gain this section
+  expects comes with the hand kernels and with FMA on purpose, not with the flag.
 
 **5.4 Memory.**
 

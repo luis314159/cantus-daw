@@ -161,3 +161,31 @@ fn the_rig_plays_a_session_and_names_where_the_time_went() {
     );
     let _ = Ticks::ZERO;
 }
+
+/// The null corpus (`hashes.rs`, compared across builds by `xtask null-hashes`): the same
+/// bits twice in one process, one line per item with a unique name, and every effect
+/// audible — a silent render would make two builds agree for nothing.
+#[test]
+fn the_null_corpus_is_repeatable_named_once_and_audible() {
+    use cantus_bench::hashes::{effect_items, math_items, report};
+    let math = math_items();
+    assert_eq!(math.len(), 39);
+    assert_eq!(math, math_items());
+    let fx = effect_items();
+    assert_eq!(fx.len(), 24);
+    assert!(fx.iter().all(|i| i.peak > 1e-4 && i.samples == 2 * 96_000));
+    let mut items = math;
+    items.extend(fx);
+    let text = report(&items);
+    let lines: Vec<&str> = text.lines().filter(|l| !l.starts_with('#')).collect();
+    assert_eq!(lines.len(), items.len());
+    let mut names: Vec<&str> = lines
+        .iter()
+        .map(|l| l.rsplit("  ").next().unwrap())
+        .collect();
+    names.sort();
+    names.dedup();
+    assert_eq!(names.len(), items.len());
+    assert!(text.starts_with("# cantus null hashes; build "));
+    assert!(lines[0].split("  ").next().unwrap().len() == 64);
+}
