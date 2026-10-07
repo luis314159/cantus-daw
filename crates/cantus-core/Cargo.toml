@@ -9,6 +9,9 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+# The transcendental functions (`cantus_dsp::math`): gains, pan laws, fades and automation
+# curves are rendered numbers and must round the same way on every machine (ADR 0031 R9).
+cantus-dsp.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 

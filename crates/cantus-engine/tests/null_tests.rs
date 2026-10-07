@@ -2,6 +2,7 @@
 //! otherwise "export" would not equal "what I heard".
 
 use cantus_core::*;
+use cantus_dsp::math;
 use cantus_dsp::nulltest::{assert_null, compare, peak};
 use cantus_engine::*;
 use std::sync::Arc;
@@ -639,9 +640,9 @@ fn a_sampled_pad_renders_the_same_everywhere_and_a_missing_file_is_silent() {
         let mut w = hound::WavWriter::create(&wav, spec).unwrap();
         for i in 0..8_000 {
             let t = i as f32 / 44_100.0;
-            let env = (-t * 12.0).exp();
-            let l = ((t * 1_800.0).sin() * env * 6_000_000.0) as i32;
-            let r = ((t * 2_600.0).sin() * env * 6_000_000.0) as i32;
+            let env = math::exp(-t * 12.0);
+            let l = (math::sin(t * 1_800.0) * env * 6_000_000.0) as i32;
+            let r = (math::sin(t * 2_600.0) * env * 6_000_000.0) as i32;
             w.write_sample(l).unwrap();
             w.write_sample(r).unwrap();
         }
@@ -772,6 +773,7 @@ fn a_pre_strip_project_renders_exactly_as_it_did() {
         },
     )
     .unwrap();
+    golden_dump("v5", &r.samples);
     let mut h = Sha256::new();
     for s in &r.samples {
         h.update(s.to_le_bytes());
@@ -785,7 +787,22 @@ fn a_pre_strip_project_renders_exactly_as_it_did() {
 }
 
 /// Computed on 2026-09-10 from the render above, before the mixer strips existed.
-const GOLDEN_V5: &str = "d47497de29167fd194d899446e580602c8e655fb25c47c81a4c29672dee073b3";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 2.6e-5 (−91.8 dBFS).
+const GOLDEN_V5: &str = "26f7d439298f96403a574357f356ad9f2ecedd5b0a8dd84cd3100f23f7db3566";
+
+/// With `CANTUS_GOLDEN_DUMP=<folder>`, writes a golden's samples there (`<name>.f32`, raw
+/// little-endian) so a reviewed `DSP_VERSION` bump can state how far each golden moved
+/// (`docs/round21/math.md`).
+fn golden_dump(name: &str, samples: &[f32]) {
+    if let Some(dir) = std::env::var_os("CANTUS_GOLDEN_DUMP") {
+        let bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
+        std::fs::write(
+            std::path::Path::new(&dir).join(format!("{name}.f32")),
+            bytes,
+        )
+        .expect("write the golden's samples");
+    }
+}
 
 /// Buses: two tracks into one strip meet the strip's insert as a sum; a strip into a strip
 /// is multiplied through both faders; a muted strip is silence for everything behind it.

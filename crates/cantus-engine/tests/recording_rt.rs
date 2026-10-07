@@ -5,6 +5,7 @@
 //! The file installs a counting allocator that counts per thread, like `rt_memory.rs`.
 
 use cantus_core::*;
+use cantus_dsp::math;
 use cantus_engine::*;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -72,7 +73,7 @@ fn recording_monitoring_and_clips_never_allocate() {
     };
     let mut w = hound::WavWriter::create(&path, spec).unwrap();
     for i in 0..96_000 {
-        w.write_sample((i as f32 * 0.01).sin() * 0.3).unwrap();
+        w.write_sample(math::sin(i as f32 * 0.01) * 0.3).unwrap();
     }
     w.finalize().unwrap();
 
@@ -139,7 +140,7 @@ fn recording_monitoring_and_clips_never_allocate() {
     // Settle: the snapshot, the rings, delay lines — everything that arrives once.
     for _ in 0..4 {
         for i in 0..512 * 2 {
-            input.push((i as f32 * 0.001).sin()).unwrap();
+            input.push(math::sin(i as f32 * 0.001)).unwrap();
         }
         proc.process(&mut out, 2);
         while rx.pop().is_ok() {}
@@ -150,7 +151,7 @@ fn recording_monitoring_and_clips_never_allocate() {
     let mut events = 0;
     for _ in 0..280 {
         for i in 0..512 * 2 {
-            input.push((i as f32 * 0.001).cos() * 0.5).unwrap();
+            input.push(math::cos(i as f32 * 0.001) * 0.5).unwrap();
         }
         events += armed(|| proc.process(&mut out, 2));
         while rx.pop().is_ok() {}

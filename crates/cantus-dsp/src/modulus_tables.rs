@@ -6,6 +6,7 @@
 //! shared; nothing here allocates on the audio thread. The sine is our own table, never
 //! libm's `sin` on the audio path, so a render is the same on every OS.
 
+use crate::math;
 use std::f64::consts::PI;
 use std::sync::{Arc, OnceLock};
 
@@ -39,7 +40,7 @@ pub fn tables() -> Arc<Tables> {
 impl Tables {
     fn build() -> Tables {
         let sine = (0..=SINE_LEN)
-            .map(|i| (2.0 * PI * i as f64 / SINE_LEN as f64).sin() as f32)
+            .map(|i| math::sin(2.0 * PI * i as f64 / SINE_LEN as f64) as f32)
             .collect();
         let waves = (0..TABLE_WAVES)
             .map(|w| (0..WAVE_LEVELS).map(|l| wave_table(w, 1 << l)).collect())
@@ -79,7 +80,7 @@ impl Tables {
 /// below its Nyquist.
 pub fn wave_level(hz: f32, rate: f32) -> usize {
     let h = (0.5 * rate / hz.abs().max(1.0)).max(1.0);
-    (h.log2().floor() as usize).min(WAVE_LEVELS - 1)
+    (math::log2(h).floor() as usize).min(WAVE_LEVELS - 1)
 }
 
 /// Additive: triangle (odd, alternating 1/n²), saw (1/n), square (odd 1/n), with a gentle
@@ -89,7 +90,7 @@ fn wave_table(w: usize, harmonics: usize) -> Vec<f32> {
     for n in 1..=harmonics {
         let taper = {
             let x = n as f64 / (harmonics as f64 + 1.0);
-            (0.5 * PI * x).cos().powi(2).max(0.0) * 0.5 + 0.5 * (1.0 - x)
+            math::powi(math::cos(0.5 * PI * x), 2).max(0.0) * 0.5 + 0.5 * (1.0 - x)
         };
         let a = match w {
             0 if n % 2 == 1 => {
@@ -104,7 +105,7 @@ fn wave_table(w: usize, harmonics: usize) -> Vec<f32> {
             continue;
         }
         for (i, v) in t.iter_mut().enumerate() {
-            *v += a * (2.0 * PI * n as f64 * i as f64 / WAVE_LEN as f64).sin();
+            *v += a * math::sin(2.0 * PI * n as f64 * i as f64 / WAVE_LEN as f64);
         }
     }
     let peak = t.iter().fold(0f64, |m, x| m.max(x.abs())).max(1e-12);
@@ -124,11 +125,11 @@ pub const HB_TRANSITION: f64 = 0.05;
 /// coefficients. Published mathematics; the public-domain HIIR library documents it too.
 pub fn design_halfband(n: usize, transition: f64) -> [f32; HB_COEFS] {
     let order = (2 * n + 1) as f64;
-    let mut k = ((1.0 - transition * 2.0) * PI / 4.0).tan();
+    let mut k = math::tan((1.0 - transition * 2.0) * PI / 4.0);
     k *= k;
-    let kksqrt = (1.0 - k * k).powf(0.25);
+    let kksqrt = math::powf(1.0 - k * k, 0.25);
     let e = 0.5 * (1.0 - kksqrt) / (1.0 + kksqrt);
-    let e4 = e.powi(4);
+    let e4 = math::powi(e, 4);
     let q = e * (1.0 + e4 * (2.0 + e4 * (15.0 + 150.0 * e4)));
     let mut out = [0f32; HB_COEFS];
     for (index, c) in out.iter_mut().enumerate().take(n) {
@@ -137,7 +138,8 @@ pub fn design_halfband(n: usize, transition: f64) -> [f32; HB_COEFS] {
         let mut i = 0i32;
         let mut sign = 1.0;
         loop {
-            let term = q.powi(i * (i + 1)) * ((2 * i + 1) as f64 * ci * PI / order).sin() * sign;
+            let term =
+                math::powi(q, i * (i + 1)) * math::sin((2 * i + 1) as f64 * ci * PI / order) * sign;
             num += term;
             sign = -sign;
             i += 1;
@@ -145,12 +147,12 @@ pub fn design_halfband(n: usize, transition: f64) -> [f32; HB_COEFS] {
                 break;
             }
         }
-        num *= q.powf(0.25);
+        num *= math::powf(q, 0.25);
         let mut den = 0.0;
         let mut i = 1i32;
         let mut sign = -1.0;
         loop {
-            let term = q.powi(i * i) * ((2 * i) as f64 * ci * PI / order).cos() * sign;
+            let term = math::powi(q, i * i) * math::cos((2 * i) as f64 * ci * PI / order) * sign;
             den += term;
             sign = -sign;
             i += 1;

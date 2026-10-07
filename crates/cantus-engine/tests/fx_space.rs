@@ -1,6 +1,8 @@
 //! Spatium in the engine: the null tests of the house rule through the whole processor,
 //! the parameter model and the DSP agreeing, and ducking keyed from another strip.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -129,10 +131,10 @@ fn ducking_listens_to_another_strip() {
         x[before..]
             .iter()
             .zip(&bass_only[before..])
-            .map(|(v, b)| ((*v - *b) as f64).powi(2))
+            .map(|(v, b)| math::powi((*v - *b) as f64, 2))
             .sum::<f64>()
     };
-    let drop = 10.0 * (energy(&keyed) / energy(&open)).log10();
+    let drop = 10.0 * math::log10(energy(&keyed) / energy(&open));
     eprintln!("keyed from the bass: {drop:.1} dB after it comes in");
     assert!(drop < -3.0, "the keyed reverb is not quieter: {drop} dB");
 }

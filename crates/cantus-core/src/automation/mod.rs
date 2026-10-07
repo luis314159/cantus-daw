@@ -18,6 +18,7 @@
 use crate::instrument::FirmusParam;
 use crate::model::{EffectId, StripId, TrackId};
 use crate::time::Ticks;
+use cantus_dsp::math;
 use serde::{Deserialize, Serialize};
 
 pub mod compile;
@@ -195,7 +196,7 @@ impl Shape {
             }
             Shape::Wave => {
                 let c = (steps(t) / 2) as f32;
-                0.5 - 0.5 * (std::f32::consts::TAU * u * c).cos()
+                0.5 - 0.5 * math::cos(std::f32::consts::TAU * u * c)
             }
         }
     }
@@ -211,9 +212,9 @@ fn bend(u: f32, t: f32) -> f32 {
     }
     let p = 1.0 + 7.0 * t.abs();
     if t > 0.0 {
-        u.powf(p)
+        math::powf(u, p)
     } else {
-        1.0 - (1.0 - u).powf(p)
+        1.0 - math::powf(1.0 - u, p)
     }
 }
 

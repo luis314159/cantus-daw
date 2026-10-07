@@ -4,6 +4,7 @@
 //! conversion and missing files.
 
 use cantus_core::*;
+use cantus_dsp::math;
 use cantus_dsp::nulltest::assert_null;
 use cantus_engine::*;
 use std::path::Path;
@@ -243,7 +244,7 @@ fn gain_offset_and_reverse() {
     c.offset = Ticks(200);
     region(c).gain_db = -6.0;
     region(c).reverse = true;
-    let g = 10f32.powf(-6.0 / 20.0);
+    let g = math::powf(10f32, -6.0 / 20.0);
     let l = chan(&render_of(&p), 0);
     let (s, len, off) = (40 * FPT, 100 * FPT, 200 * FPT);
     for j in 0..len {

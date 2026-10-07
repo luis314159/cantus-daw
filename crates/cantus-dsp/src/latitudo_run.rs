@@ -1,6 +1,7 @@
 //! Latitudo's grid (the glides and what they derive) and its sample loop.
 
 use super::*;
+use crate::math;
 use crate::multiplex::filters::shelf_params;
 
 impl Latitudo {
@@ -12,7 +13,7 @@ impl Latitudo {
             return;
         }
         let (ag, af, ah) = (self.a_gain, self.a_freq, self.a_haas);
-        let lg = |hz: f32| hz.max(1.0).log2();
+        let lg = |hz: f32| math::log2(hz.max(1.0));
         let mut moving = false;
         let mut glide = |g: &mut Glide, t: f32, a: f32| {
             g.t = t;
@@ -155,7 +156,11 @@ impl Latitudo {
         let gs = self.side_g.v as f64 * self.width.v as f64;
         let a = [l00 * gm, (l01 + l11) * gs, l00 * gm, (l01 - l11) * gs];
         let th = (self.rot.v as f64).to_radians();
-        let (sn, c) = if th == 0.0 { (0.0, 1.0) } else { th.sin_cos() };
+        let (sn, c) = if th == 0.0 {
+            (0.0, 1.0)
+        } else {
+            math::sin_cos(th)
+        };
         let rot = [c, -sn, sn, c];
         let b = self.bal.v as f64;
         let go = self.out_g.v as f64;
@@ -171,10 +176,10 @@ impl Latitudo {
             .retarget([self.w[0].v, self.w[1].v, self.w[2].v, self.haas_amt.v]);
         self.dr.retarget([self.haas_d.v, 0.0, 0.0, 0.0]);
 
-        self.mono_c = XoverCoefs::new(self.mono_slope, self.mono_f.v.exp2(), sr);
+        self.mono_c = XoverCoefs::new(self.mono_slope, math::exp2(self.mono_f.v), sr);
         self.band_c = [
-            XoverCoefs::new(Slope::S24, self.x_lo.v.exp2(), sr),
-            XoverCoefs::new(Slope::S24, self.x_hi.v.exp2(), sr),
+            XoverCoefs::new(Slope::S24, math::exp2(self.x_lo.v), sr),
+            XoverCoefs::new(Slope::S24, math::exp2(self.x_hi.v), sr),
         ];
         for (g, c) in self.an_g.iter_mut().zip(&self.band_c) {
             *g = c.g / (1.0 + c.g);
@@ -186,7 +191,7 @@ impl Latitudo {
                 continue;
             }
             let r = db_to_gain(db);
-            let hz = self.tone_f[i].v.exp2();
+            let hz = math::exp2(self.tone_f[i].v);
             // Even shelves are low shelves: r below, 1 above — a high shelf to 1/r, times r.
             self.shelf_c[i] = if i % 2 == 0 {
                 let (g, rho) = shelf_params(self.tone_slope, hz, 1.0 / r, sr);

@@ -4,6 +4,7 @@
 //! through a smoother and a fractional read head, so sweeping the time bends pitch like a
 //! tape echo instead of clicking.
 
+use crate::math;
 use crate::rest::ZeroRun;
 use crate::smoother::Smoother;
 
@@ -77,7 +78,7 @@ impl StereoDelay {
         self.time.set_target(samples);
         self.mix.set_target(s.mix.clamp(0.0, 1.0));
         let fc = s.tone_hz.clamp(20.0, self.sample_rate * 0.45);
-        self.lp_coef = 1.0 - (-std::f32::consts::TAU * fc / self.sample_rate).exp();
+        self.lp_coef = 1.0 - math::exp(-std::f32::consts::TAU * fc / self.sample_rate);
         self.settings = s.clone();
     }
 
@@ -236,7 +237,7 @@ mod tests {
     fn deterministic_and_silent_on_silence() {
         let run = || {
             let mut d = StereoDelay::new(44_100.0);
-            let mut l: Vec<f32> = (0..4_000).map(|i| ((i as f32) * 0.01).sin()).collect();
+            let mut l: Vec<f32> = (0..4_000).map(|i| math::sin((i as f32) * 0.01)).collect();
             let mut r = l.clone();
             d.process(&mut l, &mut r);
             (l, r)

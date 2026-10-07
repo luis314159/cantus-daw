@@ -8,6 +8,7 @@
 
 use super::play::Source;
 use super::resample::{halve, halve_periodic, MAX_LEVELS};
+use crate::math;
 use std::f64::consts::TAU;
 use std::sync::{Arc, OnceLock};
 
@@ -52,7 +53,7 @@ const CYCLE: usize = 2048;
 const CYCLE_ROOT: u8 = 24;
 
 fn midi_hz(key: f64) -> f64 {
-    440.0 * ((key - 69.0) / 12.0).exp2()
+    440.0 * math::exp2((key - 69.0) / 12.0)
 }
 
 struct Rng(u64);
@@ -83,7 +84,7 @@ fn cycle(amp: impl Fn(usize) -> f64) -> Vec<f32> {
             continue;
         }
         for (i, x) in v.iter_mut().enumerate() {
-            *x += a * (TAU * h as f64 * i as f64 / CYCLE as f64).sin();
+            *x += a * math::sin(TAU * h as f64 * i as f64 / CYCLE as f64);
         }
     }
     normalize(v, 0.5)
@@ -105,7 +106,7 @@ fn pluck(key: u8, secs: f64, seed: u64) -> (Vec<f32>, f32) {
     }
     let len = (secs * fs) as usize;
     let mut out = Vec::with_capacity(len);
-    let decay = 0.996f64.powf(440.0 / f.max(60.0));
+    let decay = math::powf(0.996f64, 440.0 / f.max(60.0));
     let mut i = 0;
     for t in 0..len {
         let a = line[i];
@@ -120,7 +121,10 @@ fn pluck(key: u8, secs: f64, seed: u64) -> (Vec<f32>, f32) {
         out.push(a * fade);
         i = (i + 1) % n;
     }
-    (normalize(out, 0.5), (1200.0 * (actual / f).log2()) as f32)
+    (
+        normalize(out, 0.5),
+        (1200.0 * math::log2(actual / f)) as f32,
+    )
 }
 
 /// An inharmonic bell: partial ratios and amplitudes, each decaying on its own.
@@ -144,7 +148,7 @@ fn bell(key: u8, bright: f64) -> Vec<f32> {
             partials
                 .iter()
                 .filter(|p| p.0 * f < 19_000.0)
-                .map(|(r, a, d)| a * (-s / d).exp() * (TAU * r * f * s).sin())
+                .map(|(r, a, d)| a * math::exp(-s / d) * math::sin(TAU * r * f * s))
                 .sum::<f64>()
                 * attack
         })
@@ -161,14 +165,14 @@ fn pad(key: u8, secs: f64) -> Vec<f32> {
     let top = (12_000.0 / f) as usize;
     let mut v = vec![0.0f64; len];
     for (k, ct) in detune.iter().enumerate() {
-        let fk = f * (ct / 1200.0f64).exp2();
+        let fk = f * math::exp2(ct / 1200.0f64);
         let phase0 = k as f64 * 0.37;
         for h in 1..=top {
             let a = 1.0 / h as f64 * (1.0 - h as f64 / (top as f64 + 1.0));
             // A rotating phasor: one complex multiply per sample instead of a sine.
             let w = TAU * fk * h as f64 / fs;
-            let (dc, ds) = (w.cos(), w.sin());
-            let (mut c, mut s) = ((phase0 * h as f64).cos(), (phase0 * h as f64).sin());
+            let (dc, ds) = (math::cos(w), math::sin(w));
+            let (mut c, mut s) = (math::cos(phase0 * h as f64), math::sin(phase0 * h as f64));
             for x in v.iter_mut() {
                 *x += a * s;
                 let c2 = c * dc - s * ds;
@@ -204,24 +208,24 @@ fn drum(kind: u8, seed: u64) -> Vec<f32> {
             let n = rng.next();
             match kind {
                 0 => {
-                    let f = 45.0 + 110.0 * (-s / 0.04).exp();
+                    let f = 45.0 + 110.0 * math::exp(-s / 0.04);
                     phase += TAU * f / fs;
-                    phase.sin() * (-s / 0.18).exp() + 0.3 * n * (-s / 0.004).exp()
+                    math::sin(phase) * math::exp(-s / 0.18) + 0.3 * n * math::exp(-s / 0.004)
                 }
                 1 => {
                     phase += TAU * 185.0 / fs;
                     lp += 0.45 * (n - lp);
-                    0.5 * phase.sin() * (-s / 0.05).exp() + lp * (-s / 0.09).exp()
+                    0.5 * math::sin(phase) * math::exp(-s / 0.05) + lp * math::exp(-s / 0.09)
                 }
                 2 | 3 => {
                     let hp = n - prev;
                     prev = n;
                     let d = if kind == 2 { 0.018 } else { 0.16 };
-                    hp * (-s / d).exp()
+                    hp * math::exp(-s / d)
                 }
                 _ => {
                     lp += 0.2 * (n - lp);
-                    lp * (-s / 0.006).exp()
+                    lp * math::exp(-s / 0.006)
                 }
             }
         })
@@ -268,7 +272,7 @@ fn make(
 fn cycle_builtin(key: &'static str, data: Vec<f32>) -> Builtin {
     let f0 = midi_hz(CYCLE_ROOT as f64);
     let rate = (f0 * CYCLE as f64).round();
-    let tune = 1200.0 * (rate / CYCLE as f64 / f0).log2();
+    let tune = 1200.0 * math::log2(rate / CYCLE as f64 / f0);
     make(
         key,
         rate as u32,
@@ -377,7 +381,7 @@ fn build() -> Vec<Builtin> {
         "choir",
         cycle(|h| {
             let f = f0 * h as f64;
-            let peak = |c: f64, w: f64| (-((f - c) / w).powi(2)).exp();
+            let peak = |c: f64, w: f64| math::exp(-math::powi((f - c) / w, 2));
             (peak(700.0, 130.0) + 0.7 * peak(1_150.0, 150.0) + 0.3 * peak(2_600.0, 250.0))
                 / (h as f64).sqrt()
         }),

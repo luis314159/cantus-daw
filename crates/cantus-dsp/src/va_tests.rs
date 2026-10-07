@@ -13,22 +13,23 @@ fn our_own_functions_match_the_library_ones() {
     let mut worst = [0f64; 4];
     for i in -4000..=4000 {
         let x = i as f32 * 0.001;
-        worst[0] = worst[0].max((tanh(x) as f64 - (x as f64).tanh()).abs());
+        worst[0] = worst[0].max((tanh(x) as f64 - crate::math::tanh(x as f64)).abs());
     }
     for i in 1..4999 {
         let r = i as f32 * 1e-4;
-        let want = (std::f64::consts::PI * r as f64).tan();
+        let want = crate::math::tan(std::f64::consts::PI * r as f64);
         worst[1] = worst[1].max(((tan_pi(r) as f64 - want) / want).abs());
     }
     for i in -2000..=2000 {
         let x = i as f32 * 0.01;
-        let want = 2f64.powf(x as f64);
+        let want = crate::math::powf(2f64, x as f64);
         worst[2] = worst[2].max(((exp2(x) as f64 - want) / want).abs());
     }
     for i in -3000..=3000 {
         let p = i as f32 * 0.001;
-        worst[3] = worst[3]
-            .max((sin_turns(p) as f64 - (2.0 * std::f64::consts::PI * p as f64).sin()).abs());
+        worst[3] = worst[3].max(
+            (sin_turns(p) as f64 - crate::math::sin(2.0 * std::f64::consts::PI * p as f64)).abs(),
+        );
     }
     println!(
         "worst error: tanh {:.1e}, tan {:.1e} (relative), exp2 {:.1e} (relative), sin {:.1e}",
@@ -128,14 +129,14 @@ fn gain_db(s: &FilterSettings, fc: f32, f: f32, fs: f32) -> f64 {
     let (mut c_re, mut c_im) = (0.0f64, 0.0f64);
     for i in 0..settle + n {
         let ph = 2.0 * std::f64::consts::PI * f as f64 * i as f64 / fs as f64;
-        let y = filt.tick(a * ph.sin() as f32, g, &c, Solve::Converge) as f64;
+        let y = filt.tick(a * crate::math::sin(ph) as f32, g, &c, Solve::Converge) as f64;
         if i >= settle {
-            c_re += y * ph.sin();
-            c_im += y * ph.cos();
+            c_re += y * crate::math::sin(ph);
+            c_im += y * crate::math::cos(ph);
         }
     }
     let amp = 2.0 * (c_re * c_re + c_im * c_im).sqrt() / n as f64;
-    20.0 * (amp / a as f64).log10()
+    20.0 * crate::math::log10(amp / a as f64)
 }
 
 #[test]
@@ -144,7 +145,7 @@ fn resonance_costs_the_four_poles_their_bass_and_compensation_restores_it() {
     for reso in [0.0f32, 0.25, 0.5, 0.75, 0.95] {
         let mut s = settings(Model::Ladder, reso);
         let k = 4.0 * reso as f64;
-        let want = -20.0 * (1.0 + k).log10();
+        let want = -20.0 * crate::math::log10(1.0 + k);
         let got = gain_db(&s, 1000.0, 100.0, fs);
         // 100 Hz is a decade under the cutoff: the four poles cost ~0 there.
         assert!(
@@ -245,7 +246,7 @@ fn distortion_rises_with_level() {
         let n = 1 << 15;
         let y: Vec<f32> = (0..n + 8192)
             .map(|i| {
-                let x = a * (2.0 * std::f32::consts::PI * 187.5 * i as f32 / fs).sin();
+                let x = a * crate::math::sin(2.0 * std::f32::consts::PI * 187.5 * i as f32 / fs);
                 f.tick(x, g, &c, Solve::Converge)
             })
             .skip(8192)
@@ -254,10 +255,10 @@ fn distortion_rises_with_level() {
         let bin = |h: f64| (h * 187.5 * n as f64 / fs as f64).round() as usize;
         let fund = mag[bin(1.0)];
         let harm: f64 = (2..8)
-            .map(|h| mag[bin(h as f64)].powi(2))
+            .map(|h| crate::math::powi(mag[bin(h as f64)], 2))
             .sum::<f64>()
             .sqrt();
-        let thd = 20.0 * (harm / fund).log10();
+        let thd = 20.0 * crate::math::log10(harm / fund);
         assert!(
             thd >= last - 0.5,
             "THD fell from {last:.1} to {thd:.1} dB at {db} dBFS"

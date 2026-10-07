@@ -437,7 +437,7 @@ mod tests {
         let mut w = hound::WavWriter::create(path, spec).unwrap();
         for i in 0..frames {
             for c in 0..channels {
-                let v = ((i as f32 * 0.05 + c as f32).sin() * 16_000.0) as i16;
+                let v = (cantus_dsp::math::sin(i as f32 * 0.05 + c as f32) * 16_000.0) as i16;
                 w.write_sample(v).unwrap();
             }
         }

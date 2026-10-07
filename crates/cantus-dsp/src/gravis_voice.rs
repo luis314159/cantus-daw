@@ -3,6 +3,8 @@
 //! on where a block starts.
 
 /// −140 dB: below this an envelope or a tail is exact zero.
+use crate::math;
+
 pub const SILENCE: f32 = 1e-7;
 
 /// ln(1000): a segment that falls 60 dB in `n` samples multiplies by `exp(-LN_1000 / n)`.
@@ -11,13 +13,13 @@ const LN_1000: f64 = 6.907_755_278_982_137;
 /// The per-sample factor of an exponential that falls 60 dB in `ms`.
 pub fn coef_60db(ms: f32, sr: f32) -> f32 {
     let n = (ms as f64 * 0.001 * sr as f64).max(1.0);
-    (-LN_1000 / n).exp() as f32
+    math::exp(-LN_1000 / n) as f32
 }
 
 /// Hertz of a (fractional) MIDI note against a tuning reference for A4.
 #[inline]
 pub fn hz(note: f64, a4: f64) -> f64 {
-    a4 * ((note - 69.0) / 12.0).exp2()
+    a4 * math::exp2((note - 69.0) / 12.0)
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -234,7 +236,7 @@ impl Glide {
         self.to = to;
         self.pos = 0.0;
         self.step = 1.0 / samples;
-        self.alpha = 1.0 - (-LN_100 / samples).exp();
+        self.alpha = 1.0 - math::exp(-LN_100 / samples);
         self.shape = shape;
         self.moving = true;
     }
@@ -343,7 +345,7 @@ impl Smooth {
         Smooth {
             value: 0.0,
             target: 0.0,
-            c: (-1.0 / n).exp(),
+            c: math::exp(-1.0 / n),
         }
     }
 

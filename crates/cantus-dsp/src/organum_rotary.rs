@@ -32,6 +32,7 @@
 //! read from its documentation, not its code.
 
 use super::filters::{Bq, OnePole};
+use crate::math;
 use std::f32::consts::{FRAC_1_SQRT_2, TAU};
 
 /// Speed of sound, m/s.
@@ -150,7 +151,7 @@ impl Rotor {
     }
 
     fn lag(sr: f64, tau_s: f32) -> f64 {
-        1.0 - (-1.0 / (tau_s.max(1e-4) as f64 * sr)).exp()
+        1.0 - math::exp(-1.0 / (tau_s.max(1e-4) as f64 * sr))
     }
 
     #[inline]
@@ -337,12 +338,12 @@ impl Rotary {
         let d = CABINET_HALF_M + s.mic_distance_cm.max(1.0) * 0.01;
         let half = (s.mic_spread_deg * 0.5).to_radians();
         // Left microphone on the listener's left (+y), right on −y.
-        self.mics[0].x = d * half.cos();
-        self.mics[0].y = d * half.sin();
-        self.mics[1].x = d * half.cos();
-        self.mics[1].y = -d * half.sin();
-        self.horn_gain = 10f32.powf(s.balance_db / 40.0);
-        self.drum_gain = 10f32.powf(-s.balance_db / 40.0);
+        self.mics[0].x = d * math::cos(half);
+        self.mics[0].y = d * math::sin(half);
+        self.mics[1].x = d * math::cos(half);
+        self.mics[1].y = -d * math::sin(half);
+        self.horn_gain = math::powf(10f32, s.balance_db / 40.0);
+        self.drum_gain = math::powf(10f32, -s.balance_db / 40.0);
         let srd = sr as f64;
         self.horn.up = Rotor::lag(srd, s.horn_up_s);
         self.horn.down = Rotor::lag(srd, s.horn_down_s);
@@ -417,8 +418,8 @@ impl Rotary {
         self.drum_line.push(lo);
         let sr = self.sr;
         let spm = sr / SOUND_MPS; // samples a metre
-        let (hs, hc) = ((self.horn.angle as f32) * TAU).sin_cos();
-        let (ds, dc) = ((self.drum.angle as f32) * TAU).sin_cos();
+        let (hs, hc) = math::sin_cos((self.horn.angle as f32) * TAU);
+        let (ds, dc) = math::sin_cos((self.drum.angle as f32) * TAU);
         let (hx, hy) = (HORN_RADIUS_M * hc, HORN_RADIUS_M * hs);
         // The horn's image in the back wall at x = −CABINET_HALF_M.
         let (ix, iy) = (-2.0 * CABINET_HALF_M - hx, hy);

@@ -316,7 +316,7 @@ impl Processor {
                     trim: if i.trim_db == 0.0 {
                         1.0
                     } else {
-                        10f32.powf(i.trim_db / 20.0)
+                        cantus_dsp::math::powf(10f32, i.trim_db / 20.0)
                     },
                     armed: t.armed,
                 };
@@ -329,7 +329,7 @@ impl Processor {
             0.5 * if db == 0.0 {
                 1.0
             } else {
-                10f32.powf(db / 20.0)
+                cantus_dsp::math::powf(10f32, db / 20.0)
             },
         );
     }

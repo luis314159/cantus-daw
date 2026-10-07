@@ -17,12 +17,13 @@
 //! exact energies, so the mean is exact and only the gate decision is rounded — to 0.005 LU.
 
 use super::os::TruePeak;
+use crate::math;
 
 /// Energy → LUFS. Silence is −∞.
 #[inline]
 pub fn lufs(energy: f64) -> f64 {
     if energy > 0.0 {
-        -0.691 + 10.0 * energy.log10()
+        -0.691 + 10.0 * math::log10(energy)
     } else {
         f64::NEG_INFINITY
     }
@@ -31,7 +32,7 @@ pub fn lufs(energy: f64) -> f64 {
 /// LUFS → energy.
 #[inline]
 pub fn energy_of(lufs: f64) -> f64 {
-    10f64.powf((lufs + 0.691) / 10.0)
+    math::powf(10f64, (lufs + 0.691) / 10.0)
 }
 
 /// The absolute gate, LUFS.
@@ -82,9 +83,9 @@ impl KWeighting {
         let f0 = 1681.974450955533;
         let g = 3.999843853973347;
         let q = 0.7071752369554196;
-        let k = (std::f64::consts::PI * f0 / fs).tan();
-        let vh = 10f64.powf(g / 20.0);
-        let vb = vh.powf(0.4996667741545416);
+        let k = math::tan(std::f64::consts::PI * f0 / fs);
+        let vh = math::powf(10f64, g / 20.0);
+        let vb = math::powf(vh, 0.4996667741545416);
         let a0 = 1.0 + k / q + k * k;
         let shelf = Section {
             b: [
@@ -98,7 +99,7 @@ impl KWeighting {
         // Stage 2: the RLB high-pass.
         let f0 = 38.13547087602444;
         let q = 0.5003270373238773;
-        let k = (std::f64::consts::PI * f0 / fs).tan();
+        let k = math::tan(std::f64::consts::PI * f0 / fs);
         let a0 = 1.0 + k / q + k * k;
         let highpass = Section {
             b: [1.0, -2.0, 1.0],
@@ -441,7 +442,7 @@ impl LoudnessMeter {
     /// The largest true peak so far, dBTP.
     pub fn true_peak_db(&self) -> f32 {
         if self.max_true_peak > 0.0 {
-            20.0 * self.max_true_peak.log10()
+            20.0 * math::log10(self.max_true_peak)
         } else {
             f32::NEG_INFINITY
         }
@@ -457,10 +458,10 @@ mod tests {
 
     /// A stereo 1 kHz sine at `dbfs` peak, `secs` long, both channels.
     fn sine(dbfs: f64, secs: f64) -> Vec<f32> {
-        let a = 10f64.powf(dbfs / 20.0);
+        let a = math::powf(10f64, dbfs / 20.0);
         let n = (secs * FS as f64).round() as usize;
         (0..n)
-            .map(|i| (a * (2.0 * PI * 1_000.0 * i as f64 / FS as f64).sin()) as f32)
+            .map(|i| (a * math::sin(2.0 * PI * 1_000.0 * i as f64 / FS as f64)) as f32)
             .collect()
     }
 
@@ -571,7 +572,7 @@ mod tests {
     #[test]
     fn true_peak_reads_between_the_samples() {
         let x: Vec<f32> = (0..48_000)
-            .map(|n| (PI / 2.0 * n as f64 + PI / 4.0).sin() as f32)
+            .map(|n| math::sin(PI / 2.0 * n as f64 + PI / 4.0) as f32)
             .collect();
         // Faded in and out: a tone switched on abruptly overshoots between its first samples.
         let x = crate::terminus::os::tests::faded(x, 4_800);

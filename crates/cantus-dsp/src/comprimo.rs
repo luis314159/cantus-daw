@@ -39,6 +39,8 @@
 //! grid) counts samples from the start of the stream, so the output and the telemetry do
 //! not depend on the block size.
 
+use crate::math;
+
 #[path = "comprimo_loudness.rs"]
 pub mod loudness;
 #[path = "comprimo_oversample.rs"]
@@ -77,7 +79,7 @@ const DB_TO_LN: f32 = std::f32::consts::LN_10 / 20.0;
 /// A gain of `db` decibels.
 #[inline]
 fn gain_of(db: f32) -> f32 {
-    (db * DB_TO_LN).exp()
+    math::exp(db * DB_TO_LN)
 }
 /// The second (slow) release stage charges over this long, seconds.
 const DUAL_CHARGE_S: f32 = 0.4;
@@ -346,7 +348,7 @@ pub fn gain_reduction_db(level_db: f32, s: &CompSettings) -> f32 {
     let slope = slope(s.ratio);
     let k = s.knee_db.max(0.0);
     let gr = if k > 0.0 && over.abs() <= k * 0.5 {
-        slope * (over + k * 0.5).powi(2) / (2.0 * k)
+        slope * math::powi(over + k * 0.5, 2) / (2.0 * k)
     } else if over > 0.0 {
         slope * over
     } else {
@@ -374,7 +376,7 @@ pub fn effective_gain_reduction_db(level_db: f32, s: &CompSettings) -> f32 {
     let (mut lo, mut hi) = (0.0f32, full);
     for _ in 0..40 {
         let mid = 0.5 * (lo + hi);
-        let heard = level_db + 20.0 * ((1.0 - fb) + fb * 10f32.powf(-mid / 20.0)).log10();
+        let heard = level_db + 20.0 * math::log10((1.0 - fb) + fb * math::powf(10f32, -mid / 20.0));
         if gain_reduction_db(heard, s) > mid {
             lo = mid;
         } else {
@@ -469,7 +471,7 @@ impl Hpf {
         self.a = if hz <= 20.0 {
             1.0
         } else {
-            (-2.0 * std::f32::consts::PI * hz / sr).exp()
+            math::exp(-2.0 * std::f32::consts::PI * hz / sr)
         };
     }
 
@@ -688,7 +690,7 @@ impl Comprimo {
         if x < 0.02 {
             1.0 - x * (1.0 - x * (0.5 - x * (1.0 / 6.0)))
         } else {
-            (-x).exp()
+            math::exp(-x)
         }
     }
 
@@ -730,7 +732,7 @@ impl Comprimo {
         };
         self.slow_charge = self.coef(DUAL_CHARGE_S * 1_000.0);
         self.slow_release = self.coef(s.release_ms * DUAL_SLOWER);
-        self.smooth = self.coef(MATCH_SMOOTH_S * 1_000.0).powi(MATCH_STEP as i32);
+        self.smooth = math::powi(self.coef(MATCH_SMOOTH_S * 1_000.0), MATCH_STEP as i32);
         for (b, band) in s.key_bands.iter().enumerate() {
             self.key_n[b] = if band.active && s.key_eq {
                 design(
@@ -958,7 +960,11 @@ impl Comprimo {
         }
         let mut key_db = loudness::SILENCE;
         for (ch, l) in level.iter().enumerate() {
-            let db = if *l > 1e-9 { 20.0 * l.log10() } else { -200.0 };
+            let db = if *l > 1e-9 {
+                20.0 * math::log10(*l)
+            } else {
+                -200.0
+            };
             key_db = key_db.max(db);
             let target = gain_reduction_db(db, s);
             let cur = self.fast[ch];
@@ -1149,9 +1155,9 @@ impl Comprimo {
             c.gr_sum += gr_max as f64;
             c.gr_max = c.gr_max.max(gr_max);
             c.in_peak = c.in_peak.max(in_peak);
-            c.in_sq += (x[0] as f64).powi(2) + (x[1] as f64).powi(2);
+            c.in_sq += math::powi(x[0] as f64, 2) + math::powi(x[1] as f64, 2);
             c.out_peak = c.out_peak.max(out_peak);
-            c.out_sq += (out[0] as f64).powi(2) + (out[1] as f64).powi(2);
+            c.out_sq += math::powi(out[0] as f64, 2) + math::powi(out[1] as f64, 2);
             c.samples += 1;
             self.hop_pos += 1;
             if self.hop_pos >= self.hop_len {
@@ -1236,7 +1242,7 @@ impl Comprimo {
         let crest = |peak: f32, sq: f64| {
             let rms = (sq / (2.0 * n)).sqrt() as f32;
             if rms > 1e-9 && peak > 0.0 {
-                20.0 * (peak / rms).log10()
+                20.0 * math::log10(peak / rms)
             } else {
                 0.0
             }
@@ -1315,8 +1321,8 @@ pub fn step_response(s: &CompSettings, sample_rate: f32, points: usize) -> StepR
     };
     let mut c = Comprimo::new(sr);
     c.set(&settings);
-    let hi = 10f32.powf((s.threshold_db + 12.0) / 20.0);
-    let lo = 10f32.powf((s.threshold_db - 20.0) / 20.0);
+    let hi = math::powf(10f32, (s.threshold_db + 12.0) / 20.0);
+    let lo = math::powf(10f32, (s.threshold_db - 20.0) / 20.0);
     let look = c.latency();
     let mut gr = vec![0f32; n];
     let mut l = [0f32; 1];
@@ -1383,13 +1389,13 @@ mod tests {
 
     fn tone(amp: f32, n: usize) -> Vec<f32> {
         (0..n)
-            .map(|i| amp * (std::f32::consts::TAU * 440.0 * i as f32 / 48_000.0).sin())
+            .map(|i| amp * math::sin(std::f32::consts::TAU * 440.0 * i as f32 / 48_000.0))
             .collect()
     }
 
     fn tone_at(hz: f32, amp: f32, n: usize) -> Vec<f32> {
         (0..n)
-            .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / 48_000.0).sin())
+            .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / 48_000.0))
             .collect()
     }
 
@@ -1406,8 +1412,8 @@ mod tests {
         (0..n)
             .map(|i| {
                 let t = (i % 12_000) as f32 / 48_000.0;
-                let env = (-t * 30.0).exp();
-                0.9 * env * noise(&mut seed) + 0.05 * (i as f32 * 0.037).sin()
+                let env = math::exp(-t * 30.0);
+                0.9 * env * noise(&mut seed) + 0.05 * math::sin(i as f32 * 0.037)
             })
             .collect()
     }
@@ -1423,8 +1429,8 @@ mod tests {
     }
 
     fn rms_db(x: &[f32]) -> f32 {
-        let ms = x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64;
-        (10.0 * ms.log10()) as f32
+        let ms = x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len() as f64;
+        (10.0 * math::log10(ms)) as f32
     }
 
     fn run(s: &CompSettings, l: &[f32], r: &[f32], block: usize) -> (Vec<f32>, Vec<f32>) {
@@ -1547,7 +1553,7 @@ mod tests {
         // A 0 dBFS peak tone, 20 dB over: 15 dB of reduction on the peak detector.
         let out = settle(&mut c, 1.0);
         let tail = peak(&out[40_000..]);
-        let db = 20.0 * tail.log10();
+        let db = 20.0 * math::log10(tail);
         assert!((db - -15.0).abs() < 1.0, "settled at {db} dB");
         assert!((c.meter().gr_db - 15.0).abs() < 1.0);
     }
@@ -1565,7 +1571,7 @@ mod tests {
             ..CompSettings::default()
         });
         let out = settle(&mut c, 1.0);
-        let db = 20.0 * peak(&out[40_000..]).log10();
+        let db = 20.0 * math::log10(peak(&out[40_000..]));
         assert!((db - -12.0).abs() < 0.1, "∞:1 settled at {db} dB");
     }
 
@@ -1582,7 +1588,7 @@ mod tests {
         };
         let at = |mix: f32| {
             let (l, _) = run(&CompSettings { mix, ..base }, &src, &src, 256);
-            20.0 * peak(&l[40_000..]).log10()
+            20.0 * math::log10(peak(&l[40_000..]))
         };
         let (full, half, double) = (at(1.0), at(0.5), at(2.0));
         assert!((full - -10.0).abs() < 0.3, "100 %: {full}");
@@ -1605,7 +1611,7 @@ mod tests {
         };
         let (w, _) = run(&wet_only, &src, &src, 333);
         let (p, _) = run(&parallel, &src, &src, 333);
-        let g = 10f32.powf(-6.0 / 20.0);
+        let g = math::powf(10f32, -6.0 / 20.0);
         for i in 0..src.len() {
             assert!((p[i] - (w[i] + src[i] * g)).abs() < 1e-6);
         }
@@ -1625,7 +1631,7 @@ mod tests {
             ..CompSettings::default()
         };
         let (l, _) = run(&s, &src, &src, 64);
-        let db = 20.0 * peak(&l[20_000..]).log10();
+        let db = 20.0 * math::log10(peak(&l[20_000..]));
         assert!((db - -26.0).abs() < 0.2, "{db}");
     }
 
@@ -1719,7 +1725,7 @@ mod tests {
         });
         let (mut l, mut r) = (hi.clone(), hi.clone());
         k.process(&mut l, &mut r, None);
-        let lift = 20.0 * (peak(&l[24_000..]) / peak(&hi)).log10();
+        let lift = 20.0 * math::log10(peak(&l[24_000..]) / peak(&hi));
         assert!((lift - 12.0).abs() < 0.3, "{lift}");
     }
 
@@ -1832,7 +1838,7 @@ mod tests {
         fn lufs_of(lm: &loudness::Meter) -> f32 {
             // One step holding all three seconds: its mean square is the last in the
             // ring; momentary over 4 steps divides by 4, so undo that.
-            lm.momentary() + 10.0 * 4f32.log10()
+            lm.momentary() + 10.0 * math::log10(4f32)
         }
         let (lo, lc) = (m(&out), m(&cmp));
         assert!((lo - lc).abs() < 0.5, "output {lo} LUFS, compare {lc} LUFS");
@@ -1861,7 +1867,7 @@ mod tests {
         };
         let (with, _) = run(&ahead, &src, &src, 256);
         let d = 240;
-        let first = |x: &[f32], at: usize| 20.0 * peak(&x[at..at + 480]).log10();
+        let first = |x: &[f32], at: usize| 20.0 * math::log10(peak(&x[at..at + 480]));
         let (a, b) = (first(&none, 4_800), first(&with, 4_800 + d));
         assert!(b < a - 6.0, "no lookahead {a} dB, 5 ms {b} dB");
     }
@@ -2135,7 +2141,7 @@ mod tests {
                 let (mut l, mut r) = (src.clone(), src.clone());
                 c.process(&mut l, &mut r, None);
                 let (out, want) = (&l[12_000..], &src[12_000 - latency..24_000 - latency]);
-                let gain = 20.0 * (peak(out) / peak(want)).log10();
+                let gain = 20.0 * math::log10(peak(out) / peak(want));
                 assert!(gain.abs() < 0.01, "{factor}× at {hz} Hz: {gain} dB");
                 let err: Vec<f32> = out.iter().zip(want).map(|(a, b)| a - b).collect();
                 let rel = rms_db(&err) - rms_db(want);
@@ -2153,7 +2159,7 @@ mod tests {
         let n = 16_384;
         let mut hi = Vec::with_capacity(2 * n);
         for i in 0..n {
-            let x = (std::f32::consts::TAU * 20_000.0 * i as f32 / 48_000.0).sin();
+            let x = math::sin(std::f32::consts::TAU * 20_000.0 * i as f32 / 48_000.0);
             let mut ph = [0f32; 4];
             os.up(0, x, &mut ph);
             hi.extend_from_slice(&ph[..2]);
@@ -2163,13 +2169,13 @@ mod tests {
             let (mut c, mut s) = (0f64, 0f64);
             for (i, v) in hi[4_096..].iter().enumerate() {
                 let w = std::f64::consts::TAU * hz as f64 * i as f64 / 96_000.0;
-                c += *v as f64 * w.cos();
-                s += *v as f64 * w.sin();
+                c += *v as f64 * math::cos(w);
+                s += *v as f64 * math::sin(w);
             }
             (c * c + s * s).sqrt()
         };
         let (tone, image) = (at(20_000.0), at(28_000.0));
-        let rejection = 20.0 * (image / tone).log10();
+        let rejection = 20.0 * math::log10(image / tone);
         assert!(rejection < -70.0, "image at {rejection} dB");
     }
 
@@ -2179,7 +2185,9 @@ mod tests {
     #[test]
     fn oversampled_the_detector_hears_true_peaks() {
         let src: Vec<f32> = (0..24_000)
-            .map(|i| (std::f32::consts::FRAC_PI_2 * i as f32 + std::f32::consts::FRAC_PI_4).sin())
+            .map(|i| {
+                math::sin(std::f32::consts::FRAC_PI_2 * i as f32 + std::f32::consts::FRAC_PI_4)
+            })
             .collect();
         let gr = |factor: usize| {
             let mut c = Comprimo::new(48_000.0);

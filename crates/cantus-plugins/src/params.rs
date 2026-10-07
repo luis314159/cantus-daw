@@ -17,6 +17,7 @@
 use crate::text::{self, Lang};
 use cantus_core::fx::readout::{parse_readout, readout};
 use cantus_core::{EffectKind, EffectParamInfo};
+use cantus_dsp::math;
 use std::sync::OnceLock;
 
 /// The plug-in's own switch for the sidechain input.
@@ -104,7 +105,7 @@ impl Param {
             return 0.0;
         }
         let n = if self.logarithmic && min > 0.0 {
-            (v.max(min) / min).ln() / (max / min).ln()
+            math::ln(v.max(min) / min) / math::ln(max / min)
         } else {
             (v - min) / (max - min)
         };
@@ -124,7 +125,7 @@ impl Param {
         let v = if self.stepped {
             min + (n * (max - min)).round()
         } else if self.logarithmic && min > 0.0 {
-            min * (max / min).powf(n)
+            min * math::powf(max / min, n)
         } else {
             min + n * (max - min)
         };

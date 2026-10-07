@@ -15,6 +15,7 @@ use cantus_dsp::calor::{
     src, Assign, Calor, CalorSettings, Expression, HpfPos, LfoRestart, LfoSettings, LfoShape,
     OscRev, OscSettings, Quality, Target, CARDS,
 };
+use cantus_dsp::math;
 use cantus_dsp::modmatrix::{ModCurve, ModRoute, MAX_ROUTES};
 use cantus_dsp::va::math::db_gain;
 use cantus_dsp::va::{EnvModel, EnvSettings, FilterSettings, Model, Revision, SubShape};
@@ -326,7 +327,7 @@ pub fn route_target(key: &str) -> Option<(u16, f32)> {
     let (_, target, unit) = TARGETS.iter().find(|(k, _, _)| *k == key)?;
     let info = InstrumentKind::Analog.param(key)?;
     let span = if info.logarithmic && info.min > 0.0 {
-        (info.max / info.min).log2()
+        math::log2(info.max / info.min)
     } else {
         info.max - info.min
     };

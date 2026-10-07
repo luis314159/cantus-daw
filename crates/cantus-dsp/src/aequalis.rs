@@ -46,6 +46,7 @@
 //!   start of a block — so the output is independent of the block size. The phase modes'
 //!   designs, the key's spectrum and the auto gain run on grids counted the same way.
 
+use crate::math;
 use crate::spectrum::SpectrumAnalyser;
 use std::f64::consts::PI;
 
@@ -72,7 +73,7 @@ pub const KEY_BANDS: usize = 31;
 
 /// The centre of the key spectrum's band `k`.
 pub fn key_band_hz(k: usize) -> f32 {
-    20.0 * 2f32.powf(k as f32 / 3.0)
+    20.0 * math::powf(2f32, k as f32 / 3.0)
 }
 
 /// What [`Aequalis::telemetry`] reports, index by index (64 numbers, the plug-in contract).
@@ -366,13 +367,13 @@ impl Coefs {
     pub fn magnitude_db(&self, sample_rate: f32, hz: f32) -> f32 {
         let w = 2.0 * PI * hz as f64 / sample_rate.max(1.0) as f64;
         let (re, im) = self.response(w);
-        (10.0 * (re * re + im * im).max(1e-30).log10()) as f32
+        (10.0 * math::log10((re * re + im * im).max(1e-30))) as f32
     }
 
     /// The complex response at `w` radians per sample.
     pub fn response(&self, w: f64) -> (f64, f64) {
-        let (s1, c1) = w.sin_cos();
-        let (s2, c2) = (2.0 * w).sin_cos();
+        let (s1, c1) = math::sin_cos(w);
+        let (s2, c2) = math::sin_cos(2.0 * w);
         let (b0, b1, b2, a1, a2) = (
             self.b0 as f64,
             self.b1 as f64,
@@ -433,21 +434,21 @@ fn matched(p: Proto, w0: f64) -> Coefs {
     let (da1, da2) = if disc < 0.0 {
         let re = -a1 / (2.0 * a2) * w0;
         let im = (-disc).sqrt() / (2.0 * a2) * w0;
-        let r = re.exp();
-        (-2.0 * r * im.cos(), r * r)
+        let r = math::exp(re);
+        (-2.0 * r * math::cos(im), r * r)
     } else {
         let s1 = (-a1 + disc.sqrt()) / (2.0 * a2) * w0;
         let s2 = (-a1 - disc.sqrt()) / (2.0 * a2) * w0;
-        (-(s1.exp() + s2.exp()), (s1 + s2).exp())
+        (-(math::exp(s1) + math::exp(s2)), math::exp(s1 + s2))
     };
     // Zeros: match the magnitude at DC, at Nyquist and at the band frequency.
-    let big_a0 = (1.0 + da1 + da2).powi(2);
-    let big_a1 = (1.0 - da1 + da2).powi(2);
+    let big_a0 = math::powi(1.0 + da1 + da2, 2);
+    let big_a1 = math::powi(1.0 - da1 + da2, 2);
     let big_a2 = -4.0 * da2;
     let big_b0 = p.mag2(0.0) * big_a0;
     let big_b1 = p.mag2(PI / w0) * big_a1;
     let wm = w0.min(PI * 0.95);
-    let phi1 = (wm * 0.5).sin().powi(2);
+    let phi1 = math::powi(math::sin(wm * 0.5), 2);
     let phi0 = 1.0 - phi1;
     let phi2 = 4.0 * phi0 * phi1;
     let big_b2 = if phi2 > 1e-12 {
@@ -481,7 +482,7 @@ fn matched(p: Proto, w0: f64) -> Coefs {
 /// lands where it should. Used only where it tracks the analog curve better than matching
 /// does: a high shelf above 0.35 fs (see `design`, and the test that measured it).
 fn bilinear(p: Proto, w0: f64) -> Coefs {
-    let k = (w0 * 0.5).tan();
+    let k = math::tan(w0 * 0.5);
     let k2 = k * k;
     let (b0, b1, b2) = (p.b[0], p.b[1], p.b[2]);
     let (a0, a1, a2) = (p.a[0], p.a[1], p.a[2]);
@@ -507,7 +508,7 @@ const SHELF_BILINEAR_ABOVE: f64 = 0.35;
 
 /// A first-order low- or high-pass at `w0`, matched at DC and Nyquist.
 fn matched_first_order(high: bool, w0: f64) -> Coefs {
-    let p = (-w0).exp();
+    let p = math::exp(-w0);
     let a1 = -p;
     // Analog: 1/(s+1) or s/(s+1), Ω = ω/w0.
     let mag = |w: f64| -> f64 {
@@ -567,7 +568,7 @@ fn prototypes(
     let f = (freq as f64).clamp(10.0, sr * MAX_FREQ_RATIO);
     let w0 = 2.0 * PI * f / sr;
     let q = (q as f64).clamp(0.025, 40.0);
-    let a = 10f64.powf(gain_db as f64 / 40.0);
+    let a = math::powf(10f64, gain_db as f64 / 40.0);
     let sa = a.sqrt();
     let mut one = |p: Proto, k: Kind| {
         protos[0] = p;
@@ -640,7 +641,7 @@ fn prototypes(
             // is a resonance on that section, relative to the flat 0.707.
             let resonance = q / std::f64::consts::FRAC_1_SQRT_2;
             for k in 0..pairs {
-                let mut qk = 1.0 / (2.0 * ((2 * k + 1) as f64 * PI / (2 * order) as f64).sin());
+                let mut qk = 1.0 / (2.0 * math::sin((2 * k + 1) as f64 * PI / (2 * order) as f64));
                 if k == 0 {
                     qk *= resonance;
                 }
@@ -746,7 +747,7 @@ pub fn analog_db(b: &BandSettings, sample_rate: f32, hz: f32) -> f32 {
     };
     let w = 2.0 * PI * hz as f64 / sample_rate.max(1.0) as f64;
     let m2: f64 = protos[..n].iter().map(|p| p.mag2(w / w0)).product();
-    (10.0 * m2.max(1e-30).log10()) as f32
+    (10.0 * math::log10(m2.max(1e-30))) as f32
 }
 
 /// A band's magnitude at `hz` as a mode realises it, dB.
@@ -794,13 +795,13 @@ pub fn band_curve_db(b: &BandSettings, mode: Mode, sample_rate: f32, hz: &[f32],
                     re * re + im * im
                 })
                 .product();
-            *o = (10.0 * m2.max(1e-30).log10()) as f32;
+            *o = (10.0 * math::log10(m2.max(1e-30))) as f32;
         }
     } else {
         for (o, f) in out.iter_mut().zip(hz) {
             let w = 2.0 * PI * *f as f64 / sr;
             let m2: f64 = protos[..n].iter().map(|p| p.mag2(w / w0)).product();
-            *o = (10.0 * m2.max(1e-30).log10()) as f32;
+            *o = (10.0 * math::log10(m2.max(1e-30))) as f32;
         }
     }
 }
@@ -967,8 +968,8 @@ impl Band {
     /// Feed the detector: the band's own channel(s), or the key's.
     fn detect(&mut self, left: &[f32], right: &[f32], sr: f32) {
         let t = self.target;
-        let att = (-1.0 / (t.attack_ms.max(0.1) * 0.001 * sr)).exp();
-        let rel = (-1.0 / (t.release_ms.max(1.0) * 0.001 * sr)).exp();
+        let att = math::exp(-1.0 / (t.attack_ms.max(0.1) * 0.001 * sr));
+        let rel = math::exp(-1.0 / (t.release_ms.max(1.0) * 0.001 * sr));
         for (l, r) in left.iter().zip(right.iter()) {
             let x = match t.placement {
                 Placement::Stereo => (l.abs()).max(r.abs()) * l.signum(),
@@ -1002,10 +1003,10 @@ impl KWeight {
             0.707_175_236_955_419_6,
             1_681.974_450_955_533,
         );
-        let a = 10f64.powf(g / 40.0);
+        let a = math::powf(10f64, g / 40.0);
         let w0 = 2.0 * PI * fc / sr;
-        let alpha = w0.sin() / (2.0 * q);
-        let c = w0.cos();
+        let alpha = math::sin(w0) / (2.0 * q);
+        let c = math::cos(w0);
         let a0 = (a + 1.0) - (a - 1.0) * c + 2.0 * a.sqrt() * alpha;
         let shelf = Coefs {
             b0: (a * ((a + 1.0) + (a - 1.0) * c + 2.0 * a.sqrt() * alpha) / a0) as f32,
@@ -1016,8 +1017,8 @@ impl KWeight {
         };
         let (q, fc) = (0.500_327_037_323_877_3, 38.135_470_876_024_44);
         let w0 = 2.0 * PI * fc / sr;
-        let alpha = w0.sin() / (2.0 * q);
-        let c = w0.cos();
+        let alpha = math::sin(w0) / (2.0 * q);
+        let c = math::cos(w0);
         let a0 = 1.0 + alpha;
         let hp = Coefs {
             b0: ((1.0 + c) / 2.0 / a0) as f32,
@@ -1068,8 +1069,8 @@ impl AutoGain {
             k_out: KWeight::new(sample_rate),
             e_in: 0.0,
             e_out: 0.0,
-            coef: 1.0 - (-1.0 / (1.5 * sr)).exp(),
-            glide: 1.0 - (-(UPDATE as f64) / (0.3 * sr)).exp(),
+            coef: 1.0 - math::exp(-1.0 / (1.5 * sr)),
+            glide: 1.0 - math::exp(-(UPDATE as f64) / (0.3 * sr)),
             gain_db: 0.0,
             gain: 1.0,
         }
@@ -1089,12 +1090,12 @@ impl AutoGain {
     fn update(&mut self) {
         const GATE: f64 = 1e-7;
         if self.e_in > GATE && self.e_out > GATE {
-            let target = (10.0 * (self.e_in / self.e_out).log10()).clamp(-24.0, 24.0);
+            let target = (10.0 * math::log10(self.e_in / self.e_out)).clamp(-24.0, 24.0);
             self.gain_db += (target - self.gain_db) * self.glide;
             if (self.gain_db - target).abs() < 1e-6 {
                 self.gain_db = target;
             }
-            self.gain = 10f64.powf(self.gain_db / 20.0) as f32;
+            self.gain = math::powf(10f64, self.gain_db / 20.0) as f32;
         }
     }
 }
@@ -1338,7 +1339,7 @@ impl Aequalis {
         self.output_gain = if o.output_db == 0.0 {
             1.0
         } else {
-            10f32.powf(o.output_db / 20.0)
+            math::powf(10f32, o.output_db / 20.0)
         };
         self.opts = o;
         if self.grows {
@@ -1447,7 +1448,7 @@ impl Aequalis {
         self.output_gain = if output_db == 0.0 {
             1.0
         } else {
-            10f32.powf(output_db / 20.0)
+            math::powf(10f32, output_db / 20.0)
         };
         let lp = self.running == Mode::LinearPhase;
         let mut changed = snap;
@@ -1666,12 +1667,12 @@ impl Aequalis {
                     return false;
                 }
                 let (c, tg) = if log {
-                    (cur.max(1e-6).ln(), target.max(1e-6).ln())
+                    (math::ln(cur.max(1e-6)), math::ln(target.max(1e-6)))
                 } else {
                     (*cur, target)
                 };
                 let next = c + (tg - c) * GLIDE;
-                let v = if log { next.exp() } else { next };
+                let v = if log { math::exp(next) } else { next };
                 *cur = if (v - target).abs() <= target.abs().max(1.0) * 1e-5 {
                     target
                 } else {
@@ -1685,7 +1686,7 @@ impl Aequalis {
             glided |= moved;
             if t.dynamic && t.shape.has_gain() {
                 let level_db = if b.env > 1e-9 {
-                    20.0 * b.env.log10()
+                    20.0 * math::log10(b.env)
                 } else {
                     -200.0
                 };
@@ -1702,7 +1703,7 @@ impl Aequalis {
                 } else if over >= knee * 0.5 {
                     over
                 } else {
-                    (over + knee * 0.5).powi(2) / (2.0 * knee)
+                    math::powi(over + knee * 0.5, 2) / (2.0 * knee)
                 };
                 let amount = excess * (1.0 - 1.0 / t.ratio.max(1.0));
                 let delta = amount.min(t.range_db.abs()) * t.range_db.signum();

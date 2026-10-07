@@ -14,6 +14,8 @@
 //! Everything here is plain arithmetic on tables built in `new`: no allocation per sample.
 
 /// Mip-map levels a sample can have (level 7 plays 2⁸ = 256× faster than the file).
+use crate::math;
+
 pub const MAX_LEVELS: usize = 8;
 /// Phases in the interpolator's table; coefficients between two phases are interpolated
 /// linearly, which keeps the phase error far below the kernel's own.
@@ -85,7 +87,7 @@ fn sinc(x: f64) -> f64 {
         1.0
     } else {
         let px = std::f64::consts::PI * x;
-        px.sin() / px
+        math::sin(px) / px
     }
 }
 
@@ -116,7 +118,7 @@ pub fn halfband_size(atten_db: f64, width: f64) -> (usize, f64) {
     let beta = if atten_db > 50.0 {
         0.1102 * (atten_db - 8.7)
     } else {
-        0.5842 * (atten_db - 21.0).max(0.0).powf(0.4) + 0.07886 * (atten_db - 21.0).max(0.0)
+        0.5842 * math::powf((atten_db - 21.0).max(0.0), 0.4) + 0.07886 * (atten_db - 21.0).max(0.0)
     };
     let len = (atten_db - 7.95) / (2.285 * 2.0 * std::f64::consts::PI * width) + 1.0;
     ((((len + 1.0) / 4.0).ceil() as usize).max(2), beta)

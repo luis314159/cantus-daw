@@ -6,6 +6,8 @@
 //! - A new kit (model 2) is position-seeded: a render that starts at bar 5 equals bars 5…8
 //!   of a render from the top, noise, round robin and all.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_engine::*;
@@ -61,9 +63,9 @@ fn write_clap(dir: &std::path::Path) -> String {
         seed ^= seed >> 17;
         seed ^= seed << 5;
         let n = seed as f32 / u32::MAX as f32 * 2.0 - 1.0;
-        let env = (-t * 18.0).exp();
-        let l = ((t * 1_300.0).sin() * 0.3 + n * 0.5) * env;
-        let r = ((t * 1_700.0).sin() * 0.3 + n * 0.45) * env;
+        let env = math::exp(-t * 18.0);
+        let l = (math::sin(t * 1_300.0) * 0.3 + n * 0.5) * env;
+        let r = (math::sin(t * 1_700.0) * 0.3 + n * 0.45) * env;
         w.write_sample((l * 6_000_000.0) as i32).unwrap();
         w.write_sample((r * 6_000_000.0) as i32).unwrap();
     }
@@ -126,6 +128,20 @@ fn sha(samples: &[f32]) -> String {
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// With `CANTUS_GOLDEN_DUMP=<folder>`, writes a golden's samples there (`<name>.f32`, raw
+/// little-endian) so a reviewed `DSP_VERSION` bump can state how far each golden moved
+/// (`docs/round21/math.md`).
+fn golden_dump(name: &str, samples: &[f32]) {
+    if let Some(dir) = std::env::var_os("CANTUS_GOLDEN_DUMP") {
+        let bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
+        std::fs::write(
+            std::path::Path::new(&dir).join(format!("{name}.f32")),
+            bytes,
+        )
+        .expect("write the golden's samples");
+    }
+}
+
 fn render_attached(p: &Project, opts: &RenderOptions) -> Rendered {
     let mut snap = Snapshot::compile(p, 1);
     let mut cache = SampleCache::new();
@@ -150,6 +166,7 @@ fn a_pulsus_one_kit_renders_exactly_as_it_did() {
         },
     );
     assert!(r.peak > 0.1 && r.peak < 1.0, "peak {}", r.peak);
+    golden_dump("v1_kit", &r.samples);
     assert_eq!(
         sha(&r.samples),
         GOLDEN_V1_KIT,
@@ -184,13 +201,16 @@ fn the_v14_fixture_kit_renders_exactly_as_it_did() {
     )
     .unwrap();
     assert!(r.peak > 0.05);
+    golden_dump("v14_kit", &r.samples);
     assert_eq!(sha(&r.samples), GOLDEN_V14_KIT, "peak {}", r.peak);
 }
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
-const GOLDEN_V1_KIT: &str = "f62e0826f462992c457ab0426add219761236867e2a2b579e94aa3e3e3975a52";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
+const GOLDEN_V1_KIT: &str = "0749b097ff0d24febc9c54a5c5bd11a7d3704466feae692e36099c026911c0a6";
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
-const GOLDEN_V14_KIT: &str = "e406798eb654ac64c1013bfdddc524a8afa8968db1efa7ce66e26e55e8e7c9de";
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.0e-8 (−150.5 dBFS).
+const GOLDEN_V14_KIT: &str = "20142bf8f3bbc7dfbd4fffdb55033257f5e3f39529b80ea2510063401bd56c13";
 
 /// Model 1 keeps even its defect: its noise is seeded by a hit count that a seek resets,
 /// so a render that starts at bar 2 is pinned too — as Pulsus I rendered it.
@@ -208,12 +228,14 @@ fn a_pulsus_one_kit_rendered_from_bar_two_is_as_it_was() {
             ..Default::default()
         },
     );
+    golden_dump("v1_from_bar_2", &r.samples);
     assert_eq!(sha(&r.samples), GOLDEN_V1_FROM_BAR_2, "peak {}", r.peak);
 }
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
+/// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
 const GOLDEN_V1_FROM_BAR_2: &str =
-    "3569a15954627d41bab23a1d5596d1fbb00cd9d83ebd40a8923f2d5fb226599f";
+    "7cad1abd2d1e992b42c9a8a1febf6fbb8e04049df48133e41be6112b59f10c05";
 
 // ---- Pulsus II through the engine ---------------------------------------------------------
 
@@ -240,7 +262,8 @@ fn studio_project(dir: &std::path::Path) -> Project {
             seed ^= seed << 5;
             let t = i as f32 / 48_000.0;
             let n = seed as f32 / u32::MAX as f32 - 0.5;
-            let v = ((t * hz * std::f32::consts::TAU).sin() * 0.4 + n * 0.3) * (-t * 25.0).exp();
+            let v =
+                (math::sin(t * hz * std::f32::consts::TAU) * 0.4 + n * 0.3) * math::exp(-t * 25.0);
             w.write_sample(v).unwrap();
         }
         w.finalize().unwrap();

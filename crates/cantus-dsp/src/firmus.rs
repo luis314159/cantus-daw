@@ -5,6 +5,7 @@
 
 use crate::env::Adsr;
 use crate::filter::{FilterMode, Svf};
+use crate::math;
 use crate::osc::{PolyBlepOsc, Wave};
 use crate::smoother::Smoother;
 
@@ -111,7 +112,7 @@ pub struct Firmus {
 
 #[inline]
 fn pitch_hz(pitch: f32) -> f32 {
-    440.0 * 2f32.powf((pitch - 69.0) / 12.0)
+    440.0 * math::powf(2f32, (pitch - 69.0) / 12.0)
 }
 
 impl Firmus {
@@ -122,7 +123,7 @@ impl Firmus {
             voices: (0..MAX_VOICES).map(|_| Voice::new(sample_rate)).collect(),
             counter: 0,
             gain: Smoother::new(db_to_lin(settings.gain_db), 0.02, sample_rate),
-            cutoff_log2: Smoother::new(settings.cutoff_hz.log2(), 0.01, sample_rate),
+            cutoff_log2: Smoother::new(math::log2(settings.cutoff_hz), 0.01, sample_rate),
             settings,
         };
         s.apply_settings();
@@ -147,7 +148,8 @@ impl Firmus {
     fn apply_settings(&mut self) {
         let s = &self.settings;
         self.gain.set_target(db_to_lin(s.gain_db));
-        self.cutoff_log2.set_target(s.cutoff_hz.max(10.0).log2());
+        self.cutoff_log2
+            .set_target(math::log2(s.cutoff_hz.max(10.0)));
         for v in &mut self.voices {
             v.osc1.set_wave(s.osc1_wave);
             v.osc2.set_wave(s.osc2_wave);
@@ -196,7 +198,7 @@ impl Firmus {
         let v = &mut self.voices[idx];
         v.pitch = pitch.min(127);
         v.tag = tag;
-        v.velocity = (velocity.clamp(1, 127) as f32 / 127.0).powf(1.5);
+        v.velocity = math::powf(velocity.clamp(1, 127) as f32 / 127.0, 1.5);
         v.age = self.counter;
         // Deterministic phase reset: identical input → identical output.
         v.osc1.reset(0.0);
@@ -253,7 +255,7 @@ impl Firmus {
         }
         self.gain.snap(db_to_lin(self.settings.gain_db));
         self.cutoff_log2
-            .snap(self.settings.cutoff_hz.max(10.0).log2());
+            .snap(math::log2(self.settings.cutoff_hz.max(10.0)));
         self.counter = 0;
     }
 
@@ -295,7 +297,7 @@ impl Firmus {
             // Idle: settle the smoothers instantly. This keeps the output independent of
             // how the host splits idle time into blocks (null-test invariant).
             let g = db_to_lin(s.gain_db);
-            let c = s.cutoff_hz.max(10.0).log2();
+            let c = math::log2(s.cutoff_hz.max(10.0));
             self.gain.snap(g);
             self.cutoff_log2.snap(c);
             return false;
@@ -312,7 +314,7 @@ impl Firmus {
                 let fenv = v.filter_env.next();
                 // Cutoff in octaves: base + envelope + key tracking relative to C4.
                 let key_oct = key_track * ((v.pitch as f32 - 60.0) / 12.0);
-                let fc = (cutoff_log2 + env_oct * fenv + key_oct).exp2();
+                let fc = math::exp2(cutoff_log2 + env_oct * fenv + key_oct);
                 v.filter.set(fc, resonance);
                 let o = v.osc1.next() * mix1 + v.osc2.next() * mix2;
                 let f = v.filter.process(o);
@@ -326,7 +328,7 @@ impl Firmus {
 
 #[inline]
 fn db_to_lin(db: f32) -> f32 {
-    10f32.powf(db / 20.0)
+    math::powf(10f32, db / 20.0)
 }
 
 #[cfg(test)]

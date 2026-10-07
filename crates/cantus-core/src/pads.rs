@@ -23,6 +23,7 @@
 //! identity, so inserting a lower pad no longer renumbers the ones above it.
 
 use crate::model::{pitch_name, Pitch, StripId};
+use cantus_dsp::math;
 use serde::{Deserialize, Serialize};
 
 #[path = "pads_field.rs"]
@@ -236,7 +237,7 @@ impl PadLayer {
                 return if d >= 0.0 { 1.0 } else { 0.0 };
             }
             let t = (d / w + 0.5).clamp(0.0, 1.0);
-            (t * std::f32::consts::FRAC_PI_2).sin()
+            math::sin(t * std::f32::consts::FRAC_PI_2)
         };
         // The ends of the velocity scale have nothing to cross-fade with.
         let fade_in = if self.vel_lo.min(self.vel_hi) <= 1 {

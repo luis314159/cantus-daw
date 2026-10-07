@@ -834,6 +834,7 @@ dependencies = [
 name = "cantus-core"
 version = "0.1.0"
 dependencies = [
+ "cantus-dsp",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -844,6 +845,7 @@ name = "cantus-dsp"
 version = "0.1.0"
 dependencies = [
  "hound",
+ "libm",
 ]
 
 [[package]]

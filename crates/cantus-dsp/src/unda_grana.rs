@@ -10,6 +10,7 @@
 
 use super::modsrc::unit;
 use super::table::{hermite, Read, Table, LEVELS, LEVEL_TOP};
+use crate::math;
 use std::sync::OnceLock;
 
 pub const GRAINS: usize = 32;
@@ -45,18 +46,18 @@ pub fn windows() -> &'static [[f32; WINDOW_LEN + 1]; 4] {
         let mut w = [[0.0; WINDOW_LEN + 1]; 4];
         for i in 0..=WINDOW_LEN {
             let x = i as f32 / WINDOW_LEN as f32;
-            let hann = 0.5 - 0.5 * (std::f32::consts::TAU * x).cos();
+            let hann = 0.5 - 0.5 * math::cos(std::f32::consts::TAU * x);
             let d = (x - 0.5) / 0.18;
-            let gauss = (-0.5 * d * d).exp() * if i == 0 || i == WINDOW_LEN { 0.0 } else { 1.0 };
+            let gauss = math::exp(-0.5 * d * d) * if i == 0 || i == WINDOW_LEN { 0.0 } else { 1.0 };
             let edge = 0.25;
             let tukey = if x < edge {
-                0.5 - 0.5 * (std::f32::consts::PI * x / edge).cos()
+                0.5 - 0.5 * math::cos(std::f32::consts::PI * x / edge)
             } else if x > 1.0 - edge {
-                0.5 - 0.5 * (std::f32::consts::PI * (1.0 - x) / edge).cos()
+                0.5 - 0.5 * math::cos(std::f32::consts::PI * (1.0 - x) / edge)
             } else {
                 1.0
             };
-            let expodec = (1.0 - (-x * 60.0).exp()) * (-5.0 * x).exp() * (1.0 - x);
+            let expodec = (1.0 - math::exp(-x * 60.0)) * math::exp(-5.0 * x) * (1.0 - x);
             w[0][i] = hann;
             w[1][i] = gauss;
             w[2][i] = tukey;
@@ -170,7 +171,7 @@ impl Grana {
             return; // full: skip, deterministically
         };
         let cents = c.pitch_rand * (2.0 * r(1) - 1.0);
-        let bend = (cents / 1200.0).exp2() as f64;
+        let bend = math::exp2(cents / 1200.0) as f64;
         let reverse = r(2) < c.reverse;
         let len = (c.length * sr).max(8.0);
         let pan = (c.pan + c.width * (2.0 * r(3) - 1.0)).clamp(-1.0, 1.0);
@@ -181,8 +182,8 @@ impl Grana {
             on: true,
             w: 0.0,
             dw: 1.0 / len,
-            gl: g * th.cos() * std::f32::consts::SQRT_2,
-            gr: g * th.sin() * std::f32::consts::SQRT_2,
+            gl: g * math::cos(th) * std::f32::consts::SQRT_2,
+            gr: g * math::sin(th) * std::f32::consts::SQRT_2,
             ..Grain::default()
         };
         match src {
@@ -207,7 +208,7 @@ impl Grana {
                 let hz = c.hz * bend as f32;
                 grain.inc = (hz / sr) as f64 * if reverse { -1.0 } else { 1.0 };
                 grain.pos = r(5) as f64;
-                let x = (hz * LEVEL_TOP[0] as f32 / (0.5 * sr)).max(1e-9).log2();
+                let x = math::log2((hz * LEVEL_TOP[0] as f32 / (0.5 * sr)).max(1e-9));
                 grain.level = (x.ceil().max(0.0) as usize).min(LEVELS - 1);
             }
         }

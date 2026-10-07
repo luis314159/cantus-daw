@@ -12,6 +12,7 @@
 //! jumps to 1716 steps (about 40 dB above the floor) and then moves at that speed times
 //! `(4352 − level)/256` rounded down, which is the DX's concave attack.
 
+use crate::math;
 use crate::modulus::{DxEnvSettings, TimeEnvSettings};
 
 /// dB per DX level step.
@@ -70,7 +71,7 @@ pub fn dx_amp(steps: f32) -> f32 {
     if steps <= DX_FLOOR {
         0.0
     } else {
-        ((steps - DX_FULL) * (1.0 / 256.0)).exp2()
+        math::exp2((steps - DX_FULL) * (1.0 / 256.0))
     }
 }
 
@@ -180,7 +181,7 @@ pub fn bend(x: f32, c: f32) -> f32 {
     if c == 0.0 {
         x
     } else {
-        x.max(0.0).powf((-3.0 * c).exp2())
+        math::powf(x.max(0.0), math::exp2(-3.0 * c))
     }
 }
 
@@ -306,11 +307,19 @@ impl ModAdsr {
                 }
             }
             1 | 2 => {
-                let k = if d > 0.0 { (-dt * 4.6 / d).exp() } else { 0.0 };
+                let k = if d > 0.0 {
+                    math::exp(-dt * 4.6 / d)
+                } else {
+                    0.0
+                };
                 self.level = s + (self.level - s) * k;
             }
             _ => {
-                let k = if r > 0.0 { (-dt * 4.6 / r).exp() } else { 0.0 };
+                let k = if r > 0.0 {
+                    math::exp(-dt * 4.6 / r)
+                } else {
+                    0.0
+                };
                 self.level *= k;
                 if self.level < 1e-6 {
                     self.level = 0.0;

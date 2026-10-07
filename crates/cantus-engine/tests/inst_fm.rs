@@ -5,6 +5,8 @@
 //!
 //! Run with `--nocapture` to see the measured numbers `docs/instruments/modulus.md` quotes.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::inst::fm::{dx_template, OP_KEYS};
 use cantus_core::*;
@@ -131,7 +133,7 @@ fn a_rich_patch_goes_exactly_silent_and_keeps_headroom() {
         let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
         println!(
             "eight-note chord at velocity 127: peak {:.1} dBFS",
-            20.0 * peak.log10()
+            20.0 * math::log10(peak)
         );
         assert!(peak < 1.0, "peak {peak}");
         let last = &out[out.len() - 48_000 * 2..];
@@ -183,8 +185,8 @@ fn pitch_is_accurate_across_the_keyboard() {
     for key in (21u8..=108).step_by(3) {
         let x = unit_note(&spec, key, 1.2);
         let f = frequency(&x[4_800..], FS);
-        let want = 440.0 * 2f32.powf((key as f32 - 69.0) / 12.0);
-        let cents = 1200.0 * (f / want).log2();
+        let want = 440.0 * math::powf(2f32, (key as f32 - 69.0) / 12.0);
+        let cents = 1200.0 * math::log2(f / want);
         worst = worst.max(cents.abs());
     }
     println!("pitch error across A0…C8: at most {worst:.4} cents");
@@ -210,7 +212,7 @@ fn alias_db(x: &[f32], k: usize) -> (f32, f32) {
             }
         }
     }
-    let db = |x: f64| (10.0 * (x / total).max(1e-30).log10()) as f32;
+    let db = |x: f64| (10.0 * math::log10((x / total).max(1e-30))) as f32;
     (db(alias), db(heard))
 }
 
@@ -281,7 +283,7 @@ fn feedback_sounds_the_same_at_every_quality() {
         let mut re: Vec<f32> = seg
             .iter()
             .enumerate()
-            .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / 8_192.0).cos()))
+            .map(|(i, v)| v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / 8_192.0)))
             .collect();
         let mut im = vec![0f32; re.len()];
         fft(&mut re, &mut im);
@@ -292,7 +294,7 @@ fn feedback_sounds_the_same_at_every_quality() {
                     .map(|k| re[k] * re[k] + im[k] * im[k])
                     .fold(0f32, f32::max)
             })
-            .map(|p| 10.0 * p.log10())
+            .map(|p| 10.0 * math::log10(p))
             .collect::<Vec<_>>()
     };
     let one = level(0.0);
@@ -336,7 +338,9 @@ fn the_timbre_is_the_same_at_every_sample_rate() {
         let mut re: Vec<f32> = l[n - len..]
             .iter()
             .enumerate()
-            .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / len as f32).cos()))
+            .map(|(i, v)| {
+                v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / len as f32))
+            })
             .collect();
         let mut im = vec![0f32; len];
         fft(&mut re, &mut im);

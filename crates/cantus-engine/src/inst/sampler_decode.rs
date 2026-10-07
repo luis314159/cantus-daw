@@ -4,6 +4,7 @@
 //! and yields interleaved `f32`.
 
 use cantus_core::SampleData;
+use cantus_dsp::math;
 use std::path::Path;
 
 /// Decode a file by its extension; `None` when the extension is not one of these (the
@@ -50,7 +51,7 @@ fn finish(rate: u32, in_channels: usize, samples: Vec<f32>) -> Result<SampleData
 fn extended(b: &[u8]) -> f64 {
     let exp = (((b[0] as i32) & 0x7F) << 8 | b[1] as i32) - 16_383;
     let mant = u64::from_be_bytes([b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9]]);
-    let v = mant as f64 * 2f64.powi(exp - 63);
+    let v = mant as f64 * math::powi(2f64, exp - 63);
     if b[0] & 0x80 != 0 {
         -v
     } else {

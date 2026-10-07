@@ -7,6 +7,7 @@
 //! warps and reads.
 
 use super::table::{Read, Table, LEVELS, LEVEL_TOP};
+use crate::math;
 use std::f32::consts::{FRAC_PI_2, PI};
 
 pub const MAX_UNISON: usize = 16;
@@ -227,8 +228,8 @@ impl Osc {
         } else {
             let nc = if n % 2 == 1 { 1.0 } else { 2.0 };
             let ns = n as f32 - nc;
-            let gc = (c.blend * FRAC_PI_2).cos();
-            let gs = (c.blend * FRAC_PI_2).sin();
+            let gc = math::cos(c.blend * FRAC_PI_2);
+            let gs = math::sin(c.blend * FRAC_PI_2);
             (gc, gs, 1.0 / (nc * gc * gc + ns * gs * gs).sqrt().max(1e-6))
         };
         let stack = STACK[c.stack.min(STACK.len() - 1)];
@@ -250,7 +251,7 @@ impl Osc {
             } else {
                 c.detune_ct * 0.01 * shape + stack[i % stack.len()]
             };
-            let hz = c.hz * (semis / 12.0).exp2();
+            let hz = c.hz * math::exp2(semis / 12.0);
             let l = &mut self.lanes[i];
             // Increment, ramped over the tick.
             let target = ((hz / sr).clamp(0.0, 0.5) as f64 * 4_294_967_296.0) as i64;
@@ -263,7 +264,7 @@ impl Osc {
             }
             // Mip level: the lowest whose top harmonic stays under the limit, faded
             // into the next over the top quarter octave.
-            let x = (hz * LEVEL_TOP[0] as f32 / nyquist_hz).max(1e-9).log2();
+            let x = math::log2((hz * LEVEL_TOP[0] as f32 / nyquist_hz).max(1e-9));
             let lv = x.ceil().max(0.0);
             l.mute = lv > (LEVELS - 1) as f32 || hz <= 0.0;
             l.level = (lv as usize).min(LEVELS - 1);
@@ -300,8 +301,8 @@ impl Osc {
             let pan = (c.pan + c.width * u.abs() * side).clamp(-1.0, 1.0);
             let th = (pan + 1.0) * PI * 0.25;
             let (tl, tr) = (
-                th.cos() * std::f32::consts::SQRT_2,
-                th.sin() * std::f32::consts::SQRT_2,
+                math::cos(th) * std::f32::consts::SQRT_2,
+                math::sin(th) * std::f32::consts::SQRT_2,
             );
             let (tl, tr) = (g * tl, g * tr);
             if first {
@@ -391,12 +392,12 @@ pub fn display_cycle(t: &Table, pos: f32, warps: &[WarpSlot; 2], out: &mut [f32]
     let n = out.len().max(1);
     for (i, o) in out.iter_mut().enumerate() {
         let phi0 = i as f32 / n as f32;
-        let m = (std::f32::consts::TAU * phi0).sin();
+        let m = math::sin(std::f32::consts::TAU * phi0);
         let mut phi = phi0;
         for w in warps.iter().filter(|w| w.active()) {
             phi = match w.mode {
                 Warp::Fm => {
-                    let dev = -(std::f32::consts::TAU * phi0).cos() / std::f32::consts::TAU;
+                    let dev = -math::cos(std::f32::consts::TAU * phi0) / std::f32::consts::TAU;
                     (phi + w.amt * FM_DEPTH * dev).rem_euclid(1.0)
                 }
                 mode if mode.on_phase() => warp_phase(mode, w.amt, phi, m),
@@ -447,16 +448,16 @@ fn warp_phase(mode: Warp, amt: f32, phi: f32, m: f32) -> f32 {
         Warp::BendPlus | Warp::BendMinus => {
             let p = if mode == Warp::BendPlus { 1.0 } else { -1.0 } * 3.0 * amt;
             let u = 2.0 * phi - 1.0;
-            0.5 + 0.5 * u.signum() * u.abs().powf(p.exp2())
+            0.5 + 0.5 * u.signum() * math::powf(u.abs(), math::exp2(p))
         }
         Warp::AsymPlus | Warp::AsymMinus => {
             let p = if mode == Warp::AsymPlus { 1.0 } else { -1.0 } * 3.0 * amt;
-            phi.powf(p.exp2())
+            math::powf(phi, math::exp2(p))
         }
         Warp::Pwm => (phi / (1.0 - 0.98 * amt)).min(1.0),
         Warp::Mirror => phi + ((1.0 - (2.0 * phi - 1.0).abs()) - phi) * amt,
         Warp::Quantize => {
-            let n = 2048.0 * (-10.0 * amt).exp2();
+            let n = 2048.0 * math::exp2(-10.0 * amt);
             (phi * n).floor() / n
         }
         Warp::Pm => (phi + amt * PM_DEPTH * m).rem_euclid(1.0),
@@ -475,10 +476,10 @@ fn warp_out(mode: Warp, amt: f32, y: f32, m: f32, flip: bool) -> f32 {
                 y
             }
         }
-        Warp::Fold => y + ((y * (1.0 + 7.0 * amt) * FRAC_PI_2).sin() - y) * amt,
+        Warp::Fold => y + (math::sin(y * (1.0 + 7.0 * amt) * FRAC_PI_2) - y) * amt,
         Warp::SoftClip => {
             let g = 1.0 + 15.0 * amt;
-            y + ((g * y).tanh() / g.tanh() - y) * amt
+            y + (math::tanh(g * y) / math::tanh(g) - y) * amt
         }
         Warp::HardClip => (y * (1.0 + 15.0 * amt)).clamp(-1.0, 1.0),
         Warp::Am => y * (1.0 - amt * 0.5 * (1.0 - m)),

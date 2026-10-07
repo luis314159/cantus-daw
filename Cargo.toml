@@ -45,6 +45,9 @@ repository = "https://github.com/lalmazan/cantus"
 homepage = "https://github.com/lalmazan/cantus"
 
 [workspace.dependencies]
+# The transcendental functions every unit calls (cantus_dsp::math, ADR 0031 R9): pinned
+# exactly, because a new libm can round differently, and that is a DSP_VERSION bump.
+libm = "=0.2.16"
 # Internal crates
 cantus-core = { path = "crates/cantus-core" }
 cantus-dsp = { path = "crates/cantus-dsp" }
@@ -105,6 +108,8 @@ opt-level = 1
 [profile.dev.package.cantus-dsp]
 opt-level = 3
 [profile.dev.package.cantus-engine]
+opt-level = 3
+[profile.dev.package.libm]
 opt-level = 3
 
 # The exported plug-ins (ADR 0020): one codegen unit and whole-program LTO, because a

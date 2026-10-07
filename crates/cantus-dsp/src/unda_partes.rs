@@ -11,6 +11,7 @@
 //! rotators are renormalised on the control grid, deterministically.
 
 use super::table::{Table, HARMONICS};
+use crate::math;
 
 pub const MAX_PARTIALS: usize = 256;
 /// Partials fade out between these frequencies (Hz) and are culled above.
@@ -79,9 +80,9 @@ impl Partes {
         let frame = frame_of(table, pos).0;
         for k in 0..MAX_PARTIALS {
             let (a, b) = table.partial(frame, k);
-            let phi = a.atan2(b) + std::f32::consts::TAU * phase0 * (k + 1) as f32;
-            self.c[k] = phi.cos();
-            self.s[k] = phi.sin();
+            let phi = math::atan2(a, b) + std::f32::consts::TAU * phase0 * (k + 1) as f32;
+            self.c[k] = math::cos(phi);
+            self.s[k] = math::sin(phi);
             self.amp[k] = 0.0;
             self.damp[k] = 0.0;
         }
@@ -110,7 +111,7 @@ impl Partes {
             let ratio = if c.stretch == 0.0 {
                 kk
             } else {
-                kk.powf(1.0 + c.stretch)
+                math::powf(kk, 1.0 + c.stretch)
             };
             let hz = c.hz * ratio;
             if hz >= TAPER.1 || hz >= 0.49 * sr {
@@ -119,8 +120,8 @@ impl Partes {
             n = k + 1;
             if recompute {
                 let w = w0 * ratio;
-                self.cw[k] = w.cos();
-                self.sw[k] = w.sin();
+                self.cw[k] = math::cos(w);
+                self.sw[k] = math::sin(w);
             }
             // Renormalise the rotator (one Newton step towards the unit circle).
             let g = 1.5 - 0.5 * (self.c[k] * self.c[k] + self.s[k] * self.s[k]);
@@ -139,7 +140,7 @@ impl Partes {
             let tilt = if c.tilt_db == 0.0 {
                 1.0
             } else {
-                10f32.powf(c.tilt_db * kk.log2() / 20.0)
+                math::powf(10f32, c.tilt_db * math::log2(kk) / 20.0)
             };
             let odd = (k + 1) % 2 == 1;
             let oe = if k == 0 {
@@ -174,8 +175,8 @@ impl Partes {
         self.last_stretch = c.stretch;
         self.last_sr = sr;
         let th = (c.pan.clamp(-1.0, 1.0) + 1.0) * std::f32::consts::FRAC_PI_4;
-        self.gl = c.gain * th.cos() * std::f32::consts::SQRT_2;
-        self.gr = c.gain * th.sin() * std::f32::consts::SQRT_2;
+        self.gl = c.gain * math::cos(th) * std::f32::consts::SQRT_2;
+        self.gr = c.gain * math::sin(th) * std::f32::consts::SQRT_2;
     }
 
     /// One sample: (left, right).

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::exemplar::voice::{lfo_value, Stage, CONTROL};
+use crate::math;
 
 impl Exemplar {
     /// Render into `left`/`right` (added). `false` only when nothing sounds, so the
@@ -114,8 +115,18 @@ impl Exemplar {
                 *o *= t.1;
             }
         }
-        let rate1 = g.lfo_rate[0] * if off[7] != 0.0 { off[7].exp2() } else { 1.0 };
-        let rate2 = g.lfo_rate[1] * if off[8] != 0.0 { off[8].exp2() } else { 1.0 };
+        let rate1 = g.lfo_rate[0]
+            * if off[7] != 0.0 {
+                math::exp2(off[7])
+            } else {
+                1.0
+            };
+        let rate2 = g.lfo_rate[1]
+            * if off[8] != 0.0 {
+                math::exp2(off[8])
+            } else {
+                1.0
+            };
         let delay = g.lfo1_delay_ms * fs / 1000.0;
         let fade_in = if delay > 0.0 {
             (l.age as f32 / delay).min(1.0)
@@ -133,14 +144,14 @@ impl Exemplar {
         let ratio = if semis == 0.0 {
             l.rate_ratio
         } else {
-            l.rate_ratio * (semis / 12.0).exp2()
+            l.rate_ratio * math::exp2(semis / 12.0)
         };
         let cutoff = if l.filter.mode != 0 {
             let oct = (l.key as f32 - 60.0) / 12.0 * g.filter_key
                 + l.vel * g.filter_vel / 12.0
                 + l.env2.level * g.filter_env / 12.0
                 + off[4];
-            Some((g.cutoff * oct.exp2(), (g.reso + off[5]) / 100.0))
+            Some((g.cutoff * math::exp2(oct), (g.reso + off[5]) / 100.0))
         } else {
             None
         };

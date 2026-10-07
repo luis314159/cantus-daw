@@ -7,6 +7,7 @@ use super::super::osc::{OscControl, WarpSlot};
 use super::super::partes::PartesControl;
 use super::super::{factory, source, target, Engine, Route, Settings};
 use super::{db, env_settings, table_of, Globals, Voice, VOICE_GAIN};
+use crate::math;
 
 impl Voice {
     /// Evaluate the modulation and set everything for the next [`CONTROL`] samples.
@@ -62,7 +63,7 @@ impl Voice {
             let st = &mut self.lfo[l];
             st.y = if ls.smooth > 0.0 && !first {
                 let tau = 0.25 * ls.smooth;
-                let a = 1.0 - (-elapsed / (base_sr * tau)).exp();
+                let a = 1.0 - math::exp(-elapsed / (base_sr * tau));
                 st.y + (raw - st.y) * a
             } else {
                 raw
@@ -120,7 +121,7 @@ impl Voice {
             let b = target::OSC + o * target::OSC_N;
             let semis =
                 pitch + os.oct * 12.0 + os.semi + v[b + target::PITCH] + 0.01 * v[b + target::FINE];
-            let hz = 440.0 * ((semis - 69.0) / 12.0).exp2();
+            let hz = 440.0 * math::exp2((semis - 69.0) / 12.0);
             let gain = if self.hear[o] {
                 db(v[b + target::LEVEL])
             } else {
@@ -194,7 +195,7 @@ impl Voice {
         if self.sub_run {
             let semis = pitch + 12.0 * s.sub_oct;
             let c = OscControl {
-                hz: 440.0 * ((semis - 69.0) / 12.0).exp2(),
+                hz: 440.0 * math::exp2((semis - 69.0) / 12.0),
                 gain: if s.sub_on {
                     db(v[target::SUB_LEVEL])
                 } else {
@@ -222,7 +223,7 @@ impl Voice {
             0.0
         };
         let th = (v[target::NOISE_PAN] + 1.0) * std::f32::consts::FRAC_PI_4;
-        self.noise_gain = [ng * th.cos() * 1.414, ng * th.sin() * 1.414];
+        self.noise_gain = [ng * math::cos(th) * 1.414, ng * math::sin(th) * 1.414];
         self.noise_color = v[target::NOISE_COLOR];
         self.noise_width = v[target::NOISE_WIDTH];
         // ---- filters ----
@@ -233,9 +234,9 @@ impl Voice {
             }
             let b = target::FLT + f * target::FLT_N;
             let cut = v[b + target::CUTOFF]
-                * (v[b + target::KEY] * (pitch - 60.0) / 12.0 + self.drift_oct).exp2();
+                * math::exp2(v[b + target::KEY] * (pitch - 60.0) / 12.0 + self.drift_oct);
             let st = v[b + target::STEREO] * 0.5;
-            let cuts = [cut * (-st).exp2(), cut * st.exp2()];
+            let cuts = [cut * math::exp2(-st), cut * math::exp2(st)];
             self.filt[f].set(
                 sr,
                 s.filters[f].ty,
@@ -280,7 +281,7 @@ impl Voice {
             (1.0, 1.0)
         } else {
             let th = (pan.clamp(-1.0, 1.0) + 1.0) * std::f32::consts::FRAC_PI_4;
-            (th.cos() * 1.414, th.sin() * 1.414)
+            (math::cos(th) * 1.414, math::sin(th) * 1.414)
         };
         for j in 0..len {
             let e = self.env[0].next();

@@ -33,6 +33,7 @@
 //!   costs no denormals and ends in exact zeros.
 
 use crate::comprimo::{gain_reduction_db, CompSettings};
+use crate::math;
 
 #[path = "sibilus_detect.rs"]
 mod detect;
@@ -199,8 +200,8 @@ pub fn band_edges(lo: f32, hi: f32, sr: f32) -> (f32, f32) {
     // `max` then `min`, not `clamp`: at a sample rate so low that the top is under the
     // lowest edge (a host may ask for 1 kHz), the band collapses to the top instead of
     // panicking.
-    let a = a.max(MIN_HZ).min(top / 2f32.powf(1.0 / 6.0));
-    let b = b.max(a * 2f32.powf(1.0 / 6.0)).min(top);
+    let a = a.max(MIN_HZ).min(top / math::powf(2f32, 1.0 / 6.0));
+    let b = b.max(a * math::powf(2f32, 1.0 / 6.0)).min(top);
     (a, b)
 }
 
@@ -309,7 +310,7 @@ fn fresh() -> Column {
 
 fn db(lin: f32) -> f32 {
     if lin > 1e-6 {
-        20.0 * lin.log10()
+        20.0 * math::log10(lin)
     } else {
         -120.0
     }
@@ -337,7 +338,7 @@ impl Sibilus {
             curve: CompSettings::default(),
             att: 0.0,
             rel: 0.0,
-            glide: (-(GLIDE as f32) / (GLIDE_MS * 0.001 * sr)).exp(),
+            glide: math::exp(-(GLIDE as f32) / (GLIDE_MS * 0.001 * sr)),
             look: 0,
             centre: 0,
             chunk: chunk_for(sr),
@@ -367,7 +368,7 @@ impl Sibilus {
     pub fn set(&mut self, s: &DeessSettings) {
         let old_processing = self.s.processing;
         self.s = *s;
-        let coef = |ms: f32| (-1.0 / (ms.max(0.01) * 0.001 * self.sr)).exp();
+        let coef = |ms: f32| math::exp(-1.0 / (ms.max(0.01) * 0.001 * self.sr));
         self.curve = s.curve();
         self.att = coef(s.attack_ms);
         self.rel = coef(s.release_ms);
@@ -508,11 +509,11 @@ impl Sibilus {
             if self.t.is_multiple_of(GLIDE as u64) && (self.lo != tlo || self.hi != thi) {
                 let glide = self.glide;
                 let step = |cur: f32, target: f32| {
-                    let r = (cur / target).ln();
+                    let r = math::ln(cur / target);
                     if r.abs() < 1e-3 {
                         target
                     } else {
-                        target * (r * glide).exp()
+                        target * math::exp(r * glide)
                     }
                 };
                 self.lo = step(self.lo, tlo);
@@ -593,7 +594,7 @@ impl Sibilus {
                     if d == 0.0 {
                         0.0
                     } else {
-                        10f32.powf(-d / 20.0) - 1.0
+                        math::powf(10f32, -d / 20.0) - 1.0
                     }
                 });
                 let b = match s.processing {

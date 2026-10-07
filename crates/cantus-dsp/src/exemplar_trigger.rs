@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::exemplar::voice::CONTROL;
+use crate::math;
 
 /// Gain of a zone's key and velocity crossfades for a note (1 outside the fades). Power
 /// curves keep the sum of squares at 1 across a fade, gain curves the sum of amplitudes.
@@ -185,7 +186,7 @@ impl Exemplar {
         let semis = self.base_semis(zi, s.key);
         let rate_ratio = self.sources[zi].rate as f64 / fs as f64;
         let bend = (self.bend * g.bend_range / 2.0) as f64;
-        let ratio = rate_ratio * 2f64.powf((semis + bend) / 12.0);
+        let ratio = rate_ratio * math::powf(2f64, (semis + bend) / 12.0);
         let offset = (g.start_vel_ms * (1.0 - s.vel) * self.sources[zi].rate / 1000.0) as i64;
         let mut region = z.region;
         if release {

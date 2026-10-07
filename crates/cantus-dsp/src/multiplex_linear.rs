@@ -19,6 +19,7 @@
 
 use super::filters::{xover_response, Slope, XoverCoefs};
 use super::MAX_XOVERS;
+use crate::math;
 
 /// Partitions per filter: the block is `taps / PARTS`.
 const PARTS: usize = 16;
@@ -42,7 +43,7 @@ impl Fft {
         let (cos, sin) = (0..n / 2)
             .map(|k| {
                 let a = -std::f64::consts::TAU * k as f64 / n as f64;
-                (a.cos() as f32, a.sin() as f32)
+                (math::cos(a) as f32, math::sin(a) as f32)
             })
             .unzip();
         Fft { n, cos, sin, rev }
@@ -145,7 +146,7 @@ impl Linear {
                 if d <= 0.5 {
                     1.0
                 } else {
-                    (0.5 + 0.5 * (std::f64::consts::PI * (d - 0.5) / 0.5).cos()) as f32
+                    (0.5 + 0.5 * math::cos(std::f64::consts::PI * (d - 0.5) / 0.5)) as f32
                 }
             })
             .collect();
@@ -435,8 +436,8 @@ mod tests {
             let (mut dr, mut di) = (0.0f64, 0.0f64);
             for (t, v) in x.iter().enumerate() {
                 let a = -std::f64::consts::TAU * (k * t) as f64 / n as f64;
-                dr += *v as f64 * a.cos();
-                di += *v as f64 * a.sin();
+                dr += *v as f64 * math::cos(a);
+                di += *v as f64 * math::sin(a);
             }
             assert!((re[k] as f64 - dr).abs() < 1e-3 && (im[k] as f64 - di).abs() < 1e-3);
         }
@@ -473,10 +474,10 @@ mod tests {
         let (mut re, mut im) = (0.0f64, 0.0f64);
         for (t, v) in h.iter().enumerate() {
             let a = -std::f64::consts::TAU * 1_000.0 * t as f64 / sr as f64;
-            re += *v as f64 * a.cos();
-            im += *v as f64 * a.sin();
+            re += *v as f64 * math::cos(a);
+            im += *v as f64 * math::sin(a);
         }
-        let db = 10.0 * (re * re + im * im).log10();
+        let db = 10.0 * math::log10(re * re + im * im);
         assert!((db + 6.02).abs() < 0.05, "{db} dB at the crossover");
     }
 
@@ -499,10 +500,10 @@ mod tests {
             let (mut re, mut im) = (0.0f64, 0.0f64);
             for (t, v) in h.iter().enumerate() {
                 let a = -std::f64::consts::TAU * hz as f64 * t as f64 / sr as f64;
-                re += *v as f64 * a.cos();
-                im += *v as f64 * a.sin();
+                re += *v as f64 * math::cos(a);
+                im += *v as f64 * math::sin(a);
             }
-            let db = 10.0 * (re * re + im * im).log10();
+            let db = 10.0 * math::log10(re * re + im * im);
             if std::env::var("MB_REPORT").is_ok() {
                 eprintln!("linear LR4 at {hz} Hz: {db:.3} dB at the crossover");
             }

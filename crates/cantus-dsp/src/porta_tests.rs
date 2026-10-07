@@ -1,6 +1,7 @@
 //! Porta's tests: the null contract first, then the behaviour, each with its number.
 
 use super::*;
+use crate::math;
 use std::f32::consts::TAU;
 
 const SR: f32 = 48_000.0;
@@ -12,12 +13,12 @@ fn ms(x: f32) -> usize {
 /// A sine of `amp` peak at `hz`, starting at `phase` radians.
 fn sine(hz: f32, amp: f32, n: usize, phase: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (TAU * hz * i as f32 / SR + phase).sin())
+        .map(|i| amp * math::sin(TAU * hz * i as f32 / SR + phase))
         .collect()
 }
 
 fn db(x: f32) -> f32 {
-    10f32.powf(x / 20.0)
+    math::powf(10f32, x / 20.0)
 }
 
 fn peak(x: &[f32]) -> f32 {
@@ -171,7 +172,7 @@ fn the_result_does_not_depend_on_the_block_size() {
     for (i, v) in x.iter_mut().enumerate() {
         // Hits every 150 ms, decaying, over a quiet floor.
         let t = (i % ms(150.0)) as f32 / SR;
-        *v *= (-t * 30.0).exp() + 0.003;
+        *v *= math::exp(-t * 30.0) + 0.003;
     }
     let right: Vec<f32> = x.iter().map(|v| -v * 0.5).collect();
     let key = sine(3_000.0, 0.2, n, 0.3);
@@ -311,7 +312,7 @@ fn an_expander_settles_on_its_curve() {
     };
     let x = sine(1_000.0, db(-30.0), 48_000, 0.0);
     let (l, _, _) = run(&s, &x, &x, None, 512);
-    let got = 20.0 * peak(&l[40_000..]).log10();
+    let got = 20.0 * math::log10(peak(&l[40_000..]));
     assert!(
         (got - -40.0).abs() < 0.5,
         "settled at {got} dB, expected −40"
@@ -327,8 +328,8 @@ fn hysteresis_stops_chatter() {
     let x: Vec<f32> = (0..n)
         .map(|i| {
             let t = i as f32 / SR;
-            let wobble = 1.5 * (TAU * 7.0 * t).sin() + 0.5 * (TAU * 23.0 * t).sin();
-            db(-30.0 + wobble * 0.75) * (TAU * 1_000.0 * t).sin()
+            let wobble = 1.5 * math::sin(TAU * 7.0 * t) + 0.5 * math::sin(TAU * 23.0 * t);
+            db(-30.0 + wobble * 0.75) * math::sin(TAU * 1_000.0 * t)
         })
         .collect();
     let count = |hyst: f32| {
@@ -464,7 +465,7 @@ fn guitar_follows_a_fading_note() {
             } else {
                 -12.0 - 20.0 * (t - 0.2)
             };
-            db(level) * (TAU * 330.0 * t).sin()
+            db(level) * math::sin(TAU * 330.0 * t)
         })
         .collect();
     let slope = |style: Style| {
@@ -551,7 +552,7 @@ fn opening_is_click_free() {
                 y
             })
             .collect();
-        20.0 * (peak(&hf[at - ms(5.0)..at + ms(40.0)]) / 0.5).log10()
+        20.0 * math::log10(peak(&hf[at - ms(5.0)..at + ms(40.0)]) / 0.5)
     };
     let base = GateSettings {
         range_db: 60.0,
@@ -589,8 +590,8 @@ fn lookahead_keeps_the_transient_whole() {
     // A hit that starts at its peak: the hardest edge there is.
     for (i, v) in x[at..].iter_mut().enumerate() {
         *v = 0.8
-            * (TAU * 1_000.0 * i as f32 / SR + TAU / 4.0).cos()
-            * (-(i as f32) / SR * 20.0).exp();
+            * math::cos(TAU * 1_000.0 * i as f32 / SR + TAU / 4.0)
+            * math::exp(-(i as f32) / SR * 20.0);
     }
     let s = GateSettings {
         attack_ms: 1.0,
@@ -615,7 +616,7 @@ fn lookahead_keeps_the_transient_whole() {
         None,
         128,
     );
-    let first = 20.0 * (l[at].abs() / x[at].abs()).log10();
+    let first = 20.0 * math::log10(l[at].abs() / x[at].abs());
     assert!(
         first < -20.0,
         "without lookahead the first sample is cut: {first:.1} dB"
@@ -738,7 +739,7 @@ fn upward_raises_what_is_above() {
     };
     let x = sine(1_000.0, db(-24.0), 24_000, 0.0);
     let (l, _, _) = run(&s, &x, &x, None, 512);
-    let got = 20.0 * peak(&l[20_000..]).log10();
+    let got = 20.0 * math::log10(peak(&l[20_000..]));
     assert!(
         (got - -18.0).abs() < 0.3,
         "−24 dB, 6 over at 2:1 → −18: got {got}"
@@ -782,7 +783,7 @@ fn columns_count_time_and_hits_are_stamped_where_they_happened() {
         for h in hits {
             for (j, v) in x[h..h + ms(50.0)].iter_mut().enumerate() {
                 *v = 0.5
-                    * (TAU * 200.0 * j as f32 / SR + TAU / 4.0).sin()
+                    * math::sin(TAU * 200.0 * j as f32 / SR + TAU / 4.0)
                     * (1.0 - j as f32 / ms(50.0) as f32);
             }
         }
@@ -865,7 +866,7 @@ fn the_ramp_share_solves_its_equation() {
     for f in [0.02f32, 0.08, 0.12, 0.15, 0.18] {
         let c = ramp_share(f) as f64;
         let f = f as f64;
-        let g = c + f * (100.0 * (f / c) * (1.0 - (-c / f).exp())).ln();
+        let g = c + f * math::ln(100.0 * (f / c) * (1.0 - math::exp(-c / f)));
         assert!((g - 1.0).abs() < 1e-5, "f {f}: {g}");
     }
 }

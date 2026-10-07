@@ -40,6 +40,7 @@
 //! flushed, so silence stays exactly silent and no denormal stalls the CPU.
 
 use crate::aequalis::{design, Coefs, EqShape, MAX_SECTIONS};
+use crate::math;
 
 /// With lookahead on, the audio is always this late, whatever the lookahead amount.
 pub const LOOKAHEAD_MAX_MS: f32 = 10.0;
@@ -304,7 +305,7 @@ impl GateSettings {
 fn below(over: f32, slope: f32, knee: f32) -> f32 {
     let k = knee.max(0.0);
     if k > 0.0 && over.abs() < k * 0.5 {
-        -slope * (k * 0.5 - over).powi(2) / (2.0 * k)
+        -slope * math::powi(k * 0.5 - over, 2) / (2.0 * k)
     } else if over < 0.0 {
         slope * over
     } else {
@@ -316,7 +317,7 @@ fn below(over: f32, slope: f32, knee: f32) -> f32 {
 fn above(over: f32, slope: f32, knee: f32) -> f32 {
     let k = knee.max(0.0);
     if k > 0.0 && over.abs() < k * 0.5 {
-        slope * (over + k * 0.5).powi(2) / (2.0 * k)
+        slope * math::powi(over + k * 0.5, 2) / (2.0 * k)
     } else if over > 0.0 {
         slope * over
     } else {
@@ -388,7 +389,7 @@ pub fn ramp_share(f: f32) -> f32 {
     if f <= 1e-6 {
         return 1.0;
     }
-    let g = |c: f64| c + f * (100.0 * (f / c) * (1.0 - (-c / f).exp())).ln() - 1.0;
+    let g = |c: f64| c + f * math::ln(100.0 * (f / c) * (1.0 - math::exp(-c / f))) - 1.0;
     let (mut lo, mut hi) = (1e-6f64, 1.0f64);
     if g(lo) >= 0.0 {
         return lo as f32;
@@ -747,7 +748,7 @@ impl Porta {
             if tau < 1e-3 {
                 0.0
             } else {
-                (-1.0 / tau).exp()
+                math::exp(-1.0 / tau)
             }
         };
         self.pole_att = pole(s.attack_ms);
@@ -758,7 +759,7 @@ impl Porta {
         } else {
             spec.peak_fall_ms
         };
-        self.det_coef = (-1.0 / (det_ms.max(0.01) * 0.001 * sr)).exp();
+        self.det_coef = math::exp(-1.0 / (det_ms.max(0.01) * 0.001 * sr));
         let look = s.lookahead_ms.clamp(0.0, LOOKAHEAD_MAX_MS);
         if look > 0.0 {
             self.delay = ((LOOKAHEAD_MAX_MS * 0.001 * sr).round() as usize).min(self.cap - 1);
@@ -991,7 +992,7 @@ impl Porta {
                 self.env[0].max(self.env[1])
             };
             let l = if level > 1e-10 {
-                20.0 * level.log10()
+                20.0 * math::log10(level)
             } else {
                 FLOOR_DB
             };
@@ -1117,7 +1118,7 @@ impl Porta {
             } else if silence_ok && self.smooth <= SILENCE_DB {
                 0.0
             } else {
-                10f32.powf(self.smooth / 20.0)
+                math::powf(10f32, self.smooth / 20.0)
             };
             self.gain_db = self.smooth;
             let g = self.gain;
@@ -1186,7 +1187,7 @@ impl Porta {
 
 fn lin_db(x: f32) -> f32 {
     if x > 1e-6 {
-        20.0 * x.log10()
+        20.0 * math::log10(x)
     } else {
         -120.0
     }
@@ -1240,7 +1241,7 @@ pub fn learn_thresholds(levels_db: &[f32], hysteresis_db: f32) -> Option<Learned
             continue;
         }
         let (m0, m1) = (s0 / w0, (sum_all - s0) / w1);
-        let between = w0 * w1 * (m0 - m1).powi(2);
+        let between = w0 * w1 * math::powi(m0 - m1, 2);
         if between > best {
             best = between;
             split = b + 1;

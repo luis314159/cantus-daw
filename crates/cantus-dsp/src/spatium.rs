@@ -28,6 +28,8 @@
 
 // The parts live in files of their own beside this one (`spatium_*.rs`), declared here so
 // the plug-in is owned by its files and `lib.rs` does not change.
+use crate::math;
+
 #[path = "spatium_fdn.rs"]
 pub mod fdn;
 #[path = "spatium_measure.rs"]
@@ -210,16 +212,16 @@ pub fn auto_gain_db(bands: &[BandSettings]) -> f32 {
     let mut acc = 0.0f64;
     let n = 31;
     for j in 0..n {
-        let hz = 20.0 * 2f32.powf(j as f32 / 3.0);
+        let hz = 20.0 * math::powf(2f32, j as f32 / 3.0);
         let db: f32 = bands
             .iter()
             .filter(|b| b.active)
             .map(|b| Aequalis::band_response_db(b, 48_000.0, hz))
             .sum();
-        acc += 10f64.powf(db as f64 / 10.0);
+        acc += math::powf(10f64, db as f64 / 10.0);
     }
     let mean = acc / n as f64;
-    (-10.0 * mean.max(1e-6).log10()).clamp(-12.0, 12.0) as f32
+    (-10.0 * math::log10(mean.max(1e-6))).clamp(-12.0, 12.0) as f32
 }
 
 /// The two halves of the mix law: dry stays at unity to 50 %, wet reaches unity at 50 %.
@@ -408,11 +410,11 @@ impl Spatium {
             in_gain: Glide::new(1.0),
             mix: Glide::new(0.0),
             width: Glide::new(1.0),
-            k_gain: 1.0 - (-1.0 / (0.02 * fs)).exp(),
-            k_time: 1.0 - (-1.0 / (0.08 * fs)).exp(),
+            k_gain: 1.0 - math::exp(-1.0 / (0.02 * fs)),
+            k_time: 1.0 - math::exp(-1.0 / (0.08 * fs)),
             duck_env: 0.0,
             duck_gr: 0.0,
-            duck_det: (-1.0 / (0.05 * fs)).exp(),
+            duck_det: math::exp(-1.0 / (0.05 * fs)),
             duck_att: 1.0,
             duck_rel: 1.0,
             post: Aequalis::new(fs),
@@ -424,9 +426,9 @@ impl Spatium {
             gain_duck: [1.0; CHUNK],
             width_now: [1.0; CHUNK],
             meter: SpatiumMeter::default(),
-            fall: 10f32.powf(-20.0 / 20.0 / fs),
+            fall: math::powf(10f32, -20.0 / 20.0 / fs),
             corr: [0.0; 3],
-            corr_coef: 1.0 - (-1.0 / (0.3 * fs)).exp(),
+            corr_coef: 1.0 - math::exp(-1.0 / (0.3 * fs)),
         };
         let d = SpatiumSettings::default();
         s.set(&d);
@@ -502,7 +504,8 @@ impl Spatium {
         if first || s.late_key() != self.settings.late_key() {
             let curve = s.target_curve();
             if s.style == Style::Spring {
-                let size = SPRING_MS.0 * (SPRING_MS.1 / SPRING_MS.0).powf(s.space.clamp(0.0, 1.0));
+                let size =
+                    SPRING_MS.0 * math::powf(SPRING_MS.1 / SPRING_MS.0, s.space.clamp(0.0, 1.0));
                 let d = SpringDesign::new(&self.absorber, &curve, size);
                 self.spring.set_design(&d);
                 self.spring_design = Some(d);
@@ -533,7 +536,7 @@ impl Spatium {
             s.character,
         );
         let er_lin = match er_level_db(s.style, s.distance, s.er_db) {
-            Some(db) if s.style != Style::Spring => 10f32.powf(db / 20.0),
+            Some(db) if s.style != Style::Spring => math::powf(10f32, db / 20.0),
             _ => 0.0,
         };
         for side in 0..2 {
@@ -548,7 +551,7 @@ impl Spatium {
         }
         self.er_gain.target = er_lin;
         let fc = er_tone_hz(s.distance).min(0.45 * fs);
-        self.er_lp_coef = 1.0 - (-2.0 * std::f32::consts::PI * fc / fs).exp();
+        self.er_lp_coef = 1.0 - math::exp(-2.0 * std::f32::consts::PI * fc / fs);
 
         // Late field: onset, diffusion, level.
         self.gap.target = late_gap_ms(&room, s.distance) * ms;
@@ -567,14 +570,14 @@ impl Spatium {
             self.design.lengths.iter().sum::<f32>() / LINES as f32
         };
         self.late_gain.target = late_gain(fs, mean_loop, s.decay_s, s.style)
-            * 10f32.powf(late_level_db(s.distance) / 20.0);
+            * math::powf(10f32, late_level_db(s.distance) / 20.0);
 
         self.mix.target = s.mix.clamp(0.0, 1.0);
         self.width.target = s.width.clamp(0.0, 1.5);
 
         // Ducking.
-        self.duck_att = 1.0 - (-1.0 / (s.duck_att_ms.max(0.1) * ms)).exp();
-        self.duck_rel = 1.0 - (-1.0 / (s.duck_rel_ms.max(1.0) * ms)).exp();
+        self.duck_att = 1.0 - math::exp(-1.0 / (s.duck_att_ms.max(0.1) * ms));
+        self.duck_rel = 1.0 - math::exp(-1.0 / (s.duck_rel_ms.max(1.0) * ms));
 
         // The wet EQ.
         let (bands, comp) = s.wet_eq();
@@ -645,7 +648,7 @@ impl Spatium {
             };
             let gd = if duck_on {
                 let level = if self.duck_env > 1e-9 {
-                    20.0 * self.duck_env.log10()
+                    20.0 * math::log10(self.duck_env)
                 } else {
                     -180.0
                 };
@@ -660,7 +663,7 @@ impl Spatium {
                     self.duck_gr = 0.0;
                 }
                 if self.duck_gr > 0.0 {
-                    10f32.powf(-self.duck_gr / 20.0)
+                    math::powf(10f32, -self.duck_gr / 20.0)
                 } else {
                     1.0
                 }

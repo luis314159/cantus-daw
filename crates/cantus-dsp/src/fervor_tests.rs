@@ -2,6 +2,7 @@
 //! headroom, the oversamplers' filters, the level match and the harmonics each model makes.
 
 use super::*;
+use crate::math;
 use crate::spectrum::fft;
 
 const SR: f32 = 48_000.0;
@@ -20,8 +21,8 @@ fn signal(n: usize, seed: u32) -> (Vec<f32>, Vec<f32>) {
     for i in 0..n {
         let t = i as f32 / SR;
         let loud = if (i / 3_000) % 4 == 1 { 1.6 } else { 0.4 };
-        let sine = (t * 220.0 * std::f32::consts::TAU).sin() * 0.5
-            + (t * 5_100.0 * std::f32::consts::TAU).sin() * 0.2;
+        let sine = math::sin(t * 220.0 * std::f32::consts::TAU) * 0.5
+            + math::sin(t * 5_100.0 * std::f32::consts::TAU) * 0.2;
         l.push((noise() * 0.3 + sine) * loud);
         r.push((noise() * 0.25 + sine * 0.8) * loud);
     }
@@ -121,7 +122,7 @@ fn the_output_gain_alone_is_a_plain_gain() {
         ..SatSettings::default()
     });
     let (ol, _) = run(&mut f, &l, &r, 64);
-    let g = 10f32.powf(-6.0 / 20.0);
+    let g = math::powf(10f32, -6.0 / 20.0);
     for (a, b) in ol.iter().zip(&l) {
         assert_eq!(a.to_bits(), (b * g).to_bits());
     }
@@ -320,7 +321,7 @@ fn round_trip(factor: usize, minimum: bool, x: &[f32]) -> Vec<f32> {
 
 fn sine(n: usize, hz: f32, amp: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / SR).sin())
+        .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / SR))
         .collect()
 }
 
@@ -364,7 +365,7 @@ fn the_pass_band_is_flat_to_20k_for_both_filter_kinds() {
                 // RMS, not the sampled peak: a phase shift moves where the samples fall.
                 let y = round_trip(factor, minimum, &sine(8_192, hz, 0.5));
                 let rms = (y[4_096..].iter().map(|v| v * v).sum::<f32>() / 4_096.0).sqrt();
-                let db = 20.0 * (rms * std::f32::consts::SQRT_2 / 0.5).log10();
+                let db = 20.0 * math::log10(rms * std::f32::consts::SQRT_2 / 0.5);
                 assert!(
                     db.abs() < 0.1,
                     "{factor}× min {minimum} at {hz} Hz: {db:.3} dB"
@@ -381,7 +382,7 @@ fn non_harmonic_db(x: &[f32], f0: f32) -> f32 {
     let mut re: Vec<f32> = x
         .iter()
         .enumerate()
-        .map(|(i, v)| v * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()))
+        .map(|(i, v)| v * (0.5 - 0.5 * math::cos(std::f32::consts::TAU * i as f32 / n as f32)))
         .collect();
     let mut im = vec![0.0; n];
     fft(&mut re, &mut im);
@@ -396,7 +397,7 @@ fn non_harmonic_db(x: &[f32], f0: f32) -> f32 {
             other += p;
         }
     }
-    10.0 * (other / harm).log10() as f32
+    10.0 * math::log10(other / harm) as f32
 }
 
 #[test]
@@ -437,8 +438,8 @@ fn harmonics(s: &SatSettings, amp: f32) -> [f32; 2] {
     let mag = |b: usize| (re[b] * re[b] + im[b] * im[b]).sqrt();
     let h1 = mag(k);
     [
-        20.0 * (mag(2 * k) / h1).log10(),
-        20.0 * (mag(3 * k) / h1).log10(),
+        20.0 * math::log10(mag(2 * k) / h1),
+        20.0 * math::log10(mag(3 * k) / h1),
     ]
 }
 
@@ -496,7 +497,7 @@ fn the_level_match_keeps_a_mix_level_signal_at_its_level() {
         let x = sine(24_000, 997.0, shape::REF_PEAK as f32);
         let (y, _) = run(&mut with(&s), &x, &x, 480);
         let rms = |v: &[f32]| (v.iter().map(|a| a * a).sum::<f32>() / v.len() as f32).sqrt();
-        let db = 20.0 * (rms(&y[12_000..]) / rms(&x[12_000..])).log10();
+        let db = 20.0 * math::log10(rms(&y[12_000..]) / rms(&x[12_000..]));
         // Within a dB: the emphasis and the DC block move it a little from the static
         // curve's measure.
         assert!(db.abs() < 1.0, "{model:?}: {db:.2} dB");

@@ -4,6 +4,7 @@
 
 use super::shape::round_robin;
 use super::*;
+use crate::math;
 use crate::nulltest::{assert_null, peak, rms};
 
 const SR: f32 = 48_000.0;
@@ -321,7 +322,7 @@ fn random_round_robin_is_uniform() {
     let expected = hits as f64 / n as f64;
     let chi2: f64 = count
         .iter()
-        .map(|c| (c - expected).powi(2) / expected)
+        .map(|c| math::powi(c - expected, 2) / expected)
         .sum();
     assert!(chi2 < 20.5, "χ² {chi2}: {count:?}");
 }
@@ -332,7 +333,7 @@ fn tone(hz: f32, seconds: f32) -> SampleRef {
     let frames: Vec<f32> = (0..n)
         .map(|i| {
             let t = i as f32 / SR;
-            (std::f32::consts::TAU * hz * t).sin() * (-t * 3.0).exp() * 0.5
+            math::sin(std::f32::consts::TAU * hz * t) * math::exp(-t * 3.0) * 0.5
         })
         .collect();
     SampleRef {
@@ -420,7 +421,7 @@ fn velocity_cross_fades_hold_the_level() {
     };
     let reference = level(20);
     for vel in [50u8, 56, 60, 64, 65, 68, 72, 78, 110] {
-        let db = 20.0 * (level(vel) / reference).log10();
+        let db = 20.0 * math::log10(level(vel) / reference);
         assert!(db.abs() < 1.0, "velocity {vel}: {db:.2} dB");
     }
 }
@@ -647,7 +648,7 @@ fn frequency(x: &[f32]) -> f32 {
 }
 
 fn cents(hz: f32, target: f32) -> f32 {
-    1200.0 * (hz / target).log2()
+    1200.0 * math::log2(hz / target)
 }
 
 fn left(stereo: &[f32]) -> Vec<f32> {
@@ -668,7 +669,7 @@ fn every_kick_lands_on_its_note() {
             // with the amplitude and has faded by the second second.
             let out = left(&render(&mut kit2(&[pad]), 120_000, 512, &[hit(0, 36, 100)]));
             let hz = frequency(&out[72_000..115_200]);
-            let target = KICK_F1_HZ * 2f32.powf(tune / 12.0);
+            let target = KICK_F1_HZ * math::powf(2f32, tune / 12.0);
             let error = cents(hz, target);
             eprintln!("pulsus tuning: {name} at {tune:+} st: {hz:.3} Hz, {error:+.2} cents");
             assert!(
@@ -700,16 +701,16 @@ fn peak_near(x: &[f32], near: f32) -> f32 {
     let n = x.len();
     let mut best = (0.0f64, near);
     for c in -240..=240 {
-        let f = near * 2f32.powf(c as f32 / 4.0 / 1200.0);
+        let f = near * math::powf(2f32, c as f32 / 4.0 / 1200.0);
         let w = std::f64::consts::TAU * f as f64 / SR as f64;
         let (mut s1, mut s2) = (0.0f64, 0.0f64);
         for (i, v) in x.iter().enumerate() {
-            let hann = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
-            let s = *v as f64 * hann + 2.0 * w.cos() * s1 - s2;
+            let hann = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+            let s = *v as f64 * hann + 2.0 * math::cos(w) * s1 - s2;
             s2 = s1;
             s1 = s;
         }
-        let p = s1 * s1 + s2 * s2 - 2.0 * w.cos() * s1 * s2;
+        let p = s1 * s1 + s2 * s2 - 2.0 * math::cos(w) * s1 * s2;
         if p > best.0 {
             best = (p, f);
         }
@@ -729,7 +730,7 @@ fn a_modal_tom_is_in_tune_at_every_material() {
                 ..PadSettings::of(DrumVoice::Tom, 0)
             };
             let out = left(&render(&mut kit2(&[pad]), 72_000, 512, &[hit(0, 36, 100)]));
-            let target = 220.0 * 2f32.powf(tune / 12.0);
+            let target = 220.0 * math::powf(2f32, tune / 12.0);
             let hz = peak_near(&out[24_000..72_000], target);
             let error = cents(hz, target);
             eprintln!("pulsus tuning: tom material {material} at {tune:+} st: {error:+.2} cents");
@@ -787,7 +788,7 @@ fn full_drive_lifts_the_tail_twelve_decibels_at_most() {
     };
     let clean = tail(0.0, 0);
     for mode in 0..4u8 {
-        let db = 20.0 * (tail(1.0, mode) / clean).log10();
+        let db = 20.0 * math::log10(tail(1.0, mode) / clean);
         assert!(
             db <= 12.1 && db > 3.0,
             "mode {mode}: the tail rose {db:.2} dB"
@@ -816,7 +817,7 @@ fn fft(re: &mut [f64], im: &mut [f64]) {
         let ang = -std::f64::consts::TAU / len as f64;
         for start in (0..n).step_by(len) {
             for k in 0..len / 2 {
-                let (s, c) = (ang * k as f64).sin_cos();
+                let (s, c) = math::sin_cos(ang * k as f64);
                 let (a, b) = (start + k, start + k + len / 2);
                 let tr = re[b] * c - im[b] * s;
                 let ti = re[b] * s + im[b] * c;
@@ -837,7 +838,8 @@ fn alias_floor(x: &[f32], f0: f32) -> f32 {
     // Blackman–Harris (−92 dB side lobes), so the window's own leakage is not counted.
     let bh = |i: usize| {
         let a = std::f64::consts::TAU * i as f64 / n as f64;
-        0.35875 - 0.48829 * a.cos() + 0.14128 * (2.0 * a).cos() - 0.01168 * (3.0 * a).cos()
+        0.35875 - 0.48829 * math::cos(a) + 0.14128 * math::cos(2.0 * a)
+            - 0.01168 * math::cos(3.0 * a)
     };
     let mut re: Vec<f64> = x
         .iter()
@@ -860,7 +862,7 @@ fn alias_floor(x: &[f32], f0: f32) -> f32 {
             alias += p;
         }
     }
-    (10.0 * (alias / total).log10()) as f32
+    (10.0 * math::log10(alias / total)) as f32
 }
 
 /// The drive's 2× oversampling, measured where it matters: a 4.99 kHz tone driven fully
@@ -875,7 +877,7 @@ fn oversampled_drive_aliases_far_less_than_raw() {
         let mut os = Oversampler::default();
         let y: Vec<f32> = (0..16_384 + 256)
             .map(|n| {
-                let x = 0.9 * (std::f32::consts::TAU * f0 * n as f32 / SR).sin();
+                let x = 0.9 * math::sin(std::f32::consts::TAU * f0 * n as f32 / SR);
                 if oversample {
                     os.process(x, 1.0, mode, &taps)
                 } else {

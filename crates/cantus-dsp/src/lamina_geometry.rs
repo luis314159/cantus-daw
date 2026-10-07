@@ -27,6 +27,8 @@
 //!   (1 + ((x − a)/d)²)^(−1/2)`, a wider curve with a longer reach; the output is `V·dC/dt`.
 
 /// Diameter of the tine, mm.
+use crate::math;
+
 pub const TINE_DIAMETER_MM: f32 = 1.5;
 /// Speed of bending waves' material constant for steel, √(E/ρ), m/s.
 pub const STEEL_C_MPS: f32 = 5_050.0;
@@ -72,14 +74,14 @@ pub fn tine_length_mm(hz: f32) -> f32 {
 /// The reed's free length (mm) for a pitch: a flat 0.8 mm reed loaded by its solder, an
 /// empirical fit to the instrument's 18–60 mm range (our estimate).
 pub fn reed_length_mm(hz: f32) -> f32 {
-    (62.0 * (110.0 / hz.max(1.0)).powf(0.42)).clamp(12.0, 75.0)
+    (62.0 * math::powf(110.0 / hz.max(1.0), 0.42)).clamp(12.0, 75.0)
 }
 
 /// The clamped-free mode shape `n` (0-based) at `xi` (0 at the clamp, 1 at the tip).
 pub fn mode_shape(n: usize, xi: f32) -> f32 {
     let b = BETA[n.min(2)] * xi.clamp(0.0, 1.0);
     let (b, s) = (b as f64, SIGMA[n.min(2)] as f64);
-    (b.cosh() - b.cos() - s * (b.sinh() - b.sin())) as f32
+    (math::cosh(b) - math::cos(b) - s * (math::sinh(b) - math::sin(b))) as f32
 }
 
 /// How strongly a strike at `xi` excites mode `n`, relative to its displacement at the tip
@@ -130,7 +132,7 @@ pub fn transfer64(engine: Engine, x: f64, gap: f64, align: f64) -> f64 {
 /// tines swing wide, short treble tines little (4.1 mm at C2, 2.0 mm at C4, 1.0 at C6; our
 /// estimate, scaled for the reed by its stiffer, shorter body).
 pub fn swing_ff_mm(engine: Engine, hz: f32) -> f32 {
-    let a = 2.0 * (261.63 / hz.max(1.0)).powf(0.52);
+    let a = 2.0 * math::powf(261.63 / hz.max(1.0), 0.52);
     let a = a.clamp(0.35, 5.0);
     match engine {
         Engine::Tine => a,

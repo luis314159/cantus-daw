@@ -6,6 +6,7 @@
 use super::os::reference_true_peak;
 use super::*;
 use crate::culmen::{Culmen, MaxSettings, FULL, HI, LO, MID};
+use crate::math;
 use crate::multiplex::{Mode, Placement};
 use std::f32::consts::TAU;
 
@@ -34,10 +35,10 @@ fn band_limit(x: &[f32]) -> Vec<f32> {
             let sinc = if i == 0 {
                 2.0 * fc
             } else {
-                (std::f64::consts::TAU * fc * t).sin() / (std::f64::consts::PI * t)
+                math::sin(std::f64::consts::TAU * fc * t) / (std::f64::consts::PI * t)
             };
             let w = std::f64::consts::TAU * (i + HALF) as f64 / (2 * HALF) as f64;
-            sinc * (0.42 - 0.5 * w.cos() + 0.08 * (2.0 * w).cos())
+            sinc * (0.42 - 0.5 * math::cos(w) + 0.08 * math::cos(2.0 * w))
         })
         .collect();
     (0..x.len() as i64)
@@ -64,9 +65,9 @@ fn music(n: usize, seed: u32) -> (Vec<f32>, Vec<f32>) {
             .map(|i| {
                 let t = i as f32 / FS;
                 let beat = (i % 24_000) as f32 / FS;
-                let kick = 0.55 * (-beat * 18.0).exp() * (TAU * 52.0 * beat).sin();
-                let hat = 0.18 * (-(((i + 12_000) % 12_000) as f32) / FS * 60.0).exp() * nz[i];
-                let pad = 0.12 * (TAU * 440.0 * t + phase).sin();
+                let kick = 0.55 * math::exp(-beat * 18.0) * math::sin(TAU * 52.0 * beat);
+                let hat = 0.18 * math::exp(-(((i + 12_000) % 12_000) as f32) / FS * 60.0) * nz[i];
+                let pad = 0.12 * math::sin(TAU * 440.0 * t + phase);
                 kick + hat + pad
             })
             .collect();
@@ -146,10 +147,10 @@ fn worst_over(material: &[(String, Vec<f32>, Vec<f32>)], clips: &[f32]) -> (f32,
                 };
                 let (a, b) = run(&s, l, r);
                 for out in [&a, &b] {
-                    let tp = 20.0 * reference_true_peak(out, 0.5).log10() - ceiling;
+                    let tp = 20.0 * math::log10(reference_true_peak(out, 0.5)) - ceiling;
                     if tp > worst {
                         worst = tp;
-                        let det = 20.0 * super::os::true_peak_of(out).log10() - ceiling;
+                        let det = 20.0 * math::log10(super::os::true_peak_of(out)) - ceiling;
                         at = format!(
                             "{name}, clip {clip}, {style:?}, {look} ms, +{gain} dB; the 4×                              detector reads {det:+.4} dB"
                         );

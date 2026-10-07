@@ -127,7 +127,7 @@ mod tests {
             rate,
             channels: 1,
             frames: (0..frames)
-                .map(|i| (i as f32 * 0.01).sin())
+                .map(|i| cantus_dsp::math::sin(i as f32 * 0.01))
                 .collect::<Vec<_>>()
                 .into(),
         })

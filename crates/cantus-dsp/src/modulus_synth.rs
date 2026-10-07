@@ -5,6 +5,7 @@ use super::guard::{graph, Graph};
 use super::tables::{tables, Tables};
 use super::voice::{Ctx, Start, Voice};
 use super::{source, DxEnvSettings, Patch, TimeEnvSettings, CONTROL, MAX_VOICES, OPS};
+use crate::math;
 use crate::voices::{Action, Allocator};
 use std::sync::Arc;
 
@@ -47,7 +48,7 @@ pub fn baked_time(s: &TimeEnvSettings, m: [f32; 4]) -> TimeEnvSettings {
         } else {
             m[1]
         };
-        e.t[k] *= (3.0 * x).exp2();
+        e.t[k] *= math::exp2(3.0 * x);
     }
     if e.sus > 0 {
         let i = e.sus - 1;

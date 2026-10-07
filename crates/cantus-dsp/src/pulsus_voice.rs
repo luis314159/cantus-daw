@@ -10,6 +10,7 @@ use super::modal::Bank;
 use super::shape::{decay_coef, semitones, Band, Noise, Oversampler};
 use super::{DrumVoice, SampleRef};
 use crate::filter::{FilterMode, Svf};
+use crate::math;
 use crate::osc::{PolyBlepOsc, Wave};
 
 /// Below this an envelope is inaudible and the voice is freed. −80 dB.
@@ -335,7 +336,7 @@ pub(crate) fn decay_at(closed: f32, open: f32, openness: f32) -> f32 {
     if openness <= 0.0 {
         return closed;
     }
-    closed * (open.max(0.001) / closed.max(0.001)).powf(openness)
+    closed * math::powf(open.max(0.001) / closed.max(0.001), openness)
 }
 
 /// A hat's band centre drops up to three semitones as it opens.

@@ -1,5 +1,7 @@
 //! One-pole parameter smoother: removes zipper noise when a value jumps between blocks.
 
+use crate::math;
+
 #[derive(Clone, Debug)]
 pub struct Smoother {
     current: f32,
@@ -22,7 +24,7 @@ impl Smoother {
     pub fn set_time(&mut self, time_s: f32, sample_rate: f32) {
         let samples = (time_s * sample_rate).max(1.0);
         // e^(-4.6/n) reaches 1% remaining after n samples.
-        self.coef = (-4.6 / samples).exp();
+        self.coef = math::exp(-4.6 / samples);
     }
 
     pub fn set_target(&mut self, target: f32) {

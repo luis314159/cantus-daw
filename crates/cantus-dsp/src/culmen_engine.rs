@@ -2,6 +2,7 @@
 
 use super::telemetry::{self as tel, Column};
 use super::{db, MaxSettings, GRID, HI, LO, MID};
+use crate::math;
 use crate::multiplex::Multiplex;
 use crate::terminus::loudness::{self, column_len, KWeighting};
 use crate::terminus::{self, Ditherer, Monitor, Terminus, DITHER_BITS};
@@ -92,7 +93,7 @@ pub struct Culmen {
 }
 
 fn coef(ms: f32, sr: f32) -> f32 {
-    (-1.0 / (ms * 0.001 * sr)).exp()
+    math::exp(-1.0 / (ms * 0.001 * sr))
 }
 
 impl Culmen {
@@ -180,7 +181,7 @@ impl Culmen {
         self.drive_target = if s.drive_db == 0.0 {
             1.0
         } else {
-            10f32.powf(s.drive_db / 20.0)
+            math::powf(10f32, s.drive_db / 20.0)
         };
         if first {
             self.drive = self.drive_target;

@@ -28,6 +28,8 @@
 // Parallel per-wheel / per-mode arrays read clearest by index (as in `spatium_*`).
 #![allow(clippy::needless_range_loop)]
 
+use crate::math;
+
 #[path = "lamina_geometry.rs"]
 pub mod geometry;
 #[path = "lamina_voice.rs"]
@@ -224,8 +226,10 @@ pub fn engagement(pedal: f32, lift: f32) -> f32 {
 
 /// The velocity (0…1) after the curve.
 pub fn shaped_velocity(v: f32, curve: f32) -> f32 {
-    v.clamp(0.0, 1.0)
-        .powf(2f32.powf(-1.5 * curve.clamp(-1.0, 1.0)))
+    math::powf(
+        v.clamp(0.0, 1.0),
+        math::powf(2f32, -1.5 * curve.clamp(-1.0, 1.0)),
+    )
 }
 
 /// A number in −1…1 from a key and a salt, the same every time.
@@ -349,10 +353,10 @@ impl Lamina {
         self.alloc.set_polyphony(s.polyphony.clamp(1, MAX_VOICES));
         self.bass.set_low_shelf(sr, 150.0, s.bass_db);
         self.treble.set_high_shelf(sr, 3_000.0, s.treble_db);
-        let g = 10f32.powf(1.5 * s.drive.clamp(0.0, 1.0));
+        let g = math::powf(10f32, 1.5 * s.drive.clamp(0.0, 1.0));
         self.drive.set(g);
         self.post.set(OUT / (self.clip.slope() * g.sqrt()));
-        self.out.set(10f32.powf(s.gain_db / 20.0));
+        self.out.set(math::powf(10f32, s.gain_db / 20.0));
         self.depth.set(s.trem_depth.clamp(0.0, 1.0));
         self.trem_inc =
             (s.trem_rate_hz.max(0.0) as f64 / sr as f64 * 4_294_967_296.0).round() as u32;
@@ -387,11 +391,11 @@ impl Lamina {
         }
         let age = s.age.clamp(0.0, 1.0);
         let spread = s.spread_ct * (1.0 + age) * key_hash(k, 1);
-        let hz = s.a4_hz * 2f32.powf((k as f32 - 69.0 + spread / 100.0) / 12.0) * self.bend;
+        let hz = s.a4_hz * math::powf(2f32, (k as f32 - 69.0 + spread / 100.0) / 12.0) * self.bend;
         let v = shaped_velocity(velocity, s.vel_curve);
         let hardness = (s.hardness + s.hardness_vel * (v - 0.5) * 0.6 + curve_at(&s.curve_hard, k))
             .clamp(0.0, 1.0);
-        let key_decay = (261.63 / hz).powf(0.5).clamp(0.2, 4.0);
+        let key_decay = math::powf(261.63 / hz, 0.5).clamp(0.2, 4.0);
         let age_decay = 1.0 - 0.25 * age * (0.5 + 0.5 * key_hash(k, 2));
         let (decay, bell, gap, align) = match s.engine {
             Engine::Tine => (s.tine_decay_s, s.bell_db, s.tine_gap_mm, s.tine_align_mm),
@@ -495,7 +499,7 @@ impl Lamina {
 
     /// Pitch bend, semitones: every ringing tine and every new one.
     pub fn set_bend(&mut self, semitones: f32) {
-        let b = 2f32.powf(semitones / 12.0);
+        let b = math::powf(2f32, semitones / 12.0);
         let ratio = b / self.bend;
         self.bend = b;
         for v in self.voices.iter_mut().filter(|v| v.active) {
@@ -656,15 +660,15 @@ impl Lamina {
                 }
             }
             self.trem_phase = self.trem_phase.wrapping_add(self.trem_inc);
-            let lfo = (self.trem_phase as f32 * (std::f32::consts::TAU / 4_294_967_296.0)).sin();
+            let lfo = math::sin(self.trem_phase as f32 * (std::f32::consts::TAU / 4_294_967_296.0));
             let d = self.depth.next();
             let (l, r) = if d == 0.0 {
                 (y, y)
             } else if pan {
                 let a = std::f32::consts::FRAC_PI_4 * (1.0 + d * lfo);
                 (
-                    y * a.cos() * std::f32::consts::SQRT_2,
-                    y * a.sin() * std::f32::consts::SQRT_2,
+                    y * math::cos(a) * std::f32::consts::SQRT_2,
+                    y * math::sin(a) * std::f32::consts::SQRT_2,
                 )
             } else {
                 let g = 1.0 - d * (0.5 + 0.5 * lfo);

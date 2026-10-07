@@ -20,6 +20,7 @@
 use super::e808::blep;
 use super::filter::{BassFilter, DiodeCal, FilterKind};
 use super::voice::{coef_60db, Env, EnvTimes, Rng};
+use crate::math;
 
 /// Szabo's measured unison offsets (relative frequency at full detune).
 pub const UNISON_OFFSETS: [f64; 7] = [
@@ -89,7 +90,7 @@ pub fn outer_cents(unison: usize, detune: f64) -> f64 {
         .iter()
         .map(|i| UNISON_OFFSETS[*i].abs())
         .fold(0.0, f64::max);
-    1200.0 * (1.0 + off * detune_curve(detune)).log2()
+    1200.0 * math::log2(1.0 + off * detune_curve(detune))
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -205,8 +206,8 @@ impl Accent {
             sweep: 0.0,
             env_c: coef_60db(ACCENT_DECAY_MS * 1.5, sr),
             // The capacitor charges through the diode in tens of ms and leaks over hundreds.
-            charge: 1.0 - (-1.0 / (0.030 * sr)).exp(),
-            discharge: 1.0 - (-1.0 / (0.350 * sr)).exp(),
+            charge: 1.0 - math::exp(-1.0 / (0.030 * sr)),
+            discharge: 1.0 - math::exp(-1.0 / (0.350 * sr)),
         }
     }
 
@@ -426,7 +427,7 @@ impl SynthVoice {
                 }
             }
             2 => super::e808::square(sub_t, inc_f / sub_div as f64),
-            _ => (std::f64::consts::TAU * sub_t).sin(),
+            _ => math::sin(std::f64::consts::TAU * sub_t),
         };
         let (next, wrapped) = self.main.overflowing_add(inc);
         self.main = next;
@@ -436,7 +437,7 @@ impl SynthVoice {
         // Filter.
         let fenv = self.fenv.next();
         let oct = s.env_oct * fenv + s.key_track * ((note - 60.0) / 12.0) as f32 + accent_oct;
-        let cutoff = (s.cutoff * oct.exp2()).clamp(10.0, 0.45 * sr);
+        let cutoff = (s.cutoff * math::exp2(oct)).clamp(10.0, 0.45 * sr);
         self.cutoff_now = cutoff;
         let reso = if self.accented {
             (s.reso + 0.15 * s.accent).min(1.0)

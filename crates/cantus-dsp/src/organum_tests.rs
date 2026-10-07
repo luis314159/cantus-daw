@@ -5,6 +5,7 @@ use super::rotary::{Rotary, RotarySettings, RotorSpeed};
 use super::scanner::VibMode;
 use super::wheels::{cents, equal_hz, gear_hz, wheel_of, Tuning};
 use super::*;
+use crate::math;
 
 const SR: f32 = 48_000.0;
 
@@ -68,16 +69,16 @@ fn amp_at(x: &[f32], hz: f64) -> f64 {
     let w = std::f64::consts::TAU * hz / SR as f64;
     let (mut re, mut im, mut norm) = (0.0, 0.0, 0.0);
     for (i, v) in x.iter().enumerate() {
-        let win = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
-        re += *v as f64 * win * (w * i as f64).cos();
-        im += *v as f64 * win * (w * i as f64).sin();
+        let win = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+        re += *v as f64 * win * math::cos(w * i as f64);
+        im += *v as f64 * win * math::sin(w * i as f64);
         norm += win;
     }
     2.0 * (re * re + im * im).sqrt() / norm
 }
 
 fn rms(x: &[f32]) -> f64 {
-    (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt()
+    (x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len() as f64).sqrt()
 }
 
 #[test]
@@ -113,7 +114,7 @@ fn drawbar_steps_are_three_db() {
         let mut o = organ(&s);
         o.note_on(60, 1, 0);
         let (l, _) = run(&mut o, 24_000, 512);
-        let db = 20.0 * rms(&l[4_800..]).log10();
+        let db = 20.0 * math::log10(rms(&l[4_800..]));
         if let Some(prev) = last {
             let step = db - prev;
             assert!(
@@ -136,7 +137,7 @@ fn crosstalk_is_measured_at_the_leakage_setting() {
         let x = &l[4_800..];
         let f0 = gear_hz(wheel_of(48));
         let leak_hz = gear_hz(wheel_of(72));
-        let rel = 20.0 * (amp_at(x, leak_hz) / amp_at(x, f0)).log10();
+        let rel = 20.0 * math::log10(amp_at(x, leak_hz) / amp_at(x, f0));
         assert!(
             (rel - leak as f64).abs() < 0.5,
             "leakage {leak}: measured {rel:.2} dB"
@@ -210,8 +211,8 @@ fn the_scanner_turns_at_its_rate() {
     while f < 12.0 {
         let (mut re, mut im) = (0.0, 0.0);
         for (t, hz) in &periods {
-            re += (hz - mean) * (std::f64::consts::TAU * f * t).cos();
-            im += (hz - mean) * (std::f64::consts::TAU * f * t).sin();
+            re += (hz - mean) * math::cos(std::f64::consts::TAU * f * t);
+            im += (hz - mean) * math::sin(std::f64::consts::TAU * f * t);
         }
         let m = re * re + im * im;
         if m > best.1 {
@@ -314,9 +315,9 @@ fn the_horns_amplitude_modulation_has_the_rotor_period() {
         let mut env = Vec::new();
         let mut acc = 0.0f64;
         for i in 0..n {
-            let x = (std::f64::consts::TAU * 3_000.0 * i as f64 / SR as f64).sin() as f32;
+            let x = math::sin(std::f64::consts::TAU * 3_000.0 * i as f64 / SR as f64) as f32;
             let (l, _) = r.tick(0.5 * x);
-            acc += (l as f64).powi(2);
+            acc += math::powi(l as f64, 2);
             if (i + 1) % hop == 0 {
                 env.push(acc.sqrt());
                 acc = 0.0;

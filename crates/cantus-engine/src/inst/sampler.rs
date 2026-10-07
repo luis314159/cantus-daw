@@ -19,6 +19,7 @@ use cantus_dsp::exemplar::{
     self as ex, builtin, Exemplar, Globals, GroupParams, LoopDir, Quality, Region, Source, Trig,
     ZoneParams,
 };
+use cantus_dsp::math;
 use cantus_dsp::modmatrix::{ModCurve, ModRoute};
 use cantus_dsp::voices::PlayMode;
 use std::collections::HashMap;
@@ -489,11 +490,11 @@ impl MipCache {
 /// octave of modulation, at an output rate of 44.1 kHz or more.
 pub fn levels_needed(spec: &NativeSpec, zone: &model::Zone, rate: u32) -> usize {
     let shift = model::max_shift_semitones(spec, zone, 12.0);
-    let r_max = rate as f32 / 44_100.0 * (shift / 12.0).exp2();
+    let r_max = rate as f32 / 44_100.0 * math::exp2(shift / 12.0);
     if r_max < 2.0 {
         0
     } else {
-        (r_max.log2().floor() as usize).min(ex::MAX_LEVELS - 1)
+        (math::log2(r_max).floor() as usize).min(ex::MAX_LEVELS - 1)
     }
 }
 

@@ -3,6 +3,7 @@
 
 use super::geometry::Engine;
 use super::*;
+use crate::math;
 
 const SR: f32 = 48_000.0;
 
@@ -41,9 +42,9 @@ fn amp_at(x: &[f32], hz: f64) -> f64 {
     let w = std::f64::consts::TAU * hz / SR as f64;
     let (mut re, mut im, mut norm) = (0.0, 0.0, 0.0);
     for (i, v) in x.iter().enumerate() {
-        let win = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
-        re += *v as f64 * win * (w * i as f64).cos();
-        im += *v as f64 * win * (w * i as f64).sin();
+        let win = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+        re += *v as f64 * win * math::cos(w * i as f64);
+        im += *v as f64 * win * math::sin(w * i as f64);
         norm += win;
     }
     2.0 * (re * re + im * im).sqrt() / norm
@@ -82,9 +83,9 @@ fn every_key_sounds_its_equal_tempered_pitch() {
             let mut l = lamina(&s);
             l.note_on(key, 1, 0.6, None);
             let (a, _) = run(&mut l, 48_000, 256);
-            let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let hz = peak_hz(&a[9_600..], want);
-            let ct = 1200.0 * (hz / want).log2();
+            let ct = 1200.0 * math::log2(hz / want);
             assert!(
                 ct.abs() < 0.5,
                 "{engine:?} key {key}: {hz:.3} Hz, {ct:+.3} ct"
@@ -109,7 +110,7 @@ fn a_centred_pickup_jumps_an_octave_and_an_offset_lowers_it() {
         let (a, _) = run(&mut l, 24_000, 256);
         let x = &a[4_800..];
         let f0 = 220.0;
-        let ratio = 20.0 * (amp_at(x, 2.0 * f0) / amp_at(x, f0)).log10();
+        let ratio = 20.0 * math::log10(amp_at(x, 2.0 * f0) / amp_at(x, f0));
         if align == 0.0 {
             assert!(ratio > 20.0, "centred: 2nd over 1st {ratio:.1} dB");
         }
@@ -126,7 +127,7 @@ fn the_bark_and_the_level_rise_with_velocity() {
     // The bark: the harmonics the pickup adds (2nd…8th) against the fundamental.
     for engine in [Engine::Tine, Engine::Reed] {
         for key in [40u8, 60, 76] {
-            let f0 = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let f0 = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let mut last = (f64::NEG_INFINITY, 0.0);
             for step in 1..=8 {
                 let v = step as f32 / 8.0;
@@ -142,10 +143,10 @@ fn the_bark_and_the_level_rise_with_velocity() {
                 let x = &a[960..];
                 let fund = amp_at(x, f0);
                 let harm: f64 = (2..=8)
-                    .map(|h| amp_at(x, f0 * h as f64).powi(2))
+                    .map(|h| math::powi(amp_at(x, f0 * h as f64), 2))
                     .sum::<f64>()
                     .sqrt();
-                let bark = 20.0 * (harm / fund).log10();
+                let bark = 20.0 * math::log10(harm / fund);
                 let peak = a.iter().fold(0f32, |m, x| m.max(x.abs())) as f64;
                 assert!(
                     bark > last.0 && peak >= last.1,
@@ -181,7 +182,7 @@ fn a_faster_hammer_reaches_further_up_the_modes() {
             l.note_on(key, 1, v, None);
             let (a, _) = run(&mut l, 2_400, 256);
             let d2: Vec<f32> = a.windows(3).map(|w| w[2] - 2.0 * w[1] + w[0]).collect();
-            let rel = 20.0 * (rms(&d2) / rms(&a)).log10();
+            let rel = 20.0 * math::log10(rms(&d2) / rms(&a));
             assert!(
                 rel >= last - 0.05,
                 "key {key} velocity {v}: high end {rel:.2} dB (was {last:.2})"
@@ -198,7 +199,7 @@ fn a_faster_hammer_reaches_further_up_the_modes() {
 }
 
 fn rms(x: &[f32]) -> f64 {
-    (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
+    (x.iter().map(|v| math::powi(*v as f64, 2)).sum::<f64>() / x.len().max(1) as f64).sqrt()
 }
 
 /// Seconds for the voice's fundamental to fall 20 dB after the key comes up, × 3.

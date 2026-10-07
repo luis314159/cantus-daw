@@ -6,6 +6,8 @@
 
 /// Deterministic white noise (xorshift32). Pulsus I seeded it from the pad and that pad's
 /// hit count, which a seek resets; model 2 seeds it from the note ([`hit_seed`]).
+use crate::math;
+
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Noise(pub(crate) u32);
 
@@ -112,12 +114,12 @@ fn permuted(n: usize, round: usize, pos: usize, seed: u64) -> usize {
 #[inline]
 pub(crate) fn decay_coef(seconds: f32, sample_rate: f32) -> f32 {
     let n = (seconds.max(0.0005) * sample_rate).max(1.0);
-    (-6.907_755_3 / n).exp()
+    math::exp(-6.907_755_3 / n)
 }
 
 #[inline]
 pub(crate) fn semitones(hz: f32, st: f32) -> f32 {
-    hz * 2f32.powf(st.clamp(-48.0, 48.0) / 12.0)
+    hz * math::powf(2f32, st.clamp(-48.0, 48.0) / 12.0)
 }
 
 /// Soft saturation, normalised so a full-scale input stays full-scale.
@@ -132,7 +134,7 @@ pub(crate) fn saturate(x: f32, drive: f32) -> f32 {
         return x;
     }
     let k = 1.0 + drive * 3.0;
-    (k * x).tanh() / k.tanh()
+    math::tanh(k * x) / math::tanh(k)
 }
 
 /// The drive modes (0 soft, 1 tape, 2 clip, 3 raw = soft without oversampling), each
@@ -141,9 +143,9 @@ pub(crate) fn saturate(x: f32, drive: f32) -> f32 {
 pub(crate) fn shape(x: f32, drive: f32, mode: u8) -> f32 {
     let k = 1.0 + drive * 3.0;
     match mode {
-        1 => (k * x).atan() / k.atan(),
+        1 => math::atan(k * x) / math::atan(k),
         2 => (k * x).clamp(-1.0, 1.0),
-        _ => (k * x).tanh() / k.tanh(),
+        _ => math::tanh(k * x) / math::tanh(k),
     }
 }
 
@@ -162,8 +164,8 @@ pub(crate) fn pan_gains(pan: f32) -> (f32, f32) {
     }
     let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
     (
-        (angle.cos() * std::f32::consts::SQRT_2).min(1.0),
-        (angle.sin() * std::f32::consts::SQRT_2).min(1.0),
+        (math::cos(angle) * std::f32::consts::SQRT_2).min(1.0),
+        (math::sin(angle) * std::f32::consts::SQRT_2).min(1.0),
     )
 }
 
@@ -183,7 +185,7 @@ impl Band {
     #[inline]
     pub(crate) fn set(&mut self, hz: f32, q: f32, sample_rate: f32) {
         let fc = hz.clamp(10.0, sample_rate * 0.45);
-        let g = (std::f32::consts::PI * fc / sample_rate).tan();
+        let g = math::tan(std::f32::consts::PI * fc / sample_rate);
         self.k = 1.0 / q.clamp(0.3, 40.0);
         self.a1 = 1.0 / (1.0 + g * (g + self.k));
         self.a2 = g * self.a1;
@@ -239,11 +241,11 @@ pub(crate) fn half_band_taps() -> [f32; HALF_TAPS] {
             // A half-band's even taps are exactly zero; say so rather than keep 1e-17.
             0.0
         } else {
-            (std::f64::consts::PI * n * 0.5).sin() / (std::f64::consts::PI * n)
+            math::sin(std::f64::consts::PI * n * 0.5) / (std::f64::consts::PI * n)
         };
         let x = i as f64 / (HALF_TAPS - 1) as f64;
-        let w = 0.42 - 0.5 * (std::f64::consts::TAU * x).cos()
-            + 0.08 * (2.0 * std::f64::consts::TAU * x).cos();
+        let w = 0.42 - 0.5 * math::cos(std::f64::consts::TAU * x)
+            + 0.08 * math::cos(2.0 * std::f64::consts::TAU * x);
         *tap = (sinc * w) as f32;
     }
     h

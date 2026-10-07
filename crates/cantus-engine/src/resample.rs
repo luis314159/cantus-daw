@@ -16,6 +16,8 @@
 //! on the audio thread. Same rate in, same samples out: the input is copied, untouched.
 
 /// Zero crossings of the sinc on each side of the centre, at a cutoff of one.
+use cantus_dsp::math;
+
 const ZEROS: f64 = 32.0;
 /// The Kaiser window's β.
 const BETA: f64 = 10.0;
@@ -82,7 +84,11 @@ impl Design {
                 bessel_i0(BETA * (1.0 - x * x).sqrt()) / self.i0_beta
             };
             let a = std::f64::consts::PI * self.fc * t;
-            let s = if a.abs() < 1e-12 { 1.0 } else { a.sin() / a };
+            let s = if a.abs() < 1e-12 {
+                1.0
+            } else {
+                math::sin(a) / a
+            };
             *o = s * w;
             sum += *o;
         }
@@ -174,7 +180,7 @@ mod tests {
     fn sine(hz: f64, rate: u32, frames: usize, channels: usize) -> Vec<f32> {
         let mut v = Vec::with_capacity(frames * channels);
         for i in 0..frames {
-            let x = (std::f64::consts::TAU * hz * i as f64 / rate as f64).sin() as f32;
+            let x = math::sin(std::f64::consts::TAU * hz * i as f64 / rate as f64) as f32;
             for c in 0..channels {
                 v.push(if c == 0 { x } else { -x });
             }
@@ -210,7 +216,7 @@ mod tests {
                     err = err.max((out[i * 2 + c] - want[i * 2 + c]).abs() as f64);
                 }
             }
-            let db = 20.0 * err.log10();
+            let db = 20.0 * math::log10(err);
             assert!(db < -80.0, "{from} → {to} at {hz} Hz: error {db:.1} dB");
         }
     }
@@ -223,7 +229,10 @@ mod tests {
         let peak = out[200..out.len() - 200]
             .iter()
             .fold(0f32, |m, x| m.max(x.abs()));
-        assert!(20.0 * (peak as f64).log10() < -80.0, "folded energy {peak}");
+        assert!(
+            20.0 * math::log10(peak as f64) < -80.0,
+            "folded energy {peak}"
+        );
     }
 
     #[test]

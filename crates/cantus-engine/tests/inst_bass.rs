@@ -3,6 +3,8 @@
 //! the whole path, a high note's aliasing is measured, a chord of strings keeps its
 //! headroom, telemetry reports what plays, and a CPU budget holds.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::inst::bass::PARAMS;
 use cantus_core::*;
@@ -184,12 +186,12 @@ fn measure_f0(x: &[f32], f: f64) -> f64 {
     while start + win <= x.len() {
         let (mut re, mut im) = (0.0, 0.0);
         for i in 0..win {
-            let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / win as f64).cos();
+            let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / win as f64);
             let a = -std::f64::consts::TAU * f * (start + i) as f64 / sr;
-            re += x[start + i] as f64 * w * a.cos();
-            im += x[start + i] as f64 * w * a.sin();
+            re += x[start + i] as f64 * w * math::cos(a);
+            im += x[start + i] as f64 * w * math::sin(a);
         }
-        let ph: f64 = im.atan2(re);
+        let ph: f64 = math::atan2(im, re);
         if let Some(l) = last {
             let mut d = ph - l;
             while d > std::f64::consts::PI {
@@ -210,7 +212,7 @@ fn measure_f0(x: &[f32], f: f64) -> f64 {
         pts.iter().map(|p| p.1).sum::<f64>() / n,
     );
     let sxy: f64 = pts.iter().map(|p| (p.0 - mx) * (p.1 - my)).sum();
-    let sxx: f64 = pts.iter().map(|p| (p.0 - mx).powi(2)).sum();
+    let sxx: f64 = pts.iter().map(|p| math::powi(p.0 - mx, 2)).sum();
     f + sxy / sxx * sr / std::f64::consts::TAU
 }
 
@@ -257,9 +259,9 @@ fn pitch_survives_the_whole_path_on_every_engine() {
         let mut worst = 0.0f64;
         for key in (23u8..=72).step_by(7) {
             let x = run_unit(&spec, key, 1.0);
-            let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let f = measure_f0(&x[4800..], want);
-            let c = 1200.0 * (f / want).log2();
+            let c = 1200.0 * math::log2(f / want);
             worst = worst.max(c.abs());
             assert!(c.abs() < 0.5, "{name} key {key}: {c:+.3} cents");
         }
@@ -275,10 +277,10 @@ fn alias_floor_db(x: &[f32], f0: f64, max_hz: f64) -> f64 {
     let dft = |f: f64| {
         let (mut re, mut im) = (0.0, 0.0);
         for (i, v) in x.iter().enumerate() {
-            let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
+            let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
             let a = -std::f64::consts::TAU * f * i as f64 / sr;
-            re += *v as f64 * w * a.cos();
-            im += *v as f64 * w * a.sin();
+            re += *v as f64 * w * math::cos(a);
+            im += *v as f64 * w * math::sin(a);
         }
         (re * re + im * im).sqrt()
     };
@@ -295,7 +297,7 @@ fn alias_floor_db(x: &[f32], f0: f64, max_hz: f64) -> f64 {
         }
         k += 3;
     }
-    20.0 * (worst / fund).log10()
+    20.0 * math::log10(worst / fund)
 }
 
 #[test]
@@ -308,7 +310,7 @@ fn a_high_note_aliases_little() {
         ("syn.sustain", 1.0),
     ]);
     let x = run_unit(&saw, 84, 0.3);
-    let f0 = 440.0 * 2f64.powf(15.0 / 12.0);
+    let f0 = 440.0 * math::powf(2f64, 15.0 / 12.0);
     let audible = alias_floor_db(&x[4800..4800 + 8192], f0, 12_000.0);
     let full = alias_floor_db(&x[4800..4800 + 8192], f0, 24_000.0);
     eprintln!(
@@ -324,7 +326,7 @@ fn a_high_note_aliases_little() {
         ("808.sustain", 1.0),
     ]);
     let x = run_unit(&e808, 96, 0.3); // C7: harmonics 2…8 reach 16.7 kHz, above stop
-    let f0 = 440.0 * 2f64.powf(27.0 / 12.0);
+    let f0 = 440.0 * math::powf(2f64, 27.0 / 12.0);
     let db = alias_floor_db(&x[4800..4800 + 8192], f0, 24_000.0);
     eprintln!("808 with harmonics at C7: aliasing floor {db:.1} dB");
     assert!(db < -90.0, "{db:.1} dB");

@@ -2,6 +2,8 @@
 //! does not depend on the block size, a mix driven hard stays under the true-peak ceiling,
 //! and the telemetry reaches the editor through the plug-in contract.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::culmen::telemetry;
@@ -131,14 +133,14 @@ fn a_mix_driven_hard_stays_under_the_true_peak_ceiling() {
         set(&mut p, fx, k, v);
     }
     let wet = render_of(&p);
-    let ceiling = 10f32.powf(-1.0 / 20.0);
+    let ceiling = math::powf(10f32, -1.0 / 20.0);
     for ch in 0..2 {
         let x = frames(&wet, ch);
         let tp = os::reference_true_peak(&x, 1.0);
         assert!(
-            tp <= ceiling * 10f32.powf(0.02 / 20.0),
+            tp <= ceiling * math::powf(10f32, 0.02 / 20.0),
             "channel {ch}: true peak {:.3} dBTP",
-            20.0 * tp.log10()
+            20.0 * math::log10(tp)
         );
     }
     let louder = |x: &[f32]| x.iter().map(|v| (v * v) as f64).sum::<f64>();

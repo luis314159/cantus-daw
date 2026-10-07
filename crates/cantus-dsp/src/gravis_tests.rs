@@ -4,6 +4,7 @@
 //! block-size independence.
 
 use super::*;
+use crate::math;
 
 const SR: f32 = 48_000.0;
 
@@ -28,13 +29,13 @@ fn render(g: &mut Gravis, n: usize) -> Vec<f32> {
 fn phase_at(x: &[f32], start: usize, win: usize, f: f64, sr: f64) -> (f64, f64) {
     let (mut re, mut im) = (0.0f64, 0.0f64);
     for i in 0..win {
-        let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / win as f64).cos();
+        let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / win as f64);
         let t = (start + i) as f64;
         let a = -std::f64::consts::TAU * f * t / sr;
-        re += x[start + i] as f64 * w * a.cos();
-        im += x[start + i] as f64 * w * a.sin();
+        re += x[start + i] as f64 * w * math::cos(a);
+        im += x[start + i] as f64 * w * math::sin(a);
     }
-    (im.atan2(re), (re * re + im * im).sqrt())
+    (math::atan2(im, re), (re * re + im * im).sqrt())
 }
 
 /// The fundamental's frequency near `nominal`, from the slope of its phase over time.
@@ -81,7 +82,7 @@ fn measure_near(x: &[f32], from: usize, nominal: f64, sr: f64, win: usize) -> f6
 }
 
 fn cents(f: f64, want: f64) -> f64 {
-    1200.0 * (f / want).log2()
+    1200.0 * math::log2(f / want)
 }
 
 /// Goertzel magnitude of `x` at `f` (Hann window).
@@ -199,7 +200,7 @@ fn a_stiff_string_has_sharp_upper_partials() {
     let ratio = |n: f64| ((1.0 + b * n * n) / (1.0 + b)).sqrt();
     let f8 = measure_near(&x, from, 8.0 * f0 * ratio(8.0), SR as f64, win);
     let stretch = cents(f8 / 8.0, f1);
-    let want = 1200.0 * ratio(8.0).log2();
+    let want = 1200.0 * math::log2(ratio(8.0));
     eprintln!("8th partial: {stretch:.2} cents sharp; the stiff-string formula: {want:.2}");
     assert!(
         stretch > 2.0,
@@ -228,7 +229,7 @@ fn the_chebyshev_harmonics_are_exact() {
     // Nothing between the harmonics (the window's own leakage aside).
     for between in [1.5, 2.5, 4.5, 7.5, 9.5, 12.5] {
         let e = level(tail, between * f0, SR as f64);
-        assert!(20.0 * (e / fund).log10() < -90.0, "{between}·f0: {e}");
+        assert!(20.0 * math::log10(e / fund) < -90.0, "{between}·f0: {e}");
     }
 }
 
@@ -253,14 +254,17 @@ fn drive_keeps_the_fundamental_to_a_tenth_of_a_db() {
             s.drive.kind = kind;
             let x = tail(&play(&s, key, 1.0));
             let fund = level(&x, f0, SR as f64);
-            let db = 20.0 * (fund / fund0).log10();
+            let db = 20.0 * math::log10(fund / fund0);
             assert!(
                 db.abs() < 0.1,
                 "{kind:?} at {amount}: fundamental {db:+.3} dB"
             );
             // DC, through the same window (a plain mean would see the partial period).
             let dc = 0.5 * level(&x, 0.0, SR as f64);
-            assert!(20.0 * dc.max(1e-12).log10() < -80.0, "{kind:?} DC {dc}");
+            assert!(
+                20.0 * math::log10(dc.max(1e-12)) < -80.0,
+                "{kind:?} DC {dc}"
+            );
             if kind == out::DriveType::Tube {
                 // The harmonics 2…8 together, and the third alone, grow with the drive (the
                 // second peaks at mid drive, as an asymmetric curve's does).
@@ -286,7 +290,7 @@ fn drive_keeps_the_fundamental_to_a_tenth_of_a_db() {
     s.drive.amount = 1.0;
     s.drive.lock = false;
     let fund = level(&tail(&play(&s, key, 1.0)), f0, SR as f64);
-    let db = 20.0 * (fund / fund0).log10();
+    let db = 20.0 * math::log10(fund / fund0);
     assert!(
         db.abs() > 0.5,
         "unlocked drive moved the fundamental only {db:+.3} dB"
@@ -328,7 +332,7 @@ fn the_sub_stays_locked_to_the_main_phase_through_a_glide() {
         let n = 48_000;
         for i in 0..n {
             let t = i as f64 / n as f64;
-            let note = 33.0 + 12.0 * t + 0.3 * (std::f64::consts::TAU * 5.0 * t).sin();
+            let note = 33.0 + 12.0 * t + 0.3 * math::sin(std::f64::consts::TAU * 5.0 * t);
             let (m, sb) = v.next(&s, &harm, voice::hz(note, 440.0), SR, div, 0);
             main.push(m);
             sub.push(sb);
@@ -514,14 +518,14 @@ fn bass_compensation_restores_the_passband_at_any_resonance() {
             let n = 9_600;
             let y: Vec<f32> = (0..n)
                 .map(|i| {
-                    let x = 0.01 * (std::f32::consts::TAU * f * i as f32 / SR).sin();
+                    let x = 0.01 * math::sin(std::f32::consts::TAU * f * i as f32 / SR);
                     flt.process(kind, x, fc, 0.9, 0.0, 0.0, SR, &cal)
                 })
                 .collect();
             level(&y[n / 2..], f as f64, SR as f64)
         };
         let peak = (0..60)
-            .map(|i| 500.0 * 2f32.powf(i as f32 / 60.0))
+            .map(|i| 500.0 * math::powf(2f32, i as f32 / 60.0))
             .max_by(|a, b| gain_at(*a).total_cmp(&gain_at(*b)))
             .unwrap();
         assert!(
@@ -551,7 +555,7 @@ fn the_pluck_comb_notches_the_harmonics_it_should() {
     let t = &x[(0.05 * SR) as usize..(0.5 * SR) as usize];
     let h = |n: usize| level(t, n as f64 * f0, SR as f64);
     for n in [2usize, 4, 6] {
-        let db = 20.0 * (h(n) / (0.5 * (h(n - 1) + h(n + 1)))).log10();
+        let db = 20.0 * math::log10(h(n) / (0.5 * (h(n - 1) + h(n + 1))));
         assert!(
             db < -25.0,
             "harmonic {n} only {db:.1} dB under its neighbours"
@@ -733,7 +737,7 @@ fn the_half_band_rejects_images_and_passes_the_band() {
     let n = 16_384;
     let mut hi = Vec::with_capacity(4 * n);
     for i in 0..n {
-        let x = (std::f64::consts::TAU * f * i as f64 / SR as f64).sin() * 0.5;
+        let x = math::sin(std::f64::consts::TAU * f * i as f64 / SR as f64) * 0.5;
         hi.extend(os.up(x).map(|v| v as f32));
     }
     let sr4 = 4.0 * SR as f64;
@@ -742,7 +746,7 @@ fn the_half_band_rejects_images_and_passes_the_band() {
     for image in [SR as f64 - f, SR as f64 + f, 2.0 * SR as f64 - f] {
         let e = level(tail, image, sr4);
         assert!(
-            20.0 * (e / want).log10() < -70.0,
+            20.0 * math::log10(e / want) < -70.0,
             "image at {image}: {}",
             e / want
         );
@@ -752,13 +756,17 @@ fn the_half_band_rejects_images_and_passes_the_band() {
     let f = 1_000.0;
     let y: Vec<f32> = (0..n)
         .map(|i| {
-            let x = (std::f64::consts::TAU * f * i as f64 / SR as f64).sin() * 0.5;
+            let x = math::sin(std::f64::consts::TAU * f * i as f64 / SR as f64) * 0.5;
             let u = os.up(x);
             os.down(u) as f32
         })
         .collect();
     let g = level(&y[n / 2..], f, SR as f64) / 0.5;
-    assert!((20.0 * g.log10()).abs() < 0.05, "{} dB", 20.0 * g.log10());
+    assert!(
+        (20.0 * math::log10(g)).abs() < 0.05,
+        "{} dB",
+        20.0 * math::log10(g)
+    );
 }
 
 #[test]
@@ -775,7 +783,7 @@ fn the_duck_reaches_its_depth_on_the_kick_and_starts_early() {
     d.kick_in(pre);
     let gains: Vec<f32> = (0..4800).map(|_| d.next(&s, SR as f64)).collect();
     assert!(gains[0] <= 1.0 && gains[0] > 0.99);
-    let at_kick = 20.0 * gains[pre as usize].log10();
+    let at_kick = 20.0 * math::log10(gains[pre as usize]);
     assert!((at_kick + 8.0).abs() < 0.1, "{at_kick} dB at the kick");
     assert!(gains[1] < 1.0, "it starts moving at once, `pre` early");
     assert_eq!(*gains.last().unwrap(), 1.0, "and comes back");
@@ -909,7 +917,7 @@ fn every_technique_keeps_its_headroom_on_a_dense_riff() {
                 let x = funk_riff(&mut g, vel);
                 assert!(x.iter().all(|v| v.is_finite()));
                 let peak = x.iter().fold(0f32, |m, v| m.max(v.abs()));
-                report.push((name, s.string.technique, vel, 20.0 * peak.log10()));
+                report.push((name, s.string.technique, vel, 20.0 * math::log10(peak)));
             }
         }
     }
@@ -946,7 +954,7 @@ fn a_slap_is_calibrated_against_a_finger_pluck() {
         let x = render(&mut g, 24_000);
         let peak = x.iter().fold(0f32, |m, v| m.max(v.abs()));
         let rms = (x[..9_600].iter().map(|v| v * v).sum::<f32>() / 9_600.0).sqrt();
-        (20.0 * peak.log10(), 20.0 * rms.log10())
+        (20.0 * math::log10(peak), 20.0 * math::log10(rms))
     };
     let thumb_vel = slap_string().string.pop_vel - 0.01;
     for key in [28u8, 33, 40, 52] {

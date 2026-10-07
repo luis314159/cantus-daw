@@ -4,6 +4,8 @@
 //! (the "overshoot" trick), which gives the familiar fast-then-slow curve and makes the
 //! attack actually reach 1.0 in the requested time.
 
+use crate::math;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Stage {
     Idle,
@@ -139,7 +141,7 @@ impl Adsr {
 /// with the given overshoot ratio.
 fn coef(seconds: f32, sample_rate: f32, ratio: f32, target: f32) -> (f32, f32) {
     let samples = (seconds.max(0.0) * sample_rate).max(1.0);
-    let c = (-((1.0 + ratio) / ratio).ln() / samples).exp();
+    let c = math::exp(-math::ln((1.0 + ratio) / ratio) / samples);
     let base = target * (1.0 - c);
     (c, base)
 }

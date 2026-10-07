@@ -8,6 +8,8 @@
 //! 4× is two 2× stages. Nothing here allocates after [`Decimator::new`].
 
 /// All-pass coefficients per half-band (half in each path).
+use crate::math;
+
 pub const COEFS: usize = 12;
 /// Transition band, as a fraction of the high rate: the pass band ends at
 /// `(0.25 − TRANSITION)·fs` — 20 kHz at 96 kHz.
@@ -16,10 +18,10 @@ pub const TRANSITION: f64 = 0.0417;
 /// The half-band's all-pass coefficients (ascending), from the elliptic design.
 pub fn coefficients(n: usize, transition: f64) -> Vec<f64> {
     use std::f64::consts::PI;
-    let k = ((1.0 - 2.0 * transition) * PI / 4.0).tan().powi(2);
+    let k = math::powi(math::tan((1.0 - 2.0 * transition) * PI / 4.0), 2);
     let kk = (1.0 - k * k).sqrt().sqrt();
     let e = 0.5 * (1.0 - kk) / (1.0 + kk);
-    let e4 = e.powi(4);
+    let e4 = math::powi(e, 4);
     let q = e * (1.0 + e4 * (2.0 + e4 * (15.0 + 150.0 * e4)));
     let order = (2 * n + 1) as f64;
     (1..=n)
@@ -28,8 +30,8 @@ pub fn coefficients(n: usize, transition: f64) -> Vec<f64> {
             let mut num = 0.0;
             let mut i = 0i32;
             loop {
-                let term = q.powi(i * (i + 1))
-                    * ((2 * i + 1) as f64 * c * PI / order).sin()
+                let term = math::powi(q, i * (i + 1))
+                    * math::sin((2 * i + 1) as f64 * c * PI / order)
                     * if i % 2 == 0 { 1.0 } else { -1.0 };
                 num += term;
                 i += 1;
@@ -37,12 +39,12 @@ pub fn coefficients(n: usize, transition: f64) -> Vec<f64> {
                     break;
                 }
             }
-            num *= q.powf(0.25);
+            num *= math::powf(q, 0.25);
             let mut den = 0.0;
             let mut i = 1i32;
             loop {
-                let term = q.powi(i * i)
-                    * (2.0 * i as f64 * c * PI / order).cos()
+                let term = math::powi(q, i * i)
+                    * math::cos(2.0 * i as f64 * c * PI / order)
                     * if i % 2 == 1 { -1.0 } else { 1.0 };
                 den += term;
                 i += 1;

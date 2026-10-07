@@ -3,6 +3,8 @@
 //! PolyBLEP is cheap, allocation-free and good enough for a subtractive synth; wavetable
 //! and additive engines come later as separate modules.
 
+use crate::math;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Wave {
     Sine,
@@ -61,7 +63,7 @@ impl PolyBlepOsc {
         let t = self.phase;
         let dt = self.inc;
         let out = match self.wave {
-            Wave::Sine => (t * std::f32::consts::TAU).sin(),
+            Wave::Sine => math::sin(t * std::f32::consts::TAU),
             Wave::Saw => {
                 let naive = 2.0 * t - 1.0;
                 naive - poly_blep(t, dt)
@@ -155,8 +157,8 @@ mod tests {
                 let (mut re, mut im) = (0f64, 0f64);
                 for (i, x) in buf.iter().enumerate() {
                     let a = -std::f64::consts::TAU * k as f64 * i as f64 / n as f64;
-                    re += *x as f64 * a.cos();
-                    im += *x as f64 * a.sin();
+                    re += *x as f64 * math::cos(a);
+                    im += *x as f64 * math::sin(a);
                 }
                 e += re * re + im * im;
             }

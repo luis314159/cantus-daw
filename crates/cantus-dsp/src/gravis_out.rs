@@ -15,6 +15,7 @@
 //! The fundamental is therefore the clean one, whatever the drive: testable to 0.1 dB.
 //! Drive 0 is not computed at all, so it is bit-exact.
 
+use crate::math;
 use std::f64::consts::PI;
 
 // ---- the half-band --------------------------------------------------------------------
@@ -23,11 +24,11 @@ use std::f64::consts::PI;
 /// transition band `transition` (fraction of the rate, e.g. 0.04). Elliptic design by the
 /// Jacobi theta-function series (Valenzuela & Constantinides 1983).
 pub fn halfband_coefs(n: usize, transition: f64) -> Vec<f64> {
-    let mut k = ((1.0 - 2.0 * transition) * PI / 4.0).tan();
+    let mut k = math::tan((1.0 - 2.0 * transition) * PI / 4.0);
     k *= k;
-    let kk = (1.0 - k * k).powf(0.25);
+    let kk = math::powf(1.0 - k * k, 0.25);
     let e = 0.5 * (1.0 - kk) / (1.0 + kk);
-    let e4 = e.powi(4);
+    let e4 = math::powi(e, 4);
     let q = e * (1.0 + e4 * (2.0 + e4 * (15.0 + 150.0 * e4)));
     let order = (2 * n + 1) as f64;
     (0..n)
@@ -36,18 +37,20 @@ pub fn halfband_coefs(n: usize, transition: f64) -> Vec<f64> {
             let mut num = 0.0;
             let mut j = 1.0;
             for m in 0..40i32 {
-                let t = q.powi(m * (m + 1)) * (((2 * m + 1) as f64) * c * PI / order).sin() * j;
+                let t = math::powi(q, m * (m + 1))
+                    * math::sin(((2 * m + 1) as f64) * c * PI / order)
+                    * j;
                 num += t;
                 j = -j;
                 if t.abs() < 1e-100 {
                     break;
                 }
             }
-            let num = num * q.powf(0.25);
+            let num = num * math::powf(q, 0.25);
             let mut den = 0.0;
             let mut j = -1.0;
             for m in 1..40i32 {
-                let t = q.powi(m * m) * ((2 * m) as f64 * c * PI / order).cos() * j;
+                let t = math::powi(q, m * m) * math::cos((2 * m) as f64 * c * PI / order) * j;
                 den += t;
                 j = -j;
                 if t.abs() < 1e-100 {
@@ -230,7 +233,7 @@ impl Svf64 {
 /// `g` of a TPT filter at `hz`.
 #[inline]
 pub fn tpt_g(hz: f64, sr: f64) -> f64 {
-    (PI * hz.clamp(1.0, 0.45 * sr) / sr).tan()
+    math::tan(PI * hz.clamp(1.0, 0.45 * sr) / sr)
 }
 
 /// Butterworth damping of the two sections of a fourth-order filter.
@@ -303,11 +306,11 @@ impl DriveSettings {
         let v = g * u / NOMINAL;
         let y = match self.kind {
             DriveType::Tube => {
-                let t = |v: f64| (v + 0.3).tanh() - 0.3f64.tanh();
+                let t = |v: f64| math::tanh(v + 0.3) - math::tanh(0.3f64);
                 t(v) / (0.5 * (t(g) - t(-g)))
             }
             DriveType::Tape => (v / (1.0 + v.abs())) / (g / (1.0 + g)),
-            DriveType::Fold => (v * std::f64::consts::FRAC_PI_2).sin(),
+            DriveType::Fold => math::sin(v * std::f64::consts::FRAC_PI_2),
             DriveType::Hard => v.clamp(-1.0, 1.0),
         };
         y * NOMINAL
@@ -353,7 +356,7 @@ impl Drive {
             return x;
         }
         self.active = true;
-        let g = 10f64.powf(s.gain_db(note) / 20.0);
+        let g = math::powf(10f64, s.gain_db(note) / 20.0);
         let up = self.os.up(x as f64);
         let mut d = [0.0; 4];
         for (o, u) in d.iter_mut().zip(up) {
@@ -399,7 +402,7 @@ impl Clipper {
         if a <= KNEE {
             u
         } else {
-            u.signum() * (KNEE + ROOM * ((a - KNEE) / ROOM).tanh())
+            u.signum() * (KNEE + ROOM * math::tanh((a - KNEE) / ROOM))
         }
     }
 
@@ -556,8 +559,11 @@ impl Duck {
         let x = x.clamp(0.0, 1.0);
         match shape {
             0 => {
-                let (a, b) = (10f64.powf(from_db / 20.0), 10f64.powf(to_db / 20.0));
-                20.0 * (a + (b - a) * x).max(1e-6).log10()
+                let (a, b) = (
+                    math::powf(10f64, from_db / 20.0),
+                    math::powf(10f64, to_db / 20.0),
+                );
+                20.0 * math::log10((a + (b - a) * x).max(1e-6))
             }
             2 => from_db + (to_db - from_db) * x * x * (3.0 - 2.0 * x),
             _ => from_db + (to_db - from_db) * x,
@@ -602,6 +608,6 @@ impl Duck {
                 }
             }
         }
-        10f64.powf(self.db / 20.0) as f32
+        math::powf(10f64, self.db / 20.0) as f32
     }
 }

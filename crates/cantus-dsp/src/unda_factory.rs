@@ -7,6 +7,7 @@
 //! Order and names are `cantus_core::inst::wavetable::TABLES`.
 
 use super::table::{spectrum_of, Partial, Table, HARMONICS};
+use crate::math;
 use std::f32::consts::{PI, TAU};
 use std::sync::OnceLock;
 
@@ -76,7 +77,7 @@ fn pulse(w: f32) -> Vec<Partial> {
     partials(|h| {
         let k = 2.0 / (PI * h as f32);
         let a = TAU * h as f32 * w;
-        (k * a.sin(), k * (1.0 - a.cos()))
+        (k * math::sin(a), k * (1.0 - math::cos(a)))
     })
 }
 
@@ -116,7 +117,7 @@ fn pwm() -> Table {
 fn harmonics() -> Table {
     let frames: Vec<Vec<Partial>> = (0..32)
         .map(|k| {
-            let top = 2f32.powf(k as f32 * 10.0 / 31.0).round() as usize;
+            let top = math::powf(2f32, k as f32 * 10.0 / 31.0).round() as usize;
             partials(|h| {
                 if h <= top {
                     (0.0, 1.0 / (h as f32).sqrt())
@@ -134,13 +135,13 @@ fn formant() -> Table {
     let s = saw();
     let frames: Vec<Vec<Partial>> = (0..32)
         .map(|k| {
-            let c = 2.0 * 20f32.powf(k as f32 / 31.0);
+            let c = 2.0 * math::powf(20f32, k as f32 / 31.0);
             let w = 0.25 * c + 1.0;
             s.iter()
                 .enumerate()
                 .map(|(i, &(a, b))| {
                     let d = (i as f32 + 1.0 - c) / w;
-                    let g = 1.0 + 8.0 * (-d * d).exp();
+                    let g = 1.0 + 8.0 * math::exp(-d * d);
                     (a * g, b * g)
                 })
                 .collect()
@@ -204,10 +205,10 @@ fn drawn(frames: usize, f: impl Fn(usize, f32) -> f32) -> Table {
 fn digital() -> Table {
     drawn(32, |k, t| {
         let m = k as f32 / 31.0;
-        let steps = (64.0 * (1.0 / 16.0f32).powf(m)).round().max(4.0);
-        let levels = (8.0 * (1.0 / 8.0f32).powf(m)).round().max(1.0);
+        let steps = (64.0 * math::powf(1.0 / 16.0f32, m)).round().max(4.0);
+        let levels = (8.0 * math::powf(1.0 / 8.0f32, m)).round().max(1.0);
         let held = (t * steps).floor() / steps;
-        let y = (TAU * held).sin();
+        let y = math::sin(TAU * held);
         (y * levels).round() / levels
     })
 }
@@ -215,7 +216,7 @@ fn digital() -> Table {
 /// A saw hard-synced to the cycle, its own frequency from 1× to 8×.
 fn sync() -> Table {
     drawn(32, |k, t| {
-        let r = 8f32.powf(k as f32 / 31.0);
+        let r = math::powf(8f32, k as f32 / 31.0);
         2.0 * (r * t).fract() - 1.0
     })
 }
@@ -224,7 +225,7 @@ fn sync() -> Table {
 fn fm() -> Table {
     drawn(32, |k, t| {
         let index = 8.0 * k as f32 / 31.0;
-        (TAU * t + index * (TAU * t).sin()).sin()
+        math::sin(TAU * t + index * math::sin(TAU * t))
     })
 }
 
@@ -248,7 +249,7 @@ fn organ() -> Table {
             let mut p = vec![(0.0, 0.0); HARMONICS];
             for (bar, &d) in reg.iter().enumerate() {
                 if d > 0 {
-                    p[HARM[bar] - 1].1 += 10f32.powf((d as f32 - 8.0) * 3.0 / 20.0);
+                    p[HARM[bar] - 1].1 += math::powf(10f32, (d as f32 - 8.0) * 3.0 / 20.0);
                 }
             }
             p

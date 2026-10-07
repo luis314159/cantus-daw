@@ -7,6 +7,8 @@
 //! The file installs a counting allocator. It counts per thread, so the tests of this file
 //! running in parallel do not see each other's allocations.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::aequalis::{latency_of, Mode, Resolution};
@@ -172,7 +174,7 @@ fn switching_to_linear_phase_matches_an_eq_made_in_it() {
         .map(|i| {
             seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             let noise = (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
-            0.3 * noise + 0.2 * (i as f32 * 0.031).sin()
+            0.3 * noise + 0.2 * math::sin(i as f32 * 0.031)
         })
         .collect();
     let run = |u: &mut EffectUnit, from: usize, to: usize, out: &mut Vec<f32>| {

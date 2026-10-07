@@ -1,6 +1,8 @@
 //! Porta (the gate) inside the engine: the null tests before anything else, then the
 //! sidechain route, the latency and the telemetry through the plug-in contract.
 
+use cantus_dsp::math;
+
 mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
@@ -132,7 +134,7 @@ fn latency_and_telemetry_through_the_contract() {
     let mut l = vec![0.0f32; 48_000];
     for h in 0..4 {
         for (j, v) in l[h * 12_000..h * 12_000 + 2_400].iter_mut().enumerate() {
-            *v = 0.5 * (j as f32 * 0.05).cos() * (1.0 - j as f32 / 2_400.0);
+            *v = 0.5 * math::cos(j as f32 * 0.05) * (1.0 - j as f32 / 2_400.0);
         }
     }
     let mut r = l.clone();

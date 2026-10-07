@@ -3,6 +3,8 @@
 //! Stable at any cutoff, resonance can be modulated per sample without zipper noise, and
 //! it produces low/band/high outputs from the same state.
 
+use crate::math;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FilterMode {
     Low,
@@ -57,7 +59,7 @@ impl Svf {
     pub fn set(&mut self, cutoff_hz: f32, resonance: f32) {
         let max = self.sample_rate * 0.45;
         let fc = cutoff_hz.clamp(10.0, max);
-        let g = (std::f32::consts::PI * fc / self.sample_rate).tan();
+        let g = math::tan(std::f32::consts::PI * fc / self.sample_rate);
         let r = resonance.clamp(0.0, 1.0);
         let k = std::f32::consts::SQRT_2 - (std::f32::consts::SQRT_2 - 0.1) * r;
         self.k = k;
@@ -108,14 +110,14 @@ mod tests {
         let n = 48_000;
         let mut acc = 0f64;
         for i in 0..n {
-            let x = (std::f32::consts::TAU * hz * i as f32 / sr).sin();
+            let x = math::sin(std::f32::consts::TAU * hz * i as f32 / sr);
             let y = f.process(x);
             if i > n / 2 {
                 acc += (y * y) as f64;
             }
         }
         let rms = (acc / (n / 2) as f64).sqrt() as f32;
-        20.0 * (rms / (0.5f32).sqrt()).log10()
+        20.0 * math::log10(rms / (0.5f32).sqrt())
     }
 
     #[test]

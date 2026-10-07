@@ -1,6 +1,7 @@
 //! A voice's control tick (every 16 host samples) and its audio loop.
 
 use super::{Ctx, Voice, AMS, FADE_S};
+use crate::math;
 use crate::modulus::source::*;
 use crate::modulus::tables::wave_level;
 use crate::modulus::{db_to_lin, target, OPS, OUT_OFF, PHASE_PER_RAD, VOICE_SCALE};
@@ -32,7 +33,7 @@ impl Voice {
             .advance(p.menv[0], p.menv[1], p.menv[2], p.menv[3], dt);
         let mut lfo = [0f32; 2];
         for (i, v) in lfo.iter_mut().enumerate() {
-            let rate = p.lfo_rate[i] * self.lfo_rate_off[i].exp2();
+            let rate = p.lfo_rate[i] * math::exp2(self.lfo_rate_off[i]);
             *v = self.lfo[i].advance(rate, p.lfo_wave[i], p.lfo_delay[i], dt);
         }
         src[LFO1] = lfo[0];
@@ -104,7 +105,7 @@ impl Voice {
             / (self.copies as f32).sqrt()
             * self.fade;
         let k = PHASE_PER_RAD
-            * (2.0 * (p.bright + off[target::BRIGHT]).clamp(-1.0, 1.0)).exp2()
+            * math::exp2(2.0 * (p.bright + off[target::BRIGHT]).clamp(-1.0, 1.0))
             * self.tame;
         // A value already at its target stops ramping (and lands on it exactly), so a
         // steady note skips the ramp pass altogether.

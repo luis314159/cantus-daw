@@ -48,7 +48,7 @@ impl BlockHistogram {
         if us.is_nan() || us < 1.0 {
             return 0;
         }
-        ((us.log2() * PER_OCTAVE) as usize + 1).min(HISTOGRAM_BUCKETS - 1)
+        ((cantus_dsp::math::log2(us) * PER_OCTAVE) as usize + 1).min(HISTOGRAM_BUCKETS - 1)
     }
 
     /// The smallest time bucket `b` holds, µs.
@@ -56,13 +56,13 @@ impl BlockHistogram {
         if b == 0 {
             0.0
         } else {
-            2f64.powf((b - 1) as f64 / PER_OCTAVE)
+            cantus_dsp::math::powf(2f64, (b - 1) as f64 / PER_OCTAVE)
         }
     }
 
     /// The time bucket `b` holds up to, µs (the last bucket is open: its edge is reported).
     pub fn upper_us(b: usize) -> f64 {
-        2f64.powf(b as f64 / PER_OCTAVE)
+        cantus_dsp::math::powf(2f64, b as f64 / PER_OCTAVE)
     }
 
     /// Count one block. Saturates rather than wraps: after 4 × 10⁹ blocks in one bucket
@@ -368,10 +368,10 @@ mod tests {
         h.record(3_000.0);
         assert_eq!(h.count(), 100);
         let p50 = h.quantile(0.5);
-        assert!((100.0..=100.0 * 2f64.powf(0.25)).contains(&p50), "{p50}");
+        assert!((100.0..=100.0 * cantus_dsp::math::powf(2f64, 0.25)).contains(&p50), "{p50}");
         let max = h.quantile(1.0);
         assert!(
-            (3_000.0..=3_000.0 * 2f64.powf(0.25)).contains(&max),
+            (3_000.0..=3_000.0 * cantus_dsp::math::powf(2f64, 0.25)).contains(&max),
             "{max}"
         );
         assert_eq!(h.at_least(2_000.0), 1);

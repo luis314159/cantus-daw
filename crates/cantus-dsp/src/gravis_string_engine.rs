@@ -3,6 +3,7 @@
 
 use super::{fret_mm, Fingering, Guide, StringSettings, Technique, MAX_STRINGS};
 use crate::gravis::voice::Rng;
+use crate::math;
 
 /// A second-order low-pass in `f32` (a pickup's coil and its tone control).
 #[derive(Copy, Clone, Debug, Default)]
@@ -207,7 +208,7 @@ impl StringEngine {
         let hum = s.humanize;
         let jitter = 1.0 + 0.03 * hum as f64 * rng.bipolar() as f64;
         let level = if soft { 0.45 } else { 1.0 };
-        let amp = vel * 10f32.powf(hum * rng.bipolar() / 20.0) * level;
+        let amp = vel * math::powf(10f32, hum * rng.bipolar() / 20.0) * level;
         let per_mm = g.half / g.vib_mm;
         let x = g.pluck_x * jitter;
         let hard = 1.3 - s.hardness as f64;
@@ -399,7 +400,7 @@ impl StringEngine {
         };
         let tone = s.tone.clamp(0.0, 1.0);
         let fc = (fc * (0.12 + 0.88 * tone * tone)).min(0.45 * self.sr);
-        let g = (std::f32::consts::PI * fc / self.sr).tan();
+        let g = math::tan(std::f32::consts::PI * fc / self.sr);
         let k = 1.0 / (q * (0.5 + 0.5 * tone));
         let mut out = 0.0;
         for ((coil, x), level) in self.coil.iter_mut().zip(sum).zip(s.pu_level) {

@@ -21,6 +21,8 @@
 //! passes the fret's height, the excess is taken out of both rails (Rank & Kubin). That is
 //! slap, pop and fret buzz.
 
+use crate::math;
+
 #[path = "gravis_string_engine.rs"]
 mod engine;
 pub use engine::{Played, StringEngine};
@@ -136,7 +138,7 @@ pub fn open_strings(strings: usize, tuning: usize) -> [f32; MAX_STRINGS] {
 /// a 34″ roundwound set: `π³ E d⁴ / (64 T L²)` for the core wire, about 4.4·10⁻⁴ for the
 /// E string, halving about every five semitones up the set.
 pub fn b_open(note: f32) -> f64 {
-    4.4e-4 * (-(note as f64 - 28.0) / 5.2).exp2()
+    4.4e-4 * math::exp2(-(note as f64 - 28.0) / 5.2)
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -215,13 +217,13 @@ impl Default for StringSettings {
 
 /// Phase delay (samples) of the loss filter `g(1−a)/(1 − a z⁻¹)` at `w` rad/sample.
 pub fn loss_delay(a: f64, w: f64) -> f64 {
-    (a * w.sin()).atan2(1.0 - a * w.cos()) / w
+    math::atan2(a * math::sin(w), 1.0 - a * math::cos(w)) / w
 }
 
 /// Phase delay of one first-order allpass `(c + z⁻¹)/(1 + c z⁻¹)`.
 pub fn ap_delay(c: f64, w: f64) -> f64 {
-    let num = (-w.sin()).atan2(c + w.cos());
-    let den = (-c * w.sin()).atan2(1.0 + c * w.cos());
+    let num = math::atan2(-math::sin(w), c + math::cos(w));
+    let den = math::atan2(-c * math::sin(w), 1.0 + c * math::cos(w));
     -(num - den) / w
 }
 
@@ -244,17 +246,17 @@ pub fn lagrange_delay(d: f64, w: f64) -> f64 {
     let (mut re, mut im) = (0.0f64, 0.0f64);
     for (j, hj) in h.iter().enumerate() {
         let a = -w * j as f64;
-        re += *hj as f64 * a.cos();
-        im += *hj as f64 * a.sin();
+        re += *hj as f64 * math::cos(a);
+        im += *hj as f64 * math::sin(a);
     }
-    m0 as f64 - im.atan2(re) / w
+    m0 as f64 - math::atan2(im, re) / w
 }
 
 /// The loss filter `(g, a)` that makes the loop lose 60 dB in `t60` seconds at `f0` and in
 /// `t60_high` at `f_high`.
 pub fn loss_design(f0: f64, t60: f64, t60_high: f64, f_high: f64, sr: f64) -> (f64, f64) {
-    let g0 = 10f64.powf(-3.0 / (f0 * t60.max(1e-3)));
-    let gh = 10f64.powf(-3.0 / (f0 * t60_high.max(1e-4)));
+    let g0 = math::powf(10f64, -3.0 / (f0 * t60.max(1e-3)));
+    let gh = math::powf(10f64, -3.0 / (f0 * t60_high.max(1e-4)));
     let (w0, wh) = (
         std::f64::consts::TAU * f0 / sr,
         std::f64::consts::TAU * f_high / sr,
@@ -264,7 +266,7 @@ pub fn loss_design(f0: f64, t60: f64, t60_high: f64, f_high: f64, sr: f64) -> (f
         0.0
     } else {
         let a2 = r * r - 1.0;
-        let b = 2.0 * (w0.cos() - r * r * wh.cos());
+        let b = 2.0 * (math::cos(w0) - r * r * math::cos(wh));
         let disc = (b * b - 4.0 * a2 * a2).max(0.0);
         // Of the two roots (their product is 1), the one inside the unit circle.
         let x1 = (-b + disc.sqrt()) / (2.0 * a2);
@@ -272,7 +274,7 @@ pub fn loss_design(f0: f64, t60: f64, t60_high: f64, f_high: f64, sr: f64) -> (f
         let pick = if (0.0..1.0).contains(&x1) { x1 } else { x2 };
         pick.clamp(0.0, 0.995)
     };
-    let mag = ((1.0 - a * w0.cos()).powi(2) + (a * w0.sin()).powi(2)).sqrt();
+    let mag = (math::powi(1.0 - a * math::cos(w0), 2) + math::powi(a * math::sin(w0), 2)).sqrt();
     let g = (g0 * mag / (1.0 - a)).min(0.999_99);
     (g, a)
 }
@@ -322,12 +324,12 @@ pub fn dispersion_fit(b: f64, f0: f64, sr: f64, period: f64, other: impl Fn(f64)
 /// The comb a position makes on the harmonics: `|sin(nπβ)|` for a pluck or pickup at the
 /// fraction `beta` of the vibrating length from the bridge (the editor draws these).
 pub fn comb(n: usize, beta: f64) -> f64 {
-    (n as f64 * std::f64::consts::PI * beta).sin().abs()
+    math::sin(n as f64 * std::f64::consts::PI * beta).abs()
 }
 
 /// Where fret `k` is, in mm from the bridge, on a scale of `scale_mm`.
 pub fn fret_mm(scale_mm: f64, k: f64) -> f64 {
-    scale_mm * (-k / 12.0).exp2()
+    scale_mm * math::exp2(-k / 12.0)
 }
 
 /// A pickup's taps: (fractional position in samples from the bridge, weight).
@@ -499,7 +501,7 @@ impl Guide {
         } else {
             s.mute
         } as f64;
-        let mut t60 = (s.sustain_s as f64).powf(1.0 - mute) * 0.12f64.powf(mute);
+        let mut t60 = math::powf(s.sustain_s as f64, 1.0 - mute) * math::powf(0.12f64, mute);
         if self.released {
             t60 = t60.min(s.release_ms as f64 * 0.001);
         }
@@ -514,7 +516,7 @@ impl Guide {
         self.loss_a = a as f32;
         // Stiffness.
         let b = if s.stiffness > 0.0 {
-            b_open(self.open) * (scale / self.vib_mm).powi(2) * s.stiffness as f64 * b_type
+            b_open(self.open) * math::powi(scale / self.vib_mm, 2) * s.stiffness as f64 * b_type
         } else {
             0.0
         };

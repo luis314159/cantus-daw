@@ -23,6 +23,8 @@
 #![allow(clippy::needless_range_loop)]
 
 /// Tonewheels in the generator.
+use crate::math;
+
 pub const WHEELS: usize = 91;
 /// MIDI note of wheel 1 (C1, 32.7 Hz).
 pub const FIRST_WHEEL_MIDI: i32 = 24;
@@ -97,7 +99,7 @@ pub fn gear_hz(w: usize) -> f64 {
 /// Equal temperament for wheel `w` at `a4`.
 pub fn equal_hz(w: usize, a4: f64) -> f64 {
     let midi = FIRST_WHEEL_MIDI + w as i32;
-    a4 * 2f64.powf((midi - 69) as f64 / 12.0)
+    a4 * math::powf(2f64, (midi - 69) as f64 / 12.0)
 }
 
 /// Wheel `w`'s pitch under a tuning and a reference.
@@ -110,7 +112,7 @@ pub fn wheel_hz(w: usize, tuning: Tuning, a4: f64) -> f64 {
 
 /// Cents of `hz` from `reference`.
 pub fn cents(hz: f64, reference: f64) -> f64 {
-    1200.0 * (hz / reference).log2()
+    1200.0 * math::log2(hz / reference)
 }
 
 /// The wheel (0-based) a MIDI note reaches, folding back an octave at a time past either
@@ -155,15 +157,15 @@ pub const PEDAL_BARS: [[(i32, f32); 3]; 2] = [
 pub fn drawbar_gain(position: f32) -> f32 {
     let p = position.clamp(0.0, 8.0);
     if p >= 1.0 {
-        10f32.powf(-3.0 * (8.0 - p) / 20.0)
+        math::powf(10f32, -3.0 * (8.0 - p) / 20.0)
     } else {
-        p * 10f32.powf(-21.0 / 20.0)
+        p * math::powf(10f32, -21.0 / 20.0)
     }
 }
 
 /// A drawbar's attenuation in dB (for printing), −∞ at 0.
 pub fn drawbar_db(position: f32) -> f32 {
-    20.0 * drawbar_gain(position).max(1e-9).log10()
+    20.0 * math::log10(drawbar_gain(position).max(1e-9))
 }
 
 /// Wheels that leak into a contact on wheel `w`: the other wheels of its compartment (same
@@ -218,7 +220,7 @@ fn start_phase(w: usize) -> u32 {
 impl Generator {
     pub fn new(sample_rate: f32) -> Self {
         let table: Box<[f32]> = (0..=TABLE)
-            .map(|i| (std::f64::consts::TAU * i as f64 / TABLE as f64).sin() as f32)
+            .map(|i| math::sin(std::f64::consts::TAU * i as f64 / TABLE as f64) as f32)
             .collect();
         let mut g = Generator {
             table,

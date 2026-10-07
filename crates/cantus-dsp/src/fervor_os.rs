@@ -22,6 +22,7 @@
 //! top of the band. The latency reported is their group delay at low frequencies, rounded,
 //! so a dry/wet blend lines up where the energy of most music is.
 
+use crate::math;
 use std::f64::consts::PI;
 
 /// The factors, by the `os` parameter's index.
@@ -64,7 +65,7 @@ fn half_band(taps: usize, beta: f64, out: &mut [f64; MAX_HALF]) -> usize {
     let mut sum = 0.0;
     for (i, o) in out.iter_mut().enumerate().take(n_even) {
         let t = (2 * i) as f64 - c;
-        let ideal = (PI * t / 2.0).sin() / (PI * t);
+        let ideal = math::sin(PI * t / 2.0) / (PI * t);
         let r = t / c;
         *o = ideal * bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / norm;
         sum += *o;
@@ -172,9 +173,9 @@ impl FirStage {
 /// transition band `tbw` wide (relative to the stage's high rate, centred on a quarter of
 /// it): the elliptic design (Valenzuela & Constantinides; the formulas of HIIR).
 fn iir_coefs(n: usize, tbw: f64, out: &mut [f64; MAX_COEFS]) {
-    let mut k = ((1.0 - tbw * 2.0) * PI / 4.0).tan();
+    let mut k = math::tan((1.0 - tbw * 2.0) * PI / 4.0);
     k *= k;
-    let kksqrt = (1.0 - k * k).powf(0.25);
+    let kksqrt = math::powf(1.0 - k * k, 0.25);
     let e = 0.5 * (1.0 - kksqrt) / (1.0 + kksqrt);
     let e2 = e * e;
     let e4 = e2 * e2;
@@ -186,7 +187,8 @@ fn iir_coefs(n: usize, tbw: f64, out: &mut [f64; MAX_COEFS]) {
         let mut i = 0.0f64;
         let mut sign = 1.0;
         loop {
-            let term = q.powf(i * (i + 1.0)) * ((i * 2.0 + 1.0) * c * PI / order).sin() * sign;
+            let term =
+                math::powf(q, i * (i + 1.0)) * math::sin((i * 2.0 + 1.0) * c * PI / order) * sign;
             num += term;
             sign = -sign;
             i += 1.0;
@@ -198,7 +200,7 @@ fn iir_coefs(n: usize, tbw: f64, out: &mut [f64; MAX_COEFS]) {
         let mut i = 1.0f64;
         let mut sign = -1.0;
         loop {
-            let term = q.powf(i * i) * (i * 2.0 * c * PI / order).cos() * sign;
+            let term = math::powf(q, i * i) * math::cos(i * 2.0 * c * PI / order) * sign;
             den += term;
             sign = -sign;
             i += 1.0;
@@ -206,7 +208,7 @@ fn iir_coefs(n: usize, tbw: f64, out: &mut [f64; MAX_COEFS]) {
                 break;
             }
         }
-        let ww = num * q.powf(0.25) / (den + 0.5);
+        let ww = num * math::powf(q, 0.25) / (den + 0.5);
         let wwsq = ww * ww;
         let x = ((1.0 - wwsq * k) * (1.0 - wwsq / k)).sqrt() / (1.0 + wwsq);
         *o = (1.0 - x) / (1.0 + x);

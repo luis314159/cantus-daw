@@ -7,6 +7,7 @@
 //! and the caller is expected to skip it anyway, so that a project that never touched the
 //! EQ renders exactly as it did before there was one.
 
+use crate::math;
 use std::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -75,9 +76,9 @@ impl Biquad {
         let sr = sample_rate.max(1.0);
         let f = freq_hz.clamp(1.0, sr * 0.49);
         let q = q.clamp(0.05, 20.0);
-        let a = 10f32.powf(gain_db / 40.0);
+        let a = math::powf(10f32, gain_db / 40.0);
         let w0 = 2.0 * PI * f / sr;
-        let (sin, cos) = w0.sin_cos();
+        let (sin, cos) = math::sin_cos(w0);
         let (b0, b1, b2, a0, a1, a2) = match shape {
             BandShape::Peak => {
                 let alpha = sin / (2.0 * q);
@@ -142,8 +143,8 @@ impl Biquad {
     /// The section's magnitude response at `hz`, in dB — what a curve display draws.
     pub fn magnitude_db(&self, sample_rate: f32, hz: f32) -> f32 {
         let w = 2.0 * PI * hz / sample_rate.max(1.0);
-        let (s1, c1) = w.sin_cos();
-        let (s2, c2) = (2.0 * w).sin_cos();
+        let (s1, c1) = math::sin_cos(w);
+        let (s2, c2) = math::sin_cos(2.0 * w);
         // H(z) = (b0 + b1 z⁻¹ + b2 z⁻²) / (1 + a1 z⁻¹ + a2 z⁻²) at z = e^{jw}.
         let nr = self.b0 + self.b1 * c1 + self.b2 * c2;
         let ni = -(self.b1 * s1 + self.b2 * s2);
@@ -151,7 +152,7 @@ impl Biquad {
         let di = -(self.a1 * s1 + self.a2 * s2);
         let num = nr * nr + ni * ni;
         let den = (dr * dr + di * di).max(1e-30);
-        10.0 * (num / den).max(1e-30).log10()
+        10.0 * math::log10((num / den).max(1e-30))
     }
 }
 
@@ -213,14 +214,14 @@ mod tests {
         let n = 48_000;
         let mut acc = 0f64;
         for i in 0..n {
-            let x = (std::f32::consts::TAU * hz * i as f32 / sr).sin();
+            let x = math::sin(std::f32::consts::TAU * hz * i as f32 / sr);
             let y = b.process(x);
             if i > n / 2 {
                 acc += (y * y) as f64;
             }
         }
         let rms = (acc / (n / 2) as f64).sqrt() as f32;
-        20.0 * (rms / (0.5f32).sqrt()).log10()
+        20.0 * math::log10(rms / (0.5f32).sqrt())
     }
 
     #[test]

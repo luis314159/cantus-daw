@@ -19,6 +19,7 @@
 
 use crate::model::AudioSourceId;
 use crate::time::Ticks;
+use cantus_dsp::math;
 use serde::{Deserialize, Serialize};
 
 /// One audio file the project uses. Clips point at it by id, so many clips (the takes of
@@ -82,7 +83,7 @@ impl FadeCurve {
         }
         match self {
             FadeCurve::Linear => x,
-            FadeCurve::EqualPower => (x * std::f32::consts::FRAC_PI_2).sin(),
+            FadeCurve::EqualPower => math::sin(x * std::f32::consts::FRAC_PI_2),
             FadeCurve::Exponential => x * x,
             FadeCurve::Logarithmic => 1.0 - (1.0 - x) * (1.0 - x),
             FadeCurve::SCurve => x * x * (3.0 - 2.0 * x),

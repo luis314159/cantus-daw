@@ -4,6 +4,7 @@
 use super::play::Playhead;
 use super::resample::{mip_chain, MAX_TAPS};
 use super::*;
+use crate::math;
 use std::sync::Arc;
 
 /// A source from interleaved audio, with its mip-maps.
@@ -31,7 +32,7 @@ fn sines(freqs: &[f64], amp: f64, rate: f64, secs: f64) -> Vec<f32> {
         .map(|i| {
             freqs
                 .iter()
-                .map(|f| amp * (std::f64::consts::TAU * f * i as f64 / rate).sin())
+                .map(|f| amp * math::sin(std::f64::consts::TAU * f * i as f64 / rate))
                 .sum::<f64>() as f32
         })
         .collect()
@@ -75,7 +76,7 @@ fn fft(re: &mut [f64], im: &mut [f64]) {
         let ang = -std::f64::consts::TAU / len as f64;
         for start in (0..n).step_by(len) {
             for k in 0..len / 2 {
-                let (s, c) = (ang * k as f64).sin_cos();
+                let (s, c) = math::sin_cos(ang * k as f64);
                 let (a, b) = (start + k, start + k + len / 2);
                 let tr = re[b] * c - im[b] * s;
                 let ti = re[b] * s + im[b] * c;
@@ -112,7 +113,7 @@ pub fn spectrum_db(x: &[f32]) -> Vec<f64> {
     let mut im = vec![0.0; n];
     fft(&mut re, &mut im);
     (0..n / 2)
-        .map(|k| 20.0 * ((re[k].hypot(im[k]) / gain).max(1e-15)).log10())
+        .map(|k| 20.0 * math::log10((math::hypot(re[k], im[k]) / gain).max(1e-15)))
         .collect()
 }
 
@@ -140,13 +141,13 @@ pub fn alias_floor(q: Quality, st: f64) -> (f64, f64) {
     let rate = 44_100.0;
     let freqs = [5_000.0, 10_000.0, 15_000.0, 19_000.0];
     let src = source_of(sines(&freqs, 0.2, rate, 8.0), 1, rate as f32, false);
-    let ratio = rate / 48_000.0 * (st / 12.0).exp2();
+    let ratio = rate / 48_000.0 * math::exp2(st / 12.0);
     let out = read(&src, whole(src.frames), ratio, q, 4_096 + 32_768);
     let x: Vec<f32> = out[4_096..].iter().map(|v| v[0]).collect();
     let spec = spectrum_db(&x);
     let expected: Vec<f64> = freqs
         .iter()
-        .map(|f| f * (st / 12.0).exp2())
+        .map(|f| f * math::exp2(st / 12.0))
         .filter(|f| *f < 24_000.0)
         .collect();
     worst_spur(&spec, &expected, 48_000.0, 12)
@@ -214,7 +215,7 @@ fn pitch_is_right_to_a_hundredth_of_a_cent_across_the_range() {
     // A 1 kHz sine at 48 kHz, played from −24 to +36 semitones.
     let src = source_of(sines(&[1_000.0], 0.5, 48_000.0, 6.0), 1, 48_000.0, false);
     for st in [-24.0f64, -7.0, -0.5, 0.37, 5.0, 12.0, 19.0, 31.0] {
-        let ratio = (st / 12.0).exp2();
+        let ratio = math::exp2(st / 12.0);
         let n = 1 << 15;
         let out = read(&src, whole(src.frames), ratio, Quality::High, 2_048 + n);
         let x: Vec<f32> = out[2_048..].iter().map(|v| v[0]).collect();
@@ -230,7 +231,7 @@ fn pitch_is_right_to_a_hundredth_of_a_cent_across_the_range() {
         let p = 0.5 * (a - c) / (a - 2.0 * b + c);
         let f = (k as f64 + p) * 48_000.0 / n as f64;
         let want = 1_000.0 * ratio;
-        let cents = 1200.0 * (f / want).log2();
+        let cents = 1200.0 * math::log2(f / want);
         assert!(
             cents.abs() < 0.05,
             "{st} st: {f:.3} Hz, {cents:.4} cents off"
@@ -244,11 +245,11 @@ pub fn sine_level_db(x: &[f32]) -> f64 {
     let n = x.len();
     let (mut num, mut den) = (0.0f64, 0.0f64);
     for (i, v) in x.iter().enumerate() {
-        let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
-        num += (w * *v as f64).powi(2);
+        let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+        num += math::powi(w * *v as f64, 2);
         den += w * w;
     }
-    10.0 * (2.0 * num / den).log10()
+    10.0 * math::log10(2.0 * num / den)
 }
 
 #[test]
@@ -257,7 +258,7 @@ fn pitching_down_keeps_the_passband_flat() {
     for st in [-12.0f64, -24.0] {
         for f in [100.0, 2_000.0, 8_000.0, 15_000.0, 17_500.0] {
             let src = source_of(sines(&[f], 0.5, 44_100.0, 4.0), 1, 44_100.0, false);
-            let ratio = 44_100.0 / 48_000.0 * (st / 12.0).exp2();
+            let ratio = 44_100.0 / 48_000.0 * math::exp2(st / 12.0);
             let out = read(
                 &src,
                 whole(src.frames),
@@ -267,7 +268,7 @@ fn pitching_down_keeps_the_passband_flat() {
             );
             let x: Vec<f32> = out[8_192..].iter().map(|v| v[0]).collect();
             let peak = sine_level_db(&x);
-            let want = 20.0 * 0.5f64.log10();
+            let want = 20.0 * math::log10(0.5f64);
             assert!(
                 (peak - want).abs() < 0.1,
                 "{f} Hz at {st} st reads {peak:.3} dBFS, want {want:.3}"

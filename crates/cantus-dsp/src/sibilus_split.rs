@@ -21,6 +21,7 @@
 //! of latency — reported, and compensated by the host.
 
 use super::Processing;
+use crate::math;
 
 /// Taps of the split FIR at a sample rate: about 5.3 ms, always odd.
 pub fn fir_len(sr: f32) -> usize {
@@ -124,7 +125,7 @@ fn add_lowpass(taps: &mut [f32], window: &[f64], fc: f32, sign: f64) {
         if x == 0.0 {
             w
         } else {
-            (PI * w * x).sin() / (PI * x)
+            math::sin(PI * w * x) / (PI * x)
         }
     };
     let sum: f64 = (0..n).map(|k| sinc(k) * window[k]).sum();
@@ -218,7 +219,7 @@ impl Fir {
         let w = 2.0 * std::f64::consts::PI * hz as f64 / sr as f64;
         let mut a = self.taps[c] as f64;
         for j in 1..=c {
-            a += 2.0 * self.taps[c - j] as f64 * (w * j as f64).cos();
+            a += 2.0 * self.taps[c - j] as f64 * math::cos(w * j as f64);
         }
         a as f32
     }

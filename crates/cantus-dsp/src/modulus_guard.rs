@@ -12,6 +12,7 @@
 //! bandwidth under `(N − ½)·fs·0.9`.
 
 use super::{target, Patch, GUARD_TAME, OPS, OUT_OFF, QUALITY_AUTO};
+use crate::math;
 
 /// What the audio loop needs to know about the patch's topology, worked out when the patch
 /// changes, never per sample.
@@ -128,7 +129,7 @@ fn estimate(
                 // A back edge's source is not worked out yet: its own frequency stands in.
                 let fm = if s > t { b[s] } else { hz[s].abs() };
                 carson += (i + 1.0) * fm;
-                wide += (i + 2.5 * i.cbrt() + 2.0) * fm;
+                wide += (i + 2.5 * math::cbrt(i) + 2.0) * fm;
             }
         }
         let beta = (p.ops[t].fb.abs() + g.extra_fb[t]) * scale * peak[t];
@@ -160,7 +161,7 @@ pub fn limit(n: usize, fs: f32) -> f32 {
 }
 
 pub fn decide(p: &Patch, g: &Graph, hz: &[f32; OPS], peak: &[f32; OPS], fs: f32) -> Decision {
-    let bright = (2.0 * (p.bright + g.extra_bright).clamp(-1.0, 1.0)).exp2();
+    let bright = math::exp2(2.0 * (p.bright + g.extra_bright).clamp(-1.0, 1.0));
     let b = guard_bandwidth(p, g, hz, peak, bright);
     let factor = match super::fixed_factor(p.quality) {
         Some(f) => f,

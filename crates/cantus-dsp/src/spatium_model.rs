@@ -32,6 +32,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::aequalis::{design, Coefs, MAX_SECTIONS};
+use crate::math;
 use crate::EqShape;
 
 pub const MODELS: usize = 12;
@@ -324,7 +325,7 @@ pub const ER_SIZE_MAX: f32 = 2.0;
 pub const MAX_PREDELAY_MS: f32 = 500.0;
 
 fn geo(a: f32, b: f32, t: f32) -> f32 {
-    (a.max(1e-6).ln() * (1.0 - t) + b.max(1e-6).ln() * t).exp()
+    math::exp(math::ln(a.max(1e-6)) * (1.0 - t) + math::ln(b.max(1e-6)) * t)
 }
 
 fn lin(a: f32, b: f32, t: f32) -> f32 {
@@ -369,7 +370,7 @@ pub fn natural_decay(space: f32) -> f32 {
 
 /// A smooth step in log-frequency: 0 well below `corner`, 1 well above.
 fn above(hz: f32, corner: f32) -> f32 {
-    let r = (hz / corner).powi(2);
+    let r = math::powi(hz / corner, 2);
     r / (1.0 + r)
 }
 
@@ -453,9 +454,9 @@ pub fn room_shape(room: &Room, style: Style, hz: f32) -> f32 {
     let bass = (room.bass * st.bass).max(0.05);
     let air = (room.air * st.air).max(0.05);
     // Normalise so the multiplier is exactly 1 at 1 kHz.
-    let lb = |f: f32| bass.log2() * (1.0 - above(f, 220.0));
-    let la = |f: f32| air.log2() * above(f, 5_500.0) * 1.35;
-    ((lb(hz) + la(hz)) - (lb(1_000.0) + la(1_000.0))).exp2()
+    let lb = |f: f32| math::log2(bass) * (1.0 - above(f, 220.0));
+    let la = |f: f32| math::log2(air) * above(f, 5_500.0) * 1.35;
+    math::exp2((lb(hz) + la(hz)) - (lb(1_000.0) + la(1_000.0)))
 }
 
 /// Brightness as an RT60 multiplier at `hz`: 0.5 is neutral, 0 shortens the top to a
@@ -468,7 +469,7 @@ pub fn brightness_mult(bright: f32, hz: f32) -> f32 {
         (b - 0.5) * 1.36
     };
     let w = |f: f32| above(f, 3_000.0);
-    (top * (w(hz) - w(1_000.0))).exp2()
+    math::exp2(top * (w(hz) - w(1_000.0)))
 }
 
 /// Brightness also tilts the tone of the wet signal: ±3 dB of high shelf at 4 kHz.
@@ -507,7 +508,7 @@ impl TargetCurve {
             if !b.active {
                 continue;
             }
-            let gain = 20.0 * b.mult.clamp(0.05, 20.0).log10();
+            let gain = 20.0 * math::log10(b.mult.clamp(0.05, 20.0));
             let mut c = [Coefs::IDENTITY; MAX_SECTIONS];
             let n = design(
                 b.shape.eq_shape(),
@@ -547,7 +548,7 @@ impl TargetCurve {
             })
             .sum();
         // Clamp far notches before the exponent: the curve's floor is MIN_T60 anyway.
-        10f32.powf(db.clamp(-120.0, 60.0) / 20.0)
+        math::powf(10f32, db.clamp(-120.0, 60.0) / 20.0)
     }
 
     /// One band's multiplier alone at `hz`.
@@ -557,7 +558,7 @@ impl TargetCurve {
             return 1.0;
         }
         let db: f32 = c[..*n].iter().map(|s| s.magnitude_db(CURVE_SR, hz)).sum();
-        10f32.powf(db.clamp(-120.0, 60.0) / 20.0)
+        math::powf(10f32, db.clamp(-120.0, 60.0) / 20.0)
     }
 
     /// RT60 at `hz` before the decay curve: the decay, the room and the brightness.
@@ -618,10 +619,10 @@ pub fn er_pattern(room: &Room, style: Style, size: f32, character: f32) -> ErPat
             let seed = (k as u32) * 2 + side as u32;
             let u = ((k as f32 + 0.5 + jitter * (hash01(seed, 11) - 0.5)) / count as f32)
                 .clamp(0.0, 1.0);
-            let t = start + (end - start) * u.powf(0.8);
+            let t = start + (end - start) * math::powf(u, 0.8);
             let fall = room.er_fall_db * (t - start) / (end - start).max(1e-3);
             let spread = (hash01(seed, 23) - 0.5) * 4.0 * (0.5 + character.clamp(0.0, 1.0));
-            let mut g = 10f32.powf(-(fall + spread) / 20.0);
+            let mut g = math::powf(10f32, -(fall + spread) / 20.0);
             // The first two arrive in phase, as off the nearest walls; after that the
             // signs scatter, so the pattern does not comb-filter the source.
             if k >= 2 && hash01(seed, 37) < 0.45 {

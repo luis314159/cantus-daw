@@ -18,6 +18,8 @@
 //! Stored sparse, like every native instrument: a fresh patch is operator A alone, a sine
 //! at the output. Keys are forever once shipped.
 
+use cantus_dsp::math;
+
 #[path = "fm_algorithms.rs"]
 mod algorithms;
 pub use algorithms::{dx_algorithm_of, DxAlgorithm, DX_ALGORITHMS};
@@ -893,7 +895,7 @@ pub fn is_asset_key(key: &str) -> bool {
 /// The output level each of `n` carriers gets in a template: their powers add up to one
 /// carrier at 0 dB, so an algorithm change keeps the loudness and the headroom.
 pub fn carrier_db(n: usize) -> f32 {
-    (-100.0 * (n.max(1) as f32).log10()).round() / 10.0
+    (-100.0 * math::log10(n.max(1) as f32)).round() / 10.0
 }
 
 /// The whole topology a DX7 algorithm stands for, as `(key, value)`: every matrix cell,

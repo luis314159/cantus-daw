@@ -10,6 +10,7 @@ use super::{Assets, Controller, InstrumentUnit, NoteExpression, NoteOn, Telemetr
 use cantus_core::inst::fm::{self as model, OPS};
 use cantus_core::inst::modulation::{connections, MACRO_KEYS};
 use cantus_core::NativeSpec;
+use cantus_dsp::math;
 use cantus_dsp::modmatrix::{ModCurve, ModRoute};
 use cantus_dsp::modulus::{source, target, Modulus, OpSettings, Patch};
 use cantus_dsp::voices::{PlayMode, Priority};
@@ -132,7 +133,7 @@ pub fn source_index(tag: &str) -> Option<usize> {
 pub fn target_of(key: &str) -> Option<(usize, f32)> {
     let info = model::param(key)?;
     let scale = if info.logarithmic {
-        (info.max / info.min).log2()
+        math::log2(info.max / info.min)
     } else {
         info.max - info.min
     };

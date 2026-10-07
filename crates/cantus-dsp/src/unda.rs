@@ -13,6 +13,8 @@
 //! the random detune law, S&H and noise) is a hash of the patch seed, the note's id and
 //! key and what it is for — never of a global counter or the clock.
 
+use crate::math;
+
 #[path = "unda_decim.rs"]
 pub mod decim;
 #[path = "unda_factory.rs"]
@@ -122,7 +124,7 @@ impl Range {
     #[inline]
     pub fn apply(&self, base: f32, offset: f32) -> f32 {
         let v = if self.log && self.min > 0.0 {
-            base * (self.max / self.min).powf(offset)
+            base * math::powf(self.max / self.min, offset)
         } else {
             base + offset * (self.max - self.min)
         };

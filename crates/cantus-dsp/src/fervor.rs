@@ -38,6 +38,7 @@
 //! filter, no crush, 1×). States below 10⁻²⁰ are flushed: silence stays silent.
 
 use crate::aequalis::{design, Coefs, EqShape, MAX_SECTIONS};
+use crate::math;
 
 /// The oversamplers.
 #[path = "fervor_os.rs"]
@@ -387,11 +388,11 @@ fn glide_hz(v: &mut f32, target: f32, alpha: f32) -> bool {
     if *v == target {
         return false;
     }
-    let r = (target / v.max(1.0)).log2();
+    let r = math::log2(target / v.max(1.0));
     if r.abs() <= 1e-3 {
         *v = target;
     } else {
-        *v *= (r * alpha).exp2();
+        *v *= math::exp2(r * alpha);
     }
     true
 }
@@ -463,7 +464,7 @@ impl Fervor {
             factor: 1,
             minimum: false,
             latency: 0,
-            alpha: 1.0 - (-(UPDATE as f32) / (GLIDE_MS * 0.001 * sr)).exp(),
+            alpha: 1.0 - math::exp(-(UPDATE as f32) / (GLIDE_MS * 0.001 * sr)),
             shaper: Shaper::WIRE,
             old: Shaper::WIRE,
             fade: 0,
@@ -600,7 +601,7 @@ impl Fervor {
         };
         (
             wet,
-            10f32.powf(self.live.out_db / 20.0),
+            math::powf(10f32, self.live.out_db / 20.0),
             self.live.mix.clamp(0.0, 1.0),
         )
     }
@@ -793,7 +794,7 @@ impl Fervor {
             hi: hi_on(self.live.hi_hz),
             tone: self.live.tone_db != 0.0,
             emph: emphasis(self.model, self.live.ch).is_some(),
-            bits: bits_on(self.target.bits).then(|| (1.0 - self.target.bits.max(1.0)).exp2()),
+            bits: bits_on(self.target.bits).then(|| math::exp2(1.0 - self.target.bits.max(1.0))),
             hold: rate,
             take,
             dc_r: self.dc_r,
@@ -826,7 +827,13 @@ impl Fervor {
     /// What the editor reads, refreshed after every block (layout: [`telemetry`]).
     pub fn write_telemetry(&self, t: &mut [f32; 64]) {
         use telemetry::*;
-        let db = |v: f32| if v > 1e-9 { 20.0 * v.log10() } else { -120.0 };
+        let db = |v: f32| {
+            if v > 1e-9 {
+                20.0 * math::log10(v)
+            } else {
+                -120.0
+            }
+        };
         let rms = |sq: f64, n: usize| {
             if n == 0 {
                 -120.0

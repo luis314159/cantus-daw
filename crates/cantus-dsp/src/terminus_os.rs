@@ -17,6 +17,8 @@
 //! near-Nyquist peak that a plain 4× meter under-reads by up to 0.7 dB.
 
 /// The oversampling factor.
+use crate::math;
+
 pub const FACTOR: usize = 4;
 /// Half the prototype's length, in base-rate samples.
 pub const HALF: usize = 16;
@@ -71,7 +73,7 @@ pub fn prototype() -> [f64; LEN] {
             continue;
         }
         let t = m / FACTOR as f64;
-        let sinc = (std::f64::consts::PI * t).sin() / (std::f64::consts::PI * t);
+        let sinc = math::sin(std::f64::consts::PI * t) / (std::f64::consts::PI * t);
         let r = m / c as f64;
         let w = bessel_i0(BETA * (1.0 - r * r).max(0.0).sqrt()) / norm;
         *tap = sinc * w;
@@ -95,7 +97,7 @@ pub fn lowpass(cutoff: f64, beta: f64) -> [f64; LEN] {
         let sinc = if m == 0.0 {
             1.0
         } else {
-            (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
+            math::sin(std::f64::consts::PI * x) / (std::f64::consts::PI * x)
         };
         let r = m / c as f64;
         let w = bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / norm;
@@ -390,7 +392,7 @@ pub fn reference_true_peak(x: &[f32], near_db: f32) -> f32 {
         }
     }
     let loudest = level.iter().fold(0f32, |m, v| m.max(*v));
-    let floor = loudest * 10f32.powf(-near_db / 20.0);
+    let floor = loudest * math::powf(10f32, -near_db / 20.0);
     // The kernel at every offset t = j − k/R, tabulated once.
     let mut table = vec![0f64; R * W];
     for k in 0..R {
@@ -399,7 +401,7 @@ pub fn reference_true_peak(x: &[f32], near_db: f32) -> f32 {
             let sinc = if t.abs() < 1e-12 {
                 1.0
             } else {
-                (std::f64::consts::PI * t).sin() / (std::f64::consts::PI * t)
+                math::sin(std::f64::consts::PI * t) / (std::f64::consts::PI * t)
             };
             let r = t / (SIDE as f64 + 1.0);
             let w = if r.abs() >= 1.0 {
@@ -459,10 +461,10 @@ pub(crate) mod tests {
             let w = 2.0 * PI * f_base / FACTOR as f64;
             let (mut re, mut im) = (0.0, 0.0);
             for (k, t) in h.iter().enumerate() {
-                re += t * (w * k as f64).cos();
-                im -= t * (w * k as f64).sin();
+                re += t * math::cos(w * k as f64);
+                im -= t * math::sin(w * k as f64);
             }
-            ((re * re + im * im).sqrt() / FACTOR as f64).log10() * 20.0
+            math::log10((re * re + im * im).sqrt() / FACTOR as f64) * 20.0
         };
         let mut worst_pass = 0f64;
         for i in 0..=440 {
@@ -488,7 +490,7 @@ pub(crate) mod tests {
             for ph in 0..7 {
                 let phase = ph as f64 * 0.37;
                 let x: Vec<f32> = (0..4000)
-                    .map(|n| (0.5 * (2.0 * PI * f * n as f64 / fs + phase).sin()) as f32)
+                    .map(|n| (0.5 * math::sin(2.0 * PI * f * n as f64 / fs + phase)) as f32)
                     .collect();
                 // Skip the start: the filter needs its history.
                 let mut tp = TruePeak::new();
@@ -499,7 +501,7 @@ pub(crate) mod tests {
                         m = m.max(l);
                     }
                 }
-                let err = 20.0 * (m as f64 / 0.5).log10();
+                let err = 20.0 * math::log10(m as f64 / 0.5);
                 worst_lo = worst_lo.min(err);
                 worst_hi = worst_hi.max(err);
             }
@@ -516,7 +518,7 @@ pub(crate) mod tests {
     pub(crate) fn faded(mut x: Vec<f32>, len: usize) -> Vec<f32> {
         let n = x.len();
         for i in 0..len.min(n / 2) {
-            let g = (0.5 - 0.5 * (PI * i as f64 / len as f64).cos()) as f32;
+            let g = (0.5 - 0.5 * math::cos(PI * i as f64 / len as f64)) as f32;
             x[i] *= g;
             x[n - 1 - i] *= g;
         }
@@ -528,16 +530,16 @@ pub(crate) mod tests {
     #[test]
     fn the_quarter_rate_sine_at_45_degrees_reads_3_db_over_its_samples() {
         let x: Vec<f32> = (0..4000)
-            .map(|n| (PI / 2.0 * n as f64 + PI / 4.0).sin() as f32)
+            .map(|n| math::sin(PI / 2.0 * n as f64 + PI / 4.0) as f32)
             .collect();
         let x = faded(x, 800);
         let sample_peak = x.iter().fold(0f32, |m, v| m.max(v.abs()));
-        assert!((20.0 * sample_peak.log10() + 3.0103).abs() < 0.001);
+        assert!((20.0 * math::log10(sample_peak) + 3.0103).abs() < 0.001);
         let tp = true_peak_of(&x);
         assert!(
-            (20.0 * tp.log10()).abs() < 0.01,
+            (20.0 * math::log10(tp)).abs() < 0.01,
             "read {}",
-            20.0 * tp.log10()
+            20.0 * math::log10(tp)
         );
     }
 
@@ -547,7 +549,7 @@ pub(crate) mod tests {
         let mut de = Decim::new();
         let fs = 48_000.0;
         let x: Vec<f32> = (0..3000)
-            .map(|n| (0.4 * (2.0 * PI * 3_000.0 * n as f64 / fs).sin()) as f32)
+            .map(|n| (0.4 * math::sin(2.0 * PI * 3_000.0 * n as f64 / fs)) as f32)
             .collect();
         let mut worst = 0f32;
         for (n, &v) in x.iter().enumerate() {

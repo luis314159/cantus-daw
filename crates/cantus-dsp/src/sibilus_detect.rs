@@ -21,6 +21,7 @@
 //! stream, so it does not depend on the block size.
 
 use crate::aequalis::{design, Coefs, EqShape, MAX_SECTIONS};
+use crate::math;
 
 /// Sub-bands the flatness is measured over.
 pub const SUB_BANDS: usize = 6;
@@ -118,15 +119,15 @@ fn ramp(v: f32, lo: f32, hi: f32) -> f32 {
 /// documentation check. `sensitivity` is 0 … 1, 0.5 is the middle.
 pub fn classify(full: f32, band: f32, sub: &[f32; SUB_BANDS], sensitivity: f32) -> Features {
     let share_db = if full > 1e-24 && band > 1e-24 {
-        (10.0 * (band / full).log10()).min(0.0)
+        (10.0 * math::log10(band / full)).min(0.0)
     } else {
         -120.0
     };
     let mean = sub.iter().sum::<f32>() / SUB_BANDS as f32;
     let flatness = if mean > 1e-24 {
         let floor = mean * FLAT_FLOOR;
-        let log_mean = sub.iter().map(|e| e.max(floor).ln()).sum::<f32>() / SUB_BANDS as f32;
-        (log_mean.exp() / mean).clamp(0.0, 1.0)
+        let log_mean = sub.iter().map(|e| math::ln(e.max(floor))).sum::<f32>() / SUB_BANDS as f32;
+        (math::exp(log_mean) / mean).clamp(0.0, 1.0)
     } else {
         0.0
     };
@@ -189,14 +190,14 @@ impl BandDesign {
         // neighbours at −3 dB: |H|² = 1 / (1 + Q²(u − 1/u)²) raised to SUB_ORDER is ½
         // at the edge u.
         let centre = (lo * hi).sqrt();
-        let span = (hi / lo).log2().max(MIN_FLAT_SPAN);
+        let span = math::log2(hi / lo).max(MIN_FLAT_SPAN);
         let bw = span / SUB_BANDS as f32;
-        let u = 2f32.powf(bw * 0.5);
-        let at_edge = 0.5f32.powf(1.0 / SUB_ORDER as f32);
+        let u = math::powf(2f32, bw * 0.5);
+        let at_edge = math::powf(0.5f32, 1.0 / SUB_ORDER as f32);
         let q = (1.0 / at_edge - 1.0).sqrt() / (u - 1.0 / u);
         let mut sub = [Coefs::IDENTITY; SUB_BANDS];
         for (k, s) in sub.iter_mut().enumerate() {
-            let f = centre * 2f32.powf(bw * (k as f32 + 0.5) - span * 0.5);
+            let f = centre * math::powf(2f32, bw * (k as f32 + 0.5) - span * 0.5);
             design(EqShape::BandPass, sr, f, 0.0, q, 12.0, &mut c);
             *s = c[0];
         }
@@ -231,11 +232,11 @@ pub(super) struct Coefs2 {
 
 impl Coefs2 {
     pub fn new(sr: f32) -> Self {
-        let k = |ms: f32| (-1.0 / (ms * 0.001 * sr)).exp();
+        let k = |ms: f32| math::exp(-1.0 / (ms * 0.001 * sr));
         Coefs2 {
             feature: k(FEATURE_MS),
             level: k(LEVEL_MS),
-            dc: (-2.0 * std::f32::consts::PI * 30.0 / sr).exp(),
+            dc: math::exp(-2.0 * std::f32::consts::PI * 30.0 / sr),
         }
     }
 }

@@ -38,6 +38,8 @@
 //! - Lookahead delays the audio by the largest lookahead of any band ([`Multiplex::latency`])
 //!   and each band's gain by the difference, so each band looks ahead by its own amount.
 
+use crate::math;
+
 #[path = "multiplex_filters.rs"]
 pub mod filters;
 #[path = "multiplex_linear.rs"]
@@ -301,7 +303,7 @@ fn soft(over: f32, knee: f32) -> f32 {
     } else if over >= knee * 0.5 {
         over
     } else {
-        (over + knee * 0.5).powi(2) / (2.0 * knee)
+        math::powi(over + knee * 0.5, 2) / (2.0 * knee)
     }
 }
 
@@ -352,7 +354,7 @@ pub fn response_part_db(
     let lin = |pos: usize, h: usize| -> f64 {
         let b = &s.bands[lay.order[pos]];
         if b.placement.applies(h) {
-            10f64.powf(band_db[lay.order[pos]] as f64 / 20.0)
+            math::powf(10f64, band_db[lay.order[pos]] as f64 / 20.0)
         } else {
             1.0
         }
@@ -403,7 +405,7 @@ pub fn response_part_db(
             acc
         }
     };
-    (20.0 * h.abs().max(1e-9).log10()) as f32
+    (20.0 * math::log10(h.abs().max(1e-9))) as f32
 }
 
 /// What the display reads: the band gains and levels, and the meters — each the extreme of
@@ -726,7 +728,7 @@ impl Multiplex {
                 live.b.knee_db = keep.knee_db;
                 live.b.gain_db = keep.gain_db;
             }
-            let coef = |ms: f32| (-1.0 / (ms.max(0.01) * 0.001 * self.sr)).exp();
+            let coef = |ms: f32| math::exp(-1.0 / (ms.max(0.01) * 0.001 * self.sr));
             live.att = coef(t.attack_ms);
             live.rel = coef(t.release_ms);
             // While a section glides toward 1:1 it still moves; it stops once it lands.
@@ -1486,7 +1488,7 @@ fn glide(cur: &mut f32, target: f32, log: bool) -> bool {
         return false;
     }
     let next = if log && *cur > 0.0 && target > 0.0 {
-        (cur.ln() + (target.ln() - cur.ln()) * GLIDE).exp()
+        math::exp(math::ln(*cur) + (math::ln(target) - math::ln(*cur)) * GLIDE)
     } else {
         *cur + (target - *cur) * GLIDE
     };
@@ -1505,14 +1507,14 @@ fn db_to_lin(db: f32) -> f32 {
     } else {
         // 10^(dB/20) as one exp: cheaper than powf, and the same to the last bits that
         // matter here.
-        (db * (std::f32::consts::LN_10 / 20.0)).exp()
+        math::exp(db * (std::f32::consts::LN_10 / 20.0))
     }
 }
 
 #[inline]
 fn lin_to_db(x: f32) -> f32 {
     if x > 1e-9 {
-        (x.ln() * (20.0 / std::f32::consts::LN_10)).max(FLOOR_DB)
+        (math::ln(x) * (20.0 / std::f32::consts::LN_10)).max(FLOOR_DB)
     } else {
         FLOOR_DB
     }
@@ -1538,7 +1540,7 @@ mod tests {
 
     fn sine(n: usize, hz: f32, amp: f32) -> Vec<f32> {
         (0..n)
-            .map(|i| amp * (std::f32::consts::TAU * hz * i as f32 / SR).sin())
+            .map(|i| amp * math::sin(std::f32::consts::TAU * hz * i as f32 / SR))
             .collect()
     }
 
@@ -1593,7 +1595,7 @@ mod tests {
 
     fn rms_db(x: &[f32]) -> f32 {
         let ms = x.iter().map(|v| v * v).sum::<f32>() / x.len() as f32;
-        10.0 * ms.max(1e-30).log10()
+        10.0 * math::log10(ms.max(1e-30))
     }
 
     fn peak(x: &[f32]) -> f32 {
@@ -1663,15 +1665,15 @@ mod tests {
             let mut worst = 0.0f32;
             let mut at = 0.0f32;
             for i in 0..160 {
-                let hz = 20.0 * 1_000f64.powf(i as f64 / 159.0);
+                let hz = 20.0 * math::powf(1_000f64, i as f64 / 159.0);
                 let w = std::f64::consts::TAU * hz / SR as f64;
                 let (mut re, mut im) = (0.0f64, 0.0f64);
                 for (t, v) in l.iter().enumerate() {
-                    let (sn, cs) = (w * t as f64).sin_cos();
+                    let (sn, cs) = math::sin_cos(w * t as f64);
                     re += *v as f64 * 1e3 * cs;
                     im -= *v as f64 * 1e3 * sn;
                 }
-                let db = (10.0 * (re * re + im * im).log10()) as f32;
+                let db = (10.0 * math::log10(re * re + im * im)) as f32;
                 if db.abs() > worst {
                     worst = db.abs();
                     at = hz as f32;
@@ -1873,7 +1875,7 @@ mod tests {
                 });
                 let x = sine(48_000, 1_000.0, amp);
                 let (l, _) = run(&s, &x, &x, 256);
-                let got = 20.0 * (peak(&l[36_000..]) / peak(&x[36_000..])).log10();
+                let got = 20.0 * math::log10(peak(&l[36_000..]) / peak(&x[36_000..]));
                 assert!(
                     (got - want).abs() < 0.3,
                     "{name} {mode:?}: {got:.2} dB, the curve says {want}"
@@ -1896,9 +1898,9 @@ mod tests {
         let attack = (5.0 * 0.001 * SR) as usize;
         let (mut l, mut r) = (vec![1.0f32; attack], vec![1.0f32; attack]);
         m.process(&mut l, &mut r, None);
-        let risen = 10f32.powf(m.levels_now_db()[0] / 20.0);
+        let risen = math::powf(10f32, m.levels_now_db()[0] / 20.0);
         assert!(
-            (risen - (1.0 - (-1.0f32).exp())).abs() < 0.01,
+            (risen - (1.0 - math::exp(-1.0f32))).abs() < 0.01,
             "attack: {risen}"
         );
         let (mut l, mut r) = (vec![1.0f32; 48_000], vec![1.0f32; 48_000]);
@@ -1938,7 +1940,7 @@ mod tests {
         });
         let mut x = sine(9_600, 200.0, 0.01);
         for (i, v) in x.iter_mut().enumerate().skip(4_800) {
-            *v = 0.9 * (std::f32::consts::TAU * 200.0 * i as f32 / SR).sin();
+            *v = 0.9 * math::sin(std::f32::consts::TAU * 200.0 * i as f32 / SR);
         }
         let (l, _) = run(&s, &x, &x, 128);
         let onset = 4_800 + 240;

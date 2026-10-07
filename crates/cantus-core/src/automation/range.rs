@@ -3,6 +3,7 @@
 
 use super::AutoTarget;
 use crate::model::{Project, MAX_GAIN_DB, MAX_WIDTH, MIN_GAIN_DB};
+use cantus_dsp::math;
 
 /// How a control maps its travel onto its range.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -108,7 +109,7 @@ impl AutoRange {
         };
         let v = match self.taper {
             Taper::Linear => self.min + (self.max - self.min) * p,
-            Taper::Log => self.min * (self.max / self.min).powf(p),
+            Taper::Log => self.min * math::powf(self.max / self.min, p),
             Taper::Fader => fader_db_at(p),
         };
         if self.stepped {
@@ -128,7 +129,7 @@ impl AutoRange {
         };
         match self.taper {
             Taper::Linear => (v - self.min) / (self.max - self.min).abs().max(1e-12),
-            Taper::Log => (v / self.min).ln() / (self.max / self.min).ln(),
+            Taper::Log => math::ln(v / self.min) / math::ln(self.max / self.min),
             Taper::Fader => fader_pos_of(v),
         }
         .clamp(0.0, 1.0)

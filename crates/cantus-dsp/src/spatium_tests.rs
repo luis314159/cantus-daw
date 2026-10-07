@@ -3,6 +3,7 @@
 
 use super::model::{DecayShape, ER_OFF_DB};
 use super::*;
+use crate::math;
 use crate::nulltest::assert_null;
 use crate::spatium::measure::{
     band_t60_averaged, correlation, echo_density, expected_band_t60, max_autocorrelation,
@@ -46,8 +47,8 @@ fn program(n: usize) -> (Vec<f32>, Vec<f32>) {
         let on = (i / 9_000) % 3 != 2;
         let t = i as f32 / FS;
         if on {
-            l[i] = 0.4 * noise(&mut seed) + 0.3 * (t * 440.0 * std::f32::consts::TAU).sin();
-            r[i] = 0.4 * noise(&mut seed) + 0.2 * (t * 330.0 * std::f32::consts::TAU).sin();
+            l[i] = 0.4 * noise(&mut seed) + 0.3 * math::sin(t * 440.0 * std::f32::consts::TAU);
+            r[i] = 0.4 * noise(&mut seed) + 0.2 * math::sin(t * 330.0 * std::f32::consts::TAU);
         }
     }
     (l, r)
@@ -294,7 +295,7 @@ fn the_tail_is_dense_and_does_not_repeat() {
         let flat: Vec<f32> = tail
             .iter()
             .enumerate()
-            .map(|(i, x)| x * 10f32.powf(3.0 * i as f32 / (FS * t60)))
+            .map(|(i, x)| x * math::powf(10f32, 3.0 * i as f32 / (FS * t60)))
             .collect();
         let ned = echo_density(&flat, FS, 20.0);
         let min_ned = ned.iter().copied().fold(f32::MAX, f32::min);
@@ -358,7 +359,7 @@ fn freeze_holds_the_tail_and_shuts_the_door() {
     let rms = |x: &[f32]| (x.iter().map(|v| v * v).sum::<f32>() / x.len() as f32).sqrt();
     let early = rms(&frozen[48_000..96_000]);
     let late = rms(&frozen[240_000..288_000]);
-    let drop = 20.0 * (late / early).log10();
+    let drop = 20.0 * math::log10(late / early);
     eprintln!("frozen level after 5 s: {drop:+.2} dB");
     assert!(drop.abs() < 1.0, "{drop} dB");
     // Input after freezing changes nothing that the reverb holds.
@@ -405,13 +406,13 @@ fn ducking_follows_the_key() {
     let open = level(&mut v, 0.0);
     let ducked = level(&mut v, 1.0);
     let back = level(&mut v, 0.0);
-    let depth = 20.0 * (ducked / open).log10();
+    let depth = 20.0 * math::log10(ducked / open);
     eprintln!(
         "ducked by {depth:.2} dB (range 12), meter {:.2}",
         v.meter().duck_db
     );
     assert!((depth + 12.0).abs() < 1.0, "{depth}");
-    assert!((20.0 * (back / open).log10()).abs() < 1.0);
+    assert!((20.0 * math::log10(back / open)).abs() < 1.0);
 }
 
 /// The late field's level: steady pink noise (music's long-term slope) at a 2 s decay comes
@@ -439,7 +440,7 @@ fn the_wet_level_is_calibrated() {
         let tail = &l[4 * 48_000..];
         let out = (tail.iter().map(|x| x * x).sum::<f32>() / tail.len() as f32).sqrt();
         // The late field sits `late_level_db` from its unit by design (distance).
-        let db = 20.0 * (out / inp).log10() - super::model::late_level_db(s.distance);
+        let db = 20.0 * math::log10(out / inp) - super::model::late_level_db(s.distance);
         eprintln!("{style:?}: wet {db:+.2} dB from its unit");
         levels.push((style, db));
     }

@@ -25,6 +25,7 @@
 //! the test measures it. The 6 dB/oct "pair" is a one-pole low-pass and its complement
 //! `x − LP`, which sums to the input itself.
 
+use crate::math;
 use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
 /// Crossover slope. The split is a Linkwitz–Riley pair of the matching order (the 6 dB
@@ -96,7 +97,7 @@ impl Slope {
 #[inline]
 pub fn warp(hz: f32, sample_rate: f32) -> f32 {
     let f = hz.clamp(1.0, sample_rate * 0.49);
-    (PI * f / sample_rate).tan()
+    math::tan(PI * f / sample_rate)
 }
 
 /// Coefficients of one state-variable section.
@@ -367,7 +368,7 @@ pub fn shelf_params(slope: Slope, crossover_hz: f32, r: f32, sample_rate: f32) -
     }
     let n = slope.shelf_order() as f32;
     let r = r.clamp(1e-6, 1e6);
-    let rho = r.powf(1.0 / n);
+    let rho = math::powf(r, 1.0 / n);
     (warp(crossover_hz * rho.sqrt(), sample_rate), rho)
 }
 
@@ -491,7 +492,7 @@ mod tests {
         for slope in Slope::ALL {
             let c = XoverCoefs::new(slope, 1_000.0, sr);
             let (lp, hp, ap) = xover_response(&c, 1_000.0, sr);
-            let db = |z: C| 20.0 * z.abs().log10();
+            let db = |z: C| 20.0 * math::log10(z.abs());
             // Linkwitz–Riley halves are −6 dB at the crossover; the one-pole pair −3 dB.
             let want = if slope == Slope::S6 { -3.01 } else { -6.02 };
             assert!((db(lp) - want).abs() < 0.01, "{slope:?} low {}", db(lp));

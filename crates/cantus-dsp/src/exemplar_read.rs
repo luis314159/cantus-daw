@@ -2,6 +2,7 @@
 //! and the half-band decimator. The hot path of the sampler.
 
 use super::*;
+use crate::math;
 use std::f32::consts::FRAC_PI_2;
 
 /// Eight lanes over contiguous slices: what the compiler turns into vector code.
@@ -78,7 +79,7 @@ impl Playhead {
         if on && l.xf > 0 && b > l.le - l.xf {
             let g = (b - (l.le - l.xf)) as f32 / l.xf as f32;
             let (wa, wb) = if self.region.xf_power {
-                ((g * FRAC_PI_2).cos(), (g * FRAC_PI_2).sin())
+                (math::cos(g * FRAC_PI_2), math::sin(g * FRAC_PI_2))
             } else {
                 (1.0 - g, g)
             };

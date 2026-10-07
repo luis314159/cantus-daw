@@ -2,6 +2,7 @@
 //! and the responses the displays draw — from the same filters the audio runs.
 
 use super::*;
+use crate::math;
 use crate::multiplex::filters::{shelf_params, shelf_response, xover_response, C};
 
 /// The telemetry's layout (64 numbers, refreshed after every block).
@@ -93,13 +94,13 @@ fn side_db(a: &[f32; 3]) -> f32 {
     if mm <= 1e-15 {
         return 40.0;
     }
-    ((10.0 * (ss / mm).log10()) as f32).clamp(SIDE_FLOOR_DB, 40.0)
+    ((10.0 * math::log10(ss / mm)) as f32).clamp(SIDE_FLOOR_DB, 40.0)
 }
 
 fn level_db(a: &[f32; 3]) -> f32 {
     let p = (a[0] as f64 + a[1] as f64) * 0.5;
     if p > 1e-14 {
-        (10.0 * p.log10()) as f32
+        (10.0 * math::log10(p)) as f32
     } else {
         -140.0
     }
@@ -107,7 +108,7 @@ fn level_db(a: &[f32; 3]) -> f32 {
 
 fn peak_db(v: f32) -> f32 {
     if v > 1e-7 {
-        20.0 * v.log10()
+        20.0 * math::log10(v)
     } else {
         -140.0
     }
@@ -222,6 +223,6 @@ pub fn tone_db(s: &StereoSettings, sample_rate: f32, hz: f32) -> (f32, f32) {
         sample_rate,
         hz,
     ));
-    let db = |c: C| (20.0 * c.abs().max(1e-12).log10()) as f32;
+    let db = |c: C| (20.0 * math::log10(c.abs().max(1e-12))) as f32;
     (db(m), db(sd))
 }

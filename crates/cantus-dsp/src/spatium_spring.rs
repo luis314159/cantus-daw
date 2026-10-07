@@ -20,6 +20,7 @@
 // index; that reads clearer than zipping five iterators.
 #![allow(clippy::needless_range_loop)]
 
+use crate::math;
 use crate::spatium::fdn::{glide, Absorber, Section, GRID, MAX_PASS_DB, SECTIONS};
 use crate::spatium::model::TargetCurve;
 
@@ -37,7 +38,7 @@ const RATIOS: [f32; SPRINGS] = [1.0, 1.23, 1.41];
 /// Group delay of one stretched all-pass section at `w` (rad/sample), samples.
 fn chirp_delay(a: f64, k: usize, w: f64) -> f64 {
     let kw = k as f64 * w;
-    k as f64 * (1.0 - a * a) / (1.0 + 2.0 * a * kw.cos() + a * a)
+    k as f64 * (1.0 - a * a) / (1.0 + 2.0 * a * math::cos(kw) + a * a)
 }
 
 #[derive(Clone, Debug)]
@@ -126,14 +127,14 @@ impl SpringTank {
             w: 0,
             len: [1000.0; SPRINGS],
             len_target: [1000.0; SPRINGS],
-            glide: 1.0 - (-1.0 / (0.08 * sample_rate)).exp(),
+            glide: 1.0 - math::exp(-1.0 / (0.08 * sample_rate)),
             coefs: [[Section::IDENTITY; SECTIONS]; SPRINGS],
             g0: [0.5; SPRINGS],
             state: [[[0.0; 4]; SECTIONS]; SPRINGS],
             fb: [0.0; SPRINGS],
             freeze: 0.0,
             freeze_target: 0.0,
-            smooth: 1.0 - (-1.0 / (0.05 * sample_rate)).exp(),
+            smooth: 1.0 - math::exp(-1.0 / (0.05 * sample_rate)),
             configured: false,
         }
     }

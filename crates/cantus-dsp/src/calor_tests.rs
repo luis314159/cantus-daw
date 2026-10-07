@@ -3,6 +3,7 @@
 //! expression, self-oscillation tracking the keys, the mixer driving the filter, CPU.
 
 use super::*;
+use crate::math;
 use crate::va::testkit::*;
 use crate::va::Model;
 use crate::voices::PlayMode;
@@ -195,7 +196,7 @@ fn a_note_is_on_pitch_across_the_keyboard() {
         for key in [24u8, 36, 48, 60, 72, 84, 96, 108] {
             let (l, _) = perform(&s, &[(0, Ev::On(key, 0.8, key as u64))], 48_000, 256);
             let f = frequency(&l[12_000..], FS).unwrap();
-            let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let err = cents(f, want);
             assert!(
                 err.abs() < 0.05,
@@ -248,8 +249,8 @@ fn a_loud_chord_keeps_headroom() {
     let one = l1.iter().fold(0f32, |m, x| m.max(x.abs()));
     println!(
         "peaks: eight notes at full velocity {:.1} dBFS, one note {:.1} dBFS",
-        20.0 * peak.log10(),
-        20.0 * one.log10()
+        20.0 * math::log10(peak),
+        20.0 * math::log10(one)
     );
     assert!(peak < 1.0, "an eight-note chord peaks at {peak}");
 }
@@ -380,7 +381,7 @@ fn a_self_oscillating_filter_plays_the_keys() {
         for key in [48u8, 60, 72, 84] {
             let (l, _) = perform(&s, &[(0, Ev::On(key, 1.0, key as u64))], 3 * 48_000, 256);
             let f = frequency(&l[2 * 48_000..], FS).expect("it oscillates");
-            let want = 440.0 * 2f64.powf((key as f64 - 69.0) / 12.0);
+            let want = 440.0 * math::powf(2f64, (key as f64 - 69.0) / 12.0);
             let err = cents(f, want);
             assert!(err.abs() < 10.0, "{model:?} key {key}: {err:+.2} cents");
         }
@@ -396,7 +397,12 @@ fn the_mixer_levels_drive_the_filter() {
         s.mix = [level, level, 0.0, 0.0, 0.0];
         s.gain = 0.2;
         let (l, _) = perform(&s, &[(0, Ev::On(48, 0.8, 1))], 24_000, 256);
-        (l[6000..].iter().map(|x| (*x as f64).powi(2)).sum::<f64>() / 18_000.0).sqrt()
+        (l[6000..]
+            .iter()
+            .map(|x| math::powi(*x as f64, 2))
+            .sum::<f64>()
+            / 18_000.0)
+            .sqrt()
     };
     let ratio = rms(1.0) / rms(0.25);
     assert!(
