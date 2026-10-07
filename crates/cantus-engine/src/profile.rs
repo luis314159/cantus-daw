@@ -368,7 +368,10 @@ mod tests {
         h.record(3_000.0);
         assert_eq!(h.count(), 100);
         let p50 = h.quantile(0.5);
-        assert!((100.0..=100.0 * cantus_dsp::math::powf(2f64, 0.25)).contains(&p50), "{p50}");
+        assert!(
+            (100.0..=100.0 * cantus_dsp::math::powf(2f64, 0.25)).contains(&p50),
+            "{p50}"
+        );
         let max = h.quantile(1.0);
         assert!(
             (3_000.0..=3_000.0 * cantus_dsp::math::powf(2f64, 0.25)).contains(&max),

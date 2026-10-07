@@ -170,7 +170,11 @@ fn produce(rng: &mut Rng, snap: &Snapshot, n: usize) -> Produced {
         .iter()
         .enumerate()
         .map(|(si, st)| {
-            let (gl, gr) = if st.muted { (0.0, 0.0) } else { (rng.gain(), rng.gain()) };
+            let (gl, gr) = if st.muted {
+                (0.0, 0.0)
+            } else {
+                (rng.gain(), rng.gain())
+            };
             let post = [rng.buffer(n), rng.buffer(n)];
             let out_line = rng.chance(25);
             let out = if out_line {
@@ -356,8 +360,16 @@ fn check(seed: u64) {
                     acc = [vec![0.0; n], vec![0.0; n]];
                 }
                 let want = seen[si as usize].as_ref().expect("a strip in the order");
-                assert_eq!(bits(&acc[0]), bits(&want[0]), "seed {seed}: strip {si}, left");
-                assert_eq!(bits(&acc[1]), bits(&want[1]), "seed {seed}: strip {si}, right");
+                assert_eq!(
+                    bits(&acc[0]),
+                    bits(&want[0]),
+                    "seed {seed}: strip {si}, left"
+                );
+                assert_eq!(
+                    bits(&acc[1]),
+                    bits(&want[1]),
+                    "seed {seed}: strip {si}, right"
+                );
             }
             NodeRef::Master => {
                 let mut out = vec![0.0f32; n * channels];
@@ -368,7 +380,11 @@ fn check(seed: u64) {
                         .iter()
                         .filter_map(|i| contribution(&produced, *i)),
                 );
-                assert_eq!(bits(&out), bits(&master), "seed {seed}: master, {channels} ch");
+                assert_eq!(
+                    bits(&out),
+                    bits(&master),
+                    "seed {seed}: master, {channels} ch"
+                );
             }
         }
     }
@@ -382,12 +398,19 @@ fn check_dag(plan: &GraphPlan, seed: u64) {
     let mut preds = vec![0u32; count];
     for n in 0..count {
         for &s in plan.successors(n) {
-            assert!((s as usize) > n, "seed {seed}: edge {n} → {s} runs backwards");
+            assert!(
+                (s as usize) > n,
+                "seed {seed}: edge {n} → {s} runs backwards"
+            );
             preds[s as usize] += 1;
         }
     }
     for (n, p) in preds.iter().enumerate() {
-        assert_eq!(*p, plan.predecessors(n), "seed {seed}: node {n}'s predecessors");
+        assert_eq!(
+            *p,
+            plan.predecessors(n),
+            "seed {seed}: node {n}'s predecessors"
+        );
     }
     let node_of = |r: NodeRef| plan.nodes().iter().position(|x| *x == r).unwrap();
     for n in 0..count {

@@ -125,8 +125,7 @@ impl GraphPlan {
                     edges.push((from, to));
                 }
             };
-            for i in &self.inputs[self.input_start[n] as usize..self.input_start[n + 1] as usize]
-            {
+            for i in &self.inputs[self.input_start[n] as usize..self.input_start[n + 1] as usize] {
                 let from = match *i {
                     Input::Track(t) => t,
                     Input::Out(s) | Input::Send(s, _) => node_of(s as usize),

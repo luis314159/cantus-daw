@@ -20,12 +20,8 @@ fn project(tracks: usize, strips: usize) -> Project {
         let mut t = p.make_track(format!("T{}", i + 1));
         t.strip = Some(p.strips[i % strips].id);
         let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
-        clip.notes.push(p.make_note(
-            Ticks::ZERO,
-            Ticks::beats(3),
-            48 + (i % 24) as u8,
-            100,
-        ));
+        clip.notes
+            .push(p.make_note(Ticks::ZERO, Ticks::beats(3), 48 + (i % 24) as u8, 100));
         t.clips.push(clip);
         p.tracks.push(t);
     }
@@ -73,7 +69,10 @@ fn a_257th_track_is_refused_and_counted() {
     let p = project(MAX_TRACKS + 1, 16);
     let (m, stats) = play(&p);
     assert_eq!(m.track_count, 256, "the engine plays its limit");
-    assert!((0..256).all(|i| m.tracks[i] > 0.0), "and every one of those plays");
+    assert!(
+        (0..256).all(|i| m.tracks[i] > 0.0),
+        "and every one of those plays"
+    );
     assert_eq!(stats.refused_tracks, 1, "the 257th is refused, and said so");
     assert_eq!(stats.refused_strips, 0);
 }
@@ -84,6 +83,9 @@ fn a_257th_strip_is_refused_and_counted() {
     let (m, stats) = play(&p);
     assert_eq!(m.strip_count, 256);
     assert!((0..256).all(|i| m.strips[i] > 0.0));
-    assert_eq!(stats.refused_strips, 1, "the 257th strip is refused, and said so");
+    assert_eq!(
+        stats.refused_strips, 1,
+        "the 257th strip is refused, and said so"
+    );
     assert_eq!(stats.refused_tracks, 1);
 }

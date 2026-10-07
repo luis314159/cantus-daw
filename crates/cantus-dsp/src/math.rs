@@ -308,7 +308,10 @@ mod tests {
             ("cos64", digest(-10.0, 10.0, cos)),
             ("tan32", digest(0.0, 1.57, |x| tan(x as f32))),
             ("tan64", digest(0.0, 1.57, tan)),
-            ("sincos64", digest(-4.0, 4.0, |x| sin_cos(x).0 - 3.0 * sin_cos(x).1)),
+            (
+                "sincos64",
+                digest(-4.0, 4.0, |x| sin_cos(x).0 - 3.0 * sin_cos(x).1),
+            ),
             ("tanh32", digest(-10.0, 10.0, |x| tanh(x as f32))),
             ("tanh64", digest(-10.0, 10.0, tanh)),
             ("exp32", digest(-30.0, 3.0, |x| exp(x as f32))),
@@ -335,7 +338,10 @@ mod tests {
         assert_eq!(got.len(), want.len());
         for ((n, h), (wn, wh)) in got.iter().zip(want) {
             assert_eq!(n, wn);
-            assert_eq!(h, wh, "{n}: not the pinned bits (CANTUS_MATH_PIN=1 prints the new ones)");
+            assert_eq!(
+                h, wh,
+                "{n}: not the pinned bits (CANTUS_MATH_PIN=1 prints the new ones)"
+            );
         }
     }
 

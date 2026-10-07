@@ -128,7 +128,11 @@ fn the_callers_mode_does_not_change_the_output() {
         let seen = Arc::new(AtomicU64::new(0));
         let (mut p, _tx) = rig(&seen);
         let before = read_mode();
-        write_mode(if flags_on { before | FLUSH } else { before & !FLUSH });
+        write_mode(if flags_on {
+            before | FLUSH
+        } else {
+            before & !FLUSH
+        });
         let mut out = Vec::new();
         let mut buf = vec![0.0f32; 128 * 2];
         for _ in 0..40 {
@@ -141,7 +145,10 @@ fn the_callers_mode_does_not_change_the_output() {
     let a = render(false);
     let b = render(true);
     assert!(a.iter().any(|x| *x != 0), "the project plays");
-    assert_eq!(a, b, "the output depends on the caller's floating-point mode");
+    assert_eq!(
+        a, b,
+        "the output depends on the caller's floating-point mode"
+    );
 }
 
 /// Render `p` (every effect's unit built as the engine builds it) with the guard on or

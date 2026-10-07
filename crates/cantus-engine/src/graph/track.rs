@@ -117,7 +117,8 @@ impl Processor {
                     Some(u) => {
                         // Where the song is at this segment's first sample, for the units
                         // that follow it (a hosted synth's arpeggiator).
-                        let position = song_position_of(&transport, &self.snapshot, self.sample_rate);
+                        let position =
+                            song_position_of(&transport, &self.snapshot, self.sample_rate);
                         u.unit.set_position(&position);
                         let sig = u.unit.process(l, r);
                         if self.probed == s.id {

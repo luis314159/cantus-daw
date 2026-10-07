@@ -52,6 +52,9 @@ mod master_run;
 /// Input, monitoring, recording and audio clips (ADR 0025).
 #[path = "processor_rec.rs"]
 mod rec;
+/// Calls into `cantus-rt` (FTZ/DAZ, the callback's priority), behind one small seam.
+#[path = "graph/rt_shim.rs"]
+mod rt_shim;
 /// The strip nodes: gather and outputs.
 #[path = "graph/strip.rs"]
 pub(crate) mod strip;
@@ -61,14 +64,11 @@ mod strip_run;
 /// The track nodes.
 #[path = "graph/track.rs"]
 pub(crate) mod track;
-/// Calls into `cantus-rt` (FTZ/DAZ, the callback's priority), behind one small seam.
-#[path = "graph/rt_shim.rs"]
-mod rt_shim;
 
 use master::MasterStrip;
+pub use rt_shim::AudioHost;
 use strip::{produced, StripOut};
 use track::TrackOut;
-pub use rt_shim::AudioHost;
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
