@@ -826,3 +826,57 @@ fn nothing_is_ever_not_a_number() {
         );
     }
 }
+
+/// A dynamic band's release comes home exactly (round 21 at-rest's finding 3): its delta
+/// lands on +0 dB, and in linear phase — where the movement runs as sections only while it
+/// moves — the sections it no longer uses are left clean, as a new unit's are. What is left
+/// after that is the detector's envelope, which reaches zero only with denormals flushed.
+#[test]
+fn a_dynamic_band_comes_home_exactly() {
+    for mode in Mode::ALL {
+        let mut eq = Aequalis::new(48_000.0);
+        eq.set_options(Options {
+            mode,
+            ..Options::default()
+        });
+        let mut bands = [BandSettings::default(); MAX_BANDS];
+        for (b, band) in bands.iter_mut().enumerate().take(4) {
+            *band = BandSettings {
+                active: true,
+                freq: 120.0 * (1u32 << (2 * b)) as f32,
+                gain_db: 3.0,
+                dynamic: b % 2 == 1,
+                ..BandSettings::default()
+            };
+        }
+        eq.set(&bands, 0.0);
+        let mut s = 0x1234u32;
+        for blk in 0..400 {
+            let (mut l, mut r) = (vec![0f32; 512], vec![0f32; 512]);
+            if blk < 40 {
+                for (x, y) in l.iter_mut().zip(r.iter_mut()) {
+                    s ^= s << 13;
+                    s ^= s >> 17;
+                    s ^= s << 5;
+                    *x = (s as f32 / u32::MAX as f32 - 0.5) * 0.8;
+                    *y = *x * 0.7;
+                }
+            }
+            eq.process(&mut l, &mut r);
+            if blk == 39 {
+                assert!(eq.bands.iter().any(|b| b.delta_db != 0.0), "{mode:?}: no movement");
+            }
+        }
+        for b in eq.bands.iter().filter(|b| b.target.active) {
+            assert_eq!(b.delta_db.to_bits(), 0, "{mode:?}: the release ends at +0 dB");
+            if mode == Mode::LinearPhase {
+                assert!(b.state.iter().flatten().all(|st| st.z1.to_bits() == 0 && st.z2.to_bits() == 0));
+            }
+        }
+        assert!(
+            matches!(eq.rest_blocker(), None | Some("detectors")),
+            "{mode:?}: {:?}",
+            eq.rest_blocker()
+        );
+    }
+}

@@ -207,9 +207,11 @@ fn the_v14_fixture_kit_renders_exactly_as_it_did() {
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
 /// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
-const GOLDEN_V1_KIT: &str = "0749b097ff0d24febc9c54a5c5bd11a7d3704466feae692e36099c026911c0a6";
+/// Re-blessed for `DSP_VERSION` 3 (round 22, our f32 `powf`): max |Δ| 6.0e-8 (−144.5 dBFS).
+const GOLDEN_V1_KIT: &str = "ba2777825019f4cc5d1a8416234ef5e18706aeb022a1bb948cc6bc2c80984796";
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
 /// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.0e-8 (−150.5 dBFS).
+/// Unchanged by `DSP_VERSION` 3 (round 22): the same bits.
 const GOLDEN_V14_KIT: &str = "20142bf8f3bbc7dfbd4fffdb55033257f5e3f39529b80ea2510063401bd56c13";
 
 /// Model 1 keeps even its defect: its noise is seeded by a hit count that a seek resets,
@@ -234,8 +236,9 @@ fn a_pulsus_one_kit_rendered_from_bar_two_is_as_it_was() {
 
 /// Recorded on 2026-09-24 from Pulsus I (commit e20e3f4), before any Pulsus II change.
 /// Re-blessed for `DSP_VERSION` 2 (round 21, libm transcendentals): max |Δ| 3.8e-5 (−88.5 dBFS).
+/// Re-blessed for `DSP_VERSION` 3 (round 22, our f32 `powf`): max |Δ| 6.0e-8 (−144.5 dBFS).
 const GOLDEN_V1_FROM_BAR_2: &str =
-    "7cad1abd2d1e992b42c9a8a1febf6fbb8e04049df48133e41be6112b59f10c05";
+    "d486816944b064da5f151fa8b557231a529123a181091d5467192a7b73068a82";
 
 // ---- Pulsus II through the engine ---------------------------------------------------------
 

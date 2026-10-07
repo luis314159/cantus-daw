@@ -14,6 +14,8 @@
 //!   agree) must all render the same bits when signal returns at a random sample, each at
 //!   its own random splits. When the parameters also move at that moment, the skipped twin
 //!   must still agree (suspension is exact); the reset and new ones are only reported.
+//!   The limiter and the maximizer are also checked dithering, at each noise shaping: their
+//!   dither is counter-based (ADR 0031 R10), so they must rest with it on.
 //!
 //! Each plug-in's own tests go further; this one catches the kind that breaks the family's
 //! floor.
@@ -205,13 +207,22 @@ fn first_difference(a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)) -> Optio
     None
 }
 
-/// The settings a kind is checked at: its defaults, the bench's heavy ones, and `random`
+/// The settings a kind is checked at: its defaults, the bench's heavy ones, for the two
+/// kinds that dither its three shapings at 16 bits (R10: they must rest too), and `random`
 /// drawn over the whole range (half the parameters moved, or all of them).
 fn specs(kind: EffectKind, random: usize, rng: &mut Rng) -> Vec<(String, EffectSpec)> {
     let mut v = vec![
         ("default".to_string(), EffectSpec::new(kind)),
         ("heavy".to_string(), heavy::heavy(kind)),
     ];
+    if matches!(kind, EffectKind::Limiter | EffectKind::Maximizer) {
+        for (shape, name) in ["flat", "basic", "optimized"].into_iter().enumerate() {
+            let mut s = EffectSpec::new(kind);
+            s.set("dither", 5.0);
+            s.set("shape", shape as f32);
+            v.push((format!("dither {name}"), s));
+        }
+    }
     for i in 0..random {
         let p = if i % 3 == 2 { 1.0 } else { 0.5 };
         v.push((format!("random #{i}"), heavy::random_effect(kind, p, rng)));
@@ -412,7 +423,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Reverb => (true, false), // heavy: size 1 rings for over a minute
         EffectKind::Stereo | EffectKind::Saturator => (true, true),
         EffectKind::Multiband | EffectKind::DeEsser | EffectKind::Maximizer => (true, true),
-        EffectKind::Limiter => (true, false), // heavy: dithers (R10)
+        // Heavy dithers: counter-based since round 22 (R10), so it rests.
+        EffectKind::Limiter => (true, true),
+        // Heavy has two dynamic bands: their release lands on 0 since round 22.
+        EffectKind::Eq => (true, true),
         EffectKind::Gate => (false, false),   // keyed, a reset gate starts open
         _ => (false, false),
     }
@@ -424,9 +438,12 @@ fn at_rest_is_exact(kind: EffectKind) {
     let mut report = Vec::new();
     let (rest_default, rest_heavy) = must_rest(kind);
     for (label, spec) in specs(kind, 4, &mut rng) {
-        let fixed = label == "default" || label == "heavy";
+        let dithers = label.starts_with("dither");
+        let fixed = label == "default" || label == "heavy" || dithers;
         let cap = if fixed { 30 * 48_000 } else { 4 * 48_000 };
-        let must = (label == "default" && rest_default) || (label == "heavy" && rest_heavy);
+        // A dithering setting rests wherever the defaults do (R10).
+        let must = ((label == "default" || dithers) && rest_default)
+            || (label == "heavy" && rest_heavy);
         for trial in 0..3 {
             // The first trial as the tests run, the others as the engine's `process` will
             // (denormals flushed): exact in both, but some state only reaches zero in the

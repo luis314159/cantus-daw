@@ -145,7 +145,7 @@ impl Culmen {
             match_gain: 1.0,
             match_target: 1.0,
             match_glide: 1.0 - coef(1_000.0, sr),
-            dither: [Ditherer::new(0x2545_f491), Ditherer::new(0x9e37_79b9)],
+            dither: [Ditherer::new(0x2545_f491), Ditherer::new(0xc2b2_ae35)],
             telemetry: [0.0; tel::LEN],
             seq: 0,
         };
@@ -213,7 +213,7 @@ impl Culmen {
         self.st_seen = 0;
         self.match_gain = 1.0;
         self.match_target = 1.0;
-        self.dither = [Ditherer::new(0x2545_f491), Ditherer::new(0x9e37_79b9)];
+        self.dither = [Ditherer::new(0x2545_f491), Ditherer::new(0xc2b2_ae35)];
         self.telemetry = [0.0; tel::LEN];
         self.telemetry[tel::LATENCY] = self.latency() as f32;
         self.telemetry[tel::RATE] = self.sr;
@@ -223,7 +223,8 @@ impl Culmen {
     /// At rest (ADR 0031 §5.1): the three stages at rest, the drive landed, the reference
     /// lines and the input's loudness filter empty, and the Match monitor still — its
     /// three-second window all silence, its gain landed, and at unity in Match mode, as a
-    /// new unit's is. **Never with dither on** (R10, as Terminus).
+    /// new unit's is. With dither on, both ditherers at rest too (R10's counter-based dither,
+    /// round 22, as Terminus).
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
     }
@@ -232,7 +233,9 @@ impl Culmen {
     /// that fails, by name (for the tests and a profiler that asks why).
     pub fn rest_blocker(&self) -> Option<&'static str> {
         let s = &self.s;
-        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0 {
+        if DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] > 0
+            && !self.dither.iter().all(Ditherer::at_rest)
+        {
             return Some("dither");
         }
         if self.drive != self.drive_target {

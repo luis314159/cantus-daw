@@ -663,7 +663,7 @@ impl Spatium {
                     self.duck_gr = 0.0;
                 }
                 if self.duck_gr > 0.0 {
-                    math::powf(10f32, -self.duck_gr / 20.0)
+                    math::db_to_gain(-self.duck_gr)
                 } else {
                     1.0
                 }

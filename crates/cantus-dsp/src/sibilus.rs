@@ -594,7 +594,7 @@ impl Sibilus {
                     if d == 0.0 {
                         0.0
                     } else {
-                        math::powf(10f32, -d / 20.0) - 1.0
+                        math::db_to_gain(-d) - 1.0
                     }
                 });
                 let b = match s.processing {
