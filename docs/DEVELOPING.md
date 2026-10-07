@@ -46,7 +46,9 @@ cargo run --release -p cantus -- --audio-drivers # prints "audio drivers: WASAPI
 cargo run --release -p cantus -- --locale es     # in Spanish
 ```
 
-The first release build takes 10–15 minutes. `target\release\cantus.exe` is self-contained
+Hosted plug-ins are scanned by a separate program the app starts from beside itself; build
+it once with `cargo build --release -p cantus-host --bin cantus-scan` (the release package
+ships it). The first release build takes 10–15 minutes. `target\release\cantus.exe` is self-contained
 (fonts, themes, icons, demo songs are inside); copy it anywhere.
 
 A low-latency driver for testing: ASIO4ALL or FlexASIO (the app links both from

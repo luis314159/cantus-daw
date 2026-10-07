@@ -28,6 +28,33 @@ The owner's goal is the first public beta (`docs/BETA.md`). Next, in order:
    FlexASIO install; before the repository is ever made public, take the research
    screenshots out of its history (`docs/BETA.md`).
 
+**The owner's test build (2026-10-07).** `C:\projects\daw-r22\builds\cantus.exe`,
+`cantus 0.1.0-beta.1 (x86-64)`, built by `cargo build --release -p cantus` in the fresh
+clone at 745fb70 (the code of master 7a841ec; only documents changed after it). What it is:
+
+- **The multicore live engine is on by default**: the stream's processor gets
+  `Workers::auto()` (4 workers on the round's i7-12700H); *Settings ▸ Audio ▸ Audio cores*
+  changes it. Every round-22 feature is in it (export to WAV/FLAC/MP3/Ogg, crash recovery,
+  the count-in without the metronome, `DSP_VERSION` 3).
+- **One program, every driver**: WASAPI and ASIO, the SDK linked (`--audio-drivers` →
+  `audio drivers: WASAPI, ASIO`, `asio sdk: linked`); it listed ASIO4ALL v2, Realtek ASIO
+  and the UMC ASIO Driver on this machine.
+- **Known**: the Behringer UMC has never been tried in duplex with the interface present —
+  plug it in **before** starting Cantus (its driver crashed a process that loaded it while
+  the interface was unplugged); Realtek's own ASIO driver delivers no buffers on this laptop
+  (a driver fault) — use WASAPI or ASIO4ALL for the built-in audio.
+- It is the plain single program, with `cantus-scan.exe` (the plug-in scanner, built by
+  `cargo build --release -p cantus-host --bin cantus-scan`) copied beside it so
+  third-party plug-ins can be scanned; the packaged release (`cargo run -p xtask --
+  package`) adds the `cantus.exe` launcher and the v2/v3 programs.
+
+**Tests at the close (both finished).** Integration tree: 1 824 green (185 test binaries),
+the engine's fuzz at `CANTUS_WORKERS=3` green, clippy clean; Calor's per-voice CPU test
+failed once under load and passed alone. Fresh clone: 1 823 of 1 824, the one failure
+`inst_bass::a_cpu_budget_holds` (CPU timing under load), which passes alone. Round 23
+should make both timing tests robust to a loaded machine (a median over several runs, or
+ignored by default like the other measurements).
+
 Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus and the keyed
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
