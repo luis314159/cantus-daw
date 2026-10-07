@@ -121,7 +121,7 @@ pub fn report_line(item: &cantus_project::ReportItem) -> String {
 
 // ---- the File menu ------------------------------------------------------------------
 
-/// The interchange entries of the File menu, after "Export WAV…".
+/// The interchange entries of the File menu, after "Export audio…".
 pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
     ui.separator();
     if ui.button(t("interop.menu.import_midi")).clicked() {

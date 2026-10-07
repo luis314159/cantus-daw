@@ -159,8 +159,8 @@ pub enum Scope {
     Stems,
 }
 
-/// What a stems export takes (ADR 0021 §3, ADR 0026).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// What a stems export takes (ADR 0021 §3, ADR 0026); everything off by default.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StemChoice {
     /// Tracks rather than strips.
@@ -169,17 +169,6 @@ pub struct StemChoice {
     pub master: bool,
     pub keep_silent: bool,
     pub through_master: bool,
-}
-
-impl Default for StemChoice {
-    fn default() -> Self {
-        StemChoice {
-            tracks: false,
-            master: false,
-            keep_silent: false,
-            through_master: false,
-        }
-    }
 }
 
 /// The text written into the file.
@@ -399,7 +388,11 @@ impl ExportSettings {
             Some(list) if list.contains(&want) => want,
             Some(list) => {
                 // The same family (44.1 or 48 kHz) when the rate is a multiple of one.
-                let family = if want % 11_025 == 0 { 44_100 } else { 48_000 };
+                let family = if want.is_multiple_of(11_025) {
+                    44_100
+                } else {
+                    48_000
+                };
                 if list.contains(&family) && want > family {
                     family
                 } else {

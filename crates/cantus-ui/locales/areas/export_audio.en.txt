@@ -20,6 +20,8 @@ export_audio.preset.custom_hint = Your own choices
 
 export_audio.row.what = Export
 export_audio.row.stems = Stems of
+export_audio.stems.strips = Mixer strips
+export_audio.stems.tracks = Tracks
 export_audio.row.include = Include
 export_audio.row.tail = Tail
 export_audio.row.format = Format

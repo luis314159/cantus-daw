@@ -17,10 +17,11 @@ use egui::Ui;
 /// The tails offered after the music, seconds.
 const TAILS: [f32; 7] = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0];
 
-/// The control column's width at 100 %.
+/// A row's control, at 100 %: what is left of the row after its caption, so every
+/// control ends on the bands' right edge.
 fn width(ui: &Ui) -> f32 {
     let s = Style::current();
-    (ui.available_width() / s.k - super::export_dialog::CAPTION - 8.0).max(160.0)
+    (ui.available_width() / s.k - 1.0).max(160.0)
 }
 
 fn seg(ui: &mut Ui, selected: usize, labels: &[Src<'_>], name: &str) -> Option<usize> {
@@ -36,7 +37,7 @@ fn field(ui: &mut Ui, value: &str, name: &str) -> egui::Response {
 }
 
 pub fn khz(hz: u32) -> String {
-    if hz % 1000 == 0 {
+    if hz.is_multiple_of(1000) {
         format!("{} kHz", hz / 1000)
     } else {
         format!("{:.1} kHz", hz as f32 / 1000.0)
@@ -89,8 +90,8 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     if d.scope == Scope::Stems {
         let at = usize::from(d.stems.tracks);
         let labels = [
-            Src::Key("interop.stems.strips"),
-            Src::Key("interop.stems.tracks"),
+            Src::Key("export_audio.stems.strips"),
+            Src::Key("export_audio.stems.tracks"),
         ];
         if let Some(i) = row(ui, "export_audio.row.stems", |ui| {
             seg(ui, at, &labels, "export_audio.row.stems")

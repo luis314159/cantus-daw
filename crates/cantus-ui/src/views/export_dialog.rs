@@ -17,7 +17,7 @@ use cantus_export::{ExportSettings, Preset, Scope};
 use egui::{Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 
 /// The window at 100 %.
-pub const SIZE: Vec2 = Vec2::new(800.0, 660.0);
+pub const SIZE: Vec2 = Vec2::new(820.0, 740.0);
 /// The presets' column.
 const LEFT: f32 = 210.0;
 /// A row's caption column.

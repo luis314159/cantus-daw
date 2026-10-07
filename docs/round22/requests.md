@@ -30,3 +30,32 @@ Each entry: who asks, who owns the code, what, why, and what the asker does mean
 - **Meanwhile:** `cantus_export::export_mix` calls `render_with_instruments` and sets
   `Control::render_is_indeterminate`; switching to the new function is a three-line
   change in `crates/cantus-export/src/job.rs` (`export_mix`), marked there.
+
+## export → integrator (after beta-docs merges): LGPL in the notices allow-list
+
+- **Owner:** beta-docs' `xtask notices` (`xtask/src/notices.rs`, not on `r22/export`).
+- **What:** the integrator's ruling (LGPL is compatible with Cantus's GPL-3.0-or-later)
+  applied to the allow-list, then the notices regenerated:
+
+  ```rust
+  // in ALLOWED, after "MPL-2.0":
+  // LAME (MP3 export, ADR 0033): LGPL code linked into a GPL-3.0-or-later program
+  // whose whole source is published; the crates declare the old id "LGPL-3.0".
+  "LGPL-3.0",
+  "LGPL-3.0-only",
+  "LGPL-3.0-or-later",
+  "LGPL-2.1-or-later",
+  ```
+
+  then `cargo run -p xtask -- notices` and `cargo test -p xtask`.
+- **The crates `r22/export` adds to the shipped program** (licence as the crate declares
+  it): `mp3lame-encoder` 0.2.5 and `mp3lame-sys` 0.1.x (**LGPL-3.0**; LAME 3.100 itself
+  is LGPL-2.0-or-later), `vorbis_rs` 0.5.6, `aotuv_lancer_vorbis_sys` 0.1.6,
+  `ogg_next_sys` 0.1.5 (BSD-3-Clause; libvorbis with aoTuV/Lancer, libogg), `flacenc`
+  0.5.1 (Apache-2.0) and its `built`, `crc`, `crc-catalog`, `heapless`, `hash32`,
+  `md-5`, `seq-macro`, `core_detect`, `multiversion_no_op`, `extended`, `lazy_static`
+  (MIT and/or Apache-2.0); build-only `autotools` (MIT). Test-only, never shipped:
+  `symphonia` 0.5.5 and its `-core`, `-metadata`, `-bundle-mp3`, `-format-riff`
+  (MPL-2.0), `encoding_rs` ((Apache-2.0 OR MIT) AND BSD-3-Clause).
+- **Why not done on `r22/export`:** the notices generator exists only on `r22/beta-docs`;
+  adding it here would duplicate the file and conflict at the merge.

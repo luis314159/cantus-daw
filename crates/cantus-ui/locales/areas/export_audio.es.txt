@@ -20,6 +20,8 @@ export_audio.preset.custom_hint = Tus propias opciones
 
 export_audio.row.what = Exportar
 export_audio.row.stems = Stems de
+export_audio.stems.strips = Canales del mezclador
+export_audio.stems.tracks = Pistas
 export_audio.row.include = Incluir
 export_audio.row.tail = Cola
 export_audio.row.format = Formato

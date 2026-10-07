@@ -68,7 +68,7 @@ fn main() {
             let path = dir.join(format!("export-{kind}-{theme_name}-{code}.png"));
             shoot(
                 &ctx,
-                egui::vec2(1280.0, 800.0),
+                egui::vec2(1440.0, 900.0),
                 scale,
                 6,
                 Some(&path),
