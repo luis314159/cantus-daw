@@ -1,0 +1,35 @@
+[package]
+name = "cantus-export"
+description = "Cantus DAW — export: WAV, FLAC, MP3 and Ogg Vorbis, with tags, sample-rate conversion, dither and loudness normalisation (ADR 0033)."
+# GPL like the application that uses it: it links LAME (LGPL-2.0-or-later) and libvorbis
+# (BSD-3-Clause), built from source (ADR 0001, ADR 0033).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+cantus-dsp.workspace = true
+cantus-engine.workspace = true
+hound.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+log.workspace = true
+# FLAC: pure Rust (Apache-2.0).
+flacenc = { version = "0.5.1", default-features = false, features = ["par"] }
+# MP3: LAME 3.100 built from source by mp3lame-sys (LGPL), through its LGPL binding.
+mp3lame-encoder = "0.2.5"
+# Ogg Vorbis: libvorbis with the aoTuV and Lancer patches, built from source (BSD-3-Clause).
+vorbis_rs = { version = "0.5.6", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+serde_json.workspace = true
+# The repository's decoders (Exemplar's), to read back what was written.
+claxon = "0.4"
+lewton = "0.10"
+# An independent MP3 decoder and tag reader (MPL-2.0), for the tests only.
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "wav"] }
