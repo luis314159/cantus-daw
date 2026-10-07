@@ -142,7 +142,7 @@ workflow already reads `docs/releases/<tag>.md`.
 
 - `cantus-update` — 4 new in `tests/check.rs` (the pre-release chain; the newest of a list;
   a beta offered the next beta then the release, the newest beta up to date, an empty list;
-  the 304 reuse). All 28 + 10 unit pass.
+  the 304 reuse): 18 integration + 10 unit, all pass.
 - `xtask` — `notices_tests.rs` (5: SPDX expressions; the Apache collapse keeps the notices
   around it; a missing notice, a forbidden licence and a stale file are reported; a crate
   without a licence file gets the standard text and a missing standard text is flagged;
@@ -150,11 +150,21 @@ workflow already reads `docs/releases/<tag>.md`.
   GitHub's anchors and the link mapping; both languages build with the same chapters, every
   picture exists, every in-page link has its heading, pictures < 4 MB), `package_tests.rs`
   (the docs are staged, zipped, uninstalled folder by folder; the manual is not in the
-  plug-ins zip).
+  plug-ins zip). `cargo test -p xtask`: 15 pass. The closure test runs `cargo metadata`:
+  seconds on CI, but 343 s here while other builders held cargo's package-cache lock.
 - `cantus-ui` — `tests/about.rs` (3: the window in English and Spanish names the maker,
   the version, the licence, the RVR1960 notice word for word, the trademarks and the motto;
   each button returns its document and Esc closes; every document About points at exists
   in the repository); `docs.rs` unit test (installed copies preferred, the web otherwise).
+  `cargo test -p cantus-ui --lib` 132 pass, `--test about` 3, `--test verse` 15;
+  `cantus-host --lib` 14.
+- `cargo clippy -p xtask -p cantus-update -p cantus-ui -p cantus-host --tests --examples`:
+  no warning from these crates (the two dead-code warnings printed come from
+  `cantus-plugins` and are there at the base). `cargo fmt` clean.
+- Rendered and looked at: About in both themes (`shoot … about`), and every manual
+  picture; `cargo run -p xtask -- manual` writes 11 files (two pages, nine pictures, 607 KB
+  of pictures in all) whose only relative links are the installed `PRIVACY.txt`,
+  `THIRD-PARTY-NOTICES.txt` and the other language's page.
 
 ## Files outside my area
 

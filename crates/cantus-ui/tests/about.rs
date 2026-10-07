@@ -181,6 +181,6 @@ fn every_document_about_points_at_exists_in_the_repository() {
     }
     // The motto is read from the shipped translations, cited.
     let (text, citation) = about::motto(cantus_ui::verse::Spanish::Rvr1960);
-    assert!(text.starts_with('“') && text.ends_with('…'), "{text}");
+    assert!(text.starts_with('“') && text.ends_with("…”"), "{text}");
     assert!(citation.contains("3:23"), "{citation}");
 }
