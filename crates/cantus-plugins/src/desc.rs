@@ -13,9 +13,9 @@ use cantus_core::EffectKind;
 
 /// The vendor every host shows.
 pub const VENDOR: &str = "Cantus";
-pub const URL: &str = "https://github.com/lalmazan/cantus";
-pub const MANUAL_URL: &str = "https://github.com/lalmazan/cantus/tree/master/docs/plugins";
-pub const SUPPORT_URL: &str = "https://github.com/lalmazan/cantus/issues";
+pub const URL: &str = "https://github.com/luis314159/cantus";
+pub const MANUAL_URL: &str = "https://github.com/luis314159/cantus/tree/master/docs/plugins";
+pub const SUPPORT_URL: &str = "https://github.com/luis314159/cantus/issues";
 pub const EMAIL: &str = "";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

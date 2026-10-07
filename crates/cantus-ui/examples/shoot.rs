@@ -163,6 +163,9 @@ fn main() {
         if kind == "settings" {
             views::settings_audio::demo_setup(&mut app);
             app.show_settings = true;
+        } else if kind == "about" {
+            // `about`: Help ▸ About Cantus (round 22).
+            app.show_about = true;
         } else if kind.starts_with("update") {
             views::update::demo_setup(&mut app, kind);
         } else if hosted {
@@ -258,8 +261,10 @@ fn main() {
             }
             views::fx::demo_feed(&mut app, cantus_core::EffectKind::Eq);
         }
-        if !matches!(kind, "" | "eq" | "comp" | "plugin" | "plugins" | "settings")
-            && !kind.starts_with("update")
+        if !matches!(
+            kind,
+            "" | "eq" | "comp" | "plugin" | "plugins" | "settings" | "about"
+        ) && !kind.starts_with("update")
         {
             if let Some((_, _, k)) = app.fx.open {
                 views::fx::demo_feed(&mut app, k);
@@ -304,6 +309,9 @@ fn main() {
                 views::fx::window(&mut app, &ctx);
                 if kind == "settings" {
                     views::workspace_settings::window(&mut app, &ctx);
+                }
+                if kind == "about" {
+                    let _ = views::about::show(&mut app, &ctx);
                 }
                 if kind == "plugins" {
                     egui::Window::new(cantus_ui::i18n::t("host.manager.title"))

@@ -44,7 +44,7 @@ pub fn splash(b: &mut Brush, _p: &Painter, s: &Style, size: Vec2) {
     let _ = text::paint(
         b,
         v,
-        &Text::new("0.1.0", Role::Value, t.text_dim).align(Align2::LEFT_CENTER),
+        &Text::new(env!("CARGO_PKG_VERSION"), Role::Value, t.text_dim).align(Align2::LEFT_CENTER),
         1.0,
     );
     // Progress: the step, and a thin bar.

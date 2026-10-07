@@ -144,6 +144,33 @@ impl Release {
     }
 }
 
+/// The newest release in the API's *list* answer (`GET /repos/{owner}/{repo}/releases`),
+/// with the JSON of that one release as it came, to keep for a `304`. Drafts and
+/// releases whose tag is not a version are left out; `None` when nothing is left.
+///
+/// A pre-release build asks for the list because GitHub's `/releases/latest` never
+/// names a pre-release: a beta asking it would never hear of the next beta.
+pub fn newest(bytes: &[u8]) -> Result<Option<(Release, String)>, ParseError> {
+    if looks_like_html(bytes) {
+        return Err(ParseError::Html);
+    }
+    let list: Vec<serde_json::Value> =
+        serde_json::from_slice(bytes).map_err(|e| ParseError::NotARelease(e.to_string()))?;
+    let mut best: Option<(Release, String)> = None;
+    for item in list {
+        let Ok(r) = serde_json::from_value::<Release>(item.clone()) else {
+            continue;
+        };
+        if r.draft || Version::parse(&r.tag_name).is_none() {
+            continue;
+        }
+        if best.as_ref().is_none_or(|(b, _)| r.version() > b.version()) {
+            best = Some((r, item.to_string()));
+        }
+    }
+    Ok(best)
+}
+
 pub fn is_sha256_hex(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }

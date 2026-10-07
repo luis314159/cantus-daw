@@ -1,0 +1,114 @@
+name: Bug report / Reportar un error
+description: Something does not work, crashes, sounds wrong or gets in your way. / Algo no funciona, se cierra, suena mal o te estorba.
+title: "[Bug] "
+labels: ["bug", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing Cantus. One problem per report, please; English or Spanish are both fine.
+        Before you write: the [known issues of the beta](https://github.com/luis314159/cantus/blob/master/docs/manual/en/README.md#14-known-issues-and-limitations) may already list it.
+
+        Gracias por probar Cantus. Un problema por reporte, por favor; puedes escribir en español o en inglés.
+        Antes de escribir: puede que ya esté en los [problemas conocidos de la beta](https://github.com/luis314159/cantus/blob/master/docs/manual/es/README.md#14-problemas-conocidos-y-limitaciones).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / ¿Qué pasó?
+      description: What you did, what you expected, and what happened instead. / Qué hiciste, qué esperabas y qué pasó en su lugar.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Pasos para reproducirlo
+      placeholder: |
+        1. Open the demo "Neon Tide" / Abre la demo "Neon Tide"
+        2. …
+    validations:
+      required: true
+  - type: dropdown
+    id: how-often
+    attributes:
+      label: How often? / ¿Con qué frecuencia?
+      options:
+        - Every time / Siempre
+        - Sometimes / A veces
+        - Once / Una vez
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cantus version / Versión de Cantus
+      description: Help ▸ About Cantus. / Ayuda ▸ Acerca de Cantus.
+      placeholder: 0.1.0-beta.1
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed / Cómo se instaló
+      options:
+        - Installer / Instalador
+        - Portable zip / Zip portátil
+        - Built from source / Compilado desde el código
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version / Versión de Windows
+      description: "Settings ▸ System ▸ About, or run `winver`. / Configuración ▸ Sistema ▸ Acerca de, o ejecuta `winver`."
+      placeholder: Windows 11 23H2 (22631)
+    validations:
+      required: true
+  - type: input
+    id: cpu-ram
+    attributes:
+      label: Processor and memory / Procesador y memoria
+      placeholder: Intel Core i7-1265U, 16 GB
+  - type: input
+    id: interface
+    attributes:
+      label: Audio interface / Interfaz de audio
+      description: The device in the audio chip (bottom right). / El dispositivo del chip de audio (abajo a la derecha).
+      placeholder: Behringer UMC204HD / built-in Realtek / USB headset
+    validations:
+      required: true
+  - type: dropdown
+    id: driver
+    attributes:
+      label: Audio driver / Controlador de audio
+      options:
+        - WASAPI
+        - ASIO — the interface's own driver / el controlador propio de la interfaz
+        - ASIO — FlexASIO
+        - ASIO — ASIO4ALL
+        - ASIO — other / otro
+        - No audio / Sin audio
+    validations:
+      required: true
+  - type: input
+    id: rate-buffer
+    attributes:
+      label: Sample rate and buffer / Frecuencia y búfer
+      description: As the audio chip shows them. / Como los muestra el chip de audio.
+      placeholder: 48 k · 256
+  - type: textarea
+    id: plugins
+    attributes:
+      label: Plug-ins in the project / Plug-ins en el proyecto
+      description: Third-party CLAP/VST3 plug-ins, if any (name and version). A crashing plug-in takes Cantus down in this beta. / Plug-ins CLAP/VST3 de terceros, si hay (nombre y versión). En esta beta, un plug-in que falla cierra Cantus.
+  - type: textarea
+    id: files
+    attributes:
+      label: Project, screenshots, recording / Proyecto, capturas, grabación
+      description: Drag files here. A small .cantus project that shows the problem helps most (its Audio folder zipped if it has audio). The status bar's CPU and dropout numbers help for audio problems. / Arrastra archivos aquí. Un proyecto .cantus pequeño que muestre el problema es lo que más ayuda (con su carpeta Audio comprimida si tiene audio). Los números de CPU y cortes de la barra de estado ayudan en problemas de audio.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before sending / Antes de enviar
+      options:
+        - label: I looked at the known issues and the open issues. / Revisé los problemas conocidos y los issues abiertos.
+          required: true

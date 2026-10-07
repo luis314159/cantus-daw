@@ -100,7 +100,11 @@ after an answer, at most once an hour after a failure, with `If-None-Match` so a
 costs nothing against GitHub's 60-an-hour anonymous limit. A copy built from source never
 checks by itself. The request carries `User-Agent: cantus-update` and nothing else: no
 version, no machine, no identifier — **no telemetry**. Drafts and pre-releases are not
-offered to a stable build. The release's notes (its Markdown, reduced to headings,
+offered to a stable build. *(Round 22, the public beta:* a pre-release build — `0.1.0-beta.1` — asks
+`GET /repos/luis314159/cantus/releases?per_page=20` instead and takes the newest non-draft
+release there, because `/releases/latest` never names a pre-release and a beta would never
+hear of the next beta; a release build still asks `/releases/latest`. SemVer orders
+`0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0`; `tests/check.rs` holds both.*) The release's notes (its Markdown, reduced to headings,
 bullets and paragraphs; links keep only their text; nothing is fetched or rendered as
 HTML) are shown in the update window. *Skip this version* is remembered.
 

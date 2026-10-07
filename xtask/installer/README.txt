@@ -5,7 +5,11 @@ Cantus is a free, open-source digital audio workstation.
 https://github.com/luis314159/cantus
 
 Licence: the program is GPL-3.0-or-later (LICENSE.txt); COPYRIGHT.txt says which
-parts of the source are MIT OR Apache-2.0.
+parts of the source are MIT OR Apache-2.0. THIRD-PARTY-NOTICES.txt names everything
+Cantus is built from and its licence; PRIVACY.txt says what Cantus sends (only an
+anonymous update check) and what stays on your computer.
+
+Manual: manual\en\index.html (Help > Manual in Cantus).
 
 Plug-ins
 --------
@@ -40,3 +44,5 @@ arriba las carpetas). Una copia con portable.txt junto a cantus.exe guarda sus
 ajustes en la carpeta "data". Un Cantus instalado busca actualizaciones en
 GitHub como mucho una vez al día y pregunta antes de descargar; se desactiva en
 Ajustes > Actualizaciones. No se envía nada sobre ti ni sobre tu música.
+Manual: manual\es\index.html (Ayuda > Manual). Avisos de terceros:
+THIRD-PARTY-NOTICES.txt. Privacidad: PRIVACY.txt.

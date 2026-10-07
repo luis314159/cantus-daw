@@ -5,6 +5,7 @@
 //! ([`workspace`]), under the toolbar ([`transport`]) and over the status bar
 //! ([`workspace_status`]).
 
+pub mod about;
 pub mod appearance;
 pub mod appearance_file;
 pub mod appearance_panels;

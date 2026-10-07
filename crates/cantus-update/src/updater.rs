@@ -112,8 +112,25 @@ pub struct Updater {
     shared: Arc<Shared>,
 }
 
-fn api_url(repo: &str) -> String {
-    format!("https://api.github.com/repos/{repo}/releases/latest")
+/// Where the check asks. A release build asks for the latest release. A pre-release build
+/// (a beta) asks for the recent releases instead: GitHub's `/releases/latest` never names
+/// a pre-release, so a beta asking it would never hear of the next beta (round 22).
+pub fn api_url(repo: &str, current: &Version) -> String {
+    if current.is_prerelease() {
+        format!("https://api.github.com/repos/{repo}/releases?per_page=20")
+    } else {
+        format!("https://api.github.com/repos/{repo}/releases/latest")
+    }
+}
+
+/// The release an answer names, and its JSON to keep: the one release of `/latest`, or
+/// the newest of a `list` (`None` when the list holds no usable release).
+fn parse_answer(body: &[u8], list: bool) -> Result<Option<(Release, String)>, ParseError> {
+    if list {
+        release::newest(body)
+    } else {
+        Release::parse(body).map(|r| Some((r, String::from_utf8_lossy(body).into_owned())))
+    }
 }
 
 impl Updater {
@@ -192,7 +209,11 @@ impl Updater {
             st.last_attempt = Some(now);
             st.release_json.as_ref().and(st.etag.clone())
         };
-        let answer = self.fetch.get(&api_url(&self.config.repo), etag.as_deref());
+        let list = self.config.current.is_prerelease();
+        let answer = self.fetch.get(
+            &api_url(&self.config.repo, &self.config.current),
+            etag.as_deref(),
+        );
         let failed = |key: &'static str, detail: String| Status::Failed {
             key,
             detail,
@@ -202,13 +223,14 @@ impl Updater {
             Err(NetError::Network(e)) => Err(failed("update.error.offline", e)),
             Err(e) => Err(failed("update.error.offline", format!("{e:?}"))),
             Ok(a) => match a.status {
-                200 => match Release::parse(&a.body) {
-                    Ok(r) => {
+                200 => match parse_answer(&a.body, list) {
+                    Ok(found) => {
                         let mut st = self.shared.state.lock().expect("state");
                         st.etag = a.etag;
-                        st.release_json = Some(String::from_utf8_lossy(&a.body).into_owned());
                         st.last_success = Some(now);
-                        Ok(Some(r))
+                        let (release, json) = found.unzip();
+                        st.release_json = json;
+                        Ok(release)
                     }
                     Err(ParseError::Html) => Err(failed("update.error.held", "a web page".into())),
                     Err(e) => Err(failed("update.error.answer", format!("{e:?}"))),
