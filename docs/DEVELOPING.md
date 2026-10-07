@@ -101,7 +101,6 @@ up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a push
 | Cantus's settings, autosaves, recovery journal, sample packs | `%LOCALAPPDATA%\Cantus\` (a portable copy keeps them beside its exe) | made by the app; packs download on demand from `crates/cantus-content/manifest/content.json` (ADR 0030) |
 | Test instruments | any folder named by `CANTUS_PLUGINS` | [instruments/TEST-PLUGINS.md](instruments/TEST-PLUGINS.md) |
 | Builds | `target/` (git-ignored) | the commands above |
-| Research screenshots of other products | git-ignored on purpose | never committed |
 
 ## Environment variables
 

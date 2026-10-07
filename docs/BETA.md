@@ -44,6 +44,12 @@ notas. No hace falta para la beta: warp, MIDI learn, IA, macOS/Linux, aislar plu
    its trademark notice, egui and other crates, CC0 packs); the RVR1960 written
    confirmation or RV1909 as the default; a privacy statement (no telemetry; what the
    update check sends). *Done when:* all four are in the repo and linked from About.
+   **Before the repository is made public**, the reference screenshots of other products in
+   `research/*/screenshots/` (FabFilter, FL Studio, Ableton, Kontakt… — third parties'
+   images, kept in the private repository at the owner's request, 2026-10-07) must leave
+   it, history included (`git filter-repo --path-glob 'research/*/screenshots/*'
+   --invert-paths`, then a forced push), or the public repository starts from a fresh
+   history without them.
 
 ## Strongly recommended
 

@@ -51,7 +51,8 @@ The bar is the best DAWs on the market, and excellence over speed.
 - **FL Studio is the reference** — for the mixer (feature by feature), the workflow and the
   look — with the best ideas of Ableton, Bitwig, Logic, Studio One and FabFilter-class
   plug-ins on top. Ours should end up *better*, not a clone. Research notes live in
-  `research/` (third-party screenshots are git-ignored and never committed).
+  `research/`, with the reference screenshots of other products (the repository is
+  private; take them out of the history before it is ever made public — `docs/BETA.md`).
 - **The UI must look first-rank** (the owner found an earlier one "ugly, plain"): clear
   label/value units, no loose words, nothing that overlaps, panels resizable and movable,
   every overflowing area scrollable, navigation fast. Hand-drawn vector components, with a
