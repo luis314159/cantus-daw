@@ -5,13 +5,13 @@
 //! ([`workspace`]), under the toolbar ([`transport`]) and over the status bar
 //! ([`workspace_status`]).
 
+pub mod about;
 pub mod appearance;
 pub mod appearance_file;
 pub mod appearance_panels;
 pub mod arrangement;
 pub mod audio_art;
 pub mod audio_chip;
-pub mod about;
 pub mod audio_drivers;
 pub mod audio_firstrun;
 pub mod audio_notice;

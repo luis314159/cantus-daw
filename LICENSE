@@ -1,7 +1,11 @@
 Cantus is dual-licensed by crate. See docs/adr/0001-license.md.
 
-  crates/cantus-core, cantus-dsp, cantus-engine, cantus-project:
+  crates/cantus-core, cantus-dsp, cantus-engine, cantus-project, cantus-rt:
       MIT OR Apache-2.0  (see LICENSE-MIT and LICENSE-APACHE)
 
-  crates/cantus-ui, cantus-ai, cantus-app (the application):
+  crates/cantus-app (the program), cantus-ui, cantus-ai, cantus-host, cantus-content,
+  cantus-update, cantus-plugins, cantus-bench, xtask:
       GPL-3.0-or-later   (see LICENSE-GPL)
+
+The program as distributed is a combined work under GPL-3.0-or-later. Third-party
+components and their licences: THIRD-PARTY-NOTICES.md. Privacy: PRIVACY.md.

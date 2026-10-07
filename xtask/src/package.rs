@@ -100,7 +100,10 @@ pub fn stage(inputs: &Inputs, exe: &Path, stage: &Path, version: &str) -> Staged
         .replace('\n', "\r\n");
     std::fs::write(app.join("README.txt"), readme).unwrap();
     for (name, src) in &inputs.docs {
-        copy_into(src, &app.join(name.replace('/', std::path::MAIN_SEPARATOR_STR)));
+        copy_into(
+            src,
+            &app.join(name.replace('/', std::path::MAIN_SEPARATOR_STR)),
+        );
     }
 
     let clap = stage.join("clap");

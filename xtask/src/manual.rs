@@ -239,7 +239,13 @@ pub fn body(md: &str) -> String {
             i += 1;
             continue;
         }
-        if t.starts_with('|') && lines.get(i + 1).is_some_and(|n| n.trim().starts_with("|-") || n.trim().starts_with("|:") || n.trim().starts_with("| -")) {
+        if t.starts_with('|')
+            && lines.get(i + 1).is_some_and(|n| {
+                n.trim().starts_with("|-")
+                    || n.trim().starts_with("|:")
+                    || n.trim().starts_with("| -")
+            })
+        {
             flush(&mut para, &mut out);
             out.push_str("<table>\n<tr>");
             for c in cells(t) {
@@ -262,7 +268,10 @@ pub fn body(md: &str) -> String {
         let number = |l: &str| {
             let l = l.trim_start();
             let dot = l.find(". ")?;
-            l[..dot].chars().all(|c| c.is_ascii_digit()).then(|| l[dot + 2..].to_owned())
+            l[..dot]
+                .chars()
+                .all(|c| c.is_ascii_digit())
+                .then(|| l[dot + 2..].to_owned())
         };
         if bullet(line).is_some() || number(line).is_some() {
             flush(&mut para, &mut out);
@@ -301,7 +310,10 @@ pub fn body(md: &str) -> String {
                 }
                 i += 1;
             }
-            out.push_str(&format!("<blockquote><p>{}</p></blockquote>\n", inline(&quote.join(" "))));
+            out.push_str(&format!(
+                "<blockquote><p>{}</p></blockquote>\n",
+                inline(&quote.join(" "))
+            ));
             continue;
         }
         para.push(t);

@@ -103,12 +103,11 @@ const NAME: &CStr = c"Cantus";
 const VENDOR: &CStr = c"Cantus";
 const URL: &CStr = c"https://github.com/luis314159/cantus";
 /// The workspace's version (`0.1.0-beta.1`), as plug-ins are told it.
-const VERSION: &CStr = match CStr::from_bytes_with_nul(
-    concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes(),
-) {
-    Ok(v) => v,
-    Err(_) => panic!("the version has no NUL"),
-};
+const VERSION: &CStr =
+    match CStr::from_bytes_with_nul(concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes()) {
+        Ok(v) => v,
+        Err(_) => panic!("the version has no NUL"),
+    };
 
 impl HostData {
     pub(crate) fn new() -> Box<HostData> {

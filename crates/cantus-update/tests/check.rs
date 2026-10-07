@@ -517,12 +517,10 @@ const LIST: &str = "https://api.github.com/repos/luis314159/cantus/releases?per_
 
 /// The Cantus fixture re-tagged as `version`, a pre-release or not.
 fn release_json(version: &str, prerelease: bool) -> String {
-    CANTUS
-        .replace("0.2.0", version)
-        .replace(
-            "\"prerelease\": false",
-            &format!("\"prerelease\": {prerelease}"),
-        )
+    CANTUS.replace("0.2.0", version).replace(
+        "\"prerelease\": false",
+        &format!("\"prerelease\": {prerelease}"),
+    )
 }
 
 #[test]
@@ -565,9 +563,15 @@ fn the_newest_of_a_list_is_picked_and_drafts_and_strangers_are_left_out() {
         release_json("0.1.0-beta.2", true),
         CANTUS.replace("\"tag_name\": \"v0.2.0\"", "\"tag_name\": \"nightly\""),
     );
-    let (r, json) = release::newest(list.as_bytes()).unwrap().expect("one is picked");
+    let (r, json) = release::newest(list.as_bytes())
+        .unwrap()
+        .expect("one is picked");
     assert_eq!(r.version_text(), "0.1.0-beta.2");
-    assert_eq!(Release::parse(json.as_bytes()).unwrap(), r, "kept as it came");
+    assert_eq!(
+        Release::parse(json.as_bytes()).unwrap(),
+        r,
+        "kept as it came"
+    );
     assert_eq!(release::newest(b"[]"), Ok(None));
     assert_eq!(release::newest(PROXY_PAGE), Err(ParseError::Html));
     assert!(matches!(
@@ -658,7 +662,13 @@ fn a_beta_s_kept_answer_is_reused_on_304() {
     };
     assert_eq!(offer.version, "0.1.0-beta.2");
     assert_eq!(
-        t.etags_sent.lock().unwrap().last().cloned().flatten().as_deref(),
+        t.etags_sent
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .flatten()
+            .as_deref(),
         Some("W/\"l1\"")
     );
 }

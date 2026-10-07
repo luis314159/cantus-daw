@@ -28,13 +28,18 @@ fn the_markdown_the_manual_uses_becomes_html() {
     assert!(html.contains("<h2 id=\"2-set-up\">2. Set up</h2>"));
     assert!(html.contains("<ul>\n<li>a</li>\n<li>b more</li>\n</ul>"));
     assert!(html.contains("<ol>\n<li>one</li>\n<li>two</li>\n</ol>"));
-    assert!(html.contains("<tr><th>K</th><th>V</th></tr>\n<tr><td><code>x</code></td><td>y</td></tr>"));
+    assert!(
+        html.contains("<tr><th>K</th><th>V</th></tr>\n<tr><td><code>x</code></td><td>y</td></tr>")
+    );
     assert!(html.contains("<blockquote><p>quote</p></blockquote>"));
 }
 
 #[test]
 fn headings_get_github_s_anchors_and_links_find_the_installed_copies() {
-    assert_eq!(slug("5. Mix: the mixer, inserts"), "5-mix-the-mixer-inserts");
+    assert_eq!(
+        slug("5. Mix: the mixer, inserts"),
+        "5-mix-the-mixer-inserts"
+    );
     assert_eq!(slug("Grabar audio y MIDI"), "grabar-audio-y-midi");
     assert_eq!(slug("Configuración"), "configuración");
     assert_eq!(href("../../../PRIVACY.md"), "../../PRIVACY.txt");
@@ -66,7 +71,11 @@ fn the_manual_builds_in_both_languages_and_its_links_hold() {
             .map(|h| h.split('.').next().unwrap_or("").to_owned())
             .collect()
     };
-    assert_eq!(chapters("en"), chapters("es"), "the same chapters, in order");
+    assert_eq!(
+        chapters("en"),
+        chapters("es"),
+        "the same chapters, in order"
+    );
     assert!(chapters("en").len() >= 10, "{:?}", chapters("en"));
     for lang in manual::LANGS {
         let md = std::fs::read_to_string(src.join(lang).join("README.md")).unwrap();

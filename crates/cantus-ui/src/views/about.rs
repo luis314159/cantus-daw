@@ -91,7 +91,12 @@ fn para(ui: &mut Ui, s: &str, role: Role, color: Color32) {
     let g = parts::wrapped(ui.ctx(), s, role, st.tk(), w, 16);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, g.size().y), Sense::hover());
     with_brush(ui.painter(), |b| {
-        b.text(Pos2::new(b.snap(rect.left()), b.snap(rect.top())), g, color, 0.0);
+        b.text(
+            Pos2::new(b.snap(rect.left()), b.snap(rect.top())),
+            g,
+            color,
+            0.0,
+        );
     });
 }
 
@@ -112,26 +117,52 @@ fn page(app: &mut CantusApp, ui: &mut Ui) -> Option<Link> {
     let k = s.k;
     let mut clicked = None;
     // The hero: the logo, the name in the brand's gold, the version, what it is.
-    let (hero, _) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), LOGO * k + 8.0 * k), Sense::hover());
+    let (hero, _) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), LOGO * k + 8.0 * k),
+        Sense::hover(),
+    );
     let logo = Rect::from_min_size(hero.min, Vec2::splat(LOGO * k));
     w::paint_logo(ui.painter(), logo, app.appearance.logo, &s.t);
     let x = logo.right() + 18.0 * k;
     let row = |y: f32, h: f32| {
-        Rect::from_min_max(Pos2::new(x, hero.top() + y * k), Pos2::new(hero.right(), hero.top() + (y + h) * k))
+        Rect::from_min_max(
+            Pos2::new(x, hero.top() + y * k),
+            Pos2::new(hero.right(), hero.top() + (y + h) * k),
+        )
     };
     with_brush(ui.painter(), |b| {
-        line(b, row(4.0, 34.0), "Cantus", Role::Title, s.t.brand, s.tk() * 2.2);
+        line(
+            b,
+            row(4.0, 34.0),
+            "Cantus",
+            Role::Title,
+            s.t.brand,
+            s.tk() * 2.2,
+        );
         line(
             b,
             row(40.0, 18.0),
-            &tf("about.version", &[("version", APP_VERSION)]),
-            Role::Value,
+            &tf("about.version", &[("version", &APP_VERSION)]),
+            Role::Label,
             s.t.text_dim,
             s.tk(),
         );
-        line(b, row(62.0, 18.0), &t("about.tagline"), Role::Body, s.t.text, s.tk());
-        line(b, row(82.0, 18.0), &t("about.made_with"), Role::Label, s.t.text_dim, s.tk());
+        line(
+            b,
+            row(62.0, 18.0),
+            &t("about.tagline"),
+            Role::Body,
+            s.t.text,
+            s.tk(),
+        );
+        line(
+            b,
+            row(82.0, 18.0),
+            &t("about.made_with"),
+            Role::Label,
+            s.t.text_dim,
+            s.tk(),
+        );
     });
     // Who made it.
     ui.add_space(4.0 * k);
@@ -164,7 +195,13 @@ fn page(app: &mut CantusApp, ui: &mut Ui) -> Option<Link> {
     // The verse at start: each translation and its licence (the RVR1960's word for word).
     w::band(ui, Src::Key("verse.about.title"));
     for (name, licence) in super::verse::credits() {
-        para(ui, &format!("{name} — {licence}"), Role::Label, s.t.text_dim);
+        // The RVR1960's notice already names it, word for word.
+        let line = if licence.starts_with(&name) {
+            licence
+        } else {
+            format!("{name} — {licence}")
+        };
+        para(ui, &line, Role::Label, s.t.text_dim);
     }
 
     w::band(ui, Src::Key("about.band.trademarks"));

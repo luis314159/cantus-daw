@@ -118,8 +118,8 @@ fn the_package_task_produces_the_expected_file_list() {
         "THIRD-PARTY-NOTICES.txt",
     ]
     .iter()
-        .map(|s| format!("Cantus-0.2.0-plugins/{s}"))
-        .collect();
+    .map(|s| format!("Cantus-0.2.0-plugins/{s}"))
+    .collect();
     want.extend(plugin_files("Cantus-0.2.0-plugins/"));
     want.sort();
     assert_eq!(archive::names(&dist.join(release::plugins_name(V))), want);
@@ -174,7 +174,11 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     );
     // The manual's folders go with it, deepest first.
     let app = macro_body("CANTUS_APP_REMOVE");
-    let at = |s: &str| app.iter().position(|l| l == s).unwrap_or_else(|| panic!("{s}"));
+    let at = |s: &str| {
+        app.iter()
+            .position(|l| l == s)
+            .unwrap_or_else(|| panic!("{s}"))
+    };
     assert!(at("RMDir \"$INSTDIR\\manual\\en\"") < at("RMDir \"$INSTDIR\\manual\""));
     assert_eq!(
         (files("CANTUS_CLAP_FILES"), deletes("CANTUS_CLAP_REMOVE")),

@@ -179,7 +179,9 @@ pub fn render(ws: &Path, crates: &[Crate]) -> String {
                 texts.push((body, Vec::new()));
                 texts.len() - 1
             });
-            texts[n].1.push(format!("{} {} (`{rel}`)", c.name, c.version));
+            texts[n]
+                .1
+                .push(format!("{} {} (`{rel}`)", c.name, c.version));
             if !mine.contains(&n) {
                 mine.push(n);
             }
@@ -260,7 +262,9 @@ pub fn render(ws: &Path, crates: &[Crate]) -> String {
                 let f = fence(&text);
                 s.push_str(&format!("### {id}\n\n{f}text\n{text}\n{f}\n\n"));
             }
-            None => s.push_str(&format!("### {id}\n\n{MISSING} `xtask/notices/{id}.txt`\n\n")),
+            None => s.push_str(&format!(
+                "### {id}\n\n{MISSING} `xtask/notices/{id}.txt`\n\n"
+            )),
         }
     }
     s.trim_end().to_string() + "\n"

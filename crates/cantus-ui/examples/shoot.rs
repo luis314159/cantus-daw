@@ -264,8 +264,7 @@ fn main() {
         if !matches!(
             kind,
             "" | "eq" | "comp" | "plugin" | "plugins" | "settings" | "about"
-        )
-            && !kind.starts_with("update")
+        ) && !kind.starts_with("update")
         {
             if let Some((_, _, k)) = app.fx.open {
                 views::fx::demo_feed(&mut app, k);

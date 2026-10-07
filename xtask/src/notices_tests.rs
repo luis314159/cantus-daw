@@ -48,7 +48,10 @@ fn the_apache_terms_are_printed_once_and_notices_around_them_are_kept() {
     assert!(c.ends_with("NOTICE: includes X by Y."));
     assert!(!c.contains("TERMS AND CONDITIONS"));
     // Text without the terms is left as it is.
-    assert_eq!(collapse_apache("MIT License\r\n\r\nx\r\n"), "MIT License\n\nx");
+    assert_eq!(
+        collapse_apache("MIT License\r\n\r\nx\r\n"),
+        "MIT License\n\nx"
+    );
 }
 
 fn fake(name: &str, license: &str) -> Crate {
@@ -65,7 +68,11 @@ fn fake(name: &str, license: &str) -> Crate {
 
 #[test]
 fn a_crate_without_a_notice_or_with_a_forbidden_licence_is_reported() {
-    let crates = [fake("good", "MIT"), fake("new", "MIT"), fake("bad", "GPL-2.0-only")];
+    let crates = [
+        fake("good", "MIT"),
+        fake("new", "MIT"),
+        fake("bad", "GPL-2.0-only"),
+    ];
     let text = "| good | 1.0.0 | MIT | x |\n| bad | 1.0.0 | GPL-2.0-only | x |\n";
     let found = problems(text, &crates, text);
     assert_eq!(found.len(), 2, "{found:?}");
@@ -98,12 +105,18 @@ fn the_notices_name_every_crate_a_release_ships() {
     let ws = crate::workspace();
     let meta = notices::metadata(&ws).expect("cargo metadata");
     let crates = notices::shipped(&meta);
-    assert!(crates.len() > 200, "the closure was found: {}", crates.len());
+    assert!(
+        crates.len() > 200,
+        "the closure was found: {}",
+        crates.len()
+    );
     for name in ["egui", "libm", "ureq", "vst3", "clap-sys", "hound"] {
         assert!(crates.iter().any(|c| c.name == name), "{name} ships");
     }
     assert!(
-        crates.iter().all(|c| c.name != "proptest" && c.name != "tempfile"),
+        crates
+            .iter()
+            .all(|c| c.name != "proptest" && c.name != "tempfile"),
         "dev-dependencies do not ship"
     );
     assert!(

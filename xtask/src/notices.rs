@@ -79,9 +79,7 @@ pub fn shipped(meta: &Value) -> Vec<Crate> {
         .collect();
     let roots: Vec<&str> = packages
         .iter()
-        .filter(|(_, p)| {
-            p["source"].is_null() && ROOTS.contains(&p["name"].as_str().unwrap_or(""))
-        })
+        .filter(|(_, p)| p["source"].is_null() && ROOTS.contains(&p["name"].as_str().unwrap_or("")))
         .map(|(id, _)| *id)
         .collect();
     // Reached through normal edges (inside the binaries), and through any edge.
@@ -92,7 +90,12 @@ pub fn shipped(meta: &Value) -> Vec<Crate> {
             if !seen.insert(id) {
                 continue;
             }
-            for d in nodes.get(id).and_then(|n| n["deps"].as_array()).into_iter().flatten() {
+            for d in nodes
+                .get(id)
+                .and_then(|n| n["deps"].as_array())
+                .into_iter()
+                .flatten()
+            {
                 let wanted = d["dep_kinds"].as_array().into_iter().flatten().any(|k| {
                     let kind = k["kind"].as_str();
                     kinds.contains(&kind)
@@ -160,7 +163,10 @@ pub const ALLOWED: &[&str] = &[
 /// Whether an SPDX expression (with crates.io's old `/` for OR) lets Cantus ship the
 /// crate: every term of an AND allowed, at least one side of an OR.
 pub fn allowed(expr: &str) -> bool {
-    let norm = expr.replace('/', " OR ").replace('(', " ( ").replace(')', " ) ");
+    let norm = expr
+        .replace('/', " OR ")
+        .replace('(', " ( ")
+        .replace(')', " ) ");
     let tokens: Vec<&str> = norm.split_whitespace().collect();
     let mut pos = 0;
     let ok = or_expr(&tokens, &mut pos);
@@ -190,7 +196,10 @@ fn term(t: &[&str], pos: &mut usize) -> Option<bool> {
     *pos += 1;
     if first == "(" {
         let v = or_expr(t, pos)?;
-        (t.get(*pos) == Some(&")")).then(|| *pos += 1)?;
+        if t.get(*pos) != Some(&")") {
+            return None;
+        }
+        *pos += 1;
         return Some(v);
     }
     let mut id = first.to_string();
