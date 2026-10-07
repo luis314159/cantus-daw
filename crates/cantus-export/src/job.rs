@@ -210,9 +210,7 @@ pub(crate) fn finish_one(
         from + span * 0.1
     };
     let part = Part::new(path);
-    part.write(|w| {
-        encode::write(w, &a, s, tags, &mut ctl.span(Phase::Encode, enc_from, to))
-    })?;
+    part.write(|w| encode::write(w, &a, s, tags, &mut ctl.span(Phase::Encode, enc_from, to)))?;
     if ctl.cancelled() {
         return Err(ExportError::Cancelled);
     }

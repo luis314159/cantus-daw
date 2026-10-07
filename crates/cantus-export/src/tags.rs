@@ -165,7 +165,10 @@ mod tests {
         let n = ((t[6] as u32) << 21) | ((t[7] as u32) << 14) | ((t[8] as u32) << 7) | t[9] as u32;
         assert_eq!(n as usize, t.len() - 10);
         assert!(t.windows(4).any(|w| w == b"TIT2"));
-        assert!(!t.windows(4).any(|w| w == b"TALB"), "empty tags are left out");
+        assert!(
+            !t.windows(4).any(|w| w == b"TALB"),
+            "empty tags are left out"
+        );
     }
 
     #[test]

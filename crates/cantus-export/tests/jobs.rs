@@ -5,19 +5,22 @@
 mod common;
 
 use cantus_core::*;
+use cantus_engine::{stem_file_name, RenderOptions, StemOptions, StemSource, StemSpec};
 use cantus_export::process::quantise;
 use cantus_export::{
-    export_mix, export_rendered, export_stems, Control, Depth, Dither, ExportError,
-    ExportSettings, Format, MixJob, Rate, Scope, StemsJob, Tags,
+    export_mix, export_rendered, export_stems, Control, Depth, Dither, ExportError, ExportSettings,
+    Format, MixJob, Rate, Scope, StemsJob, Tags,
 };
-use cantus_engine::{stem_file_name, RenderOptions, StemOptions, StemSource, StemSpec};
 use std::sync::Arc;
 
 /// A lead and a bass, each on a strip of its own, eight beats at 128 BPM.
 fn project() -> Project {
     let mut p = Project::new("Export");
     p.tempo_bpm = 128.0;
-    for (name, base, len) in [("Lead", 60u8, Ticks::EIGHTH), ("Bass", 36u8, Ticks::QUARTER)] {
+    for (name, base, len) in [
+        ("Lead", 60u8, Ticks::EIGHTH),
+        ("Bass", 36u8, Ticks::QUARTER),
+    ] {
         let mut t = p.make_track(name);
         let mut c = p.make_clip(name, Ticks::ZERO, Ticks::beats(8));
         for i in 0..8 {
@@ -119,14 +122,25 @@ fn stems_in_every_format_and_flac_stems_to_the_bit() {
             .map(|st| st.spec.file_name.replace(".wav", &format!(".{ext}")))
             .collect();
         want.sort();
-        assert_eq!(files_in(dir.path()), want, "{format:?}: the stems and nothing else");
+        assert_eq!(
+            files_in(dir.path()),
+            want,
+            "{format:?}: the stems and nothing else"
+        );
         assert_eq!(done.files.len(), want.len());
-        assert_eq!(done.silent.len(), reference.iter().filter(|s| s.silent).count());
+        assert_eq!(
+            done.silent.len(),
+            reference.iter().filter(|s| s.silent).count()
+        );
         if format == Format::Flac {
             for st in reference.iter().filter(|s| !s.silent) {
                 let path = dir.path().join(st.spec.file_name.replace(".wav", ".flac"));
                 let (.., ints, tags) = common::decode_flac(&path);
-                assert!(ints == quantise(&st.samples, 2, 24, Dither::Off), "{}", st.spec.file_name);
+                assert!(
+                    ints == quantise(&st.samples, 2, 24, Dither::Off),
+                    "{}",
+                    st.spec.file_name
+                );
                 assert!(tags.iter().any(|(k, _)| k == "TITLE"));
             }
         }
@@ -136,7 +150,9 @@ fn stems_in_every_format_and_flac_stems_to_the_bit() {
 /// Stop the export, on a thread of its own, once it is `at` done.
 fn cancel_at(
     at: f32,
-    run: impl FnOnce(Arc<Control>) -> Result<cantus_export::Done, ExportError> + std::marker::Send + 'static,
+    run: impl FnOnce(Arc<Control>) -> Result<cantus_export::Done, ExportError>
+        + std::marker::Send
+        + 'static,
 ) {
     let ctl = Control::new();
     ctl.stop_at(at);
@@ -158,8 +174,14 @@ fn a_stopped_export_leaves_no_file_in_any_format() {
             ..Default::default()
         };
         let (a, p) = (long.clone(), path.clone());
-        cancel_at(0.3, move |ctl| export_rendered(a, &s, &Tags::default(), &p, &ctl));
-        assert!(files_in(dir.path()).is_empty(), "{format:?}: {:?}", files_in(dir.path()));
+        cancel_at(0.3, move |ctl| {
+            export_rendered(a, &s, &Tags::default(), &p, &ctl)
+        });
+        assert!(
+            files_in(dir.path()).is_empty(),
+            "{format:?}: {:?}",
+            files_in(dir.path())
+        );
     }
 }
 
@@ -186,8 +208,14 @@ fn a_stopped_stems_export_leaves_nothing_whether_rendering_or_encoding() {
             specs: specs(&p),
         };
         let f = folder.clone();
-        cancel_at(at, move |ctl| export_stems(job, &s, &Tags::default(), &f, &ctl));
-        assert!(files_in(&folder).is_empty(), "stopped at {at}: {:?}", files_in(&folder));
+        cancel_at(at, move |ctl| {
+            export_stems(job, &s, &Tags::default(), &f, &ctl)
+        });
+        assert!(
+            files_in(&folder).is_empty(),
+            "stopped at {at}: {:?}",
+            files_in(&folder)
+        );
     }
 }
 
@@ -199,12 +227,24 @@ fn a_file_already_there_is_replaced_only_when_the_new_one_is_whole() {
     let a = common::music(44_100, 40.0);
     let p = path.clone();
     cancel_at(0.3, move |ctl| {
-        export_rendered(a, &ExportSettings { format: Format::Ogg, ..Default::default() }, &Tags::default(), &p, &ctl)
+        export_rendered(
+            a,
+            &ExportSettings {
+                format: Format::Ogg,
+                ..Default::default()
+            },
+            &Tags::default(),
+            &p,
+            &ctl,
+        )
     });
     assert_eq!(std::fs::read(&path).unwrap(), b"the old file");
     let ok = export_rendered(
         common::music(44_100, 1.0),
-        &ExportSettings { format: Format::Wav, ..Default::default() },
+        &ExportSettings {
+            format: Format::Wav,
+            ..Default::default()
+        },
         &Tags::default(),
         &path,
         &Control::new(),

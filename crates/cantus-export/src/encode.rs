@@ -50,7 +50,8 @@ pub fn wav<W: Write>(
     let float = depth == Depth::Float32;
     let fmt_len: u32 = if float { 18 } else { 16 };
     let fact = if float { 12 } else { 0 };
-    let riff_len = 4 + (8 + fmt_len as u64) + fact + info.len() as u64 + 8 + data_len + data_len % 2;
+    let riff_len =
+        4 + (8 + fmt_len as u64) + fact + info.len() as u64 + 8 + data_len + data_len % 2;
     if riff_len > u32::MAX as u64 {
         return Err(ExportError::TooLong);
     }
@@ -81,7 +82,9 @@ pub fn wav<W: Write>(
     if float {
         for (i, block) in a.samples.chunks(step).enumerate() {
             buf.clear();
-            block.iter().for_each(|x| buf.extend_from_slice(&x.to_le_bytes()));
+            block
+                .iter()
+                .for_each(|x| buf.extend_from_slice(&x.to_le_bytes()));
             out.write_all(&buf)?;
             if !progress(((i + 1) * step).min(total) as f32 / total as f32) {
                 return Err(ExportError::Cancelled);
@@ -243,9 +246,7 @@ pub fn mp3<W: Write + Seek>(
     credit: &str,
     progress: &mut Progress<'_>,
 ) -> Result<(), ExportError> {
-    use mp3lame_encoder::{
-        Builder, FlushNoGap, InterleavedPcm, Mode, MonoPcm, Quality, VbrMode,
-    };
+    use mp3lame_encoder::{Builder, FlushGap, InterleavedPcm, Mode, MonoPcm, Quality, VbrMode};
     let ch = a.channels.clamp(1, 2);
     let mut b = Builder::new().ok_or_else(|| ExportError::Encode("LAME: no memory".into()))?;
     b.set_num_channels(ch as u8).map_err(lame)?;
@@ -253,8 +254,12 @@ pub fn mp3<W: Write + Seek>(
     // Never let LAME pick another rate: the file is at the rate the dialog shows.
     b.set_output_sample_rate(std::num::NonZeroU32::new(a.rate))
         .map_err(lame)?;
-    b.set_mode(if ch == 1 { Mode::Mono } else { Mode::JointStereo })
-        .map_err(lame)?;
+    b.set_mode(if ch == 1 {
+        Mode::Mono
+    } else {
+        Mode::JointStereo
+    })
+    .map_err(lame)?;
     // q2 (LAME's -h): the recommended quality, as good as q0 to within 0.1 dB of NMR at
     // a third of the time (ADR 0033).
     b.set_quality(Quality::NearBest).map_err(lame)?;
@@ -277,7 +282,9 @@ pub fn mp3<W: Write + Seek>(
     let total = a.samples.len().max(1);
     for (i, block) in a.samples.chunks(step).enumerate() {
         buf.clear();
-        buf.reserve(mp3lame_encoder::max_required_buffer_size(block.len() / ch as usize));
+        buf.reserve(mp3lame_encoder::max_required_buffer_size(
+            block.len() / ch as usize,
+        ));
         if ch == 1 {
             enc.encode_to_vec(MonoPcm(block), &mut buf).map_err(lame)?;
         } else {
@@ -291,11 +298,13 @@ pub fn mp3<W: Write + Seek>(
     }
     buf.clear();
     buf.reserve(7200);
-    enc.flush_to_vec::<FlushNoGap>(&mut buf).map_err(lame)?;
+    // The full flush: the last samples padded out and every frame written (the info
+    // tag counts that padding, so a player trims it).
+    enc.flush_to_vec::<FlushGap>(&mut buf).map_err(lame)?;
     out.write_all(&buf)?;
     // The info frame, filled in now that the stream's length is known, over the empty
     // one LAME wrote first.
-    let mut tag = Vec::new();
+    let mut tag = Vec::with_capacity(enc.lame_tag_size().max(1));
     if enc.lame_tag_encode_to_vec(&mut tag).is_some() && !tag.is_empty() {
         let end = out.stream_position()?;
         out.seek(SeekFrom::Start(id3.len() as u64))?;

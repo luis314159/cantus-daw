@@ -82,14 +82,17 @@ fn fft(re: &mut [f64], im: &mut [f64]) {
 }
 
 /// Energy in octave bands (63 Hz … 8 kHz centres) of the first channel, dB, averaged
-/// over 4096-sample Hann frames.
+/// over 16384-sample Hann frames: a band's power whatever the rate, the bins narrow
+/// enough that a tone near a band's edge stays out of it.
 pub fn octave_bands(x: &[f32], channels: usize, rate: u32) -> Vec<f64> {
-    let n = 4096;
+    let n = 16_384;
     let centres = [63.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0];
     let mut acc = vec![0.0f64; centres.len()];
     let frames = x.len() / channels;
     let mut at = 0;
+    let mut count = 0usize;
     while at + n <= frames {
+        count += 1;
         let mut re: Vec<f64> = (0..n)
             .map(|i| {
                 let w = 0.5 - 0.5 * (2.0 * PI * i as f64 / n as f64).cos();
@@ -107,7 +110,10 @@ pub fn octave_bands(x: &[f32], channels: usize, rate: u32) -> Vec<f64> {
         }
         at += n;
     }
-    acc.iter().map(|e| 10.0 * e.max(1e-30).log10()).collect()
+    // Per frame, so files of different rates (and so frame counts) compare.
+    acc.iter()
+        .map(|e| 10.0 * (e / count.max(1) as f64).max(1e-30).log10())
+        .collect()
 }
 
 /// An MP3 decoded by symphonia, gapless (the LAME tag's delay and padding honoured):
@@ -160,7 +166,12 @@ pub fn symphonia_tags(path: &Path, ext: &str) -> Vec<(String, String)> {
     let mut hint = Hint::new();
     hint.with_extension(ext);
     let mut probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .unwrap();
     let mut tags = Vec::new();
     let mut take = |rev: &symphonia::core::meta::MetadataRevision| {

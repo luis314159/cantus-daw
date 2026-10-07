@@ -5,8 +5,8 @@ mod common;
 
 use cantus_dsp::terminus::loudness::LoudnessMeter;
 use cantus_export::{
-    export_rendered, Audio, Control, Depth, ExportSettings, Format, Loudness, Preset, Rate,
-    Scope, Tags,
+    export_rendered, Audio, Control, Depth, ExportSettings, Format, Loudness, Preset, Rate, Scope,
+    Tags,
 };
 use common::*;
 
@@ -16,7 +16,10 @@ fn measure(x: &[f32], ch: usize, rate: u32) -> (f64, f32) {
     let l: Vec<f32> = x.iter().step_by(ch).copied().collect();
     let r: Vec<f32> = x.iter().skip(ch - 1).step_by(ch).copied().collect();
     m.process(&l, &r);
-    (m.integrated().expect("loud enough to gate"), m.true_peak_db())
+    (
+        m.integrated().expect("loud enough to gate"),
+        m.true_peak_db(),
+    )
 }
 
 fn scaled(a: &Audio, db: f32) -> Audio {
@@ -74,7 +77,10 @@ fn a_loud_target_limits_the_peaks_and_still_lands() {
     let (done, back, ch, rate) = run(&a, &float_wav(-9.0, -1.0, true));
     let (lufs, tp) = measure(&back, ch, rate);
     assert!((lufs + 9.0).abs() <= 0.5, "{lufs:.2} LUFS");
-    assert!(tp <= -1.0 + 0.1, "true peak {tp:.2} dBTP under the −1 dBTP ceiling");
+    assert!(
+        tp <= -1.0 + 0.1,
+        "true peak {tp:.2} dBTP under the −1 dBTP ceiling"
+    );
     assert!(done.loudness.unwrap().limited);
 }
 
@@ -87,7 +93,10 @@ fn without_the_limiter_the_gain_stops_at_the_ceiling() {
     assert!(lufs < -6.5, "quieter than asked, as said: {lufs:.2}");
     let n = done.loudness.unwrap();
     assert!(!n.limited);
-    assert!((n.lufs.unwrap() - lufs).abs() < 0.05, "the report says what was written");
+    assert!(
+        (n.lufs.unwrap() - lufs).abs() < 0.05,
+        "the report says what was written"
+    );
 }
 
 #[test]

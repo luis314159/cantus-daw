@@ -37,7 +37,11 @@ pub fn to_channels(a: Audio, channels: u16) -> Audio {
         (2, 1) => Audio {
             rate: a.rate,
             channels: 1,
-            samples: a.samples.chunks_exact(2).map(|f| 0.5 * (f[0] + f[1])).collect(),
+            samples: a
+                .samples
+                .chunks_exact(2)
+                .map(|f| 0.5 * (f[0] + f[1]))
+                .collect(),
         },
         (1, 2) => Audio {
             rate: a.rate,
@@ -132,7 +136,12 @@ fn scale(samples: &mut [f32], db: f32) {
 
 /// `a` raised or lowered by `gain_db` and held under `ceiling` dBTP by Terminus (clean
 /// style, true-peak detection, its latency taken back so nothing moves).
-fn limited(a: &Audio, gain_db: f32, ceiling: f32, cancel: &mut dyn FnMut() -> bool) -> Option<Audio> {
+fn limited(
+    a: &Audio,
+    gain_db: f32,
+    ceiling: f32,
+    cancel: &mut dyn FnMut() -> bool,
+) -> Option<Audio> {
     let mut t = Terminus::new(a.rate as f32);
     t.set(&LimSettings {
         ceiling_db: ceiling,
@@ -261,7 +270,10 @@ pub fn normalise(
 pub fn quantise(samples: &[f32], channels: u16, bits: u16, dither: Dither) -> Vec<i32> {
     let ch = channels.max(1) as usize;
     let full = (1i64 << (bits - 1)) as f32;
-    let (lo, hi) = (-(1i64 << (bits - 1)) as i32, ((1i64 << (bits - 1)) - 1) as i32);
+    let (lo, hi) = (
+        -(1i64 << (bits - 1)) as i32,
+        ((1i64 << (bits - 1)) - 1) as i32,
+    );
     let shaping = match dither {
         Dither::Shaped => Some(Shaping::Optimized),
         Dither::Tpdf => Some(Shaping::Flat),

@@ -34,12 +34,12 @@ pub mod tags;
 pub use job::{
     export_mix, export_rendered, stem_output_name, Control, Done, MixJob, Phase, StemsJob,
 };
-pub use stems::export_stems;
 pub use process::{Audio, Normalised};
 pub use settings::{
     Channels, Depth, Dither, ExportSettings, Format, Loudness, Mp3Mode, Preset, Rate, Scope,
     StemChoice, Tags, CEILINGS, LUFS_TARGETS, MP3_BITRATES, MP3_VBR, OGG_QUALITIES, RATES,
 };
+pub use stems::export_stems;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {
