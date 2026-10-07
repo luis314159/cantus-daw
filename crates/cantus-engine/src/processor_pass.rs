@@ -202,7 +202,13 @@ impl Processor {
         let slot0 = nodes.scratch[0]
             .try_borrow_mut()
             .map_or(0, |mut sc| sc.prof.take_charged());
-        self.prof.enter_except(Node::Engine, slot0);
+        if self.last_parallel {
+            // The callback's wait for the critical path is nobody's work: the nodes it
+            // waited on are charged on the workers that ran them (§2.9).
+            self.prof.restart(Node::Engine);
+        } else {
+            self.prof.enter_except(Node::Engine, slot0);
+        }
         // A captured strip that did not run this pass — nothing came in, nothing rings —
         // still records its silence: a take must keep time.
         let captured = nodes.capture.try_borrow_mut().is_some_and(|c| c.ran);

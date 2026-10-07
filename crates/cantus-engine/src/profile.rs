@@ -349,6 +349,15 @@ impl Profiler {
         self.current = node.index();
     }
 
+    /// From now on time is `node`'s, and the time since the last mark is charged to no
+    /// one (the callback waiting on a parallel pass's last task).
+    pub fn restart(&mut self, node: Node) {
+        if self.on {
+            self.mark = Some(Instant::now());
+            self.current = node.index();
+        }
+    }
+
     /// Take what a slot's profiler charged this block (ADR 0031 §2.9: each node on the
     /// worker that ran it), leaving it empty.
     pub fn fold(&mut self, slot: &mut SlotProfile) {
