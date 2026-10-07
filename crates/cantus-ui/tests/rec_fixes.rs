@@ -24,7 +24,7 @@ fn rig(dir: &std::path::Path) -> (CantusApp, Processor, rtrb::Producer<f32>, Tra
     a.path = Some(dir.join("song.cantus"));
     a.add_audio_track();
     let id = a.selected_track.unwrap();
-    a.toggle_arm(id, false);
+    assert!(a.project().track(id).unwrap().armed, "a new audio track comes armed");
     a.sync_engine();
     (a, proc, ring, id)
 }

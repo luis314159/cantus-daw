@@ -229,6 +229,8 @@ pub struct CantusApp {
     pub session: Option<crate::recovery::Session>,
     /// What a session that is gone left, offered at start (`views::recovery`).
     pub recovery: Option<crate::recovery_restore::Offer>,
+    /// *Save changes?* asked before New or Open replace unsaved work (`views::unsaved`).
+    pub unsaved_prompt: Option<views::unsaved::Then>,
     export: Option<mpsc::Receiver<Result<(PathBuf, Rendered), String>>>,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
@@ -442,6 +444,7 @@ impl CantusApp {
             epoch: 0,
             session: None,
             recovery: None,
+            unsaved_prompt: None,
             export: None,
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
@@ -2872,6 +2875,12 @@ impl CantusApp {
         }
     }
 
+    /// Send the engine a fresh snapshot on the next `sync_engine` even if the project did
+    /// not change (what it is compiled from did: a count-in's click).
+    pub(crate) fn force_resync(&mut self) {
+        self.synced_revision = u64::MAX;
+    }
+
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
         // A source the loader thread finished: attach it (ADR 0025 §9).
@@ -2891,7 +2900,16 @@ impl CantusApp {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            let snapshot = self.engine.compile(self.bus.project(), rev);
+            let snapshot = if self.rec.count_in_click {
+                // A count-in with the metronome off: the click sounds for the count-in
+                // only (`ClickMode::CountInOnly`), and the project is not touched.
+                let mut p = self.bus.project().clone();
+                p.metronome = true;
+                p.recording.click = cantus_core::ClickMode::CountInOnly;
+                self.engine.compile(&p, rev)
+            } else {
+                self.engine.compile(self.bus.project(), rev)
+            };
             self.sent_effects.clear();
             self.sent_effects
                 .extend(snapshot.effect_slots().map(|s| s.id));
@@ -3005,9 +3023,9 @@ impl CantusApp {
                 self.exec(Command::SetMetronome { enabled });
             }
             Panic => self.engine.panic(),
-            NewProject => self.new_project(),
+            NewProject => self.request_new(),
             DemoSongs => views::demos::show(self),
-            Open => self.open_dialog(),
+            Open => self.request_open(),
             Save => self.save(),
             SaveAs => self.save_as(),
             ExportWav => self.export_dialog(),
@@ -3484,6 +3502,7 @@ impl CantusApp {
         views::interop::frame(self, ctx);
         views::demos::frame(self, ctx);
         views::recovery::frame(self, ctx);
+        views::unsaved::frame(self, ctx);
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);

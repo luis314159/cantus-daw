@@ -41,6 +41,9 @@ pub struct RecSession {
     /// The armed instrument tracks that play the live notes with the live track while a
     /// pass records them (`EngineHandle::set_live_echo`).
     pub echo: Vec<TrackId>,
+    /// A count-in is under way with the metronome off (or set to click only while
+    /// recording): the engine's snapshots click during the count-in anyway.
+    pub count_in_click: bool,
 }
 
 /// A pass in progress.
@@ -337,6 +340,12 @@ impl CantusApp {
             TrackInput::mono(0)
         });
         track.icon = Some(TrackIcon::Vocal);
+        // Ready to record (round 22, the manual's friction): armed, and heard while it is
+        // armed or recording (monitoring *Auto*), as a new audio track is in every DAW.
+        track.armed = true;
+        if let Some(i) = track.input.as_mut() {
+            i.monitor = MonitorMode::Auto;
+        }
         let id = track.id;
         let index = self
             .selected_track
@@ -535,6 +544,13 @@ impl CantusApp {
             let from = pos - bar * bars;
             self.engine.seek(from);
             self.engine.set_record_start(Some(pos));
+            // A count-in clicks whatever the metronome switch says (round 22): the engine
+            // gets a snapshot with the click on, counting in only, until the pass ends.
+            if !self.project().metronome {
+                self.rec.count_in_click = true;
+                self.force_resync();
+                self.sync_engine();
+            }
             from
         } else {
             self.engine.set_record_start(None);
@@ -611,6 +627,9 @@ impl CantusApp {
             Vec::new()
         };
         self.engine.set_record_start(None);
+        if std::mem::take(&mut self.rec.count_in_click) {
+            self.force_resync();
+        }
         let mut notes = live.notes;
         notes.extend(tail);
         let mut plan = live.plan;

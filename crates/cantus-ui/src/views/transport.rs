@@ -813,7 +813,7 @@ fn menu_look(style: &mut egui::Style) {
 fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
     if ui.button(t("menu.new")).clicked() {
         ui.close();
-        app.new_project();
+        app.request_new();
     }
     if ui.button(t("demos.menu")).clicked() {
         ui.close();
@@ -821,7 +821,7 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
     if ui.button(t("menu.open")).clicked() {
         ui.close();
-        app.open_dialog();
+        app.request_open();
     }
     ui.separator();
     if ui.button(t("menu.save")).clicked() {
