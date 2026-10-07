@@ -500,6 +500,9 @@ fn inst_unit(spec: &NativeSpec) -> Box<dyn InstrumentUnit> {
     u
 }
 
+/// A run's name and how it splits its blocks.
+type Split<'a> = (&'a str, Box<dyn FnMut() -> usize>);
+
 fn splits(mut rng: Rng) -> impl FnMut() -> usize {
     move || rng.block()
 }
@@ -571,7 +574,7 @@ fn inst_split_invariance(kind: InstrumentKind) {
             failures.push(format!("{kind:?} {label}: not finite"));
             continue;
         }
-        let runs: [(&str, Box<dyn FnMut() -> usize>); 5] = [
+        let runs: [Split; 5] = [
             ("blocks of 1", Box::new(|| 1)),
             ("blocks of 4096", Box::new(|| 4096)),
             ("blocks of 7", Box::new(|| 7)),

@@ -219,6 +219,9 @@ fn specs(kind: EffectKind, random: usize, rng: &mut Rng) -> Vec<(String, EffectS
     v
 }
 
+/// A run's name and how it splits its blocks.
+type Split<'a> = (&'a str, Box<dyn FnMut() -> usize>);
+
 /// A block of `n` from `rng`, as a closure for [`drive`].
 fn splits(mut rng: Rng) -> impl FnMut() -> usize {
     move || rng.block()
@@ -252,7 +255,7 @@ fn split_invariance(kind: EffectKind) {
                 failures.push(format!("{kind:?} {label} keyed {keyed}: not finite"));
                 continue;
             }
-            let runs: [(&str, Box<dyn FnMut() -> usize>); 5] = [
+            let runs: [Split; 5] = [
                 ("blocks of 1", Box::new(|| 1)),
                 ("blocks of 4096", Box::new(|| 4096)),
                 ("blocks of 7", Box::new(|| 7)),

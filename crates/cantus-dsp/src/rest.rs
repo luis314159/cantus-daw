@@ -178,8 +178,8 @@ mod tests {
                         seed ^= seed >> 17;
                         seed ^= seed << 5;
                         // Long runs of zeros with a few values among them.
-                        if (seed % 23) == 0 || (i < 20 && trial % 3 == 0) {
-                            if seed % 2 == 0 {
+                        if seed.is_multiple_of(23) || (i < 20 && trial % 3 == 0) {
+                            if seed.is_multiple_of(2) {
                                 1.0
                             } else {
                                 -0.0
