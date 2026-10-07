@@ -84,7 +84,11 @@ cargo run -p xtask -- bundle                    # our effects as .clap/.vst3 for
 cargo run -p xtask -- manual                    # the manual as HTML into target/manual
 ```
 
-Output goes to `target/package/dist/`. The real signing certificate (SignPath) is not set
+Output goes to `target/package/dist/`. A release holds a small `cantus.exe` launcher
+(`crates/cantus-launch`) that starts `cantus-x86-64-v3.exe` or `cantus-x86-64-v2.exe` by
+the processor, plus `cantus-scan.exe` (the plug-in scanner); each level builds in
+`target/cpu-<level>`. `cargo run -p xtask -- null-hashes` proves the levels give the same
+bits. A development build (`cargo build -p cantus`) is a single plain program. The real signing certificate (SignPath) is not set
 up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a pushed
 `v*.*.*` tag.
 

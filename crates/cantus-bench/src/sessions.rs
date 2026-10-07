@@ -20,7 +20,7 @@ use cantus_ui::demos;
 pub const ENGINE_TRACKS: usize = cantus_engine::MAX_TRACKS;
 
 /// Where each demo's whole band plays, first bar (the demos' own test, `tests/demos.rs`).
-fn full_band_bar(id: &str) -> i64 {
+pub fn full_band_bar(id: &str) -> i64 {
     match id {
         "ballad" | "funk" => 12,
         "lofi" => 20,

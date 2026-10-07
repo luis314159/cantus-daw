@@ -56,6 +56,25 @@ repository and checks its pinned SHA-256, and `xtask package` builds with
 `ASIO_SYS_REQUIRE_SDK=1` and then asks the built program for its driver types, refusing a
 release without ASIO.
 
+**One program per processor level, and a launcher** (amended in round 22; ADR 0031 §5.3).
+The install folder and the portable zip hold `cantus.exe` — a small launcher built for the
+plain x86-64 baseline (`crates/cantus-launch`) — beside `cantus-x86-64-v3.exe` (AVX2, FMA,
+BMI2) and `cantus-x86-64-v2.exe` (SSE4.2, POPCNT), `cantus-x86-64-v4.exe` too when a
+release is made with `xtask package --v4`, and `cantus-scan.exe` (the plug-in scanner the
+app starts from beside itself, which no release had carried). The launcher asks the
+processor (and Windows, for the AVX register state) what it has, starts the highest level
+whose program is there with the same arguments, waits for it and returns its exit code;
+`CANTUS_CPU=v2` steps down, never up; `cantus.exe --launcher-info` says what it found; a
+processor below v2 or a missing program is explained in a message box, in English and
+Spanish. Everything that starts Cantus — the Start-menu and desktop shortcuts, the
+`.cantus` association, "Open with", the finish page, `/RELAUNCH` — still names
+`cantus.exe`, and the installer and uninstaller wait for **every** program of the folder to
+close. The programs set the AppUserModelID `Cantus.Cantus` for their process and the
+installer gives the shortcuts the same one (`appid.nsh`), so the window groups under the
+shortcut and a pin starts the launcher. Still one installer, one portable zip and the
+same file names: the updater does not change. Both programs make the same bits (the CI
+job `null-hashes`).
+
 **FlexASIO, fetched, never bundled** (the owner, 2026-10-06). The installer offers an unticked component, *FlexASIO driver (downloaded now)*. When ticked it runs
 `flexasio.ps1` (embedded in the installer): it asks GitHub for FlexASIO's **latest**
 release, takes its `FlexASIO-<version>.exe`, checks that what arrived is a Windows
@@ -73,7 +92,9 @@ bundled: its licence forbids redistribution, so the app only links to its page.
 ### 2. One task makes a release
 
 `cargo run -p xtask -- package [--sign|--sign-test] [--no-build] [--no-installer]`
-fetches and checks the ASIO SDK, builds the one edition with ASIO, checks it lists ASIO,
+fetches and checks the ASIO SDK, builds the one edition with ASIO — the program once per
+x86-64 level (v2 and v3; `--v4` adds AVX-512), the scanner and the launcher (round 22) —
+checks each program names its level and lists ASIO and that the launcher starts one that does,
 bundles the plug-ins (ADR 0020's `bundle`), stages the release,
 signs, zips, generates `config.nsh`/`files.nsh`/`strings.nsh` beside the hand-written
 `xtask/installer/cantus.nsi`, runs `makensis`, signs the installer, and writes

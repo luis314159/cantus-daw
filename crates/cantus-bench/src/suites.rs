@@ -23,6 +23,15 @@ pub fn engine(plan: &Plan, spots: &mut Vec<HotSpot>) -> Vec<Metric> {
     if !plan.quick {
         cases.push((64, 64));
     }
+    // `CANTUS_BENCH_SIZES=64` (xtask perf --sizes): only those sessions, so a paired A/B
+    // of one session keeps its two runs seconds apart instead of minutes.
+    if let Ok(only) = std::env::var("CANTUS_BENCH_SIZES") {
+        let keep: Vec<usize> = only
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        cases.retain(|(n, _)| keep.contains(n));
+    }
     for (n, frames) in cases {
         let p = sessions::scaled(n);
         let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);

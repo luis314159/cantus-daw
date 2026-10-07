@@ -804,6 +804,7 @@ name = "cantus"
 version = "0.1.0-beta.1"
 dependencies = [
  "anyhow",
+ "cantus-launch",
  "cantus-ui",
  "env_logger",
  "log",
@@ -828,6 +829,7 @@ name = "cantus-bench"
 version = "0.1.0-beta.1"
 dependencies = [
  "cantus-core",
+ "cantus-dsp",
  "cantus-engine",
  "cantus-project",
  "cantus-rt",
@@ -837,6 +839,7 @@ dependencies = [
  "rtrb",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -934,6 +937,17 @@ dependencies = [
  "thiserror 2.0.20",
  "vst3",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "cantus-launch"
+version = "0.1.0"
+dependencies = [
+ "resvg",
+ "tempfile",
+ "tiny-skia",
+ "windows-sys 0.59.0",
+ "winresource",
 ]
 
 [[package]]
@@ -6007,6 +6021,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 name = "xtask"
 version = "0.1.0-beta.1"
 dependencies = [
+ "cantus-launch",
  "cantus-plugins",
  "cantus-update",
  "serde_json",

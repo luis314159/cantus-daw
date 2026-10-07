@@ -6,12 +6,15 @@
 //! cargo run -p xtask -- bundle --v3             # the x86-64-v3 flavour, into target/bundled-x86-64-v3/
 //! cargo run -p xtask -- bundle --no-build       # only lay out what is already built
 //! cargo run -p xtask -- package                 # the Windows release files (package.rs)
+//! cargo run -p xtask -- package --v4            # with the x86-64-v4 (AVX-512) program too
+//! cargo run -p xtask -- null-hashes             # v2 and v3 render the same bits (null_hashes.rs)
 //! cargo run -p xtask -- asio-sdk                # fetch and check the ASIO SDK (asio_sdk.rs)
 //! cargo run -p xtask -- sign-test-cert          # a self-signed certificate (sign.rs)
 //! cargo run -p xtask -- version                 # the workspace's version
 //! cargo run -p xtask -- perf                    # the performance gate (perf.rs)
 //! cargo run -p xtask -- notices [--check]       # THIRD-PARTY-NOTICES.md (notices.rs)
 //! cargo run -p xtask -- manual                  # the manual as HTML, into target/manual/ (manual.rs)
+//! cargo run -p xtask -- perf --ab v2,v3         # two levels' builds, in alternating runs
 //! ```
 //!
 //! Each plug-in is built on its own (`cargo build -p cantus-plugins --profile plugin
@@ -27,6 +30,9 @@
 
 mod archive;
 mod asio_sdk;
+mod levels;
+#[cfg(test)]
+mod levels_tests;
 mod manual;
 #[cfg(test)]
 mod manual_tests;
@@ -35,6 +41,7 @@ mod notices_render;
 #[cfg(test)]
 mod notices_tests;
 mod nsis;
+mod null_hashes;
 mod package;
 #[cfg(test)]
 mod package_tests;
@@ -258,12 +265,14 @@ fn main() {
                 }
             }
         }
+        Some("null-hashes") => null_hashes::null_hashes(&args[1..]),
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
-            eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test]");
+            eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test] [--v4]");
+            eprintln!("       cargo run -p xtask -- null-hashes [--levels v2,v3,v4] [--baseline] [--no-build] [--whole]");
             eprintln!("       cargo run -p xtask -- asio-sdk");
             eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
-            eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …]");
+            eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …] [--cpu v3] [--ab v2,v3 --pairs N]");
             eprintln!("       cargo run -p xtask -- notices [--check] | manual");
             std::process::exit(2);
         }

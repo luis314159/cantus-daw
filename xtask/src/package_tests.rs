@@ -5,6 +5,7 @@
 use crate::archive;
 use crate::nsis;
 use crate::package::{self, Inputs, InstallerJob};
+use cantus_launch::Level;
 use cantus_update::release;
 use std::path::Path;
 
@@ -15,7 +16,8 @@ fn write(p: &Path, bytes: &[u8]) {
     std::fs::write(p, bytes).unwrap();
 }
 
-/// Two plug-ins laid out as `xtask bundle` lays them out, the program, the texts.
+/// Two plug-ins laid out as `xtask bundle` lays them out, the launcher, the v2 and v3
+/// programs, the scanner, the texts.
 fn stand_ins(root: &Path) -> Inputs {
     let bundled = root.join("bundled");
     let names = ["Cantus Aequalis", "Cantus Porta"];
@@ -30,14 +32,22 @@ fn stand_ins(root: &Path) -> Inputs {
             b"{}",
         );
     }
-    write(&root.join("app/cantus.exe"), b"MZ cantus");
+    write(&root.join("launch/cantus-launch.exe"), b"MZ launcher");
+    write(&root.join("v2/cantus.exe"), b"MZ cantus v2");
+    write(&root.join("v3/cantus.exe"), b"MZ cantus v3");
+    write(&root.join("v2/cantus-scan.exe"), b"MZ scanner");
     write(&root.join("LICENSE-GPL"), b"GNU GENERAL PUBLIC LICENSE");
     write(&root.join("LICENSE"), b"Cantus is dual-licensed by crate.");
     write(&root.join("README.txt"), b"Cantus {version}\nline two\n");
     write(&root.join("NOTICES.md"), b"# Third-party notices");
     write(&root.join("index.html"), b"<!doctype html>");
     Inputs {
-        exe: root.join("app/cantus.exe"),
+        launcher: root.join("launch/cantus-launch.exe"),
+        programs: vec![
+            (Level::V2, root.join("v2/cantus.exe")),
+            (Level::V3, root.join("v3/cantus.exe")),
+        ],
+        scanner: root.join("v2/cantus-scan.exe"),
         bundled,
         plugins: names.iter().map(|s| s.to_string()).collect(),
         license: root.join("LICENSE-GPL"),
@@ -92,12 +102,16 @@ fn the_package_task_produces_the_expected_file_list() {
         ]
     );
 
-    // The portable zip: the app at the top of one folder, the marker, the plug-ins.
+    // The portable zip: the launcher, both programs and the scanner at the top of one
+    // folder, the marker, the plug-ins.
     let mut want: Vec<String> = [
         "COPYRIGHT.txt",
         "LICENSE.txt",
         "README.txt",
         "THIRD-PARTY-NOTICES.txt",
+        "cantus-scan.exe",
+        "cantus-x86-64-v2.exe",
+        "cantus-x86-64-v3.exe",
         "cantus.exe",
         "manual/en/index.html",
         "portable.txt",
@@ -109,8 +123,9 @@ fn the_package_task_produces_the_expected_file_list() {
     want.sort();
     assert_eq!(archive::names(&dist.join(release::portable_name(V))), want);
 
-    // The plug-ins zip: no program, the texts, CLAP/ and VST3/.
-    // The plug-ins carry the same crates, so the notices go with them; the manual does not.
+    // The plug-ins zip: no program (neither the launcher, the programs nor the scanner),
+    // the texts, CLAP/ and VST3/. The plug-ins carry the same crates, so the notices go
+    // with them; the manual does not.
     let mut want: Vec<String> = [
         "COPYRIGHT.txt",
         "LICENSE.txt",
@@ -124,9 +139,13 @@ fn the_package_task_produces_the_expected_file_list() {
     want.sort();
     assert_eq!(archive::names(&dist.join(release::plugins_name(V))), want);
 
-    // The program; the readme carries the version, in CRLF.
-    let staged_exe = std::fs::read(out.join("stage/app/cantus.exe")).unwrap();
-    assert_eq!(staged_exe, b"MZ cantus");
+    // cantus.exe is the launcher; each level's program under its own name; the readme
+    // carries the version, in CRLF.
+    let staged = |n: &str| std::fs::read(out.join("stage/app").join(n)).unwrap();
+    assert_eq!(staged("cantus.exe"), b"MZ launcher");
+    assert_eq!(staged("cantus-x86-64-v2.exe"), b"MZ cantus v2");
+    assert_eq!(staged("cantus-x86-64-v3.exe"), b"MZ cantus v3");
+    assert_eq!(staged("cantus-scan.exe"), b"MZ scanner");
     let readme = std::fs::read_to_string(out.join("stage/app/README.txt")).unwrap();
     assert_eq!(readme, "Cantus 0.2.0\r\nline two\r\n");
 
@@ -145,7 +164,7 @@ fn the_package_task_produces_the_expected_file_list() {
 fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     let dir = tempfile::tempdir().unwrap();
     let inputs = stand_ins(dir.path());
-    let staged = package::stage(&inputs, &inputs.exe, &dir.path().join("stage"), V);
+    let staged = package::stage(&inputs, &dir.path().join("stage"), V);
     let nsh = nsis::files_nsh(&staged);
     let macro_body = |name: &str| -> Vec<String> {
         let start = nsh.find(&format!("!macro {name}\n")).unwrap();
@@ -170,7 +189,7 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     };
     assert_eq!(
         (files("CANTUS_APP_FILES"), deletes("CANTUS_APP_REMOVE")),
-        (6, 6)
+        (9, 9)
     );
     // The manual's folders go with it, deepest first.
     let app = macro_body("CANTUS_APP_REMOVE");
@@ -213,6 +232,107 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
         "the script removes $INSTDIR itself, last"
     );
     assert!(nsh.contains("!define EST_SIZE_KB "));
+
+    // The installer and the uninstaller wait for every program of the folder to close —
+    // the launcher, both levels, the scanner — not only cantus.exe.
+    let busy = macro_body("CANTUS_PROGRAMS_BUSY");
+    let waited: Vec<&str> = busy
+        .iter()
+        .filter_map(|l| l.strip_prefix("!insertmacro CANTUS_PROGRAM_BUSY \"$INSTDIR\\"))
+        .filter_map(|l| l.strip_suffix('"'))
+        .collect();
+    assert_eq!(
+        waited,
+        [
+            "cantus.exe",
+            "cantus-x86-64-v2.exe",
+            "cantus-x86-64-v3.exe",
+            "cantus-scan.exe"
+        ]
+    );
+    let script =
+        std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
+    let wait = &script[script.find("!macro WAIT_FOR_CANTUS").unwrap()..];
+    assert!(wait[..wait.find("!macroend").unwrap()].contains("!insertmacro CANTUS_PROGRAMS_BUSY"));
+}
+
+/// The release's install folder: the launcher as `cantus.exe` (what the shortcut, the
+/// association, "Open with" and the installer's "run" name), then each level's program,
+/// the scanner, the texts; `--v4` adds one program.
+#[test]
+fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
+    assert_eq!(
+        package::app_names(&crate::levels::release_levels(false)),
+        [
+            "cantus.exe",
+            "cantus-x86-64-v2.exe",
+            "cantus-x86-64-v3.exe",
+            "cantus-scan.exe",
+            "LICENSE.txt",
+            "COPYRIGHT.txt",
+            "README.txt",
+        ]
+    );
+    let v4 = package::app_names(&crate::levels::release_levels(true));
+    assert!(v4.contains(&"cantus-x86-64-v4.exe".to_string()));
+    assert_eq!(v4.len(), 8);
+    let script =
+        std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
+    for line in script.lines().filter(|l| {
+        let l = l.trim_start();
+        l.starts_with("CreateShortcut")
+            || l.contains(r"shell\open\command")
+            || l.contains("MUI_FINISHPAGE_RUN")
+            || l.contains("DefaultIcon")
+    }) {
+        assert!(line.contains(r"$INSTDIR\cantus.exe"), "{line}");
+        assert!(!line.contains("x86-64"), "{line}");
+    }
+    // Every shortcut is given the AppUserModelID the program sets for itself, so the
+    // program's window groups (and pins) under the launcher's shortcut.
+    let lines: Vec<&str> = script.lines().map(str::trim).collect();
+    for (i, l) in lines.iter().enumerate() {
+        if l.starts_with("CreateShortcut") {
+            let lnk = l.split('"').nth(1).unwrap();
+            assert!(
+                lines[i + 1..]
+                    .iter()
+                    .take(4)
+                    .any(|n| n.contains("CANTUS_SET_APP_ID") && n.contains(lnk)),
+                "{l} has no app id"
+            );
+        }
+    }
+    let config = nsis::config_nsh(&nsis::Config {
+        version: V.into(),
+        outfile: "setup.exe".into(),
+        icon: None,
+        license: "LICENSE.txt".into(),
+        uninst_sign: None,
+    });
+    assert!(config.contains(&format!("!define APP_ID \"{}\"\n", cantus_launch::APP_ID)));
+    // The levels' names and flags, and the app's own answer to --version.
+    assert_eq!(
+        crate::levels::parse_list("v3,v2,v3").unwrap(),
+        [Level::V2, Level::V3]
+    );
+    assert!(crate::levels::parse_list("v2,fast").is_err());
+    assert!(crate::levels::says_level(
+        "cantus 0.1.0 (x86-64-v3)\n",
+        Level::V3
+    ));
+    assert!(!crate::levels::says_level(
+        "cantus 0.1.0 (x86-64)\n",
+        Level::V3
+    ));
+    assert!(!crate::levels::says_level(
+        "cantus 0.1.0 (x86-64-v2)\n",
+        Level::V3
+    ));
+    assert!(
+        crate::levels::release_dir(Level::V3, "x86_64-pc-windows-msvc")
+            .ends_with("cpu-x86-64-v3/x86_64-pc-windows-msvc/release")
+    );
 }
 
 #[test]

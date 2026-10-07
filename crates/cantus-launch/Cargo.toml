@@ -1,0 +1,45 @@
+[package]
+name = "cantus-launch"
+description = "Cantus"
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# The start-up stub (ADR 0031 §5.3, round 22): released as `cantus.exe`, it asks the
+# processor what it has and starts the build of Cantus made for it —
+# `cantus-x86-64-v3.exe` (AVX2, FMA, BMI2), else `cantus-x86-64-v2.exe` — passing every
+# argument through and returning its exit code. The library half (the levels, their
+# features, the choice) is shared with the app (`cantus --version` names its level) and
+# with `xtask` (which builds, names and checks each level).
+#
+# It is built for the plain x86-64 baseline, never with a `target-cpu`, so that it runs on
+# every processor and can say why a too-old one cannot run Cantus.
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "cantus-launch"
+path = "src/main.rs"
+
+[target.'cfg(windows)'.dependencies]
+# The message box that says why Cantus cannot start (main.rs), and the taskbar identity
+# the program shares with its shortcuts (appid.rs).
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+
+# The launcher is what the Start menu, the file association and Explorer show, so it
+# carries Cantus's icon, rendered by the same code as the app's (`../cantus-app/icon.rs`).
+[build-dependencies]
+resvg = { version = "0.48", default-features = false }
+tiny-skia = "0.12"
+winresource = "0.1"

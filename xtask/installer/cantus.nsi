@@ -28,6 +28,8 @@ RequestExecutionLevel user
 !define SHCNE_ASSOCCHANGED 0x08000000
 
 !include "files.nsh"
+; CANTUS_SET_APP_ID: the shortcuts carry the AppUserModelID the program sets for itself.
+!include "appid.nsh"
 
 Name "Cantus"
 OutFile "${OUTFILE}"
@@ -77,13 +79,27 @@ VIAddVersionKey /LANG=0 "LegalCopyright" "GPL-3.0-or-later"
 
 ; ---- waiting for Cantus to close (an update starts as the app quits) ---------------
 
+; $R3 = 1 when FILE exists and is running (Windows will not open a running program's file
+; for writing). A missing file is not running, and is not created ("a" mode would).
+!macro CANTUS_PROGRAM_BUSY FILE
+  ${If} ${FileExists} "${FILE}"
+    ClearErrors
+    FileOpen $R1 "${FILE}" a
+    ${If} ${Errors}
+      StrCpy $R3 1
+    ${Else}
+      FileClose $R1
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; Until no program of the install folder runs — cantus.exe (the launcher), each level's
+; program (files.nsh lists them), the scanner — up to 30 s, then Retry/Cancel.
 !macro WAIT_FOR_CANTUS
   StrCpy $R0 0
-  ${DoWhile} ${FileExists} "$INSTDIR\cantus.exe"
-    ClearErrors
-    FileOpen $R1 "$INSTDIR\cantus.exe" a
-    ${IfNot} ${Errors}
-      FileClose $R1
+  ${Do}
+    !insertmacro CANTUS_PROGRAMS_BUSY
+    ${If} $R3 == 0
       ${Break}
     ${EndIf}
     IntOp $R0 $R0 + 1
@@ -117,6 +133,9 @@ Section "!$(CANTUS_SECTION_APP)" SecApp
   !insertmacro CANTUS_APP_FILES
   WriteUninstaller "$INSTDIR\uninstall.exe"
   CreateShortcut "$SMPROGRAMS\Cantus.lnk" "$INSTDIR\cantus.exe" "" "$INSTDIR\cantus.exe" 0
+  ; cantus.exe is the launcher; the window belongs to the program it starts. The shared
+  ; AppUserModelID makes the taskbar group the window under this shortcut, and pin it.
+  !insertmacro CANTUS_SET_APP_ID "$SMPROGRAMS\Cantus.lnk" "${APP_ID}"
 
   WriteRegStr HKCU "${REG_APP}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${REG_APP}" "Version" "${VERSION}"
@@ -153,6 +172,7 @@ SectionEnd
 
 Section /o "$(CANTUS_SECTION_DESKTOP)" SecDesktop
   CreateShortcut "$DESKTOP\Cantus.lnk" "$INSTDIR\cantus.exe" "" "$INSTDIR\cantus.exe" 0
+  !insertmacro CANTUS_SET_APP_ID "$DESKTOP\Cantus.lnk" "${APP_ID}"
 SectionEnd
 
 Section "$(CANTUS_SECTION_CLAP)" SecClap

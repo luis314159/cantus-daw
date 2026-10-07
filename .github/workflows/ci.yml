@@ -52,6 +52,50 @@ jobs:
           name: perf-report
           path: target/perf/latest.json
 
+  # The x86-64-v3 program and its x86-64-v2 fallback must make the same sound (ADR 0031
+  # §5.3, round 22): `xtask null-hashes` builds the null corpus (every math function,
+  # effect, instrument, demo song and project fixture; cantus-bench/src/hashes.rs) at v2,
+  # v3 and the plain x86-64 baseline the tests' goldens come from (v4 too on a runner with
+  # AVX-512), hashes each render, and fails naming any item whose bits differ.
+  null-hashes:
+    name: null hashes v2 = v3 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux audio/window deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
+      - run: cargo run -p xtask -- null-hashes --baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: null-hashes-${{ runner.os }}
+          path: target/null-hashes/
+
+  # And the same bits on both operating systems (R9 (4): another C runtime, another
+  # machine class): the v3 lists of the two runners, line for line.
+  null-hashes-across:
+    name: null hashes, Windows = Linux
+    needs: null-hashes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: null-hashes-Windows
+          path: windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: null-hashes-Linux
+          path: linux
+      - name: Compare
+        run: diff <(grep -v '^#' windows/x86-64-v3.txt) <(grep -v '^#' linux/x86-64-v3.txt)
+
   audit:
     name: supply chain
     runs-on: ubuntu-latest
