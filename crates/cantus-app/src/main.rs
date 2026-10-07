@@ -11,8 +11,14 @@ use std::path::PathBuf;
 include!(concat!(env!("OUT_DIR"), "/baked.rs"));
 
 fn main() -> anyhow::Result<()> {
+    // Before any window: the taskbar identity the installer's shortcuts carry too, so a
+    // Cantus started by the launcher groups (and pins) under its shortcut.
+    let app_id = cantus_launch::set_app_id();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("cantus {} ({})", cantus_ui::APP_VERSION, build_level());
+    if let Err(hr) = app_id {
+        log::warn!("could not set the taskbar identity (HRESULT {hr:#x})");
+    }
     let mut options = LaunchOptions {
         art: Some(ART),
         ..Default::default()

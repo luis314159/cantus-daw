@@ -14,7 +14,10 @@
 //! `a * b + c` into an FMA on its own and LLVM does not reorder float sums without
 //! fast-math, so v2 and v3 differ in speed only (`xtask null-hashes` proves it).
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+
+mod appid;
+pub use appid::{current_app_id, set_app_id, APP_ID};
 
 use std::path::{Path, PathBuf};
 

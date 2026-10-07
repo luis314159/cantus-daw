@@ -7,6 +7,16 @@ https://github.com/luis314159/cantus
 Licence: the program is GPL-3.0-or-later (LICENSE.txt); COPYRIGHT.txt says which
 parts of the source are MIT OR Apache-2.0.
 
+The programs
+------------
+cantus.exe starts Cantus. It looks at the processor and starts the program
+built for it: cantus-x86-64-v3.exe on processors with AVX2 (Intel since 2013,
+AMD since 2015), cantus-x86-64-v2.exe on older ones. Both make exactly the
+same sound; v3 is faster. Set CANTUS_CPU=v2 to start v2 anyway, and run
+"cantus.exe --launcher-info" to see what was chosen and why. cantus-scan.exe
+reads plug-in files for Cantus, one at a time, so a faulty plug-in cannot crash
+it.
+
 Plug-ins
 --------
 Cantus's effects also run in other DAWs, as CLAP and VST3 plug-ins. Copy the
@@ -35,7 +45,9 @@ your music is sent.
 ---
 
 Cantus es una estación de trabajo de audio digital libre y de código abierto.
-Los efectos funcionan también en otros DAW como plug-ins CLAP y VST3 (ver
+cantus.exe inicia el programa hecho para tu procesador: cantus-x86-64-v3.exe si
+tiene AVX2, si no cantus-x86-64-v2.exe (suenan exactamente igual; v3 es más
+rápido). Los efectos funcionan también en otros DAW como plug-ins CLAP y VST3 (ver
 arriba las carpetas). Una copia con portable.txt junto a cantus.exe guarda sus
 ajustes en la carpeta "data". Un Cantus instalado busca actualizaciones en
 GitHub como mucho una vez al día y pregunta antes de descargar; se desactiva en

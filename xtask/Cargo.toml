@@ -13,6 +13,8 @@ publish = false
 cantus-plugins = { path = "../crates/cantus-plugins", default-features = false }
 # The release files' names and the SHA256SUMS format, shared with the app's updater.
 cantus-update.workspace = true
+# The x86-64 levels: their flags, program names and the processor's features (round 22).
+cantus-launch.workspace = true
 serde_json.workspace = true
 # The portable and plug-in zips (MIT).
 zip = { version = "2", default-features = false, features = ["deflate"] }

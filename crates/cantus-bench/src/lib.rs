@@ -22,6 +22,7 @@
 pub mod compare;
 pub mod cpu;
 pub mod dawbench;
+pub mod hashes;
 pub mod kernels;
 pub mod report;
 pub mod rig;

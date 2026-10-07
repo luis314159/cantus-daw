@@ -6,6 +6,7 @@
 //! package --no-installer  zips only (no NSIS needed)
 //! package --sign          sign with the signer in the environment (sign.rs)
 //! package --sign-test     sign with the test certificate (`sign-test-cert`)
+//! package --v4            also the x86-64-v4 (AVX-512) program
 //! ```
 //!
 //! **One Windows edition, every driver in it** (ADR 0025 §10, round 21): the program is
@@ -15,6 +16,16 @@
 //! quietly leaving ASIO out) and then asks the built program which drivers it has
 //! (`cantus --audio-drivers`): a release without ASIO is never written.
 //!
+//! **One program per x86-64 level, and a launcher** (ADR 0031 §5.3, round 22): the program
+//! is built twice — `cantus-x86-64-v3.exe` (AVX2, FMA, BMI2) and `cantus-x86-64-v2.exe`,
+//! and with `--v4` a third, `cantus-x86-64-v4.exe` (AVX-512) — each in its own target folder
+//! (`levels.rs`), and `cantus.exe` is the launcher (`crates/cantus-launch`), built for the
+//! plain baseline, which starts the highest level the processor runs. The Start menu, the
+//! `.cantus` association, "Open with" and the installer's "run Cantus" all name `cantus.exe`,
+//! as before. Every program is asked its level (`--version`) and its drivers; then the
+//! launcher, laid out as released, must start one that lists ASIO. The plug-in scanner
+//! (`cantus-scan.exe`, which the app starts from beside itself) ships beside them.
+//!
 //! Out: `target/package/dist/` — `Cantus-<v>-windows-x64-setup.exe`,
 //! `Cantus-<v>-windows-x64-portable.zip`, `Cantus-<v>-plugins-windows-x64.zip`,
 //! `SHA256SUMS.txt`. The names come from `cantus_update::release`, which the app's
@@ -22,7 +33,8 @@
 
 use crate::archive::{self, Entry};
 use crate::sign::{self, Signer};
-use crate::{nsis, run, target_dir, workspace};
+use crate::{levels, nsis, run, target_dir, workspace};
+use cantus_launch::Level;
 use cantus_update::release;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,7 +44,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// What one flavour's staging folder holds, by destination.
 #[derive(Clone, Debug, Default)]
 pub struct Staged {
-    /// Into the install folder: `cantus.exe`, the licence, the readme.
+    /// Into the install folder: `cantus.exe` (the launcher), one program per level, the
+    /// plug-in scanner, the licence, the readme.
     pub app: Vec<Entry>,
     /// Into the CLAP folder: `Cantus <Name>.clap`.
     pub clap: Vec<Entry>,
@@ -60,8 +73,12 @@ impl Staged {
 /// What the release is made from.
 #[derive(Clone, Debug)]
 pub struct Inputs {
-    /// The built `cantus.exe`.
-    pub exe: PathBuf,
+    /// The launcher (`cantus-launch.exe`), released as `cantus.exe`.
+    pub launcher: PathBuf,
+    /// The program built for each level, released as `cantus-x86-64-vN.exe`.
+    pub programs: Vec<(Level, PathBuf)>,
+    /// `cantus-scan.exe`, which reads each plug-in file in a process of its own.
+    pub scanner: PathBuf,
     /// `target/bundled/` (`xtask bundle`).
     pub bundled: PathBuf,
     /// The plug-ins' names (`Cantus Aequalis`, …).
@@ -82,11 +99,32 @@ fn entry(dir: &Path, name: &str) -> Entry {
     }
 }
 
+/// The launcher's name in a release: what every shortcut and registry entry names.
+pub const LAUNCHER: &str = "cantus.exe";
+/// The plug-in scanner's name (`cantus_host::Scanner::beside_this_program`).
+pub const SCANNER: &str = "cantus-scan.exe";
+const TEXTS: [&str; 3] = ["LICENSE.txt", "COPYRIGHT.txt", "README.txt"];
+
+/// The install folder's files for a release carrying `levels`, in staging order.
+pub fn app_names(levels: &[Level]) -> Vec<String> {
+    let mut v = vec![LAUNCHER.to_owned()];
+    let mut sorted = levels.to_vec();
+    sorted.sort();
+    v.extend(sorted.iter().map(|l| l.program()));
+    v.push(SCANNER.to_owned());
+    v.extend(TEXTS.iter().map(|t| t.to_string()));
+    v
+}
+
 /// Lay out the release under `stage/` (`app/`, `clap/`, `vst3/`).
-pub fn stage(inputs: &Inputs, exe: &Path, stage: &Path, version: &str) -> Staged {
+pub fn stage(inputs: &Inputs, stage: &Path, version: &str) -> Staged {
     let _ = std::fs::remove_dir_all(stage);
     let app = stage.join("app");
-    copy_into(exe, &app.join("cantus.exe"));
+    copy_into(&inputs.launcher, &app.join(LAUNCHER));
+    for (level, exe) in &inputs.programs {
+        copy_into(exe, &app.join(level.program()));
+    }
+    copy_into(&inputs.scanner, &app.join(SCANNER));
     copy_into(&inputs.license, &app.join("LICENSE.txt"));
     copy_into(&inputs.copyright, &app.join("COPYRIGHT.txt"));
     let readme = std::fs::read_to_string(&inputs.readme)
@@ -106,11 +144,9 @@ pub fn stage(inputs: &Inputs, exe: &Path, stage: &Path, version: &str) -> Staged
             copy_into(&e.src, &vst3.join(&v).join(&e.name));
         }
     }
+    let levels: Vec<Level> = inputs.programs.iter().map(|(l, _)| *l).collect();
     Staged {
-        app: ["cantus.exe", "LICENSE.txt", "COPYRIGHT.txt", "README.txt"]
-            .iter()
-            .map(|n| entry(&app, n))
-            .collect(),
+        app: app_names(&levels).iter().map(|n| entry(&app, n)).collect(),
         clap: archive::walk(&clap),
         vst3: archive::walk(&vst3),
     }
@@ -141,7 +177,7 @@ pub fn plugin_entries(s: &Staged) -> Vec<Entry> {
     let mut out: Vec<Entry> = s
         .app
         .iter()
-        .filter(|e| e.name != "cantus.exe")
+        .filter(|e| !e.name.to_ascii_lowercase().ends_with(".exe"))
         .cloned()
         .collect();
     out.extend(s.clap.iter().map(|e| Entry {
@@ -193,7 +229,7 @@ pub fn assemble(
     std::fs::create_dir_all(&dist).unwrap();
     let marker = out.join(cantus_update::install::PORTABLE_MARKER);
     std::fs::write(&marker, cantus_update::install::PORTABLE_MARKER_TEXT).unwrap();
-    let staged = stage(inputs, &inputs.exe, &out.join("stage"), version);
+    let staged = stage(inputs, &out.join("stage"), version);
     if let Some(s) = signer {
         let bins = staged.binaries();
         sign::sign(s, &bins);
@@ -218,7 +254,13 @@ pub fn assemble(
             version: version.to_owned(),
             outfile: setup.clone(),
             icon: installer.map(|j| j.icon.clone()),
-            license: staged.app[1].src.clone(),
+            license: staged
+                .app
+                .iter()
+                .find(|e| e.name == "LICENSE.txt")
+                .expect("the licence is staged")
+                .src
+                .clone(),
             uninst_sign: installer.and_then(|j| j.uninst_sign.clone()),
         },
     );
@@ -255,7 +297,8 @@ pub fn write_sums(dist: &Path) {
     .unwrap();
 }
 
-/// The newest icon the app's build script rendered (`crates/cantus-app/build.rs`).
+/// The newest icon a build script rendered (the launcher's or the app's: the same
+/// `crates/cantus-app/icon.rs`).
 fn find_icon(profile_dir: &Path) -> Option<PathBuf> {
     let build = profile_dir.join("build");
     std::fs::read_dir(build)
@@ -267,18 +310,68 @@ fn find_icon(profile_dir: &Path) -> Option<PathBuf> {
         .max_by_key(|p| p.metadata().and_then(|m| m.modified()).ok())
 }
 
-/// Build the release program with ASIO (the SDK and libclang from `asio_sdk`), failing
-/// the build — not degrading — when either is missing.
-fn build_app(target: &Path, tools: &crate::asio_sdk::AsioTools) {
-    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let mut cmd = Command::new(cargo);
-    cmd.current_dir(workspace())
-        .args(["build", "--release", "-p", "cantus", "--features", "asio"])
-        .env("CARGO_TARGET_DIR", target);
+/// Build the release program for `level` with ASIO (the SDK and libclang from
+/// `asio_sdk`), failing the build — not degrading — when either is missing.
+fn build_app(level: Level, triple: &str, tools: &crate::asio_sdk::AsioTools) {
+    let mut cmd = levels::cargo_build(level, triple);
+    cmd.args(["-p", "cantus", "--features", "asio"]);
     for (k, v) in tools.env() {
         cmd.env(k, v);
     }
     run(&mut cmd);
+}
+
+/// The plug-in scanner, built with the lowest level's flags: it only reads plug-in files.
+fn build_scanner(level: Level, triple: &str) {
+    run(levels::cargo_build(level, triple).args(["-p", "cantus-host", "--bin", "cantus-scan"]));
+}
+
+/// The launcher, in the ordinary target and with no `target-cpu`, so that it runs on any
+/// x86-64 processor and can say why one is too old.
+fn build_launcher(target: &Path) {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+    let mut cmd = Command::new(cargo);
+    cmd.current_dir(workspace())
+        .args(["build", "--release", "-p", "cantus-launch"])
+        .env("CARGO_TARGET_DIR", target);
+    run(&mut cmd);
+}
+
+/// Each program says its level and lists ASIO (where this machine can run it); then the
+/// launcher, laid out beside them in `check/` as released, starts one that does too.
+pub fn check_programs(inputs: &Inputs, check: &Path) {
+    for (level, exe) in &inputs.programs {
+        if levels::host_runs(*level) {
+            levels::check_level(exe, *level);
+            check_drivers(exe);
+        } else {
+            eprintln!(
+                "note: this machine lacks {} and cannot run the {level} program to check it",
+                level.missing(&cantus_launch::detected).join(", ")
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(check);
+    crate::copy(&inputs.launcher, &check.join(LAUNCHER));
+    for (level, exe) in &inputs.programs {
+        crate::copy(exe, &check.join(level.program()));
+    }
+    let launcher = check.join(LAUNCHER);
+    let top = inputs
+        .programs
+        .iter()
+        .map(|(l, _)| *l)
+        .filter(|l| levels::host_runs(*l))
+        .max();
+    match top {
+        Some(level) => levels::check_level(&launcher, level),
+        None => {
+            eprintln!("this machine runs none of the programs: the launcher is not checked");
+            return;
+        }
+    }
+    check_drivers(&launcher);
+    let _ = std::fs::remove_dir_all(check);
 }
 
 /// Ask the built program which audio drivers it has; a release without ASIO stops here.
@@ -327,19 +420,37 @@ pub fn package(args: &[String]) {
         None
     };
 
+    let levels = levels::release_levels(has("--v4"));
+    let triple = levels::host_triple();
     if build {
         let tools = crate::asio_sdk::ensure().unwrap_or_else(|e| {
             eprintln!("{e}");
             std::process::exit(1)
         });
-        build_app(&target, &tools);
+        for level in &levels {
+            build_app(*level, &triple, &tools);
+        }
+        build_scanner(levels[0], &triple);
+        build_launcher(&target);
     }
-    let exe = target.join("release").join("cantus.exe");
-    if !exe.is_file() {
-        eprintln!("{} is not built", exe.display());
-        std::process::exit(1);
+    let programs: Vec<(Level, PathBuf)> = levels
+        .iter()
+        .map(|l| (*l, levels::binary(*l, &triple, "cantus")))
+        .collect();
+    let launcher = target
+        .join("release")
+        .join(format!("cantus-launch{}", std::env::consts::EXE_SUFFIX));
+    let scanner = levels::binary(levels[0], &triple, "cantus-scan");
+    for exe in programs
+        .iter()
+        .map(|(_, p)| p)
+        .chain([&launcher, &scanner])
+    {
+        if !exe.is_file() {
+            eprintln!("{} is not built", exe.display());
+            std::process::exit(1);
+        }
     }
-    check_drivers(&exe);
     crate::bundle(&if build {
         vec![]
     } else {
@@ -348,7 +459,9 @@ pub fn package(args: &[String]) {
 
     let ws = workspace();
     let inputs = Inputs {
-        exe,
+        launcher,
+        programs,
+        scanner,
         bundled: target.join("bundled"),
         plugins: cantus_plugins::desc::ALL
             .iter()
@@ -370,7 +483,7 @@ pub fn package(args: &[String]) {
             std::process::exit(1);
         };
         let icon = find_icon(&target.join("release")).unwrap_or_else(|| {
-            eprintln!("the app's icon is not built (cargo build --release -p cantus)");
+            eprintln!("the icon is not built (cargo build --release -p cantus-launch)");
             std::process::exit(1)
         });
         let me = std::env::current_exe().expect("xtask's own path");
@@ -390,6 +503,7 @@ pub fn package(args: &[String]) {
         })
     };
     let out = target.join("package");
+    check_programs(&inputs, &out.join("check"));
     let dist = assemble(&inputs, &out, VERSION, installer.as_ref(), signer.as_ref());
     let want = dist_names(VERSION, installer.is_some());
     let got: Vec<String> = archive::walk(&dist).into_iter().map(|e| e.name).collect();

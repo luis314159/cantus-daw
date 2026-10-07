@@ -4,7 +4,8 @@
 //!
 //! - `config.nsh` — the version, the output, the icon, the licence, the signing hook;
 //! - `files.nsh` — one `File` per staged file, and the matching `Delete`s and `RMDir`s, so
-//!   the uninstaller removes exactly what the installer wrote and nothing else;
+//!   the uninstaller removes exactly what the installer wrote and nothing else; and the
+//!   programs to wait for (the launcher, each level's program, the scanner);
 //! - `strings.nsh` — the installer's words in English and Spanish, read from the app's
 //!   own locale area (`locales/areas/update.*`, keys `update.installer.*`).
 
@@ -103,6 +104,21 @@ pub fn files_nsh(s: &Staged) -> String {
             "!macro CANTUS_{name}_FILES\n{install}!macroend\n\n!macro CANTUS_{name}_REMOVE\n{remove}!macroend\n\n"
         ));
     }
+    // Every program in the install folder: the installer and the uninstaller wait until
+    // none is running (the launcher waits for the program it started, but an update can
+    // also begin while only the program is still closing).
+    out.push_str("!macro CANTUS_PROGRAMS_BUSY\n  StrCpy $R3 0\n");
+    for e in s
+        .app
+        .iter()
+        .filter(|e| e.name.to_ascii_lowercase().ends_with(".exe"))
+    {
+        out.push_str(&format!(
+            "  !insertmacro CANTUS_PROGRAM_BUSY \"$INSTDIR\\{}\"\n",
+            escape(&e.name.replace('/', "\\"))
+        ));
+    }
+    out.push_str("!macroend\n\n");
     let bytes: u64 = s
         .app
         .iter()
@@ -147,6 +163,12 @@ pub fn config_nsh(c: &Config) -> String {
     out.push_str(&format!("!define VERSION \"{}\"\n", escape(&c.version)));
     out.push_str(&format!("!define VERSION4 \"{}\"\n", version4(&c.version)));
     out.push_str(&format!("!define OUTFILE \"{}\"\n", win(&c.outfile)));
+    // The taskbar identity the program sets for itself (`cantus_launch::APP_ID`), given to
+    // the shortcuts so its windows group under them.
+    out.push_str(&format!(
+        "!define APP_ID \"{}\"\n",
+        escape(cantus_launch::APP_ID)
+    ));
     out.push_str(&format!("!define LICENSE_FILE \"{}\"\n", win(&c.license)));
     if let Some(icon) = &c.icon {
         out.push_str(&format!("!define ICON \"{}\"\n", win(icon)));
@@ -175,6 +197,7 @@ pub fn write_work(work: &Path, s: &Staged, c: &Config) -> PathBuf {
     std::fs::write(work.join("strings.nsh"), strings_nsh(&en, &es)).unwrap();
     let nsi = work.join("cantus.nsi");
     std::fs::copy(ws.join("xtask/installer/cantus.nsi"), &nsi).unwrap();
+    std::fs::copy(ws.join("xtask/installer/appid.nsh"), work.join("appid.nsh")).unwrap();
     // The optional FlexASIO step.
     std::fs::copy(
         ws.join("xtask/installer/flexasio.ps1"),

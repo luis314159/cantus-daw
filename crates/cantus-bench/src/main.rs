@@ -5,6 +5,7 @@
 //!              [--json <file>]
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
+//! cantus-bench hashes [--out <file>]     # the null corpus as SHA-256s (hashes.rs)
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -20,6 +21,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("compare") => compare_cmd(&args[1..]),
         Some("table") => table_cmd(&args[1..]),
+        Some("hashes") => hashes_cmd(&args[1..]),
         _ => run_cmd(&args),
     }
 }
@@ -141,4 +143,35 @@ fn table_cmd(args: &[String]) -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+/// `hashes [--out <file>]`: render the null corpus and print (or write) its hashes.
+fn hashes_cmd(args: &[String]) -> ExitCode {
+    let out = match args {
+        [] => None,
+        [flag, path] if flag == "--out" => Some(PathBuf::from(path)),
+        _ => {
+            eprintln!("usage: cantus-bench hashes [--out <file>]");
+            return ExitCode::from(2);
+        }
+    };
+    let t = std::time::Instant::now();
+    let items = cantus_bench::hashes::corpus();
+    let text = cantus_bench::hashes::report(&items);
+    eprintln!(
+        "cantus-bench: {} items hashed in {:.1} s ({})",
+        items.len(),
+        t.elapsed().as_secs_f64(),
+        cantus_bench::hashes::build_level()
+    );
+    match out {
+        Some(path) => {
+            if let Err(e) = std::fs::write(&path, text) {
+                eprintln!("cantus-bench: could not write {}: {e}", path.display());
+                return ExitCode::FAILURE;
+            }
+        }
+        None => print!("{text}"),
+    }
+    ExitCode::SUCCESS
 }
