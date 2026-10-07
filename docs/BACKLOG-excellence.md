@@ -97,7 +97,10 @@ apertura), más lo que aún no cubre este backlog: clip launcher, entorno modula
 moduladores en todo, audio inmersivo/Atmos, video, partituras, comping, posproducción,
 scripting, Link/OSC/MIDI 2.0, microtonalidad, hardware externo, versiones y colaboración,
 modo táctil, muestreo profundo, patrones al nivel de FL y más mezcla. En paralelo: que la
-gente lo use (beta, comunidad, tutoriales).
+gente lo use (beta, comunidad, tutoriales). **(6a)** El sitio cantusdaw.com (y cantusdaw.studio) con
+backend: descargas, manuales, paquetes de sonidos, actualizaciones servidas desde nuestro
+dominio y un conteo de usuarios sin telemetría (descargas, consultas de actualización
+anónimas, registro opcional).
 
 Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones completas
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
@@ -403,7 +406,40 @@ real-time path wait.**
   (the hint bar exists), video tutorials, keyboard-shortcut cheat sheet.
 - **Licensing and legal**: the decisions in `research/content/README.md` and
   `research/ai/README.md`; the trademark search for "Cantus"; credits/attribution screen.
-- An opt-in crash reporter; a website; a community (forum/Discord).
+- An opt-in crash reporter; a website (§6a: cantusdaw.com); a community (forum/Discord).
+
+## 6a. The website and its backend — cantusdaw.com, cantusdaw.studio (requested 2026-10-07)
+
+*The owner bought **cantusdaw.com** and **cantusdaw.studio**: "a page to download — maybe a
+backend too — with manuals, sound packs, a count of users, maybe serving the updates."*
+
+- **The site** (cantusdaw.com; cantusdaw.studio redirects to it, or hosts the community):
+  home with what Cantus is and its values, **download** (the setup and the portable zip,
+  SHA-256 sums and the signature shown, the detected OS and CPU), release notes and
+  changelog, the **manual** in EN/ES (`xtask manual` already renders it to HTML), the
+  plug-in pages (`docs/plugins/`), tutorials and videos, the scorecard (§0.1) when it
+  exists, privacy and licences, the source on GitHub, donations.
+- **Sound packs**: host and mirror the packs of `crates/cantus-content/manifest/content.json`
+  (today they download from their authors' own servers — a mirror with the same pinned
+  SHA-256s keeps them available), then Cantus's own packs and community packs.
+- **Updates**: serve the update manifest from our domain (GitHub Releases stays the
+  binary store or a fallback); signed manifests, staged roll-outs, a beta channel. Changes
+  `crates/cantus-update` and ADR 0032.
+- **Counting users without telemetry** — `PRIVACY.md` promises no telemetry, so: download
+  counts on the site; the daily anonymous update check counted as a number of requests per
+  version (no identifier, no IP kept); an **opt-in** account or registration for those who
+  want news, cloud presets or the forum. Any change is written in `PRIVACY.md` first.
+- **Backend** (small, open source like the rest): the manifest and pack mirror behind a
+  CDN, download and update counters, opt-in accounts later (preset/pack sharing, the
+  community's uploads with moderation), an opt-in crash-report endpoint (§6), a status
+  page. Hosting with a free tier first (static site + object storage + a small API).
+- **Legal and security**: HTTPS everywhere, the trademark check for "Cantus" (BETA.md)
+  before the site goes public, the RVR1960 attribution, GDPR/LFPDPPP-compliant if accounts
+  exist.
+
+**Done when** a user on a clean PC goes from a search to cantusdaw.com to a running Cantus
+in under two minutes, the packs and updates come from our domain with their hashes, and the
+user count on the site matches the published method.
 
 ## 6b. Audio setup that is direct (requested 2026-10-05)
 
