@@ -7,7 +7,97 @@ eight native instruments, professional recording); what is missing is mostly wha
 **use** reveals, plus a set of features every top DAW has. Ordered by what pays most.
 Each item says how we will know it is done.*
 
+## 0. The final goal: undeniably the best DAW in the world (set by the owner, 2026-10-07)
+
+*The owner: "The final goal is the best DAW in the world, among the free ones and the
+commercial ones. Maybe not reachable at first, but in the future — in objective terms
+(features, performance…). How much it is used is another matter we will work on in
+parallel, but what we seek is that it can be undeniably said to be the best."*
+
+"Undeniably" means **measured and published**, not claimed. This section defines the
+scorecard, then lists what no other section of this backlog covers yet.
+
+### 0.1 The scorecard — how we will know
+
+A public, reproducible comparison (`docs/scorecard/`, re-run every release) against the
+leaders: **FL Studio, Ableton Live, Bitwig Studio, Logic Pro, Cubase/Nuendo, Pro Tools,
+Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**).
+
+| Dimension | What is measured | "Best" means |
+|---|---|---|
+| **Performance** | DAWbench-style DSP and VI tests (§4b), the most tracks/plug-ins at 64/128/256 frames, round-trip latency, startup and project-load time, RAM, UI frame time with 200 tracks | first in every row on the same machine |
+| **Audio quality** | summing null tests, offline = real time, deterministic renders, aliasing/THD of every effect and instrument against the references, 64-bit paths where they matter | provably transparent where it should be, and better-measured colour where it should not |
+| **Stability** | crash rate per hour of use (opt-in reports), a plug-in crash never takes the session, 24-hour soaks, zero data loss in recovery tests | the lowest crash rate published by any DAW |
+| **Features** | a matrix of every feature the leaders have (this backlog's §3–§3d and §0.2), each "have / better / missing" | no row "missing" against any leader; "better" in most |
+| **Workflow speed** | timed tasks (a beat from scratch, a vocal comp, a mixdown, a stem export) by testers on each DAW | fastest median time on most tasks |
+| **Built-in content** | instruments and effects judged blind against the leaders' stock ones (and against Serum/Vital, Kontakt, FabFilter, Valhalla) | preferred blind in most pairings |
+| **Openness** | open source, open formats (DAWproject, CLAP/VST3 both ways), every platform, free | unique — no commercial DAW can match it |
+
+### 0.2 What the leaders have that no section above covers yet
+
+- **Clip launching / session view** (Ableton, Bitwig): a grid of clips and scenes for
+  live performance and sketching, recorded into the arrangement; follow actions.
+- **A modular environment** (Bitwig's Grid, Reaktor, Max for Live): build instruments and
+  effects from modules inside the DAW, with polyphony and sample-accurate modulation.
+- **Modulators everywhere** (Bitwig): LFOs, envelopes, step sequencers, followers, MIDI
+  and math modulators on any parameter of any device, hosted plug-ins included.
+- **Immersive and surround audio** (Logic, Nuendo, Pro Tools, Studio One): 5.1/7.1.4,
+  **Dolby Atmos** beds and objects with an ADM BWF export, binaural rendering for
+  headphones, ambisonics.
+- **Video** (Logic, Cubase, Reaper, FL): a video track, frame-accurate sync, timecode,
+  scoring to picture, export with the video.
+- **Notation** (Logic, Cubase, Studio One): a score editor, lead sheets and chord
+  symbols, print/MusicXML export.
+- **Comping** of takes (Logic, Pro Tools, Studio One): swipe comping across loop takes,
+  lanes per take, comp regions with crossfades (round 19 has takes — check what is left).
+- **Post-production** (Pro Tools, Nuendo): AAF/OMF import/export, ADR tools, loudness
+  for broadcast (EBU R128/ATSC A/85 reports), batch processing, a clip/region list.
+- **Scripting and extensibility** (Reaper's ReaScript, Ableton's Max, Bitwig's
+  controller API): a scripting API (Lua or WASM, sandboxed) for actions, tools and
+  controller scripts; a package manager for community scripts and themes (ReaPack-style).
+- **Sync and networking**: **Ableton Link**, MIDI clock and MTC in/out, OSC, **MIDI 2.0**
+  and MPE end to end, network audio (AES67/Dante later).
+- **Tuning**: microtonal scales (Scala files, MTS-ESP), per-note tuning in the piano roll.
+- **Hardware integration**: external instruments and external effect inserts with
+  automatic latency ping, CV/gate out through DC-coupled interfaces, per-device I/O presets.
+- **Collaboration and safety of work**: project versions and snapshots (a history you can
+  browse and branch), cloud backup, a collaboration mode (share a project, merge changes),
+  bundled project export with every sample for moving between machines.
+- **Touch and other form factors**: a touch-friendly mode (tablets, touch laptops), a
+  remote/companion app for transport and mixing.
+- **Sampling and sound design depth**: a slicer and sampler at Simpler/Sampler/Kontakt
+  level (multisample mapping, round robins, scripting), a granular instrument, a physical
+  modelling family, a drum sampler with per-pad chains (FL's FPC, Ableton's Drum Rack).
+- **Pattern workflow** (FL's own strength): patterns and pattern clips, the step sequencer
+  for every channel, the channel rack's graph editor — at least FL's depth, since FL is our
+  reference.
+- **Mixer depth**: unlimited routing with a routing matrix view, mixer snapshots and
+  recall, VCA, per-strip oversampling switch, a channel strip à la SSL/Neve, "mix scenes".
+- **Assistive intelligence** (Logic's Session Players, Mastering Assistant, Stem Splitter;
+  Studio One's chord track): detailed in §7 (AI); listed here so the scorecard counts it.
+
+### 0.3 The parallel track: people using it
+
+Not the objective scorecard, but needed alongside it (the owner: "we must take care of
+that in parallel"): the public beta and its feedback loop (`docs/BETA.md`), a website, a
+community (forum/Discord), tutorials, presets and sounds made by the community, creators
+who show what Cantus does, translations, and an honest public changelog. §6 covers the
+product side.
+
+**Done when** the scorecard, re-run on a release, shows Cantus first or tied-first in every
+dimension against every leader — and anyone can re-run it and get the same answer.
+
 ## Resumen (español)
+
+**La meta final (§0)**: ser, sin discusión, el mejor DAW del mundo —entre los gratuitos y
+los comerciales— en lo objetivo: una tabla de puntaje pública y reproducible contra FL,
+Ableton, Bitwig, Logic, Cubase, Pro Tools, Studio One, Reaper, Ardour y los demás
+(rendimiento, calidad de audio, estabilidad, funciones, velocidad de trabajo, contenido,
+apertura), más lo que aún no cubre este backlog: clip launcher, entorno modular,
+moduladores en todo, audio inmersivo/Atmos, video, partituras, comping, posproducción,
+scripting, Link/OSC/MIDI 2.0, microtonalidad, hardware externo, versiones y colaboración,
+modo táctil, muestreo profundo, patrones al nivel de FL y más mezcla. En paralelo: que la
+gente lo use (beta, comunidad, tutoriales).
 
 Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones completas
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
