@@ -74,6 +74,10 @@ Round 19 and the owner's tests in round 20 found Cantus's ASIO path failing:
 - **`mod.rs` — `is_available()`** returns `asio_sys::SDK_LINKED`: a build without the SDK
   (below) does not offer an ASIO host that can never load a driver.
 
+- **`src/host/mod.rs`** — `#[allow(dead_code)]` on `frames_to_duration` (unused in a
+  Windows build without `asio`; a path dependency's warnings are not capped and CI denies
+  warnings).
+
 ### asio-sys
 
 - **`build.rs` — the SDK is looked for, never downloaded.** `CPAL_ASIO_DIR` (must hold the
