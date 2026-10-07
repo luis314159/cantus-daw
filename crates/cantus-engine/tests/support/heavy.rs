@@ -23,7 +23,7 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
             // Eight bands in use, two of them dynamic, in linear phase at its finest.
             set(&mut s, &[("mode", 2.0), ("lp_res", 3.0)]);
             for b in 0..8 {
-                let f = 60.0 * 2f32.powi(b as i32);
+                let f = 60.0 * cantus_dsp::math::powi(2f32, b as i32);
                 let gain = if b % 2 == 0 { 4.0 } else { -3.0 };
                 for (field, v) in [("used", 1.0), ("freq", f), ("gain", gain), ("q", 1.2)] {
                     s.set(&cantus_core::eq_key(b, field), v);
@@ -73,9 +73,9 @@ pub fn signal(frames: usize) -> (Vec<f32>, Vec<f32>) {
     let (mut l, mut r) = (Vec::with_capacity(frames), Vec::with_capacity(frames));
     for i in 0..frames {
         let t = i as f32 / SAMPLE_RATE;
-        let env = 0.5 + 0.5 * (std::f32::consts::TAU * 2.0 * t).sin();
-        let tone = (std::f32::consts::TAU * 220.0 * t).sin() * 0.5
-            + (std::f32::consts::TAU * 6_300.0 * t).sin() * 0.2;
+        let env = 0.5 + 0.5 * cantus_dsp::math::sin(std::f32::consts::TAU * 2.0 * t);
+        let tone = cantus_dsp::math::sin(std::f32::consts::TAU * 220.0 * t) * 0.5
+            + cantus_dsp::math::sin(std::f32::consts::TAU * 6_300.0 * t) * 0.2;
         l.push((noise() * 0.3 + tone) * env * 0.25);
         r.push((noise() * 0.3 + tone * 0.9) * env * 0.25);
     }
@@ -123,7 +123,7 @@ impl Rng {
 fn draw(info: &EffectParamInfo, rng: &mut Rng) -> f32 {
     let u = rng.unit();
     let v = if info.logarithmic && info.min > 0.0 && info.max > info.min {
-        info.min * (info.max / info.min).powf(u)
+        info.min * cantus_dsp::math::powf(info.max / info.min, u)
     } else {
         info.min + (info.max - info.min) * u
     };

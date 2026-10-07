@@ -610,7 +610,7 @@ impl Latitudo {
     /// with nothing moving changes nothing.
     pub fn at_rest(&self) -> bool {
         let s = self.s;
-        let lg = |hz: f32| hz.max(1.0).log2();
+        let lg = |hz: f32| math::log2(hz.max(1.0));
         let at = |g: &Glide, v: f32| g.v == v && g.t == v;
         let on = |f: &Fade, b: bool| {
             let v = if b { 1.0 } else { 0.0 };
