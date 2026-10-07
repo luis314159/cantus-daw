@@ -42,8 +42,17 @@ impl Fix {
 pub enum Problem {
     /// The interface was unplugged (or its stream died).
     Lost { name: String },
-    /// The output stopped calling back while the device is still there.
+    /// The driver stopped calling back while the device is still there — never said as
+    /// "disconnected" (round 21).
     Stalled { asio: bool },
+    /// The driver asked for the audio to be restarted (an ASIO reset request, a rate it
+    /// changed, WASAPI's invalidated stream).
+    Reset { asio: bool },
+    /// The driver runs another buffer than the one chosen (ASIO drivers often set it in
+    /// their own control panel): what it runs is shown, not what was asked.
+    Dictated { asked: u32, runs: u32 },
+    /// The driver could not run at the rate asked and runs at its own.
+    RateRefused { asked: u32, runs: u32 },
     /// The device could not be opened at all.
     OpenFailed { error: String },
     /// Another application holds the device exclusively.
@@ -91,6 +100,16 @@ impl Problem {
             Problem::Lost { name } => tf("devices.problem.lost", &[("name", name)]),
             Problem::Stalled { asio: true } => t("devices.problem.stalled_asio"),
             Problem::Stalled { asio: false } => t("devices.problem.stalled"),
+            Problem::Reset { asio: true } => t("devices.problem.reset_asio"),
+            Problem::Reset { asio: false } => t("devices.problem.reset"),
+            Problem::Dictated { asked, runs } => tf(
+                "devices.problem.dictated",
+                &[("asked", asked), ("runs", runs)],
+            ),
+            Problem::RateRefused { asked, runs } => tf(
+                "devices.problem.rate_refused",
+                &[("asked", &khz(*asked)), ("runs", &khz(*runs))],
+            ),
             Problem::OpenFailed { error } => tf("devices.problem.open", &[("error", error)]),
             Problem::Busy { name } => tf("devices.problem.busy", &[("name", name)]),
             Problem::RateMismatch { input, output } => tf(
@@ -109,7 +128,10 @@ impl Problem {
     pub fn is_silent(&self) -> bool {
         matches!(
             self,
-            Problem::Lost { .. } | Problem::Stalled { .. } | Problem::OpenFailed { .. }
+            Problem::Lost { .. }
+                | Problem::Stalled { .. }
+                | Problem::Reset { .. }
+                | Problem::OpenFailed { .. }
         )
     }
 }
@@ -139,9 +161,18 @@ pub fn diagnose(
             },
             vec![Fix::RestartAudio, Fix::UseDefault],
         ));
-    } else if live.stalled {
+    } else {
+        // Still there but silent: a restart is the cure, never "disconnected".
         let asio = live.driver.eq_ignore_ascii_case("ASIO");
-        v.push((Problem::Stalled { asio }, vec![Fix::RestartAudio]));
+        match live.device_state() {
+            cantus_engine::DeviceState::Stalled => {
+                v.push((Problem::Stalled { asio }, vec![Fix::RestartAudio]))
+            }
+            cantus_engine::DeviceState::RestartRequested => {
+                v.push((Problem::Reset { asio }, vec![Fix::RestartAudio]))
+            }
+            _ => {}
+        }
     }
     if let Some(e) = live.open_error.as_deref() {
         if busy(e) {
@@ -186,6 +217,32 @@ pub fn diagnose(
                     error: e.to_string(),
                 },
                 vec![Fix::RestartAudio],
+            ));
+        }
+    }
+    // What the driver dictates, read back and said (round 21). Only ASIO's: WASAPI's
+    // callbacks vary in length by design, and the buffer asked for still holds there.
+    if live.live {
+        let asio = live.driver.eq_ignore_ascii_case("ASIO");
+        if let Some(asked) = live
+            .asked_buffer
+            .filter(|a| asio && live.block > 0 && *a != live.block)
+        {
+            v.push((
+                Problem::Dictated {
+                    asked,
+                    runs: live.block,
+                },
+                vec![Fix::RaiseBuffer(live.block)],
+            ));
+        }
+        if let Some(asked) = live.rate_refused {
+            v.push((
+                Problem::RateRefused {
+                    asked,
+                    runs: live.rate.round() as u32,
+                },
+                vec![Fix::RunAt(live.rate.round() as u32)],
             ));
         }
     }

@@ -29,7 +29,7 @@ RequestExecutionLevel user
 
 !include "files.nsh"
 
-Name "Cantus${FLAVOR_LABEL}"
+Name "Cantus"
 OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\Cantus"
 InstallDirRegKey HKCU "${REG_APP}" "InstallDir"
@@ -120,9 +120,10 @@ Section "!$(CANTUS_SECTION_APP)" SecApp
 
   WriteRegStr HKCU "${REG_APP}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${REG_APP}" "Version" "${VERSION}"
-  WriteRegStr HKCU "${REG_APP}" "Flavor" "${FLAVOR}"
+  ; One edition, every driver (round 21): the "Flavor" an earlier ASIO build wrote goes.
+  DeleteRegValue HKCU "${REG_APP}" "Flavor"
 
-  WriteRegStr HKCU "${REG_UNINST}" "DisplayName" "Cantus${FLAVOR_LABEL}"
+  WriteRegStr HKCU "${REG_UNINST}" "DisplayName" "Cantus"
   WriteRegStr HKCU "${REG_UNINST}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${REG_UNINST}" "Publisher" "Cantus"
   WriteRegStr HKCU "${REG_UNINST}" "DisplayIcon" "$INSTDIR\cantus.exe,0"
@@ -162,7 +163,6 @@ Section "$(CANTUS_SECTION_VST3)" SecVst3
   !insertmacro CANTUS_VST3_FILES
 SectionEnd
 
-!if "${FLAVOR}" == "asio"
 ; FlexASIO (MIT): fetched at install time, the latest release, never bundled; checked
 ; (a program, the size GitHub reports) and run elevated by flexasio.ps1. Off by default,
 ; never in a silent install or update, and not remembered. ASIO4ALL is not offered: its
@@ -188,7 +188,6 @@ Section /o "$(CANTUS_SECTION_FLEXASIO)" SecFlexAsio
   ${EndIf}
   SetOutPath "$INSTDIR"
 SectionEnd
-!endif
 
 !macro REMEMBER SEC NAME
   ${If} ${SectionIsSelected} ${SEC}
@@ -228,9 +227,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "$(CANTUS_DESC_DESKTOP)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecClap} "$(CANTUS_DESC_CLAP)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecVst3} "$(CANTUS_DESC_VST3)"
-  !if "${FLAVOR}" == "asio"
-    !insertmacro MUI_DESCRIPTION_TEXT ${SecFlexAsio} "$(CANTUS_DESC_FLEXASIO)"
-  !endif
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecFlexAsio} "$(CANTUS_DESC_FLEXASIO)"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; A choice stored by an earlier install (1 or 0) wins over the section's default.

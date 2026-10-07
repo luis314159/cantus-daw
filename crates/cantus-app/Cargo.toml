@@ -13,7 +13,12 @@ name = "cantus"
 path = "src/main.rs"
 
 [features]
-# ASIO drivers on Windows (ADR 0025 §10); see docs/round19/devices.md to build it.
+# ASIO drivers on Windows next to WASAPI, on by default (ADR 0025 §10, round 21): one build
+# has every driver. It needs the Steinberg ASIO SDK and LLVM's libclang at build time —
+# `cargo run -p xtask -- asio-sdk` fetches and checks the SDK. Without them the build still
+# succeeds, says so in a cargo warning, and offers WASAPI only (the patched asio-sys,
+# third_party/README.md); a release (`xtask package`) refuses to build without them.
+default = ["asio"]
 asio = ["cantus-ui/asio"]
 
 [dependencies]

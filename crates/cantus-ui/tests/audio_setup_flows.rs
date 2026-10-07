@@ -232,3 +232,170 @@ fn problems_are_said_in_words_and_their_fix_is_one_click() {
     }
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
 }
+
+// --- round 21: a driver that stops is restarted, not called disconnected -----------------
+
+#[test]
+fn a_stalled_driver_is_restarted_once_and_never_called_disconnected() {
+    use cantus_engine::DeviceState;
+    use cantus_ui::views::audio_chip::{health, Health};
+    let (mut a, _dir) = studio();
+    let ctx = support::ctx();
+    a.attach(&ctx);
+    run(&mut a, &ctx, vec![]);
+    let before = a.audio_setup.applied.len();
+    // The ASIO driver stops calling back; the interface is still plugged in.
+    {
+        let d = a.audio_setup.demo.as_mut().unwrap();
+        d.driver = "ASIO".into();
+        d.state = DeviceState::Stalled;
+    }
+    run(&mut a, &ctx, vec![]);
+    assert_eq!(
+        a.audio_setup.applied.len(),
+        before + 1,
+        "the audio is restarted by itself, once"
+    );
+    assert_eq!(
+        a.audio_setup.applied.last(),
+        Some(&a.settings.audio),
+        "as it was"
+    );
+    for _ in 0..20 {
+        run(&mut a, &ctx, vec![]);
+    }
+    assert_eq!(a.audio_setup.applied.len(), before + 1, "only once");
+    // Still stalled: said as a driver that stopped responding, with its button — never
+    // as a disconnected interface.
+    assert_eq!(a.audio_setup.plug.lost, None);
+    assert!(!a
+        .audio_setup
+        .notices
+        .iter()
+        .any(|(n, _)| matches!(n, Notice::Lost(_))));
+    assert_eq!(health(&a), Health::Stalled);
+    let found = problems::diagnose(&setup::live(&mut a, false), None, None, 0);
+    assert_eq!(found[0].0, problems::Problem::Stalled { asio: true });
+    assert_eq!(found[0].1, vec![problems::Fix::RestartAudio]);
+    for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(lang);
+        let text = found[0].0.text().to_lowercase();
+        assert!(
+            !text.contains("disconnected") && !text.contains("desconect"),
+            "{text}"
+        );
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    // The button restarts it.
+    setup::fix(&mut a, &problems::Fix::RestartAudio);
+    assert_eq!(a.audio_setup.applied.len(), before + 2);
+
+    // A driver that asks to be reset (ASIO4ALL after its panel changed) is restarted
+    // too — once more only after a while.
+    {
+        let d = a.audio_setup.demo.as_mut().unwrap();
+        d.state = DeviceState::RestartRequested;
+    }
+    a.audio_setup.auto_restart = None;
+    run(&mut a, &ctx, vec![]);
+    assert_eq!(a.audio_setup.applied.len(), before + 3);
+    let found = problems::diagnose(&setup::live(&mut a, false), None, None, 0);
+    assert_eq!(found[0].0, problems::Problem::Reset { asio: true });
+    // An unplugged interface is still lost, and said so.
+    a.audio_setup.demo.as_mut().unwrap().state = DeviceState::Lost;
+    run(&mut a, &ctx, vec![]);
+    assert_eq!(a.audio_setup.plug.lost.as_deref(), Some(demo::UMC));
+    assert_eq!(health(&a), Health::Lost);
+}
+
+#[test]
+fn the_buffer_the_driver_dictates_is_shown() {
+    let (mut a, _dir) = studio();
+    let ctx = support::ctx();
+    a.attach(&ctx);
+    {
+        let d = a.audio_setup.demo.as_mut().unwrap();
+        d.driver = "ASIO".into();
+        d.block = 512;
+        d.asked_buffer = Some(128);
+        d.rate_refused = Some(96_000);
+    }
+    let found = problems::diagnose(&setup::live(&mut a, false), None, None, 0);
+    let dictated = found
+        .iter()
+        .find(|(p, _)| matches!(p, problems::Problem::Dictated { .. }))
+        .expect("the buffer the driver runs is said");
+    assert_eq!(
+        dictated.0,
+        problems::Problem::Dictated {
+            asked: 128,
+            runs: 512
+        }
+    );
+    assert!(dictated.0.text().contains("512") && dictated.0.text().contains("128"));
+    assert!(!dictated.0.is_silent());
+    assert_eq!(dictated.1, vec![problems::Fix::RaiseBuffer(512)]);
+    assert!(found.iter().any(|(p, _)| *p
+        == problems::Problem::RateRefused {
+            asked: 96_000,
+            runs: 48_000
+        }));
+    // The chip prints what runs.
+    run(&mut a, &ctx, vec![]);
+}
+
+#[test]
+fn a_deliberate_reopen_does_not_trigger_the_lost_watcher() {
+    let (mut a, _dir) = studio();
+    let ctx = support::ctx();
+    a.attach(&ctx);
+    let gone = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let g = gone.clone();
+    a.audio_setup.plug.watch_with(DeviceWatch::with_source(
+        std::time::Duration::from_millis(5),
+        move || devices(!g.load(std::sync::atomic::Ordering::Relaxed)),
+    ));
+    let frames = |a: &mut CantusApp, n: usize| {
+        for _ in 0..n {
+            run(a, &ctx, vec![]);
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    for _ in 0..400 {
+        frames(&mut a, 1);
+        if a.audio_setup.plug.last.is_some() {
+            break;
+        }
+    }
+    assert!(
+        a.audio_setup.plug.last.is_some(),
+        "the watcher's first list"
+    );
+    // Reopened on purpose; while the driver closes and opens, the UMC's endpoints vanish
+    // for a moment, then come back.
+    let audio = a.settings.audio.clone();
+    setup::apply(&mut a, audio);
+    gone.store(true, std::sync::atomic::Ordering::Relaxed);
+    frames(&mut a, 40);
+    assert_eq!(a.audio_setup.plug.lost, None, "a reopen is not an unplug");
+    gone.store(false, std::sync::atomic::Ordering::Relaxed);
+    frames(&mut a, 40);
+    // The quiet moment passes: the latest list (the UMC is there) changes nothing.
+    a.audio_setup.reopened = Some(std::time::Instant::now() - setup::REOPEN_QUIET);
+    frames(&mut a, 10);
+    assert_eq!(a.audio_setup.plug.lost, None);
+    assert!(!a
+        .audio_setup
+        .notices
+        .iter()
+        .any(|(n, _)| matches!(n, Notice::Lost(_))));
+    // A real unplug afterwards is still noticed.
+    gone.store(true, std::sync::atomic::Ordering::Relaxed);
+    for _ in 0..400 {
+        frames(&mut a, 1);
+        if a.audio_setup.plug.lost.is_some() {
+            break;
+        }
+    }
+    assert_eq!(a.audio_setup.plug.lost.as_deref(), Some(demo::UMC));
+}

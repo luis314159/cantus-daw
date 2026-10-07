@@ -1,6 +1,6 @@
 //! FlexASIO (Etienne Dechamps, MIT): a free, open-source ASIO driver over WASAPI, for
 //! machines without an interface of their own. Cantus never ships a copy: the installer
-//! of the ASIO flavour (and the app's audio setup) fetch the **latest** release from
+//! (and the app's audio setup) fetch the **latest** release from
 //! GitHub when the user asks, check what arrived, and run it with elevation.
 //!
 //! ASIO4ALL is deliberately not here: its licence forbids redistribution, so Cantus only

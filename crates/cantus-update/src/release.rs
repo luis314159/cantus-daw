@@ -8,36 +8,15 @@ use crate::version::Version;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-/// Which build: the default one, or the one with ASIO drivers (the `asio` feature). An
-/// installed Cantus updates to the flavour it is.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Flavor {
-    Standard,
-    Asio,
+/// `Cantus-0.2.0-windows-x64-setup.exe`. There is one Windows edition, with every driver
+/// (WASAPI and ASIO) in it (ADR 0025 §10, round 21): no "-asio" variant any more.
+pub fn installer_name(version: &str) -> String {
+    format!("Cantus-{version}-windows-x64-setup.exe")
 }
 
-impl Flavor {
-    pub const ALL: [Flavor; 2] = [Flavor::Standard, Flavor::Asio];
-
-    fn suffix(self) -> &'static str {
-        match self {
-            Flavor::Standard => "",
-            Flavor::Asio => "-asio",
-        }
-    }
-}
-
-/// `Cantus-0.2.0-windows-x64-setup.exe`, `Cantus-0.2.0-windows-x64-asio-setup.exe`.
-pub fn installer_name(version: &str, flavor: Flavor) -> String {
-    format!("Cantus-{version}-windows-x64{}-setup.exe", flavor.suffix())
-}
-
-/// `Cantus-0.2.0-windows-x64-portable.zip`, `…-asio-portable.zip`.
-pub fn portable_name(version: &str, flavor: Flavor) -> String {
-    format!(
-        "Cantus-{version}-windows-x64{}-portable.zip",
-        flavor.suffix()
-    )
+/// `Cantus-0.2.0-windows-x64-portable.zip`.
+pub fn portable_name(version: &str) -> String {
+    format!("Cantus-{version}-windows-x64-portable.zip")
 }
 
 /// The CLAP and VST3 plug-ins alone, for people who use them in another DAW.
@@ -141,13 +120,13 @@ impl Release {
         self.assets.iter().find(|a| a.name == name)
     }
 
-    /// The installer for `flavor`.
-    pub fn installer(&self, flavor: Flavor) -> Option<&Asset> {
-        self.asset(&installer_name(&self.version_text(), flavor))
+    /// The installer.
+    pub fn installer(&self) -> Option<&Asset> {
+        self.asset(&installer_name(&self.version_text()))
     }
 
-    pub fn portable(&self, flavor: Flavor) -> Option<&Asset> {
-        self.asset(&portable_name(&self.version_text(), flavor))
+    pub fn portable(&self) -> Option<&Asset> {
+        self.asset(&portable_name(&self.version_text()))
     }
 
     pub fn sums(&self) -> Option<&Asset> {

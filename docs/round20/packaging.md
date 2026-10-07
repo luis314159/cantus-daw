@@ -1,5 +1,9 @@
 # Round 20 — packaging (installer, signing, updates)
 
+> **Round 21:** there is no ASIO flavour any more — one Windows edition has WASAPI and ASIO
+> (`xtask package` fetches the SDK, builds with it and checks the program lists ASIO).
+> See `docs/round21/asio.md`; the flavour tables below describe round 20.
+
 Builder: **packaging**, branch `r20/packaging`. BACKLOG §6. ADR **0030** (renumber if another
 second-wave builder took 0030). The owner's decisions and purchases are in
 [`signing.md`](signing.md) and at the end of this file.

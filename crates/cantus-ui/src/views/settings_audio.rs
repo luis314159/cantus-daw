@@ -227,7 +227,7 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         // On Windows, say why ASIO is missing when this build cannot offer it.
         if list == List::Driver
             && cfg!(windows)
-            && !cantus_engine::devices::ASIO_BUILT
+            && !cantus_engine::devices::asio_built()
             && !scan
                 .drivers
                 .iter()

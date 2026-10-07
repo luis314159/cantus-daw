@@ -6,6 +6,7 @@
 //! cargo run -p xtask -- bundle --v3             # the x86-64-v3 flavour, into target/bundled-x86-64-v3/
 //! cargo run -p xtask -- bundle --no-build       # only lay out what is already built
 //! cargo run -p xtask -- package                 # the Windows release files (package.rs)
+//! cargo run -p xtask -- asio-sdk                # fetch and check the ASIO SDK (asio_sdk.rs)
 //! cargo run -p xtask -- sign-test-cert          # a self-signed certificate (sign.rs)
 //! cargo run -p xtask -- version                 # the workspace's version
 //! cargo run -p xtask -- perf                    # the performance gate (perf.rs)
@@ -23,6 +24,7 @@
 //!   without loading it.
 
 mod archive;
+mod asio_sdk;
 mod nsis;
 mod package;
 #[cfg(test)]
@@ -231,13 +233,15 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("bundle") => bundle(&args[1..]),
         Some("package") => package::package(&args[1..]),
+        Some("asio-sdk") => asio_sdk::command(),
         Some("sign-file") => package::sign_file(&args[1..]),
         Some("sign-test-cert") => sign::make_test_cert(&target_dir()),
         Some("version") => println!("{}", package::VERSION),
         Some("perf") => perf::perf(&args[1..]),
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
-            eprintln!("       cargo run -p xtask -- package [--asio|--all] [--no-build] [--no-installer] [--sign|--sign-test]");
+            eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test]");
+            eprintln!("       cargo run -p xtask -- asio-sdk");
             eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
             eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …]");
             std::process::exit(2);

@@ -26,6 +26,8 @@ pub struct Plug {
     pub last: Option<DeviceList>,
     /// The interface that disappeared while in use, until it returns or another is chosen.
     pub lost: Option<String>,
+    /// The watcher's latest list, held while a deliberate reopen settles.
+    pub pending: Option<DeviceList>,
     /// The watcher was started (it is not started again after being dropped by a test).
     started: bool,
 }
@@ -59,12 +61,20 @@ pub fn keys(list: &DeviceList) -> Vec<String> {
     v
 }
 
-/// Poll the watcher and act on a change.
+/// Poll the watcher and act on a change — but not while a deliberate reopen settles
+/// (`AudioSetup::reopening`): an interface's endpoints can flicker while its driver is
+/// closed and opened again, and that is not the interface leaving. The latest list waits
+/// and is acted on once the moment has passed (round 21).
 pub fn poll(app: &mut CantusApp) {
-    let Some(list) = app.audio_setup.plug.watch.as_ref().and_then(|w| w.poll()) else {
+    if let Some(list) = app.audio_setup.plug.watch.as_ref().and_then(|w| w.poll()) {
+        app.audio_setup.plug.pending = Some(list);
+    }
+    if app.audio_setup.reopening(std::time::Instant::now()) {
         return;
-    };
-    devices_changed(app, list);
+    }
+    if let Some(list) = app.audio_setup.plug.pending.take() {
+        devices_changed(app, list);
+    }
 }
 
 /// The devices changed to `list`: lose, recover, or offer, as the module says.

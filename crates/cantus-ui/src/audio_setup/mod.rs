@@ -41,13 +41,36 @@ pub struct Live {
     /// Each input channel's peak since the last frame, linear (only while a view meters).
     pub peaks: Vec<f32>,
     pub latency: DeviceLatency,
+    /// The device is gone (unplugged, its driver unloaded).
     pub lost: bool,
+    /// The driver stopped responding while the device is still there.
     pub stalled: bool,
+    /// The device's state as the engine reads it (round 21): the two above, and a driver
+    /// that asked to be restarted, and one still starting.
+    pub state: cantus_engine::DeviceState,
+    /// The buffer asked for, when the driver runs another (`block` is what it runs).
+    pub asked_buffer: Option<u32>,
+    /// The rate asked for, when the driver could not run at it (`rate` is what it runs).
+    pub rate_refused: Option<u32>,
     /// Dropouts so far: the driver's xruns, the processor's overruns, dropped input.
     pub dropouts: u64,
     pub input_error: Option<String>,
     /// Why the device asked for did not open.
     pub open_error: Option<String>,
+}
+
+impl Live {
+    /// The state, with the two flags a demo or a test may set by hand folded in.
+    pub fn device_state(&self) -> cantus_engine::DeviceState {
+        use cantus_engine::DeviceState as S;
+        if self.lost {
+            S::Lost
+        } else if self.stalled {
+            S::Stalled
+        } else {
+            self.state
+        }
+    }
 }
 
 /// What is plugged in: the drivers, the system driver's endpoints, the ASIO drivers, and
@@ -85,8 +108,12 @@ impl Scan {
         asio: Vec<String>,
     ) -> Scan {
         let names: Vec<String> = inputs.iter().map(|i| i.name.clone()).collect();
-        let interfaces =
-            interfaces::group(&outputs, &names, &asio, cantus_engine::devices::ASIO_BUILT);
+        let interfaces = interfaces::group(
+            &outputs,
+            &names,
+            &asio,
+            cantus_engine::devices::asio_built(),
+        );
         Scan {
             drivers,
             outputs,
@@ -285,7 +312,20 @@ pub struct AudioSetup {
     pub drivers: bool,
     /// Whether the window had the focus last frame (coming back rescans the drivers).
     pub focused: bool,
+    /// When Cantus last restarted the audio by itself (a driver that stopped responding or
+    /// asked to be reset): once, then the problem is shown with its button (round 21).
+    pub auto_restart: Option<Instant>,
+    /// When the device was last reopened on purpose: the watcher's lists wait a moment
+    /// (an interface's endpoints flicker while its driver reopens), so a deliberate reopen
+    /// is never taken for an unplugged interface.
+    pub reopened: Option<Instant>,
 }
+
+/// How long the device watcher's news waits after a deliberate reopen.
+pub const REOPEN_QUIET: Duration = Duration::from_secs(3);
+/// A second automatic restart is not tried within this long of the first: the problem is
+/// shown with its button instead.
+pub const AUTO_RESTART_AGAIN: Duration = Duration::from_secs(60);
 
 impl AudioSetup {
     /// Publish where `h` was drawn (cleared when a new frame begins).
@@ -330,6 +370,12 @@ impl AudioSetup {
 
     pub fn is_scanning(&self) -> bool {
         self.scanning.is_some()
+    }
+
+    /// Whether a deliberate reopen happened within [`REOPEN_QUIET`].
+    pub fn reopening(&self, now: Instant) -> bool {
+        self.reopened
+            .is_some_and(|t| now.saturating_duration_since(t) < REOPEN_QUIET)
     }
 
     pub fn notice(&mut self, n: Notice) {

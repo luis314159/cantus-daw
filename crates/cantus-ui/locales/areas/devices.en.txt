@@ -4,7 +4,7 @@
 devices.band.device = Audio device
 devices.driver = Driver
 devices.driver.hint = The kind of driver: WASAPI is Windows' own; ASIO talks to an interface directly, with the lowest latency.
-devices.driver.no_asio = ASIO is not in this build (the asio feature).
+devices.driver.no_asio = ASIO is missing from this developer build: it was compiled without the ASIO SDK. Released Cantus always has it; to build it yourself, run cargo run -p xtask -- asio-sdk, then build again.
 devices.output = Output device
 devices.input = Input device
 devices.input.none = No input
@@ -83,8 +83,8 @@ devices.feel.fine = fine for most playing
 devices.feel.loose = best for mixing; choose a smaller buffer to play through it
 
 devices.problem.lost = {name} was disconnected. Your song stays open and editable; Cantus opens it again when it returns.
-devices.problem.stalled = The device stopped playing. Restarting the audio usually brings it back.
-devices.problem.stalled_asio = The ASIO driver stopped responding. Restart the audio; if it stops again, choose WASAPI for this interface.
+devices.problem.stalled = The device stopped responding. Restart the audio to bring it back; nothing in your song is lost.
+devices.problem.stalled_asio = The ASIO driver stopped responding. Restart the audio to bring it back; if it stops again, open the driver’s control panel or choose WASAPI for this interface.
 devices.problem.open = No sound: the device would not open ({error}).
 devices.problem.busy = Another application holds {name} exclusively. Close it, or let it share the device, then try again.
 devices.problem.rates = The input runs at {input} kHz and the output at {output} kHz. Use one interface for both, or run both at {input} kHz.
@@ -153,7 +153,7 @@ devices.drivers.none_installed = No ASIO driver is installed.
 devices.drivers.installed = Installed: {list}
 devices.drivers.rescan = Rescan drivers
 devices.drivers.where = Choose them in the audio chip: Driver ▸ ASIO, then the ASIO driver.
-devices.drivers.no_asio_build = This build of Cantus was made without ASIO, so it cannot use ASIO drivers even when they are installed. Install the ASIO edition of Cantus to use them; WASAPI keeps working meanwhile.
+devices.drivers.no_asio_build = This is a developer build of Cantus compiled without the ASIO SDK, so it cannot use ASIO drivers even when they are installed. Released Cantus includes ASIO; to build it yourself, run cargo run -p xtask -- asio-sdk and build again. WASAPI keeps working meanwhile.
 devices.drivers.flex = FlexASIO — free and open source
 devices.drivers.flex_body = A universal ASIO driver for any device, by Etienne Dechamps (MIT licence).
 devices.drivers.flex_open = Open FlexASIO’s latest release
@@ -170,3 +170,13 @@ devices.drivers.quarantined = The network answered with a web page instead of th
 devices.drivers.not_installer = What arrived is not a Windows program.
 devices.drivers.size = The file is {got} bytes; GitHub says {want}.
 devices.drivers.network = Could not reach GitHub: {error}
+
+# --- round 21: a driver that stops is not a lost device; what the driver dictates ---
+devices.problem.reset = The audio driver asked to be restarted (its settings changed, or it lost sync). Restart the audio to go on.
+devices.problem.reset_asio = The ASIO driver asked to be restarted (its control panel changed, or it lost sync). Restart the audio to go on.
+devices.problem.dictated = The driver runs {runs} samples, not the {asked} chosen: ASIO drivers often set the buffer in their own control panel.
+devices.problem.rate_refused = The driver cannot run at {asked} kHz, so it runs at {runs} kHz.
+devices.auto_restarted = The audio driver stopped responding; Cantus restarted the audio.
+devices.state.stalled = Not responding
+devices.state.starting = Starting…
+devices.chip.stalled = {name} · not responding

@@ -330,8 +330,6 @@ dependencies = [
 [[package]]
 name = "asio-sys"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "477f1cf5b65679fc2e5422af426f87becba79d1cfa2cd77eff3433e36c8021b9"
 dependencies = [
  "bindgen",
  "cc",
@@ -1234,8 +1232,6 @@ dependencies = [
 [[package]]
 name = "cpal"
 version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f02e8d0327b42d3e2e4ab2119af397344eb9fc54a34bf0ddeaa1277af8681f1"
 dependencies = [
  "alsa",
  "asio-sys",

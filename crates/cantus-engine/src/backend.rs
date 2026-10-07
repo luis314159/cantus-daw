@@ -11,7 +11,7 @@ use crate::midi::MidiSender;
 use crate::processor::Processor;
 use crate::samples::SampleCache;
 use cantus_core::{EffectId, Project, Snapshot, Ticks, TrackId};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, StreamTrait};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -114,21 +114,17 @@ impl EngineHandle {
     /// that cannot open leaves the output running and says why ([`Self::input_error`]).
     pub fn start(config: &AudioConfig) -> Result<Self, EngineError> {
         let host = crate::devices::host(config.driver.as_deref());
-        let device = match &config.device_name {
-            Some(name) => host
-                .output_devices()
-                .map_err(|e| EngineError::Config(e.to_string()))?
-                .find(|d| crate::devices::name_of(d).as_deref() == Some(name.as_str()))
-                .or_else(|| host.default_output_device()),
-            None => host.default_output_device(),
-        }
-        .ok_or(EngineError::NoOutputDevice)?;
+        let device = crate::devices::pick_output(host, config.device_name.as_deref())
+            .map_err(EngineError::Config)?;
         let device_name = crate::devices::name_of(&device).unwrap_or_default();
         let default = device
             .default_output_config()
             .map_err(|e| EngineError::Config(crate::devices::describe_error(&e)))?;
         let channels = default.channels().max(1) as usize;
-        let sample_rate = config.sample_rate.unwrap_or(default.sample_rate());
+        // The rate asked for when the device can run at it, else its own — read back and
+        // shown, never assumed (round 21: an ASIO driver may refuse, or report none).
+        let (sample_rate, rate_refused) =
+            crate::devices::output_rate(host, &device, &default, config.sample_rate);
         // `f32` when the device plays it at this rate, its own format otherwise (ASIO
         // devices often take only integers).
         let format = if default.sample_format() == cpal::SampleFormat::F32
@@ -146,16 +142,19 @@ impl EngineHandle {
         let stream_config = cpal::StreamConfig {
             channels: channels as u16,
             sample_rate,
-            buffer_size: match config.buffer_frames {
-                Some(n) => cpal::BufferSize::Fixed(n),
-                None => cpal::BufferSize::Default,
-            },
+            // A size the device cannot take is left to the driver (and shown as it runs).
+            buffer_size: crate::devices::buffer_request(
+                config.buffer_frames,
+                default.buffer_size(),
+            ),
         };
 
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        // TODO(integrator, r21/rt): once `cantus-rt` and the graph builder's processor flag are merged:
+        // processor.promote_on_first_block(cantus_rt::AudioHost::from_driver_name(host.id().name())); // MMCSS "Pro Audio" on WASAPI, nothing on ASIO
         let (capture_tx, capture_rx) = RingBuffer::<f32>::new(CAPTURE_SAMPLES);
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
@@ -201,33 +200,50 @@ impl EngineHandle {
             routing: routing.clone(),
             tone: Default::default(),
         };
+        // Both directions are built first, then started (round 21): an ASIO driver then
+        // creates the buffers of both in one `ASIOCreateBuffers` before its first
+        // `ASIOStart` (the patched cpal, third_party/README.md) instead of stopping and
+        // rebuilding a running driver when the input is added — which stalled Realtek's
+        // driver. WASAPI does not mind the order. The output still starts first, and an
+        // input that cannot open or start leaves it running and says why.
         let stream = crate::devices::build_output(&device, stream_config, format, driver)
             .map_err(EngineError::Stream)?;
-        stream
-            .play()
-            .map_err(|e| EngineError::Stream(crate::devices::describe_error(&e)))?;
-        // The input starts once the output runs. If it cannot, the processor keeps a ring
-        // nothing fills (silence) and the handle reports no input.
-        let input_stream = plan.and_then(|plan| {
+        let input = plan.and_then(|plan| {
             let (name, channels) = (plan.name.clone(), plan.channels);
-            match plan.start(&telemetry, sample_rate) {
-                Ok(stream) => {
-                    rec.input_name = Some(name);
-                    rec.input_channels = channels;
-                    Some(stream)
-                }
+            match plan.build(&telemetry, sample_rate) {
+                Ok(stream) => Some((stream, name, channels)),
                 Err(e) => {
                     input_error = Some(e);
                     None
                 }
             }
         });
+        let opened = std::time::Instant::now();
+        stream
+            .play()
+            .map_err(|e| EngineError::Stream(crate::devices::describe_error(&e)))?;
+        // If the input cannot start, the processor keeps a ring nothing fills (silence)
+        // and the handle reports no input.
+        let input_stream = input.and_then(|(stream, name, channels)| match stream.play() {
+            Ok(()) => {
+                log::info!("audio input: {name} @ {sample_rate} Hz, {channels} ch");
+                rec.input_name = Some(name);
+                rec.input_channels = channels;
+                Some(stream)
+            }
+            Err(e) => {
+                input_error = Some(format!("{name}: {}", crate::devices::describe_error(&e)));
+                None
+            }
+        });
         if let Some(e) = &input_error {
             log::warn!("audio input: {e}");
         }
+        let stream_buffer = stream.buffer_size().ok().filter(|n| *n > 0);
         let driver_name = host.id().name().to_string();
         log::info!(
-            "audio started: {driver_name} {device_name} @ {sample_rate} Hz, {channels} ch, {format}"
+            "audio started: {driver_name} {device_name} @ {sample_rate} Hz, {channels} ch, {format}, buffer {stream_buffer:?} (asked {:?})",
+            config.buffer_frames
         );
 
         let mut handle = EngineHandle {
@@ -266,7 +282,9 @@ impl EngineHandle {
             probe_tx: Some(probe_tx),
             probe_back: Some(done_rx),
             probe_sent: None,
-            out_seen: (0, None),
+            opened: Some(opened),
+            stream_buffer,
+            rate_refused,
             routing: Some(routing),
         };
         Ok(handle)

@@ -23,9 +23,10 @@ claxon = "0.4"
 lewton = "0.10"
 
 [features]
-# ASIO drivers on Windows (ADR 0025 §10). Needs the Steinberg ASIO SDK (`CPAL_ASIO_DIR`, or
-# cpal's build script downloads it) and LLVM's libclang for bindgen (`LIBCLANG_PATH`).
-# See docs/round19/devices.md for the exact steps.
+# ASIO drivers on Windows (ADR 0025 §10). The app turns it on by default (round 21). It
+# needs the Steinberg ASIO SDK (`CPAL_ASIO_DIR`, or the cache `xtask asio-sdk` fills) and
+# LLVM's libclang (`LIBCLANG_PATH`, or LLVM's default folder); without them the patched
+# asio-sys builds without ASIO and says so (third_party/README.md).
 asio = ["cpal/asio"]
 # The scheduler's `buggify!` sites (ADR 0031 R13): compiled in only for the schedule fuzz
 # (`cargo test -p cantus-engine --features fuzz --test sched`); never in a release build.
@@ -37,3 +38,7 @@ sha2.workspace = true
 serde_json.workspace = true
 cantus-project.workspace = true
 env_logger.workspace = true
+
+[[example]]
+name = "asio_duplex"
+required-features = ["asio"]

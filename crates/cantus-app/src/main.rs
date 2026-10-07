@@ -33,13 +33,18 @@ fn main() -> anyhow::Result<()> {
                 let h = args.next().and_then(|s| s.parse::<f32>().ok());
                 options.window = w.zip(h);
             }
+            // The driver types this build has (the release task checks for ASIO).
+            "--audio-drivers" => {
+                println!("{}", cantus_ui::audio_setup::drivers::report());
+                return Ok(());
+            }
             "--version" | "-V" => {
                 println!("cantus {}", cantus_ui::APP_VERSION);
                 return Ok(());
             }
             "--help" | "-h" => {
                 println!(
-                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--editor eq|comp] [--play] [--window W H] [project.cantus]"
+                    "cantus [--stress] [--locale en|es] [--mixer] [--rack] [--track N] [--shortcuts] [--settings] [--editor eq|comp] [--play] [--window W H] [--audio-drivers] [project.cantus]"
                 );
                 return Ok(());
             }

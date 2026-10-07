@@ -3,7 +3,7 @@
 //! refuse what does not match (a bad hash, a proxy's page), keep the schedule.
 
 use cantus_update::net::{Answer, Fetch, NetError};
-use cantus_update::release::{self, Flavor, ParseError, Release};
+use cantus_update::release::{self, ParseError, Release};
 use cantus_update::verify::{self, Signature, VerifyError};
 use cantus_update::{Config, InstallKind, Status, Updater, Version};
 use std::collections::HashMap;
@@ -34,7 +34,7 @@ fn a_recorded_github_answer_parses() {
         "GitHub's digest is read"
     );
     // Another project's release has no Cantus installer.
-    assert!(r.installer(Flavor::Standard).is_none());
+    assert!(r.installer().is_none());
     assert!(
         r.body.as_deref().is_some_and(|b| !b.is_empty()),
         "notes are read"
@@ -45,15 +45,12 @@ fn a_recorded_github_answer_parses() {
 fn a_cantus_release_names_every_file_the_package_task_makes() {
     let r = Release::parse(CANTUS.as_bytes()).unwrap();
     assert_eq!(r.version_text(), "0.2.0");
-    for f in Flavor::ALL {
-        let i = r.installer(f).expect("an installer for each flavour");
-        assert_eq!(i.name, release::installer_name("0.2.0", f));
-        assert!(r.portable(f).is_some());
-    }
-    assert_eq!(
-        r.installer(Flavor::Asio).unwrap().name,
-        "Cantus-0.2.0-windows-x64-asio-setup.exe"
-    );
+    // One Windows edition, every driver in it (round 21): no "-asio" files.
+    let i = r.installer().expect("the installer");
+    assert_eq!(i.name, release::installer_name("0.2.0"));
+    assert_eq!(i.name, "Cantus-0.2.0-windows-x64-setup.exe");
+    assert!(r.portable().is_some());
+    assert!(r.assets.iter().all(|a| !a.name.contains("asio")));
     assert!(r.asset(&release::plugins_name("0.2.0")).is_some());
     // GitHub's digests agree with the sums file.
     let sums = release::parse_sums(SUMS);
@@ -259,7 +256,6 @@ fn config(dir: &Path, current: &str, kind: InstallKind) -> Config {
     Config {
         repo: cantus_update::REPO.into(),
         current: Version::parse(current).unwrap(),
-        flavor: Flavor::Standard,
         kind,
         state_path: dir.join("update.json"),
         downloads: dir.join("updates"),

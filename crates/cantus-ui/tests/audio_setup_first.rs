@@ -62,10 +62,18 @@ fn a_first_time_musician_is_armed_on_the_guitar_in_three_clicks() {
     let tracks = a.project().tracks.len();
     // 1. The UMC's card.
     click(&mut a, &ctx, Hit::Card(0));
-    assert_eq!(a.settings.audio.device.as_deref(), Some(demo::UMC_OUT));
+    // A build with ASIO (every release, round 21) suggests the interface's ASIO driver.
+    assert_eq!(
+        a.settings.audio.device.as_deref(),
+        Some(if cantus_engine::devices::asio_built() {
+            "UMC ASIO Driver"
+        } else {
+            demo::UMC_OUT
+        })
+    );
     assert_eq!(
         a.settings.audio.buffer_frames,
-        Some(if cantus_engine::devices::ASIO_BUILT {
+        Some(if cantus_engine::devices::asio_built() {
             128
         } else {
             256

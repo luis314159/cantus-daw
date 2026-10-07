@@ -16,11 +16,12 @@ pub fn live(app: &mut CantusApp, peaks: bool) -> Live {
     }
     let e = &mut app.engine;
     let stats = *e.stats();
-    let block = if stats.block_frames > 0 {
-        stats.block_frames as u32
-    } else {
-        e.requested_buffer().unwrap_or(0)
-    };
+    // What the driver really runs (ASIO drivers often dictate it), read back.
+    let block = e
+        .device_buffer()
+        .or((stats.block_frames > 0).then_some(stats.block_frames as u32))
+        .unwrap_or(0);
+    let state = e.device_state();
     Live {
         live: e.is_live(),
         driver: e.driver_name().to_string(),
@@ -42,8 +43,11 @@ pub fn live(app: &mut CantusApp, peaks: bool) -> Live {
             Vec::new()
         },
         latency: e.device_latency(),
-        lost: e.device_lost(),
-        stalled: e.output_stalled(),
+        lost: state == cantus_engine::DeviceState::Lost,
+        stalled: state == cantus_engine::DeviceState::Stalled,
+        state,
+        asked_buffer: e.requested_buffer().filter(|b| *b != block && block > 0),
+        rate_refused: e.rate_refused(),
         dropouts: e.xruns() + stats.overruns + e.input_dropped(),
         input_error: e.input_error().map(str::to_string),
         open_error: app.audio_error().map(str::to_string),
@@ -87,6 +91,8 @@ pub fn apply(app: &mut CantusApp, audio: AudioSettings) {
     audio.record_offset_frames = audio.record_offset_frames.clamp(-48_000, 48_000);
     app.settings.audio = audio.clone();
     app.audio_setup.dropouts.reset();
+    // A deliberate reopen: the device watcher's news waits a moment (plug::poll).
+    app.audio_setup.reopened = Some(Instant::now());
     if app.audio_setup.offline {
         app.audio_setup.applied.push(audio.clone());
         app.store_settings();
@@ -139,7 +145,7 @@ pub fn choose_interface(app: &mut CantusApp, key: &str) {
         .audio_setup
         .recall(key)
         .cloned()
-        .unwrap_or_else(|| interfaces::suggest(&iface, cantus_engine::devices::ASIO_BUILT));
+        .unwrap_or_else(|| interfaces::suggest(&iface, cantus_engine::devices::asio_built()));
     apply(app, audio);
     app.audio_setup
         .notices
@@ -255,7 +261,10 @@ pub fn tick(app: &mut CantusApp) {
     plug::poll(app);
     let now = Instant::now();
     let (total, lost) = match &app.audio_setup.demo {
-        Some(d) => (d.dropouts, d.lost),
+        Some(d) => (
+            d.dropouts,
+            d.device_state() == cantus_engine::DeviceState::Lost,
+        ),
         None => {
             let e = &app.engine;
             (
@@ -265,6 +274,7 @@ pub fn tick(app: &mut CantusApp) {
         }
     };
     app.audio_setup.dropouts.update(total, now);
+    auto_restart(app, now);
     if lost && app.audio_setup.plug.lost.is_none() {
         if let Some(k) = current_key(app) {
             app.audio_setup.plug.lost = Some(k.clone());
@@ -282,6 +292,33 @@ pub fn tick(app: &mut CantusApp) {
         app.audio_setup.names_for = app.engine.device_name.clone();
         apply_routing(app);
     }
+}
+
+/// A driver that stopped responding, or asked to be reset, while its device is still
+/// there: restart the audio once by itself (what a musician would click), and say so. If
+/// it happens again soon after, the problem stays on screen with its *Restart audio*
+/// button instead — a driver that keeps stopping needs a person to look (round 21).
+fn auto_restart(app: &mut CantusApp, now: Instant) {
+    use cantus_engine::DeviceState as S;
+    let state = match &app.audio_setup.demo {
+        Some(d) => d.device_state(),
+        None => app.engine.device_state(),
+    };
+    if !matches!(state, S::Stalled | S::RestartRequested) || app.is_recording() {
+        return;
+    }
+    if app
+        .audio_setup
+        .auto_restart
+        .is_some_and(|t| now.saturating_duration_since(t) < super::AUTO_RESTART_AGAIN)
+    {
+        return;
+    }
+    app.audio_setup.auto_restart = Some(now);
+    log::warn!("audio: the driver {state:?}; restarting the audio once");
+    let audio = app.settings.audio.clone();
+    apply(app, audio);
+    app.set_status(t("devices.auto_restarted"));
 }
 
 /// Put the interface's channel names where the input menus read them.
