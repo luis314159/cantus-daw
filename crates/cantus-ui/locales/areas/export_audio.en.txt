@@ -1,0 +1,81 @@
+# export_audio — the export dialog (ADR 0033). Every key here needs its twin in export_audio.es.txt.
+
+export_audio.title = Export
+export_audio.band.presets = Presets
+export_audio.band.what = What
+export_audio.band.format = Format
+export_audio.band.loudness = Loudness
+export_audio.band.tags = Tags
+
+export_audio.preset.streaming = Streaming
+export_audio.preset.streaming_hint = MP3 320 · −14 LUFS · −1 dBTP
+export_audio.preset.cd = CD
+export_audio.preset.cd_hint = WAV 16-bit · 44.1 kHz · dither
+export_audio.preset.stems = Stems for mastering
+export_audio.preset.stems_hint = Every strip · WAV 24-bit
+export_audio.preset.podcast = Podcast
+export_audio.preset.podcast_hint = Mono MP3 · −16 LUFS
+export_audio.preset.custom = Custom
+export_audio.preset.custom_hint = Your own choices
+
+export_audio.row.what = Export
+export_audio.row.stems = Stems of
+export_audio.row.include = Include
+export_audio.row.tail = Tail
+export_audio.row.format = Format
+export_audio.row.depth = Bit depth
+export_audio.row.mode = Bitrate
+export_audio.row.quality = Quality
+export_audio.row.rate = Sample rate
+export_audio.row.channels = Channels
+export_audio.row.dither = Dither
+export_audio.row.target = Target
+export_audio.row.ceiling = Ceiling
+export_audio.row.peaks = Peaks
+
+export_audio.scope.song = Song
+export_audio.scope.selection = Selection
+export_audio.scope.stems = Stems
+export_audio.selection = Bars {from}–{to}, {seconds} s
+export_audio.no_selection = Select a range on the timeline first: exporting the song.
+
+export_audio.depth.16 = 16-bit
+export_audio.depth.24 = 24-bit
+export_audio.depth.32f = 32-bit float
+export_audio.bits = {n}-bit
+export_audio.cbr = Constant
+export_audio.vbr = Variable
+export_audio.vbr_level = V{v} · about {kbps} kbps
+export_audio.ogg_q = q{q} · about {kbps} kbps
+export_audio.stereo = Stereo
+export_audio.mono = Mono
+export_audio.dither.off = Off
+export_audio.dither.tpdf = TPDF
+export_audio.dither.shaped = Shaped
+export_audio.rate.session = Session ({rate})
+export_audio.rate.instead = This format is written at {rate}.
+
+export_audio.loudness.off = Off — as mixed
+export_audio.limit = Hold the peaks with a limiter
+export_audio.stems_level = Stems keep their mixed level, so they still add up to the mix.
+
+export_audio.tag.title = Title
+export_audio.tag.artist = Artist
+export_audio.tag.album = Album
+export_audio.tag.year = Year
+export_audio.tag.comment = Comment
+
+export_audio.export = Export…
+export_audio.export_stems = Export stems…
+export_audio.stop = Stop
+export_audio.cancel = Cancel
+export_audio.close = Close
+
+export_audio.phase.render = Rendering
+export_audio.phase.convert = Converting
+export_audio.phase.loudness = Measuring loudness
+export_audio.phase.encode = Encoding
+export_audio.stopped = Export stopped; nothing was written.
+export_audio.error.empty = Nothing to export: the song has no notes or clips.
+export_audio.done_loud = Exported {path} ({seconds} s, {lufs} LUFS, peak {peak} dBFS)
+export_audio.done_stems = Exported {n} stems to {folder} ({silent} silent left out)

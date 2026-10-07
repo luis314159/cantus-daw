@@ -1,0 +1,81 @@
+# export_audio — el diálogo de exportar (ADR 0033). Cada clave aquí necesita su gemela en export_audio.en.txt.
+
+export_audio.title = Exportar
+export_audio.band.presets = Preajustes
+export_audio.band.what = Qué
+export_audio.band.format = Formato
+export_audio.band.loudness = Sonoridad
+export_audio.band.tags = Etiquetas
+
+export_audio.preset.streaming = Streaming
+export_audio.preset.streaming_hint = MP3 320 · −14 LUFS · −1 dBTP
+export_audio.preset.cd = CD
+export_audio.preset.cd_hint = WAV 16 bits · 44.1 kHz · dither
+export_audio.preset.stems = Stems para masterizar
+export_audio.preset.stems_hint = Cada canal · WAV 24 bits
+export_audio.preset.podcast = Podcast
+export_audio.preset.podcast_hint = MP3 mono · −16 LUFS
+export_audio.preset.custom = Personalizado
+export_audio.preset.custom_hint = Tus propias opciones
+
+export_audio.row.what = Exportar
+export_audio.row.stems = Stems de
+export_audio.row.include = Incluir
+export_audio.row.tail = Cola
+export_audio.row.format = Formato
+export_audio.row.depth = Resolución
+export_audio.row.mode = Tasa de bits
+export_audio.row.quality = Calidad
+export_audio.row.rate = Frecuencia
+export_audio.row.channels = Canales
+export_audio.row.dither = Dither
+export_audio.row.target = Objetivo
+export_audio.row.ceiling = Techo
+export_audio.row.peaks = Picos
+
+export_audio.scope.song = Canción
+export_audio.scope.selection = Selección
+export_audio.scope.stems = Stems
+export_audio.selection = Compases {from}–{to}, {seconds} s
+export_audio.no_selection = Primero selecciona un rango en la línea de tiempo: se exporta la canción.
+
+export_audio.depth.16 = 16 bits
+export_audio.depth.24 = 24 bits
+export_audio.depth.32f = 32 bits flotante
+export_audio.bits = {n} bits
+export_audio.cbr = Constante
+export_audio.vbr = Variable
+export_audio.vbr_level = V{v} · unos {kbps} kbps
+export_audio.ogg_q = q{q} · unos {kbps} kbps
+export_audio.stereo = Estéreo
+export_audio.mono = Mono
+export_audio.dither.off = No
+export_audio.dither.tpdf = TPDF
+export_audio.dither.shaped = Moldeado
+export_audio.rate.session = Sesión ({rate})
+export_audio.rate.instead = Este formato se escribe a {rate}.
+
+export_audio.loudness.off = No — como está mezclado
+export_audio.limit = Contener los picos con un limitador
+export_audio.stems_level = Los stems conservan su nivel de mezcla, para que sigan sumando la mezcla.
+
+export_audio.tag.title = Título
+export_audio.tag.artist = Artista
+export_audio.tag.album = Álbum
+export_audio.tag.year = Año
+export_audio.tag.comment = Comentario
+
+export_audio.export = Exportar…
+export_audio.export_stems = Exportar stems…
+export_audio.stop = Detener
+export_audio.cancel = Cancelar
+export_audio.close = Cerrar
+
+export_audio.phase.render = Renderizando
+export_audio.phase.convert = Convirtiendo
+export_audio.phase.loudness = Midiendo la sonoridad
+export_audio.phase.encode = Codificando
+export_audio.stopped = Exportación detenida; no se escribió nada.
+export_audio.error.empty = Nada que exportar: la canción no tiene notas ni clips.
+export_audio.done_loud = Exportado {path} ({seconds} s, {lufs} LUFS, pico {peak} dBFS)
+export_audio.done_stems = {n} stems exportados a {folder} ({silent} en silencio omitidos)

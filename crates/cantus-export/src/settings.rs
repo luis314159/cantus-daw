@@ -219,10 +219,10 @@ impl Preset {
     /// The preset's name and line, as locale keys.
     pub fn keys(self) -> (&'static str, &'static str) {
         match self {
-            Preset::Streaming => ("export.preset.streaming", "export.preset.streaming_hint"),
-            Preset::Cd => ("export.preset.cd", "export.preset.cd_hint"),
-            Preset::MasteringStems => ("export.preset.stems", "export.preset.stems_hint"),
-            Preset::Podcast => ("export.preset.podcast", "export.preset.podcast_hint"),
+            Preset::Streaming => ("export_audio.preset.streaming", "export_audio.preset.streaming_hint"),
+            Preset::Cd => ("export_audio.preset.cd", "export_audio.preset.cd_hint"),
+            Preset::MasteringStems => ("export_audio.preset.stems", "export_audio.preset.stems_hint"),
+            Preset::Podcast => ("export_audio.preset.podcast", "export_audio.preset.podcast_hint"),
         }
     }
 

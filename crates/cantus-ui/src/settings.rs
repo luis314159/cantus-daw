@@ -139,6 +139,8 @@ pub struct Settings {
     pub audio_setup: crate::audio_setup::memory::AudioMemory,
     /// Checking GitHub for a newer Cantus (ADR 0032).
     pub updates: UpdateSettings,
+    /// The export dialog's last choices (ADR 0033).
+    pub export: cantus_export::ExportSettings,
 }
 
 /// The updater's two preferences. The schedule itself (when it last asked) is in
@@ -175,6 +177,7 @@ impl Default for Settings {
             verse: crate::verse::VerseSettings::default(),
             audio_setup: Default::default(),
             updates: UpdateSettings::default(),
+            export: cantus_export::ExportSettings::default(),
         }
     }
 }

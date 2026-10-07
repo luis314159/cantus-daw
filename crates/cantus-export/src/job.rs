@@ -3,7 +3,7 @@
 
 use crate::encode;
 use crate::process::{self, Audio, Normalised};
-use crate::settings::{ExportSettings, Scope, Tags};
+use crate::settings::{ExportSettings, Tags};
 use crate::ExportError;
 use cantus_core::Snapshot;
 use cantus_engine::{EffectUnit, NativeUnit, RenderOptions, StemOptions, StemSpec};
@@ -33,10 +33,10 @@ impl Phase {
     /// The phase's locale key, for the status line.
     pub fn key(self) -> &'static str {
         match self {
-            Phase::Render => "export.phase.render",
-            Phase::Convert => "export.phase.convert",
-            Phase::Loudness => "export.phase.loudness",
-            Phase::Encode => "export.phase.encode",
+            Phase::Render => "export_audio.phase.render",
+            Phase::Convert => "export_audio.phase.convert",
+            Phase::Loudness => "export_audio.phase.loudness",
+            Phase::Encode => "export_audio.phase.encode",
         }
     }
 }
@@ -52,6 +52,9 @@ pub struct Control {
     /// The render reports no progress of its own (ADR 0033 §6): until it does, the bar
     /// shows it as a pulse.
     pub render_is_indeterminate: AtomicBool,
+    /// Stop by itself once this far, in thousandths (0 = never): how the tests stop an
+    /// export at an exact moment.
+    stop_at: AtomicU32,
 }
 
 impl Control {
@@ -80,6 +83,16 @@ impl Control {
         self.phase.store(phase as u8, Ordering::Relaxed);
         let f = (fraction.clamp(0.0, 1.0) * 1000.0) as u32;
         self.permille.store(f, Ordering::Relaxed);
+        let stop = self.stop_at.load(Ordering::Relaxed);
+        if stop > 0 && f >= stop {
+            self.cancel();
+        }
+    }
+
+    /// Ask the export to stop by itself once it is `fraction` done (for tests).
+    pub fn stop_at(&self, fraction: f32) {
+        let f = ((fraction.clamp(0.0, 1.0) * 1000.0) as u32).max(1);
+        self.stop_at.store(f, Ordering::Relaxed);
     }
 
     /// A progress callback for the part of the export between `from` and `to`.
@@ -244,6 +257,10 @@ pub fn export_mix(
     path: &Path,
     ctl: &Control,
 ) -> Result<Done, ExportError> {
+    // The mix render reports no progress and cannot stop midway yet: the bar pulses
+    // through it, and a stop takes effect when it returns. When pool's
+    // `render_with_progress` lands (docs/round22/requests.md), pass
+    // `&mut ctl.span(Phase::Render, 0.0, 0.5)` to it and drop the flag.
     ctl.render_is_indeterminate.store(true, Ordering::Relaxed);
     ctl.set(Phase::Render, 0.0);
     let mut opts = job.render;

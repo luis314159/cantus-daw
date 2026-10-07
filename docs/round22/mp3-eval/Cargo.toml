@@ -1,0 +1,17 @@
+# The MP3 encoder comparison behind ADR 0033 §2. Standalone (not a workspace member):
+# `cargo run --release --manifest-path docs/round22/mp3-eval/Cargo.toml`.
+[package]
+name = "mp3eval"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mp3lame-encoder = "0.2.5"
+rusty_mp3 = "1.0.0"
+shine-rs = "0.1.5"
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3"] }
+
+[profile.dev]
+opt-level = 3
+
+[workspace]

@@ -339,7 +339,7 @@ pub fn ogg<W: Write>(
         target_quality: (quality.min(10) as f32 / 10.0).clamp(-0.2, 1.0),
     });
     for (k, v) in tags::vorbis_pairs(tags, credit) {
-        b.comment_tag(k, v);
+        b.comment_tag(k, v).map_err(vorbis)?;
     }
     let mut enc = b.build().map_err(vorbis)?;
     let frames = a.frames();
