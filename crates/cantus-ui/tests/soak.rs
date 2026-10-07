@@ -166,13 +166,17 @@ fn run(cfg: Config) -> Vec<Row> {
         // The curves: one row per sample period, the process figures from a thread.
         if now >= next_sample || done {
             next_sample = now + cfg.sample_every;
-            if let Some(h) = sampler.take() {
-                let _ = h.join();
+            // A sample still under way (PowerShell is slow on a busy machine) is left to
+            // finish: the loop never waits for it.
+            if sampler.as_ref().is_none_or(|h| h.is_finished()) {
+                let s = sampled.clone();
+                sampler = Some(std::thread::spawn(move || {
+                    let p = sample_process();
+                    if p.is_some() {
+                        *s.lock().unwrap() = p;
+                    }
+                }));
             }
-            let s = sampled.clone();
-            sampler = Some(std::thread::spawn(move || {
-                *s.lock().unwrap() = sample_process();
-            }));
             let st = &live.stats;
             let proc_ = sampled.lock().unwrap().unwrap_or_default();
             let row = Row {
