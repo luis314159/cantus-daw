@@ -163,14 +163,18 @@ impl TaskMap {
         for n in 0..plan.nodes().len() {
             for i in plan.inputs(n) {
                 let r = match *i {
-                    Input::Track(ti) => track_to_slot.get(ti as usize).map(|s| In::Track(*s as u16)),
+                    Input::Track(ti) => {
+                        track_to_slot.get(ti as usize).map(|s| In::Track(*s as u16))
+                    }
                     Input::Out(si) => strip_to_slot.get(si as usize).map(|s| In::Out(*s as u16)),
-                    Input::Send(si, k) => strip_to_slot.get(si as usize).map(|&s| {
-                        match send_line_of(s, k as usize) {
-                            Some(li) => In::Line(s as u16, li as u16),
-                            None => In::Send(s as u16, k),
-                        }
-                    }),
+                    Input::Send(si, k) => {
+                        strip_to_slot
+                            .get(si as usize)
+                            .map(|&s| match send_line_of(s, k as usize) {
+                                Some(li) => In::Line(s as u16, li as u16),
+                                None => In::Send(s as u16, k),
+                            })
+                    }
                 };
                 if let Some(r) = r {
                     self.inputs.push(r);

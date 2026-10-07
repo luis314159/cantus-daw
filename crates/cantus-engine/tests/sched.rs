@@ -609,7 +609,8 @@ fn stalled_pusher_pool<Q: ReadyQueue>() -> Duration {
     let mut cfg = Config::new(3, n);
     cfg.mode = Mode::Parallel;
     let chaos = Stall::new(Site::Claimed, 0, Duration::from_millis(2));
-    let mut pool = Pool::<FuzzGraph, Q, Stall>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
+    let mut pool =
+        Pool::<FuzzGraph, Q, Stall>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
     wait_ready(&pool);
     let t = Instant::now();
     for b in 1..=50 {
@@ -648,7 +649,8 @@ fn the_callback_never_waits_on_a_worker_waking() {
     let mut cfg = Config::new(2, 10);
     cfg.mode = Mode::Parallel;
     let chaos = Sleepy(Default::default());
-    let mut pool = Pool::<FuzzGraph, ChaseLev, Sleepy>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
+    let mut pool =
+        Pool::<FuzzGraph, ChaseLev, Sleepy>::for_graph_with_chaos(g.clone(), cfg, chaos).unwrap();
     thread::sleep(Duration::from_millis(20));
     let t = Instant::now();
     for b in 1..=10 {

@@ -8,7 +8,11 @@ use super::*;
 const NOWHERE: u16 = u16::MAX;
 
 impl Processor {
-    pub(super) fn install_snapshot(&mut self, snapshot: Arc<Snapshot>, plan: Option<Box<GraphPlan>>) {
+    pub(super) fn install_snapshot(
+        &mut self,
+        snapshot: Arc<Snapshot>,
+        plan: Option<Box<GraphPlan>>,
+    ) {
         // The plan: the one compiled for it on the UI thread, or — sent without one (a
         // test, a queue that was full) or with a stale one — compiled here, in place,
         // allocation-free. An unchanged topology keeps the plan it has.
@@ -98,8 +102,8 @@ impl Processor {
             let slot = match self.strip_slot_for(st.id) {
                 Some(i) => i,
                 None => {
-                    let free = (0..MAX_STRIPS)
-                        .find(|i| !strip_used[*i] && self.strip_ids[*i].is_none());
+                    let free =
+                        (0..MAX_STRIPS).find(|i| !strip_used[*i] && self.strip_ids[*i].is_none());
                     let i = free
                         .unwrap_or_else(|| (0..MAX_STRIPS).find(|i| !strip_used[*i]).unwrap_or(0));
                     strip_used[i] = true;
@@ -264,7 +268,8 @@ impl Processor {
         for (p, &slot) in self.strip_play_order.iter().enumerate() {
             if let Some(mut s) = nodes.strip(slot) {
                 for i in 0..MAX_EFFECTS_PER_TRACK {
-                    s.key_before[i] = s.key[i].is_some_and(|k| place[k] != NOWHERE && (place[k] as usize) < p);
+                    s.key_before[i] =
+                        s.key[i].is_some_and(|k| place[k] != NOWHERE && (place[k] as usize) < p);
                 }
             }
         }

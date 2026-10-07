@@ -158,7 +158,12 @@ impl EngineHandle {
         // The process leaves EcoQoS before any audio runs (ADR 0031 R1): a throttled core
         // under the pool's workers or the callback is a dropout. Process-wide, idempotent.
         static ECO: std::sync::Once = std::sync::Once::new();
-        ECO.call_once(|| log::info!("real-time: {}", cantus_rt::thread::opt_out_of_power_throttling()));
+        ECO.call_once(|| {
+            log::info!(
+                "real-time: {}",
+                cantus_rt::thread::opt_out_of_power_throttling()
+            )
+        });
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
         // The pool (ADR 0031 §2): its workers start now and wait for the stream's first
         // block, which tells them the period; each joins once it has promoted itself.

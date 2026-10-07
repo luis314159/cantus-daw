@@ -11,10 +11,10 @@
 //! It runs on whichever thread of the pool takes it (`graph/exec.rs`): its state, output
 //! and outbox are its own cells, and everything else it reads is the pass's frame.
 
+use super::ctx::PassCtx;
 use super::exec::{Nodes, Outgoing, PushEvent, Scratch};
 use super::*;
 use crate::automation::Ramp;
-use super::ctx::PassCtx;
 use crate::profile::Node;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -206,10 +206,7 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         while sub < n {
             let mut end = n;
             if playing {
-                loop {
-                    let Some(ev) = track.events.get(s.next_event) else {
-                        break;
-                    };
+                while let Some(ev) = track.events.get(s.next_event) {
                     // Counted from the transport's integer sample, so the same at any split.
                     let off = (ctx.transport.samples_until(ev.tick.0 as f64) as usize)
                         .saturating_sub(sub);

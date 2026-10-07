@@ -25,7 +25,10 @@ fn an_effect_removed_and_restored_at_once_keeps_a_unit() {
     let slot = project.strip_mut(strip).unwrap().effects.pop().unwrap();
     let without = handle.compile(&project, 2);
     handle.set_snapshot(without);
-    assert!(!handle.knows_effect(id), "forgotten as the snapshot without it goes");
+    assert!(
+        !handle.knows_effect(id),
+        "forgotten as the snapshot without it goes"
+    );
     project.strip_mut(strip).unwrap().effects.push(slot);
     let again = handle.compile(&project, 3);
     handle.set_snapshot(again);
@@ -34,8 +37,15 @@ fn an_effect_removed_and_restored_at_once_keeps_a_unit() {
         p.process(&mut buf, 2);
         handle.poll();
     }
-    assert_eq!(p.stats().dropped_events, dropped, "no snapshot found its unit missing");
-    assert!(handle.knows_effect(id), "the old unit's return did not forget the new one");
+    assert_eq!(
+        p.stats().dropped_events,
+        dropped,
+        "no snapshot found its unit missing"
+    );
+    assert!(
+        handle.knows_effect(id),
+        "the old unit's return did not forget the new one"
+    );
 }
 
 /// With the metronome off, a count-in still clicks — and only until the recording's start.
@@ -59,7 +69,12 @@ fn a_count_in_clicks_with_the_metronome_off() {
         out.extend_from_slice(&buf);
     }
     let first = out[..48_000 * 2].iter().fold(0f32, |m, x| m.max(x.abs()));
-    let after = out[(48_000 + 4_800) * 2..].iter().fold(0f32, |m, x| m.max(x.abs()));
+    let after = out[(48_000 + 4_800) * 2..]
+        .iter()
+        .fold(0f32, |m, x| m.max(x.abs()));
     assert!(first > 0.05, "the count-in clicked ({first})");
-    assert_eq!(after, 0.0, "nothing after the count-in with the metronome off");
+    assert_eq!(
+        after, 0.0,
+        "nothing after the count-in with the metronome off"
+    );
 }

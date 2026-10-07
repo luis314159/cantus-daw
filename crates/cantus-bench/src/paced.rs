@@ -39,10 +39,7 @@ pub struct Paced {
 /// The songs a paced run plays: the startup project and every demo.
 pub fn songs() -> Vec<(String, Project)> {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
-    let mut v = vec![(
-        "startup".to_string(),
-        cantus_ui::demos::startup_project(),
-    )];
+    let mut v = vec![("startup".to_string(), cantus_ui::demos::startup_project())];
     for d in cantus_ui::demos::ALL.iter() {
         v.push((d.id.to_string(), (d.build)()));
     }

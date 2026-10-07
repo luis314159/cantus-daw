@@ -41,6 +41,9 @@ fn main() {
         v.len()
     );
     for h in rig.hot_spots(&song, 20) {
-        println!("  {:>8.1} µs/block  {:>5.1} %  {}", h.us_per_block, h.share_pct, h.node);
+        println!(
+            "  {:>8.1} µs/block  {:>5.1} %  {}",
+            h.us_per_block, h.share_pct, h.node
+        );
     }
 }

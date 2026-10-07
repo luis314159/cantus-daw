@@ -131,8 +131,7 @@ pub fn histogram_text(stats: &EngineStats) -> String {
             ("overruns", &stats.overruns),
         ],
     ) + "
-"
-        + &pool_text(stats)
+" + &pool_text(stats)
 }
 
 /// What the engine's pool is doing (ADR 0031 §2), for the same tooltip.

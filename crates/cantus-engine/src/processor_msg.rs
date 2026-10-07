@@ -143,7 +143,11 @@ impl Processor {
     /// Hand memory built on the UI thread to the effect that asked for it. The effect may
     /// switch paths now (a linear-phase EQ), so its latency may change: compensation is
     /// planned again. Whatever it hands back goes back to be freed.
-    fn supply_effect(&mut self, effect: cantus_core::EffectId, memory: crate::effects::EffectMemory) {
+    fn supply_effect(
+        &mut self,
+        effect: cantus_core::EffectId,
+        memory: crate::effects::EffectMemory,
+    ) {
         let nodes = self.nodes.clone();
         let mut memory = Some(memory);
         let mut back = None;

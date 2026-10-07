@@ -2,9 +2,9 @@
 //! master on the callback; and after the block, what the nodes left for the callback —
 //! their gestures, meters, the profilers' time and the blame.
 
+use super::ctx::Job;
 use super::exec::Outgoing;
 use super::*;
-use super::ctx::Job;
 use crate::profile::Node;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -278,10 +278,7 @@ impl Processor {
             let Some(mut s) = nodes.track(slot) else {
                 continue;
             };
-            loop {
-                let Some(ev) = t.events.get(s.next_event) else {
-                    break;
-                };
+            while let Some(ev) = t.events.get(s.next_event) {
                 if self.transport.samples_until(ev.tick.0 as f64) != 0 {
                     break;
                 }

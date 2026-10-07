@@ -3,8 +3,8 @@
 //! task map and clusters it runs, the costs those come from, and the late block's
 //! critical path for the blame.
 
-use super::*;
 use super::ctx::Job;
+use super::*;
 use crate::profile::Node;
 use crate::sched::{Chaos, Config, DynChaos, Idle, Mode, Pool};
 use std::sync::atomic::Ordering::Relaxed;
@@ -238,9 +238,12 @@ impl Processor {
             return;
         };
         let map = &mut frame.map;
-        map.resolve(&self.plan, &self.track_to_slot, &self.strip_to_slot, |s, k| {
-            nodes.strip(s).and_then(|st| st.send_line[k])
-        });
+        map.resolve(
+            &self.plan,
+            &self.track_to_slot,
+            &self.strip_to_slot,
+            |s, k| nodes.strip(s).and_then(|st| st.send_line[k]),
+        );
         self.map_dirty = false;
         self.clustered_at = self.block;
         let Some(pool) = self.pool.as_mut() else {
@@ -280,7 +283,11 @@ impl Processor {
         let nodes = self.nodes.clone();
         if let Some(frame) = nodes.read(&nodes.frame) {
             let ema = |c: &mut f32, ns: f32| {
-                *c = if *c == 0.0 { ns.max(1.0) } else { *c + (ns - *c) * 0.1 };
+                *c = if *c == 0.0 {
+                    ns.max(1.0)
+                } else {
+                    *c + (ns - *c) * 0.1
+                };
             };
             for job in &frame.map.jobs {
                 match *job {

@@ -201,7 +201,9 @@ fn workers_label(w: Option<u32>) -> String {
 /// at most the engine's limit.
 fn worker_counts() -> std::ops::RangeInclusive<u32> {
     let cpus = std::thread::available_parallelism().map_or(4, |n| n.get());
-    1..=(cpus.saturating_sub(2).clamp(1, cantus_engine::processor::MAX_WORKERS) as u32)
+    1..=(cpus
+        .saturating_sub(2)
+        .clamp(1, cantus_engine::processor::MAX_WORKERS) as u32)
 }
 
 /// The page: three bands in the settings window's row grammar.

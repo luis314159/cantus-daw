@@ -228,7 +228,9 @@ impl Processor {
             if let Some(li) = m.listener[i] {
                 if let Some(mut lis) = nodes.listener(li as usize) {
                     if let Some(outbox) = nodes.read(&nodes.tracks[lis.track].outbox) {
-                        lis.deliver(&outbox, start, start + n as u64, |at, note| e.note(at, note));
+                        lis.deliver(&outbox, start, start + n as u64, |at, note| {
+                            e.note(at, note)
+                        });
                     }
                 }
             }

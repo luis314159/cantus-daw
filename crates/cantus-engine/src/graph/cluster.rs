@@ -281,8 +281,11 @@ impl TaskTopo {
         self.ranks.clear();
         self.ranks.extend(0..n as u32);
         let rank = &self.rank;
-        self.ranks
-            .sort_unstable_by(|a, b| rank[*b as usize].total_cmp(&rank[*a as usize]).then(a.cmp(b)));
+        self.ranks.sort_unstable_by(|a, b| {
+            rank[*b as usize]
+                .total_cmp(&rank[*a as usize])
+                .then(a.cmp(b))
+        });
         self.work_ns = self.tcost.iter().sum();
         let critical = self.rank.iter().copied().fold(0.0, f64::max);
         self.critical_share = if self.work_ns > 0.0 {

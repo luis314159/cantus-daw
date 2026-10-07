@@ -39,8 +39,10 @@ impl Rig {
         let mut p = Processor::without_midi(SR, rx_engine, tx_engine);
         p.set_workers(workers);
         for slot in snap.effect_slots() {
-            tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(slot, SR as f32))))
-                .ok();
+            tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
+                slot, SR as f32,
+            ))))
+            .ok();
         }
         for unit in instruments {
             tx.push(EngineMessage::AddInstrument(unit)).ok();
@@ -53,8 +55,10 @@ impl Rig {
         while let Ok(ev) = rx.pop() {
             match ev {
                 EngineEvent::PdcNeed { count, delay } => {
-                    tx.push(EngineMessage::PdcLines(cantus_engine::pdc::lines_for(count, delay)))
-                        .ok();
+                    tx.push(EngineMessage::PdcLines(cantus_engine::pdc::lines_for(
+                        count, delay,
+                    )))
+                    .ok();
                     p.settle();
                 }
                 EngineEvent::EffectNeed { effect, need } => {
@@ -148,7 +152,12 @@ fn session(seed: u64) -> Project {
         for _ in 0..rng.range(2, 24) {
             let start = Ticks(rng.range(0, 7 * PPQ as usize) as i64);
             let len = Ticks(rng.range(PPQ as usize / 8, 2 * PPQ as usize) as i64);
-            let n = p.make_note(start, len, rng.range(36, 84) as u8, rng.range(30, 127) as u8);
+            let n = p.make_note(
+                start,
+                len,
+                rng.range(36, 84) as u8,
+                rng.range(30, 127) as u8,
+            );
             clip.notes.push(n);
         }
         tr.clips.push(clip);
@@ -166,10 +175,10 @@ fn session(seed: u64) -> Project {
             levels[0].push(s);
         }
     }
-    for level in 1..3 {
+    for (level, ids) in levels.iter_mut().enumerate().skip(1) {
         for b in 0..rng.range(0, 3) {
             let s = p.make_strip(format!("L{level}B{b}"));
-            levels[level].push(s.id);
+            ids.push(s.id);
             p.strips.push(s);
         }
     }
@@ -278,7 +287,11 @@ fn serial(p: &Project, blocks: &[usize]) -> Vec<f32> {
 
 fn same_bits(a: &[f32], b: &[f32], what: &str) {
     assert_eq!(a.len(), b.len(), "{what}: lengths");
-    if let Some(i) = a.iter().zip(b).position(|(x, y)| x.to_bits() != y.to_bits()) {
+    if let Some(i) = a
+        .iter()
+        .zip(b)
+        .position(|(x, y)| x.to_bits() != y.to_bits())
+    {
         panic!("{what}: sample {i} differs: {} vs {}", a[i], b[i]);
     }
 }

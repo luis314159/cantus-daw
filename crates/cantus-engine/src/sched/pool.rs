@@ -211,7 +211,15 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
         };
         let workers = config.workers.min(MAX_SLOTS - 1);
         let slots = workers + 1;
-        let sh = Arc::new(Shared::new(graph, Q::new(n, slots), chaos, n, edges, &config, slots));
+        let sh = Arc::new(Shared::new(
+            graph,
+            Q::new(n, slots),
+            chaos,
+            n,
+            edges,
+            &config,
+            slots,
+        ));
         let mut handles = Vec::with_capacity(workers);
         for slot in 1..slots {
             let s = sh.clone();
@@ -528,8 +536,10 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Pool<G, Q, C> {
         // Only the callback and the workers that have joined are seeded.
         sh.queue.seed(&self.sources, &sh.meta, avail | 1);
         sh.chaos.arm(self.block);
-        sh.armed_ns
-            .store(t0.saturating_duration_since(sh.origin).as_nanos() as u64, Relaxed);
+        sh.armed_ns.store(
+            t0.saturating_duration_since(sh.origin).as_nanos() as u64,
+            Relaxed,
+        );
         // Publishes everything above (SeqCst: also orders it before the `parked` loads
         // below, the callback's half of the park protocol).
         sh.epoch.fetch_add(1, SeqCst);

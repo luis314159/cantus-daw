@@ -104,7 +104,13 @@ pub(crate) fn ramp_track(s: &TrackSlot, k0: u64, l: &mut [f32], r: &mut [f32]) -
 /// Multiply a strip's segment by its automated fader and pan (through the pan law).
 /// Returns `false` (touching nothing) when neither ramps.
 #[inline]
-pub(crate) fn ramp_strip(st: &StripSlot, law: PanLaw, k0: u64, l: &mut [f32], r: &mut [f32]) -> bool {
+pub(crate) fn ramp_strip(
+    st: &StripSlot,
+    law: PanLaw,
+    k0: u64,
+    l: &mut [f32],
+    r: &mut [f32],
+) -> bool {
     let (g, p) = (st.gain_ramp, st.pan_ramp);
     if g.is_none() && p.is_none() {
         return false;

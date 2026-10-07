@@ -2,10 +2,10 @@
 //! its consumers. The arithmetic is the serial engine's, expression for expression; only
 //! the span changed — a whole pass instead of a segment — and the thread.
 
+use super::ctx::PassCtx;
 use super::exec::{Analysis, Nodes, Outgoing, PushEvent, Scratch};
 use super::strip::{StripOut, StripSlot};
 use super::*;
-use super::ctx::PassCtx;
 use crate::profile::Node;
 
 /// Silence, for a key whose strip made none this pass.
@@ -114,11 +114,10 @@ pub(crate) fn strip_chain(
         // it is back.
         if let Some(li) = listener[i] {
             if let Some(mut lis) = nodes.listener(li as usize) {
-                match nodes.read(&nodes.tracks[lis.track].outbox) {
-                    Some(outbox) => {
-                        lis.deliver(&outbox, start, start + n as u64, |at, note| e.note(at, note))
-                    }
-                    None => {}
+                if let Some(outbox) = nodes.read(&nodes.tracks[lis.track].outbox) {
+                    lis.deliver(&outbox, start, start + n as u64, |at, note| {
+                        e.note(at, note)
+                    });
                 }
             }
         }

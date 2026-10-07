@@ -390,12 +390,7 @@ impl Processor {
                 .copied()
                 .flatten()
                 .map(Culprit::Instrument),
-            Node::Strip(s) => self
-                .strip_ids
-                .get(s)
-                .copied()
-                .flatten()
-                .map(Culprit::Strip),
+            Node::Strip(s) => self.strip_ids.get(s).copied().flatten().map(Culprit::Strip),
             Node::Insert(s, i) => {
                 let strip = self.strip_ids.get(s).copied().flatten();
                 let effect = self

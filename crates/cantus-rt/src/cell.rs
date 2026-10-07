@@ -159,12 +159,10 @@ impl<T> ShareCell<T> {
             if s & WRITER != 0 || s >= MAX_READERS {
                 return None;
             }
-            match self.state.compare_exchange_weak(
-                s,
-                s + 1,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            ) {
+            match self
+                .state
+                .compare_exchange_weak(s, s + 1, Ordering::Acquire, Ordering::Relaxed)
+            {
                 Ok(_) => return Some(ShareRef { cell: self }),
                 Err(now) => s = now,
             }

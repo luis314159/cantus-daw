@@ -46,7 +46,8 @@ impl RenderProgress {
 
     /// Ask the render to stop at its next block ([`RenderError::Cancelled`]).
     pub fn cancel(&self) {
-        self.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

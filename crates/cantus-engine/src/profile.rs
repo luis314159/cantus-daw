@@ -315,10 +315,7 @@ impl Profiler {
             let i = i as usize;
             let ns = self.block[i];
             block_ns += ns;
-            if blame
-                && worst.is_none_or(|(_, w)| ns > w)
-                && eligible(Node::from_index(i))
-            {
+            if blame && worst.is_none_or(|(_, w)| ns > w) && eligible(Node::from_index(i)) {
                 worst = Some((i, ns));
             }
             self.totals[i] += ns;
@@ -408,7 +405,6 @@ impl Profiler {
         self.total_ns = 0;
     }
 }
-
 
 /// One pool slot's profiler (ADR 0031 §2.9): what the nodes it ran took, charged as on
 /// the callback's [`Profiler`] and folded into it after the block. Each thread of the pool

@@ -9,10 +9,10 @@
 //! thread of the pool takes it: everything it writes is its own cells, and everything it
 //! reads from others is a producer's output the plan makes it wait for.
 
+use super::ctx::{Frame, In};
 use super::exec::{Nodes, Scratch};
 use super::*;
 use crate::automation::Ramp;
-use super::ctx::{Frame, In};
 use crate::graph::gather::{add_stereo, Contribution};
 use crate::profile::Node;
 use std::sync::atomic::Ordering::Relaxed;
@@ -192,10 +192,12 @@ pub(crate) fn with_input(
             add(Contribution::Plain(&o.out_l[..n], &o.out_r[..n]));
         }
         In::Line(slot, li) => {
-            let ran = nodes.read(&nodes.strips[slot as usize].out).is_some_and(|o| {
-                let o: &StripOut = &o;
-                o.ran
-            });
+            let ran = nodes
+                .read(&nodes.strips[slot as usize].out)
+                .is_some_and(|o| {
+                    let o: &StripOut = &o;
+                    o.ran
+                });
             if !ran {
                 return false;
             }
