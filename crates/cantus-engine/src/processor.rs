@@ -416,7 +416,7 @@ impl Processor {
         midi_rx: Consumer<MidiEvent>,
     ) -> Self {
         let sr = sample_rate as f32;
-        Processor {
+        let mut p = Processor {
             sample_rate,
             rx,
             tx,
@@ -494,6 +494,54 @@ impl Processor {
             master: master::MasterChain::new(),
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
+        };
+        p.prefault();
+        p
+    }
+
+    /// Touch every node buffer once, here on the thread that builds the processor, so the
+    /// audio thread never takes their first page faults (ADR 0031 R11): zeroed memory comes
+    /// from the system untouched, and 256 strips' buffers are megabytes of first touches.
+    fn prefault(&mut self) {
+        fn touch(v: &mut [f32]) {
+            // Written, made observable, written back: neither store can be elided.
+            v.fill(f32::MIN_POSITIVE);
+            std::hint::black_box(&mut *v);
+            v.fill(0.0);
+        }
+        for o in self.track_out.iter_mut() {
+            touch(&mut o.l);
+            touch(&mut o.r);
+        }
+        for o in self.strip_out.iter_mut() {
+            for v in [&mut o.post_l, &mut o.post_r, &mut o.out_l, &mut o.out_r] {
+                touch(v);
+            }
+        }
+        for [l, r] in self.edge_out.iter_mut() {
+            touch(l);
+            touch(r);
+        }
+        for (l, r) in self.key_bufs.iter_mut() {
+            touch(l);
+            touch(r);
+        }
+        for v in [
+            &mut self.mono,
+            &mut self.buf_l,
+            &mut self.buf_r,
+            &mut self.dry_l,
+            &mut self.dry_r,
+            &mut self.edge_l,
+            &mut self.edge_r,
+            &mut self.ana_pre,
+            &mut self.silence,
+            &mut self.master.buf_l,
+            &mut self.master.buf_r,
+            &mut self.master.dry_l,
+            &mut self.master.dry_r,
+        ] {
+            touch(v);
         }
     }
 
