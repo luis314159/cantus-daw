@@ -165,8 +165,8 @@ grabación**:
 
 ![Opciones de grabación](../img/record-options.png)
 
-- **Claqueta**: no, 1, 2 o 4 compases antes de la toma (`Alt+C`). La claqueta suena por el
-  metrónomo: activa el **Metrónomo** (`Ctrl+M`) para oírla.
+- **Claqueta**: no, 1, 2 o 4 compases antes de la toma (`Alt+C`). La claqueta suena
+  aunque el **Metrónomo** (`Ctrl+M`) esté apagado.
 - **Pinchazo**: graba solo dentro de un tramo. *Desde la selección* toma la selección de
   tiempo; `Alt+P` usa la selección, si no el bucle, si no dos compases desde el cursor. El
   tramo aparece como una llave roja bajo la regla: arrastra sus extremos. Todo lo tocado
@@ -424,8 +424,12 @@ DAW.
 - **El autoguardado** escribe una copia de recuperación cada minuto si algo cambió
   (*Ajustes ▸ Guardado*, de 10 s a 10 min): `<proyecto>.cantus.autosave` junto a un
   proyecto guardado, o en `%LOCALAPPDATA%\Cantus\autosave\` para uno sin guardar. Nunca
-  sobrescribe tu archivo. Tras un cierre inesperado, cambia el nombre del `.autosave` (o del
-  `.bak`) a `.cantus` y ábrelo.
+  sobrescribe tu archivo, y escribirla nunca congela la ventana (se hace en segundo plano).
+- **Recupera tu trabajo**: si Cantus se cierra de forma inesperada —o lo cierras sin
+  guardar—, el siguiente inicio te ofrece lo que quedó: los cambios autoguardados y las tomas
+  grabadas que no están en ningún archivo guardado. *Restaurar* los devuelve como un solo
+  paso de deshacer (`Ctrl+Z` muestra el último guardado); *Descartar* no borra nada. *Nuevo*
+  y *Abrir* preguntan antes de reemplazar trabajo sin guardar.
 
 **Ajustes** (*Ver ▸ Ajustes…*): *General* (el versículo al iniciar, sí o no, y la Biblia en
 español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia y la corrección
@@ -481,10 +485,6 @@ Esto es una beta. Lo que ya sabemos:
 
 - **Un plug-in de terceros que falla cierra Cantus** (los plug-ins se ejecutan dentro del
   programa; aislarlos viene después). Guarda seguido.
-- **Aún no hay aviso de recuperación** tras un cierre inesperado: cambia el nombre del
-  `.autosave` como en el [capítulo 11](#11-proyectos-autoguardado-y-ajustes). *Nuevo* y
-  *Abrir* no preguntan por cambios sin guardar, y al cerrar se autoguarda en silencio en vez
-  de preguntar.
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
 - **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
   tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por

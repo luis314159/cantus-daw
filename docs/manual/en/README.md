@@ -156,8 +156,8 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 
 ![Recording options](../img/record-options.png)
 
-- **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in is heard
-  through the metronome: turn the **Metronome** on (`Ctrl+M`) to hear it.
+- **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in clicks
+  whether or not the **Metronome** (`Ctrl+M`) is on.
 - **Punch**: record only inside a range. *From selection* takes the time selection; `Alt+P`
   uses the selection, else the loop, else two bars from the playhead. The range shows as a
   red brace under the ruler: drag its ends. Everything played is kept in the file; punch
@@ -398,7 +398,11 @@ DAWs.
 - **Autosave** writes a recovery copy every minute when something changed (*Settings ▸
   Saving*, 10 s to 10 min): `<project>.cantus.autosave` beside a saved project, or in
   `%LOCALAPPDATA%\Cantus\autosave\` for an unsaved one. It never overwrites your file.
-  After a crash, rename the `.autosave` (or the `.bak`) to `.cantus` and open it.
+  Writing it never freezes the window (it runs in the background).
+- **Recover your work**: if Cantus closes unexpectedly — or you close it without saving —
+  the next start offers what was left: the autosaved changes and any recorded takes that
+  are in no saved file. *Restore* brings them back as one undo step (`Ctrl+Z` shows the last
+  save); *Discard* deletes nothing. *New* and *Open* ask before replacing unsaved work.
 
 **Settings** (*View ▸ Settings…*): *General* (the verse at start, on or off, and the
 Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
@@ -453,9 +457,6 @@ This is a beta. What we know about:
 
 - **A plug-in made by someone else that crashes closes Cantus** (plug-ins run inside the
   program; isolating them comes later). Save often.
-- **No recovery prompt yet** after a crash: rename the `.autosave` file as in
-  [chapter 11](#11-projects-autosave-and-settings). *New* and *Open* do not ask about
-  unsaved changes, and closing autosaves silently instead of asking.
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
   one time signature per project. No crossfades or clip gain envelopes.

@@ -4,6 +4,57 @@
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
+## The next session: what round 22 left
+
+The owner's goal is the first public beta (`docs/BETA.md`). Next, in order:
+
+1. **Round 23 — beta hardening** (`docs/BETA.md`): the hardware matrix (the Behringer UMC
+   and other interfaces, in duplex), a 2-hour soak (`CANTUS_SOAK_MINUTES=120`), instrument
+   gain staging, the export dialog's bar wired to `render_with_progress` (pool added it;
+   export's UI still pulses), the recovery dialog in `examples/shoot*`, Save off the UI
+   thread, an installer run by hand (taskbar grouping, an update over a round-21 install),
+   then the tag `v0.1.0-beta.1`.
+2. **Performance, wave 2** (`docs/perf/plan.md`, ADR 0031): the demos at 256 frames with
+   zero misses are gated by one instrument each (Calor, Unda, Exemplar take 50–70 % of a
+   period alone) — **voice-level sub-tasks** on the pool (summed in voice order, so the bits
+   do not move) and the CLAP `thread-pool` extension; hand SIMD kernels and FMA used on
+   purpose (a `DSP_VERSION` bump: v3 alone gave 0.995× of v2); a fast `log10` for the
+   meters; a quiet-machine `xtask perf --full --save` (every round-22 number was taken on a
+   machine loaded by the other builders); `loom` models of the queues and cells; CI with
+   `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`.
+3. **The owner**: try the round-22 build with the Behringer UMC; apply for SignPath; a
+   trademark search for "Cantus"; make two or three songs and log the friction; decide on
+   mirroring the ASIO SDK zip as a release asset (beta-docs' note) and on the in-app
+   FlexASIO install; before the repository is ever made public, take the research
+   screenshots out of its history (`docs/BETA.md`).
+
+Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus and the keyed
+gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
+hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
+`views::interop`; v4 never run (no AVX-512 here).
+
+## Round 22: the multicore live engine and beta hardening (requested 2026-10-07)
+
+**The ask.** *Finish the drivers work, then the optimisation backlog — the multicore engine
+first — and make the engine the very best;* then *what is missing for the first official
+beta?* and, at the end, *push, and make sure a clone on another computer has everything,
+as if it were this one — screenshots, research and all.*
+
+**Decisions:** ADR 0031 §2 and §5.3 (the pool, as built and measured; the CPU levels), ADR
+0032 amended (the launcher and the two programs), ADR 0033 (export formats), LAME's LGPL
+allowed (the integrator's ruling: LGPL code in a GPL-3.0-or-later program whose source is
+published); `DSP_VERSION` 3. Briefs and reports in `docs/round22/`.
+
+| Builder | What changed |
+|---|---|
+| pool | the live engine on a pool of real-time workers: the graph's state in try-only cells (`cantus_rt::cell`, Miri-checked; `cantus-engine` stays `forbid(unsafe_code)`), the scheduler's Chase–Lev pool driven by the processor, clustering and ranks, the critical path's head on the callback, bounded workers in MMCSS that park after a tenth of a period (spinning costs a laptop's turbo clock), the EcoQoS opt-out at stream start, *Settings ▸ Audio ▸ Audio cores*. Parallel = serial **to the bit** on random sessions at W ∈ {1, 3, 7} and under the schedule fuzz; `engine.s64.b128` **0.25× at the median, 0.20× at p99** (paired runs). The demos at 256 frames still miss on this laptop: each is gated by one instrument. Also export's `render_with_progress` and soak's E1 (an effect removed and undone fast) and E6 (the count-in clicks without the metronome) |
+| build | `crates/cantus-launch`: a 335 KB `cantus.exe` that starts `cantus-x86-64-v3.exe` or `-v2.exe` by the processor (`CANTUS_CPU`, `--launcher-info`); `xtask package` builds and checks both and ships `cantus-scan.exe` (**missing from every earlier release**: hosted plug-ins could not be scanned); one taskbar button (AppUserModelID); `xtask null-hashes` — 97 items, plain/v2/v3 the same bits, in CI on Windows and Linux; `xtask perf --cpu / --ab`. v3 is not faster than v2 on today's code (0.995×) |
+| math2 | `math::powf` of our own (`exp2(y·log2 x)` in f64 from `const`-built tables: ≤ 0.5 ulp, 10–16 ns vs libm's 35–50), `math::db_to_gain`; counter-based TPDF dither (R10), so Terminus and Culmen rest with dither on; Aequalis's dynamic residual and stale sections fixed (the heavy EQ rests). `DSP_VERSION` 3: goldens moved by ≤ 6e-8 (−144.5 dBFS). Porta −37 %, Sibilus −26 to −29 % |
+| export | *File ▸ Export audio…*: WAV 16/24/32f, FLAC (flacenc), MP3 (LAME, CBR/VBR, gapless), Ogg Vorbis; song, selection or stems (per strip or track, optionally through the master chain); dither; BS.1770 loudness targets with a true-peak ceiling held by Culmen's limiter; tags; presets Streaming, CD, Stems, Podcast; background render, *Stop* leaves no partial file |
+| soak | a soak harness (40-minute runs, no leak, no hang); **crash recovery** (a session journal and *Recover your work* at start, takes included, one undo step); autosave on its own thread (it froze the window up to 8.9 s); clean refusals of damaged or newer files; the `.bak` kept good; New/Open ask about unsaved work; a new audio track comes armed; the count-in clicks without the metronome |
+| beta-docs | `THIRD-PARTY-NOTICES.md` generated (`xtask notices`, 298 crates, an allow-list test), `PRIVACY.md`, the About window, the EN/ES manual (`xtask manual`), issue templates, release notes, version `0.1.0-beta.1` (no tag) |
+| integrator | `CLAUDE.md`, `rust-toolchain.toml` (1.97.1), `docs/DEVELOPING.md` (a new machine from a fresh clone, proved by one), `docs/instruments/TEST-PLUGINS.md`, the research screenshots and `docs/claude-memory/` in the repository (the owner's request; the repository is private), the manual and release notes brought up to the soak's fixes |
+
 ## The next session: what round 21 left
 
 The owner's goal is the first public beta (`docs/BETA.md`). Next, in order:
