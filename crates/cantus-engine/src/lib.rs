@@ -7,7 +7,7 @@
 
 // `deny`, not `forbid`, only while `processor`'s `rt_shim` holds the denormal guard
 // until `cantus-rt` merges (see `graph/rt_shim.rs`); then `forbid` again.
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 pub mod automation;
 pub mod backend;

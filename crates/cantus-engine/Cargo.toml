@@ -9,6 +9,7 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+cantus-rt = { workspace = true, features = ["rtkit"] }
 cantus-core.workspace = true
 cantus-dsp.workspace = true
 rtrb.workspace = true

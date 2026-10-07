@@ -63,7 +63,6 @@ mod strip_run;
 pub(crate) mod track;
 /// Calls into `cantus-rt` (FTZ/DAZ, the callback's priority), behind one small seam.
 #[path = "graph/rt_shim.rs"]
-#[allow(unsafe_code)]
 mod rt_shim;
 
 use master::MasterStrip;

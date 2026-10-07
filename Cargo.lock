@@ -853,6 +853,7 @@ dependencies = [
  "cantus-core",
  "cantus-dsp",
  "cantus-project",
+ "cantus-rt",
  "claxon",
  "cpal",
  "env_logger",
