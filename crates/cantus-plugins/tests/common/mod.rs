@@ -471,8 +471,8 @@ pub fn signal(n: usize, seed: u32) -> (Vec<f32>, Vec<f32>) {
     for i in 0..n {
         let t = i as f32 / SR;
         let burst = if (i / 4_800) % 3 == 0 { 0.7 } else { 0.01 };
-        let sine = (t * 440.0 * std::f32::consts::TAU).sin() * 0.3
-            + (t * 7_000.0 * std::f32::consts::TAU).sin() * 0.1;
+        let sine = cantus_dsp::math::sin(t * 440.0 * std::f32::consts::TAU) * 0.3
+            + cantus_dsp::math::sin(t * 7_000.0 * std::f32::consts::TAU) * 0.1;
         l.push(noise() * burst + sine * burst);
         r.push(noise() * burst * 0.8 + sine * 0.5 * burst);
     }
