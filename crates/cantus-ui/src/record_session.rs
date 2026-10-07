@@ -488,6 +488,9 @@ impl CantusApp {
             plan.midi_tracks = midi;
         }
         let mut audio_on = false;
+        // The files already in the pass's folder, to see which ones this pass makes (the
+        // session journal keeps them for a recovery).
+        let mut journal_dir = None;
         if !plan.audio_tracks.is_empty() {
             if self.input_channels() == 0 {
                 // Honest about it, and one click from the cure: the audio popover, where
@@ -499,8 +502,16 @@ impl CantusApp {
             } else {
                 let dir = self.audio_record_dir();
                 let made = std::fs::create_dir_all(&dir).map_err(|e| e.to_string());
+                let before = if self.session.is_some() {
+                    crate::recovery_session::wavs_in(&dir)
+                } else {
+                    Vec::new()
+                };
                 match made.and_then(|()| self.engine.begin_recording(&dir)) {
-                    Ok(n) if n > 0 => audio_on = true,
+                    Ok(n) if n > 0 => {
+                        audio_on = true;
+                        journal_dir = Some((dir, before));
+                    }
                     Ok(_) => {
                         self.set_error(t("rec.no_input"));
                         plan.audio_tracks.clear();
@@ -547,6 +558,9 @@ impl CantusApp {
             self.engine.play();
         }
         self.rec.dropped = 0;
+        if let Some((dir, before)) = journal_dir {
+            self.journal_pass_started(&dir, &before, &plan, transport_start);
+        }
         let recording_n = plan.audio_tracks.len() + plan.midi_tracks.len();
         let takes = plan
             .audio_tracks
@@ -603,6 +617,9 @@ impl CantusApp {
         plan.stop_at = at;
         plan.last_pass = self.recorder.pass();
         self.finish_pass(plan, takes, notes);
+        if live.audio {
+            self.journal_pass_finished();
+        }
         self.end_gesture();
     }
 
@@ -622,9 +639,30 @@ impl CantusApp {
         takes: Vec<FinishedTake>,
         notes: Vec<RecordedNote>,
     ) -> bool {
+        let latency = self.engine.record_latency().total();
+        self.finish_pass_at(plan, takes, notes, latency)
+    }
+
+    /// A pass recovered after a crash (`recovery_session`): finished with the latency it
+    /// was recorded with.
+    pub(crate) fn finish_pass_with_latency(
+        &mut self,
+        plan: PassPlan,
+        takes: Vec<FinishedTake>,
+        latency: i64,
+    ) -> bool {
+        self.finish_pass_at(plan, takes, Vec::new(), latency)
+    }
+
+    fn finish_pass_at(
+        &mut self,
+        plan: PassPlan,
+        takes: Vec<FinishedTake>,
+        notes: Vec<RecordedNote>,
+        latency: i64,
+    ) -> bool {
         // The time lost, not the sum over tracks (they lose the same moments).
         let dropped: u64 = takes.iter().map(|t| t.dropped).max().unwrap_or(0);
-        let latency = self.engine.record_latency().total();
         let mut next = self.bus.project().next_id;
         let built = {
             let mut ids = || {

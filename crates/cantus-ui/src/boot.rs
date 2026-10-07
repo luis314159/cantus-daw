@@ -70,6 +70,11 @@ pub enum Shell {
 struct Read {
     files: Files,
     project: Option<(Project, PathBuf)>,
+    /// The project named on the command line that could not be opened, and why: said on
+    /// the status line once the window is up (round 22), not only in the log.
+    refused: Option<(PathBuf, cantus_project::StoreError)>,
+    /// It opened, but its integrity hash did not match.
+    integrity_warning: bool,
     plugins: cantus_host::PluginDb,
 }
 
@@ -172,11 +177,27 @@ impl Boot {
                 let ctx2 = ctx.clone();
                 std::thread::spawn(move || {
                     let files = Files::read(&dir, locale);
-                    let project = path.and_then(|p| match cantus_project::load(&p, true) {
-                        Ok(l) => Some((l.project, p)),
-                        Err(e) => {
-                            log::error!("could not open {}: {e}", p.display());
-                            None
+                    let mut refused = None;
+                    let mut integrity_warning = false;
+                    let project = path.and_then(|p| {
+                        let first = cantus_project::load(&p, true);
+                        // As *Open* does: a hash that does not match opens with a warning.
+                        let loaded = match first {
+                            Err(cantus_project::StoreError::Format(
+                                cantus_project::FormatError::Integrity { .. },
+                            )) => {
+                                integrity_warning = true;
+                                cantus_project::load(&p, false)
+                            }
+                            other => other,
+                        };
+                        match loaded {
+                            Ok(l) => Some((l.project, p)),
+                            Err(e) => {
+                                log::error!("could not open {}: {e}", p.display());
+                                refused = Some((p, e));
+                                None
+                            }
                         }
                     });
                     let plugins =
@@ -184,6 +205,8 @@ impl Boot {
                     let _ = tx.send(Read {
                         files,
                         project,
+                        refused,
+                        integrity_warning,
                         plugins,
                     });
                     ctx2.request_repaint();
@@ -255,6 +278,13 @@ impl Boot {
                 if path.is_some() {
                     app.path = path;
                 }
+                if let Some((p, e)) = &read.refused {
+                    app.set_error(crate::recovery_text::open_failed(p, e));
+                } else if read.integrity_warning {
+                    app.set_error(crate::i18n::t("status.integrity"));
+                }
+                // The journal of this session, after reading what gone ones left (round 22).
+                app.start_session(&app::data_dir());
                 self.options.apply_flags(&mut app);
                 if self.hide_verse {
                     crate::views::verse::turn_off(&mut app);

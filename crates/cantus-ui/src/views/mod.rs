@@ -47,6 +47,7 @@ pub mod picker_thumbs;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;
+pub mod recovery;
 pub mod samples_browser;
 pub mod samples_content;
 pub mod samples_paint;

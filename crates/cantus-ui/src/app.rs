@@ -211,7 +211,17 @@ pub struct CantusApp {
     synced_revision: u64,
     last_autosave: Instant,
     autosaved_revision: u64,
-    autosave_dir: PathBuf,
+    /// Where unsaved projects autosave (and saved ones whose folder cannot be written).
+    /// Public so tests and the soak harness can redirect it.
+    pub autosave_dir: PathBuf,
+    /// Autosave this often instead of the settings' interval (tests, the soak harness).
+    pub autosave_every: Option<Duration>,
+    /// An autosave problem was reported; it is not repeated every interval.
+    autosave_warned: bool,
+    /// This session's journal (`recovery`): what a crash leaves for the next start.
+    pub session: Option<crate::recovery::Session>,
+    /// What a session that is gone left, offered at start (`views::recovery`).
+    pub recovery: Option<crate::recovery_restore::Offer>,
     export: Option<mpsc::Receiver<Result<(PathBuf, Rendered), String>>>,
     auditions: Vec<(TrackId, u8, Instant)>,
     frame_times: Vec<f32>,
@@ -245,7 +255,7 @@ impl CantusApp {
             cc.window_handle().ok().map(|h| h.as_raw())
         };
         let db = cantus_host::PluginDb::load(&data_dir().join("plugins.json"));
-        Self::assemble(
+        let mut app = Self::assemble(
             &cc.egui_ctx,
             files,
             project,
@@ -254,7 +264,9 @@ impl CantusApp {
             Some(db),
             owner,
             stress,
-        )
+        );
+        app.start_session(&data_dir());
+        app
     }
 
     /// Put the application together from what the boot gathered: the files read, the
@@ -416,6 +428,10 @@ impl CantusApp {
             last_autosave: Instant::now(),
             autosaved_revision: 0,
             autosave_dir,
+            autosave_every: None,
+            autosave_warned: false,
+            session: None,
+            recovery: None,
             export: None,
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
@@ -502,7 +518,7 @@ impl CantusApp {
         }
     }
 
-    fn select_first(&mut self) {
+    pub(crate) fn select_first(&mut self) {
         if let Some(t) = self.bus.project().tracks.first() {
             self.selected_track = Some(t.id);
             self.selected_clip = t.clips.first().map(|c| c.id);
@@ -2497,6 +2513,10 @@ impl CantusApp {
     /// Put `project` in the place of the open one, as a new, unsaved session: what *New*
     /// and the demo picker do.
     pub fn replace_project(&mut self, project: Project) {
+        // A pass in progress belongs to the project it was recorded into.
+        if self.is_recording() {
+            self.stop_recording();
+        }
         self.engine.stop();
         self.bus.reset(project);
         self.path = None;
@@ -2652,6 +2672,8 @@ impl CantusApp {
         }
     }
 
+    /// Open the project at `path`. A file that cannot be opened is refused with what is
+    /// wrong with it in words, and the open project stays as it was (round 22).
     pub fn open(&mut self, path: &Path) {
         let loaded = match cantus_project::load(path, true) {
             Ok(l) => l,
@@ -2663,15 +2685,19 @@ impl CantusApp {
                     l
                 }
                 Err(e) => {
-                    self.set_error(tf("status.open_failed", &[("error", &e)]));
+                    self.set_error(crate::recovery_text::open_failed(path, &e));
                     return;
                 }
             },
             Err(e) => {
-                self.set_error(tf("status.open_failed", &[("error", &e)]));
+                self.set_error(crate::recovery_text::open_failed(path, &e));
                 return;
             }
         };
+        // A pass in progress belongs to the project it was recorded into.
+        if self.is_recording() {
+            self.stop_recording();
+        }
         self.engine.stop();
         self.bus.reset(loaded.project);
         self.path = Some(path.to_path_buf());
@@ -2718,13 +2744,22 @@ impl CantusApp {
                 self.bus.mark_saved();
                 self.autosaved_revision = self.bus.revision();
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
+                self.journal_persisted(None);
             }
-            Err(e) => self.set_error(tf("status.save_failed", &[("error", &e)])),
+            // The session is untouched and still unsaved; the message says why and where.
+            Err(e) => self.set_error(crate::recovery_text::save_failed(path, &e)),
         }
     }
 
-    fn maybe_autosave(&mut self) {
-        if self.last_autosave.elapsed() < self.settings.autosave_interval() {
+    /// The autosave interval: the settings', or the override tests and the soak use.
+    pub fn autosave_interval(&self) -> Duration {
+        self.autosave_every
+            .unwrap_or_else(|| self.settings.autosave_interval())
+    }
+
+    /// Write the autosave if one is due and there are unsaved changes (once a frame).
+    pub fn maybe_autosave(&mut self) {
+        if self.last_autosave.elapsed() < self.autosave_interval() {
             return;
         }
         self.last_autosave = Instant::now();
@@ -2738,13 +2773,35 @@ impl CantusApp {
             &self.autosave_dir,
             APP_VERSION,
         ) {
-            Ok(_) => {
+            Ok(r) => {
                 self.autosaved_revision = self.bus.revision();
-                if !self.status.error {
-                    self.set_status(t("status.autosaved"));
+                match &r.fallback {
+                    // Said once: the safety net holds, but not where the user expects it.
+                    Some(why) if !self.autosave_warned => {
+                        self.autosave_warned = true;
+                        self.set_error(tf(
+                            "recovery.autosave_elsewhere",
+                            &[("error", why), ("path", &r.path.display())],
+                        ));
+                    }
+                    Some(_) => {}
+                    None => {
+                        self.autosave_warned = false;
+                        if !self.status.error {
+                            self.set_status(t("status.autosaved"));
+                        }
+                    }
+                }
+                self.journal_persisted(Some(&r.path));
+            }
+            Err(e) => {
+                log::warn!("autosave failed: {e}");
+                // Silence here would let the user believe the work is safe.
+                if !self.autosave_warned {
+                    self.autosave_warned = true;
+                    self.set_error(tf("recovery.autosave_failed", &[("error", &e)]));
                 }
             }
-            Err(e) => log::warn!("autosave failed: {e}"),
         }
     }
 
@@ -3448,6 +3505,7 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::demos::frame(self, ctx);
+        views::recovery::frame(self, ctx);
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
@@ -3460,6 +3518,7 @@ impl CantusApp {
 
         self.sync_engine();
         self.maybe_autosave();
+        self.journal_tick();
 
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -3467,16 +3526,7 @@ impl CantusApp {
         if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
             views::update::on_quit(self);
-        }
-        if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
-            // Last line of defence: never lose work on close.
-            let project = self.autosave_copy();
-            let _ = cantus_project::autosave(
-                &project,
-                self.path.as_deref(),
-                &self.autosave_dir,
-                APP_VERSION,
-            );
+            self.close_session();
         }
 
         let dt = frame_start.elapsed().as_secs_f32();
@@ -3514,7 +3564,6 @@ impl CantusApp {
         // An autosave that falls due: one wake-up at that moment, not a steady tick.
         if self.bus.is_dirty() && self.bus.revision() != self.autosaved_revision {
             let left = self
-                .settings
                 .autosave_interval()
                 .saturating_sub(self.last_autosave.elapsed());
             ticker::wake_after(ctx, left.max(Duration::from_millis(250)));
@@ -3656,6 +3705,11 @@ pub fn data_dir() -> PathBuf {
 }
 
 fn directories_fallback() -> PathBuf {
+    // `CANTUS_DATA_DIR` puts everything elsewhere: the soak harness and the crash tests
+    // run whole sessions without touching the user's own folder.
+    if let Some(dir) = std::env::var_os("CANTUS_DATA_DIR").filter(|d| !d.is_empty()) {
+        return PathBuf::from(dir);
+    }
     // A portable copy (ADR 0032) keeps everything beside its executable.
     if let Some(dir) = cantus_update::install::portable_data_dir() {
         return dir;
