@@ -47,9 +47,29 @@ after warm-up. `soak_smoke` runs the same script for 20 s in the ordinary suite.
 
 ### Runs (this machine, i7-12700H, while 5 other builders compiled — see the caveat)
 
-RUNS_TABLE
+Three 40-minute release runs, seed 22 (`target/soak-run{1,2,3}/soak.csv`, 240 rows each):
 
-**Curves.** CURVES
+| Run | Build | Frames | Actions | Private bytes (warm-up → end) | Handles | Threads | Frame p99 (mean of rows) | Frames > 250 ms | Slowest frame | Engine dropped | Result |
+|---|---|---:|---:|---|---|---|---:|---:|---:|---:|---|
+| 1 | first harness (sampler joined on the loop) | 46 247 | 7 520 | 149 → 178 MB | 231–236 | 7–11 | — ¹ | — | 2.56 s | 79 | pass |
+| 2 | sampler fixed, slow frames logged | 96 278 | 15 682 | 161 → 171 MB | 226–231 | 7–10 | 28.4 ms | **260** (195 with no action: every 10 s, the autosave) | **8.88 s** | 60 | pass |
+| 3 | **autosave on a thread** | 125 546 | 20 313 | 167 → 193 MB ² | 224–229 | 7–11 | 22.5 ms | **62** | **1.11 s** | 46 | pass |
+
+¹ Run 1's rows are distorted: the loop waited 10–20 s for PowerShell every sample.
+² With 40 s of recorded audio held decoded by design (≈ 15 MB, finding E3); between
+samples it moves ±15 MB with the demo loaded. Every run: 20–21 recording passes, 31–37
+save → open round-trips (all equal), 12–13 demo switches, 155–392 undo storms, ~1 300–1 700
+device-window opens/closes, ~800–2 200 effect add/remove/swap — no panic, no hang.
+
+**Curves.** Handles and threads are flat for the whole 40 minutes in every run (a pass adds
+the writer thread and one file handle and gives them back). Private bytes rise for the
+first ~4 minutes (caches, every effect kind met) and then wander within a ±15 MB band
+over a slope that matches the audio recorded; no step at demo switches, opens or undo
+storms. Run 3's frames: p50 3–7 ms, p99 12–24 ms in most rows; the 62 frames over 250 ms
+are scattered (43 with no action that frame, 4 after a demo switch, 4 after a mixer move),
+none periodic — the machine (six builders compiling) is the likeliest cause; under a quiet
+machine they should be re-measured. The callback's slowest block was 60–191 ms in every
+run — preemption of an ordinary thread on a loaded box, not a measurement of the engine.
 
 **Caveat.** The other builders kept 6–17 `rustc`/`cargo` processes running for the whole
 session. The callback thread is an ordinary thread (no MMCSS; that is the backend's), so
@@ -64,7 +84,19 @@ runs the app headless (frames, journal, autosave every second) and prints what i
 the parent `TerminateProcess`es it (`Child::kill`) and starts a session over the same
 data folder, as the next launch would.
 
-CRASH_NUMBERS
+- **Mid-edit** (an edit every ~150 ms, autosave every 1 s): 32 edits, killed after edit 32
+  at 5.1 s; the journal said *crashed, dirty* and named `song.cantus.autosave`, which held
+  edit 27 — **618 ms** before the last edit (bound asserted: the interval + the slowest
+  frame + 300 ms; slowest frame 380 ms in debug). The project file was untouched. The next
+  launch offered it; *Restore* put edit 27 in place over the last save (dirty; Ctrl+Z →
+  the save; Ctrl+Y → back); offered once.
+- **Mid-recording** (a live manual engine, 256-frame blocks, a ramp on input 1, the track
+  armed, ~3 s recorded): the WAV read back **144 640 frames (3.01 s) from its header**, every
+  frame exactly the input frame it should be (the take began at input frame 7 680; a second
+  before the kill 108 544 had arrived — the header is within the 0.5 s flush). Repair
+  extended it to **148 736** frames (+4 096 already on disk past the last flush), still
+  frame-exact. The next launch offered "1 recorded take"; *Restore* put it on *Voice* as a
+  clip of that file.
 
 `tests/recovery_flows.rs`: the journal's life (clean exit leaves nothing; unsaved work at
 close is offered and restored; Discard keeps the files; a running session is never taken
@@ -106,6 +138,15 @@ No leak was found: handles flat (227–234), threads flat (7, + the writer durin
 private bytes flat within ±15 MB after warm-up apart from recorded audio, which stays in
 memory by design (finding E3).
 
+## The beta manual's frictions (asked by the integrator mid-round)
+
+| # | Reported | Done | Test |
+|---|---|---|---|
+| 1 | No recovery prompt — autosaves had to be renamed by hand | The journal + *Recover your work* at start-up (boot's `Stage::Assemble` and `CantusApp::new` call `start_session`), after a crash and after a close with unsaved work | `crash_recovery.rs` (both kills), `recovery_flows.rs` |
+| 2 | New and Open do not ask about unsaved changes | `views/unsaved.rs`: *Save changes?* — Save / Don't save / Cancel (Escape = Cancel); the keymap actions and the File menu go through `request_new` / `request_open` (`request_open_path` for a chosen file); a Save that does not save (cancelled, failed) goes no further | `manual_frictions::new_and_open_ask_before_unsaved_work_goes` |
+| 3 | *Add audio track* does not arm the new track | It comes armed, monitoring *Auto*, one undo step (`rec_fixes` no longer arms it by hand) | `manual_frictions::a_new_audio_track_is_armed_and_monitoring` |
+| 4 | The count-in is silent unless the metronome is on | With the switch off, the snapshots of a counting-in pass are compiled from a copy with the click on in `CountInOnly` mode, so the engine clicks exactly up to the record start and not after; the project is untouched. (The engine's own gate — the click needs `snapshot.metronome` — is the root; a `count_in_clicks` flag there would be cleaner, E6.) | `manual_frictions::a_count_in_clicks_with_the_metronome_off` (renders: clicks during the bar, silence after) |
+
 ## For the integrator (engine — not edited)
 
 - **E1. Effect units vs a fast undo** (`backend.rs` `set_snapshot` / `GarbageEffect`). The
@@ -128,8 +169,20 @@ memory by design (finding E3).
 - **E4. The writer's header flush is not `fsync`** (hound's `flush` reaches the OS cache):
   a process crash loses ≤ 0.5 s, a power cut more. A `sync_data` every few seconds on the
   writer thread would cover power loss.
+- **E6. The count-in click is gated by the metronome switch** (`processor.rs` click path:
+  `snapshot.metronome && click_allowed`). The app works around it (above); the engine
+  could click during a count-in regardless of the switch.
 - **E5. `finish_recording` waits up to 2 s** for a live engine to return the rings, on the UI
   thread (no stall seen in the soak; noted for the hardware matrix).
+
+## Tests
+
+21 new (+1 ignored soak, +1 ignored child): `cantus-project/tests/refusals.rs` 4;
+`cantus-ui/tests/recovery_flows.rs` 8, `crash_recovery.rs` 2, `soak_findings.rs` 3,
+`soak.rs` 1 (`soak_smoke`), `manual_frictions.rs` 3. `rec_fixes.rs` and `rec_flows.rs`
+adjusted for a new audio track that comes armed. `cargo clippy -p cantus-ui -p
+cantus-project --tests` clean; every test of both crates green. The curves of runs 2 and 3
+are kept beside this file (`soak-run2.csv`, `soak-run3.csv`).
 
 ## Files outside my area
 
