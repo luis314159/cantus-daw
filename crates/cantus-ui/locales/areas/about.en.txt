@@ -1,0 +1,24 @@
+# About Cantus, Help ▸ Manual and the feedback links (round 22, views/about.rs, docs.rs).
+about.title = About Cantus
+about.version = Version {version} · public beta
+about.tagline = A free, open-source digital audio workstation
+about.made_with = Made in Rust, with Christian values
+about.created = Created by Luis Ángel Almazán —
+about.band.licence = Licence
+about.licence = Cantus is free software: you may use, study, share and change it under the GNU General Public License, version 3 or later. The engine crates (core, DSP, engine, project, rt) are also offered under MIT or Apache-2.0. It is built on the work of many others — the third-party notices name every one of them and their licences.
+about.open.licence = Licence (GPL-3.0)
+about.open.notices = Third-party notices
+about.open.privacy = Privacy
+about.privacy = No telemetry: Cantus sends nothing about you or your music. The daily update check asks GitHub for the latest release and nothing else (Settings ▸ Updates turns it off).
+about.band.trademarks = Trademarks
+about.trademarks = ASIO is a registered trademark of Steinberg Media Technologies GmbH. VST is a registered trademark of Steinberg Media Technologies GmbH. ASIO support is built with the Steinberg ASIO SDK under its GPL-3.0 option. Other names belong to their owners and are used only to say what Cantus works with.
+about.band.help = Help and feedback
+about.open.manual = Manual
+about.open.notes = Release notes
+about.open.bug = Report a bug
+about.open.source = Source code
+about.beta = This is a beta: please tell us what breaks, what is missing and what gets in your way. Every report helps.
+about.menu.manual = Manual
+about.menu.notes = Release notes
+about.menu.bug = Report a bug…
+about.menu.feature = Suggest a feature…

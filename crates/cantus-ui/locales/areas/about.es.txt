@@ -1,0 +1,24 @@
+# Acerca de Cantus, Ayuda ▸ Manual y los enlaces para opinar (ronda 22, views/about.rs, docs.rs).
+about.title = Acerca de Cantus
+about.version = Versión {version} · beta pública
+about.tagline = Una estación de trabajo de audio digital libre y de código abierto
+about.made_with = Hecho en Rust, con valores cristianos
+about.created = Creado por Luis Ángel Almazán —
+about.band.licence = Licencia
+about.licence = Cantus es software libre: puedes usarlo, estudiarlo, compartirlo y modificarlo bajo la Licencia Pública General de GNU, versión 3 o posterior. Los crates del motor (core, DSP, engine, project, rt) se ofrecen también bajo MIT o Apache-2.0. Está construido sobre el trabajo de muchas otras personas: los avisos de terceros nombran a cada una y sus licencias.
+about.open.licence = Licencia (GPL-3.0)
+about.open.notices = Avisos de terceros
+about.open.privacy = Privacidad
+about.privacy = Sin telemetría: Cantus no envía nada sobre ti ni sobre tu música. La búsqueda diaria de actualizaciones solo pregunta a GitHub por la última versión (se apaga en Ajustes ▸ Actualizaciones).
+about.band.trademarks = Marcas
+about.trademarks = ASIO es una marca registrada de Steinberg Media Technologies GmbH. VST es una marca registrada de Steinberg Media Technologies GmbH. El soporte ASIO se compila con el SDK de ASIO de Steinberg bajo su opción GPL-3.0. Los demás nombres pertenecen a sus dueños y se usan solo para decir con qué funciona Cantus.
+about.band.help = Ayuda y opiniones
+about.open.manual = Manual
+about.open.notes = Notas de la versión
+about.open.bug = Reportar un error
+about.open.source = Código fuente
+about.beta = Esta es una beta: cuéntanos qué falla, qué falta y qué te estorba. Cada reporte ayuda.
+about.menu.manual = Manual
+about.menu.notes = Notas de la versión
+about.menu.bug = Reportar un error…
+about.menu.feature = Sugerir una función…

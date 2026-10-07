@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Quick-start manual / Manual de inicio rápido
+    url: https://github.com/luis314159/cantus/blob/master/docs/manual/en/README.md
+    about: Install, audio setup, recording, editing, mixing, mastering, export — and the known issues of the beta. / Instalación, audio, grabación, edición, mezcla, masterización, exportación y los problemas conocidos de la beta.
+  - name: Privacy / Privacidad
+    url: https://github.com/luis314159/cantus/blob/master/PRIVACY.md
+    about: What Cantus sends (only the update check) and what stays on your computer. / Qué envía Cantus (solo la búsqueda de actualizaciones) y qué se queda en tu computadora.

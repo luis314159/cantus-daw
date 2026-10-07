@@ -1,0 +1,104 @@
+name: Hardware report / Reporte de hardware
+description: How Cantus runs with your audio interface — it works or it does not. Both help the compatibility table. / Cómo funciona Cantus con tu interfaz de audio — funcione o no. Ambos casos ayudan a la tabla de compatibilidad.
+title: "[Hardware] <interface> · <driver>"
+labels: ["hardware", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cantus's beta needs to know how it behaves on real interfaces (`docs/hardware.md`). Ten minutes is enough: open the startup song, play it, then record a few seconds on an audio track.
+        La beta de Cantus necesita saber cómo se porta con interfaces reales (`docs/hardware.md`). Bastan diez minutos: abre la canción de inicio, reprodúcela y graba unos segundos en una pista de audio.
+  - type: input
+    id: interface
+    attributes:
+      label: Interface (maker and model) / Interfaz (marca y modelo)
+      placeholder: Focusrite Scarlett 2i2 (3rd gen)
+    validations:
+      required: true
+  - type: input
+    id: connection
+    attributes:
+      label: Connection and driver version / Conexión y versión del controlador
+      placeholder: USB 2 · Focusrite USB ASIO 4.119
+  - type: dropdown
+    id: driver
+    attributes:
+      label: Driver used in Cantus / Controlador usado en Cantus
+      options:
+        - ASIO — the interface's own driver / el controlador propio de la interfaz
+        - ASIO — FlexASIO
+        - ASIO — ASIO4ALL
+        - WASAPI
+    validations:
+      required: true
+  - type: input
+    id: settings
+    attributes:
+      label: Sample rate · buffer · round trip / Frecuencia · búfer · ida y vuelta
+      description: From the audio chip or its popover. / Del chip de audio o su ventana.
+      placeholder: 48 k · 128 · 7.9 ms
+    validations:
+      required: true
+  - type: dropdown
+    id: playback
+    attributes:
+      label: Playback of the startup song / Reproducción de la canción de inicio
+      options:
+        - Clean / Limpia
+        - Some dropouts / Algunos cortes
+        - Many dropouts / Muchos cortes
+        - No sound / Sin sonido
+    validations:
+      required: true
+  - type: dropdown
+    id: duplex
+    attributes:
+      label: Recording (input and output together) / Grabación (entrada y salida a la vez)
+      options:
+        - Works / Funciona
+        - Works with dropouts / Funciona con cortes
+        - The input stays silent / La entrada queda en silencio
+        - Audio stops or the driver stops responding / El audio se detiene o el controlador deja de responder
+        - Not tried / No lo probé
+    validations:
+      required: true
+  - type: input
+    id: dropouts
+    attributes:
+      label: Dropouts after 10 minutes / Cortes tras 10 minutos
+      description: The status bar's "dropouts" number after ten minutes of playback, if you can. / El número de "cortes" de la barra de estado tras diez minutos de reproducción, si puedes.
+      placeholder: "0"
+  - type: dropdown
+    id: hotplug
+    attributes:
+      label: Unplug and plug back while Cantus runs / Desconectar y volver a conectar con Cantus abierto
+      options:
+        - Recovers by itself / Se recupera solo
+        - Needed "Restart audio" / Hizo falta "Reiniciar audio"
+        - Needed to restart Cantus / Hubo que reiniciar Cantus
+        - Not tried / No lo probé
+  - type: input
+    id: latency
+    attributes:
+      label: Loopback latency, if measured / Latencia con cable, si la mediste
+      description: Settings ▸ Audio ▸ Latency ▸ Measure, with output 1 cabled to input 1. / Ajustes ▸ Audio ▸ Latencia ▸ Medir, con la salida 1 conectada a la entrada 1.
+      placeholder: 8.4 ms round trip
+  - type: input
+    id: system
+    attributes:
+      label: Windows, processor, memory / Windows, procesador, memoria
+      placeholder: Windows 11 23H2 · Ryzen 5 5600U · 16 GB
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cantus version / Versión de Cantus
+      placeholder: 0.1.0-beta.1
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else / Algo más
+      description: What the audio chip said, error messages, screenshots of the audio popover. / Lo que dijo el chip de audio, mensajes de error, capturas de la ventana de audio.

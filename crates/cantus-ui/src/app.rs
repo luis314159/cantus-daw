@@ -3302,37 +3302,8 @@ impl CantusApp {
     /// Every window that floats over the layout: About, the shortcuts editor, the layout
     /// naming prompt. Public so headless tests can render them.
     pub fn dialogs(&mut self, ctx: &egui::Context) {
-        if self.show_about {
-            egui::Window::new(t("menu.about"))
-                .collapsible(false)
-                .resizable(false)
-                .open(&mut self.show_about)
-                .show(ctx, |ui| {
-                    ui.label(
-                        egui::RichText::new("Cantus")
-                            .size(24.0)
-                            .family(design::family_strong())
-                            .color(theme::p().gold),
-                    );
-                    ui.label(
-                        egui::RichText::new(format!("v{APP_VERSION}"))
-                            .text_style(design::mono_small())
-                            .color(theme::p().text_dim),
-                    );
-                    ui.add_space(space::S2);
-                    ui.label(t("about.text"));
-                    // The verse at start: each translation and its licence (§6c).
-                    ui.add_space(space::S2);
-                    ui.label(
-                        egui::RichText::new(t("verse.about.title"))
-                            .family(design::family_strong())
-                            .color(theme::p().text_dim),
-                    );
-                    for (name, licence) in views::verse::credits() {
-                        ui.label(format!("{name}: {licence}"));
-                    }
-                });
-        }
+        // About (round 22): the kit's window, with the notices, privacy and credits.
+        views::about::frame(self, ctx);
         if let Some(name) = self.naming_layout.clone() {
             let mut name = name;
             let mut close = false;

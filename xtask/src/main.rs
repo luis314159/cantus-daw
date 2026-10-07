@@ -10,6 +10,8 @@
 //! cargo run -p xtask -- sign-test-cert          # a self-signed certificate (sign.rs)
 //! cargo run -p xtask -- version                 # the workspace's version
 //! cargo run -p xtask -- perf                    # the performance gate (perf.rs)
+//! cargo run -p xtask -- notices [--check]       # THIRD-PARTY-NOTICES.md (notices.rs)
+//! cargo run -p xtask -- manual                  # the manual as HTML, into target/manual/ (manual.rs)
 //! ```
 //!
 //! Each plug-in is built on its own (`cargo build -p cantus-plugins --profile plugin
@@ -25,6 +27,13 @@
 
 mod archive;
 mod asio_sdk;
+mod manual;
+#[cfg(test)]
+mod manual_tests;
+mod notices;
+mod notices_render;
+#[cfg(test)]
+mod notices_tests;
 mod nsis;
 mod package;
 #[cfg(test)]
@@ -238,12 +247,24 @@ fn main() {
         Some("sign-test-cert") => sign::make_test_cert(&target_dir()),
         Some("version") => println!("{}", package::VERSION),
         Some("perf") => perf::perf(&args[1..]),
+        Some("notices") => notices::command(&args[1..]),
+        Some("manual") => {
+            let out = target_dir().join("manual");
+            match manual::build(&workspace().join("docs/manual"), &out) {
+                Ok(files) => eprintln!("{} files in {}", files.len(), out.display()),
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
             eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test]");
             eprintln!("       cargo run -p xtask -- asio-sdk");
             eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
             eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …]");
+            eprintln!("       cargo run -p xtask -- notices [--check] | manual");
             std::process::exit(2);
         }
     }

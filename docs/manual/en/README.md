@@ -1,0 +1,475 @@
+# Cantus — quick-start manual
+
+*For Cantus 0.1.0-beta.1 on Windows · [Leer en español](../es/README.md)*
+
+Cantus is a free, open-source digital audio workstation: record, compose, mix and master a
+song, from the first note to a finished file. This manual gets you there in an evening.
+Everything it names is in the program as it is today; where the beta still has gaps,
+[chapter 14](#14-known-issues-and-limitations) says so.
+
+![Cantus at start: the arrangement, the mixer below, the inspector at the right](../img/startup.png)
+
+**Contents**
+
+1. [Install](#1-install)
+2. [First run: set up your audio](#2-first-run-set-up-your-audio)
+3. [The workspace](#3-the-workspace)
+4. [Record audio and MIDI](#4-record-audio-and-midi)
+5. [Edit: clips, piano roll, automation](#5-edit-clips-piano-roll-automation)
+6. [Mix: the mixer, inserts and sends](#6-mix-the-mixer-inserts-and-sends)
+7. [Master: the master chain, Fervor, Latitudo, Culmen](#7-master-the-master-chain-fervor-latitudo-culmen)
+8. [Export](#8-export)
+9. [Sounds: the browser and sound packs](#9-sounds-the-browser-and-sound-packs)
+10. [Instruments and effects: the device picker](#10-instruments-and-effects-the-device-picker)
+11. [Projects, autosave and settings](#11-projects-autosave-and-settings)
+12. [Keyboard shortcuts](#12-keyboard-shortcuts)
+13. [Privacy and updates](#13-privacy-and-updates)
+14. [Known issues and limitations](#14-known-issues-and-limitations)
+15. [Report a bug](#15-report-a-bug)
+
+## 1. Install
+
+You need Windows 11, 64-bit (Windows 10 should work but has not been tested), and about
+200 MB of disk.
+
+1. Download `Cantus-0.1.0-beta.1-windows-x64-setup.exe` from the
+   [releases page](https://github.com/luis314159/cantus/releases).
+2. Run it. It installs for you alone, in `%LOCALAPPDATA%\Programs\Cantus`, and asks for no
+   administrator rights. This beta is not code-signed yet, so Windows may show *"Windows
+   protected your PC"*: choose *More info ▸ Run anyway*.
+3. Choose the components: the program (required), *Open .cantus projects with Cantus*
+   (on), a desktop shortcut (off), the CLAP and VST3 plug-ins for other DAWs (on), and
+   *FlexASIO driver (downloaded now)* (off — tick it if your sound card has no ASIO driver
+   of its own; see [chapter 2](#2-first-run-set-up-your-audio)).
+
+**Portable copy.** Unzip `Cantus-0.1.0-beta.1-windows-x64-portable.zip` anywhere (a USB
+stick works). Because of the `portable.txt` beside `cantus.exe`, that copy keeps its
+settings in the `data` folder next to it and writes nothing to your profile.
+
+**Uninstall** from Windows' *Apps*. Your settings, presets and autosaves are removed only
+if you tick that box; your projects are never touched.
+
+## 2. First run: set up your audio
+
+The first time Cantus starts, the window **Set up your audio** opens over the music.
+
+![The first-run audio setup](../img/first-run.png)
+
+1. **Choose your interface.** Each audio device has a card: an *Audio interface*, *This
+   computer*, *Headphones*… Click the one you play and listen through. Cantus picks a
+   driver and a buffer for it: **ASIO** at 128 samples for an interface with its own ASIO
+   driver, otherwise **WASAPI** (Windows' own audio) at 256.
+2. **Listen.** Click *Test tone*: you should hear a soft tone on outputs 1–2.
+3. **Play or speak — the meter should move.** Strum, sing or speak into what is plugged
+   in; the input that moves is the one you will record from.
+4. **Latency.** Cantus says how long the sound takes from string to speaker, and whether
+   that is tight enough to play through. For the most accurate takes, cable output 1 to
+   input 1 and click *Measure latency*; Cantus then places every take to the sample.
+
+Click **Record on …** and Cantus adds an audio track on that input, armed and ready:
+press `R` to record. *Skip* closes the window; it does not open by itself again (the
+*Setup assistant…* button in the audio chip brings it back).
+
+### The audio chip
+
+The chip at the bottom right always shows the device, driver, rate, buffer and latency —
+for example `UMC204HD · ASIO · 48 k · 128 · 6.1 ms`. Its lamp is green when the audio
+runs, amber after a dropout, red when the device is lost or the driver stopped. **Click
+it** to change anything; every change applies at once and is remembered for that
+interface:
+
+![The audio chip's popover](../img/audio-popover.png)
+
+- **Interface**, **Driver** (WASAPI or ASIO, with the *ASIO driver* list), **Input
+  device**, **Rate**;
+- **Buffer · round trip**: 64 to 2048 samples, each with its latency. Smaller is tighter
+  for playing; larger is safer for big mixes. If the status bar counts dropouts, take the
+  next size up;
+- problems appear on top with a button that fixes them (*Restart audio*, *Use this
+  computer's audio*, *Run at 48 kHz*…);
+- *Test tone*, *Channels & routing…* (name your inputs and outputs, choose a headphone
+  cue pair), *Setup assistant…*, and the gear for every setting.
+
+**Which driver?** Use your interface's own ASIO driver if it has one (Behringer, Focusrite,
+PreSonus, Steinberg, MOTU, RME…). For a laptop's built-in sound, use WASAPI, or install
+**FlexASIO** for lower latency. *Get ASIO…* in the popover opens a window with FlexASIO's
+download page, ASIO4ALL's page and the makers' driver pages; after installing a driver,
+click *Rescan drivers*. Cantus never installs drivers by itself.
+
+Plugging an interface in offers to switch to it; unplugging one offers your computer's
+audio, and Cantus goes back to it when it returns. If a driver stops responding, Cantus
+restarts the audio once by itself. You cannot change the device while recording.
+
+## 3. The workspace
+
+Cantus opens on a song — the second drop of the demo *Neon Tide*, looping — so the first
+thing you hear is music. Press `Space` to play it.
+
+- **The toolbar** (top): the logo and the menus (*File, Edit, Clip, View, Help*), the
+  project's name (with `•` when it has unsaved changes), the transport (*Go to start*,
+  *Play*, *Stop*, *Record* and its ▾ options), *Loop*, *Metronome*, *Keys* (the typing
+  keyboard), the tempo (drag it, wheel it, double-click for 120), the clock, undo and
+  redo, and six **window keys**: Browser, Arrangement, Channel rack, Piano roll, Mixer,
+  Inspector.
+- **The arrangement** (centre): tracks and their clips on a timeline.
+- **The lower zone**: the Mixer, the Piano roll and the Channel rack as tabs.
+- **The inspector** (right, `I`): everything about the selected track, strip or clip.
+- **The status bar** (bottom): what is under the pointer, CPU and dropouts, latency, MIDI
+  inputs, minimised devices, and the audio chip.
+
+Every area can be shown or hidden with its window key or its function key (`F5`
+arrangement, `F6` channel rack, `F7` piano roll, `F9` mixer, `Alt+F8` browser, `I`
+inspector). Drag the splitters to resize; right-click a tab to float it in its own
+window; save the arrangement of the window under *View ▸ Layout ▸ Save layout…*. The
+interface zooms from 75 % to 200 % (`Ctrl+Plus`, `Ctrl+Minus`, `Ctrl+0`). Colours, themes
+(light and dark) and the logo are under *View ▸ Appearance*.
+
+**Demo songs.** *File ▸ Demo songs…* (`Ctrl+Shift+N`) opens six songs made entirely with
+Cantus's own instruments and effects: Neon Tide (house), Morning Light (pop ballad),
+Sunday Strut (funk and soul), Paper Lanterns (lo-fi hip-hop), Aurora (cinematic) and
+Midnight Static (trap). Open one, play it, take it apart.
+
+## 4. Record audio and MIDI
+
+### An audio track
+
+1. Add an audio track: `Ctrl+Shift+A`, or right-click the **+** above the track headers
+   ▸ *Add audio track*. (The first-run setup's *Record on …* makes one for you.)
+2. **Arm it**: click the round red lamp on its header (or `Alt+R`). Shift+click arms that
+   track alone. An armed track shows its input meter.
+3. **Choose its input**: the input chip on the header (*In 1*, *In 1-2*…; shown when the
+   track row is tall enough), the inspector's *Recording* section, or the track's menu.
+4. **Monitoring**: the speaker key on the header cycles *Off*, *Auto* (you hear the input
+   while the track is armed — the default) and *On*. The inspector also has *Trim*
+   (−24 to +24 dB before recording).
+5. Press **`R`** (or the record key). Every armed track records; press `R` or `Space` to
+   stop. The whole pass is one undo step.
+
+Takes are written as 32-bit float WAV files: into the project's `Audio` folder once it is
+saved, until then into `%LOCALAPPDATA%\Cantus\recordings\`; saving moves them into the
+project. Each take is placed earlier by the measured latency, so it lines up with what you
+heard.
+
+### Recording options
+
+The ▾ beside the record key (or right-click it) opens **Recording options**:
+
+![Recording options](../img/record-options.png)
+
+- **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in is heard
+  through the metronome: turn the **Metronome** on (`Ctrl+M`) to hear it.
+- **Punch**: record only inside a range. *From selection* takes the time selection; `Alt+P`
+  uses the selection, else the loop, else two bars from the playhead. The range shows as a
+  red brace under the ruler: drag its ends. Everything played is kept in the file; punch
+  only sets the clip's window.
+- **Loop takes**: with the loop on, each pass becomes a take.
+- **Take mode**: *Stack* (old clips move to take lanes — the default), *Replace* (cut what
+  the take covers) or *Overdub* (MIDI: add notes to the clip).
+- **Click**: when the click plays (*Always*, *Recording*, *Count-in*) and its level.
+
+### Takes and comping
+
+Every take is kept on a **take lane** under the track: open them with the small disclosure
+at the bottom of the track's colour cell, `Alt+T`, or the track menu's *Show takes*.
+**Drag across a take** to comp that stretch into the track; click a take to use all of it.
+Right-click a lane for *Use this take*, *Delete unused takes* (which also drops recordings
+nothing plays any more), *Explode takes to new tracks* and *Hide takes*.
+
+### MIDI
+
+Arm an **instrument track** (one with no audio input) and press `R`: notes from every MIDI
+keyboard Cantus found (the status bar says *MIDI inputs: n*) are recorded into a clip.
+With nothing armed, `R` records into the selected track. No keyboard? `Ctrl+T` turns the
+**typing keyboard** on: `A`–`L` play notes, `Z`/`X` change octave. While it is on, letter
+shortcuts (including `R`) are off — use `Space` or the record key.
+
+## 5. Edit: clips, piano roll, automation
+
+### Clips in the arrangement
+
+- **Create**: double-click an empty place on a track (a 4-bar clip), or record.
+- **Select**: click; `Ctrl+click` adds; drag on empty space for a marquee; `Esc` clears.
+- **Move**: drag (also to another track). `Alt+drag` copies; `Ctrl` while dragging ignores
+  the grid. `Left`/`Right` nudge by the grid, `Shift` by a bar.
+- **Trim**: drag a clip's edge — its content stays where it is. **Slip**: `Shift+drag`
+  slides the content inside the clip.
+- **Split** at the playhead: `Ctrl+E`. **Glue**: `Ctrl+J`. **Duplicate**: `Ctrl+D` (press
+  again to keep tiling). **Mute**: `0`. **Rename**: `F2`. **Colour**: `Ctrl+Shift+C`.
+- **Time selection**: drag in the ruler's lower lane; the top strip is the loop. `Shift+L`
+  loops the selection, `Z` zooms to it.
+- **Audio clips** have handles for fade in, fade out and gain (double-click one to reset
+  it; right-click a fade for its curve) and a menu with *Normalize*, *Reverse*, *Reset clip
+  gain* and *Remove fades*.
+- **Import audio**: drag WAV, AIFF, FLAC or Ogg files onto the arrangement (they land at
+  the pointer), or *File ▸ Import audio…*. A MIDI file adds its tracks.
+
+The **grid** (the arrangement's toolbar) starts at one bar; choose finer values for
+detail. Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom.
+
+### The piano roll
+
+Select a MIDI clip and show the piano roll (`F7`, or its tab under the arrangement): it
+edits that clip's notes.
+
+![The piano roll](../img/piano-roll.png)
+
+| Tool | Key | What it does |
+|---|---|---|
+| Draw | `P` or `1` | Click adds a note, drag moves, drag the right edge resizes, right-click deletes |
+| Paint | `B` or `2` | Drag across the grid to paint notes |
+| Select | `E` or `3` | Drag to select; drag notes to move them |
+| Delete | `D` or `4` | Click or drag over notes to delete |
+| Mute | `T` or `5` | Click a note to mute it (it stays, silent) |
+| Slice | `C` or `6` | Drag a line to split notes |
+| Play | `Y` or `7` | Click notes or rows to hear them |
+
+`Up`/`Down` transpose the selection (`Shift`: an octave), `Left`/`Right` nudge it, `Q`
+quantizes, `Ctrl+C`/`Ctrl+V` copy and paste. Velocities are stems in the lane under the
+grid: drag them, or `Alt+wheel` over a note. A drum kit shows one named row per pad.
+
+The **channel rack** (`F6`) shows every track as a row of steps over the selected clip's
+bars: click a step on, right-click it off, drag to paint. A step is an ordinary note.
+
+### Automation
+
+Right-click any knob, fader or effect control ▸ **Create automation clip**, or move a
+control and press **`Alt+A`** (automate the last thing you touched). The clip covers the
+time selection (else the loop, else four bars) on a lane under its track. On the lane:
+drag points, drag the ring between two points to bend the curve, click the line to add a
+point, double-click a point to delete it, right-click it for its shape (single or double
+curve, hold, stairs, pulse, wave). Double-click the clip for the large editor, with a
+drawing tool and articulators (flip, smooth, random, scale, LFO). An automated control
+shows a dot.
+
+## 6. Mix: the mixer, inserts and sends
+
+![The mixer](../img/mixer.png)
+
+Each track feeds a **strip** of the mixer (`F9`); strips feed the **master** at the left,
+or another strip (a bus). A strip has its level meter, mute and solo, pan, fader, phase
+and swap, width, a three-band EQ, its inserts and its sends. Click to select, `Ctrl+click`
+to add, `Shift+click` for a run; dragging one fader of a selection moves them all. With
+the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
+`Ctrl+wheel` changes the strips' width; at *Extra large* the insert slots show inside each
+strip.
+
+- **Inserts** (up to ten per strip): click an empty slot to choose an effect in the device
+  picker, or right-click it for the quick list. On a filled slot, click the lamp to bypass
+  it and the name to open its window; right-click to swap, move or remove it. In the
+  inspector, each insert has a **Mix** ring (dry/wet).
+- **Sends**: select a strip, then look at the *Sends* row of the others — click the ▲ of
+  the strip you want to send to (a reverb return, a parallel compressor); a knob then sets
+  the send's level. Sends are post-fader.
+- **Routing**: right-click a strip ▸ *Routing* ▸ *Output* or *Send to*, or select several
+  strips and *Create submix from selected*.
+- **Device windows** have *Swap*, minimise (to the tray in the status bar), maximise and
+  close. `F8` opens the selected track's instrument, `Esc` closes the device you used last,
+  `F12` closes every floating one.
+
+**Solo** follows the routing: a soloed strip is heard with what feeds it and what it feeds.
+
+## 7. Master: the master chain, Fervor, Latitudo, Culmen
+
+The **master** has its own chain of up to ten inserts, run on the whole mix before the
+master fader. Click the master's head to see its chain in the inspector (*The whole mix*
+→ the inserts → *Audio output*), or right-click its name ▸ *Effects* ▸ *+ Add effect*.
+
+![Culmen on the master](../img/master.png)
+
+The demos master in this order, and it is a good start:
+
+1. **Aequalis** (EQ): a high-pass under the sub, a little air.
+2. **Multiplex** or **Comprimo**: gentle glue.
+3. **Latitudo** (stereo): the preset *Master: tighten the low end* or *Master: wider top,
+   mono bass* keeps the bass in mono and the top wide. Watch its correlation meter: it
+   should stay above zero.
+4. **Culmen** (maximizer): choose a **target** — *Streaming −14* (−14 LUFS, −1 dBTP),
+   *Apple −16*, *CD −9*, *Club −7*, *Broadcast −23* — then play the loudest part of the song
+   and click **Learn drive**: Culmen listens, sets the drive, listens again and stops on
+   the target, in one undo step. The *Loudness* card shows momentary, short-term and
+   integrated loudness and the true peak; the verdict says *On target* or how many LU you
+   are over or under. Culmen works in three bands plus the full band, into a true-peak
+   brickwall at the ceiling; its *Character* (Clean, Punch, Loud, Bus, Safe) and its ten
+   presets cover most masters.
+
+**Fervor** (saturation) adds colour: *Tape*, *Tube*, *Overdrive*, *Fuzz*, *Clip*, *Fold* or a
+drawn *Curve*, with oversampling, tone, mix and *Level match*, so that louder never fools
+you. On the master, the presets *Master clipper* and *Tube glue on the mid* are the gentle
+ones.
+
+## 8. Export
+
+- **The mix**: *File ▸ Export WAV…* (`Ctrl+Shift+E`), then choose where. Cantus renders
+  the whole song from the start to the end of the last clip, plus two seconds of tail,
+  through the master chain, as a stereo **32-bit float WAV** at the audio device's rate.
+  Loop and metronome are ignored. The status bar reports the length and the peak.
+- **Stems**: *File ▸ Export stems…* writes one WAV per mixer strip (after its fader) or per
+  track (before its strip), all starting on the song's first beat with delay compensation
+  included, named `NN Name.wav`. Options: the tail, silent stems too, the master mix, and
+  *Through the master chain* when the master has inserts.
+- **MIDI**: *File ▸ Export MIDI…* — the whole song, the selected track or the selected clip,
+  as a type 1 file with the tempo, metre and track names.
+- **DAWproject**: *File ▸ Export DAWproject…* to move a project to Bitwig, Studio One and
+  other DAWs that read it (a report lists anything that could not travel).
+
+This beta exports WAV only. For streaming, a 32-bit float WAV mastered with Culmen to
+−14 LUFS and −1 dBTP is what the services want; for MP3 or a 16-bit CD file, convert it
+with another program for now (MP3, FLAC and Ogg export are coming).
+
+## 9. Sounds: the browser and sound packs
+
+The **browser** (`Alt+F8`, the first window key) docks at the left. It lists the sound
+packs you installed and *My folders* (click **+** to add any folder of samples).
+
+![The sample browser](../img/browser.png)
+
+- **Click** a sound to hear it; click again to stop. Type in the search field to find
+  sounds across every pack and folder.
+- **Drag** a sound onto a **Pulsus pad** (the pad plays it), onto **Exemplar**'s key map (a
+  zone on that key), onto the **channel rack** (a new sample channel with its own strip),
+  or onto the **arrangement** (an audio clip where you drop it). Each drop is one undo step.
+- With nothing installed, the browser offers **Start with a drum kit**: *Download* fetches
+  *Cantus Starter Drums* (81 one-shots, 33 MB). *Sound packs…* (or *More packs…*) lists
+  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar —
+  with their size, licence and credits; *Install*, *Update*, *Remove*, *Show the folder*,
+  and *Install from a file…* for computers without internet.
+
+Every pack is **CC0**: yours to use in any song, free, with no credit needed. Packs are
+saved in `%LOCALAPPDATA%\Cantus\Content\`; every file is checked against its SHA-256.
+
+## 10. Instruments and effects: the device picker
+
+The **device picker** shows every instrument and effect — Cantus's own and the CLAP and
+VST3 plug-ins installed on your computer — as tiles.
+
+![The device picker](../img/picker.png)
+
+Open it with the **+** above the track headers (a new instrument track), by clicking a
+track's instrument chip (swap the instrument), *Swap* on any device window, an empty
+insert slot, or *View ▸ Device picker…*. Search by name, maker or kind; filter by shelf
+(*Favourites*, *Recent*, a category, or *Cantus / CLAP / VST3*); arrows move, `Enter`
+chooses, `Ctrl+D` marks a favourite, `Esc` closes. Swapping an instrument keeps its notes,
+clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypass.
+
+| Instrument | What it is |
+|---|---|
+| Firmus | The simple synth every new track starts with |
+| Pulsus II | Drum machine: synthesized drums and sample pads, choke groups |
+| Unda | Wavetable synth: three oscillators, unison, two filters, drawn LFOs |
+| Calor | Analog polysynth |
+| Modulus | FM synth with eight operators; reads DX7 banks |
+| Exemplar | Sampler: SFZ, Decent Sampler and SoundFont |
+| Gravis | Bass: 808, synth and modelled electric bass |
+| Lamina | Electric piano |
+| Organum | Tonewheel organ with drawbars and a rotary speaker |
+
+The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander), Sibilus
+(de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer),
+Spatium (reverb), Fervor (saturation), Latitudo (stereo), Delay and Reverb.
+
+**Your plug-ins.** Cantus scans the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP`
+and `…\VST3`, `C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you add
+in *Settings ▸ Plug-ins* (*Scan for plug-ins*, *Rescan everything*). Each file is scanned
+in a separate process, so a plug-in that crashes while being scanned is blocked, not
+fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
+DAWs.
+
+## 11. Projects, autosave and settings
+
+- *File ▸ New project* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save as…*
+  (`Ctrl+Shift+S`). A project is a `.cantus` file; saving keeps the previous one as
+  `.cantus.bak`.
+- **Audio files** are collected when you save: recordings move into the project's `Audio`
+  folder and imported files are copied there, so the folder travels whole. *Collect audio
+  and save* does it on demand. A missing file shows **MISSING** on its clip; right-click it
+  ▸ *Locate file…*.
+- **Autosave** writes a recovery copy every minute when something changed (*Settings ▸
+  Saving*, 10 s to 10 min): `<project>.cantus.autosave` beside a saved project, or in
+  `%LOCALAPPDATA%\Cantus\autosave\` for an unsaved one. It never overwrites your file.
+  After a crash, rename the `.autosave` (or the `.bak`) to `.cantus` and open it.
+
+**Settings** (*View ▸ Settings…*): *General* (the verse at start, on or off, and the
+Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
+*MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
+shortcuts), *Saving*, *Updates* and *Plug-ins*.
+
+## 12. Keyboard shortcuts
+
+*Help ▸ Keyboard shortcuts* lists every shortcut and lets you change them, or load the
+FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
+
+| Keys | Action |
+|---|---|
+| `Space` | Play / pause (also stops a recording) |
+| `R` | Record |
+| `Home` | Go to start |
+| `Ctrl+L` · `Ctrl+M` | Loop on/off · metronome on/off |
+| `Alt+R` · `Alt+C` · `Alt+P` · `Alt+T` | Arm the selected track · count-in · punch · show takes |
+| `Ctrl+Shift+A` | Add an audio track |
+| `Ctrl+N` · `Ctrl+O` · `Ctrl+S` · `Ctrl+Shift+S` | New · open · save · save as |
+| `Ctrl+Shift+N` | Demo songs |
+| `Ctrl+Shift+E` | Export WAV |
+| `Ctrl+Z` · `Ctrl+Y` | Undo · redo |
+| `Ctrl+X` · `Ctrl+C` · `Ctrl+V` · `Ctrl+D` | Cut · copy · paste · duplicate |
+| `Ctrl+A` · `Delete` · `Esc` | Select all · delete · clear the selection |
+| `Ctrl+E` · `Ctrl+J` · `0` · `F2` | Split clip · glue · mute clip · rename |
+| `Left` `Right` (`Shift`: a bar) | Nudge |
+| `Up` `Down` (`Shift`: an octave) | Transpose notes |
+| `Q` | Quantize |
+| `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools |
+| `Shift+L` · `Z` | Loop the time selection · zoom to it |
+| `Alt+A` | Automate the last parameter you moved |
+| `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arrangement, channel rack, piano roll, mixer · browser · inspector |
+| `F8` · `F12` | The selected track's instrument · close floating devices |
+| `M` · `S` · `Alt+Left`/`Alt+Right` | Mixer: mute · solo · move the strip |
+| `Ctrl+T` | Typing keyboard plays notes |
+| `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
+
+## 13. Privacy and updates
+
+Cantus has **no telemetry**. An installed or portable copy asks GitHub once a day whether
+a newer version is out — an anonymous request that carries no version, machine or user
+information — and asks you before downloading anything; *Settings ▸ Updates ▸ Check daily*
+turns it off. Sound packs are downloaded only when you click *Install*. Everything else
+stays on your computer. The details are in [PRIVACY.md](../../../PRIVACY.md); the licences
+of everything Cantus is built from are in
+[THIRD-PARTY-NOTICES.md](../../../THIRD-PARTY-NOTICES.md) (also in *Help ▸ About Cantus*).
+
+## 14. Known issues and limitations
+
+This is a beta. What we know about:
+
+- **A plug-in made by someone else that crashes closes Cantus** (plug-ins run inside the
+  program; isolating them comes later). Save often.
+- **No recovery prompt yet** after a crash: rename the `.autosave` file as in
+  [chapter 11](#11-projects-autosave-and-settings). *New* and *Open* do not ask about
+  unsaved changes, and closing autosaves silently instead of asking.
+- **Export is WAV only**, 32-bit float at the device's rate, the whole song. No MP3 import.
+- **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
+  one time signature per project. No crossfades or clip gain envelopes.
+- Hosted plug-ins are not rendered into stems, and their parameters cannot be automated
+  yet; automation is drawn, not recorded (no latch or touch).
+- **Lamina and Exemplar** are 6–8 dB quieter than the other instruments at the same fader.
+- **Audio**: the built-in Realtek ASIO driver delivers no sound on some laptops (use
+  WASAPI or FlexASIO); ASIO4ALL can take several seconds to start; many ASIO drivers set
+  the buffer in their own control panel. Exclusive-mode WASAPI is not offered.
+- **Performance**: dense projects at small buffers can drop out on modest computers; raise
+  the buffer if the status bar counts dropouts.
+- The count-in is silent unless the metronome is on; the audio device cannot be changed
+  while recording; the sample browser has no keyboard navigation yet; projects refer to
+  sound-pack samples by their full path.
+- **Not in this beta**: macOS and Linux, warping, MIDI learn and control surfaces, AI
+  features, several arrangements per project.
+
+## 15. Report a bug
+
+*Help ▸ Report a bug…* opens the bug form on GitHub (you need a free GitHub account). Say
+what you did, what you expected and what happened; give your Cantus version (*Help ▸
+About Cantus*), Windows version, audio interface, driver, rate and buffer (all in the
+audio chip); attach a small project that shows the problem if you can. Tell us about your
+audio interface even when it works, with the
+[hardware report](https://github.com/luis314159/cantus/issues/new?template=hardware_report.yml),
+and send ideas with *Help ▸ Suggest a feature…*. English or Spanish, both are welcome.
+
+*Cantus is made by Luis Ángel Almazán — [lalmazan.com](https://lalmazan.com) — and is free
+software under the GNU GPL, version 3 or later.*

@@ -69,6 +69,10 @@ pub struct Inputs {
     pub license: PathBuf,
     pub copyright: PathBuf,
     pub readme: PathBuf,
+    /// Documents beside the program, `(name in the install folder, source)`:
+    /// `THIRD-PARTY-NOTICES.txt`, `PRIVACY.txt` and the manual's pages
+    /// (`manual/en/index.html`, …), which About and *Help ▸ Manual* open (round 22).
+    pub docs: Vec<(String, PathBuf)>,
 }
 
 fn copy_into(from: &Path, to: &Path) {
@@ -95,6 +99,9 @@ pub fn stage(inputs: &Inputs, exe: &Path, stage: &Path, version: &str) -> Staged
         .replace("\r\n", "\n")
         .replace('\n', "\r\n");
     std::fs::write(app.join("README.txt"), readme).unwrap();
+    for (name, src) in &inputs.docs {
+        copy_into(src, &app.join(name.replace('/', std::path::MAIN_SEPARATOR_STR)));
+    }
 
     let clap = stage.join("clap");
     let vst3 = stage.join("vst3");
@@ -109,6 +116,8 @@ pub fn stage(inputs: &Inputs, exe: &Path, stage: &Path, version: &str) -> Staged
     Staged {
         app: ["cantus.exe", "LICENSE.txt", "COPYRIGHT.txt", "README.txt"]
             .iter()
+            .copied()
+            .chain(inputs.docs.iter().map(|(n, _)| n.as_str()))
             .map(|n| entry(&app, n))
             .collect(),
         clap: archive::walk(&clap),
@@ -136,12 +145,13 @@ pub fn portable_entries(s: &Staged, marker: &Path) -> Vec<Entry> {
     out
 }
 
-/// The plug-ins zip: `CLAP/`, `VST3/`, the licence and the readme.
+/// The plug-ins zip: `CLAP/`, `VST3/`, the licence, the notices and the readme (not
+/// the program's manual).
 pub fn plugin_entries(s: &Staged) -> Vec<Entry> {
     let mut out: Vec<Entry> = s
         .app
         .iter()
-        .filter(|e| e.name != "cantus.exe")
+        .filter(|e| e.name != "cantus.exe" && !e.name.starts_with("manual/"))
         .cloned()
         .collect();
     out.extend(s.clap.iter().map(|e| Entry {
@@ -357,6 +367,7 @@ pub fn package(args: &[String]) {
         license: ws.join("LICENSE-GPL"),
         copyright: ws.join("LICENSE"),
         readme: ws.join("xtask/installer/README.txt"),
+        docs: release_docs(&ws, &target),
     };
 
     let installer = if has("--no-installer") {
@@ -419,4 +430,25 @@ pub fn sign_file(args: &[String]) {
             std::process::exit(1);
         }
     }
+}
+
+/// The documents a release carries beside the program: the notices, the privacy statement
+/// (Markdown, readable as plain text) and the manual rendered to HTML under
+/// `target/manual/` (`manual.rs`).
+pub fn release_docs(ws: &Path, target: &Path) -> Vec<(String, PathBuf)> {
+    let mut docs = vec![
+        (
+            "THIRD-PARTY-NOTICES.txt".to_owned(),
+            ws.join(crate::notices::FILE),
+        ),
+        ("PRIVACY.txt".to_owned(), ws.join("PRIVACY.md")),
+    ];
+    let out = target.join("manual");
+    docs.extend(
+        crate::manual::build(&ws.join("docs/manual"), &out)
+            .unwrap_or_else(|e| panic!("the manual: {e}"))
+            .into_iter()
+            .map(|name| (format!("manual/{name}"), out.join(&name))),
+    );
+    docs
 }

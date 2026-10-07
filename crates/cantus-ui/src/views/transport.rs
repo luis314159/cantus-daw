@@ -975,13 +975,35 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
 }
 
 fn help_menu(app: &mut CantusApp, ui: &mut Ui) {
-    if ui.button(t("update.menu.check")).clicked() {
-        ui.close();
-        views::update::check_now(app);
+    // The manual (the copy installed beside the program, in the interface's language),
+    // the release notes and GitHub's forms for a bug or an idea (round 22).
+    for (key, doc) in [
+        ("about.menu.manual", crate::docs::Doc::Manual),
+        ("about.menu.notes", crate::docs::Doc::ReleaseNotes),
+    ] {
+        if ui.button(t(key)).clicked() {
+            ui.close();
+            crate::docs::open(doc);
+        }
     }
     if ui.button(t("menu.shortcuts")).clicked() {
         ui.close();
         app.show_shortcuts = true;
+    }
+    ui.separator();
+    for (key, doc) in [
+        ("about.menu.bug", crate::docs::Doc::ReportBug),
+        ("about.menu.feature", crate::docs::Doc::RequestFeature),
+    ] {
+        if ui.button(t(key)).clicked() {
+            ui.close();
+            crate::docs::open(doc);
+        }
+    }
+    ui.separator();
+    if ui.button(t("update.menu.check")).clicked() {
+        ui.close();
+        views::update::check_now(app);
     }
     if ui.button(t("menu.about")).clicked() {
         ui.close();
