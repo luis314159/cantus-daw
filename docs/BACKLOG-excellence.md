@@ -13,7 +13,7 @@ Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
-learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(4)** rendimiento con
+learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
 macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
@@ -99,7 +99,7 @@ bit-identical. Ours should end up better than the reference, not a clone.
 | **Chorus** | Juno-60 chorus, Dimension D, FL's Chorus | BBD-style modulated delays, 1–4 voices, stereo spread, mono-safe | Juno I/II/I+II modes and a mono-compatibility meter |
 | **Flanger** | FL's Flanger, MXR/Electric Mistress | through-zero flanging, feedback ±, tempo-synced LFO and an envelope mode | through-zero null at the centre point holds to the bit |
 | **Distructor-like multi-effect** | FL's Distructor | a rack of distortion + filter + modulation + delay modules in any order, macros, randomise | presets travel; each module is one of our units |
-| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (Auto-Tune style: key, retune speed, humanise, formant) **and** a graphic note editor for recordings (§3c) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
+| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (§3d) **and** a graphic note editor for recordings (§3c) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
 | **Time manipulation** | Gross Beat, NewTime, Ableton Warp, élastique | Gross Beat-style time/volume envelopes (stutter, half-time, tape stop, scratch) and NewTime-style warp markers/slices on audio | tape stop, half-time and stutter presets sample-exact at any tempo; warp markers on a clip (ties to §3 *Time*) |
 | **Automation controller** | Fruity Formula Controller, Peak Controller, LFO Tool | a formula (sin, saw, inputs a/b/c, time, beat) or LFO/envelope drawing driving any parameter; an envelope follower from any strip | one controller drives several targets, recorded as automation if asked |
 | **Clipper** | Fruity Soft Clipper, StandardCLIP, KClip | hard/soft/analog curves, oversampling, true-peak aware, clip meter | at threshold 0 dB it is a null; inter-sample overs measured |
@@ -179,6 +179,43 @@ some megabytes). Our own implementation stays the default for deterministic rend
 **Done when** a real sung take (the owner's) is corrected in the editor with no audible
 artefact at moderate corrections, formants preserved at ± 3 semitones, timing edits clean,
 and the result bounces bit-identical to playback.
+
+### 3d. A simple real-time auto-tuner (requested 2026-10-07)
+
+*The owner: "and a simple real-time one where you set scales or notes — the automatic kind
+that works from the input." The partner of §3c: §3c fixes a take afterwards; this corrects
+the voice as it comes in — for monitoring while recording, for live use, and for the hard
+"T-Pain" effect.*
+
+**References:** FL's Pitcher, Auto-Tune (Auto mode, Access/Artist), Waves Tune Real-Time,
+Logic's Pitch Correction, MeldaProduction MAutoPitch and Auburn Graillon (free, the bar
+for "simple").
+
+**What it does:**
+
+- **Target notes**: a key and a scale (major, minor, modes, pentatonic, blues, chromatic…),
+  or **any set of notes** toggled on a one-octave keyboard (with *remove* and *bypass* per
+  note), or **from MIDI** — the notes played on a keyboard or a MIDI clip become the
+  targets (FL's Pitcher, Auto-Tune's MIDI mode). The key can follow the project's key.
+- **Retune speed**: from 0 ms (the hard, robotic effect) to slow and natural;
+  **humanise** (long notes keep more of their natural movement), **flex/tolerance** (small
+  deviations left alone), vibrato kept, added or removed.
+- **Formant preservation** and a formant shift; a **throat/gender** control; transpose.
+- **Low latency** so a singer can monitor through it while recording (target: under
+  3 ms at 48 kHz, reported to delay compensation), a mono-voice tracker that does not
+  wobble on breaths and sibilants, and a *detected note* display with the correction amount.
+- **Harmony** (later): one or two extra voices a scale step away or from MIDI chords, as
+  Pitcher does.
+- One knob to start: *Key*, *Scale*, *Speed*, *Amount* on the front; the rest folds away.
+
+**How:** the tracker and resynthesis can share §3c's pitch detector and formant-preserving
+shifter, in a streaming, fixed-latency form (PSOLA on the detected period). A family unit:
+a null at 100 % bypass or with every note allowed and speed at its slowest; deterministic;
+exact rest; exported to CLAP/VST3 like the rest.
+
+**Done when** a sung line through it at retune speed 0 gives the hard effect cleanly, at a
+natural speed corrects without audible artefacts, the latency is under the target, and MIDI
+targets follow a keyboard in real time.
 
 ## 4. Performance at scale
 
