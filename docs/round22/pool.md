@@ -242,7 +242,11 @@ failed once, fixed — the callback's wait on a parallel pass was charged to "th
 and passes at 0, 1, 3, 7). That includes `null_tests.rs` with the **`v5.cantus` SHA-256
 unchanged** and the goldens, `ftz.rs`, `graph_order.rs`, `pdc.rs`, `midi_fx.rs`,
 `automation.rs`, `recording*.rs`, `stems.rs`, the `fx_*`/`inst_*` contracts, `limits.rs`
-(256 tracks on 256 strips, on the pool), `rt_memory.rs`, `profile.rs`. FINAL-TESTS
+(256 tracks on 256 strips, on the pool), `rt_memory.rs`, `profile.rs`.
+Final run on the last commit, `--features fuzz`, `--no-fail-fast`: **51 test binaries, all
+green at `W = 0` and at `W = 3`** (W = 1 and 7 ran green on the code before the last two
+commits, which changed only the spin share's default and the seeding of the critical
+path's head; the W = 7 blame fix was re-run at 0, 1, 3, 7).
 
 New and changed:
 
