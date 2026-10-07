@@ -299,11 +299,18 @@ fn same_bits(a: &[f32], b: &[f32], what: &str) {
 #[test]
 fn the_pool_gives_the_serial_engines_bits_on_random_sessions() {
     for seed in 0..seeds() {
-        let p = session(0x9001 + seed);
         let mut rng = Rng::new(seed);
         let b = blocks(&mut rng, 4 * 48_000);
-        let reference = serial(&p, &b);
-        assert!(reference.iter().any(|x| *x != 0.0), "seed {seed}: silent");
+        // A random session can be silent by construction (its only track's strip muted):
+        // take the seed's next variant, so every seed compares something audible.
+        let (p, reference) = (0..8u64)
+            .map(|k| {
+                let p = session(0x9001 + seed + 1_000 * k);
+                let reference = serial(&p, &b);
+                (p, reference)
+            })
+            .find(|(_, r)| r.iter().any(|x| *x != 0.0))
+            .unwrap_or_else(|| panic!("seed {seed}: every variant is silent"));
         for w in [1usize, 3, 7] {
             let mut workers = Workers::parallel(w);
             workers.shuffle = Some(seed * 31 + w as u64);

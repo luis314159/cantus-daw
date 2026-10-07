@@ -280,7 +280,7 @@ pub fn quantise(samples: &[f32], channels: u16, bits: u16, dither: Dither) -> Ve
         Dither::Off => None,
     };
     let mut d: Vec<Ditherer> = (0..ch)
-        .map(|c| Ditherer::new(0x9e37_79b9 ^ (c as u32).wrapping_mul(0x85eb_ca6b)))
+        .map(|c| Ditherer::new(u64::from(0x9e37_79b9 ^ (c as u32).wrapping_mul(0x85eb_ca6b))))
         .collect();
     samples
         .iter()
