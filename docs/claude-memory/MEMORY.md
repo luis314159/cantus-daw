@@ -9,3 +9,5 @@
 - [One build, every driver](feedback-one-build-all-drivers.md) — distributed builds always include ASIO+WASAPI; test real drivers in duplex before calling device work done
 - [Round 21: performance wave 1 + ASIO fix](round-21.md) — started 2026-10-06; base 49f02f3; r20 pushed (master be216de)
 - [Round 22: multicore pool + beta hardening](round-22.md) — started 2026-10-07; base c8bc9f2; r21 not yet pushed
+- [Backlog ideas: just record them](feedback-backlog-ideas.md) — owner's mid-round feature ideas go to BACKLOG-excellence.md with a brief reply
+- [Final goal: undeniably the best DAW](goal-best-daw.md) — measurable best, free and commercial; backlog §0 scorecard; adoption in parallel

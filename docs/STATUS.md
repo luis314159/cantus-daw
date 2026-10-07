@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-07 (round 21: **performance wave 1 and ASIO that works** — one build with every driver (cpal/asio-sys patched for duplex), `cantus-rt` (real-time priority, topology, memory, denormals), the engine as an explicit graph (256 tracks, ≈ 0.86× on 64 tracks), the multicore scheduler (not yet wired), exact rest for every unit, deterministic maths (`DSP_VERSION` 2); `docs/BETA.md`, the road to the first public beta. Round 20: automation, devices, browser, hosted instruments, samples, audio setup, verse, installer, bench. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 718 green (162 test binaries) + the scheduler's fuzz, clippy clean
+**Updated:** 2026-10-07 (round 22: **the multicore live engine and beta hardening** — the live engine on a pool of real-time workers (parallel = serial to the bit; `engine.s64.b128` 0.25×), x86-64-v3/v2 programs behind a launcher, our own deterministic `powf` and counter-based dither (`DSP_VERSION` 3), export to WAV/FLAC/MP3/Ogg with loudness presets, crash recovery and a 40-minute soak, notices/privacy/manual/version `0.1.0-beta.1`; a fresh clone is self-sufficient (`docs/DEVELOPING.md`, `CLAUDE.md`, `docs/claude-memory/`). Round 21: performance wave 1 and ASIO that works. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 824 green (185 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3`, clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
