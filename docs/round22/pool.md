@@ -143,7 +143,11 @@ count `Workers::auto()` gives this machine.
 Median of the pairs' ratios: **0.25× at the median and 0.20× at the 99th percentile**,
 against the targets 0.45× and 0.6×; the two quietest pairs (1, 2) give 0.26–0.28× and
 0.20–0.21×. The ratio of the medians of the runs is 0.17×. Every pair meets both targets.
-FINAL-AB
+
+After the last changes (critical-path head to the callback, spin share 0.1), two more pairs,
+on a quieter moment of the machine: base 7 131 / 6 972 µs p50 and 10 147 / 10 643 µs p99,
+pool 1 890 / 2 397 and 2 839 / 4 234 — **0.27× / 0.34× at the median, 0.28× / 0.40× at the
+99th percentile**. The target holds on every one of the eight pairs.
 
 Scaling, one pair each (same conditions; the base row is the pair's own):
 
@@ -170,7 +174,26 @@ misses, the engine's overruns, lateness, block percentiles, wakes, the share of 
 blocks, the conflicts, the last overrun's culprit and the three heaviest nodes.
 
 **The target — every song with zero misses over two minutes — is not met on this machine.**
-FINAL-PACED
+
+The final run (this branch's last code, the defaults: 4 promoted bounded workers, spin share
+0.1, two minutes per song, 22 500 blocks each):
+
+| Song | Misses | Overruns | Block p50 µs | Block p99 µs | Parallel | Conflicts | Heaviest node (µs/block) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| startup | **170** | 76 | 2 098 | 4 797 | 99 % | 0 | Calor on Chords 1 560 |
+| house | **995** | 584 | 2 382 | 6 147 | 87 % | 0 | Calor on Chords 1 615 |
+| ballad | **3 427** | 2 216 | 3 021 | 7 176 | 34 % | 0 | Unda on Pad 2 323 |
+| funk | **0** | 0 | 978 | 1 910 | 4 % | 0 | Culmen on Master 180 |
+| lofi | **80** | 38 | 1 289 | 4 394 | 77 % | 0 | Calor on Pad 360 |
+| ambient | **553** | 312 | 1 516 | 5 555 | 97 % | 0 | Unda on Pad 1 002 |
+| trap | **2 036** | 1 521 | 1 591 | 8 342 | 96 % | 0 | Exemplar on Pad 1 048 |
+
+One song (funk) meets the target; the startup song and lofi miss under 1 % of periods; the
+ballad, trap, house and ambient miss 2–15 %. The same two-minute run of the serial engine
+earlier in the session (other load): startup 6 883, house 1 741, ballad 6 539, funk 2,
+lofi 1, ambient 1 625, trap 272 misses — the machine's state, not the engine, dominates
+any single run, which is why the paired 20–30 s triplets below are the evidence for the
+pool against the serial engine.
 
 What the paced runs show, in order of weight:
 
