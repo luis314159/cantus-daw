@@ -374,12 +374,12 @@ fn the_schedule_fuzz_over_the_corpus_changes_no_sample() {
 }
 
 /// Blocks back to back, each checked: a block may wake a worker only when the pool had a
-/// moment to fall idle before it — the previous block ran past the spin window (half a
-/// period from its arm) or a gap opened between blocks longer than the spin grace after a
+/// moment to fall idle before it — the previous block ran past the spin window (the spin
+/// share of a period from its arm) or a gap opened between blocks longer than the spin grace after a
 /// worker's last task. Returns the wakes, and the blocks that had a reason to wake.
 fn busy(r: &mut Rig, blocks: usize) -> (u64, usize) {
     use std::time::{Duration, Instant};
-    let half = Duration::from_secs_f64(128.0 / SR * 0.5);
+    let half = Duration::from_secs_f64(128.0 / SR * f64::from(Workers::parallel(1).spin_share));
     let grace = Duration::from_micros(40);
     let mut buf = vec![0f32; 256];
     let mut prev: Option<(Instant, Instant)> = None;

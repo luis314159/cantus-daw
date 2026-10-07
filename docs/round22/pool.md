@@ -116,27 +116,213 @@ clustering changes no sample (tested: the fuzz switches it on and off at random)
 
 ## Measurements
 
-**Conditions.** The round's laptop (i7-12700H, 6 P + 8 E, Windows 11), shared with the
-other round-22 builders (cargo builds, another builder's bench and soak harness ran during
-most of the session). Paired A/B runs alternate the round-21 tree (`c8bc9f2`, built from a
-`git archive` into `target/base-src`) and this branch, the same driver
-(`crates/cantus-bench/examples/pool_ab.rs`, copied into the base tree) built twice, each
-run pinned to one thread of every P-core (`ProcessorAffinity = 0x555`) at High priority.
+**Conditions — read first.** The round's laptop (i7-12700H, 6 P + 8 E, Windows 11), shared
+with the other round-22 builders: cargo builds, another builder's bench and the soak harness
+ran through most of the session, and the same binary's serial 64-track block took anywhere
+from 7 to 43 ms. Every comparison below is therefore **paired**: the round-21 tree
+(`c8bc9f2`, exported with `git archive` into `target/base-src`, built into its own target)
+and this branch run the same driver (`crates/cantus-bench/examples/pool_ab.rs`, copied into
+the base tree) alternately, back to back, each pinned to one thread of every P-core
+(`ProcessorAffinity = 0x555`) at High priority (`target/ab.ps1`, not committed). The
+metric is the bench's `engine.s64.b128`: `sessions::scaled(64)` at 128 frames, one second
+of warm-up, four seconds of blocks back to back, the median and the 99th percentile of the
+block's wall time. The pool here is `CANTUS_WORKERS=4` (always parallel, unpromoted), the
+count `Workers::auto()` gives this machine.
 
-TBD
+### `engine.s64.b128` — paired, base vs pool (µs per block)
+
+| Pair | Base p50 | Pool p50 | **p50 ratio** | Base p99 | Pool p99 | **p99 ratio** |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 7 008 | 1 813 | **0.26** | 14 882 | 3 079 | **0.21** |
+| 2 | 7 216 | 1 997 | **0.28** | 15 097 | 3 092 | **0.20** |
+| 3 | 16 995 | 4 094 | **0.24** | 68 228 | 12 923 | **0.19** |
+| 4 | 28 625 | 4 769 | **0.17** | 72 924 | 15 124 | **0.21** |
+| 5 | 19 581 | 2 166 | **0.11** | 64 309 | 3 620 | **0.06** |
+| 6 | 8 898 | 2 254 | **0.25** | 29 117 | 3 567 | **0.12** |
+
+Median of the pairs' ratios: **0.25× at the median and 0.20× at the 99th percentile**,
+against the targets 0.45× and 0.6×; the two quietest pairs (1, 2) give 0.26–0.28× and
+0.20–0.21×. The ratio of the medians of the runs is 0.17×. Every pair meets both targets.
+FINAL-AB
+
+Scaling, one pair each (same conditions; the base row is the pair's own):
+
+| W | Base p50 | Pool p50 | Ratio | Base p99 | Pool p99 | Ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 31 143 | 13 366 | 0.43 | 76 157 | 32 823 | 0.43 |
+| 2 | 29 859 | 3 284 | 0.11 | 67 618 | 4 788 | 0.07 |
+| 3 | 9 928 | 2 716 | 0.27 | 29 910 | 4 096 | 0.14 |
+| 4, adaptive | 11 479 | 2 523 | 0.22 | 33 588 | 7 399 | 0.22 |
+| 5 | 32 330 | 4 099 | 0.13 | 69 743 | 14 024 | 0.20 |
+
+(W = 1 is two threads: the per-node `Instant` stamps, the cells and the dispatch cost
+nothing visible; the base row's spread is the machine's.)
+
+### The songs at 256 frames, paced (`cantus-bench paced`)
+
+`cantus-bench paced` (new) plays the startup project and the six demos through the bench's
+`Rig` at the device period: each block starts at its period's start (a block that ends
+after its period ended is a **miss**: a dropout on a device, which then drops the periods it
+missed rather than queueing them), the thread promoted as the WASAPI callback is (MMCSS "Pro
+Audio" HIGH), the process out of EcoQoS, the pool `Workers::auto()` = 4 promoted, placed
+workers (`--workers`, `--share`, `--spin`, `--promote`, `--callback` change that); it prints
+misses, the engine's overruns, lateness, block percentiles, wakes, the share of parallel
+blocks, the conflicts, the last overrun's culprit and the three heaviest nodes.
+
+**The target — every song with zero misses over two minutes — is not met on this machine.**
+FINAL-PACED
+
+What the paced runs show, in order of weight:
+
+1. **Each song is gated by one instrument.** The heaviest node of each song, alone, takes
+   a large share of a 5.33 ms period (`examples/song_profile.rs`, back to back, serial):
+   *Calor on Chords* 2.8 ms of the startup song's 5.8 ms; *Unda on Pad* 3.8 ms of the
+   ballad's 5.2 ms (70 %); *Exemplar on Pad* 0.9–4.8 ms in trap; *Calor on Pad* in lofi;
+   *Unda on Pad* in ambient. A block can never end before its heaviest node plus its strip
+   plus the master chain (0.4–0.8 ms, serial by nature): the pool cannot split a node, and
+   on a loaded laptop these nodes alone reach the period. The lever is **inside those
+   instruments** — their voices rendered as sub-tasks on the pool (see *Left*), or cheaper
+   voices (the plan's *kernel*/*voices* builders).
+2. **The machine's state swings the result by 10–100×** between two runs of the same
+   configuration minutes apart (the heaviest node's own average moved from 1.4 to 3.1 ms
+   between rounds of the same song). Only paired, interleaved runs say anything; see the
+   pairs below.
+3. **Spinning costs clock.** With every worker spinning until half a period after the arm,
+   the paced runs missed more periods than with workers that park after a tenth — in every
+   one of six interleaved triplets (startup 2 / 0 and 1 226 / 674 misses, house 236 / 70
+   and 1 / 0, ambient 5 / 2 and 2 / 0 at share 0.5 / 0.1), with the heaviest node itself
+   faster: a laptop's power budget spent on spinning is turbo clock taken from the thread
+   doing the work. The default is now **0.1** (`Workers::spin_share`), and the pool beat
+   the serial engine in all six of those triplets (startup 0 vs 413 and 674 vs 1 896 misses;
+   house 70 vs 248, 0 vs 0; ambient 2 vs 4, 0 vs 6).
+4. **Spinning workers outside MMCSS** (`--spin 1`: TIME_CRITICAL, 1.5 periods) were the
+   worst configuration measured — every song missed more, block p50 rose 1.5–2× (same
+   reason, and a TIME_CRITICAL spinner starves its sibling hyper-thread's work). **Bounded
+   workers in MMCSS** (rt's recommendation) are the default.
+5. **Before the EcoQoS opt-out** the paced runs had the callback seconds late (MMCSS
+   demotion cascades): `EngineHandle::start` now opts the process out at the first stream
+   start (rt's R1 item, which the app had not wired).
+
+Wakes: with bounded workers every block whose workers parked wakes them (≈ 4 per block at
+4 workers, ≈ 22 000 in a 30 s run); never on a block whose workers are still spinning
+(`tests/pool.rs` checks it block by block). The ADR 0005 rule 3 amendment's "only at idle →
+busy" holds in that sense — a parked worker is idle — but in steady live play at 256 frames
+that is every block: one non-blocking `unpark` per worker on the callback (a few µs each)
+and a 50–300 µs late start for the woken worker, which is why the critical path's head is
+seeded to the callback.
 
 ## Tests
 
-TBD
+`cargo test -p cantus-engine --features fuzz`, every test binary, **at `W = 0`, 1, 3 and 7**
+(`CANTUS_WORKERS`): all pass (49 binaries at W = 1 and 3; at W = 7 the profiler's blame test
+failed once, fixed — the callback's wait on a parallel pass was charged to "the engine" —
+and passes at 0, 1, 3, 7). That includes `null_tests.rs` with the **`v5.cantus` SHA-256
+unchanged** and the goldens, `ftz.rs`, `graph_order.rs`, `pdc.rs`, `midi_fx.rs`,
+`automation.rs`, `recording*.rs`, `stems.rs`, the `fx_*`/`inst_*` contracts, `limits.rs`
+(256 tracks on 256 strips, on the pool), `rt_memory.rs`, `profile.rs`. FINAL-TESTS
+
+New and changed:
+
+- **`tests/pool.rs`** — *parallel = serial, to the bit*: 12 random sessions (1–12 tracks,
+  native instruments with random parameters, buses and returns, sends, keys from earlier
+  strips, inserts hearing a track's notes, latent inserts, mutes, polarity, swap, a master
+  limiter, a fader ride, loops), random block sizes 1–1 024, each at W ∈ {1, 3, 7} with the
+  priorities shuffled and clustering switched on or off by seed, against the serial engine;
+  the demo and a busy desk at W 1 / 3 (adaptive) / 7; **with `--features fuzz`, the
+  PCT-shaped change points of `sched::fuzz` stalling the engine's own pool** at the
+  scheduler's sites, 12 more sessions × W ∈ {1, 3, 7}; `schedule_conflicts == 0`
+  everywhere; and the wakes: no wake on any block whose workers had no idle moment, exactly
+  one per worker after a 200 ms silence. `CANTUS_POOL_SEEDS=n` runs more; a failure names
+  its seed and W.
+- **`tests/rt_memory.rs`** — the counting allocator also counts on every pool worker
+  (`processor::on_worker_start` marks the thread while it serves); new
+  `the_pool_threads_never_allocate` (the full scenario — linear-phase EQ swaps, soft bypass,
+  the chain switch, a gate played by notes, the click, a strip take — on three workers, zero
+  heap events on the callback and the workers); at `CANTUS_WORKERS=3` every test of the file
+  counts its workers too.
+- **`tests/sched.rs`** — the pool's new API (`for_graph`, the `(slot, period, serve)` start
+  hook, `Idle::Spin`), and waiting for workers to join where a test needs them working.
+  17 pass (+1 ignored measurement).
+- **`cantus-rt` cell tests** (3) — pass, and **pass under Miri** (`cargo +nightly miri test
+  -p cantus-rt --no-default-features --lib cell`).
+- `tests/render_progress.rs` (export's request), `tests/soak_fixes.rs` (E1, E6).
+- `cargo clippy -p cantus-engine -p cantus-rt -p cantus-bench -p cantus-ui --tests
+  --features cantus-engine/fuzz`: clean. `cargo check --workspace --all-targets`: clean.
+
+## Also done (requests that came during the round)
+
+- **Export's request** — `render_with_progress(snapshot, opts, units, hosted, &RenderProgress)`
+  in `render.rs`: `RenderProgress { done, total, cancel }` (atomics, shared through an
+  `Arc`), `fraction()`, `cancel()`; the frames are stored after every block and the cancel
+  flag read before each, ending in the new `RenderError::Cancelled`.
+  `render_with_instruments` is it with a progress nobody reads (same bits:
+  `tests/render_progress.rs`).
+- **Soak's E1** (`backend.rs`) — the handle forgets an effect's id as soon as it sends a
+  snapshot without it, and an old unit coming back no longer makes it forget an id the last
+  snapshot sent has (a fresh unit went with it): a remove and its undo in quick succession
+  now deliver a unit, nothing dropped (`tests/soak_fixes.rs`, which fails on the base).
+- **Soak's E6** (processor) — a count-in clicks whatever the metronome switch says, and
+  only until the recording's start; its click line is planned when a count-in starts
+  (`Processor::click_on`, `click_allowed_at`). The app's workaround stays harmless.
 
 ## Files outside my area
 
-TBD
+- `crates/cantus-rt/src/{cell.rs (new), lib.rs}` — the cells (all the new `unsafe`).
+- `crates/cantus-engine/src/pdc.rs` — the line pool behind cells (`Lines`, shared by the
+  planner and the nodes); `Compensation` keeps its API (`want`, `finish`, `supply`,
+  `take_request`) and mirrors each line's edge, length and delay.
+- `crates/cantus-engine/src/{backend.rs, messages.rs, lib.rs, profile.rs, render.rs}` —
+  the pool started with the stream and the EcoQoS opt-out, E1; `EngineStats::{
+  schedule_conflicts, workers, parallel}`, `AudioConfig::workers`; exports; the slot
+  profiler and the critical-path blame; `render_with_progress`.
+- `crates/cantus-engine/tests/{sched.rs, rt_memory.rs, devices.rs}` (updated), new
+  `pool.rs`, `render_progress.rs`, `soak_fixes.rs`.
+- `crates/cantus-bench/` — `paced.rs` and the `paced` subcommand, `Rig::with_workers`
+  (`Rig::new` follows `CANTUS_WORKERS`), `cantus-rt` moved from dev- to normal dependency,
+  `examples/{pool_ab.rs, song_profile.rs}`.
+- `crates/cantus-ui/` — `settings.rs` (`AudioSettings::workers`), `views/settings_audio.rs`
+  (the *Audio cores* row and its note), `perf_status.rs` (the pool in the readout's
+  tooltip), `locales/{en,es}.txt` (6 strings each), and the `workers` field in two struct
+  literals of `audio_setup/`.
 
 ## Left
 
-TBD
+- **The demos at 256 frames with zero misses.** Gated by single instruments (above). The
+  next step is **voice-level sub-tasks**: Calor, Unda and Exemplar render their voices in
+  groups on the pool, each group into its own buffer, summed in voice order (so the bits do
+  not move) — the same mechanism as the CLAP `thread-pool` extension, which is not wired
+  either. That is `cantus-dsp`'s and the instruments' code (not this builder's) plus a
+  sub-queue in `sched/` (`ReadyQueue::push` is the place). A quiet-machine paced run should
+  come first: on a quiet core these nodes take roughly half of what was measured here.
+- **The CLAP `thread-pool` host extension** (plan Phase 1, *host*): not done.
+- **`loom` models** of the deque, the mailbox and the cells (no new dependency this round);
+  the cells have Miri, the queues their stress tests and the schedule fuzz (x86 only).
+- **"Possibly preempted"** in the blame (§2.9: a node several times its running mean on one
+  block) and per-worker thread cycle counters (`QueryThreadCycleTime`): not done; the blame
+  names the critical path's heaviest node.
+- **Ahead workers, RTWQ vs MMCSS, macOS workgroups (`promote_worker_in`)**: not touched.
+- **`xtask perf --full --save` on a quiet machine**: not run (the machine never was); the
+  gate's stored baselines are round 20's serial numbers, and `engine.*` will now read the
+  pool only when the bench runs with `CANTUS_WORKERS` (the rig follows it; unset, it is
+  the serial engine, as the stored baselines are).
+- **Clustering's thresholds** (10 µs light, 20 µs bins) are the ADR's; not tuned on
+  measured dispatch cost.
 
 ## Notes for the integrator
 
-TBD
+- **Merge order**: anywhere. Everything that touches samples is covered by the null tests
+  at every W. `processor*.rs`, `graph/`, `sched/` are wholly replaced/extended here; any
+  other branch that edited them this round must be merged by hand (none should have).
+- **CI**: add `cargo test -p cantus-engine --features fuzz` with `CANTUS_WORKERS=3` beside
+  the plain run (`--test pool` and `--test sched` are the ones that need the feature for
+  their stalls); the pool tests take ~2 min on this laptop.
+- **The app**: the stream's processor gets `Workers::auto()` (or *Settings ▸ Audio ▸ Audio
+  cores*). `CANTUS_WORKERS` set in a user's environment would also give a pool to
+  `cantus-plugins`' processors (plug-in builds use `Processor` too); nobody sets it, but a
+  plug-in build could call `set_workers(Workers::SERIAL)` to be explicit.
+- **ADR 0005 rule 3, as amended by ADR 0031 §2.4**: with bounded workers the idle → busy
+  wake happens at every block whose workers parked — at 256 frames, every block. That is
+  rt's predicted trade ("the idle → busy wake on every block"), now measured; the ADR text
+  should say so.
+- `docs/STATUS.md`: round 22's line for *pool* can take the first two paragraphs of
+  *What was built* and the honest summary of the paced target.
