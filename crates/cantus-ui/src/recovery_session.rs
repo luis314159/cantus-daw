@@ -188,6 +188,8 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
+        // An autosave being written shares the file with this one: let it finish.
+        self.poll_autosave(true);
         let mut unsaved = false;
         if self.bus.is_dirty() {
             let project = self.autosave_copy();
@@ -245,6 +247,7 @@ impl CantusApp {
             (None, Some(base)) => self.bus.reset(base),
             (None, None) => {}
         }
+        self.epoch += 1;
         if item.autosave.is_some() || had_base {
             self.path = item.project_path.clone();
         }

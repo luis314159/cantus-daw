@@ -9,6 +9,7 @@ pub mod app;
 pub mod audio_clips;
 pub mod audio_files;
 pub mod audio_setup;
+pub mod autosave;
 pub mod automation;
 pub mod boot;
 pub mod clips;

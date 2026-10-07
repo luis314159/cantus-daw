@@ -98,6 +98,7 @@ fn a_running_session_is_never_taken_for_a_gone_one() {
     rename(&mut first, "Busy");
     first.autosave_every = Some(std::time::Duration::ZERO);
     first.maybe_autosave();
+    first.poll_autosave(true);
     first.journal_tick();
     // A second Cantus starting now sees the first one's journal locked.
     let mut second = app(dir.path(), song());
@@ -181,6 +182,7 @@ fn a_save_that_cannot_be_written_fails_visibly_and_loses_nothing() {
     rename(&mut a, "Precious 2");
     a.autosave_every = Some(std::time::Duration::ZERO);
     a.maybe_autosave();
+    a.poll_autosave(true);
     assert!(a.status.error);
     assert!(a.status.text.contains("now goes to"), "{}", a.status.text);
     let fallback = cantus_project::fallback_autosave_path(&a.autosave_dir, "song");
@@ -289,4 +291,39 @@ fn a_wav_cut_off_by_a_crash_is_repaired_to_its_last_whole_frame() {
     fs::write(&not, b"hello").unwrap();
     assert!(repair_wav(&not).is_err());
     assert_eq!(fs::read(&not).unwrap(), b"hello");
+}
+
+/// A folder the user may not write to (an ACL that denies it, as a synced or managed folder
+/// can): the save says *permission denied* and nothing is lost.
+#[cfg(windows)]
+#[test]
+fn a_read_only_folder_refuses_the_save_in_words() {
+    let dir = tempfile::tempdir().unwrap();
+    let locked = dir.path().join("Locked");
+    fs::create_dir_all(&locked).unwrap();
+    let icacls = |args: &[&str]| {
+        std::process::Command::new("icacls")
+            .arg(&locked)
+            .args(args)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+    if !icacls(&["/deny", "*S-1-1-0:(OI)(CI)(W)"]) {
+        eprintln!("icacls is not available: skipped");
+        return;
+    }
+    let mut a = app(dir.path(), song());
+    rename(&mut a, "Locked out");
+    let before = a.project().clone();
+    a.save_to_path(&locked.join("song.cantus"));
+    let text = a.status.text.clone();
+    let error = a.status.error;
+    icacls(&["/remove:d", "*S-1-1-0"]);
+    assert!(error, "{text}");
+    assert!(text.contains("permission denied"), "{text}");
+    assert!(text.contains("Nothing was lost"), "{text}");
+    assert_eq!(a.project(), &before);
+    assert!(a.bus.is_dirty());
+    assert_eq!(a.path, None);
 }

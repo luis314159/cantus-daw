@@ -211,15 +211,20 @@ pub struct CantusApp {
     synced_revision: u64,
     /// The effects of the last snapshot sent (`sync_engine` checks the engine has them).
     sent_effects: Vec<cantus_core::EffectId>,
-    last_autosave: Instant,
-    autosaved_revision: u64,
+    pub(crate) last_autosave: Instant,
+    pub(crate) autosaved_revision: u64,
     /// Where unsaved projects autosave (and saved ones whose folder cannot be written).
     /// Public so tests and the soak harness can redirect it.
     pub autosave_dir: PathBuf,
     /// Autosave this often instead of the settings' interval (tests, the soak harness).
     pub autosave_every: Option<Duration>,
     /// An autosave problem was reported; it is not repeated every interval.
-    autosave_warned: bool,
+    pub(crate) autosave_warned: bool,
+    /// The autosave being written on its thread (`autosave`).
+    pub(crate) autosave_job: Option<crate::autosave::Job>,
+    /// Bumped whenever the project is replaced (open, new, a demo, a recovery), so a
+    /// result about the one before is recognised.
+    pub(crate) epoch: u64,
     /// This session's journal (`recovery`): what a crash leaves for the next start.
     pub session: Option<crate::recovery::Session>,
     /// What a session that is gone left, offered at start (`views::recovery`).
@@ -433,6 +438,8 @@ impl CantusApp {
             autosave_dir,
             autosave_every: None,
             autosave_warned: false,
+            autosave_job: None,
+            epoch: 0,
             session: None,
             recovery: None,
             export: None,
@@ -2522,6 +2529,7 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(project);
+        self.epoch += 1;
         self.path = None;
         self.sync_audio_base();
         self.selected_track = None;
@@ -2703,6 +2711,7 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(loaded.project);
+        self.epoch += 1;
         self.path = Some(path.to_path_buf());
         self.sync_audio_base();
         self.selected_track = None;
@@ -2760,53 +2769,6 @@ impl CantusApp {
             .unwrap_or_else(|| self.settings.autosave_interval())
     }
 
-    /// Write the autosave if one is due and there are unsaved changes (once a frame).
-    pub fn maybe_autosave(&mut self) {
-        if self.last_autosave.elapsed() < self.autosave_interval() {
-            return;
-        }
-        self.last_autosave = Instant::now();
-        if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
-            return;
-        }
-        let project = self.autosave_copy();
-        match cantus_project::autosave(
-            &project,
-            self.path.as_deref(),
-            &self.autosave_dir,
-            APP_VERSION,
-        ) {
-            Ok(r) => {
-                self.autosaved_revision = self.bus.revision();
-                match &r.fallback {
-                    // Said once: the safety net holds, but not where the user expects it.
-                    Some(why) if !self.autosave_warned => {
-                        self.autosave_warned = true;
-                        self.set_error(tf(
-                            "recovery.autosave_elsewhere",
-                            &[("error", why), ("path", &r.path.display())],
-                        ));
-                    }
-                    Some(_) => {}
-                    None => {
-                        self.autosave_warned = false;
-                        if !self.status.error {
-                            self.set_status(t("status.autosaved"));
-                        }
-                    }
-                }
-                self.journal_persisted(Some(&r.path));
-            }
-            Err(e) => {
-                log::warn!("autosave failed: {e}");
-                // Silence here would let the user believe the work is safe.
-                if !self.autosave_warned {
-                    self.autosave_warned = true;
-                    self.set_error(tf("recovery.autosave_failed", &[("error", &e)]));
-                }
-            }
-        }
-    }
 
     pub fn export_dialog(&mut self) {
         if self.export.is_some() {
@@ -3576,6 +3538,10 @@ impl CantusApp {
         let m = self.engine.meters().master;
         if m[0].max(m[1]) > 1e-5 {
             ticker::moving(ctx, Reason::Meters);
+        }
+        // An autosave being written: look again shortly to collect it.
+        if self.autosave_job.is_some() {
+            ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.
         if self.bus.is_dirty() && self.bus.revision() != self.autosaved_revision {
