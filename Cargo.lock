@@ -779,6 +779,7 @@ name = "cantus"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cantus-launch",
  "cantus-ui",
  "env_logger",
  "log",
@@ -888,6 +889,17 @@ dependencies = [
  "thiserror 2.0.20",
  "vst3",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "cantus-launch"
+version = "0.1.0"
+dependencies = [
+ "resvg",
+ "tempfile",
+ "tiny-skia",
+ "windows-sys 0.59.0",
+ "winresource",
 ]
 
 [[package]]

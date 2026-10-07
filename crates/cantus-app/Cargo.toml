@@ -26,6 +26,8 @@ cantus-ui.workspace = true
 env_logger.workspace = true
 log.workspace = true
 anyhow.workspace = true
+# The x86-64 level this program was built for, which `--version` names (round 22).
+cantus-launch.workspace = true
 
 # ADR 0024 §12: the splash logo and the window's icon are rendered from the logo's SVG
 # masters at build time; `winresource` (MIT) puts the icon into the Windows executable.

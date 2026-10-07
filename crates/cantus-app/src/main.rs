@@ -12,6 +12,7 @@ include!(concat!(env!("OUT_DIR"), "/baked.rs"));
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log::info!("cantus {} ({})", cantus_ui::APP_VERSION, build_level());
     let mut options = LaunchOptions {
         art: Some(ART),
         ..Default::default()
@@ -39,7 +40,7 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             "--version" | "-V" => {
-                println!("cantus {}", cantus_ui::APP_VERSION);
+                println!("cantus {} ({})", cantus_ui::APP_VERSION, build_level());
                 return Ok(());
             }
             "--help" | "-h" => {
@@ -52,4 +53,15 @@ fn main() -> anyhow::Result<()> {
         }
     }
     cantus_ui::run(options)
+}
+
+/// The x86-64 level this program was compiled for (`x86-64-v3`, `x86-64-v2`, …): a release
+/// carries one program per level and the launcher starts the highest the processor runs
+/// (`crates/cantus-launch`). A plain `cargo build` is `x86-64` (or the target's arch).
+fn build_level() -> &'static str {
+    match cantus_launch::Level::of_this_build() {
+        Some(level) => level.name(),
+        None if cfg!(target_arch = "x86_64") => "x86-64",
+        None => std::env::consts::ARCH,
+    }
 }
