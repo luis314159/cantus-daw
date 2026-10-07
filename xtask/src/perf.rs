@@ -13,6 +13,8 @@
 //! cargo run -p xtask -- perf --cpu v3           # the bench built for x86-64-v3 (not gated)
 //! cargo run -p xtask -- perf --ab v2,v3 --pairs 6 --full --only engine,fx --pin 4
 //!                                               # paired A/B: the two builds alternate
+//! cargo run -p xtask -- perf --ab v2,v3 --full --only engine --sizes 64 --runs 1 --pairs 12
+//!                                               # only the 64-track sessions, short runs
 //! ```
 //!
 //! Builds `cantus-bench` in release, runs it into `target/perf/latest.json`, and compares
@@ -43,6 +45,8 @@ struct Options {
     cpu: Option<Level>,
     ab: Option<(Level, Level)>,
     pairs: usize,
+    /// Only the engine sessions of these track counts (`CANTUS_BENCH_SIZES`).
+    sizes: Option<String>,
 }
 
 fn parse(args: &[String]) -> Options {
@@ -57,6 +61,7 @@ fn parse(args: &[String]) -> Options {
         cpu: None,
         ab: None,
         pairs: 4,
+        sizes: None,
     };
     let level = |s: Option<&String>| {
         s.and_then(|s| Level::parse(s)).unwrap_or_else(|| {
@@ -88,6 +93,7 @@ fn parse(args: &[String]) -> Options {
                     }
                 }
             }
+            "--sizes" => o.sizes = it.next().cloned(),
             "--pairs" => o.pairs = it.next().and_then(|s| s.parse().ok()).unwrap_or(o.pairs),
             other => {
                 eprintln!("xtask perf: unknown argument {other:?}");
@@ -154,7 +160,10 @@ fn run_bench(exe: &Path, o: &Options, json: &Path) {
             use std::os::windows::process::CommandExt;
             let mut c = Command::new("cmd");
             c.raw_arg(format!(
-                "/C start \"\" /B /WAIT /AFFINITY {:X}",
+                "/C start \"\" /B /WAIT {}/AFFINITY {:X}",
+                // Paired runs ask for High priority, as round 21's did: on a shared
+                // machine a normal-priority bench gets ~80 % of its core.
+                if o.ab.is_some() { "/HIGH " } else { "" },
                 1u64 << cpu
             ))
             .arg(exe)
@@ -169,6 +178,9 @@ fn run_bench(exe: &Path, o: &Options, json: &Path) {
     };
     if let Some(c) = &o.class {
         cmd.env("CANTUS_PERF_CLASS", c);
+    }
+    if let Some(sizes) = &o.sizes {
+        cmd.env("CANTUS_BENCH_SIZES", sizes);
     }
     crate::run(cmd.current_dir(crate::workspace()));
 }
@@ -301,7 +313,8 @@ pub fn ab_table(a: Level, b: Level, pairs: &[(Vec<Point>, Vec<Point>)]) -> Strin
             };
             av.push(x.median);
             bv.push(y.median);
-            if x.median != 0.0 && x.median.is_finite() && y.median.is_finite() {
+            // A kernel under the timer's resolution reads 0 in some runs: no ratio.
+            if x.median > 0.0 && y.median > 0.0 && x.median.is_finite() && y.median.is_finite() {
                 ratios.push(y.median / x.median);
             }
             if (p.lower_is_better && y.median < x.median)

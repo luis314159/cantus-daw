@@ -117,7 +117,7 @@ jobs:
           "CANTUS_SIGN_AZURE_METADATA=$meta" >> $env:GITHUB_ENV
           "SIGN_FLAG=--sign" >> $env:GITHUB_ENV
 
-      - name: Package (one edition, ASIO and WASAPI)
+      - name: Package (one edition, ASIO and WASAPI; the x86-64-v3 and v2 programs and the launcher)
         shell: bash
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

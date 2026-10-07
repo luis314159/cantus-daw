@@ -262,7 +262,9 @@ pub fn corpus(whole_demos: bool) -> Vec<Hashed> {
     // Every effect, instrument and demo must make sound: two builds agreeing on silence
     // would prove nothing. (A fixture may be an empty project.)
     for i in &v {
-        let must_sound = ["fx.", "inst.", "demo."].iter().any(|p| i.name.starts_with(p));
+        let must_sound = ["fx.", "inst.", "demo."]
+            .iter()
+            .any(|p| i.name.starts_with(p));
         assert!(
             !must_sound || (i.peak > 1e-4 && i.peak.is_finite()),
             "{} renders silence or garbage (peak {})",
