@@ -13,8 +13,9 @@
 //! - `fx.<kind>.<default|heavy>` — every native effect, alone, on two seconds of the
 //!   bench's busy signal in 128-frame blocks (the kernels' settings, `kernels::heavy`);
 //! - `inst.<name>.v8` — every instrument holding eight voices, rendered offline;
-//! - `demo.<id>` — each demo song, whole, rendered offline (no samples on disk: a
-//!   sampled pad is silence, the same on every build);
+//! - `demo.<id>` — each demo song's eight bars where the whole band plays, rendered
+//!   offline (`--whole`: every song whole, `demo.<id>.whole`); no samples on disk, so a
+//!   sampled pad is silence, the same on every build;
 //! - `fixture.<vN>` — every saved-project fixture of `cantus-project`, opened and rendered.
 
 use crate::kernels::{self, BLOCK};
@@ -26,11 +27,13 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 /// One item of the corpus.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Hashed {
     pub name: String,
     pub samples: usize,
     pub sha256: String,
+    /// The largest magnitude: a corpus of silence would prove nothing.
+    pub peak: f64,
 }
 
 impl std::fmt::Display for Hashed {
@@ -48,6 +51,7 @@ fn hash_f32(name: impl Into<String>, samples: &[f32]) -> Hashed {
         name: name.into(),
         samples: samples.len(),
         sha256: h.finalize().iter().map(|b| format!("{b:02x}")).collect(),
+        peak: samples.iter().fold(0.0f64, |m, s| m.max(s.abs() as f64)),
     }
 }
 
@@ -60,6 +64,7 @@ fn hash_f64(name: impl Into<String>, values: &[f64]) -> Hashed {
         name: name.into(),
         samples: values.len(),
         sha256: h.finalize().iter().map(|b| format!("{b:02x}")).collect(),
+        peak: values.iter().fold(0.0f64, |m, s| m.max(s.abs())),
     }
 }
 
@@ -162,9 +167,10 @@ pub fn effect_items() -> Vec<Hashed> {
     out
 }
 
-fn render_project(p: &Project, end: Option<Ticks>) -> Vec<f32> {
+fn render_project(p: &Project, start: Ticks, end: Option<Ticks>) -> Vec<f32> {
     let snap = Arc::new(Snapshot::compile(p, 1));
     let opts = RenderOptions {
+        start,
         end,
         tail_seconds: 1.0,
         block_frames: 512,
@@ -181,20 +187,28 @@ pub fn instrument_items() -> Vec<Hashed> {
             let p = crate::sessions::instrument(spec, 8);
             hash_f32(
                 format!("inst.{name}.v8"),
-                &render_project(&p, Some(Ticks::beats(4))),
+                &render_project(&p, Ticks::ZERO, Some(Ticks::beats(4))),
             )
         })
         .collect()
 }
 
-/// Each demo song, whole.
-pub fn demo_items() -> Vec<Hashed> {
+/// Each demo song: eight bars where the whole band plays (`demo.<id>`), or with `whole`
+/// the whole song (`demo.<id>.whole`, six times longer: ten minutes of audio in all).
+pub fn demo_items(whole: bool) -> Vec<Hashed> {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     cantus_ui::demos::ALL
         .iter()
         .map(|d| {
             let p = (d.build)();
-            hash_f32(format!("demo.{}", d.id), &render_project(&p, None))
+            if whole {
+                let samples = render_project(&p, Ticks::ZERO, None);
+                return hash_f32(format!("demo.{}.whole", d.id), &samples);
+            }
+            let bar = p.time_signature.ticks_per_bar();
+            let from = bar * crate::sessions::full_band_bar(d.id);
+            let samples = render_project(&p, from, Some(from + bar * 8));
+            hash_f32(format!("demo.{}", d.id), &samples)
         })
         .collect()
 }
@@ -220,19 +234,42 @@ pub fn fixture_items() -> Vec<Hashed> {
             let stem = path.file_stem()?.to_string_lossy().into_owned();
             Some(hash_f32(
                 format!("fixture.{stem}"),
-                &render_project(&loaded.file.project, None),
+                &render_project(&loaded.file.project, Ticks::ZERO, None),
             ))
         })
         .collect()
 }
 
-/// The whole corpus, in a fixed order.
-pub fn corpus() -> Vec<Hashed> {
-    let mut v = math_items();
-    v.extend(effect_items());
-    v.extend(instrument_items());
-    v.extend(demo_items());
-    v.extend(fixture_items());
+/// The whole corpus, in a fixed order; each part's time on stderr. `whole_demos`
+/// renders the demo songs whole instead of eight bars each.
+pub fn corpus(whole_demos: bool) -> Vec<Hashed> {
+    let mut v = Vec::new();
+    let mut part = |name: &str, items: &dyn Fn() -> Vec<Hashed>| {
+        let t = std::time::Instant::now();
+        let got = items();
+        eprintln!(
+            "cantus-bench hashes: {name}: {} items, {:.1} s",
+            got.len(),
+            t.elapsed().as_secs_f64()
+        );
+        v.extend(got);
+    };
+    part("math", &math_items);
+    part("effects", &effect_items);
+    part("instruments", &instrument_items);
+    part("demos", &|| demo_items(whole_demos));
+    part("fixtures", &fixture_items);
+    // Every effect, instrument and demo must make sound: two builds agreeing on silence
+    // would prove nothing. (A fixture may be an empty project.)
+    for i in &v {
+        let must_sound = ["fx.", "inst.", "demo."].iter().any(|p| i.name.starts_with(p));
+        assert!(
+            !must_sound || (i.peak > 1e-4 && i.peak.is_finite()),
+            "{} renders silence or garbage (peak {})",
+            i.name,
+            i.peak
+        );
+    }
     v
 }
 

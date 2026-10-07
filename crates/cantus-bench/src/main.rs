@@ -5,7 +5,7 @@
 //!              [--json <file>]
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
-//! cantus-bench hashes [--out <file>]     # the null corpus as SHA-256s (hashes.rs)
+//! cantus-bench hashes [--whole] [--out <file>]  # the null corpus as SHA-256s (hashes.rs)
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -145,18 +145,27 @@ fn table_cmd(args: &[String]) -> ExitCode {
     }
 }
 
-/// `hashes [--out <file>]`: render the null corpus and print (or write) its hashes.
+/// `hashes [--whole] [--out <file>]`: render the null corpus and print (or write) its
+/// hashes; `--whole` renders the demo songs whole.
 fn hashes_cmd(args: &[String]) -> ExitCode {
-    let out = match args {
-        [] => None,
-        [flag, path] if flag == "--out" => Some(PathBuf::from(path)),
-        _ => {
-            eprintln!("usage: cantus-bench hashes [--out <file>]");
-            return ExitCode::from(2);
+    let mut out = None;
+    let mut whole = false;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match (a.as_str(), it.clone().next()) {
+            ("--whole", _) => whole = true,
+            ("--out", Some(path)) => {
+                out = Some(PathBuf::from(path));
+                it.next();
+            }
+            _ => {
+                eprintln!("usage: cantus-bench hashes [--whole] [--out <file>]");
+                return ExitCode::from(2);
+            }
         }
-    };
+    }
     let t = std::time::Instant::now();
-    let items = cantus_bench::hashes::corpus();
+    let items = cantus_bench::hashes::corpus(whole);
     let text = cantus_bench::hashes::report(&items);
     eprintln!(
         "cantus-bench: {} items hashed in {:.1} s ({})",

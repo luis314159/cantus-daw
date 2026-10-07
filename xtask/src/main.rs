@@ -249,7 +249,7 @@ fn main() {
         _ => {
             eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
             eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test] [--v4]");
-            eprintln!("       cargo run -p xtask -- null-hashes [--levels v2,v3,v4] [--baseline] [--no-build]");
+            eprintln!("       cargo run -p xtask -- null-hashes [--levels v2,v3,v4] [--baseline] [--no-build] [--whole]");
             eprintln!("       cargo run -p xtask -- asio-sdk");
             eprintln!("       cargo run -p xtask -- sign-test-cert | sign-file <path> | version");
             eprintln!("       cargo run -p xtask -- perf [--full] [--save] [--only …] [--cpu v3] [--ab v2,v3 --pairs N]");

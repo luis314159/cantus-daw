@@ -6,6 +6,7 @@
 //! null-hashes --levels v2,v3,v4   these levels (one this machine cannot run is skipped)
 //! null-hashes --baseline          also the plain x86-64 build the tests' goldens come from
 //! null-hashes --no-build          compare what is built
+//! null-hashes --whole             the demo songs whole (ten minutes of audio), not 8 bars
 //! ```
 //!
 //! Builds `cantus-bench` once per level (`levels.rs`: its own target folder, the level's
@@ -83,13 +84,13 @@ fn build(level: Option<Level>, triple: &str) {
     }
 }
 
-fn run_hashes(exe: &Path, out: &Path) -> String {
-    crate::run(
-        Command::new(exe)
-            .current_dir(crate::workspace())
-            .args(["hashes", "--out"])
-            .arg(out),
-    );
+fn run_hashes(exe: &Path, out: &Path, whole: bool) -> String {
+    let mut cmd = Command::new(exe);
+    cmd.current_dir(crate::workspace()).arg("hashes");
+    if whole {
+        cmd.arg("--whole");
+    }
+    crate::run(cmd.arg("--out").arg(out));
     std::fs::read_to_string(out).unwrap_or_else(|e| panic!("read {}: {e}", out.display()))
 }
 
@@ -97,6 +98,7 @@ pub fn null_hashes(args: &[String]) {
     let mut wanted: Option<Vec<Level>> = None;
     let mut baseline = false;
     let mut build_them = true;
+    let mut whole = false;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -109,6 +111,7 @@ pub fn null_hashes(args: &[String]) {
             }
             "--baseline" => baseline = true,
             "--no-build" => build_them = false,
+            "--whole" => whole = true,
             other => {
                 eprintln!("xtask null-hashes: unknown argument {other:?}");
                 std::process::exit(2);
@@ -155,7 +158,7 @@ pub fn null_hashes(args: &[String]) {
             std::process::exit(1);
         }
         let out = dir.join(format!("{}.txt", label(*b)));
-        lists.push((*b, run_hashes(&exe, &out)));
+        lists.push((*b, run_hashes(&exe, &out, whole)));
     }
     let (first, reference) = &lists[0];
     let mut failed = false;

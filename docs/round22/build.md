@@ -99,3 +99,35 @@ the ID, and the shell read it back (`System.AppUserModel.ID = Cantus.Cantus`, ta
 intact). Not proved on the real Start menu: installing would have changed the owner's
 profile on a shared machine. *To check by hand after installing:* pin Cantus from Start,
 start it, and see one button.
+
+## 4. v2 = v3, to the bit (`xtask null-hashes`, the CI job)
+
+`cantus-bench hashes` renders the **null corpus** and prints one SHA-256 per item (of the
+samples' bits, f32 little-endian): every `cantus_dsp::math` function in f32 and f64 over
+4 096 points (39 items), every native effect alone at its defaults and at the bench's heavy
+settings on two seconds of the busy signal in 128-frame blocks (24), every instrument
+holding eight voices (9), each demo song (6) and every saved-project fixture of
+`cantus-project` (19) — 97 items. Effects, instruments and demos must be audible (a peak
+above −80 dBFS), or the corpus panics: two builds agreeing on silence would prove nothing.
+By default a demo is its eight bars where the whole band plays; `--whole` renders each song
+whole (ten minutes of audio in all).
+
+`cargo run -p xtask -- null-hashes [--baseline] [--levels v2,v3,v4] [--whole]` builds
+`cantus-bench` once per level in the level's own target, runs each, and fails naming every
+item whose bits differ. A level the machine cannot run is skipped (v4 here).
+
+**Result on this machine** (i7-12700H, Windows 11, rustc 1.97.1, the corpus with the demo
+songs **whole**): the plain x86-64 build (the one the tests' goldens come from), the
+x86-64-v2 build and the x86-64-v3 build give **the same 97 hashes**, every one. Nothing to
+explain: none of Cantus's code uses an FMA or a reduction LLVM could reorder, every
+transcendental goes through the pinned `libm` (round 21), whose only target-feature
+switches are for x86 without SSE2 (`fma.rs`, `sqrt.rs`, `pow.rs`, …), and there is no FFT
+crate whose run-time dispatch could pick a different algorithm. The lists are kept in this
+worktree's `target/null-hashes/` until it is cleaned (§8); e.g. `demo.house` (whole) is
+`c36cbca4…6799f6` in all three.
+
+**CI** (`.github/workflows/ci.yml`): job `null-hashes` on `windows-latest` and
+`ubuntu-latest` runs `xtask null-hashes --baseline` (v4 joins on a runner with AVX-512) and
+uploads the lists; job `null-hashes-across` then requires the Windows and Linux v3 lists
+to be equal — R9 (4)'s second machine class, another C runtime. An aarch64 runner is still
+to add (R9 (4)); it would compare its plain build's list with these.
