@@ -1118,7 +1118,7 @@ impl Porta {
             } else if silence_ok && self.smooth <= SILENCE_DB {
                 0.0
             } else {
-                math::powf(10f32, self.smooth / 20.0)
+                math::db_to_gain(self.smooth)
             };
             self.gain_db = self.smooth;
             let g = self.gain;

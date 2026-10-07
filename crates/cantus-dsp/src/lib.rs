@@ -67,7 +67,8 @@ pub mod voices;
 /// |---|---|
 /// | 1 | the version that introduced the constant (round 21): std's transcendentals |
 /// | 2 | [`math`]: every transcendental from the pinned pure-Rust `libm` (ADR 0031 R9) |
-pub const DSP_VERSION: u32 = 2;
+/// | 3 | round 22: [`math::powf`] in `f32` our own (correctly rounded, ~4× faster) and [`math::db_to_gain`] at the per-sample gains; counter-based TPDF dither (R10), so Terminus and Culmen rest with it on; Aequalis's dynamic release lands on 0 dB |
+pub const DSP_VERSION: u32 = 3;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

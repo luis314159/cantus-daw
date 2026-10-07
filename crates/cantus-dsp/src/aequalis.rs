@@ -853,10 +853,13 @@ impl State {
         let y = c.b0 * x + self.z1;
         self.z1 = c.b1 * x - c.a1 * y + self.z2;
         self.z2 = c.b2 * x - c.a2 * y;
-        if self.z1.abs() < 1e-20 {
+        // Both at once (`DSP_VERSION` 3): flushed one at a time, one variable kicked the
+        // other back over the threshold after some decays and the pair could hover there
+        // for ever — found in a dynamic band's detector, which then never let the EQ rest
+        // (round 21 at-rest's finding 2, fixed then in the meters and Multiplex's
+        // detectors).
+        if self.z1.abs() < 1e-20 && self.z2.abs() < 1e-20 {
             self.z1 = 0.0;
-        }
-        if self.z2.abs() < 1e-20 {
             self.z2 = 0.0;
         }
         y
@@ -1257,8 +1260,8 @@ impl Aequalis {
     /// envelope has no flush of its own: it reaches zero under FTZ), the auto gain — when it
     /// is heard — where a new unit's is, and the phase mode's correction or convolver empty
     /// and settled (in linear phase, its blocks on the clock a new unit's run on). A dynamic
-    /// band left a hair (under 0.0001 dB) from 0 by its release, or an expander acting on
-    /// silence, is not at rest: a reset puts every band at its static gain.
+    /// band's release lands on exactly 0 dB (round 22); an expander acting on silence is
+    /// not at rest: a reset puts every band at its static gain.
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
     }
@@ -1569,6 +1572,14 @@ impl Aequalis {
         } else {
             0
         };
+        // Sections no longer in use start clean when they come back (`DSP_VERSION` 3). In
+        // linear phase a dynamic band runs its movement as sections only while it moves;
+        // when its release lands on 0 dB the sections go and their state used to stay,
+        // stale, to be resumed at the next movement — so the band was never as a new
+        // one, and the unit never at rest.
+        for st in &mut b.state[b.sections..] {
+            *st = [State::default(); 2];
+        }
         if b.target.dynamic {
             let mut c = [Coefs::IDENTITY; MAX_SECTIONS];
             design(
@@ -1707,8 +1718,12 @@ impl Aequalis {
                 };
                 let amount = excess * (1.0 - 1.0 / t.ratio.max(1.0));
                 let delta = amount.min(t.range_db.abs()) * t.range_db.signum();
-                if (delta - b.delta_db).abs() > 1e-4 {
-                    b.delta_db = delta;
+                // Moves under 0.0001 dB are not worth a redesign — except the last one home:
+                // a release that ends a hair from 0 lands on exactly 0 (+0.0), so the band
+                // is a static one again, as a reset band is, and the unit can come to rest
+                // (round 21 at-rest's finding 3; `DSP_VERSION` 3).
+                if (delta - b.delta_db).abs() > 1e-4 || (delta == 0.0 && b.delta_db != 0.0) {
+                    b.delta_db = if delta == 0.0 { 0.0 } else { delta };
                     moved = true;
                 }
             } else if b.delta_db != 0.0 {

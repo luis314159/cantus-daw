@@ -51,6 +51,9 @@ pub mod os;
 #[cfg(test)]
 #[path = "terminus_tests_tp.rs"]
 mod tests_tp;
+#[cfg(test)]
+#[path = "terminus_tests_dither.rs"]
+mod tests_dither;
 
 use loudness::{column_len, KWeighting};
 use os::{Decim, Interp, TruePeak, TP_DELAY};
@@ -652,38 +655,70 @@ impl Clipper {
 
 /// TPDF dither with optional error-feedback noise shaping, for one channel. Public so the
 /// maximizer (`culmen`) dithers with the same code.
-#[derive(Clone, Debug)]
+///
+/// **Counter-based** (ADR 0031 R10, `DSP_VERSION` 3): the noise for the `n`-th sample since
+/// the ditherer last came to rest is a pure function of `(seed, n)` — SplitMix64's output
+/// `mix64(seed + n·γ)`, cut into two 24-bit uniforms whose difference is the triangular
+/// noise — not the state of a sequential generator. On the 64th zero in a row it clears its
+/// shaping error and sets `n` back to 0, and a new ditherer starts in exactly that state, so
+/// a ditherer at rest **is** a new one ([`Self::at_rest`]): a dithering limiter can come to
+/// rest, and the render cache and a time-parallel export get their settle points. Digital
+/// silence at the start of a render stays silent too (the old generator dithered the
+/// first 63 zeros).
+#[derive(Clone, Debug, PartialEq)]
 pub struct Ditherer {
-    rng: u32,
+    /// The channel's stream, spread by `mix64` from the seed it was given.
+    seed: u64,
+    /// Samples dithered since the last rest.
+    n: u64,
     err: [f32; 5],
+    /// Zeros in a row, capped at [`BLANK_AFTER`] (at rest there).
     zeros: u32,
 }
 
+/// SplitMix64's increment (2⁶⁴/φ).
+const GAMMA: u64 = 0x9e37_79b9_7f4a_7c15;
+
 impl Ditherer {
-    pub fn new(seed: u32) -> Self {
+    pub fn new(seed: u64) -> Self {
         Ditherer {
-            rng: seed,
+            seed: crate::va::math::mix64(seed),
+            n: 0,
             err: [0.0; 5],
-            zeros: 0,
+            zeros: BLANK_AFTER,
         }
     }
 
+    /// As a new ditherer: 64 zeros or more since the last sound, the shaping error clear,
+    /// the counter at 0.
+    pub fn at_rest(&self) -> bool {
+        self.zeros >= BLANK_AFTER && self.n == 0 && self.err.iter().all(|e| e.to_bits() == 0)
+    }
+
+    /// The TPDF noise for this sample, in LSBs (−1…1): the difference of two 24-bit
+    /// uniforms cut from one hash of `(seed, n)`.
     #[inline]
-    fn uniform(&mut self) -> f32 {
-        self.rng ^= self.rng << 13;
-        self.rng ^= self.rng >> 17;
-        self.rng ^= self.rng << 5;
-        (self.rng >> 8) as f32 / 16_777_216.0
+    fn tpdf(&mut self) -> f32 {
+        let h = crate::va::math::mix64(self.seed.wrapping_add(self.n.wrapping_mul(GAMMA)));
+        self.n = self.n.wrapping_add(1);
+        let a = (h >> 40) as f32 / 16_777_216.0;
+        let b = ((h >> 16) & 0xff_ffff) as f32 / 16_777_216.0;
+        a - b
     }
 
     /// One sample to `bits` bits; digital silence stays silent after 64 zeros.
     #[inline]
     pub fn process(&mut self, x: f32, bits: u32, shaping: Shaping) -> f32 {
-        // Digital silence stays silent: no hiss after the song ends.
+        // Digital silence stays silent: no hiss after the song ends. The 64th zero brings
+        // it to rest, as a new ditherer is.
         if x == 0.0 {
-            self.zeros = self.zeros.saturating_add(1);
+            if self.zeros >= BLANK_AFTER {
+                return 0.0;
+            }
+            self.zeros += 1;
             if self.zeros >= BLANK_AFTER {
                 self.err = [0.0; 5];
+                self.n = 0;
                 return 0.0;
             }
         } else {
@@ -695,7 +730,7 @@ impl Ditherer {
             fb += h * e;
         }
         let v = x - fb;
-        let d = (self.uniform() - self.uniform()) * q;
+        let d = self.tpdf() * q;
         let y = ((v + d) / q).round() * q;
         let y = y.clamp(-1.0, 1.0 - q);
         // Bounded, so a clamp at full scale cannot wind the shaping filter up.
@@ -1015,11 +1050,9 @@ impl Terminus {
     /// filters, detectors, look-ahead windows, envelopes and delay lines empty — and the
     /// Match monitor's memory still: its three-second window all silence (so no column can
     /// move its level) and its gain landed; in Match mode, at unity as a new unit's is.
-    /// The meters that only the editor reads do not count.
-    ///
-    /// **Never with dither on** (R10): the noise generator stops on silence but does not go
-    /// back to its seed, so a new unit would dither the next sound with other noise. When
-    /// the dither becomes counter-based this can hold after its shaping state clears.
+    /// The meters that only the editor reads do not count. With dither on, both ditherers
+    /// at rest too — 64 zeros since the last sound, as a new unit's are (R10's
+    /// counter-based dither, round 22).
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
     }
@@ -1034,6 +1067,7 @@ impl Terminus {
         let checks: [(&'static str, &dyn Fn() -> bool); 20] = [
             ("dither", &|| {
                 DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] == 0
+                    || self.dither.iter().all(Ditherer::at_rest)
             }),
             ("gain glide", &|| self.gain == self.gain_target),
             ("ceiling glide", &|| self.ceiling_db == s.ceiling_db),
@@ -1288,7 +1322,7 @@ impl Terminus {
                 y[ch] = if gr[ch] == 0.0 {
                     x
                 } else {
-                    x * math::powf(10f32, -gr[ch] / 20.0)
+                    x * math::db_to_gain(-gr[ch])
                 };
             }
 
@@ -1307,7 +1341,7 @@ impl Terminus {
                 let g = if safe_gr == 0.0 {
                     1.0
                 } else {
-                    math::powf(10f32, -safe_gr / 20.0)
+                    math::db_to_gain(-safe_gr)
                 };
                 for (line, v) in self.safe_audio.iter_mut().zip(y.iter_mut()) {
                     let d = line.push(*v, safe_delay);

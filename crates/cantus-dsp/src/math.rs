@@ -19,6 +19,10 @@
 //!
 //! [`powi`] is our own: the repeated squaring of compiler-rt's `__powidf2`, written out so
 //! that neither LLVM's expansion of a constant exponent nor a library decides the order.
+//! So is [`powf`] in `f32` for finite positive bases, and [`db_to_gain`] (round 22,
+//! `DSP_VERSION` 3, `math_powf.rs`): libm's `powf` cost 80–160 ns a call in the units that
+//! call it per sample; ours is a table step and two short polynomials in `f64`, correctly
+//! rounded in every point measured.
 //!
 //! **The rule.** Inside `cantus-dsp` (and the engine's DSP paths) std's transcendental
 //! methods are banned by `clippy::disallowed_methods` (`clippy.toml`); call these instead:
@@ -30,6 +34,9 @@
 //! correctly rounded, so they are the same everywhere. Approximate reciprocal and
 //! reciprocal-square-root instructions (`rcpps`, `rsqrtps`, which differ between Intel and
 //! AMD) are never used.
+
+#[path = "math_powf.rs"]
+mod fast;
 
 mod sealed {
     pub trait Sealed {}
@@ -151,7 +158,7 @@ mod backend {
             m_ln => libm::logf, m_log2 => libm::log2f, m_log10 => libm::log10f,
             m_ln_1p => libm::log1pf, m_cbrt => libm::cbrtf,
         },
-        binary: { m_atan2 => libm::atan2f, m_powf => libm::powf, m_hypot => libm::hypotf },
+        binary: { m_atan2 => libm::atan2f, m_powf => super::fast::powf, m_hypot => libm::hypotf },
         sin_cos: libm::sincosf,
     );
     float_impl!(f64,
@@ -258,10 +265,20 @@ pub fn log10<T: Float>(x: T) -> T {
 pub fn ln_1p<T: Float>(x: T) -> T {
     x.m_ln_1p()
 }
-/// `x^y` (std's `x.powf(y)`).
+/// `x^y` (std's `x.powf(y)`). In `f32`, for a finite `x > 0` and a finite `y`, our own
+/// fast path (`exp2(y · log2 x)` in `f64`, round 22: about 20 ns against libm's 80–160,
+/// and correctly rounded); libm's `powf` for every other input, and libm's `pow` in `f64`.
 #[inline]
 pub fn powf<T: Float>(x: T, y: T) -> T {
     x.m_powf(y)
+}
+/// `10^(db/20)` in `f32`: a level in decibels as a linear gain, for the per-sample
+/// callers. Half the work of `powf(10.0, db / 20.0)` (only the `exp2` half), correctly
+/// rounded, and the exponent never rounded to `f32` on the way — so its bits can differ
+/// from that expression's by an ulp.
+#[inline]
+pub fn db_to_gain(db: f32) -> f32 {
+    fast::db_to_gain(db)
 }
 /// `x^n` by repeated squaring, in compiler-rt's order (std's `x.powi(n)`).
 #[inline]
@@ -328,6 +345,9 @@ mod tests {
             ("powxy64", digest(1e-3, 1.0, |x| powf(x, 0.1 + 9.0 * x))),
             ("atan2_64", digest(-1.0, 1.0, |x| atan2(x, 0.5 - x))),
             ("powi64", digest(-2.0, 2.0, |x| powi(x, 7) + powi(x, -3))),
+            ("powxy32", digest(1e-3, 1.0, |x| powf(x as f32, (0.1 + 9.0 * x) as f32))),
+            ("powwide32", digest(-30.0, 30.0, |x| powf(libm::exp2(x) as f32, (x / 7.0) as f32))),
+            ("db_gain32", digest(-150.0, 24.0, |x| db_to_gain(x as f32))),
         ];
         let want = PINNED;
         if std::env::var_os("CANTUS_MATH_PIN").is_some() {
@@ -356,7 +376,8 @@ mod tests {
         assert_eq!(powi(x, 5), x * ((x * x) * (x * x)));
     }
 
-    /// Recorded with `DSP_VERSION` 2 (libm 0.2.16) on x86-64 Windows.
+    /// Recorded with `DSP_VERSION` 2 (libm 0.2.16) on x86-64 Windows; the `f32` powers
+    /// (`pow10_32`, `powxy32`, `powwide32`, `db_gain32`) with `DSP_VERSION` 3.
     const PINNED: &[(&str, u64)] = &[
         ("sin32", 0x6250a4afb2d478a9),
         ("sin64", 0x90e90bb477a4561e),
@@ -376,10 +397,13 @@ mod tests {
         ("log2_64", 0xf04fed6bc80a79f6),
         ("log10_32", 0xd2e2b76256cbf0b6),
         ("log10_64", 0x4d3ea5c41ee86928),
-        ("pow10_32", 0xb6996d5e6b36f65c),
+        ("pow10_32", 0x9ff3f4d798e1aff4),
         ("pow10_64", 0x9cf45f9dd51436d5),
         ("powxy64", 0xed98779dfe93816e),
         ("atan2_64", 0x492dc53a9cc6ec87),
         ("powi64", 0x73133c922cbc7715),
+        ("powxy32", 0x576ee08c4fbf5aa0),
+        ("powwide32", 0xb307e4f872f492e3),
+        ("db_gain32", 0x00f9d6ff3960dfdb),
     ];
 }

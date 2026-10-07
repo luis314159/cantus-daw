@@ -1,5 +1,6 @@
 //! Accuracy and speed of `cantus_dsp::math` against std's transcendentals (round 21,
-//! `docs/round21/math.md`).
+//! `docs/round21/math.md`) and against round 21's libm backend called directly (round 22,
+//! `docs/round22/math2.md`: the `f32` `powf` of `DSP_VERSION` 3).
 //!
 //! ```text
 //! python crates/cantus-dsp/examples/math_reference.py target/math_ref.txt
@@ -7,9 +8,12 @@
 //! ```
 //!
 //! For every case of the reference file (a function, a type, the input range its call
-//! sites use) it prints the worst and the mean error in ulps of each implementation, the
-//! share of points where the two give the same bits, and nanoseconds per call (the best of
-//! several passes, an indirect call's cost subtracted).
+//! sites use) it prints the worst and the mean error in ulps of each implementation — std
+//! (the platform's C library), libm called directly (round 21's backend) and
+//! `cantus_dsp::math` — the share of points where std and ours give the same bits, and
+//! nanoseconds per call (the best of several passes, an indirect call's cost subtracted).
+//! For `powf` in `f32` it adds one more candidate: `exp2(y · log2 x)` through libm's own
+//! `f64` functions.
 
 // std's functions are what this measures against.
 #![allow(clippy::disallowed_methods)]
@@ -40,6 +44,7 @@ fn pair32(name: &str) -> (F32, F32) {
         "powf" => (|x, y| x.powf(y), |x, y| math::powf(x, y)),
         "atan2" => (|x, y| x.atan2(y), |x, y| math::atan2(x, y)),
         "hypot" => (|x, y| x.hypot(y), |x, y| math::hypot(x, y)),
+        "db" => (|x, _| 10f32.powf(x / 20.0), |x, _| math::db_to_gain(x)),
         other => panic!("no function {other}"),
     }
 }
@@ -63,8 +68,63 @@ fn pair64(name: &str) -> (F64, F64) {
         "powf" => (|x, y| x.powf(y), |x, y| math::powf(x, y)),
         "atan2" => (|x, y| x.atan2(y), |x, y| math::atan2(x, y)),
         "hypot" => (|x, y| x.hypot(y), |x, y| math::hypot(x, y)),
+        "db" => (|x, _| 10f64.powf(x / 20.0), |x, _| math::powf(10.0, x / 20.0)),
         other => panic!("no function {other}"),
     }
+}
+
+/// Round 21's backend, called directly, at `f32`.
+fn libm32(name: &str) -> F32 {
+    match name {
+        "sin" => |x, _| libm::sinf(x),
+        "cos" => |x, _| libm::cosf(x),
+        "tan" => |x, _| libm::tanf(x),
+        "exp" => |x, _| libm::expf(x),
+        "exp2" => |x, _| libm::exp2f(x),
+        "ln" => |x, _| libm::logf(x),
+        "log2" => |x, _| libm::log2f(x),
+        "log10" => |x, _| libm::log10f(x),
+        "tanh" => |x, _| libm::tanhf(x),
+        "atan" => |x, _| libm::atanf(x),
+        "sinh" => |x, _| libm::sinhf(x),
+        "ln_1p" => |x, _| libm::log1pf(x),
+        "cbrt" => |x, _| libm::cbrtf(x),
+        "powf" => libm::powf,
+        "db" => |x, _| libm::powf(10.0, x / 20.0),
+        "atan2" => libm::atan2f,
+        "hypot" => libm::hypotf,
+        other => panic!("no function {other}"),
+    }
+}
+
+/// Round 21's backend, called directly, at `f64`.
+fn libm64(name: &str) -> F64 {
+    match name {
+        "sin" => |x, _| libm::sin(x),
+        "cos" => |x, _| libm::cos(x),
+        "tan" => |x, _| libm::tan(x),
+        "exp" => |x, _| libm::exp(x),
+        "exp2" => |x, _| libm::exp2(x),
+        "ln" => |x, _| libm::log(x),
+        "log2" => |x, _| libm::log2(x),
+        "log10" => |x, _| libm::log10(x),
+        "tanh" => |x, _| libm::tanh(x),
+        "atan" => |x, _| libm::atan(x),
+        "sinh" => |x, _| libm::sinh(x),
+        "ln_1p" => |x, _| libm::log1p(x),
+        "cbrt" => |x, _| libm::cbrt(x),
+        "powf" => libm::pow,
+        "db" => |x, _| libm::pow(10.0, x / 20.0),
+        "atan2" => libm::atan2,
+        "hypot" => libm::hypot,
+        other => panic!("no function {other}"),
+    }
+}
+
+/// The candidate round 21 recommended: `exp2(y · log2 x)` through libm's `f64` functions
+/// (valid for the finite, positive bases of the reference's cases).
+fn powf_by_libm_f64(x: f32, y: f32) -> f32 {
+    libm::exp2(y as f64 * libm::log2(x as f64)) as f32
 }
 
 /// One ulp at `r`'s magnitude, as an `f32` or as an `f64`.
@@ -81,6 +141,10 @@ fn ulp(r: f64, f32_ulp: bool) -> f64 {
 }
 
 fn err(v: f64, hi: f64, lo: f64, f32_ulp: bool) -> f64 {
+    // A true value past f32's range: the right answer is its rounding (∞).
+    if f32_ulp && !(hi as f32).is_finite() {
+        return if v == hi as f32 as f64 { 0.0 } else { f64::INFINITY };
+    }
     if !v.is_finite() || !hi.is_finite() {
         return if v == hi { 0.0 } else { f64::INFINITY };
     }
@@ -109,6 +173,84 @@ fn time(n: usize, mut pass: impl FnMut() -> f64) -> f64 {
     best
 }
 
+
+/// One row: errors (worst, mean) and ns per call of each implementation, std first.
+struct Row {
+    errs: Vec<(f64, f64)>,
+    ns: Vec<f64>,
+    same: f64,
+}
+
+fn stats(v: &[f64]) -> (f64, f64) {
+    let max = v.iter().cloned().fold(0.0, f64::max);
+    (max, v.iter().sum::<f64>() / v.len() as f64)
+}
+
+fn row32(pts: &[Point], fs: &[F32]) -> Row {
+    let xs: Vec<(f32, f32)> = pts.iter().map(|p| (p.x as f32, p.y as f32)).collect();
+    let outs: Vec<Vec<f32>> = fs
+        .iter()
+        .map(|f| xs.iter().map(|&(x, y)| f(x, y)).collect())
+        .collect();
+    let errs = outs
+        .iter()
+        .map(|o| {
+            let e: Vec<f64> = o
+                .iter()
+                .zip(pts)
+                .map(|(v, p)| err(*v as f64, p.hi, p.lo, true))
+                .collect();
+            stats(&e)
+        })
+        .collect();
+    let last = outs.len() - 1;
+    let same = outs[0]
+        .iter()
+        .zip(&outs[last])
+        .filter(|(a, b)| a.to_bits() == b.to_bits())
+        .count() as f64
+        / pts.len() as f64;
+    let run = |f: F32| {
+        let f = black_box(f);
+        time(pts.len(), || xs.iter().map(|&(x, y)| f(x, y) as f64).sum())
+    };
+    let base = run(|x, _| x);
+    let ns = fs.iter().map(|&f| (run(f) - base).max(0.0)).collect();
+    Row { errs, ns, same }
+}
+
+fn row64(pts: &[Point], fs: &[F64]) -> Row {
+    let outs: Vec<Vec<f64>> = fs
+        .iter()
+        .map(|f| pts.iter().map(|p| f(p.x, p.y)).collect())
+        .collect();
+    let errs = outs
+        .iter()
+        .map(|o| {
+            let e: Vec<f64> = o
+                .iter()
+                .zip(pts)
+                .map(|(v, p)| err(*v, p.hi, p.lo, false))
+                .collect();
+            stats(&e)
+        })
+        .collect();
+    let last = outs.len() - 1;
+    let same = outs[0]
+        .iter()
+        .zip(&outs[last])
+        .filter(|(a, b)| a.to_bits() == b.to_bits())
+        .count() as f64
+        / pts.len() as f64;
+    let run = |f: F64| {
+        let f = black_box(f);
+        time(pts.len(), || pts.iter().map(|p| f(p.x, p.y)).sum())
+    };
+    let base = run(|x, _| x);
+    let ns = fs.iter().map(|&f| (run(f) - base).max(0.0)).collect();
+    Row { errs, ns, same }
+}
+
 fn main() {
     let path = std::env::args()
         .nth(1)
@@ -129,57 +271,38 @@ fn main() {
             _ => cases.push((f[0].into(), f[1].into(), vec![p])),
         }
     }
-    println!("| Case | Type | std max | std mean | cantus max | cantus mean | same bits | std ns | cantus ns |");
-    println!("|---|---|---:|---:|---:|---:|---:|---:|---:|");
-    let id32: F32 = |x, _| x;
-    let id64: F64 = |x, _| x;
+    println!("| Case | Type | std max | std mean | libm max | libm mean | cantus max | cantus mean | std = cantus | std ns | libm ns | cantus ns |");
+    println!("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
+    let mut extra = Vec::new();
     for (case, ty, pts) in &cases {
         let name = case.split(' ').next().expect("a name");
-        let n = pts.len();
-        let (mut e_std, mut e_can) = (Vec::with_capacity(n), Vec::with_capacity(n));
-        let mut same = 0usize;
-        let (t_std, t_can);
-        if ty == "f32" {
+        let r = if ty == "f32" {
             let (s, c) = pair32(name);
-            let xs: Vec<(f32, f32)> = pts.iter().map(|p| (p.x as f32, p.y as f32)).collect();
-            for (p, &(x, y)) in pts.iter().zip(&xs) {
-                let (a, b) = (s(x, y), c(x, y));
-                same += (a.to_bits() == b.to_bits()) as usize;
-                e_std.push(err(a as f64, p.hi, p.lo, true));
-                e_can.push(err(b as f64, p.hi, p.lo, true));
+            if name == "powf" {
+                extra.push((
+                    format!("{case} (libm f64 exp2∘log2)"),
+                    row32(pts, &[s, libm32(name), powf_by_libm_f64]),
+                ));
             }
-            let run = |f: F32| {
-                let f = black_box(f);
-                time(n, || xs.iter().map(|&(x, y)| f(x, y) as f64).sum())
-            };
-            let base = run(id32);
-            (t_std, t_can) = (run(s) - base, run(c) - base);
+            row32(pts, &[s, libm32(name), c])
         } else {
             let (s, c) = pair64(name);
-            for p in pts {
-                let (a, b) = (s(p.x, p.y), c(p.x, p.y));
-                same += (a.to_bits() == b.to_bits()) as usize;
-                e_std.push(err(a, p.hi, p.lo, false));
-                e_can.push(err(b, p.hi, p.lo, false));
-            }
-            let run = |f: F64| {
-                let f = black_box(f);
-                time(n, || pts.iter().map(|p| f(p.x, p.y)).sum())
-            };
-            let base = run(id64);
-            (t_std, t_can) = (run(s) - base, run(c) - base);
-        }
-        let max = |v: &[f64]| v.iter().cloned().fold(0.0, f64::max);
-        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+            row64(pts, &[s, libm64(name), c])
+        };
         println!(
-            "| {case} | {ty} | {:.3} | {:.3} | {:.3} | {:.3} | {:.1} % | {:.1} | {:.1} |",
-            max(&e_std),
-            mean(&e_std),
-            max(&e_can),
-            mean(&e_can),
-            100.0 * same as f64 / n as f64,
-            t_std.max(0.0),
-            t_can.max(0.0),
+            "| {case} | {ty} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.1} % | {:.1} | {:.1} | {:.1} |",
+            r.errs[0].0, r.errs[0].1, r.errs[1].0, r.errs[1].1, r.errs[2].0, r.errs[2].1,
+            100.0 * r.same, r.ns[0], r.ns[1], r.ns[2],
+        );
+    }
+    println!("
+The candidate round 21 recommended, in the cantus columns:
+");
+    for (case, r) in extra {
+        println!(
+            "| {case} | f32 | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.1} % | {:.1} | {:.1} | {:.1} |",
+            r.errs[0].0, r.errs[0].1, r.errs[1].0, r.errs[1].1, r.errs[2].0, r.errs[2].1,
+            100.0 * r.same, r.ns[0], r.ns[1], r.ns[2],
         );
     }
 }

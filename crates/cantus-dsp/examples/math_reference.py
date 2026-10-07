@@ -65,6 +65,11 @@ CASES = [
     ("powf 10^[-7.5,2]", lambda x, y: x ** y, const(10.0), uni(-7.5, 2)),
     ("powf 2^[-10,10]", lambda x, y: x ** y, const(2.0), uni(-10, 10)),
     ("powf (0,1]^[0.1,10]", lambda x, y: x ** y, uni(1e-6, 1), uni(0.1, 10)),
+    # Round 22: beyond the call sites, to show the f32 fast path holds everywhere.
+    ("powf [1e-30,1e30]^[-4,4]", lambda x, y: x ** y, logu(1e-30, 1e30), uni(-4, 4)),
+    ("powf [0.999,1.001]^[-1e4,1e4]", lambda x, y: x ** y, uni(0.999, 1.001), uni(-1e4, 1e4)),
+    # 10^(x/20): `math::db_to_gain` in f32 (`powf(10, x/20)` in f64), round 22.
+    ("db [-150,24]", lambda x: mpf(10) ** (x / 20), uni(-150, 24), None),
     ("atan2 [-1,1]^2", lambda y, x: mpmath.atan2(y, x), uni(-1, 1), uni(-1, 1)),
     ("hypot [-1e3,1e3]^2", lambda x, y: mpmath.sqrt(x * x + y * y), uni(-1e3, 1e3), uni(-1e3, 1e3)),
 ]
