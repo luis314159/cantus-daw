@@ -158,6 +158,13 @@ pub const ALLOWED: &[&str] = &[
     "CDLA-Permissive-2.0",
     "OFL-1.1",
     "Ubuntu-font-1.0",
+    // LAME (MP3 export, ADR 0033): LGPL code linked into a GPL-3.0-or-later program whose
+    // whole source is published — compatible (the integrator's ruling, round 22). The
+    // crates declare the deprecated id "LGPL-3.0".
+    "LGPL-3.0",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "LGPL-2.1-or-later",
 ];
 
 /// Whether an SPDX expression (with crates.io's old `/` for OR) lets Cantus ship the

@@ -318,25 +318,36 @@ que lo más fuerte nunca te engañe. En el máster, los presets *Recorte de más
 
 ## 8. Exportar
 
-- **La mezcla**: *Archivo ▸ Exportar WAV…* (`Ctrl+Shift+E`) y elige dónde. Cantus
-  renderiza toda la canción, del inicio al final del último clip más dos segundos de
-  cola, a través de la cadena del máster, como un **WAV estéreo de 32 bits flotantes** a la
-  frecuencia del dispositivo de audio. El bucle y el metrónomo se ignoran. La barra de
-  estado informa la duración y el pico.
-- **Stems**: *Archivo ▸ Exportar stems…* escribe un WAV por canal del mezclador (después
-  de su fader) o por pista (antes de su canal), todos desde el primer tiempo de la canción
-  con la compensación de latencia incluida, con nombre `NN Nombre.wav`. Opciones: la cola,
-  también los stems en silencio, la mezcla del máster y *A través de la cadena del máster*
-  cuando el máster tiene inserciones.
+*Archivo ▸ Exportar audio…* (`Ctrl+Shift+E` con las teclas por defecto) abre la ventana de
+exportación: los presets a la izquierda, las opciones a la derecha y una línea que dice
+exactamente qué se va a escribir.
+
+- **Presets**: *Streaming* (MP3 320 kbps, 44.1 kHz, −14 LUFS, −1 dBTP), *CD* (WAV 16 bits,
+  44.1 kHz, dither con modelado), *Stems para masterizar* (cada canal, WAV 24 bits a la
+  frecuencia de la sesión, sin normalizar) y *Podcast* (MP3 mono 128 kbps, −16 LUFS,
+  −1 dBTP). Si cambias cualquier opción se ilumina la tarjeta *Personalizado*.
+- **Qué**: la canción (del inicio al final del último clip, más la cola que elijas), la
+  selección de tiempo, o **stems** — un archivo por canal del mezclador (después de su
+  fader) o por pista (antes de su canal), todos desde el primer tiempo de la canción con la
+  compensación de latencia incluida, y opcionalmente *a través de la cadena del máster*.
+- **Formatos**: **WAV** de 16, 24 bits o 32 bits flotantes; **FLAC** de 16 o 24 bits; **MP3**
+  CBR de 128 a 320 kbps o VBR V0/V2/V4/V6 (LAME), sin huecos; **Ogg Vorbis** calidad 3–10.
+  Frecuencia: la de la sesión o 44.1, 48, 88.2, 96, 192 kHz (MP3 usa 44.1 o 48). Mono o
+  estéreo.
+- **Dither** (apagado, TPDF, con modelado) al escribir 16 o 24 bits.
+- **Loudness**: apagado, o un objetivo (−9, −11, −14, −16, −19, −23 LUFS) con un techo de
+  pico real (−0.1, −0.3, −1, −2 dBTP); el limitador de Culmen sostiene el techo cuando la
+  ganancia lo necesita. Los stems nunca se normalizan.
+- **Etiquetas**: título, artista, álbum, año, comentario y el crédito de codificador
+  *Cantus*.
+
+La exportación corre en segundo plano con una barra de progreso; *Detener* no deja archivos
+a medias. Se recuerdan tus últimas opciones.
+
 - **MIDI**: *Archivo ▸ Exportar MIDI…* — la canción entera, la pista seleccionada o el clip
   seleccionado, como archivo de tipo 1 con el tempo, el compás y los nombres de pista.
 - **DAWproject**: *Archivo ▸ Exportar DAWproject…* para llevar un proyecto a Bitwig, Studio
   One y otros DAW que lo leen (un informe dice lo que no pudo viajar).
-
-Esta beta solo exporta WAV. Para streaming, un WAV de 32 bits flotantes masterizado con
-Culmen a −14 LUFS y −1 dBTP es lo que piden los servicios; para MP3 o un archivo de CD de
-16 bits, conviértelo con otro programa por ahora (la exportación a MP3, FLAC y Ogg viene en
-camino).
 
 ## 9. Sonidos: el explorador y los paquetes de sonidos
 
@@ -436,7 +447,7 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Ctrl+Shift+A` | Añadir una pista de audio |
 | `Ctrl+N` · `Ctrl+O` · `Ctrl+S` · `Ctrl+Shift+S` | Nuevo · abrir · guardar · guardar como |
 | `Ctrl+Shift+N` | Canciones de demostración |
-| `Ctrl+Shift+E` | Exportar WAV |
+| `Ctrl+Shift+E` | Exportar audio |
 | `Ctrl+Z` · `Ctrl+Y` | Deshacer · rehacer |
 | `Ctrl+X` · `Ctrl+C` · `Ctrl+V` · `Ctrl+D` | Cortar · copiar · pegar · duplicar |
 | `Ctrl+A` · `Supr` · `Esc` | Seleccionar todo · eliminar · vaciar la selección |
@@ -474,8 +485,7 @@ Esto es una beta. Lo que ya sabemos:
   `.autosave` como en el [capítulo 11](#11-proyectos-autoguardado-y-ajustes). *Nuevo* y
   *Abrir* no preguntan por cambios sin guardar, y al cerrar se autoguarda en silencio en vez
   de preguntar.
-- **Solo se exporta WAV**, de 32 bits flotantes a la frecuencia del dispositivo, la canción
-  entera. No se importan MP3.
+- **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
 - **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
   tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por
   clip.

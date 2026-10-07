@@ -299,22 +299,34 @@ ones.
 
 ## 8. Export
 
-- **The mix**: *File ▸ Export WAV…* (`Ctrl+Shift+E`), then choose where. Cantus renders
-  the whole song from the start to the end of the last clip, plus two seconds of tail,
-  through the master chain, as a stereo **32-bit float WAV** at the audio device's rate.
-  Loop and metronome are ignored. The status bar reports the length and the peak.
-- **Stems**: *File ▸ Export stems…* writes one WAV per mixer strip (after its fader) or per
-  track (before its strip), all starting on the song's first beat with delay compensation
-  included, named `NN Name.wav`. Options: the tail, silent stems too, the master mix, and
-  *Through the master chain* when the master has inserts.
+*File ▸ Export audio…* (`Ctrl+Shift+E` in the default keys) opens the export window:
+presets on the left, the choices on the right, and a line that says exactly what will be
+written.
+
+- **Presets**: *Streaming* (MP3 320 kbps, 44.1 kHz, −14 LUFS, −1 dBTP), *CD* (WAV 16-bit,
+  44.1 kHz, shaped dither), *Stems for mastering* (every strip, WAV 24-bit at the session's
+  rate, not normalised) and *Podcast* (mono MP3 128 kbps, −16 LUFS, −1 dBTP). Change any
+  choice and the *Custom* card lights.
+- **What**: the song (from the start to the end of the last clip, plus a tail you choose),
+  the time selection, or **stems** — one file per mixer strip (after its fader) or per track
+  (before its strip), all starting on the song's first beat, delay compensation included,
+  optionally *through the master chain*.
+- **Formats**: **WAV** 16-bit, 24-bit or 32-bit float; **FLAC** 16 or 24-bit; **MP3** CBR
+  128–320 kbps or VBR V0/V2/V4/V6 (LAME), gapless; **Ogg Vorbis** quality 3–10. Sample rate:
+  the session's or 44.1, 48, 88.2, 96, 192 kHz (MP3 uses 44.1 or 48). Mono or stereo.
+- **Dither** (off, TPDF, shaped) when writing 16 or 24 bits.
+- **Loudness**: off, or a target (−9, −11, −14, −16, −19, −23 LUFS) with a true-peak ceiling
+  (−0.1, −0.3, −1, −2 dBTP); Culmen's own limiter holds the ceiling when the gain needs it.
+  Stems are never normalised.
+- **Tags**: title, artist, album, year, comment, and a *Cantus* encoder credit.
+
+Exports run in the background with a progress bar; *Stop* leaves no partial file. Your last
+choices are remembered.
+
 - **MIDI**: *File ▸ Export MIDI…* — the whole song, the selected track or the selected clip,
   as a type 1 file with the tempo, metre and track names.
 - **DAWproject**: *File ▸ Export DAWproject…* to move a project to Bitwig, Studio One and
   other DAWs that read it (a report lists anything that could not travel).
-
-This beta exports WAV only. For streaming, a 32-bit float WAV mastered with Culmen to
-−14 LUFS and −1 dBTP is what the services want; for MP3 or a 16-bit CD file, convert it
-with another program for now (MP3, FLAC and Ogg export are coming).
 
 ## 9. Sounds: the browser and sound packs
 
@@ -408,7 +420,7 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Ctrl+Shift+A` | Add an audio track |
 | `Ctrl+N` · `Ctrl+O` · `Ctrl+S` · `Ctrl+Shift+S` | New · open · save · save as |
 | `Ctrl+Shift+N` | Demo songs |
-| `Ctrl+Shift+E` | Export WAV |
+| `Ctrl+Shift+E` | Export audio |
 | `Ctrl+Z` · `Ctrl+Y` | Undo · redo |
 | `Ctrl+X` · `Ctrl+C` · `Ctrl+V` · `Ctrl+D` | Cut · copy · paste · duplicate |
 | `Ctrl+A` · `Delete` · `Esc` | Select all · delete · clear the selection |
@@ -444,7 +456,7 @@ This is a beta. What we know about:
 - **No recovery prompt yet** after a crash: rename the `.autosave` file as in
   [chapter 11](#11-projects-autosave-and-settings). *New* and *Open* do not ask about
   unsaved changes, and closing autosaves silently instead of asking.
-- **Export is WAV only**, 32-bit float at the device's rate, the whole song. No MP3 import.
+- **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
   one time signature per project. No crossfades or clip gain envelopes.
 - Hosted plug-ins are not rendered into stems, and their parameters cannot be automated

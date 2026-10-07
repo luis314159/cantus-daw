@@ -180,7 +180,7 @@ provides.
 
 ## Rust crates
 
-253 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 27 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
+271 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 27 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
 
 | Crate | Version | Licence | Texts |
 |---|---|---|---|
@@ -197,6 +197,7 @@ provides.
 | anstyle-query | 1.1.5 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | anstyle-wincon | 3.0.11 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
+| aotuv_lancer_vorbis_sys | 0.1.6 | BSD-3-Clause | declared only — [standard texts](#standard-texts) |
 | arboard | 3.6.1 | MIT OR Apache-2.0 | [T2](#t2) [T9](#t9) |
 | arrayref | 0.3.9 | BSD-2-Clause | [T10](#t10) |
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 | [T2](#t2) [T11](#t11) |
@@ -211,259 +212,276 @@ provides.
 | bitflags | 1.3.2 | MIT/Apache-2.0 | [T2](#t2) [T18](#t18) |
 | bitflags | 2.13.1 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 | [T2](#t2) [T19](#t19) |
-| bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T20](#t20) [T21](#t21) |
-| bytemuck_derive | 1.12.0 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T20](#t20) [T21](#t21) |
+| built | 0.7.7 | MIT *build* | [T20](#t20) |
+| bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T21](#t21) [T22](#t22) |
+| bytemuck_derive | 1.12.0 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T21](#t21) [T22](#t22) |
 | byteorder | 1.5.0 | Unlicense OR MIT | [T5](#t5) [T6](#t6) [T7](#t7) |
 | byteorder-lite | 0.1.0 | Unlicense OR MIT | [T6](#t6) [T7](#t7) |
-| bytes | 1.12.1 | MIT | [T22](#t22) |
-| cc | 1.4.5 | MIT OR Apache-2.0 *build* | [T2](#t2) [T23](#t23) |
-| cexpr | 0.6.0 | Apache-2.0/MIT *build* | [T2](#t2) [T24](#t24) |
-| cfg-if | 1.0.4 | MIT OR Apache-2.0 | [T2](#t2) [T23](#t23) |
-| cfg_aliases | 0.2.2 | MIT *build* | [T25](#t25) [T26](#t26) |
+| bytes | 1.12.1 | MIT | [T23](#t23) |
+| cc | 1.4.5 | MIT OR Apache-2.0 *build* | [T2](#t2) [T24](#t24) |
+| cexpr | 0.6.0 | Apache-2.0/MIT *build* | [T2](#t2) [T25](#t25) |
+| cfg-if | 1.0.4 | MIT OR Apache-2.0 | [T2](#t2) [T24](#t24) |
+| cfg_aliases | 0.2.2 | MIT *build* | [T26](#t26) [T27](#t27) |
 | clang-sys | 1.9.1 | Apache-2.0 *build* | [T2](#t2) |
 | clap-sys | 0.5.0 | MIT/Apache-2.0 | [T2](#t2) [T3](#t3) |
 | claxon | 0.4.3 | Apache-2.0 | [T2](#t2) |
 | clipboard-win | 5.4.1 | BSL-1.0 | declared only — [standard texts](#standard-texts) |
 | codespan-reporting | 0.13.1 | Apache-2.0 | [T2](#t2) |
-| color | 0.3.3 | Apache-2.0 OR MIT | [T2](#t2) [T27](#t27) |
+| color | 0.3.3 | Apache-2.0 OR MIT | [T2](#t2) [T28](#t28) |
 | colorchoice | 1.0.5 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | com-scrape-types | 0.1.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| copypasta | 0.10.2 | MIT / Apache-2.0 | [T2](#t2) [T28](#t28) |
-| cpufeatures | 0.2.17 | MIT OR Apache-2.0 | [T2](#t2) [T29](#t29) |
-| crc32fast | 1.5.1 | MIT OR Apache-2.0 | [T2](#t2) [T30](#t30) |
-| crypto-common | 0.1.7 | MIT OR Apache-2.0 | [T2](#t2) [T31](#t31) |
-| cursor-icon | 1.2.0 | MIT OR Apache-2.0 OR Zlib | [T32](#t32) [T33](#t33) [T34](#t34) |
+| copypasta | 0.10.2 | MIT / Apache-2.0 | [T2](#t2) [T29](#t29) |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 | [T2](#t2) [T30](#t30) |
+| crc | 3.4.0 | MIT OR Apache-2.0 | [T31](#t31) [T32](#t32) |
+| crc-catalog | 2.5.0 | MIT OR Apache-2.0 | [T33](#t33) [T34](#t34) |
+| crc32fast | 1.5.1 | MIT OR Apache-2.0 | [T2](#t2) [T35](#t35) |
+| crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 | [T2](#t2) [T36](#t36) [T37](#t37) |
+| crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 | [T2](#t2) [T36](#t36) |
+| crypto-common | 0.1.7 | MIT OR Apache-2.0 | [T2](#t2) [T38](#t38) |
+| cursor-icon | 1.2.0 | MIT OR Apache-2.0 OR Zlib | [T39](#t39) [T40](#t40) [T41](#t41) |
 | dasp_sample | 0.11.0 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| data-url | 0.3.2 | MIT OR Apache-2.0 | [T2](#t2) [T35](#t35) |
-| defmt | 1.1.1 | MIT OR Apache-2.0 | [T2](#t2) [T36](#t36) |
-| defmt-macros | 1.1.1 | MIT OR Apache-2.0 | [T2](#t2) [T36](#t36) |
+| data-url | 0.3.2 | MIT OR Apache-2.0 | [T2](#t2) [T42](#t42) |
+| defmt | 1.1.1 | MIT OR Apache-2.0 | [T2](#t2) [T43](#t43) |
+| defmt-macros | 1.1.1 | MIT OR Apache-2.0 | [T2](#t2) [T43](#t43) |
 | defmt-parser | 1.0.0 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| der | 0.8.2 | Apache-2.0 OR MIT | [T2](#t2) [T37](#t37) |
-| digest | 0.10.7 | MIT OR Apache-2.0 | [T2](#t2) [T38](#t38) |
-| document-features | 0.2.12 | MIT OR Apache-2.0 | [T2](#t2) [T39](#t39) |
-| dpi | 0.1.2 | Apache-2.0 AND MIT | [T2](#t2) [T40](#t40) |
-| duplicate | 2.0.1 | MIT OR Apache-2.0 | [T41](#t41) [T42](#t42) |
+| der | 0.8.2 | Apache-2.0 OR MIT | [T2](#t2) [T44](#t44) |
+| digest | 0.10.7 | MIT OR Apache-2.0 | [T2](#t2) [T45](#t45) |
+| document-features | 0.2.12 | MIT OR Apache-2.0 | [T2](#t2) [T46](#t46) |
+| dpi | 0.1.2 | Apache-2.0 AND MIT | [T2](#t2) [T47](#t47) |
+| duplicate | 2.0.1 | MIT OR Apache-2.0 | [T48](#t48) [T49](#t49) |
 | ecolor | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | eframe | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | egui | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| egui-baseview | 0.7.2 | MIT OR Apache-2.0 | [T43](#t43) [T44](#t44) |
+| egui-baseview | 0.7.2 | MIT OR Apache-2.0 | [T50](#t50) [T51](#t51) |
 | egui-wgpu | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | egui-winit | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| egui_dock | 0.21.1 | MIT | [T45](#t45) |
+| egui_dock | 0.21.1 | MIT | [T52](#t52) |
 | egui_glow | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| either | 1.18.0 | MIT OR Apache-2.0 | [T2](#t2) [T46](#t46) |
+| either | 1.18.0 | MIT OR Apache-2.0 | [T2](#t2) [T53](#t53) |
 | emath | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
 | enumn | 0.1.14 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | env_filter | 2.0.0 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | env_logger | 0.11.11 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | epaint | 0.36.1 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| epaint_default_fonts | 0.36.1 | (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 | [T47](#t47) [T48](#t48) [T49](#t49) [T50](#t50) |
-| equivalent | 1.0.2 | Apache-2.0 OR MIT | [T2](#t2) [T51](#t51) |
-| error-code | 3.4.0 | BSL-1.0 | [T52](#t52) |
-| euclid | 0.22.14 | MIT OR Apache-2.0 | [T53](#t53) [T2](#t2) [T54](#t54) |
-| fax | 0.2.7 | MIT | [T55](#t55) |
-| fdeflate | 0.3.7 | MIT OR Apache-2.0 | [T2](#t2) [T27](#t27) |
-| fearless_simd | 0.4.1 | Apache-2.0 OR MIT | [T2](#t2) [T56](#t56) |
-| find-msvc-tools | 0.1.12 | MIT OR Apache-2.0 *build* | [T2](#t2) [T23](#t23) |
-| flate2 | 1.1.10 | MIT OR Apache-2.0 | [T2](#t2) [T57](#t57) |
-| float-cmp | 0.9.0 | MIT | [T58](#t58) |
-| foldhash | 0.2.0 | Zlib | [T59](#t59) |
-| font-types | 0.12.4 | MIT OR Apache-2.0 | [T60](#t60) [T61](#t61) |
-| generic-array | 0.14.7 | MIT | [T62](#t62) |
-| getrandom | 0.2.17 | MIT OR Apache-2.0 | [T2](#t2) [T63](#t63) |
-| getrandom | 0.3.4 | MIT OR Apache-2.0 | [T2](#t2) [T64](#t64) |
-| getrandom | 0.4.3 | MIT OR Apache-2.0 *build* | [T2](#t2) [T65](#t65) |
+| epaint_default_fonts | 0.36.1 | (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 | [T54](#t54) [T55](#t55) [T56](#t56) [T57](#t57) |
+| equivalent | 1.0.2 | Apache-2.0 OR MIT | [T2](#t2) [T58](#t58) |
+| errno | 0.3.14 | MIT OR Apache-2.0 | [T2](#t2) [T59](#t59) |
+| error-code | 3.4.0 | BSL-1.0 | [T60](#t60) |
+| euclid | 0.22.14 | MIT OR Apache-2.0 | [T61](#t61) [T2](#t2) [T62](#t62) |
+| fax | 0.2.7 | MIT | [T63](#t63) |
+| fdeflate | 0.3.7 | MIT OR Apache-2.0 | [T2](#t2) [T28](#t28) |
+| fearless_simd | 0.4.1 | Apache-2.0 OR MIT | [T2](#t2) [T64](#t64) |
+| find-msvc-tools | 0.1.12 | MIT OR Apache-2.0 *build* | [T2](#t2) [T24](#t24) |
+| flacenc | 0.5.1 | Apache-2.0 | [T2](#t2) |
+| flate2 | 1.1.10 | MIT OR Apache-2.0 | [T2](#t2) [T65](#t65) |
+| float-cmp | 0.9.0 | MIT | [T66](#t66) |
+| foldhash | 0.2.0 | Zlib | [T67](#t67) |
+| font-types | 0.12.4 | MIT OR Apache-2.0 | [T68](#t68) [T69](#t69) |
+| generic-array | 0.14.7 | MIT | [T70](#t70) |
+| getrandom | 0.2.17 | MIT OR Apache-2.0 | [T2](#t2) [T71](#t71) |
+| getrandom | 0.3.4 | MIT OR Apache-2.0 | [T2](#t2) [T72](#t72) |
+| getrandom | 0.4.3 | MIT OR Apache-2.0 *build* | [T2](#t2) [T73](#t73) |
 | gl_generator | 0.14.0 | Apache-2.0 *build* | declared only — [standard texts](#standard-texts) |
-| glifo | 0.2.0 | Apache-2.0 OR MIT | [T2](#t2) [T66](#t66) |
+| glifo | 0.2.0 | Apache-2.0 OR MIT | [T2](#t2) [T74](#t74) |
 | glob | 0.3.4 | MIT OR Apache-2.0 *build* | [T2](#t2) [T18](#t18) |
-| glow | 0.17.0 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T3](#t3) [T67](#t67) |
-| glutin | 0.32.3 | Apache-2.0 | [T68](#t68) |
-| glutin-winit | 0.5.0 | MIT | [T69](#t69) |
-| glutin_egl_sys | 0.7.1 | Apache-2.0 | [T68](#t68) |
-| glutin_wgl_sys | 0.6.1 | Apache-2.0 | [T68](#t68) |
-| guillotiere | 0.7.0 | MIT/Apache-2.0 | [T70](#t70) [T71](#t71) |
-| half | 2.7.1 | MIT OR Apache-2.0 | [T2](#t2) [T27](#t27) |
-| harfrust | 0.12.0 | MIT | [T72](#t72) |
-| hashbrown | 0.16.1 | MIT OR Apache-2.0 | [T2](#t2) [T73](#t73) |
-| hashbrown | 0.17.1 | MIT OR Apache-2.0 | [T2](#t2) [T73](#t73) |
-| heck | 0.5.0 | MIT OR Apache-2.0 | [T2](#t2) [T74](#t74) |
+| glow | 0.17.0 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T3](#t3) [T75](#t75) |
+| glutin | 0.32.3 | Apache-2.0 | [T76](#t76) |
+| glutin-winit | 0.5.0 | MIT | [T77](#t77) |
+| glutin_egl_sys | 0.7.1 | Apache-2.0 | [T76](#t76) |
+| glutin_wgl_sys | 0.6.1 | Apache-2.0 | [T76](#t76) |
+| guillotiere | 0.7.0 | MIT/Apache-2.0 | [T78](#t78) [T79](#t79) |
+| half | 2.7.1 | MIT OR Apache-2.0 | [T2](#t2) [T28](#t28) |
+| harfrust | 0.12.0 | MIT | [T80](#t80) |
+| hash32 | 0.3.1 | MIT OR Apache-2.0 | [T2](#t2) [T81](#t81) |
+| hashbrown | 0.16.1 | MIT OR Apache-2.0 | [T2](#t2) [T82](#t82) |
+| hashbrown | 0.17.1 | MIT OR Apache-2.0 | [T2](#t2) [T82](#t82) |
+| heapless | 0.8.0 | MIT OR Apache-2.0 | [T2](#t2) [T83](#t83) |
+| heck | 0.5.0 | MIT OR Apache-2.0 | [T2](#t2) [T84](#t84) |
 | hound | 3.5.1 | Apache-2.0 | [T2](#t2) |
-| http | 1.5.0 | MIT OR Apache-2.0 | [T75](#t75) [T76](#t76) |
-| httparse | 1.10.1 | MIT OR Apache-2.0 | [T2](#t2) [T77](#t77) |
-| image | 0.25.10 | MIT OR Apache-2.0 | [T2](#t2) [T27](#t27) |
-| imagesize | 0.15.0 | MIT | [T78](#t78) |
-| indexmap | 2.14.2 | Apache-2.0 OR MIT | [T2](#t2) [T79](#t79) |
+| http | 1.5.0 | MIT OR Apache-2.0 | [T85](#t85) [T86](#t86) |
+| httparse | 1.10.1 | MIT OR Apache-2.0 | [T2](#t2) [T87](#t87) |
+| image | 0.25.10 | MIT OR Apache-2.0 | [T2](#t2) [T28](#t28) |
+| imagesize | 0.15.0 | MIT | [T88](#t88) |
+| indexmap | 2.14.2 | Apache-2.0 OR MIT | [T2](#t2) [T89](#t89) |
 | is_terminal_polyfill | 1.70.2 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
-| itertools | 0.13.0 | MIT OR Apache-2.0 *build* | [T2](#t2) [T46](#t46) |
-| itertools | 0.15.0 | MIT OR Apache-2.0 | [T2](#t2) [T46](#t46) |
+| itertools | 0.13.0 | MIT OR Apache-2.0 *build* | [T2](#t2) [T53](#t53) |
+| itertools | 0.15.0 | MIT OR Apache-2.0 | [T2](#t2) [T53](#t53) |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | jiff | 0.2.35 | Unlicense OR MIT | [T5](#t5) [T6](#t6) [T7](#t7) |
 | jiff-core | 0.1.0 | Unlicense OR MIT | [T5](#t5) [T6](#t6) [T7](#t7) |
-| jobserver | 0.1.35 | MIT OR Apache-2.0 *build* | [T2](#t2) [T23](#t23) |
-| keyboard-types | 0.8.3 | MIT OR Apache-2.0 | [T2](#t2) [T80](#t80) |
+| jobserver | 0.1.35 | MIT OR Apache-2.0 *build* | [T2](#t2) [T24](#t24) |
+| keyboard-types | 0.8.3 | MIT OR Apache-2.0 | [T2](#t2) [T90](#t90) |
 | khronos_api | 3.1.0 | Apache-2.0 *build* | declared only — [standard texts](#standard-texts) |
-| kurbo | 0.13.1 | Apache-2.0 OR MIT | [T2](#t2) [T56](#t56) |
-| lewton | 0.10.2 | MIT OR Apache-2.0 | [T81](#t81) |
-| libc | 0.2.189 | MIT OR Apache-2.0 *build* | [T2](#t2) [T82](#t82) |
-| libloading | 0.8.9 | ISC | [T83](#t83) |
-| libm | 0.2.16 | MIT | [T84](#t84) |
-| linebender_resource_handle | 0.1.1 | Apache-2.0 OR MIT | [T2](#t2) [T27](#t27) |
-| litrs | 1.0.0 | MIT OR Apache-2.0 | [T2](#t2) [T85](#t85) |
-| lock_api | 0.4.14 | MIT OR Apache-2.0 | [T2](#t2) [T86](#t86) |
+| kurbo | 0.13.1 | Apache-2.0 OR MIT | [T2](#t2) [T64](#t64) |
+| lewton | 0.10.2 | MIT OR Apache-2.0 | [T91](#t91) |
+| libc | 0.2.189 | MIT OR Apache-2.0 | [T2](#t2) [T92](#t92) |
+| libloading | 0.8.9 | ISC | [T93](#t93) |
+| libm | 0.2.16 | MIT | [T94](#t94) |
+| linebender_resource_handle | 0.1.1 | Apache-2.0 OR MIT | [T2](#t2) [T28](#t28) |
+| litrs | 1.0.0 | MIT OR Apache-2.0 | [T2](#t2) [T95](#t95) |
+| lock_api | 0.4.14 | MIT OR Apache-2.0 | [T2](#t2) [T96](#t96) |
 | log | 0.4.34 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
+| md-5 | 0.10.6 | MIT OR Apache-2.0 | [T2](#t2) [T97](#t97) |
 | memchr | 2.8.3 | Unlicense OR MIT | [T5](#t5) [T6](#t6) [T7](#t7) |
-| midir | 0.11.0 | MIT | [T87](#t87) |
-| minimal-lexical | 0.2.1 | MIT/Apache-2.0 *build* | [T2](#t2) [T3](#t3) [T88](#t88) |
-| miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 | [T89](#t89) [T2](#t2) [T90](#t90) |
-| miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 | [T89](#t89) [T2](#t2) [T90](#t90) |
-| moxcms | 0.8.1 | BSD-3-Clause OR Apache-2.0 | [T91](#t91) [T92](#t92) |
-| naga | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| naga-types | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| native-tls | 0.2.18 | MIT OR Apache-2.0 | [T2](#t2) [T94](#t94) |
-| nohash-hasher | 0.2.0 | Apache-2.0 OR MIT | [T2](#t2) [T95](#t95) |
-| nom | 7.1.3 | MIT *build* | [T96](#t96) |
+| midir | 0.11.0 | MIT | [T98](#t98) |
+| minimal-lexical | 0.2.1 | MIT/Apache-2.0 *build* | [T2](#t2) [T3](#t3) [T99](#t99) |
+| miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 | [T100](#t100) [T2](#t2) [T101](#t101) |
+| miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 | [T100](#t100) [T2](#t2) [T101](#t101) |
+| moxcms | 0.8.1 | BSD-3-Clause OR Apache-2.0 | [T102](#t102) [T103](#t103) |
+| mp3lame-encoder | 0.2.5 | LGPL-3.0 | [T104](#t104) |
+| mp3lame-sys | 0.1.11 | LGPL-3.0 | [T104](#t104) |
+| naga | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| naga-types | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| native-tls | 0.2.18 | MIT OR Apache-2.0 | [T2](#t2) [T106](#t106) |
+| nohash-hasher | 0.2.0 | Apache-2.0 OR MIT | [T2](#t2) [T107](#t107) |
+| nom | 7.1.3 | MIT *build* | [T108](#t108) |
 | num-derive | 0.4.2 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
-| ogg | 0.8.0 | BSD-3-Clause | [T97](#t97) |
+| ogg | 0.8.0 | BSD-3-Clause | [T109](#t109) |
+| ogg_next_sys | 0.1.5 | BSD-3-Clause | declared only — [standard texts](#standard-texts) |
 | once_cell | 1.21.4 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | once_cell_polyfill | 1.70.2 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
-| open | 5.4.4 | MIT | [T98](#t98) |
-| parking_lot | 0.12.5 | MIT OR Apache-2.0 | [T2](#t2) [T86](#t86) |
-| parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | [T2](#t2) [T86](#t86) |
+| open | 5.4.4 | MIT | [T110](#t110) |
+| parking_lot | 0.12.5 | MIT OR Apache-2.0 | [T2](#t2) [T96](#t96) |
+| parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | [T2](#t2) [T96](#t96) |
 | paste | 1.0.15 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| pem-rfc7468 | 1.0.0 | Apache-2.0 OR MIT | [T2](#t2) [T99](#t99) |
-| peniko | 0.6.1 | Apache-2.0 OR MIT | [T2](#t2) [T56](#t56) |
-| percent-encoding | 2.3.2 | MIT OR Apache-2.0 | [T2](#t2) [T35](#t35) |
-| pico-args | 0.5.0 | MIT | [T100](#t100) |
+| pem-rfc7468 | 1.0.0 | Apache-2.0 OR MIT | [T2](#t2) [T111](#t111) |
+| peniko | 0.6.1 | Apache-2.0 OR MIT | [T2](#t2) [T64](#t64) |
+| percent-encoding | 2.3.2 | MIT OR Apache-2.0 | [T2](#t2) [T42](#t42) |
+| pico-args | 0.5.0 | MIT | [T112](#t112) |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT | [T2](#t2) [T3](#t3) |
-| png | 0.18.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
-| polycool | 0.4.0 | MIT OR Apache-2.0 | [T2](#t2) [T56](#t56) |
+| png | 0.18.1 | MIT OR Apache-2.0 | [T2](#t2) [T113](#t113) |
+| polycool | 0.4.0 | MIT OR Apache-2.0 | [T2](#t2) [T64](#t64) |
 | prettyplease | 0.2.37 | MIT OR Apache-2.0 *build* | [T2](#t2) [T3](#t3) |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| proc-macro2-diagnostics | 0.10.1 | MIT/Apache-2.0 | [T2](#t2) [T102](#t102) |
+| proc-macro2-diagnostics | 0.10.1 | MIT/Apache-2.0 | [T2](#t2) [T114](#t114) |
 | profiling | 1.0.18 | MIT OR Apache-2.0 | declared only — [standard texts](#standard-texts) |
-| pxfm | 0.1.30 | BSD-3-Clause OR Apache-2.0 | [T91](#t91) [T92](#t92) |
-| quick-error | 2.0.1 | MIT/Apache-2.0 | [T2](#t2) [T103](#t103) |
+| pxfm | 0.1.30 | BSD-3-Clause OR Apache-2.0 | [T102](#t102) [T103](#t103) |
+| quick-error | 2.0.1 | MIT/Apache-2.0 | [T2](#t2) [T115](#t115) |
 | quote | 1.0.47 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T104](#t104) [T105](#t105) |
-| read-fonts | 0.41.0 | MIT OR Apache-2.0 | [T60](#t60) [T61](#t61) |
+| raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T116](#t116) [T117](#t117) |
+| read-fonts | 0.41.0 | MIT OR Apache-2.0 | [T68](#t68) [T69](#t69) |
 | regex | 1.13.1 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
 | regex-automata | 0.4.18 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 | [T2](#t2) [T18](#t18) |
-| renderdoc-sys | 1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T106](#t106) |
-| resvg | 0.48.1 | Apache-2.0 OR MIT | [T2](#t2) [T107](#t107) |
-| rfd | 0.15.4 | MIT | [T108](#t108) |
-| rgb | 0.8.53 | MIT | [T109](#t109) |
-| ring | 0.17.14 | Apache-2.0 AND ISC | [T110](#t110) [T111](#t111) [T112](#t112) |
-| roxmltree | 0.20.0 | MIT OR Apache-2.0 | [T2](#t2) [T113](#t113) |
-| roxmltree | 0.21.1 | MIT OR Apache-2.0 | [T2](#t2) [T113](#t113) |
+| renderdoc-sys | 1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T118](#t118) |
+| resvg | 0.48.1 | Apache-2.0 OR MIT | [T2](#t2) [T119](#t119) |
+| rfd | 0.15.4 | MIT | [T120](#t120) |
+| rgb | 0.8.53 | MIT | [T121](#t121) |
+| ring | 0.17.14 | Apache-2.0 AND ISC | [T122](#t122) [T123](#t123) [T124](#t124) |
+| roxmltree | 0.20.0 | MIT OR Apache-2.0 | [T2](#t2) [T125](#t125) |
+| roxmltree | 0.21.1 | MIT OR Apache-2.0 | [T2](#t2) [T125](#t125) |
 | rtrb | 0.4.0 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | rustc-hash | 1.1.0 | Apache-2.0/MIT | [T2](#t2) [T3](#t3) |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT | [T2](#t2) [T3](#t3) |
-| rustls | 0.23.45 | Apache-2.0 OR ISC OR MIT | [T2](#t2) [T114](#t114) [T115](#t115) |
-| rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 | [T116](#t116) [T117](#t117) |
-| rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 | [T2](#t2) [T118](#t118) |
-| rustls-webpki | 0.103.15 | ISC | [T119](#t119) |
-| same-file | 1.0.6 | Unlicense/MIT *build* | [T5](#t5) [T120](#t120) [T7](#t7) |
-| schannel | 0.1.29 | MIT | [T121](#t121) |
-| scopeguard | 1.2.0 | MIT OR Apache-2.0 | [T2](#t2) [T122](#t122) |
-| self_cell | 1.3.0 | Apache-2.0 OR GPL-2.0-only | [T2](#t2) [T123](#t123) |
+| rustls | 0.23.45 | Apache-2.0 OR ISC OR MIT | [T2](#t2) [T126](#t126) [T127](#t127) |
+| rustls-pki-types | 1.15.1 | MIT OR Apache-2.0 | [T128](#t128) [T129](#t129) |
+| rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 | [T2](#t2) [T130](#t130) |
+| rustls-webpki | 0.103.15 | ISC | [T131](#t131) |
+| rustversion | 1.0.23 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
+| same-file | 1.0.6 | Unlicense/MIT *build* | [T5](#t5) [T132](#t132) [T7](#t7) |
+| schannel | 0.1.29 | MIT | [T133](#t133) |
+| scopeguard | 1.2.0 | MIT OR Apache-2.0 | [T2](#t2) [T134](#t134) |
+| self_cell | 1.3.0 | Apache-2.0 OR GPL-2.0-only | [T2](#t2) [T135](#t135) |
+| seq-macro | 0.3.6 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | serde | 1.0.229 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | serde_json | 1.0.151 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | serde_spanned | 1.1.1 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
-| sha2 | 0.10.9 | MIT OR Apache-2.0 | [T2](#t2) [T124](#t124) |
-| shlex | 1.3.0 | MIT OR Apache-2.0 *build* | [T125](#t125) [T126](#t126) |
-| shlex | 2.0.1 | MIT OR Apache-2.0 *build* | [T125](#t125) [T126](#t126) |
-| simd-adler32 | 0.3.10 | MIT | [T127](#t127) |
-| simplecss | 0.2.2 | Apache-2.0 OR MIT | [T2](#t2) [T128](#t128) |
-| siphasher | 1.0.3 | MIT/Apache-2.0 | [T129](#t129) |
-| skrifa | 0.44.0 | MIT OR Apache-2.0 | [T60](#t60) [T61](#t61) |
-| smallvec | 1.16.0 | MIT OR Apache-2.0 | [T2](#t2) [T130](#t130) |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 | [T2](#t2) [T97](#t97) |
+| shlex | 1.3.0 | MIT OR Apache-2.0 *build* | [T136](#t136) [T137](#t137) |
+| shlex | 2.0.1 | MIT OR Apache-2.0 *build* | [T136](#t136) [T137](#t137) |
+| simd-adler32 | 0.3.10 | MIT | [T138](#t138) |
+| simplecss | 0.2.2 | Apache-2.0 OR MIT | [T2](#t2) [T139](#t139) |
+| siphasher | 1.0.3 | MIT/Apache-2.0 | [T140](#t140) |
+| skrifa | 0.44.0 | MIT OR Apache-2.0 | [T68](#t68) [T69](#t69) |
+| smallvec | 1.16.0 | MIT OR Apache-2.0 | [T2](#t2) [T141](#t141) |
 | smol_str | 0.2.2 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| static_assertions | 1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T131](#t131) |
-| strict-num | 0.1.1 | MIT | [T132](#t132) |
-| subtle | 2.6.1 | BSD-3-Clause | [T133](#t133) |
-| svgtypes | 0.16.1 | Apache-2.0 OR MIT | [T2](#t2) [T134](#t134) |
+| stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 | [T2](#t2) [T142](#t142) |
+| static_assertions | 1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T143](#t143) |
+| strict-num | 0.1.1 | MIT | [T144](#t144) |
+| subtle | 2.6.1 | BSD-3-Clause | [T145](#t145) |
+| svgtypes | 0.16.1 | Apache-2.0 OR MIT | [T2](#t2) [T146](#t146) |
 | syn | 2.0.119 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | syn | 3.0.5 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | thiserror | 2.0.20 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | thiserror-impl | 2.0.20 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| tiff | 0.11.3 | MIT | [T135](#t135) |
-| tiny-skia | 0.12.0 | BSD-3-Clause | [T136](#t136) |
-| tiny-skia-path | 0.12.0 | BSD-3-Clause | [T136](#t136) |
-| tinyvec | 1.13.3 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T3](#t3) [T21](#t21) |
+| tiff | 0.11.3 | MIT | [T147](#t147) |
+| tiny-skia | 0.12.0 | BSD-3-Clause | [T148](#t148) |
+| tiny-skia-path | 0.12.0 | BSD-3-Clause | [T148](#t148) |
+| tinyvec | 1.13.3 | Zlib OR Apache-2.0 OR MIT | [T2](#t2) [T3](#t3) [T22](#t22) |
 | toml | 0.9.12+spec-1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | toml | 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 *build* | [T2](#t2) [T8](#t8) |
 | toml_datetime | 0.7.5+spec-1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 *build* | [T2](#t2) [T8](#t8) |
 | toml_parser | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
 | toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | [T2](#t2) [T8](#t8) |
-| tracing | 0.1.44 | MIT | [T137](#t137) |
-| tracing-attributes | 0.1.31 | MIT | [T137](#t137) |
-| tracing-core | 0.1.36 | MIT | [T137](#t137) |
-| type-map | 0.5.1 | MIT/Apache-2.0 | [T138](#t138) [T139](#t139) |
+| tracing | 0.1.44 | MIT | [T149](#t149) |
+| tracing-attributes | 0.1.31 | MIT | [T149](#t149) |
+| tracing-core | 0.1.36 | MIT | [T149](#t149) |
+| type-map | 0.5.1 | MIT/Apache-2.0 | [T150](#t150) [T151](#t151) |
 | typed-path | 0.12.3 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| typenum | 1.20.1 | MIT OR Apache-2.0 | [T140](#t140) [T141](#t141) [T142](#t142) |
+| typenum | 1.20.1 | MIT OR Apache-2.0 | [T152](#t152) [T153](#t153) [T154](#t154) |
 | unicode-general-category | 1.1.0 | Apache-2.0 | [T2](#t2) |
-| unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | [T2](#t2) [T3](#t3) [T143](#t143) |
-| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | [T53](#t53) [T2](#t2) [T74](#t74) |
-| unicode-width | 0.2.2 | MIT OR Apache-2.0 | [T53](#t53) [T2](#t2) [T74](#t74) |
-| untrusted | 0.9.0 | ISC | [T144](#t144) |
-| ureq | 3.4.2 | MIT OR Apache-2.0 | [T2](#t2) [T145](#t145) |
-| ureq-proto | 0.6.4 | MIT OR Apache-2.0 | [T2](#t2) [T146](#t146) |
-| usvg | 0.48.1 | Apache-2.0 OR MIT | [T2](#t2) [T107](#t107) |
+| unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | [T2](#t2) [T3](#t3) [T155](#t155) |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | [T61](#t61) [T2](#t2) [T84](#t84) |
+| unicode-width | 0.2.2 | MIT OR Apache-2.0 | [T61](#t61) [T2](#t2) [T84](#t84) |
+| untrusted | 0.9.0 | ISC | [T156](#t156) |
+| ureq | 3.4.2 | MIT OR Apache-2.0 | [T2](#t2) [T157](#t157) |
+| ureq-proto | 0.6.4 | MIT OR Apache-2.0 | [T2](#t2) [T158](#t158) |
+| usvg | 0.48.1 | Apache-2.0 OR MIT | [T2](#t2) [T119](#t119) |
 | utf8-zero | 0.8.1 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
-| utf8parse | 0.2.2 | Apache-2.0 OR MIT | [T2](#t2) [T147](#t147) |
-| uuid | 1.26.0 | Apache-2.0 OR MIT | [T2](#t2) [T148](#t148) |
-| vello_common | 0.1.0 | Apache-2.0 OR MIT | [T2](#t2) [T149](#t149) |
-| vello_cpu | 0.1.0 | Apache-2.0 OR MIT | [T2](#t2) [T149](#t149) |
-| version_check | 0.9.5 | MIT/Apache-2.0 *build* | [T2](#t2) [T150](#t150) |
+| utf8parse | 0.2.2 | Apache-2.0 OR MIT | [T2](#t2) [T159](#t159) |
+| uuid | 1.26.0 | Apache-2.0 OR MIT | [T2](#t2) [T160](#t160) |
+| vello_common | 0.1.0 | Apache-2.0 OR MIT | [T2](#t2) [T161](#t161) |
+| vello_cpu | 0.1.0 | Apache-2.0 OR MIT | [T2](#t2) [T161](#t161) |
+| version_check | 0.9.5 | MIT/Apache-2.0 *build* | [T2](#t2) [T162](#t162) |
+| vorbis_rs | 0.5.6 | BSD-3-Clause | declared only — [standard texts](#standard-texts) |
 | vst3 | 0.3.0 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | walkdir | 2.5.0 | Unlicense/MIT *build* | [T5](#t5) [T6](#t6) [T7](#t7) |
-| web-time | 1.1.0 | MIT OR Apache-2.0 | [T151](#t151) [T152](#t152) |
-| webpki-roots | 1.0.9 | CDLA-Permissive-2.0 | [T153](#t153) |
-| weezl | 0.1.12 | MIT OR Apache-2.0 | [T2](#t2) [T154](#t154) |
-| wgpu | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| wgpu-core | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| wgpu-core-deps-windows-linux-android | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| wgpu-hal | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| wgpu-naga-bridge | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| wgpu-types | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T93](#t93) |
-| winapi-util | 0.1.11 | Unlicense OR MIT *build* | [T5](#t5) [T120](#t120) [T7](#t7) |
-| windows | 0.62.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-collections | 0.3.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-core | 0.62.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-future | 0.3.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-implement | 0.60.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-interface | 0.59.3 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-link | 0.2.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-result | 0.4.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-strings | 0.5.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-sys | 0.52.0 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-sys | 0.59.0 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-sys | 0.60.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-sys | 0.61.2 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-targets | 0.52.6 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-targets | 0.53.5 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows-threading | 0.2.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
-| windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 | [T155](#t155) [T156](#t156) |
+| web-time | 1.1.0 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| webpki-roots | 1.0.9 | CDLA-Permissive-2.0 | [T165](#t165) |
+| weezl | 0.1.12 | MIT OR Apache-2.0 | [T2](#t2) [T166](#t166) |
+| wgpu | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| wgpu-core | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| wgpu-core-deps-windows-linux-android | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| wgpu-hal | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| wgpu-naga-bridge | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| wgpu-types | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T105](#t105) |
+| winapi-util | 0.1.11 | Unlicense OR MIT *build* | [T5](#t5) [T132](#t132) [T7](#t7) |
+| windows | 0.62.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-collections | 0.3.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-core | 0.62.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-future | 0.3.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-implement | 0.60.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-interface | 0.59.3 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-link | 0.2.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-result | 0.4.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-strings | 0.5.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-sys | 0.52.0 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-sys | 0.59.0 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-sys | 0.60.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-sys | 0.61.2 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-targets | 0.52.6 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-targets | 0.53.5 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows-threading | 0.2.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
+| windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 | [T167](#t167) [T168](#t168) |
 | winit | 0.30.13 | Apache-2.0 | [T2](#t2) |
 | winnow | 0.7.15 | MIT | [T3](#t3) |
 | winnow | 1.0.4 | MIT | [T3](#t3) |
-| winresource | 0.1.31 | MIT *build* | [T157](#t157) |
-| xml-rs | 0.8.29 | MIT *build* | [T158](#t158) |
-| zerocopy | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T159](#t159) [T160](#t160) [T161](#t161) |
-| zerocopy-derive | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T159](#t159) [T160](#t160) [T161](#t161) |
-| zeroize | 1.9.0 | Apache-2.0 OR MIT | [T2](#t2) [T162](#t162) |
-| zip | 8.6.0 | MIT | [T163](#t163) |
-| zlib-rs | 0.6.7 | Zlib | [T164](#t164) |
+| winresource | 0.1.31 | MIT *build* | [T169](#t169) |
+| xml-rs | 0.8.29 | MIT *build* | [T170](#t170) |
+| zerocopy | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T171](#t171) [T172](#t172) [T173](#t173) |
+| zerocopy-derive | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T171](#t171) [T172](#t172) [T173](#t173) |
+| zeroize | 1.9.0 | Apache-2.0 OR MIT | [T2](#t2) [T174](#t174) |
+| zip | 8.6.0 | MIT | [T175](#t175) |
+| zlib-rs | 0.6.7 | Zlib | [T176](#t176) |
 | zmij | 1.0.23 | MIT | [T3](#t3) |
-| zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T165](#t165) [T166](#t166) |
-| zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T165](#t165) [T166](#t166) |
+| zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T177](#t177) [T178](#t178) |
+| zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T177](#t177) [T178](#t178) |
 
 ## Licence texts
 
@@ -492,7 +510,7 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ### T2
 
-In: adler2 2.0.1 (`LICENSE-APACHE`), ahash 0.8.12 (`LICENSE-APACHE`), anstream 1.0.0 (`LICENSE-APACHE`), anstyle 1.0.14 (`LICENSE-APACHE`), anstyle-parse 1.0.0 (`LICENSE-APACHE`), anstyle-query 1.1.5 (`LICENSE-APACHE`), anstyle-wincon 3.0.11 (`LICENSE-APACHE`), anyhow 1.0.104 (`LICENSE-APACHE`), arboard 3.6.1 (`LICENSE-APACHE.txt`), arrayvec 0.7.8 (`LICENSE-APACHE`), async-trait 0.1.92 (`LICENSE-APACHE`), autocfg 1.5.1 (`LICENSE-APACHE`), base64 0.23.1 (`LICENSE-APACHE`), base64ct 1.8.3 (`LICENSE-APACHE`), baseview 0.3.4 (`LICENSE-APACHE`), bit-set 0.10.0 (`LICENSE-APACHE`), bit-vec 0.9.1 (`LICENSE-APACHE`), bitflags 1.3.2 (`LICENSE-APACHE`), bitflags 2.13.1 (`LICENSE-APACHE`), block-buffer 0.10.4 (`LICENSE-APACHE`), bytemuck 1.25.2 (`LICENSE-APACHE`), bytemuck_derive 1.12.0 (`LICENSE-APACHE`), cc 1.4.5 (`LICENSE-APACHE`), cexpr 0.6.0 (`LICENSE-APACHE`), cfg-if 1.0.4 (`LICENSE-APACHE`), clang-sys 1.9.1 (`LICENSE.txt`), clap-sys 0.5.0 (`LICENSE-APACHE`), claxon 0.4.3 (`license`), codespan-reporting 0.13.1 (`LICENSE`), color 0.3.3 (`LICENSE-APACHE`), colorchoice 1.0.5 (`LICENSE-APACHE`), copypasta 0.10.2 (`LICENSE.apache2`), cpufeatures 0.2.17 (`LICENSE-APACHE`), crc32fast 1.5.1 (`LICENSE-APACHE`), crypto-common 0.1.7 (`LICENSE-APACHE`), data-url 0.3.2 (`LICENSE-APACHE`), defmt 1.1.1 (`LICENSE-APACHE`), defmt-macros 1.1.1 (`LICENSE-APACHE`), der 0.8.2 (`LICENSE-APACHE`), digest 0.10.7 (`LICENSE-APACHE`), document-features 0.2.12 (`LICENSE-APACHE`), dpi 0.1.2 (`LICENSE`), either 1.18.0 (`LICENSE-APACHE`), enumn 0.1.14 (`LICENSE-APACHE`), env_filter 2.0.0 (`LICENSE-APACHE`), env_logger 0.11.11 (`LICENSE-APACHE`), equivalent 1.0.2 (`LICENSE-APACHE`), euclid 0.22.14 (`LICENSE-APACHE`), fdeflate 0.3.7 (`LICENSE-APACHE`), fearless_simd 0.4.1 (`LICENSE-APACHE`), find-msvc-tools 0.1.12 (`LICENSE-APACHE`), flate2 1.1.10 (`LICENSE-APACHE`), getrandom 0.2.17 (`LICENSE-APACHE`), getrandom 0.3.4 (`LICENSE-APACHE`), getrandom 0.4.3 (`LICENSE-APACHE`), glifo 0.2.0 (`LICENSE-APACHE`), glob 0.3.4 (`LICENSE-APACHE`), glow 0.17.0 (`LICENSE-APACHE`), half 2.7.1 (`LICENSE-APACHE`), hashbrown 0.16.1 (`LICENSE-APACHE`), hashbrown 0.17.1 (`LICENSE-APACHE`), heck 0.5.0 (`LICENSE-APACHE`), hound 3.5.1 (`license`), httparse 1.10.1 (`LICENSE-APACHE`), image 0.25.10 (`LICENSE-APACHE`), indexmap 2.14.2 (`LICENSE-APACHE`), is_terminal_polyfill 1.70.2 (`LICENSE-APACHE`), itertools 0.13.0 (`LICENSE-APACHE`), itertools 0.15.0 (`LICENSE-APACHE`), itoa 1.0.18 (`LICENSE-APACHE`), jobserver 0.1.35 (`LICENSE-APACHE`), keyboard-types 0.8.3 (`LICENSE-APACHE`), kurbo 0.13.1 (`LICENSE-APACHE`), libc 0.2.189 (`LICENSE-APACHE`), linebender_resource_handle 0.1.1 (`LICENSE-APACHE`), litrs 1.0.0 (`LICENSE-APACHE`), lock_api 0.4.14 (`LICENSE-APACHE`), log 0.4.34 (`LICENSE-APACHE`), minimal-lexical 0.2.1 (`LICENSE-APACHE`), miniz_oxide 0.8.9 (`LICENSE-APACHE.md`), miniz_oxide 0.9.1 (`LICENSE-APACHE.md`), naga 30.0.1 (`LICENSE.APACHE`), naga-types 30.0.1 (`LICENSE.APACHE`), native-tls 0.2.18 (`LICENSE-APACHE`), nohash-hasher 0.2.0 (`LICENSE-APACHE`), num-derive 0.4.2 (`LICENSE-APACHE`), num-traits 0.2.19 (`LICENSE-APACHE`), once_cell 1.21.4 (`LICENSE-APACHE`), once_cell_polyfill 1.70.2 (`LICENSE-APACHE`), parking_lot 0.12.5 (`LICENSE-APACHE`), parking_lot_core 0.9.12 (`LICENSE-APACHE`), paste 1.0.15 (`LICENSE-APACHE`), pem-rfc7468 1.0.0 (`LICENSE-APACHE`), peniko 0.6.1 (`LICENSE-APACHE`), percent-encoding 2.3.2 (`LICENSE-APACHE`), pin-project-lite 0.2.17 (`LICENSE-APACHE`), png 0.18.1 (`LICENSE-APACHE`), polycool 0.4.0 (`LICENSE-APACHE`), prettyplease 0.2.37 (`LICENSE-APACHE`), proc-macro2 1.0.107 (`LICENSE-APACHE`), proc-macro2-diagnostics 0.10.1 (`LICENSE-APACHE`), quick-error 2.0.1 (`LICENSE-APACHE`), quote 1.0.47 (`LICENSE-APACHE`), raw-window-handle 0.6.2 (`LICENSE-APACHE.md`), regex 1.13.1 (`LICENSE-APACHE`), regex-automata 0.4.18 (`LICENSE-APACHE`), regex-syntax 0.8.11 (`LICENSE-APACHE`), renderdoc-sys 1.1.0 (`LICENSE-APACHE`), resvg 0.48.1 (`LICENSE-APACHE`), roxmltree 0.20.0 (`LICENSE-APACHE`), roxmltree 0.21.1 (`LICENSE-APACHE`), rtrb 0.4.0 (`LICENSE-APACHE`), rustc-hash 1.1.0 (`LICENSE-APACHE`), rustc-hash 2.1.3 (`LICENSE-APACHE`), rustls 0.23.45 (`LICENSE-APACHE`), rustls-platform-verifier 0.7.1 (`LICENSE-APACHE`), scopeguard 1.2.0 (`LICENSE-APACHE`), self_cell 1.3.0 (`LICENSE-APACHE`), serde 1.0.229 (`LICENSE-APACHE`), serde_core 1.0.229 (`LICENSE-APACHE`), serde_derive 1.0.229 (`LICENSE-APACHE`), serde_json 1.0.151 (`LICENSE-APACHE`), serde_spanned 1.1.1 (`LICENSE-APACHE`), sha2 0.10.9 (`LICENSE-APACHE`), simplecss 0.2.2 (`LICENSE-APACHE`), smallvec 1.16.0 (`LICENSE-APACHE`), smol_str 0.2.2 (`LICENSE-APACHE`), static_assertions 1.1.0 (`LICENSE-APACHE`), svgtypes 0.16.1 (`LICENSE-APACHE`), syn 2.0.119 (`LICENSE-APACHE`), syn 3.0.5 (`LICENSE-APACHE`), thiserror 2.0.20 (`LICENSE-APACHE`), thiserror-impl 2.0.20 (`LICENSE-APACHE`), tinyvec 1.13.3 (`LICENSE-APACHE.md`), toml 0.9.12+spec-1.1.0 (`LICENSE-APACHE`), toml 1.1.6+spec-1.1.0 (`LICENSE-APACHE`), toml_datetime 0.7.5+spec-1.1.0 (`LICENSE-APACHE`), toml_datetime 1.1.1+spec-1.1.0 (`LICENSE-APACHE`), toml_parser 1.1.3+spec-1.1.0 (`LICENSE-APACHE`), toml_writer 1.1.2+spec-1.1.0 (`LICENSE-APACHE`), typed-path 0.12.3 (`LICENSE-APACHE`), unicode-general-category 1.1.0 (`LICENSE`), unicode-ident 1.0.24 (`LICENSE-APACHE`), unicode-segmentation 1.13.3 (`LICENSE-APACHE`), unicode-width 0.2.2 (`LICENSE-APACHE`), ureq 3.4.2 (`LICENSE-APACHE`), ureq-proto 0.6.4 (`LICENSE-APACHE.txt`), usvg 0.48.1 (`LICENSE-APACHE`), utf8-zero 0.8.1 (`LICENSE-APACHE`), utf8parse 0.2.2 (`LICENSE-APACHE`), uuid 1.26.0 (`LICENSE-APACHE`), vello_common 0.1.0 (`LICENSE-APACHE`), vello_cpu 0.1.0 (`LICENSE-APACHE`), version_check 0.9.5 (`LICENSE-APACHE`), vst3 0.3.0 (`LICENSE-APACHE`), weezl 0.1.12 (`LICENSE-APACHE`), wgpu 30.0.1 (`LICENSE.APACHE`), wgpu-core 30.0.1 (`LICENSE.APACHE`), wgpu-core-deps-windows-linux-android 30.0.1 (`LICENSE.APACHE`), wgpu-hal 30.0.1 (`LICENSE.APACHE`), wgpu-naga-bridge 30.0.1 (`LICENSE.APACHE`), wgpu-types 30.0.1 (`LICENSE.APACHE`), winit 0.30.13 (`LICENSE`), zeroize 1.9.0 (`LICENSE-APACHE`), zune-core 0.5.3 (`LICENSE-APACHE`), zune-jpeg 0.5.15 (`LICENSE-APACHE`).
+In: adler2 2.0.1 (`LICENSE-APACHE`), ahash 0.8.12 (`LICENSE-APACHE`), anstream 1.0.0 (`LICENSE-APACHE`), anstyle 1.0.14 (`LICENSE-APACHE`), anstyle-parse 1.0.0 (`LICENSE-APACHE`), anstyle-query 1.1.5 (`LICENSE-APACHE`), anstyle-wincon 3.0.11 (`LICENSE-APACHE`), anyhow 1.0.104 (`LICENSE-APACHE`), arboard 3.6.1 (`LICENSE-APACHE.txt`), arrayvec 0.7.8 (`LICENSE-APACHE`), async-trait 0.1.92 (`LICENSE-APACHE`), autocfg 1.5.1 (`LICENSE-APACHE`), base64 0.23.1 (`LICENSE-APACHE`), base64ct 1.8.3 (`LICENSE-APACHE`), baseview 0.3.4 (`LICENSE-APACHE`), bit-set 0.10.0 (`LICENSE-APACHE`), bit-vec 0.9.1 (`LICENSE-APACHE`), bitflags 1.3.2 (`LICENSE-APACHE`), bitflags 2.13.1 (`LICENSE-APACHE`), block-buffer 0.10.4 (`LICENSE-APACHE`), bytemuck 1.25.2 (`LICENSE-APACHE`), bytemuck_derive 1.12.0 (`LICENSE-APACHE`), cc 1.4.5 (`LICENSE-APACHE`), cexpr 0.6.0 (`LICENSE-APACHE`), cfg-if 1.0.4 (`LICENSE-APACHE`), clang-sys 1.9.1 (`LICENSE.txt`), clap-sys 0.5.0 (`LICENSE-APACHE`), claxon 0.4.3 (`license`), codespan-reporting 0.13.1 (`LICENSE`), color 0.3.3 (`LICENSE-APACHE`), colorchoice 1.0.5 (`LICENSE-APACHE`), copypasta 0.10.2 (`LICENSE.apache2`), cpufeatures 0.2.17 (`LICENSE-APACHE`), crc32fast 1.5.1 (`LICENSE-APACHE`), crossbeam-channel 0.5.17 (`LICENSE-APACHE`), crossbeam-utils 0.8.23 (`LICENSE-APACHE`), crypto-common 0.1.7 (`LICENSE-APACHE`), data-url 0.3.2 (`LICENSE-APACHE`), defmt 1.1.1 (`LICENSE-APACHE`), defmt-macros 1.1.1 (`LICENSE-APACHE`), der 0.8.2 (`LICENSE-APACHE`), digest 0.10.7 (`LICENSE-APACHE`), document-features 0.2.12 (`LICENSE-APACHE`), dpi 0.1.2 (`LICENSE`), either 1.18.0 (`LICENSE-APACHE`), enumn 0.1.14 (`LICENSE-APACHE`), env_filter 2.0.0 (`LICENSE-APACHE`), env_logger 0.11.11 (`LICENSE-APACHE`), equivalent 1.0.2 (`LICENSE-APACHE`), errno 0.3.14 (`LICENSE-APACHE`), euclid 0.22.14 (`LICENSE-APACHE`), fdeflate 0.3.7 (`LICENSE-APACHE`), fearless_simd 0.4.1 (`LICENSE-APACHE`), find-msvc-tools 0.1.12 (`LICENSE-APACHE`), flacenc 0.5.1 (`LICENSE`), flate2 1.1.10 (`LICENSE-APACHE`), getrandom 0.2.17 (`LICENSE-APACHE`), getrandom 0.3.4 (`LICENSE-APACHE`), getrandom 0.4.3 (`LICENSE-APACHE`), glifo 0.2.0 (`LICENSE-APACHE`), glob 0.3.4 (`LICENSE-APACHE`), glow 0.17.0 (`LICENSE-APACHE`), half 2.7.1 (`LICENSE-APACHE`), hash32 0.3.1 (`LICENSE-APACHE`), hashbrown 0.16.1 (`LICENSE-APACHE`), hashbrown 0.17.1 (`LICENSE-APACHE`), heapless 0.8.0 (`LICENSE-APACHE`), heck 0.5.0 (`LICENSE-APACHE`), hound 3.5.1 (`license`), httparse 1.10.1 (`LICENSE-APACHE`), image 0.25.10 (`LICENSE-APACHE`), indexmap 2.14.2 (`LICENSE-APACHE`), is_terminal_polyfill 1.70.2 (`LICENSE-APACHE`), itertools 0.13.0 (`LICENSE-APACHE`), itertools 0.15.0 (`LICENSE-APACHE`), itoa 1.0.18 (`LICENSE-APACHE`), jobserver 0.1.35 (`LICENSE-APACHE`), keyboard-types 0.8.3 (`LICENSE-APACHE`), kurbo 0.13.1 (`LICENSE-APACHE`), libc 0.2.189 (`LICENSE-APACHE`), linebender_resource_handle 0.1.1 (`LICENSE-APACHE`), litrs 1.0.0 (`LICENSE-APACHE`), lock_api 0.4.14 (`LICENSE-APACHE`), log 0.4.34 (`LICENSE-APACHE`), md-5 0.10.6 (`LICENSE-APACHE`), minimal-lexical 0.2.1 (`LICENSE-APACHE`), miniz_oxide 0.8.9 (`LICENSE-APACHE.md`), miniz_oxide 0.9.1 (`LICENSE-APACHE.md`), naga 30.0.1 (`LICENSE.APACHE`), naga-types 30.0.1 (`LICENSE.APACHE`), native-tls 0.2.18 (`LICENSE-APACHE`), nohash-hasher 0.2.0 (`LICENSE-APACHE`), num-derive 0.4.2 (`LICENSE-APACHE`), num-traits 0.2.19 (`LICENSE-APACHE`), once_cell 1.21.4 (`LICENSE-APACHE`), once_cell_polyfill 1.70.2 (`LICENSE-APACHE`), parking_lot 0.12.5 (`LICENSE-APACHE`), parking_lot_core 0.9.12 (`LICENSE-APACHE`), paste 1.0.15 (`LICENSE-APACHE`), pem-rfc7468 1.0.0 (`LICENSE-APACHE`), peniko 0.6.1 (`LICENSE-APACHE`), percent-encoding 2.3.2 (`LICENSE-APACHE`), pin-project-lite 0.2.17 (`LICENSE-APACHE`), png 0.18.1 (`LICENSE-APACHE`), polycool 0.4.0 (`LICENSE-APACHE`), prettyplease 0.2.37 (`LICENSE-APACHE`), proc-macro2 1.0.107 (`LICENSE-APACHE`), proc-macro2-diagnostics 0.10.1 (`LICENSE-APACHE`), quick-error 2.0.1 (`LICENSE-APACHE`), quote 1.0.47 (`LICENSE-APACHE`), raw-window-handle 0.6.2 (`LICENSE-APACHE.md`), regex 1.13.1 (`LICENSE-APACHE`), regex-automata 0.4.18 (`LICENSE-APACHE`), regex-syntax 0.8.11 (`LICENSE-APACHE`), renderdoc-sys 1.1.0 (`LICENSE-APACHE`), resvg 0.48.1 (`LICENSE-APACHE`), roxmltree 0.20.0 (`LICENSE-APACHE`), roxmltree 0.21.1 (`LICENSE-APACHE`), rtrb 0.4.0 (`LICENSE-APACHE`), rustc-hash 1.1.0 (`LICENSE-APACHE`), rustc-hash 2.1.3 (`LICENSE-APACHE`), rustls 0.23.45 (`LICENSE-APACHE`), rustls-platform-verifier 0.7.1 (`LICENSE-APACHE`), rustversion 1.0.23 (`LICENSE-APACHE`), scopeguard 1.2.0 (`LICENSE-APACHE`), self_cell 1.3.0 (`LICENSE-APACHE`), seq-macro 0.3.6 (`LICENSE-APACHE`), serde 1.0.229 (`LICENSE-APACHE`), serde_core 1.0.229 (`LICENSE-APACHE`), serde_derive 1.0.229 (`LICENSE-APACHE`), serde_json 1.0.151 (`LICENSE-APACHE`), serde_spanned 1.1.1 (`LICENSE-APACHE`), sha2 0.10.9 (`LICENSE-APACHE`), simplecss 0.2.2 (`LICENSE-APACHE`), smallvec 1.16.0 (`LICENSE-APACHE`), smol_str 0.2.2 (`LICENSE-APACHE`), stable_deref_trait 1.2.1 (`LICENSE-APACHE`), static_assertions 1.1.0 (`LICENSE-APACHE`), svgtypes 0.16.1 (`LICENSE-APACHE`), syn 2.0.119 (`LICENSE-APACHE`), syn 3.0.5 (`LICENSE-APACHE`), thiserror 2.0.20 (`LICENSE-APACHE`), thiserror-impl 2.0.20 (`LICENSE-APACHE`), tinyvec 1.13.3 (`LICENSE-APACHE.md`), toml 0.9.12+spec-1.1.0 (`LICENSE-APACHE`), toml 1.1.6+spec-1.1.0 (`LICENSE-APACHE`), toml_datetime 0.7.5+spec-1.1.0 (`LICENSE-APACHE`), toml_datetime 1.1.1+spec-1.1.0 (`LICENSE-APACHE`), toml_parser 1.1.3+spec-1.1.0 (`LICENSE-APACHE`), toml_writer 1.1.2+spec-1.1.0 (`LICENSE-APACHE`), typed-path 0.12.3 (`LICENSE-APACHE`), unicode-general-category 1.1.0 (`LICENSE`), unicode-ident 1.0.24 (`LICENSE-APACHE`), unicode-segmentation 1.13.3 (`LICENSE-APACHE`), unicode-width 0.2.2 (`LICENSE-APACHE`), ureq 3.4.2 (`LICENSE-APACHE`), ureq-proto 0.6.4 (`LICENSE-APACHE.txt`), usvg 0.48.1 (`LICENSE-APACHE`), utf8-zero 0.8.1 (`LICENSE-APACHE`), utf8parse 0.2.2 (`LICENSE-APACHE`), uuid 1.26.0 (`LICENSE-APACHE`), vello_common 0.1.0 (`LICENSE-APACHE`), vello_cpu 0.1.0 (`LICENSE-APACHE`), version_check 0.9.5 (`LICENSE-APACHE`), vst3 0.3.0 (`LICENSE-APACHE`), weezl 0.1.12 (`LICENSE-APACHE`), wgpu 30.0.1 (`LICENSE.APACHE`), wgpu-core 30.0.1 (`LICENSE.APACHE`), wgpu-core-deps-windows-linux-android 30.0.1 (`LICENSE.APACHE`), wgpu-hal 30.0.1 (`LICENSE.APACHE`), wgpu-naga-bridge 30.0.1 (`LICENSE.APACHE`), wgpu-types 30.0.1 (`LICENSE.APACHE`), winit 0.30.13 (`LICENSE`), zeroize 1.9.0 (`LICENSE-APACHE`), zune-core 0.5.3 (`LICENSE-APACHE`), zune-jpeg 0.5.15 (`LICENSE-APACHE`).
 
 ```text
 [The Apache License, Version 2.0 — its standard text is under "Standard texts" at the end of this file.]
@@ -502,7 +520,7 @@ In: adler2 2.0.1 (`LICENSE-APACHE`), ahash 0.8.12 (`LICENSE-APACHE`), anstream 1
 
 ### T3
 
-In: adler2 2.0.1 (`LICENSE-MIT`), anyhow 1.0.104 (`LICENSE-MIT`), async-trait 0.1.92 (`LICENSE-MIT`), baseview 0.3.4 (`LICENSE-MIT`), clap-sys 0.5.0 (`LICENSE-MIT`), enumn 0.1.14 (`LICENSE-MIT`), glow 0.17.0 (`LICENSE-MIT`), itoa 1.0.18 (`LICENSE-MIT`), minimal-lexical 0.2.1 (`LICENSE-MIT`), once_cell 1.21.4 (`LICENSE-MIT`), paste 1.0.15 (`LICENSE-MIT`), pin-project-lite 0.2.17 (`LICENSE-MIT`), prettyplease 0.2.37 (`LICENSE-MIT`), proc-macro2 1.0.107 (`LICENSE-MIT`), quote 1.0.47 (`LICENSE-MIT`), rtrb 0.4.0 (`LICENSE-MIT`), rustc-hash 1.1.0 (`LICENSE-MIT`), rustc-hash 2.1.3 (`LICENSE-MIT`), serde 1.0.229 (`LICENSE-MIT`), serde_core 1.0.229 (`LICENSE-MIT`), serde_derive 1.0.229 (`LICENSE-MIT`), serde_json 1.0.151 (`LICENSE-MIT`), smol_str 0.2.2 (`LICENSE-MIT`), syn 2.0.119 (`LICENSE-MIT`), syn 3.0.5 (`LICENSE-MIT`), thiserror 2.0.20 (`LICENSE-MIT`), thiserror-impl 2.0.20 (`LICENSE-MIT`), tinyvec 1.13.3 (`LICENSE-MIT.md`), typed-path 0.12.3 (`LICENSE-MIT`), unicode-ident 1.0.24 (`LICENSE-MIT`), utf8-zero 0.8.1 (`LICENSE-MIT`), vst3 0.3.0 (`LICENSE-MIT`), winnow 0.7.15 (`LICENSE-MIT`), winnow 1.0.4 (`LICENSE-MIT`), zmij 1.0.23 (`LICENSE-MIT`).
+In: adler2 2.0.1 (`LICENSE-MIT`), anyhow 1.0.104 (`LICENSE-MIT`), async-trait 0.1.92 (`LICENSE-MIT`), baseview 0.3.4 (`LICENSE-MIT`), clap-sys 0.5.0 (`LICENSE-MIT`), enumn 0.1.14 (`LICENSE-MIT`), glow 0.17.0 (`LICENSE-MIT`), itoa 1.0.18 (`LICENSE-MIT`), minimal-lexical 0.2.1 (`LICENSE-MIT`), once_cell 1.21.4 (`LICENSE-MIT`), paste 1.0.15 (`LICENSE-MIT`), pin-project-lite 0.2.17 (`LICENSE-MIT`), prettyplease 0.2.37 (`LICENSE-MIT`), proc-macro2 1.0.107 (`LICENSE-MIT`), quote 1.0.47 (`LICENSE-MIT`), rtrb 0.4.0 (`LICENSE-MIT`), rustc-hash 1.1.0 (`LICENSE-MIT`), rustc-hash 2.1.3 (`LICENSE-MIT`), rustversion 1.0.23 (`LICENSE-MIT`), seq-macro 0.3.6 (`LICENSE-MIT`), serde 1.0.229 (`LICENSE-MIT`), serde_core 1.0.229 (`LICENSE-MIT`), serde_derive 1.0.229 (`LICENSE-MIT`), serde_json 1.0.151 (`LICENSE-MIT`), smol_str 0.2.2 (`LICENSE-MIT`), syn 2.0.119 (`LICENSE-MIT`), syn 3.0.5 (`LICENSE-MIT`), thiserror 2.0.20 (`LICENSE-MIT`), thiserror-impl 2.0.20 (`LICENSE-MIT`), tinyvec 1.13.3 (`LICENSE-MIT.md`), typed-path 0.12.3 (`LICENSE-MIT`), unicode-ident 1.0.24 (`LICENSE-MIT`), utf8-zero 0.8.1 (`LICENSE-MIT`), vst3 0.3.0 (`LICENSE-MIT`), winnow 0.7.15 (`LICENSE-MIT`), winnow 1.0.4 (`LICENSE-MIT`), zmij 1.0.23 (`LICENSE-MIT`).
 
 ```text
 Permission is hereby granted, free of charge, to any
@@ -1043,6 +1061,36 @@ DEALINGS IN THE SOFTWARE.
 
 ### T20
 
+In: built 0.7.7 (`LICENSE`).
+
+```text
+MIT License
+
+Copyright (c) 2017-2023 Lukas Lueg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="t21"></a>
+
+### T21
+
 In: bytemuck 1.25.2 (`LICENSE-MIT`), bytemuck_derive 1.12.0 (`LICENSE-MIT`).
 
 ```text
@@ -1057,9 +1105,9 @@ The above copyright notice and this permission notice (including the next paragr
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t21"></a>
+<a id="t22"></a>
 
-### T21
+### T22
 
 In: bytemuck 1.25.2 (`LICENSE-ZLIB`), bytemuck_derive 1.12.0 (`LICENSE-ZLIB`), tinyvec 1.13.3 (`LICENSE-ZLIB.md`).
 
@@ -1077,9 +1125,9 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t22"></a>
+<a id="t23"></a>
 
-### T22
+### T23
 
 In: bytes 1.12.1 (`LICENSE`).
 
@@ -1111,9 +1159,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t23"></a>
+<a id="t24"></a>
 
-### T23
+### T24
 
 In: cc 1.4.5 (`LICENSE-MIT`), cfg-if 1.0.4 (`LICENSE-MIT`), find-msvc-tools 0.1.12 (`LICENSE-MIT`), jobserver 0.1.35 (`LICENSE-MIT`).
 
@@ -1145,9 +1193,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t24"></a>
+<a id="t25"></a>
 
-### T24
+### T25
 
 In: cexpr 0.6.0 (`LICENSE-MIT`).
 
@@ -1179,9 +1227,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t25"></a>
+<a id="t26"></a>
 
-### T25
+### T26
 
 In: cfg_aliases 0.2.2 (`LICENSE`).
 
@@ -1197,9 +1245,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t26"></a>
+<a id="t27"></a>
 
-### T26
+### T27
 
 In: cfg_aliases 0.2.2 (`NOTICES.md`).
 
@@ -1232,9 +1280,9 @@ The `cfg_aliases!` macro uses a lot of the code from [`tectonic_cfg_support::tar
 ---
 ```
 
-<a id="t27"></a>
+<a id="t28"></a>
 
-### T27
+### T28
 
 In: color 0.3.3 (`LICENSE-MIT`), fdeflate 0.3.7 (`LICENSE-MIT`), half 2.7.1 (`LICENSE-MIT`), image 0.25.10 (`LICENSE-MIT`), linebender_resource_handle 0.1.1 (`LICENSE-MIT`).
 
@@ -1260,9 +1308,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t28"></a>
+<a id="t29"></a>
 
-### T28
+### T29
 
 In: copypasta 0.10.2 (`LICENSE.mit`).
 
@@ -1294,9 +1342,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t29"></a>
+<a id="t30"></a>
 
-### T29
+### T30
 
 In: cpufeatures 0.2.17 (`LICENSE-MIT`).
 
@@ -1328,9 +1376,314 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t30"></a>
+<a id="t31"></a>
 
-### T30
+### T31
+
+In: crc 3.4.0 (`LICENSE-APACHE`).
+
+```text
+Apache License
+                        Version 2.0 January 2004
+                     http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   not limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object
+   form, that is based on (or derived from) the Work and for which the
+   editorial revisions, annotations, elaborations, or other modifications
+   represent, as a whole, an original work of authorship. For the purposes
+   of this License, Derivative Works shall not include works that remain
+   separable from, or merely link (or bind by name) to the interfaces of,
+   the Work and Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is conspicuously marked or otherwise
+   designated in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+APPENDIX: How to apply the Apache License to your work.
+
+   To apply the Apache License to your work, attach the following
+   boilerplate notice, with the fields enclosed by brackets "[]"
+   replaced with your own identifying information. (Don't include
+   the brackets!)  The text should be enclosed in the appropriate
+   comment syntax for the file format. We also recommend that a
+   file or class name and description of purpose be included on the
+   same "printed page" as the copyright notice for easier
+   identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+<a id="t32"></a>
+
+### T32
+
+In: crc 3.4.0 (`LICENSE-MIT`).
+
+```text
+MIT License
+
+Copyright (c) 2017 crc-rs Developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="t33"></a>
+
+### T33
+
+In: crc-catalog 2.5.0 (`LICENSES/Apache-2.0.txt`), crc-catalog 2.5.0 (`licenses/Apache-2.0.txt`).
+
+```text
+[The Apache License, Version 2.0 — its standard text is under "Standard texts" at the end of this file.]
+
+APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2019 Akhil Velagapudi
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+<a id="t34"></a>
+
+### T34
+
+In: crc-catalog 2.5.0 (`LICENSES/MIT.txt`), crc-catalog 2.5.0 (`licenses/MIT.txt`).
+
+```text
+MIT License
+
+Copyright (c) 2019 Akhil Velagapudi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="t35"></a>
+
+### T35
 
 In: crc32fast 1.5.1 (`LICENSE-MIT`).
 
@@ -1358,9 +1711,447 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t31"></a>
+<a id="t36"></a>
 
-### T31
+### T36
+
+In: crossbeam-channel 0.5.17 (`LICENSE-MIT`), crossbeam-utils 0.8.23 (`LICENSE-MIT`).
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2019 The Crossbeam Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t37"></a>
+
+### T37
+
+In: crossbeam-channel 0.5.17 (`LICENSE-THIRD-PARTY`).
+
+```text
+===============================================================================
+
+matching.go
+https://creativecommons.org/licenses/by/3.0/legalcode
+
+Creative Commons Legal Code
+
+Attribution 3.0 Unported
+
+    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
+    LEGAL SERVICES. DISTRIBUTION OF THIS LICENSE DOES NOT CREATE AN
+    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
+    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
+    REGARDING THE INFORMATION PROVIDED, AND DISCLAIMS LIABILITY FOR
+    DAMAGES RESULTING FROM ITS USE.
+
+License
+
+THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THIS CREATIVE
+COMMONS PUBLIC LICENSE ("CCPL" OR "LICENSE"). THE WORK IS PROTECTED BY
+COPYRIGHT AND/OR OTHER APPLICABLE LAW. ANY USE OF THE WORK OTHER THAN AS
+AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+
+BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND AGREE
+TO BE BOUND BY THE TERMS OF THIS LICENSE. TO THE EXTENT THIS LICENSE MAY
+BE CONSIDERED TO BE A CONTRACT, THE LICENSOR GRANTS YOU THE RIGHTS
+CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND
+CONDITIONS.
+
+1. Definitions
+
+ a. "Adaptation" means a work based upon the Work, or upon the Work and
+    other pre-existing works, such as a translation, adaptation,
+    derivative work, arrangement of music or other alterations of a
+    literary or artistic work, or phonogram or performance and includes
+    cinematographic adaptations or any other form in which the Work may be
+    recast, transformed, or adapted including in any form recognizably
+    derived from the original, except that a work that constitutes a
+    Collection will not be considered an Adaptation for the purpose of
+    this License. For the avoidance of doubt, where the Work is a musical
+    work, performance or phonogram, the synchronization of the Work in
+    timed-relation with a moving image ("synching") will be considered an
+    Adaptation for the purpose of this License.
+ b. "Collection" means a collection of literary or artistic works, such as
+    encyclopedias and anthologies, or performances, phonograms or
+    broadcasts, or other works or subject matter other than works listed
+    in Section 1(f) below, which, by reason of the selection and
+    arrangement of their contents, constitute intellectual creations, in
+    which the Work is included in its entirety in unmodified form along
+    with one or more other contributions, each constituting separate and
+    independent works in themselves, which together are assembled into a
+    collective whole. A work that constitutes a Collection will not be
+    considered an Adaptation (as defined above) for the purposes of this
+    License.
+ c. "Distribute" means to make available to the public the original and
+    copies of the Work or Adaptation, as appropriate, through sale or
+    other transfer of ownership.
+ d. "Licensor" means the individual, individuals, entity or entities that
+    offer(s) the Work under the terms of this License.
+ e. "Original Author" means, in the case of a literary or artistic work,
+    the individual, individuals, entity or entities who created the Work
+    or if no individual or entity can be identified, the publisher; and in
+    addition (i) in the case of a performance the actors, singers,
+    musicians, dancers, and other persons who act, sing, deliver, declaim,
+    play in, interpret or otherwise perform literary or artistic works or
+    expressions of folklore; (ii) in the case of a phonogram the producer
+    being the person or legal entity who first fixes the sounds of a
+    performance or other sounds; and, (iii) in the case of broadcasts, the
+    organization that transmits the broadcast.
+ f. "Work" means the literary and/or artistic work offered under the terms
+    of this License including without limitation any production in the
+    literary, scientific and artistic domain, whatever may be the mode or
+    form of its expression including digital form, such as a book,
+    pamphlet and other writing; a lecture, address, sermon or other work
+    of the same nature; a dramatic or dramatico-musical work; a
+    choreographic work or entertainment in dumb show; a musical
+    composition with or without words; a cinematographic work to which are
+    assimilated works expressed by a process analogous to cinematography;
+    a work of drawing, painting, architecture, sculpture, engraving or
+    lithography; a photographic work to which are assimilated works
+    expressed by a process analogous to photography; a work of applied
+    art; an illustration, map, plan, sketch or three-dimensional work
+    relative to geography, topography, architecture or science; a
+    performance; a broadcast; a phonogram; a compilation of data to the
+    extent it is protected as a copyrightable work; or a work performed by
+    a variety or circus performer to the extent it is not otherwise
+    considered a literary or artistic work.
+ g. "You" means an individual or entity exercising rights under this
+    License who has not previously violated the terms of this License with
+    respect to the Work, or who has received express permission from the
+    Licensor to exercise rights under this License despite a previous
+    violation.
+ h. "Publicly Perform" means to perform public recitations of the Work and
+    to communicate to the public those public recitations, by any means or
+    process, including by wire or wireless means or public digital
+    performances; to make available to the public Works in such a way that
+    members of the public may access these Works from a place and at a
+    place individually chosen by them; to perform the Work to the public
+    by any means or process and the communication to the public of the
+    performances of the Work, including by public digital performance; to
+    broadcast and rebroadcast the Work by any means including signs,
+    sounds or images.
+ i. "Reproduce" means to make copies of the Work by any means including
+    without limitation by sound or visual recordings and the right of
+    fixation and reproducing fixations of the Work, including storage of a
+    protected performance or phonogram in digital form or other electronic
+    medium.
+
+2. Fair Dealing Rights. Nothing in this License is intended to reduce,
+limit, or restrict any uses free from copyright or rights arising from
+limitations or exceptions that are provided for in connection with the
+copyright protection under copyright law or other applicable laws.
+
+3. License Grant. Subject to the terms and conditions of this License,
+Licensor hereby grants You a worldwide, royalty-free, non-exclusive,
+perpetual (for the duration of the applicable copyright) license to
+exercise the rights in the Work as stated below:
+
+ a. to Reproduce the Work, to incorporate the Work into one or more
+    Collections, and to Reproduce the Work as incorporated in the
+    Collections;
+ b. to create and Reproduce Adaptations provided that any such Adaptation,
+    including any translation in any medium, takes reasonable steps to
+    clearly label, demarcate or otherwise identify that changes were made
+    to the original Work. For example, a translation could be marked "The
+    original work was translated from English to Spanish," or a
+    modification could indicate "The original work has been modified.";
+ c. to Distribute and Publicly Perform the Work including as incorporated
+    in Collections; and,
+ d. to Distribute and Publicly Perform Adaptations.
+ e. For the avoidance of doubt:
+
+     i. Non-waivable Compulsory License Schemes. In those jurisdictions in
+        which the right to collect royalties through any statutory or
+        compulsory licensing scheme cannot be waived, the Licensor
+        reserves the exclusive right to collect such royalties for any
+        exercise by You of the rights granted under this License;
+    ii. Waivable Compulsory License Schemes. In those jurisdictions in
+        which the right to collect royalties through any statutory or
+        compulsory licensing scheme can be waived, the Licensor waives the
+        exclusive right to collect such royalties for any exercise by You
+        of the rights granted under this License; and,
+   iii. Voluntary License Schemes. The Licensor waives the right to
+        collect royalties, whether individually or, in the event that the
+        Licensor is a member of a collecting society that administers
+        voluntary licensing schemes, via that society, from any exercise
+        by You of the rights granted under this License.
+
+The above rights may be exercised in all media and formats whether now
+known or hereafter devised. The above rights include the right to make
+such modifications as are technically necessary to exercise the rights in
+other media and formats. Subject to Section 8(f), all rights not expressly
+granted by Licensor are hereby reserved.
+
+4. Restrictions. The license granted in Section 3 above is expressly made
+subject to and limited by the following restrictions:
+
+ a. You may Distribute or Publicly Perform the Work only under the terms
+    of this License. You must include a copy of, or the Uniform Resource
+    Identifier (URI) for, this License with every copy of the Work You
+    Distribute or Publicly Perform. You may not offer or impose any terms
+    on the Work that restrict the terms of this License or the ability of
+    the recipient of the Work to exercise the rights granted to that
+    recipient under the terms of the License. You may not sublicense the
+    Work. You must keep intact all notices that refer to this License and
+    to the disclaimer of warranties with every copy of the Work You
+    Distribute or Publicly Perform. When You Distribute or Publicly
+    Perform the Work, You may not impose any effective technological
+    measures on the Work that restrict the ability of a recipient of the
+    Work from You to exercise the rights granted to that recipient under
+    the terms of the License. This Section 4(a) applies to the Work as
+    incorporated in a Collection, but this does not require the Collection
+    apart from the Work itself to be made subject to the terms of this
+    License. If You create a Collection, upon notice from any Licensor You
+    must, to the extent practicable, remove from the Collection any credit
+    as required by Section 4(b), as requested. If You create an
+    Adaptation, upon notice from any Licensor You must, to the extent
+    practicable, remove from the Adaptation any credit as required by
+    Section 4(b), as requested.
+ b. If You Distribute, or Publicly Perform the Work or any Adaptations or
+    Collections, You must, unless a request has been made pursuant to
+    Section 4(a), keep intact all copyright notices for the Work and
+    provide, reasonable to the medium or means You are utilizing: (i) the
+    name of the Original Author (or pseudonym, if applicable) if supplied,
+    and/or if the Original Author and/or Licensor designate another party
+    or parties (e.g., a sponsor institute, publishing entity, journal) for
+    attribution ("Attribution Parties") in Licensor's copyright notice,
+    terms of service or by other reasonable means, the name of such party
+    or parties; (ii) the title of the Work if supplied; (iii) to the
+    extent reasonably practicable, the URI, if any, that Licensor
+    specifies to be associated with the Work, unless such URI does not
+    refer to the copyright notice or licensing information for the Work;
+    and (iv) , consistent with Section 3(b), in the case of an Adaptation,
+    a credit identifying the use of the Work in the Adaptation (e.g.,
+    "French translation of the Work by Original Author," or "Screenplay
+    based on original Work by Original Author"). The credit required by
+    this Section 4 (b) may be implemented in any reasonable manner;
+    provided, however, that in the case of a Adaptation or Collection, at
+    a minimum such credit will appear, if a credit for all contributing
+    authors of the Adaptation or Collection appears, then as part of these
+    credits and in a manner at least as prominent as the credits for the
+    other contributing authors. For the avoidance of doubt, You may only
+    use the credit required by this Section for the purpose of attribution
+    in the manner set out above and, by exercising Your rights under this
+    License, You may not implicitly or explicitly assert or imply any
+    connection with, sponsorship or endorsement by the Original Author,
+    Licensor and/or Attribution Parties, as appropriate, of You or Your
+    use of the Work, without the separate, express prior written
+    permission of the Original Author, Licensor and/or Attribution
+    Parties.
+ c. Except as otherwise agreed in writing by the Licensor or as may be
+    otherwise permitted by applicable law, if You Reproduce, Distribute or
+    Publicly Perform the Work either by itself or as part of any
+    Adaptations or Collections, You must not distort, mutilate, modify or
+    take other derogatory action in relation to the Work which would be
+    prejudicial to the Original Author's honor or reputation. Licensor
+    agrees that in those jurisdictions (e.g. Japan), in which any exercise
+    of the right granted in Section 3(b) of this License (the right to
+    make Adaptations) would be deemed to be a distortion, mutilation,
+    modification or other derogatory action prejudicial to the Original
+    Author's honor and reputation, the Licensor will waive or not assert,
+    as appropriate, this Section, to the fullest extent permitted by the
+    applicable national law, to enable You to reasonably exercise Your
+    right under Section 3(b) of this License (right to make Adaptations)
+    but not otherwise.
+
+5. Representations, Warranties and Disclaimer
+
+UNLESS OTHERWISE MUTUALLY AGREED TO BY THE PARTIES IN WRITING, LICENSOR
+OFFERS THE WORK AS-IS AND MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY
+KIND CONCERNING THE WORK, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE,
+INCLUDING, WITHOUT LIMITATION, WARRANTIES OF TITLE, MERCHANTIBILITY,
+FITNESS FOR A PARTICULAR PURPOSE, NONINFRINGEMENT, OR THE ABSENCE OF
+LATENT OR OTHER DEFECTS, ACCURACY, OR THE PRESENCE OF ABSENCE OF ERRORS,
+WHETHER OR NOT DISCOVERABLE. SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION
+OF IMPLIED WARRANTIES, SO SUCH EXCLUSION MAY NOT APPLY TO YOU.
+
+6. Limitation on Liability. EXCEPT TO THE EXTENT REQUIRED BY APPLICABLE
+LAW, IN NO EVENT WILL LICENSOR BE LIABLE TO YOU ON ANY LEGAL THEORY FOR
+ANY SPECIAL, INCIDENTAL, CONSEQUENTIAL, PUNITIVE OR EXEMPLARY DAMAGES
+ARISING OUT OF THIS LICENSE OR THE USE OF THE WORK, EVEN IF LICENSOR HAS
+BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+7. Termination
+
+ a. This License and the rights granted hereunder will terminate
+    automatically upon any breach by You of the terms of this License.
+    Individuals or entities who have received Adaptations or Collections
+    from You under this License, however, will not have their licenses
+    terminated provided such individuals or entities remain in full
+    compliance with those licenses. Sections 1, 2, 5, 6, 7, and 8 will
+    survive any termination of this License.
+ b. Subject to the above terms and conditions, the license granted here is
+    perpetual (for the duration of the applicable copyright in the Work).
+    Notwithstanding the above, Licensor reserves the right to release the
+    Work under different license terms or to stop distributing the Work at
+    any time; provided, however that any such election will not serve to
+    withdraw this License (or any other license that has been, or is
+    required to be, granted under the terms of this License), and this
+    License will continue in full force and effect unless terminated as
+    stated above.
+
+8. Miscellaneous
+
+ a. Each time You Distribute or Publicly Perform the Work or a Collection,
+    the Licensor offers to the recipient a license to the Work on the same
+    terms and conditions as the license granted to You under this License.
+ b. Each time You Distribute or Publicly Perform an Adaptation, Licensor
+    offers to the recipient a license to the original Work on the same
+    terms and conditions as the license granted to You under this License.
+ c. If any provision of this License is invalid or unenforceable under
+    applicable law, it shall not affect the validity or enforceability of
+    the remainder of the terms of this License, and without further action
+    by the parties to this agreement, such provision shall be reformed to
+    the minimum extent necessary to make such provision valid and
+    enforceable.
+ d. No term or provision of this License shall be deemed waived and no
+    breach consented to unless such waiver or consent shall be in writing
+    and signed by the party to be charged with such waiver or consent.
+ e. This License constitutes the entire agreement between the parties with
+    respect to the Work licensed here. There are no understandings,
+    agreements or representations with respect to the Work not specified
+    here. Licensor shall not be bound by any additional provisions that
+    may appear in any communication from You. This License may not be
+    modified without the mutual written agreement of the Licensor and You.
+ f. The rights granted under, and the subject matter referenced, in this
+    License were drafted utilizing the terminology of the Berne Convention
+    for the Protection of Literary and Artistic Works (as amended on
+    September 28, 1979), the Rome Convention of 1961, the WIPO Copyright
+    Treaty of 1996, the WIPO Performances and Phonograms Treaty of 1996
+    and the Universal Copyright Convention (as revised on July 24, 1971).
+    These rights and subject matter take effect in the relevant
+    jurisdiction in which the License terms are sought to be enforced
+    according to the corresponding provisions of the implementation of
+    those treaty provisions in the applicable national law. If the
+    standard suite of rights granted under applicable copyright law
+    includes additional rights not granted under this License, such
+    additional rights are deemed to be included in the License; this
+    License is not intended to restrict the license of any rights under
+    applicable law.
+
+
+Creative Commons Notice
+
+    Creative Commons is not a party to this License, and makes no warranty
+    whatsoever in connection with the Work. Creative Commons will not be
+    liable to You or any party on any legal theory for any damages
+    whatsoever, including without limitation any general, special,
+    incidental or consequential damages arising in connection to this
+    license. Notwithstanding the foregoing two (2) sentences, if Creative
+    Commons has expressly identified itself as the Licensor hereunder, it
+    shall have all rights and obligations of Licensor.
+
+    Except for the limited purpose of indicating to the public that the
+    Work is licensed under the CCPL, Creative Commons does not authorize
+    the use by either party of the trademark "Creative Commons" or any
+    related trademark or logo of Creative Commons without the prior
+    written consent of Creative Commons. Any permitted use will be in
+    compliance with Creative Commons' then-current trademark usage
+    guidelines, as may be published on its website or otherwise made
+    available upon request from time to time. For the avoidance of doubt,
+    this trademark restriction does not form part of this License.
+
+    Creative Commons may be contacted at https://creativecommons.org/.
+
+===============================================================================
+
+The Go Programming Language
+https://golang.org/LICENSE
+
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+===============================================================================
+
+The Rust Programming Language
+https://github.com/rust-lang/rust/blob/master/LICENSE-MIT
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+===============================================================================
+
+The Rust Programming Language
+https://github.com/rust-lang/rust/blob/master/LICENSE-APACHE
+
+[The Apache License, Version 2.0 — its standard text is under "Standard texts" at the end of this file.]
+```
+
+<a id="t38"></a>
+
+### T38
 
 In: crypto-common 0.1.7 (`LICENSE-MIT`).
 
@@ -1392,9 +2183,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t32"></a>
+<a id="t39"></a>
 
-### T32
+### T39
 
 In: cursor-icon 1.2.0 (`LICENSE-APACHE`).
 
@@ -1427,9 +2218,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t33"></a>
+<a id="t40"></a>
 
-### T33
+### T40
 
 In: cursor-icon 1.2.0 (`LICENSE-MIT`).
 
@@ -1455,9 +2246,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t34"></a>
+<a id="t41"></a>
 
-### T34
+### T41
 
 In: cursor-icon 1.2.0 (`LICENSE-ZLIB`).
 
@@ -1475,9 +2266,9 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t35"></a>
+<a id="t42"></a>
 
-### T35
+### T42
 
 In: data-url 0.3.2 (`LICENSE-MIT`), percent-encoding 2.3.2 (`LICENSE-MIT`).
 
@@ -1509,9 +2300,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t36"></a>
+<a id="t43"></a>
 
-### T36
+### T43
 
 In: defmt 1.1.1 (`LICENSE-MIT`), defmt-macros 1.1.1 (`LICENSE-MIT`).
 
@@ -1543,9 +2334,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t37"></a>
+<a id="t44"></a>
 
-### T37
+### T44
 
 In: der 0.8.2 (`LICENSE-MIT`).
 
@@ -1577,9 +2368,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t38"></a>
+<a id="t45"></a>
 
-### T38
+### T45
 
 In: digest 0.10.7 (`LICENSE-MIT`).
 
@@ -1611,9 +2402,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t39"></a>
+<a id="t46"></a>
 
-### T39
+### T46
 
 In: document-features 0.2.12 (`LICENSE-MIT`).
 
@@ -1639,9 +2430,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t40"></a>
+<a id="t47"></a>
 
-### T40
+### T47
 
 In: dpi 0.1.2 (`LICENSE-LIBM-MIT`).
 
@@ -1699,9 +2490,9 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 ```
 
-<a id="t41"></a>
+<a id="t48"></a>
 
-### T41
+### T48
 
 In: duplicate 2.0.1 (`LICENSE-APACHE`).
 
@@ -1734,9 +2525,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t42"></a>
+<a id="t49"></a>
 
-### T42
+### T49
 
 In: duplicate 2.0.1 (`LICENSE-MIT`).
 
@@ -1768,9 +2559,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t43"></a>
+<a id="t50"></a>
 
-### T43
+### T50
 
 In: egui-baseview 0.7.2 (`LICENSE-APACHE`).
 
@@ -1803,9 +2594,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t44"></a>
+<a id="t51"></a>
 
-### T44
+### T51
 
 In: egui-baseview 0.7.2 (`LICENSE-MIT`).
 
@@ -1833,9 +2624,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t45"></a>
+<a id="t52"></a>
 
-### T45
+### T52
 
 In: egui_dock 0.21.1 (`LICENSE`).
 
@@ -1863,9 +2654,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t46"></a>
+<a id="t53"></a>
 
-### T46
+### T53
 
 In: either 1.18.0 (`LICENSE-MIT`), itertools 0.13.0 (`LICENSE-MIT`), itertools 0.15.0 (`LICENSE-MIT`).
 
@@ -1897,9 +2688,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t47"></a>
+<a id="t54"></a>
 
-### T47
+### T54
 
 In: epaint_default_fonts 0.36.1 (`fonts/Hack-Regular.txt`).
 
@@ -1937,9 +2728,9 @@ THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 Except as contained in this notice, the names of Gnome, the Gnome Foundation, and Bitstream Inc., shall not be used in advertising or otherwise to promote the sale, use or other dealings in this Font Software without prior written authorization from the Gnome Foundation or Bitstream Inc., respectively. For further information, contact: fonts at gnome dot org.
 ```
 
-<a id="t48"></a>
+<a id="t55"></a>
 
-### T48
+### T55
 
 In: epaint_default_fonts 0.36.1 (`fonts/OFL.txt`).
 
@@ -2038,9 +2829,9 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-<a id="t49"></a>
+<a id="t56"></a>
 
-### T49
+### T56
 
 In: epaint_default_fonts 0.36.1 (`fonts/UFL.txt`).
 
@@ -2143,9 +2934,9 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER
 DEALINGS IN THE FONT SOFTWARE.
 ```
 
-<a id="t50"></a>
+<a id="t57"></a>
 
-### T50
+### T57
 
 In: epaint_default_fonts 0.36.1 (`fonts/emoji-icon-font-mit-license.txt`).
 
@@ -2161,9 +2952,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t51"></a>
+<a id="t58"></a>
 
-### T51
+### T58
 
 In: equivalent 1.0.2 (`LICENSE-MIT`).
 
@@ -2195,9 +2986,43 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t52"></a>
+<a id="t59"></a>
 
-### T52
+### T59
+
+In: errno 0.3.14 (`LICENSE-MIT`).
+
+```text
+Copyright (c) 2014 Chris Wong
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t60"></a>
+
+### T60
 
 In: error-code 3.4.0 (`LICENSE`).
 
@@ -2227,9 +3052,9 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t53"></a>
+<a id="t61"></a>
 
-### T53
+### T61
 
 In: euclid 0.22.14 (`COPYRIGHT`), unicode-segmentation 1.13.3 (`COPYRIGHT`), unicode-width 0.2.2 (`COPYRIGHT`).
 
@@ -2241,9 +3066,9 @@ option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
 ```
 
-<a id="t54"></a>
+<a id="t62"></a>
 
-### T54
+### T62
 
 In: euclid 0.22.14 (`LICENSE-MIT`).
 
@@ -2275,9 +3100,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t55"></a>
+<a id="t63"></a>
 
-### T55
+### T63
 
 In: fax 0.2.7 (`LICENSE`).
 
@@ -2291,9 +3116,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t56"></a>
+<a id="t64"></a>
 
-### T56
+### T64
 
 In: fearless_simd 0.4.1 (`LICENSE-MIT`), kurbo 0.13.1 (`LICENSE-MIT`), peniko 0.6.1 (`LICENSE-MIT`), polycool 0.4.0 (`LICENSE-MIT`).
 
@@ -2325,9 +3150,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t57"></a>
+<a id="t65"></a>
 
-### T57
+### T65
 
 In: flate2 1.1.10 (`LICENSE-MIT`).
 
@@ -2359,9 +3184,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t58"></a>
+<a id="t66"></a>
 
-### T58
+### T66
 
 In: float-cmp 0.9.0 (`LICENSE`).
 
@@ -2387,9 +3212,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 ```
 
-<a id="t59"></a>
+<a id="t67"></a>
 
-### T59
+### T67
 
 In: foldhash 0.2.0 (`LICENSE`).
 
@@ -2415,9 +3240,9 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t60"></a>
+<a id="t68"></a>
 
-### T60
+### T68
 
 In: font-types 0.12.4 (`LICENSE-APACHE`), read-fonts 0.41.0 (`LICENSE-APACHE`), skrifa 0.44.0 (`LICENSE-APACHE`).
 
@@ -2439,9 +3264,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t61"></a>
+<a id="t69"></a>
 
-### T61
+### T69
 
 In: font-types 0.12.4 (`LICENSE-MIT`), read-fonts 0.41.0 (`LICENSE-MIT`), skrifa 0.44.0 (`LICENSE-MIT`).
 
@@ -2473,9 +3298,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t62"></a>
+<a id="t70"></a>
 
-### T62
+### T70
 
 In: generic-array 0.14.7 (`LICENSE`).
 
@@ -2503,9 +3328,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t63"></a>
+<a id="t71"></a>
 
-### T63
+### T71
 
 In: getrandom 0.2.17 (`LICENSE-MIT`).
 
@@ -2538,9 +3363,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t64"></a>
+<a id="t72"></a>
 
-### T64
+### T72
 
 In: getrandom 0.3.4 (`LICENSE-MIT`).
 
@@ -2573,9 +3398,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t65"></a>
+<a id="t73"></a>
 
-### T65
+### T73
 
 In: getrandom 0.4.3 (`LICENSE-MIT`).
 
@@ -2608,9 +3433,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t66"></a>
+<a id="t74"></a>
 
-### T66
+### T74
 
 In: glifo 0.2.0 (`LICENSE-MIT`).
 
@@ -2642,9 +3467,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t67"></a>
+<a id="t75"></a>
 
-### T67
+### T75
 
 In: glow 0.17.0 (`LICENSE-ZLIB`).
 
@@ -2666,9 +3491,9 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t68"></a>
+<a id="t76"></a>
 
-### T68
+### T76
 
 In: glutin 0.32.3 (`LICENSE`), glutin_egl_sys 0.7.1 (`LICENSE`), glutin_wgl_sys 0.6.1 (`LICENSE`).
 
@@ -2701,9 +3526,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t69"></a>
+<a id="t77"></a>
 
-### T69
+### T77
 
 In: glutin-winit 0.5.0 (`LICENSE`).
 
@@ -2729,9 +3554,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t70"></a>
+<a id="t78"></a>
 
-### T70
+### T78
 
 In: guillotiere 0.7.0 (`LICENSE-APACHE`).
 
@@ -2751,9 +3576,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t71"></a>
+<a id="t79"></a>
 
-### T71
+### T79
 
 In: guillotiere 0.7.0 (`LICENSE-MIT`).
 
@@ -2780,9 +3605,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t72"></a>
+<a id="t80"></a>
 
-### T72
+### T80
 
 In: harfrust 0.12.0 (`LICENSE`).
 
@@ -2811,9 +3636,43 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t73"></a>
+<a id="t81"></a>
 
-### T73
+### T81
+
+In: hash32 0.3.1 (`LICENSE-MIT`).
+
+```text
+Copyright (c) 2018 Jorge Aparicio
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t82"></a>
+
+### T82
 
 In: hashbrown 0.16.1 (`LICENSE-MIT`), hashbrown 0.17.1 (`LICENSE-MIT`).
 
@@ -2845,9 +3704,43 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t74"></a>
+<a id="t83"></a>
 
-### T74
+### T83
+
+In: heapless 0.8.0 (`LICENSE-MIT`).
+
+```text
+Copyright (c) 2017 Jorge Aparicio
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t84"></a>
+
+### T84
 
 In: heck 0.5.0 (`LICENSE-MIT`), unicode-segmentation 1.13.3 (`LICENSE-MIT`), unicode-width 0.2.2 (`LICENSE-MIT`).
 
@@ -2879,9 +3772,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t75"></a>
+<a id="t85"></a>
 
-### T75
+### T85
 
 In: http 1.5.0 (`LICENSE-APACHE`).
 
@@ -2914,9 +3807,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t76"></a>
+<a id="t86"></a>
 
-### T76
+### T86
 
 In: http 1.5.0 (`LICENSE-MIT`).
 
@@ -2948,9 +3841,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t77"></a>
+<a id="t87"></a>
 
-### T77
+### T87
 
 In: httparse 1.10.1 (`LICENSE-MIT`).
 
@@ -2976,9 +3869,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t78"></a>
+<a id="t88"></a>
 
-### T78
+### T88
 
 In: imagesize 0.15.0 (`LICENSE`).
 
@@ -3006,9 +3899,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t79"></a>
+<a id="t89"></a>
 
-### T79
+### T89
 
 In: indexmap 2.14.2 (`LICENSE-MIT`).
 
@@ -3040,9 +3933,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t80"></a>
+<a id="t90"></a>
 
-### T80
+### T90
 
 In: keyboard-types 0.8.3 (`LICENSE-MIT`).
 
@@ -3068,9 +3961,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t81"></a>
+<a id="t91"></a>
 
-### T81
+### T91
 
 In: lewton 0.10.2 (`LICENSE`).
 
@@ -3117,9 +4010,9 @@ Apache License, version 2.0
 [The Apache License, Version 2.0 — its standard text is under "Standard texts" at the end of this file.]
 ```
 
-<a id="t82"></a>
+<a id="t92"></a>
 
-### T82
+### T92
 
 In: libc 0.2.189 (`LICENSE-MIT`).
 
@@ -3151,9 +4044,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t83"></a>
+<a id="t93"></a>
 
-### T83
+### T93
 
 In: libloading 0.8.9 (`LICENSE`).
 
@@ -3172,9 +4065,9 @@ NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE US
 THIS SOFTWARE.
 ```
 
-<a id="t84"></a>
+<a id="t94"></a>
 
-### T84
+### T94
 
 In: libm 0.2.16 (`LICENSE.txt`).
 
@@ -3265,9 +4158,9 @@ have been licensed under extremely permissive terms.
 Copyright notices are retained in src/* files where relevant.
 ```
 
-<a id="t85"></a>
+<a id="t95"></a>
 
-### T85
+### T95
 
 In: litrs 1.0.0 (`LICENSE-MIT`).
 
@@ -3299,9 +4192,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t86"></a>
+<a id="t96"></a>
 
-### T86
+### T96
 
 In: lock_api 0.4.14 (`LICENSE-MIT`), parking_lot 0.12.5 (`LICENSE-MIT`), parking_lot_core 0.9.12 (`LICENSE-MIT`).
 
@@ -3333,9 +4226,45 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t87"></a>
+<a id="t97"></a>
 
-### T87
+### T97
+
+In: md-5 0.10.6 (`LICENSE-MIT`), sha2 0.10.9 (`LICENSE-MIT`).
+
+```text
+Copyright (c) 2006-2009 Graydon Hoare
+Copyright (c) 2009-2013 Mozilla Foundation
+Copyright (c) 2016 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t98"></a>
+
+### T98
 
 In: midir 0.11.0 (`LICENSE`).
 
@@ -3363,9 +4292,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t88"></a>
+<a id="t99"></a>
 
-### T88
+### T99
 
 In: minimal-lexical 0.2.1 (`LICENSE.md`).
 
@@ -3409,9 +4338,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t89"></a>
+<a id="t100"></a>
 
-### T89
+### T100
 
 In: miniz_oxide 0.8.9 (`LICENSE`), miniz_oxide 0.8.9 (`LICENSE-MIT.md`), miniz_oxide 0.9.1 (`LICENSE`), miniz_oxide 0.9.1 (`LICENSE-MIT.md`).
 
@@ -3443,9 +4372,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t90"></a>
+<a id="t101"></a>
 
-### T90
+### T101
 
 In: miniz_oxide 0.8.9 (`LICENSE-ZLIB.md`), miniz_oxide 0.9.1 (`LICENSE-ZLIB.md`).
 
@@ -3466,9 +4395,9 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t91"></a>
+<a id="t102"></a>
 
-### T91
+### T102
 
 In: moxcms 0.8.1 (`LICENSE-APACHE.md`), pxfm 0.1.30 (`LICENSE-APACHE.md`).
 
@@ -3501,9 +4430,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t92"></a>
+<a id="t103"></a>
 
-### T92
+### T103
 
 In: moxcms 0.8.1 (`LICENSE.md`), pxfm 0.1.30 (`LICENSE.md`).
 
@@ -3536,9 +4465,183 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t93"></a>
+<a id="t104"></a>
 
-### T93
+### T104
+
+In: mp3lame-encoder 0.2.5 (`LICENSE`), mp3lame-sys 0.1.11 (`LICENSE`).
+
+```text
+GNU LESSER GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+
+  This version of the GNU Lesser General Public License incorporates
+the terms and conditions of version 3 of the GNU General Public
+License, supplemented by the additional permissions listed below.
+
+  0. Additional Definitions.
+
+  As used herein, "this License" refers to version 3 of the GNU Lesser
+General Public License, and the "GNU GPL" refers to version 3 of the GNU
+General Public License.
+
+  "The Library" refers to a covered work governed by this License,
+other than an Application or a Combined Work as defined below.
+
+  An "Application" is any work that makes use of an interface provided
+by the Library, but which is not otherwise based on the Library.
+Defining a subclass of a class defined by the Library is deemed a mode
+of using an interface provided by the Library.
+
+  A "Combined Work" is a work produced by combining or linking an
+Application with the Library.  The particular version of the Library
+with which the Combined Work was made is also called the "Linked
+Version".
+
+  The "Minimal Corresponding Source" for a Combined Work means the
+Corresponding Source for the Combined Work, excluding any source code
+for portions of the Combined Work that, considered in isolation, are
+based on the Application, and not on the Linked Version.
+
+  The "Corresponding Application Code" for a Combined Work means the
+object code and/or source code for the Application, including any data
+and utility programs needed for reproducing the Combined Work from the
+Application, but excluding the System Libraries of the Combined Work.
+
+  1. Exception to Section 3 of the GNU GPL.
+
+  You may convey a covered work under sections 3 and 4 of this License
+without being bound by section 3 of the GNU GPL.
+
+  2. Conveying Modified Versions.
+
+  If you modify a copy of the Library, and, in your modifications, a
+facility refers to a function or data to be supplied by an Application
+that uses the facility (other than as an argument passed when the
+facility is invoked), then you may convey a copy of the modified
+version:
+
+   a) under this License, provided that you make a good faith effort to
+   ensure that, in the event an Application does not supply the
+   function or data, the facility still operates, and performs
+   whatever part of its purpose remains meaningful, or
+
+   b) under the GNU GPL, with none of the additional permissions of
+   this License applicable to that copy.
+
+  3. Object Code Incorporating Material from Library Header Files.
+
+  The object code form of an Application may incorporate material from
+a header file that is part of the Library.  You may convey such object
+code under terms of your choice, provided that, if the incorporated
+material is not limited to numerical parameters, data structure
+layouts and accessors, or small macros, inline functions and templates
+(ten or fewer lines in length), you do both of the following:
+
+   a) Give prominent notice with each copy of the object code that the
+   Library is used in it and that the Library and its use are
+   covered by this License.
+
+   b) Accompany the object code with a copy of the GNU GPL and this license
+   document.
+
+  4. Combined Works.
+
+  You may convey a Combined Work under terms of your choice that,
+taken together, effectively do not restrict modification of the
+portions of the Library contained in the Combined Work and reverse
+engineering for debugging such modifications, if you also do each of
+the following:
+
+   a) Give prominent notice with each copy of the Combined Work that
+   the Library is used in it and that the Library and its use are
+   covered by this License.
+
+   b) Accompany the Combined Work with a copy of the GNU GPL and this license
+   document.
+
+   c) For a Combined Work that displays copyright notices during
+   execution, include the copyright notice for the Library among
+   these notices, as well as a reference directing the user to the
+   copies of the GNU GPL and this license document.
+
+   d) Do one of the following:
+
+       0) Convey the Minimal Corresponding Source under the terms of this
+       License, and the Corresponding Application Code in a form
+       suitable for, and under terms that permit, the user to
+       recombine or relink the Application with a modified version of
+       the Linked Version to produce a modified Combined Work, in the
+       manner specified by section 6 of the GNU GPL for conveying
+       Corresponding Source.
+
+       1) Use a suitable shared library mechanism for linking with the
+       Library.  A suitable mechanism is one that (a) uses at run time
+       a copy of the Library already present on the user's computer
+       system, and (b) will operate properly with a modified version
+       of the Library that is interface-compatible with the Linked
+       Version.
+
+   e) Provide Installation Information, but only if you would otherwise
+   be required to provide such information under section 6 of the
+   GNU GPL, and only to the extent that such information is
+   necessary to install and execute a modified version of the
+   Combined Work produced by recombining or relinking the
+   Application with a modified version of the Linked Version. (If
+   you use option 4d0, the Installation Information must accompany
+   the Minimal Corresponding Source and Corresponding Application
+   Code. If you use option 4d1, you must provide the Installation
+   Information in the manner specified by section 6 of the GNU GPL
+   for conveying Corresponding Source.)
+
+  5. Combined Libraries.
+
+  You may place library facilities that are a work based on the
+Library side by side in a single library together with other library
+facilities that are not Applications and are not covered by this
+License, and convey such a combined library under terms of your
+choice, if you do both of the following:
+
+   a) Accompany the combined library with a copy of the same work based
+   on the Library, uncombined with any other library facilities,
+   conveyed under the terms of this License.
+
+   b) Give prominent notice with the combined library that part of it
+   is a work based on the Library, and explaining where to find the
+   accompanying uncombined form of the same work.
+
+  6. Revised Versions of the GNU Lesser General Public License.
+
+  The Free Software Foundation may publish revised and/or new versions
+of the GNU Lesser General Public License from time to time. Such new
+versions will be similar in spirit to the present version, but may
+differ in detail to address new problems or concerns.
+
+  Each version is given a distinguishing version number. If the
+Library as you received it specifies that a certain numbered version
+of the GNU Lesser General Public License "or any later version"
+applies to it, you have the option of following the terms and
+conditions either of that published version or of any later version
+published by the Free Software Foundation. If the Library as you
+received it does not specify a version number of the GNU Lesser
+General Public License, you may choose any version of the GNU Lesser
+General Public License ever published by the Free Software Foundation.
+
+  If the Library as you received it specifies that a proxy can decide
+whether future versions of the GNU Lesser General Public License shall
+apply, that proxy's public statement of acceptance of any version is
+permanent authorization for you to choose that version for the
+Library.
+```
+
+<a id="t105"></a>
+
+### T105
 
 In: naga 30.0.1 (`LICENSE.MIT`), naga-types 30.0.1 (`LICENSE.MIT`), wgpu 30.0.1 (`LICENSE.MIT`), wgpu-core 30.0.1 (`LICENSE.MIT`), wgpu-core-deps-windows-linux-android 30.0.1 (`LICENSE.MIT`), wgpu-hal 30.0.1 (`LICENSE.MIT`), wgpu-naga-bridge 30.0.1 (`LICENSE.MIT`), wgpu-types 30.0.1 (`LICENSE.MIT`).
 
@@ -3566,9 +4669,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t94"></a>
+<a id="t106"></a>
 
-### T94
+### T106
 
 In: native-tls 0.2.18 (`LICENSE-MIT`).
 
@@ -3594,9 +4697,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t95"></a>
+<a id="t107"></a>
 
-### T95
+### T107
 
 In: nohash-hasher 0.2.0 (`LICENSE-MIT`).
 
@@ -3621,9 +4724,9 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t96"></a>
+<a id="t108"></a>
 
-### T96
+### T108
 
 In: nom 7.1.3 (`LICENSE`).
 
@@ -3650,9 +4753,9 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t97"></a>
+<a id="t109"></a>
 
-### T97
+### T109
 
 In: ogg 0.8.0 (`LICENSE`).
 
@@ -3695,9 +4798,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t98"></a>
+<a id="t110"></a>
 
-### T98
+### T110
 
 In: open 5.4.4 (`LICENSE.md`).
 
@@ -3729,9 +4832,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t99"></a>
+<a id="t111"></a>
 
-### T99
+### T111
 
 In: pem-rfc7468 1.0.0 (`LICENSE-MIT`).
 
@@ -3763,9 +4866,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t100"></a>
+<a id="t112"></a>
 
-### T100
+### T112
 
 In: pico-args 0.5.0 (`LICENSE`).
 
@@ -3791,9 +4894,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t101"></a>
+<a id="t113"></a>
 
-### T101
+### T113
 
 In: png 0.18.1 (`LICENSE-MIT`).
 
@@ -3825,9 +4928,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t102"></a>
+<a id="t114"></a>
 
-### T102
+### T114
 
 In: proc-macro2-diagnostics 0.10.1 (`LICENSE-MIT`).
 
@@ -3853,9 +4956,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t103"></a>
+<a id="t115"></a>
 
-### T103
+### T115
 
 In: quick-error 2.0.1 (`LICENSE-MIT`).
 
@@ -3881,9 +4984,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t104"></a>
+<a id="t116"></a>
 
-### T104
+### T116
 
 In: raw-window-handle 0.6.2 (`LICENSE-MIT.md`).
 
@@ -3911,9 +5014,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t105"></a>
+<a id="t117"></a>
 
-### T105
+### T117
 
 In: raw-window-handle 0.6.2 (`LICENSE-ZLIB.md`).
 
@@ -3931,9 +5034,9 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t106"></a>
+<a id="t118"></a>
 
-### T106
+### T118
 
 In: renderdoc-sys 1.1.0 (`LICENSE-MIT`).
 
@@ -3965,9 +5068,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t107"></a>
+<a id="t119"></a>
 
-### T107
+### T119
 
 In: resvg 0.48.1 (`LICENSE-MIT`), usvg 0.48.1 (`LICENSE-MIT`).
 
@@ -3999,9 +5102,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t108"></a>
+<a id="t120"></a>
 
-### T108
+### T120
 
 In: rfd 0.15.4 (`LICENSE`).
 
@@ -4029,9 +5132,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t109"></a>
+<a id="t121"></a>
 
-### T109
+### T121
 
 In: rgb 0.8.53 (`LICENSE`).
 
@@ -4059,9 +5162,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t110"></a>
+<a id="t122"></a>
 
-### T110
+### T122
 
 In: ring 0.17.14 (`LICENSE`).
 
@@ -4077,9 +5180,9 @@ See src/polyfill/once_cell/LICENSE-APACHE and src/polyfill/once_cell/LICENSE-MIT
 for the license to code that was sourced from the once_cell project.
 ```
 
-<a id="t111"></a>
+<a id="t123"></a>
 
-### T111
+### T123
 
 In: ring 0.17.14 (`LICENSE-BoringSSL`).
 
@@ -4156,9 +5259,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t112"></a>
+<a id="t124"></a>
 
-### T112
+### T124
 
 In: ring 0.17.14 (`LICENSE-other-bits`).
 
@@ -4178,9 +5281,9 @@ OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="t113"></a>
+<a id="t125"></a>
 
-### T113
+### T125
 
 In: roxmltree 0.20.0 (`LICENSE-MIT`), roxmltree 0.21.1 (`LICENSE-MIT`).
 
@@ -4208,9 +5311,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t114"></a>
+<a id="t126"></a>
 
-### T114
+### T126
 
 In: rustls 0.23.45 (`LICENSE-ISC`).
 
@@ -4232,9 +5335,9 @@ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="t115"></a>
+<a id="t127"></a>
 
-### T115
+### T127
 
 In: rustls 0.23.45 (`LICENSE-MIT`).
 
@@ -4266,9 +5369,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t116"></a>
+<a id="t128"></a>
 
-### T116
+### T128
 
 In: rustls-pki-types 1.15.1 (`LICENSE-APACHE`).
 
@@ -4301,9 +5404,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t117"></a>
+<a id="t129"></a>
 
-### T117
+### T129
 
 In: rustls-pki-types 1.15.1 (`LICENSE-MIT`).
 
@@ -4335,9 +5438,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t118"></a>
+<a id="t130"></a>
 
-### T118
+### T130
 
 In: rustls-platform-verifier 0.7.1 (`LICENSE-MIT`).
 
@@ -4365,9 +5468,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t119"></a>
+<a id="t131"></a>
 
-### T119
+### T131
 
 In: rustls-webpki 0.103.15 (`LICENSE`).
 
@@ -4393,9 +5496,9 @@ The files under third-party/chromium are licensed as described in
 third-party/chromium/LICENSE.
 ```
 
-<a id="t120"></a>
+<a id="t132"></a>
 
-### T120
+### T132
 
 In: same-file 1.0.6 (`LICENSE-MIT`), winapi-util 0.1.11 (`LICENSE-MIT`).
 
@@ -4423,9 +5526,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t121"></a>
+<a id="t133"></a>
 
-### T121
+### T133
 
 In: schannel 0.1.29 (`LICENSE.md`).
 
@@ -4439,9 +5542,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t122"></a>
+<a id="t134"></a>
 
-### T122
+### T134
 
 In: scopeguard 1.2.0 (`LICENSE-MIT`).
 
@@ -4473,9 +5576,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t123"></a>
+<a id="t135"></a>
 
-### T123
+### T135
 
 In: self_cell 1.3.0 (`LICENSE-GPLv2`).
 
@@ -4821,45 +5924,9 @@ library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.
 ```
 
-<a id="t124"></a>
+<a id="t136"></a>
 
-### T124
-
-In: sha2 0.10.9 (`LICENSE-MIT`).
-
-```text
-Copyright (c) 2006-2009 Graydon Hoare
-Copyright (c) 2009-2013 Mozilla Foundation
-Copyright (c) 2016 Artyom Pavlov
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
-<a id="t125"></a>
-
-### T125
+### T136
 
 In: shlex 1.3.0 (`LICENSE-APACHE`), shlex 2.0.1 (`LICENSE-APACHE`).
 
@@ -4879,9 +5946,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t126"></a>
+<a id="t137"></a>
 
-### T126
+### T137
 
 In: shlex 1.3.0 (`LICENSE-MIT`), shlex 2.0.1 (`LICENSE-MIT`).
 
@@ -4909,9 +5976,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t127"></a>
+<a id="t138"></a>
 
-### T127
+### T138
 
 In: simd-adler32 0.3.10 (`LICENSE.md`).
 
@@ -4939,9 +6006,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t128"></a>
+<a id="t139"></a>
 
-### T128
+### T139
 
 In: simplecss 0.2.2 (`LICENSE-MIT`).
 
@@ -4969,9 +6036,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t129"></a>
+<a id="t140"></a>
 
-### T129
+### T140
 
 In: siphasher 1.0.3 (`COPYING`).
 
@@ -4985,9 +6052,9 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ```
 
-<a id="t130"></a>
+<a id="t141"></a>
 
-### T130
+### T141
 
 In: smallvec 1.16.0 (`LICENSE-MIT`).
 
@@ -5019,9 +6086,43 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t131"></a>
+<a id="t142"></a>
 
-### T131
+### T142
+
+In: stable_deref_trait 1.2.1 (`LICENSE-MIT`).
+
+```text
+Copyright (c) 2017 Robert Grosse
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
+<a id="t143"></a>
+
+### T143
 
 In: static_assertions 1.1.0 (`LICENSE-MIT`).
 
@@ -5049,9 +6150,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t132"></a>
+<a id="t144"></a>
 
-### T132
+### T144
 
 In: strict-num 0.1.1 (`LICENSE`).
 
@@ -5077,9 +6178,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t133"></a>
+<a id="t145"></a>
 
-### T133
+### T145
 
 In: subtle 2.6.1 (`LICENSE`).
 
@@ -5115,9 +6216,9 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t134"></a>
+<a id="t146"></a>
 
-### T134
+### T146
 
 In: svgtypes 0.16.1 (`LICENSE-MIT`).
 
@@ -5143,9 +6244,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="t135"></a>
+<a id="t147"></a>
 
-### T135
+### T147
 
 In: tiff 0.11.3 (`LICENSE`).
 
@@ -5173,9 +6274,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t136"></a>
+<a id="t148"></a>
 
-### T136
+### T148
 
 In: tiny-skia 0.12.0 (`LICENSE`), tiny-skia-path 0.12.0 (`LICENSE`).
 
@@ -5212,9 +6313,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t137"></a>
+<a id="t149"></a>
 
-### T137
+### T149
 
 In: tracing 0.1.44 (`LICENSE`), tracing-attributes 0.1.31 (`LICENSE`), tracing-core 0.1.36 (`LICENSE`).
 
@@ -5246,9 +6347,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t138"></a>
+<a id="t150"></a>
 
-### T138
+### T150
 
 In: type-map 0.5.1 (`LICENSE-APACHE`).
 
@@ -5460,9 +6561,9 @@ In: type-map 0.5.1 (`LICENSE-APACHE`).
    limitations under the License.
 ```
 
-<a id="t139"></a>
+<a id="t151"></a>
 
-### T139
+### T151
 
 In: type-map 0.5.1 (`LICENSE-MIT`).
 
@@ -5548,9 +6649,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t140"></a>
+<a id="t152"></a>
 
-### T140
+### T152
 
 In: typenum 1.20.1 (`LICENSE`).
 
@@ -5558,9 +6659,9 @@ In: typenum 1.20.1 (`LICENSE`).
 MIT OR Apache-2.0
 ```
 
-<a id="t141"></a>
+<a id="t153"></a>
 
-### T141
+### T153
 
 In: typenum 1.20.1 (`LICENSE-APACHE`).
 
@@ -5593,9 +6694,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="t142"></a>
+<a id="t154"></a>
 
-### T142
+### T154
 
 In: typenum 1.20.1 (`LICENSE-MIT`).
 
@@ -5623,9 +6724,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t143"></a>
+<a id="t155"></a>
 
-### T143
+### T155
 
 In: unicode-ident 1.0.24 (`LICENSE-UNICODE`).
 
@@ -5671,9 +6772,9 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ```
 
-<a id="t144"></a>
+<a id="t156"></a>
 
-### T144
+### T156
 
 In: untrusted 0.9.0 (`LICENSE.txt`).
 
@@ -5693,9 +6794,9 @@ In: untrusted 0.9.0 (`LICENSE.txt`).
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="t145"></a>
+<a id="t157"></a>
 
-### T145
+### T157
 
 In: ureq 3.4.2 (`LICENSE-MIT`).
 
@@ -5723,9 +6824,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t146"></a>
+<a id="t158"></a>
 
-### T146
+### T158
 
 In: ureq-proto 0.6.4 (`LICENSE-MIT.txt`).
 
@@ -5739,9 +6840,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t147"></a>
+<a id="t159"></a>
 
-### T147
+### T159
 
 In: utf8parse 0.2.2 (`LICENSE-MIT`).
 
@@ -5773,9 +6874,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t148"></a>
+<a id="t160"></a>
 
-### T148
+### T160
 
 In: uuid 1.26.0 (`LICENSE-MIT`).
 
@@ -5808,9 +6909,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t149"></a>
+<a id="t161"></a>
 
-### T149
+### T161
 
 In: vello_common 0.1.0 (`LICENSE-MIT`), vello_cpu 0.1.0 (`LICENSE-MIT`).
 
@@ -5842,9 +6943,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t150"></a>
+<a id="t162"></a>
 
-### T150
+### T162
 
 In: version_check 0.9.5 (`LICENSE-MIT`).
 
@@ -5870,9 +6971,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t151"></a>
+<a id="t163"></a>
 
-### T151
+### T163
 
 In: web-time 1.1.0 (`LICENSE-APACHE`).
 
@@ -5905,9 +7006,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t152"></a>
+<a id="t164"></a>
 
-### T152
+### T164
 
 In: web-time 1.1.0 (`LICENSE-MIT`).
 
@@ -5935,9 +7036,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t153"></a>
+<a id="t165"></a>
 
-### T153
+### T165
 
 In: webpki-roots 1.0.9 (`LICENSE`).
 
@@ -6005,9 +7106,9 @@ of Data, including for example machine learning models and models'
 insights.
 ```
 
-<a id="t154"></a>
+<a id="t166"></a>
 
-### T154
+### T166
 
 In: weezl 0.1.12 (`LICENSE-MIT`).
 
@@ -6035,9 +7136,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t155"></a>
+<a id="t167"></a>
 
-### T155
+### T167
 
 In: windows 0.62.2 (`license-apache-2.0`), windows-collections 0.3.2 (`license-apache-2.0`), windows-core 0.62.2 (`license-apache-2.0`), windows-future 0.3.2 (`license-apache-2.0`), windows-implement 0.60.2 (`license-apache-2.0`), windows-interface 0.59.3 (`license-apache-2.0`), windows-link 0.2.1 (`license-apache-2.0`), windows-numerics 0.3.1 (`license-apache-2.0`), windows-result 0.4.1 (`license-apache-2.0`), windows-strings 0.5.1 (`license-apache-2.0`), windows-sys 0.52.0 (`license-apache-2.0`), windows-sys 0.59.0 (`license-apache-2.0`), windows-sys 0.60.2 (`license-apache-2.0`), windows-sys 0.61.2 (`license-apache-2.0`), windows-targets 0.52.6 (`license-apache-2.0`), windows-targets 0.53.5 (`license-apache-2.0`), windows-threading 0.2.1 (`license-apache-2.0`), windows_x86_64_msvc 0.52.6 (`license-apache-2.0`), windows_x86_64_msvc 0.53.1 (`license-apache-2.0`).
 
@@ -6070,9 +7171,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t156"></a>
+<a id="t168"></a>
 
-### T156
+### T168
 
 In: windows 0.62.2 (`license-mit`), windows-collections 0.3.2 (`license-mit`), windows-core 0.62.2 (`license-mit`), windows-future 0.3.2 (`license-mit`), windows-implement 0.60.2 (`license-mit`), windows-interface 0.59.3 (`license-mit`), windows-link 0.2.1 (`license-mit`), windows-numerics 0.3.1 (`license-mit`), windows-result 0.4.1 (`license-mit`), windows-strings 0.5.1 (`license-mit`), windows-sys 0.52.0 (`license-mit`), windows-sys 0.59.0 (`license-mit`), windows-sys 0.60.2 (`license-mit`), windows-sys 0.61.2 (`license-mit`), windows-targets 0.52.6 (`license-mit`), windows-targets 0.53.5 (`license-mit`), windows-threading 0.2.1 (`license-mit`), windows_x86_64_msvc 0.52.6 (`license-mit`), windows_x86_64_msvc 0.53.1 (`license-mit`).
 
@@ -6100,9 +7201,9 @@ MIT License
     SOFTWARE
 ```
 
-<a id="t157"></a>
+<a id="t169"></a>
 
-### T157
+### T169
 
 In: winresource 0.1.31 (`LICENSE`).
 
@@ -6134,9 +7235,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t158"></a>
+<a id="t170"></a>
 
-### T158
+### T170
 
 In: xml-rs 0.8.29 (`LICENSE`).
 
@@ -6164,9 +7265,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t159"></a>
+<a id="t171"></a>
 
-### T159
+### T171
 
 In: zerocopy 0.8.56 (`LICENSE-APACHE`), zerocopy-derive 0.8.56 (`LICENSE-APACHE`).
 
@@ -6199,9 +7300,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t160"></a>
+<a id="t172"></a>
 
-### T160
+### T172
 
 In: zerocopy 0.8.56 (`LICENSE-BSD`), zerocopy-derive 0.8.56 (`LICENSE-BSD`).
 
@@ -6232,9 +7333,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t161"></a>
+<a id="t173"></a>
 
-### T161
+### T173
 
 In: zerocopy 0.8.56 (`LICENSE-MIT`), zerocopy-derive 0.8.56 (`LICENSE-MIT`).
 
@@ -6266,9 +7367,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t162"></a>
+<a id="t174"></a>
 
-### T162
+### T174
 
 In: zeroize 1.9.0 (`LICENSE-MIT`).
 
@@ -6300,9 +7401,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t163"></a>
+<a id="t175"></a>
 
-### T163
+### T175
 
 In: zip 8.6.0 (`LICENSE`).
 
@@ -6330,9 +7431,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t164"></a>
+<a id="t176"></a>
 
-### T164
+### T176
 
 In: zlib-rs 0.6.7 (`LICENSE`).
 
@@ -6358,9 +7459,9 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t165"></a>
+<a id="t177"></a>
 
-### T165
+### T177
 
 In: zune-core 0.5.3 (`LICENSE-MIT`), zune-jpeg 0.5.15 (`LICENSE-MIT`).
 
@@ -6388,9 +7489,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t166"></a>
+<a id="t178"></a>
 
-### T166
+### T178
 
 In: zune-core 0.5.3 (`LICENSE-ZLIB`), zune-jpeg 0.5.15 (`LICENSE-ZLIB`).
 
@@ -6426,6 +7527,7 @@ Crates that ship no licence file, with the authors their manifest names:
 - accesskit_consumer 0.35.0 — `MIT OR Apache-2.0` — Copyright (c) The AccessKit contributors
 - accesskit_windows 0.32.1 — `MIT OR Apache-2.0` — Copyright (c) The AccessKit contributors
 - accesskit_winit 0.32.2 — `Apache-2.0` — Copyright (c) The AccessKit contributors
+- aotuv_lancer_vorbis_sys 0.1.6 — `BSD-3-Clause` — Copyright (c) Alejandro González <me@alegon.dev>
 - clipboard-win 5.4.1 — `BSL-1.0` — Copyright (c) Douman <douman@gmx.se>
 - com-scrape-types 0.1.1 — `MIT OR Apache-2.0` — Copyright (c) Micah Johnston <micahrjohnston@gmail.com>
 - dasp_sample 0.11.0 — `MIT OR Apache-2.0` — Copyright (c) mitchmindtree <mitchell.nordine@gmail.com>
@@ -6440,7 +7542,9 @@ Crates that ship no licence file, with the authors their manifest names:
 - epaint 0.36.1 — `MIT OR Apache-2.0` — Copyright (c) Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
 - gl_generator 0.14.0 — `Apache-2.0` — Copyright (c) Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine
 - khronos_api 3.1.0 — `Apache-2.0` — Copyright (c) Brendan Zabarauskas <bjzaba@yahoo.com.au>, Corey Richardson, Arseny Kapoulkine, Pierre Krieger <pierre.krieger1708@gmail.com>
+- ogg_next_sys 0.1.5 — `BSD-3-Clause` — Copyright (c) Alejandro González <me@alegon.dev>
 - profiling 1.0.18 — `MIT OR Apache-2.0` — Copyright (c) Philip Degarmo <aclysma@gmail.com>
+- vorbis_rs 0.5.6 — `BSD-3-Clause` — Copyright (c) Alejandro González <me@alegon.dev>
 
 ### Apache-2.0
 
@@ -6679,6 +7783,10 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
+
+### BSD-3-Clause
+
+**Missing standard text:** add `xtask/notices/BSD-3-Clause.txt`
 
 ### BSL-1.0
 
