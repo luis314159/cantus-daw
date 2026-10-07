@@ -7,9 +7,14 @@
 //! → polarity) — **and**, post-fader, a copy at each send's level into the strip the
 //! send names.
 //!
-//! Strips are processed in the order the snapshot gives (`Snapshot::strip_order`): every
-//! strip after all the strips feeding it, so a bus sees its inputs complete. The audio
-//! thread sorts nothing; it reads the order.
+//! **A graph, run serially** (ADR 0031 §1, `crate::graph`). This file is the control phase
+//! and the glue: messages, MIDI, the input ring, recording marks, the transport, snapshots
+//! and delay compensation; then each block is cut into **passes** (at loop wraps,
+//! automation control points and every `PASS_FRAMES`), and in each pass every node runs in
+//! the plan's order — the tracks (`graph/track.rs`), the strips in `Snapshot::strip_order`
+//! (`graph/strip.rs`), the master (`graph/master.rs`) — each gathering its inputs in the
+//! canonical order from what its predecessors left (`graph/gather.rs`). The audio thread
+//! sorts nothing; it reads the plan.
 //!
 //! Firmus renders mono and is copied into both channels; Pulsus renders **stereo**,
 //! because a pad carries its own pan and a kit is a dozen sources on one channel. From
@@ -21,11 +26,14 @@
 //! thing before the output.
 
 use crate::effects::EffectUnit;
+use crate::graph::notes::{Listener, Outbox};
+use crate::graph::{GraphPlan, PASS_FRAMES};
 use crate::inst::{Controller, NativeUnit, NoteOn, UnitKind};
 use crate::messages::*;
 use crate::transport::Transport;
 use cantus_core::{
-    apply_width, balance_gains, InstrumentSpec, NoteEvent, PanLaw, Snapshot, StripId, TrackId,
+    apply_width, balance_gains, EffectId, InstrumentSpec, NoteEvent, PanLaw, Snapshot, StripId,
+    TrackId,
 };
 use cantus_dsp::{ChannelEq, Click, Firmus, FirmusSettings, Pulsus, Wave};
 use rtrb::{Consumer, Producer, RingBuffer};
@@ -35,11 +43,33 @@ use std::time::Instant;
 /// Automation (ADR 0027): control points, ramps, configured copies.
 #[path = "processor_auto.rs"]
 mod auto;
-#[path = "processor_master.rs"]
+/// The master node: its chain's state and installation (ADR 0026).
+#[path = "graph/master.rs"]
 mod master;
+/// The master node's pass: gather, chain, strip, take, click.
+#[path = "graph/master_run.rs"]
+mod master_run;
 /// Input, monitoring, recording and audio clips (ADR 0025).
 #[path = "processor_rec.rs"]
 mod rec;
+/// The strip nodes: gather and outputs.
+#[path = "graph/strip.rs"]
+pub(crate) mod strip;
+/// A strip node's chain and outputs.
+#[path = "graph/strip_run.rs"]
+mod strip_run;
+/// The track nodes.
+#[path = "graph/track.rs"]
+pub(crate) mod track;
+/// Calls into `cantus-rt` (FTZ/DAZ, the callback's priority), behind one small seam.
+#[path = "graph/rt_shim.rs"]
+#[allow(unsafe_code)]
+mod rt_shim;
+
+use master::MasterStrip;
+use strip::{produced, StripOut};
+use track::TrackOut;
+pub use rt_shim::AudioHost;
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
 const LIVE_TAG: u64 = u64::MAX;
@@ -47,25 +77,9 @@ const LIVE_TAG: u64 = u64::MAX;
 const PENDING_GARBAGE: usize = 8;
 /// MIDI events drained per block at most.
 const MAX_MIDI_PER_BLOCK: usize = 512;
-/// Notes on their way to effects (ADR 0022): each waits for the latency ahead of its slot.
-const MAX_FX_NOTES: usize = 1024;
-
-/// An effect listening to a track's notes: the track's slot, the effect, and how late the
-/// audio reaching the effect is — the notes wait as long, to arrive with it.
-#[derive(Copy, Clone, Debug)]
-struct FxListener {
-    track: usize,
-    effect: cantus_core::EffectId,
-    delay: u64,
-}
-
-/// A note on its way to an effect, due at a sample of the processor's clock.
-#[derive(Copy, Clone, Debug)]
-struct FxNoteDue {
-    due: u64,
-    effect: cantus_core::EffectId,
-    note: crate::fx::FxNote,
-}
+/// Inserts that may hear a track's notes at once (ADR 0022): every insert of every strip
+/// and of the master.
+const MAX_LISTENERS: usize = (MAX_STRIPS + 1) * MAX_EFFECTS_PER_TRACK;
 
 /// Which of the slot's instruments is the live one.
 ///
@@ -99,13 +113,15 @@ struct TrackSlot {
     /// The strip slot this track feeds; `None` is the master.
     strip: Option<usize>,
     peak: f32,
+    /// The notes it plays, for the inserts that hear it (`graph::notes`).
+    outbox: Outbox,
 }
 
-/// One mixer strip on the audio thread: its own stereo buffer, its inserts, its controls.
+/// One mixer strip on the audio thread: its inserts and its controls. What it leaves for
+/// its consumers each pass is its [`StripOut`].
 ///
-/// Buffers are allocated once for every possible strip, so routing can change with a
-/// snapshot and nothing is allocated for it (ADR 0005). Sixty-four strips at the largest
-/// block is a few megabytes, which is a fair price for a rule that cannot be broken.
+/// Everything is allocated once for every possible strip, so routing can change with a
+/// snapshot and nothing is allocated for it (ADR 0005).
 #[allow(clippy::vec_box)]
 struct StripSlot {
     id: Option<StripId>,
@@ -135,15 +151,15 @@ struct StripSlot {
     /// snapshot says and by slot once resolved.
     key_id: [Option<StripId>; MAX_EFFECTS_PER_TRACK],
     key: [Option<usize>; MAX_EFFECTS_PER_TRACK],
-    /// Per insert: the track whose notes it hears (ADR 0022).
+    /// Per insert: the track whose notes it hears (ADR 0022), and its place among the
+    /// processor's listeners once resolved.
     midi_id: [Option<TrackId>; MAX_EFFECTS_PER_TRACK],
+    listener: [Option<u16>; MAX_EFFECTS_PER_TRACK],
     /// Something's detector listens to this strip, so its post-fader output is kept.
     is_key: bool,
-    /// Something wrote into the buffer this segment.
+    /// Something came in, the last pass.
     active: bool,
     peak: f32,
-    buf_l: Vec<f32>,
-    buf_r: Vec<f32>,
 }
 
 impl StripSlot {
@@ -169,11 +185,10 @@ impl StripSlot {
             key_id: [None; MAX_EFFECTS_PER_TRACK],
             key: [None; MAX_EFFECTS_PER_TRACK],
             midi_id: [None; MAX_EFFECTS_PER_TRACK],
+            listener: [None; MAX_EFFECTS_PER_TRACK],
             is_key: false,
             active: false,
             peak: 0.0,
-            buf_l: vec![0.0; MAX_BLOCK_FRAMES],
-            buf_r: vec![0.0; MAX_BLOCK_FRAMES],
         }
     }
 }
@@ -262,6 +277,7 @@ impl TrackSlot {
             audible: true,
             strip: None,
             peak: 0.0,
+            outbox: Outbox::new(),
         }
     }
 }
@@ -289,12 +305,23 @@ pub struct Processor {
     strips: Vec<StripSlot>,
     /// Snapshot strip index → strip slot index.
     strip_to_slot: Vec<usize>,
-    /// Strip slots in processing order, from the snapshot.
+    /// Strip slots in processing order, from the plan.
     strip_play_order: Vec<usize>,
+    /// The graph (ADR 0031 §1.2): nodes, order, canonical inputs. Compiled on the UI
+    /// thread and sent with its snapshot, or compiled here in place when one arrives
+    /// without (`graph::plan`).
+    plan: Box<GraphPlan>,
+    /// What every node left for its consumers this pass, by slot (`graph/track.rs`,
+    /// `graph/strip.rs`), and each delayed send's line output, by line.
+    track_out: Vec<TrackOut>,
+    strip_out: Vec<StripOut>,
+    edge_out: Vec<[Vec<f32>; 2]>,
+    /// The scratch every node works in (one set: Phase 0 runs one node at a time; the
+    /// pool gives each worker its own). Every node buffer is [`PASS_FRAMES`] long.
     mono: Vec<f32>,
     buf_l: Vec<f32>,
     buf_r: Vec<f32>,
-    /// The dry copy a slot's dry/wet needs; one pair for the whole processor.
+    /// The dry copy a slot's dry/wet needs.
     dry_l: Vec<f32>,
     dry_r: Vec<f32>,
     click: Click,
@@ -321,19 +348,19 @@ pub struct Processor {
     /// The analysed effect's input, kept while it runs so input and output go out as pairs.
     ana_pre: Vec<f32>,
     /// Post-fader output of the strips something is keyed from, by strip slot, and
-    /// whether it was written this segment. Outside `strips` so a strip's effects can read
+    /// whether it was written this pass. Outside `strips` so a strip's effects can read
     /// another strip's output while the strip itself is borrowed.
     key_bufs: Vec<(Vec<f32>, Vec<f32>)>,
     key_valid: [bool; MAX_STRIPS],
-    /// A key from a strip that made no sound this segment: silence, not "no key".
+    /// A key from a strip that made no sound this pass: silence, not "no key".
     silence: Vec<f32>,
     /// Delay compensation (`crate::pdc`): the pool of lines, and which line serves each
     /// edge — resolved once per snapshot so the render loop never searches.
     pdc: crate::pdc::Compensation,
     track_line: [Option<usize>; MAX_TRACKS],
     out_line: [Option<usize>; MAX_STRIPS],
-    send_line: [[Option<usize>; MAX_SENDS_PER_STRIP]; MAX_STRIPS],
-    dry_line: [[Option<usize>; MAX_EFFECTS_PER_TRACK]; MAX_STRIPS],
+    send_line: Vec<[Option<usize>; MAX_SENDS_PER_STRIP]>,
+    dry_line: Vec<[Option<usize>; MAX_EFFECTS_PER_TRACK]>,
     /// Scratch for a delayed edge.
     edge_l: Vec<f32>,
     edge_r: Vec<f32>,
@@ -350,16 +377,24 @@ pub struct Processor {
     /// Samples played since the last start or seek: until the output's latency has passed,
     /// what is heard is still the start point (ADR 0022).
     played: u64,
-    /// MIDI into effects (ADR 0022): who listens to which track, which track slots have a
-    /// listener, and the notes on their way — all preallocated.
-    fx_listeners: Vec<FxListener>,
+    /// MIDI into effects (ADR 0022, `graph::notes`): the inserts hearing a track, which
+    /// track slots have one, and the last plan's listeners (so a re-plan keeps their
+    /// cursors) — all preallocated. The notes themselves wait in the tracks' outboxes.
+    listeners: Vec<Listener>,
+    listeners_prev: Vec<Listener>,
     listened: [bool; MAX_TRACKS],
-    fx_notes: Vec<FxNoteDue>,
     /// Samples processed before the current block: the clock notes to effects are timed
-    /// on. `note_at` is the time of notes sent outside the segment loop (live notes,
+    /// on. `note_at` is the time of notes sent outside the passes (live notes,
     /// all-notes-off).
     clock: u64,
     note_at: u64,
+    /// The captured strip ran this pass (otherwise its take records silence).
+    strip_captured: bool,
+    /// The first block after a stream starts promotes the callback's thread
+    /// (`cantus_rt::promote_callback`, ADR 0031 R1), on the driver API the stream set.
+    promote: Option<AudioHost>,
+    /// FTZ/DAZ inside `process` (on; off only for the test that compares the two).
+    flush_denormals: bool,
     /// The input stream's end and the recording rings (ADR 0025, `crate::recorder`).
     pub(crate) input: crate::recorder::InputPort,
     pub(crate) record_rings: Option<Box<crate::recorder::RecordRings>>,
@@ -381,7 +416,7 @@ impl Processor {
         midi_rx: Consumer<MidiEvent>,
     ) -> Self {
         let sr = sample_rate as f32;
-        Processor {
+        let mut p = Processor {
             sample_rate,
             rx,
             tx,
@@ -398,11 +433,17 @@ impl Processor {
             strips: (0..MAX_STRIPS).map(|_| StripSlot::new()).collect(),
             strip_to_slot: Vec::with_capacity(MAX_STRIPS),
             strip_play_order: Vec::with_capacity(MAX_STRIPS),
-            mono: vec![0.0; MAX_BLOCK_FRAMES],
-            buf_l: vec![0.0; MAX_BLOCK_FRAMES],
-            buf_r: vec![0.0; MAX_BLOCK_FRAMES],
-            dry_l: vec![0.0; MAX_BLOCK_FRAMES],
-            dry_r: vec![0.0; MAX_BLOCK_FRAMES],
+            plan: Box::new(GraphPlan::new()),
+            track_out: (0..MAX_TRACKS).map(|_| TrackOut::new()).collect(),
+            strip_out: (0..MAX_STRIPS).map(|_| StripOut::new()).collect(),
+            edge_out: (0..crate::pdc::POOL)
+                .map(|_| [vec![0.0; PASS_FRAMES], vec![0.0; PASS_FRAMES]])
+                .collect(),
+            mono: vec![0.0; PASS_FRAMES],
+            buf_l: vec![0.0; PASS_FRAMES],
+            buf_r: vec![0.0; PASS_FRAMES],
+            dry_l: vec![0.0; PASS_FRAMES],
+            dry_r: vec![0.0; PASS_FRAMES],
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
@@ -421,36 +462,102 @@ impl Processor {
             capture_slot: None,
             analyser: None,
             analysed: None,
-            ana_pre: vec![0.0; MAX_BLOCK_FRAMES],
+            ana_pre: vec![0.0; PASS_FRAMES],
             key_bufs: (0..MAX_STRIPS)
-                .map(|_| (vec![0.0; MAX_BLOCK_FRAMES], vec![0.0; MAX_BLOCK_FRAMES]))
+                .map(|_| (vec![0.0; PASS_FRAMES], vec![0.0; PASS_FRAMES]))
                 .collect(),
             key_valid: [false; MAX_STRIPS],
-            silence: vec![0.0; MAX_BLOCK_FRAMES],
+            silence: vec![0.0; PASS_FRAMES],
             pdc: crate::pdc::Compensation::new(),
             track_line: [None; MAX_TRACKS],
             out_line: [None; MAX_STRIPS],
-            send_line: [[None; MAX_SENDS_PER_STRIP]; MAX_STRIPS],
-            dry_line: [[None; MAX_EFFECTS_PER_TRACK]; MAX_STRIPS],
-            edge_l: vec![0.0; MAX_BLOCK_FRAMES],
-            edge_r: vec![0.0; MAX_BLOCK_FRAMES],
+            send_line: vec![[None; MAX_SENDS_PER_STRIP]; MAX_STRIPS],
+            dry_line: vec![[None; MAX_EFFECTS_PER_TRACK]; MAX_STRIPS],
+            edge_l: vec![0.0; PASS_FRAMES],
+            edge_r: vec![0.0; PASS_FRAMES],
             stem_tap: None,
             strip_post: [0; MAX_STRIPS],
             click_line: None,
             capture_line: None,
             played: 0,
-            fx_listeners: Vec::with_capacity(MAX_STRIPS * MAX_EFFECTS_PER_TRACK),
+            listeners: Vec::with_capacity(MAX_LISTENERS),
+            listeners_prev: Vec::with_capacity(MAX_LISTENERS),
             listened: [false; MAX_TRACKS],
-            fx_notes: Vec::with_capacity(MAX_FX_NOTES),
             clock: 0,
             note_at: 0,
+            strip_captured: false,
+            promote: None,
+            flush_denormals: true,
             input: Default::default(),
             record_rings: None,
             live: rec::Live::new(),
             master: master::MasterChain::new(),
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
+        };
+        p.prefault();
+        p
+    }
+
+    /// Touch every node buffer once, here on the thread that builds the processor, so the
+    /// audio thread never takes their first page faults (ADR 0031 R11): zeroed memory comes
+    /// from the system untouched, and 256 strips' buffers are megabytes of first touches.
+    fn prefault(&mut self) {
+        fn touch(v: &mut [f32]) {
+            // Written, made observable, written back: neither store can be elided.
+            v.fill(f32::MIN_POSITIVE);
+            std::hint::black_box(&mut *v);
+            v.fill(0.0);
         }
+        for o in self.track_out.iter_mut() {
+            touch(&mut o.l);
+            touch(&mut o.r);
+        }
+        for o in self.strip_out.iter_mut() {
+            for v in [&mut o.post_l, &mut o.post_r, &mut o.out_l, &mut o.out_r] {
+                touch(v);
+            }
+        }
+        for [l, r] in self.edge_out.iter_mut() {
+            touch(l);
+            touch(r);
+        }
+        for (l, r) in self.key_bufs.iter_mut() {
+            touch(l);
+            touch(r);
+        }
+        for v in [
+            &mut self.mono,
+            &mut self.buf_l,
+            &mut self.buf_r,
+            &mut self.dry_l,
+            &mut self.dry_r,
+            &mut self.edge_l,
+            &mut self.edge_r,
+            &mut self.ana_pre,
+            &mut self.silence,
+            &mut self.master.buf_l,
+            &mut self.master.buf_r,
+            &mut self.master.dry_l,
+            &mut self.master.dry_r,
+        ] {
+            touch(v);
+        }
+    }
+
+    /// Ask the first block to promote the calling (callback) thread for the driver API
+    /// `host` (ADR 0031 R1). For the device code that builds the output stream; never the
+    /// offline renderer, the stems, the bench or the tests, which must not touch thread
+    /// priority.
+    pub fn promote_on_first_block(&mut self, host: AudioHost) {
+        self.promote = Some(host);
+    }
+
+    /// Flush denormals inside `process` (on, always, in the application). Off exists for
+    /// `tests/ftz.rs`, which renders the null corpus both ways and compares the bits.
+    #[doc(hidden)]
+    pub fn set_flush_denormals(&mut self, on: bool) {
+        self.flush_denormals = on;
     }
 
     /// Switch the per-node profiler on or off (on by default; the offline renderer turns
@@ -498,19 +605,29 @@ impl Processor {
         .unwrap_or(Culprit::Engine)
     }
 
-    /// Send a note a track played to every effect listening to it, due when the audio
-    /// reaching each effect gets there (ADR 0022). Allocation-free; a full queue drops the
-    /// note and counts it.
+    /// Send a note a track played, at absolute sample `at`, to every effect listening to
+    /// it: into the track's outbox, where each listener takes it when the audio reaching
+    /// its slot gets there (ADR 0022, `graph::notes`). Allocation-free; a full outbox drops
+    /// the note and counts it.
     fn notes_to_fx(&mut self, track: usize, at: u64, note: crate::fx::FxNote) {
-        for l in self.fx_listeners.iter().filter(|l| l.track == track) {
-            if self.fx_notes.len() < MAX_FX_NOTES {
-                self.fx_notes.push(FxNoteDue {
-                    due: at + l.delay,
-                    effect: l.effect,
-                    note,
-                });
-            } else {
-                self.stats.dropped_events += 1;
+        if !self.slots[track].outbox.push(at, note) {
+            self.stats.dropped_events += 1;
+        }
+    }
+
+    /// The end of a block: what is past due and was not delivered (its effect did not
+    /// run) is dropped, and each outbox learns how far its slowest listener has read.
+    fn prune_notes(&mut self) {
+        let now = self.clock;
+        let mut floor = [u64::MAX; MAX_TRACKS];
+        for l in self.listeners.iter_mut() {
+            l.prune(&self.slots[l.track].outbox, now);
+            floor[l.track] = floor[l.track].min(l.cursor);
+        }
+        for (slot, f) in floor.iter().enumerate() {
+            if self.listened[slot] {
+                let s = &mut self.slots[slot].outbox;
+                s.set_floor(if *f == u64::MAX { s.written() } else { *f });
             }
         }
     }
@@ -661,10 +778,22 @@ impl Processor {
     /// Render one block of interleaved output with `channels` channels.
     /// Called from the audio callback (or the offline renderer).
     pub fn process(&mut self, output: &mut [f32], channels: usize) {
+        // Denormals flushed to zero for the whole block, the caller's mode restored when it
+        // ends (ADR 0031 §5.2): the callback, the offline render, the stems, the bench and
+        // every test then run in the same floating-point mode.
+        let _ftz = self.flush_denormals.then(rt_shim::DenormalGuard::new);
         let started = Instant::now();
         self.prof.begin(started);
         let channels = channels.max(1);
         let frames = (output.len() / channels).min(MAX_BLOCK_FRAMES);
+        // The first block after a stream start raises the callback's own thread (R1): one
+        // system call per stream start, counted as the amended ADR 0005 rule 3 asks.
+        if let Some(host) = self.promote.take() {
+            let period = std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate);
+            if rt_shim::promote_callback(host, period) {
+                self.stats.wakes += 1;
+            }
+        }
         output.iter_mut().for_each(|s| *s = 0.0);
         // Notes sent before the first segment (live notes, a stop, a seek) are this
         // block's first sample.
@@ -713,7 +842,13 @@ impl Processor {
             self.stats.overruns += 1;
         }
         self.stats.blocks_processed += 1;
-        self.stats.active_voices = self.slots.iter().map(TrackSlot::active_voices).sum();
+        // The slots a track holds: a freed slot is never rendered again.
+        self.stats.active_voices = self
+            .slots
+            .iter()
+            .filter(|s| s.id.is_some())
+            .map(TrackSlot::active_voices)
+            .sum();
 
         // Report. If the UI is not draining, dropping these is harmless.
         let _ = self.tx.push(EngineEvent::Position {
@@ -729,7 +864,10 @@ impl Processor {
         for _ in 0..MAX_MESSAGES_PER_BLOCK {
             let Ok(msg) = self.rx.pop() else { break };
             match msg {
-                EngineMessage::SetSnapshot(snapshot) => self.install_snapshot(snapshot),
+                EngineMessage::SetSnapshot(snapshot) => self.install_snapshot(snapshot, None),
+                EngineMessage::SetSnapshotPlanned(snapshot, plan) => {
+                    self.install_snapshot(snapshot, Some(plan))
+                }
                 EngineMessage::Automation(rt) => self.auto_arrived(rt),
                 EngineMessage::AddEffect(unit) => {
                     if self.incoming_effects.len() < MAX_PENDING_EFFECTS {
@@ -785,7 +923,10 @@ impl Processor {
                     self.compensate();
                 }
                 EngineMessage::Panic => {
-                    self.fx_notes.clear();
+                    // Every note on its way to an effect is forgotten.
+                    for l in self.listeners.iter_mut() {
+                        l.cursor = self.slots[l.track].outbox.written();
+                    }
                     for s in &mut self.slots {
                         s.reset();
                     }
@@ -989,7 +1130,30 @@ impl Processor {
         self.strips.iter().position(|s| s.id == Some(strip))
     }
 
-    fn install_snapshot(&mut self, snapshot: Arc<Snapshot>) {
+    fn install_snapshot(&mut self, snapshot: Arc<Snapshot>, plan: Option<Box<GraphPlan>>) {
+        // The plan: the one compiled for it on the UI thread, or — sent without one (a
+        // test, a queue that was full) or with a stale one — compiled here, in place,
+        // allocation-free. An unchanged topology keeps the plan it has.
+        let key = crate::graph::topology_key(&snapshot);
+        match plan {
+            Some(p) if p.key() == key => {
+                let old = std::mem::replace(&mut self.plan, p);
+                self.dispose_plan(old);
+            }
+            Some(p) => {
+                self.dispose_plan(p);
+                self.plan.compile_into(&snapshot);
+                self.stats.plans_compiled += 1;
+            }
+            None if self.plan.key() != key => {
+                self.plan.compile_into(&snapshot);
+                self.stats.plans_compiled += 1;
+            }
+            None => {}
+        }
+        // Past the limits: refused, and said so.
+        self.stats.refused_tracks = self.plan.refused_tracks() as u64;
+        self.stats.refused_strips = self.plan.refused_strips() as u64;
         // Map tracks to slots, keeping slots whose track id survives so voices keep ringing.
         self.track_to_slot.clear();
         let mut used = [false; MAX_TRACKS];
@@ -1122,11 +1286,10 @@ impl Processor {
         }
         self.install_master(&snapshot);
         self.resolve_capture();
+        // The plan's order, in slots.
         self.strip_play_order.clear();
-        for si in &snapshot.strip_order {
-            if let Some(slot) = self.strip_to_slot.get(*si) {
-                self.strip_play_order.push(*slot);
-            }
+        for si in self.plan.order() {
+            self.strip_play_order.push(self.strip_to_slot[*si as usize]);
         }
         for (i, in_use) in strip_used.iter().enumerate() {
             if !in_use && self.strips[i].id.is_some() {
@@ -1208,25 +1371,26 @@ impl Processor {
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
         // before it — so note and sound meet at the effect.
-        self.fx_listeners.clear();
+        // A listener that was already there keeps its cursor (`Self::listen`).
+        std::mem::swap(&mut self.listeners, &mut self.listeners_prev);
+        self.listeners.clear();
         self.listened = [false; MAX_TRACKS];
+        for st in self.strips.iter_mut() {
+            st.listener = [None; MAX_EFFECTS_PER_TRACK];
+        }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
             let mut ahead = arrive[slot] as u64;
-            let st = &self.strips[slot];
-            for (e, midi) in st.effects.iter().zip(st.midi_id.iter()) {
+            for i in 0..self.strips[slot].effects.len() {
+                let (effect, latency, midi) = {
+                    let st = &self.strips[slot];
+                    (st.effects[i].id, st.effects[i].latency(), st.midi_id[i])
+                };
                 let track = midi.and_then(|id| self.slots.iter().position(|s| s.id == Some(id)));
                 if let Some(track) = track {
-                    if self.fx_listeners.len() < self.fx_listeners.capacity() {
-                        self.fx_listeners.push(FxListener {
-                            track,
-                            effect: e.id,
-                            delay: ahead,
-                        });
-                        self.listened[track] = true;
-                    }
+                    self.strips[slot].listener[i] = self.listen(track, effect, ahead);
                 }
-                ahead += e.latency() as u64;
+                ahead += latency as u64;
             }
         }
         // The master chain delays every path equally: it moves what is heard, not the mix.
@@ -1279,8 +1443,12 @@ impl Processor {
         // Resolve the assignment once, so the render loop reads an array.
         self.track_line = [None; MAX_TRACKS];
         self.out_line = [None; MAX_STRIPS];
-        self.send_line = [[None; MAX_SENDS_PER_STRIP]; MAX_STRIPS];
-        self.dry_line = [[None; MAX_EFFECTS_PER_TRACK]; MAX_STRIPS];
+        self.send_line
+            .iter_mut()
+            .for_each(|s| *s = [None; MAX_SENDS_PER_STRIP]);
+        self.dry_line
+            .iter_mut()
+            .for_each(|s| *s = [None; MAX_EFFECTS_PER_TRACK]);
         self.click_line = None;
         self.capture_line = None;
         self.master.dry_line = [None; MAX_EFFECTS_PER_TRACK];
@@ -1378,6 +1546,14 @@ impl Processor {
         }
     }
 
+    /// A plan the processor no longer uses goes back to be freed on the UI thread.
+    fn dispose_plan(&mut self, old: Box<GraphPlan>) {
+        if self.tx.push(EngineEvent::GarbagePlan(old)).is_err() {
+            // Queue full: freed here. Extremely unlikely (the queue holds thousands).
+            self.stats.dropped_events += 1;
+        }
+    }
+
     /// Swap `unit` in for the running unit with its id — a hosted plug-in restarted (ADR
     /// 0019) — keeping its place, bypass, mix and key; hand the old one back; plan delay
     /// compensation again, since the new one may report another latency.
@@ -1424,28 +1600,7 @@ impl Processor {
 
     /// Where the song is now, for the units that follow it.
     fn song_position(&self) -> crate::fx::SongPosition {
-        let tempo = self.transport.bpm();
-        let ppq = cantus_core::PPQ as f64;
-        let beats = self.transport.position_f64() / ppq;
-        let (num, den) = self
-            .snapshot
-            .as_ref()
-            .map(|s| (s.time_signature.numerator, s.time_signature.denominator))
-            .unwrap_or((4, 4));
-        let bar = f64::from(num.max(1)) * 4.0 / f64::from(den.max(1));
-        crate::fx::SongPosition {
-            playing: self.transport.is_playing(),
-            tempo_bpm: tempo,
-            beats,
-            samples: (beats * 60.0 / tempo.max(1e-9) * self.sample_rate).round() as i64,
-            bar_start_beats: (beats / bar).floor() * bar,
-            time_sig_num: u16::from(num),
-            time_sig_den: u16::from(den),
-            loop_beats: self
-                .transport
-                .loop_region()
-                .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
-        }
+        song_position_of(&self.transport, &self.snapshot, self.sample_rate)
     }
 
     /// Give a slot the native unit its track now needs (`kind`), or none. A unit already of
@@ -1574,6 +1729,9 @@ impl Processor {
         }
     }
 
+    /// The block, as passes of the graph (`crate::graph`): cut only where everything must
+    /// stop at once — a loop wrap, an automation control point, every `PASS_FRAMES` —
+    /// and in each pass every node runs in the plan's order at its own segments.
     fn render(&mut self, output: &mut [f32], channels: usize, frames: usize) {
         if let Some(tap) = self.stem_tap.as_mut() {
             tap.begin(frames);
@@ -1607,7 +1765,14 @@ impl Processor {
         // `cos(π/4)·√2`, which in f32 is 0.99999994: a master at its default touched every
         // sample by one rounding step. It no longer does (see the capture null test).
         let (master_l, master_r) = balance_gains(master_pan);
-        let master_sign = if master_invert { -1.0f32 } else { 1.0 };
+        let master = MasterStrip {
+            gain: master_gain,
+            width: master_width,
+            l: master_l,
+            r: master_r,
+            sign: if master_invert { -1.0f32 } else { 1.0 },
+        };
+        let snap = self.snapshot.clone();
 
         let mut done = 0usize;
         let mut guard = 0usize;
@@ -1617,665 +1782,55 @@ impl Processor {
             if guard > MAX_BLOCK_FRAMES * 2 {
                 break; // Impossible unless the loop region is degenerate; never spin.
             }
-            // A control point due now runs first; the segment ends at the next one.
-            let mut seg_end = self.auto_point(done, frames);
-            let mut wrap_at_seg_end = false;
-
-            if self.transport.is_playing() {
-                if let Some(snap) = self.snapshot.clone() {
-                    // Fire everything due now; find the next boundary.
-                    for (ti, t) in snap
-                        .tracks
-                        .iter()
-                        .enumerate()
-                        .take(self.track_to_slot.len())
-                    {
-                        let slot = self.track_to_slot[ti];
-                        loop {
-                            let s = &mut self.slots[slot];
-                            let Some(ev) = t.events.get(s.next_event) else {
-                                break;
-                            };
-                            let off = self.transport.samples_until(ev.tick.0 as f64) as usize;
-                            if off == 0 {
-                                fire(s, ev);
-                                s.next_event += 1;
-                                if self.listened[slot] {
-                                    let at = self.clock + done as u64;
-                                    self.notes_to_fx(slot, at, fx_note(ev));
-                                }
-                            } else {
-                                seg_end = seg_end.min(done + off);
-                                break;
-                            }
-                        }
-                    }
-                    // Metronome beat boundary.
-                    if self.metronome {
-                        let off = self.transport.samples_until(self.next_beat_tick) as usize;
-                        if off == 0 {
-                            let beat_len = snap.time_signature.ticks_per_beat().0 as f64;
-                            let bar_len = snap.time_signature.ticks_per_bar().0 as f64;
-                            let in_bar = self.next_beat_tick.rem_euclid(bar_len);
-                            if self.click_allowed() {
-                                self.click.trigger(in_bar.abs() < 0.5);
-                            }
-                            self.next_beat_tick += beat_len;
-                        } else {
-                            seg_end = seg_end.min(done + off);
-                        }
-                    }
-                    // Loop end boundary.
-                    if let Some(off) = self.transport.samples_until_loop_end() {
-                        let off = off as usize;
-                        if done + off <= seg_end {
-                            seg_end = done + off;
-                            wrap_at_seg_end = true;
-                        }
+            // A control point due now runs first; the pass ends at the next one.
+            let mut end = self.auto_point(done, frames).min(done + PASS_FRAMES);
+            let mut wrap = false;
+            if self.transport.is_playing() && snap.is_some() {
+                if let Some(off) = self.transport.samples_until_loop_end() {
+                    let off = off as usize;
+                    if done + off <= end {
+                        end = done + off;
+                        wrap = true;
                     }
                 }
             }
-            if seg_end <= done {
-                // Only possible for a loop boundary that is due right now.
-                if wrap_at_seg_end {
+            if end <= done {
+                // Only possible for a loop boundary that is due right now: what is due at
+                // this sample fires first, as it always did, and then the loop wraps.
+                if wrap {
+                    if let Some(s) = snap.as_deref() {
+                        self.fire_due_now(s, done);
+                    }
                     self.note_at = self.clock + done as u64;
                     self.wrap_loop();
                 }
                 continue;
             }
-
-            // Render [done, seg_end).
-            let n = seg_end - done;
-            let out = &mut output[done * channels..seg_end * channels];
-            // Strips start each segment empty, and no key has been written yet.
-            self.key_valid = [false; MAX_STRIPS];
-            for slot in &self.strip_play_order {
-                let st = &mut self.strips[*slot];
-                st.active = false;
-                st.buf_l[..n].iter_mut().for_each(|x| *x = 0.0);
-                st.buf_r[..n].iter_mut().for_each(|x| *x = 0.0);
-            }
-
-            // Armed tracks' input into their recording rings (ADR 0025).
-            self.record_segment(done, n);
-
-            // ---- tracks: instrument → channel gain and balance → their strip -----------
-            // Where the song is at this segment's first sample, for the units that follow
-            // it: hosted instruments (a synth's arp) and hosted inserts.
-            let position = self.song_position();
-            for ti in 0..self.track_to_slot.len() {
-                let slot = self.track_to_slot[ti];
-                self.prof.enter(crate::profile::Node::Track(slot));
-                let s = &mut self.slots[slot];
-                let mono = &mut self.mono[..n];
-                let l = &mut self.buf_l[..n];
-                let r = &mut self.buf_r[..n];
-                // Firmus is mono and is copied into both channels; Pulsus writes stereo
-                // directly, because its pads are panned inside the instrument.
-                let has_signal = match s.instrument {
-                    SlotInstrument::Firmus => {
-                        mono.iter_mut().for_each(|x| *x = 0.0);
-                        let sig = s.synth.process_add(mono);
-                        if sig {
-                            l.copy_from_slice(mono);
-                            r.copy_from_slice(mono);
-                        }
-                        sig
-                    }
-                    SlotInstrument::Pulsus => {
-                        l.iter_mut().for_each(|x| *x = 0.0);
-                        r.iter_mut().for_each(|x| *x = 0.0);
-                        s.drums.process_add(l, r)
-                    }
-                    SlotInstrument::Native => {
-                        l.iter_mut().for_each(|x| *x = 0.0);
-                        r.iter_mut().for_each(|x| *x = 0.0);
-                        match s.native.as_mut() {
-                            Some(u) => {
-                                u.unit.set_position(&position);
-                                let sig = u.unit.process(l, r);
-                                if self.probed == s.id {
-                                    self.meters.inst = u.unit.telemetry();
-                                }
-                                // A hosted instrument's own window: its gestures go to
-                                // the host (ADR 0028).
-                                if let Some(track) = s.id {
-                                    for event in u.unit.param_events() {
-                                        let event = *event;
-                                        if self
-                                            .tx
-                                            .push(EngineEvent::InstParam { track, event })
-                                            .is_err()
-                                        {
-                                            self.stats.dropped_events += 1;
-                                        }
-                                    }
-                                    u.unit.clear_param_events();
-                                }
-                                sig
-                            }
-                            None => false,
-                        }
-                    }
-                };
-                // Audio clips and the monitored input join the instrument's output, before
-                // the channel's level (ADR 0025 §3, §4).
-                let has_signal = self.live.add_track_audio(
-                    self.snapshot.as_deref().and_then(|x| x.tracks.get(ti)),
-                    slot,
-                    has_signal,
-                    done,
-                    l,
-                    r,
-                    &self.transport,
-                    self.recording,
-                );
-                let line = self.track_line[slot];
-                let line_ringing = line.is_some_and(|i| self.pdc.lines[i].ringing());
-                if !has_signal && !line_ringing {
-                    continue; // Idle: nothing to mix, nothing to meter.
-                }
-                if !has_signal {
-                    // Idle, but its compensation line still holds what it played.
-                    l.iter_mut().for_each(|x| *x = 0.0);
-                    r.iter_mut().for_each(|x| *x = 0.0);
-                }
-                // The channel's own level and balance — not the pan law, which is
-                // applied once, at the strip. At their defaults these are exactly unity.
-                let (bl, br) = balance_gains(s.pan);
-                let g = if s.audible { s.gain } else { 0.0 };
-                let (mut gl, mut gr) = (g * bl, g * br);
-                // Automated level or balance ramping (ADR 0027): applied here, sample by
-                // sample, and what follows is at unity.
-                if let Some(k0) = self.auto.k0(self.transport.samples()) {
-                    if auto::ramp_track(&self.auto, slot, s, k0, l, r) {
-                        (gl, gr) = (1.0, 1.0);
-                    }
-                }
-                if let Some(tap) = self.stem_tap.as_mut() {
-                    tap.track(slot, s.strip.is_none(), done, l, r, gl, gr);
-                }
-                // A delayed edge: the level and balance first, then the line; what comes
-                // out is added at unity (a multiplication by 1.0 changes nothing).
-                if let Some(li) = line {
-                    for i in 0..n {
-                        l[i] *= gl;
-                        r[i] *= gr;
-                    }
-                    self.pdc.lines[li].run(l, r);
-                    (gl, gr) = (1.0, 1.0);
-                }
-                let mut peak = s.peak;
-                match s.strip {
-                    Some(st) => {
-                        let strip = &mut self.strips[st];
-                        strip.active = true;
-                        for i in 0..n {
-                            let sl = l[i] * gl;
-                            let sr = r[i] * gr;
-                            peak = peak.max(sl.abs()).max(sr.abs());
-                            strip.buf_l[i] += sl;
-                            strip.buf_r[i] += sr;
-                        }
-                    }
-                    None => {
-                        for i in 0..n {
-                            let sl = l[i] * gl;
-                            let sr = r[i] * gr;
-                            peak = peak.max(sl.abs()).max(sr.abs());
-                            let frame = &mut out[i * channels..(i + 1) * channels];
-                            frame[0] += sl;
-                            if channels > 1 {
-                                frame[1] += sr;
-                            } else {
-                                frame[0] += sr;
-                            }
-                        }
-                    }
-                }
-                s.peak = peak;
-            }
-
-            // ---- strips, in dependency order: polarity → swap → inserts → EQ → width →
-            // gain/pan → output and sends ---------------------------------------------
-            let mut strip_captured = false;
-            // `position`, from above: where the song is at this segment's first sample.
-            for oi in 0..self.strip_play_order.len() {
-                let slot = self.strip_play_order[oi];
-                let (active, ringing, output_slot) = {
-                    let st = &self.strips[slot];
-                    // An EQ with signal still in it has to keep running over silence,
-                    // or its state would freeze at a different point for every block
-                    // size and the next note would meet a different filter. Quiet
-                    // sections are exactly zero (denormals are flushed), so skipping
-                    // them changes nothing.
-                    let eq_ringing = !st.eq_flat && !(st.eq_l.is_quiet() && st.eq_r.is_quiet());
-                    (st.active, !st.effects.is_empty() || eq_ringing, st.output)
-                };
-                if !active && !ringing && !self.strip_lines_ringing(slot) {
-                    continue; // Nothing came in and nothing is ringing.
-                }
-                self.prof.enter(crate::profile::Node::Strip(slot));
-                // Work in the shared scratch so the strip's own buffer can be handed to
-                // the strip it feeds without the borrow checker having to see two strips
-                // at once.
-                let l = &mut self.buf_l[..n];
-                let r = &mut self.buf_r[..n];
-                let dry_l = &mut self.dry_l[..n];
-                let dry_r = &mut self.dry_r[..n];
-                let (gl, gr, muted) = {
-                    let st = &mut self.strips[slot];
-                    l.copy_from_slice(&st.buf_l[..n]);
-                    r.copy_from_slice(&st.buf_r[..n]);
-                    // Polarity first: the console's Ø is an input-stage switch, so the
-                    // whole channel — inserts included — comes out inverted.
-                    if st.phase_invert {
-                        for (a, b) in l.iter_mut().zip(r.iter_mut()) {
-                            *a = -*a;
-                            *b = -*b;
-                        }
-                    }
-                    // Swap is the other input-stage switch: the channel arrives mirrored,
-                    // and a ping-pong delay behind it starts on the other side.
-                    if st.swap {
-                        for (a, b) in l.iter_mut().zip(r.iter_mut()) {
-                            std::mem::swap(a, b);
-                        }
-                    }
-                    for (i, e) in st.effects.iter_mut().enumerate() {
-                        self.prof.enter(crate::profile::Node::Insert(slot, i));
-                        let looked_at = self.analysed == Some(e.id);
-                        if looked_at {
-                            for k in 0..n {
-                                self.ana_pre[k] = (l[k] + r[k]) * 0.5;
-                            }
-                        }
-                        // Notes from the track it listens to, due in this segment,
-                        // at their sample in it (ADR 0022) — delivered even to a
-                        // bypassed effect, so it knows what is held when it is back.
-                        if !self.fx_notes.is_empty() {
-                            let seg0 = self.clock + done as u64;
-                            let seg1 = self.clock + seg_end as u64;
-                            let id = e.id;
-                            self.fx_notes.retain(|d| {
-                                if d.effect == id && d.due < seg1 {
-                                    e.note(d.due.saturating_sub(seg0) as usize, d.note);
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                        }
-                        // Bypassed, or the whole chain switched off. An insert with
-                        // no latency is then a wire and does not run; a latent one is
-                        // a *soft* bypass (ADR 0022): it keeps running, so its state
-                        // follows the signal, and what leaves the slot is its dry
-                        // line — the input delayed by exactly its latency.
-                        let off = st.bypass[i] || !st.fx_enabled;
-                        let latent = e.latency() > 0;
-                        if off && !latent {
-                            if looked_at {
-                                Self::analyse(&mut self.analyser, &self.ana_pre[..n], l, r);
-                            }
-                            continue;
-                        }
-                        let mix = st.mix[i];
-                        // A keyed effect hears the key strip's post-fader output —
-                        // or silence, if that strip made none this segment.
-                        let key = st.key[i].map(|k| {
-                            if self.key_valid[k] {
-                                (&self.key_bufs[k].0[..n], &self.key_bufs[k].1[..n])
-                            } else {
-                                (&self.silence[..n], &self.silence[..n])
-                            }
-                        });
-                        // A unit that follows the song (a hosted plug-in) hears where it
-                        // is before each call.
-                        e.set_position(&position);
-                        if mix >= 1.0 && !latent {
-                            e.process_keyed(l, r, key);
-                        } else {
-                            // The slot's dry/wet. The effect runs even at 0 %, so
-                            // its delay line or tail is where it would be when the
-                            // knob comes back up; a latent effect's dry line runs
-                            // at every setting, so it is in step whenever it is
-                            // needed.
-                            dry_l.copy_from_slice(l);
-                            dry_r.copy_from_slice(r);
-                            if let Some(li) = self.dry_line[slot][i] {
-                                self.pdc.lines[li].run(dry_l, dry_r);
-                            }
-                            e.process_keyed(l, r, key);
-                            if off {
-                                l.copy_from_slice(dry_l);
-                                r.copy_from_slice(dry_r);
-                            } else if mix < 1.0 {
-                                let dry = 1.0 - mix;
-                                for i in 0..n {
-                                    l[i] = l[i] * mix + dry_l[i] * dry;
-                                    r[i] = r[i] * mix + dry_r[i] * dry;
-                                }
-                            }
-                        }
-                        // A hosted plug-in's own window: its gestures go to the host.
-                        let effect = e.id;
-                        e.drain_param_events(|event| {
-                            if self
-                                .tx
-                                .push(EngineEvent::FxParam { effect, event })
-                                .is_err()
-                            {
-                                self.stats.dropped_events += 1;
-                            }
-                        });
-                        if off {
-                            if looked_at {
-                                Self::analyse(&mut self.analyser, &self.ana_pre[..n], l, r);
-                            }
-                            continue;
-                        }
-                        if looked_at {
-                            Self::analyse(&mut self.analyser, &self.ana_pre[..n], l, r);
-                            if let Some(d) = e.eq_deltas() {
-                                self.meters.eq_deltas = d;
-                            }
-                            if let Some(c) = e.comp_meter() {
-                                self.meters.comp = [c.input, c.output, c.gr_db];
-                            }
-                            if let Some(t) = e.telemetry() {
-                                self.meters.fx = t;
-                            }
-                        }
-                    }
-                    self.prof.enter(crate::profile::Node::Strip(slot));
-                    // The strip's own EQ, after the inserts and before the channel is
-                    // placed — where a console's channel EQ sits.
-                    if !st.eq_flat {
-                        st.eq_l.process(l);
-                        st.eq_r.process(r);
-                    }
-                    // Width, then pan: narrowing a stereo reverb has to happen before
-                    // the channel is placed, or the placement is what gets narrowed.
-                    apply_width(l, r, st.width);
-                    let (pl, pr) = law.gains(st.pan);
-                    (st.gain * pl, st.gain * pr, st.muted)
-                };
-                let mut peak = 0f32;
-                let (gl, gr) = if muted { (0.0, 0.0) } else { (gl, gr) };
-                // An automated fader or pan ramping (ADR 0027): applied to the buffer, so
-                // every tap below — keys, the recorder, outputs, sends — is post-fader.
-                let (gl, gr) = match self.auto.k0(self.transport.samples()) {
-                    Some(k0)
-                        if !muted
-                            && auto::ramp_strip(
-                                &self.auto,
-                                slot,
-                                &self.strips[slot],
-                                law,
-                                k0,
-                                l,
-                                r,
-                            ) =>
-                    {
-                        (1.0, 1.0)
-                    }
-                    _ => (gl, gr),
-                };
-                if let Some(tap) = self.stem_tap.as_mut() {
-                    tap.strip(slot, done, l, r, gl, gr);
-                }
-                // A strip something is keyed from keeps what leaves its fader.
-                if self.strips[slot].is_key {
-                    let (kl, kr) = &mut self.key_bufs[slot];
-                    for i in 0..n {
-                        kl[i] = l[i] * gl;
-                        kr[i] = r[i] * gr;
-                    }
-                    self.key_valid[slot] = true;
-                }
-                // The recorder, on a strip: exactly what leaves the fader — delayed, in a
-                // project with latency, by the strip's path to the master, so the take
-                // is in time with what is heard (ADR 0022).
-                if self.capture_slot == Some(slot) {
-                    strip_captured = true;
-                    if let Some(li) = self.capture_line {
-                        for i in 0..n {
-                            self.edge_l[i] = l[i] * gl;
-                            self.edge_r[i] = r[i] * gr;
-                        }
-                        self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
-                        for i in 0..n {
-                            Self::capture_frame(
-                                &mut self.capture,
-                                &mut self.stats,
-                                self.edge_l[i],
-                                self.edge_r[i],
-                            );
-                        }
-                    } else {
-                        for i in 0..n {
-                            Self::capture_frame(
-                                &mut self.capture,
-                                &mut self.stats,
-                                l[i] * gl,
-                                r[i] * gr,
-                            );
-                        }
-                    }
-                }
-                // A delayed output edge goes through its line first, at unity after.
-                let (src_l, src_r, ogl, ogr): (&[f32], &[f32], f32, f32) = match self.out_line[slot]
-                {
-                    Some(li) => {
-                        for i in 0..n {
-                            self.edge_l[i] = l[i] * gl;
-                            self.edge_r[i] = r[i] * gr;
-                        }
-                        self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
-                        (&self.edge_l[..n], &self.edge_r[..n], 1.0, 1.0)
-                    }
-                    None => (&*l, &*r, gl, gr),
-                };
-                match output_slot {
-                    Some(dest) => {
-                        let d = &mut self.strips[dest];
-                        d.active = true;
-                        for i in 0..n {
-                            let sl = src_l[i] * ogl;
-                            let sr = src_r[i] * ogr;
-                            peak = peak.max(sl.abs()).max(sr.abs());
-                            d.buf_l[i] += sl;
-                            d.buf_r[i] += sr;
-                        }
-                    }
-                    None => {
-                        for i in 0..n {
-                            let sl = src_l[i] * ogl;
-                            let sr = src_r[i] * ogr;
-                            peak = peak.max(sl.abs()).max(sr.abs());
-                            let frame = &mut out[i * channels..(i + 1) * channels];
-                            frame[0] += sl;
-                            if channels > 1 {
-                                frame[1] += sr;
-                            } else {
-                                frame[0] += sr;
-                            }
-                        }
-                    }
-                }
-                // Post-fader sends: the same signal that just left the fader, at each
-                // send's level, into the strip it names. A muted strip sends nothing.
-                let (send_count, sends) = {
-                    let st = &mut self.strips[slot];
-                    st.peak = st.peak.max(peak);
-                    (st.send_count, st.sends)
-                };
-                if !muted || self.send_line[slot].iter().any(|x| x.is_some()) {
-                    for (k, (dest, level)) in sends.iter().take(send_count).enumerate() {
-                        let (sl, sr) = (gl * level, gr * level);
-                        if let Some(li) = self.send_line[slot][k] {
-                            // A delayed send: through its line, then added at unity. A
-                            // muted strip feeds its line silence, so the line drains.
-                            for i in 0..n {
-                                self.edge_l[i] = l[i] * sl;
-                                self.edge_r[i] = r[i] * sr;
-                            }
-                            self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
-                            let d = &mut self.strips[*dest];
-                            d.active = true;
-                            for i in 0..n {
-                                d.buf_l[i] += self.edge_l[i];
-                                d.buf_r[i] += self.edge_r[i];
-                            }
-                            continue;
-                        }
-                        if muted {
-                            continue;
-                        }
-                        let d = &mut self.strips[*dest];
-                        d.active = true;
-                        for i in 0..n {
-                            d.buf_l[i] += l[i] * sl;
-                            d.buf_r[i] += r[i] * sr;
-                        }
-                    }
-                }
-            }
-            // A captured strip that was skipped this segment — nothing came in, nothing
-            // rings — still records its silence: a take must keep time.
-            if matches!(self.capture_target, CaptureTarget::Strip(_)) && !strip_captured {
-                match self.capture_line {
-                    Some(li) => {
-                        // Its line may still hold what the strip played before.
-                        self.edge_l[..n].iter_mut().for_each(|x| *x = 0.0);
-                        self.edge_r[..n].iter_mut().for_each(|x| *x = 0.0);
-                        self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
-                        for i in 0..n {
-                            Self::capture_frame(
-                                &mut self.capture,
-                                &mut self.stats,
-                                self.edge_l[i],
-                                self.edge_r[i],
-                            );
-                        }
-                    }
-                    None => {
-                        for _ in 0..n {
-                            Self::capture_frame(&mut self.capture, &mut self.stats, 0.0, 0.0);
-                        }
-                    }
-                }
-            }
-            self.prof.enter(crate::profile::Node::Engine);
-            // The master's insert chain, on the summed mix, before its fader (ADR 0026).
-            self.run_master(out, channels, n, done, seg_end, &position);
-            // Master strip: width, then pan and gain, then polarity last of all. Automation
-            // (ADR 0027) overrides the snapshot's values while it drives them.
-            let master_width = self.auto.master[2].unwrap_or(master_width);
-            if channels > 1 && master_width != 1.0 {
-                for i in 0..n {
-                    let frame = &mut out[i * channels..(i + 1) * channels];
-                    let (mut l, mut r) = (frame[0], frame[1]);
-                    let (mid, side) = ((l + r) * 0.5, (l - r) * 0.5 * master_width.clamp(0.0, 2.0));
-                    l = mid + side;
-                    r = mid - side;
-                    frame[0] = l;
-                    frame[1] = r;
-                }
-            }
-            let master_ramp = self
-                .auto
-                .k0(self.transport.samples())
-                .filter(|_| self.auto.master_gain.is_some() || self.auto.master_pan.is_some());
-            let master_gain = self.auto.master[0].unwrap_or(master_gain);
-            let (master_l, master_r) = match self.auto.master[1] {
-                Some(p) => balance_gains(p),
-                None => (master_l, master_r),
-            };
-            for i in 0..n {
-                let frame = &mut out[i * channels..(i + 1) * channels];
-                let (g, ml, mr) = match master_ramp {
-                    Some(k0) => {
-                        let k = k0 + i as u64;
-                        let g = self.auto.master_gain.map_or(master_gain, |r| r.at(k));
-                        let (l, r) = match self.auto.master_pan {
-                            Some(p) => balance_gains(p.at(k)),
-                            None => (master_l, master_r),
-                        };
-                        (g, l, r)
-                    }
-                    None => (master_gain, master_l, master_r),
-                };
-                for (ch, s) in frame.iter_mut().enumerate() {
-                    let pan = match ch {
-                        0 => ml,
-                        1 => mr,
-                        _ => 1.0,
-                    };
-                    *s *= g * pan * master_sign;
-                    if ch < 2 {
-                        master_peak[ch] = master_peak[ch].max(s.abs());
-                    }
-                }
-            }
-            // The recorder, on the master: the mix as it leaves the master strip.
-            if self.capture_target == CaptureTarget::Master {
-                for i in 0..n {
-                    let frame = &out[i * channels..(i + 1) * channels];
-                    let (l, r) = (frame[0], if channels > 1 { frame[1] } else { frame[0] });
-                    Self::capture_frame(&mut self.capture, &mut self.stats, l, r);
-                }
-            }
-            // The click goes in *after* the master strip: it is for the player, so the
-            // master fader does not turn it down and the recorder never hears it. With
-            // latency it goes through a line of the output's latency, so it comes out
-            // with the beat it marks (ADR 0022).
-            let click_line = self
-                .click_line
-                .filter(|li| self.click.is_active() || self.pdc.lines[*li].ringing());
-            if let Some(li) = click_line {
-                let active = self.click.is_active();
-                for i in 0..n {
-                    let c = if active { self.click.next() } else { 0.0 };
-                    self.edge_l[i] = c;
-                    self.edge_r[i] = c;
-                }
-                self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
-                for i in 0..n {
-                    let frame = &mut out[i * channels..(i + 1) * channels];
-                    frame[0] += self.edge_l[i];
-                    if channels > 1 {
-                        frame[1] += self.edge_r[i];
-                    }
-                }
-            } else if self.click.is_active() && self.click_line.is_none() {
-                for i in 0..n {
-                    let c = self.click.next();
-                    let frame = &mut out[i * channels..(i + 1) * channels];
-                    frame[0] += c;
-                    if channels > 1 {
-                        frame[1] += c;
-                    }
-                }
-            }
-
-            done = seg_end;
+            let n = end - done;
+            self.run_pass(
+                snap.as_deref(),
+                &mut output[done * channels..end * channels],
+                channels,
+                done,
+                n,
+                law,
+                master,
+                &mut master_peak,
+            );
+            done = end;
             if self.transport.is_playing() {
                 self.transport.advance(n as u64);
                 self.played = self.played.saturating_add(n as u64);
-                if wrap_at_seg_end {
+                if wrap {
                     self.note_at = self.clock + done as u64;
                     self.wrap_loop();
                 }
             }
         }
         self.clock += done as u64;
-        // Notes for effects that are gone (removed while the note waited) never find
-        // their effect; what is past is dropped.
-        if !self.fx_notes.is_empty() {
-            let now = self.clock;
-            self.fx_notes.retain(|d| d.due >= now);
-        }
+        // Notes for effects that did not run, or are gone, never arrive: what is past is
+        // dropped.
+        self.prune_notes();
 
         self.meters.master = master_peak;
         self.meters.master_gr = self.master_gr();
@@ -2300,6 +1855,102 @@ impl Processor {
         }
     }
 
+    /// One pass `[p0, p0 + n)` of the block: every node once, in the plan's order — the
+    /// tracks, the strips in `strip_order`, the master. `out` is the pass's stretch of the
+    /// device's buffer.
+    #[allow(clippy::too_many_arguments)]
+    fn run_pass(
+        &mut self,
+        snap: Option<&Snapshot>,
+        out: &mut [f32],
+        channels: usize,
+        p0: usize,
+        n: usize,
+        law: PanLaw,
+        master: MasterStrip,
+        peaks: &mut [f32; 2],
+    ) {
+        // No key has been written yet.
+        self.key_valid = [false; MAX_STRIPS];
+        // Armed tracks' input into their recording rings (ADR 0025).
+        self.record_segment(p0, n);
+        // Where the song is at the pass's first sample, for the strips' and the master's
+        // units that follow it (hosted plug-ins): a pass never crosses a loop wrap.
+        let position = self.song_position();
+        // ---- tracks: instrument → channel gain and balance → their output ---------------
+        if let Some(s) = snap {
+            for ti in 0..self.track_to_slot.len() {
+                self.run_track(s, ti, p0, n);
+            }
+        }
+        // ---- strips, in dependency order: gather → polarity → swap → inserts → EQ →
+        // width → gain/pan → output and sends ---------------------------------------------
+        self.strip_captured = false;
+        for place in 0..self.strip_play_order.len() {
+            self.run_strip(place, p0, n, &position, law);
+        }
+        // A captured strip that did not run this pass — nothing came in, nothing rings —
+        // still records its silence: a take must keep time.
+        if matches!(self.capture_target, CaptureTarget::Strip(_)) && !self.strip_captured {
+            match self.capture_line {
+                Some(li) => {
+                    // Its line may still hold what the strip played before.
+                    self.edge_l[..n].iter_mut().for_each(|x| *x = 0.0);
+                    self.edge_r[..n].iter_mut().for_each(|x| *x = 0.0);
+                    self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
+                    for i in 0..n {
+                        Self::capture_frame(
+                            &mut self.capture,
+                            &mut self.stats,
+                            self.edge_l[i],
+                            self.edge_r[i],
+                        );
+                    }
+                }
+                None => {
+                    for _ in 0..n {
+                        Self::capture_frame(&mut self.capture, &mut self.stats, 0.0, 0.0);
+                    }
+                }
+            }
+        }
+        // ---- the master: gather → chain → strip → take → click ---------------------------
+        self.run_master_node(snap, out, channels, p0, n, &position, master, peaks);
+    }
+
+    /// At a loop boundary due right now (the playhead sits on the loop's end): whatever is
+    /// due at this sample fires before the wrap releases it, as the serial engine did at
+    /// the top of every segment.
+    fn fire_due_now(&mut self, snap: &Snapshot, done: usize) {
+        for ti in 0..self.track_to_slot.len() {
+            let slot = self.track_to_slot[ti];
+            let t = &snap.tracks[ti];
+            loop {
+                let s = &mut self.slots[slot];
+                let Some(ev) = t.events.get(s.next_event) else {
+                    break;
+                };
+                if self.transport.samples_until(ev.tick.0 as f64) != 0 {
+                    break;
+                }
+                fire(s, ev);
+                s.next_event += 1;
+                if self.listened[slot] && !s.outbox.push(self.clock + done as u64, fx_note(ev)) {
+                    self.stats.dropped_events += 1;
+                }
+            }
+        }
+        if self.metronome && self.transport.samples_until(self.next_beat_tick) == 0 {
+            let beat_len = snap.time_signature.ticks_per_beat().0 as f64;
+            let bar_len = snap.time_signature.ticks_per_bar().0 as f64;
+            let in_bar = self.next_beat_tick.rem_euclid(bar_len);
+            if self.click_allowed() {
+                self.click.trigger(in_bar.abs() < 0.5);
+            }
+            self.next_beat_tick += beat_len;
+        }
+    }
+
     fn wrap_loop(&mut self) {
         // `Transport::advance` already moved the playhead to loop start when it detected
         // the wrap; if it has not (boundary exactly at segment start), force it.
@@ -2311,6 +1962,34 @@ impl Processor {
         self.release_all();
         self.reseek_events();
         self.record_wrapped();
+    }
+}
+
+/// Where the song is at `transport`'s sample, for the units that follow it.
+fn song_position_of(
+    transport: &Transport,
+    snapshot: &Option<Arc<Snapshot>>,
+    sample_rate: f64,
+) -> crate::fx::SongPosition {
+    let tempo = transport.bpm();
+    let ppq = cantus_core::PPQ as f64;
+    let beats = transport.position_f64() / ppq;
+    let (num, den) = snapshot
+        .as_ref()
+        .map(|s| (s.time_signature.numerator, s.time_signature.denominator))
+        .unwrap_or((4, 4));
+    let bar = f64::from(num.max(1)) * 4.0 / f64::from(den.max(1));
+    crate::fx::SongPosition {
+        playing: transport.is_playing(),
+        tempo_bpm: tempo,
+        beats,
+        samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
+        bar_start_beats: (beats / bar).floor() * bar,
+        time_sig_num: u16::from(num),
+        time_sig_den: u16::from(den),
+        loop_beats: transport
+            .loop_region()
+            .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
     }
 }
 

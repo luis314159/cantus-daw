@@ -467,7 +467,9 @@ fn run(
         crate::automation::Runtime::build(&snap),
     ))
     .ok();
-    tx.push(EngineMessage::SetSnapshot(snap)).ok();
+    // The graph's plan, compiled here and sent with it, as the application does.
+    let plan = crate::graph::compile(&snap);
+    tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
     p.settle();
     while let Ok(ev) = rx.pop() {
         if let EngineEvent::PdcNeed { count, delay } = ev {

@@ -337,13 +337,19 @@ impl Processor {
     /// Whether a beat of the metronome sounds now (`ClickMode`). `Always` is what the
     /// metronome switch always meant.
     pub(super) fn click_allowed(&self) -> bool {
+        self.click_allowed_at(self.transport.samples())
+    }
+
+    /// [`Self::click_allowed`] for a beat at the transport's sample `samples` (inside the
+    /// current pass).
+    pub(super) fn click_allowed_at(&self, samples: u64) -> bool {
         match self.live.click {
             ClickMode::Always => true,
             ClickMode::Recording => self.recording,
             ClickMode::CountInOnly => self
                 .live
                 .record_start
-                .is_some_and(|at| self.transport.position_f64() < at - 1e-9),
+                .is_some_and(|at| self.transport.position_at(samples) < at - 1e-9),
         }
     }
 

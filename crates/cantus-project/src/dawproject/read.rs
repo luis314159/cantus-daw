@@ -28,8 +28,8 @@ use std::collections::HashMap;
 
 /// The engine's limits (`cantus_engine::MAX_TRACKS`, `MAX_STRIPS`), which this crate cannot
 /// see. Past them the report says what was left out.
-pub const MAX_TRACKS: usize = 64;
-pub const MAX_STRIPS: usize = 64;
+pub const MAX_TRACKS: usize = 256;
+pub const MAX_STRIPS: usize = 256;
 
 pub(crate) fn attr<'a>(n: Node<'a, '_>, name: &str) -> Option<&'a str> {
     n.attribute(name)

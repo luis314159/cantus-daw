@@ -480,7 +480,7 @@ impl Default for Placement {
             at: Ticks::ZERO,
             index: None,
             apply_tempo: false,
-            max_tracks: 64,
+            max_tracks: 256,
         }
     }
 }
