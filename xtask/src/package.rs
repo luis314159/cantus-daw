@@ -441,11 +441,7 @@ pub fn package(args: &[String]) {
         .join("release")
         .join(format!("cantus-launch{}", std::env::consts::EXE_SUFFIX));
     let scanner = levels::binary(levels[0], &triple, "cantus-scan");
-    for exe in programs
-        .iter()
-        .map(|(_, p)| p)
-        .chain([&launcher, &scanner])
-    {
+    for exe in programs.iter().map(|(_, p)| p).chain([&launcher, &scanner]) {
         if !exe.is_file() {
             eprintln!("{} is not built", exe.display());
             std::process::exit(1);

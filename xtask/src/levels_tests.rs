@@ -15,7 +15,10 @@ fn equal_lists_are_equal_whatever_the_header_says() {
     let v3 = V2.replace("x86-64-v2", "x86-64-v3");
     assert!(differences(V2, &v3).is_empty());
     assert_eq!(items(V2).len(), 3);
-    assert_eq!(items(V2)[1], ("fx.porta.heavy".to_string(), "bbbb 20".to_string()));
+    assert_eq!(
+        items(V2)[1],
+        ("fx.porta.heavy".to_string(), "bbbb 20".to_string())
+    );
 }
 
 #[test]
@@ -64,6 +67,9 @@ fn the_paired_table_takes_the_median_of_per_pair_ratios() {
     assert!(row.contains("2 of 3"), "{row}");
     // Higher is better for instances: 12 > 10 in all three pairs.
     let row = t.lines().find(|l| l.contains("fit128")).unwrap();
-    assert!(row.contains("**1.200×**") && row.contains("3 of 3"), "{row}");
+    assert!(
+        row.contains("**1.200×**") && row.contains("3 of 3"),
+        "{row}"
+    );
     assert!(t.starts_with("| Metric | Unit | x86-64-v2 | x86-64-v3 |"));
 }

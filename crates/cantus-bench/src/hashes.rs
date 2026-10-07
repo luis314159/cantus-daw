@@ -148,9 +148,9 @@ pub fn effect_items() -> Vec<Hashed> {
                 l.copy_from_slice(&sl[at..at + BLOCK]);
                 r.copy_from_slice(&sr[at..at + BLOCK]);
                 unit.process_keyed(&mut l, &mut r, None);
-                for i in 0..BLOCK {
-                    samples.push(l[i]);
-                    samples.push(r[i]);
+                for (a, b) in l.iter().zip(&r) {
+                    samples.push(*a);
+                    samples.push(*b);
                 }
             }
             out.push(hash_f32(

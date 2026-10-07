@@ -24,7 +24,8 @@ pub fn release_levels(v4: bool) -> Vec<Level> {
 pub fn parse_list(s: &str) -> Result<Vec<Level>, String> {
     let mut v = Vec::new();
     for part in s.split(',').filter(|p| !p.trim().is_empty()) {
-        let l = Level::parse(part).ok_or_else(|| format!("{part:?} is not a level (v2, v3, v4)"))?;
+        let l =
+            Level::parse(part).ok_or_else(|| format!("{part:?} is not a level (v2, v3, v4)"))?;
         if !v.contains(&l) {
             v.push(l);
         }

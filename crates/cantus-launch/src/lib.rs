@@ -143,11 +143,14 @@ impl std::fmt::Display for Level {
     }
 }
 
+/// A feature's name and its run-time test.
+pub type Probe = (&'static str, fn() -> bool);
+
 /// Every feature a level names, with its run-time test (the operating system's support
 /// for the AVX and AVX-512 register state included, as `is_x86_feature_detected!` checks
 /// it). A test holds every level's list inside this table.
 #[cfg(target_arch = "x86_64")]
-pub const DETECT: &[(&str, fn() -> bool)] = &[
+pub const DETECT: &[Probe] = &[
     ("cmpxchg16b", || {
         std::arch::is_x86_feature_detected!("cmpxchg16b")
     }),
@@ -183,7 +186,7 @@ pub const DETECT: &[(&str, fn() -> bool)] = &[
     }),
 ];
 #[cfg(not(target_arch = "x86_64"))]
-pub const DETECT: &[(&str, fn() -> bool)] = &[];
+pub const DETECT: &[Probe] = &[];
 
 /// Whether this processor (and its operating system) has `feature`. Unknown names, and
 /// every feature off x86-64, answer `false`.

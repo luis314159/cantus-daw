@@ -228,8 +228,8 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
             "cantus-scan.exe"
         ]
     );
-    let script = std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi"))
-        .unwrap();
+    let script =
+        std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
     let wait = &script[script.find("!macro WAIT_FOR_CANTUS").unwrap()..];
     assert!(wait[..wait.find("!macroend").unwrap()].contains("!insertmacro CANTUS_PROGRAMS_BUSY"));
 }
@@ -254,8 +254,8 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
     let v4 = package::app_names(&crate::levels::release_levels(true));
     assert!(v4.contains(&"cantus-x86-64-v4.exe".to_string()));
     assert_eq!(v4.len(), 8);
-    let script = std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi"))
-        .unwrap();
+    let script =
+        std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
     for line in script.lines().filter(|l| {
         let l = l.trim_start();
         l.starts_with("CreateShortcut")
@@ -295,11 +295,22 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
         [Level::V2, Level::V3]
     );
     assert!(crate::levels::parse_list("v2,fast").is_err());
-    assert!(crate::levels::says_level("cantus 0.1.0 (x86-64-v3)\n", Level::V3));
-    assert!(!crate::levels::says_level("cantus 0.1.0 (x86-64)\n", Level::V3));
-    assert!(!crate::levels::says_level("cantus 0.1.0 (x86-64-v2)\n", Level::V3));
-    assert!(crate::levels::release_dir(Level::V3, "x86_64-pc-windows-msvc")
-        .ends_with("cpu-x86-64-v3/x86_64-pc-windows-msvc/release"));
+    assert!(crate::levels::says_level(
+        "cantus 0.1.0 (x86-64-v3)\n",
+        Level::V3
+    ));
+    assert!(!crate::levels::says_level(
+        "cantus 0.1.0 (x86-64)\n",
+        Level::V3
+    ));
+    assert!(!crate::levels::says_level(
+        "cantus 0.1.0 (x86-64-v2)\n",
+        Level::V3
+    ));
+    assert!(
+        crate::levels::release_dir(Level::V3, "x86_64-pc-windows-msvc")
+            .ends_with("cpu-x86-64-v3/x86_64-pc-windows-msvc/release")
+    );
 }
 
 #[test]

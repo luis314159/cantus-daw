@@ -73,11 +73,12 @@ fn build(level: Option<Level>, triple: &str) {
         Some(l) => crate::run(levels::cargo_build(l, triple).args(["-p", "cantus-bench"])),
         None => {
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-            crate::run(
-                Command::new(cargo)
-                    .current_dir(crate::workspace())
-                    .args(["build", "--release", "-p", "cantus-bench"]),
-            )
+            crate::run(Command::new(cargo).current_dir(crate::workspace()).args([
+                "build",
+                "--release",
+                "-p",
+                "cantus-bench",
+            ]))
         }
     }
 }

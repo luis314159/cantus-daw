@@ -102,8 +102,7 @@ fn parse(args: &[String]) -> Options {
 /// returns the bench's path.
 fn build_bench(level: Option<Level>, triple: &str, o: &Options) -> PathBuf {
     let full = o.full
-        && o
-            .only
+        && o.only
             .as_deref()
             .is_none_or(|g| g.split(',').any(|g| g.trim() == "startup"));
     let ws = crate::workspace();
@@ -317,7 +316,9 @@ pub fn ab_table(a: Level, b: Level, pairs: &[(Vec<Point>, Vec<Point>)]) -> Strin
         let n = av.len();
         let (lo, hi) = ratios
             .iter()
-            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), r| (l.min(*r), h.max(*r)));
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), r| {
+                (l.min(*r), h.max(*r))
+            });
         out.push_str(&format!(
             "| `{}` | {} | {:.1} | {:.1} | **{:.3}×** | {:.2}–{:.2} | {better} of {n} |\n",
             p.id,
@@ -370,8 +371,13 @@ fn ab(o: &Options, a: Level, b: Level) {
         "{} pairs, alternating ({a} first in even pairs); {}{}{}\n\n",
         pairs.len(),
         if o.full { "full suite" } else { "quick suite" },
-        o.only.as_deref().map(|g| format!(", groups {g}")).unwrap_or_default(),
-        o.pin.map(|c| format!(", pinned to logical CPU {c}")).unwrap_or_default(),
+        o.only
+            .as_deref()
+            .map(|g| format!(", groups {g}"))
+            .unwrap_or_default(),
+        o.pin
+            .map(|c| format!(", pinned to logical CPU {c}"))
+            .unwrap_or_default(),
     );
     let text = format!("{header}{table}");
     print!("{text}");
