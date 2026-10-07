@@ -380,6 +380,23 @@ impl NaturalPhase {
         self.sets[self.cur].topo
     }
 
+    /// No crossfade under way and the history all zeros (ADR 0031 §5.1).
+    pub(crate) fn is_clear(&self) -> bool {
+        self.fade == 0 && self.hist.iter().all(|h| crate::rest::all_zero(h))
+    }
+
+    /// `frames` of silence not processed: a crossfade under way goes on (between two
+    /// corrections of silence, which are silence).
+    pub(crate) fn skip(&mut self, frames: usize) {
+        if self.fade > 0 {
+            self.fade += frames;
+            if self.fade > NP_FADE {
+                self.fade = 0;
+                self.cur = 1 - self.cur;
+            }
+        }
+    }
+
     /// Design the correction for `stages` (in the cascade's order). The first design is
     /// taken at once; later ones fade in over [`NP_FADE`] samples.
     pub(crate) fn design(&mut self, stages: &[Stage]) {
@@ -564,6 +581,8 @@ pub struct LinearPhase {
     /// The block being played out, per channel (B).
     outbuf: [Vec<f32>; 2],
     pos: usize,
+    /// Frames of silence in a row (ADR 0031 §5.1).
+    quiet: usize,
     /// The input, kept long enough to be read `L + B` late: the dry signal aligned with the
     /// output (for detectors), and the output itself when the design is flat.
     dry: [Vec<f32>; 2],
@@ -625,6 +644,7 @@ impl LinearPhase {
             inbuf: std::array::from_fn(|_| vec![0.0; 2 * b]),
             outbuf: std::array::from_fn(|_| vec![0.0; b]),
             pos: 0,
+            quiet: usize::MAX,
             dry: std::array::from_fn(|_| vec![0.0; half_max + 2 * b + 1]),
             dry_pos: 0,
             zr: vec![0.0; 2 * b],
@@ -706,9 +726,57 @@ impl LinearPhase {
         self.head = 0;
         self.pos = 0;
         self.dry_pos = 0;
+        self.quiet = usize::MAX;
         if self.fading {
             self.fading = false;
             self.cur = 1 - self.cur;
+        }
+    }
+
+    /// At rest for an EQ whose clock reads `clock` (ADR 0031 §5.1): no design waiting or
+    /// fading in, every buffer all zeros (enough silence has gone in to fill the two input
+    /// blocks, every partition of the delay line, the block playing out and the dry ring),
+    /// and its blocks falling where a new convolver's would — on the EQ's clock, since a
+    /// partitioned convolution's rounding depends on where its blocks fall.
+    pub(crate) fn at_rest(&self, clock: u64) -> bool {
+        let settle = (self.parts_max + 5) * self.b + self.dry[0].len();
+        !self.pending
+            && !self.fading
+            && self.quiet >= settle
+            && self.pos as u64 == clock % self.b as u64
+    }
+
+    /// `frames` of silence not processed: the blocks they would have ended go by — a
+    /// design waiting for one is made there, as processing would have made it — and the
+    /// rings move on. Every block of silence convolved is silence.
+    pub(crate) fn skip(&mut self, frames: usize, stages: &[Stage]) {
+        let len = self.dry[0].len();
+        self.dry_pos = (self.dry_pos + frames % len) % len;
+        self.quiet = self.quiet.saturating_add(frames);
+        let mut left = frames;
+        while left > 0 {
+            let to_end = self.b - self.pos;
+            if left < to_end {
+                self.pos += left;
+                break;
+            }
+            left -= to_end;
+            self.pos = 0;
+            if self.pending && (!self.primed || self.since_design >= self.design_gap()) {
+                let target = if self.primed { 1 - self.cur } else { self.cur };
+                self.design(stages, target);
+                self.fading = self.primed;
+                self.primed = true;
+                self.pending = false;
+                self.since_design = 0;
+            } else {
+                self.since_design = self.since_design.saturating_add(1);
+            }
+            if self.fading {
+                self.cur = 1 - self.cur;
+                self.fading = false;
+            }
+            self.head = (self.head + 1) % self.parts_max;
         }
     }
 
@@ -737,6 +805,11 @@ impl LinearPhase {
         let lat = self.half + self.b;
         for i in 0..left.len() {
             let (xl, xr) = (left[i], right[i]);
+            self.quiet = if crate::rest::z(xl) && crate::rest::z(xr) {
+                self.quiet.saturating_add(1)
+            } else {
+                0
+            };
             self.dry[0][self.dry_pos] = xl;
             self.dry[1][self.dry_pos] = xr;
             let dp = (self.dry_pos + len - lat) % len;

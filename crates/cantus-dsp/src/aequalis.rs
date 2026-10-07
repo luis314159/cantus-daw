@@ -1221,6 +1221,92 @@ impl Aequalis {
         }
     }
 
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the update grid and the
+    /// clock move on, and so does what processing silence would have done on them — a
+    /// natural-phase correction or a linear-phase design that was due is made, a crossfade
+    /// under way finishes (between two filters of silence, which are silence).
+    pub fn skip(&mut self, frames: usize) {
+        let start = self.clock;
+        self.clock += frames as u64;
+        self.phase = (self.phase + frames % UPDATE) % UPDATE;
+        match self.running {
+            Mode::ZeroLatency => {}
+            Mode::NaturalPhase => {
+                let due = start.next_multiple_of(phase::NP_FADE as u64);
+                if self.np_dirty && due < self.clock {
+                    self.np.skip((due - start) as usize);
+                    self.build_stages(false);
+                    self.np.design(&self.stages);
+                    self.np_dirty = false;
+                    self.np.skip((self.clock - due) as usize);
+                } else {
+                    self.np.skip(frames);
+                }
+            }
+            Mode::LinearPhase => {
+                if let Some(lp) = self.lp.as_deref_mut() {
+                    lp.skip(frames, &self.stages);
+                }
+            }
+        }
+    }
+
+    /// At rest (ADR 0031 §5.1): running the mode it is set to, every band's glides landed
+    /// and no dynamic movement, every band's filters and detector empty (the detector's
+    /// envelope has no flush of its own: it reaches zero under FTZ), the auto gain — when it
+    /// is heard — where a new unit's is, and the phase mode's correction or convolver empty
+    /// and settled (in linear phase, its blocks on the clock a new unit's run on). A dynamic
+    /// band left a hair (under 0.0001 dB) from 0 by its release, or an expander acting on
+    /// silence, is not at rest: a reset puts every band at its static gain.
+    pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::{z, z64};
+        let clear = |st: &[State]| st.iter().all(|x| z(x.z1) && z(x.z2));
+        let active = || {
+            self.bands
+                .iter()
+                .chain(std::iter::once(&self.solo))
+                .filter(|b| b.target.active)
+        };
+        let auto = self.opts.auto_gain && self.opts.solo.is_none();
+        let a = &self.auto;
+        let checks: [(&'static str, &dyn Fn() -> bool); 7] = [
+            ("mode", &|| self.running == self.opts.mode),
+            ("band glides", &|| {
+                active().all(|b| {
+                    let t = &b.target;
+                    b.freq == t.freq as f64 && b.gain == t.gain_db as f64 && b.q == t.q as f64
+                })
+            }),
+            ("dynamic gain", &|| active().all(|b| b.delta_db == 0.0)),
+            ("detectors", &|| {
+                active().all(|b| z(b.env) && clear(&b.det_state))
+            }),
+            ("band filters", &|| {
+                active().all(|b| b.state.iter().all(|s| clear(s)))
+            }),
+            ("auto gain", &|| {
+                !auto
+                    || (a.gain_db == 0.0
+                        && a.gain == 1.0
+                        && z64(a.e_in)
+                        && z64(a.e_out)
+                        && a.k_in.state.iter().chain(&a.k_out.state).all(|s| clear(s)))
+            }),
+            ("phase mode", &|| match self.running {
+                Mode::ZeroLatency => true,
+                Mode::NaturalPhase => !self.np_dirty && self.np.is_clear(),
+                Mode::LinearPhase => self.lp.as_ref().is_some_and(|lp| lp.at_rest(self.clock)),
+            }),
+        ];
+        checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
+    }
+
     pub fn reset(&mut self) {
         for b in self.bands.iter_mut().chain(std::iter::once(&mut self.solo)) {
             b.state = [[State::default(); 2]; MAX_SECTIONS];

@@ -421,6 +421,8 @@ pub struct Latitudo {
     line: [Vec<f32>; 2],
     cap: usize,
     pos: usize,
+    /// Zeros written into each line in a row (ADR 0031 §5.1).
+    line_quiet: [crate::rest::ZeroRun; 2],
     // The meters.
     meter_c: f32,
     /// (LL, RR, LR) of the input and of the output, over [`METER_MS`].
@@ -499,6 +501,7 @@ impl Latitudo {
             line: [vec![0.0; cap], vec![0.0; cap]],
             cap,
             pos: 0,
+            line_quiet: [crate::rest::ZeroRun::FULL; 2],
             meter_c: 1.0 - (-1.0 / (METER_MS * 0.001 * sr)).exp(),
             acc_in: [0.0; 3],
             acc_out: [0.0; 3],
@@ -577,6 +580,7 @@ impl Latitudo {
         for l in &mut self.line {
             l.fill(0.0);
         }
+        self.line_quiet = [crate::rest::ZeroRun::FULL; 2];
         self.pos = 0;
         self.acc_in = [0.0; 3];
         self.acc_out = [0.0; 3];
@@ -594,6 +598,81 @@ impl Latitudo {
         self.t = Ramp::at(self.t.next);
         self.wr = Ramp::at(self.wr.next);
         self.dr = Ramp::at(self.dr.next);
+    }
+}
+
+impl Latitudo {
+    /// At rest (ADR 0031 §5.1): every glide, fade and structure where [`Self::reset`] puts
+    /// them for these settings, the per-sample ramps still, every filter empty and the
+    /// Haas line all zeros. The meters (levels, correlation, the scope) are the editor's
+    /// and do not count. Whether the grid says it has settled does not matter: a grid point
+    /// with nothing moving changes nothing.
+    pub fn at_rest(&self) -> bool {
+        let s = self.s;
+        let lg = |hz: f32| hz.max(1.0).log2();
+        let at = |g: &Glide, v: f32| g.v == v && g.t == v;
+        let on = |f: &Fade, b: bool| {
+            let v = if b { 1.0 } else { 0.0 };
+            f.v == v && f.t == v
+        };
+        let (x_lo, x_hi) = s.crossovers();
+        let lis = s.listen.matrix();
+        let glides = at(&self.width, s.width)
+            && at(&self.mid_g, db_to_gain(s.mid_db))
+            && at(&self.side_g, db_to_gain(s.side_db))
+            && at(&self.bal, s.balance)
+            && at(&self.rot, s.rotation_deg)
+            && at(&self.swap, if s.swap { 1.0 } else { 0.0 })
+            && at(&self.pol_l, if s.invert_l { -1.0 } else { 1.0 })
+            && at(&self.pol_r, if s.invert_r { -1.0 } else { 1.0 })
+            && (0..3).all(|i| at(&self.lis[i], lis[i]))
+            && at(&self.out_g, db_to_gain(s.out_db))
+            && at(&self.w[0], s.w_lo)
+            && at(&self.w[1], s.w_mid)
+            && at(&self.w[2], s.w_hi)
+            && at(&self.x_lo, lg(x_lo))
+            && at(&self.x_hi, lg(x_hi))
+            && at(&self.mono_f, lg(s.mono_hz))
+            && [s.mid_lo_db, s.mid_hi_db, s.side_lo_db, s.side_hi_db]
+                .iter()
+                .zip(&self.tone_db)
+                .all(|(v, g)| at(g, *v))
+            && [s.mid_lo_hz, s.mid_hi_hz, s.side_lo_hz, s.side_hi_hz]
+                .iter()
+                .zip(&self.tone_f)
+                .all(|(v, g)| at(g, lg(*v)))
+            && at(
+                &self.haas_d,
+                s.haas_ms.clamp(0.0, HAAS_MAX_MS) * self.sr / 1_000.0,
+            )
+            && at(&self.haas_amt, s.haas_amount);
+        let stages = on(&self.mono_fade, s.mono_on())
+            && on(&self.band_fade, s.bands_on())
+            && on(&self.tone_fade, true)
+            && on(&self.haas_fade, s.haas_on())
+            && self.mono_slope == s.mono_slope
+            && self.tone_slope == s.tone_slope
+            && self.haas_mode == s.haas_mode;
+        // The ramps always end on what the glides derive, so still ramps are where a reset
+        // puts them.
+        let ramps = self.p.still()
+            && self.q.still()
+            && self.t.still()
+            && self.wr.still()
+            && self.dr.still();
+        glides
+            && stages
+            && ramps
+            && self.x_mono.iter().all(Xover::is_clear)
+            && self.x_band.iter().all(Xover::is_clear)
+            && self.shelves.iter().all(Shelf::is_clear)
+            && self.line_quiet.iter().all(|q| q.covers(self.cap))
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the grid's position moves
+    /// on, so a parameter that moves later glides on the same samples as it would have.
+    pub fn skip(&mut self, frames: usize) {
+        self.n += frames as u64;
     }
 }
 

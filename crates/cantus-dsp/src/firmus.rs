@@ -180,6 +180,16 @@ impl Firmus {
         self.voices.iter().filter(|v| v.is_active()).count()
     }
 
+    /// At rest (ADR 0031 §5.1): no voice sounding and both glides landed. A note resets
+    /// its voice whole (oscillators, filter, envelopes), and the voice it takes is the
+    /// first free one, so nothing earlier reaches it. For the processor's slot, which holds
+    /// Firmus directly; nothing counts samples, so a skip needs no call.
+    pub fn at_rest(&self) -> bool {
+        !self.voices.iter().any(|v| v.is_active())
+            && self.gain.is_settled()
+            && self.cutoff_log2.is_settled()
+    }
+
     pub fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
         self.counter += 1;
         let idx = self.pick_voice();

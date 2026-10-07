@@ -320,6 +320,20 @@ impl Allocator {
         }
     }
 
+    /// No voice, no held note, no pedal: as [`Self::clear`] leaves it, for every note to
+    /// come (ADR 0031 §5.1). The start clock is only ever compared, never read as a value,
+    /// so where it stands does not matter.
+    pub fn is_clear(&self) -> bool {
+        self.slots.iter().all(|s| !s.active) && self.stack_len == 0 && !self.sustain
+    }
+
+    /// No note held, no pedal; voices may still be marked released (an instrument that
+    /// does not report its voices' ends). For a single voice that is as good as clear: the
+    /// next note takes voice 0 either way, and only the `stolen` flag differs.
+    pub fn is_quiet(&self) -> bool {
+        self.slots.iter().all(|s| !s.active || s.released) && self.stack_len == 0 && !self.sustain
+    }
+
     /// Forget every voice and held note (reset, panic).
     pub fn clear(&mut self) {
         self.slots = [Slot::default(); MAX_VOICES];

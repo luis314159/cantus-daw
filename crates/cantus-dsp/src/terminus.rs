@@ -337,6 +337,23 @@ fn db(lin: f32) -> f32 {
     }
 }
 
+/// A value that is exactly a new line's (ADR 0031 §5.1): +0.0 bit for bit, or 0.
+trait Zero {
+    fn is_zero(&self) -> bool;
+}
+
+impl Zero for f32 {
+    fn is_zero(&self) -> bool {
+        self.to_bits() == 0
+    }
+}
+
+impl Zero for i64 {
+    fn is_zero(&self) -> bool {
+        *self == 0
+    }
+}
+
 /// A delay line of up to `cap − 1` samples.
 #[derive(Clone, Debug)]
 struct Delay<T: Copy + Default> {
@@ -355,6 +372,14 @@ impl<T: Copy + Default> Delay<T> {
     fn clear(&mut self) {
         self.buf.iter_mut().for_each(|x| *x = T::default());
         self.pos = 0;
+    }
+
+    /// Holds only zeros (+0.0): the position does not matter then.
+    fn is_clear(&self) -> bool
+    where
+        T: Zero,
+    {
+        self.buf.iter().all(Zero::is_zero)
     }
 
     #[inline]
@@ -512,6 +537,21 @@ impl Lookahead {
         self.configure(h, b1, b2, self.release);
     }
 
+    /// As [`Self::reset`] leaves it, for every input it can be given (requirements are
+    /// never negative): no requirement held, both averages at zero, and nothing in the hold
+    /// window but zeros — which any requirement pushes out, as from an empty window.
+    fn is_clear(&self) -> bool {
+        let w = &self.hold;
+        let cap = w.val.len();
+        self.out == 0
+            && self.held == 0
+            && self.b1.sum == 0
+            && self.b2.sum == 0
+            && self.b1.ring[..self.b1.len].iter().all(|v| *v == 0)
+            && self.b2.ring[..self.b2.len].iter().all(|v| *v == 0)
+            && (0..w.len).all(|k| w.val[(w.head + k) % cap] == 0)
+    }
+
     #[inline]
     fn push(&mut self, v: i64) -> i64 {
         let h = self.hold.push(v);
@@ -550,6 +590,10 @@ impl Clipper {
         self.decim.reset();
         self.dry.clear();
         self.quiet = true;
+    }
+
+    fn is_clear(&self) -> bool {
+        self.quiet && self.interp.is_clear() && self.decim.is_clear() && self.dry.is_clear()
     }
 
     /// Soft clip to `t`: straight up to 70 % of it, then a tanh knee that never reaches it.
@@ -668,6 +712,10 @@ struct DcBlock {
 }
 
 impl DcBlock {
+    fn is_clear(&self) -> bool {
+        crate::rest::z(self.x1) && crate::rest::z(self.y1)
+    }
+
     #[inline]
     fn tick(&mut self, x: f32, r: f32) -> f32 {
         let y = x - self.x1 + r * self.y1;
@@ -959,6 +1007,104 @@ impl Terminus {
         self.telemetry[T_RATE] = self.sr;
         self.seq = 0;
         self.gr_now = [0.0; 2];
+    }
+
+    /// At rest (ADR 0031 §5.1): every stage as [`Self::reset`] leaves it — glides landed,
+    /// filters, detectors, look-ahead windows, envelopes and delay lines empty — and the
+    /// Match monitor's memory still: its three-second window all silence (so no column can
+    /// move its level) and its gain landed; in Match mode, at unity as a new unit's is.
+    /// The meters that only the editor reads do not count.
+    ///
+    /// **Never with dither on** (R10): the noise generator stops on silence but does not go
+    /// back to its seed, so a new unit would dither the next sound with other noise. When
+    /// the dither becomes counter-based this can hold after its shaping state clears.
+    pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// What keeps it from resting, if anything: the first condition of [`Self::at_rest`]
+    /// that fails, by name (for the tests and a profiler that asks why).
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::{all_zero_f64, z, z64};
+        let s = &self.s;
+        let spec = s.style.spec();
+        let a = &self.acc;
+        let checks: [(&'static str, &dyn Fn() -> bool); 20] = [
+            ("dither", &|| {
+                DITHER_BITS[s.dither.min(DITHER_BITS.len() - 1)] == 0
+            }),
+            ("gain glide", &|| self.gain == self.gain_target),
+            ("ceiling glide", &|| self.ceiling_db == s.ceiling_db),
+            ("match glide", &|| {
+                crate::rest::glide_still(self.match_gain, self.match_target, self.match_glide, 1e-6)
+            }),
+            ("match gain", &|| {
+                s.monitor != Monitor::Match || self.match_gain == 1.0
+            }),
+            ("programme memory", &|| {
+                spec.program <= 0.0 || self.work_is_nothing()
+            }),
+            ("release envelope", &|| z(self.r_env[0]) && z(self.r_env[1])),
+            ("column energy", &|| z64(a.energy) && z64(a.energy_in)),
+            ("dc blocker", &|| self.dc.iter().all(DcBlock::is_clear)),
+            ("loudness filters", &|| {
+                self.k_in
+                    .iter()
+                    .chain(&self.k_out)
+                    .all(KWeighting::is_clear)
+            }),
+            ("match window", &|| {
+                all_zero_f64(&self.st_in) && all_zero_f64(&self.st_out)
+            }),
+            ("detectors", &|| {
+                self.det
+                    .iter()
+                    .chain(&self.safe_det)
+                    .all(TruePeak::is_clear)
+            }),
+            ("transient stage", &|| {
+                self.t_stage.iter().all(Lookahead::is_clear)
+            }),
+            ("safety stage", &|| self.safe.is_clear()),
+            ("clipper", &|| self.clip.iter().all(Clipper::is_clear)),
+            ("requirement line", &|| {
+                self.t_pre.iter().all(Delay::is_clear)
+            }),
+            ("release line", &|| self.r_delay.iter().all(Delay::is_clear)),
+            ("audio line", &|| self.audio.iter().all(Delay::is_clear)),
+            ("safety line", &|| {
+                self.safe_audio.iter().all(Delay::is_clear)
+            }),
+            ("dry line", &|| self.dry.iter().all(Delay::is_clear)),
+        ];
+        checks.iter().find(|(_, ok)| !ok()).map(|(name, _)| *name)
+    }
+
+    /// Whether the programme-dependent release's memory (`work`) is as good as zero. It
+    /// decays by `work / sr` a sample with no flush, so without FTZ it stops in the
+    /// subnormals (near 2⁻¹³⁴) instead of at zero. Any value below `f32::MIN_POSITIVE` is
+    /// exactly zero in every use: added to `1 / sr` it vanishes, and scaled by a difference
+    /// of two coefficients (under 1) and added to a release coefficient of at least ½ it is
+    /// far under half an ulp.
+    fn work_is_nothing(&self) -> bool {
+        self.work == 0.0
+            || (self.work < f32::MIN_POSITIVE && coef(self.s.release_ms, self.sr) >= 0.5)
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): the 10 ms columns the
+    /// Match monitor's window counts go on as processing would have moved them — each
+    /// one silent, so its window stays all silence and its level holds.
+    pub fn skip(&mut self, frames: usize) {
+        let total = self.acc.n + frames;
+        let cols = total / self.col_len;
+        if cols > 0 {
+            let len = self.st_in.len();
+            self.st_pos = (self.st_pos + cols % len) % len;
+            self.st_seen = self.st_seen.saturating_add(cols);
+            self.seq = ((self.seq as usize + cols % T_WRAP as usize) % T_WRAP as usize) as u32;
+            self.acc = ColumnAcc::default();
+        }
+        self.acc.n = total % self.col_len;
     }
 
     /// Samples of delay this adds: look-ahead, the true-peak detectors and the clipper's

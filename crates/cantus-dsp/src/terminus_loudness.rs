@@ -56,11 +56,11 @@ impl Section {
         let y = self.b[0] * x + self.z[0];
         self.z[0] = self.b[1] * x - self.a[0] * y + self.z[1];
         self.z[1] = self.b[2] * x - self.a[1] * y;
-        if self.z[0].abs() < 1e-30 {
-            self.z[0] = 0.0;
-        }
-        if self.z[1].abs() < 1e-30 {
-            self.z[1] = 0.0;
+        // Both at once: flushing one alone kicks the other, and the RLB high-pass (poles
+        // near 1) then hovers at the threshold for ever instead of coming to rest (found by
+        // the at-rest tests, ADR 0031 §5.1; Porta's sections do the same).
+        if self.z[0].abs() < 1e-30 && self.z[1].abs() < 1e-30 {
+            self.z = [0.0; 2];
         }
         y
     }
@@ -111,6 +111,11 @@ impl KWeighting {
     pub fn reset(&mut self) {
         self.shelf.z = [0.0; 2];
         self.highpass.z = [0.0; 2];
+    }
+
+    /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        crate::rest::all_zero_f64(&self.shelf.z) && crate::rest::all_zero_f64(&self.highpass.z)
     }
 
     #[inline]

@@ -150,6 +150,11 @@ impl Interp {
         self.pos = 0;
     }
 
+    /// The history holds only zeros, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.ring)
+    }
+
     /// Store a sample without computing anything (the history stays current while the
     /// stage that uses it is switched off, so switching it on needs no warm-up).
     #[inline]
@@ -247,6 +252,14 @@ impl TruePeak {
         self.last_interval = 0.0;
     }
 
+    /// Empty, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        crate::rest::z(self.before)
+            && crate::rest::z(self.last_interval)
+            && crate::rest::all_zero(&self.prev)
+            && self.interp.is_clear()
+    }
+
     #[inline]
     pub fn push(&mut self, x: f32) -> f32 {
         let cur = self.interp.push(x);
@@ -315,6 +328,11 @@ impl Decim {
     pub fn reset(&mut self) {
         self.ring = [0.0; 2 * DECIM_LEN];
         self.pos = 0;
+    }
+
+    /// The history holds only zeros, as [`Self::reset`] leaves it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.ring)
     }
 
     #[inline]

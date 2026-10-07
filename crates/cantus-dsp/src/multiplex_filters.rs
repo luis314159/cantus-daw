@@ -152,6 +152,30 @@ impl Svf {
         }
         (v2, v1, x - c.k * v1 - v2)
     }
+
+    /// As [`Self::tick`], flushing both states only together: a detector's filter must come
+    /// to rest, and flushing one alone kicks the other into hovering at the threshold
+    /// (ADR 0031 §5.1). For detectors only: what it changes is under 10⁻²⁰, where their
+    /// followers flush to zero anyway, so no gain and no sample moves.
+    #[inline]
+    pub fn tick_joint(&mut self, c: &SvfCoefs, x: f32) -> (f32, f32, f32) {
+        let v3 = x - self.ic2;
+        let v1 = c.a1 * self.ic1 + c.a2 * v3;
+        let v2 = self.ic2 + c.a2 * self.ic1 + c.a3 * v3;
+        self.ic1 = 2.0 * v1 - self.ic1;
+        self.ic2 = 2.0 * v2 - self.ic2;
+        if self.ic1.abs() < 1e-20 && self.ic2.abs() < 1e-20 {
+            self.ic1 = 0.0;
+            self.ic2 = 0.0;
+        }
+        (v2, v1, x - c.k * v1 - v2)
+    }
+
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    #[inline]
+    pub fn is_clear(&self) -> bool {
+        crate::rest::z(self.ic1) && crate::rest::z(self.ic2)
+    }
 }
 
 /// One channel of a trapezoidal one-pole low-pass; `G = g / (1 + g)`.
@@ -170,6 +194,12 @@ impl OnePole {
             self.s = 0.0;
         }
         lp
+    }
+
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    #[inline]
+    pub fn is_clear(&self) -> bool {
+        crate::rest::z(self.s)
     }
 }
 
@@ -220,6 +250,17 @@ pub struct Xover {
 }
 
 impl Xover {
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.first.iter().all(Svf::is_clear)
+            && self.low.iter().all(Svf::is_clear)
+            && self.high.iter().all(Svf::is_clear)
+            && self.ap.iter().all(Svf::is_clear)
+            && self.p_low.iter().all(OnePole::is_clear)
+            && self.p_high.iter().all(OnePole::is_clear)
+            && self.p_ap.is_clear()
+    }
+
     /// Split one sample into (low, high). Low + high is the all-pass [`Self::allpass`]
     /// would give (for the 6 dB slope, the input itself).
     #[inline]
@@ -292,6 +333,11 @@ pub struct Shelf {
 }
 
 impl Shelf {
+    /// Empty, as `default()` makes it (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.svf.iter().all(Svf::is_clear) && self.pole.is_clear()
+    }
+
     /// Run the stage at pole coefficient `g` (`tan(π f_p / fs)`) and section gain `rho`.
     /// With `mix == false` the filter only keeps its state warm and the input is returned.
     #[inline]

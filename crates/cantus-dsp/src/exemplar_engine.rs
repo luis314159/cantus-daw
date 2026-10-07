@@ -278,6 +278,29 @@ impl Exemplar {
         self.peak = 0.0;
     }
 
+    /// At rest (ADR 0031 §5.1): no layer sounding, no note or key held, the wheels and
+    /// pedals where a reset leaves them, no keyswitch in force (a new unit has none: the
+    /// next note would pick other zones) and no live note counted (live notes round-robin
+    /// by their count; a clip's notes by their id, which needs no memory). The clock only
+    /// times how long a note was held, so skipping it is exact.
+    pub fn at_rest(&self) -> bool {
+        !self.layers.iter().any(|l| l.active)
+            && self.alloc.is_clear()
+            && self.keys_down == 0
+            && self.keyswitch == -1
+            && self.live_rr.iter().all(|c| *c == 0)
+            && self.mw == 0.0
+            && self.at == 0.0
+            && self.bend == 0.0
+            && self.expr == 1.0
+            && self.sus == 0.0
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): the clock moves on.
+    pub fn skip(&mut self, frames: usize) {
+        self.clock += frames as u64;
+    }
+
     /// Voices (notes) sounding, and layers sounding.
     pub fn active_notes(&self) -> usize {
         self.alloc.active()

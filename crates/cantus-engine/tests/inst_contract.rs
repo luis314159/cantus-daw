@@ -5,6 +5,16 @@
 //! identical at every block size, headroom on a loud chord, exact silence once the notes
 //! are over (so an idle track can be skipped), and units that arrive before the snapshot
 //! that needs them and go back when it no longer does.
+//!
+//! And, for ADR 0031 (`at_rest` below): **split invariance** of the unit alone — notes,
+//! controllers and expressions at their samples, blocks of 1 and of 4096 and random splits
+//! between, at the defaults, with the bench's 32 voices held and at settings drawn over
+//! every parameter's range — and the **twin test** of `at_rest`: play, release, run silent
+//! until the unit says it is at rest; then a twin that keeps processing (exact silence, still
+//! at rest), a twin that is skipped (told so by `skip`), a twin that is reset and a new unit
+//! (both skipped as far as the first has run) must render the same bits for what is played
+//! next. When the parameters also move at that moment, the skipped twin must still agree;
+//! the reset and new ones are only reported.
 
 mod support;
 use cantus_core::*;
@@ -299,4 +309,505 @@ fn the_probed_track_reports_its_telemetry_and_live_controllers_arrive() {
         1.0,
         "the note-off released one note, not both"
     );
+}
+
+// ---- the unit alone: split invariance and at rest (ADR 0031) ------------------------------
+
+use support::heavy::{self, Rng, SAMPLE_RATE};
+
+#[derive(Copy, Clone, Debug)]
+enum Ev {
+    On(NoteOn),
+    Off { key: u8, id: u64, velocity: f32 },
+    Choke { key: u8, id: u64 },
+    Ctl(Controller, f32),
+    Expr(u64, NoteExpression, f32),
+    AllOff,
+}
+
+/// What is played: events at frames, over `frames`.
+#[derive(Clone, Debug, Default)]
+struct Score {
+    frames: usize,
+    events: Vec<(usize, Ev)>,
+}
+
+impl Score {
+    fn silence(frames: usize) -> Self {
+        Score {
+            frames,
+            events: Vec::new(),
+        }
+    }
+
+    /// Notes of every length, overlapping, with velocity, a choke now and then, the
+    /// pedal, the wheels and per-note expressions — all of it let go before the end (keys
+    /// up, pedal up, wheels home), so what follows can come to rest.
+    fn music(frames: usize, voices: usize, rng: &mut Rng) -> Self {
+        let mut ev = Vec::new();
+        let mut held: Vec<(u8, u64)> = Vec::new();
+        let mut id = rng.next_u64() >> 16;
+        let end = frames * 3 / 4;
+        let mut f = 0;
+        while f < end {
+            let roll = rng.range(0, 99);
+            if roll < 45 && held.len() < voices {
+                id += 1;
+                let key = rng.range(24, 96) as u8;
+                let on = NoteOn {
+                    key,
+                    velocity: rng.range(1, 127) as f32 / 127.0,
+                    id,
+                    channel: rng.range(0, 15) as u8,
+                };
+                ev.push((f, Ev::On(on)));
+                held.push((key, id));
+            } else if roll < 75 && !held.is_empty() {
+                let (key, id) = held.remove(rng.range(0, held.len() - 1));
+                if rng.chance(0.1) {
+                    ev.push((f, Ev::Choke { key, id }));
+                } else {
+                    let velocity = rng.unit();
+                    ev.push((f, Ev::Off { key, id, velocity }));
+                }
+            } else if roll < 85 {
+                let (c, v) = match rng.range(0, 3) {
+                    0 => (Controller::PitchBend, rng.unit() * 4.0 - 2.0),
+                    1 => (Controller::ModWheel, rng.unit()),
+                    2 => (Controller::Sustain, if rng.chance(0.5) { 1.0 } else { 0.0 }),
+                    _ => (Controller::Pressure, rng.unit()),
+                };
+                ev.push((f, Ev::Ctl(c, v)));
+            } else if roll < 95 && !held.is_empty() {
+                let (_, nid) = held[rng.range(0, held.len() - 1)];
+                let (e, v) = match rng.range(0, 2) {
+                    0 => (NoteExpression::Tuning, rng.unit() * 2.0 - 1.0),
+                    1 => (NoteExpression::Pressure, rng.unit()),
+                    _ => (NoteExpression::Brightness, rng.unit()),
+                };
+                ev.push((f, Ev::Expr(nid, e, v)));
+            } else if roll == 99 {
+                ev.push((f, Ev::AllOff));
+                held.clear();
+            }
+            f += rng.range(1, 4_000);
+        }
+        let f = end;
+        for (key, id) in held {
+            ev.push((
+                f,
+                Ev::Off {
+                    key,
+                    id,
+                    velocity: 0.5,
+                },
+            ));
+        }
+        for c in [
+            Controller::Sustain,
+            Controller::PitchBend,
+            Controller::ModWheel,
+            Controller::Pressure,
+        ] {
+            ev.push((f, Ev::Ctl(c, 0.0)));
+        }
+        Score { frames, events: ev }
+    }
+
+    /// The bench's heavy load: `HEAVY_VOICES` notes held together (`sessions::instrument`),
+    /// released at three quarters.
+    fn chord(frames: usize) -> Self {
+        let mut ev = Vec::new();
+        for v in 0..heavy::HEAVY_VOICES {
+            let key = 36 + ((v * 7) % 60) as u8;
+            let on = NoteOn {
+                key,
+                velocity: 96.0 / 127.0,
+                id: 1_000 + v as u64,
+                channel: 0,
+            };
+            ev.push((0, Ev::On(on)));
+        }
+        for v in 0..heavy::HEAVY_VOICES {
+            let key = 36 + ((v * 7) % 60) as u8;
+            let id = 1_000 + v as u64;
+            ev.push((
+                frames * 3 / 4,
+                Ev::Off {
+                    key,
+                    id,
+                    velocity: 0.5,
+                },
+            ));
+        }
+        Score { frames, events: ev }
+    }
+}
+
+fn apply(u: &mut dyn InstrumentUnit, e: Ev) {
+    match e {
+        Ev::On(n) => u.note_on(n),
+        Ev::Off { key, id, velocity } => u.note_off(key, id, velocity),
+        Ev::Choke { key, id } => u.choke(key, id),
+        Ev::Ctl(c, v) => u.controller(c, v),
+        Ev::Expr(id, e, v) => u.expression(id, e, v),
+        Ev::AllOff => u.all_notes_off(),
+    }
+}
+
+/// Play `score` on `u`, each event between calls at its frame, the calls split further
+/// by `block`. A call that says it wrote nothing must have written nothing.
+fn play(
+    u: &mut dyn InstrumentUnit,
+    score: &Score,
+    mut block: impl FnMut() -> usize,
+    mut after: impl FnMut(&dyn InstrumentUnit, &[f32], &[f32]),
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    let n = score.frames;
+    let (mut l, mut r) = (vec![0f32; n], vec![0f32; n]);
+    let (mut at, mut ei) = (0, 0);
+    while at < n {
+        while ei < score.events.len() && score.events[ei].0 <= at {
+            apply(u, score.events[ei].1);
+            ei += 1;
+        }
+        let next = score.events.get(ei).map_or(n, |e| e.0.min(n));
+        let b = block().clamp(1, n - at).min(next.max(at + 1) - at);
+        let wrote = u.process(&mut l[at..at + b], &mut r[at..at + b]);
+        if !wrote
+            && !l[at..at + b]
+                .iter()
+                .chain(&r[at..at + b])
+                .all(|v| *v == 0.0)
+        {
+            return Err(format!(
+                "process said it wrote nothing at frame {at}, and did"
+            ));
+        }
+        after(u, &l[at..at + b], &r[at..at + b]);
+        at += b;
+    }
+    Ok((l, r))
+}
+
+/// A unit as the processor makes one: built, then configured by the snapshot.
+fn inst_unit(spec: &NativeSpec) -> Box<dyn InstrumentUnit> {
+    if spec.kind == InstrumentKind::Wavetable {
+        einst::wavetable::prepare(spec, &[]);
+    }
+    let mut u = einst::make(spec.kind, SAMPLE_RATE);
+    u.configure(spec, &[]);
+    u
+}
+
+/// A run's name and how it splits its blocks.
+type Split<'a> = (&'a str, Box<dyn FnMut() -> usize>);
+
+fn splits(mut rng: Rng) -> impl FnMut() -> usize {
+    move || rng.block()
+}
+
+fn first_difference(a: &(Vec<f32>, Vec<f32>), b: &(Vec<f32>, Vec<f32>)) -> Option<String> {
+    for (ch, (x, y)) in [(&a.0, &b.0), (&a.1, &b.1)].into_iter().enumerate() {
+        if x.len() != y.len() {
+            return Some(format!("lengths {} and {}", x.len(), y.len()));
+        }
+        if let Some(i) = (0..x.len()).find(|&i| x[i].to_bits() != y[i].to_bits()) {
+            return Some(format!(
+                "channel {ch}, frame {i}: {:e} against {:e}",
+                x[i], y[i]
+            ));
+        }
+    }
+    None
+}
+
+/// The settings a kind is checked at, each with what is played on it: the defaults with
+/// music, the defaults with the bench's 32-voice chord ("heavy"), and `random` settings
+/// drawn over every parameter's range with music.
+fn inst_specs(
+    kind: InstrumentKind,
+    random: usize,
+    rng: &mut Rng,
+) -> Vec<(String, NativeSpec, bool)> {
+    let mut v = vec![
+        ("default".to_string(), NativeSpec::new(kind), false),
+        ("heavy".to_string(), NativeSpec::new(kind), true),
+    ];
+    for i in 0..random {
+        let p = if i % 3 == 2 { 1.0 } else { 0.5 };
+        v.push((
+            format!("random #{i}"),
+            heavy::random_instrument(kind, p, rng),
+            false,
+        ));
+    }
+    v
+}
+
+fn score_for(chord: bool, frames: usize, rng: &mut Rng) -> Score {
+    if chord {
+        Score::chord(frames)
+    } else {
+        Score::music(frames, 16, rng)
+    }
+}
+
+fn inst_split_invariance(kind: InstrumentKind) {
+    let mut rng = Rng::new(0x1257_0000 + kind as u64);
+    let mut failures = Vec::new();
+    for (label, spec, chord) in inst_specs(kind, 6, &mut rng) {
+        let score = score_for(chord, 72_000, &mut rng);
+        let reference = match play(&mut *inst_unit(&spec), &score, || 512, |_, _, _| {}) {
+            Ok(o) => o,
+            Err(e) => {
+                failures.push(format!("{kind:?} {label}: {e}"));
+                continue;
+            }
+        };
+        if !reference
+            .0
+            .iter()
+            .chain(&reference.1)
+            .all(|v| v.is_finite())
+        {
+            failures.push(format!("{kind:?} {label}: not finite"));
+            continue;
+        }
+        let runs: [Split; 5] = [
+            ("blocks of 1", Box::new(|| 1)),
+            ("blocks of 4096", Box::new(|| 4096)),
+            ("blocks of 7", Box::new(|| 7)),
+            ("random splits", Box::new(splits(rng.clone()))),
+            ("random splits", Box::new(splits(Rng::new(rng.next_u64())))),
+        ];
+        for (name, block) in runs {
+            match play(&mut *inst_unit(&spec), &score, block, |_, _, _| {}) {
+                Ok(out) => {
+                    if let Some(d) = first_difference(&reference, &out) {
+                        failures.push(format!("{kind:?} {label}, {name}: {d}"));
+                    }
+                }
+                Err(e) => failures.push(format!("{kind:?} {label}, {name}: {e}")),
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "split invariance broken:\n{}",
+        failures.join("\n")
+    );
+}
+
+/// Play, release, run silent until at rest, then compare four twins on what is played
+/// next. `Ok(Some(frames))`: at rest after that much silence and every twin agreed;
+/// `Ok(None)`: no rest within `cap`. With `change`, the parameters move at the wake.
+fn inst_twins(
+    spec: &NativeSpec,
+    chord: bool,
+    seed: u64,
+    cap: usize,
+    change: Option<&NativeSpec>,
+) -> Result<Option<usize>, String> {
+    let mut rng = Rng::new(seed);
+    // A unit that rests is as good as a new one skipped as far, so where a new one never
+    // comes to rest a long wait is wasted: wait a little, enough to catch a unit that
+    // claims rest where a new one cannot.
+    let mut probe = inst_unit(spec);
+    probe.skip(cap);
+    let cap = if probe.at_rest() {
+        cap
+    } else {
+        cap.min(48_000)
+    };
+    let history = score_for(chord, rng.range(4_800, 60_000), &mut rng);
+    let (mut a, mut b, mut d) = (inst_unit(spec), inst_unit(spec), inst_unit(spec));
+    let hist_seed = rng.next_u64();
+    for u in [&mut a, &mut b, &mut d] {
+        play(
+            &mut **u,
+            &history,
+            splits(Rng::new(hist_seed)),
+            |_, _, _| {},
+        )?;
+    }
+    let mut silent = 0;
+    while !a.at_rest() {
+        if silent > cap {
+            return Ok(None);
+        }
+        let n = rng.block();
+        for u in [&mut a, &mut b, &mut d] {
+            play(&mut **u, &Score::silence(n), || n, |_, _, _| {})?;
+        }
+        silent += n;
+        if a.at_rest() != b.at_rest() || a.at_rest() != d.at_rest() {
+            return Err("at_rest differs between identical twins".into());
+        }
+    }
+    if a.active_voices() != 0 {
+        return Err(format!("at rest with {} voices active", a.active_voices()));
+    }
+    let k = rng.range(0, 30_000);
+    let mut broke = None;
+    play(
+        &mut *a,
+        &Score::silence(k),
+        splits(Rng::new(rng.next_u64())),
+        |u, l, r| {
+            if broke.is_none() && !(l.iter().chain(r).all(|v| *v == 0.0) && u.at_rest()) {
+                broke = Some(if u.at_rest() {
+                    "at rest, no notes gave sound"
+                } else {
+                    "at rest, no notes left it not at rest"
+                });
+            }
+        },
+    )?;
+    if let Some(e) = broke {
+        return Err(e.into());
+    }
+    let total = history.frames + silent + k;
+    d.skip(k);
+    if !d.at_rest() {
+        return Err("skip left the unit not at rest".into());
+    }
+    b.reset();
+    b.skip(total);
+    let mut c = inst_unit(spec);
+    c.skip(total);
+    if !b.at_rest() || !c.at_rest() {
+        return Err("a reset or a new unit, skipped, is not at rest".into());
+    }
+    if let Some(to) = change {
+        if to.kind == InstrumentKind::Wavetable {
+            einst::wavetable::prepare(to, &[]);
+        }
+        for u in [&mut a, &mut b, &mut c, &mut d] {
+            u.configure(to, &[]);
+        }
+    }
+    let back = score_for(chord, rng.range(4_800, 48_000), &mut rng);
+    let out_a = play(
+        &mut *a,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    )?;
+    let out_d = play(
+        &mut *d,
+        &back,
+        splits(Rng::new(rng.next_u64())),
+        |_, _, _| {},
+    )?;
+    if let Some(e) = first_difference(&out_a, &out_d) {
+        return Err(format!(
+            "the skipped twin differs after {k} frames of rest: {e}"
+        ));
+    }
+    for (name, u) in [("reset", &mut b), ("new", &mut c)] {
+        let out = play(
+            &mut **u,
+            &back,
+            splits(Rng::new(rng.next_u64())),
+            |_, _, _| {},
+        )?;
+        if let Some(e) = first_difference(&out_a, &out) {
+            if change.is_none() {
+                return Err(format!("the {name} twin differs: {e}"));
+            }
+            // As good as new only while the parameters stay (a memory that outlives
+            // silence may show once they move): reported, not required.
+            eprintln!(
+                "  ({:?}: parameters moved at the wake: the {name} twin differs: {e})",
+                spec.kind
+            );
+        }
+    }
+    Ok(Some(silent))
+}
+
+/// Whether a kind must come to rest at its defaults and with the heavy chord, within the
+/// test's silence (30 s). The reasons for a `false` are in `docs/round21/at-rest.md`.
+fn inst_must_rest(kind: InstrumentKind) -> (bool, bool) {
+    match kind {
+        // The tone wheels, the scanner and the rotor turn for ever (see the notes).
+        InstrumentKind::Organ => (false, false),
+        _ => (true, true),
+    }
+}
+
+fn inst_at_rest_is_exact(kind: InstrumentKind) {
+    let mut rng = Rng::new(0x1a7_4e57 + kind as u64);
+    let mut failures = Vec::new();
+    let mut report = Vec::new();
+    let (rest_default, rest_heavy) = inst_must_rest(kind);
+    for (label, spec, chord) in inst_specs(kind, 4, &mut rng) {
+        let fixed = label == "default" || label == "heavy";
+        let cap = if fixed { 30 * 48_000 } else { 4 * 48_000 };
+        let must = (label == "default" && rest_default) || (label == "heavy" && rest_heavy);
+        for trial in 0..3 {
+            // The first trial as the tests run, the others as the engine's `process` will
+            // (denormals flushed): exact in both, but some state only reaches zero in the
+            // second, so rest is required only there.
+            let flushed = trial != 0;
+            let _flush = flushed.then(heavy::Flush::new);
+            let change = (trial == 2).then(|| heavy::random_instrument(kind, 0.5, &mut rng));
+            let seed = rng.next_u64();
+            match inst_twins(&spec, chord, seed, cap, change.as_ref()) {
+                Ok(Some(after)) => report.push(format!(
+                    "{label} #{trial}: at rest after {:.2} s{}",
+                    after as f32 / SAMPLE_RATE,
+                    if flushed { " (FTZ)" } else { "" }
+                )),
+                Ok(None) => {
+                    report.push(format!("{label} #{trial}: no rest"));
+                    if must && flushed {
+                        failures.push(format!(
+                            "{kind:?} {label} #{trial}: no rest within {} s of silence",
+                            cap / 48_000
+                        ));
+                    }
+                }
+                Err(e) => failures.push(format!("{kind:?} {label} #{trial} (seed {seed}): {e}")),
+            }
+        }
+    }
+    eprintln!("{kind:?}:\n  {}", report.join("\n  "));
+    if rest_default {
+        assert!(
+            inst_unit(&NativeSpec::new(kind)).at_rest(),
+            "{kind:?}: a new unit is at rest by definition"
+        );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+macro_rules! per_kind {
+    ($($name:ident => $kind:expr),* $(,)?) => {
+        mod split {
+            use super::*;
+            $( #[test] fn $name() { inst_split_invariance($kind) } )*
+        }
+        mod at_rest {
+            use super::*;
+            $( #[test] fn $name() { inst_at_rest_is_exact($kind) } )*
+        }
+    };
+}
+
+per_kind! {
+    wavetable => InstrumentKind::Wavetable,
+    analog => InstrumentKind::Analog,
+    fm => InstrumentKind::Fm,
+    sampler => InstrumentKind::Sampler,
+    bass => InstrumentKind::Bass,
+    epiano => InstrumentKind::ElectricPiano,
+    organ => InstrumentKind::Organ,
+}
+
+#[test]
+fn every_native_instrument_is_checked() {
+    // `per_kind!` lists seven: a new kind must be added there.
+    assert_eq!(InstrumentKind::ALL.len(), 7);
 }

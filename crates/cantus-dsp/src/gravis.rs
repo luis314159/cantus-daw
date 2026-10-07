@@ -822,6 +822,37 @@ impl Gravis {
         self.tail_quiet = 0;
     }
 
+    /// At rest (ADR 0031 §5.1): idle (every voice ended, every stage after it empty, every
+    /// glide landed — what lets a block be skipped), no note held, the legato window shut,
+    /// no bend or note tuning, and nothing that would make the next note differ from a new
+    /// unit's: no glide from the last pitch, no oscillator phase carried over. The String
+    /// engine is never at rest — it picks the next string from where the hand last was, as
+    /// a bassist does, and a new unit's hand is nowhere. The LFO is not part of the sound
+    /// here (only of the modulation the host unit reads, which checks it).
+    pub fn at_rest(&self) -> bool {
+        self.s.engine != Engine::String
+            && self.s.phase != PhaseMode::Free
+            && self.idle()
+            // One voice; its allocator is never told the voice ended, and a released slot
+            // gives the next note the same voice as a free one (Gravis ignores `stolen`).
+            && self.alloc.is_quiet()
+            && self.held.iter().all(|h| h.0 == NO_ID)
+            && self.window_left == 0
+            && self.bend.value == 0.0
+            && self.bend.target == 0.0
+            && self.expr_tuning == 0.0
+            && (self.s.glide_trigger != GlideTrigger::Always || !self.has_pitch)
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): what an idle block does.
+    pub fn skip(&mut self, frames: usize) {
+        self.t += frames as u64;
+        self.lfo_phase = self
+            .lfo_phase
+            .wrapping_add(self.lfo_inc.wrapping_mul(frames as u32));
+        self.window_left = self.window_left.saturating_sub(frames as u32);
+    }
+
     /// Voices sounding: the 808 or synth voice (and one fading out), or the strings.
     pub fn active_voices(&self) -> usize {
         match self.s.engine {

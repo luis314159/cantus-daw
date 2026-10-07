@@ -151,6 +151,10 @@ impl Window {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.pos = 0;
     }
+
+    fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.buf)
+    }
 }
 
 /// A 2× up-sampler: one sample in, two out (gain 2 on the zero-stuffed stream, so the
@@ -244,6 +248,19 @@ impl Oversampler {
             self.factor = f;
             self.reset();
         }
+    }
+
+    /// Every filter's history and the padding hold only zeros (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        (0..2).all(|ch| {
+            self.up_a[ch].w.is_clear()
+                && self.up_b[ch].w.is_clear()
+                && self.down_b[ch].even.is_clear()
+                && self.down_b[ch].odd.is_clear()
+                && self.down_a[ch].even.is_clear()
+                && self.down_a[ch].odd.is_clear()
+                && crate::rest::all_zero(&self.pad[ch])
+        })
     }
 
     pub fn reset(&mut self) {

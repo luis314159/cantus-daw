@@ -112,6 +112,12 @@ impl FirStage {
         }
     }
 
+    fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.up)
+            && crate::rest::all_zero(&self.even)
+            && crate::rest::all_zero(&self.odd)
+    }
+
     fn reset(&mut self) {
         self.up = [0.0; 2 * MAX_HALF];
         self.even = [0.0; 2 * MAX_HALF];
@@ -264,6 +270,13 @@ impl IirStage {
         IirStage { up, down: up, n }
     }
 
+    fn is_clear(&self) -> bool {
+        self.up
+            .iter()
+            .chain(self.down.iter())
+            .all(|s| crate::rest::z(s.x1) && crate::rest::z(s.y1))
+    }
+
     fn reset(&mut self) {
         for s in self.up.iter_mut().chain(self.down.iter_mut()) {
             s.x1 = 0.0;
@@ -396,6 +409,14 @@ impl Oversampler {
 
     pub fn latency(&self) -> usize {
         latency(self.factor, self.minimum)
+    }
+
+    /// Every filter's history and the padding hold only zeros, as [`Self::reset`] leaves
+    /// them (ADR 0031 §5.1): the ring positions do not matter then.
+    pub fn is_clear(&self) -> bool {
+        crate::rest::all_zero(&self.pad_buf)
+            && self.iir.iter().all(IirStage::is_clear)
+            && self.fir.iter().all(FirStage::is_clear)
     }
 
     pub fn reset(&mut self) {

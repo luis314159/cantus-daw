@@ -361,6 +361,28 @@ impl InstrumentUnit for Unit {
 
     fn reset(&mut self) {
         self.g.reset();
+        // The modulation grid restarts with the unit, as a new one's starts at 0.
+        self.t = 0;
+    }
+
+    /// Gravis at rest, the played controllers home, and no route reading a source that
+    /// moves on its own or remembers the last note (the LFO, velocity, key, random): then
+    /// the modulation's tick changes nothing until a note comes, and it comes on the grid
+    /// a new unit's would (the grid counts samples since the reset).
+    fn at_rest(&self) -> bool {
+        const MOVING: [u16; 4] = [2, 3, 4, 5];
+        self.controllers.iter().all(|c| *c == 0.0)
+            && !self
+                .matrix
+                .routes()
+                .iter()
+                .any(|r| MOVING.contains(&r.src) || r.via.is_some_and(|v| MOVING.contains(&v)))
+            && self.g.at_rest()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.g.skip(frames);
+        self.t += frames as u64;
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {

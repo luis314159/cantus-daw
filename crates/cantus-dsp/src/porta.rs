@@ -561,6 +561,8 @@ pub struct Porta {
     pos: usize,
     audio: [Vec<f32>; 2],
     key: [Vec<f32>; 2],
+    /// Zeros written into `audio` and `key` in a row (ADR 0031 §5.1).
+    quiet: [crate::rest::ZeroRun; 4],
     levels: Vec<f32>,
     // The display's history and the hits.
     n: u64,
@@ -626,6 +628,7 @@ impl Porta {
             pos: 0,
             audio: [vec![0.0; cap], vec![0.0; cap]],
             key: [vec![0.0; cap], vec![0.0; cap]],
+            quiet: [crate::rest::ZeroRun::FULL; 4],
             levels: vec![FLOOR_DB; cap],
             n: 0,
             col_len,
@@ -789,6 +792,7 @@ impl Porta {
         for b in self.audio.iter_mut().chain(self.key.iter_mut()) {
             b.fill(0.0);
         }
+        self.quiet = [crate::rest::ZeroRun::FULL; 4];
         self.levels.fill(FLOOR_DB);
         self.pos = 0;
         self.n = 0;
@@ -837,6 +841,51 @@ impl Porta {
                 .iter()
                 .flatten()
                 .all(|s| s.z1 == 0.0 && s.z2 == 0.0)
+    }
+
+    /// At rest (ADR 0031 §5.1): only in MIDI mode, with no note held or waiting, closed
+    /// and still (or not yet started, which the first sample makes the same), every filter
+    /// and follower empty and both delay lines all zeros. Played by its key, a gate is never
+    /// at rest: a reset gate starts *open* and closes after its hold, while one that has
+    /// heard silence is closed — two different states, both right.
+    pub fn at_rest(&self) -> bool {
+        let s = &self.s;
+        if !s.midi || self.trigger_count != 0 || self.held_count != 0 {
+            return false;
+        }
+        let closed = Self::midi_gain_db(s, false, self.velocity);
+        let still = self.fresh
+            || (self.phase == Phase::Closed
+                && self.target_db == closed
+                && self.ramp == closed
+                && self.smooth == closed);
+        still
+            && self.env.iter().all(|e| crate::rest::z(*e))
+            && self
+                .filt
+                .iter()
+                .flatten()
+                .all(|s| crate::rest::z(s.z1) && crate::rest::z(s.z2))
+            && self.quiet.iter().all(|q| q.covers(self.cap))
+    }
+
+    /// Samples of silence skipped while at rest (ADR 0031 §5.1): what the first of them
+    /// does to a gate not yet started (close it, at once), and the clock the notes are
+    /// timed on. The display's history does not move.
+    pub fn skip(&mut self, frames: usize) {
+        if frames == 0 {
+            return;
+        }
+        if self.fresh && self.s.midi {
+            self.fresh = false;
+            let closed = Self::midi_gain_db(&self.s, false, self.velocity);
+            self.phase = Phase::Closed;
+            self.target_db = closed;
+            self.ramp = closed;
+            self.smooth = closed;
+        }
+        self.n += frames as u64;
+        self.pos = (self.pos + frames % self.cap) % self.cap;
     }
 
     /// The editor's numbers (layout in [`telemetry`]).
@@ -1107,6 +1156,14 @@ impl Porta {
             };
             left[i] = ol;
             right[i] = or;
+        }
+        let pos = self.pos;
+        for (q, line) in self
+            .quiet
+            .iter_mut()
+            .zip(self.audio.iter().chain(self.key.iter()))
+        {
+            q.wrote(line, pos, n);
         }
     }
 

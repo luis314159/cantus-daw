@@ -118,6 +118,18 @@ impl FxUnit for Unit {
         self.dsp.reset();
     }
 
+    fn at_rest(&self) -> bool {
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
     fn latency(&self) -> usize {
         self.dsp.latency()
     }

@@ -131,6 +131,36 @@ impl Calor {
         &self.s
     }
 
+    /// At rest (ADR 0031 §5.1): no voice and no ghost sounding and the tail let go (the
+    /// decimator, the chorus and the DC block empty — the chorus sweeps on the sample clock,
+    /// so it can rest while it turns), no note held, the wheels and the pedals home, and
+    /// nothing that would make the next note differ from a new unit's: no live note counted
+    /// (live notes rotate the cards and seed by their count) and, when glide is on, no last
+    /// pitch to glide from.
+    pub fn at_rest(&self) -> bool {
+        !self.voices.iter().any(|v| v.active)
+            && !self.ghosts.iter().any(|g| g.active)
+            && self.tail == 0
+            && self.alloc.is_clear()
+            && !self.alloc_busy.iter().any(|b| *b)
+            && self.rotate == 0
+            && self.live_count == 0
+            && self.bend == 0.0
+            && self.wheel == 0.0
+            && self.globals[..src::MACRO1].iter().all(|v| *v == 0.0)
+            && self.globals[src::MW..].iter().all(|v| *v == 0.0)
+            && (self.s.glide <= 0.0011 || self.last_pitch.iter().all(|p| p.is_nan()))
+            && self.os.is_clear()
+            && self.out.is_silent()
+            && self.chorus.is_silent()
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): the clock the chorus and the drift
+    /// run on moves on.
+    pub fn skip(&mut self, frames: usize) {
+        self.clock += frames as u64;
+    }
+
     /// How many notes can sound at once with the current stack.
     pub fn polyphony(&self) -> usize {
         match self.s.mode {

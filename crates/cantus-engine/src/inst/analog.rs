@@ -404,6 +404,14 @@ impl InstrumentUnit for Unit {
         self.calor.reset();
     }
 
+    fn at_rest(&self) -> bool {
+        self.calor.at_rest()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.calor.skip(frames);
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
         self.calor.process(left, right)
     }

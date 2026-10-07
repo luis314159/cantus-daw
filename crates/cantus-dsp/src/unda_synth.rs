@@ -223,6 +223,28 @@ impl Unda {
         self.voices.iter().filter(|v| v.active).count()
     }
 
+    /// At rest (ADR 0031 §5.1): no voice, no note held, the decimator empty, the wheels and
+    /// pedals home, no free-running LFO in use (its phase follows the history of its rate,
+    /// which a new unit has not lived), and, with glide on every note, no last pitch to
+    /// glide from. The control grid counts samples, so skipping it is exact.
+    pub fn at_rest(&self) -> bool {
+        let s = &*self.s;
+        let free_lfo =
+            (0..8).any(|l| s.lfo[l].mode == LfoMode::Free && s.used_sources[source::LFO + l]);
+        !self.voices.iter().any(|v| v.active)
+            && self.alloc.is_clear()
+            && self.decim.peak() == 0.0
+            && self.globals[..source::MACRO].iter().all(|v| *v == 0.0)
+            && self.globals[source::MW..].iter().all(|v| *v == 0.0)
+            && !free_lfo
+            && (s.glide_s <= 0.0 || !s.glide_always || self.last_pitch.is_none())
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): the control grid's clock moves on.
+    pub fn skip(&mut self, frames: usize) {
+        self.clock += frames as u64;
+    }
+
     /// The free-running LFOs, one tick of `n` samples.
     fn tick_free(&mut self, n: usize) {
         for l in 0..8 {

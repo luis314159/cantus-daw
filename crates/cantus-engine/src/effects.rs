@@ -362,6 +362,43 @@ impl EffectUnit {
         }
     }
 
+    /// True when the unit is at rest (ADR 0031 §5.1, [`crate::fx::FxUnit::at_rest`]):
+    /// silence in gives silence out, skipping its calls on silent input — telling it with
+    /// [`Self::skip`] — changes no sample, and it renders as a new unit would while its
+    /// parameters stay. Exact; `false` whenever the unit cannot prove it.
+    pub fn at_rest(&self) -> bool {
+        match &self.dsp {
+            Dsp::Delay(d) => d.at_rest(),
+            Dsp::Reverb(r) => r.at_rest(),
+            Dsp::Eq(e) => e.at_rest(),
+            Dsp::Comp(c) => c.at_rest(),
+            Dsp::Fx(u) => u.at_rest(),
+        }
+    }
+
+    /// Why the unit is not at rest, by name; `None` exactly when [`Self::at_rest`] is true.
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        match &self.dsp {
+            Dsp::Eq(e) => e.rest_blocker(),
+            Dsp::Comp(c) => c.rest_blocker(),
+            Dsp::Fx(u) => u.rest_blocker(),
+            _ => (!self.at_rest()).then_some("not at rest"),
+        }
+    }
+
+    /// The engine skipped `frames` samples of silence while the unit was at rest
+    /// ([`crate::fx::FxUnit::skip`]): advance whatever counts samples. Cheap.
+    pub fn skip(&mut self, frames: usize) {
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.skip(frames),
+            // Integer ring positions only: an all-zero ring reads the same from any.
+            Dsp::Reverb(_) => {}
+            Dsp::Eq(e) => e.skip(frames),
+            Dsp::Comp(c) => c.skip(frames),
+            Dsp::Fx(u) => u.skip(frames),
+        }
+    }
+
     pub fn reset(&mut self) {
         match &mut self.dsp {
             Dsp::Delay(d) => d.reset(),

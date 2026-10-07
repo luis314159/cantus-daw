@@ -129,6 +129,32 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool;
+    /// True when the unit is **at rest** (ADR 0031 §5.1). Exactly:
+    ///
+    /// 1. with no note, expression or controller arriving, `process` writes nothing
+    ///    (returns `false`) and leaves it at rest;
+    /// 2. **suspension is exact**: skipping those calls — telling the unit with
+    ///    [`skip`](Self::skip) — changes no sample of what follows, whatever is played and
+    ///    whatever parameter changes come next;
+    /// 3. **it is as good as new**: it renders exactly what a freshly reset unit with the same
+    ///    configuration renders (that unit skipped as far as this one has run) for anything
+    ///    played, as long as the parameters stay as they are.
+    ///
+    /// Stricter than [`Self::process`] returning `false`: a unit can be silent with a
+    /// filter still ringing below the flush threshold, a glide in flight, a held
+    /// controller or a free-running LFO whose phase would differ after a skip — none of
+    /// those is at rest. Cheap: the engine may ask once per block. Default `false`.
+    /// Checked for every native kind by the twin tests (`tests/inst_contract.rs`).
+    fn at_rest(&self) -> bool {
+        false
+    }
+    /// The engine did not call `process` for `frames` samples because the unit was
+    /// [at rest](Self::at_rest) and nothing arrived: advance whatever counts samples,
+    /// exactly as processing would have. Cheap, no allocation. Called only while at rest (a
+    /// new unit is, when its kind can rest); it stays at rest. Default: nothing counts.
+    fn skip(&mut self, frames: usize) {
+        let _ = frames;
+    }
     fn active_voices(&self) -> usize;
     /// Samples of delay between a note and its sound, for delay compensation.
     fn latency(&self) -> usize {

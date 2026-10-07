@@ -114,6 +114,8 @@ pub struct Linear {
     delay_at: usize,
     /// Position inside the block.
     pos: usize,
+    /// Frames of silence in a row (both channels exactly zero) since the last sound.
+    quiet: usize,
     /// Each crossover's output for the frame just run.
     out_last: [[f32; 2]; MAX_XOVERS],
     re: Vec<f32>,
@@ -166,6 +168,7 @@ impl Linear {
             delay: [vec![0.0; taps / 2 + block], vec![0.0; taps / 2 + block]],
             delay_at: 0,
             pos: 0,
+            quiet: usize::MAX,
             out_last: [[0.0; 2]; MAX_XOVERS],
             re: vec![0.0; 2 * block],
             im: vec![0.0; 2 * block],
@@ -208,6 +211,39 @@ impl Linear {
         self.delay_at = 0;
         self.fdl_at = 0;
         self.out_last = [[0.0; 2]; MAX_XOVERS];
+        self.quiet = usize::MAX;
+    }
+
+    /// Position inside the block, and the block's length: the block structure is in the
+    /// output's bits (ADR 0031 §5.1).
+    pub fn block_pos(&self) -> (usize, usize) {
+        (self.pos, self.block)
+    }
+
+    /// Every buffer holds only zeros, as [`Self::reset`] leaves them: enough silence has
+    /// gone in for the two blocks collected, every partition of the delay line, the blocks
+    /// computed from them and the delayed input to be silence (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        let settle = (PARTS + 4) * self.block + self.delay[0].len();
+        self.quiet >= settle
+    }
+
+    /// Whether crossover `c` is designed exactly at `hz` and `slope`, with no cross-fade
+    /// pending: what a new unit asked for the same would hold.
+    pub fn designed_at(&self, c: usize, hz: f32, slope: Slope) -> bool {
+        self.designed[c] == (hz, Some(slope)) && !self.changing[c]
+    }
+
+    /// `frames` of silence, not computed, while every buffer is clear: the block position
+    /// and the rings move as [`Self::frame`] would have moved them (every block computed
+    /// from silence is silence).
+    pub fn skip(&mut self, frames: usize) {
+        let t = self.pos + frames;
+        self.fdl_at = (self.fdl_at + (t / self.block) % PARTS) % PARTS;
+        self.pos = t % self.block;
+        let d = self.delay[0].len();
+        self.delay_at = (self.delay_at + frames % d) % d;
+        self.quiet = self.quiet.saturating_add(frames);
     }
 
     /// Ask for crossover `c` at `hz` with `slope`; designed at the next block. The first
@@ -273,6 +309,11 @@ impl Linear {
     #[inline]
     pub fn frame(&mut self, l: f32, r: f32, crossovers: usize) -> (f32, f32) {
         let b = self.block;
+        self.quiet = if crate::rest::z(l) && crate::rest::z(r) {
+            self.quiet.saturating_add(1)
+        } else {
+            0
+        };
         self.frame[0][b + self.pos] = (l + r) * 0.5;
         self.frame[1][b + self.pos] = (l - r) * 0.5;
         let at = self.delay_at;

@@ -487,6 +487,14 @@ impl InstrumentUnit for Unit {
         self.dsp.reset();
     }
 
+    fn at_rest(&self) -> bool {
+        self.dsp.at_rest()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
         self.dsp.process(left, right)
     }

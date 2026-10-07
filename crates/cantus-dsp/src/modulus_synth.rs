@@ -271,10 +271,29 @@ impl Modulus {
         }
         self.alloc.clear();
         self.last_pitch = None;
+        // The clock restarts with the unit, as a new one's starts at 0.
+        self.clock = 0;
     }
 
     pub fn active_voices(&self) -> usize {
         self.voices.iter().filter(|v| v.active).count()
+    }
+
+    /// At rest (ADR 0031 §5.1): no voice, no note held, the wheels and pedals home, and,
+    /// with glide on, no last pitch to glide from. The control grid and everything timed by
+    /// the clock count samples, so skipping them is exact.
+    pub fn at_rest(&self) -> bool {
+        !self.voices.iter().any(|v| v.active)
+            && self.alloc.is_clear()
+            && self.bend_raw == 0.0
+            && self.globals[..source::MACRO].iter().all(|v| *v == 0.0)
+            && self.globals[source::MW..].iter().all(|v| *v == 0.0)
+            && (self.patch.glide <= 0.0 || self.last_pitch.is_none())
+    }
+
+    /// Samples skipped while at rest (ADR 0031 §5.1): the clock moves on.
+    pub fn skip(&mut self, frames: usize) {
+        self.clock += frames as u64;
     }
 
     /// Voices stolen since the last reset.
