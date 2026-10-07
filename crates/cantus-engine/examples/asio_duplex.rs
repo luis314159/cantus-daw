@@ -62,7 +62,7 @@ fn main() {
             .expect("the output stream")
     };
     let build_in = || {
-        let ic = ic.as_ref().expect("an input config").clone();
+        let ic = *ic.as_ref().expect("an input config");
         let n = ins.clone();
         let e = errors.clone();
         device
