@@ -98,6 +98,7 @@ pub fn setup(app: &mut CantusApp) {
         sample_rate: Some(48_000),
         buffer_frames: Some(128),
         record_offset_frames: 0,
+        workers: None,
     };
     app.settings.audio = audio.clone();
     app.settings.audio_setup.remember(UMC, &audio);

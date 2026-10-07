@@ -1,0 +1,391 @@
+//! The multicore pool (ADR 0031 §2, round 22): the engine's graph run by W live workers and
+//! the callback gives the serial engine's output **to the bit** — on random topologies
+//! (buses, sends, keys from earlier and later strips, notes into effects, latent inserts,
+//! automation riding faders, loops), at W ∈ {1, 3, 7}, under random block sizes, shuffled
+//! priorities, clustering on and off and, with the `fuzz` feature, the PCT-shaped stalls of
+//! `sched::fuzz` inside the engine's own pool. No borrow ever fails
+//! (`schedule_conflicts == 0`), and the pool wakes a worker only at an idle → busy
+//! transition.
+//!
+//! A failure prints its seed; `CANTUS_POOL_SEEDS=n` runs more.
+
+mod support;
+use cantus_core::automation::{AutoPoint, AutoTarget};
+use cantus_core::*;
+use cantus_engine::sched::Mode;
+use cantus_engine::*;
+use std::sync::Arc;
+use support::heavy::{random_effect, random_instrument, Rng};
+use support::*;
+
+const SR: f64 = 48_000.0;
+
+/// A processor playing a project as the application drives it: units, the automation
+/// runtime and the plan sent before the snapshot, compensation and memory answered.
+struct Rig {
+    p: Processor,
+    tx: rtrb::Producer<EngineMessage>,
+    rx: rtrb::Consumer<EngineEvent>,
+}
+
+impl Rig {
+    fn new(project: &Project, workers: Workers) -> Rig {
+        let snap = Arc::new(Snapshot::compile(project, 1));
+        let effects = snap.effect_slots().count();
+        let instruments = inst::units_for(&snap, SR as f32, |_, _| false);
+        let (mut tx, rx_engine) =
+            rtrb::RingBuffer::<EngineMessage>::new(64 + effects + instruments.len());
+        let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
+        let mut p = Processor::without_midi(SR, rx_engine, tx_engine);
+        p.set_workers(workers);
+        for slot in snap.effect_slots() {
+            tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(slot, SR as f32))))
+                .ok();
+        }
+        for unit in instruments {
+            tx.push(EngineMessage::AddInstrument(unit)).ok();
+        }
+        tx.push(EngineMessage::Automation(automation::Runtime::build(&snap)))
+            .ok();
+        let plan = graph::compile(&snap);
+        tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
+        p.settle();
+        while let Ok(ev) = rx.pop() {
+            match ev {
+                EngineEvent::PdcNeed { count, delay } => {
+                    tx.push(EngineMessage::PdcLines(pdc::lines_for(count, delay)))
+                        .ok();
+                    p.settle();
+                }
+                EngineEvent::EffectNeed { effect, need } => {
+                    let memory = EffectMemory::build(need, SR as f32);
+                    tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                    p.settle();
+                }
+                _ => {}
+            }
+        }
+        tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
+        tx.push(EngineMessage::Play).ok();
+        Rig { p, tx, rx }
+    }
+
+    /// Blocks of the given sizes, back to back; the output, interleaved stereo.
+    fn play(&mut self, blocks: &[usize]) -> Vec<f32> {
+        let mut out = Vec::new();
+        let mut buf = vec![0f32; MAX_BLOCK_FRAMES * 2];
+        for &n in blocks {
+            let b = &mut buf[..n * 2];
+            self.p.process(b, 2);
+            out.extend_from_slice(b);
+            while self.rx.pop().is_ok() {}
+        }
+        out
+    }
+}
+
+/// Random block sizes (1…1024, mostly the live ones), the same for every run of a seed.
+fn blocks(rng: &mut Rng, total: usize) -> Vec<usize> {
+    let mut v = Vec::new();
+    let mut done = 0;
+    while done < total {
+        let n = match rng.range(0, 9) {
+            0 => rng.range(1, 64),
+            1 => rng.range(65, MAX_BLOCK_FRAMES),
+            2..=4 => 128,
+            5 | 6 => 256,
+            _ => 64,
+        };
+        v.push(n);
+        done += n;
+    }
+    v
+}
+
+const KINDS: [EffectKind; 11] = [
+    EffectKind::Delay,
+    EffectKind::Reverb,
+    EffectKind::Eq,
+    EffectKind::Compressor,
+    EffectKind::Limiter,
+    EffectKind::Space,
+    EffectKind::Multiband,
+    EffectKind::DeEsser,
+    EffectKind::Gate,
+    EffectKind::Saturator,
+    EffectKind::Stereo,
+];
+
+const INSTRUMENTS: [InstrumentKind; 6] = [
+    InstrumentKind::Wavetable,
+    InstrumentKind::Analog,
+    InstrumentKind::Fm,
+    InstrumentKind::Bass,
+    InstrumentKind::ElectricPiano,
+    InstrumentKind::Organ,
+];
+
+fn pt(beats: f64, value: f32) -> AutoPoint {
+    AutoPoint::new(Ticks((beats * PPQ as f64) as i64), value)
+}
+
+/// A random session: tracks on their own strips, buses and returns at higher levels
+/// (routes only go up, so nothing loops), sends, keys from any strip (earlier or later in
+/// the order), inserts that hear a track's notes, latent inserts, mutes, polarity,
+/// automation and a loop.
+fn session(seed: u64) -> Project {
+    let mut rng = Rng::new(seed);
+    let mut p = Project::new("pool");
+    p.tempo_bpm = 90.0 + rng.range(0, 80) as f64;
+    let tracks = rng.range(1, 12);
+    for t in 0..tracks {
+        let mut tr = p.make_track(format!("T{t}"));
+        if rng.chance(0.6) {
+            let kind = INSTRUMENTS[rng.range(0, INSTRUMENTS.len() - 1)];
+            tr.instrument = InstrumentSpec::Native(random_instrument(kind, 0.2, &mut rng));
+        }
+        let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(8));
+        for _ in 0..rng.range(2, 24) {
+            let start = Ticks(rng.range(0, 7 * PPQ as usize) as i64);
+            let len = Ticks(rng.range(PPQ as usize / 8, 2 * PPQ as usize) as i64);
+            let n = p.make_note(start, len, rng.range(36, 84) as u8, rng.range(30, 127) as u8);
+            clip.notes.push(n);
+        }
+        tr.clips.push(clip);
+        tr.gain_db = -(rng.range(0, 12) as f32);
+        tr.pan = rng.unit() * 2.0 - 1.0;
+        if rng.chance(0.1) {
+            tr.muted = true;
+        }
+        p.tracks.push(tr);
+    }
+    // Buses (level 1) and returns (level 2).
+    let mut levels: Vec<Vec<StripId>> = vec![Vec::new(), Vec::new(), Vec::new()];
+    for t in 0..tracks {
+        if let Some(s) = p.tracks[t].strip {
+            levels[0].push(s);
+        }
+    }
+    for level in 1..3 {
+        for b in 0..rng.range(0, 3) {
+            let s = p.make_strip(format!("L{level}B{b}"));
+            levels[level].push(s.id);
+            p.strips.push(s);
+        }
+    }
+    let all: Vec<(usize, StripId)> = levels
+        .iter()
+        .enumerate()
+        .flat_map(|(l, v)| v.iter().map(move |s| (l, *s)))
+        .collect();
+    let track_ids: Vec<TrackId> = p.tracks.iter().map(|t| t.id).collect();
+    for &(level, id) in &all {
+        let higher: Vec<StripId> = all
+            .iter()
+            .filter(|(l, _)| *l > level)
+            .map(|(_, s)| *s)
+            .collect();
+        let others: Vec<StripId> = all.iter().map(|(_, s)| *s).filter(|s| *s != id).collect();
+        let mut effects = Vec::new();
+        for _ in 0..rng.range(0, 3) {
+            let kind = KINDS[rng.range(0, KINDS.len() - 1)];
+            let mut slot = p.make_effect(kind);
+            slot.spec = random_effect(kind, 0.3, &mut rng);
+            if rng.chance(0.15) {
+                slot.mix = rng.unit();
+            }
+            if rng.chance(0.1) {
+                slot.bypass = true;
+            }
+            // A key from a strip below (heard) — the order puts it first.
+            let lower: Vec<StripId> = all
+                .iter()
+                .filter(|(l, _)| *l < level)
+                .map(|(_, s)| *s)
+                .collect();
+            if !lower.is_empty() && rng.chance(0.25) {
+                slot.sidechain = Some(lower[rng.range(0, lower.len() - 1)]);
+            }
+            if rng.chance(0.2) {
+                slot.midi_from = Some(track_ids[rng.range(0, track_ids.len() - 1)]);
+            }
+            effects.push(slot);
+        }
+        let s = p.strip_mut(id).unwrap();
+        s.effects = effects;
+        s.gain_db = -(rng.range(0, 9) as f32);
+        s.pan = rng.unit() * 2.0 - 1.0;
+        s.phase_invert = rng.chance(0.1);
+        s.muted = rng.chance(0.05);
+        s.swap_channels = rng.chance(0.05);
+        if !higher.is_empty() && rng.chance(0.6) {
+            s.output = Some(higher[rng.range(0, higher.len() - 1)]);
+        }
+        for _ in 0..rng.range(0, 2) {
+            if higher.is_empty() {
+                break;
+            }
+            let to = higher[rng.range(0, higher.len() - 1)];
+            if !s.sends.iter().any(|x| x.to == to) && s.output != Some(to) {
+                s.sends.push(Send {
+                    to,
+                    level: rng.unit(),
+                    enabled: true,
+                });
+            }
+        }
+        let _ = others;
+    }
+    if rng.chance(0.5) {
+        let lim = p.make_effect(EffectKind::Limiter);
+        p.master.effects.push(lim);
+    }
+    if rng.chance(0.5) {
+        let strip = all[rng.range(0, all.len() - 1)].1;
+        let c = p.make_automation_clip(
+            "a",
+            AutoTarget::StripGain(strip),
+            Ticks::beats(1),
+            Ticks::beats(4),
+            vec![pt(0.0, 0.2), pt(4.0, 0.9)],
+        );
+        p.tracks[0].clips.push(c);
+    }
+    if rng.chance(0.4) {
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(rng.range(0, 3) as i64),
+            end: Ticks::beats(rng.range(4, 8) as i64),
+        });
+        p.loop_enabled = true;
+    }
+    p
+}
+
+fn seeds() -> u64 {
+    std::env::var("CANTUS_POOL_SEEDS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(12)
+}
+
+/// The serial engine's output for a project and its block sizes.
+fn serial(p: &Project, blocks: &[usize]) -> Vec<f32> {
+    let mut r = Rig::new(p, Workers::SERIAL);
+    let out = r.play(blocks);
+    assert_eq!(r.p.stats().schedule_conflicts, 0);
+    out
+}
+
+fn same_bits(a: &[f32], b: &[f32], what: &str) {
+    assert_eq!(a.len(), b.len(), "{what}: lengths");
+    if let Some(i) = a.iter().zip(b).position(|(x, y)| x.to_bits() != y.to_bits()) {
+        panic!("{what}: sample {i} differs: {} vs {}", a[i], b[i]);
+    }
+}
+
+#[test]
+fn the_pool_gives_the_serial_engines_bits_on_random_sessions() {
+    for seed in 0..seeds() {
+        let p = session(0x9001 + seed);
+        let mut rng = Rng::new(seed);
+        let b = blocks(&mut rng, 4 * 48_000);
+        let reference = serial(&p, &b);
+        assert!(reference.iter().any(|x| *x != 0.0), "seed {seed}: silent");
+        for w in [1usize, 3, 7] {
+            let mut workers = Workers::parallel(w);
+            workers.shuffle = Some(seed * 31 + w as u64);
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            same_bits(&reference, &out, &format!("seed {seed}, W = {w}"));
+            let s = *r.p.stats();
+            assert_eq!(s.schedule_conflicts, 0, "seed {seed}, W = {w}: conflicts");
+        }
+    }
+}
+
+#[test]
+fn the_demo_and_a_busy_desk_are_the_same_at_every_w_and_mode() {
+    let mut busy = demo_project();
+    add_effect(&mut busy, EffectKind::Compressor);
+    add_effect(&mut busy, EffectKind::Space);
+    let lim = busy.make_effect(EffectKind::Limiter);
+    busy.master.effects.push(lim);
+    for (name, p) in [("demo", demo_project()), ("busy", busy)] {
+        let b = vec![128; 3 * 375];
+        let reference = serial(&p, &b);
+        for (w, mode) in [(1, Mode::Parallel), (3, Mode::Auto), (7, Mode::Parallel)] {
+            let workers = Workers {
+                mode,
+                ..Workers::parallel(w)
+            };
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            same_bits(&reference, &out, &format!("{name}, W = {w}, {mode:?}"));
+            assert_eq!(r.p.stats().schedule_conflicts, 0);
+        }
+    }
+}
+
+/// With the `fuzz` feature: the PCT-shaped change points stall whichever thread of the
+/// engine's own pool reaches the scheduler's k-th site — mid-push, mid-steal, with a task in
+/// hand — and the output is still the serial engine's.
+#[cfg(feature = "fuzz")]
+#[test]
+fn the_schedule_fuzz_over_the_corpus_changes_no_sample() {
+    use cantus_engine::sched::fuzz::{ChangePoint, Pct};
+    use std::time::Duration;
+    for seed in 0..seeds() {
+        let p = session(0x5EED + seed);
+        let mut rng = Rng::new(seed ^ 0xF00);
+        let b = blocks(&mut rng, 2 * 48_000);
+        let reference = serial(&p, &b);
+        for w in [1usize, 3, 7] {
+            let changes = (0..3)
+                .map(|k| ChangePoint {
+                    block: 1 + rng.range(0, b.len().min(400)) as u64,
+                    step: rng.range(0, 40) as u64,
+                    stall: Duration::from_micros(50 + 200 * k),
+                })
+                .collect();
+            let workers = Workers {
+                chaos: Some(Arc::new(Pct::new(changes))),
+                shuffle: Some(seed + w as u64),
+                ..Workers::parallel(w)
+            };
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            same_bits(&reference, &out, &format!("fuzz seed {seed}, W = {w}"));
+            assert_eq!(r.p.stats().schedule_conflicts, 0);
+        }
+    }
+}
+
+#[test]
+fn a_parked_pool_is_woken_once_per_worker_after_silence_and_not_while_busy() {
+    let p = demo_project();
+    let mut r = Rig::new(&p, Workers::parallel(3));
+    // The first block publishes the period and starts the workers.
+    r.play(&[128]);
+    let t = std::time::Instant::now();
+    while r.p.stats().workers < 3 && t.elapsed() < std::time::Duration::from_secs(5) {
+        r.play(&[128]);
+    }
+    assert_eq!(r.p.stats().workers, 3, "every worker joined");
+    // Back to back: they spin through, never parked, never woken.
+    r.play(&[128; 20]);
+    let before = r.p.stats().wakes;
+    r.play(&[128; 200]);
+    assert_eq!(r.p.stats().wakes, before, "no wake while blocks keep coming");
+    // Stop, wait 200 ms: every worker parks. The next block wakes each once.
+    r.tx.push(EngineMessage::Stop).ok();
+    r.play(&[128]);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    r.tx.push(EngineMessage::Play).ok();
+    let before = r.p.stats().wakes;
+    r.play(&[128]);
+    assert_eq!(r.p.stats().wakes - before, 3, "one wake per parked worker");
+    let before = r.p.stats().wakes;
+    r.play(&[128; 200]);
+    assert_eq!(r.p.stats().wakes, before, "busy again: no wake");
+    assert_eq!(r.p.stats().schedule_conflicts, 0);
+}

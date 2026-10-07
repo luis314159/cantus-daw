@@ -17,12 +17,11 @@ pub(super) struct AutoState {
     /// The transport sample at which the next control point is due (`u64::MAX`: none).
     next: u64,
     /// The transport sample of the last control point: ramps count from it.
-    at: u64,
-    /// Ramps of the track slots' level and balance, and the strip slots' fader and pan.
-    pub(super) track_gain: [Option<Ramp>; MAX_TRACKS],
-    pub(super) track_pan: [Option<Ramp>; MAX_TRACKS],
-    pub(super) strip_gain: [Option<Ramp>; MAX_STRIPS],
-    pub(super) strip_pan: [Option<Ramp>; MAX_STRIPS],
+    pub(super) at: u64,
+    /// Track and strip slots that may hold a ramp (the tracks' level and balance, the
+    /// strips' fader and pan live in their nodes' state): cleared at the next install.
+    ramped_tracks: [bool; MAX_TRACKS],
+    ramped_strips: [bool; MAX_STRIPS],
     pub(super) master_gain: Option<Ramp>,
     pub(super) master_pan: Option<Ramp>,
     /// The master's level (linear), balance and width while automation drives them.
@@ -36,21 +35,32 @@ impl AutoState {
             pending: None,
             next: u64::MAX,
             at: 0,
-            track_gain: [None; MAX_TRACKS],
-            track_pan: [None; MAX_TRACKS],
-            strip_gain: [None; MAX_STRIPS],
-            strip_pan: [None; MAX_STRIPS],
+            ramped_tracks: [false; MAX_TRACKS],
+            ramped_strips: [false; MAX_STRIPS],
             master_gain: None,
             master_pan: None,
             master: [None; 3],
         }
     }
 
-    fn clear_ramps(&mut self) {
-        self.track_gain = [None; MAX_TRACKS];
-        self.track_pan = [None; MAX_TRACKS];
-        self.strip_gain = [None; MAX_STRIPS];
-        self.strip_pan = [None; MAX_STRIPS];
+    /// Every ramp goes: the nodes' (in their state) and the master's.
+    fn clear_ramps(&mut self, nodes: &exec::Nodes) {
+        for (slot, r) in self.ramped_tracks.iter_mut().enumerate() {
+            if std::mem::take(r) {
+                if let Some(mut s) = nodes.track(slot) {
+                    s.gain_ramp = None;
+                    s.pan_ramp = None;
+                }
+            }
+        }
+        for (slot, r) in self.ramped_strips.iter_mut().enumerate() {
+            if std::mem::take(r) {
+                if let Some(mut s) = nodes.strip(slot) {
+                    s.gain_ramp = None;
+                    s.pan_ramp = None;
+                }
+            }
+        }
         self.master_gain = None;
         self.master_pan = None;
     }
@@ -61,20 +71,19 @@ impl AutoState {
     pub(super) fn k0(&self, now: u64) -> Option<u64> {
         self.rt.as_ref().map(|_| now.saturating_sub(self.at))
     }
+
+    /// The last control point, when a runtime is installed (the passes' `auto_at`).
+    #[inline]
+    pub(super) fn base(&self) -> Option<u64> {
+        self.rt.as_ref().map(|_| self.at)
+    }
 }
 
 /// Multiply a track's segment by its automated level and balance, sample by sample.
 /// Returns `false` (touching nothing) when neither ramps.
 #[inline]
-pub(super) fn ramp_track(
-    a: &AutoState,
-    slot: usize,
-    s: &TrackSlot,
-    k0: u64,
-    l: &mut [f32],
-    r: &mut [f32],
-) -> bool {
-    let (g, p) = (a.track_gain[slot], a.track_pan[slot]);
+pub(crate) fn ramp_track(s: &TrackSlot, k0: u64, l: &mut [f32], r: &mut [f32]) -> bool {
+    let (g, p) = (s.gain_ramp, s.pan_ramp);
     if g.is_none() && p.is_none() {
         return false;
     }
@@ -95,16 +104,8 @@ pub(super) fn ramp_track(
 /// Multiply a strip's segment by its automated fader and pan (through the pan law).
 /// Returns `false` (touching nothing) when neither ramps.
 #[inline]
-pub(super) fn ramp_strip(
-    a: &AutoState,
-    slot: usize,
-    st: &StripSlot,
-    law: PanLaw,
-    k0: u64,
-    l: &mut [f32],
-    r: &mut [f32],
-) -> bool {
-    let (g, p) = (a.strip_gain[slot], a.strip_pan[slot]);
+pub(crate) fn ramp_strip(st: &StripSlot, law: PanLaw, k0: u64, l: &mut [f32], r: &mut [f32]) -> bool {
+    let (g, p) = (st.gain_ramp, st.pan_ramp);
     if g.is_none() && p.is_none() {
         return false;
     }
@@ -151,17 +152,16 @@ impl Processor {
         if let Some(old) = std::mem::replace(&mut self.auto.rt, rt) {
             self.auto_dispose(old);
         }
-        self.auto.clear_ramps();
+        let nodes = self.nodes.clone();
+        self.auto.clear_ramps(&nodes);
         self.auto.master = [None; 3];
         self.auto.next = u64::MAX;
         if let Some(rt) = self.auto.rt.as_mut() {
             for c in rt.effects.iter_mut() {
-                c.at = self
-                    .strips
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, s)| s.id.is_some())
-                    .find_map(|(si, s)| {
+                c.at = (0..MAX_STRIPS)
+                    .filter(|si| self.strip_ids[*si].is_some())
+                    .find_map(|si| {
+                        let s = nodes.strip(si)?;
                         s.effects
                             .iter()
                             .position(|e| e.id == c.effect)
@@ -220,6 +220,7 @@ impl Processor {
         let len = grid - now;
         rt.evaluate(&snap, tick, next_tick);
         self.auto.at = now;
+        let nodes = self.nodes.clone();
         let mut moving = false;
         for lane in &rt.lanes {
             let (a, b) = (lane.now, lane.next);
@@ -228,42 +229,57 @@ impl Processor {
                 Dest::TrackGain(ti) => {
                     if let Some(&slot) = self.track_to_slot.get(ti) {
                         let (ga, gb) = (db_to_linear(a), db_to_linear(b));
-                        self.slots[slot].gain = ga;
-                        self.auto.track_gain[slot] = Ramp::of(ga, gb, len);
+                        if let Some(mut s) = nodes.track(slot) {
+                            s.gain = ga;
+                            s.gain_ramp = Ramp::of(ga, gb, len);
+                            self.auto.ramped_tracks[slot] = true;
+                        }
                     }
                 }
                 Dest::TrackPan(ti) => {
                     if let Some(&slot) = self.track_to_slot.get(ti) {
-                        self.slots[slot].pan = a;
-                        self.auto.track_pan[slot] = Ramp::of(a, b, len);
+                        if let Some(mut s) = nodes.track(slot) {
+                            s.pan = a;
+                            s.pan_ramp = Ramp::of(a, b, len);
+                            self.auto.ramped_tracks[slot] = true;
+                        }
                     }
                 }
                 Dest::StripGain(si) => {
                     if let Some(&slot) = self.strip_to_slot.get(si) {
                         let (ga, gb) = (db_to_linear(a), db_to_linear(b));
-                        self.strips[slot].gain = ga;
-                        self.auto.strip_gain[slot] = Ramp::of(ga, gb, len);
+                        if let Some(mut s) = nodes.strip(slot) {
+                            s.gain = ga;
+                            s.gain_ramp = Ramp::of(ga, gb, len);
+                            self.auto.ramped_strips[slot] = true;
+                        }
                     }
                 }
                 Dest::StripPan(si) => {
                     if let Some(&slot) = self.strip_to_slot.get(si) {
-                        self.strips[slot].pan = a;
-                        self.auto.strip_pan[slot] = Ramp::of(a, b, len);
+                        if let Some(mut s) = nodes.strip(slot) {
+                            s.pan = a;
+                            s.pan_ramp = Ramp::of(a, b, len);
+                            self.auto.ramped_strips[slot] = true;
+                        }
                     }
                 }
                 Dest::StripWidth(si) => {
                     if let Some(&slot) = self.strip_to_slot.get(si) {
-                        self.strips[slot].width = a;
+                        if let Some(mut s) = nodes.strip(slot) {
+                            s.width = a;
+                        }
                     }
                 }
                 Dest::Send { strip, to } => {
                     if let (Some(&s), Some(&d)) =
                         (self.strip_to_slot.get(strip), self.strip_to_slot.get(to))
                     {
-                        let st = &mut self.strips[s];
-                        for k in 0..st.send_count {
-                            if st.sends[k].0 == d {
-                                st.sends[k].1 = a;
+                        if let Some(mut st) = nodes.strip(s) {
+                            for k in 0..st.send_count {
+                                if st.sends[k].0 == d {
+                                    st.sends[k].1 = a;
+                                }
                             }
                         }
                     }
@@ -284,13 +300,20 @@ impl Processor {
         // Parameter sets that moved: their units configured from the copies.
         for c in rt.effects.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
-            let unit = match c.at {
-                Some((usize::MAX, i)) => self.master.effects.get_mut(i),
-                Some((s, i)) => self.strips.get_mut(s).and_then(|st| st.effects.get_mut(i)),
-                None => None,
-            };
-            if let Some(u) = unit.filter(|u| u.id == c.effect) {
-                u.configure(&c.spec);
+            match c.at {
+                Some((usize::MAX, i)) => {
+                    if let Some(u) = self.master.effects.get_mut(i).filter(|u| u.id == c.effect) {
+                        u.configure(&c.spec);
+                    }
+                }
+                Some((s, i)) => {
+                    if let Some(mut st) = nodes.strip(s) {
+                        if let Some(u) = st.effects.get_mut(i).filter(|u| u.id == c.effect) {
+                            u.configure(&c.spec);
+                        }
+                    }
+                }
+                None => {}
             }
         }
         for c in rt.natives.iter_mut().filter(|c| c.dirty) {
@@ -298,15 +321,19 @@ impl Processor {
             if let (Some(&slot), Some(t)) =
                 (self.track_to_slot.get(c.track), snap.tracks.get(c.track))
             {
-                if let Some(u) = self.slots[slot].native.as_mut() {
-                    u.unit.configure(&c.spec, &t.assets);
+                if let Some(mut s) = nodes.track(slot) {
+                    if let Some(u) = s.native.as_mut() {
+                        u.unit.configure(&c.spec, &t.assets);
+                    }
                 }
             }
         }
         for c in rt.firmus.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
             if let Some(&slot) = self.track_to_slot.get(c.track) {
-                self.slots[slot].synth.set_settings(&to_settings(&c.params));
+                if let Some(mut s) = nodes.track(slot) {
+                    s.synth.set_settings(&to_settings(&c.params));
+                }
             }
         }
         // When the next control point is due: at the next grid point while anything

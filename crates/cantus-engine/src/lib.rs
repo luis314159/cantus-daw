@@ -48,7 +48,7 @@ pub use messages::{
     MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
 pub use midi::{list_ports, MidiInputs, MidiSender};
-pub use processor::Processor;
+pub use processor::{Processor, Workers};
 pub use profile::{BlockHistogram, Culprit, Dropout};
 pub use recorder::{
     FinishedTake, LivePeaks, RecordLatency, RecordMark, RecordRings, MAX_INPUTS, PEAK_FRAMES,

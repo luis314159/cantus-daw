@@ -5,7 +5,10 @@
 //! gate played by a track's notes, the click and the recorder.
 //!
 //! The file installs a counting allocator. It counts per thread, so the tests of this file
-//! running in parallel do not see each other's allocations.
+//! running in parallel do not see each other's allocations — and on every thread of the
+//! engine's pool (round 22): a worker marks itself when it starts
+//! (`cantus_engine::processor::on_worker_start`), and while any test is counting, a heap
+//! event on a worker is counted too.
 
 use cantus_dsp::math;
 
@@ -30,7 +33,22 @@ thread_local! {
     static FIRST: Cell<isize> = const { Cell::new(0) };
 }
 
+/// Pool workers mark themselves; their heap events count while any test counts.
+thread_local! {
+    static WORKER: Cell<bool> = const { Cell::new(false) };
+}
+static COUNTING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static WORKER_EVENTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn mark_worker(_slot: usize) {
+    WORKER.with(|w| w.set(true));
+}
+
 fn count(bytes: isize) {
+    use std::sync::atomic::Ordering::Relaxed;
+    if WORKER.try_with(|w| w.get()).unwrap_or(false) && COUNTING.load(Relaxed) > 0 {
+        WORKER_EVENTS.fetch_add(1, Relaxed);
+    }
     let _ = LIVE.try_with(|c| c.set(c.get() + bytes));
     let _ = ARMED.try_with(|a| {
         if a.get() {
@@ -78,11 +96,16 @@ fn live() -> isize {
 /// Run `f` counting every heap event on this thread; returns what it returned and the
 /// count.
 fn armed<T>(f: impl FnOnce() -> T) -> (T, usize) {
+    use std::sync::atomic::Ordering::SeqCst;
     EVENTS.with(|n| n.set(0));
+    COUNTING.fetch_add(1, SeqCst);
+    let workers = WORKER_EVENTS.load(SeqCst);
     ARMED.with(|a| a.set(true));
     let out = f();
     ARMED.with(|a| a.set(false));
-    (out, EVENTS.with(|n| n.get()))
+    let workers = WORKER_EVENTS.load(SeqCst) - workers;
+    COUNTING.fetch_sub(1, SeqCst);
+    (out, EVENTS.with(|n| n.get()) + workers)
 }
 
 /// Net heap bytes `f`'s result holds.
@@ -246,10 +269,19 @@ struct Rig {
 
 impl Rig {
     fn new() -> Self {
+        Self::with(None)
+    }
+
+    /// With the pool's workers given (`CANTUS_WORKERS` otherwise).
+    fn with(workers: Option<Workers>) -> Self {
+        cantus_engine::processor::on_worker_start(mark_worker);
         let (tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(256);
         let (tx_engine, rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
         let (cap_tx, cap) = rtrb::RingBuffer::<f32>::new(CAPTURE_SAMPLES);
         let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+        if let Some(w) = workers {
+            p.set_workers(w);
+        }
         p.attach_capture(cap_tx);
         Rig {
             tx,
@@ -317,6 +349,17 @@ impl Rig {
 /// notes, the delayed click and a strip recorder. Not one allocation while processing.
 #[test]
 fn the_audio_thread_never_allocates() {
+    audio_thread_scenario(None);
+}
+
+/// The same with three workers in the pool, always parallel: neither the callback nor any
+/// worker allocates or frees.
+#[test]
+fn the_pool_threads_never_allocate() {
+    audio_thread_scenario(Some(Workers::parallel(3)));
+}
+
+fn audio_thread_scenario(workers: Option<Workers>) {
     let mut p = demo_project();
     p.tempo_bpm = 120.0;
     p.metronome = true;
@@ -330,7 +373,7 @@ fn the_audio_thread_never_allocates() {
     gate.spec.set("look", 5.0).unwrap();
     gate.midi_from = Some(p.tracks[0].id);
     p.strip_mut(s1).unwrap().effects.push(gate);
-    let mut rig = Rig::new();
+    let mut rig = Rig::with(workers);
     rig.snapshot(&p);
     rig.tx
         .push(EngineMessage::SetCapture(CaptureTarget::Strip(s1)))

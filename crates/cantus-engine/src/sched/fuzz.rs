@@ -25,7 +25,7 @@
 
 use super::pool::{Config, Mode, Pool};
 use super::queue::ReadyQueue;
-use super::{Chaos, Graph, Site};
+use super::{Chaos, Graph, Site, Topology};
 use std::fmt;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering::*};
 use std::sync::Arc;
@@ -351,7 +351,7 @@ impl FuzzGraph {
     }
 }
 
-impl Graph for FuzzGraph {
+impl Topology for FuzzGraph {
     fn len(&self) -> usize {
         self.preds.len()
     }
@@ -364,6 +364,9 @@ impl Graph for FuzzGraph {
     fn ranks(&self) -> &[u32] {
         &self.ranks
     }
+}
+
+impl Graph for FuzzGraph {
     fn run(&self, task: u32, _slot: usize) {
         let t = task as usize;
         let b = self.block.load(Relaxed);
@@ -433,7 +436,7 @@ fn run_blocks<Q: ReadyQueue, C: Chaos>(
     ));
     let mut cfg = Config::new(workers, ep.preds.len());
     cfg.mode = Mode::Parallel;
-    let mut pool = Pool::<FuzzGraph, Q, C>::with_chaos(g.clone(), cfg, chaos)
+    let mut pool = Pool::<FuzzGraph, Q, C>::for_graph_with_chaos(g.clone(), cfg, chaos)
         .expect("the fuzz could not start its workers");
     let mut rng = ep.rng.clone();
     let (mut hash, mut missed) = (0u64, 0usize);

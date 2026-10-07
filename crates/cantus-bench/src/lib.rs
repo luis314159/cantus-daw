@@ -23,6 +23,7 @@ pub mod compare;
 pub mod cpu;
 pub mod dawbench;
 pub mod kernels;
+pub mod paced;
 pub mod report;
 pub mod rig;
 pub mod sessions;

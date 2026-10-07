@@ -23,7 +23,5 @@ eframe.workspace = true
 rtrb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-
-[dev-dependencies]
-# `examples/promote_jitter.rs`: the callback promoted vs not (round 21, ADR 0031 R1).
+# `paced`: the callback's promotion, as on WASAPI (round 22).
 cantus-rt.workspace = true

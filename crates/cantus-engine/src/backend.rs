@@ -54,6 +54,9 @@ pub struct AudioConfig {
     pub input_device_name: Option<String>,
     pub sample_rate: Option<u32>,
     pub buffer_frames: Option<u32>,
+    /// Live workers helping the audio callback (ADR 0031 §2.1); `None` is the machine's
+    /// default (performance cores minus two), `Some(0)` the callback alone.
+    pub workers: Option<usize>,
 }
 
 pub struct EngineHandle {
@@ -153,6 +156,12 @@ impl EngineHandle {
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let (midi_tx, midi_rx) = RingBuffer::<MidiEvent>::new(MIDI_QUEUE);
         let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        // The pool (ADR 0031 §2): its workers start now and wait for the stream's first
+        // block, which tells them the period; each joins once it has promoted itself.
+        processor.set_workers(match config.workers {
+            None => crate::processor::Workers::auto(),
+            Some(n) => crate::processor::Workers::live(n),
+        });
         let (capture_tx, capture_rx) = RingBuffer::<f32>::new(CAPTURE_SAMPLES);
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);

@@ -5,6 +5,8 @@
 //!              [--json <file>]
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
+//! cantus-bench paced [--frames 256] [--seconds 120] [--songs startup,house,…]
+//!                    [--workers auto|N]
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -20,6 +22,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("compare") => compare_cmd(&args[1..]),
         Some("table") => table_cmd(&args[1..]),
+        Some("paced") => paced_cmd(&args[1..]),
         _ => run_cmd(&args),
     }
 }
@@ -140,5 +143,53 @@ fn table_cmd(args: &[String]) -> ExitCode {
             eprintln!("cantus-bench: {e}");
             ExitCode::from(2)
         }
+    }
+}
+
+/// The real processor at the device period: every demo and the startup song, a miss
+/// counted whenever a block ends after its period (`cantus_bench::paced`).
+fn paced_cmd(args: &[String]) -> ExitCode {
+    let (mut frames, mut seconds) = (256usize, 120.0f64);
+    let mut only: Vec<String> = Vec::new();
+    let mut workers = cantus_engine::Workers::auto();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        let v = it.next();
+        match (a.as_str(), v) {
+            ("--frames", Some(v)) => frames = v.parse().unwrap_or(frames),
+            ("--seconds", Some(v)) => seconds = v.parse().unwrap_or(seconds),
+            ("--songs", Some(v)) => only = v.split(',').map(|s| s.trim().to_string()).collect(),
+            ("--workers", Some(v)) => {
+                workers = match v.as_str() {
+                    "auto" => cantus_engine::Workers::auto(),
+                    n => cantus_engine::Workers::live(n.parse().unwrap_or(0)),
+                }
+            }
+            _ => {
+                eprintln!("cantus-bench paced: unknown argument {a:?}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    println!(
+        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers
+",
+        frames as f64 / 48.0,
+        workers.count()
+    );
+    println!("{}", cantus_bench::paced::HEADER);
+    let mut misses = 0;
+    for (name, p) in cantus_bench::paced::songs() {
+        if !only.is_empty() && !only.contains(&name) {
+            continue;
+        }
+        let r = cantus_bench::paced::run(&name, &p, frames, seconds, workers.clone());
+        misses += r.misses;
+        println!("{}", cantus_bench::paced::row(&r));
+    }
+    if misses == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }

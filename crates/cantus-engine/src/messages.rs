@@ -266,6 +266,15 @@ pub struct EngineStats {
     /// raising the callback's thread once per stream start (ADR 0031 R1), and from Phase 1
     /// the pool's idle → busy wakes.
     pub wakes: u64,
+    /// Borrows of a node's state or output that failed (ADR 0031 §2.7): a scheduler bug if
+    /// ever non-zero — the node was skipped as silence rather than waited for.
+    pub schedule_conflicts: u64,
+    /// The pool's live workers that have started (promoted themselves) and joined; 0 is
+    /// the serial engine.
+    pub workers: u32,
+    /// The last block ran on the pool (`false`: the callback alone — no workers, the
+    /// adaptive rule's quiet blocks, or one long chain).
+    pub parallel: bool,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**

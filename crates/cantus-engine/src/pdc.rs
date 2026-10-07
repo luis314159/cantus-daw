@@ -27,6 +27,9 @@
 //! A project with no latency uses no line at all and renders exactly as it did before
 //! compensation existed.
 
+use cantus_rt::cell::NodeCell;
+use std::sync::Arc;
+
 /// Each line's length at start-up: 8192 samples is 170 ms at 48 kHz.
 pub const START_LEN: usize = 8192;
 /// The longest compensation, in samples: 2¹⁹ is 10.9 s at 48 kHz, 2.7 s at 192 kHz.
@@ -153,10 +156,53 @@ impl Default for DelayLine {
     }
 }
 
+/// The pool of lines, each behind its own cell (`cantus_rt::cell`): the node that owns an
+/// edge runs its line during a pass, on whichever thread runs the node; the planner below
+/// reassigns them between passes, on the callback. Shared by both through an `Arc`.
+#[derive(Debug)]
+pub struct Lines(Box<[NodeCell<DelayLine>]>);
+
+impl Lines {
+    /// [`POOL`] lines of [`START_LEN`] samples.
+    pub fn new() -> Self {
+        Lines((0..POOL).map(|_| NodeCell::new(DelayLine::new())).collect())
+    }
+
+    /// Line `i`'s cell.
+    #[inline]
+    pub fn cell(&self, i: usize) -> Option<&NodeCell<DelayLine>> {
+        self.0.get(i)
+    }
+
+    /// Line `i`, exclusively — `None` while a node holds it (never, between passes).
+    #[inline]
+    pub fn get(&self, i: usize) -> Option<cantus_rt::cell::NodeMut<'_, DelayLine>> {
+        self.0.get(i)?.try_borrow_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for Lines {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The pool, and which line each edge uses.
 #[derive(Debug)]
 pub struct Compensation {
-    pub lines: Vec<DelayLine>,
+    pub lines: Arc<Lines>,
+    /// Each line's edge, delay and length, mirrored here so planning reads plain arrays.
+    edge: [Option<Edge>; POOL],
+    len: [usize; POOL],
+    delay: [usize; POOL],
     /// The total delay at the master: what the output lags the playhead by.
     pub total: usize,
     /// Edges that needed a line and found none long enough at the last snapshot.
@@ -170,7 +216,10 @@ pub struct Compensation {
 impl Compensation {
     pub fn new() -> Self {
         Compensation {
-            lines: (0..POOL).map(|_| DelayLine::new()).collect(),
+            lines: Arc::new(Lines::new()),
+            edge: [None; POOL],
+            len: [START_LEN; POOL],
+            delay: [0; POOL],
             total: 0,
             unserved: 0,
             need: (0, 0),
@@ -181,7 +230,35 @@ impl Compensation {
     /// The line serving `edge`, if it has one.
     #[inline]
     pub fn line_for(&self, edge: Edge) -> Option<usize> {
-        self.lines.iter().position(|l| l.edge == Some(edge))
+        self.edge.iter().position(|e| *e == Some(edge))
+    }
+
+    /// The edge line `i` serves.
+    #[inline]
+    pub fn edge_of(&self, i: usize) -> Option<Edge> {
+        self.edge.get(i).copied().flatten()
+    }
+
+    /// Line `i`'s delay.
+    pub fn delay_of(&self, i: usize) -> usize {
+        self.delay[i]
+    }
+
+    /// Give line `i` to `edge` at `delay`, emptied. A line held by a node (never between
+    /// passes) is left as it was.
+    fn assign(&mut self, i: usize, edge: Edge, delay: usize) {
+        if let Some(mut l) = self.lines.get(i) {
+            l.assign(edge, delay);
+            self.edge[i] = Some(edge);
+            self.delay[i] = l.delay();
+        }
+    }
+
+    fn release(&mut self, i: usize) {
+        self.edge[i] = None;
+        if let Some(mut l) = self.lines.get(i) {
+            l.edge = None;
+        }
     }
 
     /// Start of a snapshot's assignment: every line is up for grabs, but keeps its edge
@@ -199,25 +276,25 @@ impl Compensation {
         }
         let delay = delay.min(MAX_DELAY);
         if let Some(i) = self.line_for(edge) {
-            if self.lines[i].len() >= delay {
-                if self.lines[i].delay != delay {
-                    self.lines[i].assign(edge, delay);
+            if self.len[i] >= delay {
+                if self.delay[i] != delay {
+                    self.assign(i, edge, delay);
                 }
                 kept[i] = true;
                 return;
             }
             // Too short for the new delay: let it go and look for a longer one.
-            self.lines[i].edge = None;
+            self.release(i);
         }
         // The shortest free line long enough, preferring one no edge holds; failing that,
         // one whose edge has not been kept this round (that edge, if still wanted, then
         // finds another — the cost is the content of one line, never correctness).
         let free = (0..POOL)
-            .filter(|i| !kept[*i] && self.lines[*i].len() >= delay)
-            .min_by_key(|i| (self.lines[*i].edge.is_some(), self.lines[*i].len()));
+            .filter(|i| !kept[*i] && self.len[*i] >= delay)
+            .min_by_key(|i| (self.edge[*i].is_some(), self.len[*i]));
         match free {
             Some(i) => {
-                self.lines[i].assign(edge, delay);
+                self.assign(i, edge, delay);
                 kept[i] = true;
             }
             None => {
@@ -229,9 +306,9 @@ impl Compensation {
 
     /// End of the assignment: lines no edge kept are freed.
     pub fn finish(&mut self, kept: &[bool; POOL]) {
-        for (i, l) in self.lines.iter_mut().enumerate() {
-            if !kept[i] {
-                l.edge = None;
+        for (i, k) in kept.iter().enumerate() {
+            if !k && self.edge[i].is_some() {
+                self.release(i);
             }
         }
     }
@@ -244,7 +321,7 @@ impl Compensation {
             self.asked = (0, 0);
             return None;
         }
-        let free = self.lines.iter().filter(|l| l.edge.is_none()).count();
+        let free = self.edge.iter().filter(|e| e.is_none()).count();
         let want = (self.need.0.min(free), self.need.1);
         if want.0 == 0 || want == self.asked {
             return None;
@@ -264,10 +341,14 @@ impl Compensation {
     pub fn supply(&mut self, fresh: &mut [DelayLine]) {
         for f in fresh.iter_mut() {
             let slot = (0..POOL)
-                .filter(|i| self.lines[*i].edge.is_none() && self.lines[*i].len() < f.len())
-                .min_by_key(|i| self.lines[*i].len());
+                .filter(|i| self.edge[*i].is_none() && self.len[*i] < f.len())
+                .min_by_key(|i| self.len[*i]);
             if let Some(i) = slot {
-                std::mem::swap(&mut self.lines[i], f);
+                if let Some(mut l) = self.lines.get(i) {
+                    std::mem::swap(&mut *l, f);
+                    self.len[i] = l.len();
+                    self.delay[i] = l.delay();
+                }
             }
         }
         self.asked = (0, 0);
@@ -312,6 +393,7 @@ mod tests {
         c.want(&mut kept, Edge::Send(2, 0), 0);
         c.finish(&kept);
         let first = c.line_for(Edge::Out(2)).unwrap();
+        assert_eq!(c.lines.get(first).unwrap().edge, Some(Edge::Out(2)));
         assert!(c.line_for(Edge::Send(2, 0)).is_none(), "no delay, no line");
         let mut kept = c.begin();
         c.want(&mut kept, Edge::Out(2), 100);
@@ -360,9 +442,9 @@ mod tests {
         plan(&mut c);
         assert_eq!(c.unserved, 0);
         let i = c.line_for(Edge::Out(1)).unwrap();
-        assert_eq!(c.lines[i].delay(), long);
+        assert_eq!(c.delay_of(i), long);
         // And the long line delays by exactly its delay.
-        let line = &mut c.lines[i];
+        let mut line = c.lines.get(i).unwrap();
         let mut l = vec![0.0; long + 2];
         l[0] = 1.0;
         let mut r = l.clone();

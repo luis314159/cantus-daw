@@ -1,5 +1,8 @@
-//! The master node's pass (`master.rs`): gather, chain, strip, take, click.
+//! The master node's pass (`master.rs`): gather, chain, strip, take, click — on the
+//! callback, after the pool's part of the pass, reading what the other nodes left in
+//! their cells.
 
+use super::strip_run::{analyse, read_meters, SILENCE};
 use super::*;
 use crate::graph::gather::add_interleaved;
 use crate::profile::Node;
@@ -23,10 +26,11 @@ impl Processor {
         // ---- gather, in canonical order: the tracks routed here, then each strip's
         // output edge in the order --------------------------------------------------------
         {
-            let produced = produced!(self);
-            for i in self.plan.inputs(self.plan.master()) {
-                if let Some(c) = produced.contribution(*i, n) {
-                    add_interleaved(out, channels, c);
+            let nodes = &*self.nodes;
+            let master = self.plan.master();
+            if let Some(frame) = nodes.read(&nodes.frame) {
+                for i in frame.map.inputs(master) {
+                    strip::with_input(nodes, *i, n, &mut |c| add_interleaved(out, channels, c));
                 }
             }
         }
@@ -81,9 +85,14 @@ impl Processor {
         }
         // The recorder, on the master: the mix as it leaves the master strip.
         if self.capture_target == CaptureTarget::Master {
-            for frame in out.chunks_exact(channels) {
-                let (l, r) = (frame[0], if channels > 1 { frame[1] } else { frame[0] });
-                Self::capture_frame(&mut self.capture, &mut self.stats, l, r);
+            match self.nodes.capture.try_borrow_mut() {
+                Some(mut cap) => {
+                    for frame in out.chunks_exact(channels) {
+                        let (l, r) = (frame[0], if channels > 1 { frame[1] } else { frame[0] });
+                        cap.frame(l, r);
+                    }
+                }
+                None => self.nodes.conflict(),
             }
         }
         self.run_click(snap, out, channels, n);
@@ -127,7 +136,7 @@ impl Processor {
     fn click_stretch(&mut self, out: &mut [f32], channels: usize, n: usize) {
         let click_line = self
             .click_line
-            .filter(|li| self.click.is_active() || self.pdc.lines[*li].ringing());
+            .filter(|li| self.click.is_active() || self.nodes.line_ringing(Some(*li)));
         if let Some(li) = click_line {
             let active = self.click.is_active();
             for i in 0..n {
@@ -135,7 +144,9 @@ impl Processor {
                 self.edge_l[i] = c;
                 self.edge_r[i] = c;
             }
-            self.pdc.lines[li].run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
+            if let Some(mut line) = self.nodes.line(li) {
+                line.run(&mut self.edge_l[..n], &mut self.edge_r[..n]);
+            }
             for (i, frame) in out.chunks_exact_mut(channels).enumerate() {
                 frame[0] += self.edge_l[i];
                 if channels > 1 {
@@ -179,6 +190,8 @@ impl Processor {
             return;
         }
         let start = self.clock + p0 as u64;
+        let pass = self.pass;
+        let nodes = self.nodes.clone();
         let m = &mut self.master;
         let l = &mut m.buf_l[..n];
         let r = &mut m.buf_r[..n];
@@ -197,34 +210,44 @@ impl Processor {
         for (i, e) in m.effects.iter_mut().enumerate() {
             self.prof.enter(Node::MasterInsert(i));
             let looked_at = self.analysed == Some(e.id);
-            if looked_at {
+            let mut ana = if looked_at {
+                let a = nodes.analysis.try_borrow_mut();
+                if a.is_none() {
+                    nodes.conflict();
+                }
+                a
+            } else {
+                None
+            };
+            if let Some(a) = ana.as_mut() {
                 for k in 0..n {
-                    self.ana_pre[k] = (l[k] + r[k]) * 0.5;
+                    a.pre[k] = (l[k] + r[k]) * 0.5;
                 }
             }
             // Notes from the track it listens to, due in this pass (ADR 0022).
             if let Some(li) = m.listener[i] {
-                let lis = &mut self.listeners[li as usize];
-                let outbox = &self.slots[lis.track].outbox;
-                lis.deliver(outbox, start, start + n as u64, |at, note| e.note(at, note));
+                if let Some(mut lis) = nodes.listener(li as usize) {
+                    if let Some(outbox) = nodes.read(&nodes.tracks[lis.track].outbox) {
+                        lis.deliver(&outbox, start, start + n as u64, |at, note| e.note(at, note));
+                    }
+                }
             }
             // Bypassed or switched off: a wire when it has no latency, a soft bypass (its
             // dry line, the effect still running) when it has.
             let off = m.bypass[i] || !m.fx_enabled;
             let latent = e.latency() > 0;
             if off && !latent {
-                if looked_at {
-                    Self::analyse(&mut self.analyser, &self.ana_pre[..n], l, r);
+                if let Some(a) = ana.as_mut() {
+                    analyse(a, l, r);
                 }
                 continue;
             }
             let mix = m.mix[i];
-            let key = m.key[i].map(|k| {
-                if self.key_valid[k] {
-                    (&self.key_bufs[k].0[..n], &self.key_bufs[k].1[..n])
-                } else {
-                    (&self.silence[..n], &self.silence[..n])
-                }
+            // The master runs after every strip: a key written this pass is heard.
+            let kbuf = m.key[i].and_then(|k| nodes.read(&nodes.strips[k].key));
+            let key = m.key[i].map(|_| match kbuf.as_deref() {
+                Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
+                _ => (&SILENCE[..n], &SILENCE[..n]),
             });
             e.set_position(position);
             if mix >= 1.0 && !latent {
@@ -233,7 +256,9 @@ impl Processor {
                 dry_l.copy_from_slice(l);
                 dry_r.copy_from_slice(r);
                 if let Some(li) = m.dry_line[i] {
-                    self.pdc.lines[li].run(dry_l, dry_r);
+                    if let Some(mut line) = nodes.line(li) {
+                        line.run(dry_l, dry_r);
+                    }
                 }
                 e.process_keyed(l, r, key);
                 if off {
@@ -247,6 +272,7 @@ impl Processor {
                     }
                 }
             }
+            drop(kbuf);
             let effect = e.id;
             e.drain_param_events(|event| {
                 if self
@@ -257,8 +283,8 @@ impl Processor {
                     self.stats.dropped_events += 1;
                 }
             });
-            if looked_at {
-                Self::analyse(&mut self.analyser, &self.ana_pre[..n], l, r);
+            if let Some(a) = ana.as_mut() {
+                analyse(a, l, r);
             }
             if off {
                 continue;
@@ -266,16 +292,8 @@ impl Processor {
             if let Some(gr) = e.gain_reduction_db() {
                 m.gr = m.gr.max(gr);
             }
-            if looked_at {
-                if let Some(d) = e.eq_deltas() {
-                    self.meters.eq_deltas = d;
-                }
-                if let Some(c) = e.comp_meter() {
-                    self.meters.comp = [c.input, c.output, c.gr_db];
-                }
-                if let Some(t) = e.telemetry() {
-                    self.meters.fx = t;
-                }
+            if let Some(a) = ana.as_mut() {
+                read_meters(a, e);
             }
         }
         self.prof.enter(Node::Engine);
