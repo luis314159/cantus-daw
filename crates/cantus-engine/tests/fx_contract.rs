@@ -427,7 +427,7 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Limiter => (true, true),
         // Heavy has two dynamic bands: their release lands on 0 since round 22.
         EffectKind::Eq => (true, true),
-        EffectKind::Gate => (false, false),   // keyed, a reset gate starts open
+        EffectKind::Gate => (false, false), // keyed, a reset gate starts open
         _ => (false, false),
     }
 }
@@ -442,8 +442,8 @@ fn at_rest_is_exact(kind: EffectKind) {
         let fixed = label == "default" || label == "heavy" || dithers;
         let cap = if fixed { 30 * 48_000 } else { 4 * 48_000 };
         // A dithering setting rests wherever the defaults do (R10).
-        let must = ((label == "default" || dithers) && rest_default)
-            || (label == "heavy" && rest_heavy);
+        let must =
+            ((label == "default" || dithers) && rest_default) || (label == "heavy" && rest_heavy);
         for trial in 0..3 {
             // The first trial as the tests run, the others as the engine's `process` will
             // (denormals flushed): exact in both, but some state only reaches zero in the

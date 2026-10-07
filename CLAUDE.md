@@ -3,7 +3,9 @@
 Cantus is a free, open-source (GPL-3.0-or-later) DAW in Rust, FL Studio-shaped, made by
 Luis Ángel Almazán with Christian values (motto: Colossians 3:23 — "whatever you do, work at
 it with all your heart"). The owner writes in Spanish; the repository is written in English.
-The bar is the best DAWs on the market, and excellence over speed.
+The final goal is to be, undeniably and measurably, the best DAW in the world — free or
+commercial — in features, performance, quality and stability (`docs/BACKLOG-excellence.md`
+§0, its scorecard); excellence over speed.
 
 ## Read first
 
