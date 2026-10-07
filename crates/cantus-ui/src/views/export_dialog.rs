@@ -8,7 +8,7 @@ use super::audio_parts as parts;
 use super::export::{self as ex};
 use super::workspace_widgets as w;
 use crate::app::CantusApp;
-use crate::i18n::{t, tf};
+use crate::i18n::t;
 use crate::kit::glyph::Glyph;
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
@@ -41,7 +41,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
             with_brush(ui.painter(), |b| {
-                b.rect(r, Fill::Solid(crate::kit::color::with_alpha(s.t.shadow, 0.5)))
+                b.rect(
+                    r,
+                    Fill::Solid(crate::kit::color::with_alpha(s.t.shadow, 0.5)),
+                )
             });
         });
     let size = (SIZE * k).min(screen.size() - Vec2::splat(24.0));
@@ -54,8 +57,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
-            if super::workspace_settings::title(ui, head, &s, Glyph::Send, "export_audio.title")
-            {
+            if super::workspace_settings::title(ui, head, &s, Glyph::Send, "export_audio.title") {
                 close = true;
             }
             let foot = Rect::from_min_max(
@@ -72,7 +74,13 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             );
             with_brush(ui.painter(), |b| {
                 let x = b.snap(left.right() + 10.0 * k);
-                b.vline(x, left.top(), left.bottom(), b.px(), crate::kit::color::shade(s.t.panel, -0.12));
+                b.vline(
+                    x,
+                    left.top(),
+                    left.bottom(),
+                    b.px(),
+                    crate::kit::color::shade(s.t.panel, -0.12),
+                );
             });
             let mut d = app.export.dialog.clone().unwrap_or_default();
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(left));
@@ -94,7 +102,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 close = true;
             }
         });
-    ctx.move_to_top(egui::LayerId::new(egui::Order::Foreground, Id::new("cantus-export")));
+    ctx.move_to_top(egui::LayerId::new(
+        egui::Order::Foreground,
+        Id::new("cantus-export"),
+    ));
     let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     if (close || escape) && !app.export.busy() {
         ex::close(app);
@@ -128,7 +139,15 @@ fn presets(ui: &mut Ui, d: &mut ExportSettings) {
     let (r, _) = ui.allocate_exact_size(Vec2::new(w, 40.0 * k), Sense::hover());
     let custom = t("export_audio.preset.custom");
     let hint = t("export_audio.preset.custom_hint");
-    parts::choice_key(ui, r, Id::new("export-preset-custom"), &custom, &hint, None, current.is_none());
+    parts::choice_key(
+        ui,
+        r,
+        Id::new("export-preset-custom"),
+        &custom,
+        &hint,
+        None,
+        current.is_none(),
+    );
 }
 
 fn preset_dot(p: Preset) -> Tok {
@@ -211,7 +230,9 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
             Pos2::new(status.right(), status.center().y + 11.0 * k),
         );
         let time = ui.input(|i| i.time);
-        with_brush(ui.painter(), |b| progress(b, bar, &s, &t(phase), fraction, time));
+        with_brush(ui.painter(), |b| {
+            progress(b, bar, &s, &t(phase), fraction, time)
+        });
     } else if let Some(last) = &app.export.last {
         let (msg, warn) = match last {
             Ok(m) => (m.as_str(), false),
@@ -221,9 +242,13 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
             let _ = text::paint(
                 b,
                 status,
-                &Text::new(msg, Role::Body, if warn { s.t.danger } else { s.t.text_dim })
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::Middle)),
+                &Text::new(
+                    msg,
+                    Role::Body,
+                    if warn { s.t.danger } else { s.t.text_dim },
+                )
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::Middle)),
                 s.tk(),
             );
         });
@@ -270,7 +295,12 @@ pub(super) fn progress(
     fraction: Option<f32>,
     time: f64,
 ) {
-    b.register(r, "export-progress", &[Tok::Well, Tok::Selection, Tok::Text], &[]);
+    b.register(
+        r,
+        "export-progress",
+        &[Tok::Well, Tok::Selection, Tok::Text],
+        &[],
+    );
     well::paint(b, r, s, State::REST, None);
     let inner = r.shrink(s.s(2.0));
     let fill = crate::kit::color::with_alpha(s.t.selection, 0.55);

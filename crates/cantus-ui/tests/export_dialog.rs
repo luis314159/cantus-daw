@@ -77,7 +77,10 @@ fn the_choices_persist_in_the_settings_file() {
     let saved = Settings::load(&a.settings_path);
     assert_eq!(saved.export.preset(), Some(Preset::Podcast));
     assert_eq!(saved.export.tags.artist, "Coro");
-    assert_eq!(saved.export.tags.title, "", "the title is the song's, not remembered");
+    assert_eq!(
+        saved.export.tags.title, "",
+        "the title is the song's, not remembered"
+    );
     // The next start reads them back.
     let mut b = app(dir.path());
     b.settings = Settings::load(&b.settings_path);
@@ -141,7 +144,11 @@ fn a_stopped_export_leaves_no_file() {
     assert!(export::start(&mut a, &path));
     export::stop(&mut a);
     export::wait(&mut a);
-    assert!(files_in(dir.path()).is_empty(), "{:?}", files_in(dir.path()));
+    assert!(
+        files_in(dir.path()).is_empty(),
+        "{:?}",
+        files_in(dir.path())
+    );
     assert!(a.status.text.contains("stopped"), "{}", a.status.text);
 }
 
@@ -169,7 +176,10 @@ fn the_dialog_renders_in_both_themes_and_languages() {
     let _l = language();
     let dir = tempfile::tempdir().unwrap();
     let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))),
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 900.0),
+        )),
         ..Default::default()
     };
     for dark in [false, true] {

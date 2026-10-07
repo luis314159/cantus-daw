@@ -6,8 +6,8 @@
 
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
-use cantus_export::{Control, Done, ExportSettings, Format, MixJob, Scope, StemsJob};
 use cantus_engine::{RenderOptions, StemOptions};
+use cantus_export::{Control, Done, ExportSettings, Format, MixJob, Scope, StemsJob};
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc};
 
@@ -161,7 +161,8 @@ pub fn start(app: &mut CantusApp, target: &Path) -> bool {
     let tags = d.tags.clone();
     let stems = d.scope == Scope::Stems;
     let spawned = if stems {
-        let specs = crate::views::interop::stem_specs(app.project(), d.stems.tracks, d.stems.master);
+        let specs =
+            crate::views::interop::stem_specs(app.project(), d.stems.tracks, d.stems.master);
         let job = StemsJob {
             snapshot,
             options: StemOptions {
@@ -304,7 +305,11 @@ pub fn summary(done: &Done, target: &Path) -> String {
         ),
         ([one], None) => tf(
             "status.exported",
-            &[("path", &one.display()), ("seconds", &seconds), ("peak", &peak)],
+            &[
+                ("path", &one.display()),
+                ("seconds", &seconds),
+                ("peak", &peak),
+            ],
         ),
         (many, _) => tf(
             "export_audio.done_stems",

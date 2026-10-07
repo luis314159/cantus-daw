@@ -9,8 +9,8 @@ use crate::kit::text::Src;
 use crate::kit::widgets::{menu_field, segmented};
 use crate::kit::Style;
 use cantus_export::{
-    Channels, Depth, Dither, ExportSettings, Format, Mp3Mode, Rate, Scope, CEILINGS,
-    LUFS_TARGETS, MP3_BITRATES, MP3_VBR, OGG_QUALITIES, RATES,
+    Channels, Depth, Dither, ExportSettings, Format, Mp3Mode, Rate, Scope, CEILINGS, LUFS_TARGETS,
+    MP3_BITRATES, MP3_VBR, OGG_QUALITIES, RATES,
 };
 use egui::Ui;
 
@@ -62,7 +62,9 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
         Src::Key("export_audio.scope.stems"),
     ];
     let at = scopes.iter().position(|s| *s == d.scope).unwrap_or(0);
-    if let Some(i) = row(ui, "export_audio.row.what", |ui| seg(ui, at, &labels, "export_audio.row.what")) {
+    if let Some(i) = row(ui, "export_audio.row.what", |ui| {
+        seg(ui, at, &labels, "export_audio.row.what")
+    }) {
         d.scope = scopes[i];
     }
     let sel = app.time_selection;
@@ -86,8 +88,13 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     }
     if d.scope == Scope::Stems {
         let at = usize::from(d.stems.tracks);
-        let labels = [Src::Key("interop.stems.strips"), Src::Key("interop.stems.tracks")];
-        if let Some(i) = row(ui, "export_audio.row.stems", |ui| seg(ui, at, &labels, "export_audio.row.stems")) {
+        let labels = [
+            Src::Key("interop.stems.strips"),
+            Src::Key("interop.stems.tracks"),
+        ];
+        if let Some(i) = row(ui, "export_audio.row.stems", |ui| {
+            seg(ui, at, &labels, "export_audio.row.stems")
+        }) {
             d.stems.tracks = i == 1;
         }
         let master_chain = !app.project().master.effects.is_empty();
@@ -97,17 +104,26 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
                 if choice(ui, d.stems.master, true, &t("interop.stems.master")) {
                     d.stems.master = !d.stems.master;
                 }
-                if choice(ui, d.stems.keep_silent, true, &t("interop.stems.keep_silent")) {
+                if choice(
+                    ui,
+                    d.stems.keep_silent,
+                    true,
+                    &t("interop.stems.keep_silent"),
+                ) {
                     d.stems.keep_silent = !d.stems.keep_silent;
                 }
-                if master_chain && choice(ui, d.stems.through_master, true, &t("master.stems.through")) {
+                if master_chain
+                    && choice(ui, d.stems.through_master, true, &t("master.stems.through"))
+                {
                     d.stems.through_master = !d.stems.through_master;
                 }
             });
         });
     }
     let tail = format!("{:.1} s", d.tail_seconds);
-    let f = row(ui, "export_audio.row.tail", |ui| field(ui, &tail, "export_audio.row.tail"));
+    let f = row(ui, "export_audio.row.tail", |ui| {
+        field(ui, &tail, "export_audio.row.tail")
+    });
     let options: Vec<(u32, String)> = TAILS
         .iter()
         .map(|s| ((s * 10.0) as u32, format!("{s:.1} s")))
@@ -121,7 +137,9 @@ fn format(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     band_row(ui, "export_audio.band.format");
     let labels: Vec<Src<'_>> = Format::ALL.iter().map(|f| Src::Str(f.label())).collect();
     let at = Format::ALL.iter().position(|f| *f == d.format).unwrap_or(0);
-    if let Some(i) = row(ui, "export_audio.row.format", |ui| seg(ui, at, &labels, "export_audio.row.format")) {
+    if let Some(i) = row(ui, "export_audio.row.format", |ui| {
+        seg(ui, at, &labels, "export_audio.row.format")
+    }) {
         d.format = Format::ALL[i];
     }
     match d.format {
@@ -133,24 +151,41 @@ fn format(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
                 Src::Key("export_audio.depth.32f"),
             ];
             let at = depths.iter().position(|x| *x == d.depth).unwrap_or(1);
-            if let Some(i) = row(ui, "export_audio.row.depth", |ui| seg(ui, at, &labels, "export_audio.row.depth")) {
+            if let Some(i) = row(ui, "export_audio.row.depth", |ui| {
+                seg(ui, at, &labels, "export_audio.row.depth")
+            }) {
                 d.depth = depths[i];
             }
         }
         Format::Flac => {
-            let labels = [Src::Key("export_audio.depth.16"), Src::Key("export_audio.depth.24")];
+            let labels = [
+                Src::Key("export_audio.depth.16"),
+                Src::Key("export_audio.depth.24"),
+            ];
             let at = usize::from(d.flac_depth() == Depth::Int24);
-            if let Some(i) = row(ui, "export_audio.row.depth", |ui| seg(ui, at, &labels, "export_audio.row.depth")) {
+            if let Some(i) = row(ui, "export_audio.row.depth", |ui| {
+                seg(ui, at, &labels, "export_audio.row.depth")
+            }) {
                 d.depth = if i == 0 { Depth::Int16 } else { Depth::Int24 };
             }
         }
         Format::Mp3 => mp3_rows(ui, d),
         Format::Ogg => {
-            let q = tf("export_audio.ogg_q", &[("q", &d.ogg_quality), ("kbps", &ogg_kbps(d.ogg_quality))]);
-            let f = row(ui, "export_audio.row.quality", |ui| field(ui, &q, "export_audio.row.quality"));
+            let q = tf(
+                "export_audio.ogg_q",
+                &[("q", &d.ogg_quality), ("kbps", &ogg_kbps(d.ogg_quality))],
+            );
+            let f = row(ui, "export_audio.row.quality", |ui| {
+                field(ui, &q, "export_audio.row.quality")
+            });
             let options: Vec<(u8, String)> = OGG_QUALITIES
                 .iter()
-                .map(|q| (*q, tf("export_audio.ogg_q", &[("q", q), ("kbps", &ogg_kbps(*q))])))
+                .map(|q| {
+                    (
+                        *q,
+                        tf("export_audio.ogg_q", &[("q", q), ("kbps", &ogg_kbps(*q))]),
+                    )
+                })
                 .collect();
             if let Some(v) = pick(&f, &options, d.ogg_quality) {
                 d.ogg_quality = v;
@@ -159,9 +194,18 @@ fn format(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     }
     rate_row(app, ui, d);
     let at = usize::from(d.channels == Channels::Mono);
-    let labels = [Src::Key("export_audio.stereo"), Src::Key("export_audio.mono")];
-    if let Some(i) = row(ui, "export_audio.row.channels", |ui| seg(ui, at, &labels, "export_audio.row.channels")) {
-        d.channels = if i == 0 { Channels::Stereo } else { Channels::Mono };
+    let labels = [
+        Src::Key("export_audio.stereo"),
+        Src::Key("export_audio.mono"),
+    ];
+    if let Some(i) = row(ui, "export_audio.row.channels", |ui| {
+        seg(ui, at, &labels, "export_audio.row.channels")
+    }) {
+        d.channels = if i == 0 {
+            Channels::Stereo
+        } else {
+            Channels::Mono
+        };
     }
     if d.dithers() {
         let modes = [Dither::Off, Dither::Tpdf, Dither::Shaped];
@@ -171,7 +215,9 @@ fn format(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
             Src::Key("export_audio.dither.shaped"),
         ];
         let at = modes.iter().position(|m| *m == d.dither).unwrap_or(1);
-        if let Some(i) = row(ui, "export_audio.row.dither", |ui| seg(ui, at, &labels, "export_audio.row.dither")) {
+        if let Some(i) = row(ui, "export_audio.row.dither", |ui| {
+            seg(ui, at, &labels, "export_audio.row.dither")
+        }) {
             d.dither = modes[i];
         }
     }
@@ -190,8 +236,14 @@ fn vbr_kbps(v: u8) -> u32 {
 fn mp3_rows(ui: &mut Ui, d: &mut ExportSettings) {
     let vbr = matches!(d.mp3, Mp3Mode::Vbr(_));
     let labels = [Src::Key("export_audio.cbr"), Src::Key("export_audio.vbr")];
-    if let Some(i) = row(ui, "export_audio.row.mode", |ui| seg(ui, usize::from(vbr), &labels, "export_audio.row.mode")) {
-        d.mp3 = if i == 0 { Mp3Mode::Cbr(320) } else { Mp3Mode::Vbr(0) };
+    if let Some(i) = row(ui, "export_audio.row.mode", |ui| {
+        seg(ui, usize::from(vbr), &labels, "export_audio.row.mode")
+    }) {
+        d.mp3 = if i == 0 {
+            Mp3Mode::Cbr(320)
+        } else {
+            Mp3Mode::Vbr(0)
+        };
     }
     let (value, options): (String, Vec<(Mp3Mode, String)>) = match d.mp3 {
         Mp3Mode::Cbr(k) => (
@@ -202,17 +254,25 @@ fn mp3_rows(ui: &mut Ui, d: &mut ExportSettings) {
                 .collect(),
         ),
         Mp3Mode::Vbr(v) => (
-            tf("export_audio.vbr_level", &[("v", &v), ("kbps", &vbr_kbps(v))]),
+            tf(
+                "export_audio.vbr_level",
+                &[("v", &v), ("kbps", &vbr_kbps(v))],
+            ),
             MP3_VBR
                 .iter()
                 .map(|v| {
-                    let text = tf("export_audio.vbr_level", &[("v", v), ("kbps", &vbr_kbps(*v))]);
+                    let text = tf(
+                        "export_audio.vbr_level",
+                        &[("v", v), ("kbps", &vbr_kbps(*v))],
+                    );
                     (Mp3Mode::Vbr(*v), text)
                 })
                 .collect(),
         ),
     };
-    let f = row(ui, "export_audio.row.quality", |ui| field(ui, &value, "export_audio.row.quality"));
+    let f = row(ui, "export_audio.row.quality", |ui| {
+        field(ui, &value, "export_audio.row.quality")
+    });
     if let Some(m) = pick(&f, &options, d.mp3) {
         d.mp3 = m;
     }
@@ -225,7 +285,9 @@ fn rate_row(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
         Rate::Hz(hz) => khz(hz),
     };
     let value = label(d.rate);
-    let f = row(ui, "export_audio.row.rate", |ui| field(ui, &value, "export_audio.row.rate"));
+    let f = row(ui, "export_audio.row.rate", |ui| {
+        field(ui, &value, "export_audio.row.rate")
+    });
     let mut options = vec![(Rate::Session, label(Rate::Session))];
     for hz in RATES {
         if d.format.rates().is_none_or(|ok| ok.contains(&hz)) {
@@ -257,7 +319,9 @@ fn loudness(ui: &mut Ui, d: &mut ExportSettings) {
         Some(l) => format!("{l:.0} LUFS"),
     };
     let value = target(d.loudness.target_lufs);
-    let f = row(ui, "export_audio.row.target", |ui| field(ui, &value, "export_audio.row.target"));
+    let f = row(ui, "export_audio.row.target", |ui| {
+        field(ui, &value, "export_audio.row.target")
+    });
     let mut options = vec![(None, target(None))];
     options.extend(LUFS_TARGETS.iter().map(|l| (Some(*l), target(Some(*l)))));
     if let Some(v) = pick(&f, &options, d.loudness.target_lufs) {
@@ -268,9 +332,18 @@ fn loudness(ui: &mut Ui, d: &mut ExportSettings) {
     }
     let ceil = |c: f32| format!("{c:.1} dBTP");
     let value = ceil(d.loudness.ceiling_dbtp);
-    let f = row(ui, "export_audio.row.ceiling", |ui| field(ui, &value, "export_audio.row.ceiling"));
-    let options: Vec<(i32, String)> = CEILINGS.iter().map(|c| ((c * 10.0).round() as i32, ceil(*c))).collect();
-    if let Some(v) = pick(&f, &options, (d.loudness.ceiling_dbtp * 10.0).round() as i32) {
+    let f = row(ui, "export_audio.row.ceiling", |ui| {
+        field(ui, &value, "export_audio.row.ceiling")
+    });
+    let options: Vec<(i32, String)> = CEILINGS
+        .iter()
+        .map(|c| ((c * 10.0).round() as i32, ceil(*c)))
+        .collect();
+    if let Some(v) = pick(
+        &f,
+        &options,
+        (d.loudness.ceiling_dbtp * 10.0).round() as i32,
+    ) {
         d.loudness.ceiling_dbtp = v as f32 / 10.0;
     }
     row(ui, "export_audio.row.peaks", |ui| {
@@ -317,9 +390,16 @@ pub fn summary(app: &CantusApp, d: &ExportSettings) -> String {
     } else {
         t("export_audio.stereo")
     };
-    let mut line = format!("{} · {quality} · {} · {ch}", d.format.label(), khz(d.file_rate(session)));
+    let mut line = format!(
+        "{} · {quality} · {} · {ch}",
+        d.format.label(),
+        khz(d.file_rate(session))
+    );
     if let (true, Some(l)) = (d.normalises(), d.loudness.target_lufs) {
-        line.push_str(&format!(" · {l:.0} LUFS · {:.1} dBTP", d.loudness.ceiling_dbtp));
+        line.push_str(&format!(
+            " · {l:.0} LUFS · {:.1} dBTP",
+            d.loudness.ceiling_dbtp
+        ));
     }
     line
 }
