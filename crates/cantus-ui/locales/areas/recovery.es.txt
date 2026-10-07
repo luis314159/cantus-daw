@@ -1,0 +1,37 @@
+# recovery — ronda 22 (soak): recuperación tras un cierre inesperado, y archivos rechazados
+# con limpieza. Cada clave tiene su gemela en recovery.en.txt.
+recovery.title = Recupera tu trabajo
+recovery.crashed = Cantus se cerró inesperadamente mientras «{name}» estaba abierto.
+recovery.closed = «{name}» tenía cambios sin guardar cuando Cantus se cerró. Se conservaron.
+recovery.autosaved = Cambios autoguardados {when}.
+recovery.no_autosave = No se alcanzó a autoguardar antes del cierre; queda el último guardado.
+recovery.takes = {n} tomas grabadas que no están en ningún archivo guardado.
+recovery.file = Archivo del proyecto: {path}
+recovery.unsaved_project = Este proyecto nunca se había guardado.
+recovery.restore = Restaurar
+recovery.discard = Descartar
+recovery.discard_note = Descartar deja los archivos en el disco; solo deja de ofrecerlos.
+recovery.restored = Se restauró «{name}» ({n} tomas grabadas). Deshacer vuelve al último guardado.
+recovery.when.now = hace un momento
+recovery.when.minutes = hace {n} min
+recovery.when.hours = hace {n} h
+recovery.when.days = hace {n} días
+recovery.autosave_failed = El autoguardado falló: {error}. Tus cambios no están protegidos: guarda en otra carpeta.
+recovery.autosave_elsewhere = El autoguardado no pudo escribir junto al proyecto ({error}); ahora va a {path}.
+recovery.open.truncated = «{file}» está incompleto (se cortó mientras se escribía) y no se abrió.
+recovery.open.damaged = «{file}» está dañado y no se pudo leer, así que no se abrió.
+recovery.open.newer = «{file}» se guardó con un Cantus más nuevo (formato {found}; esta versión lee hasta el {supported}). Actualiza Cantus para abrirlo.
+recovery.open.not_project = «{file}» no es un proyecto de Cantus.
+recovery.open.io = No se pudo abrir «{file}»: {why}.
+recovery.open.untouched = {why} El archivo y tu proyecto actual no cambiaron.
+recovery.open.with_spare = {why} El archivo y tu proyecto actual no cambiaron; hay una copia buena al lado: «{spare}» (ábrela desde Archivo ▸ Abrir).
+recovery.io.not_found = el archivo no está
+recovery.io.denied = permiso denegado (la carpeta o el archivo son de solo lectura o están bloqueados)
+recovery.io.full = el disco está lleno
+recovery.io.other = el disco lo rechazó
+recovery.save_failed = No se pudo guardar «{file}» en {folder}: {why}. No se perdió nada: el proyecto sigue abierto y sin guardar; guárdalo en otra carpeta.
+unsaved.title = ¿Guardar los cambios?
+unsaved.text = «{name}» tiene cambios sin guardar. ¿Guardarlos antes de cerrarlo?
+unsaved.save = Guardar
+unsaved.dont_save = No guardar
+unsaved.cancel = Cancelar

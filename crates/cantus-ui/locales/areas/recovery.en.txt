@@ -1,0 +1,37 @@
+# recovery — round 22 (soak): crash recovery, and files refused cleanly. Every key here
+# needs its twin in recovery.es.txt.
+recovery.title = Recover your work
+recovery.crashed = Cantus closed unexpectedly while “{name}” was open.
+recovery.closed = “{name}” had changes that were not saved when Cantus closed. They were kept.
+recovery.autosaved = Changes autosaved {when}.
+recovery.no_autosave = No autosave was written before it closed; the last save is what remains.
+recovery.takes = {n} recorded takes that are not in any saved file.
+recovery.file = Project file: {path}
+recovery.unsaved_project = This project had never been saved.
+recovery.restore = Restore
+recovery.discard = Discard
+recovery.discard_note = Discard keeps the files on disk; it only stops offering them.
+recovery.restored = Restored “{name}” ({n} recorded takes). Undo goes back to the last save.
+recovery.when.now = just now
+recovery.when.minutes = {n} min ago
+recovery.when.hours = {n} h ago
+recovery.when.days = {n} days ago
+recovery.autosave_failed = Autosave failed: {error}. Your changes are not protected — save to another folder.
+recovery.autosave_elsewhere = Autosave could not write beside the project ({error}); it now goes to {path}.
+recovery.open.truncated = “{file}” is incomplete (it was cut off while being written) and was not opened.
+recovery.open.damaged = “{file}” is damaged and could not be read, so it was not opened.
+recovery.open.newer = “{file}” was saved by a newer Cantus (format {found}; this version reads up to {supported}). Update Cantus to open it.
+recovery.open.not_project = “{file}” is not a Cantus project.
+recovery.open.io = Could not open “{file}”: {why}.
+recovery.open.untouched = {why} The file and your current project are unchanged.
+recovery.open.with_spare = {why} The file and your current project are unchanged; a good copy is beside it: “{spare}” (open it from File ▸ Open).
+recovery.io.not_found = the file is not there
+recovery.io.denied = permission denied (the folder or file is read-only or locked)
+recovery.io.full = the disk is full
+recovery.io.other = the disk refused it
+recovery.save_failed = Could not save “{file}” in {folder}: {why}. Nothing was lost — the project is still open and unsaved; save it to another folder.
+unsaved.title = Save changes?
+unsaved.text = “{name}” has changes that are not saved. Save them before closing it?
+unsaved.save = Save
+unsaved.dont_save = Don’t save
+unsaved.cancel = Cancel

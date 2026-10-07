@@ -81,6 +81,7 @@ impl Locale {
                 include_str!("../locales/areas/perf.en.txt"),
                 include_str!("../locales/areas/about.en.txt"),
                 include_str!("../locales/areas/export_audio.en.txt"),
+                include_str!("../locales/areas/recovery.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -128,6 +129,7 @@ impl Locale {
                 include_str!("../locales/areas/perf.es.txt"),
                 include_str!("../locales/areas/about.es.txt"),
                 include_str!("../locales/areas/export_audio.es.txt"),
+                include_str!("../locales/areas/recovery.es.txt"),
             ],
         }
     }

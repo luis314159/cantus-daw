@@ -208,9 +208,28 @@ pub struct CantusApp {
     pub show_shortcuts: bool,
     pub request_quit: bool,
     synced_revision: u64,
-    last_autosave: Instant,
-    autosaved_revision: u64,
-    autosave_dir: PathBuf,
+    /// The effects of the last snapshot sent (`sync_engine` checks the engine has them).
+    sent_effects: Vec<cantus_core::EffectId>,
+    pub(crate) last_autosave: Instant,
+    pub(crate) autosaved_revision: u64,
+    /// Where unsaved projects autosave (and saved ones whose folder cannot be written).
+    /// Public so tests and the soak harness can redirect it.
+    pub autosave_dir: PathBuf,
+    /// Autosave this often instead of the settings' interval (tests, the soak harness).
+    pub autosave_every: Option<Duration>,
+    /// An autosave problem was reported; it is not repeated every interval.
+    pub(crate) autosave_warned: bool,
+    /// The autosave being written on its thread (`autosave`).
+    pub(crate) autosave_job: Option<crate::autosave::Job>,
+    /// Bumped whenever the project is replaced (open, new, a demo, a recovery), so a
+    /// result about the one before is recognised.
+    pub(crate) epoch: u64,
+    /// This session's journal (`recovery`): what a crash leaves for the next start.
+    pub session: Option<crate::recovery::Session>,
+    /// What a session that is gone left, offered at start (`views::recovery`).
+    pub recovery: Option<crate::recovery_restore::Offer>,
+    /// *Save changes?* asked before New or Open replace unsaved work (`views::unsaved`).
+    pub unsaved_prompt: Option<views::unsaved::Then>,
     /// The export dialog and a running export (ADR 0033).
     pub export: views::export::ExportUi,
     auditions: Vec<(TrackId, u8, Instant)>,
@@ -245,7 +264,7 @@ impl CantusApp {
             cc.window_handle().ok().map(|h| h.as_raw())
         };
         let db = cantus_host::PluginDb::load(&data_dir().join("plugins.json"));
-        Self::assemble(
+        let mut app = Self::assemble(
             &cc.egui_ctx,
             files,
             project,
@@ -254,7 +273,9 @@ impl CantusApp {
             Some(db),
             owner,
             stress,
-        )
+        );
+        app.start_session(&data_dir());
+        app
     }
 
     /// Put the application together from what the boot gathered: the files read, the
@@ -413,9 +434,17 @@ impl CantusApp {
             show_shortcuts: false,
             request_quit: false,
             synced_revision: u64::MAX,
+            sent_effects: Vec::new(),
             last_autosave: Instant::now(),
             autosaved_revision: 0,
             autosave_dir,
+            autosave_every: None,
+            autosave_warned: false,
+            autosave_job: None,
+            epoch: 0,
+            session: None,
+            recovery: None,
+            unsaved_prompt: None,
             export: Default::default(),
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
@@ -502,7 +531,7 @@ impl CantusApp {
         }
     }
 
-    fn select_first(&mut self) {
+    pub(crate) fn select_first(&mut self) {
         if let Some(t) = self.bus.project().tracks.first() {
             self.selected_track = Some(t.id);
             self.selected_clip = t.clips.first().map(|c| c.id);
@@ -2497,8 +2526,13 @@ impl CantusApp {
     /// Put `project` in the place of the open one, as a new, unsaved session: what *New*
     /// and the demo picker do.
     pub fn replace_project(&mut self, project: Project) {
+        // A pass in progress belongs to the project it was recorded into.
+        if self.is_recording() {
+            self.stop_recording();
+        }
         self.engine.stop();
         self.bus.reset(project);
+        self.epoch += 1;
         self.path = None;
         self.sync_audio_base();
         self.selected_track = None;
@@ -2652,6 +2686,8 @@ impl CantusApp {
         }
     }
 
+    /// Open the project at `path`. A file that cannot be opened is refused with what is
+    /// wrong with it in words, and the open project stays as it was (round 22).
     pub fn open(&mut self, path: &Path) {
         let loaded = match cantus_project::load(path, true) {
             Ok(l) => l,
@@ -2663,17 +2699,22 @@ impl CantusApp {
                     l
                 }
                 Err(e) => {
-                    self.set_error(tf("status.open_failed", &[("error", &e)]));
+                    self.set_error(crate::recovery_text::open_failed(path, &e));
                     return;
                 }
             },
             Err(e) => {
-                self.set_error(tf("status.open_failed", &[("error", &e)]));
+                self.set_error(crate::recovery_text::open_failed(path, &e));
                 return;
             }
         };
+        // A pass in progress belongs to the project it was recorded into.
+        if self.is_recording() {
+            self.stop_recording();
+        }
         self.engine.stop();
         self.bus.reset(loaded.project);
+        self.epoch += 1;
         self.path = Some(path.to_path_buf());
         self.sync_audio_base();
         self.selected_track = None;
@@ -2718,34 +2759,17 @@ impl CantusApp {
                 self.bus.mark_saved();
                 self.autosaved_revision = self.bus.revision();
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
+                self.journal_persisted(None);
             }
-            Err(e) => self.set_error(tf("status.save_failed", &[("error", &e)])),
+            // The session is untouched and still unsaved; the message says why and where.
+            Err(e) => self.set_error(crate::recovery_text::save_failed(path, &e)),
         }
     }
 
-    fn maybe_autosave(&mut self) {
-        if self.last_autosave.elapsed() < self.settings.autosave_interval() {
-            return;
-        }
-        self.last_autosave = Instant::now();
-        if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
-            return;
-        }
-        let project = self.autosave_copy();
-        match cantus_project::autosave(
-            &project,
-            self.path.as_deref(),
-            &self.autosave_dir,
-            APP_VERSION,
-        ) {
-            Ok(_) => {
-                self.autosaved_revision = self.bus.revision();
-                if !self.status.error {
-                    self.set_status(t("status.autosaved"));
-                }
-            }
-            Err(e) => log::warn!("autosave failed: {e}"),
-        }
+    /// The autosave interval: the settings', or the override tests and the soak use.
+    pub fn autosave_interval(&self) -> Duration {
+        self.autosave_every
+            .unwrap_or_else(|| self.settings.autosave_interval())
     }
 
     /// File ▸ Export… (Ctrl+E): the export dialog (ADR 0033).
@@ -2799,16 +2823,44 @@ impl CantusApp {
         }
     }
 
+    /// Send the engine a fresh snapshot on the next `sync_engine` even if the project did
+    /// not change (what it is compiled from did: a count-in's click).
+    pub(crate) fn force_resync(&mut self) {
+        self.synced_revision = u64::MAX;
+    }
+
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
         // A source the loader thread finished: attach it (ADR 0025 §9).
         if self.engine.samples.poll_loaded() {
             self.synced_revision = u64::MAX;
         }
+        // An effect the last snapshot holds that the engine has no unit for: a remove and
+        // its undo both went out before the engine handed the removed unit back, so the
+        // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.
+        if self
+            .sent_effects
+            .iter()
+            .any(|id| !self.engine.knows_effect(*id))
+        {
+            self.synced_revision = u64::MAX;
+        }
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            let snapshot = self.engine.compile(self.bus.project(), rev);
+            let snapshot = if self.rec.count_in_click {
+                // A count-in with the metronome off: the click sounds for the count-in
+                // only (`ClickMode::CountInOnly`), and the project is not touched.
+                let mut p = self.bus.project().clone();
+                p.metronome = true;
+                p.recording.click = cantus_core::ClickMode::CountInOnly;
+                self.engine.compile(&p, rev)
+            } else {
+                self.engine.compile(self.bus.project(), rev)
+            };
+            self.sent_effects.clear();
+            self.sent_effects
+                .extend(snapshot.effect_slots().map(|s| s.id));
             // Hosted plug-ins' units reach the engine before the snapshot that holds them.
             let notices = self.plugins.sync(self.bus.project(), &mut self.engine);
             self.host_notices(notices);
@@ -2919,9 +2971,9 @@ impl CantusApp {
                 self.exec(Command::SetMetronome { enabled });
             }
             Panic => self.engine.panic(),
-            NewProject => self.new_project(),
+            NewProject => self.request_new(),
             DemoSongs => views::demos::show(self),
-            Open => self.open_dialog(),
+            Open => self.request_open(),
             Save => self.save(),
             SaveAs => self.save_as(),
             ExportWav => self.export_dialog(),
@@ -3369,6 +3421,8 @@ impl CantusApp {
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
         views::demos::frame(self, ctx);
+        views::recovery::frame(self, ctx);
+        views::unsaved::frame(self, ctx);
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
@@ -3381,6 +3435,7 @@ impl CantusApp {
 
         self.sync_engine();
         self.maybe_autosave();
+        self.journal_tick();
 
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -3388,16 +3443,7 @@ impl CantusApp {
         if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
             views::update::on_quit(self);
-        }
-        if ctx.input(|i| i.viewport().close_requested()) && self.bus.is_dirty() {
-            // Last line of defence: never lose work on close.
-            let project = self.autosave_copy();
-            let _ = cantus_project::autosave(
-                &project,
-                self.path.as_deref(),
-                &self.autosave_dir,
-                APP_VERSION,
-            );
+            self.close_session();
         }
 
         let dt = frame_start.elapsed().as_secs_f32();
@@ -3432,10 +3478,13 @@ impl CantusApp {
         if m[0].max(m[1]) > 1e-5 {
             ticker::moving(ctx, Reason::Meters);
         }
+        // An autosave being written: look again shortly to collect it.
+        if self.autosave_job.is_some() {
+            ticker::wake_after(ctx, Duration::from_millis(100));
+        }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.
         if self.bus.is_dirty() && self.bus.revision() != self.autosaved_revision {
             let left = self
-                .settings
                 .autosave_interval()
                 .saturating_sub(self.last_autosave.elapsed());
             ticker::wake_after(ctx, left.max(Duration::from_millis(250)));
@@ -3577,6 +3626,11 @@ pub fn data_dir() -> PathBuf {
 }
 
 fn directories_fallback() -> PathBuf {
+    // `CANTUS_DATA_DIR` puts everything elsewhere: the soak harness and the crash tests
+    // run whole sessions without touching the user's own folder.
+    if let Some(dir) = std::env::var_os("CANTUS_DATA_DIR").filter(|d| !d.is_empty()) {
+        return PathBuf::from(dir);
+    }
     // A portable copy (ADR 0032) keeps everything beside its executable.
     if let Some(dir) = cantus_update::install::portable_data_dir() {
         return dir;

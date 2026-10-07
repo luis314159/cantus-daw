@@ -14,3 +14,25 @@
 - Musical positions are stored in **ticks** (960 PPQ), never seconds, so tempo changes never
   shift notes.
 - Absolute paths are forbidden; assets are referenced relative to the project folder.
+
+## Amendment (round 22, *soak*): recovery is offered, and refusals are named
+
+- **Session journal.** Each running Cantus keeps `<data>/sessions/<pid>-<ms>.json` beside a
+  `.lock` it holds locked for its lifetime (the OS frees the lock however the process ends).
+  The journal names the open project, whether it has unsaved changes, the last autosave,
+  and the recording passes whose takes are in no file yet (track, WAV path, where the pass
+  started, loop/punch, tempo, latency). A clean exit deletes it; a close with unsaved work
+  keeps it (marked `closed`) after the last-defence autosave; a crash leaves it unlocked.
+- **The offer.** At start, the newest unlocked journal with something to give back is
+  offered (*Recover your work*: Restore / Discard). *Restore* loads the last save, puts the
+  autosave over it as **one undo step** (`ReplaceProject`), and lays each recovered take out
+  as the finished pass would have been (`record_pass::build`, loop wraps recomputed), its
+  WAV header first repaired to the last whole frame on disk. *Discard* deletes no file.
+- **Autosave fallback.** An autosave that cannot be written beside the project goes to the
+  fallback folder (named after the file) and the status line says so once; a failing
+  autosave is reported, never only logged.
+- **Refusals.** `StoreError::problem()` classifies a failed load (truncated, damaged, newer
+  schema, not a project, integrity, I/O); the interface words each and says the open project
+  and the file are unchanged, naming a readable `.bak`/`.autosave` beside it. A save never
+  moves a damaged file into `.bak` (it goes to `.corrupt`), so the last good backup survives.
+- `CANTUS_DATA_DIR` moves every per-user file (tests, the soak harness).

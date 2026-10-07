@@ -17,6 +17,6 @@ pub use format::{
 };
 pub use report::{Report, ReportItem, Severity};
 pub use store::{
-    autosave, autosave_path, backup_path, load, recovery_candidates, save, Loaded, SaveReport,
-    StoreError,
+    autosave, autosave_path, backup_path, corrupt_path, fallback_autosave_path, load,
+    recovery_candidates, save, Loaded, Problem, SaveReport, StoreError,
 };

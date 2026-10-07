@@ -114,7 +114,7 @@ fn arming_monitoring_and_inputs_round_trip_and_undo() {
     let (mut a, keys, audio) = with_audio_track();
     let before = a.project().clone();
     let start = a.bus.history().len();
-    a.toggle_arm(audio, false);
+    assert!(a.project().track(audio).unwrap().armed, "it comes armed (round 22)");
     a.toggle_arm(keys, false);
     assert!(a.project().track(audio).unwrap().armed && a.project().track(keys).unwrap().armed);
     // Shift: this track alone, in one step.
@@ -154,6 +154,8 @@ fn the_header_publishes_its_record_controls_and_clicking_them_works() {
     let (mut a, keys, audio) = with_audio_track();
     let ctx = ctx();
     frame(&mut a, &ctx, vec![]);
+    // It comes armed (round 22): start from a disarmed track to see the click arm it.
+    a.toggle_arm(audio, false);
     let c = views::arrangement::record_controls(&a, audio).expect("drawn");
     click(&mut a, &ctx, c.arm, egui::Modifiers::NONE);
     assert!(
@@ -330,7 +332,8 @@ fn record_options_count_in_and_punch_from_selection() {
 #[test]
 fn an_armed_audio_track_with_no_device_says_so_and_does_not_start() {
     let (mut a, _, audio) = with_audio_track();
-    a.toggle_arm(audio, false);
+    // A new audio track comes armed (round 22).
+    assert!(a.project().track(audio).unwrap().armed);
     a.start_recording();
     assert!(!a.is_recording(), "no input device: nothing to record");
     assert!(a.status.error, "the status says why");
