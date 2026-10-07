@@ -151,6 +151,7 @@ fn run(cfg: Config) -> Vec<Row> {
     let mut next_save = start + secs(60);
     let mut recording_until: Option<Instant> = None;
     let mut recorded_frames = 0u64;
+    let mut pass_frames = 0u64;
     let mut demo = 0usize;
     let mut frames = 0usize;
     let mut slowest = Duration::ZERO;
@@ -193,7 +194,7 @@ fn run(cfg: Config) -> Vec<Row> {
                 known_effects: app.engine.known_effect_count(),
                 history: app.bus.history().len(),
                 tracks: app.project().tracks.len(),
-                recorded_s: recorded_frames as f64 / f64::from(harness::RATE),
+                recorded_s: (recorded_frames + pass_frames) as f64 / f64::from(harness::RATE),
             };
             println!(
                 "soak {:>7.1} s  ws {:>7.1} MB  priv {:>7.1} MB  handles {:>5}  threads {:>3}  \
@@ -227,11 +228,12 @@ fn run(cfg: Config) -> Vec<Row> {
         if let Some(until) = recording_until {
             if now >= until {
                 app.stop_recording();
+                recorded_frames += std::mem::take(&mut pass_frames);
                 recording_until = None;
                 *counts.entry(Kind::Record).or_default() += 1;
                 last = "RecordStop".into();
             } else if let Some(p) = &app.rec.pass {
-                recorded_frames = recorded_frames.max(p.takes.iter().map(|t| t.frames).sum());
+                pass_frames = p.takes.iter().map(|t| t.frames).sum();
             }
         } else if now >= next_record {
             next_record = now + secs(90 + rng.below(60) as u64);
@@ -259,7 +261,7 @@ fn run(cfg: Config) -> Vec<Row> {
             app.toggle_play();
             *counts.entry(Kind::SaveOpen).or_default() += 1;
             last = "SaveOpen".into();
-        } else if frames % 6 == 0 {
+        } else if frames.is_multiple_of(6) {
             let kinds = [
                 (Kind::Notes, 30),
                 (Kind::Clips, 10),
