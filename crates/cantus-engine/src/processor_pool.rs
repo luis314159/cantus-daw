@@ -26,6 +26,12 @@ pub struct Workers {
     /// with a bounded spin) and place them on performance cores. The application's pool
     /// does; tests and the offline paths never touch thread priority.
     pub promote: bool,
+    /// How the workers wait between blocks: `false` (the default) spins at most half a
+    /// period after the block was armed, then parks — safe for MMCSS "Pro Audio", which a
+    /// promoted worker then gets (`Waiting::Bounded`); `true` spins 1.5 periods and parks
+    /// only after 100 ms of silence — a promoted worker then gets the highest priority no
+    /// OS throttles instead (`Waiting::Spins`: Windows TIME_CRITICAL, no MMCSS).
+    pub spin: bool,
     /// The schedule fuzz's hook (`sched::fuzz`), and a seed that shuffles the tasks'
     /// priorities and switches clustering — a test's way of trying other schedules.
     pub chaos: Option<Arc<dyn Chaos>>,
@@ -38,6 +44,7 @@ impl Workers {
         count: 0,
         mode: Mode::Serial,
         promote: false,
+        spin: false,
         chaos: None,
         shuffle: None,
     };
@@ -48,6 +55,7 @@ impl Workers {
             count: count.min(MAX_WORKERS),
             mode: Mode::Auto,
             promote: true,
+            spin: false,
             chaos: None,
             shuffle: None,
         }
@@ -64,6 +72,7 @@ impl Workers {
             count: count.min(MAX_WORKERS),
             mode: Mode::Parallel,
             promote: false,
+            spin: false,
             chaos: None,
             shuffle: None,
         }
@@ -72,7 +81,8 @@ impl Workers {
     /// From `CANTUS_WORKERS` — `0` (or unset): serial; `N`: N workers always parallel;
     /// `N:auto`: N workers with the adaptive rule; `auto`: the machine's default — so every
     /// engine test and the bench run at any `W` without a change (`Processor::new`).
-    /// `CANTUS_WORKERS_PROMOTE=1` promotes them as the application does.
+    /// `CANTUS_WORKERS_PROMOTE=1` promotes them as the application does;
+    /// `CANTUS_WORKERS_SPIN=1` makes them spinners (see [`Workers::spin`]).
     pub fn from_env() -> Workers {
         let Ok(v) = std::env::var("CANTUS_WORKERS") else {
             return Workers::SERIAL;
@@ -87,6 +97,7 @@ impl Workers {
             _ => Workers::parallel(v.parse().unwrap_or(0)),
         };
         w.promote = std::env::var("CANTUS_WORKERS_PROMOTE").is_ok_and(|p| p == "1");
+        w.spin = std::env::var("CANTUS_WORKERS_SPIN").is_ok_and(|p| p == "1");
         if w.count == 0 {
             return Workers::SERIAL;
         }
@@ -104,6 +115,7 @@ impl std::fmt::Debug for Workers {
             .field("count", &self.count)
             .field("mode", &self.mode)
             .field("promote", &self.promote)
+            .field("spin", &self.spin)
             .field("chaos", &self.chaos.is_some())
             .field("shuffle", &self.shuffle)
             .finish()
@@ -159,7 +171,19 @@ impl Processor {
         let mut cfg = Config::new(count, crate::graph::MAX_NODES);
         cfg.max_edges = crate::graph::MAX_NODES * 40;
         cfg.period = std::time::Duration::ZERO;
-        cfg.idle = Idle::BOUNDED;
+        cfg.idle = if workers.spin {
+            Idle::Spin {
+                periods: 1.5,
+                park_after: std::time::Duration::from_millis(100),
+            }
+        } else {
+            Idle::BOUNDED
+        };
+        let waiting = if workers.spin {
+            cantus_rt::thread::Waiting::Spins
+        } else {
+            cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 }
+        };
         cfg.mode = workers.mode;
         let placement = if workers.promote {
             cantus_rt::Topology::detect().placement(count).live
@@ -180,7 +204,7 @@ impl Processor {
                 cantus_rt::thread::promote_worker(
                     cantus_rt::thread::WorkerRole::Live,
                     period,
-                    cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 },
+                    waiting,
                 )
             });
             if let Some(hook) = WORKER_HOOK.get() {

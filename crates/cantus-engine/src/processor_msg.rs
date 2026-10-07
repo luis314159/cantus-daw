@@ -96,7 +96,12 @@ impl Processor {
                     }
                 }
                 EngineMessage::SetRecordStart(at) => {
+                    let was = self.click_on();
                     self.live.record_start = at.map(|t| t.0 as f64);
+                    // A count-in clicks with the switch off: its click needs its line.
+                    if self.click_on() != was {
+                        self.compensate();
+                    }
                 }
                 EngineMessage::Preview(Some((sample, gain))) => {
                     if let Some(old) = self.preview.start(sample, gain) {

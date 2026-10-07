@@ -457,7 +457,7 @@ impl Processor {
             }
         }
         self.plan_master(&mut kept, master);
-        if self.metronome {
+        if self.click_on() {
             self.pdc.want(&mut kept, Edge::Click, heard);
         }
         self.pdc.finish(&kept);

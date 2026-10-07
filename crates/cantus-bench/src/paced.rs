@@ -32,6 +32,8 @@ pub struct Paced {
     pub wakes: u64,
     pub parallel_share: f64,
     pub conflicts: u64,
+    /// The last overrun's culprit, in the project's words (the profiler's blame).
+    pub culprit: String,
 }
 
 /// The songs a paced run plays: the startup project and every demo.
@@ -49,7 +51,14 @@ pub fn songs() -> Vec<(String, Project)> {
 
 /// Play `project` for `seconds` at `frames` per block, paced at the device period, with
 /// `workers`. The song loops over its whole content when it has no loop of its own.
-pub fn run(name: &str, project: &Project, frames: usize, seconds: f64, workers: Workers) -> Paced {
+pub fn run(
+    name: &str,
+    project: &Project,
+    frames: usize,
+    seconds: f64,
+    workers: Workers,
+    promote_callback: bool,
+) -> Paced {
     let mut p = project.clone();
     if p.loop_region.is_none() || !p.loop_enabled {
         let end = p.content_end().max(Ticks::beats(4));
@@ -62,8 +71,12 @@ pub fn run(name: &str, project: &Project, frames: usize, seconds: f64, workers: 
     let start = p.loop_region.as_ref().map_or(Ticks::ZERO, |l| l.start);
     let mut rig = Rig::with_workers(&p, start, frames, workers);
     let period = Duration::from_secs_f64(frames as f64 / SAMPLE_RATE);
+    // The process out of EcoQoS, as the application starts (R1).
+    let _ = cantus_rt::thread::opt_out_of_power_throttling();
     // The callback's own promotion (R1), as on WASAPI.
-    let _ = cantus_rt::promote_callback(cantus_rt::AudioHost::Wasapi, period);
+    if promote_callback {
+        let _ = cantus_rt::promote_callback(cantus_rt::AudioHost::Wasapi, period);
+    }
     // A second of warm-up, paced too: the workers start on the first block's period.
     let warm = (SAMPLE_RATE / frames as f64) as usize;
     let blocks = (seconds * SAMPLE_RATE / frames as f64).ceil() as usize;
@@ -71,15 +84,13 @@ pub fn run(name: &str, project: &Project, frames: usize, seconds: f64, workers: 
     let mut took = Vec::with_capacity(blocks);
     let mut misses = 0usize;
     let mut parallel = 0usize;
-    let mut t0 = Instant::now();
+    let mut due = Instant::now();
     let mut stats0 = None;
     for k in 0..warm + blocks {
         if k == warm {
-            t0 = Instant::now();
+            due = Instant::now();
             stats0 = Some(*rig.processor.stats());
         }
-        let i = if k < warm { k } else { k - warm };
-        let due = t0 + period * i as u32;
         let now = Instant::now();
         if due > now {
             std::thread::sleep(due - now);
@@ -96,6 +107,13 @@ pub fn run(name: &str, project: &Project, frames: usize, seconds: f64, workers: 
             if rig.processor.stats().parallel {
                 parallel += 1;
             }
+        }
+        // The next period — or, after a miss, the first period that has not begun yet:
+        // a device drops what it missed rather than queueing it.
+        due += period;
+        let now = Instant::now();
+        while due + period <= now {
+            due += period;
         }
     }
     let s1 = *rig.processor.stats();
@@ -114,13 +132,24 @@ pub fn run(name: &str, project: &Project, frames: usize, seconds: f64, workers: 
         wakes: s1.wakes - s0.wakes,
         parallel_share: parallel as f64 / blocks.max(1) as f64,
         conflicts: s1.schedule_conflicts,
+        culprit: s1
+            .last_dropout
+            .map(|d| {
+                format!(
+                    "{} ({:.1} of {:.1} ms)",
+                    cantus_ui::perf_status::culprit_text(project, d.culprit),
+                    d.culprit_us / 1e3,
+                    d.block_us / 1e3
+                )
+            })
+            .unwrap_or_default(),
     }
 }
 
 /// A table row.
 pub fn row(r: &Paced) -> String {
     format!(
-        "| {} | {} | {} | **{}** | {} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {} | {:.0} % | {} |",
+        "| {} | {} | {} | **{}** | {} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {} | {:.0} % | {} | {} |",
         r.song,
         r.frames,
         r.blocks,
@@ -133,8 +162,9 @@ pub fn row(r: &Paced) -> String {
         r.workers,
         r.wakes,
         r.parallel_share * 100.0,
-        r.conflicts
+        r.conflicts,
+        r.culprit
     )
 }
 
-pub const HEADER: &str = "| Song | Frames | Blocks | Misses | Overruns | Late p99 µs | Block p50 µs | Block p99 µs | Block max µs | Workers | Wakes | Parallel | Conflicts |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|";
+pub const HEADER: &str = "| Song | Frames | Blocks | Misses | Overruns | Late p99 µs | Block p50 µs | Block p99 µs | Block max µs | Workers | Wakes | Parallel | Conflicts | Last overrun |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|";

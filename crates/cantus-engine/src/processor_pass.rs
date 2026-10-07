@@ -292,7 +292,7 @@ impl Processor {
                 }
             }
         }
-        if self.metronome && self.transport.samples_until(self.next_beat_tick) == 0 {
+        if self.click_on() && self.transport.samples_until(self.next_beat_tick) == 0 {
             let beat_len = snap.time_signature.ticks_per_beat().0 as f64;
             let bar_len = snap.time_signature.ticks_per_bar().0 as f64;
             let in_bar = self.next_beat_tick.rem_euclid(bar_len);

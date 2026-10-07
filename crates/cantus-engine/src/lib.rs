@@ -53,8 +53,8 @@ pub use recorder::{
     FinishedTake, LivePeaks, RecordLatency, RecordMark, RecordRings, MAX_INPUTS, PEAK_FRAMES,
 };
 pub use render::{
-    render, render_to_wav, render_with_instruments, render_with_units, write_wav, RenderError,
-    RenderOptions, Rendered,
+    render, render_to_wav, render_with_instruments, render_with_progress, render_with_units,
+    write_wav, RenderError, RenderOptions, RenderProgress, Rendered,
 };
 pub use samples::{SampleCache, SampleStatus};
 pub use stems::{

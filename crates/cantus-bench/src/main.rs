@@ -6,7 +6,7 @@
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>
 //! cantus-bench paced [--frames 256] [--seconds 120] [--songs startup,house,…]
-//!                    [--workers auto|N]
+//!                    [--workers auto|N] [--promote 1|0] [--spin 0|1] [--callback mmcss|normal]
 //! ```
 //!
 //! Always run it in release (`cargo run --release -p cantus-bench`, or through
@@ -152,6 +152,7 @@ fn paced_cmd(args: &[String]) -> ExitCode {
     let (mut frames, mut seconds) = (256usize, 120.0f64);
     let mut only: Vec<String> = Vec::new();
     let mut workers = cantus_engine::Workers::auto();
+    let (mut promote, mut spin, mut callback) = (true, false, true);
     let mut it = args.iter();
     while let Some(a) = it.next() {
         let v = it.next();
@@ -159,6 +160,9 @@ fn paced_cmd(args: &[String]) -> ExitCode {
             ("--frames", Some(v)) => frames = v.parse().unwrap_or(frames),
             ("--seconds", Some(v)) => seconds = v.parse().unwrap_or(seconds),
             ("--songs", Some(v)) => only = v.split(',').map(|s| s.trim().to_string()).collect(),
+            ("--promote", Some(v)) => promote = v == "1",
+            ("--spin", Some(v)) => spin = v == "1",
+            ("--callback", Some(v)) => callback = v == "mmcss",
             ("--workers", Some(v)) => {
                 workers = match v.as_str() {
                     "auto" => cantus_engine::Workers::auto(),
@@ -171,11 +175,14 @@ fn paced_cmd(args: &[String]) -> ExitCode {
             }
         }
     }
+    workers.promote = promote;
+    workers.spin = spin;
     println!(
-        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers
+        "paced: {frames} frames ({:.2} ms), {seconds} s per song, {} workers (promoted: {promote}, spinning: {spin}), callback {}
 ",
         frames as f64 / 48.0,
-        workers.count()
+        workers.count(),
+        if callback { "in MMCSS" } else { "at normal priority" }
     );
     println!("{}", cantus_bench::paced::HEADER);
     let mut misses = 0;
@@ -183,7 +190,7 @@ fn paced_cmd(args: &[String]) -> ExitCode {
         if !only.is_empty() && !only.contains(&name) {
             continue;
         }
-        let r = cantus_bench::paced::run(&name, &p, frames, seconds, workers.clone());
+        let r = cantus_bench::paced::run(&name, &p, frames, seconds, workers.clone(), callback);
         misses += r.misses;
         println!("{}", cantus_bench::paced::row(&r));
     }

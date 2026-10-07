@@ -365,9 +365,29 @@ impl Processor {
         self.click_allowed_at(self.transport.samples())
     }
 
+    /// Whether the click runs at all: the metronome switch, or a count-in — which clicks
+    /// whatever the switch says (round 22, the soak builder's E6).
+    pub(super) fn click_on(&self) -> bool {
+        self.metronome || self.live.record_start.is_some()
+    }
+
+    /// Whether the transport sample `samples` is inside the count-in (before the
+    /// recording's start).
+    fn counting_in_at(&self, samples: u64) -> bool {
+        self.live
+            .record_start
+            .is_some_and(|at| self.transport.position_at(samples) < at - 1e-9)
+    }
+
     /// [`Self::click_allowed`] for a beat at the transport's sample `samples` (inside the
-    /// current pass).
+    /// current pass): the switch's mode, or the count-in.
     pub(super) fn click_allowed_at(&self, samples: u64) -> bool {
+        if self.counting_in_at(samples) {
+            return true;
+        }
+        if !self.metronome {
+            return false;
+        }
         match self.live.click {
             ClickMode::Always => true,
             ClickMode::Recording => self.recording,

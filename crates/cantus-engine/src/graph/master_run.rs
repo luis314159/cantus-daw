@@ -104,7 +104,7 @@ impl Processor {
     /// ends at the next one.
     fn run_click(&mut self, snap: Option<&Snapshot>, out: &mut [f32], channels: usize, n: usize) {
         let beats = match snap {
-            Some(s) if self.metronome && self.transport.is_playing() => Some((
+            Some(s) if self.click_on() && self.transport.is_playing() => Some((
                 s.time_signature.ticks_per_beat().0 as f64,
                 s.time_signature.ticks_per_bar().0 as f64,
             )),
