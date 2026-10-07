@@ -1,4 +1,4 @@
-#![allow(clippy::type_complexity)] // a reference model, written for clarity
+#![allow(clippy::type_complexity, clippy::needless_range_loop)] // a reference model, written for clarity
 //! The canonical gather (ADR 0031 §1.3) against the serial engine's scatter, bit for bit,
 //! on random topologies.
 //!

@@ -1,8 +1,59 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-06 (round 20: **automation, device windows and swapping, the device browser, hosted CLAP/VST3 instruments, rights-free sample packs, direct audio setup, a verse at start, the installer and updates, a benchmark** (ADR 0027–0032), and the performance architecture for round 21 (ADR 0031 with its state-of-the-art review); schema 20. Round 19: recording, the master chain, mastering effects, demos. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 616 green (152 test binaries), clippy clean
+**Updated:** 2026-10-07 (round 21: **performance wave 1 and ASIO that works** — one build with every driver (cpal/asio-sys patched for duplex), `cantus-rt` (real-time priority, topology, memory, denormals), the engine as an explicit graph (256 tracks, ≈ 0.86× on 64 tracks), the multicore scheduler (not yet wired), exact rest for every unit, deterministic maths (`DSP_VERSION` 2); `docs/BETA.md`, the road to the first public beta. Round 20: automation, devices, browser, hosted instruments, samples, audio setup, verse, installer, bench. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 718 green (162 test binaries) + the scheduler's fuzz, clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 21 left
+
+The owner's goal is the first public beta (`docs/BETA.md`). Next, in order:
+
+1. **Round 22 — the multicore live pool** (`docs/perf/plan.md`, Phase 1 as amended): the
+   graph implements `sched::Graph` on its plan (`GraphPlan` already exposes nodes,
+   successors, predecessors, inputs, master); per-node `AtomicRefCell` state and per-worker
+   scratch; Chase–Lev deques (the sched report's recommendation) with ranks and clustering;
+   the serial fallback; workers promoted with `cantus_rt::promote_worker(.., Waiting::Bounded)`
+   after a bounded spin (≈ half a period) and then park — **never spinning inside MMCSS**
+   (rt's finding: one spinning MMCSS thread throttles the callback too); the CLAP
+   `thread-pool` sub-queue; every engine test at W = 0 and W ∈ {1, 3, 7}; the schedule fuzz
+   over the null corpus. Alongside: the x86-64-v3 build (*build*), the f32 `powf` fast path
+   (math's report: `exp2(y·log2 x)` in f64; libm's `powf` is 5–8× slower than the UCRT's on
+   per-sample callers — Porta, Sibilus, the Terminus/Culmen meters), counter-based dither
+   (R10, so Terminus and Culmen can rest with dither on), the session recorder (*replay*),
+   and a quiet-machine re-run of `xtask perf --full --save` (every wave-1 number was taken on
+   a loaded machine).
+2. **Round 23 — beta hardening** (`docs/BETA.md`): the hardware matrix, soak and recovery
+   tests, MP3/FLAC export, instrument gain staging, third-party notices and privacy, the
+   quick-start manual, issue templates, version `0.1.0-beta.1`.
+3. The owner: try `C:\projects\daw-r21\builds\cantus.exe` with the Behringer UMC; apply for
+   SignPath (code signing); a trademark search for "Cantus"; make songs and log friction.
+
+Left by the wave-1 builders (their docs list each): Spatium, Organum, Pulsus and the keyed
+gate cannot rest yet; Aequalis's dynamic residual (a one-line fix that moves bits); the
+pre-faulting of the delay-line pool; RTWQ vs MMCSS; Realtek's own ASIO driver delivers no
+buffers on this laptop (a driver fault; WASAPI works); `xtask bundle --no-build` lays out the
+last-built plug-in under every name (round-20 bug).
+
+## Round 21: performance, wave 1, and ASIO that works (requested 2026-10-06)
+
+**The ask.** *Launch the new round with the optimisation backlog — the multicore engine
+first; make the audio engine the very best, taking the best ideas from today's engines and
+from papers.* During the round the owner found the default build had no ASIO and the ASIO
+build lost ASIO4ALL: *"shouldn't one build work with any driver? That's how modern DAWs
+work."*
+
+**Decisions:** ADR 0031 (the performance architecture, reviewed against the state of the
+art), ADR 0025 §10 and ADR 0032 amended (one build, ASIO always in it); `DSP_VERSION` 2.
+Briefs and reports in `docs/round21/`.
+
+| Builder | What changed |
+|---|---|
+| asio | cpal 0.18.2 and asio-sys 0.4.0 patched in `third_party/` (both directions' buffers in one `ASIOCreateBuffers` before one `ASIOStart`; a running driver stopped before the lock; resets before the first buffer ignored — ASIO4ALL sends one at 0.7 s; a driver opened by name loads only itself); Cantus's device states (starting, running, stalled, restart, lost), one automatic restart, the reopen order, the driver's real buffer and rate read back; `xtask asio-sdk` and one Windows edition with ASIO always linked. ASIO4ALL duplex and output-only pass 60 s |
+| rt | new crate `cantus-rt`, the only home of OS/unsafe code: MMCSS "Pro Audio" for the callback (p99 wake lateness 54.7 → 2.1 ms under load), worker promotion safe by default (never MMCSS while spinning), P/E-core and cache topology, 128-byte padding, pre-faulted and locked memory, the denormal guard and its re-assert after hosted plug-ins, the EcoQoS opt-out |
+| at-rest | an exact `at_rest()` + `skip(frames)` + `rest_blocker()` on every unit; 9 of 12 effects and 6 of 7 instruments can rest; split-invariance tests at heavy settings and random splits (1–4096) and twin tests; three detector flushes that hovered at their threshold fixed |
+| graph | the processor as an explicit graph on one thread: a plan compiled on the UI thread when the routing changes, per-node passes, the canonical gather (equal to the old scatter on 3 240 random topologies, to the bit), note outboxes, FTZ/DAZ inside `process`, limits 64 → 256 with refused tracks counted; `engine.s64.b128` ≈ 0.86×, `s32` ≈ 0.64× (paired runs on a loaded machine) |
+| sched | `sched/` — both queue designs (Vyukov, Chase–Lev with home seeding and mailboxes) behind one trait, the pool (bounded spin, park after silence, the continuation slot, serial fallback with hysteresis), zero allocation, PCT-shaped schedule fuzz with replay tokens; Chase–Lev recommended |
+| math | `cantus_dsp::math` over pinned `libm` for every transcendental (lint-enforced in dsp, core, engine, plug-ins), `powi` of our own; `DSP_VERSION` 2 — four goldens re-blessed, the largest change −88.5 dBFS; renders are the same bits on every machine |
 
 ## The next session: what round 20 left
 
