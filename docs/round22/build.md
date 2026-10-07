@@ -30,8 +30,8 @@ builds the null corpus at v2, v3 and the plain baseline and requires the same bi
 "wait until Cantus is closed" (an update starts as the app quits) checked `cantus.exe`; a
 script piping `cantus --audio-drivers` (the package task does) reads the program's output
 through the launcher's handles; and the exit code reaches whoever started Cantus. The
-waiting launcher is one idle process (a 335 KB program, 10 MB working set measured). The installer now waits for **every**
-program of the folder anyway (`CANTUS_PROGRAMS_BUSY`, generated from the staged list), so
+waiting launcher is one idle process (a 335 KB program, 10 MB working set measured). The
+installer now waits for **every** program of the folder anyway (`CANTUS_PROGRAMS_BUSY`, generated from the staged list), so
 an update cannot replace `cantus-x86-64-v3.exe` while it is still closing.
 
 **`CANTUS_CPU=v2`** starts a lower level (to compare builds, or to step around a fault
@@ -138,11 +138,12 @@ item whose bits differ. A level the machine cannot run is skipped (v4 here).
 songs **whole**): the plain x86-64 build (the one the tests' goldens come from), the
 x86-64-v2 build and the x86-64-v3 build give **the same 97 hashes**, every one. Nothing to
 explain: none of Cantus's code uses an FMA or a reduction LLVM could reorder, every
-transcendental goes through the pinned `libm` (round 21), whose only target-feature
-switches are for x86 without SSE2 (`fma.rs`, `sqrt.rs`, `pow.rs`, …), and there is no FFT
-crate whose run-time dispatch could pick a different algorithm. The lists are kept in this
-worktree's `target/null-hashes/` until it is cleaned (§8); e.g. `demo.house` (whole) is
-`c36cbca4…6799f6` in all three.
+transcendental goes through the pinned `libm` (round 21), whose target-feature switches
+look only at SSE2 (present at every level: `fma.rs`, `sqrt.rs`) or at x86 without it, and
+there is no FFT crate whose run-time dispatch could pick a different algorithm. The list —
+one file, since all three were equal — is `docs/round22/build-null-hashes.txt` (as of
+`c8bc9f2`, `DSP_VERSION` 2; *math2*'s bump this round changes most lines, by design); e.g.
+`demo.house.whole` is `c36cbca4…6799f6`.
 
 **CI** (`.github/workflows/ci.yml`): job `null-hashes` on `windows-latest` and
 `ubuntu-latest` runs `xtask null-hashes --baseline` (v4 joins on a runner with AVX-512) and
@@ -185,8 +186,8 @@ sessions, `CANTUS_BENCH_SIZES`) and High priority. Even so a single pair's ratio
 At default settings the same: every heavy-ish kernel between 0.95× and 1.05×, and three
 light ones **slower** at v3 in most pairs — Delay 1.175× (v3 faster in 2 of 20), Fervor at
 1× 1.388× (3 of 20), Multiplex with its bands off 1.25× (3 of 20; 4 ns a frame, near the
-timer's resolution). Report and per-pair JSON: `target/perf/ab/` (kept in the scratch copy
-named in §8).
+timer's resolution). The per-pair reports were in `target/perf/ab/` and went with the
+clean-up (§8); the tables here are their summaries.
 
 *The 64-track session* — `perf --ab v2,v3 --full --only engine --sizes 64 --runs 1
 --pairs 12 --pin 6` (`sessions::scaled(64)`, one second of warm-up then four of audio per
@@ -252,9 +253,9 @@ likely code layout (alignment of hot loops) rather than instructions; worth a lo
 `cargo test -p cantus-launch -p xtask`: 9 + 11 pass; `cargo test -p cantus-bench --test
 bench`: 6 pass. `xtask null-hashes --no-build` with the default corpus (demos as eight
 bars): v2 = v3, 97 items, 117 s and 161 s of hashing on the loaded machine (demos 107 s of
-it). `cargo clippy --tests` clean on
-`cantus-launch`, `xtask`, `cantus-bench`, `cantus` (the two `cantus-plugins` dead-code
-warnings under `--no-default-features` are round 20's).
+it). `cargo clippy --tests` clean on `cantus-launch`, `xtask`, `cantus-bench`, `cantus` (the
+two `cantus-plugins` dead-code warnings under `--no-default-features` are round 20's);
+`cargo fmt --all --check` clean.
 
 ## 7. Files outside my area
 
