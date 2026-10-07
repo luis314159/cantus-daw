@@ -509,3 +509,156 @@ fn flexasio_s_latest_release_names_its_installer() {
     std::fs::write(&f, b"PK\x03\x04 a zip").unwrap();
     assert_eq!(flexasio::check(&f, &asset), Err(VerifyError::Html));
 }
+
+// ---- Pre-releases (the public beta, round 22) ----------------------------------------
+
+/// The recent releases, as `GET /repos/{repo}/releases` lists them.
+const LIST: &str = "https://api.github.com/repos/luis314159/cantus/releases?per_page=20";
+
+/// The Cantus fixture re-tagged as `version`, a pre-release or not.
+fn release_json(version: &str, prerelease: bool) -> String {
+    CANTUS
+        .replace("0.2.0", version)
+        .replace(
+            "\"prerelease\": false",
+            &format!("\"prerelease\": {prerelease}"),
+        )
+}
+
+#[test]
+fn the_beta_sorts_before_the_next_beta_and_both_before_the_release() {
+    let v = |s| Version::parse(s).unwrap();
+    let chain = [
+        "0.1.0-beta.1",
+        "0.1.0-beta.2",
+        "0.1.0-beta.10",
+        "0.1.0-rc.1",
+        "0.1.0",
+        "0.1.1",
+    ];
+    for pair in chain.windows(2) {
+        assert!(v(pair[0]) < v(pair[1]), "{} < {}", pair[0], pair[1]);
+    }
+    // The version this build carries is one the updater can compare.
+    assert!(
+        Version::parse(env!("CARGO_PKG_VERSION")).is_some(),
+        "the workspace version {} is SemVer",
+        env!("CARGO_PKG_VERSION")
+    );
+    let beta2 = Release::parse(release_json("0.1.0-beta.2", true).as_bytes()).unwrap();
+    assert!(beta2.is_update_for(&v("0.1.0-beta.1")));
+    assert!(!beta2.is_update_for(&v("0.1.0-beta.2")));
+    assert!(
+        !beta2.is_update_for(&v("0.1.0")),
+        "the release is never offered a beta"
+    );
+    let release = Release::parse(release_json("0.1.0", false).as_bytes()).unwrap();
+    assert!(release.is_update_for(&v("0.1.0-beta.2")));
+}
+
+#[test]
+fn the_newest_of_a_list_is_picked_and_drafts_and_strangers_are_left_out() {
+    let list = format!(
+        "[{}, {}, {}, {}]",
+        release_json("0.1.0-beta.1", true),
+        release_json("0.1.0-beta.3", true).replace("\"draft\": false", "\"draft\": true"),
+        release_json("0.1.0-beta.2", true),
+        CANTUS.replace("\"tag_name\": \"v0.2.0\"", "\"tag_name\": \"nightly\""),
+    );
+    let (r, json) = release::newest(list.as_bytes()).unwrap().expect("one is picked");
+    assert_eq!(r.version_text(), "0.1.0-beta.2");
+    assert_eq!(Release::parse(json.as_bytes()).unwrap(), r, "kept as it came");
+    assert_eq!(release::newest(b"[]"), Ok(None));
+    assert_eq!(release::newest(PROXY_PAGE), Err(ParseError::Html));
+    assert!(matches!(
+        release::newest(br#"{"message":"Not Found"}"#),
+        Err(ParseError::NotARelease(_))
+    ));
+}
+
+#[test]
+fn a_beta_asks_for_the_list_and_is_offered_the_next_beta_then_the_release() {
+    let dir = tempfile::tempdir().unwrap();
+    let t = Arc::new(Table::default());
+    let two = format!(
+        "[{}, {}]",
+        release_json("0.1.0-beta.2", true),
+        release_json("0.1.0-beta.1", true)
+    );
+    t.answer(LIST, 200, Some("W/\"l1\""), two.as_bytes());
+    let u = Updater::new(
+        config(dir.path(), "0.1.0-beta.1", InstallKind::Installed),
+        t.clone(),
+    );
+    u.check_at(true, 1_000_000);
+    let Status::Available(offer) = settle(&u) else {
+        panic!("offered: {:?}", u.status())
+    };
+    assert_eq!(offer.version, "0.1.0-beta.2");
+    assert_eq!(
+        offer.installer.map(|a| a.name).as_deref(),
+        Some("Cantus-0.1.0-beta.2-windows-x64-setup.exe")
+    );
+    // GitHub's `/releases/latest` never names a pre-release, so a beta must not ask it:
+    // the table has no answer there, and asking it would have failed as offline.
+
+    // The release comes out: a beta is offered it.
+    let three = format!(
+        "[{}, {}, {}]",
+        release_json("0.1.0", false),
+        release_json("0.1.0-beta.2", true),
+        release_json("0.1.0-beta.1", true)
+    );
+    t.answer(LIST, 200, Some("W/\"l2\""), three.as_bytes());
+    u.check_at(true, 1_000_000 + 60);
+    let Status::Available(offer) = settle(&u) else {
+        panic!("offered: {:?}", u.status())
+    };
+    assert_eq!(offer.version, "0.1.0");
+
+    // The newest beta itself is up to date; a list with nothing in it is too.
+    t.answer(LIST, 200, Some("W/\"l3\""), two.as_bytes());
+    let newest = Updater::new(
+        config(dir.path(), "0.1.0-beta.2", InstallKind::Installed),
+        t.clone(),
+    );
+    newest.check_at(true, 1_000_000 + 120);
+    assert!(matches!(settle(&newest), Status::UpToDate { .. }));
+    let dir2 = tempfile::tempdir().unwrap();
+    let empty = Arc::new(Table::default());
+    empty.answer(LIST, 200, None, b"[]");
+    let u = Updater::new(
+        config(dir2.path(), "0.1.0-beta.1", InstallKind::Installed),
+        empty,
+    );
+    u.check_at(true, 1_000_000);
+    assert!(matches!(settle(&u), Status::UpToDate { .. }));
+}
+
+#[test]
+fn a_beta_s_kept_answer_is_reused_on_304() {
+    let dir = tempfile::tempdir().unwrap();
+    let t = Arc::new(Table::default());
+    let two = format!(
+        "[{}, {}]",
+        release_json("0.1.0-beta.1", true),
+        release_json("0.1.0-beta.2", true)
+    );
+    t.answer(LIST, 200, Some("W/\"l1\""), two.as_bytes());
+    let u = Updater::new(
+        config(dir.path(), "0.1.0-beta.1", InstallKind::Portable),
+        t.clone(),
+    );
+    u.check_at(false, 1_000_000);
+    assert!(matches!(settle(&u), Status::Available(_)));
+    // A day later GitHub answers 304 to the ETag: the kept release is offered again.
+    u.check_at(false, 1_000_000 + schedule_day());
+    let Status::Available(offer) = settle(&u) else {
+        panic!("offered: {:?}", u.status())
+    };
+    assert_eq!(offer.version, "0.1.0-beta.2");
+    assert_eq!(
+        t.etags_sent.lock().unwrap().last().cloned().flatten().as_deref(),
+        Some("W/\"l1\"")
+    );
+}
