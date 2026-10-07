@@ -290,7 +290,7 @@ two `cantus-plugins` dead-code warnings under `--no-default-features` are round 
   too long for every pull request, run it on pushes to `master` only, or drop
   `--baseline` (the goldens' tests already run the plain build).
 - **Clean-up done**: this worktree's whole `target/` (the plain, v2, v3, plug-in and debug
-  builds, ≈ 8 GB) was deleted at the end except `target/package/dist/` — the release made
+  builds, ≈ 12.5 GB) was deleted at the end except `target/package/dist/` — the release made
   in §2 (installer, portable zip, plug-ins zip, sums; 166 MB), kept for the owner to try. The
   hash lists and the A/B reports quoted here were copied out first (session scratch).
 
