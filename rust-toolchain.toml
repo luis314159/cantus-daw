@@ -1,0 +1,6 @@
+# The toolchain Cantus is built and tested with. rustup installs it on first use, so a fresh
+# clone builds with the same compiler as the owner's machine (deterministic DSP depends on it).
+[toolchain]
+channel = "1.97.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
