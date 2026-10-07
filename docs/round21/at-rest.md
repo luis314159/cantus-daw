@@ -23,7 +23,7 @@ on the traits (`crates/cantus-engine/src/fx/mod.rs`, `inst/mod.rs`):
 
 `skip` exists because several units count samples and the count is in their output's
 bits: the delay's write position (its fractional read head is worked out from the absolute
-position — skipping 300 samples without moving it changed bits in the first twin test), the
+position — skipping silence without moving it changed bits in the first twin test), the
 grids that Latitudo, Fervor, Multiplex, Aequalis, Sibilus and the instruments update their
 coefficients on, the linear-phase convolvers' block position (a partitioned convolution
 rounds differently depending on where its blocks fall), Terminus's and Culmen's 10 ms
@@ -86,11 +86,16 @@ setting, with the reason.
 | Analog (`Calor`) | yes | 0.9–1.0 s | 0.9–1.1 s | no voice or ghost, the tail let go (decimator, chorus, DC block), wheels home; the chorus sweeps on the sample clock, so it rests while it turns. Not after a live note (live notes rotate the cards and are seeded by their count), not with glide on and a last pitch. |
 | FM (`Modulus`) | yes | 0.05–0.2 s | 0.03–0.2 s | no voice, no note held, wheels home; with glide on, no last pitch. |
 | Sampler (`Exemplar`) | yes | 0.4–0.55 s | 0.5–0.6 s | no layer, no key held, pedals home; not with a keyswitch in force (a new unit has none) or after a live note (live round robin counts). |
-| Bass (`Gravis` + its host unit) | yes | see test run | see test run | idle (Gravis's own predicate: every voice ended, every stage after it empty, every glide landed), no note held, the legato window shut, no bend; not the String engine (it picks the next string from where the hand last was), not Free phase (the oscillator carries its phase), not glide-always with a last pitch, not with a route reading the LFO, velocity, key or random (the modulation tick would move the settings, or remember the last note). |
+| Bass (`Gravis` + its host unit) | yes | 0.3–0.55 s | 0.34–0.53 s | idle (Gravis's own predicate: every voice ended, every stage after it empty, every glide landed), no note held, the legato window shut, no bend; not the String engine (it picks the next string from where the hand last was), not Free phase (the oscillator carries its phase), not glide-always with a last pitch, not with a route reading the LFO, velocity, key or random (the modulation tick would move the settings, or remember the last note). |
 | Electric piano (`Lamina`) | yes | 0.04–0.23 s | 0.05–0.13 s | asleep, every voice free, pedal up, wheels home, glides landed; the tremolo is either silent or where a new unit's would be after as many samples (it runs on the sample clock). |
 | Organ (`Organum`) | **no** | — | — | its tone wheels, vibrato scanner and rotor turn for ever, and their phases reach the output; a new unit's start at zero. The wheels and the scanner already skip exactly (`Generator::skip`, `Scanner::skip`) so it could rest with them advanced by `skip`; the rotor's speed history (slow/fast with acceleration) would have to be tracked too. Not this round. |
 | Firmus (the slot's synth) | yes (`Firmus::at_rest`) | — | — | no voice, both glides landed. For the graph builder: the processor holds Firmus directly; nothing counts samples. |
 | Pulsus (the slot's kit) | **no predicate** | — | — | a hit counter seeds live hits and the hi-hat's chick (and every hit in Pulsus I); a new kit's starts at zero, so after its first hit the kit differs from a new one. Suspension alone would be exact for Pulsus II with no voice — a weaker predicate than this round's. |
+
+Where the parameters move at the wake, the skipped twin agrees for every kind (that is the
+suspension); a reset or a new twin then differs, as property 3 allows, for the Limiter (its
+Match memory and the glides a new unit snaps), the Bass (a reset keeps settings a new unit
+snaps to) and the Analog (the same, by 2e-13) — never while the parameters stay.
 
 ## Tests
 
@@ -146,7 +151,7 @@ setting, with the reason.
    check compares bits now.
 5. **Counters are in the bits.** The delay's read head takes its fraction from the absolute
    write position (`write as f32 − delay`), so the position of an all-zero line matters:
-   skipping 300 samples without moving it changed bits. The same holds for every grid a
+   skipping silence without moving it changed bits. The same holds for every grid a
    unit updates on and for the linear-phase convolvers' block position. Hence `skip`.
 6. **Glides that stall.** Terminus's and Culmen's Match gain glides by 2·10⁻⁵ of the gap per
    sample and stops a few tenths of a percent short of its target when the step falls under
@@ -162,8 +167,63 @@ setting, with the reason.
 
 ## Bits
 
-Four commits change DSP behaviour on purpose, each with its reason: the three flushes
-(finding 2) and the two resets (finding 7). `null_tests.rs`, the `v5.cantus` hash and every
+Three commits change DSP behaviour on purpose, each alone and with its reason — the three
+flushes of finding 2 (`ca3bfc4` Comprimo's meters, `556b925` Terminus's loudness sections, `de5540e`
+Multiplex's detectors) — and two lines of the instruments' commit (`1437010`) make a reset
+bass unit and a reset Modulus restart their clocks (finding 7). `null_tests.rs`, the `v5.cantus` hash and every
 test in `crates/cantus-engine/tests` and `crates/cantus-dsp` pass unchanged on this branch
 (see the report). Everything else is additive: new methods, new counters beside the state
 (`ZeroRun`, quiet and unity counts, clocks) that no output reads.
+
+## Measurements
+
+The units gained, on their audio path: a zero count after each block for the long lines
+(Delay, the old Reverb's 24 lines, Latitudo's Haas line, Porta's four lines — one
+comparison per line while sound passes), a few comparisons per frame where a unit counts its
+silent input or its unity gains (Multiplex, its linear split, Aequalis's linear phase,
+Sibilus's lines), and a clock add per block (Lamina, Calor's existing one). Nothing else in
+any process loop changed.
+
+`cargo run -p xtask -- perf --only fx,inst --pin 2` against the committed baseline
+(`perf/baselines/windows-12th-gen-intel-core-i7-12700h.json`, round 20) reported every kernel
+— touched or not, Pulsus and Spatium included — 80–140 % slower: the machine was shared with
+the other builders' compiles and was not quiet, so the baseline comparison measures the
+load, not the branch. The fair measurement is an A/B on the same machine at the same time:
+the base commit's `cantus-bench` (49f02f3, built from this tree) and this branch's,
+alternated, pinned to logical CPU 2, `--quick`. Medians of the first two pairs (the quieter
+ones), ns per stereo frame:
+
+| Metric | Base | Branch | | Metric | Base | Branch |
+|---|---|---|---|---|---|---|
+| fx.aequalis.heavy | 60.6 | 62.9 | | inst.calor.v8 | 3820 | 4299 |
+| fx.comprimo.heavy | 329.3 | 313.7 | | inst.exemplar.v8 | 2426 | 2820 |
+| fx.culmen.heavy | 969.3 | 835.2 | | inst.firmus.v8 (untouched) | 1052 | 936 |
+| fx.delay.heavy | 30.5 | 26.2 | | inst.gravis.v8 | 215.6 | 193.4 |
+| fx.fervor.heavy | 462.3 | 429.3 | | inst.lamina.v8 | 437.3 | 387.9 |
+| fx.latitudo.heavy | 38.7 | 35.2 | | inst.modulus.v8 | 349.2 | 334.0 |
+| fx.multiplex.heavy | 730.9 | 879.5 | | inst.organum.v8 (untouched) | 614.7 | 686.5 |
+| fx.porta.heavy | 77.3 | 73.1 | | inst.pulsus.v8 (untouched) | 1448 | 1208 |
+| fx.reverb.heavy | 44.5 | 40.2 | | inst.unda.v32 | 2130 | 2393 |
+| fx.sibilus.heavy | 387.9 | 379.3 | | | | |
+| fx.spatium.heavy (untouched) | 825.6 | 800.0 | | | | |
+| fx.terminus.heavy | 712.5 | 710.7 | | | | |
+
+Median change over every fx and inst metric: −5.6 % (mean −4.1 %); the untouched units moved
+by up to ±17 % between runs, which is this machine's noise today. Multiplex heavy's +20 %
+did not repeat cleanly in two further pairs taken under heavier load (862→796, 599→962,
+2073→3239, 1925→2404 ns) and is not explained by what changed — four comparisons and two
+adds per frame against ~800 ns of linear-phase work; worth a re-run on a quiet machine
+before the integrator merges. No kernel shows a regression that stands out of the noise.
+
+## Left for later
+
+- **Spatium** and **Organum** at rest (both need their free-running phases advanced by
+  `skip` and tracked against the clock); **Pulsus** (its hit counter); a keyed **gate** would
+  need a predicate weaker than "as good as new" — suspension alone is exact for it.
+- Aequalis's dynamic residual (finding 3) — one line at the `DSP_VERSION` bump.
+- R10 (counter-based dither) makes Terminus and Culmen rest with dither on.
+- A weaker `suspendable()` (property 2 only) would let the gate, Organum, Pulsus and a
+  Match-monitoring limiter be suspended too; settle points (the render cache, the
+  time-parallel export) need the full predicate.
+- The graph builder's side: calling `skip` per pass, and the profiler showing
+  `rest_blocker()`.
