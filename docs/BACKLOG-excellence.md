@@ -109,7 +109,7 @@ warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -510,6 +510,42 @@ language — our DAW has Christian values."* (The project's motto is Colossians 
   several are available.
 - *Done when:* every start shows a verse in the current language (unless switched off),
   from a translation whose licence allows it, credited in About.
+
+## 6d. Editing, mixer and look — the owner's requests (2026-10-07)
+
+Found while trying the round-22 build. Each one gets an ADR before code; every mutation is a
+`Command` with an inverse and an arm in the undo fuzz (ADR 0004).
+
+1. **Copy and paste (Ctrl+C / Ctrl+X / Ctrl+V) in the piano roll and the arrangement** —
+   notes, clips and time selections; paste at the playhead or the selected time/track, with
+   the grid snap; across projects (a clipboard format that survives a restart); the same
+   keys in the channel rack. Cut/copy/paste/duplicate appear in the menus with their keys.
+2. **Linked clips (FL's pattern clips, Ableton's linked clips).** A copied instrument clip
+   (piano-roll content) in the arrangement is **the same clip**: editing one changes every
+   copy. A **"Make unique"** command (context menu, toolbar, a key) detaches one copy into
+   its own clip; and the inverse ("Link to…") where it makes sense. **Audio clips too**: copies
+   share their settings (gain, fades, pitch, stretch/warp, reverse, per-clip effects) until
+   made unique, so changing a setting once changes every copy. Shared clips show it on
+   screen (a link mark in the header; a "×N" count; the selection highlights the siblings).
+   Model change → schema bump + migration + `fixtures/vN.cantus`; old projects keep loading
+   (every existing clip stays unique). Paste's default (linked or unique) is a setting.
+3. **A better mixer — cabling between channels, as in FL Studio.** Routing drawn as cables
+   between strips (send/route lines, with their level), made by dragging from one strip to
+   another; a routing view/matrix; sidechain sources shown in the same way; the
+   "Nothing feeds this strip yet" hint (seen on the Reverb/Delay strips) turns into a
+   direct "route here" action. **Remove the channel's effect slots from the *Extra large*
+   view** (the inserts live in the Inspector; the strip shows level, pan, sends and routing).
+   Take the best of FL Studio's mixer and of Ableton, Bitwig, Logic, Studio One and
+   Reaper's routing; study them in `research/` before designing (feature by feature, as
+   for the rest of the mixer).
+4. **A new default theme: white with blue details, and a logo to match.** A light theme
+   built on white surfaces with blue accents, from the reference screenshot the owner is
+   sharing (**pending: the owner sends it**), a new **logo** (the app icon, the title bar
+   mark, the installer, the splash) drawn to go with it, and it becomes the **default**.
+   The dark theme is redone as a **dark theme with blue details** (same accent family), so
+   the two are one design in two lights. Tokens only (the kit's colour roles, ADR 0024; no
+   literal colours in views); the old themes stay selectable; `shoot` PNGs of every view in
+   both themes are the check; the logo ships as a vector source plus the `.ico`/PNG sizes.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
