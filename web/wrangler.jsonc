@@ -1,0 +1,11 @@
+{
+  // The Cloudflare Worker that serves cantusdaw.com: static files only, from dist/.
+  // Deployed by .github/workflows/site.yml; the custom domains are set in the dashboard.
+  "name": "quiet-bread-21e8",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // dist/404.html answers unknown addresses.
+    "not_found_handling": "404-page"
+  }
+}

@@ -51,8 +51,9 @@ Then write the chosen song's name into `song:` in `src/fx.rs` (the run prints it
 
 ## Publishing
 
-`.github/workflows/site.yml` builds the site and publishes it to Cloudflare Pages (project
-`cantus`, production branch `main`) on every push to `master` that touches `web/`. It needs the
-repository secrets `CLOUDFLARE_API_TOKEN` (permission *Account > Cloudflare Pages > Edit*) and
-`CLOUDFLARE_ACCOUNT_ID`. By hand, upload `web/dist` (or a zip of its contents) from the
-dashboard.
+`.github/workflows/site.yml` builds the site and publishes it, with `wrangler deploy` and
+`web/wrangler.jsonc`, to the Cloudflare Worker that serves cantusdaw.com (static files from
+`dist/`; the Worker is named `quiet-bread-21e8` in the dashboard) on every push to `master` that
+touches `web/`. It needs the repository secrets `CLOUDFLARE_API_TOKEN` (permission *Account >
+Workers Scripts > Edit*) and `CLOUDFLARE_ACCOUNT_ID`. By hand, upload `web/dist` from the
+dashboard (*Workers & Pages* > the Worker > *Deployments*).

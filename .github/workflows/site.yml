@@ -1,9 +1,10 @@
 name: Site
 
-# Builds the website (web/, ADR 0034) and publishes it to Cloudflare Pages (cantusdaw.com)
-# on every push to master that touches it. It needs two repository secrets, set once in
+# Builds the website (web/, ADR 0034) and publishes it to the Cloudflare Worker that serves
+# cantusdaw.com (web/wrangler.jsonc: static files from web/dist) on every push to master that
+# touches it. It needs two repository secrets, set once in
 # Settings > Secrets and variables > Actions:
-#   CLOUDFLARE_API_TOKEN   a token with "Account > Cloudflare Pages > Edit"
+#   CLOUDFLARE_API_TOKEN   a token with "Account > Workers Scripts > Edit"
 #   CLOUDFLARE_ACCOUNT_ID  the account's id (Workers & Pages overview, right-hand side)
 
 on:
@@ -23,7 +24,6 @@ concurrency:
 
 env:
   TRUNK_VERSION: "0.21.14"
-  PAGES_PROJECT: cantus
 
 jobs:
   deploy:
@@ -61,19 +61,12 @@ jobs:
           test -f web/dist/_headers
           du -sh web/dist
 
-      # Prints the account's Pages projects, so a wrong PAGES_PROJECT can be read off the log.
-      - name: List the Pages projects of the account
-        continue-on-error: true
+      # Static files with no script need a recent Wrangler (the action's default is older).
+      - name: Publish to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages project list
-
-      # --branch=main makes it the production deployment (the project's production branch).
-      - name: Publish to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/dist --project-name=${{ env.PAGES_PROJECT }} --branch=main --commit-dirty=true
+          wranglerVersion: "4"
+          workingDirectory: web
+          command: deploy
