@@ -1,0 +1,26 @@
+/* The manual, dressed as the site (copied beside the generated pages by build-manual.ps1). */
+@font-face { font-family: "Syne"; src: url("../fonts/syne.ttf") format("truetype"); font-weight: 400 800; font-display: swap; }
+@font-face { font-family: "Instrument Sans"; src: url("../fonts/instrumentsans.ttf") format("truetype"); font-weight: 400 700; font-stretch: 75% 100%; font-display: swap; }
+:root { color-scheme: light; --bg:#f3f5f4; --fg:#14100d; --dim:#5b544d; --line:#cbd5d2; --accent:#a94617; --accent-2:#f5ad3d; --code:#e5eae8; --bar:#ffffff; }
+:root[data-theme="dark"] { color-scheme: dark; --bg:#120d0a; --fg:#f6ece2; --dim:#c1a995; --line:#3b2a1f; --accent:#f5ad3d; --accent-2:#d4622a; --code:#2a1d15; --bar:#1d1410; }
+body { margin:0; background:var(--bg); color:var(--fg); font:1.0625rem/1.65 "Instrument Sans","Segoe UI",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+.mbar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:1rem; padding:0.6rem max(1rem, calc((100% - 52rem)/2)); background:color-mix(in srgb, var(--bar) 90%, transparent); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+.mbar a { color:var(--fg); text-decoration:none; }
+.mbar .brand { display:inline-flex; align-items:center; gap:.2rem; font:700 1.3rem/1 "Syne",system-ui,sans-serif; letter-spacing:-.02em; }
+.mbar .brand img { width:2.4rem; height:2.4rem; margin-left:-.3rem; }
+.mbar .crumb { color:var(--dim); }
+.mbar .back { margin-left:auto; font-weight:600; color:var(--accent); }
+main { max-width:52rem; margin:0 auto; padding:2.2rem 1rem 5rem; }
+h1,h2,h3 { font-family:"Syne",system-ui,sans-serif; letter-spacing:-.02em; line-height:1.1; text-wrap:balance; }
+h1 { font-size:clamp(2rem,5vw,3rem); font-weight:800; margin:.2em 0 .5em; }
+h2 { font-size:1.9rem; font-weight:700; margin-top:2.6em; padding-top:.7em; border-top:2px solid var(--fg); }
+h3 { font-size:1.3rem; margin-top:1.7em; }
+a { color:var(--accent); }
+code { background:var(--code); padding:.1em .35em; border-radius:.3rem; font-size:.92em; }
+kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:.3rem; padding:0 .4em; font:.9em Consolas,monospace; background:var(--code); }
+img { max-width:100%; height:auto; border:1px solid var(--line); border-radius:.6rem; }
+table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.95em; display:block; overflow-x:auto; }
+th,td { border:1px solid var(--line); padding:.4em .7em; text-align:left; vertical-align:top; }
+th { background:var(--code); }
+blockquote { margin:1em 0; padding:.2em 1em; border-left:4px solid var(--accent-2); color:var(--dim); }
+:focus-visible { outline:3px solid var(--accent-2); outline-offset:3px; }

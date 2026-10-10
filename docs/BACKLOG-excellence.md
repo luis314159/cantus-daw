@@ -117,6 +117,25 @@ macOS/Linux; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V)
   program drums, arrange, mix, master, export), and log every moment of friction, however
   small. *Done when:* three songs of different styles were finished in Cantus alone and
   the friction log is empty or scheduled.
+- **Bugs in the audio export dialog (the owner, 2026-10-09) — a beta blocker.** Several of
+  its options do not work (which ones is not yet logged). Round 23: audit **every** control
+  of the export dialog (format WAV/FLAC/MP3/Ogg, bit depth and dither, sample rate, range /
+  selection / loop, loudness preset and normalisation, tail, stems / per-track, file name
+  and folder, the progress bar still pulsing instead of `render_with_progress`), reproduce each
+  failure, write a test per option (the exported file's format, length, rate, depth and
+  loudness are checked against what the dialog said; offline render = real time), fix them,
+  and add the dialog to the `shoot` examples. The owner lists the failing options when they
+  have them.
+- **Bug: text looks wrong after changing theme — sometimes (the owner, 2026-10-09).** The
+  labels change to a strange look (font, weight, size or colour — to be pinned down) after a
+  theme switch, not every time. Suspects: fonts/text styles re-applied per theme without a
+  full reset, the glyph/font atlas or galley cache kept across the switch, a theme-dependent
+  `FontId`/text style, or an unfinished repaint. Round 23: reproduce (switch themes
+  repeatedly, with and without a UI-zoom change and a language change), write a test that
+  renders the same view before and after a round trip of themes and requires identical
+  pixels (`shoot`), fix the cause, and keep that test in the suite. Must be fixed before the
+  new themes of §6d.4 ship.
+- **To verify: bypassing the EQ shifts the song in time (2026-10-09, found while rendering the website's A/B excerpts).** Rendering the demos with every `Aequalis` slot bypassed lines up with the shipped render in *house* and *trap* (lag 0–1 frames) but is shifted by 487–570 frames (10–12 ms) in *ballad*, *funk* and *lofi*, whose EQs run in natural-phase or linear-phase mode. Either the whole mix moves by the plug-in latency when a slot is bypassed (harmless for a render, but a gap when bypass is toggled during playback) or one strip moves against the others (a delay-compensation bug). Write a test: bypass one linear-phase EQ and require the mix's other strips to stay sample-aligned; then say which it is.
 - **A small group of beta musicians** (FL, Ableton, Logic users), a public issue tracker,
   a feedback channel inside the app (opt-in, no telemetry by default). *Done when:* ten
   people outside the project have made a song and their reports are triaged.
@@ -437,6 +456,16 @@ backend too — with manuals, sound packs, a count of users, maybe serving the u
   before the site goes public, the RVR1960 attribution, GDPR/LFPDPPP-compliant if accounts
   exist.
 
+- **Landing page, in detail (2026-10-09)** — see also `docs/monetize.md` §7. **cantusdaw.com**
+  is the front door: what Cantus is, a demo video/real-project music, downloads + release
+  notes + system requirements, the manuals, a bug-report link, FAQ, privacy, a donation page,
+  and a plain "what is free and what is optional" policy. **cantusdaw.studio** is the
+  ecosystem: the catalogue of Cantus's own instruments and effects (also as stand-alone
+  plug-ins when they exist), **extra audio packs** (free first, paid ones later), presets,
+  the API/MCP and developer docs, creators' collaborations, licences. Start static (a static
+  site + object storage behind a CDN) and add subdomains (`downloads.`, `docs.`, `status.`,
+  `api.`) only when needed. The page uses the new white-and-blue look and logo (§6d.4).
+
 **Done when** a user on a clean PC goes from a search to cantusdaw.com to a running Cantus
 in under two minutes, the packs and updates come from our domain with their hashes, and the
 user count on the site matches the published method.
@@ -539,13 +568,69 @@ Found while trying the round-22 build. Each one gets an ADR before code; every m
    Reaper's routing; study them in `research/` before designing (feature by feature, as
    for the rest of the mixer).
 4. **A new default theme: white with blue details, and a logo to match.** A light theme
-   built on white surfaces with blue accents, from the reference screenshot the owner is
-   sharing (**pending: the owner sends it**), a new **logo** (the app icon, the title bar
+   built on white surfaces with blue accents, from the owner's reference screenshot
+   (2026-10-09: the arrangement + extra-large mixer + inspector on near-white surfaces, cool
+   grey-blue panel headers, saturated blue for the active/selected state — the transport
+   toggles, the selected strip and fader, the focus rings — soft pastel track colours,
+   dark-slate meters; the **current light look is the base**, to be unified and sharpened,
+   not replaced), a new **logo** (the app icon, the title bar
    mark, the installer, the splash) drawn to go with it, and it becomes the **default**.
    The dark theme is redone as a **dark theme with blue details** (same accent family), so
    the two are one design in two lights. Tokens only (the kit's colour roles, ADR 0024; no
    literal colours in views); the old themes stay selectable; `shoot` PNGs of every view in
    both themes are the check; the logo ships as a vector source plus the `.ico`/PNG sizes.
+
+## 6e. The top bar — a transport zone with more in it (requested 2026-10-09)
+
+The owner's reference is FL Studio's top strip (two screenshots, FL 12 and the current one):
+a dense, well-grouped toolbar. Ours (metronome, loop, record, BPM, position, undo/redo,
+view toggles, master meter) is sparse and the pieces float apart.
+
+- **Regroup and densify** the zone around the metronome: transport (play, stop, record,
+  loop), tempo block (BPM, tap, time signature), metronome with its count-in/pre-roll
+  and volume in the same group, the song/pattern mode switch, snap/grid, the position as bars
+  and time, the CPU / RAM / voices / dropout readout (today in the status bar), the master
+  meter with a peak/LUFS toggle, and the project name/title; one visual group per function,
+  separated by the kit's dividers, nothing that collides at any width.
+- **More functions in reach**: tap tempo, metronome options (sound, accent, count-in bars),
+  a pattern/arrangement selector, a mini-oscilloscope or spectrum, MIDI-input and
+  record-arm indicators, the audio-device chip (§6b), a quick-search/command box, the
+  tool/skin/zoom shortcuts; the owner can **show/hide and reorder** groups.
+- **Responsive**: groups collapse into a menu in order of importance when the window is
+  narrow (never overlap or clip), and the bar reads well at every UI zoom.
+- Look: first-rank, in the new white-and-blue theme and its dark twin (§6d.4); judged
+  against FL's top strip with `shoot` PNGs at several widths. Touches `crates/cantus-ui`
+  only (a new area locale file; strings in EN and ES).
+
+## 6f. How Cantus earns money — the owner's plan (`docs/monetize.md`, 2026-10-09)
+
+The plan is in `docs/monetize.md` (Spanish). Its rule: **monetise around the free product,
+never by restricting it** — the DAW and its essential functions stay free, no mandatory
+account, no telemetry, privacy by default. Streams, in the order the plan proposes:
+
+1. **Voluntary donations** (recurring tiers $3/$5/$10/$25 and one-offs; they unlock no
+   musical feature; public thanks if the donor allows; periodic reports of the use of funds).
+2. **Optional paid sound packs** (a few high-quality packs first, free ones to attract users;
+   each states its content, format, licence; ADR 0030: packs never in the repository).
+3. **Free instruments and effects** as the funnel, also as standalone plug-ins (CLAP/VST3,
+   only announced once implemented and tested) to reach people who keep their DAW.
+4. **Corporate sponsorship** (interface/controller makers, schools), with no control over
+   the roadmap or the users' data.
+5. **Grants and funds** (open source, culture, accessibility, low-latency audio; check the
+   legal entity each requires).
+6. **Professional services** (integration, support contracts, training, funded features).
+7. **Optional hosted AI** only later and only if sustainable; bring-your-own-key and local
+   models first (`docs/BACKLOG-excellence.md` §7).
+
+Targets and phases are in the document (a planning goal of about US$14–16k gross a month for
+$10k net; phases: reliable beta → public launch → API/MCP → paid packs → institutional
+funding → hosted services). **Work this backlog implies**: a donation page and a
+transparent "what is free" policy on cantusdaw.com (§6a); a pack store only when a pack
+exists (digital delivery, receipts, tax handling); the **licence decision** (the repo says
+GPL-3.0-or-later; check dependencies, sample/preset/brand licences separately); the
+trademark search; the legal entity and the payment provider (Open Collective / GitHub Sponsors /
+Patreon / Stripe-Paddle — compare fees and countries); the metrics of §10 of the plan, taken
+without telemetry (opt-in surveys, downloads, anonymous update checks — §6a).
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

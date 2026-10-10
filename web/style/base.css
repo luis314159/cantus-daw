@@ -1,0 +1,169 @@
+/* Cantus site — tokens and base. The palette is the logo's own: copper and amber on
+   espresso, with the verdigris of its patina; light sections are a cool stone, not cream. */
+@font-face {
+  font-family: "Syne";
+  src: url("fonts/syne.ttf") format("truetype");
+  font-weight: 400 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("fonts/instrumentsans.ttf") format("truetype");
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --paper: #f3f5f4;
+  --paper-2: #ffffff;
+  --mist: #e5eae8;
+  --mist-2: #d6dedb;
+  --line: #cbd5d2;
+  --ink: #14100d;
+  --ink-2: #4a4540;
+  --ink-3: #85807a;
+  --copper: #d4622a;
+  --copper-deep: #a94617;
+  --amber: #f5ad3d;
+  --amber-pale: #ffdf9e;
+  --verdigris: #3e8e7e;
+  --verdigris-deep: #1f5f54;
+  --night: #120d0a;
+  --night-2: #1d1410;
+  --night-3: #2a1d15;
+  --night-line: #3b2a1f;
+  --night-ink: #f6ece2;
+  --night-ink-2: #c1a995;
+  --strong: #ffffff;
+  --cell: #25190f;
+  --cell-2: #33231a;
+  --grid-1: rgba(255, 214, 170, 0.10);
+  --grid-2: rgba(255, 214, 170, 0.045);
+  --glow: 0.30;
+  --sigil-bar: #ffdf9e;
+
+  --display: "Syne", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+
+  --gutter: clamp(1rem, 4vw, 3rem);
+  --wrap: 76rem;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; background: var(--night); }
+
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+img, svg { max-width: 100%; display: block; }
+[hidden] { display: none !important; }
+
+h1, h2, h3, h4 {
+  font-family: var(--display);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+p { margin: 0; text-wrap: pretty; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+  border-radius: 0.35rem;
+}
+.on-light :focus-visible, .section :focus-visible { outline-color: var(--verdigris-deep); }
+
+::selection { background: var(--copper); color: #fff; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.wrap {
+  width: 100%;
+  max-width: calc(var(--wrap) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Buttons: one primary (copper, lit from above like the app's kit), one quiet. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  font: 600 1rem/1 var(--body);
+  padding: 0.95rem 1.4rem;
+  border-radius: 0.65rem;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.18s, border-color 0.18s;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  color: #fff;
+  background: linear-gradient(#ef8a43, var(--copper) 52%, var(--copper-deep));
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 10px 26px -10px rgba(212,98,42,.85);
+}
+.btn-primary:hover { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 14px 32px -10px rgba(212,98,42,1); }
+.btn-quiet { color: var(--ink); background: var(--paper-2); border-color: var(--line); }
+.btn-quiet:hover { border-color: var(--copper); color: var(--copper-deep); }
+.btn svg { width: 1.1rem; height: 1.1rem; flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* Day mode: the "stage" sections (nav, hero, engine, download, footer) swap to light by
+   remapping their tokens; sections that were already light stay as they are. */
+:root[data-theme="light"] {
+  --night: #ffffff;
+  --night-2: #f5f7f6;
+  --night-3: #e8edeb;
+  --night-line: #d3dbd8;
+  --night-ink: #1b1511;
+  --night-ink-2: #5b544d;
+  --strong: #14100d;
+  --cell: #e6ebe9;
+  --cell-2: #d6ddda;
+  --grid-1: rgba(212, 98, 42, 0.13);
+  --grid-2: rgba(212, 98, 42, 0.06);
+  --glow: 0.16;
+  --sigil-bar: #f0a032;
+  --paper: #eef2f0;
+}
+:root[data-theme="light"] .rack { box-shadow: 0 1px 0 #fff inset, 0 30px 60px -30px rgba(20, 16, 13, 0.35), 0 2px 6px rgba(20, 16, 13, 0.06); }
+:root[data-theme="light"] .sigil { filter: saturate(1.15) brightness(0.92); }
+:root[data-theme="light"] .verse { border: 1px solid var(--night-line); }
+:root[data-theme="light"] .backdrop { background: radial-gradient(34rem 20rem at 20% 0%, rgba(212,98,42,.22), transparent 70%), radial-gradient(30rem 20rem at 100% 100%, rgba(62,142,126,.18), transparent 70%), #e3e9e6; }
+:root[data-theme="light"] .night { background: radial-gradient(50rem 26rem at 90% 0%, rgba(62,142,126,.16), transparent 70%), var(--night-2); }
+:root[data-theme="light"] .get { background-image: radial-gradient(44rem 22rem at 0% 100%, rgba(212,98,42,.14), transparent 70%); }
+:root[data-theme="light"] .free-wrap { background: #fff; }
+:root[data-theme="light"] .chan b { background: linear-gradient(to top, var(--verdigris-deep), var(--verdigris) 55%, var(--amber)); }
+:root[data-theme="light"] .hero { background: radial-gradient(52rem 34rem at 82% 8%, rgba(212,98,42,var(--glow)), transparent 70%), radial-gradient(40rem 26rem at 8% 100%, rgba(62,142,126,.12), transparent 70%), linear-gradient(#fff, var(--night-2)); }
+
+.theme-toggle {
+  width: 2.5rem; height: 2.5rem; display: inline-grid; place-items: center; cursor: pointer;
+  border-radius: 0.6rem; border: 0; color: var(--night-ink-2);
+  background: color-mix(in srgb, var(--strong) 7%, transparent);
+}
+.theme-toggle:hover { color: var(--strong); }
+.theme-toggle svg { width: 1.2rem; height: 1.2rem; }
