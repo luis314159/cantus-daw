@@ -27,7 +27,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -61,10 +61,19 @@ jobs:
           test -f web/dist/_headers
           du -sh web/dist
 
+      # Prints the account's Pages projects, so a wrong PAGES_PROJECT can be read off the log.
+      - name: List the Pages projects of the account
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project list
+
       # --branch=main makes it the production deployment (the project's production branch).
       - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/dist --project-name=${{ env.PAGES_PROJECT }} --branch=main
+          command: pages deploy web/dist --project-name=${{ env.PAGES_PROJECT }} --branch=main --commit-dirty=true
