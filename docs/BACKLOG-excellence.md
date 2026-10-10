@@ -155,7 +155,25 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
   generic controller maps in two clicks and a Mackie surface drives the mixer.
 - **macOS and Linux** builds (cpal and the kit are portable; plug-in windows and ASIO-like
   low latency — CoreAudio, JACK/PipeWire — need work). *Done when:* release builds for
-  three OSes pass the suite.
+  three OSes pass the suite. **Linux first, then macOS (the owner, 2026-10-10):**
+  - **Linux first** because the toolchain is free, a CI runner costs nothing, the test suite
+    can run on it unchanged, and the open-source audio community lives there. Work: the
+    audio backends (ALSA through **PipeWire and JACK**, the way to low latency on Linux);
+    real-time priority in `cantus-rt` (rtkit / `SCHED_FIFO`, the Linux counterpart of
+    MMCSS); **CLAP and VST3 hosting on Linux** (VST3 `.so` bundles) and plug-in windows on
+    X11 and Wayland (today the open item of STATUS's hosting list); file dialogs and the
+    system's fonts; the plug-in scanner; the installer as an **AppImage** (then a Flatpak,
+    and `.deb`/`.rpm` if wanted); the website's download card (today it says "build from
+    source" for Linux). The determinism work pays off here: the golden hashes and null
+    tests must come out **identical** on Windows and Linux — a proof few DAWs can give.
+  - **macOS second:** CoreAudio and its real-time workgroups, **Apple silicon (aarch64) and
+    Intel**, AU hosting (listed in `idea.md`), window handling, a **signed and notarised**
+    build (an Apple developer account, a yearly fee) and a `.dmg`; it needs Apple hardware to
+    test on, so it waits for the first Linux release and a machine.
+  - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
+    produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
+    with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of
+    distributions and interfaces tried, kept like the Windows one.
 
 ## 3. Features every top DAW has
 

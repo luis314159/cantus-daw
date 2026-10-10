@@ -225,3 +225,7 @@
 .way .btn { padding: 0.75rem 1.1rem; font-size: 0.95rem; }
 .soon-way { opacity: 0.7; border-style: dashed; }
 @media (max-width: 56rem) { .support-in { grid-template-columns: 1fr; } }
+
+/* The footer's line of faith */
+.foot .creed { margin-top: 0.2rem; color: var(--amber); font: 700 1.05rem/1 var(--display); letter-spacing: 0.01em; opacity: 1; }
+:root[data-theme="light"] .foot .creed { color: var(--copper-deep); }

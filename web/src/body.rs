@@ -184,6 +184,7 @@ pub fn footer() -> Html {
                 </nav>
                 <p>{ l.t("Created by Luis Ángel Almazán. Free software, GPL-3.0-or-later. cantusdaw.com · cantusdaw.studio",
                          "Creado por Luis Ángel Almazán. Software libre, GPL-3.0-o-posterior. cantusdaw.com · cantusdaw.studio") }</p>
+                <p class="creed">{ l.t("Christ is King", "Viva Cristo Rey") }</p>
             </div>
         </footer>
     }
