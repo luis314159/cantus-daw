@@ -427,12 +427,21 @@ fn cpu_per_voice_at_each_quality() {
             c.note_on(*k, 0.8, i as u64 + 1);
         }
         let (mut l, mut r) = (vec![0.0; 512], vec![0.0; 512]);
-        let blocks = 2 * 48_000 / 512;
-        let t0 = std::time::Instant::now();
-        for _ in 0..blocks {
-            c.process(&mut l, &mut r);
+        // Five windows of about 0.4 s (the same two seconds of audio one run gave), and
+        // the least disturbed one: preemption on a loaded machine can only add time, so
+        // the minimum is Calor's own cost (round 23; Lamina's and the organ's rule).
+        let blocks = 2 * 48_000 / 512 / 5;
+        let mut best = f64::INFINITY;
+        for _ in 0..5 {
+            let t0 = std::time::Instant::now();
+            for _ in 0..blocks {
+                l.fill(0.0);
+                r.fill(0.0);
+                c.process(&mut l, &mut r);
+            }
+            best = best.min(t0.elapsed().as_nanos() as f64);
         }
-        let ns = t0.elapsed().as_nanos() as f64 / (blocks * 512 * 8) as f64;
+        let ns = best / (blocks * 512 * 8) as f64;
         println!(
             "{quality:?}: {ns:.0} ns per voice per sample, {:.2} % of a core per voice at 48 kHz",
             ns * 48_000.0 / 1e7

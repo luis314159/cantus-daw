@@ -525,6 +525,15 @@ impl Frame {
     }
 }
 
+/// A press of any button inside the editor's area hands it the edit focus. The rack and
+/// the piano roll edit the same notes, so both claim [`crate::app::EditFocus::PianoRoll`]; the
+/// arrangement and the mixer say so themselves.
+pub fn claim_focus(app: &mut CantusApp, ui: &egui::Ui) {
+    if ui.input(|i| i.pointer.any_pressed()) && ui.rect_contains_pointer(ui.max_rect()) {
+        app.focus_piano_roll();
+    }
+}
+
 /// The clip being edited, borrowed from the project.
 fn clip_of(app: &CantusApp, track: TrackId, clip: ClipId) -> Option<&Clip> {
     app.project().track(track)?.clip(clip)
@@ -532,6 +541,8 @@ fn clip_of(app: &CantusApp, track: TrackId, clip: ClipId) -> Option<&Clip> {
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let s = Style::current();
+    // Before the early returns, so an empty or audio clip's piano roll claims it too.
+    claim_focus(app, ui);
     let Some((track_id, clip_id)) = app.selected_track.zip(app.selected_clip) else {
         empty(ui, "clip.none_selected", &s);
         return;

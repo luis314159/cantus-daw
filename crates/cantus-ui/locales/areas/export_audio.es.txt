@@ -39,7 +39,7 @@ export_audio.scope.song = Canción
 export_audio.scope.selection = Selección
 export_audio.scope.stems = Stems
 export_audio.selection = Compases {from}–{to}, {seconds} s
-export_audio.no_selection = Primero selecciona un rango en la línea de tiempo: se exporta la canción.
+export_audio.no_selection = No hay selección de tiempo: primero selecciona un rango en la línea de tiempo.
 
 export_audio.depth.16 = 16 bits
 export_audio.depth.24 = 24 bits
@@ -81,3 +81,24 @@ export_audio.stopped = Exportación detenida; no se escribió nada.
 export_audio.error.empty = Nada que exportar: la canción no tiene notas ni clips.
 export_audio.done_loud = Exportado {path} ({seconds} s, {lufs} LUFS, pico {peak} dBFS)
 export_audio.done_stems = {n} stems exportados a {folder} ({silent} en silencio omitidos)
+
+# Ronda 23: la auditoría de la exportación.
+export_audio.scope.loop = Bucle
+export_audio.loop = Llave de bucle, compases {from}–{to}, {seconds} s
+export_audio.no_loop = No hay llave de bucle: pon una en la línea de tiempo primero.
+export_audio.done_stem_one = 1 stem exportado a {folder} ({silent} en silencio omitidos)
+export_audio.progress = Exportando… {phase} {pct} %
+export_audio.error.io = no se pudo escribir el archivo ({error})
+export_audio.error.render = falló el render ({error})
+export_audio.error.encode = falló el codificador ({error})
+export_audio.error.too_long = el archivo pasaría de 4 GB, más de lo que cabe en un WAV: elige FLAC, MP3 u Ogg
+export_audio.error.died = la exportación se detuvo de forma inesperada
+export_audio.loudness.missed_ceiling = No se alcanzaron los {target} LUFS: sin el limitador la ganancia se detiene en el techo.
+export_audio.loudness.missed_cap = No se alcanzaron los {target} LUFS: la mezcla es demasiado baja para subirla tanto (+30 dB como máximo).
+export_audio.loudness.missed = No se alcanzaron los {target} LUFS.
+export_audio.loudness.unmeasured = No hay sonoridad que medir (silencio, o menos de 0,4 s): el nivel queda como se mezcló.
+export_audio.clipped = {n} muestras recortadas a 0 dBFS: baja el máster, o fija un objetivo de sonoridad con el limitador.
+export_audio.replace.title = ¿Reemplazar los stems?
+export_audio.replace.text = {n} archivos de esta carpeta tienen los nombres de estos stems y se reemplazarán: {names}
+export_audio.replace_file.title = ¿Reemplazar el archivo?
+export_audio.replace_file.text = {file} ya existe y se reemplazará.

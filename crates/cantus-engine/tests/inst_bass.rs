@@ -403,15 +403,27 @@ fn a_cpu_budget_holds() {
         });
     }
     let secs = 10.0f64;
-    let blocks = (secs * SR as f64 / 512.0) as usize;
+    // Five two-second windows on the same unit (the same ten seconds of audio one run
+    // gave), and the least disturbed one scaled to ten seconds: preemption on a shared,
+    // loaded build machine can only add time, so the minimum is the instrument's own cost
+    // (round 23; Lamina's and the organ's budgets measure the same way).
+    let window = (2.0 * SR as f64 / 512.0) as usize;
+    let window_secs = (window * 512) as f64 / SR as f64;
     let (mut l, mut r) = ([0.0f32; 512], [0.0f32; 512]);
-    let start = std::time::Instant::now();
-    for _ in 0..blocks {
-        l.iter_mut().for_each(|x| *x = 0.0);
-        r.iter_mut().for_each(|x| *x = 0.0);
-        u.process(&mut l, &mut r);
-    }
-    let took = start.elapsed().as_secs_f64();
+    let mut time = |u: &mut Unit| {
+        let mut best = f64::INFINITY;
+        for _ in 0..5 {
+            let start = std::time::Instant::now();
+            for _ in 0..window {
+                l.fill(0.0);
+                r.fill(0.0);
+                u.process(&mut l, &mut r);
+            }
+            best = best.min(start.elapsed().as_secs_f64());
+        }
+        best * secs / window_secs
+    };
+    let took = time(&mut u);
     assert_eq!(u.active_voices(), 6, "all six still ring");
     let per_voice = took / secs / 6.0 * 100.0;
     eprintln!(
@@ -440,13 +452,7 @@ fn a_cpu_budget_holds() {
             id: 1,
             channel: 0,
         });
-        let start = std::time::Instant::now();
-        for _ in 0..blocks {
-            l.iter_mut().for_each(|x| *x = 0.0);
-            r.iter_mut().for_each(|x| *x = 0.0);
-            u.process(&mut l, &mut r);
-        }
-        let took = start.elapsed().as_secs_f64();
+        let took = time(&mut u);
         eprintln!(
             "one voice ({}): {:.2} % of a core",
             spec.params.len(),

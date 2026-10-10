@@ -99,6 +99,10 @@ pub struct ArrangementView {
     /// next to the pointer, so moving towards it takes the pointer off the clip, and a
     /// menu that only exists while its own target is hovered closes before it can be used.
     menu_clip: Option<(TrackId, ClipId)>,
+    /// Where the empty-timeline menu was opened — the tick under the pointer and the track
+    /// — so its *Paste* lands there, not at the playhead (ADR 0036). Captured with
+    /// [`Self::menu_clip`]; used once.
+    pub menu_at: Option<(Ticks, Option<TrackId>)>,
     rename: Option<(TrackId, String)>,
     /// A fade or gain handle being dragged, and the handle a menu was opened on.
     audio: audio::edit::State,
@@ -213,6 +217,7 @@ impl Default for ArrangementView {
             drag: None,
             marquee: None,
             menu_clip: None,
+            menu_at: None,
             rename_clip: None,
             geometry: None,
             rename: None,
@@ -386,7 +391,7 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
     if let Some(r) = bar.menu(ui, id.with("menu"), "arrangement.menu") {
         egui::Popup::menu(&r)
             .frame(egui::Frame::NONE)
-            .show(|ui| timeline_menu(app, ui));
+            .show(|ui| timeline_menu(app, ui, false));
     }
     bar.title(ui, Src::Key("arrangement.title"), None);
     bar.divider(ui);
@@ -1801,6 +1806,13 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     if ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)) && resp.hovered() {
         app.arrangement.menu_clip = hit.map(|h| (h.track, h.clip));
         app.arrangement.audio.menu = hit.and_then(|h| h.handle);
+        app.arrangement.menu_at = match (hit, resp.interact_pointer_pos().or(pointer)) {
+            (None, Some(pos)) if pos.y >= body_top => Some((
+                beats_to_ticks(view.beats(pos.x).max(0.0)),
+                track_at(app, pos.y),
+            )),
+            _ => None,
+        };
     }
     let fade_menu = audio::edit::menu_fade(app.arrangement.audio.menu);
     let menu_target = app
@@ -1812,7 +1824,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         .show(|ui| match (menu_target, fade_menu) {
             (Some(r), Some(fade)) => audio::edit::fade_menu(app, ui, r, fade),
             (Some((track, clip)), None) => clip_menu(app, ui, track, clip),
-            (None, _) => timeline_menu(app, ui),
+            (None, _) => timeline_menu(app, ui, true),
         });
 
     if resp.drag_started_by(PointerButton::Primary) {
@@ -2017,6 +2029,9 @@ const MENU_W: f32 = 240.0;
 enum Entry<'a> {
     Run(crate::keymap::Action, &'a str),
     Own(&'a str),
+    /// Something of the view's own that does what an action does, somewhere particular:
+    /// the action's key is shown, the caller runs it.
+    Shown(crate::keymap::Action, &'a str),
     Band(&'a str),
     Separator,
 }
@@ -2030,7 +2045,9 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
     let keys: Vec<Option<String>> = entries
         .iter()
         .map(|e| match e {
-            Entry::Run(a, _) => app.keymap.bindings_for(*a).first().map(|b| b.display()),
+            Entry::Run(a, _) | Entry::Shown(a, _) => {
+                app.keymap.bindings_for(*a).first().map(|b| b.display())
+            }
             _ => None,
         })
         .collect();
@@ -2038,7 +2055,7 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
         .iter()
         .zip(&keys)
         .map(|(e, k)| match *e {
-            Entry::Run(_, label) | Entry::Own(label) => Item::Action {
+            Entry::Run(_, label) | Entry::Own(label) | Entry::Shown(_, label) => Item::Action {
                 label: Src::Key(label),
                 check: Check::None,
                 shortcut: k.as_deref(),
@@ -2057,18 +2074,27 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
 }
 
 /// Right-clicking empty timeline, and the view's ▸ menu. Small on purpose: the things
-/// worth reaching for there are the clipboard and a new track.
-fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+/// worth reaching for there are the clipboard and a new track. `at_pointer` is the
+/// right-click (its *Paste* lands where the menu was opened); the ▸ menu pastes at the
+/// playhead, as the keys do.
+fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
     use crate::keymap::Action;
     app.focus_arrangement();
     let entries = [
-        Entry::Run(Action::Paste, "menu.paste"),
+        Entry::Shown(Action::Paste, "menu.paste"),
         Entry::Run(Action::SelectAll, "menu.select_all"),
         Entry::Separator,
         Entry::Own("swap.add_instrument"),
         Entry::Run(Action::AddAudioTrack, "rec.add_audio_track"),
     ];
     match menu(app, ui, &entries) {
+        Some(0) => {
+            if !at_pointer {
+                app.arrangement.menu_at = None;
+            }
+            paste_at_menu_point(app);
+            ui.close();
+        }
         Some(3) => {
             app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
             ui.close();
@@ -2076,6 +2102,16 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         Some(_) => ui.close(),
         None => {}
     }
+}
+
+/// The empty-timeline menu's *Paste*: at the point the menu was opened on (snapped down to
+/// the grid when snap is on), the topmost clip on the track under it — or, with no point,
+/// at the playhead as the keys paste. Through `run_action`, like every menu entry
+/// (ADR 0010); the point is used once.
+pub fn paste_at_menu_point(app: &mut CantusApp) {
+    app.clipboard.anchor = app.arrangement.menu_at.take();
+    app.focus_arrangement();
+    app.run_action(crate::keymap::Action::Paste);
 }
 
 /// A menu entry that runs an action, with whatever key is bound to it shown on the
@@ -2090,14 +2126,22 @@ pub fn action_item(
     clicked
 }
 
+/// What opening a clip's right-click menu does before it draws: the clip joins the
+/// selection (or becomes it, when it was not in it), the arrangement takes the edit
+/// focus, and the clips — not a time range drawn earlier — are what Cut and Copy take.
+pub fn clip_menu_opened(app: &mut CantusApp, track: TrackId, clip: ClipId) {
+    if !paint::is_selected(app, (track, clip)) {
+        app.select_clip(track, clip);
+    }
+    app.last_selection = crate::clipboard::SelKind::Clips;
+    app.focus_arrangement();
+}
+
 /// The clip's own menu. Every entry is something `run_action` can also do, so a shortcut
 /// can never reach less than the menu (ADR 0010); the colours sit under it in a row.
 fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId) {
     use crate::keymap::Action;
-    if !paint::is_selected(app, (track, clip)) {
-        app.select_clip(track, clip);
-    }
-    app.focus_arrangement();
+    clip_menu_opened(app, track, clip);
     let (muted, looping, is_audio) = app
         .project()
         .track(track)

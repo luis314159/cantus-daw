@@ -58,7 +58,7 @@ pub use render::{
 };
 pub use samples::{SampleCache, SampleStatus};
 pub use stems::{
-    render_stems, render_stems_to_folder, stem_file_name, Stem, StemOptions, StemSource, StemSpec,
-    StemsDone, StemsError,
+    render_stems, render_stems_hosted, render_stems_to_folder, render_stems_to_folder_with,
+    stem_file_name, Stem, StemOptions, StemSource, StemSpec, StemsDone, StemsError,
 };
 pub use transport::Transport;

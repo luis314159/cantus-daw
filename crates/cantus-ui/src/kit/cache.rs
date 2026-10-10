@@ -34,6 +34,8 @@ pub struct Stats {
     pub atlas_resets: u64,
     pub galley_hits: u64,
     pub galley_misses: u64,
+    /// egui font atlases noticed rebuilt, so every laid-out text was dropped.
+    pub font_rebuilds: u64,
 }
 
 #[derive(Default)]
@@ -46,6 +48,10 @@ pub struct KitCache {
     galleys: FxMap<u64, (Arc<Galley>, u64)>,
     fits: FxMap<u64, (Fitted, u64)>,
     font_fill: f32,
+    /// The text options and the first font face of the atlas last seen: egui rebuilds the
+    /// atlas when either changes (a dark↔light theme switch changes the options).
+    font_options: Option<egui::epaint::text::TextOptions>,
+    font_face: Option<Arc<egui::FontData>>,
     pass: u64,
     /// Inspect mode's registry; `None` while the mode is off.
     pub inspect: Option<super::inspect::Registry>,
@@ -137,15 +143,34 @@ impl KitCache {
             return;
         }
         self.pass = pass;
-        // egui rebuilds its font atlas when it fills (or its options change); every
-        // galley laid out before then points at glyphs that moved. The fill ratio only
-        // grows between rebuilds, so a drop means one happened.
-        let fill = ctx.fonts(|f| f.font_atlas_fill_ratio());
-        if fill < self.font_fill {
+        // egui rebuilds its font atlas when it fills, when its text options change (a
+        // dark↔light theme switch changes the colour transfer function) and when the font
+        // definitions change; every galley laid out before then points at glyphs that
+        // moved — painted from the new atlas they show other glyphs or nothing (round 23,
+        // "the labels look strange after a theme change"). Each is watched: the fill ratio
+        // only grows between rebuilds, so a drop means one happened — but a whole
+        // session's glyphs can sit in the first row of a 16 384-texel atlas, where the
+        // ratio of a fresh atlas is the same, so the options and the faces are compared
+        // as well.
+        let (fill, options, face) = ctx.fonts(|f| {
+            let face = f.definitions().font_data.values().next().cloned();
+            (f.font_atlas_fill_ratio(), *f.options(), face)
+        });
+        let same_face = match (&self.font_face, &face) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => self.font_options.is_none(),
+        };
+        let rebuilt =
+            fill < self.font_fill || self.font_options.is_some_and(|o| o != options) || !same_face;
+        if rebuilt {
             self.galleys.clear();
             self.fits.clear();
+            self.stats.font_rebuilds += 1;
         }
         self.font_fill = fill;
+        self.font_options = Some(options);
+        self.font_face = face;
         if pass.is_multiple_of(60) {
             self.galleys
                 .retain(|_, (_, used)| pass.saturating_sub(*used) < 120);

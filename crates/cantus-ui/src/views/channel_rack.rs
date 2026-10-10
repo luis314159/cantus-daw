@@ -416,6 +416,9 @@ fn empty(ui: &mut egui::Ui, key: &str, s: &Style) {
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     // A sample from the browser lands here as a channel (ADR 0030).
     crate::samples::drop::publish(ui.ctx(), ui.max_rect(), crate::samples::drop::Target::Rack);
+    // The rack edits the selected clip's notes: Ctrl+C and the rest act on them after a
+    // press here, as after one in the piano roll.
+    super::piano_roll::claim_focus(app, ui);
     let s = Style::current();
     let Some((sel_track, sel_clip)) = app.selected_track.zip(app.selected_clip) else {
         empty(ui, "clip.none_selected", &s);

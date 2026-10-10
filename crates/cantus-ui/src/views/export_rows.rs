@@ -1,7 +1,7 @@
 //! The export dialog's rows: what, format and quality, rate, channels, dither, loudness,
 //! tags. Each row is a caption and a kit control; a menu field opens a kit menu.
 
-use super::export_dialog::{band_row, pick, row};
+use super::export_dialog::{band_row, pick, put, row};
 use super::workspace_widgets as w;
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
@@ -27,13 +27,30 @@ fn width(ui: &Ui) -> f32 {
 fn seg(ui: &mut Ui, selected: usize, labels: &[Src<'_>], name: &str) -> Option<usize> {
     let mut i = selected;
     let wd = width(ui);
-    segmented(ui, &mut i, labels, name, wd);
+    let r = segmented(ui, &mut i, labels, name, wd).rect;
+    let n = labels.len() as f32;
+    for j in 0..labels.len() {
+        let w = r.width() / n;
+        let x = r.left() + w * j as f32;
+        let seg = egui::Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height()));
+        put(ui, format!("{name}#{j}"), seg);
+    }
     (i != selected).then_some(i)
 }
 
 fn field(ui: &mut Ui, value: &str, name: &str) -> egui::Response {
     let wd = width(ui);
-    menu_field(ui, value, false, false, name, wd).0
+    let r = menu_field(ui, value, false, false, name, wd).0;
+    put(ui, name, r.rect);
+    r
+}
+
+/// A check row of the kit (`interop::form::choice`), published as `name`; returns whether
+/// it was clicked.
+fn check(ui: &mut Ui, on: bool, label: &str, name: &str) -> bool {
+    let r = ui.vertical(|ui| super::interop::form::choice(ui, on, true, label));
+    put(ui, name, r.response.rect);
+    r.inner
 }
 
 pub fn khz(hz: u32) -> String {
@@ -54,38 +71,56 @@ pub fn body(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     super::workspace_settings::note(ui, &summary(app, d), false);
 }
 
+/// The line under the range: the bars it covers (its last bar is the one holding its last
+/// tick — the end is exclusive) and how long it lasts; `None` for the song and stems.
+pub fn range_note(app: &CantusApp, scope: Scope) -> Option<String> {
+    let (from, to) = super::export::range(app, scope)?;
+    let p = app.project();
+    let secs = (to - from).to_seconds(p.tempo_bpm);
+    let last = (to - cantus_core::Ticks(1)).max(from);
+    let (a, b) = (p.time_signature.bbt(from).0, p.time_signature.bbt(last).0);
+    let key = if scope == Scope::Loop {
+        "export_audio.loop"
+    } else {
+        "export_audio.selection"
+    };
+    Some(tf(
+        key,
+        &[("from", &a), ("to", &b), ("seconds", &format!("{secs:.1}"))],
+    ))
+}
+
 fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     band_row(ui, "export_audio.band.what");
-    let scopes = [Scope::Song, Scope::Selection, Scope::Stems];
+    let scopes = [Scope::Song, Scope::Selection, Scope::Loop, Scope::Stems];
     let labels = [
         Src::Key("export_audio.scope.song"),
         Src::Key("export_audio.scope.selection"),
+        Src::Key("export_audio.scope.loop"),
         Src::Key("export_audio.scope.stems"),
     ];
     let at = scopes.iter().position(|s| *s == d.scope).unwrap_or(0);
     if let Some(i) = row(ui, "export_audio.row.what", |ui| {
         seg(ui, at, &labels, "export_audio.row.what")
     }) {
-        d.scope = scopes[i];
-    }
-    let sel = app.time_selection;
-    if d.scope == Scope::Selection {
-        match sel {
-            Some((from, to)) => {
-                let p = app.project();
-                let secs = (to - from).to_seconds(p.tempo_bpm);
-                let (a, b) = (p.time_signature.bbt(from).0, p.time_signature.bbt(to).0);
-                let text = tf(
-                    "export_audio.selection",
-                    &[("from", &a), ("to", &b), ("seconds", &format!("{secs:.1}"))],
-                );
-                super::workspace_settings::note(ui, &text, false);
-            }
-            None => {
-                super::workspace_settings::note(ui, &t("export_audio.no_selection"), true);
-                d.scope = Scope::Song;
-            }
+        // A range the project does not have is not chosen: the segment stays where it
+        // was and the note under it says what to do (until the dialog closes).
+        if super::export::available(app, scopes[i]) {
+            d.scope = scopes[i];
+            app.export.asked = None;
+        } else {
+            app.export.asked = Some(scopes[i]);
         }
+    }
+    match app.export.asked {
+        Some(Scope::Selection) => {
+            super::workspace_settings::note(ui, &t("export_audio.no_selection"), true)
+        }
+        Some(Scope::Loop) => super::workspace_settings::note(ui, &t("export_audio.no_loop"), true),
+        _ => {}
+    }
+    if let Some(text) = range_note(app, d.scope) {
+        super::workspace_settings::note(ui, &text, false);
     }
     if d.scope == Scope::Stems {
         let at = usize::from(d.stems.tracks);
@@ -101,21 +136,16 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
         let master_chain = !app.project().master.effects.is_empty();
         row(ui, "export_audio.row.include", |ui| {
             ui.vertical(|ui| {
-                use super::interop::form::choice;
-                if choice(ui, d.stems.master, true, &t("interop.stems.master")) {
+                let master = t("interop.stems.master");
+                if check(ui, d.stems.master, &master, "stems.master") {
                     d.stems.master = !d.stems.master;
                 }
-                if choice(
-                    ui,
-                    d.stems.keep_silent,
-                    true,
-                    &t("interop.stems.keep_silent"),
-                ) {
+                let silent = t("interop.stems.keep_silent");
+                if check(ui, d.stems.keep_silent, &silent, "stems.keep_silent") {
                     d.stems.keep_silent = !d.stems.keep_silent;
                 }
-                if master_chain
-                    && choice(ui, d.stems.through_master, true, &t("master.stems.through"))
-                {
+                let through = t("master.stems.through");
+                if master_chain && check(ui, d.stems.through_master, &through, "stems.through") {
                     d.stems.through_master = !d.stems.through_master;
                 }
             });
@@ -170,7 +200,7 @@ fn format(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
                 d.depth = if i == 0 { Depth::Int16 } else { Depth::Int24 };
             }
         }
-        Format::Mp3 => mp3_rows(ui, d),
+        Format::Mp3 => mp3_rows(app, ui, d),
         Format::Ogg => {
             let q = tf(
                 "export_audio.ogg_q",
@@ -234,16 +264,21 @@ fn vbr_kbps(v: u8) -> u32 {
     [245, 225, 190, 175, 165, 130, 115, 100, 85, 65][v.min(9) as usize]
 }
 
-fn mp3_rows(ui: &mut Ui, d: &mut ExportSettings) {
+fn mp3_rows(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
+    // Each mode keeps its own last choice while the dialog is open.
+    match d.mp3 {
+        Mp3Mode::Cbr(k) => app.export.mp3_cbr = Some(k),
+        Mp3Mode::Vbr(v) => app.export.mp3_vbr = Some(v),
+    }
     let vbr = matches!(d.mp3, Mp3Mode::Vbr(_));
     let labels = [Src::Key("export_audio.cbr"), Src::Key("export_audio.vbr")];
     if let Some(i) = row(ui, "export_audio.row.mode", |ui| {
         seg(ui, usize::from(vbr), &labels, "export_audio.row.mode")
     }) {
         d.mp3 = if i == 0 {
-            Mp3Mode::Cbr(320)
+            Mp3Mode::Cbr(app.export.mp3_cbr.unwrap_or(320))
         } else {
-            Mp3Mode::Vbr(0)
+            Mp3Mode::Vbr(app.export.mp3_vbr.unwrap_or(0))
         };
     }
     let (value, options): (String, Vec<(Mp3Mode, String)>) = match d.mp3 {
@@ -291,7 +326,7 @@ fn rate_row(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     });
     let mut options = vec![(Rate::Session, label(Rate::Session))];
     for hz in RATES {
-        if d.format.rates().is_none_or(|ok| ok.contains(&hz)) {
+        if d.format.carries(hz) {
             options.push((Rate::Hz(hz), khz(hz)));
         }
     }
@@ -348,7 +383,12 @@ fn loudness(ui: &mut Ui, d: &mut ExportSettings) {
         d.loudness.ceiling_dbtp = v as f32 / 10.0;
     }
     row(ui, "export_audio.row.peaks", |ui| {
-        if super::interop::form::choice(ui, d.loudness.limit, true, &t("export_audio.limit")) {
+        if check(
+            ui,
+            d.loudness.limit,
+            &t("export_audio.limit"),
+            "loudness.limit",
+        ) {
             d.loudness.limit = !d.loudness.limit;
         }
     });
@@ -366,7 +406,8 @@ fn tags(ui: &mut Ui, d: &mut ExportSettings) {
     ] {
         row(ui, key, |ui| {
             let x = wd(ui);
-            w::text_field(ui, text, key, x);
+            let r = w::text_field(ui, text, key, x);
+            put(ui, key, r.rect);
         });
     }
 }

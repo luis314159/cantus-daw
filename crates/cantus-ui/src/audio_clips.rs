@@ -234,44 +234,8 @@ pub fn is_reversed(clip: &Clip) -> bool {
 
 // ---- split and glue ------------------------------------------------------------------
 
-/// Fix up a split of an audio clip at `at` (`right` is the new right half, built by
-/// `clips::split` as for notes). The left half keeps the fade in and loses the fade out,
-/// the right half the opposite — the cut is a hard edge, as in every DAW. A reversed clip
-/// maps its window backwards, so its halves' offsets swap. Returns the extra commands for
-/// the left half.
-pub fn split_audio(track: TrackId, clip: &Clip, at: Ticks, right: &mut Clip) -> Vec<Command> {
-    let Some(a) = clip.audio.as_ref() else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    if let Some(r) = right.audio.as_mut() {
-        r.fade_in = Ticks::ZERO;
-        r.fade_out = a.fade_out.min(right.length);
-    }
-    let left_len = at - clip.start;
-    if a.reverse {
-        // Left plays the end of the window, right its beginning.
-        right.offset = clip.offset;
-        out.push(Command::SetClipOffset {
-            track,
-            clip: clip.id,
-            offset: clip.offset + (clip.end() - at),
-        });
-    }
-    let left = AudioRegion {
-        fade_out: Ticks::ZERO,
-        fade_in: a.fade_in.min(left_len),
-        ..a.clone()
-    };
-    if left != *a {
-        out.push(Command::SetClipAudio {
-            track,
-            clip: clip.id,
-            audio: Some(left),
-        });
-    }
-    out
-}
+// `split_audio` (the fades and a reversed clip's windows at a split) is
+// `cantus_core::clipboard::split_audio`, beside the split it serves.
 
 /// Glue audio clips: only clips that are **contiguous windows on one source** — each
 /// starts where the last ended, on the timeline and in the file — with the same gain and

@@ -868,6 +868,12 @@ impl Keymap {
     ) -> Vec<Action> {
         ctx.input(|i| {
             let m = i.modifiers;
+            // Ctrl+C, Ctrl+X and Ctrl+V never arrive as key presses (`clipboard_binding`).
+            let chords: Vec<Binding> = i
+                .events
+                .iter()
+                .filter_map(|e| clipboard_binding(e, m))
+                .collect();
             let mut fired = Vec::new();
             for (action, list) in &self.bindings {
                 for b in list {
@@ -877,7 +883,7 @@ impl Keymap {
                     if arrows_taken && b.is_arrow() {
                         continue;
                     }
-                    if b.matches(m) && i.key_pressed(b.key) {
+                    if (b.matches(m) && i.key_pressed(b.key)) || chords.contains(b) {
                         fired.push(*action);
                         break;
                     }
@@ -1036,6 +1042,48 @@ const NEW_IN_V2: [Action; 10] = [
     Action::ToggleStripSolo,
 ];
 
+/// The chord behind a clipboard event, given the modifiers held.
+///
+/// egui-winit turns every Ctrl+C, Ctrl+X and Ctrl+V — with Shift or Alt too — into
+/// `Event::Copy`, `Event::Cut` and `Event::Paste(text)` and sends **no** key press for them
+/// (and on Windows Ctrl+Ins, Shift+Del and Shift+Ins as well). A binding is matched against
+/// the chord the user pressed: Ctrl+Shift+C stays Ctrl+Shift+C. The chords without Ctrl
+/// (Shift+Del, Shift+Ins, a keyboard's own Copy key) are the platform's spellings of the
+/// plain one. A `Paste` event that answers a menu's request is taken out of the input
+/// before this runs (`crate::clipboard`).
+pub fn clipboard_binding(event: &egui::Event, m: Modifiers) -> Option<Binding> {
+    let key = match event {
+        egui::Event::Copy => Key::C,
+        egui::Event::Cut => Key::X,
+        egui::Event::Paste(_) => Key::V,
+        _ => return None,
+    };
+    Some(if m.command {
+        Binding {
+            key,
+            command: true,
+            shift: m.shift,
+            alt: m.alt,
+        }
+    } else {
+        Binding::cmd(key)
+    })
+}
+
+/// The chord a clipboard event records in the shortcuts dialog: only one made with Ctrl.
+///
+/// Shift+Del, Shift+Ins and a keyboard's own Cut/Copy/Paste keys also arrive as these
+/// events, with no key press, so recording them as Ctrl+X / Ctrl+V would bind a chord the
+/// user never pressed: they are not recorded at all (they still work as Cut and Paste).
+/// Ctrl+Ins cannot be told from Ctrl+C — both arrive as `Event::Copy` with Ctrl held — so
+/// it records as Ctrl+C, and a binding of Ctrl+Ins never fires.
+pub fn captured_clipboard_binding(event: &egui::Event, m: Modifiers) -> Option<Binding> {
+    if !m.command {
+        return None;
+    }
+    clipboard_binding(event, m)
+}
+
 fn is_letter(key: Key) -> bool {
     matches!(
         key,
@@ -1124,6 +1172,99 @@ mod tests {
             Binding::parse("Ctrl"),
             None,
             "a modifier alone is not a shortcut"
+        );
+    }
+
+    /// The actions one frame with `events` fires (Ctrl held unless the events say so).
+    fn fired_by(map: &Keymap, events: Vec<egui::Event>) -> Vec<Action> {
+        let ctx = egui::Context::default();
+        let mut out = Vec::new();
+        let input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| out = map.pressed(ui.ctx(), false, false))
+            .textures_delta
+            .clear();
+        out
+    }
+
+    fn held(m: Modifiers) -> egui::Event {
+        egui::Event::ModifiersChanged(m)
+    }
+
+    /// egui-winit sends `Event::Copy`, `Event::Cut` and `Event::Paste` *instead of* key
+    /// presses for every Ctrl+C, Ctrl+X and Ctrl+V (Shift and Alt included) — so without
+    /// reading them, those chords never reached any binding in the real window.
+    #[test]
+    fn clipboard_events_fire_cut_copy_paste() {
+        let map = Keymap::default();
+        let ctrl = Modifiers::COMMAND;
+        assert!(fired_by(&map, vec![held(ctrl), egui::Event::Copy]).contains(&Action::Copy));
+        assert!(fired_by(&map, vec![held(ctrl), egui::Event::Cut]).contains(&Action::Cut));
+        assert!(
+            fired_by(&map, vec![held(ctrl), egui::Event::Paste("x".into())])
+                .contains(&Action::Paste)
+        );
+        // Windows' other chords (Shift+Del, Ctrl+Ins, Shift+Ins) mean the same.
+        assert!(
+            fired_by(&map, vec![held(Modifiers::SHIFT), egui::Event::Cut]).contains(&Action::Cut)
+        );
+        // A key press and its event in one frame (a test that sends both) fire once.
+        let key = egui::Event::Key {
+            key: Key::C,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: ctrl,
+        };
+        let both = fired_by(&map, vec![held(ctrl), key, egui::Event::Copy]);
+        assert_eq!(both.iter().filter(|a| **a == Action::Copy).count(), 1);
+        // Ctrl+Shift+C arrives as a copy event too, and is the clip colour, not Copy.
+        let shifted = fired_by(&map, vec![held(ctrl | Modifiers::SHIFT), egui::Event::Copy]);
+        assert!(shifted.contains(&Action::ClipColorNext), "{shifted:?}");
+        assert!(!shifted.contains(&Action::Copy));
+        // Copy rebound away from Ctrl+C: the event follows the binding.
+        let mut moved = Keymap::default();
+        moved.unbind(Action::Copy, Binding::cmd(Key::C));
+        moved.bind(Action::Copy, Binding::cmd(Key::Insert));
+        assert!(!fired_by(&moved, vec![held(ctrl), egui::Event::Copy]).contains(&Action::Copy));
+        assert_eq!(
+            clipboard_binding(&egui::Event::Copy, Modifiers::NONE),
+            Some(Binding::cmd(Key::C))
+        );
+        assert_eq!(
+            clipboard_binding(&egui::Event::Text("c".into()), ctrl),
+            None
+        );
+    }
+
+    /// The shortcuts dialog records only what was pressed: Shift+Del arrives as a cut
+    /// event and must not be recorded as Ctrl+X, nor Shift+Ins as Ctrl+V.
+    #[test]
+    fn capture_records_clipboard_events_only_with_ctrl() {
+        let ctrl = Modifiers::COMMAND;
+        let paste = egui::Event::Paste("x".into());
+        assert_eq!(
+            captured_clipboard_binding(&egui::Event::Cut, Modifiers::SHIFT),
+            None
+        );
+        assert_eq!(captured_clipboard_binding(&paste, Modifiers::SHIFT), None);
+        assert_eq!(
+            captured_clipboard_binding(&egui::Event::Copy, Modifiers::NONE),
+            None
+        );
+        assert_eq!(
+            captured_clipboard_binding(&egui::Event::Copy, ctrl),
+            Some(Binding::cmd(Key::C))
+        );
+        assert_eq!(
+            captured_clipboard_binding(&egui::Event::Copy, ctrl | Modifiers::SHIFT),
+            Some(Binding::cmd_shift(Key::C))
+        );
+        assert_eq!(
+            captured_clipboard_binding(&paste, ctrl),
+            Some(Binding::cmd(Key::V))
         );
     }
 

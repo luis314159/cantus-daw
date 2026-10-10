@@ -1,8 +1,51 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-07 (round 22: **the multicore live engine and beta hardening** — the live engine on a pool of real-time workers (parallel = serial to the bit; `engine.s64.b128` 0.25×), x86-64-v3/v2 programs behind a launcher, our own deterministic `powf` and counter-based dither (`DSP_VERSION` 3), export to WAV/FLAC/MP3/Ogg with loudness presets, crash recovery and a 40-minute soak, notices/privacy/manual/version `0.1.0-beta.1`; a fresh clone is self-sufficient (`docs/DEVELOPING.md`, `CLAUDE.md`, `docs/claude-memory/`). Round 21: performance wave 1 and ASIO that works. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 824 green (185 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3`, clippy clean
+**Updated:** 2026-10-09 (round 23: **the beta blockers** — the export dialog audited option by option (27 findings, every list in it opened *under* the dialog; a selection's tail played the next bars; latent projects made the mix late; stems ignored hosted plug-ins; FLAC failed at 192 kHz — all fixed, a test per option against the written file, the bar on the render's progress, ADR 0035), text that looked wrong after a theme change (the kit kept text laid out against egui's old font atlas) fixed with a pixel round-trip test, the CPU budgets robust to a loaded machine, Ctrl+C / Ctrl+X / Ctrl+V in the piano roll and the arrangement (ADR 0036). Round 22: the multicore live engine and beta hardening. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 921 green (194 test binaries; 4 of them run renamed on the F: machine, see below) + the engine's fuzz at `CANTUS_WORKERS=3`, clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 23 left
+
+Round 23 is on branch **`r23/beta-hardening`** (worktree `F:\projects\daw-r23\beta-hardening`,
+base master 2ad043b), **not committed** — the owner commits it when they ask. Copy and
+paste was built beside it on `r23/clipboard` (`F:\projects\daw-r23\clipboard`) and its
+diff applied here; that worktree can go once this branch is committed. BACKLOG §1's two
+bugs (the export dialog, text after a theme change) and §6d.1 (copy and paste) are done;
+`docs/BACKLOG-excellence.md` was left alone because the owner has uncommitted edits to it.
+
+1. **The owner, by hand, with the real build** (`cargo build --release -p cantus`):
+   - export: every list of the dialog opens and chooses; a selection's tail rings out
+     alone; a stems export with a hosted plug-in (a commercial one — the tests use ours);
+   - copy and paste: Ctrl+C, close Cantus, open another project, Ctrl+V; Ctrl+V after
+     copying text in Notepad (falls back to the in-app copy, or nothing after a restart);
+     two Cantus windows; *Edit ▸ Paste* (eframe answers the paste request two frames
+     later — tested, not yet seen in a real window);
+   - switch Dark ↔ Light a few times (and *System* with the OS flipping) and look at the
+     labels.
+2. **The rest of the beta** (`docs/BETA.md`, round 22's list): the hardware matrix (the
+   Behringer UMC in duplex, plugged in *before* starting Cantus), a 2-hour soak
+   (`CANTUS_SOAK_MINUTES=120`), instrument gain staging, the recovery dialog in
+   `examples/shoot*`, Save off the UI thread, an installer run by hand, then the tag
+   `v0.1.0-beta.1`.
+3. **Then** performance wave 2 (round 22's item 2) and the owner's §6d requests: linked
+   clips (§6d.2 — the clipboard's format `cantus-clip/1` will need a v2 for a link id),
+   mixer cabling (§6d.3), the white-and-blue default theme (§6d.4 — unblocked: the theme
+   text bug was its prerequisite).
+
+**On the F: machine** (the one this round ran on): `cargo` is not on PATH (prefix
+`export PATH="$HOME/.cargo/bin:$PATH"`); incremental builds stop linking after a few
+edits (MSVC LNK2019 on `anon.*.llvm` symbols — put `incremental = false` under
+`[profile.dev]` and `[profile.test]` in the worktree's untracked `.cargo/config.toml`, or
+`CARGO_INCREMENTAL=0`); and Windows' installer detection refuses to start the test
+binaries named `audio_setup*` and `cantus_update` ("requires elevation", os error 740) —
+run them copied to a neutral name (`audio_stp-….exe`); all 24 of their tests pass.
+
+Left by round 23 (its docs list each): a hosted insert on the master is a wire in
+*through the master* stems (one instance cannot be in two places); the stems' float
+scratch folder sits beside the destination; Ctrl+V with no text on the system clipboard
+sends no event at all (egui-winit), so it cannot even say "nothing to paste"; the
+playhead split (`clips::split`) still silences the right half of a looping clip (the
+clipboard's crop avoids it); automation clips are not pasted across projects.
 
 ## The next session: what round 22 left
 
@@ -59,6 +102,42 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 23: the beta blockers (requested 2026-10-09)
+
+**The ask.** *Only the beta blockers, in order: the export dialog's bugs — audit every
+option, reproduce each failure, a test per option comparing the exported file with what
+the dialog said, fix them, wire the bar to `render_with_progress`, add the dialog to the
+shoot examples; the text that sometimes looks wrong after a theme change — reproduce it,
+a pixel test (a round trip of themes gives the same picture), find the cause, fix it; the
+two CPU tests robust to load; Ctrl+C / Ctrl+X / Ctrl+V in the piano roll and the
+arrangement as Commands with their inverse and undo-fuzz arms, strings in en/es.* Own
+worktree, only `crates/` and `docs/` (another session builds the landing page in `web/`),
+no commit unless asked, tests first, clippy clean.
+
+**How.** A read-only audit workflow first (two export auditors, every finding checked by
+two skeptics — 27 findings, 54 votes, none refuted; a theme investigator; a CPU-test
+survey; a clipboard designer), then a test reproducing each finding, then the fix. Copy
+and paste was built in parallel by a builder in its own worktree, reviewed by two
+adversarial reviewers (8 findings, all fixed) and merged. The finished branch was
+reviewed again by three reviewers with a skeptic per finding (13 of 14 real, all fixed).
+Reports: `docs/round23/beta-hardening.md`, `docs/round23/clipboard.md`.
+
+**Decisions:** ADR 0036 (the clipboard: `Command::Batch` per cut and paste, no new
+command, no schema bump; a `cantus-clip/1` JSON text on the system clipboard that
+survives a restart and crosses projects; Ctrl+C/X/V read from egui-winit's `Event::Copy /
+Cut / Paste`), ADR 0035 (what an export writes: a range stops at its end and its tail only
+rings out; `RenderOptions::compensate_latency`, off by default, on for exports; stems
+through the hosted instances; stems committed all or none; the dialog owns the keyboard).
+No golden hash moved; no `DSP_VERSION` bump; no schema bump.
+
+| Part | What changed |
+|---|---|
+| export dialog | **every list (tail, quality, rate, LUFS target, ceiling) opened under the dialog** and could not be clicked — fixed (each list a sublayer of the dialog); Esc closes an open list first; Enter exports; the window's shortcuts stand aside while it is open; a range the project lacks stays unchosen with its note; a **Loop** range; the note names the right bars; the bar follows the render and Stop stops it; the status line shows progress; *Export audio…* after stems opens on the mix; MP3 modes keep their choice; presets match only what the dialog shows; the summary tells a missed loudness target, clipped samples, stems as stems; errors in Spanish; a corrected extension; the old stems dialog removed. Shots: `shoot_export` from 5 kinds to 11 (the rate list open, clicked through the new `raster::shoot_events`) |
+| export engine | a selection's (or loop's) tail **played the music after it** — the transport now stops at the range's end, on the transport's own sample (`transport::sample_at`); a latent project made the mix **late by L and cut its end** — `compensate_latency`, so a mix equals its `00 Master` stem; **stems ignored hosted plug-ins** — `render_stems_hosted` / `render_stems_to_folder_with`; a stopped re-export **deleted the earlier stems** — all-or-none commit; FLAC failed at 192 kHz (flacenc's 96 kHz limit, found by the new tests) — written at 96/88.2 kHz, the dialog says so. Tests: `cantus-export/tests/options.rs` (every format × rate × channels, depth, bitrate frame by frame, VBR, Ogg quality, dither, preset, read back by independent decoders), `cantus-ui/tests/export_options.rs` and `export_files.rs`, `cantus-engine/tests/render_range.rs`, `cantus-host/tests/stems_hosted.rs` |
+| theme text | the kit's cache of laid-out text guessed a font-atlas rebuild from the atlas's fill ratio, which a dark↔light switch does not lower on a GPU-wide atlas: labels pointed at moved glyphs (blank or wrong). It now watches egui's text options and font faces; `theme::apply` repaints and keeps the fader cap. `cantus-ui/tests/theme_roundtrip.rs`: kit text and the real views, Dark → Light → Dark, with zoom, language and every theme in between, the same pixels (4 729 differed before) |
+| CPU tests | `inst_bass::a_cpu_budget_holds` and Calor's per-voice test take the best of five windows (the house rule: load only adds time); the sampler's budget too; the stress frames hold the fastest frame (and the cold first frame to its own ceiling); the hot-plug bounds 150 ms |
+| clipboard | Ctrl+C / Ctrl+X / Ctrl+V **did nothing in the real window** (egui-winit sends `Event::Copy/Cut/Paste`, never a key press) — read from those events; notes, clips and time ranges, in the piano roll and the arrangement; paste at the right-click point, the time selection or the playhead, snapped down to the grid; rows keep their spacing; audio sources reused or inserted (`recorded = false`); automation clips only within the same project; one undo per cut or paste with its own label; the piano roll and channel rack take the edit focus when clicked; a `cantus-clip/1` text that survives a restart. Undo fuzz arms 27–30; `cantus-core/tests/clipboard.rs`, `clipboard_crop.rs`, `cantus-ui/tests/clipboard.rs`; shot `shoot_clipboard` |
 
 ## Round 22: the multicore live engine and beta hardening (requested 2026-10-07)
 

@@ -49,9 +49,9 @@ pub struct Control {
     phase: AtomicU8,
     /// The whole export's progress, in thousandths.
     permille: AtomicU32,
-    /// The render reports no progress of its own (ADR 0033 §6): until it does, the bar
-    /// shows it as a pulse.
-    pub render_is_indeterminate: AtomicBool,
+    /// The mix render's own progress and stop (`cantus_engine::render_with_progress`):
+    /// frames done of the total while [`Phase::Render`] runs, and the flag a stop sets.
+    pub render: cantus_engine::RenderProgress,
     /// Stop by itself once this far, in thousandths (0 = never): how the tests stop an
     /// export at an exact moment.
     stop_at: AtomicU32,
@@ -64,6 +64,8 @@ impl Control {
 
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Relaxed);
+        // The render stops at its next block.
+        self.render.cancel();
     }
 
     pub fn cancelled(&self) -> bool {
@@ -74,9 +76,15 @@ impl Control {
         Phase::from_u8(self.phase.load(Ordering::Relaxed))
     }
 
-    /// The whole export, 0…1.
+    /// The whole export, 0…1: while a mix renders, its frames done count for the render's
+    /// share of the bar.
     pub fn fraction(&self) -> f32 {
-        self.permille.load(Ordering::Relaxed) as f32 / 1000.0
+        let own = self.permille.load(Ordering::Relaxed) as f32 / 1000.0;
+        if self.phase() == Phase::Render {
+            own.max(MIX_RENDER_SHARE * self.render.fraction())
+        } else {
+            own
+        }
     }
 
     pub(crate) fn set(&self, phase: Phase, fraction: f32) {
@@ -104,6 +112,9 @@ impl Control {
     }
 }
 
+/// The share of the bar a mix's render takes; converting, measuring and encoding the rest.
+pub const MIX_RENDER_SHARE: f32 = 0.5;
+
 /// What an export did.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Done {
@@ -119,6 +130,9 @@ pub struct Done {
     pub silent: Vec<String>,
     /// Some stem may be early (a path without its delay line).
     pub unaligned: bool,
+    /// Samples past full scale that the format cuts off (every format but 32-bit float
+    /// WAV): integers clip there, and decoders of MP3 and Ogg do.
+    pub clipped: usize,
 }
 
 /// A file being written: `name.ext.part` until [`Part::commit`] renames it; dropped
@@ -162,12 +176,61 @@ impl Part {
     }
 }
 
+/// Put every part in its place, or none: each file a part would replace is moved aside
+/// first (`name.ext.old`) and put back if any rename fails; the moved files go only once
+/// every part is in. A destination another program holds open (a player with the last
+/// export's stem) stops it before anything is replaced.
+pub(crate) fn commit_all(parts: Vec<Part>) -> Result<Vec<PathBuf>, ExportError> {
+    let mut aside: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let restore = |aside: &[(PathBuf, PathBuf)]| {
+        for (path, old) in aside.iter().rev() {
+            let _ = std::fs::rename(old, path);
+        }
+    };
+    for part in &parts {
+        if part.path.exists() {
+            let mut name = part.path.file_name().unwrap_or_default().to_os_string();
+            name.push(".old");
+            let old = part.path.with_file_name(name);
+            if let Err(e) = std::fs::rename(&part.path, &old) {
+                restore(&aside);
+                return Err(e.into());
+            }
+            aside.push((part.path.clone(), old));
+        }
+    }
+    let mut placed: Vec<PathBuf> = Vec::with_capacity(parts.len());
+    for mut part in parts {
+        if let Err(e) = std::fs::rename(&part.tmp, &part.path) {
+            for p in &placed {
+                let _ = std::fs::remove_file(p);
+            }
+            restore(&aside);
+            return Err(e.into());
+        }
+        part.done = true;
+        placed.push(part.path.clone());
+    }
+    for (_, old) in &aside {
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(placed)
+}
+
 impl Drop for Part {
     fn drop(&mut self) {
         if !self.done {
             let _ = std::fs::remove_file(&self.tmp);
         }
     }
+}
+
+/// How many samples of `a` the format chosen in `s` cuts at full scale.
+pub(crate) fn clipped(a: &Audio, s: &ExportSettings) -> usize {
+    if s.format == crate::settings::Format::Wav && !s.depth.is_int() {
+        return 0;
+    }
+    a.samples.iter().filter(|x| x.abs() > 1.0).count()
 }
 
 pub(crate) fn peak_db(a: &Audio) -> f32 {
@@ -179,8 +242,7 @@ pub(crate) fn peak_db(a: &Audio) -> f32 {
     }
 }
 
-/// The pipeline after the render: channels, rate, loudness (when asked and not stems),
-/// then the file. Progress from `from` to `to`.
+/// [`encode_one`], and the file put in its place.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn finish_one(
     rendered: Audio,
@@ -188,9 +250,26 @@ pub(crate) fn finish_one(
     tags: &Tags,
     path: &Path,
     ctl: &Control,
-    (from, to): (f32, f32),
+    span: (f32, f32),
     normalise: bool,
 ) -> Result<(PathBuf, Audio, Option<Normalised>), ExportError> {
+    let (part, a, report) = encode_one(rendered, s, tags, path, ctl, span, normalise)?;
+    Ok((part.commit()?, a, report))
+}
+
+/// The pipeline after the render: channels, rate, loudness (when asked and not stems),
+/// then the file, whole, beside its place (`name.ext.part`) until the caller commits it.
+/// Progress from `from` to `to`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_one(
+    rendered: Audio,
+    s: &ExportSettings,
+    tags: &Tags,
+    path: &Path,
+    ctl: &Control,
+    (from, to): (f32, f32),
+    normalise: bool,
+) -> Result<(Part, Audio, Option<Normalised>), ExportError> {
     let span = to - from;
     ctl.set(Phase::Convert, from);
     let rate = s.file_rate(rendered.rate);
@@ -214,7 +293,7 @@ pub(crate) fn finish_one(
     if ctl.cancelled() {
         return Err(ExportError::Cancelled);
     }
-    Ok((part.commit()?, a, report))
+    Ok((part, a, report))
 }
 
 /// Encode audio that is already rendered (interleaved, at its rate) into `path`.
@@ -232,6 +311,7 @@ pub fn export_rendered(
         seconds: a.seconds(),
         rate: a.rate,
         peak_db: peak_db(&a),
+        clipped: clipped(&a, s),
         loudness,
         ..Default::default()
     })
@@ -255,21 +335,26 @@ pub fn export_mix(
     path: &Path,
     ctl: &Control,
 ) -> Result<Done, ExportError> {
-    // The mix render reports no progress and cannot stop midway yet: the bar pulses
-    // through it, and a stop takes effect when it returns. When pool's
-    // `render_with_progress` lands (docs/round22/requests.md), pass
-    // `&mut ctl.span(Phase::Render, 0.0, 0.5)` to it and drop the flag.
-    ctl.render_is_indeterminate.store(true, Ordering::Relaxed);
+    // The render reports its frames into `ctl.render` (the bar's first half) and stops at
+    // the next block after a stop. Sample 0 of the file is the range's first tick: the
+    // project's latency is compensated, as the stems are.
     ctl.set(Phase::Render, 0.0);
     let mut opts = job.render;
     opts.channels = 2;
     opts.normalize_peak_db = None;
-    let r = cantus_engine::render_with_instruments(job.snapshot, &opts, job.units, job.instruments)
-        .map_err(|e| match e {
-            cantus_engine::RenderError::Empty => ExportError::Empty,
-            e => ExportError::Render(e.to_string()),
-        })?;
-    ctl.render_is_indeterminate.store(false, Ordering::Relaxed);
+    opts.compensate_latency = true;
+    let r = cantus_engine::render_with_progress(
+        job.snapshot,
+        &opts,
+        job.units,
+        job.instruments,
+        &ctl.render,
+    )
+    .map_err(|e| match e {
+        cantus_engine::RenderError::Empty => ExportError::Empty,
+        cantus_engine::RenderError::Cancelled => ExportError::Cancelled,
+        e => ExportError::Render(e.to_string()),
+    })?;
     if ctl.cancelled() {
         return Err(ExportError::Cancelled);
     }
@@ -279,12 +364,14 @@ pub fn export_mix(
         samples: r.samples,
     };
     let normalise = s.normalises();
-    let (file, a, loudness) = finish_one(rendered, s, tags, path, ctl, (0.5, 1.0), normalise)?;
+    let span = (MIX_RENDER_SHARE, 1.0);
+    let (file, a, loudness) = finish_one(rendered, s, tags, path, ctl, span, normalise)?;
     Ok(Done {
         files: vec![file],
         seconds: a.seconds(),
         rate: a.rate,
         peak_db: peak_db(&a),
+        clipped: clipped(&a, s),
         loudness,
         ..Default::default()
     })
@@ -296,9 +383,12 @@ pub fn stem_output_name(wav_name: &str, s: &ExportSettings) -> String {
     format!("{stem}.{}", s.format.extension())
 }
 
-/// What a stems export renders.
+/// What a stems export renders, with the hosted plug-ins' and instruments' own instances
+/// (loaded by the caller on the main thread), as a mix's.
 pub struct StemsJob {
     pub snapshot: Arc<Snapshot>,
     pub options: StemOptions,
     pub specs: Vec<StemSpec>,
+    pub units: Vec<EffectUnit>,
+    pub instruments: Vec<NativeUnit>,
 }

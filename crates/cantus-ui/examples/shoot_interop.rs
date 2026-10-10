@@ -1,7 +1,8 @@
 //! Screenshots of the interchange dialogs (ADR 0021) without a screen:
 //! `cargo run -p cantus-ui --example shoot_interop -- <out-dir> [scale] [locale]`.
-//! The arrangement with each dialog open over it — MIDI import, MIDI export, stems, the
-//! report of a foreign DAWproject — in the light and the dark theme.
+//! The arrangement with each dialog open over it — MIDI import, MIDI export, the report
+//! of a foreign DAWproject — in the light and the dark theme. (Stems are exported from the
+//! export dialog: `shoot_export`.)
 
 use cantus_engine::EngineHandle;
 use cantus_project::{dawproject, midi};
@@ -34,7 +35,7 @@ fn main() {
     };
     let report = dawproject::import(&foreign).unwrap().report;
 
-    for kind in ["midi-import", "midi-export", "stems", "report"] {
+    for kind in ["midi-import", "midi-export", "report"] {
         for dark in [false, true] {
             let ctx = egui::Context::default();
             cantus_ui::design::install_fonts(&ctx);
@@ -53,12 +54,6 @@ fn main() {
                     app.interop.midi_export = Some(interop::MidiExportDialog {
                         scope: interop::MidiScope::Song,
                         ppq: 960,
-                    })
-                }
-                "stems" => {
-                    app.interop.stems = Some(interop::StemsDialog {
-                        folder: Some(PathBuf::from("C:/Music/Stems/Welcome")),
-                        ..Default::default()
                     })
                 }
                 _ => {

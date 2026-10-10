@@ -1,7 +1,7 @@
 //! Moving work between Cantus and the other DAWs (ADR 0021): the File menu's entries,
-//! their dialogs, a MIDI file dropped on the arrangement, stems exported in the
-//! background with their progress in the status bar, and a report of whatever an import
-//! or an export could not carry.
+//! their dialogs, a MIDI file dropped on the arrangement, the stems a stems export takes
+//! (it runs in the export dialog, ADR 0033), and a report of whatever an import or an
+//! export could not carry.
 //!
 //! Every import is one step of the undo history: a MIDI file is one `Batch` of new tracks,
 //! a DAWproject one `ReplaceProject`.
@@ -11,27 +11,16 @@ use crate::design::{self, space};
 use crate::i18n::{t, tf};
 
 use cantus_core::{Command, InstrumentSpec, Project, Ticks};
-use cantus_engine::{stem_file_name, RenderOptions, StemOptions, StemSource, StemSpec, StemsDone};
+use cantus_engine::{stem_file_name, StemSource, StemSpec};
 use cantus_project::{dawproject, midi, Report, Severity};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{mpsc, Arc};
 
-/// The dialogs, the report and the running stems export.
+/// The dialogs and the report.
 #[derive(Default)]
 pub struct Interop {
     pub midi_export: Option<MidiExportDialog>,
     pub midi_import: Option<MidiImportDialog>,
-    pub stems: Option<StemsDialog>,
     pub report: Option<ReportWindow>,
-    job: Option<StemsJob>,
-}
-
-impl Interop {
-    /// A stems export is running.
-    pub fn busy(&self) -> bool {
-        self.job.is_some()
-    }
 }
 
 /// What "Export MIDI…" writes.
@@ -51,9 +40,6 @@ pub struct MidiExportDialog {
 /// The resolutions offered, in ticks per quarter note.
 pub const PPQ_CHOICES: [u16; 5] = [96, 192, 480, 960, 1920];
 
-/// The tails a stem export offers after the music ends, in seconds.
-const TAILS: [f32; 8] = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0, 30.0];
-
 #[derive(Clone, Debug)]
 pub struct MidiImportDialog {
     pub path: PathBuf,
@@ -65,42 +51,10 @@ pub struct MidiImportDialog {
     pub at: Ticks,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct StemsDialog {
-    /// Tracks rather than strips.
-    pub tracks: bool,
-    pub tail_seconds: f32,
-    pub keep_silent: bool,
-    pub master: bool,
-    /// Each stem through its own copy of the master chain (ADR 0026).
-    pub through_master: bool,
-    pub folder: Option<PathBuf>,
-}
-
-impl Default for StemsDialog {
-    fn default() -> Self {
-        StemsDialog {
-            tracks: false,
-            tail_seconds: 2.0,
-            keep_silent: false,
-            master: false,
-            through_master: false,
-            folder: None,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct ReportWindow {
     pub title: String,
     pub report: Report,
-}
-
-struct StemsJob {
-    progress: Arc<AtomicU32>,
-    cancel: Arc<AtomicBool>,
-    rx: mpsc::Receiver<Result<StemsDone, String>>,
-    folder: PathBuf,
 }
 
 fn file_name(path: &Path) -> String {
@@ -146,7 +100,7 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         });
     }
     // Stems in any format, from the export dialog (ADR 0033).
-    let busy = app.interop.busy() || app.export.busy();
+    let busy = app.export.busy();
     if ui
         .add_enabled(!busy, egui::Button::new(t("interop.menu.export_stems")))
         .clicked()
@@ -179,13 +133,11 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 // ---- every frame --------------------------------------------------------------------
 
-/// Poll the stems export, take dropped files, and show whichever dialog is open.
+/// Take dropped files, and show whichever dialog is open.
 pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
-    poll_stems(app, ctx);
     dropped_files(app, ctx);
     midi_export_window(app, ctx);
     midi_import_window(app, ctx);
-    stems_window(app, ctx);
     report_window(app, ctx);
 }
 
@@ -798,218 +750,6 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
     specs
 }
 
-/// Start exporting stems into `folder` on a thread of its own; the status bar shows how
-/// far it has got.
-pub fn export_stems_to(app: &mut CantusApp, folder: &Path, d: &StemsDialog) {
-    if app.interop.job.is_some() {
-        return;
-    }
-    let snapshot = app.engine.compile(app.bus.project(), app.bus.revision());
-    let specs = stem_specs(app.project(), d.tracks, d.master);
-    let opts = StemOptions {
-        render: RenderOptions {
-            sample_rate: app.engine.sample_rate.round() as u32,
-            tail_seconds: d.tail_seconds.max(0.0) as f64,
-            ..Default::default()
-        },
-        keep_silent: d.keep_silent,
-        through_master: d.through_master,
-    };
-    let progress = Arc::new(AtomicU32::new(0));
-    let cancel = Arc::new(AtomicBool::new(false));
-    let (tx, rx) = mpsc::channel();
-    let (p, c, dir) = (progress.clone(), cancel.clone(), folder.to_path_buf());
-    let spawned = std::thread::Builder::new()
-        .name("cantus-stems".into())
-        .spawn(move || {
-            let result =
-                cantus_engine::render_stems_to_folder(snapshot, &opts, &specs, &dir, &mut |f| {
-                    p.store((f * 1000.0) as u32, Ordering::Relaxed);
-                    !c.load(Ordering::Relaxed)
-                })
-                .map_err(|e| match e {
-                    cantus_engine::StemsError::Cancelled => String::new(),
-                    e => e.to_string(),
-                });
-            let _ = tx.send(result);
-        });
-    if let Err(e) = spawned {
-        app.set_error(tf(
-            "interop.status.export_failed",
-            &[("file", &file_name(folder)), ("error", &e)],
-        ));
-        return;
-    }
-    app.interop.job = Some(StemsJob {
-        progress,
-        cancel,
-        rx,
-        folder: folder.to_path_buf(),
-    });
-    app.set_status(tf("interop.stems.progress", &[("pct", &0)]));
-}
-
-/// Ask a running stems export to stop.
-pub fn stop_stems(app: &mut CantusApp) {
-    if let Some(job) = &app.interop.job {
-        job.cancel.store(true, Ordering::Relaxed);
-    }
-}
-
-/// Wait for the running stems export to finish (tests; the interface polls instead).
-pub fn wait_for_stems(app: &mut CantusApp) {
-    if let Some(job) = app.interop.job.take() {
-        let result = job.rx.recv().unwrap_or_else(|_| Err("thread died".into()));
-        finish_stems(app, &job.folder, result);
-    }
-}
-
-fn finish_stems(app: &mut CantusApp, folder: &Path, result: Result<StemsDone, String>) {
-    match result {
-        Ok(done) => {
-            let text = tf(
-                "interop.stems.done",
-                &[
-                    ("n", &done.written.len()),
-                    ("folder", &folder.display()),
-                    ("silent", &done.silent.len()),
-                ],
-            );
-            if done.unaligned {
-                app.set_error(format!("{text} {}", t("interop.stems.unaligned")));
-            } else {
-                app.set_status(text);
-            }
-        }
-        Err(e) if e.is_empty() => app.set_status(t("interop.stems.stopped")),
-        Err(e) => app.set_error(tf(
-            "interop.status.export_failed",
-            &[("file", &folder.display()), ("error", &e)],
-        )),
-    }
-}
-
-fn poll_stems(app: &mut CantusApp, ctx: &egui::Context) {
-    let Some(job) = &app.interop.job else {
-        return;
-    };
-    match job.rx.try_recv() {
-        Ok(result) => {
-            let folder = job.folder.clone();
-            app.interop.job = None;
-            finish_stems(app, &folder, result);
-        }
-        Err(mpsc::TryRecvError::Empty) => {
-            let pct = job.progress.load(Ordering::Relaxed) / 10;
-            app.set_status(tf("interop.stems.progress", &[("pct", &pct)]));
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
-        }
-        Err(mpsc::TryRecvError::Disconnected) => {
-            let folder = job.folder.clone();
-            app.interop.job = None;
-            finish_stems(app, &folder, Err("thread died".into()));
-        }
-    }
-}
-
-fn stems_window(app: &mut CantusApp, ctx: &egui::Context) {
-    let Some(mut d) = app.interop.stems.clone() else {
-        return;
-    };
-    let busy = app.interop.busy();
-    let pct = app
-        .interop
-        .job
-        .as_ref()
-        .map(|j| j.progress.load(Ordering::Relaxed) as f32 / 1000.0);
-    let (mut start, mut stop, mut close, mut choose) = (false, false, false, false);
-    dialog(t("interop.stems.title")).show(ctx, |ui| {
-        let on = !busy;
-        form::band(ui, "interop.stems.source");
-        if form::choice(ui, !d.tracks, on, &t("interop.stems.strips")) {
-            d.tracks = false;
-        }
-        if form::choice(ui, d.tracks, on, &t("interop.stems.tracks")) {
-            d.tracks = true;
-        }
-        ui.add_space(space::S2);
-        let tail = form::value(
-            ui,
-            &t("interop.stems.tail"),
-            &format!("{:.1} s", d.tail_seconds),
-            on,
-        );
-        if on {
-            egui::Popup::menu(&tail)
-                .frame(egui::Frame::NONE)
-                .show(|ui| {
-                    use crate::kit::menu::{Check, Item};
-                    use crate::kit::text::Src;
-                    let labels = TAILS.map(|s| format!("{s:.1} s"));
-                    let items: [Item<'_>; TAILS.len()] = std::array::from_fn(|i| Item::Action {
-                        label: Src::Str(&labels[i]),
-                        check: Check::Radio((TAILS[i] - d.tail_seconds).abs() < 1e-3),
-                        shortcut: None,
-                        submenu: false,
-                        enabled: true,
-                    });
-                    if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 160.0).1.clicked {
-                        d.tail_seconds = TAILS[i];
-                        ui.close();
-                    }
-                });
-        }
-        if form::choice(ui, d.keep_silent, on, &t("interop.stems.keep_silent")) {
-            d.keep_silent = !d.keep_silent;
-        }
-        if form::choice(ui, d.master, on, &t("interop.stems.master")) {
-            d.master = !d.master;
-        }
-        // Only when the master has a chain to pass through (ADR 0026).
-        if !app.project().master.effects.is_empty()
-            && form::choice(ui, d.through_master, on, &t("master.stems.through"))
-        {
-            d.through_master = !d.through_master;
-        }
-        ui.add_space(space::S2);
-        let shown = d
-            .folder
-            .as_ref()
-            .map(|f| f.display().to_string())
-            .unwrap_or_else(|| t("interop.stems.no_folder"));
-        form::value(ui, &t("interop.stems.folder"), &shown, false);
-        hint(ui, t("interop.stems.hint"));
-        if let Some(f) = pct {
-            ui.add_space(space::S2);
-            form::progress(ui, f);
-        }
-        form::buttons(ui, |ui| {
-            if busy {
-                close = form::button(ui, &t("interop.close"), false, true);
-                stop = form::button(ui, &t("interop.stems.stop"), true, true);
-            } else {
-                close = form::button(ui, &t("interop.cancel"), false, true);
-                start = form::button(ui, &t("interop.stems.start"), true, d.folder.is_some());
-                choose = form::button(ui, &t("interop.stems.choose"), false, true);
-            }
-        });
-    });
-    if choose {
-        if let Some(f) = rfd::FileDialog::new().pick_folder() {
-            d.folder = Some(f);
-        }
-    }
-    if stop {
-        stop_stems(app);
-    }
-    if start {
-        if let Some(folder) = d.folder.clone() {
-            export_stems_to(app, &folder, &d);
-        }
-    }
-    app.interop.stems = (!close).then_some(d);
-}
-
 // ---- DAWproject ---------------------------------------------------------------------
 
 pub fn export_dawproject_to(app: &mut CantusApp, path: &Path) -> bool {
@@ -1075,6 +815,8 @@ pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool 
     }) {
         return false;
     }
+    // Another project: what was copied from the one before names other things here.
+    app.epoch += 1;
     app.path = None;
     app.selected_track = None;
     app.selected_clip = None;

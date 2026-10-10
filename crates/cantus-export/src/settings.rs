@@ -42,6 +42,21 @@ impl Format {
         matches!(self, Format::Wav | Format::Flac)
     }
 
+    /// The highest rate the format is written at, or `None` for no limit. FLAC's encoder
+    /// (flacenc) takes 96 kHz at most; a higher rate is written at its family's rate
+    /// under it (192 kHz → 96 kHz, 176.4 kHz → 88.2 kHz).
+    pub fn max_rate(self) -> Option<u32> {
+        match self {
+            Format::Flac => Some(96_000),
+            _ => None,
+        }
+    }
+
+    /// Whether a file of this format can be written at `hz`.
+    pub fn carries(self, hz: u32) -> bool {
+        self.rates().is_none_or(|ok| ok.contains(&hz)) && self.max_rate().is_none_or(|m| hz <= m)
+    }
+
     /// The sample rates the format can carry, or `None` for any.
     pub fn rates(self) -> Option<&'static [u32]> {
         match self {
@@ -155,6 +170,8 @@ pub enum Scope {
     Song,
     /// The arrangement's time selection.
     Selection,
+    /// The loop brace (round 23): FL's pattern loop, Ableton's and Logic's cycle.
+    Loop,
     /// Every strip (or track) as a file of its own (ADR 0021 §3).
     Stems,
 }
@@ -273,14 +290,19 @@ impl Preset {
         n
     }
 
-    /// Whether `s` still has every choice this preset makes.
+    /// Whether `s` still has every choice this preset makes (the ones the dialog shows).
     pub fn matches(self, s: &ExportSettings) -> bool {
         let applied = self.apply(s);
         let same_scope = match self {
             Preset::MasteringStems => s.scope == Scope::Stems,
             _ => s.scope != Scope::Stems,
         };
-        same_scope && applied.audio_eq(s)
+        // What a stems export takes is part of the stems preset (strips, not through the
+        // master chain).
+        let same_stems = s.scope != Scope::Stems
+            || (applied.stems.tracks == s.stems.tracks
+                && applied.stems.through_master == s.stems.through_master);
+        same_scope && same_stems && applied.audio_eq(s)
     }
 }
 
@@ -330,7 +352,9 @@ impl Default for ExportSettings {
 
 impl ExportSettings {
     /// The same audio choices (format, quality, rate, channels, dither, loudness),
-    /// whatever the scope, tags and folder.
+    /// whatever the scope, tags and folder. A choice the dialog hides is not compared:
+    /// dither when nothing is cut to integers, the loudness of an export that is not
+    /// normalised (stems, or the target off — its ceiling is hidden with it).
     pub fn audio_eq(&self, o: &ExportSettings) -> bool {
         let quality = match self.format {
             Format::Wav => self.depth == o.depth,
@@ -339,12 +363,14 @@ impl ExportSettings {
             Format::Ogg => self.ogg_quality == o.ogg_quality,
         };
         let dither = !self.dithers() || self.dither == o.dither;
+        let loudness = self.normalises() == o.normalises()
+            && (!self.normalises() || self.loudness == o.loudness);
         self.format == o.format
             && quality
             && self.rate == o.rate
             && self.channels == o.channels
             && dither
-            && self.loudness == o.loudness
+            && loudness
     }
 
     /// The first preset whose choices these are.
@@ -378,11 +404,17 @@ impl ExportSettings {
     /// asked for, or — for a format that cannot carry it — the nearest it can, preferring
     /// one above.
     pub fn file_rate(&self, session: u32) -> u32 {
-        let want = match self.rate {
+        let mut want = match self.rate {
             Rate::Session => session,
             Rate::Hz(hz) => hz,
         }
         .max(1);
+        if let Some(max) = self.format.max_rate() {
+            // Halved until it fits: the same family, the highest rate under the limit.
+            while want > max {
+                want = want.div_ceil(2);
+            }
+        }
         match self.format.rates() {
             None => want,
             Some(list) if list.contains(&want) => want,

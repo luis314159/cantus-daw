@@ -39,7 +39,7 @@ export_audio.scope.song = Song
 export_audio.scope.selection = Selection
 export_audio.scope.stems = Stems
 export_audio.selection = Bars {from}–{to}, {seconds} s
-export_audio.no_selection = Select a range on the timeline first: exporting the song.
+export_audio.no_selection = There is no time selection: select a range on the timeline first.
 
 export_audio.depth.16 = 16-bit
 export_audio.depth.24 = 24-bit
@@ -81,3 +81,24 @@ export_audio.stopped = Export stopped; nothing was written.
 export_audio.error.empty = Nothing to export: the song has no notes or clips.
 export_audio.done_loud = Exported {path} ({seconds} s, {lufs} LUFS, peak {peak} dBFS)
 export_audio.done_stems = Exported {n} stems to {folder} ({silent} silent left out)
+
+# Round 23: the export audit.
+export_audio.scope.loop = Loop
+export_audio.loop = Loop brace, bars {from}–{to}, {seconds} s
+export_audio.no_loop = There is no loop brace: set one on the timeline first.
+export_audio.done_stem_one = Exported 1 stem to {folder} ({silent} silent left out)
+export_audio.progress = Exporting… {phase} {pct} %
+export_audio.error.io = could not write the file ({error})
+export_audio.error.render = the render failed ({error})
+export_audio.error.encode = the encoder failed ({error})
+export_audio.error.too_long = the file would pass 4 GB, more than a WAV file can hold: choose FLAC, MP3 or Ogg
+export_audio.error.died = the export stopped unexpectedly
+export_audio.loudness.missed_ceiling = {target} LUFS not reached: without the limiter the gain stops at the ceiling.
+export_audio.loudness.missed_cap = {target} LUFS not reached: the mix is too quiet to raise that far (+30 dB at most).
+export_audio.loudness.missed = {target} LUFS not reached.
+export_audio.loudness.unmeasured = No loudness to measure (silence, or under 0.4 s): the level is as mixed.
+export_audio.clipped = {n} samples clipped at 0 dBFS: lower the master, or set a loudness target with the limiter.
+export_audio.replace.title = Replace the stems?
+export_audio.replace.text = {n} files in this folder have the names of these stems and will be replaced: {names}
+export_audio.replace_file.title = Replace the file?
+export_audio.replace_file.text = {file} is already there and will be replaced.

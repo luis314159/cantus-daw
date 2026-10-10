@@ -6,6 +6,19 @@
 
 use cantus_core::{LoopRegion, Ticks, PPQ};
 
+/// The sample (counted from `origin`) at which a transport playing at `bpm` reaches
+/// `tick` — the transport's own arithmetic, so an offline render that must stop exactly
+/// where an event would fire computes the same sample, to the last bit (round 23).
+#[inline]
+pub fn sample_at(origin: f64, tick: f64, bpm: f64, sample_rate: f64) -> u64 {
+    let x = (tick - origin) / (bpm * PPQ as f64 / (60.0 * sample_rate));
+    if x <= 0.0 {
+        0
+    } else {
+        (x - 1e-6).ceil().max(0.0) as u64
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Transport {
     sample_rate: f64,
@@ -126,12 +139,7 @@ impl Transport {
     /// from slipping one sample late through floating-point noise.
     #[inline]
     fn target_sample(&self, tick: f64) -> u64 {
-        let x = (tick - self.origin_tick) / self.ticks_per_sample();
-        if x <= 0.0 {
-            0
-        } else {
-            (x - 1e-6).ceil().max(0.0) as u64
-        }
+        sample_at(self.origin_tick, tick, self.bpm, self.sample_rate)
     }
 
     /// Number of samples from now until the playhead reaches `tick` (0 if already past).

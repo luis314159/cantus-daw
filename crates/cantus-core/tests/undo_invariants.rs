@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(27) {
+    match rng.below(31) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -774,9 +774,266 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 }
             }
         }
+        // The clipboard (ADR 0036): a paste of clips copied from anywhere (automation
+        // clips and a foreign audio file included), a cut of clips or of notes, a paste of
+        // notes that may grow its clip — each one Batch, one undo step.
+        27 if tracks > 0 => clipboard_paste_clips(rng, project),
+        28 if tracks > 0 => clipboard_cut(rng, project),
+        29 if tracks > 0 => clipboard_paste_notes(rng, project),
+        // A cut of a time range across every track (cmd.cut_time).
+        30 if tracks > 0 => clipboard_cut_time(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
+    }
+}
+
+/// 1 to 3 random clips from any tracks.
+fn random_clip_refs(rng: &mut Lcg, project: &Project) -> Vec<(TrackId, ClipId)> {
+    let all: Vec<(TrackId, ClipId)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.id)))
+        .collect();
+    if all.is_empty() {
+        return Vec::new();
+    }
+    (0..1 + rng.below(3))
+        .map(|_| all[rng.below(all.len() as u64) as usize])
+        .collect()
+}
+
+fn clipboard_paste_clips(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::clipboard::{self, ClipOrigin, ClipRow, Clipboard, Payload, SourcePlan};
+    let sel = random_clip_refs(rng, project);
+    let mut board = Clipboard::new(
+        ClipOrigin::default(),
+        project,
+        clipboard::copy_clips(project, &sel),
+    );
+    let mut plans = std::collections::HashMap::new();
+    // One in four: an audio clip from another project, whose file is added with it.
+    if rng.below(4) == 0 {
+        let foreign = AudioSourceId(9_000_000 + rng.below(1000));
+        let mut clip = project.make_clip("far", Ticks::ZERO, Ticks::beats(1 + rng.below(4) as i64));
+        clip.audio = Some(AudioRegion::of(foreign));
+        if let Payload::Clips { rows, .. } = &mut board.payload {
+            rows.push(ClipRow {
+                row: rng.below(3) as usize,
+                track: TrackId(1),
+                clip,
+            });
+        }
+        let source = AudioSource {
+            id: AudioSourceId(project.alloc_id()),
+            name: "far".into(),
+            path: "D:/elsewhere/far.wav".into(),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 44_100,
+            sha256: None,
+            recorded: false,
+        };
+        plans.insert(foreign, SourcePlan::Insert(source));
+    }
+    // A foreign payload might carry the project's own source ids: keep them only from
+    // the same origin.
+    let same_origin = rng.below(3) != 0;
+    if same_origin {
+        for s in &project.audio_pool {
+            plans.entry(s.id).or_insert(SourcePlan::Reuse(s.id));
+        }
+    }
+    let row = rng.below(project.tracks.len() as u64 + 1) as usize;
+    let at = Ticks::beats(rng.below(64) as i64);
+    let mut next = project.next_id;
+    let mut ids = || {
+        let id = next;
+        next += 1;
+        id
+    };
+    let out = clipboard::paste_clips(project, &board, same_origin, row, at, &plans, &mut ids);
+    project.next_id = next;
+    Command::Batch {
+        label_key: "cmd.paste_clips".into(),
+        commands: out.commands,
+    }
+}
+
+fn clipboard_cut(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::clipboard;
+    let with_notes: Vec<(TrackId, ClipId, Vec<NoteId>)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| !c.notes.is_empty())
+                .map(move |c| (t.id, c.id, c.notes.iter().map(|n| n.id).collect()))
+        })
+        .collect();
+    if rng.below(2) == 0 && !with_notes.is_empty() {
+        let (track, clip, notes) = &with_notes[rng.below(with_notes.len() as u64) as usize];
+        let take = 1 + rng.below(notes.len() as u64) as usize;
+        return Command::Batch {
+            label_key: "cmd.cut_notes".into(),
+            commands: vec![Command::RemoveNotes {
+                track: *track,
+                clip: *clip,
+                ids: notes[..take].to_vec(),
+            }],
+        };
+    }
+    let sel = random_clip_refs(rng, project);
+    Command::Batch {
+        label_key: "cmd.cut_clips".into(),
+        commands: clipboard::cut_clips(project, &sel),
+    }
+}
+
+fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::clipboard;
+    let notes: Vec<(TrackId, Clip)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.audio.is_none() && c.automation.is_none())
+                .map(move |c| (t.id, c.clone()))
+        })
+        .collect();
+    if notes.is_empty() {
+        return Command::SetProjectName {
+            name: format!("P{}", rng.below(100)),
+        };
+    }
+    let (track, clip) = &notes[rng.below(notes.len() as u64) as usize];
+    let board: Vec<Note> = (0..1 + rng.below(4))
+        .map(|i| Note {
+            id: NoteId(0),
+            start: Ticks::beats(i as i64),
+            length: Ticks::QUARTER,
+            pitch: 40 + rng.below(40) as u8,
+            velocity: 1 + rng.below(127) as u8,
+            muted: rng.below(5) == 0,
+        })
+        .collect();
+    // Sometimes well past the end, so the clip has to grow (or its loop lengthen).
+    let at = clip.offset + Ticks::beats(rng.below(24) as i64);
+    let mut next = project.next_id;
+    let (commands, _) = clipboard::paste_notes(*track, clip, &board, at, &mut || {
+        let id = next;
+        next += 1;
+        id
+    });
+    project.next_id = next;
+    Command::Batch {
+        label_key: "cmd.paste".into(),
+        commands,
+    }
+}
+
+/// A cut of a random `[from, to)` across every track, as the arrangement's Cut of a time
+/// selection runs it. Two times in three the batch first lays a clip under the range that
+/// the crop treats specially — a looping note clip, a looping automation clip, a reversed
+/// audio clip with fades — so those paths run on every seed, whatever else is there.
+fn clipboard_cut_time(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::clipboard;
+    let from = Ticks(rng.below(Ticks::beats(24).0 as u64) as i64);
+    let to = from + Ticks(1 + rng.below(Ticks::beats(12).0 as u64) as i64);
+    let tid = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+    let start = Ticks(from.0 - rng.below(Ticks::beats(6).0 as u64) as i64).max(Ticks::ZERO);
+    let length = Ticks::beats(1 + rng.below(16) as i64);
+    let period = Some(Ticks(1 + rng.below(Ticks::beats(5).0 as u64) as i64));
+    let mut prelude = Vec::new();
+    match rng.below(6) {
+        0 | 1 => {
+            let mut c = project.make_clip("loop", start, length);
+            c.content_length = period;
+            for _ in 0..1 + rng.below(5) {
+                let at = Ticks(rng.below(Ticks::beats(6).0 as u64) as i64);
+                c.notes
+                    .push(project.make_note(at, Ticks::QUARTER, 40 + rng.below(40) as u8, 90));
+            }
+            // Notes are kept sorted, as every editor leaves them.
+            c.notes.sort_by_key(|n| (n.start, n.pitch));
+            prelude.push(Command::InsertClip {
+                track: tid,
+                clip: Box::new(c),
+            });
+        }
+        2 | 3 => {
+            let mut pts = random_points(rng);
+            pts.push(AutoPoint::new(Ticks::ZERO, rng.f32(0.0, 1.0)));
+            pts.sort_by_key(|p| p.tick);
+            let target = AutoTarget::TrackGain(tid);
+            let mut c = project.make_automation_clip("auto", target, start, length, pts);
+            c.content_length = period;
+            prelude.push(Command::InsertClip {
+                track: tid,
+                clip: Box::new(c),
+            });
+        }
+        4 => {
+            let source = match project.audio_pool.first() {
+                Some(s) => s.id,
+                None => {
+                    let s = AudioSource {
+                        id: AudioSourceId(project.alloc_id()),
+                        name: "cut".into(),
+                        path: "C:/nowhere/cut.wav".into(),
+                        sample_rate: 48_000,
+                        channels: 1,
+                        frames: 48_000 * 60,
+                        sha256: None,
+                        recorded: false,
+                    };
+                    let id = s.id;
+                    prelude.push(Command::InsertAudioSource { source: s });
+                    id
+                }
+            };
+            let mut c = project.make_audio_clip("rev", source, start, length);
+            let a = c.audio.as_mut().unwrap();
+            a.reverse = rng.below(2) == 0;
+            a.fade_in = Ticks(rng.below(length.0 as u64) as i64);
+            a.fade_out = Ticks(rng.below(length.0 as u64) as i64);
+            prelude.push(Command::InsertClip {
+                track: tid,
+                clip: Box::new(c),
+            });
+        }
+        _ => {}
+    }
+    // The crop is planned on the project as the prelude leaves it.
+    let mut scratch = CommandBus::new(project.clone());
+    if !prelude.is_empty()
+        && scratch
+            .execute(
+                Command::Batch {
+                    label_key: String::new(),
+                    commands: prelude.clone(),
+                },
+                Origin::System,
+            )
+            .is_err()
+    {
+        return Command::SetProjectName {
+            name: format!("P{}", rng.below(100)),
+        };
+    }
+    let mut next = project.next_id;
+    let crops = clipboard::time_crops(scratch.project(), from, to, &mut || {
+        let id = next;
+        next += 1;
+        id
+    });
+    project.next_id = next;
+    prelude.extend(crops.into_iter().flat_map(|c| c.cut));
+    Command::Batch {
+        label_key: "cmd.cut_time".into(),
+        commands: prelude,
     }
 }
 
@@ -884,6 +1141,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         Origin::Mcp,
         Origin::System,
     ];
+    let mut exercised = [0usize; 7];
     for seed in 1..=40u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -900,9 +1158,13 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
             }
             let origin = origins[rng.below(5) as usize];
+            let kind = clipboard_kind(&cmd);
             let ok = bus.execute(cmd, origin).is_ok();
             if ok {
                 applied += 1;
+                if let Some(k) = kind {
+                    exercised[k] += 1;
+                }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
                 snap.next_id = 0;
@@ -943,6 +1205,61 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             );
         }
         assert!(!bus.can_redo());
+    }
+    // The clipboard arms must really run: pastes of clips, ones that bring a file with
+    // them, cuts of clips and of notes, and note pastes that grow their clip.
+    for (k, n) in exercised.iter().enumerate() {
+        assert!(*n > 0, "clipboard case {k} never applied: {exercised:?}");
+    }
+}
+
+/// Which clipboard case a generated command is, for the coverage check: 0 a clip paste,
+/// 1 a paste that inserts a file, 2 a cut of clips, 3 a cut of notes, 4 a note paste
+/// that grows its clip, 5 a time cut that cuts something, 6 one that leaves a piece of
+/// a looping automation clip (the loop-phase crop).
+fn clipboard_kind(cmd: &Command) -> Option<usize> {
+    let Command::Batch {
+        label_key,
+        commands,
+    } = cmd
+    else {
+        return None;
+    };
+    let has = |f: fn(&Command) -> bool| commands.iter().any(f);
+    match label_key.as_str() {
+        "cmd.paste_clips" if has(|c| matches!(c, Command::InsertAudioSource { .. })) => Some(1),
+        "cmd.paste_clips" if has(|c| matches!(c, Command::InsertClip { .. })) => Some(0),
+        "cmd.cut_clips" if !commands.is_empty() => Some(2),
+        "cmd.cut_notes" => Some(3),
+        "cmd.paste"
+            if has(|c| {
+                matches!(
+                    c,
+                    Command::SetClipBounds { .. } | Command::SetClipLoop { .. }
+                )
+            }) =>
+        {
+            Some(4)
+        }
+        "cmd.cut_time"
+            if has(|c| {
+                matches!(c, Command::InsertClip { clip, .. }
+                    if clip.automation.is_some() && clip.content_length.is_none())
+            }) =>
+        {
+            Some(6)
+        }
+        "cmd.cut_time"
+            if has(|c| {
+                matches!(
+                    c,
+                    Command::RemoveClip { .. } | Command::SetClipBounds { .. }
+                )
+            }) =>
+        {
+            Some(5)
+        }
+        _ => None,
     }
 }
 

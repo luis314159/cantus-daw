@@ -16,7 +16,7 @@
 //! 3. **Nothing is destroyed to make an edit.** Notes outside a window are kept, so every
 //!    operation here is undone by the inverse the command bus already produces.
 
-use cantus_core::{Clip, ClipId, Color, Command, Note, NoteId, Project, Ticks, TrackId};
+use cantus_core::{Clip, ClipId, Color, Command, Note, Project, Ticks, TrackId};
 
 /// A clip, identified the way the selection identifies it.
 pub type ClipRef = (TrackId, ClipId);
@@ -89,47 +89,10 @@ pub fn slip(track: TrackId, clip: &Clip, by: Ticks) -> Vec<Command> {
     }]
 }
 
-/// Split a clip at a timeline tick. `None` when the tick is not strictly inside it.
-///
-/// No note moves and no note is copied into one half or the other: both halves carry the
-/// whole note list and differ only in which part of it their window shows. That is why
-/// [`glue`] can put them back together exactly.
-pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Command>> {
-    if at <= clip.start || at >= clip.end() {
-        return None;
-    }
-    let mut right = Clip {
-        id: ClipId(ids()),
-        name: clip.name.clone(),
-        start: at,
-        length: clip.end() - at,
-        offset: clip.content_of(at),
-        content_length: clip.content_length,
-        muted: clip.muted,
-        color: clip.color,
-        notes: clip.notes.clone(),
-        audio: clip.audio.clone(),
-        lane: clip.lane,
-        automation: clip.automation.clone(),
-    };
-    // An audio clip's fades stay at the outer edges (and a reversed one's halves swap
-    // their windows): `audio_clips::split_audio`.
-    let audio = crate::audio_clips::split_audio(track, clip, at, &mut right);
-    let mut out = vec![
-        Command::SetClipBounds {
-            track,
-            clip: clip.id,
-            start: clip.start,
-            length: at - clip.start,
-        },
-        Command::InsertClip {
-            track,
-            clip: Box::new(right),
-        },
-    ];
-    out.extend(audio);
-    Some(out)
-}
+/// Split a clip at a timeline tick (`None` when the tick is not strictly inside it). It
+/// lives in `cantus_core::clipboard` because the time-range crop is built on it; both
+/// halves carry the whole note list, which is why [`glue`] can put them back exactly.
+pub use cantus_core::clipboard::split;
 
 /// Glue clips on one track into a single clip spanning all of them.
 ///
@@ -266,34 +229,9 @@ fn glue_automation(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
     Some(commands)
 }
 
-/// An independent copy of a clip: a fresh clip id **and** fresh note ids.
-///
-/// The new note ids are the point. Split deliberately shares them so the halves can be
-/// glued back together; a copy must not, or gluing a clip to its own duplicate would see
-/// every note as one it already had and throw the lot away.
-pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
-    Clip {
-        audio: clip.audio.clone(),
-        lane: clip.lane,
-        automation: clip.automation.clone(),
-        id: ClipId(ids()),
-        name: clip.name.clone(),
-        start,
-        length: clip.length,
-        offset: clip.offset,
-        content_length: clip.content_length,
-        muted: clip.muted,
-        color: clip.color,
-        notes: clip
-            .notes
-            .iter()
-            .map(|n| Note {
-                id: NoteId(ids()),
-                ..n.clone()
-            })
-            .collect(),
-    }
-}
+/// An independent copy of a clip: a fresh clip id **and** fresh note ids. It lives with
+/// the clipboard's builders now (ADR 0036), which paste nothing but copies.
+pub use cantus_core::clipboard::copy_of;
 
 /// Duplicate each clip immediately after itself, the way `Ctrl+B` does in FL and `Ctrl+D`
 /// in Live. Returns the commands and the refs of the copies, so the caller can select them
@@ -309,36 +247,6 @@ pub fn duplicate(project: &Project, sel: &[ClipRef], ids: Ids) -> (Vec<Command>,
         made.push((r.0, copy.id));
         commands.push(Command::InsertClip {
             track: r.0,
-            clip: Box::new(copy),
-        });
-    }
-    (commands, made)
-}
-
-/// Paste clips whose starts are relative to the earliest one, anchored at `at`.
-///
-/// A clip pasted onto a track that no longer exists lands on `fallback` instead of being
-/// dropped: the clipboard outlives the track it was cut from, and silently losing what the
-/// user copied is worse than putting it somewhere they can see.
-pub fn paste(
-    project: &Project,
-    clipboard: &[(usize, Clip)],
-    tracks_from: usize,
-    at: Ticks,
-    ids: Ids,
-) -> (Vec<Command>, Vec<ClipRef>) {
-    let mut commands = Vec::new();
-    let mut made = Vec::new();
-    if project.tracks.is_empty() {
-        return (commands, made);
-    }
-    for (row, clip) in clipboard {
-        let index = (tracks_from + row).min(project.tracks.len() - 1);
-        let track = project.tracks[index].id;
-        let copy = copy_of(clip, at + clip.start, ids);
-        made.push((track, copy.id));
-        commands.push(Command::InsertClip {
-            track,
             clip: Box::new(copy),
         });
     }

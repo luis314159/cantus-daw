@@ -113,6 +113,8 @@ fn stems_in_every_format_and_flac_stems_to_the_bit() {
             snapshot: snapshot(),
             options: opts.clone(),
             specs: specs.clone(),
+            units: Vec::new(),
+            instruments: Vec::new(),
         };
         let done = export_stems(job, &s, &Tags::default(), dir.path(), &Control::new()).unwrap();
         let ext = format.extension();
@@ -206,6 +208,8 @@ fn a_stopped_stems_export_leaves_nothing_whether_rendering_or_encoding() {
                 ..Default::default()
             },
             specs: specs(&p),
+            units: Vec::new(),
+            instruments: Vec::new(),
         };
         let f = folder.clone();
         cancel_at(at, move |ctl| {
@@ -251,4 +255,193 @@ fn a_file_already_there_is_replaced_only_when_the_new_one_is_whole() {
     );
     assert!(ok.is_ok());
     assert_ne!(std::fs::read(&path).unwrap(), b"the old file");
+}
+
+/// A mix long enough to watch: the project with a long tail.
+fn long_mix() -> MixJob {
+    MixJob {
+        snapshot: snapshot(),
+        render: RenderOptions {
+            tail_seconds: 30.0,
+            ..Default::default()
+        },
+        units: Vec::new(),
+        instruments: Vec::new(),
+    }
+}
+
+#[test]
+fn the_mix_render_fills_the_bar_and_stops_when_asked() {
+    // The bar follows the render's frames (round 23): during the render the fraction
+    // rises inside the render's share, then a stop ends the render at its next block.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("song.wav");
+    let ctl = Control::new();
+    let (c, p) = (ctl.clone(), path.clone());
+    let job = std::thread::spawn(move || {
+        export_mix(
+            long_mix(),
+            &ExportSettings::default(),
+            &Tags::default(),
+            &p,
+            &c,
+        )
+    });
+    let mut seen = Vec::new();
+    let started = std::time::Instant::now();
+    while !job.is_finished() && started.elapsed().as_secs() < 60 {
+        if ctl.phase() == cantus_export::Phase::Render {
+            let f = ctl.fraction();
+            if f > 0.0 {
+                seen.push(f);
+            }
+            if f > 0.1 {
+                ctl.cancel();
+                break;
+            }
+        }
+        std::thread::yield_now();
+    }
+    let result = job.join().unwrap();
+    assert!(
+        seen.iter()
+            .any(|f| *f > 0.0 && *f < cantus_export::job::MIX_RENDER_SHARE),
+        "the render reported its progress: {seen:?}"
+    );
+    assert!(
+        seen.windows(2).all(|w| w[0] <= w[1]),
+        "and it only rises: {seen:?}"
+    );
+    assert!(
+        matches!(result, Err(ExportError::Cancelled)),
+        "a stop during the render stops it: {result:?}"
+    );
+    assert!(
+        files_in(dir.path()).is_empty(),
+        "{:?}",
+        files_in(dir.path())
+    );
+}
+
+#[test]
+fn a_finished_mix_says_its_render_is_done() {
+    let dir = tempfile::tempdir().unwrap();
+    let ctl = Control::new();
+    let job = MixJob {
+        render: render_opts(),
+        ..long_mix()
+    };
+    export_mix(
+        job,
+        &ExportSettings::default(),
+        &Tags::default(),
+        &dir.path().join("song.mp3"),
+        &ctl,
+    )
+    .unwrap();
+    assert_eq!(ctl.render.fraction(), 1.0);
+    assert_eq!(ctl.fraction(), 1.0);
+}
+
+#[test]
+fn a_stopped_stems_export_keeps_the_stems_of_the_last_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().to_path_buf();
+    let s = ExportSettings {
+        scope: Scope::Stems,
+        format: Format::Wav,
+        ..Default::default()
+    };
+    let p = project();
+    let job = |tail: f64| StemsJob {
+        snapshot: snapshot(),
+        options: StemOptions {
+            render: RenderOptions {
+                tail_seconds: tail,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        specs: specs(&p),
+        units: Vec::new(),
+        instruments: Vec::new(),
+    };
+    let first = export_stems(job(0.5), &s, &Tags::default(), &folder, &Control::new()).unwrap();
+    assert!(first.files.len() >= 2, "{:?}", first.files);
+    let before: Vec<(String, Vec<u8>)> = files_in(&folder)
+        .into_iter()
+        .map(|n| {
+            let bytes = std::fs::read(folder.join(&n)).unwrap();
+            (n, bytes)
+        })
+        .collect();
+    // Stopped while encoding the second stem (past the render's share of the bar).
+    let (j, f, s2) = (job(20.0), folder.clone(), s.clone());
+    cancel_at(0.85, move |ctl| {
+        export_stems(j, &s2, &Tags::default(), &f, &ctl)
+    });
+    let after: Vec<(String, Vec<u8>)> = files_in(&folder)
+        .into_iter()
+        .map(|n| {
+            let bytes = std::fs::read(folder.join(&n)).unwrap();
+            (n, bytes)
+        })
+        .collect();
+    assert_eq!(after, before, "the earlier stems are there, untouched");
+}
+
+/// A stem of the last export held open by another program (a player, without delete
+/// sharing): the new export fails, and the folder is the last export's, every file of it.
+#[cfg(windows)]
+#[test]
+fn a_stems_export_that_cannot_replace_one_file_replaces_none() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().to_path_buf();
+    let s = ExportSettings {
+        scope: Scope::Stems,
+        format: Format::Wav,
+        ..Default::default()
+    };
+    let p = project();
+    let job = |tail: f64| StemsJob {
+        snapshot: snapshot(),
+        options: StemOptions {
+            render: RenderOptions {
+                tail_seconds: tail,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        specs: specs(&p),
+        units: Vec::new(),
+        instruments: Vec::new(),
+    };
+    let first = export_stems(job(0.5), &s, &Tags::default(), &folder, &Control::new()).unwrap();
+    assert!(first.files.len() >= 2);
+    let read_all = || -> Vec<(String, Vec<u8>)> {
+        files_in(&folder)
+            .into_iter()
+            .map(|n| {
+                let b = std::fs::read(folder.join(&n)).unwrap();
+                (n, b)
+            })
+            .collect()
+    };
+    let before = read_all();
+    // The last stem in the list is held open, read-only sharing: it cannot be moved.
+    let held = first.files.last().unwrap().clone();
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1) // FILE_SHARE_READ
+        .open(&held)
+        .unwrap();
+    let r = export_stems(job(1.0), &s, &Tags::default(), &folder, &Control::new());
+    assert!(r.is_err(), "the export says it failed");
+    drop(lock);
+    assert_eq!(
+        read_all(),
+        before,
+        "the folder is the last export's, untouched"
+    );
 }

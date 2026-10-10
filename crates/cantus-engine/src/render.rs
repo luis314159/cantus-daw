@@ -65,6 +65,12 @@ pub struct RenderOptions {
     pub block_frames: usize,
     /// Peak-normalise the result to this level in dBFS (`None` = leave as is).
     pub normalize_peak_db: Option<f32>,
+    /// Start the result at the range's first tick: delay compensation makes the master
+    /// late by the project's total latency (a look-ahead's), so that much more is rendered
+    /// and the first frames dropped, as the stems trim the master. Off, the result is what
+    /// playing gives, sample for sample, latency included — what the engine's tests
+    /// compare; an export turns it on (round 23).
+    pub compensate_latency: bool,
 }
 
 impl Default for RenderOptions {
@@ -77,6 +83,7 @@ impl Default for RenderOptions {
             tail_seconds: 2.0,
             block_frames: 512,
             normalize_peak_db: None,
+            compensate_latency: false,
         }
     }
 }
@@ -210,20 +217,51 @@ pub fn render_with_progress(
         .max(Ticks::ZERO)
         .to_seconds(snapshot.tempo_bpm);
     let total_frames = ((content_seconds + opts.tail_seconds) * sr).ceil() as usize;
+    // With `compensate_latency`, sample 0 is the range's first tick: the master's lateness
+    // is rendered on and dropped from the front.
+    let latency = if opts.compensate_latency {
+        p.stats().latency_samples as usize
+    } else {
+        0
+    };
+    let frames = total_frames + latency;
+    // A range that ends before the song does stops there: its tail rings out what was
+    // playing (releases, delays, reverbs) and plays nothing that starts after it. The
+    // song itself plays to its end, every note to its own.
+    // The stop falls on the sample the transport reaches `end` at (its own arithmetic: a
+    // note starting exactly there must not fire before the stop).
+    let mut stop_at = opts.end.map(|e| {
+        crate::transport::sample_at(opts.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr)
+            as usize
+    });
     let mut out = vec![0f32; total_frames * channels];
     let mut buf = vec![0f32; block * channels];
 
-    progress.total.store(total_frames as u64, Relaxed);
+    progress.total.store(frames as u64, Relaxed);
     progress.done.store(0, Relaxed);
     let mut done = 0;
-    while done < total_frames {
+    while done < frames {
         if progress.cancel.load(Relaxed) {
             return Err(RenderError::Cancelled);
         }
-        let n = block.min(total_frames - done);
+        if stop_at == Some(done) {
+            tx.push(EngineMessage::Stop).ok();
+            stop_at = None;
+        }
+        let mut n = block.min(frames - done);
+        if let Some(s) = stop_at.filter(|s| *s < done + n) {
+            // The block ends where the range does (the processor is block-size
+            // independent, so the split moves no sample).
+            n = s - done;
+        }
         let chunk = &mut buf[..n * channels];
         p.process(chunk, channels);
-        out[done * channels..(done + n) * channels].copy_from_slice(chunk);
+        let skip = latency.saturating_sub(done).min(n);
+        if skip < n {
+            let at = done + skip - latency;
+            out[at * channels..(at + n - skip) * channels]
+                .copy_from_slice(&chunk[skip * channels..]);
+        }
         done += n;
         progress.done.store(done as u64, Relaxed);
         // Keep the event queue from filling (it is tiny on purpose).

@@ -211,11 +211,32 @@ impl Settings {
     pub fn load(path: &Path) -> Settings {
         match std::fs::read_to_string(path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
-                log::warn!("settings.json is not usable ({e}); using the defaults");
-                Settings::default()
+                log::warn!("settings.json is not wholly readable ({e}); keeping what is");
+                Settings::lenient(&text).unwrap_or_default()
             }),
             Err(_) => Settings::default(),
         }
+    }
+
+    /// The settings a file holds, one top-level field at a time: a field this build
+    /// cannot read (a choice a newer build wrote, round 23) keeps its default, and every
+    /// other field stays the user's — the audio device, the verse, autosave — instead of
+    /// all of them going back to the defaults.
+    fn lenient(text: &str) -> Option<Settings> {
+        use serde_json::Value;
+        let file: serde_json::Map<String, Value> = serde_json::from_str(text).ok()?;
+        let mut kept = serde_json::to_value(Settings::default())
+            .ok()?
+            .as_object()?
+            .clone();
+        for (key, value) in file {
+            let mut trial = kept.clone();
+            trial.insert(key, value);
+            if serde_json::from_value::<Settings>(Value::Object(trial.clone())).is_ok() {
+                kept = trial;
+            }
+        }
+        serde_json::from_value(Value::Object(kept)).ok()
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {

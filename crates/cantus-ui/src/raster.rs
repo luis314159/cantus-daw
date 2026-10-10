@@ -290,6 +290,34 @@ pub fn shoot_at(
     frames: usize,
     path: Option<&Path>,
     mut pointer: impl FnMut(usize) -> Option<egui::Pos2>,
+    ui: impl FnMut(&mut egui::Ui),
+) -> Canvas {
+    shoot_events(
+        ctx,
+        size,
+        ppp,
+        frames,
+        path,
+        |frame, _| {
+            pointer(frame)
+                .map(egui::Event::PointerMoved)
+                .into_iter()
+                .collect()
+        },
+        ui,
+    )
+}
+
+/// [`shoot`] with the input events `events(frame, ctx)` gives each frame — a click on
+/// what the frame before drew (round 23: the export dialog with a list open). One run of
+/// frames, as [`shoot_at`].
+pub fn shoot_events(
+    ctx: &egui::Context,
+    size: egui::Vec2,
+    ppp: f32,
+    frames: usize,
+    path: Option<&Path>,
+    mut events: impl FnMut(usize, &egui::Context) -> Vec<egui::Event>,
     mut ui: impl FnMut(&mut egui::Ui),
 ) -> Canvas {
     ctx.set_pixels_per_point(ppp);
@@ -302,10 +330,7 @@ pub fn shoot_at(
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
             time: Some(frame as f64 * 0.25),
             predicted_dt: 0.25,
-            events: pointer(frame)
-                .map(egui::Event::PointerMoved)
-                .into_iter()
-                .collect(),
+            events: events(frame, ctx),
             ..Default::default()
         };
         let mut out = ctx.run_ui(input, |root| ui(root));

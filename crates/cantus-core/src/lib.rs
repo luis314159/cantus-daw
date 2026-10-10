@@ -12,6 +12,7 @@
 pub mod audio;
 pub mod automation;
 pub mod bus;
+pub mod clipboard;
 pub mod command;
 pub mod effect;
 pub mod external;

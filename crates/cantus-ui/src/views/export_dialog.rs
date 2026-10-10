@@ -28,6 +28,18 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     if app.export.dialog.is_none() {
         return;
     }
+    ctx.data_mut(|d| d.remove::<Geo>(geo_id()));
+    // A menu left open behind the dialog when it opened (a clip's context menu) goes: it
+    // would sit under the veil and take Esc and Enter.
+    if std::mem::take(&mut app.export.fresh) {
+        egui::Popup::close_all(ctx);
+    }
+    // A list open as the frame starts takes Esc for itself, and a tag being typed takes
+    // Enter (egui closes the one and lets go of the other during the frame — a single-line
+    // field gives up its focus on the Enter that confirms it — so both are asked before
+    // anything is drawn).
+    let list_open = egui::Popup::is_any_open(ctx);
+    let typing = ctx.egui_wants_keyboard_input();
     let s = Style::current();
     let k = s.k;
     let screen = ctx.content_rect();
@@ -50,7 +62,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     let size = (SIZE * k).min(screen.size() - Vec2::splat(24.0));
     let rect = Rect::from_center_size(screen.center(), size);
     let mut close = false;
-    egui::Area::new(Id::new("cantus-export"))
+    egui::Area::new(layer().id)
         .order(egui::Order::Foreground)
         .fixed_pos(rect.min)
         .show(ctx, |ui| {
@@ -102,14 +114,61 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 close = true;
             }
         });
-    ctx.move_to_top(egui::LayerId::new(
-        egui::Order::Foreground,
-        Id::new("cantus-export"),
-    ));
-    let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-    if (close || escape) && !app.export.busy() {
+    // Over the veil and the window's own menus, every frame; its lists are sublayers of
+    // it (see `pick`), so they stay on top of it.
+    ctx.move_to_top(layer());
+    let escape = !list_open && ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    // Enter exports, as the button does — unless a tag is being typed or a list is open.
+    let enter = !list_open
+        && !typing
+        && !ctx.egui_wants_keyboard_input()
+        && ctx.input(|i| i.key_pressed(egui::Key::Enter));
+    if enter && !app.export.busy() && app.export.dialog.is_some() {
+        app.export.enter_pressed += 1;
+        ex::choose_and_start(app);
+    } else if (close || escape) && !app.export.busy() {
         ex::close(app);
     }
+}
+
+/// The dialog's layer.
+fn layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Foreground, Id::new("cantus-export"))
+}
+
+/// Where the dialog drew its controls this frame, by name: a row's control by its
+/// caption key, a segment as `key#i`, the open list's items as `list#i`, the presets as
+/// `preset#i`, the footer's buttons as `button.export` / `button.close` / `button.stop`.
+/// The tests click through it.
+type Geo = Vec<(String, Rect)>;
+
+fn geo_id() -> Id {
+    Id::new("cantus-export-geo")
+}
+
+/// Where `name` was drawn in the last frame of the dialog.
+pub fn geo(ctx: &egui::Context, name: &str) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Geo>(geo_id()))
+        .unwrap_or_default()
+        .into_iter()
+        .rev()
+        .find(|(n, _)| n == name)
+        .map(|(_, r)| r)
+}
+
+/// Every name drawn in the last frame of the dialog.
+pub fn geo_names(ctx: &egui::Context) -> Vec<String> {
+    ctx.data(|d| d.get_temp::<Geo>(geo_id()))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect()
+}
+
+pub(super) fn put(ui: &Ui, name: impl Into<String>, r: Rect) {
+    let name = name.into();
+    ui.ctx()
+        .data_mut(|d| d.get_temp_mut_or_default::<Geo>(geo_id()).push((name, r)));
 }
 
 /// The presets as cards, and *Custom* lit when the choices match none.
@@ -131,6 +190,7 @@ fn presets(ui: &mut Ui, d: &mut ExportSettings) {
             Some(preset_dot(p)),
             current == Some(p),
         );
+        put(ui, format!("preset#{}", p as u8), r);
         if resp.clicked() {
             *d = p.apply(d);
         }
@@ -194,6 +254,9 @@ pub(super) fn pick<T: Copy + PartialEq>(
     egui::Popup::menu(field)
         .frame(egui::Frame::NONE)
         .show(|ui| {
+            // The list is in the foreground like the dialog, which moves itself to the
+            // top every frame: as a sublayer it is drawn — and clicked — just above it.
+            ui.ctx().set_sublayer(layer(), ui.layer_id());
             let items: Vec<Item<'_>> = options
                 .iter()
                 .map(|(v, label)| Item::Action {
@@ -205,7 +268,16 @@ pub(super) fn pick<T: Copy + PartialEq>(
                 })
                 .collect();
             let width = field.rect.width().max(160.0);
-            if let Some(i) = crate::kit::widgets::menu_list(ui, &items, width).1.clicked {
+            let (resp, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
+            let k = Style::current().d(1.0);
+            for i in 0..items.len() {
+                put(
+                    ui,
+                    format!("list#{i}"),
+                    crate::kit::menu::row(resp.rect, &items, k, i),
+                );
+            }
+            if let Some(i) = clicks.clicked {
                 chosen = Some(options[i].0);
                 ui.close();
             }
@@ -260,7 +332,9 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
     );
     let mut close = false;
     if busy {
-        if parts::button(&mut child, &t("export_audio.stop"), true, true, 96.0).clicked() {
+        let b = parts::button(&mut child, &t("export_audio.stop"), true, true, 96.0);
+        put(&child, "button.stop", b.rect);
+        if b.clicked() {
             ex::stop(app);
         }
     } else {
@@ -270,7 +344,9 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
         } else {
             t("export_audio.export")
         };
-        if parts::button(&mut child, &label, true, true, 110.0).clicked() {
+        let b = parts::button(&mut child, &label, true, true, 110.0);
+        put(&child, "button.export", b.rect);
+        if b.clicked() {
             ex::choose_and_start(app);
         }
         child.add_space(8.0 * k);
@@ -279,7 +355,9 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
         } else {
             t("export_audio.cancel")
         };
-        close = parts::button(&mut child, &close_label, false, true, 90.0).clicked();
+        let b = parts::button(&mut child, &close_label, false, true, 90.0);
+        put(&child, "button.close", b.rect);
+        close = b.clicked();
     }
     close
 }

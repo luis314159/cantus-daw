@@ -530,6 +530,10 @@ pub fn apply(theme: &Theme, ctx: &egui::Context) {
     });
     ctx.set_visuals_of(egui::Theme::Dark, visuals(&pal));
     ctx.set_visuals_of(egui::Theme::Light, visuals(&pal));
+    // A switch made in the middle of a frame (the Appearance page) leaves that frame half
+    // in the old look: the next one is drawn at once, in the new look and from the new
+    // font atlas (round 23).
+    ctx.request_repaint();
 }
 
 pub fn visuals(pal: &Palette) -> Visuals {
@@ -538,6 +542,9 @@ pub fn visuals(pal: &Palette) -> Visuals {
     } else {
         Visuals::light()
     };
+    // The fader cap `design::install_style` sets: the visuals are replaced whole here, so
+    // it is set again or every theme switch would bring egui's round handle back.
+    v.handle_shape = egui::style::HandleShape::Rect { aspect_ratio: 0.38 };
     v.panel_fill = pal.panel;
     v.window_fill = pal.panel_raised;
     v.extreme_bg_color = pal.ink;

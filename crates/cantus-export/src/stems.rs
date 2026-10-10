@@ -1,9 +1,13 @@
 //! Stems in every format: the engine's one-pass stems render (ADR 0021 §3) into a hidden
 //! folder of 32-bit float WAV files beside the destination, then each converted and
-//! encoded to its place. Stems are never loudness-normalised — one by one they would no
-//! longer add up to the mix — and a stopped or failed export removes every file it made.
+//! encoded beside its place. Stems are never loudness-normalised — one by one they would
+//! no longer add up to the mix. Every stem is written whole (`name.ext.part`) before any
+//! is put in its place, so a stopped or failed export leaves the folder as it found it —
+//! the stems of an earlier export into it included.
 
-use crate::job::{finish_one, peak_db, stem_output_name, Control, Done, Phase, StemsJob};
+use crate::job::{
+    clipped, commit_all, encode_one, peak_db, stem_output_name, Control, Done, Phase, StemsJob,
+};
 use crate::process::Audio;
 use crate::settings::{ExportSettings, Tags};
 use crate::ExportError;
@@ -52,11 +56,13 @@ pub fn export_stems(
     std::fs::create_dir_all(folder)?;
     let scratch = Scratch(folder.join(format!(".cantus-stems-{}", std::process::id())));
     ctl.set(Phase::Render, 0.0);
-    let rendered = cantus_engine::render_stems_to_folder(
+    let rendered = cantus_engine::render_stems_to_folder_with(
         job.snapshot,
         &job.options,
         &job.specs,
         &scratch.0,
+        job.units,
+        job.instruments,
         &mut ctl.span(Phase::Render, 0.0, RENDER_SHARE),
     )
     .map_err(|e| match e {
@@ -76,6 +82,7 @@ pub fn export_stems(
         ..Default::default()
     };
     let n = rendered.written.len().max(1) as f32;
+    let mut parts = Vec::with_capacity(rendered.written.len());
     let result = (|| -> Result<(), ExportError> {
         for (i, wav) in rendered.written.iter().enumerate() {
             let name = wav
@@ -95,21 +102,19 @@ pub fn export_stems(
             let from = RENDER_SHARE + (1.0 - RENDER_SHARE) * i as f32 / n;
             let to = RENDER_SHARE + (1.0 - RENDER_SHARE) * (i + 1) as f32 / n;
             let path = folder.join(stem_output_name(&name, s));
-            let (file, a, _) = finish_one(audio, s, &t, &path, ctl, (from, to), false)?;
-            done.files.push(file);
+            let (part, a, _) = encode_one(audio, s, &t, &path, ctl, (from, to), false)?;
+            parts.push(part);
+            done.clipped += clipped(&a, s);
             done.rate = a.rate;
             done.peak_db = done.peak_db.max(peak_db(&a));
         }
         Ok(())
     })();
     drop(scratch);
-    if let Err(e) = result {
-        // Nothing of a stopped export stays: the stems already in place go too.
-        for f in &done.files {
-            let _ = std::fs::remove_file(f);
-        }
-        return Err(e);
-    }
+    // Stopped or failed: the parts go when dropped, and nothing in the folder was touched;
+    // then all of them go in, or none.
+    result?;
+    done.files = commit_all(parts)?;
     Ok(done)
 }
 

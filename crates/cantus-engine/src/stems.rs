@@ -323,8 +323,53 @@ pub fn render_stems_with(
     specs: &[StemSpec],
     make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
 ) -> Result<Vec<Stem>, StemsError> {
+    in_memory(snapshot, opts, specs, make_unit, Vec::new())
+}
+
+/// [`render_stems`] with the hosted plug-ins' and instruments' own instances, as
+/// [`render_stems_to_folder_with`] takes them.
+pub fn render_stems_hosted(
+    snapshot: Arc<Snapshot>,
+    opts: &StemOptions,
+    specs: &[StemSpec],
+    mut units: Vec<EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+) -> Result<Vec<Stem>, StemsError> {
+    in_memory(
+        snapshot,
+        opts,
+        specs,
+        &mut take_or_build(&mut units),
+        hosted,
+    )
+}
+
+/// An effect's unit: the one handed in for it (a hosted plug-in's instance), else the one
+/// the engine builds.
+fn take_or_build(units: &mut Vec<EffectUnit>) -> impl FnMut(&EffectSlot, f32) -> EffectUnit + '_ {
+    move |slot, sr| match units.iter().position(|u| u.id == slot.id) {
+        Some(i) => units.swap_remove(i),
+        None => EffectUnit::new(slot, sr),
+    }
+}
+
+fn in_memory(
+    snapshot: Arc<Snapshot>,
+    opts: &StemOptions,
+    specs: &[StemSpec],
+    make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
+    hosted: Vec<crate::inst::NativeUnit>,
+) -> Result<Vec<Stem>, StemsError> {
     let mut outs: Vec<Target> = specs.iter().map(|_| Target::Memory(Vec::new())).collect();
-    let (outs, _) = run(snapshot, opts, specs, make_unit, &mut outs, &mut |_| true)?;
+    let (outs, _) = run(
+        snapshot,
+        opts,
+        specs,
+        make_unit,
+        hosted,
+        &mut outs,
+        &mut |_| true,
+    )?;
     Ok(outs
         .into_iter()
         .zip(specs)
@@ -353,6 +398,32 @@ pub fn render_stems_to_folder(
     folder: &Path,
     progress: &mut dyn FnMut(f32) -> bool,
 ) -> Result<StemsDone, StemsError> {
+    render_stems_to_folder_with(
+        snapshot,
+        opts,
+        specs,
+        folder,
+        Vec::new(),
+        Vec::new(),
+        progress,
+    )
+}
+
+/// [`render_stems_to_folder`] with the hosted plug-ins' and instruments' own instances for
+/// this render, loaded on the main thread with the live ones' state (ADR 0019, ADR 0028),
+/// as [`crate::render_with_progress`] takes them: an effect with a unit here gets it, every
+/// other the unit the engine builds. One instance cannot be in two places, so the copies
+/// of the master chain a stem goes *through* (`through_master`) build their own units —
+/// a hosted insert on the master is a wire there.
+pub fn render_stems_to_folder_with(
+    snapshot: Arc<Snapshot>,
+    opts: &StemOptions,
+    specs: &[StemSpec],
+    folder: &Path,
+    mut units: Vec<EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+    progress: &mut dyn FnMut(f32) -> bool,
+) -> Result<StemsDone, StemsError> {
     std::fs::create_dir_all(folder)?;
     let spec = hound::WavSpec {
         channels: 2,
@@ -373,7 +444,8 @@ pub fn render_stems_to_folder(
         snapshot,
         opts,
         specs,
-        &mut |slot, sr| EffectUnit::new(slot, sr),
+        &mut take_or_build(&mut units),
+        hosted,
         &mut targets,
         progress,
     );
@@ -433,6 +505,7 @@ fn run(
     opts: &StemOptions,
     specs: &[StemSpec],
     make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
+    hosted: Vec<crate::inst::NativeUnit>,
     targets: &mut Vec<Target>,
     progress: &mut dyn FnMut(f32) -> bool,
 ) -> Result<(Vec<(Target, f32)>, StemsDone), StemsError> {
@@ -451,7 +524,8 @@ fn run(
     let snap = Arc::new(snap);
     let effect_count: usize = snap.effect_slots().count();
     // Native instruments' units, as `render::render` sends them.
-    let instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    let mut instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    instruments.extend(hosted.into_iter().map(Box::new));
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
@@ -524,13 +598,25 @@ fn run(
     let total = ((content_seconds + ro.tail_seconds) * sr).ceil() as usize;
     let longest = outs.iter().map(|o| o.late).max().unwrap_or(0);
     let frames = total + longest;
+    // A range that ends before the song stops there, as `render` does: the tail rings out
+    // and plays nothing that starts after the range.
+    let mut stop_at = ro.end.map(|e| {
+        crate::transport::sample_at(ro.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr) as usize
+    });
     let mut buf = vec![0f32; block * 2];
     let mut ml = vec![0f32; block];
     let mut mr = vec![0f32; block];
     let zeros = vec![0f32; block];
     let mut done = 0usize;
     while done < frames {
-        let n = block.min(frames - done);
+        if stop_at == Some(done) {
+            tx.push(EngineMessage::Stop).ok();
+            stop_at = None;
+        }
+        let mut n = block.min(frames - done);
+        if let Some(s) = stop_at.filter(|s| *s < done + n) {
+            n = s - done;
+        }
         let chunk = &mut buf[..n * 2];
         p.process(chunk, 2);
         for ((frame, a), b) in chunk.chunks_exact(2).zip(ml.iter_mut()).zip(mr.iter_mut()) {

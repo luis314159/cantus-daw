@@ -72,6 +72,10 @@ pub struct Status {
     pub at: Instant,
 }
 
+/// The label of `Command::ReplaceProject` (a DAWproject import, a recovery): undoing or
+/// redoing it swaps the whole project, which bumps `CantusApp::epoch`.
+const REPLACE_PROJECT: &str = "cmd.replace_project";
+
 pub struct CantusApp {
     pub bus: CommandBus,
     pub engine: EngineHandle,
@@ -195,11 +199,12 @@ pub struct CantusApp {
     pub keyboard: KeyboardPiano,
     /// Typing keyboard plays the selected track (Ctrl+T toggles; off frees more keys).
     pub keyboard_piano: bool,
-    /// Note clipboard, relative to the earliest copied note.
-    pub clipboard: Vec<cantus_core::Note>,
-    /// Clip clipboard: how many tracks below the topmost copied clip each one sat, and
-    /// the clip itself with its start relative to the earliest.
-    pub clip_clipboard: Vec<(usize, Clip)>,
+    /// Cut, copy and paste: what was copied, and a paste waiting on the system clipboard
+    /// (ADR 0036, `crate::clipboard`).
+    pub clipboard: crate::clipboard::ClipboardState,
+    /// Which arrangement selection — clips or the time range — was touched last; an
+    /// arrangement copy takes that one.
+    pub last_selection: crate::clipboard::SelKind,
     pub status: Status,
     pub show_stats: bool,
     pub show_about: bool,
@@ -421,8 +426,8 @@ impl CantusApp {
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
             keyboard_piano: false,
-            clipboard: Vec::new(),
-            clip_clipboard: Vec::new(),
+            clipboard: Default::default(),
+            last_selection: Default::default(),
             status: Status {
                 text: t("status.ready"),
                 error: false,
@@ -493,16 +498,25 @@ impl CantusApp {
     }
 
     pub fn undo(&mut self) {
+        let replaced = self.bus.undo_label_key() == Some(REPLACE_PROJECT);
         self.bus.undo();
+        if replaced {
+            // Another project is back: ids copied from this one mean other things there.
+            self.epoch += 1;
+        }
         self.validate_selection();
     }
 
     pub fn redo(&mut self) {
+        let replaced = self.bus.redo_label_key() == Some(REPLACE_PROJECT);
         self.bus.redo();
+        if replaced {
+            self.epoch += 1;
+        }
         self.validate_selection();
     }
 
-    fn validate_selection(&mut self) {
+    pub(crate) fn validate_selection(&mut self) {
         let p = self.bus.project();
         if let Some(t) = self.selected_track {
             if p.track(t).is_none() {
@@ -1372,6 +1386,7 @@ impl CantusApp {
         self.inspector
             .follow(views::inspector::Subject::Clip(track, clip));
         self.selected_clips = vec![(track, clip)];
+        self.last_selection = crate::clipboard::SelKind::Clips;
         if self.selected_clip != Some(clip) {
             self.selected_clip = Some(clip);
             self.selected_notes.clear();
@@ -1537,6 +1552,7 @@ impl CantusApp {
 
     /// Ctrl+click: add the clip to the selection, or take it out again.
     pub fn toggle_clip_selection(&mut self, track: TrackId, clip: ClipId) {
+        self.last_selection = crate::clipboard::SelKind::Clips;
         if let Some(i) = self.selected_clips.iter().position(|r| *r == (track, clip)) {
             self.selected_clips.remove(i);
             // The piano roll cannot edit a clip that is no longer selected; hand it
@@ -1559,6 +1575,7 @@ impl CantusApp {
     /// Replace the whole clip selection — what a marquee ends with.
     pub fn set_clip_selection(&mut self, clips: Vec<ClipRef>) {
         self.selected_clips = clips;
+        self.last_selection = crate::clipboard::SelKind::Clips;
         if let Some((t, c)) = self.selected_clips.first().copied() {
             self.selected_track = Some(t);
             if self.selected_clip != Some(c) {
@@ -1577,10 +1594,12 @@ impl CantusApp {
         let (a, b) = if from <= to { (from, to) } else { (to, from) };
         let a = a.max(Ticks::ZERO);
         self.time_selection = (b > a).then_some((a, b));
+        self.last_selection = crate::clipboard::SelKind::Time;
     }
 
     pub fn clear_time_selection(&mut self) {
         self.time_selection = None;
+        self.last_selection = crate::clipboard::SelKind::Clips;
     }
 
     /// Put the loop brace on the time selection and switch looping on.
@@ -1744,7 +1763,12 @@ impl CantusApp {
 
     /// Run a batch, and select what it produced. Nothing happens if the batch is empty:
     /// an edit that changes nothing must not land in the undo history.
-    fn exec_clip_batch(&mut self, label: &str, commands: Vec<Command>, select: Vec<ClipRef>) {
+    pub(crate) fn exec_clip_batch(
+        &mut self,
+        label: &str,
+        commands: Vec<Command>,
+        select: Vec<ClipRef>,
+    ) {
         if commands.is_empty() {
             return;
         }
@@ -1764,7 +1788,7 @@ impl CantusApp {
     /// notes it is about to build, and `CommandBus::alloc_id` borrows the bus. So the ids
     /// are taken from the project's counter directly and the bus is told afterwards
     /// ([`CommandBus::reserve_ids`]).
-    fn with_ids<R>(&mut self, f: impl FnOnce(&Project, clips::Ids) -> R) -> R {
+    pub(crate) fn with_ids<R>(&mut self, f: impl FnOnce(&Project, clips::Ids) -> R) -> R {
         let mut next = self.bus.project().next_id;
         let out = {
             let project = self.bus.project();
@@ -1845,60 +1869,7 @@ impl CantusApp {
     pub fn duplicate_clips(&mut self) {
         let sel = self.clip_selection();
         let (commands, made) = self.with_ids(|project, ids| clips::duplicate(project, &sel, ids));
-        self.exec_clip_batch("cmd.duplicate", commands, made);
-    }
-
-    /// Copy the selected clips, keeping their spacing in time *and* across tracks, so a
-    /// four-bar section lifted from three tracks pastes back as a four-bar section on
-    /// three tracks.
-    pub fn copy_clips(&mut self) {
-        let sel = self.clip_selection();
-        let project = self.bus.project();
-        let mut rows: Vec<(usize, Clip)> = sel
-            .iter()
-            .filter_map(|r| {
-                Some((
-                    project.track_index(r.0)?,
-                    clips::clip_of(project, *r)?.clone(),
-                ))
-            })
-            .collect();
-        if rows.is_empty() {
-            return;
-        }
-        let top = rows.iter().map(|(i, _)| *i).min().unwrap_or(0);
-        let earliest = rows
-            .iter()
-            .map(|(_, c)| c.start)
-            .min()
-            .unwrap_or(Ticks::ZERO);
-        for (row, clip) in &mut rows {
-            *row -= top;
-            clip.start -= earliest;
-        }
-        self.clip_clipboard = rows;
-    }
-
-    pub fn cut_clips(&mut self) {
-        self.copy_clips();
-        self.delete_clip_selection();
-    }
-
-    /// Paste at the playhead, on the selected track and the ones below it.
-    pub fn paste_clips(&mut self) {
-        if self.clip_clipboard.is_empty() {
-            return;
-        }
-        let at = self.engine.position().snap(self.arrangement.grid);
-        let from = self
-            .selected_track
-            .and_then(|t| self.project().track_index(t))
-            .unwrap_or(0);
-        let board = std::mem::take(&mut self.clip_clipboard);
-        let (commands, made) =
-            self.with_ids(|project, ids| clips::paste(project, &board, from, at, ids));
-        self.clip_clipboard = board;
-        self.exec_clip_batch("cmd.paste", commands, made);
+        self.exec_clip_batch("cmd.duplicate_clips", commands, made);
     }
 
     pub fn delete_clip_selection(&mut self) {
@@ -2041,7 +2012,7 @@ impl CantusApp {
             }
         });
         let label = match result {
-            ClipDragResult::Move { copy: true, .. } => "cmd.duplicate",
+            ClipDragResult::Move { copy: true, .. } => "cmd.duplicate_clips",
             ClipDragResult::Move { .. } => "cmd.move_clip",
             ClipDragResult::Slip { .. } => "cmd.set_clip_offset",
             _ => "cmd.set_clip_bounds",
@@ -2328,79 +2299,6 @@ impl CantusApp {
         }
     }
 
-    pub fn copy_selection(&mut self) {
-        let Some((_, _, sel)) = self.selected_note_values() else {
-            return;
-        };
-        let start = sel.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
-        self.clipboard = sel
-            .into_iter()
-            .map(|n| cantus_core::Note {
-                start: n.start - start,
-                ..n
-            })
-            .collect();
-    }
-
-    pub fn cut_selection(&mut self) {
-        self.copy_selection();
-        self.delete_selection();
-    }
-
-    /// Paste at the playhead (clip-relative, snapped to the grid), or at 0 if the playhead
-    /// is outside the clip.
-    pub fn paste_clipboard(&mut self) {
-        if self.clipboard.is_empty() {
-            return;
-        }
-        let (Some(t), Some(c)) = (self.selected_track, self.selected_clip) else {
-            return;
-        };
-        let Some(clip) = self.project().track(t).and_then(|tr| tr.clip(c)).cloned() else {
-            return;
-        };
-        let at = match clip.content_shown_at(self.engine.position()) {
-            Some(c) => c.snap_floor(self.piano_roll.grid),
-            None => clip.content_start(),
-        };
-        let notes: Vec<_> = self
-            .clipboard
-            .clone()
-            .into_iter()
-            .map(|n| {
-                let mut m = self
-                    .bus
-                    .new_note(n.start + at, n.length, n.pitch, n.velocity);
-                m.muted = n.muted;
-                m
-            })
-            .collect();
-        let end = notes.iter().map(|n| n.end()).max().unwrap_or(Ticks::ZERO);
-        let ids = notes.iter().map(|n| n.id).collect();
-        let mut commands = vec![Command::InsertNotes {
-            track: t,
-            clip: c,
-            notes,
-        }];
-        if clip.content_end() < end {
-            commands.insert(
-                0,
-                Command::SetClipBounds {
-                    track: t,
-                    clip: c,
-                    start: clip.start,
-                    length: end - clip.offset,
-                },
-            );
-        }
-        if self.exec(Command::Batch {
-            label_key: "cmd.paste".into(),
-            commands,
-        }) {
-            self.selected_notes = ids;
-        }
-    }
-
     // ---- appearance -----------------------------------------------------------------
 
     /// Show the appearance file in the OS file manager so the user can edit it.
@@ -2507,7 +2405,7 @@ impl CantusApp {
         self.auditions.push((track, pitch, Instant::now()));
     }
 
-    fn apply_key_event(&mut self, ev: KeyEvent) {
+    pub(crate) fn apply_key_event(&mut self, ev: KeyEvent) {
         let Some(track) = self.selected_track else {
             return;
         };
@@ -2774,7 +2672,8 @@ impl CantusApp {
 
     /// File ▸ Export… (Ctrl+E): the export dialog (ADR 0033).
     pub fn export_dialog(&mut self) {
-        if !self.export.busy() {
+        // Already open: the choices being made stay.
+        if !self.export.busy() && self.export.dialog.is_none() {
             views::export::open(self, None);
         }
     }
@@ -2916,10 +2815,17 @@ impl CantusApp {
         if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() || self.picker.is_some() {
             return;
         }
+        // The export dialog is modal: its keys are its own (Esc, Enter), and nothing
+        // reaches the project behind it (round 23).
+        if self.export.dialog.is_some() {
+            return;
+        }
         // A focused fader moves with the arrow keys. This dispatch runs before any panel
         // is laid out, so without the claim the same press would nudge the note selection
         // as well (`crate::widgets`).
         let arrows_taken = crate::widgets::arrow_keys_claimed(ctx);
+        // Ctrl+V's text comes with its event; a menu's paste waits for it (ADR 0036).
+        self.take_paste_event(ctx);
         for action in self.keymap.pressed(ctx, self.keyboard_piano, arrows_taken) {
             // A bare M or S mutes or solos the selected strip only while the mixer is what
             // is being edited; elsewhere the letters stay out of the way.
@@ -2930,6 +2836,7 @@ impl CantusApp {
             }
             self.run_action(action);
         }
+        self.settle_paste(ctx);
         if self.keyboard_piano {
             for ev in self.keyboard.poll(ctx) {
                 self.apply_key_event(ev);
@@ -2983,28 +2890,12 @@ impl CantusApp {
             // once for notes and once for clips. Which one runs is decided by the half of
             // the window the user last edited in (`EditFocus`) — not by which is
             // non-empty, because both usually are, and not by a separate shortcut, because
-            // then everyone would have to learn two.
-            Cut => {
-                if self.editing_clips() {
-                    self.cut_clips();
-                } else {
-                    self.cut_selection();
-                }
-            }
-            Copy => {
-                if self.editing_clips() {
-                    self.copy_clips();
-                } else {
-                    self.copy_selection();
-                }
-            }
-            Paste => {
-                if self.editing_clips() {
-                    self.paste_clips();
-                } else {
-                    self.paste_clipboard();
-                }
-            }
+            // then everyone would have to learn two. The clipboard goes by the focus alone:
+            // a paste needs no selection, and a copy with none takes the whole clip or the
+            // time range (ADR 0036, `crate::clipboard`).
+            Cut => self.clipboard_cut(),
+            Copy => self.clipboard_copy(),
+            Paste => self.clipboard_paste(),
             Duplicate => {
                 if self.editing_clips() {
                     self.duplicate_clips();
@@ -3614,7 +3505,8 @@ fn captured_binding(ctx: &egui::Context) -> Option<crate::keymap::Binding> {
                 shift: m.shift,
                 alt: m.alt,
             }),
-            _ => None,
+            // Ctrl+C / X / V arrive as clipboard events, never as keys (ADR 0036).
+            e => crate::keymap::captured_clipboard_binding(e, m),
         })
     })
 }

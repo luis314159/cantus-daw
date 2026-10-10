@@ -1,0 +1,17 @@
+# clipboard — round 23: cut, copy and paste of notes, clips and time ranges (ADR 0036).
+# Every key here needs its twin in clipboard.es.txt.
+cmd.cut_notes = cut notes
+cmd.cut_clips = cut clips
+cmd.cut_time = cut time selection
+cmd.paste_clips = paste clips
+cmd.duplicate_clips = duplicate clips
+clipboard.status.copied_notes = {n} notes copied
+clipboard.status.copied_clips = {n} clips copied
+clipboard.status.copied_time = {n} clips copied from the time selection
+clipboard.status.nothing = Nothing to copy: select notes, clips or a time range
+clipboard.status.empty = The clipboard is empty
+clipboard.status.no_clip = Select a note clip to paste the notes into
+clipboard.status.clips_in_piano_roll = The clipboard holds clips: paste them in the arrangement
+clipboard.status.automation_skipped = {n} automation clips were not pasted: what they automate belongs to another project
+clipboard.status.newer = This clipboard comes from a newer version of Cantus
+clipboard.status.older = This clipboard comes from an older version of Cantus that this one cannot read: copy it again

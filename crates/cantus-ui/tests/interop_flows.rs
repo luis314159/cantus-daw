@@ -163,33 +163,6 @@ fn stems_are_named_as_the_desk_names_them() {
 }
 
 #[test]
-fn stems_export_off_the_interface_thread_and_say_so() {
-    let _lang = language();
-    let mut a = app(starter_project());
-    let dir = tempfile::tempdir().unwrap();
-    let dialog = interop::StemsDialog {
-        tail_seconds: 0.5,
-        folder: Some(dir.path().to_path_buf()),
-        ..Default::default()
-    };
-    interop::export_stems_to(&mut a, dir.path(), &dialog);
-    assert!(a.interop.busy());
-    interop::wait_for_stems(&mut a);
-    assert!(!a.interop.busy());
-    assert!(a.status.text.contains("files: 1,"), "{}", a.status.text);
-    let files: Vec<String> = std::fs::read_dir(dir.path())
-        .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .collect();
-    let track = &a.project().tracks[0].name;
-    assert_eq!(
-        files,
-        vec![format!("01 {track}.wav")],
-        "the one strip that plays"
-    );
-}
-
-#[test]
 fn every_report_line_has_words_in_both_languages() {
     let _lang = language();
     for locale in Locale::ALL {
@@ -223,7 +196,6 @@ fn the_dialogs_and_the_report_render() {
         scope: interop::MidiScope::Clip,
         ppq: 480,
     });
-    a.interop.stems = Some(interop::StemsDialog::default());
     let imported = dawproject::import(&dawproject::export(&starter_project(), "0").bytes).unwrap();
     a.interop.report = Some(interop::ReportWindow {
         title: "Report".into(),
@@ -251,7 +223,7 @@ fn the_dialogs_and_the_report_render() {
     }
     i18n::set_locale(Locale::En);
     // Nothing was clicked, so everything is still open.
-    assert!(a.interop.midi_import.is_some() && a.interop.stems.is_some());
+    assert!(a.interop.midi_import.is_some() && a.interop.midi_export.is_some());
 }
 
 #[test]

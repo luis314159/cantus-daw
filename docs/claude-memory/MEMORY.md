@@ -11,3 +11,5 @@
 - [Round 22: multicore pool + beta hardening](round-22.md) — started 2026-10-07; base c8bc9f2; r21 not yet pushed
 - [Backlog ideas: just record them](feedback-backlog-ideas.md) — owner's mid-round feature ideas go to BACKLOG-excellence.md with a brief reply
 - [Final goal: undeniably the best DAW](goal-best-daw.md) — measurable best, free and commercial; backlog §0 scorecard; adoption in parallel
+- [Round 23: beta blockers](round-23.md) — export dialog audit+fixes (ADR 0035), theme text cache fix, CPU tests best-of-5, Ctrl+C/X/V (ADR 0036); uncommitted in F:\projects\daw-r23
+- [F: machine build quirks](machine-f-drive-build-quirks.md) — cargo off PATH, incremental link failures (turn incremental off), UAC blocks *setup*/*update* test exes

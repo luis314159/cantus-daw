@@ -12,6 +12,7 @@ pub mod audio_setup;
 pub mod autosave;
 pub mod automation;
 pub mod boot;
+pub mod clipboard;
 pub mod clips;
 pub mod comping;
 pub mod demos;

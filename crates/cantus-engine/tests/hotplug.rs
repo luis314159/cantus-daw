@@ -73,9 +73,11 @@ fn polling_never_waits_for_a_slow_scan() {
     for _ in 0..100 {
         let _ = w.poll();
     }
-    assert!(t0.elapsed() < Duration::from_millis(50));
+    // Well under the scan's 300 ms, with room for a loaded machine's preemptions (round
+    // 23: 50 ms was a few scheduler quanta).
+    assert!(t0.elapsed() < Duration::from_millis(150));
     // Dropping the watch does not wait for the scan either.
     let t0 = Instant::now();
     drop(w);
-    assert!(t0.elapsed() < Duration::from_millis(50));
+    assert!(t0.elapsed() < Duration::from_millis(150));
 }

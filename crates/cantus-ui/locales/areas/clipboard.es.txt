@@ -1,0 +1,17 @@
+# clipboard — ronda 23: cortar, copiar y pegar notas, clips y rangos de tiempo (ADR 0036).
+# Cada clave aquí tiene su gemela en clipboard.en.txt.
+cmd.cut_notes = cortar notas
+cmd.cut_clips = cortar clips
+cmd.cut_time = cortar la selección de tiempo
+cmd.paste_clips = pegar clips
+cmd.duplicate_clips = duplicar clips
+clipboard.status.copied_notes = {n} notas copiadas
+clipboard.status.copied_clips = {n} clips copiados
+clipboard.status.copied_time = {n} clips copiados de la selección de tiempo
+clipboard.status.nothing = Nada que copiar: selecciona notas, clips o un rango de tiempo
+clipboard.status.empty = El portapapeles está vacío
+clipboard.status.no_clip = Selecciona un clip de notas para pegar las notas
+clipboard.status.clips_in_piano_roll = El portapapeles contiene clips: pégalos en el arreglo
+clipboard.status.automation_skipped = No se pegaron {n} clips de automatización: lo que automatizan pertenece a otro proyecto
+clipboard.status.newer = Este portapapeles viene de una versión más nueva de Cantus
+clipboard.status.older = Este portapapeles viene de una versión anterior de Cantus que esta no puede leer: vuelve a copiarlo
