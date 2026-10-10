@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cantus — manual de inicio rápido</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><span class="crumb">Manual</span><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="cantus--manual-de-inicio-rápido">Cantus — manual de inicio rápido</h1>
+<p><em>Para Cantus 0.1.0-beta.1 en Windows · <a href="../en/index.html">Read in English</a></em></p>
+<p>Cantus es una estación de trabajo de audio digital libre y de código abierto: graba, compón, mezcla y masteriza una canción, de la primera nota al archivo terminado. Este manual te lleva hasta ahí en una tarde. Todo lo que nombra está en el programa tal como es hoy; donde la beta aún tiene huecos, el <a href="#14-problemas-conocidos-y-limitaciones">capítulo 14</a> lo dice.</p>
+<p><img src="../img/startup.png" alt="Cantus al iniciar: el arreglo, el mezclador abajo, el inspector a la derecha" loading="lazy"></p>
+<p><strong>Contenido</strong></p>
+<ol>
+<li><a href="#1-instalación">Instalación</a></li>
+<li><a href="#2-primer-inicio-configura-tu-audio">Primer inicio: configura tu audio</a></li>
+<li><a href="#3-el-espacio-de-trabajo">El espacio de trabajo</a></li>
+<li><a href="#4-grabar-audio-y-midi">Grabar audio y MIDI</a></li>
+<li><a href="#5-editar-clips-piano-roll-automatización">Editar: clips, piano roll, automatización</a></li>
+<li><a href="#6-mezclar-el-mezclador-inserciones-y-envíos">Mezclar: el mezclador, inserciones y envíos</a></li>
+<li><a href="#7-masterizar-la-cadena-del-máster-fervor-latitudo-culmen">Masterizar: la cadena del máster, Fervor, Latitudo, Culmen</a></li>
+<li><a href="#8-exportar">Exportar</a></li>
+<li><a href="#9-sonidos-el-explorador-y-los-paquetes-de-sonidos">Sonidos: el explorador y los paquetes de sonidos</a></li>
+<li><a href="#10-instrumentos-y-efectos-el-selector-de-dispositivos">Instrumentos y efectos: el selector de dispositivos</a></li>
+<li><a href="#11-proyectos-autoguardado-y-ajustes">Proyectos, autoguardado y ajustes</a></li>
+<li><a href="#12-atajos-de-teclado">Atajos de teclado</a></li>
+<li><a href="#13-privacidad-y-actualizaciones">Privacidad y actualizaciones</a></li>
+<li><a href="#14-problemas-conocidos-y-limitaciones">Problemas conocidos y limitaciones</a></li>
+<li><a href="#15-reportar-un-error">Reportar un error</a></li>
+</ol>
+<h2 id="1-instalación">1. Instalación</h2>
+<p>Necesitas Windows 11 de 64 bits (Windows 10 debería funcionar, pero no se ha probado) y unos 200 MB de disco.</p>
+<ol>
+<li>Descarga <code>Cantus-0.1.0-beta.1-windows-x64-setup.exe</code> de la <a href="https://github.com/luis314159/cantus/releases">página de versiones</a>.</li>
+<li>Ejecútalo. Se instala solo para ti, en <code>%LOCALAPPDATA%\Programs\Cantus</code>, y no pide permisos de administrador. Esta beta aún no está firmada, así que Windows puede mostrar <em>&quot;Windows protegió tu PC&quot;</em>: elige <em>Más información ▸ Ejecutar de todas formas</em>.</li>
+<li>Elige los componentes: el programa (obligatorio), <em>Abrir los proyectos .cantus con Cantus</em> (activado), un acceso directo en el escritorio (desactivado), los plug-ins CLAP y VST3 para otros DAW (activados) y <em>Controlador FlexASIO (se descarga ahora)</em> (desactivado — márcalo si tu tarjeta de sonido no tiene controlador ASIO propio; ver el <a href="#2-primer-inicio-configura-tu-audio">capítulo 2</a>).</li>
+</ol>
+<p><strong>Copia portátil.</strong> Descomprime <code>Cantus-0.1.0-beta.1-windows-x64-portable.zip</code> donde quieras (una memoria USB sirve). Por el archivo <code>portable.txt</code> junto a <code>cantus.exe</code>, esa copia guarda sus ajustes en la carpeta <code>data</code> de al lado y no escribe nada en tu perfil.</p>
+<p><strong>Desinstalar</strong> desde <em>Aplicaciones</em> de Windows. Tus ajustes, presets y autoguardados solo se borran si marcas esa casilla; tus proyectos nunca se tocan.</p>
+<h2 id="2-primer-inicio-configura-tu-audio">2. Primer inicio: configura tu audio</h2>
+<p>La primera vez que Cantus arranca, se abre la ventana <strong>Configura tu audio</strong> sobre la música.</p>
+<p><img src="../img/first-run.png" alt="La configuración de audio del primer inicio" loading="lazy"></p>
+<ol>
+<li><strong>Elige tu interfaz.</strong> Cada dispositivo de audio tiene una tarjeta: <em>Interfaz de audio</em>, <em>Este equipo</em>, <em>Audífonos</em>… Haz clic en la que usas para tocar y escuchar. Cantus le elige controlador y búfer: <strong>ASIO</strong> a 128 muestras para una interfaz con controlador ASIO propio; si no, <strong>WASAPI</strong> (el audio de Windows) a 256.</li>
+<li><strong>Escucha.</strong> Haz clic en <em>Tono de prueba</em>: deberías oír un tono suave en las salidas 1–2.</li>
+<li><strong>Toca o habla — el medidor debe moverse.</strong> Rasguea, canta o habla en lo que tengas conectado; la entrada que se mueve es la que vas a grabar.</li>
+<li><strong>Latencia.</strong> Cantus dice cuánto tarda el sonido de la cuerda a la bocina y si es lo bastante justo para tocar a través de él. Para tomas exactas, conecta con un cable la salida 1 a la entrada 1 y haz clic en <em>Medir latencia</em>; Cantus colocará cada toma a la muestra.</li>
+</ol>
+<p>Haz clic en <strong>Grabar en …</strong> y Cantus añade una pista de audio en esa entrada, armada y lista: pulsa <code>R</code> para grabar. <em>Omitir</em> cierra la ventana; no vuelve a abrirse sola (el botón <em>Asistente…</em> del chip de audio la trae de vuelta).</p>
+<h3 id="el-chip-de-audio">El chip de audio</h3>
+<p>El chip de abajo a la derecha muestra siempre el dispositivo, el controlador, la frecuencia, el búfer y la latencia — por ejemplo <code>UMC204HD · ASIO · 48 k · 128 · 6.1 ms</code>. Su luz es verde cuando el audio funciona, ámbar tras un corte y roja cuando el dispositivo se perdió o el controlador se detuvo. <strong>Haz clic en él</strong> para cambiar cualquier cosa; cada cambio se aplica al instante y se recuerda para esa interfaz:</p>
+<p><img src="../img/audio-popover.png" alt="La ventana del chip de audio" loading="lazy"></p>
+<ul>
+<li><strong>Interfaz</strong>, <strong>Controlador</strong> (WASAPI o ASIO, con la lista <em>Controlador ASIO</em>), <strong>Dispositivo de entrada</strong>, <strong>Frecuencia</strong>;</li>
+<li><strong>Búfer · ida y vuelta</strong>: de 64 a 2048 muestras, cada una con su latencia. Más pequeño es más justo para tocar; más grande es más seguro para mezclas grandes. Si la barra de estado cuenta cortes, sube al siguiente tamaño;</li>
+<li>los problemas aparecen arriba con un botón que los arregla (<em>Reiniciar audio</em>, <em>Usar el audio de este equipo</em>, <em>Usar 48 kHz</em>…);</li>
+<li><em>Tono de prueba</em>, <em>Canales y ruteo…</em> (nombra tus entradas y salidas, elige un par para la mezcla de audífonos), <em>Asistente…</em> y el engrane con todos los ajustes.</li>
+</ul>
+<p><strong>¿Qué controlador?</strong> Usa el controlador ASIO de tu interfaz si lo tiene (Behringer, Focusrite, PreSonus, Steinberg, MOTU, RME…). Para el sonido integrado de una laptop, usa WASAPI, o instala <strong>FlexASIO</strong> para menos latencia. <em>Obtener ASIO…</em> en la ventana del chip abre otra con la página de descarga de FlexASIO, la de ASIO4ALL y las de los fabricantes; tras instalar un controlador, haz clic en <em>Volver a buscar</em>. Cantus nunca instala controladores por su cuenta.</p>
+<p>Al conectar una interfaz, Cantus ofrece cambiar a ella; al desconectarla, ofrece el audio de tu equipo y vuelve a ella cuando regresa. Si un controlador deja de responder, Cantus reinicia el audio una vez por sí solo. No se puede cambiar el dispositivo mientras grabas.</p>
+<h2 id="3-el-espacio-de-trabajo">3. El espacio de trabajo</h2>
+<p>Cantus abre con una canción — la segunda subida de la demo <em>Neon Tide</em>, en bucle — para que lo primero que oigas sea música. Pulsa <code>Espacio</code> para reproducirla.</p>
+<ul>
+<li><strong>La barra de herramientas</strong> (arriba): el logo y los menús (<em>Archivo, Edición, Clip, Ver, Ayuda</em>), el nombre del proyecto (con <code>•</code> si tiene cambios sin guardar), el transporte (<em>Ir al inicio</em>, <em>Reproducir</em>, <em>Detener</em>, <em>Grabar</em> y sus opciones ▾), <em>Bucle</em>, <em>Metrónomo</em>, <em>Teclas</em> (el teclado del ordenador), el tempo (arrástralo, usa la rueda o doble clic para 120), el reloj, deshacer y rehacer, y seis <strong>teclas de ventana</strong>: Explorador, Arreglo, Rack de canales, Piano roll, Mezclador, Inspector.</li>
+<li><strong>El arreglo</strong> (centro): las pistas y sus clips sobre una línea de tiempo.</li>
+<li><strong>La zona inferior</strong>: el Mezclador, el Piano roll y el Rack de canales en pestañas.</li>
+<li><strong>El inspector</strong> (derecha, <code>I</code>): todo sobre la pista, el canal o el clip seleccionado.</li>
+<li><strong>La barra de estado</strong> (abajo): lo que hay bajo el puntero, CPU y cortes, latencia, entradas MIDI, dispositivos minimizados y el chip de audio.</li>
+</ul>
+<p>Cada área se muestra u oculta con su tecla de ventana o su tecla de función (<code>F5</code> arreglo, <code>F6</code> rack de canales, <code>F7</code> piano roll, <code>F9</code> mezclador, <code>Alt+F8</code> explorador, <code>I</code> inspector). Arrastra los divisores para cambiar tamaños; clic derecho en una pestaña para que flote en su propia ventana; guarda la forma de la ventana en <em>Ver ▸ Disposición ▸ Guardar disposición…</em>. La interfaz se amplía del 75 % al 200 % (<code>Ctrl++</code>, <code>Ctrl+-</code>, <code>Ctrl+0</code>). Colores, temas (claro y oscuro) y el logo están en <em>Ver ▸ Apariencia</em>.</p>
+<p><strong>Canciones de demostración.</strong> <em>Archivo ▸ Canciones de demostración…</em> (<code>Ctrl+Shift+N</code>) abre seis canciones hechas solo con los instrumentos y efectos de Cantus: Neon Tide (house), Morning Light (balada pop), Sunday Strut (funk y soul), Paper Lanterns (hip-hop lo-fi), Aurora (cinemática) y Midnight Static (trap). Abre una, escúchala, desármala.</p>
+<h2 id="4-grabar-audio-y-midi">4. Grabar audio y MIDI</h2>
+<h3 id="una-pista-de-audio">Una pista de audio</h3>
+<ol>
+<li>Añade una pista de audio: <code>Ctrl+Shift+A</code>, o clic derecho en el <strong>+</strong> sobre las cabeceras de pista ▸ <em>Añadir pista de audio</em>. (El <em>Grabar en …</em> del primer inicio te crea una.)</li>
+<li><strong>Ármala</strong>: haz clic en la luz roja redonda de su cabecera (o <code>Alt+R</code>). Mayús+clic arma solo esa pista. Una pista armada muestra el medidor de su entrada.</li>
+<li><strong>Elige su entrada</strong>: el chip de entrada de la cabecera (<em>Ent 1</em>, <em>Ent 1-2</em>…; aparece cuando la fila de la pista es lo bastante alta), la sección <em>Grabación</em> del inspector o el menú de la pista.</li>
+<li><strong>Escucha</strong>: la tecla del altavoz de la cabecera alterna <em>No</em>, <em>Auto</em> (oyes la entrada mientras la pista está armada — lo predeterminado) y <em>Sí</em>. El inspector tiene además <em>Ajuste</em> (−24 a +24 dB antes de grabar).</li>
+<li>Pulsa <strong><code>R</code></strong> (o la tecla de grabar). Graban todas las pistas armadas; pulsa <code>R</code> o <code>Espacio</code> para parar. Toda la pasada es un solo paso de deshacer.</li>
+</ol>
+<p>Las tomas se escriben como archivos WAV de 32 bits flotantes: en la carpeta <code>Audio</code> del proyecto una vez guardado; antes, en <code>%LOCALAPPDATA%\Cantus\recordings\</code>; al guardar se mueven al proyecto. Cada toma se adelanta la latencia medida, para que cuadre con lo que oíste.</p>
+<h3 id="opciones-de-grabación">Opciones de grabación</h3>
+<p>La ▾ junto a la tecla de grabar (o clic derecho sobre ella) abre las <strong>Opciones de grabación</strong>:</p>
+<p><img src="../img/record-options.png" alt="Opciones de grabación" loading="lazy"></p>
+<ul>
+<li><strong>Claqueta</strong>: no, 1, 2 o 4 compases antes de la toma (<code>Alt+C</code>). La claqueta suena aunque el <strong>Metrónomo</strong> (<code>Ctrl+M</code>) esté apagado.</li>
+<li><strong>Pinchazo</strong>: graba solo dentro de un tramo. <em>Desde la selección</em> toma la selección de tiempo; <code>Alt+P</code> usa la selección, si no el bucle, si no dos compases desde el cursor. El tramo aparece como una llave roja bajo la regla: arrastra sus extremos. Todo lo tocado se conserva en el archivo; el pinchazo solo fija la ventana del clip.</li>
+<li><strong>Tomas en bucle</strong>: con el bucle activado, cada vuelta es una toma.</li>
+<li><strong>Modo de toma</strong>: <em>Apilar</em> (los clips anteriores pasan a carriles de tomas — lo predeterminado), <em>Reemplazar</em> (corta lo que cubre la toma) o <em>Sobregrabar</em> (MIDI: añade notas al clip).</li>
+<li><strong>Clic</strong>: cuándo suena (<em>Siempre</em>, <em>Al grabar</em>, <em>Claqueta</em>) y su nivel.</li>
+</ul>
+<h3 id="tomas-y-comping">Tomas y comping</h3>
+<p>Cada toma se guarda en un <strong>carril de tomas</strong> bajo la pista: ábrelos con el pequeño desplegable al pie de la celda de color de la pista, <code>Alt+T</code> o <em>Mostrar tomas</em> del menú de la pista. <strong>Arrastra sobre una toma</strong> para pasar ese tramo a la pista; haz clic en una toma para usarla entera. Clic derecho en un carril: <em>Usar esta toma</em>, <em>Borrar tomas sin usar</em> (que también quita las grabaciones que ya nada reproduce), <em>Separar tomas en pistas nuevas</em> y <em>Ocultar tomas</em>.</p>
+<h3 id="midi">MIDI</h3>
+<p>Arma una <strong>pista de instrumento</strong> (una sin entrada de audio) y pulsa <code>R</code>: se graban en un clip las notas de todos los teclados MIDI que Cantus encontró (la barra de estado dice <em>Entradas MIDI: n</em>). Sin nada armado, <code>R</code> graba en la pista seleccionada. ¿Sin teclado? <code>Ctrl+T</code> activa el <strong>teclado del ordenador</strong>: <code>A</code>–<code>L</code> tocan notas, <code>Z</code>/<code>X</code> cambian de octava. Mientras está activo, los atajos de letra (incluida la <code>R</code>) se apagan — usa <code>Espacio</code> o la tecla de grabar.</p>
+<h2 id="5-editar-clips-piano-roll-automatización">5. Editar: clips, piano roll, automatización</h2>
+<h3 id="los-clips-en-el-arreglo">Los clips en el arreglo</h3>
+<ul>
+<li><strong>Crear</strong>: doble clic en un lugar vacío de una pista (un clip de 4 compases), o graba.</li>
+<li><strong>Seleccionar</strong>: clic; <code>Ctrl+clic</code> añade; arrastra sobre el vacío para un recuadro; <code>Esc</code> limpia.</li>
+<li><strong>Mover</strong>: arrastra (también a otra pista). <code>Alt+arrastrar</code> copia; <code>Ctrl</code> al arrastrar ignora la rejilla. <code>Izquierda</code>/<code>Derecha</code> desplazan según la rejilla, con <code>Shift</code> un compás.</li>
+<li><strong>Recortar</strong>: arrastra el borde de un clip — su contenido se queda donde está. <strong>Desplazar el contenido</strong>: <code>Shift+arrastrar</code> lo mueve dentro del clip.</li>
+<li><strong>Cortar</strong> en el cursor: <code>Ctrl+E</code>. <strong>Unir</strong>: <code>Ctrl+J</code>. <strong>Duplicar</strong>: <code>Ctrl+D</code> (púlsalo de nuevo para seguir en fila). <strong>Silenciar</strong>: <code>0</code>. <strong>Renombrar</strong>: <code>F2</code>. <strong>Color</strong>: <code>Ctrl+Shift+C</code>.</li>
+<li><strong>Selección de tiempo</strong>: arrastra en el carril inferior de la regla; la franja de arriba es el bucle. <code>Shift+L</code> pone el bucle en la selección, <code>Z</code> la amplía.</li>
+<li><strong>Los clips de audio</strong> tienen tiradores de fundido de entrada, de salida y de ganancia (doble clic en uno lo restablece; clic derecho en un fundido para su curva) y un menú con <em>Normalizar</em>, <em>Invertir</em>, <em>Restablecer ganancia</em> y <em>Quitar fundidos</em>.</li>
+<li><strong>Importar audio</strong>: arrastra archivos WAV, AIFF, FLAC u Ogg al arreglo (caen donde sueltas), o <em>Archivo ▸ Importar audio…</em>. Un archivo MIDI añade sus pistas.</li>
+</ul>
+<p>La <strong>rejilla</strong> (barra del arreglo) empieza en un compás; elige valores más finos para el detalle. Desplázate con la rueda, <code>Shift+rueda</code> en el tiempo, <code>Ctrl+rueda</code> para el zoom.</p>
+<h3 id="el-piano-roll">El piano roll</h3>
+<p>Selecciona un clip MIDI y muestra el piano roll (<code>F7</code>, o su pestaña bajo el arreglo): edita las notas de ese clip.</p>
+<p><img src="../img/piano-roll.png" alt="El piano roll" loading="lazy"></p>
+<table>
+<tr><th>Herramienta</th><th>Tecla</th><th>Qué hace</th></tr>
+<tr><td>Dibujar</td><td><code>P</code> o <code>1</code></td><td>Clic añade una nota, arrastrar mueve, arrastrar el borde derecho cambia la duración, clic derecho borra</td></tr>
+<tr><td>Pintar</td><td><code>B</code> o <code>2</code></td><td>Arrastra sobre la rejilla para pintar notas</td></tr>
+<tr><td>Seleccionar</td><td><code>E</code> o <code>3</code></td><td>Arrastra para seleccionar; arrastra notas para moverlas</td></tr>
+<tr><td>Borrar</td><td><code>D</code> o <code>4</code></td><td>Clic o arrastre sobre notas para borrarlas</td></tr>
+<tr><td>Silenciar</td><td><code>T</code> o <code>5</code></td><td>Clic en una nota para silenciarla (se queda, sin sonar)</td></tr>
+<tr><td>Cortar</td><td><code>C</code> o <code>6</code></td><td>Arrastra una línea para dividir notas</td></tr>
+<tr><td>Escuchar</td><td><code>Y</code> o <code>7</code></td><td>Clic en notas o filas para oírlas</td></tr>
+</table>
+<p><code>Arriba</code>/<code>Abajo</code> transportan la selección (<code>Shift</code>: una octava), <code>Izquierda</code>/<code>Derecha</code> la desplazan, <code>Q</code> cuantiza, <code>Ctrl+C</code>/<code>Ctrl+V</code> copian y pegan. Las velocidades son tallos en el carril bajo la rejilla: arrástralos, o <code>Alt+rueda</code> sobre una nota. Una batería muestra una fila con nombre por pad.</p>
+<p>El <strong>rack de canales</strong> (<code>F6</code>) muestra cada pista como una fila de pasos sobre los compases del clip seleccionado: clic enciende un paso, clic derecho lo apaga, arrastrar pinta. Un paso es una nota normal.</p>
+<h3 id="automatización">Automatización</h3>
+<p>Clic derecho en cualquier perilla, fader o control de un efecto ▸ <strong>Crear clip de automatización</strong>, o mueve un control y pulsa <strong><code>Alt+A</code></strong> (automatiza lo último que tocaste). El clip cubre la selección de tiempo (si no, el bucle; si no, cuatro compases) en un carril bajo su pista. En el carril: arrastra los puntos, arrastra el anillo entre dos puntos para curvar, clic en la línea añade un punto, doble clic en un punto lo borra, clic derecho para su forma (curva simple o doble, mantener, escalera, pulso, onda). Doble clic en el clip abre el editor grande, con herramienta de dibujo y articuladores (invertir, suavizar, azar, escala, LFO). Un control automatizado muestra un punto.</p>
+<h2 id="6-mezclar-el-mezclador-inserciones-y-envíos">6. Mezclar: el mezclador, inserciones y envíos</h2>
+<p><img src="../img/mixer.png" alt="El mezclador" loading="lazy"></p>
+<p>Cada pista alimenta un <strong>canal</strong> del mezclador (<code>F9</code>); los canales van al <strong>máster</strong>, a la izquierda, o a otro canal (un bus). Un canal tiene su medidor, silencio y solo, paneo, fader, fase e intercambio, anchura, EQ de tres bandas, sus inserciones y sus envíos. Clic selecciona, <code>Ctrl+clic</code> añade, <code>Shift+clic</code> toma un tramo; mover un fader de una selección mueve todos. Con el foco en el mezclador, <code>M</code> silencia, <code>S</code> pone solo, <code>Alt+Izquierda</code>/<code>Alt+Derecha</code> mueven el canal. <code>Ctrl+rueda</code> cambia el ancho de los canales; en <em>Extra grande</em> las ranuras de inserción se ven dentro de cada canal.</p>
+<ul>
+<li><strong>Inserciones</strong> (hasta diez por canal): clic en una ranura vacía para elegir un efecto en el selector, o clic derecho para la lista rápida. En una ranura ocupada, clic en la luz la puentea y en el nombre abre su ventana; clic derecho para cambiarla, moverla o quitarla. En el inspector, cada inserción tiene un anillo de <strong>Mezcla</strong> (seco/procesado).</li>
+<li><strong>Envíos</strong>: selecciona un canal y mira la fila <em>Envíos</em> de los demás — haz clic en el ▲ del canal al que quieres enviar (un retorno de reverb, un compresor en paralelo); una perilla fija entonces el nivel del envío. Los envíos son post-fader.</li>
+<li><strong>Ruteo</strong>: clic derecho en un canal ▸ <em>Enrutado</em> ▸ <em>Salida</em> o <em>Enviar a</em>, o selecciona varios canales y <em>Crear submezcla con los seleccionados</em>.</li>
+<li><strong>Las ventanas de los dispositivos</strong> tienen <em>Cambiar</em>, minimizar (a la bandeja de la barra de estado), maximizar y cerrar. <code>F8</code> abre el instrumento de la pista seleccionada, <code>Esc</code> cierra el último dispositivo que usaste y <code>F12</code> cierra todos los flotantes.</li>
+</ul>
+<p><strong>El solo</strong> sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo que alimenta.</p>
+<h2 id="7-masterizar-la-cadena-del-máster-fervor-latitudo-culmen">7. Masterizar: la cadena del máster, Fervor, Latitudo, Culmen</h2>
+<p>El <strong>máster</strong> tiene su propia cadena de hasta diez inserciones, aplicada a toda la mezcla antes del fader del máster. Haz clic en la cabecera del máster para ver su cadena en el inspector (<em>La mezcla completa</em> → las inserciones → <em>Salida de audio</em>), o clic derecho en su nombre ▸ <em>Efectos</em> ▸ <em>+ Añadir efecto</em>.</p>
+<p><img src="../img/master.png" alt="Culmen en el máster" loading="lazy"></p>
+<p>Las demos masterizan en este orden, y es un buen comienzo:</p>
+<ol>
+<li><strong>Aequalis</strong> (EQ): un pasa-altos bajo el sub, un poco de aire.</li>
+<li><strong>Multiplex</strong> o <strong>Comprimo</strong>: un pegamento suave.</li>
+<li><strong>Latitudo</strong> (estéreo): el preset <em>Máster: graves más firmes</em> o <em>Máster: agudos más anchos, graves en mono</em> deja los graves en mono y los agudos anchos. Vigila su medidor de correlación: debe quedar por encima de cero.</li>
+<li><strong>Culmen</strong> (maximizador): elige un <strong>objetivo</strong> — <em>Streaming −14</em> (−14 LUFS, −1 dBTP), <em>Apple −16</em>, <em>CD −9</em>, <em>Club −7</em>, <em>Emisión −23</em> — reproduce la parte más fuerte de la canción y haz clic en <strong>Aprender empuje</strong>: Culmen escucha, ajusta el empuje, vuelve a escuchar y se detiene en el objetivo, en un solo paso de deshacer. La tarjeta <em>Sonoridad</em> muestra la sonoridad momentánea, de corto plazo e integrada y el pico real; el veredicto dice <em>En el objetivo</em> o cuántos LU sobran o faltan. Culmen trabaja en tres bandas más la banda completa, hacia un muro de pico real en el techo; su <em>Carácter</em> (Limpio, Pegada, Fuerte, Bus, Seguro) y sus diez presets cubren casi cualquier máster.</li>
+</ol>
+<p><strong>Fervor</strong> (saturación) añade color: <em>Cinta</em>, <em>Válvula</em>, <em>Overdrive</em>, <em>Fuzz</em>, <em>Recorte</em>, <em>Pliegue</em> o una <em>Curva</em> dibujada, con sobremuestreo, tono, mezcla e <em>Igualar nivel</em>, para que lo más fuerte nunca te engañe. En el máster, los presets <em>Recorte de máster</em> y <em>Válvula en el medio</em> son los suaves.</p>
+<h2 id="8-exportar">8. Exportar</h2>
+<p><em>Archivo ▸ Exportar audio…</em> (<code>Ctrl+Shift+E</code> con las teclas por defecto) abre la ventana de exportación: los presets a la izquierda, las opciones a la derecha y una línea que dice exactamente qué se va a escribir.</p>
+<ul>
+<li><strong>Presets</strong>: <em>Streaming</em> (MP3 320 kbps, 44.1 kHz, −14 LUFS, −1 dBTP), <em>CD</em> (WAV 16 bits, 44.1 kHz, dither con modelado), <em>Stems para masterizar</em> (cada canal, WAV 24 bits a la frecuencia de la sesión, sin normalizar) y <em>Podcast</em> (MP3 mono 128 kbps, −16 LUFS, −1 dBTP). Si cambias cualquier opción se ilumina la tarjeta <em>Personalizado</em>.</li>
+<li><strong>Qué</strong>: la canción (del inicio al final del último clip, más la cola que elijas), la selección de tiempo, o <strong>stems</strong> — un archivo por canal del mezclador (después de su fader) o por pista (antes de su canal), todos desde el primer tiempo de la canción con la compensación de latencia incluida, y opcionalmente <em>a través de la cadena del máster</em>.</li>
+<li><strong>Formatos</strong>: <strong>WAV</strong> de 16, 24 bits o 32 bits flotantes; <strong>FLAC</strong> de 16 o 24 bits; <strong>MP3</strong> CBR de 128 a 320 kbps o VBR V0/V2/V4/V6 (LAME), sin huecos; <strong>Ogg Vorbis</strong> calidad 3–10. Frecuencia: la de la sesión o 44.1, 48, 88.2, 96, 192 kHz (MP3 usa 44.1 o 48). Mono o estéreo.</li>
+<li><strong>Dither</strong> (apagado, TPDF, con modelado) al escribir 16 o 24 bits.</li>
+<li><strong>Loudness</strong>: apagado, o un objetivo (−9, −11, −14, −16, −19, −23 LUFS) con un techo de pico real (−0.1, −0.3, −1, −2 dBTP); el limitador de Culmen sostiene el techo cuando la ganancia lo necesita. Los stems nunca se normalizan.</li>
+<li><strong>Etiquetas</strong>: título, artista, álbum, año, comentario y el crédito de codificador <em>Cantus</em>.</li>
+</ul>
+<p>La exportación corre en segundo plano con una barra de progreso; <em>Detener</em> no deja archivos a medias. Se recuerdan tus últimas opciones.</p>
+<ul>
+<li><strong>MIDI</strong>: <em>Archivo ▸ Exportar MIDI…</em> — la canción entera, la pista seleccionada o el clip seleccionado, como archivo de tipo 1 con el tempo, el compás y los nombres de pista.</li>
+<li><strong>DAWproject</strong>: <em>Archivo ▸ Exportar DAWproject…</em> para llevar un proyecto a Bitwig, Studio One y otros DAW que lo leen (un informe dice lo que no pudo viajar).</li>
+</ul>
+<h2 id="9-sonidos-el-explorador-y-los-paquetes-de-sonidos">9. Sonidos: el explorador y los paquetes de sonidos</h2>
+<p>El <strong>explorador</strong> (<code>Alt+F8</code>, la primera tecla de ventana) se acopla a la izquierda. Lista los paquetes de sonidos que instalaste y <em>Mis carpetas</em> (haz clic en <strong>+</strong> para añadir cualquier carpeta de muestras).</p>
+<p><img src="../img/browser.png" alt="El explorador de muestras" loading="lazy"></p>
+<ul>
+<li><strong>Clic</strong> en un sonido para oírlo; otro clic lo detiene. Escribe en el campo de búsqueda para encontrar sonidos en todos los paquetes y carpetas.</li>
+<li><strong>Arrastra</strong> un sonido a un <strong>pad de Pulsus</strong> (el pad lo toca), al mapa de teclas de <strong>Exemplar</strong> (una zona en esa tecla), al <strong>rack de canales</strong> (un canal de muestra nuevo con su propio canal del mezclador) o al <strong>arreglo</strong> (un clip de audio donde lo sueltas). Cada arrastre es un solo paso de deshacer.</li>
+<li>Sin nada instalado, el explorador ofrece <strong>Empieza con una batería</strong>: <em>Descargar</em> trae la <em>Batería inicial de Cantus</em> (81 golpes, 33 MB). <em>Paquetes de sonidos…</em> (o <em>Más paquetes…</em>) lista los demás — las baterías de Karoryfer, la percusión de VCSL y VSCO 2, un TX81Z para Exemplar — con su tamaño, licencia y créditos; <em>Instalar</em>, <em>Actualizar</em>, <em>Quitar</em>, mostrar la carpeta e <em>Instalar desde un archivo…</em> para equipos sin internet.</li>
+</ul>
+<p>Todos los paquetes son <strong>CC0</strong>: tuyos para cualquier canción, gratis y sin tener que citar. Se guardan en <code>%LOCALAPPDATA%\Cantus\Content\</code>; cada archivo se verifica con su SHA-256.</p>
+<h2 id="10-instrumentos-y-efectos-el-selector-de-dispositivos">10. Instrumentos y efectos: el selector de dispositivos</h2>
+<p>El <strong>selector de dispositivos</strong> muestra todos los instrumentos y efectos — los de Cantus y los plug-ins CLAP y VST3 instalados en tu equipo — como mosaicos.</p>
+<p><img src="../img/picker.png" alt="El selector de dispositivos" loading="lazy"></p>
+<p>Ábrelo con el <strong>+</strong> sobre las cabeceras de pista (una pista de instrumento nueva), con un clic en el chip de instrumento de una pista (cambiar el instrumento), con <em>Cambiar</em> en cualquier ventana de dispositivo, con una ranura de inserción vacía o con <em>Ver ▸ Selector de dispositivos…</em>. Busca por nombre, fabricante o tipo; filtra por estante (<em>Favoritos</em>, <em>Recientes</em>, una categoría, o <em>Cantus / CLAP / VST3</em>); las flechas se mueven, <code>Enter</code> elige, <code>Ctrl+D</code> marca un favorito, <code>Esc</code> cierra. Cambiar un instrumento conserva sus notas, clips, canal del mezclador y efectos; cambiar un efecto conserva su ranura, su mezcla y su puenteo.</p>
+<table>
+<tr><th>Instrumento</th><th>Qué es</th></tr>
+<tr><td>Firmus</td><td>El sintetizador sencillo con el que empieza cada pista nueva</td></tr>
+<tr><td>Pulsus II</td><td>Caja de ritmos: tambores sintetizados y pads de muestras, grupos de corte</td></tr>
+<tr><td>Unda</td><td>Sintetizador wavetable: tres osciladores, unísono, dos filtros, LFO dibujados</td></tr>
+<tr><td>Calor</td><td>Polisintetizador analógico</td></tr>
+<tr><td>Modulus</td><td>Sintetizador FM de ocho operadores; lee bancos DX7</td></tr>
+<tr><td>Exemplar</td><td>Sampler: SFZ, Decent Sampler y SoundFont</td></tr>
+<tr><td>Gravis</td><td>Bajo: 808, sintetizado y eléctrico modelado</td></tr>
+<tr><td>Lamina</td><td>Piano eléctrico</td></tr>
+<tr><td>Organum</td><td>Órgano de ruedas fónicas con barras y altavoz rotatorio</td></tr>
+</table>
+<p>Los efectos son Aequalis (EQ), Comprimo (compresor), Porta (puerta y expansor), Sibilus (de-esser), Multiplex (dinámica multibanda), Terminus (limitador), Culmen (maximizador), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Delay y Reverb.</p>
+<p><strong>Tus plug-ins.</strong> Cantus revisa las carpetas estándar — <code>%LOCALAPPDATA%\Programs\Common\CLAP</code> y <code>…\VST3</code>, <code>C:\Program Files\Common Files\CLAP</code> y <code>…\VST3</code> — y las que añadas en <em>Ajustes ▸ Plug-ins</em> (<em>Buscar plug-ins</em>, <em>Volver a leer todo</em>). Cada archivo se revisa en un proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros DAW.</p>
+<h2 id="11-proyectos-autoguardado-y-ajustes">11. Proyectos, autoguardado y ajustes</h2>
+<ul>
+<li><em>Archivo ▸ Nuevo proyecto</em> (<code>Ctrl+N</code>), <em>Abrir…</em> (<code>Ctrl+O</code>), <em>Guardar</em> (<code>Ctrl+S</code>), <em>Guardar como…</em> (<code>Ctrl+Shift+S</code>). Un proyecto es un archivo <code>.cantus</code>; al guardar, el anterior queda como <code>.cantus.bak</code>.</li>
+<li><strong>Los archivos de audio</strong> se reúnen al guardar: las grabaciones pasan a la carpeta <code>Audio</code> del proyecto y los archivos importados se copian ahí, así que la carpeta viaja completa. <em>Reunir audio y guardar</em> lo hace cuando quieras. Un archivo que falta muestra <strong>FALTA</strong> en su clip; clic derecho ▸ <em>Buscar archivo…</em>.</li>
+<li><strong>El autoguardado</strong> escribe una copia de recuperación cada minuto si algo cambió (<em>Ajustes ▸ Guardado</em>, de 10 s a 10 min): <code>&lt;proyecto&gt;.cantus.autosave</code> junto a un proyecto guardado, o en <code>%LOCALAPPDATA%\Cantus\autosave\</code> para uno sin guardar. Nunca sobrescribe tu archivo, y escribirla nunca congela la ventana (se hace en segundo plano).</li>
+<li><strong>Recupera tu trabajo</strong>: si Cantus se cierra de forma inesperada —o lo cierras sin guardar—, el siguiente inicio te ofrece lo que quedó: los cambios autoguardados y las tomas grabadas que no están en ningún archivo guardado. <em>Restaurar</em> los devuelve como un solo paso de deshacer (<code>Ctrl+Z</code> muestra el último guardado); <em>Descartar</em> no borra nada. <em>Nuevo</em> y <em>Abrir</em> preguntan antes de reemplazar trabajo sin guardar.</li>
+</ul>
+<p><strong>Ajustes</strong> (<em>Ver ▸ Ajustes…</em>): <em>General</em> (el versículo al iniciar, sí o no, y la Biblia en español), <em>Audio</em> (controlador, dispositivos, frecuencia, búfer, latencia y la corrección de grabación), <em>MIDI</em>, <em>Apariencia</em> (idioma — English o Español —, tamaño de la interfaz, colores, atajos de teclado), <em>Guardado</em>, <em>Actualizaciones</em> y <em>Plug-ins</em>.</p>
+<h2 id="12-atajos-de-teclado">12. Atajos de teclado</h2>
+<p><em>Ayuda ▸ Atajos de teclado</em> lista todos los atajos y permite cambiarlos, o cargar los presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:</p>
+<table>
+<tr><th>Teclas</th><th>Acción</th></tr>
+<tr><td><code>Espacio</code></td><td>Reproducir / pausar (también detiene una grabación)</td></tr>
+<tr><td><code>R</code></td><td>Grabar</td></tr>
+<tr><td><code>Inicio</code></td><td>Ir al principio</td></tr>
+<tr><td><code>Ctrl+L</code> · <code>Ctrl+M</code></td><td>Bucle sí/no · metrónomo sí/no</td></tr>
+<tr><td><code>Alt+R</code> · <code>Alt+C</code> · <code>Alt+P</code> · <code>Alt+T</code></td><td>Armar la pista seleccionada · claqueta · pinchazo · mostrar tomas</td></tr>
+<tr><td><code>Ctrl+Shift+A</code></td><td>Añadir una pista de audio</td></tr>
+<tr><td><code>Ctrl+N</code> · <code>Ctrl+O</code> · <code>Ctrl+S</code> · <code>Ctrl+Shift+S</code></td><td>Nuevo · abrir · guardar · guardar como</td></tr>
+<tr><td><code>Ctrl+Shift+N</code></td><td>Canciones de demostración</td></tr>
+<tr><td><code>Ctrl+Shift+E</code></td><td>Exportar audio</td></tr>
+<tr><td><code>Ctrl+Z</code> · <code>Ctrl+Y</code></td><td>Deshacer · rehacer</td></tr>
+<tr><td><code>Ctrl+X</code> · <code>Ctrl+C</code> · <code>Ctrl+V</code> · <code>Ctrl+D</code></td><td>Cortar · copiar · pegar · duplicar</td></tr>
+<tr><td><code>Ctrl+A</code> · <code>Supr</code> · <code>Esc</code></td><td>Seleccionar todo · eliminar · vaciar la selección</td></tr>
+<tr><td><code>Ctrl+E</code> · <code>Ctrl+J</code> · <code>0</code> · <code>F2</code></td><td>Cortar el clip · unir · silenciar el clip · renombrar</td></tr>
+<tr><td><code>Izquierda</code> <code>Derecha</code> (<code>Shift</code>: un compás)</td><td>Desplazar</td></tr>
+<tr><td><code>Arriba</code> <code>Abajo</code> (<code>Shift</code>: una octava)</td><td>Transportar notas</td></tr>
+<tr><td><code>Q</code></td><td>Cuantizar</td></tr>
+<tr><td><code>P</code> <code>B</code> <code>E</code> <code>D</code> <code>T</code> <code>C</code> <code>Y</code> o <code>1</code>–<code>7</code></td><td>Herramientas del piano roll</td></tr>
+<tr><td><code>Shift+L</code> · <code>Z</code></td><td>Bucle en la selección de tiempo · ampliarla</td></tr>
+<tr><td><code>Alt+A</code></td><td>Automatizar el último parámetro que moviste</td></tr>
+<tr><td><code>F5</code> <code>F6</code> <code>F7</code> <code>F9</code> · <code>Alt+F8</code> · <code>I</code></td><td>Arreglo, rack de canales, piano roll, mezclador · explorador · inspector</td></tr>
+<tr><td><code>F8</code> · <code>F12</code></td><td>El instrumento de la pista seleccionada · cerrar los dispositivos flotantes</td></tr>
+<tr><td><code>M</code> · <code>S</code> · <code>Alt+Izquierda</code>/<code>Alt+Derecha</code></td><td>Mezclador: silenciar · solo · mover el canal</td></tr>
+<tr><td><code>Ctrl+T</code></td><td>El teclado del ordenador toca notas</td></tr>
+<tr><td><code>Ctrl++</code> · <code>Ctrl+-</code> · <code>Ctrl+0</code></td><td>Zoom de la interfaz</td></tr>
+</table>
+<h2 id="13-privacidad-y-actualizaciones">13. Privacidad y actualizaciones</h2>
+<p>Cantus <strong>no tiene telemetría</strong>. Una copia instalada o portátil pregunta a GitHub una vez al día si hay una versión nueva — una petición anónima, sin versión, equipo ni datos tuyos — y te pregunta antes de descargar nada; <em>Ajustes ▸ Actualizaciones ▸ Buscar a diario</em> la apaga. Los paquetes de sonidos se descargan solo cuando haces clic en <em>Instalar</em>. Todo lo demás se queda en tu equipo. Los detalles están en <a href="../../PRIVACY.txt">PRIVACY.md</a>; las licencias de todo aquello con lo que está hecho Cantus, en <a href="../../THIRD-PARTY-NOTICES.txt">THIRD-PARTY-NOTICES.md</a> (también en <em>Ayuda ▸ Acerca de Cantus</em>).</p>
+<h2 id="14-problemas-conocidos-y-limitaciones">14. Problemas conocidos y limitaciones</h2>
+<p>Esto es una beta. Lo que ya sabemos:</p>
+<ul>
+<li><strong>Un plug-in de terceros que falla cierra Cantus</strong> (los plug-ins se ejecutan dentro del programa; aislarlos viene después). Guarda seguido.</li>
+<li><strong>No se pueden importar MP3</strong> (sí WAV, AIFF, FLAC y Ogg).</li>
+<li><strong>Sin estiramiento de tiempo</strong>: los clips de audio no siguen los cambios de tempo; un tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por clip.</li>
+<li>Los plug-ins de terceros no se renderizan en los stems y sus parámetros aún no se pueden automatizar; la automatización se dibuja, no se graba (sin latch ni touch).</li>
+<li><strong>Lamina y Exemplar</strong> suenan 6–8 dB más bajo que los demás instrumentos con el mismo fader.</li>
+<li><strong>Audio</strong>: el controlador ASIO integrado de Realtek no da sonido en algunas laptops (usa WASAPI o FlexASIO); ASIO4ALL puede tardar varios segundos en arrancar; muchos controladores ASIO fijan el búfer en su propio panel. No se ofrece WASAPI exclusivo.</li>
+<li><strong>Rendimiento</strong>: en equipos modestos, un proyecto denso con búfer pequeño puede cortarse; sube el búfer si la barra de estado cuenta cortes.</li>
+<li>La claqueta no suena si el metrónomo está apagado; no se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos guardan las muestras de los paquetes con su ruta completa.</li>
+<li><strong>Fuera de esta beta</strong>: macOS y Linux, warping, MIDI learn y superficies de control, funciones de IA, varios arreglos por proyecto.</li>
+</ul>
+<h2 id="15-reportar-un-error">15. Reportar un error</h2>
+<p><em>Ayuda ▸ Reportar un error…</em> abre el formulario de errores en GitHub (necesitas una cuenta gratuita de GitHub). Di qué hiciste, qué esperabas y qué pasó; incluye tu versión de Cantus (<em>Ayuda ▸ Acerca de Cantus</em>), tu versión de Windows, tu interfaz de audio, el controlador, la frecuencia y el búfer (todo está en el chip de audio); adjunta un proyecto pequeño que muestre el problema si puedes. Cuéntanos de tu interfaz de audio aunque funcione, con el <a href="https://github.com/luis314159/cantus/issues/new?template=hardware_report.yml">reporte de hardware</a>, y manda ideas con <em>Ayuda ▸ Sugerir una función…</em>. En español o en inglés, como prefieras.</p>
+<p><em>Cantus lo hace Luis Ángel Almazán — <a href="https://lalmazan.com">lalmazan.com</a> — y es software libre bajo la GPL de GNU, versión 3 o posterior.</em></p>
+</main>
+</body>
+</html>

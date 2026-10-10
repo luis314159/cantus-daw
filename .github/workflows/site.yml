@@ -1,0 +1,70 @@
+name: Site
+
+# Builds the website (web/, ADR 0034) and publishes it to Cloudflare Pages (cantusdaw.com)
+# on every push to master that touches it. It needs two repository secrets, set once in
+# Settings > Secrets and variables > Actions:
+#   CLOUDFLARE_API_TOKEN   a token with "Account > Cloudflare Pages > Edit"
+#   CLOUDFLARE_ACCOUNT_ID  the account's id (Workers & Pages overview, right-hand side)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+env:
+  TRUNK_VERSION: "0.21.14"
+  PAGES_PROJECT: cantus
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # web/ is its own workspace; the repository's rust-toolchain.toml pins the compiler.
+      - name: Rust and the WebAssembly target
+        working-directory: web
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web
+
+      - name: Trunk
+        run: |
+          curl -fsSL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Build the site
+        working-directory: web
+        env:
+          NO_COLOR: "false"
+        run: trunk build --release
+
+      - name: Check what will be published
+        run: |
+          test -f web/dist/index.html
+          test -f web/dist/manual/en/index.html
+          test -f web/dist/_headers
+          du -sh web/dist
+
+      # --branch=main makes it the production deployment (the project's production branch).
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/dist --project-name=${{ env.PAGES_PROJECT }} --branch=main

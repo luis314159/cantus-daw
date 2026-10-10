@@ -27,9 +27,10 @@ cargo run --release -p cantus-ui --example render_demos -- web/assets/demos
 ## The manual, the press kit and the rest of the static pages
 
 `powershell -File build-manual.ps1` runs `cargo run -p xtask -- manual`, dresses the two
-generated pages (EN/ES) in the site's look and writes them to `assets/manual/` (generated,
-not committed; `trunk build` copies it into `dist/manual/`). Run it **before** `trunk build`:
-the press kit (`assets/press/`) and the 404 page use the `manual/manual.css` it copies.
+generated pages (EN/ES) in the site's look and writes them to `assets/manual/`; `trunk build`
+copies it into `dist/manual/`. **The generated pages are committed** (the deploy workflow does not
+build the manual): run the script and commit `assets/manual/` whenever `docs/manual/` changes.
+Run it **before** `trunk build`: the press kit (`assets/press/`) and the 404 page use the `manual/manual.css` it copies.
 `tools/og.html` and `tools/logo.html` are the sources of `assets/og.png` (the share image)
 and `assets/press/cantus-logo-1024.png`; re-render them with headless Chrome
 (`--window-size=1200,760`, then crop to 1200×630) when the tagline or the logo changes.
@@ -47,3 +48,11 @@ cargo run --release -p cantus-ui --example render_fx_ab -- web/assets/fx/audio e
 ```
 
 Then write the chosen song's name into `song:` in `src/fx.rs` (the run prints it).
+
+## Publishing
+
+`.github/workflows/site.yml` builds the site and publishes it to Cloudflare Pages (project
+`cantus`, production branch `main`) on every push to `master` that touches `web/`. It needs the
+repository secrets `CLOUDFLARE_API_TOKEN` (permission *Account > Cloudflare Pages > Edit*) and
+`CLOUDFLARE_ACCOUNT_ID`. By hand, upload `web/dist` (or a zip of its contents) from the
+dashboard.
