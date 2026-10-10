@@ -109,7 +109,7 @@ warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -172,7 +172,7 @@ macOS/Linux; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V)
 - **Editing**: crossfades between overlapping clips (automatic and editable), clip gain
   envelopes, an audio editor window (Edison-like: destructive edits, spectral view, noise
   reduction, normalise, reverse a region), **pitch correction** (Newtone/Melodyne-lite
-  for vocals), slicing to a sampler, consolidate / **bounce in place**, **freeze** tracks,
+  for vocals), slicing to a sampler, consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
   insert/delete time (STATUS round 12 plan), clip groups, ripple edit.
 - **MIDI**: arpeggiator and chord tools as MIDI effects, scale highlighting and
   snap-to-scale, ghost notes from other clips, groove/swing templates (STATUS: swing as a
@@ -403,6 +403,106 @@ real-time path wait.**
   user ("Spatium on Vocal took 3.1 ms") — no DAW tells you this today.
 - *Done when:* Cantus sustains more instances than every DAW in the suite at 64 samples
   without a dropout, and exports faster than all of them, on a mid-range laptop.
+
+## 4c. A recording mode for high performance (requested 2026-10-10)
+
+*The owner: "a partial pre-render of every channel that feeds the master — audio, instruments,
+with all their effects and automation — each one on its own, just before the master, so while
+recording audio only audio is played and summed. Less lag, a smaller buffer, and the musicians
+hear everything more faithfully. Manual, always clear that you are in it; to change anything,
+leave the mode and pre-render again."*
+
+**What it is.** A manual action, **Prepare to record**, renders each strip that feeds the master
+to its own file (32-bit float, at the project's rate), then enters **Recording mode**: the engine
+stops running the project's instruments and effects and only reads those files and sums them,
+through the live master. It is Freeze, applied to the whole project at once and held as a mode
+with a name.
+
+**What it buys, said honestly** (the page and the dialog must say it the same way): it does not
+shorten the interface's own round trip (buffer, driver, converters). It lets the buffer go
+lower without dropouts because the CPU is nearly idle, it removes the delay compensation of the
+frozen strips, and the musician's own channel is the only live path. The status chip shows the
+buffer, the measured round-trip and the CPU before and after.
+
+**Decisions (the owner, 2026-10-10)**
+- **The recording strip(s) stay live.** Armed strips keep their input, monitoring and chain in
+  real time, so the musician hears themself with the least delay. Everything else is baked.
+- **The master is a choice**: *live* (default — the real master chain runs on the sum, the
+  musician hears the final mix) or *baked* (the whole project is one stereo reference; the
+  lightest, but nothing of the master can move).
+- **The mix controls are a choice**: *live* — fader, pan, mute and solo (with their automation,
+  a gain curve) act at the sum, so "more of my guitar in the headphones" needs no exit — or
+  *locked* — those controls are greyed too. To make that work the render is taken **after the
+  inserts, sends and effect automation and before the fader and pan**; with the controls
+  untouched the result is bit-identical to normal playback.
+- **Any other change is blocked, with a notice.** While the mode is on, everything that would
+  change the sound (notes, clips, effects, instruments, automation, routing, tempo) is greyed
+  out and says "Recording mode — leave it to edit". It is never entered or left by itself.
+- **A bar that cannot be missed** across the window while the mode is on: its name, the
+  buffer and round-trip, the CPU saved, how many strips are baked, and **Leave**. Leaving keeps
+  the rendered files by default (or discards them, the user's choice).
+- **Re-entering is cheap**: each strip's render is keyed by a hash of everything that makes its
+  sound (its model, its notes and clips, its effects and their settings, its automation, the
+  hosted plug-ins' state, the tempo map); only the strips whose hash changed are rendered again.
+
+**Design questions for the ADR**
+- *Buses and returns:* the renders are the strips whose output goes to the master. A bus is one
+  render that includes what it sums, so a strip inside a bus has no separate mix controls in the
+  mode (they are greyed); sends feeding a return are baked into the return's render.
+- *Storage:* 10 minutes of stereo float at 48 kHz is about 230 MB a strip; 30 strips is about
+  7 GB. The files live beside the project and are **streamed** by a reader thread with a
+  prefetch ring (the audio thread does no I/O, ADR 0005), never held whole in memory; the
+  dialog shows the size before it starts. Consider 24-bit or lossless compression.
+- *Hosted plug-ins* must render offline and deterministically; one that cannot is reported by
+  name and stays live (or stops the preparation, the user's choice).
+- *Taking a take:* the new recording lands on the live strip and joins the project when the mode
+  is left; during the mode it plays through its own strip.
+- *The state is the session's, not the project's:* a project reopens out of the mode (no schema
+  bump), the cache index and files stay on disk and are checked by hash.
+
+**Tests first** (CLAUDE.md): a null test (baked + summed equals the normal render to the bit,
+mix controls included); block-size independence at tolerance 0; delay compensation keeps the
+strips aligned; **every `Command` is classified as changing the sound or not, and a new one
+fails the build until it is** (the edit lock cannot drift out of date — ADR 0004); a changed
+strip invalidates exactly its own render; a crashed session reopens out of the mode;
+`rt_memory.rs` counts zero allocations in the mode's audio path.
+
+**What the others offer — replicate each piece first** (from memory, 2026-10-10: *verify each
+against the product before it is quoted anywhere public*). None of them has the whole mode as
+named here; each has a part, and the parts are worth having on their own:
+
+| Piece | Where it exists | Cantus |
+|---|---|---|
+| Freeze one channel to audio, with its effects (and un-freeze) | Ableton *Freeze/Flatten*, Logic *Freeze*, Cubase *Freeze*, Reaper *Freeze track*, Studio One *Transform to Audio*, Pro Tools *Commit* | step 1 |
+| Low-latency monitoring: while a track is armed, skip the plug-ins whose delay is above a limit | Logic *Low Latency Mode*, Cubase *Constrain Delay Compensation*, Pro Tools *Low Latency Monitoring*, Studio One *Low Latency Monitoring* | step 2 |
+| A reduced-latency path for the live input while monitoring | Ableton *Reduced Latency When Monitoring* | step 2 |
+| Bounce the backing to one stereo file and record against it | every DAW, by hand | the mode keeps the strips apart |
+| **The whole project baked at once as a named mode, a banner, a lock, mix controls and master as choices** | none that I know of | step 3 — Cantus's own |
+
+**Order of work** (so the mode is the last layer on two things every serious DAW needs anyway):
+1. **Freeze a channel to audio** (§3), with the per-strip hash (a content key for what makes a
+   strip's sound) and the on-disk cache. Freeze, Un-freeze and "frozen" shown on the strip.
+2. **Low-latency monitoring** for armed strips: a limit (samples or ms) above which the
+   plug-ins of a monitored strip are bypassed while recording, listed on screen by name, and
+   restored on stop; plus the round-trip figure on the audio chip (§6b).
+3. **The recording mode** above, on top of 1 and 2: *Prepare to record* freezes every strip that
+   feeds the master in one go; the lock, the bar and the choices are this step.
+
+**Where it helps, and where not** (the owner's question, 2026-10-10): it helps a heavy project
+(big instruments, many latency plug-ins) on a modest machine recording at a low buffer; it gives
+the musician a headphone mix that can still be changed (each strip stays apart, the fader is
+live); and it removes the dropout in the middle of a good take. It does **not** shorten the
+interface's own round trip, many musicians already solve the case by bouncing a stereo backing
+or opening a clean project, it costs real disk (about 7 GB for a large project) and a lot of
+care (hashes, the command lock, bit-exact tests), and it matters less as the multicore engine
+(§4b, wave 2) gets faster. So: keep it, build it last, and let steps 1 and 2 earn their place
+first.
+
+**Related:** automatic background freeze (§4b, §3 "freeze tracks") shares the cache and the
+per-strip hash; the CPU-saved figure reuses the callback histogram and dropout blame (§4b).
+**Done when** a 40-strip project with heavy instruments records an audio take at the interface's
+smallest stable buffer with a CPU load a fraction of normal playback's, the musician can tell
+the mode is on at a glance, and leaving it, editing and coming back re-renders only what changed.
 
 ## 5. Content
 

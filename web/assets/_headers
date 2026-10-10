@@ -1,0 +1,22 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Hashed build files never change under the same name.
+/cantus-web-*
+  Cache-Control: public, max-age=31536000, immutable
+/base-*.css
+  Cache-Control: public, max-age=31536000, immutable
+/layout-*.css
+  Cache-Control: public, max-age=31536000, immutable
+/sections-*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Pictures, sounds and fonts keep their names: a day, then revalidate.
+/fonts/*
+  Cache-Control: public, max-age=86400
+/demos/*
+  Cache-Control: public, max-age=86400
+/fx/*
+  Cache-Control: public, max-age=86400
