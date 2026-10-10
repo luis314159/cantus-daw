@@ -132,6 +132,9 @@ struct Scratch {
     placeholders: Vec<String>,
     /// Audio clips' buffers, and the handles drawn this frame.
     audio: audio::Scratch,
+    /// "×2", "×3"…: how many copies share a linked clip (ADR 0037), built once per
+    /// language and count.
+    counts: Vec<String>,
 }
 
 impl Scratch {
@@ -143,6 +146,7 @@ impl Scratch {
             self.selected.1.clear();
             self.span.1.clear();
             self.placeholders.clear();
+            self.counts.clear();
         }
     }
 
@@ -368,6 +372,7 @@ fn tip(app: &CantusApp, action: crate::keymap::Action, label: &str) -> String {
 /// finds out an operation exists at all.
 fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
     use crate::keymap::Action;
+    let linked = crate::links::selection_is_linked(app.project(), &app.clip_selection());
     let (muted, looping, color, selected) = {
         let a: &CantusApp = app;
         let first = if a.selected_clips.is_empty() {
@@ -410,6 +415,14 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
         if key.is_some_and(|k| k.clicked()) {
             app.run_action(action);
         }
+    }
+    // Lit while the selection is a linked clip (ADR 0037); a press makes it unique.
+    let link = bar.key(ui, id.with("link"), Icon::Link, linked, linked, || {
+        tip(app, Action::MakeUnique, "clip.link_key")
+    });
+    if link.is_some_and(|k| k.clicked()) {
+        app.focus_arrangement();
+        app.run_action(Action::MakeUnique);
     }
     // The colour key shows the colour rather than an icon of one.
     let swatch = bar.swatch(ui, id.with("colour"), color.map(theme::track_color), || {
@@ -1360,6 +1373,10 @@ fn clips(
     let v = &app.arrangement;
     let mut out = ClipHits::default();
     audio::begin_frame(&mut scratch.audio);
+    scratch.refresh_words();
+    // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
+    let marks = crate::links::LinkMarks::of(app.project(), &app.clip_selection());
+    let mut counts = std::mem::take(&mut scratch.counts);
     let n_rows = geo.rows.len() as i32;
     let (vis_l, vis_r) = (geo.beats(lanes.left()), geo.beats(lanes.right()));
     for (i, track) in app.project().tracks.iter().enumerate() {
@@ -1420,9 +1437,17 @@ fn clips(
                 tint: scratch.tints.of(color, s),
                 renaming,
                 reserve,
+                sibling: marks.is_sibling(clip, sel),
             };
+            let linked = marks.count(clip).map(|n| {
+                while counts.len() < n {
+                    let k = counts.len() + 1;
+                    counts.push(tf("links.count", &[("n", &k)]));
+                }
+                counts[n - 1].as_str()
+            });
             let name = paint::clip_label(scratch, &clip.name, clip.muted);
-            let inner = paint::clip_chrome(b, body, lanes, name, look, s);
+            let inner = paint::clip_chrome(b, body, lanes, name, linked, look, s);
             if renaming {
                 out.renaming = Some(body);
             }
@@ -1590,6 +1615,7 @@ fn clips(
             }
         }
     }
+    scratch.counts = counts;
     out
 }
 
@@ -2033,6 +2059,8 @@ enum Entry<'a> {
     /// the action's key is shown, the caller runs it.
     Shown(crate::keymap::Action, &'a str),
     Band(&'a str),
+    /// Something of the view's own with a check mark: a setting switched on or off.
+    Toggle(&'a str, bool),
     Separator,
 }
 
@@ -2063,6 +2091,13 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
                 enabled: true,
             },
             Entry::Band(label) => Item::Band(Src::Key(label)),
+            Entry::Toggle(label, on) => Item::Action {
+                label: Src::Key(label),
+                check: if on { Check::On } else { Check::Off },
+                shortcut: None,
+                submenu: false,
+                enabled: true,
+            },
             Entry::Separator => Item::Separator,
         })
         .collect();
@@ -2086,6 +2121,9 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Entry::Separator,
         Entry::Own("swap.add_instrument"),
         Entry::Run(Action::AddAudioTrack, "rec.add_audio_track"),
+        Entry::Separator,
+        // Whether a paste, Duplicate or Alt-drag makes the same clip again (ADR 0037).
+        Entry::Toggle("links.copies", app.settings.link_copies),
     ];
     match menu(app, ui, &entries) {
         Some(0) => {
@@ -2097,6 +2135,10 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         }
         Some(3) => {
             app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
+            ui.close();
+        }
+        Some(6) => {
+            app.toggle_link_copies();
             ui.close();
         }
         Some(_) => ui.close(),
@@ -2132,6 +2174,10 @@ pub fn action_item(
 pub fn clip_menu_opened(app: &mut CantusApp, track: TrackId, clip: ClipId) {
     if !paint::is_selected(app, (track, clip)) {
         app.select_clip(track, clip);
+    } else {
+        // The clip right-clicked is the one the menu's "this clip" means and the one the
+        // keys then act on (Alt+L links the selection to it): the edited clip.
+        app.edit_clip_keeping_selection((track, clip));
     }
     app.last_selection = crate::clipboard::SelKind::Clips;
     app.focus_arrangement();
@@ -2159,6 +2205,19 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
             if muted { "clip.unmute" } else { "clip.mute" },
         ),
     ];
+    // Linked clips (ADR 0037): a shared clip offers to leave its group and to show the
+    // rest of it; a selection of several offers to become this clip.
+    let selection = app.clip_selection();
+    let linked = crate::links::selection_is_linked(app.project(), &selection);
+    if linked {
+        entries.push(Entry::Run(Action::MakeUnique, "clip.make_unique"));
+        entries.push(Entry::Run(Action::SelectLinked, "clip.select_linked"));
+    }
+    // The right-clicked clip is the edited clip now (`clip_menu_opened`), so the entry and
+    // its key are one action with one target.
+    if selection.len() > 1 {
+        entries.push(Entry::Run(Action::LinkClips, "clip.link_here"));
+    }
     // An audio clip plays its file once: it has no repeat (ADR 0025).
     if !is_audio {
         entries.push(Entry::Run(

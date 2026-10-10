@@ -226,6 +226,9 @@ pub struct CantusApp {
     pub(crate) autosave_warned: bool,
     /// The autosave being written on its thread (`autosave`).
     pub(crate) autosave_job: Option<crate::autosave::Job>,
+    /// *Save* written on its thread (`save_job`, round 24): the save in flight, one queued
+    /// behind it, and what the *Save changes?* question waits to do.
+    pub saving: crate::save_job::Saving,
     /// Bumped whenever the project is replaced (open, new, a demo, a recovery), so a
     /// result about the one before is recognised.
     pub(crate) epoch: u64,
@@ -446,6 +449,7 @@ impl CantusApp {
             autosave_every: None,
             autosave_warned: false,
             autosave_job: None,
+            saving: Default::default(),
             epoch: 0,
             session: None,
             recovery: None,
@@ -1868,7 +1872,9 @@ impl CantusApp {
 
     pub fn duplicate_clips(&mut self) {
         let sel = self.clip_selection();
-        let (commands, made) = self.with_ids(|project, ids| clips::duplicate(project, &sel, ids));
+        let link = self.settings.link_copies;
+        let (commands, made) =
+            self.with_ids(|project, ids| clips::duplicate(project, &sel, link, ids));
         self.exec_clip_batch("cmd.duplicate_clips", commands, made);
     }
 
@@ -1974,7 +1980,7 @@ impl CantusApp {
     pub fn nudge_clips(&mut self, delta: Ticks) {
         let sel = self.clip_selection();
         let (commands, made) = self.with_ids(|project, ids| {
-            clips::transpose_selection(project, &sel, delta, 0, false, ids)
+            clips::transpose_selection(project, &sel, delta, 0, false, false, ids)
         });
         self.exec_clip_batch("cmd.nudge", commands, made);
     }
@@ -1983,6 +1989,7 @@ impl CantusApp {
     /// pointer did on the way there.
     pub fn commit_clip_drag(&mut self, anchor: ClipRef, result: ClipDragResult) {
         let sel = self.clip_selection();
+        let link = self.settings.link_copies;
         let (commands, made) = self.with_ids(|project, ids| {
             let Some(clip) = clips::clip_of(project, anchor) else {
                 return (Vec::new(), Vec::new());
@@ -1996,7 +2003,7 @@ impl CantusApp {
             }
             match result {
                 ClipDragResult::Move { delta, rows, copy } => {
-                    clips::transpose_selection(project, &sel, delta, rows, copy, ids)
+                    clips::transpose_selection(project, &sel, delta, rows, copy, link, ids)
                 }
                 ClipDragResult::TrimStart { delta } => (
                     clips::set_window(anchor.0, clip, clip.start + delta, clip.length - delta),
@@ -2291,6 +2298,9 @@ impl CantusApp {
                 );
             }
         }
+        // ...and the copies of a linked clip that showed what it showed (ADR 0037).
+        let follow = cantus_core::links::follow_window(self.project(), (t, c), &commands);
+        commands.extend(follow);
         if self.exec(Command::Batch {
             label_key: "cmd.duplicate".into(),
             commands,
@@ -2424,6 +2434,8 @@ impl CantusApp {
     /// Put `project` in the place of the open one, as a new, unsaved session: what *New*
     /// and the demo picker do.
     pub fn replace_project(&mut self, project: Project) {
+        // A save in flight writes the project being replaced: it lands first.
+        self.wait_for_save();
         // A pass in progress belongs to the project it was recorded into.
         if self.is_recording() {
             self.stop_recording();
@@ -2587,6 +2599,8 @@ impl CantusApp {
     /// Open the project at `path`. A file that cannot be opened is refused with what is
     /// wrong with it in words, and the open project stays as it was (round 22).
     pub fn open(&mut self, path: &Path) {
+        // A save in flight lands before anything is read (it may be this very file).
+        self.wait_for_save();
         let loaded = match cantus_project::load(path, true) {
             Ok(l) => l,
             Err(cantus_project::StoreError::Format(cantus_project::FormatError::Integrity {
@@ -2620,20 +2634,28 @@ impl CantusApp {
         self.selected_notes.clear();
         self.select_first();
         self.seek(Ticks::ZERO);
-        if let Some(from) = loaded.migrated_from {
+        if loaded.links_repaired > 0 {
+            self.set_error(crate::links::repaired_text(loaded.links_repaired));
+        } else if let Some(from) = loaded.migrated_from {
             self.set_status(tf("status.migrated", &[("from", &from)]));
         } else if !self.status.error {
             self.set_status(tf("status.opened", &[("path", &path.display())]));
         }
     }
 
+    /// *File ▸ Save* (Ctrl+S): written on a thread (`save_job`); the window goes on.
     pub fn save(&mut self) {
-        match self.path.clone() {
-            Some(p) => self.save_to_path(&p),
+        // A save in flight already knows where it goes: an untitled project is not asked
+        // for a name again (`save_job`).
+        match self.save_target() {
+            Some(p) => {
+                self.start_save(&p);
+            }
             None => self.save_as(),
         }
     }
 
+    /// *File ▸ Save As…*: the file dialog, then a save on a thread (`save_job`).
     pub fn save_as(&mut self) {
         let name = format!("{}.{}", self.project().name, cantus_project::FILE_EXTENSION);
         if let Some(path) = rfd::FileDialog::new()
@@ -2641,27 +2663,16 @@ impl CantusApp {
             .set_file_name(name)
             .save_file()
         {
-            self.save_to_path(&path);
+            self.start_save(&path);
         }
     }
 
+    /// Save to `path` and wait until it has landed (or failed): what scripts, the soak and
+    /// tests use. The interface uses [`save`](Self::save) and
+    /// [`start_save`](Self::start_save), which do not wait.
     pub fn save_to_path(&mut self, path: &Path) {
-        // The audio comes home first, so the file is written with its new paths.
-        self.collect_audio(path);
-        // Hosted plug-ins are asked for their state as it is now.
-        let project = self.plugins.project_for_save(self.bus.project());
-        match cantus_project::save(&project, path, APP_VERSION) {
-            Ok(r) => {
-                self.path = Some(path.to_path_buf());
-                self.sync_audio_base();
-                self.bus.mark_saved();
-                self.autosaved_revision = self.bus.revision();
-                self.set_status(tf("status.saved", &[("path", &r.path.display())]));
-                self.journal_persisted(None);
-            }
-            // The session is untouched and still unsaved; the message says why and where.
-            Err(e) => self.set_error(crate::recovery_text::save_failed(path, &e)),
-        }
+        self.start_save(path);
+        self.wait_for_save();
     }
 
     /// The autosave interval: the settings', or the override tests and the soak use.
@@ -2950,6 +2961,9 @@ impl CantusApp {
             ToggleClipLoop => self.toggle_clip_loop(),
             ClipColorNext => self.cycle_clip_color(),
             RenameClip => self.begin_rename_clip(),
+            MakeUnique => self.make_unique_clips(),
+            LinkClips => self.link_clips_to(None),
+            SelectLinked => self.select_linked(),
             // In the mixer the arrows walk the strips (§10).
             NudgeLeft if self.focus == EditFocus::Mixer => self.step_strip(-1),
             NudgeRight if self.focus == EditFocus::Mixer => self.step_strip(1),
@@ -3325,6 +3339,7 @@ impl CantusApp {
         self.layouts.end_frame();
 
         self.sync_engine();
+        self.poll_save(false);
         self.maybe_autosave();
         self.journal_tick();
 
@@ -3369,8 +3384,8 @@ impl CantusApp {
         if m[0].max(m[1]) > 1e-5 {
             ticker::moving(ctx, Reason::Meters);
         }
-        // An autosave being written: look again shortly to collect it.
-        if self.autosave_job.is_some() {
+        // A save or an autosave being written: look again shortly to collect it.
+        if self.autosave_job.is_some() || self.save_in_flight() {
             ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.

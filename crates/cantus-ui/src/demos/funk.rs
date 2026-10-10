@@ -278,7 +278,7 @@ pub fn build() -> Project {
     s.mix(bass_p.strip, -1.5, 0.0);
     s.trim(organ, -3.0);
     s.mix(organ.strip, -3.5, -0.25);
-    s.trim(keys, 8.0);
+    s.trim(keys, 3.0); // +8 before Lamina's calibration (ADR 0039, +5 dB)
     s.mix(keys.strip, -2.0, 0.3);
     s.trim(brass, 0.0);
     s.mix(brass.strip, -5.5, 0.1);

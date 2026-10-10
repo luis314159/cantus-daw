@@ -179,6 +179,9 @@ pub struct Processor {
     block_work: u64,
     pool_wakes: u64,
     shuffle: Option<u64>,
+    /// Instruments may split their voices over the pool (ADR 0038); `CANTUS_VOICE_SPLIT=0`
+    /// or [`Processor::set_voice_split`] turns it off (the same bits either way).
+    split_voices: bool,
     click: Click,
     /// The browser's audition voice, mixed after the master strip like the click.
     preview: crate::preview::Preview,
@@ -287,6 +290,7 @@ impl Processor {
             block_work: 0,
             pool_wakes: 0,
             shuffle: None,
+            split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
@@ -367,6 +371,27 @@ impl Processor {
     /// it off). Off, no node is blamed; the block histogram is kept either way.
     pub fn set_profiling(&mut self, on: bool) {
         self.prof.set_on(on);
+    }
+
+    /// Let the heavy instruments split their voices over the pool's threads (ADR 0038; on
+    /// by default). The output is the same bits either way — a switch for measuring. A
+    /// change re-clusters at the next block, so the serial hint matches it at once.
+    pub fn set_voice_split(&mut self, on: bool) {
+        if self.split_voices != on {
+            self.split_voices = on;
+            self.map_dirty = true;
+        }
+    }
+
+    pub fn voice_split(&self) -> bool {
+        self.split_voices
+    }
+
+    /// Whether the current clustering holds the plan to one thread (one long chain — the
+    /// critical path above 80 % of the cost — with no instrument splitting its voices, ADR
+    /// 0038 §6); `Mode::Auto` honours it. For tests and the bench.
+    pub fn plan_held_serial(&self) -> bool {
+        crate::sched::Topology::serial_hint(&self.topo)
     }
 
     /// Where the blocks' time went, node by node, since the totals were last reset — what

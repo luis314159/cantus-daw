@@ -30,7 +30,8 @@ lewton = "0.10"
 asio = ["cpal/asio"]
 # The scheduler's `buggify!` sites (ADR 0031 R13): compiled in only for the schedule fuzz
 # (`cargo test -p cantus-engine --features fuzz --test sched`); never in a release build.
-fuzz = []
+# It also turns on the voice forks' stall sites (cantus-rt's `fuzz`, ADR 0038).
+fuzz = ["cantus-rt/fuzz"]
 
 [dev-dependencies]
 tempfile = "3"

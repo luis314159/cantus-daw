@@ -1,6 +1,7 @@
 # recovery — ronda 22 (soak): recuperación tras un cierre inesperado, y archivos rechazados
 # con limpieza. Cada clave tiene su gemela en recovery.en.txt.
 recovery.title = Recupera tu trabajo
+recovery.left = Lo que dejó la sesión
 recovery.crashed = Cantus se cerró inesperadamente mientras «{name}» estaba abierto.
 recovery.closed = «{name}» tenía cambios sin guardar cuando Cantus se cerró. Se conservaron.
 recovery.autosaved = Cambios autoguardados {when}.

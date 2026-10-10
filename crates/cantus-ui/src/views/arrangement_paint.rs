@@ -608,17 +608,22 @@ pub(super) struct ClipLook {
     pub renaming: bool,
     /// Room kept free at the title bar's right (an audio clip's gain and reverse badges).
     pub reserve: f32,
+    /// A linked copy of a selected clip (ADR 0037): outlined faintly in the selection's
+    /// colour, so the whole group shows when one member is picked.
+    pub sibling: bool,
 }
 
 /// The chrome of one clip: a body in a deep (or pale) version of its colour, a title bar
 /// in the colour itself with FL's ▸ and the name tinted toward the colour, kept on
-/// screen while the clip's start scrolls off to the left. Returns the body's inner rect
-/// for the preview.
+/// screen while the clip's start scrolls off to the left. A linked clip (ADR 0037) shows
+/// a chain mark before its name and how many copies share it ("×3", `linked`) at the
+/// bar's right. Returns the body's inner rect for the preview.
 pub(super) fn clip_chrome(
     b: &mut Brush,
     body: Rect,
     visible: Rect,
     name: &str,
+    linked: Option<&str>,
     look: ClipLook,
     s: &Style,
 ) -> Rect {
@@ -666,6 +671,17 @@ pub(super) fn clip_chrome(
     }
     if look.selected {
         b.rrect_stroke(body.shrink(0.75 * k), r, 1.5 * k, t.selection);
+    } else if look.sibling {
+        // Dashed in the selection's colour: part of what is picked, not picked itself.
+        dashed_rect(
+            b,
+            body.shrink(0.75 * k),
+            visible,
+            1.25 * k,
+            t.selection,
+            4.0 * k,
+            3.0 * k,
+        );
     }
     // The name: on the bar, or on the body when there is no bar; kept inside the part of
     // the clip that is on screen.
@@ -695,10 +711,28 @@ pub(super) fn clip_chrome(
             crate::kit::glyph::paint(b, g, crate::kit::glyph::Glyph::Menu, ink);
             left = g.right();
         }
-        let name_box = Rect::from_min_max(
-            pos2(left + 3.0 * k, line.top()),
-            pos2(body.right() - 3.0 * k - look.reserve, line.bottom()),
-        );
+        // A linked clip: the chain, then the name; the count at the right end.
+        let mut right = body.right() - 3.0 * k - look.reserve;
+        if let Some(count) = linked {
+            if right - left > 30.0 * k {
+                let g = Rect::from_min_size(
+                    pos2(left + 2.0 * k, line.center().y - 5.0 * k),
+                    egui::vec2(10.0 * k, 10.0 * k),
+                );
+                crate::kit::glyph::paint(b, g, crate::kit::glyph::Glyph::Link, ink);
+                left = g.right();
+            }
+            let w = (6.0 * count.chars().count() as f32 + 4.0) * k;
+            if right - left > w + 24.0 * k {
+                let count_box =
+                    Rect::from_min_max(pos2(right - w, line.top()), pos2(right, line.bottom()));
+                let tx = Text::new(count, Role::Label, ink).align(Align2::RIGHT_CENTER);
+                let _ = text::paint(b, count_box, &tx, s.tk());
+                right = count_box.left() - 2.0 * k;
+            }
+        }
+        let name_box =
+            Rect::from_min_max(pos2(left + 3.0 * k, line.top()), pos2(right, line.bottom()));
         if name_box.width() > 6.0 * k {
             let tx = Text::new(name, Role::Label, ink)
                 .align(Align2::LEFT_CENTER)
@@ -716,6 +750,53 @@ pub(super) fn clip_chrome(
         pos2(body.left() + 2.0 * k, top),
         pos2(body.right() - 2.0 * k, body.bottom() - 2.0 * k),
     )
+}
+
+/// A rectangle's outline in dashes of `dash` with gaps of `gap`, each side on its own.
+/// A dashed outline of `r`, drawn only where it meets `visible`: a long clip zoomed in is
+/// tens of thousands of pixels wide, nearly all of them off screen. The dashes keep their
+/// places on the clip (they start at its corner), so the pattern does not crawl as the
+/// view scrolls.
+#[allow(clippy::too_many_arguments)]
+fn dashed_rect(
+    b: &mut Brush,
+    r: Rect,
+    visible: Rect,
+    w: f32,
+    color: egui::Color32,
+    dash: f32,
+    gap: f32,
+) {
+    let step = (dash + gap).max(1.0);
+    for x in dashes(r.left(), r.right(), visible.left(), visible.right(), step) {
+        let x1 = (x + dash).min(r.right());
+        b.hline(x, x1, r.top(), w, color);
+        b.hline(x, x1, r.bottom() - w, w, color);
+    }
+    let shown = |x: f32| x + w >= visible.left() && x <= visible.right();
+    for y in dashes(r.top(), r.bottom(), visible.top(), visible.bottom(), step) {
+        let y1 = (y + dash).min(r.bottom());
+        if shown(r.left()) {
+            b.vline(r.left(), y, y1, w, color);
+        }
+        if shown(r.right() - w) {
+            b.vline(r.right() - w, y, y1, w, color);
+        }
+    }
+}
+
+/// Where the dashes of an edge from `lo` to `hi` start (every `step`, from `lo`), keeping
+/// only those that reach into `vis_lo..vis_hi`.
+fn dashes(lo: f32, hi: f32, vis_lo: f32, vis_hi: f32, step: f32) -> impl Iterator<Item = f32> {
+    let first = if vis_lo > lo {
+        ((vis_lo - lo) / step).floor()
+    } else {
+        0.0
+    };
+    let end = hi.min(vis_hi);
+    (first as u32..)
+        .map(move |i| lo + i as f32 * step)
+        .take_while(move |x| *x < end)
 }
 
 /// The colour a clip's notes are drawn in on its body.
@@ -749,5 +830,31 @@ pub(super) fn title_height(body: Rect, k: f32) -> f32 {
         14.0 * k
     } else {
         0.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dashes;
+
+    /// A 64-bar clip at the widest zoom is about 100 000 px; only the dashes on screen are
+    /// drawn, and they sit where they would if the whole edge were drawn.
+    #[test]
+    fn only_the_dashes_on_screen_are_drawn_and_they_do_not_crawl() {
+        let step = 7.0;
+        let all: Vec<f32> = dashes(-50_000.0, 52_000.0, f32::MIN, f32::MAX, step).collect();
+        assert!(all.len() > 14_000);
+        let shown: Vec<f32> = dashes(-50_000.0, 52_000.0, 0.0, 1_200.0, step).collect();
+        assert!(shown.len() <= 1_200 / 7 + 2, "{}", shown.len());
+        assert!(shown[0] <= 0.0 && shown[0] + step > 0.0);
+        assert!(shown.iter().all(|x| *x < 1_200.0));
+        // On the same grid as the whole edge.
+        for x in &shown {
+            let q = (x + 50_000.0) / step;
+            assert!((q - q.round()).abs() < 1e-2, "{x}");
+        }
+        // A clip that starts on screen starts its dashes at its corner.
+        let near: Vec<f32> = dashes(100.0, 130.0, 0.0, 1_200.0, step).collect();
+        assert_eq!(near, vec![100.0, 107.0, 114.0, 121.0, 128.0]);
     }
 }

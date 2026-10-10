@@ -129,6 +129,7 @@ fn a_time_cut_through_a_looping_automation_clip_leaves_the_curve_outside_it_unch
         0,
         from,
         &HashMap::new(),
+        false,
         &mut ids,
     );
     assert_eq!(out.skipped_automation, 0);

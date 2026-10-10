@@ -38,6 +38,9 @@ pub(crate) struct PassCtx {
     pub profiling: bool,
     /// A stem tap is attached (the pass runs serially).
     pub tap: bool,
+    /// Instruments may split their voices over the pool (ADR 0038;
+    /// `Processor::set_voice_split`).
+    pub split_voices: bool,
 }
 
 impl PassCtx {
@@ -61,6 +64,7 @@ impl PassCtx {
             block: 0,
             profiling: true,
             tap: false,
+            split_voices: true,
         }
     }
 

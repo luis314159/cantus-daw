@@ -63,6 +63,8 @@ fn new_and_open_ask_before_unsaved_work_goes() {
     a.request_open_path(other.clone());
     assert!(matches!(a.unsaved_prompt, Some(Then::OpenPath(_))));
     a.answer_unsaved(Answer::Save);
+    // The save is written on a thread (round 24); the open follows once it has landed.
+    a.wait_for_save();
     assert_eq!(
         cantus_project::load(&mine, true).unwrap().project.name,
         "Mine, edited",

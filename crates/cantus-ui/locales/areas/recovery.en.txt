@@ -1,6 +1,7 @@
 # recovery — round 22 (soak): crash recovery, and files refused cleanly. Every key here
 # needs its twin in recovery.es.txt.
 recovery.title = Recover your work
+recovery.left = What the session left
 recovery.crashed = Cantus closed unexpectedly while “{name}” was open.
 recovery.closed = “{name}” had changes that were not saved when Cantus closed. They were kept.
 recovery.autosaved = Changes autosaved {when}.

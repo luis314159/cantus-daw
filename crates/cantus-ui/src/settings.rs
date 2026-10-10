@@ -145,6 +145,10 @@ pub struct Settings {
     pub updates: UpdateSettings,
     /// The export dialog's last choices (ADR 0033).
     pub export: cantus_export::ExportSettings,
+    /// Whether a copy of a clip in the arrangement — a paste, Duplicate, an Alt-drag — is
+    /// a **linked** copy, the same clip in another place (FL's pattern clips, ADR 0037),
+    /// or a copy of its own. On by default; *Make unique* detaches one copy either way.
+    pub link_copies: bool,
 }
 
 /// The updater's two preferences. The schedule itself (when it last asked) is in
@@ -182,6 +186,7 @@ impl Default for Settings {
             audio_setup: Default::default(),
             updates: UpdateSettings::default(),
             export: cantus_export::ExportSettings::default(),
+            link_copies: true,
         }
     }
 }

@@ -15,6 +15,11 @@ pub struct NoteEvent {
     pub tick: Ticks,
     pub pitch: Pitch,
     pub velocity: u8,
+    /// The voice tag: what pairs a note-off with its note-on, and what a seeded instrument
+    /// draws a note's randomness from. It is the note's own id, except where another clip
+    /// on the track already plays a note of that id (a linked copy, or a copy made unique —
+    /// ADR 0037): there it is the id mixed with the clip's ([`voice_tag`]), so the copies
+    /// are told apart. It never depends on whether a clip is linked.
     pub note: NoteId,
     /// For a note-on, how many note-ons of this pitch come before it on the track, from
     /// the top of the piece. An instrument that cycles (a drum's round robin) reads this
@@ -346,15 +351,18 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
             .map(|p| p.pitch)
             .collect::<Vec<_>>()
     });
-    for clip in &track.clips {
-        // Take lanes are never heard, and audio and automation clips have no notes to fire.
-        if clip.muted || clip.lane != 0 || clip.audio.is_some() || clip.automation.is_some() {
-            continue;
-        }
+    // Take lanes are never heard, and audio and automation clips have no notes to fire.
+    let heard = |clip: &&Clip| {
+        !(clip.muted || clip.lane != 0 || clip.audio.is_some() || clip.automation.is_some())
+    };
+    // Which clip each event came from — needed only where two clips could share note ids.
+    let mut from: Option<Vec<u64>> = (track.clips.iter().filter(heard).count() > 1).then(Vec::new);
+    for clip in track.clips.iter().filter(heard) {
         for n in &clip.notes {
             if n.muted {
                 continue;
             }
+            let tag = n.id;
             if muted_pads
                 .as_ref()
                 .is_some_and(|pads| pads.contains(&n.pitch))
@@ -380,18 +388,24 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
                     tick: on,
                     pitch: n.pitch,
                     velocity: n.velocity.max(1),
-                    note: n.id,
+                    note: tag,
                     ordinal: 0,
                 });
                 events.push(NoteEvent {
                     tick: off,
                     pitch: n.pitch,
                     velocity: 0,
-                    note: n.id,
+                    note: tag,
                     ordinal: 0,
                 });
+                if let Some(from) = from.as_mut() {
+                    from.extend([clip.id.0, clip.id.0]);
+                }
             }
         }
+    }
+    if let Some(from) = from {
+        tell_copies_apart(&mut events, &from);
     }
     // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
     events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
@@ -402,6 +416,53 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
         *c += 1;
     }
     events
+}
+
+/// Tell apart the notes of clips that share note ids on one track (ADR 0037).
+///
+/// Linked copies hold the same notes under the same ids, and a copy made unique keeps
+/// them; two such clips can overlap, and the engine pairs a note-off with its voice by the
+/// tag — the first copy's note-off would cut the second's note. For each note id played by
+/// more than one clip, the clip with the lowest id (the one that held the notes first: ids
+/// only grow) keeps the note's own id, and every other gets [`voice_tag`]. Whether a clip
+/// is linked plays no part, so linking, unlinking or copying a clip changes no event of the
+/// clip it was copied from. `from[i]` is the clip id of `events[i]`.
+fn tell_copies_apart(events: &mut [NoteEvent], from: &[u64]) {
+    let mut pairs: Vec<(u64, u64)> = events
+        .iter()
+        .zip(from)
+        .filter(|(e, _)| e.is_on())
+        .map(|(e, c)| (e.note.0, *c))
+        .collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    // Sorted by note id, then clip id: the first clip of each run owns the id.
+    let later: Vec<(u64, u64)> = pairs
+        .windows(2)
+        .filter(|w| w[0].0 == w[1].0)
+        .map(|w| w[1])
+        .collect();
+    if later.is_empty() {
+        return;
+    }
+    for (e, c) in events.iter_mut().zip(from) {
+        if later.binary_search(&(e.note.0, *c)).is_ok() {
+            e.note = NoteId(voice_tag(e.note.0, *c));
+        }
+    }
+}
+
+/// The voice tag of note `note` played by a clip `clip` that does not own the id: the id
+/// mixed with a SplitMix64 hash of the clip's. Bit 30 and bit 63 are set, so the tag
+/// never equals a note's own id (ids are counted up from 1) — neither as a 64-bit tag
+/// for Cantus's instruments nor cut to the 31 bits a CLAP or VST3 note id keeps — and two
+/// clips' tags differ in every part of the word.
+pub fn voice_tag(note: u64, clip: u64) -> u64 {
+    let mut z = clip.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    (note ^ z) | (1 << 30) | (1 << 63)
 }
 
 #[cfg(test)]

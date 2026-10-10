@@ -61,3 +61,57 @@ fn the_audio_thread_calls_allocate_nothing() {
     .join()
     .unwrap();
 }
+
+/// Forking voices (ADR 0038): publishing, helping and joining allocate nothing, on the
+/// forker or on a helper.
+#[test]
+fn a_fork_allocates_nothing_on_either_side() {
+    use cantus_rt::fork::{Forks, Job};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    let forks = Arc::new(Forks::new());
+    let stop = Arc::new(AtomicBool::new(false));
+    let helper = {
+        let (f, s) = (forks.clone(), stop.clone());
+        std::thread::spawn(move || {
+            WATCHED.with(|w| w.set(true));
+            f.presence(true);
+            while !s.load(Ordering::Relaxed) {
+                f.help();
+            }
+            f.presence(false);
+            WATCHED.with(|w| w.set(false));
+        })
+    };
+    forks.presence(true);
+    while forks.present() < 2 {
+        std::thread::yield_now();
+    }
+    WATCHED.with(|w| w.set(true));
+    let mut sums = [0u64; 16];
+    for _ in 0..1_000 {
+        let mut work: [_; 16] = std::array::from_fn(|_| None);
+        for (w, s) in work.iter_mut().zip(sums.iter_mut()) {
+            // Long enough that the helper wins some of them (asserted below).
+            *w = Some(move || {
+                for _ in 0..300 {
+                    std::hint::spin_loop();
+                }
+                *s += 1
+            });
+        }
+        let mut jobs: [Job<'_>; 16] = [const { None }; 16];
+        for (j, w) in jobs.iter_mut().zip(work.iter_mut()) {
+            *j = w.as_mut().map(|w| w as &mut (dyn FnMut() + Send));
+        }
+        forks.run(&mut jobs);
+    }
+    WATCHED.with(|w| w.set(false));
+    forks.presence(false);
+    stop.store(true, Ordering::Relaxed);
+    helper.join().unwrap();
+    assert!(sums.iter().all(|s| *s == 1_000));
+    // Both sides were exercised: the helper ran jobs too, not only the forker.
+    assert!(forks.counts().0 > 0, "the helper never ran a job");
+    assert_eq!(ALLOCATIONS.load(Ordering::Relaxed), 0);
+}

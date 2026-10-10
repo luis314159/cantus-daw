@@ -9,6 +9,7 @@ use super::{Quality, CARDS, GHOSTS, MAX_VOICES};
 use crate::comprimo::oversample::Oversampler;
 use crate::math;
 use crate::modmatrix::{ModMatrix, ModRoute};
+use crate::par::Lanes;
 use crate::va::math::{hash3, mix64};
 use crate::va::{card_trims, CardTrims, FilterCoefs};
 use crate::voices::{Allocator, PlayMode};
@@ -19,6 +20,8 @@ const CHUNK: usize = 64;
 const LIVE_ID_BASE: u64 = u64::MAX - 256;
 /// Frames the decimator and the chorus need to empty after the last voice.
 const TAIL: usize = 512;
+/// Voices and ghosts: one lane each in the parallel render.
+const LANES: usize = MAX_VOICES + GHOSTS;
 
 /// Telemetry layout (from slot 8; 0–2 are the frame's).
 pub mod tel {
@@ -64,6 +67,10 @@ pub struct Calor {
     buf_r: [f32; CHUNK * 4],
     out_l: [f32; CHUNK],
     out_r: [f32; CHUNK],
+    /// One oversampled chunk per voice and ghost, for the parallel render (ADR 0038), and
+    /// which of them hold this chunk's voice.
+    lanes: Lanes,
+    used: [bool; LANES],
     chorus: Chorus,
     out: OutputStage,
     clock: u64,
@@ -111,6 +118,8 @@ impl Calor {
             buf_r: [0.0; CHUNK * 4],
             out_l: [0.0; CHUNK],
             out_r: [0.0; CHUNK],
+            lanes: Lanes::new(LANES, CHUNK * 4),
+            used: [false; LANES],
             chorus: Chorus::new(sample_rate),
             out: OutputStage::new(sample_rate),
             clock: 0,

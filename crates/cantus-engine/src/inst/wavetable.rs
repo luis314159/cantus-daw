@@ -499,6 +499,19 @@ impl InstrumentUnit for Unit {
         self.dsp.process(left, right)
     }
 
+    fn process_par(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        self.dsp.process_par(left, right, par)
+    }
+
+    fn splits_voices(&self) -> bool {
+        true
+    }
+
     fn active_voices(&self) -> usize {
         self.dsp.active_voices()
     }

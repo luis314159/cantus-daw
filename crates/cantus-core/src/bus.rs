@@ -96,6 +96,13 @@ impl CommandBus {
         self.saved_revision = self.revision;
     }
 
+    /// Mark `revision` as the one in the file: a save written off the interface's thread
+    /// holds the revision it was taken at, and an edit made while it was written keeps
+    /// the project dirty. A revision from the future is the present.
+    pub fn mark_saved_at(&mut self, revision: u64) {
+        self.saved_revision = revision.min(self.revision);
+    }
+
     // Id allocation is deliberately *not* a command: ids are monotonic and never reused, so
     // allocating one is never undone and never conflicts. These helpers build entities
     // with fresh ids; inserting them is still done through a command.

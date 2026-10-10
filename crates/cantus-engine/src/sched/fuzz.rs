@@ -194,7 +194,7 @@ pub struct Pct {
     step: AtomicU64,
     /// How many change points fired, and at which sites (indexed like [`site_index`]).
     pub fired: AtomicU32,
-    pub fired_at: [AtomicU32; 5],
+    pub fired_at: [AtomicU32; 9],
 }
 
 /// A site's index in [`Pct::fired_at`].
@@ -205,6 +205,10 @@ pub fn site_index(site: Site) -> usize {
         Site::Run => 2,
         Site::Finish => 3,
         Site::Idle => 4,
+        Site::ForkOpened => 5,
+        Site::ForkRegistered => 6,
+        Site::ForkClaimed => 7,
+        Site::ForkClosing => 8,
     }
 }
 

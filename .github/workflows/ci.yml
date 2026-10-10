@@ -29,6 +29,16 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace
+      # The engine on a three-worker pool with the schedule fuzz's stalls (ADR 0031 R13,
+      # round 22; ADR 0038's forked voices): every test binary of the engine, parallel =
+      # serial to the bit, with stalls inside the voice forks too.
+      - name: engine on the pool, schedule fuzz
+        run: cargo test -p cantus-engine --features fuzz
+        env:
+          CANTUS_WORKERS: "3"
+      # The fork protocol with threads stalled inside its windows (ADR 0038 §4).
+      - name: voice forks, stalls inside the protocol
+        run: cargo test -p cantus-rt --features fuzz --test fork
       - run: cargo build --release -p cantus
 
   # The performance gate (docs/perf/benchmark.md §6): the quick suite against

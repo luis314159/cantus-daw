@@ -1095,6 +1095,10 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
             (Action::SplitClip, "clip.split"),
             (Action::GlueClips, "clip.glue"),
             (Action::Duplicate, "clip.duplicate"),
+            // Linked clips (ADR 0037).
+            (Action::MakeUnique, "clip.make_unique"),
+            (Action::LinkClips, "action.link-clips"),
+            (Action::SelectLinked, "clip.select_linked"),
         ] {
             if views::arrangement::action_item(app, ui, action, key) {
                 ui.close();

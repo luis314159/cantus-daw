@@ -33,6 +33,7 @@ id_type!(EffectId, "fx");
 id_type!(StripId, "s");
 id_type!(GroupId, "g");
 id_type!(AudioSourceId, "a");
+id_type!(LinkId, "l");
 
 impl StripId {
     /// The master, wherever an effect's host is named by a strip id (ADR 0026): effect
@@ -131,6 +132,15 @@ pub struct Clip {
     /// is empty. `None` — every clip before schema 19 — is a note or audio clip.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub automation: Option<crate::automation::Automation>,
+    /// The clip's **link group** (ADR 0037): every clip with the same id is *the same
+    /// clip* in another place — FL's pattern clips, Live's linked clips. They share their
+    /// content (`notes`, `audio`, `automation`) and how it is named and coloured, and an
+    /// edit through any of them changes all of them (`Command::apply` carries it to every
+    /// sibling). Where each one sits — `start`, `length`, `offset`, `content_length`,
+    /// `muted`, `lane` — stays its own. `None` — every clip before schema 22 — is a clip of
+    /// its own. See [`crate::links`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<LinkId>,
 }
 
 fn is_zero_u8(x: &u8) -> bool {
@@ -1362,6 +1372,7 @@ impl Project {
             audio: None,
             lane: 0,
             automation: None,
+            link: None,
         }
     }
 

@@ -275,6 +275,10 @@ pub struct EngineStats {
     /// The last block ran on the pool (`false`: the callback alone — no workers, the
     /// adaptive rule's quiet blocks, or one long chain).
     pub parallel: bool,
+    /// Instruments' voice forks published to the pool (ADR 0038), and the voice jobs the
+    /// pool's other threads took from them, since the processor was built.
+    pub voice_forks: u64,
+    pub voice_jobs_helped: u64,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**

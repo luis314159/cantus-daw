@@ -70,6 +70,20 @@ pub trait Graph: Send + Sync + 'static {
     /// Run `task` on pool slot `slot` (0 is the callback, `1..=W` the workers — per-slot
     /// scratch belongs to the slot).
     fn run(&self, task: u32, slot: usize);
+
+    /// Slot `slot` found nothing ready and the block is not over: help with work *inside* a
+    /// running task — the jobs a task forked (ADR 0038, an instrument's voices). Returns the
+    /// nanoseconds spent on it (0: nothing to do). Must not block, allocate or panic.
+    #[inline]
+    fn help(&self, _slot: usize) -> u64 {
+        0
+    }
+
+    /// Slot `slot` entered (`true`) or left (`false`) a parallel block's drain loop — where
+    /// it runs tasks and calls [`Self::help`]. A task can ask the graph how many slots are
+    /// inside before it forks.
+    #[inline]
+    fn presence(&self, _slot: usize, _inside: bool) {}
 }
 
 /// The shape of a task graph, read by the callback only, when it installs it
@@ -111,6 +125,27 @@ pub enum Site {
     Finish,
     /// A worker about to wait for the next block (a late worker).
     Idle,
+    /// Inside an instrument's voice fork (ADR 0038; `cantus_rt::fork::ForkSite`): the
+    /// forker just opened its slot, before it claims a job.
+    ForkOpened,
+    /// A helper registered in a fork's slot, before it re-reads the slot's state.
+    ForkRegistered,
+    /// A thread claimed a voice job, before it runs it.
+    ForkClaimed,
+    /// The forker marked its slot closing, before it waits for the helpers to leave.
+    ForkClosing,
+}
+
+impl From<cantus_rt::fork::ForkSite> for Site {
+    fn from(s: cantus_rt::fork::ForkSite) -> Self {
+        use cantus_rt::fork::ForkSite as F;
+        match s {
+            F::Opened => Site::ForkOpened,
+            F::Registered => Site::ForkRegistered,
+            F::Claimed => Site::ForkClaimed,
+            F::Closing => Site::ForkClosing,
+        }
+    }
 }
 
 /// A hook the pool calls at every [`Site`] (with the `fuzz` feature) and when it arms a
@@ -118,7 +153,8 @@ pub enum Site {
 pub trait Chaos: Send + Sync + 'static {
     /// The callback armed block `block` (before the epoch is published).
     fn arm(&self, _block: u64) {}
-    /// Thread `slot` reached `site`.
+    /// Thread `slot` reached `site` (`usize::MAX` at the `Fork*` sites: a voice fork does
+    /// not know which pool thread it runs on).
     fn at(&self, _site: Site, _slot: usize) {}
 }
 

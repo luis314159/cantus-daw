@@ -417,6 +417,19 @@ impl InstrumentUnit for Unit {
         self.calor.process(left, right)
     }
 
+    fn process_par(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        self.calor.process_par(left, right, par)
+    }
+
+    fn splits_voices(&self) -> bool {
+        true
+    }
+
     fn active_voices(&self) -> usize {
         self.calor.active_voices()
     }

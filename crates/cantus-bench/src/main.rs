@@ -1,7 +1,7 @@
 //! `cantus-bench` — run the suite, compare a run with a baseline, print a report.
 //!
 //! ```text
-//! cantus-bench [--quick | --full] [--only fx,inst,engine,render,open,ui,dawbench,startup]
+//! cantus-bench [--quick | --full] [--only fx,inst,engine,demos,render,open,ui,dawbench,startup]
 //!              [--json <file>]
 //! cantus-bench compare <current.json> <baseline.json> [--threshold <percent>]
 //! cantus-bench table <report.json>

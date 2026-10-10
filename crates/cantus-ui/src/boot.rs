@@ -75,6 +75,8 @@ struct Read {
     refused: Option<(PathBuf, cantus_project::StoreError)>,
     /// It opened, but its integrity hash did not match.
     integrity_warning: bool,
+    /// It opened, with this many clips taken out of link groups they did not match.
+    links_repaired: usize,
     plugins: cantus_host::PluginDb,
 }
 
@@ -179,6 +181,7 @@ impl Boot {
                     let files = Files::read(&dir, locale);
                     let mut refused = None;
                     let mut integrity_warning = false;
+                    let mut links_repaired = 0;
                     let project = path.and_then(|p| {
                         let first = cantus_project::load(&p, true);
                         // As *Open* does: a hash that does not match opens with a warning.
@@ -192,7 +195,10 @@ impl Boot {
                             other => other,
                         };
                         match loaded {
-                            Ok(l) => Some((l.project, p)),
+                            Ok(l) => {
+                                links_repaired = l.links_repaired;
+                                Some((l.project, p))
+                            }
                             Err(e) => {
                                 log::error!("could not open {}: {e}", p.display());
                                 refused = Some((p, e));
@@ -207,6 +213,7 @@ impl Boot {
                         project,
                         refused,
                         integrity_warning,
+                        links_repaired,
                         plugins,
                     });
                     ctx2.request_repaint();
@@ -282,6 +289,8 @@ impl Boot {
                     app.set_error(crate::recovery_text::open_failed(p, e));
                 } else if read.integrity_warning {
                     app.set_error(crate::i18n::t("status.integrity"));
+                } else if read.links_repaired > 0 {
+                    app.set_error(crate::links::repaired_text(read.links_repaired));
                 }
                 // The journal of this session, after reading what gone ones left (round 22).
                 app.start_session(&app::data_dir());

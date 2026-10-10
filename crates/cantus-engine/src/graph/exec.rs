@@ -23,7 +23,7 @@ use super::*;
 use crate::graph::notes::{Listener, Outbox};
 use crate::pdc::{DelayLine, Lines};
 use cantus_rt::cell::{NodeCell, NodeMut, ShareCell};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering::Relaxed};
 
 /// Parameter gestures a slot can carry out of one pass (a hosted plug-in's window being
 /// played with: a few per pass at most).
@@ -196,6 +196,12 @@ pub(crate) struct Nodes {
     /// bits), and a track's voices or a strip's deepest reduction.
     pub track_peak: Box<[AtomicU32]>,
     pub track_voices: Box<[AtomicU32]>,
+    /// Per track slot: its instrument split-capable and sounding two voices or more at the
+    /// end of some pass since the last clustering (ADR 0038 §6), which reads and clears it —
+    /// the serial hint must not hold such a plan to one thread.
+    pub track_splits: Box<[AtomicBool]>,
+    /// The jobs tasks fork (an instrument's voices) and the slots present to take them.
+    pub forks: cantus_rt::fork::Forks,
     pub strip_peak: Box<[AtomicU32]>,
     pub strip_gr: Box<[AtomicU32]>,
     /// Per plan node.
@@ -270,6 +276,8 @@ impl Nodes {
             tap: NodeCell::new(None),
             track_peak: atoms(MAX_TRACKS),
             track_voices: atoms(MAX_TRACKS),
+            track_splits: (0..MAX_TRACKS).map(|_| AtomicBool::new(false)).collect(),
+            forks: cantus_rt::fork::Forks::new(),
             strip_peak: atoms(MAX_STRIPS),
             strip_gr: atoms(MAX_STRIPS),
             timing: (0..crate::graph::MAX_NODES)
@@ -434,5 +442,49 @@ impl crate::sched::Graph for Nodes {
     #[inline]
     fn run(&self, task: u32, slot: usize) {
         self.run_task(task as usize, slot);
+    }
+
+    #[inline]
+    fn help(&self, _slot: usize) -> u64 {
+        if !self.forks.any_open() {
+            return 0;
+        }
+        let t0 = Instant::now();
+        if self.forks.help() {
+            (t0.elapsed().as_nanos() as u64).max(1)
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    fn presence(&self, _slot: usize, inside: bool) {
+        self.forks.presence(inside);
+    }
+}
+
+/// The pool as an instrument sees it (ADR 0038): the slots present in this block's drain
+/// loop, and the forks they take jobs from. Serial when splitting is off.
+pub(crate) struct PoolPar<'a> {
+    pub forks: &'a cantus_rt::fork::Forks,
+    pub on: bool,
+}
+
+impl cantus_dsp::par::Parallel for PoolPar<'_> {
+    #[inline]
+    fn width(&self) -> usize {
+        if self.on {
+            self.forks.present().max(1)
+        } else {
+            1
+        }
+    }
+
+    fn run(&self, jobs: &mut [cantus_dsp::par::Job<'_>]) {
+        if self.on {
+            self.forks.run(jobs);
+        } else {
+            cantus_dsp::par::Serial.run(jobs);
+        }
     }
 }

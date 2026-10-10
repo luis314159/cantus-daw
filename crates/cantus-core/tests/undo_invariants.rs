@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(31) {
+    match rng.below(37) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -398,6 +398,17 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     // ones to the strip itself — every refusal path as well as the work.
                     12 => Command::SetStripSend {
                         id: st.id,
+                        send: Send {
+                            to: project.strips[rng.below(strips as u64) as usize].id,
+                            level: rng.f32(-0.2, 1.2),
+                            enabled: rng.below(4) != 0,
+                        },
+                    },
+                    // A send put back at a place in the list (the inverse of a removal),
+                    // and ones that would loop or duplicate — every refusal path too.
+                    13 if rng.below(2) == 0 => Command::InsertStripSend {
+                        id: st.id,
+                        index: rng.below(st.sends.len() as u64 + 2) as usize,
                         send: Send {
                             to: project.strips[rng.below(strips as u64) as usize].id,
                             level: rng.f32(-0.2, 1.2),
@@ -782,6 +793,16 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         29 if tracks > 0 => clipboard_paste_notes(rng, project),
         // A cut of a time range across every track (cmd.cut_time).
         30 if tracks > 0 => clipboard_cut_time(rng, project),
+        // Linked clips (ADR 0037): linked copies (the duplicate, the Alt-drag, a linked
+        // paste), Make unique, Link to, and edits made through one sibling — notes, name,
+        // colour, audio settings, a curve, the whole content — which must reach them all.
+        31 | 32 if tracks > 0 => linked_copies(rng, project),
+        33 if tracks > 0 => make_unique(rng, project),
+        34 if tracks > 0 => link_to(rng, project),
+        35 if tracks > 0 => edit_through_sibling(rng, project),
+        // A whole track brought in with a link group of its own clips (an MCP call), one
+        // time in three with the two members disagreeing (refused).
+        36 => linked_track(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -852,7 +873,17 @@ fn clipboard_paste_clips(rng: &mut Lcg, project: &mut Project) -> Command {
         next += 1;
         id
     };
-    let out = clipboard::paste_clips(project, &board, same_origin, row, at, &plans, &mut ids);
+    let linked = rng.below(2) == 0;
+    let out = clipboard::paste_clips(
+        project,
+        &board,
+        same_origin,
+        row,
+        at,
+        &plans,
+        linked,
+        &mut ids,
+    );
     project.next_id = next;
     Command::Batch {
         label_key: "cmd.paste_clips".into(),
@@ -908,7 +939,13 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
             name: format!("P{}", rng.below(100)),
         };
     }
-    let (track, clip) = &notes[rng.below(notes.len() as u64) as usize];
+    // Half the time a linked clip, so a paste that grows it grows its siblings too.
+    let linked: Vec<&(TrackId, Clip)> = notes.iter().filter(|(_, c)| c.link.is_some()).collect();
+    let (track, clip) = if !linked.is_empty() && rng.below(2) == 0 {
+        linked[rng.below(linked.len() as u64) as usize]
+    } else {
+        &notes[rng.below(notes.len() as u64) as usize]
+    };
     let board: Vec<Note> = (0..1 + rng.below(4))
         .map(|i| Note {
             id: NoteId(0),
@@ -922,12 +959,14 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
     // Sometimes well past the end, so the clip has to grow (or its loop lengthen).
     let at = clip.offset + Ticks::beats(rng.below(24) as i64);
     let mut next = project.next_id;
-    let (commands, _) = clipboard::paste_notes(*track, clip, &board, at, &mut || {
+    let (mut commands, _) = clipboard::paste_notes(*track, clip, &board, at, &mut || {
         let id = next;
         next += 1;
         id
     });
     project.next_id = next;
+    // As the piano roll does: the copies that showed what it showed grow with it.
+    commands.extend(links::follow_window(project, (*track, clip.id), &commands));
     Command::Batch {
         label_key: "cmd.paste".into(),
         commands,
@@ -1037,6 +1076,239 @@ fn clipboard_cut_time(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
+/// A track whose two clips name one new link group; one time in three their notes differ
+/// and `InsertTrack` must refuse it.
+fn linked_track(rng: &mut Lcg, project: &mut Project) -> Command {
+    let mut t = project.make_track(format!("L{}", rng.below(100)));
+    let link = Some(LinkId(project.alloc_id()));
+    let mut a = project.make_clip("la", Ticks::ZERO, Ticks::beats(4));
+    a.notes.push(project.make_note(
+        Ticks(rng.below(3000) as i64),
+        Ticks::QUARTER,
+        rng.below(128) as u8,
+        1 + rng.below(127) as u8,
+    ));
+    a.link = link;
+    let mut b = Clip {
+        id: ClipId(project.alloc_id()),
+        start: Ticks::beats(8),
+        ..a.clone()
+    };
+    if rng.below(3) == 0 {
+        b.notes[0].pitch = (b.notes[0].pitch + 1) % 128;
+    }
+    t.clips = vec![a, b];
+    Command::Batch {
+        label_key: "fuzz.linked_track".into(),
+        commands: vec![Command::InsertTrack {
+            index: rng.below(project.tracks.len() as u64 + 1) as usize,
+            track: Box::new(t),
+        }],
+    }
+}
+
+/// Fresh ids from the project's counter, written back when the closure is done.
+fn with_ids<R>(project: &mut Project, f: impl FnOnce(&Project, &mut dyn FnMut() -> u64) -> R) -> R {
+    let mut next = project.next_id;
+    let out = f(project, &mut || {
+        let id = next;
+        next += 1;
+        id
+    });
+    project.next_id = next;
+    out
+}
+
+/// Linked copies of 1 to 3 clips, on their own track or one below (the duplicate and the
+/// Alt-drag with linking on). One time in eight, a clip that does not match the group it
+/// names is slipped in, and the whole batch must be refused.
+fn linked_copies(rng: &mut Lcg, project: &mut Project) -> Command {
+    let sel = random_clip_refs(rng, project);
+    let shift = Ticks::beats(1 + rng.below(16) as i64);
+    let below = rng.below(2) == 1;
+    let spoil = rng.below(8) == 0;
+    let mut commands = with_ids(project, |p, ids| {
+        let mut linker = links::Linker::new();
+        let mut out = Vec::new();
+        for (t, c) in &sel {
+            let Some(index) = p.track_index(*t) else {
+                continue;
+            };
+            let clip = p.tracks[index].clip(*c).expect("listed");
+            let to = if below && clip.automation.is_none() {
+                p.tracks[(index + 1).min(p.tracks.len() - 1)].id
+            } else {
+                *t
+            };
+            let (pre, copy) = linker.copy(*t, clip, clip.start + shift, ids);
+            out.extend(pre);
+            out.push(Command::InsertClip {
+                track: to,
+                clip: Box::new(copy),
+            });
+        }
+        out
+    });
+    if spoil {
+        if let Some(Command::InsertClip { clip, .. }) = commands.last_mut() {
+            clip.name.push('!');
+        }
+    }
+    Command::Batch {
+        label_key: "cmd.duplicate_clips".into(),
+        commands,
+    }
+}
+
+fn make_unique(rng: &mut Lcg, project: &mut Project) -> Command {
+    let linked: Vec<(TrackId, ClipId)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.link.is_some())
+                .map(move |c| (t.id, c.id))
+        })
+        .collect();
+    let sel = if linked.is_empty() || rng.below(4) == 0 {
+        random_clip_refs(rng, project)
+    } else {
+        vec![linked[rng.below(linked.len() as u64) as usize]]
+    };
+    Command::Batch {
+        label_key: "cmd.make_unique".into(),
+        commands: links::make_unique(project, &sel),
+    }
+}
+
+/// Link 1 to 3 clips to another: they take its content. One time in six a bare
+/// `SetClipLink` into a group the clip does not match is tried instead (refused).
+fn link_to(rng: &mut Lcg, project: &mut Project) -> Command {
+    let sel = random_clip_refs(rng, project);
+    let all = random_clip_refs(rng, project);
+    let (Some(target), Some(first)) = (all.first().copied(), sel.first().copied()) else {
+        return Command::SetProjectName {
+            name: format!("P{}", rng.below(100)),
+        };
+    };
+    if rng.below(6) == 0 {
+        let link = project
+            .track(target.0)
+            .and_then(|t| t.clip(target.1))
+            .and_then(|c| c.link)
+            .unwrap_or(LinkId(project.next_id + 7));
+        return Command::SetClipLink {
+            track: first.0,
+            clip: first.1,
+            link: Some(link),
+        };
+    }
+    let commands = with_ids(project, |p, ids| links::link_to(p, &sel, target, ids));
+    Command::Batch {
+        label_key: "cmd.link_clips".into(),
+        commands,
+    }
+}
+
+/// An edit through one member of a group of two or more.
+fn edit_through_sibling(rng: &mut Lcg, project: &mut Project) -> Command {
+    let sizes = links::sizes(project);
+    let shared: Vec<(TrackId, Clip)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.link.is_some_and(|l| sizes[&l] > 1))
+                .map(move |c| (t.id, c.clone()))
+        })
+        .collect();
+    if shared.is_empty() {
+        return linked_copies(rng, project);
+    }
+    let (track, c) = shared[rng.below(shared.len() as u64) as usize].clone();
+    let clip = c.id;
+    let cmd = match rng.below(7) {
+        0 => Command::InsertNotes {
+            track,
+            clip,
+            notes: vec![project.make_note(
+                Ticks(rng.below(4000) as i64),
+                Ticks(1 + rng.below(900) as i64),
+                rng.below(128) as u8,
+                1 + rng.below(127) as u8,
+            )],
+        },
+        1 if !c.notes.is_empty() => Command::RemoveNotes {
+            track,
+            clip,
+            ids: vec![c.notes[rng.below(c.notes.len() as u64) as usize].id],
+        },
+        2 if !c.notes.is_empty() => {
+            let mut n = c.notes[rng.below(c.notes.len() as u64) as usize].clone();
+            n.start = Ticks(rng.below(4000) as i64);
+            n.velocity = 1 + rng.below(127) as u8;
+            Command::SetNotes {
+                track,
+                clip,
+                notes: vec![n],
+            }
+        }
+        3 => Command::SetClipColor {
+            track,
+            clip,
+            color: Some(Color::PALETTE[rng.below(Color::PALETTE.len() as u64) as usize]),
+        },
+        4 if c.audio.is_some() => {
+            let mut a = c.audio.clone().unwrap();
+            a.gain_db = rng.f32(-24.0, 6.0);
+            a.fade_in = Ticks(rng.below(900) as i64);
+            a.reverse = rng.below(2) == 0;
+            Command::SetClipAudio {
+                track,
+                clip,
+                audio: Some(a),
+            }
+        }
+        4 if c.automation.is_some() => {
+            let mut a = c.automation.clone().unwrap();
+            a.points = random_points(rng);
+            Command::SetClipAutomation {
+                track,
+                clip,
+                automation: Some(a),
+            }
+        }
+        5 => {
+            let mut content = links::ClipContent::of(&c);
+            content.name = format!("n{}", rng.below(100));
+            if c.audio.is_none() && c.automation.is_none() {
+                content.notes = vec![project.make_note(
+                    Ticks(rng.below(2000) as i64),
+                    Ticks::QUARTER,
+                    rng.below(128) as u8,
+                    90,
+                )];
+            }
+            Command::SetClipContent {
+                track,
+                clip,
+                content: Box::new(content),
+            }
+        }
+        _ => Command::SetClipName {
+            track,
+            clip,
+            name: format!("s{}", rng.below(100)),
+        },
+    };
+    Command::Batch {
+        label_key: "fuzz.sibling_edit".into(),
+        commands: vec![cmd],
+    }
+}
+
 fn random_points(rng: &mut Lcg) -> Vec<AutoPoint> {
     let mut pts: Vec<AutoPoint> = (0..rng.below(6))
         .map(|_| AutoPoint {
@@ -1141,7 +1413,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         Origin::Mcp,
         Origin::System,
     ];
-    let mut exercised = [0usize; 7];
+    let mut exercised = [0usize; 14];
     for seed in 1..=40u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1160,6 +1432,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             let origin = origins[rng.below(5) as usize];
             let kind = clipboard_kind(&cmd);
             let ok = bus.execute(cmd, origin).is_ok();
+            // Every group's members share their content, whatever was applied or refused.
+            links::check(bus.project())
+                .unwrap_or_else(|e| panic!("seed {seed}: link invariant broken: {e}"));
             if ok {
                 applied += 1;
                 if let Some(k) = kind {
@@ -1180,6 +1455,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         // Walk back: each undo must yield the previous checkpoint.
         for i in (1..checkpoints.len()).rev() {
             assert!(bus.undo().is_some(), "seed {seed}: undo {i} failed");
+            links::check(bus.project())
+                .unwrap_or_else(|e| panic!("seed {seed}: link invariant broken by undo: {e}"));
             let mut now = bus.project().clone();
             now.next_id = 0;
             let mut expected = checkpoints[i - 1].clone();
@@ -1207,16 +1484,31 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         assert!(!bus.can_redo());
     }
     // The clipboard arms must really run: pastes of clips, ones that bring a file with
-    // them, cuts of clips and of notes, and note pastes that grow their clip.
+    // them, cuts of clips and of notes, and note pastes that grow their clip; and the link
+    // arms: linked copies, Make unique, Link to (content replaced), an edit through a
+    // sibling of a real group, a linked paste.
     for (k, n) in exercised.iter().enumerate() {
         assert!(*n > 0, "clipboard case {k} never applied: {exercised:?}");
     }
 }
 
+/// Whether `commands` change the window or loop of a clip other than `clip`.
+fn has_other_window(commands: &[Command], clip: Option<ClipId>) -> bool {
+    commands.iter().any(|c| match c {
+        Command::SetClipBounds { clip: id, .. }
+        | Command::SetClipOffset { clip: id, .. }
+        | Command::SetClipLoop { clip: id, .. } => Some(*id) != clip,
+        _ => false,
+    })
+}
+
 /// Which clipboard case a generated command is, for the coverage check: 0 a clip paste,
 /// 1 a paste that inserts a file, 2 a cut of clips, 3 a cut of notes, 4 a note paste
 /// that grows its clip, 5 a time cut that cuts something, 6 one that leaves a piece of
-/// a looping automation clip (the loop-phase crop).
+/// a looping automation clip (the loop-phase crop); 7 a linked copy, 8 a Make unique, 9 a
+/// Link to that replaced a content, 10 an edit through a sibling, 11 a linked paste; 12 a
+/// note paste that grew a linked clip's siblings with it, 13 a track bringing its own link
+/// group.
 fn clipboard_kind(cmd: &Command) -> Option<usize> {
     let Command::Batch {
         label_key,
@@ -1227,6 +1519,27 @@ fn clipboard_kind(cmd: &Command) -> Option<usize> {
     };
     let has = |f: fn(&Command) -> bool| commands.iter().any(f);
     match label_key.as_str() {
+        "cmd.paste_clips"
+            if has(|c| matches!(c, Command::InsertClip { clip, .. } if clip.link.is_some())) =>
+        {
+            Some(11)
+        }
+        "cmd.duplicate_clips" if !commands.is_empty() => Some(7),
+        "cmd.make_unique" if !commands.is_empty() => Some(8),
+        "cmd.link_clips" if has(|c| matches!(c, Command::SetClipContent { .. })) => Some(9),
+        "fuzz.sibling_edit" => Some(10),
+        "fuzz.linked_track" => Some(13),
+        "cmd.paste"
+            if {
+                let pasted_into = commands.iter().find_map(|c| match c {
+                    Command::InsertNotes { clip, .. } => Some(*clip),
+                    _ => None,
+                });
+                has_other_window(commands, pasted_into)
+            } =>
+        {
+            Some(12)
+        }
         "cmd.paste_clips" if has(|c| matches!(c, Command::InsertAudioSource { .. })) => Some(1),
         "cmd.paste_clips" if has(|c| matches!(c, Command::InsertClip { .. })) => Some(0),
         "cmd.cut_clips" if !commands.is_empty() => Some(2),

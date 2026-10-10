@@ -10,6 +10,7 @@
 
 use crate::app::{CantusApp, APP_VERSION};
 use crate::i18n::{t, tf};
+use crate::recovery::JournalPass;
 use cantus_project::{SaveReport, StoreError};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -23,6 +24,8 @@ pub struct Job {
     revision: u64,
     epoch: u64,
     path: Option<PathBuf>,
+    /// The recording passes finished when the copy was taken: their takes are in it.
+    persisted: Vec<JournalPass>,
     rx: Receiver<Result<SaveReport, StoreError>>,
 }
 
@@ -39,6 +42,7 @@ impl CantusApp {
         if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
             return;
         }
+        let persisted = self.journal_finished_passes();
         let project = self.autosave_copy();
         let (tx, rx) = mpsc::channel();
         let (path, dir) = (self.path.clone(), self.autosave_dir.clone());
@@ -55,6 +59,7 @@ impl CantusApp {
                     revision: self.bus.revision(),
                     epoch: self.epoch,
                     path,
+                    persisted,
                     rx,
                 })
             }
@@ -112,7 +117,7 @@ impl CantusApp {
                         }
                     }
                 }
-                self.journal_persisted(Some(&r.path));
+                self.journal_persisted(Some(&r.path), &job.persisted);
             }
             Err(e) => {
                 log::warn!("autosave failed: {e}");

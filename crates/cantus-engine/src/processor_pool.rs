@@ -235,6 +235,15 @@ impl Processor {
                 hook(slot, false);
             }
         }));
+        // The schedule fuzz stalls inside the voice forks too (ADR 0038): the protocol's
+        // sites reach the same hook, with no slot (`usize::MAX`) — a fork does not know
+        // which pool thread it runs on.
+        #[cfg(feature = "fuzz")]
+        if let Some(chaos) = workers.chaos.clone() {
+            let _ = self.nodes.forks.set_hook(Arc::new(move |site| {
+                chaos.at(crate::sched::Site::from(site), usize::MAX)
+            }));
+        }
         match Pool::with_chaos(self.nodes.clone(), cfg, DynChaos(workers.chaos)) {
             Ok(p) => {
                 self.pool_wakes = 0;
@@ -286,6 +295,17 @@ impl Processor {
             }
             None => (true, None),
         };
+        // A track whose instrument has had voices to split since the last clustering (ADR
+        // 0038 §6) keeps the block parallel even when it is the whole critical path. Every
+        // flag is read and cleared, so a track that went back to one voice lets the hint
+        // hold again at the next clustering.
+        let mut divisible = false;
+        for job in &map.jobs {
+            if let Job::Track { slot, .. } = *job {
+                divisible |= nodes.track_splits[slot as usize].swap(false, Relaxed);
+            }
+        }
+        self.topo.divisible = self.split_voices && divisible;
         let cost = &self.node_cost;
         self.topo.build(&self.plan, map, |n| cost[n], cluster);
         if let Some(r) = shuffle {

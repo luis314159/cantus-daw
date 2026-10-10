@@ -8,6 +8,8 @@
 //! - [`kernels`]: each effect at its defaults and heavy, each instrument at 1/8/32 voices.
 //! - [`suites`]: the processor on the demo songs scaled to 10/32/64/100 tracks, the
 //!   profiler's own cost, offline render speed in multiples of real time, project open.
+//! - [`demos`]: the startup song and every demo at 256 frames on the application's pool
+//!   (the beta's performance floor).
 //! - [`ui`]: frame times of the whole window on big sessions.
 //! - [`startup`]: the real executable, from spawn to its second frame.
 //! - [`dawbench`]: DAWbench-style DSP and VI capacity, defined so the same sessions can
@@ -22,6 +24,7 @@
 pub mod compare;
 pub mod cpu;
 pub mod dawbench;
+pub mod demos;
 pub mod hashes;
 pub mod kernels;
 pub mod paced;
@@ -62,8 +65,8 @@ impl Plan {
 }
 
 /// The groups of the suite, by the name the command line takes.
-pub const GROUPS: [&str; 8] = [
-    "fx", "inst", "engine", "render", "open", "ui", "dawbench", "startup",
+pub const GROUPS: [&str; 9] = [
+    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup",
 ];
 
 /// Run the groups in `only` (all of them when empty; the quick plan never runs
@@ -97,6 +100,7 @@ pub fn run(plan: &Plan, only: &[String]) -> report::Report {
         v.extend(suites::profiler_overhead(plan));
         v
     });
+    step("demos", &mut |_| demos::suite(plan));
     step("render", &mut |_| suites::render_speed(plan));
     step("open", &mut |_| suites::open(plan));
     step("ui", &mut |_| ui::frames(plan));

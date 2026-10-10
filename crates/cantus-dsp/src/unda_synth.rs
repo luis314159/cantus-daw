@@ -5,6 +5,7 @@ use super::decim::Decimator;
 use super::modsrc::{self, unit, LfoMode};
 use super::voice::{Globals, Voice};
 use super::{factory, source, target, Settings, CONTROL, SOURCES};
+use crate::par::Lanes;
 use crate::voices::{Action, Allocator, PlayMode, MAX_VOICES as ALLOC_MAX};
 
 /// The most voices Unda plays at once.
@@ -59,6 +60,11 @@ pub struct Unda {
     stolen: u32,
     peak: [f32; 2],
     released: [usize; ALLOC_MAX],
+    /// The parallel render's lanes (one span per voice at 4×), the piece each voice ended
+    /// in, and which voices a span rendered (ADR 0038, `unda_par.rs`).
+    lanes: Lanes,
+    fin: [usize; MAX_VOICES],
+    used: [bool; MAX_VOICES],
 }
 
 impl Unda {
@@ -87,6 +93,9 @@ impl Unda {
             stolen: 0,
             peak: [0.0; 2],
             released: [0; ALLOC_MAX],
+            lanes: Lanes::new(MAX_VOICES, par::SPAN * 4),
+            fin: [0; MAX_VOICES],
+            used: [false; MAX_VOICES],
         }
     }
 
@@ -369,3 +378,6 @@ impl Unda {
         m
     }
 }
+
+#[path = "unda_par.rs"]
+mod par;

@@ -359,6 +359,58 @@ fn the_pool_threads_never_allocate() {
     audio_thread_scenario(Some(Workers::parallel(3)));
 }
 
+/// Voices on several threads (ADR 0038): chords on Calor, Unda and Exemplar with three
+/// workers, their voices forked to the pool block after block — not one allocation on the
+/// callback or a worker, and the workers really did render voices.
+#[test]
+fn forked_voices_never_allocate() {
+    let mut p = Project::new("voices");
+    p.tempo_bpm = 120.0;
+    for (t, kind) in [
+        InstrumentKind::Analog,
+        InstrumentKind::Wavetable,
+        InstrumentKind::Sampler,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut tr = p.make_track(format!("{kind:?}"));
+        tr.instrument = InstrumentSpec::Native(NativeSpec::new(kind));
+        let mut clip = p.make_clip("chords", Ticks::ZERO, Ticks::beats(8));
+        for bar in 0..4i64 {
+            for k in 0..8u8 {
+                let len = Ticks::beats(1 + (k as i64 % 2));
+                let note = p.make_note(Ticks::beats(bar * 2), len, 40 + t as u8 * 5 + k * 4, 90);
+                clip.notes.push(note);
+            }
+        }
+        tr.clips.push(clip);
+        p.tracks.push(tr);
+    }
+    let mut rig = Rig::with(Some(Workers::parallel(3)));
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("warm", 20);
+    rig.allocations.clear();
+    rig.play("chords", 300);
+    let s = *rig.p.stats();
+    assert!(
+        s.voice_jobs_helped > 0,
+        "no worker rendered a voice ({} forks)",
+        s.voice_forks
+    );
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "forked voices allocated or freed: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
 fn audio_thread_scenario(workers: Option<Workers>) {
     let mut p = demo_project();
     p.tempo_bpm = 120.0;

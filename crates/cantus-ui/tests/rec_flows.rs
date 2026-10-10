@@ -404,3 +404,44 @@ fn a_finished_pass_is_one_undo_step_and_reports_dropped_frames() {
     assert_eq!(a.project().tracks, before.tracks);
     assert!(a.project().audio_pool.is_empty());
 }
+
+/// Round 24 (found by `save_async`'s journal test): a pass must not be closed by a
+/// transport the engine has not started yet. *Record* sends *Play*; until the callback has
+/// taken it, the handle still reads the engine's last word — stopped — and a frame that
+/// runs before then (a buffer longer than a frame, a loaded machine) used to end the pass
+/// on the spot.
+#[test]
+fn a_pass_is_not_closed_by_a_play_the_engine_has_not_taken_yet() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let (h, mut proc) = EngineHandle::manual(48_000.0);
+    let mut a = CantusApp::from_parts(Some(starter_project()), h, false);
+    let keys = a.project().tracks[0].id;
+    a.toggle_arm(keys, false);
+    let mut out = vec![0f32; 512];
+    // The engine has run, stopped: its stats are in.
+    proc.process(&mut out, 2);
+    a.engine.poll();
+    assert!(a.engine.stats().blocks_processed > 0);
+    assert!(!a.engine.is_playing());
+    a.start_recording();
+    assert!(a.is_recording());
+    // A frame before the callback took the Play: the handle still reads stopped.
+    a.engine.poll();
+    a.poll_recording();
+    assert!(a.is_recording(), "the Play is on its way, not refused");
+    // The engine starts.
+    proc.process(&mut out, 2);
+    a.engine.poll();
+    a.poll_recording();
+    assert!(a.engine.is_playing());
+    assert!(a.is_recording());
+    // The transport stopping on its own (the end of the song) still closes the pass.
+    a.engine.stop();
+    proc.process(&mut out, 2);
+    a.engine.poll();
+    a.poll_recording();
+    assert!(
+        !a.is_recording(),
+        "a transport that stopped closes the pass"
+    );
+}

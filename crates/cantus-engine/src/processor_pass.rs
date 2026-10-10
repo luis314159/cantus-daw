@@ -176,6 +176,7 @@ impl Processor {
                 c.block = self.block;
                 c.profiling = self.prof.is_on();
                 c.tap = tap;
+                c.split_voices = self.split_voices;
             }
             None => nodes.conflict(),
         }
@@ -410,5 +411,6 @@ impl Processor {
             .map(|s| nodes.track_voices[*s].load(Relaxed) as usize)
             .sum();
         self.stats.schedule_conflicts = nodes.conflicts.load(Relaxed);
+        (self.stats.voice_jobs_helped, self.stats.voice_forks) = nodes.forks.counts();
     }
 }

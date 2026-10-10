@@ -17,6 +17,7 @@
 //! | [`click`] | metronome click |
 //! | [`nulltest`] | render comparison harness |
 //! | [`math`] | the transcendental functions, the same bits on every machine |
+//! | [`par`] | an instrument's voices on several threads with the bits of one (ADR 0038) |
 
 #![forbid(unsafe_code)]
 // `next()` is the conventional name for a per-sample generator in DSP code.
@@ -44,6 +45,7 @@ pub mod multiplex;
 pub mod nulltest;
 pub mod organum;
 pub mod osc;
+pub mod par;
 pub mod porta;
 pub mod pulsus;
 pub mod rest;

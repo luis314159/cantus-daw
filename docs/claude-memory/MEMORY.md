@@ -11,5 +11,6 @@
 - [Round 22: multicore pool + beta hardening](round-22.md) — started 2026-10-07; base c8bc9f2; r21 not yet pushed
 - [Backlog ideas: just record them](feedback-backlog-ideas.md) — owner's mid-round feature ideas go to BACKLOG-excellence.md with a brief reply
 - [Final goal: undeniably the best DAW](goal-best-daw.md) — measurable best, free and commercial; backlog §0 scorecard; adoption in parallel
-- [Round 23: beta blockers](round-23.md) — export dialog audit+fixes (ADR 0035), theme text cache fix, CPU tests best-of-5, Ctrl+C/X/V (ADR 0036); uncommitted in F:\projects\daw-r23
-- [F: machine build quirks](machine-f-drive-build-quirks.md) — cargo off PATH, incremental link failures (turn incremental off), UAC blocks *setup*/*update* test exes
+- [Round 23: beta blockers](round-23.md) — export dialog audit+fixes (ADR 0035), theme text cache fix, CPU tests best-of-5, Ctrl+C/X/V (ADR 0036); pushed as master cead440
+- [F: machine build quirks](machine-f-drive-build-quirks.md) — cargo off PATH, incremental link failures (turn incremental off), UAC blocks *setup*/*update* test exes; 3 parallel builders nearly exhaust RAM (31 GB)
+- [Round 24: beta rest, linked clips, perf wave 2](round-24.md) — r24/integration uncommitted (F:\projects\daw-r23\beta-hardening); 2 000 tests; 2-h soak passed; ADRs 0037-0040; §6d.3 designed

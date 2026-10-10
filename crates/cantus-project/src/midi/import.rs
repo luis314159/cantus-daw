@@ -612,6 +612,7 @@ pub fn import_commands(
             audio: None,
             lane: 0,
             automation: None,
+            link: None,
         };
         let instrument = if it.drums {
             InstrumentSpec::Pulsus(kit_for(it, &mut report))

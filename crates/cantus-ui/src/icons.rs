@@ -26,6 +26,8 @@ pub enum Icon {
     Metronome,
     Keyboard,
     Zoom,
+    /// A linked clip (ADR 0037): two links of a chain.
+    Link,
 }
 
 /// Paint `icon` centred in `rect` (designed for ~16 px, scales with the rect), over a
@@ -171,6 +173,22 @@ pub fn paint_on(p: &egui::Painter, rect: Rect, icon: Icon, color: Color32, bg: C
                 color,
             );
             p.line_segment([pos2(c.x, c.y - h), pos2(c.x, c.y + h)], thin);
+        }
+        Icon::Link => {
+            let r = h * 0.42;
+            for side in [-1.0f32, 1.0] {
+                let (a, z) = if side < 0.0 {
+                    (c.x - h, c.x + h * 0.18)
+                } else {
+                    (c.x - h * 0.18, c.x + h)
+                };
+                p.rect_stroke(
+                    Rect::from_min_max(pos2(a, c.y - r), pos2(z, c.y + r)),
+                    r,
+                    thin,
+                    egui::StrokeKind::Middle,
+                );
+            }
         }
         Icon::Glue => {
             // Two blocks driven together: the arrowheads are what say "join", because two

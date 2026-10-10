@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 /// The journal's own format version.
 pub const JOURNAL_VERSION: u32 = 1;
@@ -95,6 +97,105 @@ pub struct Session {
     lock: Option<File>,
     pub journal: Journal,
     written: String,
+    /// The journal is written on a thread of its own (round 23's soak): a write ends with
+    /// `fsync`, which a busy disk can hold for seconds, and the window must not wait.
+    writer: Option<Writer>,
+}
+
+/// What the writer thread and the session share: the newest text waiting to be written
+/// (a newer one replaces it — only the last state matters), whether a write is under way,
+/// and whether the thread should stop.
+#[derive(Debug, Default)]
+struct Slot {
+    pending: Option<String>,
+    busy: bool,
+    stop: bool,
+    /// Tests: how long each write waits first (a slow disk).
+    delay: Duration,
+}
+
+#[derive(Debug)]
+struct Writer {
+    shared: Arc<(Mutex<Slot>, Condvar)>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Writer {
+    fn start(json: PathBuf) -> io::Result<Writer> {
+        let shared = Arc::new((Mutex::new(Slot::default()), Condvar::new()));
+        let theirs = shared.clone();
+        let thread = std::thread::Builder::new()
+            .name("cantus-journal".into())
+            .spawn(move || {
+                let (lock, cv) = &*theirs;
+                loop {
+                    let (text, delay) = {
+                        let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
+                        while slot.pending.is_none() && !slot.stop {
+                            slot = cv.wait(slot).unwrap_or_else(|e| e.into_inner());
+                        }
+                        let Some(text) = slot.pending.take() else {
+                            return;
+                        };
+                        slot.busy = true;
+                        (text, slot.delay)
+                    };
+                    if !delay.is_zero() {
+                        std::thread::sleep(delay);
+                    }
+                    if let Err(e) = write_atomic(&json, &text) {
+                        log::warn!("session journal: {e}");
+                    }
+                    let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
+                    slot.busy = false;
+                    cv.notify_all();
+                }
+            })?;
+        Ok(Writer {
+            shared,
+            thread: Some(thread),
+        })
+    }
+
+    fn send(&self, text: String) {
+        let (lock, cv) = &*self.shared;
+        lock.lock().unwrap_or_else(|e| e.into_inner()).pending = Some(text);
+        cv.notify_all();
+    }
+
+    /// Wait until everything sent is on disk.
+    fn flush(&self) {
+        let (lock, cv) = &*self.shared;
+        let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
+        while slot.pending.is_some() || slot.busy {
+            slot = cv.wait(slot).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+
+    /// Write what is pending, then end the thread.
+    fn stop(mut self) {
+        self.flush();
+        {
+            let (lock, cv) = &*self.shared;
+            lock.lock().unwrap_or_else(|e| e.into_inner()).stop = true;
+            cv.notify_all();
+        }
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+
+/// `text` into `path` whole: a temporary file, synced, renamed over the old one, so a
+/// crash mid-write leaves the previous journal whole.
+fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
+    let tmp = path.with_extension("json.tmp");
+    {
+        let mut f = File::create(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+    }
+    fs::rename(&tmp, path)
 }
 
 impl Session {
@@ -127,8 +228,14 @@ impl Session {
                 ..Default::default()
             },
             written: String::new(),
+            writer: None,
         };
-        s.sync()?;
+        // The first write is made here, whole, before the session counts as started; the
+        // later ones go to the writer thread.
+        let text = serde_json::to_string_pretty(&s.journal).map_err(io::Error::other)?;
+        write_atomic(&s.json, &text)?;
+        s.written = text;
+        s.writer = Some(Writer::start(s.json.clone())?);
         Ok(s)
     }
 
@@ -136,22 +243,36 @@ impl Session {
         &self.json
     }
 
-    /// Write the journal if it changed since the last write: a temporary file renamed
-    /// over the old one, so a crash mid-write leaves the previous journal whole.
+    /// Have the journal written if it changed since the last time: handed to the writer
+    /// thread (a temporary file renamed over the old one, so a crash mid-write leaves the
+    /// previous journal whole) — the caller, the window, never waits for the disk.
     pub fn sync(&mut self) -> io::Result<()> {
         let text = serde_json::to_string_pretty(&self.journal).map_err(io::Error::other)?;
         if text == self.written {
             return Ok(());
         }
-        let tmp = self.json.with_extension("json.tmp");
-        {
-            let mut f = File::create(&tmp)?;
-            f.write_all(text.as_bytes())?;
-            f.sync_all()?;
+        match &self.writer {
+            Some(w) => w.send(text.clone()),
+            None => write_atomic(&self.json, &text)?,
         }
-        fs::rename(&tmp, &self.json)?;
         self.written = text;
         Ok(())
+    }
+
+    /// Wait until every change handed to the writer is on disk (the end of a session,
+    /// and the tests).
+    pub fn flush(&self) {
+        if let Some(w) = &self.writer {
+            w.flush();
+        }
+    }
+
+    /// Tests: make every journal write wait `delay` first, as a busy disk does.
+    #[doc(hidden)]
+    pub fn slow_disk_for_tests(&self, delay: Duration) {
+        if let Some(w) = &self.writer {
+            w.shared.0.lock().unwrap_or_else(|e| e.into_inner()).delay = delay;
+        }
     }
 
     /// The session ends normally. With `unsaved` work (kept in the autosave) the journal
@@ -160,6 +281,13 @@ impl Session {
         if unsaved && self.journal.autosave.is_some() {
             self.journal.closed = true;
             let _ = self.sync();
+        }
+        // What is pending is written (or would be, before the file goes), then the thread
+        // ends: nothing writes the journal after this.
+        if let Some(w) = self.writer.take() {
+            w.stop();
+        }
+        if unsaved && self.journal.autosave.is_some() {
             self.lock = None;
             let _ = fs::remove_file(&self.lock_path);
         } else {
@@ -218,7 +346,10 @@ pub fn orphans(dir: &Path) -> Vec<Orphan> {
             .ok()
             .and_then(|t| serde_json::from_str::<Journal>(&t).ok())
         {
-            Some(journal) => out.push(Orphan { journal, json: path }),
+            Some(journal) => out.push(Orphan {
+                journal,
+                json: path,
+            }),
             None => {
                 let _ = fs::remove_file(&path);
                 let _ = fs::remove_file(path.with_extension("lock"));
@@ -277,5 +408,42 @@ pub fn repair_wav(path: &Path) -> io::Result<u64> {
             _ => {}
         }
         at += 8 + size + (size & 1);
+    }
+}
+
+#[cfg(test)]
+mod journal_writer_tests {
+    use super::*;
+
+    /// Round 23's soak: a frame took 18.5 s while three builds kept the disk busy — the
+    /// journal's `fsync` ran on the window's thread. A slow disk now costs the caller
+    /// nothing; the change still reaches the file, and the end of the session waits for it.
+    #[test]
+    fn a_slow_disk_does_not_hold_up_the_caller() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Session::start(dir.path(), "test").unwrap();
+        s.slow_disk_for_tests(Duration::from_millis(800));
+        s.journal.dirty = true;
+        s.journal.project_name = "Salmo 150".into();
+        let t0 = std::time::Instant::now();
+        s.sync().unwrap();
+        assert!(
+            t0.elapsed() < Duration::from_millis(200),
+            "sync waited for the disk: {:?}",
+            t0.elapsed()
+        );
+        // Changes made meanwhile: only the last one matters.
+        s.journal.project_name = "Salmo 23".into();
+        s.sync().unwrap();
+        s.flush();
+        let on_disk: Journal =
+            serde_json::from_str(&fs::read_to_string(s.journal_path()).unwrap()).unwrap();
+        assert!(on_disk.dirty);
+        assert_eq!(on_disk.project_name, "Salmo 23");
+        // A clean end removes the journal, and nothing writes it again afterwards.
+        let json = s.journal_path().to_path_buf();
+        s.end(false);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!json.exists(), "the journal is gone and stays gone");
     }
 }

@@ -1,0 +1,4 @@
+# save — round 24 (beta-rest): File ▸ Save written off the interface's thread. Every key
+# here needs its twin in save.es.txt.
+save.saving = Saving “{file}”…
+save.queued = “{file}” will be saved as soon as the save in progress finishes.

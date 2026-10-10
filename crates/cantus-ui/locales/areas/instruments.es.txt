@@ -7,6 +7,7 @@ cmd.connect_modulation = Conectar modulación
 cmd.remove_modulation = Quitar modulación
 
 inst.gain = Ganancia
+inst.trim = Calibración de salida
 inst.view.play = Tocar
 inst.view.edit = Editar
 inst.view.matrix = Matriz

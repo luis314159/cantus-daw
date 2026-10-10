@@ -323,7 +323,17 @@ pub struct Exemplar {
     stolen: u32,
     /// Keys held down (for the first and legato triggers).
     keys_down: u32,
-    coefs: [f32; resample::MAX_TAPS],
     released_buf: [usize; MAX_VOICES],
     peak: f32,
+    /// The parallel render (ADR 0038): a lane per sounding layer, whether each lane's layer
+    /// ended in the span, and the layers that ended this block (told to the allocator in
+    /// layer order at its end).
+    lanes: crate::par::Lanes,
+    lane_end: [u16; LANES],
+    ended: Box<[bool]>,
 }
+
+/// The longest span one fork of the parallel render covers, in frames.
+const SPAN: usize = 128;
+/// Layers the parallel render gives a lane; with more sounding it renders serially.
+const LANES: usize = 64;

@@ -441,3 +441,226 @@ fn a_parked_pool_is_woken_once_per_worker_after_silence_and_not_while_busy() {
     eprintln!("busy again: {wakes} wakes over 300 blocks, {idle} with an idle moment");
     assert_eq!(r.p.stats().schedule_conflicts, 0);
 }
+
+// ---- voices on several threads (ADR 0038) -----------------------------------------------
+
+/// Chords on the instruments that split their voices — Calor, Unda, Exemplar — overlapping,
+/// with short and long notes so voices end mid-block (and Calor steals into its ghosts),
+/// `alone`: only the first of them (one track: the plan's critical path is all of it).
+fn chords(alone: bool) -> Project {
+    let mut p = Project::new("voices");
+    p.tempo_bpm = 120.0;
+    let kinds = [
+        InstrumentKind::Analog,
+        InstrumentKind::Wavetable,
+        InstrumentKind::Sampler,
+    ];
+    let kinds = if alone { &kinds[..1] } else { &kinds[..] };
+    let mut rng = Rng::new(0xC0DE);
+    for (t, kind) in kinds.iter().enumerate() {
+        let mut tr = p.make_track(format!("{kind:?}"));
+        tr.instrument = InstrumentSpec::Native(NativeSpec::new(*kind));
+        let mut clip = p.make_clip("chords", Ticks::ZERO, Ticks::beats(8));
+        for bar in 0..4i64 {
+            for k in 0..10u8 {
+                let start = Ticks::beats(bar * 2) + Ticks(rng.range(0, PPQ as usize / 4) as i64);
+                let len = Ticks(rng.range(PPQ as usize / 16, 3 * PPQ as usize) as i64);
+                let pitch = 40 + t as u8 * 5 + k * 4;
+                clip.notes.push(p.make_note(start, len, pitch, 70 + k * 5));
+            }
+        }
+        tr.clips.push(clip);
+        p.tracks.push(tr);
+    }
+    p
+}
+
+#[test]
+fn heavy_instruments_split_their_voices_on_the_pool_and_keep_the_serial_bits() {
+    for (name, p) in [("three", chords(false)), ("alone", chords(true))] {
+        let mut rng = Rng::new(name.len() as u64);
+        let b = blocks(&mut rng, 3 * 48_000);
+        let reference = serial(&p, &b);
+        assert!(reference.iter().any(|x| *x != 0.0), "{name}: silent");
+        for (w, mode) in [
+            (1, Mode::Parallel),
+            (3, Mode::Parallel),
+            (3, Mode::Auto),
+            (7, Mode::Parallel),
+        ] {
+            let workers = Workers {
+                mode,
+                ..Workers::parallel(w)
+            };
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            let what = format!("{name}, W = {w}, {mode:?}");
+            same_bits(&reference, &out, &what);
+            let s = *r.p.stats();
+            assert_eq!(s.schedule_conflicts, 0, "{what}: conflicts");
+            assert!(s.voice_forks > 0, "{what}: no voice was ever forked");
+            assert!(
+                s.voice_jobs_helped > 0,
+                "{what}: {} forks, and no other thread took a voice",
+                s.voice_forks
+            );
+            eprintln!(
+                "{what}: {} forks, {} voices rendered by helpers",
+                s.voice_forks, s.voice_jobs_helped
+            );
+        }
+        // Splitting off: no fork, the same bits.
+        let mut r = Rig::new(&p, Workers::parallel(3));
+        r.p.set_voice_split(false);
+        let out = r.play(&b);
+        same_bits(&reference, &out, &format!("{name}, splitting off"));
+        assert_eq!(
+            r.p.stats().voice_forks,
+            0,
+            "{name}: forked with splitting off"
+        );
+    }
+}
+
+/// One heavy instrument playing one note at a time is one long chain with nothing to split:
+/// the serial hint must still hold it to one thread. The hint gives way only to a track
+/// that has had two voices or more since the last clustering (ADR 0038 §6) — not to every
+/// track whose instrument *could* split.
+#[test]
+fn a_single_voice_line_keeps_the_serial_hint() {
+    let mut p = Project::new("mono");
+    p.tempo_bpm = 120.0;
+    for kind in [
+        InstrumentKind::Analog,
+        InstrumentKind::Wavetable,
+        InstrumentKind::Sampler,
+    ] {
+        p.tracks.clear();
+        let mut tr = p.make_track(format!("{kind:?}"));
+        tr.instrument = InstrumentSpec::Native(NativeSpec::new(kind));
+        // A short note every two beats (a second): even Exemplar's release ends in between.
+        let mut clip = p.make_clip("line", Ticks::ZERO, Ticks::beats(8));
+        for k in 0..4i64 {
+            let note = p.make_note(Ticks::beats(2 * k), Ticks(PPQ / 16), 48 + k as u8, 90);
+            clip.notes.push(note);
+        }
+        tr.clips.push(clip);
+        p.tracks.push(tr);
+        let workers = Workers {
+            mode: Mode::Auto,
+            ..Workers::parallel(3)
+        };
+        let mut r = Rig::new(&p, workers);
+        let mut most = 0;
+        for _ in 0..(2 * 48_000 / 256 / 4) {
+            r.play(&[256; 4]);
+            most = most.max(r.p.stats().active_voices);
+        }
+        assert!(most <= 1, "{kind:?}: the line overlapped ({most} voices)");
+        assert!(
+            r.p.plan_held_serial(),
+            "{kind:?}: one voice at a time, and the plan was not held to one thread"
+        );
+        assert_eq!(r.p.stats().voice_forks, 0, "{kind:?}: forked one voice");
+    }
+}
+
+/// `set_voice_split` re-clusters at the next block: off, a one-track chord is one long
+/// chain again (held to one thread); on, it is parallel again — so an A/B run's "off" side
+/// is the engine without the split, not one still clustered for it.
+#[test]
+fn switching_the_split_reclusters_at_the_next_block() {
+    let p = chords(true);
+    let workers = Workers {
+        mode: Mode::Auto,
+        ..Workers::parallel(3)
+    };
+    let mut r = Rig::new(&p, workers);
+    r.play(&vec![256; 48_000 / 256]);
+    assert!(
+        !r.p.plan_held_serial(),
+        "a chord on the only track: the plan is not held to one thread"
+    );
+    r.p.set_voice_split(false);
+    r.play(&[256, 256]);
+    assert!(r.p.plan_held_serial(), "split off: held to one thread");
+    r.p.set_voice_split(true);
+    r.play(&[256, 256]);
+    assert!(!r.p.plan_held_serial(), "split on again: parallel again");
+}
+
+/// With the `fuzz` feature: the schedule fuzz's stalls land while voices are forked — a
+/// worker stalled with a task in hand or before it waits, and **inside the fork protocol**
+/// (`Site::Fork*`: a forker that just opened its slot or is closing it, a helper registered
+/// but not yet re-reading the state, a thread holding a claimed voice) — and the bits hold.
+#[cfg(feature = "fuzz")]
+#[test]
+fn the_schedule_fuzz_over_forked_voices_changes_no_sample() {
+    use cantus_engine::sched::fuzz::{site_index, ChangePoint, Pct, Stall};
+    use cantus_engine::sched::Site;
+    use std::time::Duration;
+    let p = chords(false);
+    let mut in_forks = 0u32;
+    for seed in 0..seeds().min(6) {
+        let mut rng = Rng::new(seed ^ 0xF0F0);
+        let b = blocks(&mut rng, 48_000);
+        let reference = serial(&p, &b);
+        for w in [1usize, 3, 7] {
+            let changes = (0..3)
+                .map(|k| ChangePoint {
+                    block: 1 + rng.range(0, b.len().min(200)) as u64,
+                    step: rng.range(0, 40) as u64,
+                    stall: Duration::from_micros(50 + 200 * k),
+                })
+                .collect();
+            let pct = Arc::new(Pct::new(changes));
+            let workers = Workers {
+                chaos: Some(pct.clone()),
+                shuffle: Some(seed + w as u64),
+                ..Workers::parallel(w)
+            };
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            same_bits(&reference, &out, &format!("fuzz seed {seed}, W = {w}"));
+            assert_eq!(r.p.stats().schedule_conflicts, 0);
+            in_forks += [
+                Site::ForkOpened,
+                Site::ForkRegistered,
+                Site::ForkClaimed,
+                Site::ForkClosing,
+            ]
+            .iter()
+            .map(|s| pct.fired_at[site_index(*s)].load(std::sync::atomic::Ordering::Relaxed))
+            .sum::<u32>();
+        }
+    }
+    assert!(in_forks > 0, "no change point ever landed inside a fork");
+    // And a stall at each of the protocol's sites in every block, at a varying hit.
+    let mut rng = Rng::new(0x5_7A11);
+    let b = blocks(&mut rng, 48_000);
+    let reference = serial(&p, &b);
+    for site in [
+        Site::ForkOpened,
+        Site::ForkRegistered,
+        Site::ForkClaimed,
+        Site::ForkClosing,
+    ] {
+        for w in [3usize, 7] {
+            let mut stall = Stall::new(site, 0, Duration::from_micros(40));
+            stall.spread = 5;
+            let stall = Arc::new(stall);
+            let workers = Workers {
+                chaos: Some(stall.clone()),
+                ..Workers::parallel(w)
+            };
+            let mut r = Rig::new(&p, workers);
+            let out = r.play(&b);
+            let what = format!("stalls at {site:?}, W = {w}");
+            same_bits(&reference, &out, &what);
+            assert_eq!(r.p.stats().schedule_conflicts, 0, "{what}");
+            let fired = stall.fired.load(std::sync::atomic::Ordering::Relaxed);
+            assert!(fired > 0, "{what}: never stalled");
+            eprintln!("{what}: {fired} stalls, {} forks", r.p.stats().voice_forks);
+        }
+    }
+}

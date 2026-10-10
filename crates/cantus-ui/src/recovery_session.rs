@@ -117,12 +117,30 @@ impl CantusApp {
         }
     }
 
-    /// The project reached a file (a save or an autosave at `autosave`): the takes of
-    /// finished passes are in it now.
-    pub(crate) fn journal_persisted(&mut self, autosave: Option<&Path>) {
+    /// The recording passes finished now: their takes are clips in the project, so a copy
+    /// of it taken now holds them. A save or an autosave takes this with its copy and
+    /// hands it back to [`journal_persisted`](Self::journal_persisted) when it lands.
+    pub(crate) fn journal_finished_passes(&self) -> Vec<JournalPass> {
+        self.session
+            .as_ref()
+            .map(|s| {
+                s.journal
+                    .passes
+                    .iter()
+                    .filter(|p| p.finished)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The project reached a file (a save, or an autosave at `autosave`) from a copy taken
+    /// when the passes `persisted` were finished: their takes are in it now. A pass
+    /// finished since (the copy was written on a thread meanwhile) stays in the journal.
+    pub(crate) fn journal_persisted(&mut self, autosave: Option<&Path>, persisted: &[JournalPass]) {
         if let Some(s) = self.session.as_mut() {
             let j = &mut s.journal;
-            j.passes.retain(|p| !p.finished);
+            j.passes.retain(|p| !(p.finished && persisted.contains(p)));
             if let Some(a) = autosave {
                 j.autosave = Some(a.to_path_buf());
                 j.autosaved_at = Some(
@@ -188,10 +206,15 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
-        // An autosave being written shares the file with this one: let it finish.
+        // A save being written lands first (then nothing may be unsaved at all), and an
+        // autosave being written shares the file with this one: let both finish. What the
+        // *Save changes?* question waited to do (open another file…) is moot now.
+        self.saving.then = None;
+        self.wait_for_save();
         self.poll_autosave(true);
         let mut unsaved = false;
         if self.bus.is_dirty() {
+            let persisted = self.journal_finished_passes();
             let project = self.autosave_copy();
             match cantus_project::autosave(
                 &project,
@@ -200,7 +223,7 @@ impl CantusApp {
                 crate::APP_VERSION,
             ) {
                 Ok(r) => {
-                    self.journal_persisted(Some(&r.path));
+                    self.journal_persisted(Some(&r.path), &persisted);
                     unsaved = true;
                 }
                 Err(e) => log::warn!("autosave on close failed: {e}"),
@@ -226,6 +249,8 @@ impl CantusApp {
         }) else {
             return false;
         };
+        // A save in flight writes the project being replaced: it lands first.
+        self.wait_for_save();
         if self.is_recording() {
             self.stop_recording();
         }

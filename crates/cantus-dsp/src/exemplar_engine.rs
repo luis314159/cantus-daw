@@ -77,9 +77,11 @@ impl Exemplar {
             serial: 0,
             stolen: 0,
             keys_down: 0,
-            coefs: [0.0; resample::MAX_TAPS],
             released_buf: [0; MAX_VOICES],
             peak: 0.0,
+            lanes: crate::par::Lanes::new(LANES, SPAN),
+            lane_end: [u16::MAX; LANES],
+            ended: vec![false; MAX_LAYERS].into_boxed_slice(),
         }
     }
 

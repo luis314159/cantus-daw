@@ -11,6 +11,8 @@
 //! - [`pad`]: 128-byte cache padding.
 //! - [`cell`]: try-only `AtomicRefCell`s for the state the engine's pool shares
 //!   ([`cell::NodeCell`], [`cell::ShareCell`]).
+//! - [`fork`]: fork–join inside a task — jobs that borrow the forker's stack, taken by the
+//!   pool's idle threads (ADR 0038: an instrument's voices on several cores).
 //! - [`memory`]: pre-faulting and best-effort locking, so the audio thread never takes a
 //!   page fault.
 //! - [`fpenv`] and [`denormal`]: the floating-point environment — FTZ/DAZ for a block and its
@@ -25,6 +27,7 @@
 
 pub mod cell;
 pub mod denormal;
+pub mod fork;
 pub mod fpenv;
 pub mod memory;
 pub mod pad;

@@ -363,6 +363,7 @@ pub fn user_presets(kind: InstrumentKind) -> Vec<(String, NativeSpec)> {
                 continue;
             };
             if let Ok(spec) = serde_json::from_str::<NativeSpec>(&text) {
+                let spec = preset_from_file(spec);
                 if spec.kind == kind {
                     let name = path
                         .file_stem()
@@ -377,6 +378,19 @@ pub fn user_presets(kind: InstrumentKind) -> Vec<(String, NativeSpec)> {
     out
 }
 
+/// A user preset as written to its file: a recalibrated kind's output trim (ADR 0039) is
+/// written out even at its default, so the preset reads back at the level it was saved
+/// with whatever a later calibration says.
+pub fn preset_to_file(spec: &NativeSpec) -> NativeSpec {
+    spec.spell_out_trim()
+}
+
+/// A user preset as read from its file: one of a recalibrated kind without a trim was
+/// saved before the calibration (ADR 0039), at the old level — a trim of 0 dB.
+pub fn preset_from_file(spec: NativeSpec) -> NativeSpec {
+    spec.read_unversioned()
+}
+
 /// Save the instrument's state as a user preset.
 pub fn save_user_preset(spec: &NativeSpec, name: &str) -> Result<(), String> {
     let clean: String = name
@@ -389,7 +403,7 @@ pub fn save_user_preset(spec: &NativeSpec, name: &str) -> Result<(), String> {
     }
     let dir = user_preset_dir(spec.kind);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let text = serde_json::to_string_pretty(spec).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&preset_to_file(spec)).map_err(|e| e.to_string())?;
     std::fs::write(dir.join(format!("{clean}.json")), text).map_err(|e| e.to_string())
 }
 

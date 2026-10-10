@@ -81,6 +81,29 @@ the 64-track session, named as the user would name them ("Spatium on Pad bus").
 switched on and off on alternate blocks of one run (so both halves see the same machine),
 the median on-block against the median off-block, percent.
 
+### 2.2b The beta's floor — `demo.*` (round 24)
+
+The startup song and the six demos at **256 frames** through the application's engine:
+the pool the program starts (`Workers::auto()`, promoted and placed), the heavy
+instruments splitting their voices over it (ADR 0038), **over the whole song**. After a
+second of warm-up, each run times windows spread evenly from the first bar to the last —
+6 windows of 0.5 s in the quick suite (one run, about 17 s for all seven songs), 16 of 1 s
+in the full suite (`runs` runs, each run's windows offset from the others') — every window
+entered by a seek one bar early (at most 1.5 s) so the notes sounding in it have started
+(the engine does not chase a note held from before that). Reported: the median of every
+timed block (`demo.<song>.b256`, µs, gated), the 99th percentile (`.p99`), the **worst
+window's median** as a share of the 5.33 ms budget (`.load` — the section that gates the
+song) and the 99th percentile's share (`.load99`); the note names the worst window's bar
+and counts the voice forks. `docs/BETA.md` blocker 2 reads `.load`: under 70 %. (Round
+24's first version timed only the first seconds of each song — 1–7 s — and missed the
+sections that gate funk and lofi; the review caught it.) The paced runner (`cantus-bench
+paced`) is the live check — misses a device would hear.
+
+Paired A/B of the voice split on one processor, the same music on both sides (each pair
+seeks to the same point of the song), and the serial engine beside it:
+`cargo run --release -p cantus-bench --example voice_ab -- 256 2 6 [songs]`.
+`CANTUS_VOICE_SPLIT=0` turns the split off for any run (the same bits either way).
+
 ### 2.3 Offline render — `render.*`
 
 The export path itself (`cantus_engine::render`, 512-frame blocks): each demo song whole,

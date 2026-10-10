@@ -12,6 +12,9 @@ repository.workspace = true
 default = ["rtkit"]
 # Linux: ask rtkit over D-Bus when the user may not set SCHED_FIFO directly (needs libdbus-1).
 rtkit = ["dep:audio_thread_priority"]
+# The fork protocol's stall sites (`fork::Forks::set_hook`), for the engine's schedule fuzz
+# (cantus-engine's `fuzz` feature turns it on). Off: the sites compile to nothing.
+fuzz = []
 
 [dependencies]
 

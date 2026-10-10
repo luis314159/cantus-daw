@@ -544,8 +544,15 @@ pub(crate) mod form {
     /// A row of buttons, right-aligned, the way a dialog ends.
     pub fn buttons<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
         ui.add_space(8.0);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add)
-            .inner
+        // One button high: a layout given the rest of the window's height centres the
+        // buttons in it, far under the words (round 24, the recovery dialog's shots).
+        let s = Style::current();
+        ui.allocate_ui_with_layout(
+            Vec2::new(ui.available_width(), s.s(26.0)),
+            egui::Layout::right_to_left(egui::Align::Center),
+            add,
+        )
+        .inner
     }
 }
 
@@ -809,6 +816,8 @@ pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool 
         }
     }
     let first = project.tracks.first().map(|t| t.id);
+    // A save in flight writes the project being replaced: it lands first (`save_job`).
+    app.wait_for_save();
     app.engine.stop();
     if !app.exec(Command::ReplaceProject {
         project: Box::new(project),

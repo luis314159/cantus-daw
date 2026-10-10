@@ -130,6 +130,8 @@ pub fn piece(clip: &Clip, start: Ticks, end: Ticks, lane: u8, ids: Ids) -> Clip 
         audio: clip.audio.clone(),
         lane,
         automation: clip.automation.clone(),
+        // The same content through another window: still the same clip (ADR 0037).
+        link: clip.link,
     }
 }
 
@@ -429,6 +431,7 @@ fn audio_takes(
                 audio: Some(region),
                 lane: 0,
                 automation: None,
+                link: None,
             });
         }
         if clips.is_empty() {
@@ -551,6 +554,7 @@ fn midi_clip(
         audio: None,
         lane: 0,
         automation: None,
+        link: None,
     }
 }
 
@@ -614,6 +618,10 @@ fn overdub(
                     .map(|n| new_note(n, clip.content_of(n.start), ids))
                     .collect(),
             });
+            // The copies of a linked clip that showed what it showed grow with it, so the
+            // overdub is heard in each (ADR 0037).
+            let follow = cantus_core::links::follow_window(&sim.project, (tid, clip.id), &cmds);
+            cmds.extend(follow);
             sim.push(cmds)
         }
         None => {

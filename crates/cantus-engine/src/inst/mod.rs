@@ -129,6 +129,24 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// whether anything was written; `false` lets the processor skip an idle track, so it
     /// must only be `false` when the output is exactly zero.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool;
+    /// [`Self::process`] with a way to run the unit's voices on the pool's other threads
+    /// (ADR 0038). **The same bits as `process`**, whatever `par` does — each voice into
+    /// its own lane, the lanes summed in voice order. Default: `process`.
+    fn process_par(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        let _ = par;
+        self.process(left, right)
+    }
+    /// Whether the unit's [`Self::process_par`] can split its voices, so the pool should not
+    /// hold a block on one thread because this unit is most of it (when the unit is quiet
+    /// the adaptive rule does that anyway). Default `false`.
+    fn splits_voices(&self) -> bool {
+        false
+    }
     /// True when the unit is **at rest** (ADR 0031 §5.1). Exactly:
     ///
     /// 1. with no note, expression or controller arriving, `process` writes nothing

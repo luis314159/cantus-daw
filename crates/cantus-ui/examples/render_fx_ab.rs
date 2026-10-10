@@ -131,7 +131,7 @@ fn main() {
                     println!("{stem}: {} -> change {:.1} dB below the dry mix, lag {} frames", d.id, db, lag_frames(&without, &with));
                     // A pair that is out of step in time would flam when switched: skip it.
                     let lag = lag_frames(&without, &with);
-                    if lag.abs() <= 2 && best.as_ref().map_or(true, |b| db > b.0) {
+                    if lag.abs() <= 2 && best.as_ref().is_none_or(|b| db > b.0) {
                         best = Some((db, d.id, without, with));
                     }
                 }

@@ -346,6 +346,7 @@ fn pasted_clips_keep_relative_track_offsets() {
         1,
         Ticks::beats(32),
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     bus.reserve_ids(ids.0);
@@ -378,6 +379,7 @@ fn a_block_below_the_last_track_moves_up_whole_instead_of_squashing() {
         2,
         Ticks::ZERO,
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     let rows: Vec<usize> = out
@@ -413,6 +415,7 @@ fn a_pasted_clip_shares_no_ids_with_its_original_and_lands_on_lane_0() {
         0,
         Ticks::beats(20),
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     run(&mut bus, "cmd.paste_clips", out.commands);
@@ -461,6 +464,7 @@ fn automation_clips_go_back_to_their_track_in_the_same_project_and_are_skipped_f
         0,
         Ticks::beats(16),
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     assert_eq!(out.skipped_automation, 0);
@@ -480,6 +484,7 @@ fn automation_clips_go_back_to_their_track_in_the_same_project_and_are_skipped_f
         0,
         Ticks::beats(16),
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     assert_eq!(out.skipped_automation, 1);
@@ -533,6 +538,7 @@ fn audio_sources_are_reused_or_inserted_before_the_clip_and_undo_in_a_legal_orde
         1,
         Ticks::ZERO,
         &plans,
+        false,
         &mut || ids.take(),
     );
     assert!(!out
@@ -555,6 +561,7 @@ fn audio_sources_are_reused_or_inserted_before_the_clip_and_undo_in_a_legal_orde
         1,
         Ticks::ZERO,
         &plans,
+        false,
         &mut || ids.take(),
     );
     bus.reserve_ids(ids.0);
@@ -577,6 +584,7 @@ fn audio_sources_are_reused_or_inserted_before_the_clip_and_undo_in_a_legal_orde
         1,
         Ticks::ZERO,
         &HashMap::new(),
+        false,
         &mut || ids.take(),
     );
     assert_eq!(out.skipped_audio, 1);
@@ -619,6 +627,7 @@ fn an_audio_clip_pasted_at_another_tempo_plays_the_same_part_of_its_file() {
         0,
         Ticks::ZERO,
         &plans,
+        false,
         &mut || ids.take(),
     );
     let Command::InsertClip { clip: pasted, .. } = &out.commands[0] else {
@@ -674,7 +683,7 @@ fn clipboard_serde_roundtrip() {
     b.sources.push(source(5, "C:/x.wav"));
     let json = serde_json::to_string(&b).unwrap();
     assert!(
-        json.starts_with("{\"format\":\"cantus-clip/1\""),
+        json.starts_with("{\"format\":\"cantus-clip/2\""),
         "the format tag must come first: {}",
         &json[..40.min(json.len())]
     );

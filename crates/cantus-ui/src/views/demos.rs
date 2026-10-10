@@ -215,14 +215,26 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
         return;
     }
     if save_first {
-        app.save();
-        if !app.bus.is_dirty() {
-            open(app, app.demos.selected);
-        }
+        self::save_first(app);
         return;
     }
     if let Some(i) = open_now {
         request(app, i);
+    }
+}
+
+/// The picker's *Save first*: the save is written on a thread and the demo opens once it
+/// has landed (`save_job`). The picker closes while it is written — nothing is left in it
+/// to cancel — unless the save did not start (its file dialog was cancelled).
+pub fn save_first(app: &mut CantusApp) {
+    if !(app.demos.open && app.demos.confirm) {
+        return;
+    }
+    let i = app.demos.selected;
+    app.save_then(crate::views::unsaved::Then::Demo(i));
+    if app.save_in_flight() || !app.bus.is_dirty() {
+        app.demos.open = false;
+        app.demos.confirm = false;
     }
 }
 

@@ -71,6 +71,12 @@ pub enum Action {
     ToggleClipLoop,
     ClipColorNext,
     RenameClip,
+    /// Take the selected clips out of their link group (ADR 0037).
+    MakeUnique,
+    /// Link the selected clips to the clip being edited: they become the same clip.
+    LinkClips,
+    /// Add every linked copy of the selected clips to the selection.
+    SelectLinked,
     // Notes
     NudgeLeft,
     NudgeRight,
@@ -177,7 +183,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 73] = [
+    pub const ALL: [Action; 76] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -211,6 +217,9 @@ impl Action {
         Action::ToggleClipLoop,
         Action::ClipColorNext,
         Action::RenameClip,
+        Action::MakeUnique,
+        Action::LinkClips,
+        Action::SelectLinked,
         Action::NudgeLeft,
         Action::NudgeRight,
         Action::NudgeLeftBar,
@@ -289,6 +298,9 @@ impl Action {
             Action::ToggleClipLoop => "toggle-clip-loop",
             Action::ClipColorNext => "clip-color-next",
             Action::RenameClip => "rename-clip",
+            Action::MakeUnique => "make-unique",
+            Action::LinkClips => "link-clips",
+            Action::SelectLinked => "select-linked",
             Action::NudgeLeft => "nudge-left",
             Action::NudgeRight => "nudge-right",
             Action::NudgeLeftBar => "nudge-left-bar",
@@ -356,7 +368,7 @@ impl Action {
                 Category::Arrangement
             }
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
-            | RenameClip => Category::Clips,
+            | RenameClip | MakeUnique | LinkClips | SelectLinked => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
@@ -700,6 +712,17 @@ fn clip_bindings() -> Vec<(Action, Binding)> {
         (ClipColorNext, Binding::cmd_shift(Key::C)),
         // F2 renames the thing that is selected, everywhere, in everything.
         (RenameClip, Binding::key(Key::F2)),
+        // Linked clips (ADR 0037): Alt and a letter, so the typing piano never takes them
+        // — U for unique, L for link.
+        (MakeUnique, Binding::alt(Key::U)),
+        (LinkClips, Binding::alt(Key::L)),
+        (
+            SelectLinked,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::L)
+            },
+        ),
     ]
 }
 
@@ -939,6 +962,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 3 {
             map.fill_in(&NEW_IN_V3);
         }
+        if file.version.unwrap_or(1) < 4 {
+            map.fill_in(&NEW_IN_V4);
+        }
         Ok(map)
     }
 
@@ -1009,8 +1035,12 @@ struct KeymapFile {
 }
 
 /// The file format. Version 2 added the workspace's actions (round 18); version 3 the
-/// recording, demo, sample-browser and automation actions (rounds 19–20).
-pub const FILE_VERSION: u32 = 3;
+/// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
+/// linked-clip actions (round 24, ADR 0037).
+pub const FILE_VERSION: u32 = 4;
+
+/// Actions added in version 4: the linked clips' Make unique, Link and Select linked.
+const NEW_IN_V4: [Action; 3] = [Action::MakeUnique, Action::LinkClips, Action::SelectLinked];
 
 /// Actions added in version 3. Round 19's keys shipped without a version bump, so a file
 /// written by round 18 never got them; version 3 fills them in too.
@@ -1367,6 +1397,39 @@ mod tests {
             let back = Keymap::from_toml(&map.to_toml()).unwrap();
             assert_eq!(back, map, "preset {} did not survive TOML", preset.id());
         }
+    }
+
+    #[test]
+    fn a_version_3_file_gets_the_link_keys() {
+        // What every machine that started round 23 has on disk: the whole map at version
+        // 3, and no line for the linked-clip actions (round 24).
+        let linked = ["make-unique", "link-clips", "select-linked"];
+        let text: String = Keymap::default()
+            .to_toml()
+            .lines()
+            .filter(|l| !linked.iter().any(|id| l.trim_start().starts_with(id)))
+            .map(|l| {
+                if l.starts_with("version") {
+                    "version = 3".to_string()
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        assert!(text.contains("version = 3") && !text.contains("make-unique"));
+        let map = Keymap::from_toml(&text).unwrap();
+        for action in [Action::MakeUnique, Action::LinkClips, Action::SelectLinked] {
+            assert_eq!(
+                map.bindings_for(action),
+                Keymap::default().bindings_for(action),
+                "{action:?}"
+            );
+        }
+        assert!(map.conflicts().is_empty());
     }
 
     #[test]

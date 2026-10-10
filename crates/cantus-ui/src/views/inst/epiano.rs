@@ -722,7 +722,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ]),
     preset!("epiano.preset.reed", REED_MACROS, &["preset.tag.keys", "epiano.tag.reed"], [
         "engine" => 1.0, "range" => 1.0, "trem.depth" => 0.4, "trem.rate" => 5.8, "drive" => 0.3,
-        "dynamics" => 50.0,
+        "dynamics" => 50.0, "gain" => 5.0,
     ]),
     preset!("epiano.preset.reed_growl", REED_MACROS, &["preset.tag.keys", "epiano.tag.reed"], [
         "engine" => 1.0, "range" => 1.0, "reed.gap" => 0.7, "reed.align" => 0.4, "hard" => 0.7,
@@ -730,6 +730,6 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ]),
     preset!("epiano.preset.reed_soft", REED_MACROS, &["preset.tag.keys", "epiano.tag.soft"], [
         "engine" => 1.0, "range" => 1.0, "hard" => 0.35, "reed.overtones" => -16.0, "drive" => 0.1,
-        "output" => 1.0,
+        "output" => 1.0, "gain" => 5.0,
     ]),
 ];

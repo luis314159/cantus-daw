@@ -236,13 +236,15 @@ fn asset_level(key: &str) -> Option<(usize, usize)> {
 }
 
 /// The zone an instrument with nothing loaded plays: the built-in sine over the whole
-/// keyboard, quiet (−18 dB), so a fresh Exemplar is never a silent track.
-fn init_zone() -> (ZoneParams, Source) {
+/// keyboard, so a fresh Exemplar is never a silent track — at −18 dB lifted by the output
+/// trim (ADR 0039: +8 dB for a new instance, where the other instruments sit; 0 in a
+/// project saved before, so it renders as it did).
+fn init_zone(trim_db: f32) -> (ZoneParams, Source) {
     let b = builtin::get(1).expect("the built-in sine");
     let (ls, le) = b.loop_points.unwrap_or((0, 0));
     let z = ZoneParams {
         root: b.root,
-        gain_db: -18.0,
+        gain_db: -18.0 + trim_db,
         region: Region {
             looping: true,
             ls: ls as i64,
@@ -336,7 +338,7 @@ impl InstrumentUnit for Unit {
         }
         self.used = used;
         if !any && !spec.text.keys().any(|k| zone_key(k).is_some()) {
-            let (z, src) = init_zone();
+            let (z, src) = init_zone(spec.get(cantus_core::inst::TRIM_KEY));
             self.ex.put_zone(0, &z, &src);
         }
         self.ptrs.sort_unstable();
@@ -403,10 +405,23 @@ impl InstrumentUnit for Unit {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
-        let wrote = self.ex.process(left, right);
+        self.process_par(left, right, &cantus_dsp::par::Serial)
+    }
+
+    fn process_par(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        par: &dyn cantus_dsp::par::Parallel,
+    ) -> bool {
+        let wrote = self.ex.process_par(left, right, par);
         self.stolen += self.ex.take_stolen();
         self.peak = self.ex.take_peak();
         wrote
+    }
+
+    fn splits_voices(&self) -> bool {
+        true
     }
 
     fn active_voices(&self) -> usize {

@@ -1133,6 +1133,11 @@ nodes need none of this (§6 already says so).
 `sched/` for `AtomicRefCell::borrow`/`borrow_mut` (they panic on conflict; only `try_*` is
 allowed), and in the DSP crates for std's transcendental functions (R9).
 
+**R17 — Nodes that split themselves (round 24).** A heavy instrument forks its voices to
+the pool's idle threads inside its own task, one lane per voice summed in voice order, so
+the bits do not move; the serial hint (§2.5) yields to a node that can split. The CLAP
+`thread-pool` extension (§2.8) can use the same forks. Recorded in **ADR 0038**.
+
 ### What does not change
 
 The graph, the canonical gather, whole-block nodes, the callback that helps, spin-then-park

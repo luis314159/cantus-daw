@@ -61,6 +61,9 @@ pub struct Live {
     pub last_pos: Ticks,
     /// Where the pass being played began (the record start, then the loop's start).
     pub pass_start: Ticks,
+    /// The engine has said its transport runs since the pass began. Until then a
+    /// *stopped* from it is the word from before the *Play* was taken, not a stop.
+    pub transport_seen: bool,
 }
 
 /// One armed track's take as it grows.
@@ -596,6 +599,7 @@ impl CantusApp {
             notes: Vec::new(),
             last_pos: transport_start,
             pass_start: pos,
+            transport_seen: false,
         });
         self.set_status(if audio_on {
             tf("rec.recording_tracks", &[("n", &recording_n)])
@@ -750,6 +754,9 @@ impl CantusApp {
             None => false,
         };
         live.last_pos = pos;
+        let playing = self.engine.is_playing();
+        live.transport_seen |= playing;
+        let seen = live.transport_seen;
         if wrapped {
             if let Some((a, _)) = live.plan.loop_region {
                 live.pass_start = a;
@@ -777,8 +784,10 @@ impl CantusApp {
                 self.set_error(tf("rec.dropped_live", &[("ms", &format!("{ms:.0}"))]));
             }
         }
-        if !self.engine.is_playing() && self.engine.stats().blocks_processed > 0 {
-            // The transport stopped (space, the end of the song): close the pass.
+        if seen && !playing && self.engine.stats().blocks_processed > 0 {
+            // The transport stopped (space, the end of the song): close the pass. Not
+            // before the engine has said it runs: the frame after *Record* may come
+            // before the callback has taken the *Play* (round 24).
             self.stop_recording();
         }
     }
@@ -807,6 +816,7 @@ impl CantusApp {
             notes: Vec::new(),
             last_pos: record_start,
             pass_start: record_start,
+            transport_seen: false,
         });
     }
 

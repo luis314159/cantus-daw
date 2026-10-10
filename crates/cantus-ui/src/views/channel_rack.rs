@@ -317,6 +317,7 @@ fn empty_clip() -> Clip {
         audio: None,
         lane: 0,
         automation: None,
+        link: None,
     }
 }
 

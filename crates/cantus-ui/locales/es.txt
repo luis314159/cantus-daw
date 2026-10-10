@@ -589,6 +589,7 @@ cmd.set_strip_fx_enabled = FX del canal
 cmd.set_strip_eq = EQ del canal
 cmd.set_strip_send = envío del canal
 cmd.remove_strip_send = quitar envío
+cmd.insert_strip_send = insertar envío
 cmd.move_strip = mover canal
 cmd.set_effect_mix = mezcla del efecto
 cmd.route_strips = enrutar canales

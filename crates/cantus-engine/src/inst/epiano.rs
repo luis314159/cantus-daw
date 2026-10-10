@@ -29,6 +29,7 @@
 use super::{Controller, InstrumentUnit, NoteOn, Telemetry, TELEMETRY_LEN};
 use cantus_core::inst::epiano::PARAMS;
 use cantus_core::inst::modulation::{MACRO_KEYS, SLOTS};
+use cantus_core::inst::TRIM_KEY;
 use cantus_core::NativeSpec;
 use cantus_dsp::lamina::geometry::Engine;
 use cantus_dsp::lamina::{Lamina, LaminaSettings, Range, Trem};
@@ -147,7 +148,14 @@ pub fn values_of(spec: &NativeSpec) -> [f32; N] {
 
 /// The DSP's settings for a spec, without modulation — what the editor draws at rest.
 pub fn settings(spec: &NativeSpec) -> LaminaSettings {
-    settings_from(&values_of(spec))
+    trimmed(settings_from(&values_of(spec)), spec.get(TRIM_KEY))
+}
+
+/// The output trim (ADR 0039) added to the gain stage, the last one: a project saved
+/// before the calibration has a trim of 0, and `x + 0.0` is `x`, so it renders as it did.
+fn trimmed(mut s: LaminaSettings, trim_db: f32) -> LaminaSettings {
+    s.gain_db += trim_db;
+    s
 }
 
 fn source_index(tag: &str) -> Option<u16> {
@@ -207,6 +215,8 @@ pub struct Unit {
     sources: [f32; SOURCE_TAGS.len()],
     /// Whether any route reads velocity or key (then a note gets settings of its own).
     per_note: bool,
+    /// The output trim, dB (ADR 0039).
+    trim_db: f32,
 }
 
 impl Unit {
@@ -221,6 +231,7 @@ impl Unit {
             matrix: ModMatrix::default(),
             sources: [0.0; SOURCE_TAGS.len()],
             per_note: false,
+            trim_db: cantus_core::InstrumentKind::ElectricPiano.calibration_db(),
         }
     }
 
@@ -229,7 +240,7 @@ impl Unit {
         src[SRC_VEL] = 0.0;
         src[SRC_KEY] = 0.0;
         let eff = modulated(&self.base, &self.matrix, &src);
-        self.dsp.set(&settings_from(&eff));
+        self.dsp.set(&trimmed(settings_from(&eff), self.trim_db));
     }
 
     fn reads(&self, src: usize) -> bool {
@@ -247,6 +258,7 @@ impl Unit {
 impl InstrumentUnit for Unit {
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.base = values_of(spec);
+        self.trim_db = spec.get(TRIM_KEY);
         routes(spec, &mut self.matrix);
         for (m, key) in MACRO_KEYS.iter().enumerate() {
             self.sources[m] = spec.get(key);
@@ -260,7 +272,10 @@ impl InstrumentUnit for Unit {
             let mut src = self.sources;
             src[SRC_VEL] = note.velocity;
             src[SRC_KEY] = ((note.key as f32 - 60.0) / 48.0).clamp(-1.0, 1.0);
-            let s = settings_from(&modulated(&self.base, &self.matrix, &src));
+            let s = trimmed(
+                settings_from(&modulated(&self.base, &self.matrix, &src)),
+                self.trim_db,
+            );
             self.dsp.note_on(note.key, note.id, note.velocity, Some(&s));
         } else {
             self.dsp.note_on(note.key, note.id, note.velocity, None);

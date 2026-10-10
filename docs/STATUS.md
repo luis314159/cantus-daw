@@ -1,8 +1,33 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-09 (round 23: **the beta blockers** — the export dialog audited option by option (27 findings, every list in it opened *under* the dialog; a selection's tail played the next bars; latent projects made the mix late; stems ignored hosted plug-ins; FLAC failed at 192 kHz — all fixed, a test per option against the written file, the bar on the render's progress, ADR 0035), text that looked wrong after a theme change (the kit kept text laid out against egui's old font atlas) fixed with a pixel round-trip test, the CPU budgets robust to a loaded machine, Ctrl+C / Ctrl+X / Ctrl+V in the piano roll and the arrangement (ADR 0036). Round 22: the multicore live engine and beta hardening. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 1 921 green (194 test binaries; 4 of them run renamed on the F: machine, see below) + the engine's fuzz at `CANTUS_WORKERS=3`, clippy clean
+**Updated:** 2026-10-10 (round 24: **the beta's rest and the first §6d request** — instrument gain staging (ADR 0039), Save off the interface thread (ADR 0040), the recovery dialog in the shoot examples, **linked clips** (BACKLOG §6d.2, ADR 0037), **performance wave 2**: the heaviest instruments' voices on the pool, parallel = serial to the bit, every demo's worst window ≤ 32 % of the 256-frame budget (ADR 0038); and from the 2-hour soak, the crash journal written off the window's thread and a race that could end a recording as it began. Round 23: the export dialog, text after a theme change, CPU tests, copy and paste. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 000 green (201 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (396), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 24 left
+
+Round 24 is on branch **`r24/integration`** (worktree `F:\projects\daw-r23\beta-hardening`,
+on master a9871e2), integrated from `r24/{beta-rest,linked,perf2}` (worktrees in
+`F:\projects\daw-r24\`, their diffs applied; they can go once this is committed) and the
+soak's journal fix. Report: `docs/round24/integration.md`. The 2-hour soak on this tree:
+**passed** — 120 minutes on a quiet machine (7 202 s), no frame over 250 ms, handles and threads flat, private bytes +70 MB with 199 s of recorded audio (allowed 96 MB + the audio): BETA blocker 3's long session holds (round 23's master had failed at 65 min on the journal's fsync).
+
+1. **The owner, by hand, with the real build**: record with a large ASIO buffer (2048) —
+   the pass must start and stop cleanly; save a large project while it plays (the window
+   must not stop); link a Pulsus pattern, edit one copy, *Make unique* another, and listen
+   that nothing else changes; the export and clipboard checks round 23 left; Lamina's
+   level (still ~4 LU under the others, capped by the headroom rule) by ear.
+2. **The beta**: BETA blocker 2's second half — a 10-minute live run on a real device
+   with 0 overruns (now that the demos sit ≤ 32 % offline); the hardware matrix (UMC in
+   duplex); an installer run by hand; then the tag `v0.1.0-beta.1`. The owner's items:
+   SignPath, the trademark search, two or three songs with the friction log.
+3. **Then** BACKLOG §6d.3 (mixer cabling — researched and designed:
+   `research/mixer-routing/notes.md`, `docs/round25/mixer-routing-design.md`, with 11
+   questions for the owner and six builder pieces; no schema change needed), §6d.4 (the white-and-blue
+   default theme and logo), the rest of §6d.2 (an Inspector row for a link group, a
+   "Link to…" picker), a loom model of `cantus_rt::fork`, and a quiet-machine
+   `xtask perf --full --save` baseline for this machine (a Ryzen 7 7735HS, not round 22's
+   i7).
 
 ## The next session: what round 23 left
 
@@ -102,6 +127,38 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 24: the beta's rest, linked clips, performance wave 2 (requested 2026-10-09)
+
+**The ask.** *Commit and push round 23, give me a build to try, then go on with the
+backlog.* Round 23 went to master (cead440) and the test build to
+`F:\projects\daw-r23\builds\cantus.exe`; round 24 took the beta items that need no
+hardware, the first of the owner's §6d requests and the performance floor (BETA blocker 2).
+
+**How.** Three builders in their own worktrees in one workflow — build, two adversarial
+reviewers each, fix (29 findings, all real, all fixed with a failing test first). A 2-hour
+soak ran on master meanwhile and failed at 65 minutes on an 18.5 s frame: the crash
+journal's `fsync` on the window's thread under a disk kept busy by the builds — fixed, and
+the fix exposed a race at the start of a recording, which beta-rest had also found and
+fixed. Reports: `docs/round24/`.
+
+**Decisions:** ADR 0037 (linked clips: a link group per clip, content kept equal across
+the group, voice tags independent of the link so linking changes no sample), ADR 0038
+(voices on several threads: per-voice lanes summed in voice order, `cantus_rt::fork`),
+ADR 0039 (instrument output calibration: a hidden trim, schema 21 writes the old level),
+ADR 0040 (save off the interface thread). `InsertStripSend`, the exact inverse of removing
+a send (found by the §6d.3 study: an undone removal came back at the end of the list).
+Schema 22. Keymap file version 4. No golden
+hash moved; `DSP_VERSION` stays 3.
+
+| Part | What changed |
+|---|---|
+| gain staging | Lamina +5 dB and Exemplar's placeholder +8 dB to sit with the other instruments (Lamina capped by the headroom rule: no factory preset past 0 dBFS at velocity 127); projects saved before keep their level, bit for bit (a v20 fixture renders to its old hash); user presets too; the demos' trims adjusted so they sound as before |
+| save | the frame only copies the project (0.2–0.4 ms on the demos; 2 ms on a 54 MB project that took 3.8 s to write); one save at a time, a second queued; only the revision written is marked saved; New/Open/demos/recovery/quit wait; a queued save never writes a project that replaced the one it was asked for; errors in both languages |
+| recovery | `shoot_recovery` (3 offers × 2 themes × 2 languages); the empty space under the text and a repeated title fixed |
+| linked clips | a copied pattern is the same clip until *Make unique* (Alt+U); *Select linked copies* (Shift+Alt+L), *Link selection to this clip* (Alt+L); audio clips share gain, fades, pitch, reverse and effects; a link mark, a ×N count, the siblings outlined; paste/duplicate linked or unique by a setting; edits that grow a copy grow the siblings that showed the same window; `cantus-clip/2`; groups repaired (and said) on load; undo fuzz arms |
+| performance | Calor, Unda and Exemplar split their voices across idle pool threads (lanes summed in voice order, so the bits do not move; the schedule fuzz stalls inside the fork protocol too); the demos measured over whole songs at 256 frames: worst window ≤ 32 % of the budget (startup 52 → 23 %, house 48 → 25 %, ballad 59 → 22 %); `CANTUS_VOICE_SPLIT=0` turns it off; CI runs the fuzz |
+| soak fixes | the crash journal is written on a thread of its own (a slow disk no longer stops the window); a recording pass closes itself only after the transport was seen running (a stale "stopped" report could end it at once) |
 
 ## Round 23: the beta blockers (requested 2026-10-09)
 

@@ -513,3 +513,61 @@ fn the_jdk_validator_agrees() {
         );
     }
 }
+
+/// A project with a Lamina and an Exemplar at their defaults (round 24, ADR 0039).
+fn calibrated_project() -> Project {
+    let mut p = Project::new("Calibrated");
+    for kind in [InstrumentKind::ElectricPiano, InstrumentKind::Sampler] {
+        let mut t = p.make_track(format!("{kind:?}"));
+        t.instrument = InstrumentSpec::Native(NativeSpec::new(kind));
+        p.tracks.push(t);
+    }
+    p
+}
+
+fn zip_parts(parts: &dawproject::Parts) -> Vec<u8> {
+    let mut z = ZipWriter::new();
+    z.add("project.xml", parts.project_xml.as_bytes(), true);
+    z.add("metadata.xml", parts.metadata_xml.as_bytes(), true);
+    for (path, data) in &parts.files {
+        z.add(path, data, true);
+    }
+    z.finish()
+}
+
+#[test]
+fn a_dawproject_from_before_the_calibration_keeps_its_level() {
+    let p = calibrated_project();
+    // What a build before schema 21 wrote: the instruments' state with no trim at all.
+    let mut parts = dawproject::write::parts(&p, "0.1.0");
+    for (_, data) in &mut parts.files {
+        let mut v: serde_json::Value = serde_json::from_slice(data).unwrap();
+        if let Some(params) = v.get_mut("params").and_then(|p| p.as_object_mut()) {
+            params.remove(cantus_core::inst::TRIM_KEY);
+        }
+        *data = serde_json::to_vec_pretty(&v).unwrap();
+    }
+    let back = dawproject::import(&zip_parts(&parts)).unwrap().project;
+    for t in &back.tracks {
+        let n = t
+            .instrument
+            .native()
+            .expect("Cantus's own instrument comes back");
+        assert!(n.is_stored(cantus_core::inst::TRIM_KEY), "{}", t.name);
+        assert_eq!(
+            n.get(cantus_core::inst::TRIM_KEY),
+            0.0,
+            "{}: the old level",
+            t.name
+        );
+    }
+    // One exported now comes back as it was: at the calibrated level, the spec unchanged.
+    let now = dawproject::import(&dawproject::export(&p, "0.1.0").bytes)
+        .unwrap()
+        .project;
+    for (a, b) in p.tracks.iter().zip(&now.tracks) {
+        assert_eq!(a.instrument, b.instrument, "{}", a.name);
+        let n = b.instrument.native().unwrap();
+        assert_eq!(n.get(cantus_core::inst::TRIM_KEY), n.kind.calibration_db());
+    }
+}

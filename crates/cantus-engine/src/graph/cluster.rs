@@ -15,7 +15,9 @@
 //! The pool seeds and pushes by it, so the critical path goes first.
 //!
 //! **The serial hint.** When the critical path is over 80 % of all the work, parallel
-//! cannot pay (§2.5): the pool runs the block alone.
+//! cannot pay (§2.5): the pool runs the block alone — unless a node on it can split its own
+//! work over the pool (an instrument's voices, ADR 0038; [`TaskTopo::divisible`]): then one
+//! long node is exactly what the other threads are for.
 
 use super::ctx::{Job, TaskMap};
 use crate::graph::plan::{GraphPlan, MAX_NODES};
@@ -41,6 +43,9 @@ pub(crate) struct TaskTopo {
     tsuccs: Vec<u32>,
     ranks: Vec<u32>,
     serial_hint: bool,
+    /// Some node splits its own work over the pool (ADR 0038): never hint serial. Set by
+    /// the processor before [`TaskTopo::build`].
+    pub divisible: bool,
     /// The critical path's share of the work, and the work (ns), as last built.
     pub critical_share: f64,
     pub work_ns: f64,
@@ -71,6 +76,7 @@ impl TaskTopo {
             tsuccs: Vec::with_capacity(e),
             ranks: Vec::with_capacity(n),
             serial_hint: false,
+            divisible: false,
             critical_share: 0.0,
             work_ns: 0.0,
             parent: Vec::with_capacity(n),
@@ -293,7 +299,7 @@ impl TaskTopo {
         } else {
             1.0
         };
-        self.serial_hint = n <= 1 || self.critical_share > 0.8;
+        self.serial_hint = (n <= 1 || self.critical_share > 0.8) && !self.divisible;
         true
     }
 

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 20;
+pub const SCHEMA_VERSION: u32 = 22;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -102,6 +102,9 @@ pub struct LoadReport {
     pub file: ProjectFile,
     pub migrated_from: Option<u32>,
     pub integrity_verified: bool,
+    /// Clips taken out of a link group whose other members they did not match (ADR 0037):
+    /// a file edited by hand. Zero for every file Cantus wrote.
+    pub links_repaired: usize,
 }
 
 /// Parse JSON text into a project, migrating older schemas. `verify_integrity = false`
@@ -166,11 +169,13 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
         }
     }
 
-    let file: ProjectFile = serde_json::from_value(value)?;
+    let mut file: ProjectFile = serde_json::from_value(value)?;
+    let links_repaired = cantus_core::links::repair(&mut file.project);
     Ok(LoadReport {
         file,
         migrated_from,
         integrity_verified,
+        links_repaired,
     })
 }
 
@@ -198,6 +203,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_17_to_18,
     migrate_18_to_19,
     migrate_19_to_20,
+    migrate_20_to_21,
+    migrate_21_to_22,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -566,10 +573,85 @@ fn migrate_19_to_20(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 21 (ADR 0039, round 24): Lamina and Exemplar were recalibrated — a new Lamina
+/// is 5 dB louder, a new Exemplar's placeholder sine 8 dB — through a hidden output trim
+/// (`cantus_core::inst::TRIM_KEY`) whose default is the calibration. Every Lamina and
+/// Exemplar saved before gets its trim written as 0 dB, the level it had, so a project
+/// renders to the same bits it did; a trim already there is kept.
+fn migrate_20_to_21(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        let kind = inst
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if !native || !matches!(kind.as_str(), "ElectricPiano" | "Sampler") {
+            continue;
+        }
+        let params = inst
+            .entry("params")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(params) = params.as_object_mut() else {
+            return Err(format!("a {kind}'s params are not a map"));
+        };
+        params
+            .entry(cantus_core::inst::TRIM_KEY)
+            .or_insert_with(|| Value::from(0.0));
+    }
+    Ok(())
+}
+
+/// Schema 22 (ADR 0037): linked clips — a clip may name a link group (`Clip::link`), and
+/// every member of a group holds the same content. A clip without the field is a clip of
+/// its own, which is what every clip of an older project was, so the step writes nothing;
+/// the number is what makes an older build refuse a project whose copies it would
+/// silently cut apart.
+fn migrate_21_to_22(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use cantus_core::Ticks;
+
+    #[test]
+    fn schema_21_writes_the_old_level_of_lamina_and_exemplar_down() {
+        let mut v = serde_json::json!({"project": {"tracks": [
+            {"instrument": {"type": "Native", "kind": "ElectricPiano"}},
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": {"z0.gen": 3.0}}},
+            {"instrument": {"type": "Native", "kind": "ElectricPiano", "params": {"trim": 2.5}}},
+            {"instrument": {"type": "Native", "kind": "Organ"}},
+            {"instrument": {"type": "Firmus"}},
+        ]}});
+        migrate_20_to_21(&mut v).unwrap();
+        let t = &v["project"]["tracks"];
+        assert_eq!(t[0]["instrument"]["params"]["trim"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["trim"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["z0.gen"], 3.0);
+        assert_eq!(
+            t[2]["instrument"]["params"]["trim"], 2.5,
+            "a trim already there stays"
+        );
+        assert!(
+            t[3]["instrument"].get("params").is_none(),
+            "other kinds untouched"
+        );
+        assert!(t[4]["instrument"].get("params").is_none());
+        let mut bad = serde_json::json!({"project": {"tracks": [
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": 3}}
+        ]}});
+        assert!(migrate_20_to_21(&mut bad).is_err());
+    }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.
     #[test]
@@ -846,5 +928,96 @@ mod hosted_instrument_tests {
             .to_json()
             .unwrap();
         assert_eq!(parse(&again, true).unwrap().file.project, r.file.project);
+    }
+}
+
+#[cfg(test)]
+mod linked_clip_tests {
+    use super::*;
+
+    fn fixture(n: u32) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(format!("v{n}.cantus"));
+        std::fs::read_to_string(&path).expect("fixture")
+    }
+
+    /// Schema 22 (ADR 0037): every clip of an older project opens as a clip of its own.
+    #[test]
+    fn every_clip_of_an_older_project_stays_unique() {
+        for n in 1..22 {
+            let Ok(text) = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures")
+                .join(format!("v{n}.cantus"))
+                .canonicalize()
+                .and_then(std::fs::read_to_string)
+            else {
+                continue;
+            };
+            let r = parse(&text, true).unwrap();
+            assert_eq!(r.migrated_from, Some(n));
+            assert_eq!(r.links_repaired, 0);
+            for t in &r.file.project.tracks {
+                assert!(t.clips.iter().all(|c| c.link.is_none()), "v{n}: {}", t.name);
+            }
+        }
+    }
+
+    /// The schema-22 fixture holds a note pattern linked across two tracks (three copies,
+    /// one trimmed and slipped) and two linked audio clips; the groups survive a round trip.
+    #[test]
+    fn the_v22_fixture_keeps_its_groups() {
+        let r = parse(&fixture(22), true).expect("opens");
+        let p = &r.file.project;
+        cantus_core::links::check(p).unwrap();
+        let sizes = cantus_core::links::sizes(p);
+        let mut counts: Vec<usize> = sizes.values().copied().collect();
+        counts.sort();
+        assert_eq!(counts, vec![2, 3]);
+        let audio_group = p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .filter(|c| c.audio.is_some() && c.link.is_some())
+            .count();
+        assert_eq!(audio_group, 2);
+        let again = ProjectFile::wrap(p.clone(), "test")
+            .unwrap()
+            .to_json()
+            .unwrap();
+        assert_eq!(&parse(&again, true).unwrap().file.project, p);
+    }
+
+    /// A file whose group members differ (edited by hand) opens with the odd one out of
+    /// the group, its own content kept.
+    #[test]
+    fn a_broken_group_is_repaired_on_load() {
+        let mut v: Value = serde_json::from_str(&fixture(22)).unwrap();
+        let clips = v["project"]["tracks"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .flat_map(|t| t["clips"].as_array_mut().unwrap().iter_mut())
+            .filter(|c| c.get("link").is_some() && c.get("audio").is_none());
+        let mut n = 0;
+        for c in clips {
+            n += 1;
+            if n == 2 {
+                c["name"] = Value::from("edited by hand");
+            }
+        }
+        assert!(n >= 2);
+        let r = parse(&v.to_string(), false).expect("opens");
+        assert_eq!(r.links_repaired, 1);
+        cantus_core::links::check(&r.file.project).unwrap();
+        let odd = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .find(|c| c.name == "edited by hand")
+            .unwrap();
+        assert_eq!(odd.link, None);
     }
 }

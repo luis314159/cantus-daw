@@ -127,6 +127,12 @@ fn kit_riff(kit: &PulsusParams) -> Vec<Ev> {
 fn every_preset() -> Vec<(String, InstrumentSpec, bool)> {
     let mut out = Vec::new();
     for kind in KINDS {
+        // The default patch too: what a new instance is (ADR 0039 raised two of them).
+        out.push((
+            format!("{kind:?} default"),
+            InstrumentSpec::Native(NativeSpec::new(kind)),
+            false,
+        ));
         for preset in cantus_ui::views::inst::factory_presets(kind) {
             let spec = cantus_ui::views::inst::preset_spec(kind, preset);
             out.push((
@@ -238,5 +244,50 @@ fn default_patches_staging_report() {
     println!("|---|---|---|---|");
     for (name, l, p, tp) in rows {
         println!("| {name} | {l:.1} | {p:.1} | {tp:.1} |");
+    }
+}
+
+/// Every factory preset of every native instrument on the staging report's material (a
+/// C-major triad at velocity 100 for two seconds; a bass its root an octave down; a kit
+/// its kick, snare and hat on every beat): where each preset sits beside its instrument's
+/// default patch. `cargo test --release -p cantus-ui --test instrument_levels --
+/// --ignored --nocapture factory_presets_staging_report`.
+#[test]
+#[ignore]
+fn factory_presets_staging_report() {
+    let triad: Vec<Ev> = [60u8, 64, 67]
+        .iter()
+        .map(|&n| Ev::new(0.0, 4.0, n, 100))
+        .collect();
+    let root = vec![Ev::new(0.0, 4.0, 48, 100)];
+    let mut cases: Vec<(String, InstrumentSpec, Vec<Ev>)> = Vec::new();
+    for kind in KINDS {
+        let evs = if kind == InstrumentKind::Bass {
+            root.clone()
+        } else {
+            triad.clone()
+        };
+        cases.push((
+            format!("{kind:?} (default)"),
+            InstrumentSpec::Native(NativeSpec::new(kind)),
+            evs.clone(),
+        ));
+        for preset in cantus_ui::views::inst::factory_presets(kind) {
+            let spec = cantus_ui::views::inst::preset_spec(kind, preset);
+            cases.push((
+                format!("{kind:?} {}", preset.label_key),
+                InstrumentSpec::Native(spec),
+                evs.clone(),
+            ));
+        }
+    }
+    let rows = par_map(&cases, |(name, spec, evs)| {
+        let r = render_all(&song_of(spec.clone(), evs, 1.0), 0.0);
+        (name.clone(), lufs(&r), db(r.peak))
+    });
+    println!("| Preset | LUFS | Peak dBFS |");
+    println!("|---|---|---|");
+    for (name, l, p) in rows {
+        println!("| {name} | {l:.1} | {p:.1} |");
     }
 }

@@ -1337,7 +1337,9 @@ fn a_clip_dragged_to_another_track_takes_its_music_with_it() {
         "the selection followed"
     );
 
-    // Alt-drag copies instead: the original stays, and the copy is independent.
+    // Alt-drag copies instead: the original stays. With linking off (ADR 0037) the copy is
+    // independent; with it on — the default — it is the same clip (below).
+    a.settings.link_copies = false;
     a.commit_clip_drag(
         (to, clip),
         views::arrangement::ClipDragResult::Move {
@@ -1354,6 +1356,31 @@ fn a_clip_dragged_to_another_track_takes_its_music_with_it() {
         copy.notes.iter().all(|n| original.note(n.id).is_none()),
         "a copy that shares note ids is not an independent copy"
     );
+    assert_eq!(copy.link, None);
+    // With linking on, the Alt-drag copy and the original are one clip in two places.
+    a.settings.link_copies = true;
+    a.select_clip(to, clip);
+    a.commit_clip_drag(
+        (to, clip),
+        views::arrangement::ClipDragResult::Move {
+            delta: Ticks::beats(16),
+            rows: 0,
+            copy: true,
+        },
+    );
+    let original = a.project().track(to).unwrap().clip(clip).unwrap().clone();
+    let linked = a
+        .project()
+        .track(to)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.id != clip)
+        .expect("the linked copy")
+        .clone();
+    assert!(original.link.is_some());
+    assert_eq!(linked.link, original.link);
+    assert_eq!(linked.notes, original.notes);
 }
 
 #[test]

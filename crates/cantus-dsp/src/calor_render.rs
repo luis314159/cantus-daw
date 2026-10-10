@@ -4,11 +4,19 @@
 
 use super::super::voice::Shared;
 use super::super::CARDS;
-use super::{tel, Calor, CHUNK, TAIL};
+use super::{tel, Calor, CHUNK, LANES, TAIL};
+use crate::par::{add_into, clear_lane, run_each, Parallel, Serial};
 
 impl Calor {
     /// Render added into `left`/`right`. Returns whether anything but zeros was written.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
+        self.process_par(left, right, &Serial)
+    }
+
+    /// [`Self::process`] with the voices of each chunk handed to `par` — each into its own
+    /// lane, the lanes summed in voice order — when it has helpers and two voices or more
+    /// sound (ADR 0038). The same bits as the serial loop.
+    pub fn process_par(&mut self, left: &mut [f32], right: &mut [f32], par: &dyn Parallel) -> bool {
         let n = left.len().min(right.len());
         let sounding = self.voices.iter().any(|v| v.active) || self.ghosts.iter().any(|g| g.active);
         if !sounding && self.tail == 0 {
@@ -47,10 +55,30 @@ impl Calor {
                 };
                 let bl = &mut self.buf_l[..os_n];
                 let br = &mut self.buf_r[..os_n];
-                for v in self.voices.iter_mut().chain(self.ghosts.iter_mut()) {
-                    if v.active {
-                        v.render(&sh, bl, br);
-                        voice_frames += frames;
+                let sounding = self.voices.iter().chain(self.ghosts.iter());
+                if par.width() > 1 && sounding.filter(|v| v.active).nth(1).is_some() {
+                    let lanes = self.lanes.split(os_n).zip(self.used.iter_mut());
+                    let voices = self.voices.iter_mut().chain(self.ghosts.iter_mut());
+                    let jobs = voices.zip(lanes).filter(|(v, _)| v.active);
+                    run_each(par, jobs, &|(v, ((ll, lr), used))| {
+                        clear_lane(ll, lr);
+                        v.render(&sh, ll, lr);
+                        *used = true;
+                    });
+                    for k in 0..LANES {
+                        if std::mem::take(&mut self.used[k]) {
+                            let (ll, lr) = self.lanes.lane(k, os_n);
+                            add_into(bl, ll);
+                            add_into(br, lr);
+                            voice_frames += frames;
+                        }
+                    }
+                } else {
+                    for v in self.voices.iter_mut().chain(self.ghosts.iter_mut()) {
+                        if v.active {
+                            v.render(&sh, bl, br);
+                            voice_frames += frames;
+                        }
                     }
                 }
             }

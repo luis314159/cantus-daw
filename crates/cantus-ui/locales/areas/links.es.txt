@@ -1,0 +1,25 @@
+# links — ronda 24: clips enlazados, copias que son el mismo clip (ADR 0037).
+# Cada clave necesita su gemela en links.en.txt.
+cmd.make_unique = hacer único el clip
+cmd.link_clip = enlazar clip
+cmd.link_clips = enlazar clips
+cmd.set_clip_content = cambiar el contenido del clip
+action.make-unique = Hacer único
+action.link-clips = Enlazar la selección al clip editado
+action.select-linked = Seleccionar enlazados
+clip.make_unique = Hacer único
+clip.link_here = Enlazar la selección a este clip
+clip.select_linked = Seleccionar enlazados
+clip.link_key = Copias enlazadas — clic para hacer única la selección
+links.copies = Las copias quedan enlazadas
+links.count = ×{n}
+links.status.made_unique = {n} clips hechos únicos: sus notas y ajustes ya son solo suyos
+links.status.made_unique_one = Clip hecho único: sus notas y ajustes ya son solo suyos
+links.status.repaired = {n} clips ya no coincidían con sus copias enlazadas y se desenlazaron al abrir el proyecto
+links.status.repaired_one = Un clip ya no coincidía con sus copias enlazadas y se desenlazó al abrir el proyecto
+links.status.not_linked = La selección no está enlazada a ningún otro clip
+links.status.select_two = Selecciona los clips que quieres enlazar y el clip en el que deben convertirse
+links.status.nothing_to_link = Nada que enlazar: los clips ya están enlazados o son de tipos distintos
+links.status.linked = Enlazados: editar cualquiera de estos clips cambia ahora todos
+links.status.copies_linked = Las copias quedan enlazadas: pegar, Duplicar o arrastrar con Alt crea el mismo clip otra vez
+links.status.copies_unique = Las copias son únicas: pegar, Duplicar o arrastrar con Alt crea un clip propio

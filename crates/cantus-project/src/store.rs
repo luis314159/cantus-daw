@@ -213,6 +213,9 @@ pub struct Loaded {
     pub migrated_from: Option<u32>,
     pub integrity_verified: bool,
     pub app_version: String,
+    /// Clips taken out of a link group on load because they did not match it (ADR 0037):
+    /// the app says so, since editing such a clip no longer changes its old copies.
+    pub links_repaired: usize,
 }
 
 pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
@@ -223,6 +226,7 @@ pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
         migrated_from: r.migrated_from,
         integrity_verified: r.integrity_verified,
         app_version: r.file.app_version,
+        links_repaired: r.links_repaired,
     })
 }
 

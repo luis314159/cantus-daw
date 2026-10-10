@@ -12,7 +12,7 @@
 //! and outbox are its own cells, and everything else it reads is the pass's frame.
 
 use super::ctx::PassCtx;
-use super::exec::{Nodes, Outgoing, PushEvent, Scratch};
+use super::exec::{Nodes, Outgoing, PoolPar, PushEvent, Scratch};
 use super::*;
 use crate::automation::Ramp;
 use crate::profile::Node;
@@ -230,7 +230,17 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         }
     }
     nodes.track_peak[slot].store(s.peak.to_bits(), Relaxed);
-    nodes.track_voices[slot].store(s.active_voices() as u32, Relaxed);
+    let voices = s.active_voices();
+    nodes.track_voices[slot].store(voices as u32, Relaxed);
+    // Divisible only while there is something to split: two voices or more on a unit that
+    // splits them. Sticky until the next clustering reads it (`rebuild_map` clears it), so
+    // a chord between two clusterings still counts (ADR 0038 §6).
+    if voices >= 2
+        && matches!(s.instrument, SlotInstrument::Native)
+        && s.native.as_ref().is_some_and(|n| n.unit.splits_voices())
+    {
+        nodes.track_splits[slot].store(true, Relaxed);
+    }
 }
 
 /// The track's own segment `[sub, end)` of the pass: instrument, clips and input, level
@@ -290,7 +300,11 @@ fn track_segment(
                     // that follow it (a hosted synth's arpeggiator).
                     let position = song_position_of(&transport, &ctx.snapshot, ctx.sample_rate);
                     u.unit.set_position(&position);
-                    let sig = u.unit.process(l, r);
+                    let par = PoolPar {
+                        forks: &nodes.forks,
+                        on: ctx.split_voices,
+                    };
+                    let sig = u.unit.process_par(l, r, &par);
                     if ctx.probed.is_some() && ctx.probed == id {
                         match nodes.probe.try_borrow_mut() {
                             Some(mut p) => *p = Some(u.unit.telemetry()),

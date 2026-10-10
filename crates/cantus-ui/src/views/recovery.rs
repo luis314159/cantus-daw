@@ -65,7 +65,8 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .show(ctx, |ui| {
             let s = Style::current();
-            form::band(ui, "recovery.title");
+            // The window's title says what this is; the band names what is offered.
+            form::band(ui, "recovery.left");
             for (i, line) in text.iter().enumerate() {
                 let color = if i == 0 { s.t.text } else { s.t.text_dim };
                 ui.label(

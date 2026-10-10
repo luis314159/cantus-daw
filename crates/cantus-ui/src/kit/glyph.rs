@@ -101,6 +101,8 @@ pub enum Glyph {
     Restore,
     /// Swap the device for another: two cards with a turning arrow between them.
     Replace,
+    /// A linked clip (ADR 0037): two links of a chain, one through the other.
+    Link,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -417,6 +419,22 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.rrect(z, 0.6 * u, Fill::Solid(color));
             b.arc(p(0.0, -0.4), 3.4 * u, PI * 1.12, PI * 1.82, w, color, true);
             b.polygon(&[p(2.0, -4.6), p(4.6, -2.6), p(1.4, -1.8)], color);
+        }
+        Glyph::Link => {
+            // Two rounded links on a slant, overlapping in the middle: a chain.
+            let r = 1.9 * u;
+            b.rrect_stroke(
+                Rect::from_min_max(p(-5.4, -1.9), p(0.9, 1.9)),
+                r,
+                w * 0.85,
+                color,
+            );
+            b.rrect_stroke(
+                Rect::from_min_max(p(-0.9, -1.9), p(5.4, 1.9)),
+                r,
+                w * 0.85,
+                color,
+            );
         }
         _ => {}
     }

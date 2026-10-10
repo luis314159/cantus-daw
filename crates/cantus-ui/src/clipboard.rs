@@ -124,6 +124,10 @@ pub enum Decoded {
 
 /// Read system-clipboard text. Only text that looks like ours is parsed at all.
 ///
+/// Every version this build knows is read ([`cb::READS`]: `cantus-clip/1`, whose clips
+/// carry no link group and paste as clips of their own, and `cantus-clip/2`, ADR 0037); a
+/// later one is refused.
+///
 /// The payload is the live model (`Clip`, `Note`, `AudioSource`), so the project schema it
 /// was written in decides: a newer one is refused — serde would drop the fields this
 /// build does not know and paste something that plays differently — and an older one is
@@ -142,7 +146,7 @@ pub fn from_text(text: &str) -> Decoded {
     let Ok(probe) = serde_json::from_str::<Probe>(s) else {
         return Decoded::Foreign;
     };
-    if probe.format == cb::FORMAT {
+    if cb::READS.contains(&probe.format.as_str()) {
         if probe.schema > SCHEMA_VERSION {
             return Decoded::Newer;
         }
@@ -515,11 +519,14 @@ impl CantusApp {
             Some(c) => c,
             None => clip.content_start(),
         };
-        let (commands, made) =
+        let (mut commands, made) =
             self.with_ids(|_, ids| cb::paste_notes(track, &clip, notes, at, ids));
         if commands.is_empty() {
             return;
         }
+        // The copies of a linked clip that showed what it showed grow with it (ADR 0037).
+        let follow = cantus_core::links::follow_window(self.project(), (track, clip.id), &commands);
+        commands.extend(follow);
         if self.exec(Command::Batch {
             label_key: "cmd.paste".into(),
             commands,
@@ -559,9 +566,10 @@ impl CantusApp {
                 let row = self.project().track_index(track).unwrap_or(0);
                 let same = board.origin == self.clipboard_origin();
                 let base = self.audio_base().map(Path::to_path_buf);
+                let linked = self.settings.link_copies;
                 let out = self.with_ids(|project, ids| {
                     let plans = plan_sources(project, board, same, base.as_deref(), ids);
-                    cb::paste_clips(project, board, same, row, at, &plans, ids)
+                    cb::paste_clips(project, board, same, row, at, &plans, linked, ids)
                 });
                 self.exec_clip_batch("cmd.paste_clips", out.commands, out.made);
                 if out.skipped_automation > 0 {
@@ -609,7 +617,7 @@ mod tests {
     fn our_text_reads_back_as_what_was_written() {
         let b = board();
         let text = to_text(&b);
-        assert!(text.starts_with("{\"format\":\"cantus-clip/1\""));
+        assert!(text.starts_with("{\"format\":\"cantus-clip/2\""));
         assert_eq!(from_text(&text), Decoded::Ours(Box::new(b)));
         // Leading whitespace (some clipboards add it) is fine.
         assert!(matches!(
@@ -621,7 +629,7 @@ mod tests {
     #[test]
     fn a_newer_version_is_refused_and_foreign_text_is_ignored() {
         let text = to_text(&board());
-        let newer = text.replacen("cantus-clip/1", "cantus-clip/2", 1);
+        let newer = text.replacen("cantus-clip/2", "cantus-clip/3", 1);
         assert_eq!(from_text(&newer), Decoded::Newer);
         let mut other_ppq = board();
         other_ppq.ppq = PPQ * 2;
@@ -657,6 +665,39 @@ mod tests {
         // The same breakage at today's schema is not ours to explain: ignored.
         let broken_now = to_text(&b).replace("\"payload\":", "\"payload_was\":");
         assert_eq!(from_text(&broken_now), Decoded::Foreign);
+    }
+
+    /// ADR 0037: a reader of version 2 reads version 1 — its clips carry no link group and
+    /// come back as clips of their own — and a version-2 text keeps a clip's group.
+    #[test]
+    fn version_1_is_still_read_and_version_2_keeps_the_link() {
+        let mut p = crate::app::starter_project();
+        let link = cantus_core::LinkId(p.alloc_id());
+        let t = p.tracks[0].id;
+        p.tracks[0].clips[0].link = Some(link);
+        let c = p.tracks[0].clips[0].id;
+        let b = Clipboard::new(ClipOrigin::default(), &p, cb::copy_clips(&p, &[(t, c)]));
+        let text = to_text(&b);
+        assert!(text.contains("\"link\":"));
+        let Decoded::Ours(back) = from_text(&text) else {
+            panic!("not read");
+        };
+        let Payload::Clips { rows, .. } = &back.payload else {
+            panic!("not clips");
+        };
+        assert_eq!(rows[0].clip.link, Some(link));
+        // The same text as version 1 wrote it: no link field, the old tag.
+        let v1 = text
+            .replacen("cantus-clip/2", "cantus-clip/1", 1)
+            .replace(&format!(",\"link\":{}", link.0), "");
+        assert!(!v1.contains("\"link\""));
+        let Decoded::Ours(old) = from_text(&v1) else {
+            panic!("version 1 not read");
+        };
+        let Payload::Clips { rows, .. } = &old.payload else {
+            panic!("not clips");
+        };
+        assert_eq!(rows[0].clip.link, None);
     }
 
     #[test]

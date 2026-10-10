@@ -88,8 +88,15 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Shared<G, Q, C> {
         )
     }
 
-    /// Run ready tasks until the block has none left.
+    /// Run ready tasks until the block has none left — and, while nothing is ready, the
+    /// jobs running tasks forked ([`Graph::help`]).
     pub(crate) fn drain(&self, slot: usize) {
+        self.graph.presence(slot, true);
+        self.drain_tasks(slot);
+        self.graph.presence(slot, false);
+    }
+
+    fn drain_tasks(&self, slot: usize) {
         let mut cont: Option<u32> = None;
         let mut polls = 0u32;
         let mut since: Option<Instant> = None;
@@ -109,6 +116,13 @@ impl<G: Graph, Q: ReadyQueue, C: Chaos> Shared<G, Q, C> {
                             since = None;
                             if self.remaining.load(Acquire) == 0 {
                                 return;
+                            }
+                            // A running task's forked jobs (ADR 0038): work, not waiting.
+                            let helped = self.graph.help(slot);
+                            if helped > 0 {
+                                self.busy[slot].fetch_add(helped, Relaxed);
+                                polls = 0;
+                                continue;
                             }
                             // R5: a few bare polls, then PAUSE between polls. No clock:
                             // what this waits for is a task already running.

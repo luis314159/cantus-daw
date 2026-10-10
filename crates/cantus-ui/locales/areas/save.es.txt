@@ -1,0 +1,4 @@
+# save — ronda 24 (beta-rest): Archivo ▸ Guardar, escrito fuera del hilo de la interfaz.
+# Cada clave tiene su gemela en save.en.txt.
+save.saving = Guardando «{file}»…
+save.queued = «{file}» se guardará en cuanto termine el guardado en curso.

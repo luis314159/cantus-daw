@@ -218,6 +218,13 @@ pub enum Command {
         id: StripId,
         to: StripId,
     },
+    /// A new send at `index` in the strip's list (clamped to its end): the exact inverse
+    /// of [`Command::RemoveStripSend`], which puts a removed send back where it was.
+    InsertStripSend {
+        id: StripId,
+        index: usize,
+        send: Send,
+    },
     /// Move a strip to another place on the desk. Numbers follow the order; every route
     /// is by id, so nothing else changes.
     MoveStrip {
@@ -529,6 +536,22 @@ pub enum Command {
         id: TrackId,
         open: bool,
     },
+    /// Put a clip into a link group (`Some`) or take it out of one (`None`) (ADR 0037).
+    /// Joining a group is refused unless the clip already has the group's content: the
+    /// builders send a `SetClipContent` first ("Link to…"). Taking a clip out keeps its
+    /// content ("Make unique").
+    SetClipLink {
+        track: TrackId,
+        clip: ClipId,
+        link: Option<LinkId>,
+    },
+    /// Replace everything a clip shares with its link group — name, colour, notes, audio
+    /// settings, automation curve — at once, on the clip and on every sibling (ADR 0037).
+    SetClipContent {
+        track: TrackId,
+        clip: ClipId,
+        content: Box<crate::links::ClipContent>,
+    },
     /// Move a clip to another lane: 0 plays, 1… are take lanes.
     SetClipLane {
         track: TrackId,
@@ -618,6 +641,7 @@ impl Command {
             SetStripEq { .. } => "cmd.set_strip_eq",
             SetStripSend { .. } => "cmd.set_strip_send",
             RemoveStripSend { .. } => "cmd.remove_strip_send",
+            InsertStripSend { .. } => "cmd.insert_strip_send",
             MoveStrip { .. } => "cmd.move_strip",
             SetStripDock { .. } => "cmd.set_strip_dock",
             SetStripGroup { .. } => "cmd.set_strip_group",
@@ -670,6 +694,9 @@ impl Command {
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
             SetClipAudio { .. } => "cmd.set_clip_audio",
             SetClipLane { .. } => "cmd.set_clip_lane",
+            SetClipLink { link: None, .. } => "cmd.make_unique",
+            SetClipLink { .. } => "cmd.link_clip",
+            SetClipContent { .. } => "cmd.set_clip_content",
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             SetTrackInput { .. } => "cmd.set_track_input",
@@ -1006,6 +1033,22 @@ impl Command {
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
+                for (i, c) in track.clips.iter().enumerate() {
+                    check_joins(project, c)?;
+                    // The track's own clips must agree with each other too: the project
+                    // does not hold them yet, so `check_joins` cannot see them.
+                    if let Some(first) = track.clips[..i]
+                        .iter()
+                        .find(|f| f.link.is_some() && f.link == c.link)
+                    {
+                        if !crate::links::same_content(first, c) {
+                            return Err(CommandError::InvalidValue(format!(
+                                "clip {} does not match clip {} of its link group",
+                                c.id, first.id
+                            )));
+                        }
+                    }
+                }
                 let id = track.id;
                 project.tracks.insert(index, *track);
                 Ok(RemoveTrack { id })
@@ -1273,7 +1316,41 @@ impl Command {
                     .position(|x| x.to == to)
                     .ok_or(CommandError::SendNotFound(id))?;
                 let old = s.sends.remove(index);
-                Ok(SetStripSend { id, send: old })
+                Ok(InsertStripSend {
+                    id,
+                    index,
+                    send: old,
+                })
+            }
+            InsertStripSend { id, index, send } => {
+                if !send.level.is_finite() {
+                    return Err(CommandError::InvalidValue("send level".into()));
+                }
+                if project.strip(send.to).is_none() {
+                    return Err(CommandError::StripNotFound(send.to));
+                }
+                let Some(strip) = project.strip(id) else {
+                    return Err(CommandError::StripNotFound(id));
+                };
+                if strip.send_to(send.to).is_some() {
+                    return Err(CommandError::InvalidValue(
+                        "a send to that strip exists".into(),
+                    ));
+                }
+                if strip.sends.len() >= MAX_SENDS {
+                    return Err(CommandError::TooManySends(id));
+                }
+                if project.routing_would_cycle(id, Some(send.to)) {
+                    return Err(CommandError::RoutingCycle(id));
+                }
+                let send = Send {
+                    level: send.level.clamp(0.0, 1.0),
+                    ..send
+                };
+                let s = project.strip_mut(id).expect("checked above");
+                let at = index.min(s.sends.len());
+                s.sends.insert(at, send);
+                Ok(RemoveStripSend { id, to: send.to })
             }
             MoveStrip { id, index } => {
                 let from = project
@@ -1841,6 +1918,7 @@ impl Command {
             }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
+                check_joins(project, &clip)?;
                 let t = project
                     .track_mut(track)
                     .ok_or(CommandError::TrackNotFound(track))?;
@@ -1985,11 +2063,9 @@ impl Command {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
                 }
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                let old = std::mem::replace(&mut c.audio, audio);
+                let old = edit_shared(project, track, clip, |c| {
+                    Ok(std::mem::replace(&mut c.audio, audio.clone()))
+                })?;
                 Ok(SetClipAudio {
                     track,
                     clip,
@@ -2004,11 +2080,9 @@ impl Command {
                 if automation.as_ref().is_some_and(|a| !a.is_valid()) {
                     return Err(CommandError::InvalidValue("automation curve".into()));
                 }
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                let old = std::mem::replace(&mut c.automation, automation);
+                let old = edit_shared(project, track, clip, |c| {
+                    Ok(std::mem::replace(&mut c.automation, automation.clone()))
+                })?;
                 Ok(SetClipAutomation {
                     track,
                     clip,
@@ -2032,6 +2106,50 @@ impl Command {
                     track,
                     clip,
                     lane: old,
+                })
+            }
+            SetClipLink { track, clip, link } => {
+                let c = project
+                    .track(track)
+                    .ok_or(CommandError::TrackNotFound(track))?
+                    .clip(clip)
+                    .ok_or(CommandError::ClipNotFound(clip))?;
+                if c.link != link {
+                    let joining = Clip { link, ..c.clone() };
+                    check_joins(project, &joining)?;
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.link, link);
+                Ok(SetClipLink {
+                    track,
+                    clip,
+                    link: old,
+                })
+            }
+            SetClipContent {
+                track,
+                clip,
+                content,
+            } => {
+                for n in &content.notes {
+                    validate_note(n)?;
+                }
+                // No check that an audio source is in the pool: like `InsertClip`, this
+                // can restore a clip whose file is missing (it plays silence), and an
+                // inverse must always apply.
+                if content.automation.as_ref().is_some_and(|a| !a.is_valid()) {
+                    return Err(CommandError::InvalidValue("automation curve".into()));
+                }
+                let old = edit_shared(project, track, clip, |c| {
+                    Ok(content.as_ref().clone().swap_into(c))
+                })?;
+                Ok(SetClipContent {
+                    track,
+                    clip,
+                    content: Box::new(old),
                 })
             }
             SetTrackInput { id, input } => {
@@ -2068,11 +2186,9 @@ impl Command {
                 Ok(SetRecordSettings { settings: old })
             }
             SetClipColor { track, clip, color } => {
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                let old = std::mem::replace(&mut c.color, color);
+                let old = edit_shared(project, track, clip, |c| {
+                    Ok(std::mem::replace(&mut c.color, color))
+                })?;
                 Ok(SetClipColor {
                     track,
                     clip,
@@ -2121,11 +2237,9 @@ impl Command {
                 })
             }
             SetClipName { track, clip, name } => {
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                let old = std::mem::replace(&mut c.name, name);
+                let old = edit_shared(project, track, clip, |c| {
+                    Ok(std::mem::replace(&mut c.name, name.clone()))
+                })?;
                 Ok(SetClipName {
                     track,
                     clip,
@@ -2137,39 +2251,37 @@ impl Command {
                 for n in &notes {
                     validate_note(n)?;
                 }
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                for n in &notes {
-                    if c.note(n.id).is_some() {
-                        return Err(CommandError::DuplicateId(n.id.0));
+                edit_shared(project, track, clip, |c| {
+                    for n in &notes {
+                        if c.note(n.id).is_some() {
+                            return Err(CommandError::DuplicateId(n.id.0));
+                        }
                     }
-                }
+                    c.notes.extend(notes.iter().cloned());
+                    c.notes.sort_by_key(|n| (n.start, n.pitch));
+                    Ok(())
+                })?;
                 let ids = notes.iter().map(|n| n.id).collect();
-                c.notes.extend(notes);
-                c.notes.sort_by_key(|n| (n.start, n.pitch));
                 Ok(RemoveNotes { track, clip, ids })
             }
             RemoveNotes { track, clip, ids } => {
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                for id in &ids {
-                    if c.note(*id).is_none() {
-                        return Err(CommandError::NoteNotFound(*id));
+                let removed = edit_shared(project, track, clip, |c| {
+                    for id in &ids {
+                        if c.note(*id).is_none() {
+                            return Err(CommandError::NoteNotFound(*id));
+                        }
                     }
-                }
-                let mut removed = Vec::with_capacity(ids.len());
-                c.notes.retain(|n| {
-                    if ids.contains(&n.id) {
-                        removed.push(n.clone());
-                        false
-                    } else {
-                        true
-                    }
-                });
+                    let mut removed = Vec::with_capacity(ids.len());
+                    c.notes.retain(|n| {
+                        if ids.contains(&n.id) {
+                            removed.push(n.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                    Ok(removed)
+                })?;
                 Ok(InsertNotes {
                     track,
                     clip,
@@ -2180,24 +2292,23 @@ impl Command {
                 for n in &notes {
                     validate_note(n)?;
                 }
-                let t = project
-                    .track_mut(track)
-                    .ok_or(CommandError::TrackNotFound(track))?;
-                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
-                let mut old = Vec::with_capacity(notes.len());
-                for n in &notes {
-                    old.push(
-                        c.note(n.id)
-                            .cloned()
-                            .ok_or(CommandError::NoteNotFound(n.id))?,
-                    );
-                }
-                for n in notes {
-                    if let Some(slot) = c.note_mut(n.id) {
-                        *slot = n;
+                let old = edit_shared(project, track, clip, |c| {
+                    let mut old = Vec::with_capacity(notes.len());
+                    for n in &notes {
+                        old.push(
+                            c.note(n.id)
+                                .cloned()
+                                .ok_or(CommandError::NoteNotFound(n.id))?,
+                        );
                     }
-                }
-                c.notes.sort_by_key(|n| (n.start, n.pitch));
+                    for n in &notes {
+                        if let Some(slot) = c.note_mut(n.id) {
+                            *slot = n.clone();
+                        }
+                    }
+                    c.notes.sort_by_key(|n| (n.start, n.pitch));
+                    Ok(old)
+                })?;
                 Ok(SetNotes {
                     track,
                     clip,
@@ -2328,6 +2439,67 @@ fn instrument_plugin_mut(
         .instrument
         .external_mut()
         .ok_or_else(|| CommandError::InvalidValue("not a hosted instrument".into()))
+}
+
+/// Run `edit` on clip `clip` of `track`, then on every other member of its link group
+/// (ADR 0037), and return what it returned on the named clip. The members share their
+/// content, so the edit does to each exactly what it did to the first; a member it refuses
+/// (only possible in a project that broke the invariant) takes the named clip's content
+/// instead, so the group comes out equal either way. A clip in no group costs nothing more.
+fn edit_shared<R>(
+    project: &mut Project,
+    track: TrackId,
+    clip: ClipId,
+    mut edit: impl FnMut(&mut Clip) -> Result<R, CommandError>,
+) -> Result<R, CommandError> {
+    let ti = project
+        .track_index(track)
+        .ok_or(CommandError::TrackNotFound(track))?;
+    let c = project.tracks[ti]
+        .clip_mut(clip)
+        .ok_or(CommandError::ClipNotFound(clip))?;
+    let out = edit(c)?;
+    let Some(link) = c.link else {
+        return Ok(out);
+    };
+    let others: Vec<(usize, usize)> = project
+        .tracks
+        .iter()
+        .enumerate()
+        .flat_map(|(i, t)| {
+            t.clips
+                .iter()
+                .enumerate()
+                .filter(move |(_, c)| c.link == Some(link) && !(i == ti && c.id == clip))
+                .map(move |(j, _)| (i, j))
+        })
+        .collect();
+    let mut source: Option<Clip> = None;
+    for (i, j) in others {
+        if edit(&mut project.tracks[i].clips[j]).is_err() {
+            let src = source.get_or_insert_with(|| {
+                project.tracks[ti]
+                    .clip(clip)
+                    .cloned()
+                    .expect("edited above")
+            });
+            crate::links::adopt(&mut project.tracks[i].clips[j], src);
+        }
+    }
+    Ok(out)
+}
+
+/// Refuse a clip that names a link group whose members it does not match (ADR 0037).
+fn check_joins(project: &Project, c: &Clip) -> Result<(), CommandError> {
+    let Some(link) = c.link else {
+        return Ok(());
+    };
+    match crate::links::first_other(project, link, c.id) {
+        Some(other) if !crate::links::same_content(other, c) => Err(CommandError::InvalidValue(
+            format!("clip {} does not match link group {link}", c.id),
+        )),
+        _ => Ok(()),
+    }
 }
 
 fn validate_clip(c: &Clip) -> Result<(), CommandError> {

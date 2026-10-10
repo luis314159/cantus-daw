@@ -99,7 +99,25 @@ impl InstrumentKind {
 
     /// The description of one numeric key, or `None` when the kind has no such key.
     pub fn param(self, key: &str) -> Option<&'static InstParamInfo> {
+        if key == TRIM_KEY {
+            return self.trim_info();
+        }
         dispatch!(self, m::param(key))
+    }
+
+    /// The kind's output calibration (ADR 0039), in dB: what the hidden [`TRIM_KEY`] of a
+    /// new instance reads, so it sits at the level the other instruments do. 0 for a kind
+    /// that was never recalibrated (it has no trim at all).
+    pub fn calibration_db(self) -> f32 {
+        self.trim_info().map_or(0.0, |i| i.default)
+    }
+
+    fn trim_info(self) -> Option<&'static InstParamInfo> {
+        match self {
+            InstrumentKind::ElectricPiano => Some(&LAMINA_TRIM),
+            InstrumentKind::Sampler => Some(&EXEMPLAR_TRIM),
+            _ => None,
+        }
     }
 
     /// The modulation sources it produces, as tags of [`modulation::SOURCES`].
@@ -124,6 +142,24 @@ impl InstrumentKind {
     }
 }
 
+/// The hidden output trim (ADR 0039, round 24), in dB: a kind recalibrated after projects
+/// were saved with it reads its calibration here when the key is not stored, and the
+/// migration that came with the calibration stores the old level (0 dB) in every instance
+/// saved before, so those keep their sound to the bit. Not listed in
+/// [`InstrumentKind::params`]: no knob, no automation lane; only kinds that were
+/// recalibrated accept it ([`InstrumentKind::calibration_db`] ≠ 0).
+///
+/// | Kind | Calibration | What it lifts |
+/// |---|---|---|
+/// | Lamina | +5 dB | the output (the gain stage, the last one) |
+/// | Exemplar | +8 dB | the placeholder sine an instance with nothing loaded plays; a loaded instrument plays its samples at their own level |
+pub const TRIM_KEY: &str = "trim";
+
+static LAMINA_TRIM: InstParamInfo =
+    crate::effect::p(TRIM_KEY, "inst.trim", -24.0, 24.0, 5.0, "dB", false, false);
+static EXEMPLAR_TRIM: InstParamInfo =
+    crate::effect::p(TRIM_KEY, "inst.trim", -24.0, 24.0, 8.0, "dB", false, false);
+
 /// Find `key` in a static list — what most kinds' `param` is.
 pub fn find(list: &'static [InstParamInfo], key: &str) -> Option<&'static InstParamInfo> {
     list.iter().find(|i| i.key == key)
@@ -147,6 +183,39 @@ impl NativeSpec {
             params: BTreeMap::new(),
             text: BTreeMap::new(),
         }
+    }
+
+    /// The spec as written to a file that has no schema version of its own to migrate
+    /// (a user preset, a DAWproject device state): a recalibrated kind's [`TRIM_KEY`] is
+    /// spelled out even at its default, so the file reads back at the level it was
+    /// written with whatever a later calibration says (ADR 0039).
+    pub fn spell_out_trim(&self) -> NativeSpec {
+        let mut s = self.clone();
+        if self.kind.calibration_db() != 0.0 && !s.is_stored(TRIM_KEY) {
+            s.set(TRIM_KEY, self.get(TRIM_KEY));
+        }
+        s
+    }
+
+    /// The spec as read from such a file: a recalibrated kind without a trim was written
+    /// before its calibration, at the old level (a trim of 0 dB); one whose trim is the
+    /// calibration reads as a new instance does, with nothing stored. The inverse of
+    /// [`spell_out_trim`](Self::spell_out_trim) for a spec written after the calibration.
+    pub fn read_unversioned(self) -> NativeSpec {
+        let mut s = self;
+        let cal = s.kind.calibration_db();
+        if cal != 0.0 {
+            match s.params.get(TRIM_KEY) {
+                None => {
+                    s.set(TRIM_KEY, 0.0);
+                }
+                Some(&v) if v == cal => {
+                    s.clear(TRIM_KEY);
+                }
+                Some(_) => {}
+            }
+        }
+        s
     }
 
     /// The value of a numeric key: stored, or its default, or 0 for an unknown key.
@@ -263,5 +332,43 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(json, r#"{"kind":"Organ"}"#);
         assert_eq!(serde_json::from_str::<NativeSpec>(&json).unwrap(), s);
+    }
+
+    #[test]
+    fn the_trim_is_hidden_and_only_recalibrated_kinds_have_it() {
+        for kind in InstrumentKind::ALL {
+            assert!(
+                kind.params().iter().all(|i| i.key != TRIM_KEY),
+                "{kind:?} lists it"
+            );
+            let s = NativeSpec::new(kind);
+            match kind {
+                InstrumentKind::ElectricPiano | InstrumentKind::Sampler => {
+                    let info = kind.param(TRIM_KEY).expect("a trim");
+                    assert_eq!(info.default, kind.calibration_db());
+                    assert!(kind.calibration_db() > 0.0);
+                    assert_eq!(s.get(TRIM_KEY), kind.calibration_db());
+                    let mut old = s.clone();
+                    assert_eq!(old.set(TRIM_KEY, 0.0), Some(0.0));
+                    assert_eq!(old.get(TRIM_KEY), 0.0);
+                    assert!(!kind.is_text_key(TRIM_KEY));
+                    // Unversioned files: written spelled out, read back as they were;
+                    // one with no trim is from before the calibration.
+                    let written = s.spell_out_trim();
+                    assert!(written.is_stored(TRIM_KEY));
+                    assert_eq!(written.clone().read_unversioned(), s);
+                    assert_eq!(old.spell_out_trim(), old);
+                    assert_eq!(old.clone().read_unversioned(), old);
+                    assert_eq!(s.clone().read_unversioned(), old);
+                }
+                _ => {
+                    assert_eq!(s.spell_out_trim(), s);
+                    assert_eq!(s.clone().read_unversioned(), s);
+                    assert!(kind.param(TRIM_KEY).is_none());
+                    assert_eq!(kind.calibration_db(), 0.0);
+                    assert_eq!(s.clone().set(TRIM_KEY, 0.0), None);
+                }
+            }
+        }
     }
 }

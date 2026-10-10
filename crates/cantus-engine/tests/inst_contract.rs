@@ -783,11 +783,180 @@ fn inst_at_rest_is_exact(kind: InstrumentKind) {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+// ---- voices on several threads (ADR 0038) -----------------------------------------------
+
+use cantus_dsp::par::{Job, Parallel, Reversed};
+
+/// A pool a test can build: the jobs dealt to `.0` real threads (spawned per call — a test
+/// may allocate), so voices really do render at the same time on several cores.
+struct Threads(usize);
+
+impl Parallel for Threads {
+    fn width(&self) -> usize {
+        self.0
+    }
+
+    fn run(&self, jobs: &mut [Job<'_>]) {
+        let per = jobs.len().div_ceil(self.0.max(1)).max(1);
+        std::thread::scope(|s| {
+            for chunk in jobs.chunks_mut(per) {
+                s.spawn(move || {
+                    for j in chunk.iter_mut() {
+                        if let Some(f) = j.take() {
+                            f();
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+/// How a run splits its blocks.
+type Blocks = Box<dyn FnMut() -> usize>;
+
+/// [`play`] through `process_par`.
+fn play_par(
+    u: &mut dyn InstrumentUnit,
+    score: &Score,
+    block: impl FnMut() -> usize,
+    par: &dyn Parallel,
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    play_into(u, score, block, Some(par), false)
+}
+
+/// What a buffer already holds when `play_into(.., dirty = true)` adds into it: `-0.0`
+/// mostly (the sign a sum can lose), `+0.0` and a few values.
+fn dirt(i: usize) -> f32 {
+    [-0.0, -0.0, 0.0, 0.25, -0.0, -3.0e-5, -0.0][i % 7]
+}
+
+/// [`play`] (`par = None`: `process`) or [`play_par`] — into buffers that start at zero, or
+/// (`dirty`) at [`dirt`]: `process` *adds* into what it is given, and `process_par` must
+/// add the same bits whatever the buffer held.
+fn play_into(
+    u: &mut dyn InstrumentUnit,
+    score: &Score,
+    mut block: impl FnMut() -> usize,
+    par: Option<&dyn Parallel>,
+    dirty: bool,
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    let n = score.frames;
+    let start: Vec<f32> = (0..n).map(|i| if dirty { dirt(i) } else { 0.0 }).collect();
+    let (mut l, mut r) = (
+        start.clone(),
+        start.iter().rev().copied().collect::<Vec<_>>(),
+    );
+    let (mut at, mut ei) = (0, 0);
+    while at < n {
+        while ei < score.events.len() && score.events[ei].0 <= at {
+            apply(u, score.events[ei].1);
+            ei += 1;
+        }
+        let next = score.events.get(ei).map_or(n, |e| e.0.min(n));
+        let b = block().clamp(1, n - at).min(next.max(at + 1) - at);
+        let (lb, rb) = (&mut l[at..at + b], &mut r[at..at + b]);
+        let wrote = match par {
+            Some(par) => u.process_par(lb, rb, par),
+            None => u.process(lb, rb),
+        };
+        if !dirty
+            && !wrote
+            && !l[at..at + b]
+                .iter()
+                .chain(&r[at..at + b])
+                .all(|v| *v == 0.0)
+        {
+            return Err(format!(
+                "process_par said it wrote nothing at frame {at}, and did"
+            ));
+        }
+        at += b;
+    }
+    Ok((l, r))
+}
+
+/// **Parallel = serial, to the bit, for the unit alone**: every kind's `process_par` —
+/// its voices run last-first on one thread, or at once on real threads — gives `process`'s
+/// samples, at the defaults, under the bench's 32-voice chord and at random settings, at
+/// fixed and random splits. A kind that does not split must too (the default method).
+fn inst_voice_split(kind: InstrumentKind) {
+    let mut rng = Rng::new(0x5917_0000 + kind as u64);
+    let mut failures = Vec::new();
+    for (label, spec, chord) in inst_specs(kind, 4, &mut rng) {
+        let score = score_for(chord, 48_000, &mut rng);
+        let reference = match play(&mut *inst_unit(&spec), &score, || 512, |_, _, _| {}) {
+            Ok(o) => o,
+            Err(e) => {
+                failures.push(format!("{kind:?} {label}: {e}"));
+                continue;
+            }
+        };
+        let runs: [(&str, &dyn Parallel, Blocks); 4] = [
+            ("backwards, blocks of 512", &Reversed(4), Box::new(|| 512)),
+            (
+                "backwards, random splits",
+                &Reversed(4),
+                Box::new(splits(rng.clone())),
+            ),
+            ("4 threads, blocks of 256", &Threads(4), Box::new(|| 256)),
+            (
+                "3 threads, random splits",
+                &Threads(3),
+                Box::new(splits(Rng::new(rng.next_u64()))),
+            ),
+        ];
+        for (name, par, block) in runs {
+            match play_par(&mut *inst_unit(&spec), &score, block, par) {
+                Ok(out) => {
+                    if let Some(d) = first_difference(&reference, &out) {
+                        failures.push(format!("{kind:?} {label}, {name}: {d}"));
+                    }
+                }
+                Err(e) => failures.push(format!("{kind:?} {label}, {name}: {e}")),
+            }
+        }
+        // Into a buffer that already holds something — `-0.0` above all, which a lane
+        // that starts at `+0.0` would turn into `+0.0`: the same bits as `process` adding.
+        let dirty = play_into(&mut *inst_unit(&spec), &score, || 512, None, true);
+        let runs: [(&str, &dyn Parallel); 2] = [
+            ("into a dirty buffer, backwards", &Reversed(4)),
+            ("into a dirty buffer, 3 threads", &Threads(3)),
+        ];
+        for (name, par) in runs {
+            let out = play_into(&mut *inst_unit(&spec), &score, || 512, Some(par), true);
+            match (&dirty, &out) {
+                (Ok(a), Ok(b)) => {
+                    if let Some(d) = first_difference(a, b) {
+                        failures.push(format!("{kind:?} {label}, {name}: {d}"));
+                    }
+                }
+                (Err(e), _) | (_, Err(e)) => {
+                    failures.push(format!("{kind:?} {label}, {name}: {e}"))
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "voices on several threads moved the bits:
+{}",
+        failures.join(
+            "
+"
+        )
+    );
+}
+
 macro_rules! per_kind {
     ($($name:ident => $kind:expr),* $(,)?) => {
         mod split {
             use super::*;
             $( #[test] fn $name() { inst_split_invariance($kind) } )*
+        }
+        mod voices {
+            use super::*;
+            $( #[test] fn $name() { inst_voice_split($kind) } )*
         }
         mod at_rest {
             use super::*;

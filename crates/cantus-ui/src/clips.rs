@@ -9,10 +9,11 @@
 //! 1. **A clip is a window onto its content** ([`Clip`]). Trimming the left edge moves
 //!    `start` and `offset` by the same amount, so the notes do not slide; splitting moves
 //!    neither, so the halves are the original note list twice over.
-//! 2. **Split shares note ids; copying allocates new ones.** Split has to share them —
-//!    that is what makes gluing the halves back together give the original clip, note for
-//!    note. Copying must not, or gluing a clip to its own copy would silently discard
-//!    every note as a duplicate.
+//! 2. **Split shares note ids; a copy of its own allocates new ones.** Split has to share
+//!    them — that is what makes gluing the halves back together give the original clip,
+//!    note for note. A linked copy (ADR 0037) shares them too: it *is* the same clip.
+//!    Glue tells a note it already has from the same note heard in another place by where
+//!    it lands, and gives the second a fresh id.
 //! 3. **Nothing is destroyed to make an edit.** Notes outside a window are kept, so every
 //!    operation here is undone by the inverse the command bus already produces.
 
@@ -97,10 +98,52 @@ pub use cantus_core::clipboard::split;
 /// Glue clips on one track into a single clip spanning all of them.
 ///
 /// The earliest clip keeps its id, its offset and its repeat; the others' notes are
-/// translated into its content frame and appended. A note whose id is already there is
-/// dropped, which is what makes glueing the two halves of a split give back exactly the
-/// clip that was split — they hold the same notes under the same ids.
-pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> {
+/// translated into its content frame and appended — only the notes each one plays, so
+/// what the glued clip plays over the later clips is what they played. A note whose id is
+/// already there, at the same place, is dropped, which is what makes glueing the two
+/// halves of a split give back exactly the clip that was split — they hold the same notes
+/// under the same ids. When the first clip holds that note only hidden and the later clip
+/// plays a different version of it (an edited split), the version heard wins; when both
+/// play it (linked copies, ADR 0037), the later one comes in under a fresh id.
+pub fn glue(track: TrackId, clips: &[&Clip], ids: Ids) -> Option<Vec<Command>> {
+    let mut commands = glue_any(track, clips, ids)?;
+    // The glued clip has content of its own now (ADR 0037): when the glue changes what the
+    // kept clip holds, it leaves its group first, so its siblings keep theirs. Halves of a
+    // split glued back change nothing and stay linked.
+    let kept: Vec<&Clip> = clips
+        .iter()
+        .copied()
+        .filter(|c| c.link.is_some() && commands.iter().any(|cmd| changes_content(cmd, c.id)))
+        .collect();
+    for c in kept {
+        commands.insert(
+            0,
+            Command::SetClipLink {
+                track,
+                clip: c.id,
+                link: None,
+            },
+        );
+    }
+    Some(commands)
+}
+
+/// Whether `cmd` changes what clip `id` shares with its link group (ADR 0037).
+pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
+    match cmd {
+        Command::InsertNotes { clip, .. }
+        | Command::RemoveNotes { clip, .. }
+        | Command::SetNotes { clip, .. }
+        | Command::SetClipAudio { clip, .. }
+        | Command::SetClipAutomation { clip, .. }
+        | Command::SetClipName { clip, .. }
+        | Command::SetClipColor { clip, .. }
+        | Command::SetClipContent { clip, .. } => *clip == id,
+        _ => false,
+    }
+}
+
+fn glue_any(track: TrackId, clips: &[&Clip], ids: Ids) -> Option<Vec<Command>> {
     if clips.len() < 2 {
         return None;
     }
@@ -119,17 +162,42 @@ pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> 
     let end = ordered.iter().map(|c| c.end()).max()?;
 
     let mut notes: Vec<Note> = first.notes.clone();
+    let mut at = Vec::new();
+    // Whether `clip` plays a note stored at content tick `start`.
+    let mut sounds = |clip: &Clip, start: Ticks| {
+        clip.timeline_positions(start, &mut at);
+        !at.is_empty()
+    };
     for c in &ordered[1..] {
         // The same content tick, expressed in the first clip's frame.
         let shift = first.content_of(c.start) - c.offset;
         for n in &c.notes {
-            if notes.iter().any(|m| m.id == n.id) {
+            // Only what the clip plays comes in: a note hidden by its window (outside it,
+            // or past its loop) would land on music that was never there — the hidden
+            // notes of a copy trimmed from the left fall on the first clip's own.
+            if !sounds(c, n.start) {
                 continue;
             }
-            notes.push(Note {
+            let moved = Note {
                 start: n.start + shift,
                 ..n.clone()
-            });
+            };
+            match notes.iter().position(|m| m.id == n.id) {
+                // The same note seen through two windows (the halves of a split).
+                Some(i) if notes[i] == moved => continue,
+                // The first clip holds this note but does not play it (the hidden half of
+                // an edited split): the version that was heard wins.
+                Some(i) if i < first.notes.len() && !sounds(first, notes[i].start) => {
+                    notes[i] = moved;
+                }
+                // The same note heard in another place (a linked copy, ADR 0037): a note
+                // of its own in the glued clip.
+                Some(_) => notes.push(Note {
+                    id: cantus_core::NoteId(ids()),
+                    ..moved
+                }),
+                None => notes.push(moved),
+            }
         }
     }
     notes.sort_by_key(|n| (n.start, n.pitch));
@@ -147,6 +215,18 @@ pub fn glue(track: TrackId, clips: &[&Clip], _ids: Ids) -> Option<Vec<Command>> 
     // The repeat period belongs to the *content*, and gluing windows together does not
     // change the content — so it is carried over rather than cleared. It is also what
     // makes splitting a clip and gluing the halves give back the clip, exactly.
+    let changed: Vec<Note> = notes
+        .iter()
+        .filter(|n| first.note(n.id).is_some_and(|m| m != *n))
+        .cloned()
+        .collect();
+    if !changed.is_empty() {
+        commands.push(Command::SetNotes {
+            track,
+            clip: first.id,
+            notes: changed,
+        });
+    }
     let added: Vec<Note> = notes
         .into_iter()
         .filter(|n| first.note(n.id).is_none())
@@ -236,14 +316,29 @@ pub use cantus_core::clipboard::copy_of;
 /// Duplicate each clip immediately after itself, the way `Ctrl+B` does in FL and `Ctrl+D`
 /// in Live. Returns the commands and the refs of the copies, so the caller can select them
 /// — pressing the shortcut twice should tile, not stack.
-pub fn duplicate(project: &Project, sel: &[ClipRef], ids: Ids) -> (Vec<Command>, Vec<ClipRef>) {
+///
+/// With `link`, each copy is a linked copy — the same clip again (ADR 0037) — otherwise a
+/// copy of its own.
+pub fn duplicate(
+    project: &Project,
+    sel: &[ClipRef],
+    link: bool,
+    ids: Ids,
+) -> (Vec<Command>, Vec<ClipRef>) {
     let mut commands = Vec::new();
     let mut made = Vec::new();
+    let mut linker = cantus_core::links::Linker::new();
     for r in sel {
         let Some(clip) = clip_of(project, *r) else {
             continue;
         };
-        let copy = copy_of(clip, clip.end(), ids);
+        let copy = if link {
+            let (pre, copy) = linker.copy(r.0, clip, clip.end(), ids);
+            commands.extend(pre);
+            copy
+        } else {
+            copy_of(clip, clip.end(), ids)
+        };
         made.push((r.0, copy.id));
         commands.push(Command::InsertClip {
             track: r.0,
@@ -296,7 +391,8 @@ pub fn set_loop(project: &Project, sel: &[ClipRef], on: bool) -> Vec<Command> {
         .collect()
 }
 
-/// Move the selected clips by `delta` ticks and `rows` tracks, or copy them there.
+/// Move the selected clips by `delta` ticks and `rows` tracks, or copy them there (linked
+/// copies with `link`, ADR 0037).
 ///
 /// The whole selection is clamped as one: a group dragged to the left stops when its
 /// *earliest* clip reaches zero, so the clips keep their spacing instead of piling up at
@@ -307,10 +403,12 @@ pub fn transpose_selection(
     delta: Ticks,
     rows: i32,
     copy: bool,
+    link: bool,
     ids: Ids,
 ) -> (Vec<Command>, Vec<ClipRef>) {
     let mut commands = Vec::new();
     let mut made = Vec::new();
+    let mut linker = cantus_core::links::Linker::new();
     let clips: Vec<(usize, &Clip)> = sel
         .iter()
         .filter_map(|r| Some((project.track_index(r.0)?, clip_of(project, *r)?)))
@@ -341,7 +439,13 @@ pub fn transpose_selection(
         };
         let from = project.tracks[index].id;
         if copy {
-            let copy = copy_of(clip, clip.start + delta, ids);
+            let copy = if link {
+                let (pre, copy) = linker.copy(from, clip, clip.start + delta, ids);
+                commands.extend(pre);
+                copy
+            } else {
+                copy_of(clip, clip.start + delta, ids)
+            };
             made.push((to, copy.id));
             commands.push(Command::InsertClip {
                 track: to,
@@ -660,8 +764,15 @@ mod tests {
             .iter()
             .map(|c| (tid, c.id))
             .collect();
-        let (commands, _) =
-            transpose_selection(bus.project(), &sel, Ticks::beats(-100), 0, false, &mut || 0);
+        let (commands, _) = transpose_selection(
+            bus.project(),
+            &sel,
+            Ticks::beats(-100),
+            0,
+            false,
+            false,
+            &mut || 0,
+        );
         run(&mut bus, commands);
         let clips = &bus.project().track(tid).unwrap().clips;
         assert_eq!(clips[0].start, Ticks::ZERO, "the group did not reach zero");

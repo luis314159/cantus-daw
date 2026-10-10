@@ -1,0 +1,25 @@
+# links — round 24: linked clips, copies that are the same clip (ADR 0037).
+# Every key here needs its twin in links.es.txt.
+cmd.make_unique = make clip unique
+cmd.link_clip = link clip
+cmd.link_clips = link clips
+cmd.set_clip_content = set clip content
+action.make-unique = Make unique
+action.link-clips = Link selection to the edited clip
+action.select-linked = Select linked copies
+clip.make_unique = Make unique
+clip.link_here = Link selection to this clip
+clip.select_linked = Select linked copies
+clip.link_key = Linked copies — click to make the selection unique
+links.copies = Copies are linked
+links.count = ×{n}
+links.status.made_unique = {n} clips made unique: their notes and settings are their own now
+links.status.made_unique_one = Clip made unique: its notes and settings are its own now
+links.status.repaired = {n} clips no longer matched their linked copies and were unlinked when the project opened
+links.status.repaired_one = A clip no longer matched its linked copies and was unlinked when the project opened
+links.status.not_linked = The selection is not linked to any other clip
+links.status.select_two = Select the clips to link, and the clip they should become
+links.status.nothing_to_link = Nothing to link: the clips are already linked, or of different kinds
+links.status.linked = Linked: editing any of these clips now changes all of them
+links.status.copies_linked = Copies are linked: a paste, Duplicate or Alt-drag makes the same clip again
+links.status.copies_unique = Copies are unique: a paste, Duplicate or Alt-drag makes a clip of its own

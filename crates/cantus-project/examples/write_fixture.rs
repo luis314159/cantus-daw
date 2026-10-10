@@ -319,8 +319,63 @@ fn main() {
     let mut riff = p.make_clip("Riff", Ticks::ZERO, Ticks::beats(4));
     riff.notes
         .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 48, 100));
+    // Schema 22 (ADR 0037): the riff is a linked pattern — a copy a bar later on its own
+    // track, and a third on the Organ track, trimmed and slipped (where each copy sits is
+    // its own) — and the vocal take has a linked copy later in the song.
+    let riff_link = LinkId(p.alloc_id());
+    riff.link = Some(riff_link);
+    let mut again = riff.clone();
+    again.id = ClipId(p.alloc_id());
+    again.start = Ticks::beats(4);
+    let mut far = riff.clone();
+    far.id = ClipId(p.alloc_id());
+    far.start = Ticks::beats(8);
+    far.length = Ticks::beats(2);
+    far.offset = Ticks::beats(1);
     synth.clips.push(riff);
+    synth.clips.push(again);
     p.tracks.push(synth);
+    p.tracks
+        .iter_mut()
+        .find(|t| t.name == "Organ")
+        .expect("the organ track")
+        .clips
+        .push(far);
+    let take_link = LinkId(p.alloc_id());
+    let vocal = p
+        .tracks
+        .iter_mut()
+        .find(|t| t.name == "Vocal")
+        .expect("the vocal track");
+    let take = vocal
+        .clips
+        .iter_mut()
+        .find(|c| c.lane == 0)
+        .expect("the take");
+    take.link = Some(take_link);
+    let mut later = take.clone();
+    later.start = Ticks::beats(16);
+    vocal.clips.push(later);
+    let id = ClipId(p.alloc_id());
+    p.tracks
+        .iter_mut()
+        .find(|t| t.name == "Vocal")
+        .unwrap()
+        .clips
+        .last_mut()
+        .unwrap()
+        .id = id;
+    assert!(cantus_core::links::check(&p).is_ok());
+    // Schema 21 (ADR 0039): a Lamina made now (its trim not stored: the calibration) and
+    // an Exemplar saved before the calibration (its trim written down as 0 dB).
+    let mut epiano = p.make_track("Lamina");
+    epiano.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::ElectricPiano));
+    p.tracks.push(epiano);
+    let mut sampler = p.make_track("Exemplar");
+    let mut s = NativeSpec::new(InstrumentKind::Sampler);
+    s.set(cantus_core::inst::TRIM_KEY, 0.0).unwrap();
+    sampler.instrument = InstrumentSpec::Native(s);
+    p.tracks.push(sampler);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

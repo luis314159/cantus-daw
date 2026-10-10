@@ -580,7 +580,12 @@ fn instrument(
                 .and_then(|p| state_file(files, p))
                 .and_then(|b| serde_json::from_slice::<InstrumentSpec>(b).ok());
             if let Some(spec) = restored {
-                return spec;
+                // Written before a calibration, a native instrument has no trim: it
+                // comes back at the level it was exported with (ADR 0039).
+                return match spec {
+                    InstrumentSpec::Native(n) => InstrumentSpec::Native(n.read_unversioned()),
+                    other => other,
+                };
             }
         }
         report.dropped(

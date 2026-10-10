@@ -599,9 +599,15 @@ fn instrument_device(ids: &mut Ids, files: &mut Vec<(String, Vec<u8>)>, t: &Trac
     };
     let id = ids.next();
     let state = format!("devices/{kind}-{id}.json");
+    // A device state has no schema version of its own: a recalibrated instrument's trim
+    // is written out, so a later calibration reads it at this level (ADR 0039).
+    let spec = match &t.instrument {
+        InstrumentSpec::Native(n) => InstrumentSpec::Native(n.spell_out_trim()),
+        other => other.clone(),
+    };
     files.push((
         state.clone(),
-        serde_json::to_vec_pretty(&t.instrument).unwrap_or_default(),
+        serde_json::to_vec_pretty(&spec).unwrap_or_default(),
     ));
     let mut name = kind.to_string();
     name[..1].make_ascii_uppercase();

@@ -9,9 +9,12 @@
 //!
 //! Three rules run through it:
 //!
-//! 1. **A paste is always a copy.** Every pasted clip and note gets fresh ids
-//!    ([`copy_of`]), so a paste can be glued to its original without the notes being taken
-//!    for duplicates. Linked clips (BACKLOG §6d.2) do not exist yet.
+//! 1. **A paste is a copy, linked or not** (ADR 0037). A *linked* paste is the same clip
+//!    again — it joins the group of the clip it was copied from, keeping the note ids, as
+//!    the halves of a split do — when that clip (or a member of its group) is still in
+//!    this project with the same content; anything else is a copy of its own, with fresh
+//!    clip and note ids ([`copy_of`]), so it can be glued to its original without the
+//!    notes being taken for duplicates.
 //! 2. **Shape is kept.** Notes keep their spacing from the earliest one; clips keep their
 //!    spacing in time *and* in tracks (rows counted from the topmost one).
 //! 3. **Nothing points into another project.** Ids are a small counter per project, so the
@@ -25,8 +28,14 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// The text form's tag and version. A reader refuses any other version politely.
-pub const FORMAT: &str = "cantus-clip/1";
+/// The text form's tag and version. A reader refuses any later version politely.
+///
+/// Version 2 (ADR 0037) is version 1 with a clip's link group (`Clip::link`) in the
+/// copied clips: a reader of 2 reads 1 (no link: every clip its own), a reader of 1
+/// refuses 2.
+pub const FORMAT: &str = "cantus-clip/2";
+/// The versions this build reads, oldest first.
+pub const READS: [&str; 2] = ["cantus-clip/1", "cantus-clip/2"];
 /// What every version of the format starts with.
 pub const FORMAT_FAMILY: &str = "cantus-clip/";
 
@@ -344,6 +353,7 @@ pub fn notes_clip(name: &str, notes: &[Note], at: Ticks, bar: Ticks, ids: Ids) -
         audio: None,
         lane: 0,
         automation: None,
+        link: None,
     }
 }
 
@@ -351,7 +361,10 @@ pub fn notes_clip(name: &str, notes: &[Note], at: Ticks, bar: Ticks, ids: Ids) -
 ///
 /// - Rows keep their distances. A block that would run past the last track moves up as a
 ///   whole; only a block taller than the project folds its extra rows onto the last track.
-/// - Every clip is a [`copy_of`] (fresh ids) on the playing lane.
+/// - Every clip lands on the playing lane. With `linked`, a clip copied from this project
+///   in this run whose original (or a member of its original's group) is still here with
+///   the same content is pasted as a **linked** copy, in that group (ADR 0037); every
+///   other clip is a [`copy_of`] (fresh ids).
 /// - An automation clip goes back to the track it came from, its target unchanged, when
 ///   `same_origin` says the ids mean the same things here and that track still exists;
 ///   otherwise it is left out and counted.
@@ -360,6 +373,7 @@ pub fn notes_clip(name: &str, notes: &[Note], at: Ticks, bar: Ticks, ids: Ids) -
 ///   same project keeps a source that is still in the pool, and any other is left out.
 ///   From another project at another tempo, its window and fades are resized so it plays
 ///   the same seconds of its file (its start stays on the beat it had).
+#[allow(clippy::too_many_arguments)]
 pub fn paste_clips(
     project: &Project,
     board: &Clipboard,
@@ -367,9 +381,11 @@ pub fn paste_clips(
     target_row: usize,
     at: Ticks,
     plans: &HashMap<AudioSourceId, SourcePlan>,
+    linked: bool,
     ids: Ids,
 ) -> Pasted {
     let mut out = Pasted::default();
+    let mut linker = crate::links::Linker::new();
     let Payload::Clips { rows, .. } = &board.payload else {
         return out;
     };
@@ -425,8 +441,13 @@ pub fn paste_clips(
             };
             plays = Some(dst);
         }
-        let mut copy = copy_of(&r.clip, at + r.clip.start, ids);
-        copy.lane = 0;
+        let mut copy = Clip {
+            id: ClipId(ids()),
+            start: at + r.clip.start,
+            lane: 0,
+            link: None,
+            ..r.clip.clone()
+        };
         if let (Some(a), Some(dst)) = (copy.audio.as_mut(), plays) {
             a.source = dst;
             if let Some(k) = scale {
@@ -437,6 +458,24 @@ pub fn paste_clips(
                 copy.length = s(copy.length).max(Ticks(1));
             }
         }
+        let group = if linked && same_origin {
+            link_target(project, r, &copy)
+        } else {
+            None
+        };
+        match group {
+            Some(Target::Clip(t, c, l)) => {
+                let (pre, link) = linker.group_of(t, c, l, ids);
+                out.commands.extend(pre);
+                copy.link = Some(link);
+            }
+            Some(Target::Group(l)) => copy.link = Some(l),
+            None => {
+                for n in &mut copy.notes {
+                    n.id = NoteId(ids());
+                }
+            }
+        }
         out.made.push((track, copy.id));
         out.commands.push(Command::InsertClip {
             track,
@@ -444,6 +483,34 @@ pub fn paste_clips(
         });
     }
     out
+}
+
+/// What a linked paste joins.
+enum Target {
+    /// The clip it was copied from, still here (its group, or a new one for it).
+    Clip(TrackId, ClipId, Option<crate::LinkId>),
+    /// Another member of the group the copied clip was in.
+    Group(crate::LinkId),
+}
+
+/// The group a linked paste of row `r` (made into `copy`) can join: the clip it was copied
+/// from when that is still in the project with the same content, else a member of the
+/// copied clip's group with the same content. `None`: nothing to be the same clip as.
+fn link_target(project: &Project, r: &ClipRow, copy: &Clip) -> Option<Target> {
+    let same = |c: &Clip| crate::links::same_content(c, copy);
+    if let Some(src) = project
+        .tracks
+        .iter()
+        .find_map(|t| t.clip(r.clip.id).map(|c| (t.id, c)))
+    {
+        if same(src.1) {
+            return Some(Target::Clip(src.0, src.1.id, src.1.link));
+        }
+    }
+    let l = r.clip.link?;
+    crate::links::first_member(project, l)
+        .filter(|c| same(c))
+        .map(|_| Target::Group(l))
 }
 
 // ---- split and the time-range crop ---------------------------------------------------
@@ -471,9 +538,25 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
         audio: clip.audio.clone(),
         lane: clip.lane,
         automation: clip.automation.clone(),
+        link: clip.link,
     };
     let audio = split_audio(track, clip, at, &mut right);
-    let mut out = vec![
+    // A linked clip's halves stay in its group — they show the same content through two
+    // windows — unless the split changes that content (an audio clip's fades, which stay
+    // at the outer edges): then both leave it, or the cut would reach every sibling.
+    let mut out = Vec::with_capacity(4);
+    let refaded = audio
+        .iter()
+        .any(|c| matches!(c, Command::SetClipAudio { .. }));
+    if clip.link.is_some() && (refaded || !crate::links::same_content(&right, clip)) {
+        right.link = None;
+        out.push(Command::SetClipLink {
+            track,
+            clip: clip.id,
+            link: None,
+        });
+    }
+    out.extend([
         Command::SetClipBounds {
             track,
             clip: clip.id,
@@ -484,7 +567,7 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
             track,
             clip: Box::new(right),
         },
-    ];
+    ]);
     out.extend(audio);
     Some(out)
 }
@@ -721,6 +804,8 @@ pub fn loop_pieces(clip: &Clip, a: Ticks, b: Ticks, ids: Ids) -> Vec<Clip> {
         out.offset = Ticks::ZERO;
         out.content_length = None;
         out.notes = notes;
+        // Other notes than the loop's: a clip of its own (ADR 0037).
+        out.link = None;
         return vec![out];
     }
     let seam = a + (period - phase);
@@ -744,6 +829,8 @@ pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
         audio: clip.audio.clone(),
         lane: clip.lane,
         automation: clip.automation.clone(),
+        // A copy of its own is in no group (ADR 0037).
+        link: None,
         id: ClipId(ids()),
         name: clip.name.clone(),
         start,

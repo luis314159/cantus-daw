@@ -1,6 +1,6 @@
 ---
 name: round-23
-description: "Round 23 (2026-10-09): beta blockers only — export dialog audit and fixes, theme text bug, CPU tests robust, Ctrl+C/X/V; branches r23/beta-hardening + r23/clipboard, uncommitted"
+description: "Round 23 (2026-10-09): beta blockers only — export dialog audit and fixes, theme text bug, CPU tests robust, Ctrl+C/X/V; committed and pushed as master cead440 (2026-10-09)"
 metadata:
   node_type: memory
   type: project
@@ -34,7 +34,7 @@ Done (worktree `F:\projects\daw-r23\beta-hardening`, base master 2ad043b, nothin
   findings real, all fixed, e.g. the stop frame now uses `transport::sample_at`).
 - Close: 1 921 tests green (194 binaries, 4 run renamed for UAC), clippy clean, fuzz at
   CANTUS_WORKERS=3 green; STATUS.md updated; BACKLOG left alone (owner's uncommitted edits
-  in the main tree). Nothing committed: the owner commits when they ask.
+  in the main tree). Committed and pushed at the owner's request: master cead440.
 
 Owner to-dos left: try the build with real drivers; the manual clipboard checks (Ctrl+C,
 restart, Ctrl+V; Notepad text; two windows). See [[round-22]], [[machine-f-drive-build-quirks]].

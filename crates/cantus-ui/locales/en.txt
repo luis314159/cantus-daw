@@ -589,6 +589,7 @@ cmd.set_strip_fx_enabled = strip FX on/off
 cmd.set_strip_eq = strip EQ
 cmd.set_strip_send = strip send
 cmd.remove_strip_send = remove send
+cmd.insert_strip_send = insert send
 cmd.move_strip = move strip
 cmd.set_effect_mix = effect mix
 cmd.route_strips = route strips

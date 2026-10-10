@@ -1,0 +1,903 @@
+{
+  "format": "cantus-project",
+  "schema_version": 20,
+  "app_version": "0.1.0-beta.1",
+  "saved_at": 1791595341,
+  "project": {
+    "name": "Quiet instruments",
+    "tempo_bpm": 120.0,
+    "time_signature": {
+      "numerator": 4,
+      "denominator": 4
+    },
+    "tracks": [
+      {
+        "id": 17,
+        "name": "Lamina",
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "height": 1.0,
+        "icon": "Keys",
+        "instrument": {
+          "type": "Native",
+          "kind": "ElectricPiano"
+        },
+        "clips": [
+          {
+            "id": 18,
+            "name": "triad",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 19,
+                "start": 0,
+                "length": 2880,
+                "pitch": 60,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 20,
+                "start": 480,
+                "length": 2880,
+                "pitch": 64,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 21,
+                "start": 960,
+                "length": 2880,
+                "pitch": 67,
+                "velocity": 100,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 1,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 22,
+        "name": "Lamina moved",
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "height": 1.0,
+        "icon": "Keys",
+        "instrument": {
+          "type": "Native",
+          "kind": "ElectricPiano",
+          "params": {
+            "gain": -6.0,
+            "macro1": 0.4,
+            "mod1.amt": 0.1
+          },
+          "text": {
+            "mod1.dst": "gain",
+            "mod1.src": "macro1"
+          }
+        },
+        "clips": [
+          {
+            "id": 23,
+            "name": "triad",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 24,
+                "start": 0,
+                "length": 2880,
+                "pitch": 60,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 25,
+                "start": 480,
+                "length": 2880,
+                "pitch": 64,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 26,
+                "start": 960,
+                "length": 2880,
+                "pitch": 67,
+                "velocity": 100,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 2,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 27,
+        "name": "Exemplar",
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "height": 1.0,
+        "icon": "Keys",
+        "instrument": {
+          "type": "Native",
+          "kind": "Sampler"
+        },
+        "clips": [
+          {
+            "id": 28,
+            "name": "triad",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 29,
+                "start": 0,
+                "length": 2880,
+                "pitch": 60,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 30,
+                "start": 480,
+                "length": 2880,
+                "pitch": 64,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 31,
+                "start": 960,
+                "length": 2880,
+                "pitch": 67,
+                "velocity": 100,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 3,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 32,
+        "name": "Exemplar zone",
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "height": 1.0,
+        "icon": "Keys",
+        "instrument": {
+          "type": "Native",
+          "kind": "Sampler",
+          "params": {
+            "z0.gen": 3.0
+          }
+        },
+        "clips": [
+          {
+            "id": 33,
+            "name": "triad",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 34,
+                "start": 0,
+                "length": 2880,
+                "pitch": 60,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 35,
+                "start": 480,
+                "length": 2880,
+                "pitch": 64,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 36,
+                "start": 960,
+                "length": 2880,
+                "pitch": 67,
+                "velocity": 100,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 4,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      }
+    ],
+    "strips": [
+      {
+        "id": 1,
+        "name": "Lamina",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 2,
+        "name": "Lamina moved",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 3,
+        "name": "Exemplar",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 4,
+        "name": "Exemplar zone",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 5,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 6,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 7,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 8,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 9,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 10,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 11,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 12,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 13,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 14,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      },
+      {
+        "id": 15,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      },
+      {
+        "id": 16,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      }
+    ],
+    "strip_groups": [],
+    "master": {
+      "gain_db": 0.0,
+      "pan": 0.0,
+      "width": 1.0,
+      "phase_invert": false,
+      "fx_enabled": true
+    },
+    "loop_region": {
+      "start": 0,
+      "end": 3840
+    },
+    "loop_enabled": false,
+    "metronome": false,
+    "pan_law": "-3",
+    "recording": {
+      "count_in_bars": 0,
+      "punch_enabled": false,
+      "take_mode": "Stack",
+      "click": "Always",
+      "click_db": 0.0,
+      "loop_takes": true
+    },
+    "next_id": 37
+  },
+  "integrity": "7d65be095d3ce4e039c562c8bd48ab7bdb9f720c49c56d8899428ca739c7b189"
+}
