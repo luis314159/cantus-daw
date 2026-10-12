@@ -217,7 +217,7 @@ pub fn topology_key(snap: &Snapshot) -> u64 {
         h.word(st.id.0);
         h.opt(st.output.map(|s| s as u64));
         h.word(st.sends.len() as u64);
-        for (to, _) in &st.sends {
+        for (to, _, _) in &st.sends {
             h.word(*to as u64);
         }
         h.word(st.effects.len() as u64);

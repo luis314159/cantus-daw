@@ -1,0 +1,31 @@
+# look — ronda 25: la familia de temas (Cantus Noche, el predeterminado, y sus gemelos) y
+# el color del icono de la barra de tareas (ADR 0046). Cada clave tiene su gemela en
+# look.en.txt.
+theme.cantus_night = Cantus Noche (oscuro)
+theme.cantus_paper = Cantus Papel (claro)
+theme.daylight = Luz de día (claro)
+theme.blue_hour = Hora azul (oscuro)
+theme.ultraviolet = Ultravioleta (oscuro)
+theme.lagoon = Laguna (oscuro)
+theme.contrast = Alto contraste (oscuro)
+theme.contrast_light = Alto contraste (claro)
+look.preview = Vista previa de {name}
+look.in_use.dark = En uso en el modo oscuro
+look.in_use.light = En uso en el modo claro
+look.icon = Icono de la barra de tareas
+look.icon.chosen = Icono: {name}
+look.icon.colour = Color del icono
+look.icon.note = El icono de la ventana y de la barra de tareas, cambiado al momento. Los accesos anclados y el instalador conservan los colores originales.
+look.icon.original = Como se diseñó
+look.icon.theme = Acento del tema
+look.icon.custom = Tu color
+look.icon.pick = Elige el color del icono
+look.icon.amber = Ámbar
+look.icon.copper = Cobre
+look.icon.verdigris = Verdín
+look.icon.blue = Azul
+look.icon.violet = Violeta
+look.icon.rose = Rosa
+look.icon.silver = Plata (para una barra oscura)
+look.icon.graphite = Grafito (para una barra clara)
+kit.logo.tint.icon = Colores del icono

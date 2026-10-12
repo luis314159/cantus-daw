@@ -1,14 +1,15 @@
-//! Sends, one row each — the send's lamp, its destination, pre/post and its level — then
-//! routing: the chain's delay compensation, the engine's output latency and where the
-//! strip goes (ADR 0024 §7).
+//! Sends, one row each — the send's lamp, its destination, its `POST | PRE` tap and its
+//! level — then routing: the chain's delay compensation, the engine's output latency and
+//! where the strip goes (ADR 0024 §7). The tap switch is the kit's (`kit::tap`, round 25):
+//! a click issues `cmd.set_send_tap`, one undo step.
 
 use super::menus::MenuId;
 use super::sheet::{self, Range, Sheet};
 use super::{Act, MenuOpen};
 use crate::app::CantusApp;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::Src;
-use crate::kit::{cache, led, segmented, Function, State, Tok};
+use crate::kit::{cache, led, tap, Function, State, Tok};
+use cantus_core::routing::plan;
 use cantus_core::{Command, MergeKey, MixerStrip, Send, MAX_SENDS};
 use egui::{pos2, Id, Rect, Sense};
 use std::fmt::Write as _;
@@ -49,10 +50,6 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         return;
     };
     let id = m.id;
-    let prepost = [
-        Src::Key("kit.inspector.pre"),
-        Src::Key("kit.inspector.post"),
-    ];
     for send in &m.sends {
         let row = sh.row();
         let mg = s.s(sheet::MARGIN);
@@ -61,11 +58,8 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         let (y0, y1) = (row.value.top(), row.value.bottom());
         let total = x1 - x0;
         let lamp_w = s.s(16.0);
-        let seg_w = if total > s.s(250.0) {
-            s.s(66.0)
-        } else {
-            s.s(70.0)
-        };
+        // Wide enough that POST and PRE are read whole, in both languages (round 25).
+        let seg_w = s.s(84.0);
         let lamp = Rect::from_min_max(pos2(x0, y0), pos2(x0 + lamp_w, y1));
         let (dest, seg, level) = if total >= s.s(250.0) {
             // One line: lamp, destination, pre/post, level.
@@ -132,14 +126,18 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         );
         let name = sheet::name(name);
         sh.menu_field(dest, &name, MenuId::Send(id, send.to), false);
-        // Sends tap after the fader: the choice is shown, and says why it cannot move.
-        let sr = sh
-            .ui
-            .interact(seg, Id::new(("insp-send-pp", id, send.to)), Sense::hover());
-        segmented::paint(sh.b, seg, &s, State::DISABLED, &prepost, 1, None);
-        if sr.hovered() {
-            let name = sh.fmt.tr("inspector.post_only");
-            hint::set_text(sh.ui.ctx(), name, "", Caps::NONE);
+        // Where the send takes its copy: after the fader (and the pan law), or before
+        // them. The switch says which in its own hue and explains itself on hover.
+        let picked = tap::switch(
+            sh.ui,
+            sh.b,
+            &s,
+            seg,
+            Id::new(("insp-send-tap", id, send.to)),
+            send.tap,
+        );
+        if let Some(cmd) = picked.and_then(|t| plan::set_send_tap(app.project(), id, send.to, t)) {
+            sh.acts.push(Act::Exec(cmd));
         }
         let lname = sheet::name(sh.fmt.tr("inspector.send_level"));
         let d = sh.value(

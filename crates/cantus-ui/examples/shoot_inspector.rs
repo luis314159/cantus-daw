@@ -115,8 +115,7 @@ fn scene(app: &mut CantusApp, hosted: bool) -> (cantus_core::StripId, cantus_cor
         strip,
         Send {
             level: 0.24,
-            enabled: true,
-            to: ids[1],
+            ..Send::new(ids[1])
         },
     );
     app.end_gesture();

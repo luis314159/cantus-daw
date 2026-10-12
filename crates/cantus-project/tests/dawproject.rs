@@ -103,10 +103,17 @@ fn rich_project() -> Project {
             to: ret,
             level: 0.4,
             enabled: true,
+            tap: cantus_core::SendTap::Post,
         });
         s.name = "Lead strip".into();
     }
     strip_of(&mut p, 1).eq.set(1, EqField::Gain, -4.0);
+    // Schema 23: a pre-fader send, which DAWproject carries as `type="pre"`.
+    strip_of(&mut p, 1).sends.push(Send {
+        level: 0.25,
+        tap: cantus_core::SendTap::Pre,
+        ..Send::new(ret)
+    });
     strip_of(&mut p, 2).output = Some(bus);
     strip_of(&mut p, 3).output = Some(bus);
     let lim = p.make_effect(EffectKind::Limiter);
@@ -250,7 +257,7 @@ fn strip_view(p: &Project, id: Option<StripId>) -> String {
     let sends: Vec<String> = s
         .sends
         .iter()
-        .map(|x| format!("{}@{}:{}", label(x.to), x.level, x.enabled))
+        .map(|x| format!("{}@{}:{}:{:?}", label(x.to), x.level, x.enabled, x.tap))
         .collect();
     format!(
         "{} gain={:.3} pan={} mute={} solo={} color={:?} eq={:?} fx={fx:?} sends={sends:?} out={}",
@@ -405,10 +412,11 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
     assert_eq!(
         strip.sends,
         vec![Send {
-            to: fx.id,
             level: 0.5,
-            enabled: true
-        }]
+            tap: cantus_core::SendTap::Pre,
+            ..Send::new(fx.id)
+        }],
+        "the pre-fader send stays pre-fader (schema 23)"
     );
 
     // The kit: in the group, a kit because its notes are on channel 10, with the crash
@@ -434,7 +442,6 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
     for key in [
         "interop.report.d_instrument",
         "interop.report.d_device",
-        "interop.report.d_pre_sends",
         "interop.report.d_audio_clips",
         "interop.report.d_automation",
         "interop.report.d_markers",
@@ -455,6 +462,10 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
     );
     assert_eq!(arg("interop.report.d_markers", "n").as_deref(), Some("2"));
     assert!(r.has("interop.report.d_seconds"));
+    assert!(
+        !r.has("interop.report.d_pre_sends"),
+        "a pre-fader send is no loss now"
+    );
     assert!(r.has("interop.report.d_foreign"));
 }
 

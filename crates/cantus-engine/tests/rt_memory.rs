@@ -610,3 +610,57 @@ fn automation_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+/// Pre-fader sends (round 25) on the audio thread: undelayed and through compensation
+/// lines, from a fader under automation (the pre pair kept apart from the ramped one), a
+/// tap switched mid-play, the source muted and unmuted. Not one allocation.
+#[test]
+fn pre_fader_sends_never_allocate() {
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let (lead, bass) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    let (aux, bus) = (p.strips[3].id, p.strips[4].id);
+    let lim = p.make_effect(EffectKind::Limiter);
+    p.strip_mut(bus).unwrap().effects.push(lim);
+    p.strip_mut(bass).unwrap().output = Some(bus);
+    let pre = |to: StripId, level: f32| Send {
+        to,
+        level,
+        enabled: true,
+        tap: SendTap::Pre,
+    };
+    p.strip_mut(lead).unwrap().sends = vec![pre(aux, 0.5)];
+    p.strip_mut(bass).unwrap().sends = vec![pre(aux, 0.7)];
+    for target in [AutoTarget::StripGain(lead), AutoTarget::StripPan(lead)] {
+        let points = vec![
+            AutoPoint::new(Ticks::ZERO, 0.2),
+            AutoPoint::new(Ticks::beats(4), 0.9),
+        ];
+        let c = p.make_automation_clip("a", target, Ticks::ZERO, Ticks::beats(8), points);
+        p.tracks[0].clips.push(c);
+    }
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("pre sends start", 30);
+    p.strip_mut(lead).unwrap().sends[0].tap = SendTap::Post;
+    rig.snapshot(&p);
+    rig.play("pre sends: one switched to post", 10);
+    p.strip_mut(lead).unwrap().sends[0].tap = SendTap::Pre;
+    p.strip_mut(lead).unwrap().muted = true;
+    p.strip_mut(bass).unwrap().muted = true;
+    rig.snapshot(&p);
+    rig.play("pre sends muted", 10);
+    p.strip_mut(lead).unwrap().muted = false;
+    p.strip_mut(bass).unwrap().muted = false;
+    rig.snapshot(&p);
+    rig.play("pre sends unmuted", 10);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("pre sends seek", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(37) {
+    match rng.below(40) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -402,6 +402,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                             to: project.strips[rng.below(strips as u64) as usize].id,
                             level: rng.f32(-0.2, 1.2),
                             enabled: rng.below(4) != 0,
+                            tap: SendTap::ALL[rng.below(2) as usize],
                         },
                     },
                     // A send put back at a place in the list (the inverse of a removal),
@@ -413,6 +414,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                             to: project.strips[rng.below(strips as u64) as usize].id,
                             level: rng.f32(-0.2, 1.2),
                             enabled: rng.below(4) != 0,
+                            tap: SendTap::ALL[rng.below(2) as usize],
                         },
                     },
                     13 => Command::RemoveStripSend {
@@ -803,6 +805,11 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // A whole track brought in with a link group of its own clips (an MCP call), one
         // time in three with the two members disagreeing (refused).
         36 => linked_track(rng, project),
+        // Round 25 (ADR 0041): every routing batch the interface issues — sends, outputs
+        // and keys made, moved, removed and converted, a new return, tracks routed, a tap
+        // switched — and strips and groups moved along the desk.
+        37 | 38 => routing_batch(rng, project),
+        39 => order_batch(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -1107,6 +1114,230 @@ fn linked_track(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
+fn strip_at(rng: &mut Lcg, project: &Project) -> StripId {
+    project.strips[rng.below(project.strips.len() as u64) as usize].id
+}
+
+/// 1 to 3 strips, now and then the master or a stale id among them (refused or skipped).
+fn some_strips(rng: &mut Lcg, project: &Project) -> Vec<StripId> {
+    (0..1 + rng.below(3))
+        .map(|_| match rng.below(12) {
+            0 => StripId::MASTER,
+            1 => StripId(77_777),
+            _ => strip_at(rng, project),
+        })
+        .collect()
+}
+
+/// A routing batch built by `routing::plan` from random strips and routes — what the
+/// cables, the matrix, the menus and the route-here plate issue. When the plan says there
+/// is nothing to do, a bare send is tried instead (applied or refused).
+fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::routing::{self, plan, End, Route};
+    let a = strip_at(rng, project);
+    let b = strip_at(rng, project);
+    let edges = routing::edges(project);
+    let route = edges
+        .get(rng.below(edges.len() as u64) as usize)
+        .map(|e| match e.kind {
+            routing::EdgeKind::Output => Route::output(e.from, e.to),
+            routing::EdgeKind::Send { .. } => Route::send(e.from, e.to),
+            routing::EdgeKind::Key { effect } => Route::key(e.from, e.to, effect),
+        });
+    let cmd = match rng.below(11) {
+        0 => {
+            let sources = some_strips(rng, project);
+            plan::add_sends(project, &sources, b)
+        }
+        1 => {
+            let sources = some_strips(rng, project);
+            let to = if rng.below(4) == 0 {
+                StripId::MASTER
+            } else {
+                b
+            };
+            plan::replace_outputs(project, &sources, to)
+        }
+        2 => {
+            let host = if rng.below(5) == 0 {
+                StripId::MASTER
+            } else {
+                b
+            };
+            let chain = project.effects_of(host).cloned().unwrap_or_default();
+            chain
+                .get(rng.below(chain.len().max(1) as u64) as usize)
+                .and_then(|e| plan::key(project, a, host, e.id))
+        }
+        3 => {
+            let kind = [EffectKind::Compressor, EffectKind::Gate, EffectKind::Delay]
+                [rng.below(3) as usize];
+            let slot = project.make_effect(kind);
+            let label = if kind == EffectKind::Gate {
+                "cmd.gate_key"
+            } else {
+                "cmd.comp_duck"
+            };
+            plan::key_with(project, a, b, slot, label)
+        }
+        4 => route.and_then(|r| {
+            let end = if rng.below(2) == 0 {
+                End::Source
+            } else {
+                End::Destination
+            };
+            let to = if rng.below(6) == 0 {
+                StripId::MASTER
+            } else {
+                b
+            };
+            plan::move_route(project, r, end, to)
+        }),
+        5 => route.and_then(|r| plan::remove_route(project, r)),
+        6 => {
+            let to = project.strip(a).and_then(|s| s.sends.first()).map(|x| x.to);
+            to.and_then(|to| plan::send_to_output(project, a, to))
+        }
+        7 => {
+            // A strip routed somewhere other than the master, when there is one.
+            let routed: Vec<StripId> = project
+                .strips
+                .iter()
+                .filter(|s| s.output.is_some())
+                .map(|s| s.id)
+                .collect();
+            let from = routed
+                .get(rng.below(routed.len().max(1) as u64) as usize)
+                .copied()
+                .unwrap_or(a);
+            plan::output_to_send(project, from)
+        }
+        8 => {
+            let ret = project.make_strip("Return");
+            let effect = match rng.below(3) {
+                0 => None,
+                1 => Some(project.make_effect(EffectKind::Space)),
+                _ => Some(project.make_effect(EffectKind::Delay)),
+            };
+            let sources = some_strips(rng, project);
+            plan::new_return(project, &sources, ret, effect)
+        }
+        9 if !project.tracks.is_empty() => {
+            let n = project.tracks.len() as u64;
+            let tracks: Vec<TrackId> = (0..1 + rng.below(2))
+                .map(|_| project.tracks[rng.below(n) as usize].id)
+                .collect();
+            let to = (rng.below(4) != 0).then_some(b);
+            plan::route_tracks(project, &tracks, to)
+        }
+        _ => {
+            let to = project.strip(a).and_then(|s| s.sends.last()).map(|x| x.to);
+            let tap = SendTap::ALL[rng.below(2) as usize];
+            to.and_then(|to| plan::set_send_tap(project, a, to, tap))
+        }
+    };
+    cmd.unwrap_or(Command::SetStripSend {
+        id: a,
+        send: Send::new(b),
+    })
+}
+
+/// Strips and groups moved along the desk by `routing::order`: drags of a strip or a
+/// selection to a spot in any dock, a group dragged by its separator, Alt+←/→.
+fn order_batch(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::routing::order::{self, Spot};
+    let dock = [Dock::Left, Dock::Middle, Dock::Right][rng.below(3) as usize];
+    let in_dock: Vec<StripId> = project
+        .strips
+        .iter()
+        .filter(|s| s.dock == dock)
+        .map(|s| s.id)
+        .collect();
+    let spot = match in_dock.get(rng.below(in_dock.len() as u64 + 1) as usize) {
+        Some(id) => Spot::before(dock, *id),
+        None => Spot::end(dock),
+    };
+    // A group with members when there is one (an empty group moves nothing).
+    let groups: Vec<GroupId> = project
+        .strip_groups
+        .iter()
+        .filter(|g| project.strips_in_group(g.id).next().is_some())
+        .map(|g| g.id)
+        .collect();
+    if groups.is_empty() || rng.below(10) == 0 {
+        // A group of 1 to 3 strips (the desk's *Create group*), so the group moves have
+        // something to move.
+        let g = project.make_strip_group("grp", Color::PALETTE[rng.below(8) as usize]);
+        let id = g.id;
+        let mut commands = vec![Command::InsertStripGroup {
+            index: project.strip_groups.len(),
+            group: Box::new(g),
+        }];
+        let start = rng.below(project.strips.len() as u64) as usize;
+        for s in project
+            .strips
+            .iter()
+            .skip(start)
+            .take(1 + rng.below(3) as usize)
+        {
+            commands.push(Command::SetStripGroup {
+                id: s.id,
+                group: Some(id),
+            });
+        }
+        return Command::Batch {
+            label_key: "fuzz.group".into(),
+            commands,
+        };
+    }
+    let group = groups.get(rng.below(groups.len() as u64) as usize).copied();
+    let delta = [-2, -1, 1, 2][rng.below(4) as usize];
+    let cmd = match rng.below(6) {
+        0 | 1 => {
+            let sel = some_strips(rng, project);
+            order::move_strips(project, &sel, spot)
+        }
+        2 | 5 => group.and_then(|g| order::move_group(project, g, spot)),
+        3 => {
+            let sel = match (rng.below(3), group) {
+                (0, Some(g)) => project.strips_in_group(g).map(|s| s.id).collect(),
+                _ => some_strips(rng, project),
+            };
+            order::nudge(project, &sel, delta)
+        }
+        _ => group.and_then(|g| order::nudge_group(project, g, delta)),
+    };
+    cmd.unwrap_or(Command::MoveStrip {
+        id: strip_at(rng, project),
+        index: rng.below(project.strips.len() as u64) as usize,
+    })
+}
+
+/// Which routing batch a generated command is, for the coverage check (round 25).
+fn routing_kind(cmd: &Command) -> Option<usize> {
+    let Command::Batch { label_key, .. } = cmd else {
+        return None;
+    };
+    [
+        "cmd.add_send",
+        "cmd.replace_output",
+        "cmd.key_sidechain",
+        "cmd.gate_key",
+        "cmd.comp_duck",
+        "cmd.move_route",
+        "cmd.remove_route",
+        "cmd.send_to_output",
+        "cmd.output_to_send",
+        "cmd.new_return",
+        "cmd.route_tracks",
+        "cmd.set_send_tap",
+        "cmd.move_strips",
+        "cmd.move_group",
+    ]
+    .iter()
+    .position(|k| k == label_key)
+}
+
 /// Fresh ids from the project's counter, written back when the closure is done.
 fn with_ids<R>(project: &mut Project, f: impl FnOnce(&Project, &mut dyn FnMut() -> u64) -> R) -> R {
     let mut next = project.next_id;
@@ -1368,8 +1599,17 @@ fn automation_command(rng: &mut Lcg, project: &mut Project) -> Command {
         _ => {
             let strip = project.strips[rng.below(project.strips.len() as u64) as usize].id;
             let effect = project.all_effects().next().map(|(_, e)| e.id);
-            let target = match rng.below(6) {
+            let target = match rng.below(7) {
                 0 => AutoTarget::StripGain(strip),
+                // A send's level (round 25: a moved send takes its clips along).
+                6 => match project
+                    .strips
+                    .iter()
+                    .find_map(|s| s.sends.first().map(|x| (s.id, x.to)))
+                {
+                    Some((strip, to)) => AutoTarget::Send { strip, to },
+                    None => AutoTarget::StripPan(strip),
+                },
                 1 => AutoTarget::MasterWidth,
                 2 => AutoTarget::TrackGain(tid),
                 3 => match effect {
@@ -1414,6 +1654,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         Origin::System,
     ];
     let mut exercised = [0usize; 14];
+    let mut routed = [0usize; 14];
     for seed in 1..=40u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1431,6 +1672,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
             let origin = origins[rng.below(5) as usize];
             let kind = clipboard_kind(&cmd);
+            let route = routing_kind(&cmd);
             let ok = bus.execute(cmd, origin).is_ok();
             // Every group's members share their content, whatever was applied or refused.
             links::check(bus.project())
@@ -1439,6 +1681,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 applied += 1;
                 if let Some(k) = kind {
                     exercised[k] += 1;
+                }
+                if let Some(k) = route {
+                    routed[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1489,6 +1734,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // sibling of a real group, a linked paste.
     for (k, n) in exercised.iter().enumerate() {
         assert!(*n > 0, "clipboard case {k} never applied: {exercised:?}");
+    }
+    // Every routing batch and every desk move must really apply somewhere (round 25).
+    for (k, n) in routed.iter().enumerate() {
+        assert!(*n > 0, "routing batch {k} never applied: {routed:?}");
     }
 }
 

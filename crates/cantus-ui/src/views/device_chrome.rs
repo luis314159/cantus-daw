@@ -137,9 +137,8 @@ impl CantusApp {
             InstrumentSpec::External(_) => self.open_hosted_window(track),
             _ => {
                 self.select_track(track);
-                if !self.workspace.is_visible(Pane::Inspector) {
-                    self.toggle_pane(Pane::Inspector);
-                }
+                // Possibly from inside a tab (the channel rack): deferred to the dock.
+                self.show_pane(Pane::Inspector);
             }
         }
     }

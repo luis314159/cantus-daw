@@ -115,6 +115,8 @@ pub struct CantusApp {
     pub piano_roll: PianoRollView,
     pub rack: ChannelRackView,
     pub mixer: MixerView,
+    /// The Routing tab's matrix (round 25, `views::routing`).
+    pub routing_view: views::routing::RoutingView,
     pub inspector: views::inspector::Inspector,
     /// The mix recorder: takes of the master or of a strip, written to WAV (`takes`).
     pub mix_recorder: crate::takes::MixRecorder,
@@ -169,6 +171,8 @@ pub struct CantusApp {
     appearance_watch: views::appearance_file::Watch,
     /// The appearance page's own state: search, undo, the element picked.
     pub appearance_page: views::appearance::Page,
+    /// The window's and the taskbar's icon, in the colour the appearance names (ADR 0046).
+    pub window_icon: crate::window_icon::WindowIcon,
     /// User preferences, from `settings.json` (`crate::settings`).
     pub settings: Settings,
     /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
@@ -194,6 +198,11 @@ pub struct CantusApp {
     pub layouts_path: PathBuf,
     /// Open when the user is naming a layout; holds the text being typed.
     pub naming_layout: Option<String>,
+    /// Areas to bring to the front once the dock is drawn (`show_pane`): a view drawn
+    /// inside a tab cannot change the dock it is drawn in.
+    pub(crate) panes_wanted: Vec<crate::views::workspace::Pane>,
+    /// The egui pass whose keys were dispatched (`dispatch_keys` runs once a pass).
+    keys_pass: Option<u64>,
     pub(crate) theme_ctx: Option<egui::Context>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
@@ -383,6 +392,7 @@ impl CantusApp {
             piano_roll: PianoRollView::default(),
             rack: ChannelRackView::default(),
             mixer: MixerView::default(),
+            routing_view: Default::default(),
             inspector: Default::default(),
             mix_recorder: crate::takes::MixRecorder::default(),
             eq_editor: views::eq_editor::EqEditor::default(),
@@ -412,6 +422,7 @@ impl CantusApp {
             appearance_path: views::appearance_file::path(&directories_fallback()),
             appearance_watch: Default::default(),
             appearance_page: Default::default(),
+            window_icon: Default::default(),
             theme_ctx: None,
             settings: Settings::default(),
             settings_path: settings::settings_path(&directories_fallback()),
@@ -426,6 +437,8 @@ impl CantusApp {
             layouts: Layouts::default(),
             layouts_path: layout::layouts_path(&directories_fallback()),
             naming_layout: None,
+            panes_wanted: Vec::new(),
+            keys_pass: None,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
             keyboard_piano: false,
@@ -622,6 +635,10 @@ impl CantusApp {
         };
         let dark = views::appearance_file::system_dark(&ctx);
         let t = self.appearance.resolve(dark);
+        // The icon's colours first: the *Icon* logo tint reads them as the theme installs.
+        let mark = self.appearance.icon.mark(&t.kit_tokens());
+        crate::kit::logo::set_icon_colours(mark);
+        self.window_icon.want(mark);
         theme::apply(&t, &ctx);
         self.appearance_page.system_dark = dark;
     }
@@ -635,7 +652,7 @@ impl CantusApp {
         }
         self.appearance_watch.saw_write(&self.appearance_path);
         let logo = self.appearance.logo;
-        let themed = logo.tint == crate::kit::logo::Tint::Theme;
+        let themed = logo.tint != crate::kit::logo::Tint::Original;
         let key = (
             logo,
             if themed {
@@ -874,50 +891,17 @@ impl CantusApp {
     }
 
     /// Route every strip in `strips` into `target` (or the master), skipping the target
-    /// itself and any route that would loop. One undo step.
+    /// itself and any route that would loop. One undo step (`routing_actions`: the
+    /// destination becomes each strip's only output).
     pub fn route_strips_to(&mut self, strips: &[StripId], target: Option<StripId>) -> bool {
-        let commands: Vec<Command> = strips
-            .iter()
-            .filter(|s| Some(**s) != target && !self.project().routing_would_cycle(**s, target))
-            .map(|s| Command::SetStripOutput {
-                id: *s,
-                output: target,
-            })
-            .collect();
-        if commands.is_empty() {
-            return false;
-        }
-        self.exec(Command::Batch {
-            label_key: "cmd.route_strips".into(),
-            commands,
-        })
+        self.replace_output(strips, target.unwrap_or(StripId::MASTER))
     }
 
     /// Add a unity send from every strip in `strips` into `target`, skipping the target,
-    /// sends that already exist and routes that would loop. One undo step.
+    /// sends that already exist and routes that would loop. One undo step
+    /// (`routing_actions`).
     pub fn send_strips_to(&mut self, strips: &[StripId], target: StripId) -> bool {
-        let commands: Vec<Command> = strips
-            .iter()
-            .filter(|s| {
-                **s != target
-                    && self
-                        .project()
-                        .strip(**s)
-                        .is_some_and(|st| st.send_to(target).is_none())
-                    && !self.project().routing_would_cycle(**s, Some(target))
-            })
-            .map(|s| Command::SetStripSend {
-                id: *s,
-                send: Send::new(target),
-            })
-            .collect();
-        if commands.is_empty() {
-            return false;
-        }
-        self.exec(Command::Batch {
-            label_key: "cmd.route_strips".into(),
-            commands,
-        })
+        self.add_sends(strips, target)
     }
 
     pub fn set_strip_send(&mut self, id: StripId, send: Send) {
@@ -970,15 +954,13 @@ impl CantusApp {
         }
     }
 
-    /// Move a strip one place along the desk (`Alt+←/→`).
+    /// Move one strip `delta` places along its dock (the strip menu, Shift+wheel): the
+    /// rules of `routing::order::nudge` — docks respected, a group hopped over, a member
+    /// at its group's edge stepping out.
     pub fn move_strip(&mut self, id: StripId, delta: i32) {
-        let Some(from) = self.project().strip_index(id) else {
-            return;
-        };
-        let len = self.project().strips.len() as i32;
-        let index = (from as i32 + delta).clamp(0, len - 1) as usize;
-        if index != from {
-            self.exec(Command::MoveStrip { id, index });
+        let cmd = cantus_core::routing::order::nudge(self.project(), &[id], delta);
+        if let Some(cmd) = cmd {
+            self.exec(cmd);
         }
     }
 
@@ -1712,6 +1694,24 @@ impl CantusApp {
         if let Some(c) = pane.central() {
             if self.workspace.is_visible(pane) {
                 self.central = c;
+            }
+        }
+    }
+
+    /// Bring an area to the front if it is not on screen. Safe from inside a tab (the
+    /// dock is checked out while its tabs draw): the request is kept and applied once the
+    /// dock is drawn (`views::workspace_frame::show`).
+    pub fn show_pane(&mut self, pane: Pane) {
+        if !self.panes_wanted.contains(&pane) {
+            self.panes_wanted.push(pane);
+        }
+    }
+
+    /// Apply [`Self::show_pane`]'s requests (after the dock is drawn).
+    pub(crate) fn apply_wanted_panes(&mut self) {
+        for pane in std::mem::take(&mut self.panes_wanted) {
+            if !self.workspace.is_visible(pane) {
+                self.toggle_pane(pane);
             }
         }
     }
@@ -2835,9 +2835,32 @@ impl CantusApp {
         // is laid out, so without the claim the same press would nudge the note selection
         // as well (`crate::widgets`).
         let arrows_taken = crate::widgets::arrow_keys_claimed(ctx);
+        self.dispatch_keys(ctx, arrows_taken, &|_, _| false);
+    }
+
+    /// One pass's keys, whoever holds the focus: the keymap's actions (but those `taken`
+    /// says a focused view keeps for itself), the bare M / S rule, the paste that rides
+    /// with Ctrl+V, and the typing piano — so a view that holds egui's focus (the Routing
+    /// matrix) and forwards the rest here neither silences the piano nor leaves a note
+    /// hanging. Runs once a pass, whichever caller comes first.
+    pub(crate) fn dispatch_keys(
+        &mut self,
+        ctx: &egui::Context,
+        arrows_taken: bool,
+        taken: &dyn Fn(&crate::keymap::Keymap, Action) -> bool,
+    ) {
+        let pass = ctx.cumulative_pass_nr();
+        if self.keys_pass == Some(pass) {
+            return;
+        }
+        self.keys_pass = Some(pass);
+        self.mixer.keys_on_pass(pass);
         // Ctrl+V's text comes with its event; a menu's paste waits for it (ADR 0036).
         self.take_paste_event(ctx);
         for action in self.keymap.pressed(ctx, self.keyboard_piano, arrows_taken) {
+            if taken(&self.keymap, action) {
+                continue;
+            }
             // A bare M or S mutes or solos the selected strip only while the mixer is what
             // is being edited; elsewhere the letters stay out of the way.
             let strip_key = matches!(action, Action::ToggleStripMute | Action::ToggleStripSolo);
@@ -2922,7 +2945,15 @@ impl CantusApp {
                 }
             }
             Delete => {
-                if self.editing_clips() {
+                // A cable selected on the focused desk is what Delete means there — never
+                // the notes still selected in the piano roll (round 25).
+                let cable = (self.focus == EditFocus::Mixer)
+                    .then(|| self.mixer.deletable_cable())
+                    .flatten();
+                if let Some(route) = cable {
+                    self.remove_route(route);
+                    self.mixer.clear_cable_selection();
+                } else if self.editing_clips() {
                     self.delete_clip_selection();
                 } else {
                     self.delete_selection();
@@ -2930,6 +2961,12 @@ impl CantusApp {
             }
             Quantize => self.quantize_selection(),
             ClearSelection => {
+                // A drag on the desk (or a route armed by a click) and a selected cable
+                // take Esc for themselves — it cancels the drag, lets the cable go — and
+                // nothing else is cleared with it (round 25).
+                if self.mixer.claims_escape() {
+                    return;
+                }
                 // Esc closes the device window clicked last (round 20), or a floating one
                 // under the pointer (FL); anywhere else it clears the selection.
                 let closed = self.close_focused_device()
@@ -2996,6 +3033,7 @@ impl CantusApp {
             ViewPianoRoll => self.toggle_pane(Pane::PianoRoll),
             ViewChannelRack => self.toggle_pane(Pane::ChannelRack),
             ViewMixer => self.toggle_pane(Pane::Mixer),
+            ViewRouting => self.toggle_pane(Pane::Routing),
             ViewArrangement => self.toggle_pane(Pane::Arrangement),
             ToggleInspector => self.toggle_pane(Pane::Inspector),
             ToggleBrowser => self.toggle_pane(Pane::Browser),
@@ -3020,15 +3058,13 @@ impl CantusApp {
                     views::workspace_device::request_keyboard_toggle(ctx);
                 }
             }
+            // The selection — or the group, when the selection is a whole group — one
+            // place along its dock (round 25, the owner's answer 12).
             MoveStripLeft => {
-                if let Some(id) = self.selected_strip {
-                    self.move_strip(id, -1);
-                }
+                self.nudge_strips(-1);
             }
             MoveStripRight => {
-                if let Some(id) = self.selected_strip {
-                    self.move_strip(id, 1);
-                }
+                self.nudge_strips(1);
             }
             ToggleStripSolo => {
                 if let Some(id) = self.selected_strip {
@@ -3043,6 +3079,15 @@ impl CantusApp {
             ToggleMeterWave => {
                 self.settings.mixer_meter_wave = !self.settings.mixer_meter_wave;
                 self.store_settings();
+            }
+            // While the mixer is what is being edited: the selected strip's route menu,
+            // opened by the desk where its ▼ chip is on its next frame.
+            RouteMenu => {
+                if self.focus == EditFocus::Mixer
+                    && self.selected_strip.is_some_and(|s| !s.is_master())
+                {
+                    self.mixer.want_route_menu();
+                }
             }
         }
     }
@@ -3409,8 +3454,9 @@ impl CantusApp {
 }
 
 impl eframe::App for CantusApp {
-    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frame(root);
+        self.window_icon.sync(root.ctx(), frame);
     }
 }
 

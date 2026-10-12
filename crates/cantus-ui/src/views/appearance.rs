@@ -62,6 +62,10 @@ pub struct Page {
     dirty: bool,
     /// The logo the splash's cache holds (and the theme generation, for a tinted one).
     pub remembered: Option<(crate::kit::logo::LogoChoice, u64)>,
+    /// The icon's colour picker is open, here (round 25).
+    pub icon_picker: Option<Pos2>,
+    /// The shipped themes' tokens, worked out once for their previews.
+    pub previews: Vec<(String, crate::kit::Tokens)>,
 }
 
 /// How many steps of the look the page can undo.
@@ -201,6 +205,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                 });
         });
     panels::popups(app, ctx);
+    super::appearance_look::popups(app, ctx);
     // The end of a gesture: one undo step is closed, and the file is written.
     if !ctx.input(|i| i.pointer.any_down()) {
         app.appearance_page.gesture = false;

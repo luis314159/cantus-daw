@@ -21,5 +21,6 @@ application under GPL-3.0-or-later. A CLA is **not** required (Ardour lesson: fr
 - CLAP (MIT) is the primary plugin format; VST3 hosting lives in a future `cantus-plugin-host`
   crate under GPL-3.0-or-later.
 - The engine crate must never depend on the UI or AI crates (dependency direction = license direction).
-- Bundled samples/presets must be original or CC0 (idea.md §8).
+- Bundled samples/presets must be original or CC0 (idea.md §8). *Amended by ADR 0042
+  (2026-10-10): CC BY 3.0/4.0 content is accepted too, with its credit always shown.*
 - TODO before public release: trademark search on the name "Cantus" in software class 9.

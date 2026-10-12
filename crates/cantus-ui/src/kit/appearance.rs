@@ -11,6 +11,8 @@
 //!   **share** one as JSON and import it back.
 //! - **Old files keep loading**: a `theme.json` from before (a bare [`Theme`]) becomes a
 //!   user theme, assigned to the mode it was made for.
+//! - **The icon's colour** (ADR 0046): the window's and the taskbar's mark in its designed
+//!   gradient, the theme's accent, a preset, or a colour of the user's ([`IconColour`]).
 //!
 //! The settings UI that drives this is ADR 0024 Phase B; the data and the rules are here.
 
@@ -25,7 +27,7 @@ use std::collections::BTreeMap;
 /// Which theme the interface shows.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Mode {
-    /// The default (ADR 0024 §2): Slate, derived from FL Studio.
+    /// The default: Cantus Night (ADR 0046), the website's night stage.
     #[default]
     Dark,
     Light,
@@ -33,19 +35,37 @@ pub enum Mode {
     System,
 }
 
-/// A base theme: `preset:<id>` (slate, paper, parchment, ink_gold) or `user:<name>`.
+/// A base theme: `preset:<id>` (one of [`PRESETS`]) or `user:<name>`.
 pub type BaseRef = String;
 
 /// A shipped preset: its id and its constructor.
 pub type PresetEntry = (&'static str, fn() -> Theme);
 
-/// The shipped presets, by the id a [`BaseRef`] names them with.
-pub const PRESETS: [PresetEntry; 4] = [
+/// The shipped presets, by the id a [`BaseRef`] names them with, in the order the
+/// Appearance page lists them: round 25's family (ADR 0046), then the older presets.
+pub const PRESETS: [PresetEntry; 12] = [
+    ("cantus_night", theme::cantus_night),
+    ("cantus_paper", theme::cantus_paper),
+    ("daylight", theme::daylight),
+    ("blue_hour", theme::blue_hour),
+    ("ultraviolet", theme::ultraviolet),
+    ("lagoon", theme::lagoon),
+    ("contrast", theme::high_contrast),
+    ("contrast_light", theme::high_contrast_light),
     ("slate", theme::slate),
+    ("ink_gold", theme::ink_and_gold),
     ("paper", theme::paper),
     ("parchment", theme::parchment),
-    ("ink_gold", theme::ink_and_gold),
 ];
+
+/// The preset a fresh install shows in each mode: Cantus Night and its light twin.
+pub const DEFAULT_DARK: &str = "cantus_night";
+pub const DEFAULT_LIGHT: &str = "cantus_paper";
+
+/// The i18n key of a preset's name (`theme.<id>`).
+pub fn preset_name_key(id: &str) -> String {
+    format!("theme.{id}")
+}
 
 /// What one mode shows.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -64,7 +84,7 @@ pub struct Slot {
 
 impl Default for Slot {
     fn default() -> Self {
-        Slot::preset("slate")
+        Slot::preset(DEFAULT_DARK)
     }
 }
 
@@ -108,6 +128,9 @@ pub struct Appearance {
     pub dark: Slot,
     pub light: Slot,
     pub logo: LogoChoice,
+    /// The colour of the window's and the taskbar's icon. Absent in files written before
+    /// round 25: the mark as designed.
+    pub icon: IconColour,
     /// The user's own themes.
     pub themes: Vec<Theme>,
     #[serde(skip)]
@@ -119,9 +142,10 @@ impl Default for Appearance {
         Appearance {
             version: 2,
             mode: Mode::default(),
-            dark: Slot::preset("slate"),
-            light: Slot::preset("paper"),
+            dark: Slot::preset(DEFAULT_DARK),
+            light: Slot::preset(DEFAULT_LIGHT),
             logo: LogoChoice::default(),
+            icon: IconColour::default(),
             themes: Vec::new(),
             compare: None,
         }
@@ -166,9 +190,9 @@ impl Appearance {
             }
         }
         if mode == Mode::Dark {
-            theme::slate()
+            theme::cantus_night()
         } else {
-            theme::paper()
+            theme::cantus_paper()
         }
     }
 
@@ -310,9 +334,9 @@ impl Appearance {
         for mode in [Mode::Dark, Mode::Light] {
             if self.slot(mode).base == gone {
                 self.slot_mut(mode).base = if mode == Mode::Dark {
-                    "preset:slate".into()
+                    format!("preset:{DEFAULT_DARK}")
                 } else {
-                    "preset:paper".into()
+                    format!("preset:{DEFAULT_LIGHT}")
                 };
             }
         }
@@ -368,6 +392,106 @@ impl Appearance {
     }
 }
 
+/// The colour of the window's and the taskbar's icon (ADR 0046): the website's mark, no
+/// tile behind it, in its designed gradient unless the user picks another.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum IconColour {
+    /// Amber → copper, as designed (the default).
+    #[default]
+    Original,
+    /// The theme's own accent (its brand colour), following every theme change.
+    Theme,
+    /// One of the shipped colours.
+    Preset(IconPreset),
+    /// A colour of the user's (sRGB), made into a gradient the way the presets are.
+    Custom([u8; 3]),
+}
+
+/// The icon's shipped colours: a few that stand out on a dark taskbar, a few on a light
+/// one (Graphite is the one for a white taskbar).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum IconPreset {
+    Amber,
+    Copper,
+    Verdigris,
+    Blue,
+    Violet,
+    Rose,
+    Silver,
+    Graphite,
+}
+
+impl IconPreset {
+    pub const ALL: [IconPreset; 8] = [
+        IconPreset::Amber,
+        IconPreset::Copper,
+        IconPreset::Verdigris,
+        IconPreset::Blue,
+        IconPreset::Violet,
+        IconPreset::Rose,
+        IconPreset::Silver,
+        IconPreset::Graphite,
+    ];
+
+    /// The colour the gradient is made from.
+    pub fn rgb(self) -> [u8; 3] {
+        match self {
+            IconPreset::Amber => [0xf5, 0xad, 0x3d],
+            IconPreset::Copper => [0xd4, 0x62, 0x2a],
+            IconPreset::Verdigris => [0x3e, 0x8e, 0x7e],
+            IconPreset::Blue => [0x2f, 0x7c, 0xf6],
+            IconPreset::Violet => [0x9b, 0x6b, 0xff],
+            IconPreset::Rose => [0xe8, 0x50, 0x7a],
+            IconPreset::Silver => [0xe4, 0xe6, 0xea],
+            IconPreset::Graphite => [0x2b, 0x30, 0x38],
+        }
+    }
+
+    /// Its name's i18n key.
+    pub fn name_key(self) -> &'static str {
+        match self {
+            IconPreset::Amber => "look.icon.amber",
+            IconPreset::Copper => "look.icon.copper",
+            IconPreset::Verdigris => "look.icon.verdigris",
+            IconPreset::Blue => "look.icon.blue",
+            IconPreset::Violet => "look.icon.violet",
+            IconPreset::Rose => "look.icon.rose",
+            IconPreset::Silver => "look.icon.silver",
+            IconPreset::Graphite => "look.icon.graphite",
+        }
+    }
+}
+
+impl IconColour {
+    /// The mark's colours for this choice, under the theme whose tokens are `t`.
+    pub fn mark(self, t: &super::tokens::Tokens) -> super::mark::MarkColours {
+        use super::mark::MarkColours;
+        match self {
+            IconColour::Original => MarkColours::ORIGINAL,
+            IconColour::Theme => {
+                let [r, g, b, _] = super::color::opaque(t.brand).to_array();
+                MarkColours::from_one([r, g, b])
+            }
+            IconColour::Preset(p) => MarkColours::from_one(p.rgb()),
+            IconColour::Custom(c) => MarkColours::from_one(c),
+        }
+    }
+}
+
+/// A colour of the icon's, as egui's.
+pub fn rgb(c: [u8; 3]) -> Color32 {
+    Color32::from_rgb(c[0], c[1], c[2])
+}
+
+/// Windows' own taskbar colours, dark and light, for the icon chips to stand on: the icon
+/// is seen on the taskbar, not on the theme.
+pub fn taskbar_previews() -> [Color32; 2] {
+    [
+        Color32::from_rgb(0x20, 0x20, 0x20),
+        Color32::from_rgb(0xee, 0xee, 0xee),
+    ]
+}
+
 /// A theme as JSON, to share.
 pub fn export_theme(t: &Theme) -> String {
     serde_json::to_string_pretty(t).unwrap_or_default()
@@ -392,10 +516,10 @@ mod tests {
             mode: Mode::System,
             ..Default::default()
         };
-        assert_eq!(a.resolve(true).name, "Slate");
-        assert_eq!(a.resolve(false).name, "Paper");
+        assert_eq!(a.resolve(true).name, "Cantus Night");
+        assert_eq!(a.resolve(false).name, "Cantus Paper");
         a.mode = Mode::Dark;
-        assert_eq!(a.resolve(false).name, "Slate");
+        assert_eq!(a.resolve(false).name, "Cantus Night");
         // Any preset may serve either mode.
         a.assign(Mode::Light, "preset:parchment".into());
         assert_eq!(a.resolve_mode(Mode::Light).name, "Parchment");
@@ -436,7 +560,7 @@ mod tests {
         });
         a.reset_all(Mode::Dark);
         assert!(a.dark.is_pristine());
-        assert_eq!(a.dark.base, "preset:slate");
+        assert_eq!(a.dark.base, "preset:cantus_night");
     }
 
     #[test]
@@ -474,7 +598,7 @@ mod tests {
         assert!(a.themes.iter().any(|t| t.name == "My paper"));
         a.delete("Warm slate");
         assert_eq!(
-            a.dark.base, "preset:slate",
+            a.dark.base, "preset:cantus_night",
             "a mode loses a deleted base gracefully"
         );
     }
@@ -519,8 +643,73 @@ mod tests {
         let t = a.resolve(false);
         let k = t.kit_tokens();
         assert_eq!(k.depth, 0.0);
-        assert_eq!(k.radius, 4.0);
+        // Cantus Night's 3-point corners, twice as round.
+        assert_eq!(k.radius, 6.0);
         assert!(k.density < 1.0 && (k.text_scale - 1.2).abs() < 1e-6);
         assert_eq!(t.logo.number, 7);
+    }
+
+    #[test]
+    fn a_fresh_install_shows_the_website_s_theme_and_a_saved_choice_is_kept() {
+        let a = Appearance::default();
+        assert_eq!(a.mode, Mode::Dark);
+        assert_eq!(a.dark.base, "preset:cantus_night");
+        assert_eq!(a.light.base, "preset:cantus_paper");
+        // A file a user saved before round 25 names Slate and Paper: it keeps them.
+        let mut old = serde_json::to_value(Appearance::default()).unwrap();
+        let o = old.as_object_mut().unwrap();
+        o.insert(
+            "dark".into(),
+            serde_json::to_value(Slot::preset("slate")).unwrap(),
+        );
+        o.insert(
+            "light".into(),
+            serde_json::to_value(Slot::preset("paper")).unwrap(),
+        );
+        o.remove("icon");
+        let back = Appearance::from_json(&old.to_string()).unwrap();
+        assert_eq!(back.resolve_mode(Mode::Dark).name, "Slate");
+        assert_eq!(back.resolve_mode(Mode::Light).name, "Paper");
+        // …and, written before the icon existed, the mark as designed.
+        assert_eq!(back.icon, IconColour::Original);
+        // Every preset is reachable by its id, and named in both languages.
+        for (id, make) in PRESETS {
+            assert_eq!(a.base_theme(&format!("preset:{id}"), Mode::Dark), make());
+            for lang in crate::i18n::Locale::ALL {
+                crate::i18n::set_locale(lang);
+                let key = preset_name_key(id);
+                assert_ne!(crate::i18n::t(&key), key, "{lang:?}: {id} has no name");
+            }
+        }
+        crate::i18n::set_locale(crate::i18n::Locale::En);
+    }
+
+    #[test]
+    fn the_icon_colour_round_trips_and_makes_a_mark() {
+        use crate::kit::mark::MarkColours;
+        let t = crate::theme::daylight().kit_tokens();
+        for c in [
+            IconColour::Original,
+            IconColour::Theme,
+            IconColour::Preset(IconPreset::Verdigris),
+            IconColour::Custom([10, 200, 120]),
+        ] {
+            let a = Appearance {
+                icon: c,
+                ..Default::default()
+            };
+            let back = Appearance::from_json(&a.to_json()).unwrap();
+            assert_eq!(back.icon, c);
+        }
+        assert_eq!(IconColour::Original.mark(&t), MarkColours::ORIGINAL);
+        // The theme's accent: Daylight's blue lands in the middle of the wave.
+        assert_eq!(IconColour::Theme.mark(&t).wave[1], [0x1f, 0x6f, 0xe5]);
+        // Every preset is its own colour.
+        let mut seen: Vec<MarkColours> = IconPreset::ALL
+            .iter()
+            .map(|p| IconColour::Preset(*p).mark(&t))
+            .collect();
+        seen.dedup();
+        assert_eq!(seen.len(), IconPreset::ALL.len());
     }
 }

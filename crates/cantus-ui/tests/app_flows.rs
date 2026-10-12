@@ -1589,7 +1589,7 @@ fn the_mixer_shows_pan_width_and_polarity() {
     let text = painted_text(&out.shapes);
     // The pan law, on the master.
     assert!(
-        text.contains("-3"),
+        text.contains("\u{2212}3 dB"),
         "the mixer never painted the pan law: {text}"
     );
     // The desk: the master first, then every strip by number, fed or not.
@@ -3111,7 +3111,10 @@ fn sends_routing_solo_and_eq_go_through_the_app() {
     assert_eq!(a.project().strip(s0).unwrap().sends, vec![Send::new(aux)]);
     // The engine sees it, and the aux is ordered after its source.
     let snap = Snapshot::compile(a.project(), 0);
-    assert_eq!(snap.strips[0].sends, vec![(5, 1.0)]);
+    assert_eq!(
+        snap.strips[0].sends,
+        vec![(5, 1.0, cantus_core::SendTap::Post)]
+    );
     let pos = |i: usize| snap.strip_order.iter().position(|x| *x == i).unwrap();
     assert!(
         pos(0) < pos(5),
@@ -3128,6 +3131,7 @@ fn sends_routing_solo_and_eq_go_through_the_app() {
             to: aux,
             level: 0.3,
             enabled: false,
+            tap: cantus_core::SendTap::Post,
         },
     );
     a.end_gesture();
@@ -3291,7 +3295,14 @@ fn the_mixer_paints_solo_fx_eq_and_sends() {
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
     // The rows are named once, in the legend; "Solo off" shows while a strip is soloed.
-    for want in ["| SENDS |", "| FX \u{b7} RECORD |", "| EQ |", "SOLO OFF"] {
+    // Round 25: FL's send row reads "From selected"; the cable band is "Routing".
+    for want in [
+        "| FROM SELECTED |",
+        "| FX \u{b7} RECORD |",
+        "| EQ |",
+        "| ROUTING |",
+        "SOLO OFF",
+    ] {
         assert!(
             text.contains(want),
             "the mixer never painted {want:?}: {text}"
@@ -3393,21 +3404,25 @@ fn groups_gather_fold_and_dissolve() {
     assert_eq!(a.project().strip_number(ids[4]), Some(5));
 }
 
-/// Compact shows the strip's rows; Wide adds each fader's value; Extra large the insert
-/// slots — and every strip stays on the desk.
+/// Compact shows the strip's rows; Wide adds each fader's value and its output; Extra
+/// large the chain in one line and the strip's own sends (round 25: the insert slots
+/// live in the inspector) — and every strip stays on the desk.
 #[test]
 fn width_modes_show_more_of_each_strip() {
     use cantus_ui::views::mixer::layout::WidthMode;
     let mut a = app(starter_project());
     let compact = paint_mixer(&mut a, 1600.0);
-    assert!(compact.contains("| SENDS |"));
+    assert!(compact.contains("| FROM SELECTED |"), "{compact}");
     assert!(!compact.contains("| VALUE |"), "{compact}");
     views::mixer::set_width_mode(&mut a, WidthMode::Wide);
     let wide = paint_mixer(&mut a, 1600.0);
     assert!(wide.contains("| VALUE |"), "{wide}");
+    assert!(wide.contains("| OUTPUT |"), "{wide}");
     views::mixer::set_width_mode(&mut a, WidthMode::Xl);
     let xl = paint_mixer(&mut a, 1600.0);
-    assert!(xl.contains("| INSERTS |"), "{xl}");
+    assert!(xl.contains("| FX CHAIN |"), "{xl}");
+    assert!(xl.contains("| SENDS |"), "{xl}");
+    assert!(!xl.contains("| INSERTS |"), "{xl}");
     assert!(compact.contains("| 16 |"), "every strip is still there");
 }
 

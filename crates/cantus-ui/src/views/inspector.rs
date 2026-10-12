@@ -37,6 +37,8 @@ mod mini;
 mod pads;
 #[path = "inspector_pinned.rs"]
 mod pinned;
+#[path = "inspector_receives.rs"]
+mod receives;
 #[path = "inspector_record.rs"]
 mod record;
 #[path = "inspector_sends.rs"]
@@ -408,6 +410,8 @@ impl Inspector {
             apply(app, a);
         }
         self.acts = acts;
+        // Round 25: the route menus the Receives rows open, and what they hand over.
+        super::route_menu::show(app, ui, super::route_menu::inspector_owner());
     }
 
     /// Everything between the title and the pinned strip, in the signal's order.

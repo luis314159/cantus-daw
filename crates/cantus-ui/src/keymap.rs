@@ -105,6 +105,8 @@ pub enum Action {
     ToggleInspector,
     /// Show or hide the sample browser (FL's Alt+F8; ADR 0030).
     ToggleBrowser,
+    /// Show or hide the Routing tab's matrix (Alt+F9, beside the mixer's F9; round 25).
+    ViewRouting,
     /// Close every floating device window (F12).
     CloseFloating,
     /// The interface's zoom: Ctrl +, Ctrl −, Ctrl 0 (ADR 0024 §11).
@@ -122,6 +124,9 @@ pub enum Action {
     ToggleStripSolo,
     ToggleStripMute,
     ToggleMeterWave,
+    /// Open the selected strip's route menu where its ▼ chip is (Shift+F10, the
+    /// platform's context-menu key; round 25). Acts while the mixer is being edited.
+    RouteMenu,
     // Recording (ADR 0025)
     /// Arm the selected track for recording.
     ArmTrack,
@@ -183,7 +188,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 76] = [
+    pub const ALL: [Action; 78] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -242,6 +247,7 @@ impl Action {
         Action::ViewArrangement,
         Action::ToggleInspector,
         Action::ToggleBrowser,
+        Action::ViewRouting,
         Action::CloseFloating,
         Action::ZoomIn,
         Action::ZoomOut,
@@ -253,6 +259,7 @@ impl Action {
         Action::ToggleStripSolo,
         Action::ToggleStripMute,
         Action::ToggleMeterWave,
+        Action::RouteMenu,
         Action::ArmTrack,
         Action::AddAudioTrack,
         Action::ToggleCountIn,
@@ -323,6 +330,7 @@ impl Action {
             Action::ViewArrangement => "view-arrangement",
             Action::ToggleInspector => "toggle-inspector",
             Action::ToggleBrowser => "toggle-browser",
+            Action::ViewRouting => "view-routing",
             Action::CloseFloating => "close-floating",
             Action::ZoomIn => "zoom-in",
             Action::ZoomOut => "zoom-out",
@@ -334,6 +342,7 @@ impl Action {
             Action::ToggleStripSolo => "toggle-strip-solo",
             Action::ToggleStripMute => "toggle-strip-mute",
             Action::ToggleMeterWave => "toggle-meter-wave",
+            Action::RouteMenu => "route-menu",
             Action::ArmTrack => "arm-track",
             Action::AddAudioTrack => "add-audio-track",
             Action::ToggleCountIn => "toggle-count-in",
@@ -386,9 +395,10 @@ impl Action {
             | PickElement
             | ToggleDeviceKeyboard
             | ToggleBrowser
+            | ViewRouting
             | ToggleInstrumentWindow => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
-            | ToggleMeterWave => Category::Mixer,
+            | ToggleMeterWave | RouteMenu => Category::Mixer,
         }
     }
 }
@@ -652,6 +662,8 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleInspector, Binding::key(Key::I)),
         (ToggleInspector, Binding::alt(Key::I)),
         (ToggleBrowser, Binding::alt(Key::F8)),
+        // The Routing tab beside the mixer's F9 (the owner's answer 9, round 25).
+        (ViewRouting, Binding::alt(Key::F9)),
         (ToggleDeviceKeyboard, Binding::alt(Key::K)),
         (CloseFloating, Binding::key(Key::F12)),
         // Round 20: the selected track's instrument window, open or closed, from anywhere.
@@ -680,6 +692,9 @@ fn common() -> Vec<(Action, Binding)> {
         (MoveStripRight, Binding::alt(Key::ArrowRight)),
         // FL's `Alt+W`.
         (ToggleMeterWave, Binding::alt(Key::W)),
+        // The selected strip's route menu: the platform's context-menu key, free in every
+        // preset and never a letter the typing piano wants (round 25).
+        (RouteMenu, Binding::shift(Key::F10)),
         // Recording (ADR 0025): Alt and a letter, so the typing piano never takes them.
         // R records; Alt+R arms the selected track (Cubase's "R" on the track, moved off
         // the bare letter), Alt+C counts in, Alt+P punches, Alt+T shows the takes.
@@ -965,6 +980,12 @@ impl Keymap {
         if file.version.unwrap_or(1) < 4 {
             map.fill_in(&NEW_IN_V4);
         }
+        if file.version.unwrap_or(1) < 5 {
+            map.fill_in(&NEW_IN_V5);
+        }
+        if file.version.unwrap_or(1) < 6 {
+            map.fill_in(&NEW_IN_V6);
+        }
         Ok(map)
     }
 
@@ -1036,8 +1057,15 @@ struct KeymapFile {
 
 /// The file format. Version 2 added the workspace's actions (round 18); version 3 the
 /// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
-/// linked-clip actions (round 24, ADR 0037).
-pub const FILE_VERSION: u32 = 4;
+/// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
+/// version 6 the route menu's key (round 25's integration).
+pub const FILE_VERSION: u32 = 6;
+
+/// Actions added in version 6: the selected strip's route menu (Shift+F10).
+const NEW_IN_V6: [Action; 1] = [Action::RouteMenu];
+
+/// Actions added in version 5: the Routing tab's key.
+const NEW_IN_V5: [Action; 1] = [Action::ViewRouting];
 
 /// Actions added in version 4: the linked clips' Make unique, Link and Select linked.
 const NEW_IN_V4: [Action; 3] = [Action::MakeUnique, Action::LinkClips, Action::SelectLinked];
@@ -1430,6 +1458,42 @@ mod tests {
             );
         }
         assert!(map.conflicts().is_empty());
+    }
+
+    #[test]
+    fn a_version_5_file_gets_the_route_menu_key() {
+        // A map saved by round 25's builders: version 5, no line for the route menu.
+        let text: String = Keymap::default()
+            .to_toml()
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("route-menu"))
+            .map(|l| {
+                if l.starts_with("version") {
+                    "version = 5".to_string()
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        assert!(!text.contains("route-menu"));
+        let map = Keymap::from_toml(&text).unwrap();
+        assert_eq!(
+            map.bindings_for(Action::RouteMenu),
+            &[Binding::shift(Key::F10)]
+        );
+        assert!(map.conflicts().is_empty());
+        for preset in Preset::ALL {
+            let m = preset.keymap();
+            assert_eq!(
+                m.bindings_for(Action::RouteMenu),
+                &[Binding::shift(Key::F10)]
+            );
+            assert!(m.conflicts().is_empty(), "{preset:?}");
+        }
     }
 
     #[test]

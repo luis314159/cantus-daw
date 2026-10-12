@@ -144,7 +144,8 @@ impl Processor {
             };
             s.output = st.output.and_then(|o| self.strip_to_slot.get(o).copied());
             let mut count = 0;
-            for (to, level) in &st.sends {
+            s.has_pre = false;
+            for (to, level, tap) in &st.sends {
                 if count >= MAX_SENDS_PER_STRIP {
                     break;
                 }
@@ -153,6 +154,8 @@ impl Processor {
                 // already been read.
                 if let Some(d) = self.strip_to_slot.get(*to).copied().filter(|d| *d != slot) {
                     s.sends[count] = (d, *level);
+                    s.send_tap[count] = *tap;
+                    s.has_pre |= !tap.is_post();
                     count += 1;
                 }
             }
@@ -180,6 +183,7 @@ impl Processor {
                     s.id = None;
                     s.output = None;
                     s.send_count = 0;
+                    s.has_pre = false;
                     while let Some(e) = s.effects.pop() {
                         // `dispose_effect` needs `&mut self`: the unit goes through the
                         // scratch list, which never holds more than one chain.

@@ -907,18 +907,28 @@ fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
             ui.close();
         }
     }
+    // The selected strip's route menu (round 25): with its key, as every item here.
+    ui.separator();
+    if views::arrangement::action_item(app, ui, Action::RouteMenu, "routing.menu.route_menu") {
+        ui.close();
+    }
 }
 
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
-    // Every area, with its key: the same toggles as the toolbar's window keys.
-    for pane in std::iter::once(Pane::Browser).chain(Pane::ZONES) {
+    // Every area, with its key: the same toggles as the toolbar's window keys, and the
+    // Routing tab after the mixer (round 25).
+    let areas = std::iter::once(Pane::Browser)
+        .chain(Pane::ZONES)
+        .chain(std::iter::once(Pane::Routing));
+    for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
             Pane::ChannelRack => Action::ViewChannelRack,
             Pane::PianoRoll => Action::ViewPianoRoll,
             Pane::Mixer => Action::ViewMixer,
             Pane::Browser => Action::ToggleBrowser,
+            Pane::Routing => Action::ViewRouting,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);

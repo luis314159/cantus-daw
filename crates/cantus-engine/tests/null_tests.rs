@@ -895,6 +895,7 @@ fn sends_are_post_fader_copies_and_nothing_when_off() {
         to: aux,
         level: 0.5,
         enabled: true,
+        tap: cantus_core::SendTap::Post,
     });
     let one_and_a_half: Vec<f32> = dry.iter().map(|x| x * 1.5).collect();
     assert_null(&render_of(&half), &one_and_a_half, 1e-6, "a send at 50 %");
@@ -905,6 +906,7 @@ fn sends_are_post_fader_copies_and_nothing_when_off() {
         to: aux,
         level: 1.0,
         enabled: false,
+        tap: cantus_core::SendTap::Post,
     });
     assert_null(
         &render_of(&off),
@@ -917,6 +919,7 @@ fn sends_are_post_fader_copies_and_nothing_when_off() {
         to: aux,
         level: 0.0,
         enabled: true,
+        tap: cantus_core::SendTap::Post,
     });
     assert_null(
         &render_of(&zero),

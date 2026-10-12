@@ -126,11 +126,13 @@ fn main() {
         to: ret,
         level: 0.4,
         enabled: true,
+        tap: cantus_core::SendTap::Post,
     });
     p.strip_mut(strip1).unwrap().sends.push(Send {
         to: drums_strip,
         level: 1.0,
         enabled: false,
+        tap: cantus_core::SendTap::Post,
     });
     {
         let d = p.strip_mut(drums_strip).unwrap();
@@ -376,6 +378,13 @@ fn main() {
     s.set(cantus_core::inst::TRIM_KEY, 0.0).unwrap();
     sampler.instrument = InstrumentSpec::Native(s);
     p.tracks.push(sampler);
+    // Schema 23 (ADR 0041): a pre-fader send at half level, from the Bass strip into the
+    // return — a cue-style send that keeps its level when the bass is faded out.
+    p.strip_mut(bass_strip).unwrap().sends.push(Send {
+        level: 0.5,
+        tap: SendTap::Pre,
+        ..Send::new(ret)
+    });
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

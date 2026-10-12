@@ -1,8 +1,40 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-10 (round 24: **the beta's rest and the first §6d request** — instrument gain staging (ADR 0039), Save off the interface thread (ADR 0040), the recovery dialog in the shoot examples, **linked clips** (BACKLOG §6d.2, ADR 0037), **performance wave 2**: the heaviest instruments' voices on the pool, parallel = serial to the bit, every demo's worst window ≤ 32 % of the 256-frame budget (ADR 0038); and from the 2-hour soak, the crash journal written off the window's thread and a race that could end a recording as it began. Round 23: the export dialog, text after a theme change, CPU tests, copy and paste. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 000 green (201 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (396), clippy clean
+**Updated:** 2026-10-10 (round 25: **mixer cabling** (BACKLOG §6d.3) — cables on the desk from a strip's port to another strip, by drag or by two clicks (plain = a send at 0 dB, Ctrl = the only output, Alt = a sidechain key), the selected strip's cables or all of them, pre/post-fader sends heard in the engine (schema 23) and shown as one chip, a doubled path allowed and marked, the routing matrix (Alt+F9), strips and groups moved by drag or Alt+arrows, a track dropped on a strip (ADRs 0041, 0043–0045); **the theme family**: Cantus Night (the website's palette) is the new default, twelve themes with previews, and the taskbar icon is the website's mark, recolourable live (ADR 0046); content under CC BY accepted with credit (ADR 0042). Round 24: gain staging, Save off the interface thread, linked clips, performance wave 2. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 142 green (207 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (407), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 25 left
+
+Round 25 is on branch **`r25/integration`** (worktree `F:\projects\daw-r23\beta-hardening`,
+on master a89edf4): the contract (piece A: core routing, `SendTap`, schema 23), the
+builders `r25/{interaction,matrix,desk}` (worktrees in `F:\projects\daw-r25\`) and
+`r25/look` merged, then the fixes of three reviewers' 27 findings and the owner's click
+mode. Reports: `docs/round25/` (`integration.md` is the account).
+
+1. **The owner, by hand, with the real build**: route by drag and by two clicks, with and
+   without Ctrl and Alt, and undo each; a PRE send heard before the fader (pull the fader
+   down: the send keeps sounding); the matrix (Alt+F9); move a group by drag and by
+   Alt+arrows; drop a track header on a strip; switch the twelve themes; change the taskbar
+   icon's colour with Cantus **pinned** to the taskbar (does the running button follow, or
+   keep the shortcut's icon? — if the latter, set a relaunch icon on the window); the
+   round-24 checks (2048-frame ASIO recording, a large save while playing, linked clips).
+2. **The owner's decision**: the 0 dB pan law's centre gain is 0.999 999 94, not 1 — leave
+   it (recommended) or make it exact (a `DSP_VERSION` bump and new golden hashes).
+3. **The beta** (unchanged from round 24): a 10-minute live run on a real device with 0
+   overruns; the hardware matrix (UMC in duplex); an installer run by hand; the tag
+   `v0.1.0-beta.1`; SignPath, the trademark search, songs with the friction log.
+4. **Small things left** (`docs/round25/integration.md`, `look.md`): the Spanish hint bar
+   cuts its first half when a target label shares it; an armed route survives the desk
+   being hidden (Esc lets it go); typing a level in the route menu; the inspector's *Add
+   send* could offer *New return*; cable lanes re-share as hovering lights more cables;
+   ~17 allocations a frame while a desk control is hovered (the hint bar); an "auto" icon
+   colour for a light taskbar (the designed amber is 1.4:1 on white); swatches in the Look
+   tab's base-theme menus; CC BY in `cantus-content` (the manifest test, a credits view,
+   the notices' Content section — ADR 0042).
+5. **Then** the rest of §6d.2 (an Inspector row for a link group, a "Link to…" picker),
+   a loom model of `cantus_rt::fork`, a quiet-machine `xtask perf --full --save` baseline,
+   and BACKLOG §3e (the instruments researched this round).
 
 ## The next session: what round 24 left
 
@@ -127,6 +159,42 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 25: mixer cabling, the theme family and the taskbar mark (requested 2026-10-10)
+
+**The ask.** BACKLOG §6d.3 — cables between mixer strips, FL Studio's routing made
+visible — with the owner's twelve answers (`docs/round25/mixer-routing-design.md` §10:
+drag *or* click from source to destination; plain = a send at 0 dB, the strip keeps its
+master output; Ctrl = replace the output; the selected strip's cables by default, a switch
+for all; pre/post-fader clear and easy; a doubled signal allowed but marked; the FL arrow
+row kept in Extra large; a chain summary line; Alt+F9 routing matrix; tracks dropped on
+strips; strips and groups movable). Then, mid-round: more themes, a default that matches
+the website, the website's mark as the taskbar icon with a colour the user can change,
+the in-app logo still configurable.
+
+**How.** A contract commit (piece A: `routing::{route_check, feeders, doubled, edges,
+plan, order}`, the batches in `routing_actions`, `Send::tap` with the engine's pre-fader
+tap, schema 23) and three builders in worktrees (interaction, matrix, desk), merged; three
+adversarial reviewers found 27 real problems — all fixed with a test seen failing first,
+plus the click mode the first build had missed. A fourth builder made the theme family
+and the icon in parallel. Reports: `docs/round25/`.
+
+**Decisions:** ADR 0041 (mixer routing: gestures and their meaning), ADR 0042 (content
+under CC BY accepted with the credit shown; NC, ND, SA refused), ADR 0043 (the cable band
+on the desk), ADR 0044 (desk gestures, click mode §10), ADR 0045 (pre-fader sends in the
+engine, the routing matrix), ADR 0046 (the theme family, Cantus Night as the default, the
+mark and its live colour). Schema 23. Keymap file version 6 (Alt+F9, Shift+F10 route
+menu). No golden hash moved; `DSP_VERSION` stays 3.
+
+| Part | What changed |
+|---|---|
+| desk | each strip has a port; the selected strip's cables (or all, or none) drawn in a band under the desk, in lanes, with level and PRE labels, a doubled path marked; a cable can be selected, moved by its end and deleted |
+| gestures | drag from a port, or click it then click the destination (Esc cancels); plain = send at 0 dB, Ctrl = the only output, Alt = a sidechain key; refused strips hatched with the reason; one undo step each; a track header dropped on a strip routes it; strips and groups move by drag or Alt+arrows without splitting a group; send automation follows a moved send |
+| pre/post | a send taps before or after the fader (`Send::tap`, schema 23, old projects post); one chip says PRE or POST, on the send rows, beside the pill and in the Inspector; a delayed PRE send nulls at tolerance 0 |
+| matrix | Alt+F9: every source × destination as cells (level, PRE, key), click to route, Ctrl+drag copies down a column, Shift+drag is fine; the typing piano keeps working while it has focus |
+| Extra large | FL's arrow row kept; the chain summary line instead of insert slots (a click opens the Inspector) |
+| themes | twelve themes from one 65-role definition: **Cantus Night** (new default, the website's night palette) and **Cantus Paper**, Daylight (the white-and-blue of §6d.4) and Blue Hour, Ultraviolet, Lagoon, High Contrast dark and light, plus the four older ones; previews on the Appearance page; a contrast floor tested for each; switching to and from each theme is pixel-identical; saved choices kept |
+| icon | the website's mark without a tile, drawn at 16–256 px (a solid C below 24 px); the `.exe` and installer icon; the taskbar and title-bar icon recoloured live (as designed, theme accent, eight presets or any colour); the in-app logo stays configurable and can follow the icon's colours |
 
 ## Round 24: the beta's rest, linked clips, performance wave 2 (requested 2026-10-09)
 

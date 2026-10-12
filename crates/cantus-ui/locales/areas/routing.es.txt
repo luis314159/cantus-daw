@@ -1,0 +1,121 @@
+# routing — ronda 25: el enrutamiento leído entero, los lotes de cada gesto de
+# enrutamiento, canales y grupos movidos por la mesa (ADR 0041). Cada clave aquí es la
+# gemela de una de routing.en.txt.
+cmd.add_send = añadir envío
+cmd.replace_output = enrutar la salida
+cmd.key_sidechain = enlazar sidechain
+cmd.gate_key = puerta disparada desde un canal
+cmd.move_route = mover ruta
+cmd.remove_route = quitar ruta
+cmd.send_to_output = convertir el envío en la salida
+cmd.output_to_send = convertir la salida en un envío
+cmd.new_return = nuevo retorno
+cmd.route_tracks = enrutar pistas
+cmd.set_send_tap = cambiar envío pre/post
+cmd.move_strips = mover canales
+cmd.move_group = mover grupo
+routing.tap.post = POST
+routing.tap.pre = PRE
+routing.return_name = Retorno {n}
+routing.feeders.none = Nada entra en este canal todavía
+routing.feeders.tracks = Pistas: {names}
+routing.feeders.outputs = Enrutados aquí: {names}
+routing.feeders.sends = Envíos desde: {names}
+routing.feeders.keys = Sidechain desde: {names}
+routing.feeders.notes = Notas desde: {names}
+routing.feeders.off = (apagado)
+routing.doubled = {dest} oye este canal dos veces: su salida ya llega allí
+routing.refusal.unknown_strip = Ese canal ya no existe
+routing.refusal.unknown_effect = Ese efecto ya no existe
+routing.refusal.from_master = El máster va al dispositivo de audio, no a un canal
+routing.refusal.send_to_master = Todo canal ya llega al máster por su salida
+routing.refusal.itself = Un canal no puede enrutarse a sí mismo
+routing.refusal.loop = Haría un bucle: {through} ya alimenta a {from}
+routing.refusal.no_room = Sin espacio: 16 envíos, o 10 efectos y ninguno que enlazar
+routing.refusal.not_keyable = Este efecto no admite sidechain
+routing.refusal.already_there = Esa ruta ya existe
+# The route menu (views/route_menu.rs): one menu for a route wherever it shows.
+routing.menu.send_title = Envío · {from} → {to}
+routing.menu.output_title = Salida · {from} → {to}
+routing.menu.key_title = Sidechain · {from} → {effect} en {to}
+routing.menu.gone = Esta ruta ya no existe
+routing.menu.level = Nivel
+routing.menu.send_on = Envío encendido
+routing.menu.post = Post-fader
+routing.menu.pre = Pre-fader
+routing.menu.make_output = Convertir en la salida
+routing.menu.make_send = Convertir en un envío
+routing.menu.open_keyed = Abrir el efecto con sidechain
+routing.menu.show_dest = Mostrar el destino
+routing.menu.show_source = Mostrar el origen
+routing.menu.select_into = Seleccionar los canales que entran aquí
+routing.menu.select_from = Seleccionar los canales que alimenta
+routing.menu.remove = Quitar
+routing.menu.remove_output = Quitar (vuelve al máster)
+routing.menu.send_to = Enviar {from} a
+routing.menu.send_many_to = Enviar {n} canales a
+routing.menu.new_return = Nuevo retorno
+routing.menu.return_empty = Vacío
+routing.menu.return_reverb = Reverb (Spatium)
+routing.menu.return_delay = Delay
+routing.menu.doubled_short = se oye doble
+routing.menu.here_title = Enrutar a {strip}
+routing.menu.route_track = Enrutar «{track}» aquí
+routing.menu.route_a_track = Enrutar una pista aquí
+routing.menu.route_selected = Enrutar aquí los canales seleccionados ({n})
+routing.menu.send_strip = Enviar {strip} aquí
+routing.menu.send_selected = Enviar aquí los canales seleccionados ({n})
+routing.menu.send_a_strip = Enviar un canal aquí
+routing.menu.no_tracks = Aún no hay pistas
+routing.menu.key_which = ¿Qué efecto de {host} recibe el sidechain?
+routing.menu.nothing_to_key = Nada en {host} admite sidechain
+routing.menu.duck = Añadir un compresor de ducking disparado desde {from}
+routing.menu.gate = Añadir una puerta disparada desde {from}
+# Dragging on the desk (views/mixer_drag.rs): the words beside the pointer and the hint.
+routing.drag.hint = Suelta: envío · Ctrl: salida · Alt: sidechain · Esc: cancelar
+routing.drag.reorder_hint = Suelta entre canales para moverlos · Esc: cancelar
+routing.drag.port_hint = Suelta en un canal: envío · Ctrl: única salida · Alt: sidechain
+routing.drag.send = Enviar a {to} · 0 dB, post-fader
+routing.drag.send_many = Enviar {n} canales a {to} · 0 dB, post-fader
+routing.drag.output = Enrutar la salida a {to}, su única salida
+routing.drag.output_many = Enrutar {n} canales a {to}, su única salida
+routing.drag.key = Sidechain en {to}
+routing.drag.move = Mover esta ruta a {to}
+routing.drag.remove = Suelta para quitar esta ruta
+routing.drag.same = Nada que cambiar aquí
+routing.drag.folded = Un grupo plegado: mantén aquí para abrirlo
+routing.drag.strip = Mover {strip}
+routing.drag.strips = Mover {n} canales
+routing.drag.group = Mover {group} (todo el grupo)
+routing.drag.track = Enrutar {track} a {to}
+routing.drag.track_hint = Suelta en un canal para enrutar {track} allí
+# The Route here plate (views/mixer_routehere.rs) and the strip menu's routing rows.
+routing.here.plate = Enrutar aquí
+routing.here.tip = Clic: enrutar una pista o enviar un canal aquí
+routing.menu.where = Adónde va…
+routing.menu.routes = Sus rutas
+# Receives (views/inspector_receives.rs).
+routing.receives.band = Recibe
+routing.receives.master = Todos los canales llegan al máster
+routing.receives.tracks_only = Lo alimentan sus pistas (Entrada, arriba)
+routing.receives.none = Nada entra en este canal — enrutar aquí
+routing.receives.select = Clic: seleccionarlo · clic derecho: el menú de esta ruta
+routing.receives.twice = ×2
+routing.receives.twice_name = Se oye dos veces
+routing.receives.output = salida
+routing.receives.output_tip = Entra aquí como su salida · clic: convertirla en envío, o quitarla
+routing.receives.key = {effect}, ranura {n} ← sidechain
+routing.receives.key_tip = Clic: abrir el efecto · clic derecho: el menú de esta ruta
+routing.menu.row_output = Salida → {to}
+routing.menu.row_send = Envío → {to}
+routing.menu.row_key = Sidechain ← {from} en {effect}
+
+# Modo clic (respuesta 2 del dueño): un clic en un puerto o en la ficha ▼ arma una ruta; el
+# siguiente clic en un canal la hace.
+routing.arm.hint = Clic: envío · Ctrl: salida · Alt: sidechain · Esc: cancelar
+routing.arm.port_hint = Clic en un canal: envío · Ctrl: única salida · Alt: sidechain
+# Una pista o un canal llevado sobre la mesa: el nombre de la barra de ayuda.
+routing.drag.track_bar = Suelta en un canal: la pista suena en él · Esc: cancelar
+# La acción del menú de rutas (Mayús+F10) y su fila en el menú Editar.
+action.route-menu = Abrir el menú de rutas del canal seleccionado
+routing.menu.route_menu = Menú de rutas del canal seleccionado

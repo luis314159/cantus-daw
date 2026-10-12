@@ -18,6 +18,8 @@ cantus-host.workspace = true
 cantus-content.workspace = true
 cantus-update.workspace = true
 cantus-export.workspace = true
+# The taskbar identity and the running window's taskbar icon (ADR 0046).
+cantus-launch.workspace = true
 raw-window-handle = "0.6"
 egui.workspace = true
 eframe.workspace = true

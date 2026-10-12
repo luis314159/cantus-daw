@@ -474,7 +474,7 @@ fn channel(
                 "Send",
                 &[
                     ("destination", a(&to.channel_id)),
-                    ("type", a("post")),
+                    ("type", a(send_type(send.tap))),
                     ("id", a(ids.next())),
                     ("name", a("Send")),
                 ],
@@ -504,6 +504,14 @@ fn channel(
     }
     volume_param(w, ids, c.volume_db);
     w.close();
+}
+
+/// DAWproject's name for a send's tap.
+fn send_type(tap: cantus_core::SendTap) -> &'static str {
+    match tap {
+        cantus_core::SendTap::Post => "post",
+        cantus_core::SendTap::Pre => "pre",
+    }
 }
 
 /// The strip controls DAWproject has no place for.

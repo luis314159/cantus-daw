@@ -124,9 +124,14 @@ pub struct StripSnapshot {
     pub eq: StripEq,
     /// Index into [`Snapshot::strips`] of the strip this one feeds; `None` is master.
     pub output: Option<usize>,
-    /// Post-fader sends as `(strip index, linear level)`, enabled ones only — a send that
-    /// is switched off, or at zero, is not carried at all.
-    pub sends: Vec<(usize, f32)>,
+    /// Sends as `(strip index, linear level, tap)`, enabled ones only — a send that is
+    /// switched off, or at zero, is not carried at all.
+    ///
+    /// The tap says where the engine takes the copy ([`crate::SendTap`], schema 23): `Post`
+    /// after the fader and the pan law — bit-identical to every send before the tap
+    /// existed — or `Pre`, after the inserts, the EQ, width and swap and before the fader
+    /// and the pan law. Mute and solo (`muted`) silence both.
+    pub sends: Vec<(usize, f32, crate::SendTap)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -229,7 +234,9 @@ impl Snapshot {
                                     || (x.enabled && automated_send(&automation, s.id, x.to))
                             })
                             .filter_map(|x| {
-                                project.strip_index(x.to).map(|i| (i, x.effective_level()))
+                                project
+                                    .strip_index(x.to)
+                                    .map(|i| (i, x.effective_level(), x.tap))
                             })
                             .collect(),
                     })
@@ -501,7 +508,7 @@ mod tests {
     }
 
     /// A strip's solo reaches the snapshot as a mute on everything unconnected, and a
-    /// disabled send is not carried at all.
+    /// disabled send is not carried at all; an enabled one carries its tap.
     #[test]
     fn strip_solo_and_sends_are_resolved_for_the_audio_thread() {
         let mut p = Project::default();
@@ -512,11 +519,13 @@ mod tests {
             to: s5,
             level: 0.5,
             enabled: false,
+            tap: crate::model::SendTap::Post,
         });
         p.strips[0].sends.push(Send {
             to: s6,
             level: 0.25,
             enabled: true,
+            tap: crate::model::SendTap::Pre,
         });
         let s = Snapshot::compile(&p, 0);
         assert!(
@@ -524,7 +533,8 @@ mod tests {
             "soloed, and its bus"
         );
         assert!(s.strips[1].muted, "an unconnected strip is silenced");
-        assert_eq!(s.strips[0].sends, vec![(5, 0.25)]);
+        // The tap travels with the send (round 25's pre-fader engine).
+        assert_eq!(s.strips[0].sends, vec![(5, 0.25, SendTap::Pre)]);
     }
 
     #[test]

@@ -205,28 +205,9 @@ fn bezier(p: [Pos2; 4], n: usize) -> Vec<Pos2> {
         .collect()
 }
 
-/// A dashed polyline: every other piece of `dash` points.
+/// A dashed polyline: every other piece of `dash` points (the kit's, round 25).
 fn dashed(b: &mut Brush, pts: &[Pos2], w: f32, color: Color32, dash: f32) {
-    let mut on = true;
-    let mut left = dash;
-    for seg in pts.windows(2) {
-        let (mut a, z) = (seg[0], seg[1]);
-        let mut len = a.distance(z);
-        while len > 0.0 {
-            let step = len.min(left);
-            let p = a + (z - a).normalized() * step;
-            if on {
-                b.segment(a, p, w, color, false);
-            }
-            a = p;
-            len -= step;
-            left -= step;
-            if left <= 0.0 {
-                on = !on;
-                left = dash;
-            }
-        }
-    }
+    b.dashed(pts, w, color, dash, dash);
 }
 
 // ---- the card ------------------------------------------------------------------------------

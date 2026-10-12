@@ -95,6 +95,7 @@ fn routed_project() -> Project {
         to: ret,
         level: 0.5,
         enabled: true,
+        tap: cantus_core::SendTap::Post,
     });
     p
 }

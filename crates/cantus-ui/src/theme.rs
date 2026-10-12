@@ -1,7 +1,8 @@
-//! Cantus visual identity as **data**. The default theme, "Ink & Gold", is deep low-glare
-//! surfaces with a single warm accent — original by design, inspired by illuminated
-//! manuscripts, not by any other DAW (idea.md §8). Every colour lives in a JSON file the
-//! user can edit; the app reloads it while running.
+//! Cantus visual identity as **data**. The default theme is **Cantus Night** (ADR 0046):
+//! the website's night stage — espresso surfaces, the logo's copper and amber, its
+//! verdigris patina — with **Cantus Paper** as its light twin (`theme_family.rs`, with six
+//! more). The older presets (Slate, Ink & Gold, Paper, Parchment) stay selectable. Every
+//! colour lives in a JSON file the user can edit; the app reloads it while running.
 
 use egui::{Color32, CornerRadius, Stroke, Visuals};
 use serde::{Deserialize, Serialize};
@@ -489,28 +490,42 @@ pub fn parchment() -> Theme {
         .with_kit(&crate::kit::tokens::Tokens::parchment())
 }
 
+pub use crate::theme_family::{
+    blue_hour, cantus_night, cantus_paper, daylight, high_contrast, high_contrast_light, lagoon,
+    ultraviolet,
+};
+
 /// A named theme preset: i18n key + constructor.
 pub type Preset = (&'static str, fn() -> Theme);
 
-pub const PRESETS: [Preset; 4] = [
+/// Every shipped theme, in the order the Appearance page lists them: round 25's family
+/// first (the default and its twin, then the rest), then the older presets.
+pub const PRESETS: [Preset; 12] = [
+    ("theme.cantus_night", cantus_night),
+    ("theme.cantus_paper", cantus_paper),
+    ("theme.daylight", daylight),
+    ("theme.blue_hour", blue_hour),
+    ("theme.ultraviolet", ultraviolet),
+    ("theme.lagoon", lagoon),
+    ("theme.contrast", high_contrast),
+    ("theme.contrast_light", high_contrast_light),
+    ("theme.slate", slate),
+    ("theme.ink_gold", ink_and_gold),
     ("theme.paper", paper),
     ("theme.parchment", parchment),
-    ("theme.ink_gold", ink_and_gold),
-    ("theme.slate", slate),
 ];
 
 /// What a fresh install starts with, and the fallback whenever a theme file cannot be
-/// read. Light: a DAW is looked at in daylight as often as in a dark studio, and a white
-/// ground is the one that does not assume which.
-/// The theme a new installation starts with: Slate, the FL-derived dark theme
-/// (ADR 0024 §2). Paper stays one click away, and "follow the system" too.
+/// read: **Cantus Night**, the theme that goes with the website (ADR 0046, the owner's
+/// request of 2026-10-10). Cantus Paper is its light twin, one click away, and "follow the
+/// system" too. A saved appearance keeps whatever it names.
 pub fn default_theme() -> Theme {
-    slate()
+    cantus_night()
 }
 
 fn current() -> &'static RwLock<Palette> {
     static CURRENT: OnceLock<RwLock<Palette>> = OnceLock::new();
-    CURRENT.get_or_init(|| RwLock::new(paper_palette()))
+    CURRENT.get_or_init(|| RwLock::new(default_theme().palette()))
 }
 
 /// The active palette.
@@ -809,6 +824,100 @@ mod tests {
     }
 
     #[test]
+    fn every_theme_defines_every_colour_role() {
+        // A shipped theme carries every kit token explicitly (so nothing in it is a guess
+        // derived from somewhere else) and every colour of the older palette parses.
+        for (key, make) in PRESETS {
+            let theme = make();
+            for tok in crate::kit::tokens::Tok::ALL {
+                let hex = theme.kit.get(tok.key());
+                assert!(
+                    hex.and_then(|h| parse_hex(h)).is_some(),
+                    "{key}: no colour for {}",
+                    tok.key()
+                );
+            }
+            let mut t = theme.clone();
+            for token in t.tokens_mut() {
+                assert!(
+                    parse_hex(token.hex).is_some(),
+                    "{key}: {} is not a colour",
+                    token.label_key
+                );
+            }
+            assert!(!theme.name.trim().is_empty());
+            assert_ne!(crate::i18n::t(key), key, "{key} has no name");
+        }
+    }
+
+    #[test]
+    fn every_theme_meets_the_contrast_floor() {
+        // Round 25's floor (ADR 0046), on top of the kit's own promises (ADR 0024 §14):
+        // body text at WCAG AA everywhere it is read, and the things that carry meaning
+        // readable at 3:1 — the meters on their well, the playhead on both kinds of row,
+        // the selection on a selected strip, LEDs and record on a strip.
+        for (key, make) in PRESETS {
+            let t = make().kit_tokens();
+            let bad = t.legibility_failures();
+            assert!(bad.is_empty(), "{key}: {bad:#?}");
+            let name = make().name;
+            let family = crate::theme_family::FAMILY
+                .iter()
+                .any(|(_, f)| f().name == name);
+            if !family {
+                // The older presets were built before this floor; they keep the kit's.
+                continue;
+            }
+            let checks = [
+                ("meter low on its well", t.meter_low, t.meter_well, 3.0),
+                ("meter high on its well", t.meter_high, t.meter_well, 3.0),
+                ("meter clip on its well", t.meter_clip, t.meter_well, 3.0),
+                ("playhead on a white row", t.playhead, t.row_white, 3.0),
+                ("playhead on a black row", t.playhead, t.row_black, 3.0),
+                (
+                    "glyph on a highlighted key",
+                    t.highlight_glyph,
+                    t.highlight,
+                    4.5,
+                ),
+                ("text on a header cell", t.text, t.header_cell, 4.5),
+                ("text on the toolbar", t.text, t.toolbar, 4.5),
+                ("LED on a strip", t.led, t.strip, 3.0),
+                ("record on a strip", t.danger, t.strip, 3.0),
+                (
+                    "selection on a selected strip",
+                    t.selection,
+                    t.strip_selected,
+                    3.0,
+                ),
+                ("pointer on a knob", t.knob_pointer, t.knob_body, 3.0),
+            ];
+            for (what, fg, bg, need) in checks {
+                let got = contrast(fg, bg);
+                assert!(
+                    got + 1e-3 >= need,
+                    "{key}: {what} is {got:.2}:1, below {need}:1 ({} on {})",
+                    to_hex(fg),
+                    to_hex(bg)
+                );
+            }
+            // High contrast means it: 7:1 (WCAG AAA) for every text role.
+            if key.starts_with("theme.contrast") {
+                for (what, fg, bg) in [
+                    ("text on panel", t.text, t.panel),
+                    ("text on deck", t.text, t.deck),
+                    ("dim text on panel", t.text_dim, t.panel),
+                    ("label on strip", t.label, t.strip),
+                    ("menu text", t.menu_text, t.menu),
+                ] {
+                    let got = contrast(fg, bg);
+                    assert!(got >= 7.0, "{key}: {what} is {got:.2}:1, below 7:1");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn every_colour_in_a_theme_is_editable_in_the_dialog() {
         // Adding a field to `Theme` and forgetting `tokens_mut` would leave a colour the
         // user can only reach by editing JSON. Count the hex fields the serialized form
@@ -840,12 +949,16 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_slate() {
-        // ADR 0024 §2: the default is Slate, FL's hue-locked dark ladder; Paper is the
-        // light option.
+    fn the_default_theme_is_cantus_night() {
+        // ADR 0046: the default is Cantus Night, the website's night palette; Cantus Paper
+        // is its light twin.
         let d = default_theme().palette();
         assert!(d.dark, "the shipped default is a dark theme");
-        assert_eq!(default_theme().name, slate().name);
+        assert_eq!(default_theme().name, "Cantus Night");
+        // The website's night and copper, exactly.
+        assert_eq!(to_hex(d.ink), "#120d0a");
+        assert_eq!(to_hex(default_theme().kit_tokens().brand), "#d4622a");
+        assert!(!cantus_paper().palette().dark);
         assert!(
             luminance(d.ink) < 0.1,
             "the canvas should be dark, got {}",

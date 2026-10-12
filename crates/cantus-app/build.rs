@@ -3,10 +3,10 @@
 //! - the splash's logo — #2, "C of waves with a playhead cross", as designed — at 1× and
 //!   2× of its 184-point side, as premultiplied RGBA, so the splash's first frame shows it
 //!   without rendering anything;
-//! - the window's and the taskbar's icon: #2's small master at 32 px, drawn on the pixel
-//!   grid (a 32-px render of the full logo blurs);
-//! - the `.exe`'s icon: a Windows resource (`winresource`, MIT) holding 16, 24 and 32 px
-//!   from the small masters and 48, 64, 128 and 256 px from the full logo.
+//! - the window's icon off Windows: the mark (ADR 0046) at 64 px (on Windows the running
+//!   application draws its own, in the colour the user chose: `cantus_ui::window_icon`);
+//! - the `.exe`'s icon: a Windows resource (`winresource`, MIT) holding the mark at every
+//!   size from 16 to 256 px, the small ones redrawn for the pixel grid.
 //!
 //! The icon code is `icon.rs`, shared with the launcher's build script.
 
@@ -42,14 +42,14 @@ fn main() {
     let two = render(LOGO, SPLASH * 2);
     write(&out.join("splash_1x.rgba"), one.data());
     write(&out.join("splash_2x.rgba"), two.data());
-    let icon = master(32);
-    write(&out.join("icon_32.rgba"), &straight(&icon));
+    let icon = master(64);
+    write(&out.join("icon_64.rgba"), &straight(&icon));
     let baked = format!(
         r#"/// The art baked in at build time (`build.rs`).
 pub const ART: cantus_ui::boot::Art = cantus_ui::boot::Art {{
     logo_1x: cantus_ui::boot::Baked {{ side: {s1}, rgba: include_bytes!(concat!(env!("OUT_DIR"), "/splash_1x.rgba")) }},
     logo_2x: cantus_ui::boot::Baked {{ side: {s2}, rgba: include_bytes!(concat!(env!("OUT_DIR"), "/splash_2x.rgba")) }},
-    icon: cantus_ui::boot::Baked {{ side: 32, rgba: include_bytes!(concat!(env!("OUT_DIR"), "/icon_32.rgba")) }},
+    icon: cantus_ui::boot::Baked {{ side: 64, rgba: include_bytes!(concat!(env!("OUT_DIR"), "/icon_64.rgba")) }},
 }};
 "#,
         s1 = SPLASH,

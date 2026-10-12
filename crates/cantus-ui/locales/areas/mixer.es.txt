@@ -17,8 +17,11 @@ mixer.legend.eq = EQ · graves medios agudos
 mixer.legend.eq.short = EQ
 mixer.legend.fx = Efectos · grabación
 mixer.legend.fx.short = FX · grabar
+mixer.legend.chain = Cadena FX
+mixer.legend.output = Salida
 mixer.legend.sends = Envíos
-mixer.legend.inserts = Inserciones
+mixer.legend.from_selected = Desde selección
+mixer.legend.from_selected.short = Desde sel.
 
 # Los nombres que la barra de ayuda da a los controles de la mesa.
 mixer.hint.balance = Balance
@@ -28,12 +31,16 @@ mixer.hint.send_free = Enviar aquí el canal seleccionado · Ctrl+clic: dirigirl
 mixer.hint.send_loop = El canal seleccionado no puede ir aquí: haría un bucle
 mixer.hint.send_lit = El canal seleccionado va aquí · clic para mandarlo al máster
 mixer.hint.send_knob = Nivel del envío desde el canal seleccionado · clic derecho para su menú
-mixer.hint.route = Adónde va el canal seleccionado · clic para ver todos los destinos
+mixer.hint.route = Adónde va el canal seleccionado · clic y luego clic en un canal: dirigirlo allí · clic derecho: todos los destinos
 mixer.hint.ratio = Arrastra para repartir la altura entre medidores y faders · doble clic para restablecer
 mixer.hint.menu = El menú del mezclador: anchura, filas, colores, ley de panorama
 mixer.hint.modes = Anchura de los canales · Ctrl+rueda sobre la mesa las recorre
-mixer.hint.slot_empty = Inserción vacía · clic para añadir un efecto
-mixer.hint.slot = Clic en la luz para puentear, en el nombre para abrir · clic derecho para más
+mixer.hint.chain = Las inserciones · clic para abrirlas en el inspector · clic derecho en una para su menú
+mixer.hint.chain_empty = Sin inserciones · clic para añadir un efecto
+mixer.hint.output = Adónde va la salida de este canal · clic para ver todos los destinos
+mixer.hint.send_row = Envío · arrastra para el nivel · clic en la luz para encenderlo o apagarlo · clic derecho para el menú de la ruta
+mixer.hint.send_add = Añadir un envío · clic para la lista, o arrastra a un canal
+mixer.hint.send_more = Más envíos · clic para verlos todos en el inspector
 mixer.hint.group = Clic para plegar · doble clic para renombrar · clic derecho para el menú del grupo
 mixer.hint.gr = Reducción de ganancia
 mixer.hint.name = Canal
@@ -59,3 +66,23 @@ mixer.menu.send_on = Envío activo
 mixer.menu.route_only = Dirigir aquí solo el canal seleccionado
 mixer.menu.route_master = Dirigir el canal seleccionado al máster
 mixer.menu.open_editor = Abrir el editor
+
+# Extra grande (ronda 25): la cadena en una línea, los envíos propios del canal.
+mixer.chain.add = + Efecto
+mixer.send_add = + Envío
+# Los nombres cortos de una inserción en la línea de cadena («EQ · Comp · +1»).
+mixer.chain.eq = EQ
+mixer.chain.compressor = Comp
+mixer.chain.limiter = Lim
+mixer.chain.space = Espacio
+mixer.chain.multiband = Multi
+mixer.chain.deesser = De-ess
+mixer.chain.gate = Puerta
+mixer.chain.saturator = Sat
+mixer.chain.stereo = Estéreo
+mixer.chain.maximizer = Max
+mixer.chain.delay = Delay
+mixer.chain.reverb = Reverb
+# La ficha de la ley de paneo del máster (integración: nunca un número suelto bajo SALIDA).
+mixer.pan_law.chip = ley {law} dB
+mixer.pan_law.short = {law} dB

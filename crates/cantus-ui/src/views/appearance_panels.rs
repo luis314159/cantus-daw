@@ -36,14 +36,10 @@ const LABEL_W: f32 = 132.0;
 
 fn base_name(app: &CantusApp, base: &str) -> String {
     if let Some(id) = base.strip_prefix("preset:") {
-        let key = match id {
-            "slate" => "theme.slate",
-            "paper" => "theme.paper",
-            "parchment" => "theme.parchment",
-            "ink_gold" => "theme.ink_gold",
-            _ => return id.to_string(),
-        };
-        return t(key);
+        if !PRESETS.iter().any(|(p, _)| *p == id) {
+            return id.to_string();
+        }
+        return t(&appearance::preset_name_key(id));
     }
     let _ = app;
     base.strip_prefix("user:").unwrap_or(base).to_string()
@@ -559,31 +555,37 @@ pub fn themes(app: &mut CantusApp, ui: &mut Ui) {
     });
     ui.horizontal(|ui| {
         w::row_label(ui, "theme.logo.tint", LABEL_W, 24.0);
-        let mut sel = if choice.tint == Tint::Original { 0 } else { 1 };
+        const TINTS: [Tint; 3] = [Tint::Original, Tint::Theme, Tint::Icon];
+        let mut sel = TINTS.iter().position(|x| *x == choice.tint).unwrap_or(0);
         let labels = [
             Src::Key("kit.logo.tint.original"),
             Src::Key("kit.logo.tint.theme"),
+            Src::Key("kit.logo.tint.icon"),
         ];
-        let fw = (ui.available_width() / k - 8.0).max(160.0);
+        let fw = (ui.available_width() / k - 8.0).max(200.0);
         if segmented(ui, &mut sel, &labels, &t("theme.logo.tint"), fw).changed() {
-            let tint = if sel == 0 {
-                Tint::Original
-            } else {
-                Tint::Theme
-            };
+            let tint = TINTS[sel];
             change(app, |a| a.logo.tint = tint);
         }
     });
+
+    super::appearance_look::icon_section(app, ui);
 }
 
 /// One theme: its name, and what can be done with it.
 fn theme_row(app: &mut CantusApp, ui: &mut Ui, label: &str, base: &str, own: bool) {
     let s = Style::current();
     let k = s.k;
+    let preview = super::appearance_look::preview_tokens(app, base);
     ui.horizontal(|ui| {
         let used_dark = app.appearance.dark.base == base;
         let used_light = app.appearance.light.base == base;
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(150.0 * k, 22.0 * k), Sense::hover());
+        let (chip, resp) = ui.allocate_exact_size(Vec2::new(64.0 * k, 38.0 * k), Sense::hover());
+        with_brush(ui.painter(), |b| {
+            super::appearance_look::paint_preview(b, chip, &preview, k);
+        });
+        resp.on_hover_text(tf("look.preview", &[("name", &label)]));
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(150.0 * k, 38.0 * k), Sense::hover());
         with_brush(ui.painter(), |b| {
             let _ = text::paint(
                 b,

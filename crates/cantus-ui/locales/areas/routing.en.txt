@@ -1,0 +1,122 @@
+# routing — round 25: routing read as a whole, the batches every routing gesture issues,
+# strips and groups moved along the desk (ADR 0041). Piece A wrote these; after the
+# contract the interaction builder owns this file (route menu, drag, route here, Receives).
+# Every key here needs its twin in routing.es.txt.
+cmd.add_send = add send
+cmd.replace_output = route output
+cmd.key_sidechain = key sidechain
+cmd.gate_key = gate keyed from a strip
+cmd.move_route = move route
+cmd.remove_route = remove route
+cmd.send_to_output = make send the output
+cmd.output_to_send = make output a send
+cmd.new_return = new return
+cmd.route_tracks = route tracks
+cmd.set_send_tap = switch send pre/post
+cmd.move_strips = move strips
+cmd.move_group = move group
+routing.tap.post = POST
+routing.tap.pre = PRE
+routing.return_name = Return {n}
+routing.feeders.none = Nothing feeds this strip yet
+routing.feeders.tracks = Tracks: {names}
+routing.feeders.outputs = Routed here: {names}
+routing.feeders.sends = Sends from: {names}
+routing.feeders.keys = Keys from: {names}
+routing.feeders.notes = Notes from: {names}
+routing.feeders.off = (off)
+routing.doubled = {dest} hears this strip twice: its output already reaches it
+routing.refusal.unknown_strip = That strip no longer exists
+routing.refusal.unknown_effect = That insert no longer exists
+routing.refusal.from_master = The master goes to the audio device, not to a strip
+routing.refusal.send_to_master = Every strip already reaches the master by its output
+routing.refusal.itself = A strip cannot route into itself
+routing.refusal.loop = Would make a loop: {through} already feeds {from}
+routing.refusal.no_room = No room: 16 sends, or 10 inserts with none to key
+routing.refusal.not_keyable = This insert takes no sidechain key
+routing.refusal.already_there = That route is already there
+# The route menu (views/route_menu.rs): one menu for a route wherever it shows.
+routing.menu.send_title = Send · {from} → {to}
+routing.menu.output_title = Output · {from} → {to}
+routing.menu.key_title = Key · {from} → {effect} on {to}
+routing.menu.gone = This route is gone
+routing.menu.level = Level
+routing.menu.send_on = Send on
+routing.menu.post = Post-fader
+routing.menu.pre = Pre-fader
+routing.menu.make_output = Make this the output
+routing.menu.make_send = Make this a send
+routing.menu.open_keyed = Open the keyed effect
+routing.menu.show_dest = Show the destination
+routing.menu.show_source = Show the source
+routing.menu.select_into = Select the strips routed here
+routing.menu.select_from = Select the strips it feeds
+routing.menu.remove = Remove
+routing.menu.remove_output = Remove (back to the master)
+routing.menu.send_to = Send {from} to
+routing.menu.send_many_to = Send {n} strips to
+routing.menu.new_return = New return
+routing.menu.return_empty = Empty
+routing.menu.return_reverb = Reverb (Spatium)
+routing.menu.return_delay = Delay
+routing.menu.doubled_short = heard twice
+routing.menu.here_title = Route into {strip}
+routing.menu.route_track = Route “{track}” here
+routing.menu.route_a_track = Route a track here
+routing.menu.route_selected = Route the selected strips here ({n})
+routing.menu.send_strip = Send {strip} here
+routing.menu.send_selected = Send the selected strips here ({n})
+routing.menu.send_a_strip = Send a strip here
+routing.menu.no_tracks = No tracks yet
+routing.menu.key_which = Key which insert on {host}?
+routing.menu.nothing_to_key = Nothing on {host} takes a key
+routing.menu.duck = Add a ducking compressor keyed from {from}
+routing.menu.gate = Add a gate keyed from {from}
+# Dragging on the desk (views/mixer_drag.rs): the words beside the pointer and the hint.
+routing.drag.hint = Drop: send · Ctrl: output · Alt: key · Esc: cancel
+routing.drag.reorder_hint = Drop between strips to move them · Esc: cancel
+routing.drag.port_hint = Drop on a strip: send · Ctrl: only output · Alt: key a sidechain
+routing.drag.send = Send to {to} · 0 dB, post-fader
+routing.drag.send_many = Send {n} strips to {to} · 0 dB, post-fader
+routing.drag.output = Route the output to {to}, its only output
+routing.drag.output_many = Route {n} strips to {to}, their only output
+routing.drag.key = Key a sidechain on {to}
+routing.drag.move = Move this route to {to}
+routing.drag.remove = Release to remove this route
+routing.drag.same = Nothing to change here
+routing.drag.folded = A folded group: hold here to open it
+routing.drag.strip = Move {strip}
+routing.drag.strips = Move {n} strips
+routing.drag.group = Move {group} (the whole group)
+routing.drag.track = Route {track} to {to}
+routing.drag.track_hint = Drop on a strip to route {track} there
+# The Route here plate (views/mixer_routehere.rs) and the strip menu's routing rows.
+routing.here.plate = Route here
+routing.here.tip = Click: route a track or send a strip here
+routing.menu.where = Where it goes…
+routing.menu.routes = Its routes
+# Receives (views/inspector_receives.rs).
+routing.receives.band = Receives
+routing.receives.master = Every strip reaches the master
+routing.receives.tracks_only = Fed by its tracks (Input, above)
+routing.receives.none = Nothing feeds this strip — route here
+routing.receives.select = Click: select it · right-click: this route's menu
+routing.receives.twice = ×2
+routing.receives.twice_name = Heard twice
+routing.receives.output = output
+routing.receives.output_tip = Routed here as its output · click: make it a send, or remove it
+routing.receives.key = {effect}, slot {n} ← key
+routing.receives.key_tip = Click: open the effect · right-click: this route's menu
+routing.menu.row_output = Output → {to}
+routing.menu.row_send = Send → {to}
+routing.menu.row_key = Key ← {from} on {effect}
+
+# Click mode (the owner's answer 2): a click on a port or the ▼ chip arms a route; the next
+# click on a strip makes it.
+routing.arm.hint = Click: send · Ctrl: output · Alt: key · Esc: cancel
+routing.arm.port_hint = Click a strip: send · Ctrl: only output · Alt: key a sidechain
+# A track or a channel carried over the desk: the hint bar's name (not the cable's keys).
+routing.drag.track_bar = Drop on a strip: the track plays into it · Esc: cancel
+# The keymap's route menu action (Shift+F10) and its Edit menu row.
+action.route-menu = Open the selected strip's route menu
+routing.menu.route_menu = Route menu of the selected strip

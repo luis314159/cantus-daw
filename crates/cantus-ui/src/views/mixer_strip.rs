@@ -109,8 +109,13 @@ pub(super) enum Part {
     Fx,
     Rec,
     Send,
-    Slot(u8),
     Gr,
+    // Round 25.
+    Chain,
+    Output,
+    SendRow(u8),
+    SendAdd,
+    Port,
 }
 
 /// The desk's controls, as tests and tools name them.
@@ -133,8 +138,16 @@ pub enum Control {
     Record,
     /// The sends row: an arrow, a send knob, or the selected strip's route.
     Send,
-    /// Insert slot `n` (0-based), in Extra large (round 20).
-    Slot(u8),
+    /// The chain in one line (Extra large, round 25).
+    Chain,
+    /// The output chip (Wide and up, round 25).
+    Output,
+    /// The strip's own send row `n` (0-based; Extra large, round 25).
+    SendRow(u8),
+    /// The "+ Send" row after the last send (Extra large, round 25).
+    SendAdd,
+    /// The strip's port in the cable band (round 25).
+    Port,
 }
 
 impl Control {
@@ -154,7 +167,11 @@ impl Control {
             Control::Fx => Part::Fx,
             Control::Record => Part::Rec,
             Control::Send => Part::Send,
-            Control::Slot(n) => Part::Slot(n),
+            Control::Chain => Part::Chain,
+            Control::Output => Part::Output,
+            Control::SendRow(n) => Part::SendRow(n),
+            Control::SendAdd => Part::SendAdd,
+            Control::Port => Part::Port,
         }
     }
 }
@@ -485,11 +502,17 @@ fn strip(
             Fill::V(with_alpha(c, a), with_alpha(c, a * 0.45)),
         );
     }
+    // The column as a drop target while a drag is on (round 25: `mixer_drag` says how it
+    // looks, `mixer_cables` paints it).
+    let target = super::drag::target(v, app, ui, Some(id), body);
+    super::cables::column_hatch(b, s, body, target);
     head(v, app, ui, b, pass, &sn, x, bw, color, selected, chosen);
     meter_row(v, app, ui, b, pass, &sn, x, bw, color);
     controls(v, app, ui, b, pass, &sn, x, bw, chosen);
+    super::parts::chain_row(v, app, ui, b, pass, &sn, x, bw);
+    super::parts::output_row(v, app, ui, b, pass, &sn, x, bw);
+    super::parts::send_list(v, app, ui, b, pass, &sn, x, bw);
     super::parts::sends_row(v, app, ui, b, pass, &sn, x, bw);
-    super::parts::inserts(v, app, ui, b, pass, &sn, x, bw);
 }
 
 /// The tokens a strip's body paints with (its parts register their own).
@@ -526,6 +549,10 @@ fn head(
     let name_row = pass.row(Row::Name);
     let zone = Rect::from_min_max(cell.min, pos2(x + bw, name_row.map_or(nz, |r| r.1)));
     let resp = sense(ui, pass, zone, pid(Some(sn.id), Part::Head), Sense::click());
+    if let Some(r) = &resp {
+        // The number cell drags the strip (or the selection) along the desk (round 25).
+        super::drag::source(v, app, ui, r, super::drag::Source::Strip(sn.id));
+    }
     let fill = color.unwrap_or(t.header_cell);
     let cr = b.snap_rect(cell);
     b.rect(cr, Fill::V(shade(fill, 0.03), shade(fill, -0.03)));
@@ -576,18 +603,10 @@ fn head(
             },
         );
     }
+    // Who feeds the strip — tracks, outputs, sends, keys, notes (round 25: a return fed
+    // only by sends no longer says nothing feeds it). Built only while hovered.
     let resp = resp.on_hover_ui(|ui| {
-        let p = app.project();
-        let mut fed = p.tracks_on_strip(sn.id).map(|t| t.name.as_str()).peekable();
-        if fed.peek().is_none() {
-            ui.label(crate::i18n::t("mixer.fed_by_none"));
-        } else {
-            let names: Vec<&str> = fed.collect();
-            ui.label(crate::i18n::tf(
-                "mixer.fed_by",
-                &[("tracks", &names.join(", "))],
-            ));
-        }
+        ui.label(crate::routing_actions::feeders_text(app.project(), sn.id));
     });
     if resp.double_clicked() {
         let own = app
@@ -653,6 +672,10 @@ fn meter_row(
         wave(b, s, mr, v.meters.wave(sn.index), color);
     } else {
         pass.meters.paint(b, mr, &levels);
+    }
+    if !v.desk.fed(sn.index) {
+        // Nothing feeds it: the Route here plate in the silent well (round 25).
+        super::routehere::plate(v, app, ui, b, pass, sn.id, mr);
     }
     if let Some(lane) = lane {
         let gr = app.comp_gr_on_strip(sn.id).flatten();

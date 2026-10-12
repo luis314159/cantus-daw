@@ -20,8 +20,8 @@ use super::write::EffectState;
 use super::{effect_kind_of, DawProjectError, Imported, APPLICATION, DEVICE_PREFIX, TRACK_CHANNEL};
 use crate::report::Report;
 use cantus_core::{
-    linear_to_db, Color, Dock, EffectId, EffectSlot, InstrumentSpec, Project, Send, StripId,
-    TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MIN_GAIN_DB,
+    linear_to_db, Color, Dock, EffectId, EffectSlot, InstrumentSpec, Project, Send, SendTap,
+    StripId, TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MIN_GAIN_DB,
 };
 use roxmltree::Node;
 use std::collections::HashMap;
@@ -424,7 +424,6 @@ fn build(
     };
 
     // Routing, sends and devices, now that every strip exists.
-    let mut pre_sends = 0;
     for (ci, ch) in channels.iter().enumerate() {
         let Some(sid) = strip_for_channel[ci] else {
             continue;
@@ -446,9 +445,12 @@ fn build(
                 report.dropped("interop.report.d_send", vec![("name", ch.owner.clone())]);
                 continue;
             };
-            if attr(send, "type") == Some("pre") {
-                pre_sends += 1;
-            }
+            // DAWproject's send types are `pre` and `post` (schema 23 carries both).
+            let tap = if attr(send, "type") == Some("pre") {
+                SendTap::Pre
+            } else {
+                SendTap::Post
+            };
             let level = child(send, "Volume")
                 .map(|v| {
                     let value = attr_f64(v, "value").unwrap_or(1.0);
@@ -471,15 +473,14 @@ fn build(
             }
             let strip = project.strip_mut(sid).expect("made above");
             strip.sends.retain(|s| s.to != to);
-            strip.sends.push(Send { to, level, enabled });
+            strip.sends.push(Send {
+                to,
+                level,
+                enabled,
+                tap,
+            });
         }
         strip_devices(project, sid, ch, &strip_of, files, report);
-    }
-    if pre_sends > 0 {
-        report.dropped(
-            "interop.report.d_pre_sends",
-            vec![("n", pre_sends.to_string())],
-        );
     }
 
     // The tracks.

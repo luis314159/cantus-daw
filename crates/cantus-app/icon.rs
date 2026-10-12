@@ -1,13 +1,16 @@
-//! Cantus's icon, rendered from the logo's SVG masters at build time (ADR 0024 §12). Shared
+//! Cantus's icon, rendered at build time from the mark (ADR 0046): the website's C of waves
+//! and playhead with no tile behind it, in its designed amber → copper. Shared
 //! by two build scripts with `#[path]`: the app's (`build.rs`, which also bakes the
 //! splash) and the launcher's (`crates/cantus-launch/build.rs`) — in a release the
 //! launcher is the `cantus.exe` that the Start menu, the file association and Explorer
 //! show, so it carries the same icon.
 //!
-//! The small master is the interface's own drawing (`kit/logo_small.rs`), included here.
+//! The mark is the interface's own drawing (`kit/mark.rs`, which recolours it live for the
+//! running window), included here; the splash's logo is still #2, as designed.
 
-#[path = "../cantus-ui/src/kit/logo_small.rs"]
-mod logo_small;
+#[path = "../cantus-ui/src/kit/mark.rs"]
+#[allow(dead_code)]
+mod mark;
 
 use resvg::{tiny_skia, usvg};
 use std::path::Path;
@@ -19,7 +22,7 @@ pub const LOGO: &str = include_str!("../cantus-ui/assets/logos/02.svg");
 pub const SOURCES: [&str; 3] = [
     "../cantus-app/icon.rs",
     "../cantus-ui/assets/logos/02.svg",
-    "../cantus-ui/src/kit/logo_small.rs",
+    "../cantus-ui/src/kit/mark.rs",
 ];
 
 pub fn render(svg: &str, px: u32) -> tiny_skia::Pixmap {
@@ -35,13 +38,9 @@ pub fn render(svg: &str, px: u32) -> tiny_skia::Pixmap {
     pix
 }
 
-/// The master for `px`: the small one on the pixel grid below 48, the full logo above.
+/// The icon at `px`: the mark drawn for that size (redrawn for the pixel grid below 40).
 pub fn master(px: u32) -> tiny_skia::Pixmap {
-    if px < 48 {
-        render(&logo_small::small_master(px), px)
-    } else {
-        render(LOGO, px)
-    }
+    render(&mark::mark_svg(px, &mark::MarkColours::ORIGINAL), px)
 }
 
 /// An `.ico` whose entries are PNG images (Windows Vista and later read them at any size).
@@ -73,8 +72,10 @@ pub fn ico(sizes: &[u32]) -> Vec<u8> {
     out
 }
 
-/// The sizes the `.exe`'s icon holds: 16–32 px from the small master, 48–256 from the logo.
-pub const EXE_SIZES: [u32; 7] = [16, 24, 32, 48, 64, 128, 256];
+/// The sizes the `.exe`'s (and the installer's) icon holds: every size Windows asks for at
+/// 100–200 % scale — 16, 20, 24 and 32 for small icons and the taskbar, 40, 48 and 64 for
+/// the large ones, 256 for Explorer's tiles.
+pub const EXE_SIZES: [u32; 9] = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
 pub fn write(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));

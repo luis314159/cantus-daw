@@ -69,7 +69,7 @@ impl GraphPlan {
             sc.src.push(Input::Out(si as u16));
             sc.dest.push(out);
             let mut k = 0usize;
-            for (to, _) in &st.sends {
+            for (to, _, _) in &st.sends {
                 if k >= MAX_SENDS_PER_STRIP {
                     break;
                 }

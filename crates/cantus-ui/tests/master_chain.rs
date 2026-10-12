@@ -116,12 +116,12 @@ fn the_desk_shows_the_master_chain_and_chooses_the_master() {
     for _ in 0..3 {
         text = desk_frame(&ctx, &mut a, &mut frame, Vec::new());
     }
-    let name = cantus_ui::i18n::t(EffectKind::Limiter.name_key());
-    // The slot elides the name to its width: its first letters are what show.
-    let first: String = name.chars().take(6).collect();
+    // Round 25: Extra large shows the chain in one line by the inserts' short names (the
+    // slots moved to the inspector, which shows the master's chain once it is chosen).
+    let name = cantus_ui::i18n::t("mixer.chain.limiter");
     assert!(
-        text.contains(&first),
-        "the master's slot does not show its insert: {text}"
+        text.contains(&name),
+        "the master's chain line does not show its insert: {text}"
     );
     // The FX lamp switches the master's chain.
     let fx = views::mixer::control_rect(&ctx, None, Control::Fx).expect("the master's FX lamp");

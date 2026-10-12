@@ -191,6 +191,64 @@ fn a_round_trip_of_themes_leaves_the_text_as_it_was() {
     );
 
     views_round_trip();
+    every_theme_round_trip();
+    every_theme_in_the_views();
+}
+
+/// Round 25 (ADR 0046): every shipped theme, switched into from the default and back,
+/// is what starting in it gives, and leaves the default as it was.
+fn every_theme_round_trip() {
+    i18n::set_locale(i18n::Locale::En);
+    let home = theme::default_theme();
+    let mut s = Shots::new();
+    theme::apply(&home, &s.ctx);
+    let a0 = s.run(KIT, 4, &mut kit_scene);
+    for (key, make) in theme::PRESETS {
+        let t = make();
+        theme::apply(&t, &s.ctx);
+        let switched = s.run(KIT, 3, &mut kit_scene);
+        let mut fresh = Shots::new();
+        theme::apply(&t, &fresh.ctx);
+        let started = fresh.run(KIT, 4, &mut kit_scene);
+        let name = key.trim_start_matches("theme.");
+        save(&format!("kit-{name}-switched"), &switched);
+        assert_eq!(
+            diff(&switched, &started),
+            0,
+            "{key}: switched into it is what starting in it gives"
+        );
+        theme::apply(&home, &s.ctx);
+        let back = s.run(KIT, 3, &mut kit_scene);
+        assert_eq!(
+            diff(&back, &a0),
+            0,
+            "Cantus Night → {key} → Cantus Night is Cantus Night"
+        );
+    }
+}
+
+/// The real views through every shipped theme, each given to the light mode in turn and
+/// shown through the Appearance page's path; dark (Cantus Night) after each is the same.
+fn every_theme_in_the_views() {
+    const SIZE: Vec2 = Vec2::new(1024.0, 600.0);
+    let mut s = Shots::new();
+    let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+    let dir = tempfile::tempdir().unwrap();
+    app.settings_path = dir.path().join("settings.json");
+    app.appearance_path = dir.path().join("appearance.json");
+    app.attach(&s.ctx);
+    let mut mode: Option<Mode> = None;
+    app.appearance.mode = Mode::Dark;
+    app.apply_appearance();
+    let a0 = s.run(SIZE, 6, &mut scene(&mut app, &mut mode));
+    for (id, _) in kit::appearance::PRESETS {
+        app.appearance.assign(Mode::Light, format!("preset:{id}"));
+        mode = Some(Mode::Light);
+        s.run(SIZE, 4, &mut scene(&mut app, &mut mode));
+        mode = Some(Mode::Dark);
+        let back = s.run(SIZE, 4, &mut scene(&mut app, &mut mode));
+        assert_eq!(diff(&back, &a0), 0, "Dark → {id} → Dark is Dark");
+    }
 }
 
 /// The transport and the arrangement; a mode waiting in `mode` is applied first, in the

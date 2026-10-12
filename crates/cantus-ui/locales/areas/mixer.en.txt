@@ -17,8 +17,11 @@ mixer.legend.eq = EQ · low mid high
 mixer.legend.eq.short = EQ
 mixer.legend.fx = FX · record
 mixer.legend.fx.short = FX · rec
+mixer.legend.chain = FX chain
+mixer.legend.output = Output
 mixer.legend.sends = Sends
-mixer.legend.inserts = Inserts
+mixer.legend.from_selected = From selected
+mixer.legend.from_selected.short = From sel.
 
 # The hint bar's names for the desk's controls.
 mixer.hint.balance = Balance
@@ -28,12 +31,16 @@ mixer.hint.send_free = Send the selected strip here · Ctrl+click: route it here
 mixer.hint.send_loop = The selected strip cannot go here: it would make a loop
 mixer.hint.send_lit = The selected strip goes here · click to send it to the master instead
 mixer.hint.send_knob = Send level from the selected strip · right-click for the send's menu
-mixer.hint.route = Where the selected strip goes · click for every destination
+mixer.hint.route = Where the selected strip goes · click, then click a strip: route it there · right-click: every destination
 mixer.hint.ratio = Drag to share the height between meters and faders · double-click to reset
 mixer.hint.menu = The mixer's menu: width, rows, colours, pan law
 mixer.hint.modes = Strip width · Ctrl+wheel over the desk steps through them
-mixer.hint.slot_empty = Empty insert slot · click to add an effect
-mixer.hint.slot = Click the lamp to bypass, the name to open · right-click for more
+mixer.hint.chain = The inserts · click to open them in the inspector · right-click an insert for its menu
+mixer.hint.chain_empty = No inserts · click to add an effect
+mixer.hint.output = Where this strip's output goes · click for every destination
+mixer.hint.send_row = Send · drag for the level · click the lamp to switch it · right-click for the route's menu
+mixer.hint.send_add = Add a send · click for the list, or drag to a strip
+mixer.hint.send_more = More sends · click to see them all in the inspector
 mixer.hint.group = Click to fold · double-click to rename · right-click for the group's menu
 mixer.hint.gr = Gain reduction
 mixer.hint.name = Strip
@@ -59,3 +66,23 @@ mixer.menu.send_on = Send on
 mixer.menu.route_only = Route the selected strip here only
 mixer.menu.route_master = Route the selected strip to the master
 mixer.menu.open_editor = Open the editor
+
+# Extra large (round 25): the chain in one line, the strip's own sends.
+mixer.chain.add = + Effect
+mixer.send_add = + Send
+# The short names an insert goes by in the chain line ("EQ · Comp · +1").
+mixer.chain.eq = EQ
+mixer.chain.compressor = Comp
+mixer.chain.limiter = Limit
+mixer.chain.space = Space
+mixer.chain.multiband = Multi
+mixer.chain.deesser = De-ess
+mixer.chain.gate = Gate
+mixer.chain.saturator = Sat
+mixer.chain.stereo = Stereo
+mixer.chain.maximizer = Max
+mixer.chain.delay = Delay
+mixer.chain.reverb = Verb
+# The master's pan law chip (integration: never a bare number under OUTPUT).
+mixer.pan_law.chip = {law} dB law
+mixer.pan_law.short = {law} dB

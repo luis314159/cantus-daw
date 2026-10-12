@@ -90,6 +90,11 @@ impl KeyboardPiano {
         });
     }
 
+    /// How many keys are sounding a note now.
+    pub fn held_count(&self) -> usize {
+        self.held.len()
+    }
+
     /// Release everything (focus lost, track changed).
     pub fn release_all(&mut self) -> Vec<KeyEvent> {
         self.held.drain(..).map(|(_, p)| KeyEvent::Off(p)).collect()

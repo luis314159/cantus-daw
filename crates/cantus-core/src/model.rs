@@ -503,24 +503,71 @@ fn is_true(x: &bool) -> bool {
 
 /// A tap from one strip into another that does not replace the strip's output: the
 /// strip still goes where `output` says, and a copy at `level` goes to `to` as well.
-/// **Post-fader**: taken after the strip's gain, pan and mute, which is FL's default and
-/// what a reverb return wants — turn the source down and the reverb follows.
+/// Taken where [`Send::tap`] says: **post-fader** by default — after the strip's gain, pan
+/// and mute, which is FL's default and what a reverb return wants (turn the source down
+/// and the reverb follows) — or pre-fader.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Send {
     pub to: StripId,
-    /// Linear, 0…1. Unity sends the whole post-fader signal.
+    /// Linear, 0…1. Unity sends the whole signal at the tap.
     pub level: f32,
     /// A send switched off keeps its level, so it can be switched back on where it was.
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Where the copy is taken (schema 23, ADR 0041). Post-fader unless set, and not
+    /// written to the file when post, so a project without a pre-fader send is the file it
+    /// was before.
+    #[serde(default, skip_serializing_if = "SendTap::is_post")]
+    pub tap: SendTap,
+}
+
+/// Where on the source strip a send takes its copy (schema 23, ADR 0041).
+///
+/// **Built to grow.** Other tap points (pre-inserts, post-inserts-pre-EQ, …) may be added
+/// as new variants. The rule for adding one: give it a name of its own (never rename or
+/// reuse a variant — files store the name), handle it in every `match` on the tap (the
+/// engine's send feed above all; no wildcard arm may hide a new one), and bump the schema
+/// so an older build refuses a file that uses it instead of failing to read it. A file
+/// that never uses the new variant keeps its meaning everywhere, because `Post` is not
+/// written at all.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SendTap {
+    /// After the inserts, the EQ, the fader and the pan law — FL's only kind, and what a
+    /// reverb return wants.
+    #[default]
+    Post,
+    /// After the inserts and the EQ, **before** the fader and the pan law: a cue mix, or a
+    /// return that keeps its level while the source is faded out. Mute and solo still
+    /// silence it (the owner's answer 4).
+    Pre,
+}
+
+impl SendTap {
+    pub const ALL: [SendTap; 2] = [SendTap::Post, SendTap::Pre];
+
+    /// The default, which the file does not write.
+    pub fn is_post(&self) -> bool {
+        *self == SendTap::Post
+    }
+
+    /// The i18n key of its short name on a switch or a pill (`POST`, `PRE`).
+    pub fn label_key(self) -> &'static str {
+        match self {
+            SendTap::Post => "routing.tap.post",
+            SendTap::Pre => "routing.tap.pre",
+        }
+    }
 }
 
 impl Send {
+    /// A unity (0 dB), post-fader send, switched on: what every new send is (the owner's
+    /// answer 3 — a drag to a reverb return is heard at once).
     pub fn new(to: StripId) -> Self {
         Send {
             to,
             level: 1.0,
             enabled: true,
+            tap: SendTap::Post,
         }
     }
 

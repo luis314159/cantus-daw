@@ -13,4 +13,6 @@
 - [Final goal: undeniably the best DAW](goal-best-daw.md) — measurable best, free and commercial; backlog §0 scorecard; adoption in parallel
 - [Round 23: beta blockers](round-23.md) — export dialog audit+fixes (ADR 0035), theme text cache fix, CPU tests best-of-5, Ctrl+C/X/V (ADR 0036); pushed as master cead440
 - [F: machine build quirks](machine-f-drive-build-quirks.md) — cargo off PATH, incremental link failures (turn incremental off), UAC blocks *setup*/*update* test exes; 3 parallel builders nearly exhaust RAM (31 GB)
-- [Round 24: beta rest, linked clips, perf wave 2](round-24.md) — r24/integration uncommitted (F:\projects\daw-r23\beta-hardening); 2 000 tests; 2-h soak passed; ADRs 0037-0040; §6d.3 designed
+- [Round 24: beta rest, linked clips, perf wave 2](round-24.md) — pushed as master a89edf4; 2 000 tests; 2-h soak passed; ADRs 0037-0040; §6d.3 designed
+- [Decision: CC BY content accepted](decision-cc-by-content.md) — CC0 + CC BY 3.0/4.0 with credit shown; NC/ND/SA out; ADR 0042
+- [Round 25: mixer cabling + themes/icon](round-25.md) — r25/integration (F:\projects\daw-r23\beta-hardening); ADRs 0041-0046; schema 23; keymap v6; pan-law decision + push pending

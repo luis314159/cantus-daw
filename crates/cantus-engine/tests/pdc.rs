@@ -6,8 +6,9 @@
 use cantus_dsp::math;
 
 mod support;
+use cantus_core::automation::{AutoPoint, AutoTarget};
 use cantus_core::*;
-use cantus_dsp::nulltest::{assert_null, peak};
+use cantus_dsp::nulltest::{assert_null, compare, peak};
 use cantus_engine::*;
 use std::sync::Arc;
 use support::*;
@@ -84,7 +85,12 @@ fn play_with(
             tx.push(EngineMessage::AddEffect(Box::new(unit))).unwrap();
         }
     }
-    tx.push(EngineMessage::SetSnapshot(Arc::new(snap))).unwrap();
+    // A ride's runtime first, built from the very snapshot it rides (ADR 0027); `None`
+    // for a project with no automation, which changes nothing.
+    let snap = Arc::new(snap);
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+        .unwrap();
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     let answer = |rx: &mut rtrb::Consumer<EngineEvent>, tx: &mut rtrb::Producer<EngineMessage>| {
         let mut answered = false;
         while let Ok(ev) = rx.pop() {
@@ -421,5 +427,189 @@ fn a_bypassed_insert_with_no_latency_is_still_a_wire() {
         &dry,
         0.0,
         "a bypassed insert with no latency is not a wire",
+    );
+}
+
+// ---- pre-fader sends (round 25, piece F) --------------------------------------------
+
+/// The lead alone, on a strip at centre whose fader makes up the −6 dB law exactly (so
+/// what leaves its fader is what enters it), sending with `tap` into a return that is
+/// inverted and made up the same way.
+fn pre_or_post(tap: SendTap) -> (Project, StripId, StripId) {
+    let (mut p, s1, _) = twins();
+    p.tracks.pop();
+    p.pan_law = PanLaw::Minus6dB;
+    let make_up = 20.0 * math::log10(2f32);
+    let ret = p.strips[7].id;
+    {
+        let s = p.strip_mut(s1).unwrap();
+        s.gain_db = make_up;
+        s.pan = 0.0;
+        s.sends.push(Send {
+            tap,
+            ..Send::new(ret)
+        });
+    }
+    let r = p.strip_mut(ret).unwrap();
+    r.phase_invert = true;
+    r.gain_db = make_up;
+    (p, s1, ret)
+}
+
+/// A pre-fader send into a latent return lines up with the dry signal as a post-fader one
+/// does: the source's output is delayed to meet the return, whichever tap feeds it.
+#[test]
+fn a_pre_send_into_a_latent_return_lines_up_as_a_post_one_does() {
+    for tap in SendTap::ALL {
+        let (mut p, s1, ret) = pre_or_post(tap);
+        let slot = p.make_effect(EffectKind::Limiter);
+        let id = slot.id;
+        p.strip_mut(ret).unwrap().effects.push(slot);
+        let (out, latency) = play(&p, &[id], 2.0);
+        assert_eq!(latency, DELAY as u64);
+        let mut q = p.clone();
+        q.strip_mut(s1).unwrap().sends.clear();
+        let (dry, _) = play(&q, &[id], 2.0);
+        assert!(peak(&dry) > 0.05);
+        assert!(
+            peak(&out) < peak(&dry) * 1e-3,
+            "{tap:?}: the latent return did not line up: {} left of {}",
+            peak(&out),
+            peak(&dry)
+        );
+    }
+}
+
+/// The other way round: the source's output goes into a latent bus and sends to a plain
+/// return. Both taps line up; and the pre one, unlike the post one, keeps its level when
+/// the source's fader moves. (Integration note: the return's only input is that send, so
+/// the planner puts the 100-sample line on the return's output, not on the send edge —
+/// the send's own compensation line under a ride is held by
+/// `a_delayed_pre_send_under_a_fader_and_pan_ride_does_not_hear_them`.)
+#[test]
+fn a_pre_send_through_a_compensation_line_lines_up_and_keeps_its_level() {
+    let make_up = 20.0 * math::log10(2f32);
+    let with_bus = |tap: SendTap| {
+        let (mut p, s1, ret) = pre_or_post(tap);
+        let bus = p.strips[8].id;
+        let slot = p.make_effect(EffectKind::Limiter);
+        let id = slot.id;
+        p.strip_mut(bus).unwrap().effects.push(slot);
+        p.strip_mut(bus).unwrap().gain_db = make_up;
+        p.strip_mut(s1).unwrap().output = Some(bus);
+        (p, s1, ret, id)
+    };
+    for tap in SendTap::ALL {
+        let (p, s1, _, id) = with_bus(tap);
+        let (out, latency) = play(&p, &[id], 2.0);
+        assert_eq!(latency, DELAY as u64);
+        let mut q = p.clone();
+        q.strip_mut(s1).unwrap().sends.clear();
+        let (dry, _) = play(&q, &[id], 2.0);
+        assert!(peak(&dry) > 0.05);
+        assert!(
+            peak(&out) < peak(&dry) * 1e-3,
+            "{tap:?}: the delayed send did not line up: {} left of {}",
+            peak(&out),
+            peak(&dry)
+        );
+    }
+    // The bus muted: only the (delayed) send is heard. Moving the source's fader leaves
+    // a pre send's copy exactly where it was.
+    let (mut p, s1, _, id) = with_bus(SendTap::Pre);
+    let bus = p.strips[8].id;
+    p.strip_mut(bus).unwrap().muted = true;
+    let (only_send, _) = play(&p, &[id], 2.0);
+    assert!(peak(&only_send) > 0.05);
+    p.strip_mut(s1).unwrap().gain_db = -30.0;
+    let (moved, _) = play(&p, &[id], 2.0);
+    assert_null(
+        &moved,
+        &only_send,
+        0.0,
+        "a delayed pre send followed the fader",
+    );
+    // Muting the source silences the delayed pre send too.
+    p.strip_mut(s1).unwrap().muted = true;
+    let (muted, _) = play(&p, &[id], 2.0);
+    assert_eq!(
+        peak(&muted),
+        0.0,
+        "a muted strip leaked through a delayed pre send"
+    );
+}
+
+/// A straight ride of `target` from `a` to `b` over the first four beats (the renders
+/// here are 2 s at 128 BPM, so the ride is moving for nearly all of them), on the lead.
+fn ride(p: &mut Project, target: AutoTarget, a: f32, b: f32) {
+    let c = p.make_automation_clip(
+        "ride",
+        target,
+        Ticks::ZERO,
+        Ticks::beats(4),
+        vec![
+            AutoPoint::new(Ticks::ZERO, a),
+            AutoPoint::new(Ticks::beats(4), b),
+        ],
+    );
+    p.tracks[0].clips.push(c);
+}
+
+/// A pre-fader send *delayed* under a fader and pan ride (finding 19). Under an automated
+/// fader or pan the ramp scales the strip's pair itself (`strip_run.rs`, ADR 0027), so a
+/// pre-fader send reads the copy kept apart *before* the ramp — and when the send is the
+/// edge that waits, that copy is what feeds its compensation line.
+///
+/// The send has to be the edge that waits: the source's output goes into a latent bus
+/// whose output goes into the return, so the return's other input arrives `DELAY` late and
+/// the send from the source to the return is the edge compensation delays (in the test
+/// above the return's own output waits instead, so its send runs undelayed). The bus is
+/// muted, so only the send is heard. Held: with the source's fader **and** pan ridden over
+/// the whole render, the pre send's contribution nulls against the un-ridden render at
+/// tolerance 0 — a pre send fed into its line from the ridden pair would follow the ride.
+/// The post send under the same ride does follow it: the ride is heard at all.
+#[test]
+fn a_delayed_pre_send_under_a_fader_and_pan_ride_does_not_hear_them() {
+    let with_bus = |tap: SendTap| {
+        let (mut p, s1, ret) = pre_or_post(tap);
+        let bus = p.strips[8].id;
+        let slot = p.make_effect(EffectKind::Limiter);
+        let id = slot.id;
+        let b = p.strip_mut(bus).unwrap();
+        b.effects.push(slot);
+        b.output = Some(ret);
+        b.muted = true;
+        p.strip_mut(s1).unwrap().output = Some(bus);
+        (p, s1, id)
+    };
+    let ridden = |p: &Project, s1: StripId| {
+        let mut q = p.clone();
+        ride(&mut q, AutoTarget::StripGain(s1), 0.15, 0.95);
+        ride(&mut q, AutoTarget::StripPan(s1), 0.0, 1.0);
+        q
+    };
+    let (p, s1, id) = with_bus(SendTap::Pre);
+    let (still, latency) = play(&p, &[id], 2.0);
+    assert_eq!(latency, DELAY as u64, "the send waits for the latent bus");
+    assert!(peak(&still) > 0.05, "the pre send carried nothing");
+    let q = ridden(&p, s1);
+    assert!(
+        !Snapshot::compile(&q, 1).automation.is_empty(),
+        "the ride reached the snapshot"
+    );
+    let (moving, _) = play(&q, &[id], 2.0);
+    assert_null(
+        &moving,
+        &still,
+        0.0,
+        "a delayed pre send heard the fader and pan ride",
+    );
+    // The same send post-fader does follow the ride: the test can tell.
+    let (p, s1, id) = with_bus(SendTap::Post);
+    let (still, _) = play(&p, &[id], 2.0);
+    let (moving, _) = play(&ridden(&p, s1), &[id], 2.0);
+    assert!(
+        compare(&moving, &still).max_abs_diff > 1e-2,
+        "the ride was not heard on the post send: the test proves nothing"
     );
 }

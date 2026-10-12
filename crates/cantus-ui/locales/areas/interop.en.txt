@@ -99,7 +99,6 @@ interop.report.d_master_device = The device {name} on the master
 interop.report.d_vca = The VCA {name}
 interop.report.d_cycle = The output of {name}, which would have fed itself
 interop.report.d_send = A send from {name} with no destination Cantus can use
-interop.report.d_pre_sends = Pre-fader sends ({n}): they became post-fader
 interop.report.d_too_many_strips = Channels past the {max} strips the engine holds ({n})
 interop.report.d_too_many_tracks = Tracks past the {max} the engine holds ({n})
 interop.report.d_audio_clips = Audio clips ({n}): Cantus has no audio clips yet

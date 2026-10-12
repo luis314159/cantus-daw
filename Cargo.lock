@@ -1033,6 +1033,7 @@ dependencies = [
  "cantus-engine",
  "cantus-export",
  "cantus-host",
+ "cantus-launch",
  "cantus-project",
  "cantus-update",
  "eframe",

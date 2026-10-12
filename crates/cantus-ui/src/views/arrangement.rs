@@ -233,6 +233,12 @@ impl Default for ArrangementView {
 }
 
 impl ArrangementView {
+    /// A header being dragged to reorder: the track and the row its drop line marks (its
+    /// own row while it is held outside the arrangement: no line).
+    pub fn reorder_target(&self) -> Option<(TrackId, usize)> {
+        self.reorder
+    }
+
     /// Where the timeline was drawn last frame, or `None` before the first one.
     pub fn geometry(&self) -> Option<TimelineGeometry> {
         self.geometry.clone()
@@ -1032,6 +1038,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             } else {
                 app.select_track(id);
                 app.arrangement.reorder = Some((id, i));
+                // Round 25 (answer 11): the track is also a payload the mixer takes — on a
+                // strip it routes there.
+                egui::DragAndDrop::set_payload(ui.ctx(), crate::routing_actions::TrackDrag(id));
             }
         }
         if resp.dragged_by(PointerButton::Primary) {
@@ -1052,11 +1061,17 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                         );
                     }
                 } else if app.arrangement.reorder.map(|(d, _)| d) == Some(id) {
-                    let to = geo
-                        .rows
-                        .iter()
-                        .position(|r| pos.y < r.top + r.height * 0.5)
-                        .unwrap_or(geo.rows.len().saturating_sub(1));
+                    // Outside the headers and lanes (held over the mixer, which routes
+                    // it): no drop line here — the track would stay where it is.
+                    let home = f.headers.union(f.lanes);
+                    let to = if home.contains(pos) {
+                        geo.rows
+                            .iter()
+                            .position(|r| pos.y < r.top + r.height * 0.5)
+                            .unwrap_or(geo.rows.len().saturating_sub(1))
+                    } else {
+                        i
+                    };
                     app.arrangement.reorder = Some((id, to));
                 }
             }
@@ -1064,7 +1079,13 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         if resp.drag_stopped() {
             app.arrangement.divider = None;
             if let Some((did, to)) = app.arrangement.reorder.take() {
-                if did == id && to != i {
+                // Released outside the arrangement (on the mixer, which routed it): the
+                // track stays where it is.
+                let home = f.headers.union(f.lanes);
+                let inside = ui
+                    .input(|i| i.pointer.latest_pos())
+                    .is_none_or(|p| home.contains(p));
+                if did == id && to != i && inside {
                     app.exec(Command::MoveTrack { id: did, index: to });
                 }
             }

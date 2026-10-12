@@ -55,7 +55,8 @@ pub struct Art {
     /// Logo #2 at 1× and 2× of [`LOGO`].
     pub logo_1x: Baked,
     pub logo_2x: Baked,
-    /// #2's small master at 32 px: the window's and the taskbar's icon.
+    /// The mark (ADR 0046) at 64 px in its designed colours: the window's icon where the
+    /// application cannot set its own (off Windows) until the first frame does.
     pub icon: Baked,
 }
 
@@ -458,10 +459,13 @@ pub fn paint_splash_with(
 }
 
 impl eframe::App for Shell {
-    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         match self {
-            Shell::Running(app) => app.frame(root),
+            Shell::Running(app) => {
+                app.frame(root);
+                app.window_icon.sync(&ctx, frame);
+            }
             Shell::Booting(boot) => {
                 let (key, progress, fonts) = (boot.stage.key(), boot.stage.progress(), boot.fonts);
                 let logo = boot.logo.clone();
@@ -579,8 +583,17 @@ pub fn remember_logo(choice: LogoChoice, tokens: &Tokens) {
     });
 }
 
-/// The window's icon (the taskbar's too), from the art baked into the executable.
+/// The window's icon at creation, from the art baked into the executable.
+///
+/// On Windows this is an *empty* icon on purpose: eframe would otherwise set its own copy
+/// of the baked icon (resampled to the taskbar's size) whenever the window first becomes
+/// active, which can be after the application has given it the user's colour
+/// (`window_icon`). Until the first frame of the application, the taskbar shows the
+/// executable's icon, which is the same mark at every size.
 pub fn icon(art: Option<&Art>) -> Option<egui::IconData> {
+    if cfg!(windows) {
+        return Some(egui::IconData::default());
+    }
     let a = art?;
     Some(egui::IconData {
         rgba: a.icon.rgba.to_vec(),

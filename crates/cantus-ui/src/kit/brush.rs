@@ -749,6 +749,37 @@ impl Brush {
         self.stitch(k, m, false, |o, _| cols[o]);
     }
 
+    /// A dashed open polyline: pieces `dash` long with `gap` between them, carried across
+    /// the polyline's joins (a key cable, a switched-off send, an FM graph's feedback).
+    /// Nothing is allocated: each piece is a [`Brush::segment`].
+    pub fn dashed(&mut self, pts: &[Pos2], w: f32, color: Color32, dash: f32, gap: f32) {
+        let (dash, gap) = (dash.max(0.5), gap.max(0.5));
+        let mut on = true;
+        let mut left = dash;
+        for seg in pts.windows(2) {
+            let (mut a, z) = (seg[0], seg[1]);
+            let mut len = a.distance(z);
+            if len < 1e-5 {
+                continue;
+            }
+            let dir = (z - a) / len;
+            while len > 1e-5 {
+                let step = len.min(left);
+                let p = a + dir * step;
+                if on {
+                    self.segment(a, p, w, color, false);
+                }
+                a = p;
+                len -= step;
+                left -= step;
+                if left <= 1e-5 {
+                    on = !on;
+                    left = if on { dash } else { gap };
+                }
+            }
+        }
+    }
+
     /// The area between a polyline and the horizontal line at `base` (a curve's fill in
     /// a display), as one quad per segment. Not feathered: its edges are the curve's
     /// stroke and the display's axis.

@@ -100,7 +100,7 @@ fn topology(rng: &mut Rng, t: usize, s: usize) -> Snapshot {
             x.muted = rng.chance(20);
             x.output = dest(rng);
             x.sends = (0..rng.below(4) + if rng.chance(3) { 18 } else { 0 })
-                .map(|_| (rng.below(s + 1), rng.gain()))
+                .map(|_| (rng.below(s + 1), rng.gain(), SendTap::Post))
                 .collect();
             x.effects = (0..rng.below(3))
                 .map(|_| {
@@ -188,9 +188,9 @@ fn produce(rng: &mut Rng, snap: &Snapshot, n: usize) -> Produced {
             let sends = st
                 .sends
                 .iter()
-                .filter(|(to, _)| *to < s && *to != si)
+                .filter(|(to, _, _)| *to < s && *to != si)
                 .take(MAX_SENDS_PER_STRIP)
-                .map(|(to, level)| {
+                .map(|(to, level, _)| {
                     (
                         *to,
                         *level,

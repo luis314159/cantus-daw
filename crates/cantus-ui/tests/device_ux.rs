@@ -736,30 +736,33 @@ fn the_inspectors_instrument_field_and_empty_slot_open_the_picker() {
     assert_eq!(w.app.picker, Some(PickPurpose::AddEffect { strip }));
 }
 
+/// Round 25 (ADR 0041 §9): the insert slots left Extra large for the inspector; the
+/// chain line takes their place. An empty chain's line opens the effect picker; a loaded
+/// one chooses the strip and shows its inserts in the inspector, where the swap badge is.
 #[test]
-fn the_mixers_slots_open_the_picker_to_add_and_to_swap() {
+fn the_mixers_chain_line_opens_the_picker_and_the_inspector() {
     use cantus_ui::views::mixer::{self, layout::WidthMode, Control};
     let mut w = Win::new(cantus_ui::welcome_project());
     mixer::set_width_mode(&mut w.app, WidthMode::Xl);
     w.app.show_central(cantus_ui::app::CentralView::Mixer);
     w.idle(3);
     let strip = w.app.project().tracks[0].strip.unwrap();
-    let slot = mixer::control_rect(&w.ctx, Some(strip), Control::Slot(0)).expect("slot 1");
-    w.click(Pos2::new(slot.left() + 12.0, slot.center().y));
+    let line = mixer::control_rect(&w.ctx, Some(strip), Control::Chain).expect("the chain");
+    w.click(line.center());
     assert_eq!(w.app.picker, Some(PickPurpose::AddEffect { strip }));
     w.app.picker = None;
     w.app.add_effect(strip, EffectKind::Eq);
-    let fx = w.app.project().strip(strip).unwrap().effects[0].id;
+    let other = w.app.project().strips[3].id;
+    w.app.select_strip(other);
     w.idle(2);
-    let slot = mixer::control_rect(&w.ctx, Some(strip), Control::Slot(0)).unwrap();
-    w.hover(Pos2::new(slot.left() + 20.0, slot.center().y));
-    w.click(chrome::badge_rect(slot, 1.0).center());
-    assert_eq!(
-        w.app.picker,
-        Some(PickPurpose::ReplaceEffect { strip, effect: fx })
-    );
-    assert_eq!(
-        w.app.eq_editor.open, None,
-        "the badge does not open the editor"
+    let line = mixer::control_rect(&w.ctx, Some(strip), Control::Chain).unwrap();
+    w.click(line.center());
+    assert_eq!(w.app.picker, None, "a loaded chain opens no picker");
+    assert_eq!(w.app.selected_strip, Some(strip), "the strip is chosen");
+    assert!(
+        w.app
+            .workspace
+            .is_visible(cantus_ui::views::workspace::Pane::Inspector),
+        "its inserts show in the inspector"
     );
 }

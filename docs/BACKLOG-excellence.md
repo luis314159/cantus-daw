@@ -106,10 +106,10 @@ Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
-learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(4)** rendimiento con
+learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(3e)** más instrumentos, tras una investigación verificada (FL Studio 2026, Live 12.4, Logic 12, Bitwig 6.1, Reason 14, Fender Studio Pro 8, Cubase 15 y los mejores plug-ins; licencias y patentes comprobadas), en este orden: un cortador de muestras (tipo Slicex) dentro de Exemplar, arpegiador y herramientas de acordes y escala como efectos MIDI, terminar Pulsus con salidas y cadenas de efectos por pad, un piano de cola modelado (ahora por guías de onda y física publicada; el método de Modartt se evaluará cuando expire su patente estadounidense, verificada vigente hasta el 2027-10-20; revisión legal antes de publicarlo, que cubra también siete patentes activas de resonancia de piano de Casio, Kawai y Yamaha), modos espectral y granular en Exemplar (el nivel del Sampler de Bitwig 6.1), resonadores por modelado físico (cuerdas, láminas, membranas), guitarra sobre el modelo de cuerda de Gravis con rasgueo en el piano roll, resíntesis aditiva para Partes (tipo Harmor), secciones orquestales con muestras CC0, un coro de vocales por formantes (el canto con letra después, cuando exista una voz grabada para Cantus con licencia libre: hoy no hay ninguna) y batería acústica multimicrófono; solo contenido CC0 bajo demanda hasta que decidas sobre CC-BY (Sonatina y Philharmonia quedan fuera), y más (chiptune, bucles tocables, sintetizador de texturas, MPE); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -347,6 +347,133 @@ exact rest; exported to CLAP/VST3 like the rest.
 natural speed corrects without audible artefacts, the latency is under the target, and MIDI
 targets follow a keyboard in real time.
 
+### 3e. More instruments — the family a top DAW ships (requested 2026-10-10)
+
+*The owner: "more instruments — the ones discussed and more, after research." Backlog
+only, not scheduled. Research, verified against vendors' pages, release notes, licence files
+and Google Patents on 2026-10-10: [`research/instruments-next/notes.md`](../research/instruments-next/notes.md)
+(per DAW, per reference product, per candidate: techniques, papers, CPU, licences, patents,
+and what could not be verified), on top of `research/instruments/` (rounds 17–18).*
+
+**What the market ships now.** FL Studio 2026 (39 generators; Fruity Slicer 2 in 2025, a
+rebuilt FLEX and multi-sample FPC pads in 2026), Live 12.4 Suite (21 instruments; Drum
+Sampler; Collision, Tension and Electric in Standard), Logic Pro 12 (Alchemy, Sculpture,
+Studio Piano/Bass/Strings/Horns, Session Players with the new Synth Player following Chord
+ID), Bitwig 6.1 (a Sampler rebuilt with spectral stretch and 256-grain granular), Reason 14
+(Europa, Grain, Kong…), Fender Studio Pro 8 (was Studio One), Cubase 15 (Drum Machine, and
+**Omnivocal**, the first vocal synthesizer built into a DAW, in beta). The plug-ins that set
+the bar: Serum 2, Vital, Pigments 7, Omnisphere 3, Zebra 3, Kontakt 8, Pianoteq 9, Keyscape,
+BBC SO Discover, Splice INSTRUMENT (ex-LABS), Arcade, Battery 4, XO, Superior Drummer 3,
+Ample Guitar 4, Strum GS-2, SWAM, Synthesizer V 2. **The 2025–26 bar moved to the sampler,
+the note tools and the drum machine more than to new synths.**
+
+**What exists** (rounds 17–18, ADR 0023, `docs/instruments/`): **Firmus**, **Calor**
+(analog), **Unda** (wavetable, *with an additive engine, Partes, and a granular one, Grana*),
+**Modulus** (FM), **Exemplar** (multisample sampler; SFZ, Decent Sampler, SF2), **Gravis**
+(bass, *with a waveguide string engine*: dispersion, frets, pickups), **Lamina** (modelled
+EP, *with a nonlinear hammer*), **Organum** (organ and rotary), **Pulsus II** (drums, *with
+16 layers per pad, seeded round robin, chokes, a modal percussion voice and a per-pad output
+hook*). Several items below therefore **grow an existing engine** rather than start one.
+Linked, not repeated: a modular environment, modulators, MPE and microtuning (§0.2); the
+factory library (§5); players that follow chords and stem separation (§7); the vocal
+*effects* (§3b–3d).
+
+Each new instrument follows the family's rules (ADR 0023): a null test at its defaults,
+block-size independence at tolerance 0, exact rest, deterministic maths (`cantus_dsp::math`;
+every random choice a hash of seed, note and event), analysis (onsets, partials, pitch) run
+offline with its *result* stored in the project, the hand-drawn kit with the
+Play/Edit/Matrix shell, a page in `docs/instruments/`, voices that split across the pool with
+the bits of one thread (ADR 0038; anything that couples voices — a piano's soundboard, a
+choir's ensemble — is a post-voice stage summed in voice order), presets made by ear, and a
+model version stored per instance so an improved model never changes an old song.
+
+**Legal and content constraints.** Packs download on demand and never enter the repository
+(ADR 0030); the manifest admits **CC0 only** until the owner rules on CC-BY. Verified: VSCO 2
+CE, VCSL, Osiris Piano, Virtuosity Drums and the Karoryfer libraries are CC0; Salamander
+Grand and the best multi-mic kits (DrumGizmo, Naked Drums) are CC-BY; **Sonatina is excluded**
+(Sampling Plus 1.0, retired by Creative Commons in 2011, NC-like, unknown sources) and so are
+Philharmonia's samples for redistribution; Pianobook, Decent Samples, Splice/Spitfire and BBC
+SO libraries are link-only. **No permissively licensed singing voice, choir or acoustic
+guitar exists** — open singing corpora are mostly non-commercial and the standard open
+vocoder (OpenVPI NSF-HiFiGAN) is CC BY-NC-SA. `cantus-dsp` is MIT/Apache, so GPL references
+(aubio, Rubber Band, Loris, reSID) are read, not ported; MIT/BSD ones (Signalsmith Stretch,
+WORLD, Clouds, STK) may be.
+
+**Proposed, in priority order** (value for FL-style producers first — beats, melody,
+vocals — then what blind comparisons demand, then build cost on what exists):
+
+| Instrument | Reference | What makes it first-rank | Done when |
+|---|---|---|---|
+| **1. Slicer** — *Sectio*, a mode of Exemplar | FL Fruity Slicer 2 and Slicex, Ableton Simpler, Logic Quick Sampler, Bitwig 6.1 Sliced | **Technique:** spectral-flux onset detection with SuperFlux for sustained sounds and a beat grid by dynamic programming, offline; slice points stored in the project. Embedded markers read first (WAV cue, ACID); one sensitivity control; grid and manual slices; "dump to piano roll"; per-slice pitch, envelope, filter, reverse, choke; FL's *Random*, *Stutter*, *Quantize/Swing* as one-step commands; tempo-following by slice replay | ≥ 95 % of slice points within 10 ms of hand annotation on 50 CC0 loops; a loop replayed from its dumped MIDI equals the file to the bit; a tempo change keeps slices on the grid; drop-to-chopped in ≤ 2 clicks |
+| **2. Arpeggiator, chord and scale tools** (note effects) | FL Arpeggiator and Chord tools, Ableton Arpeggiator/Chord/Scale and MIDI Tools, Kontakt 8.6 Tools, Serum 2's arp and clip sequencer | **Technique:** event processing on the absolute song tick (needs tempo and position in the instrument contract). Arp modes, rate with swing, gate, octaves, a step lane with probability and ratchets, latch; chord voicings with inversions and strum; scale lock to the project key; probability drawn from the note's hash | sample-accurate at block sizes 1/37/64/512; bounce = playback; a render from bar 5 equals bars 5… of a full render; works before native **and** hosted instruments; output recordable to the clip |
+| **3. Pulsus III** — per-pad outputs and chains (finishing the drum sampler) | Ableton Drum Rack, FL FPC, Logic Drum Machine Designer, Battery 4, XO | Wire the existing per-pad outputs to strips; a per-pad insert chain; any Cantus instrument on a pad; kit import from a folder (name parsing, then similarity) and SFZ; XO-style similarity map shared with the browser; 808/909-class one-shots rendered from Pulsus and released CC0 | 16 pads, each with its own chain, split to 16 strips in one click; the split kit sums to the unsplit kit to the bit; a folder becomes a mapped kit in one drop; chains at rest cost nothing |
+| **4. Modelled grand piano** — *Chorda* | Pianoteq 9 (Oct 2025, ~50 MB), Logic Studio Piano, Keyscape, Garritan CFX | **Technique:** digital waveguide strings with dispersion allpasses, a nonlinear felt hammer (Lamina's, extended with hysteresis), two- and three-string unisons with two-stage decay, phantom partials, a multirate soundboard and a sustain-pedal resonance bank, all from closed-form physics and published measurements; continuous half-pedalling; no task-skipping under load (unlike Pianoteq) — see the plan below | partials within 1 cent of the stretch target on every key; per-partial decay within −25 %/+40 % of published measurements; half-pedal continuous; a blind test (≥ 20 listeners) shows no significant preference for Pianoteq 9 or a sampled grand; 64 pedal-down voices inside 25 % of a core at 256 frames; the legal review done |
+| **5. Spectral and granular modes of Exemplar** (Unda's *Grana* grown) | Bitwig 6.1 Sampler (Spectral, Fragments), Ableton Granulator III, Logic Sample Alchemy, Serum 2 | **Technique:** granular scheduling on the sample clock with seeded draws (as Grana), a mip-mapped source so transposing up does not alias, sync/count density, loop and freeze, capture from any track; a phase-locked vocoder for stretch and pitch with formant preservation (Signalsmith Stretch, MIT, as reference), STFT grid anchored to the note, long stretches pre-rendered and cached. The same engine serves warp (§3) and the pitch editor (§3c) | bit-identical at every block size and offline = real time; +24 st grains with no alias above −90 dB; a 2× vocal stretch keeps formants and transients (onset smear ≤ 5 ms); 16 voices × 64 grains inside 10 % of a core |
+| **6. Physical-model resonators** (exciter → resonator) | Ableton Collision and Tension, Logic Sculpture, AAS Chromaphone 3, Pigments Modal | **Technique:** exciters (pluck, pick, bow by a friction curve, mallet, noise, sample, live input) into waveguide strings (Gravis's) or modal bars, plates, membranes and tubes (Pulsus's modal voice), coupled, with a body; MPE pressure and slide on bow pressure and position | marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello and glass presets each judged "convincing in solo" by a 10-listener panel; pitch within 0.1 cent at any bend; renders repeat to the bit |
+| **7. Guitar** (acoustic and electric) | Ample Guitar 4.1, AAS Strum GS-2, NI Session Guitarist | **Technique:** Gravis's string model × 6 with string assignment, an acoustic body, stable sympathetic coupling, pick direction, palm mute, harmonics; a **strummer written as note properties in Cantus's piano roll** (strum time, direction, mute) following the chord track — what no plug-in can do; CC0 Karoryfer electric guitars as Exemplar presets | a chord progression strums like a guitar and follows the chord track; nylon and steel presets judged "a guitar" in a mix by a 10-listener panel; a fretboard strip shows string and fret |
+| **8. Additive resynthesis** (Unda's *Partes* grown) | FL Harmor, Logic Alchemy, Zebra 3, Serum 2 Spectral | **Technique:** sinusoids-plus-noise analysis with partial tracking and harmonic assignment, offline, stored as an asset; resynthesis on Partes's rotator bank (no alias by construction), image-to-spectrum, spectral morph between two analyses, the original attack kept | a resynthesised cello, voice and piano pass a 10-listener ABX as "the same instrument"; no partial ever above 0.45·fs (asserted); null at defaults |
+| **9. Orchestral section players** | BBC SO Discover (free), Splice INSTRUMENT, Logic Studio Strings/Horns | An Exemplar front-end over **CC0 VSCO 2 CE and VCSL**: articulations by key-switch and by note property, CC1 dynamics across layers, CC11, scripted legato (overlap window and interval-aware crossfade — VSCO has no recorded transitions), release triggers, a section mixer. Honest aim: a finished sketch with zero friction, not a win over BBC SO; later, Cantus's own recordings | a four-bar string line with legato and a CC1 swell is rated "finished" by 7 of 10 producers; presets per section; every pack CC0 and on demand |
+| **10. Vowel choir**, then lyric singing | Cubase 15 Omnivocal, Synthesizer V 2, Arturia Augmented VOICES, Hollywood Choirs | **Choir now:** FOF/formant synthesis (Rodet's CHANT, Klatt) with published vowel formants, seeded per-voice jitter, vowel morphing — no recorded voice needed. **Lyric singing later:** WORLD-style source–filter synthesis (BSD) with phoneme timing, gated on a voice recorded for Cantus by consenting singers and released CC0; any neural part single-threaded with a fixed reduction order, or rendered offline and cached | a vowel choir pad judged "usable in a mix" by 7 of 10 producers; bit-identical renders. Singing (later): ≥ 90 % word intelligibility and < 10 cents pitch error on sustained notes; every voice's licence and consent in the notices |
+| **11. Acoustic drums** | Superior Drummer 3, EZdrummer 3, Addictive Drums 2 | Mic buses and bleed on Pulsus's layers (each mic a strip), CC4 hi-hat openness, repetition smoothing, CC0 kits (Virtuosity Drums with six mics; Karoryfer) and CC-BY multi-mic kits if ruled in; a browser of CC0 grooves we write | rock, jazz and funk kits with per-mic faders; no identical consecutive sample in a roll (asserted); rated "usable in a mix" against EZdrummer 3's stock kit by a 10-listener panel |
+
+**The piano, as the owner decided it (2026-10-10):**
+
+1. **Now — build it on the published path, which needs nothing from Modartt:** digital
+   waveguide strings (J. O. Smith), dispersion filters for inharmonicity (Bank, Välimäki),
+   nonlinear hammer models (Chaigne & Askenfelt, Stulov), double and triple strings with
+   sympathetic resonance and two-stage decay (Weinreich), a multirate soundboard and a
+   sustain-pedal resonance model — coefficients from closed-form physics and published
+   measurements, **not** offline finite-element eigen-analysis of a coupled string–soundboard
+   with real-time interpolation of the resulting coefficients. Lamina's nonlinear hammer is
+   the base.
+2. **Later — evaluate adding Modartt's approach** (finite-element modal coefficients
+   interpolated in real time) once its patent has expired in every territory where Cantus
+   ships, if measurements show it beats ours. The engine's model is versioned, so a second
+   model can be added without changing any project's sound.
+3. **Before release — a legal review** of our method against the claims of every relevant
+   patent found (this backlog is not legal advice). Verified on Google Patents: **US
+   7,915,515** (Modartt) is active with every maintenance fee paid and expires
+   **2027-10-20**; its claim 1 covers a presynthesis module that turns soundboard and string
+   parameters into a damping and a frequency per partial for a real-time partial synthesizer
+   — so a modal string bank needs the closest look, a waveguide the least; its European,
+   French, Japanese and Chinese counterparts have **lapsed**. The review must also cover
+   seven **active piano-resonance patents**: Casio US 8,178,772 (to ~2029), Yamaha US
+   8,729,376 (~2032), Kawai US 9,330,648 (~2035), Casio US 10,109,268 (~2037), Yamaha US
+   10,818,278 (duplex resonance, ~2038), Yamaha US 12,039,960 (~2041) and Casio US 11,881,196
+   (~2042). The Karplus–Strong, Stanford waveguide and commuted-synthesis patents are expired.
+   *Meanwhile*, Salamander Grand (CC BY 3.0) can download into Exemplar at once: the owner
+   accepted CC BY with the credit shown (ADR 0042, 2026-10-10).
+
+**Also worth adding** (after the table, by family):
+
+- **Synths**: a *chip synth* (NES, Game Boy, SID, YM2612 styles; Plogue's chipsynth line as
+  the bar — chipsounds is now legacy) by integer chip state and band-limited steps
+  (minBLEP/polyBLEP): cheap, loved, deterministic by construction; a *hybrid/texture synth*
+  (Omnisphere 3, Zebra 3, Modartt's new Airteq) once Unda, Exemplar's grains and the
+  resonators exist — one Play page over all three; an *FM-plus* in the Sytrus class (Modulus
+  can grow into it). Vintage polysynths and the 303 are covered by Calor and Gravis.
+- **Samplers**: *playable loops* (Output Arcade: loops across the keys, synced and tuned,
+  black-key modifiers) — falls out of the slicer plus the spectral mode; *disk streaming* in
+  Exemplar (Kontakt-style preloaded heads) before large libraries; a *sample-instrument
+  builder* with scripted round robins and legato.
+- **Keys and acoustic**: clavinet, harpsichord, celesta and toy piano as Lamina or resonator
+  models; tape keys (Mellotron-like) from CC0 recordings; brass and woodwinds by model (SWAM,
+  which needs breath or MPE input) as research.
+- **Voices**: lyric singing (item 10, gated); a *vocoder-choir* that sings a played chord
+  from the user's own voice (shares §3d's tracker). **Avoid** Yamaha US 7,613,612 (active to
+  ~2027-12: a choir made by applying one voice's envelope to a recorded ensemble spectrum) and
+  check Yamaha US 11,756,558 (to ~2040) before any neural singing vocoder.
+- **Playing**: an MPE-first instrument and on-screen MPE keyboard; drum-synth modules as
+  small instruments (Pulsus covers the base); instrument racks (layer and split chains, FL's
+  Layer channel); Session-Player-style drummer, bassist and keys that follow a chord track
+  (§7), built on item 2.
+
+**Done when** items 1–6 ship with the family's contract tests, a manual page in both
+languages and presets made by ear; each meets its measurable criterion above and holds up in
+its blind comparison; the piano's legal review is done; the scorecard's *sampling and sound
+design* and *built-in content* rows (§0.1) show Cantus first or tied-first against every
+DAW's stock instruments; and nothing in the repository is a third party's recording.
+
 ## 4. Performance at scale
 
 - **A multicore engine**: the processor renders on one thread; top DAWs spread tracks
@@ -522,6 +649,79 @@ per-strip hash; the CPU-saved figure reuses the callback histogram and dropout b
 smallest stable buffer with a CPU load a fraction of normal playback's, the musician can tell
 the mode is on at a glance, and leaving it, editing and coming back re-renders only what changed.
 
+
+## 4d. The GPU as an optional accelerator (asked 2026-10-10)
+
+The owner asked whether the engine could use the GPU, optional and configurable, or CPU
+and GPU together. **Not a replacement for the engine**: real-time audio is small blocks
+under 1–5 ms deadlines, a CPU→GPU→CPU round trip costs latency, and no operating system
+schedules the GPU with real-time guarantees. **Useful where the work is massively
+parallel or not under a deadline**:
+
+- **offline**: export, freeze, bounce (no deadline at all);
+- **heavy parallel DSP**: partitioned convolution with long impulse responses, spectral
+  work (time-stretch, the §3c pitch editor, denoise), the §7 AI models (stem separation),
+  additive or physical-model synthesis with thousands of partials;
+- **mixed CPU + GPU through anticipative processing** (§4b): tracks not being recorded or
+  played live are computed ahead in large buffers, where the GPU's latency stops mattering;
+  what is armed or played live stays on the CPU;
+- **the interface**: waveforms, spectrograms, meters.
+
+Rules: always a CPU fallback (a block the GPU misses is computed on the CPU, never a
+dropout); a setting (*Off* / *Offline only* / *Mixed*); the GPU path in its own crate
+(`wgpu`: Vulkan, DX12, Metal) so `cantus-engine` stays `forbid(unsafe_code)`; the
+bit-exactness guarantee either kept with deterministic kernels or the GPU path declared
+"equivalent within −120 dB" and excluded from it, documented per process. An integrated
+GPU with shared memory (the owner's Ryzen 7 7735HS) has no PCIe trip — a good first
+bench. **Order**: after anticipative processing and plug-in sandboxing; first a measured
+prototype (GPU partitioned convolution vs. the CPU one: latency, CPU saved, misses), then
+spectral and AI work if the numbers hold. *Done when:* a GPU-accelerated process is
+measurably cheaper than its CPU twin at 256 frames with zero misses, and switching the GPU
+off changes nothing but the CPU load.
+
+
+## 4e. The engine against the market — to evaluate and research (asked 2026-10-10)
+
+From an honest assessment the owner asked for (*how does our engine compare with the
+market?*). **Already first-rank by design**: bit-exact determinism (offline = real time,
+parallel = serial, any block size — tested, fuzzed; no commercial DAW is known to promise
+it), real-time discipline enforced by tests (no allocation, lock or I/O on the audio
+thread), a multicore pool that also splits one heavy instrument's voices (round 24,
+ADR 0038), delay compensation, one build with ASIO and WASAPI. **Not yet proved against
+anyone**: no number has been measured beside another DAW. Each item below is to be
+evaluated and researched, with the section that holds it where one exists:
+
+1. **A measured comparison** (the first step, so every other claim rests on data):
+   DAWbench-style DSP and VI tests (§0.1, §4b "Proof") run on the same machine in Cantus,
+   REAPER and FL Studio — most tracks/plug-ins at 64/128/256 frames, round-trip latency,
+   CPU at a fixed load; published with the method.
+2. **Plug-in crash isolation** (§4b "Plug-in hosting at scale"): a hosted plug-in that
+   crashes takes Cantus with it today; Bitwig and REAPER's bridge isolate them. The most
+   important gap for real users with third-party plug-ins.
+3. **Anticipative processing** (§4b): REAPER-style rendering ahead of tracks not armed or
+   played live, in large buffers — huge sessions at low latency; also the base for §4d's
+   mixed CPU + GPU mode.
+4. **Scale proved, not assumed**: sessions of 200 tracks with 50 third-party plug-ins
+   (commercial synths and effects, not only ours) at 128/256 frames, a 10-minute live run
+   on a real interface with zero overruns (BETA blocker 2's second half), and the UMC in
+   duplex.
+5. **Voice splitting for the remaining instruments** (ADR 0038 covers Calor, Unda,
+   Exemplar): Modulus, Lamina, Organum, Gravis and Pulsus II; and the **CLAP
+   `thread-pool` extension**, so hosted plug-ins can use the same pool (the same
+   `cantus_rt::fork` could serve it).
+6. **Audio features the market takes for granted, on the engine's side**: warp /
+   time-stretch and pitch-shift of audio clips (§3), **ARA 2** so Melodyne and similar
+   editors work inside a clip (new; weigh it against our own §3c editor), surround and
+   Dolby Atmos (§0.2).
+7. **Platforms** (§2): Linux first, then macOS.
+8. **Proof of the concurrency core**: a loom model of `cantus_rt::fork` and the pool's
+   queues and cells (only stress tests and the fuzz hold them today), and Miri where it
+   applies.
+9. **The GPU as an optional accelerator** (§4d).
+
+*Done when:* item 1 is published and every item above has either landed with its own
+measurement or been decided against with the reason written down.
+
 ## 5. Content
 
 - A **factory sound library** (round 20 builds the content manager): CC0 drum kits,
@@ -533,6 +733,13 @@ the mode is on at a glance, and leaving it, editing and coming back re-renders o
 - **Instrument gain staging**: Lamina and Exemplar sit 8–9 LU under the others at unity
   (docs/round19/fixes-mix.md) — calibrate with a migration so old projects keep their sound.
 - Demo songs by real musicians, and template projects per genre.
+- **CC BY content (ADR 0042, the owner, 2026-10-10)**: CC0 *and* CC BY 3.0/4.0 packs are
+  accepted, with the credit always shown (NC, ND, SA still refused). To do in
+  `cantus-content`: the manifest test accepts `CC-BY-3.0`/`CC-BY-4.0` and requires a credit
+  line and the licence file; *Sound packs…* and *About ▸ Credits* show the credits;
+  `xtask notices` generates a *Content* section. First packs: Salamander Grand (for
+  Exemplar, ahead of the modelled piano), Naked Drums, the DrumGizmo kits (not
+  *Aasimonster*), Dustyroom's acoustic kit; VocalSet for the voice work.
 
 ## 6. Product
 
@@ -697,6 +904,10 @@ Found while trying the round-22 build. Each one gets an ADR before code; every m
    the two are one design in two lights. Tokens only (the kit's colour roles, ADR 0024; no
    literal colours in views); the old themes stay selectable; `shoot` PNGs of every view in
    both themes are the check; the logo ships as a vector source plus the `.ico`/PNG sizes.
+   *Round 25 (look, ADR 0046):* shipped as **Daylight** and **Blue Hour**, two of eight new
+   themes — but **not the default**: on 2026-10-10 the owner asked for the default to go
+   with the website, so it is **Cantus Night** (copper and amber on night) with **Cantus
+   Paper** as its twin. The icon became the website's tile-less mark, its colour a setting.
 
 ## 6e. The top bar — a transport zone with more in it (requested 2026-10-09)
 

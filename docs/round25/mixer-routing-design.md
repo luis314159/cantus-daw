@@ -636,6 +636,38 @@ Each picture is reviewed against `research/ui/screenshots/fl-studio/05-…` and 
 
 ---
 
+### Answers from the owner (2026-10-10) — these override the proposals above
+
+1. **Cable view**: *Selected* by default; a switch on the desk shows *All* (and *Off*).
+2. **The gesture** goes from the source to the destination (press on the source's port,
+   release or click on the destination). A plain gesture makes a **send**: every strip
+   already reaches the master by its output and keeps sounding there unless it is taken
+   off the master. **Ctrl + the gesture replaces the output**: the existing output is
+   removed and the destination becomes the strip's only output (sends untouched).
+3. **A new send's level**: 0 dB (unity, post-fader — what a drag to a reverb return wants
+   to hear at once); its level is on the cable at once, to drag.
+4. **Pre/post-fader sends: yes, this round**, clear and easy in the interface: a
+   `POST | PRE` switch on every send (the strip's send row, the cable's pill, the
+   inspector), a pre send's cable marked *PRE*; mute silences a pre send too. The model is
+   built to grow: `SendTap` is an enum (`Post` default, `Pre`), so other tap points can
+   be added later without another schema change.
+5. **A send to the strip the output already reaches** is allowed (parallel compression
+   and the like), but never silent: its cable carries a *doubled signal* warning mark and
+   its tooltip/inspector row says that the destination hears this strip twice.
+6. **FL's from-selected arrow row stays in Extra large**, beside the strip's own sends.
+7. **Extra large shows a one-line chain summary** ("EQ · Comp · +1") that opens the
+   inspector, instead of the insert slots.
+8. Notes into effects: in the matrix's tracks block (the proposal stands).
+9. **Alt+F9 opens the Routing tab**; the route menu's key is the builder's choice among
+   free keys, shown in the menus.
+10. "Sends only": not needed (the proposal stands).
+11. **Drag a track or a channel-rack channel onto a strip** to route it: yes.
+12. **New (the owner asked to check it): strips and groups move by dragging.** Today a
+    strip moves one place at a time (Alt+←/→) and a group cannot move as one. Add: drag a
+    strip (or the selected strips) along the desk to reorder; drag a group by its
+    separator to move all its members; Alt+←/→ moves the whole selection or group; one
+    undo step each; docks respected.
+
 ## 11. ADR 0041 — draft decision text (not created as a file)
 
 > **ADR 0041 — Routing is drawn: cables, a matrix and "route here", over the one graph**

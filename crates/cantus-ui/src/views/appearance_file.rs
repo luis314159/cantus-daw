@@ -15,6 +15,9 @@ use egui::Context;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
+/// The preset the `theme.json` era wrote on a first run, before anyone chose anything.
+const LEGACY_FIRST_RUN: &str = "paper";
+
 /// Where the appearance lives.
 pub fn path(dir: &Path) -> PathBuf {
     dir.join("appearance.json")
@@ -57,8 +60,10 @@ pub fn migrate(text: &str) -> Result<Appearance, String> {
             let mut a = Appearance::default();
             let mode = if t.dark { Mode::Dark } else { Mode::Light };
             let base = format!("preset:{id}");
-            // The preset a mode ships with is no choice at all: leave the mode alone.
-            if a.slot(mode).base != base {
+            // The preset a mode ships with is no choice at all: leave the mode alone. Nor is
+            // Paper, which is what every release of the `theme.json` era wrote on its first
+            // run: those users get today's defaults (ADR 0046).
+            if a.slot(mode).base != base && id != LEGACY_FIRST_RUN {
                 a.assign(mode, base);
                 a.mode = mode;
             }

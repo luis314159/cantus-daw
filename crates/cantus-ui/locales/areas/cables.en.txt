@@ -1,0 +1,29 @@
+# cables — round 25: the desk's cable band (ports, arcs, pills, edge chips, the Cables
+# view switch), ADR 0041. Owned by the desk builder (B+E).
+# Every key here needs its twin in cables.es.txt.
+
+# The band's row in the legend column.
+cables.legend = Routing
+
+# The title row's switch: which cables the band draws (`.short` for a narrow desk).
+cables.view = Cables
+cables.view.off = Off
+cables.view.selected = Selected
+cables.view.selected.short = Sel.
+cables.view.all = All
+cables.hint.view = Cables under the strips: none, the selected strips', or all of them
+
+# The hint bar over the band.
+cables.hint.port = Drag to a strip, or click here then on a strip: a send · Ctrl: route the output there · Alt: key a sidechain
+cables.hint.cable = Click to select · Delete removes it · drag its end to move it · right-click for its menu
+cables.hint.pill = Send level · drag to change it · double-click for 0 dB · right-click for the route's menu
+cables.hint.chip = Scroll to this strip
+cables.hint.band = Drag to make the cable band taller or shorter · double-click to reset
+
+# What a cable is, in the hint bar ("3 Keys → 15 Reverb · send · −6.0 dB · post-fader").
+cables.kind.output = output
+cables.kind.send = send
+cables.kind.key = sidechain key
+cables.tap.post = post-fader
+cables.tap.pre = pre-fader
+cables.send_off = switched off

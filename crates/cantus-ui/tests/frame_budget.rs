@@ -118,6 +118,8 @@ struct Rig {
     size: egui::Vec2,
     /// Drive the whole window (`eframe::App::ui`), or the mixer alone in a central panel.
     whole: bool,
+    /// Where the pointer rests (a hovered cable), if anywhere.
+    pointer: Option<egui::Pos2>,
 }
 
 /// One frame's measurements.
@@ -135,13 +137,17 @@ struct Frame {
 
 impl Rig {
     fn new(n: usize, whole: bool, size: egui::Vec2) -> Rig {
+        Rig::with(grown(n), whole, size)
+    }
+
+    fn with(project: Project, whole: bool, size: egui::Vec2) -> Rig {
         cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
         cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
         let (engine, processor) = EngineHandle::manual(48_000.0);
-        let mut app = CantusApp::from_parts(Some(grown(n)), engine, false);
+        let mut app = CantusApp::from_parts(Some(project), engine, false);
         app.central = cantus_ui::app::CentralView::Mixer;
         let pick = app.project().strips[2].id;
         app.select_strip(pick);
@@ -154,6 +160,7 @@ impl Rig {
             frame: 0,
             size,
             whole,
+            pointer: None,
         }
     }
 
@@ -177,6 +184,11 @@ impl Rig {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.size)),
             time: Some(self.frame as f64 / 60.0),
             predicted_dt: 1.0 / 60.0,
+            events: self
+                .pointer
+                .map(egui::Event::PointerMoved)
+                .into_iter()
+                .collect(),
             ..Default::default()
         };
         let whole = self.whole;
@@ -405,3 +417,227 @@ const MIXER_ALLOCS: u64 = 100;
 /// before: 28,778 and 5.6 MB), the rest being views not yet migrated; only ever lowered.
 const WINDOW_ALLOCS: u64 = 4_500;
 const WINDOW_BYTES: u64 = 1536 * 1024;
+
+// ---- the cable band (round 25, ADR 0041 §12, design §6 and test 14) ---------------------
+
+/// The 64-strip desk wired as design §6 asks: 128 sends and 16 sidechain keys, every
+/// route from a lower strip to a higher one (no loops).
+fn wired(n: usize) -> Project {
+    let mut p = grown(n);
+    let ids: Vec<_> = p.strips.iter().map(|s| s.id).collect();
+    let mut sends = 0;
+    'all: for step in [3usize, 11, 29] {
+        for i in 0..n {
+            if sends == 128 {
+                break 'all;
+            }
+            if i + step < n && p.strips[i].send_to(ids[i + step]).is_none() {
+                p.strips[i].sends.push(Send::new(ids[i + step]));
+                sends += 1;
+            }
+        }
+    }
+    assert_eq!(sends, 128);
+    for k in 0..16 {
+        let host = 20 + k;
+        let mut fx = p.make_effect(cantus_core::EffectKind::Compressor);
+        fx.sidechain = Some(ids[host - 5]);
+        p.strips[host].effects.push(fx);
+    }
+    p
+}
+
+fn cable_view(rig: &mut Rig, view: views::mixer::layout::CableView) {
+    let mut p = rig.app.mixer.prefs();
+    p.cables = view;
+    rig.app.mixer.set_prefs(p);
+}
+
+/// Design test 14: *All* on 64 strips with 128 sends and 16 keys adds no allocation and no
+/// draw call to the desk in steady state; *Selected* draws only the selection's cables
+/// and *Off* none; the band stays idle when nothing moves.
+#[test]
+fn the_cable_band_costs_no_allocation_and_no_draw_call() {
+    use views::mixer::layout::CableView;
+    let mut rig = Rig::with(wired(64), false, HD);
+    rig.play();
+    cable_view(&mut rig, CableView::Off);
+    let off = rig.run(20, 30);
+    let (off_allocs, _, _, off_draws, _) = summary("mixer64 wired, cables off", &off);
+    assert_eq!(rig.app.mixer.cables_drawn(), 0);
+    cable_view(&mut rig, CableView::All);
+    let all = rig.run(20, 30);
+    let (allocs, bytes, tris, draws, _) = summary("mixer64 wired, cables all", &all);
+    let drawn = rig.app.mixer.cables_drawn();
+    eprintln!("cables drawn in All: {drawn}");
+    assert!(drawn >= 100, "{drawn} cables drawn in All");
+    assert!(
+        allocs <= off_allocs,
+        "All allocates {allocs} a frame against {off_allocs} with the band off"
+    );
+    assert!(
+        allocs <= MIXER_ALLOCS && bytes <= 64 * 1024,
+        "{allocs}, {bytes} B"
+    );
+    assert_eq!(draws, off_draws, "the band paints into the desk's own mesh");
+    assert!(tris <= 120_000, "{tris} triangles");
+    // Selected: only the cables into and out of the selection (strip 3 here), and its
+    // master route.
+    cable_view(&mut rig, CableView::Selected);
+    rig.run(3, 1);
+    let sel = rig.app.project().strips[2].id;
+    let mine = rig
+        .app
+        .project()
+        .strips
+        .iter()
+        .filter(|s| s.id == sel)
+        .map(|s| s.sends.len() + 1)
+        .sum::<usize>()
+        + rig
+            .app
+            .project()
+            .strips
+            .iter()
+            .filter(|s| s.send_to(sel).is_some() || s.output == Some(sel))
+            .count();
+    assert_eq!(rig.app.mixer.cables_drawn(), mine);
+    for d in rig.app.mixer.cables() {
+        assert!(d.route.from == sel || d.route.to == sel, "{d:?}");
+    }
+}
+
+/// The wired desk at rest, cables on: no frame is asked for.
+#[test]
+fn a_wired_idle_desk_requests_no_repaint() {
+    let mut rig = Rig::with(wired(64), false, HD);
+    cable_view(&mut rig, views::mixer::layout::CableView::All);
+    for f in &rig.run(5, 5) {
+        assert_eq!(f.repaint, Duration::MAX, "the idle band asked for a frame");
+    }
+}
+
+#[test]
+#[ignore = "timing: run in release with --ignored"]
+fn mixer64_wired_all_timing() {
+    let mut rig = Rig::with(wired(64), false, HD);
+    cable_view(&mut rig, views::mixer::layout::CableView::All);
+    rig.play();
+    timing("mixer64 wired, cables all, desk alone", &mut rig, 4.0);
+}
+
+/// The wired desk with every look a send can take: every fourth send pre-fader, every
+/// fifth switched off, and doubled signals (a strip that also routes its output where it
+/// sends).
+fn wired_every_look(n: usize) -> Project {
+    let mut p = wired(n);
+    let mut k = 0;
+    for st in &mut p.strips {
+        for send in &mut st.sends {
+            if k % 4 == 0 {
+                send.tap = cantus_core::SendTap::Pre;
+            }
+            if k % 5 == 0 {
+                send.enabled = false;
+            }
+            k += 1;
+        }
+    }
+    // Doubled: the output goes where the first send goes, on every eighth strip.
+    for i in (0..n).step_by(8) {
+        if let Some(to) = p.strips[i].sends.first().map(|s| s.to) {
+            p.strips[i].output = Some(to);
+        }
+    }
+    p
+}
+
+fn max_allocs(frames: &[Frame]) -> (u64, u64) {
+    (
+        frames.iter().map(|f| f.allocs).max().unwrap_or(0),
+        frames.iter().map(|f| f.bytes).max().unwrap_or(0),
+    )
+}
+
+fn fastest(frames: &[Frame]) -> Duration {
+    frames.iter().map(|f| f.build).min().unwrap_or_default()
+}
+
+/// Reviewers' finding 23: the band's cost held in Wide (pills drawn), with pre, off and
+/// doubled sends, a hovered cable and edge chips on screen, by the **worst** frame's
+/// allocations (not the median):
+/// - at rest, *All* allocates no more than *Off* in any frame;
+/// - with a cable hovered (its pill lit, its words in the hint bar), no more than one
+///   allocation over the same desk with a fader hovered instead (hovering any control
+///   costs the hint bar's own ~17 allocations; the cable's second line of words is the one
+///   more);
+/// - the build time within a documented tolerance of the plain desk's: the fastest of 30
+///   frames with *All* at most 1.6 × the fastest with *Off*, plus 2 ms (the fastest frame,
+///   so a busy test machine does not decide it).
+#[test]
+fn the_band_in_wide_with_every_look_costs_no_allocation() {
+    use views::mixer::layout::CableView;
+    let mut rig = Rig::with(wired_every_look(64), false, HD);
+    views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
+    rig.play();
+    cable_view(&mut rig, CableView::Off);
+    // The pointer is reported every frame in every phase (an event costs egui its own
+    // allocation): here, away from the desk.
+    let away = egui::pos2(-100.0, -100.0);
+    rig.pointer = Some(away);
+    let off = rig.run(20, 30);
+    let (off_max, _) = max_allocs(&off);
+    let fader = views::mixer::control_rect(
+        &rig.ctx,
+        Some(rig.app.project().strips[5].id),
+        views::mixer::Control::Fader,
+    )
+    .expect("a fader on screen")
+    .center();
+    rig.pointer = Some(fader);
+    let (hover_max, _) = max_allocs(&rig.run(5, 30));
+    rig.pointer = Some(away);
+    cable_view(&mut rig, CableView::All);
+    let calm = rig.run(5, 30);
+    let (calm_max, calm_bytes) = max_allocs(&calm);
+    assert!(
+        calm_max <= off_max,
+        "at rest, every look: {calm_max} allocations in the worst frame against {off_max} off"
+    );
+    assert!(calm_bytes <= 64 * 1024, "{calm_bytes} B");
+    // A lit cable hovered (its pill and halo), and the selection's far ends as chips.
+    let d = *rig
+        .app
+        .mixer
+        .cables()
+        .iter()
+        .find(|d| d.lit && d.chips == [false, false])
+        .expect("a lit cable on screen");
+    let path = cantus_ui::kit::cable::path(d.from, d.to, d.depth);
+    rig.pointer = Some(path.run_start + egui::vec2(3.0, 0.0));
+    let all = rig.run(20, 30);
+    let (all_max, all_bytes) = max_allocs(&all);
+    let cables = rig.app.mixer.cables();
+    assert!(
+        cables.iter().any(|d| d.chips != [false, false]),
+        "edge chips on screen"
+    );
+    assert!(!rig.app.mixer.cable_pills().is_empty(), "pills drawn");
+    eprintln!(
+        "wide wired, every look: off {off_max}, fader hovered {hover_max}, all at rest {calm_max}, cable hovered {all_max} allocations (worst frame, {all_bytes} B); fastest build off {:?}, all {:?}",
+        fastest(&off),
+        fastest(&all)
+    );
+    assert!(
+        all_max <= hover_max + 1,
+        "a hovered cable: {all_max} allocations against {hover_max} for a hovered fader"
+    );
+    assert!(all_bytes <= 64 * 1024, "{all_bytes} B");
+    let budget = fastest(&off).mul_f32(1.6) + Duration::from_millis(2);
+    assert!(
+        fastest(&all) <= budget,
+        "the band costs too much: {:?} against {:?} off",
+        fastest(&all),
+        fastest(&off)
+    );
+}

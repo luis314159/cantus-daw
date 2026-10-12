@@ -1,5 +1,6 @@
-//! The rest of the desk's pieces: FL's send row, the insert slots of Extra large, the
-//! master strip, a group's separator and the `+` after the last strip.
+//! The rest of the desk's pieces: FL's send row, Extra large's chain line, output chip and
+//! own send rows (round 25: the insert slots left the desk for the inspector), the master
+//! strip, a group's separator and the `+` after the last strip.
 
 use super::layout::{self, Row, WidthMode};
 use super::menu::Menu;
@@ -17,7 +18,7 @@ use crate::kit::knob::{self, KnobLook, KnobSize};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{light, Brush, Fill, State, Tok};
 use crate::widgets::fader::{pos_of, UNITY_POS};
-use cantus_core::{Command, GroupId, MergeKey, Send};
+use cantus_core::{Command, GroupId, MergeKey, Send, StripId};
 use cantus_engine::CaptureTarget;
 use egui::{pos2, vec2, Align2, Rect, Sense, Ui};
 use std::fmt::Write as _;
@@ -52,10 +53,25 @@ pub(super) fn sends_row(
     if sel == sn.id {
         // Where the selected strip goes.
         let r = Rect::from_center_size(pos2(cx, sy), vec2((bw - 4.0).min(40.0), 16.0));
-        let resp = sense(ui, pass, r, pid(Some(sn.id), Part::Send), Sense::click());
+        let resp = sense(
+            ui,
+            pass,
+            r,
+            pid(Some(sn.id), Part::Send),
+            Sense::click_and_drag(),
+        );
+        if let Some(resp) = &resp {
+            // A drag from the chip makes a cable, as from the port (round 25).
+            super::drag::source(v, app, ui, resp, super::drag::Source::Port(sn.id));
+        }
         let hovered = resp.as_ref().is_some_and(|r| r.hovered());
         let open = v.popups.is_open(Menu::Route(sn.id));
-        if hovered || open {
+        let armed = super::drag::armed(v) == Some(sn.id);
+        if armed {
+            // Click mode: a route armed from here waits for the click on its destination.
+            b.rrect(r, s.r(3.0), Fill::Solid(with_alpha(t.selection, 0.30)));
+            b.rrect_stroke(r.shrink(b.px() * 0.5), s.r(3.0), b.px() * 1.5, t.selection);
+        } else if hovered || open {
             b.rrect(r, s.r(3.0), Fill::Solid(with_alpha(t.selection, 0.18)));
         }
         let g = Rect::from_center_size(pos2(r.left() + 6.0, sy), vec2(9.0, 9.0));
@@ -90,7 +106,9 @@ pub(super) fn sends_row(
                 );
             }
             let resp = resp.on_hover_text(&v.words.route);
-            if resp.clicked() || resp.secondary_clicked() {
+            // A click arms a route from here (click mode, `drag::source`); right-click
+            // lists every destination.
+            if resp.secondary_clicked() {
                 v.popups
                     .open(Menu::Route(sn.id), pos2(r.left(), r.bottom()));
             }
@@ -135,7 +153,9 @@ pub(super) fn sends_row(
             }
             if resp.secondary_clicked() {
                 let at = resp.interact_pointer_pos().unwrap_or(c);
-                v.popups.open(Menu::Arrow(sn.id), at);
+                // An existing send: the one route menu (round 25), POST | PRE and all.
+                let route = cantus_core::routing::Route::send(sel, sn.id);
+                crate::views::route_menu::open(&ctx, super::route_owner(), route, at);
             }
         }
         knob::paint(
@@ -185,16 +205,24 @@ pub(super) fn sends_row(
     } else {
         &v.words.send_free
     };
+    let said = v
+        .arrow_said
+        .as_ref()
+        .filter(|(id, _)| *id == sn.id)
+        .map(|(_, w)| w.as_str());
     if hovered {
+        // A refused click says why (a loop, no room), else what a click does.
         hint::set_text(
             &ctx,
             tip,
-            "",
+            said.unwrap_or(""),
             Caps {
                 menu: true,
                 ..Caps::NONE
             },
         );
+    } else if said.is_some() {
+        v.arrow_said = None;
     }
     let resp = resp.on_hover_text(tip);
     if resp.secondary_clicked() {
@@ -206,26 +234,51 @@ pub(super) fn sends_row(
                 id: sel,
                 output: None,
             });
-        } else if !loops {
-            if pass.mods.command {
-                app.exec(Command::SetStripOutput {
-                    id: sel,
-                    output: Some(sn.id),
-                });
-            } else {
-                app.set_strip_send(sel, Send::new(sn.id));
-                app.end_gesture();
+        } else {
+            // The desk's one gesture (round 25): the whole selection sends (Ctrl: routes
+            // its output here, Alt: keys), one undo step; a refusal is said, not
+            // swallowed.
+            use crate::routing_actions::{refusal_text, Gesture, Outcome};
+            let at = resp.interact_pointer_pos().unwrap_or(g.center());
+            let owner = super::route_owner();
+            match app.route_gesture(sel, sn.id, Gesture::from_modifiers(pass.mods)) {
+                Outcome::Done => v.arrow_said = None,
+                Outcome::Refused(r) => {
+                    v.arrow_said = Some((sn.id, refusal_text(app.project(), sel, r)));
+                }
+                Outcome::ChooseKey(choices) => {
+                    crate::views::route_menu::open_key_choice(&ctx, owner, sel, sn.id, choices, at);
+                }
+                Outcome::NothingToKey => {
+                    crate::views::route_menu::open_nothing_to_key(&ctx, owner, sel, sn.id, at);
+                }
             }
         }
     }
 }
 
-/// The insert slots (Extra large): a loaded slot is a raised tile — its lamp (a click
-/// bypasses it), its name (a click opens its editor) and a drag moves it to another slot;
-/// an empty slot is a darker well (a click lists the effects to put in it). Right-click:
-/// the slot's menu. The master's slots are the same code (ADR 0026).
+/// Show a strip's (or, `None`, the master's) chain where it lives: the strip chosen and
+/// the inspector open (round 25: the inserts left the desk for it).
+pub(super) fn open_chain(app: &mut CantusApp, strip: Option<StripId>) {
+    match strip {
+        Some(id) => {
+            if app.selected_strip != Some(id) {
+                app.select_strip(id);
+            }
+        }
+        None => app.select_master(),
+    }
+    // Drawn inside the mixer's tab: the dock is checked out, so the request waits for
+    // it (a toggle here would change a placeholder and be lost).
+    app.show_pane(crate::views::workspace::Pane::Inspector);
+}
+
+/// The chain in one line (Extra large; round 25, the owner's answer 7): "EQ · Comp · +1"
+/// in a well, dimmed while the chain is switched out. A click opens the inspector at the
+/// strip, where the inserts live; an empty chain's "+ Effect" opens the effect picker.
+/// Right-click: the menu of the insert under the pointer (or the quick list to add one).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn inserts(
+pub(super) fn chain_row(
     v: &mut MixerView,
     app: &mut CantusApp,
     ui: &mut Ui,
@@ -235,152 +288,120 @@ pub(super) fn inserts(
     x: f32,
     bw: f32,
 ) {
-    let Some((a, _)) = pass.row(Row::Inserts) else {
+    let Some((a, z)) = pass.row(Row::Chain) else {
         return;
     };
     let s = pass.s;
     let t = &s.t;
-    let ctx = ui.ctx().clone();
-    let loaded = app.project().effects_of(sn.id).map_or(0, |e| e.len());
-    for k in 0..pass.fit.slots {
-        let y = a + 2.0 + k as f32 * layout::SLOT;
-        let r = Rect::from_min_max(pos2(x + 3.0, y), pos2(x + bw - 3.0, y + layout::SLOT - 2.0));
-        let resp = sense(
-            ui,
-            pass,
-            r,
-            pid(Some(sn.id), Part::Slot(k as u8)),
-            if k < loaded {
-                Sense::click_and_drag()
-            } else {
-                Sense::click()
-            },
-        );
-        let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-        // Through the resolver, so the master's slots are the same code (ADR 0026).
-        let slot = app.project().effects_of(sn.id).and_then(|e| e.get(k));
-        b.register(r, "insert_slot", SLOT_TOKENS, &[]);
-        let Some(slot) = slot else {
-            let base = shade(t.well, if t.dark { -0.05 } else { -0.03 });
-            light::sunken(
-                b,
-                r,
-                s.r(2.0),
-                if hovered { shade(base, 0.03) } else { base },
-                1.0,
-                t.depth,
-            );
-            if let Some(resp) = resp {
-                if hovered {
-                    hint::set_text(&ctx, &v.words.slot_empty, "", Caps::NONE);
-                }
-                let add = crate::picker::PickPurpose::AddEffect { strip: sn.id };
-                crate::views::device_chrome::drop_target(app, ui, &resp, add);
-                let resp = resp.on_hover_text(&v.words.slot_empty);
-                // Round 20: a click opens the device picker on the effects; a right-click,
-                // the quick list.
-                if resp.clicked() {
-                    app.open_picker(crate::picker::PickPurpose::AddEffect { strip: sn.id });
-                } else if resp.secondary_clicked() {
-                    v.popups
-                        .open(Menu::AddEffect(sn.id), pos2(r.left(), r.bottom()));
-                }
-            }
-            continue;
-        };
-        let (effect, bypass) = (slot.id, slot.bypass);
-        let base = shade(t.panel_raised, if hovered { 0.03 } else { 0.0 });
-        light::raised(
-            b,
-            r,
-            s.r(2.0),
-            base,
-            light::RaisedOpts {
-                drop: false,
-                depth: t.depth,
-                ..Default::default()
-            },
-        );
-        let lc = pos2(r.left() + 7.0, r.center().y);
-        crate::kit::led::paint(b, lc, s.s(7.0), !bypass, s, Tok::Led, Tok::PanelRaised, 1.0);
-        let nr = Rect::from_min_max(pos2(lc.x + 6.0, r.top()), pos2(r.right() - 3.0, r.bottom()));
-        let ink = if bypass {
-            with_alpha(t.text, 0.5)
-        } else {
+    let master = sn.id.is_master();
+    let r = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, z));
+    let id = if master { None } else { Some(sn.id) };
+    let resp = sense(ui, pass, r, pid(id, Part::Chain), Sense::click());
+    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
+    b.register(r, "chain_line", CHAIN_TOKENS, &[]);
+    let base = shade(t.well, if t.dark { -0.04 } else { -0.02 });
+    light::sunken(
+        b,
+        b.snap_rect(r),
+        s.r(2.0),
+        if hovered { shade(base, 0.04) } else { base },
+        1.0,
+        t.depth,
+    );
+    let line = v.desk.chain(if master { None } else { Some(sn.index) });
+    let empty = line.is_empty();
+    let inner = r.shrink2(vec2(4.0, 0.0));
+    if empty {
+        // An icon, not a word forty times across the desk: the hint bar says it.
+        let ink = with_alpha(t.text_dim, if hovered { 0.9 } else { 0.45 });
+        let g = Rect::from_center_size(r.center(), vec2(9.0, 9.0));
+        glyph::paint(b, g, Glyph::Plus, ink);
+    } else {
+        let ink = if sn.fx_on {
             t.text
+        } else {
+            with_alpha(t.text, 0.5)
         };
-        let tt = match slot.spec.external.as_deref() {
-            Some(p) => Text::new(&p.name, Role::Label, ink),
-            None => Text::key(slot.spec.kind.name_key(), Role::Label, ink),
-        }
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-        let _ = text::paint(b, nr, &tt, s.tk());
-        let Some(resp) = resp else {
-            continue;
+        let tt = Text::new(line, Role::Label, ink)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let _ = text::paint(b, inner, &tt, s.tk() * super::desk::CHAIN_TEXT);
+    }
+    let Some(resp) = resp else {
+        return;
+    };
+    if hovered {
+        let tip = if empty {
+            &v.words.chain_empty
+        } else {
+            &v.words.chain
         };
-        let swap = crate::picker::PickPurpose::ReplaceEffect {
-            strip: sn.id,
-            effect,
-        };
-        crate::views::device_chrome::drop_target(app, ui, &resp, swap);
-        if hovered {
-            hint::set_text(
-                &ctx,
-                &v.words.slot,
-                "",
-                Caps {
-                    menu: true,
-                    ..Caps::NONE
-                },
-            );
-        }
-        let on_lamp = resp
-            .interact_pointer_pos()
-            .is_some_and(|p| p.x < lc.x + 6.0);
-        if resp.drag_started() {
-            v.slot_drag = Some((sn.id, effect, k));
-        }
-        // Round 20: the swap badge at the slot's right end while the pointer is on it.
-        let purpose = crate::picker::PickPurpose::ReplaceEffect {
-            strip: sn.id,
-            effect,
-        };
-        let swapped = crate::views::device_chrome::swap_badge(
-            app,
-            ui,
-            b,
-            r,
-            ui.id().with(("slot-swap", effect.0)),
-            1.0,
-            purpose,
-            "swap.tip.effect",
+        hint::set_text(
+            ui.ctx(),
+            tip,
+            line,
+            Caps {
+                menu: true,
+                ..Caps::NONE
+            },
         );
-        let resp = resp.on_hover_text(&v.words.slot);
-        if swapped {
-            // The badge took the click: the picker is open.
-        } else if resp.secondary_clicked() {
-            let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
-            v.popups.open(Menu::Slot(sn.id, effect), at);
-        } else if resp.clicked() {
-            if on_lamp {
-                app.exec(Command::SetEffectBypass {
-                    strip: sn.id,
-                    effect,
-                    bypass: !bypass,
-                });
-            } else {
-                app.open_effect_editor(sn.id, effect);
-            }
+    }
+    if resp.clicked() {
+        if empty {
+            open_chain(app, id);
+            app.open_picker(crate::picker::PickPurpose::AddEffect { strip: sn.id });
+        } else {
+            open_chain(app, id);
         }
     }
-    slot_drop(v, app, ui, b, pass, sn, x, bw, a, loaded);
+    if resp.secondary_clicked() {
+        let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
+        let menu = match chain_effect_at(app, ui, s, sn.id, inner, at.x) {
+            Some(fx) => Menu::Slot(sn.id, fx),
+            None => Menu::AddEffect(sn.id),
+        };
+        v.popups.open(menu, at);
+    }
 }
 
-/// A slot being dragged on this strip: a line in the selection colour where it would
-/// land, and the move when the button is let go.
+/// The insert whose name in the chain line is under `x` (built on a right-click only:
+/// it measures the names it shows).
+fn chain_effect_at(
+    app: &CantusApp,
+    ui: &Ui,
+    s: &crate::kit::Style,
+    strip: StripId,
+    inner: Rect,
+    x: f32,
+) -> Option<cantus_core::EffectId> {
+    let effects = app.project().effects_of(strip)?;
+    let mut left = inner.left();
+    let sep = text::measure(
+        ui.ctx(),
+        &Text::new(super::desk::CHAIN_SEP, Role::Label, s.t.text),
+        s.tk() * super::desk::CHAIN_TEXT,
+    )
+    .x;
+    for e in effects.iter().take(2) {
+        let name = super::desk::short_name(e);
+        let w = text::measure(
+            ui.ctx(),
+            &Text::new(&name, Role::Label, s.t.text),
+            s.tk() * super::desk::CHAIN_TEXT,
+        )
+        .x;
+        if x < left + w + sep * 0.5 {
+            return Some(e.id);
+        }
+        left += w + sep;
+    }
+    None
+}
+
+/// Where the strip's output goes (Wide and up): a menu-field chip "→ 12 Bus" ("→ M" for
+/// the master); a click lists every destination. The master's own output is the device.
 #[allow(clippy::too_many_arguments)]
-fn slot_drop(
+pub(super) fn output_row(
     v: &mut MixerView,
     app: &mut CantusApp,
     ui: &mut Ui,
@@ -389,38 +410,335 @@ fn slot_drop(
     sn: &Snap,
     x: f32,
     bw: f32,
-    top: f32,
-    loaded: usize,
 ) {
-    let Some((strip, effect, from)) = v.slot_drag else {
+    let Some((a, z)) = pass.row(Row::Output) else {
         return;
     };
-    if strip != sn.id || loaded == 0 {
+    if sn.id.is_master() {
         return;
     }
-    let Some(p) = ui.ctx().pointer_interact_pos() else {
+    let s = pass.s;
+    let r = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, z));
+    let resp = sense(ui, pass, r, pid(Some(sn.id), Part::Output), Sense::click());
+    let open = v.popups.is_open(Menu::Route(sn.id));
+    let st = resp.as_ref().map_or(State::REST, |r| State::of(r, open));
+    v.buf.clear();
+    v.buf.push_str("\u{2192} ");
+    let p = app.project();
+    match sn.output.and_then(|o| p.strip_index(o)) {
+        Some(i) => {
+            let _ = write!(v.buf, "{}", i + 1);
+            if pass.mode() == WidthMode::Xl {
+                let name = v.desk.name(app, i);
+                if !name.is_empty() {
+                    v.buf.push(' ');
+                    v.buf.push_str(name);
+                }
+            }
+        }
+        None => v.buf.push('M'),
+    }
+    // A chip, not a menu field: its ▾ would leave no room for "→ 12" on a Wide strip.
+    crate::kit::well::paint(b, r, s, st, None);
+    let ink = if sn.output.is_some() {
+        s.t.text
+    } else {
+        s.t.text_dim
+    };
+    let tt = Text::new(&v.buf, Role::Label, ink)
+        .align(Align2::CENTER_CENTER)
+        .policy(Policy::Elide(Elide::End));
+    let _ = text::paint(b, r.shrink2(vec2(3.0, 0.0)), &tt, s.tk() * 0.92);
+    let Some(resp) = resp else {
         return;
     };
-    let row = ((p.y - top - 2.0) / layout::SLOT).floor().max(0.0) as usize;
-    let to = row.min(loaded - 1);
-    if to != from {
-        // Above the slot it lands on when moving up, below it when moving down.
-        let k = if to > from { to + 1 } else { to };
-        let y = top + 1.0 + k as f32 * layout::SLOT;
-        let r = Rect::from_min_max(pos2(x + 3.0, y - 1.0), pos2(x + bw - 3.0, y + 1.0));
-        b.rect(r, Fill::Solid(pass.s.t.selection));
+    if st.hovered {
+        hint::set_text(
+            ui.ctx(),
+            &v.words.output,
+            &v.buf,
+            Caps {
+                menu: true,
+                ..Caps::NONE
+            },
+        );
     }
-    if !ui.input(|i| i.pointer.any_down()) {
-        v.slot_drag = None;
-        if to != from {
-            app.exec(Command::MoveEffect {
-                strip,
-                effect,
-                index: to,
-            });
+    if resp.clicked() || resp.secondary_clicked() {
+        v.popups
+            .open(Menu::Route(sn.id), pos2(r.left(), r.bottom()));
+    }
+}
+
+/// The strip's own sends (Extra large; design §4.5): one row each — its switch, the
+/// destination's number and name, the `POST | PRE` switch (answer 4) and the level as a
+/// bar along the row's foot. Drag on a row: the level (the house rules; double-click is
+/// 0 dB); a click on the name selects the destination; right-click: the route's menu. A
+/// doubled signal (answer 5) carries the warning mark. The row after the last send is
+/// "+ Send" (a click lists the destinations; a drag from it makes a cable), and a strip
+/// with more sends than rows ends in "+n", which opens the inspector.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn send_list(
+    v: &mut MixerView,
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    b: &mut Brush,
+    pass: &mut Pass,
+    sn: &Snap,
+    x: f32,
+    bw: f32,
+) {
+    let Some((a, _)) = pass.row(Row::SendList) else {
+        return;
+    };
+    if sn.id.is_master() {
+        return;
+    }
+    let s = pass.s;
+    let t = &s.t;
+    let rows = pass.fit.send_rows;
+    let count = app.project().strip(sn.id).map_or(0, |st| st.sends.len());
+    // Every row but the last holds a send; the last holds a send only when it is the
+    // strip's last, else "+ Send" or "+n".
+    let shown = if count > rows { rows - 1 } else { count };
+    for k in 0..rows {
+        let y = a + 1.0 + k as f32 * layout::SEND_ROW;
+        let r = Rect::from_min_max(
+            pos2(x + 2.0, y),
+            pos2(x + bw - 2.0, y + layout::SEND_ROW - 1.0),
+        );
+        if k < shown {
+            let Some(send) = app
+                .project()
+                .strip(sn.id)
+                .and_then(|st| st.sends.get(k))
+                .copied()
+            else {
+                continue;
+            };
+            send_row(v, app, ui, b, pass, sn, k, send, r);
+        } else if k == shown && count > rows {
+            v.buf.clear();
+            let _ = write!(v.buf, "+{}", count - shown);
+            let resp = sense(ui, pass, r, pid(Some(sn.id), Part::SendAdd), Sense::click());
+            let hovered = resp.as_ref().is_some_and(|r| r.hovered());
+            let ink = if hovered { t.text } else { t.text_dim };
+            let tt = Text::new(&v.buf, Role::Label, ink).align(Align2::CENTER_CENTER);
+            let _ = text::paint(b, r, &tt, s.tk() * 0.9);
+            if let Some(resp) = resp {
+                if hovered {
+                    hint::set_text(ui.ctx(), &v.words.send_more, &v.buf, Caps::NONE);
+                }
+                if resp.clicked() {
+                    open_chain(app, Some(sn.id));
+                }
+            }
+        } else if k == shown && count < cantus_core::MAX_SENDS {
+            send_add(v, app, ui, b, pass, sn, r);
         }
     }
 }
+
+/// One send row of [`send_list`].
+#[allow(clippy::too_many_arguments)]
+fn send_row(
+    v: &mut MixerView,
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    b: &mut Brush,
+    pass: &mut Pass,
+    sn: &Snap,
+    k: usize,
+    send: Send,
+    r: Rect,
+) {
+    let s = pass.s;
+    let t = &s.t;
+    let ctx = ui.ctx().clone();
+    let id = pid(Some(sn.id), Part::SendRow(k as u8));
+    let resp = sense(ui, pass, r, id, Sense::click_and_drag());
+    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
+    b.register(r, "send_row", SEND_TOKENS, &[Some(Tok::HueSpace)]);
+    if hovered || resp.as_ref().is_some_and(|r| r.dragged()) {
+        b.rrect(r, s.r(2.0), Fill::Solid(with_alpha(t.text, 0.06)));
+    }
+    // The switch.
+    let lc = pos2(r.left() + 5.0, r.center().y - 0.5);
+    let lamp_r = Rect::from_center_size(lc, vec2(10.0, r.height()));
+    crate::kit::led::paint(b, lc, s.s(7.0), send.enabled, s, Tok::Led, Tok::Strip, 1.0);
+    // The tap at the right: one chip sized to its word ("PRE" lit, "POST" dim; a click
+    // switches it), so the word is never cut to fit two segments.
+    let tap_k = s.tk() * 0.88;
+    let tap_w = crate::kit::tap::chip_width(&ctx, s, send.tap, tap_k);
+    let tap_r = Rect::from_min_max(
+        pos2(r.right() - tap_w, r.top() + 1.0),
+        pos2(r.right(), r.bottom() - 3.0),
+    );
+    let doubled = v.desk.send_doubled(sn.index, k);
+    // The destination: its name, or its number when it has none (both are in the hint
+    // bar; a 76-pt strip has room for one).
+    let p = app.project();
+    let to = p.strip_index(send.to);
+    v.buf.clear();
+    if let Some(i) = to {
+        let name = v.desk.name(app, i);
+        if name.is_empty() {
+            let _ = write!(v.buf, "{}", i + 1);
+        } else {
+            v.buf.push_str(name);
+        }
+    }
+    let mut nr = Rect::from_min_max(
+        pos2(lc.x + 6.0, r.top()),
+        pos2(tap_r.left() - 2.0, r.bottom() - 2.0),
+    );
+    if doubled {
+        let dc = pos2(nr.right() - 4.0, nr.center().y);
+        super::cables::doubled_mark_small(b, s, dc);
+        nr.max.x -= 9.0;
+    }
+    let ink = if send.enabled {
+        t.text
+    } else {
+        with_alpha(t.text, 0.5)
+    };
+    let tt = Text::new(&v.buf, Role::Label, ink)
+        .align(Align2::LEFT_CENTER)
+        .policy(Policy::Elide(Elide::End));
+    let _ = text::paint(b, nr, &tt, s.tk() * 0.88);
+    // The level, along the foot, in the space hue (sends are space).
+    let foot = Rect::from_min_max(
+        pos2(nr.left(), r.bottom() - 2.0),
+        pos2(r.right(), r.bottom()),
+    );
+    let mut level = send.level.clamp(0.0, 1.0);
+    if let Some(resp) = &resp {
+        if let Some(p) = knob_input(v, ui, pass, resp, level, 1.0) {
+            level = p;
+            app.set_strip_send(sn.id, Send { level: p, ..send });
+        }
+        if resp.drag_stopped() {
+            app.end_gesture();
+        }
+    }
+    let fb = b.snap_rect(foot);
+    b.rect(fb, Fill::Solid(with_alpha(t.text_dim, 0.18)));
+    if level > 0.0 {
+        let lit = Rect::from_min_max(fb.min, pos2(fb.left() + fb.width() * level, fb.bottom()));
+        let c = if send.enabled {
+            t.hue_space
+        } else {
+            with_alpha(t.hue_space, 0.45)
+        };
+        b.rect(b.snap_rect(lit), Fill::Solid(c));
+    }
+    if let Some(tap) =
+        crate::kit::tap::chip(ui, b, s, tap_r, pass.clip, id.with("tap"), send.tap, tap_k)
+    {
+        app.set_send_tap(sn.id, send.to, tap);
+    }
+    let Some(resp) = resp else {
+        return;
+    };
+    let on_lamp = resp
+        .interact_pointer_pos()
+        .is_some_and(|p| lamp_r.contains(p));
+    if hovered || resp.dragged() {
+        let name = v.buf.as_str();
+        let tap = if send.tap.is_post() {
+            &v.words.tap[0]
+        } else {
+            &v.words.tap[1]
+        };
+        hint::set(&ctx, &v.words.send_row, Caps::PARAM, resp.dragged(), |w| {
+            write!(w, "{name} \u{b7} ")?;
+            write_level(w, level);
+            write!(w, " \u{b7} {tap}")
+        });
+    }
+    if resp.double_clicked() {
+        // knob_input took it: 0 dB.
+    } else if resp.clicked() {
+        if on_lamp {
+            app.set_strip_send(
+                sn.id,
+                Send {
+                    enabled: !send.enabled,
+                    ..send
+                },
+            );
+            app.end_gesture();
+        } else if to.is_some() {
+            app.select_strip(send.to);
+        }
+    }
+    if resp.secondary_clicked() {
+        let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
+        let route = cantus_core::routing::Route::send(sn.id, send.to);
+        crate::views::route_menu::open(&ctx, super::route_owner(), route, at);
+    }
+    if doubled && hovered {
+        let p = app.project();
+        if let Some(text) = crate::routing_actions::doubled_text(p, sn.id, send.to) {
+            let _ = resp.on_hover_text(text);
+        }
+    }
+}
+
+/// "−6.0 dB" for a linear send level, written without allocating.
+pub(super) fn write_level(w: &mut String, level: f32) {
+    if level <= 0.0 {
+        w.push_str("\u{2212}\u{221e} dB");
+    } else {
+        write_db(w, cantus_core::linear_to_db(level), true);
+    }
+}
+
+/// The "+ Send" row: a click lists the destinations (with *New return ▸*), a drag from
+/// it makes a cable (as from the strip's port).
+#[allow(clippy::too_many_arguments)]
+fn send_add(
+    v: &mut MixerView,
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    b: &mut Brush,
+    pass: &mut Pass,
+    sn: &Snap,
+    r: Rect,
+) {
+    let s = pass.s;
+    let t = &s.t;
+    let resp = sense(
+        ui,
+        pass,
+        r,
+        pid(Some(sn.id), Part::SendAdd),
+        Sense::click_and_drag(),
+    );
+    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
+    let ink = with_alpha(t.text_dim, if hovered { 0.9 } else { 0.45 });
+    b.rrect_stroke(
+        b.snap_rect(r.shrink(1.0)),
+        s.r(2.0),
+        b.px(),
+        with_alpha(t.text_dim, if hovered { 0.7 } else { 0.25 }),
+    );
+    let g = Rect::from_center_size(r.center(), vec2(8.0, 8.0));
+    glyph::paint(b, g, Glyph::Plus, ink);
+    let Some(resp) = resp else {
+        return;
+    };
+    super::drag::source(v, app, ui, &resp, super::drag::Source::Port(sn.id));
+    if hovered {
+        hint::set_text(ui.ctx(), &v.words.send_add, "", Caps::NONE);
+    }
+    if resp.clicked() {
+        let at = pos2(r.left(), r.bottom());
+        crate::views::route_menu::open_add_send(ui.ctx(), super::route_owner(), sn.id, at);
+    }
+}
+
+const CHAIN_TOKENS: &[Tok] = &[Tok::Well, Tok::Text, Tok::TextDim];
+const SEND_TOKENS: &[Tok] = &[Tok::Led, Tok::Text, Tok::TextDim];
 
 /// The master: a strip like the others, with a stereo meter, a balance (the pan law does
 /// not apply to it, ADR 0012), no mute, solo, swap, EQ or sends — its sends row holds the
@@ -453,6 +771,8 @@ pub(super) fn master(
     }
     let body = pass.body(x, bw);
     b.rect(b.snap_rect(body), Fill::Solid(t.strip));
+    let target = super::drag::target(v, app, ui, None, body);
+    super::cables::column_hatch(b, s, body, target);
     // The master is chosen like a strip (ADR 0026): a click on its number or name shows
     // its chain in the inspector, a right-click is its menu.
     let chosen = crate::views::inspector::subject(app) == crate::views::inspector::Subject::Master;
@@ -682,26 +1002,43 @@ pub(super) fn master(
     }
     let sn = Snap::master(&m);
     fx_rec(v, app, ui, b, pass, &sn, cx, CaptureTarget::Master);
-    // Its insert slots, the same code as a strip's (ADR 0026).
-    inserts(v, app, ui, b, pass, &sn, x, bw);
-    // The pan law.
-    if let Some(sy) = pass.mid(Row::Sends) {
+    // Its chain in one line (Extra large), as a strip's (ADR 0026; round 25).
+    chain_row(v, app, ui, b, pass, &sn, x, bw);
+    // The pan law: in the output chip's row from Wide up (the master's output is the
+    // device), else in FL's send row.
+    if let Some(sy) = pass.mid(Row::Output).or(pass.mid(Row::Sends)) {
         let law = app.project().pan_law;
         let r = Rect::from_center_size(pos2(cx, sy), vec2(bw - 6.0, 16.0));
         let resp = sense(ui, pass, r, pid(None, Part::Send), Sense::click());
         let open = v.popups.is_open(Menu::PanLaw);
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, open));
         crate::kit::well::paint(b, r, s, st, None);
-        let tt = Text::new(law.id(), Role::Micro, t.text)
+        // "−3 dB law" — never a bare number under OUTPUT; "−3 dB" where that is all that
+        // fits (Compact's narrow master).
+        for template in [&v.words.pan_law_chip, &v.words.pan_law_short] {
+            v.buf.clear();
+            let (before, after) = template.split_once("{law}").unwrap_or((template, ""));
+            v.buf.push_str(before);
+            for ch in law.id().chars() {
+                v.buf.push(if ch == '-' { '\u{2212}' } else { ch });
+            }
+            v.buf.push_str(after);
+            let tt = Text::new(&v.buf, Role::Micro, t.text).caps(false);
+            if text::measure(&ctx, &tt, s.tk()).x <= r.width() - 6.0 {
+                break;
+            }
+        }
+        let tt = Text::new(&v.buf, Role::Micro, t.text)
             .caps(false)
-            .align(Align2::CENTER_CENTER);
-        let _ = text::paint(b, r, &tt, s.tk());
+            .align(Align2::CENTER_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let _ = text::paint(b, r.shrink2(vec2(3.0, 0.0)), &tt, s.tk());
         if let Some(resp) = resp {
             if resp.hovered() {
                 hint::set_text(
                     &ctx,
                     &v.words.pan_law,
-                    law.id(),
+                    &v.buf,
                     Caps {
                         menu: true,
                         ..Caps::NONE
@@ -815,6 +1152,10 @@ pub(super) fn separator(
         }
     }
     let resp = resp.on_hover_text(&v.words.group);
+    // The separator drags the whole group, and is a drop target (round 25).
+    super::drag::source(v, app, ui, &resp, super::drag::Source::Group(gid));
+    let target = super::drag::target_group(v, app, ui, gid, body);
+    super::cables::column_hatch(b, s, body, target);
     if resp.double_clicked() {
         v.begin_group_rename(app, gid);
     } else if resp.clicked() {
@@ -830,7 +1171,6 @@ pub(super) fn separator(
 }
 
 const SEPARATOR_TOKENS: &[Tok] = &[Tok::Strip];
-const SLOT_TOKENS: &[Tok] = &[Tok::Well, Tok::PanelRaised, Tok::Text];
 const ADD_TOKENS: &[Tok] = &[Tok::Text, Tok::TextDim];
 
 /// The `+` after the last strip of the middle (FL 2025's add-a-track slot).

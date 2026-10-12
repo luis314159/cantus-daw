@@ -48,6 +48,9 @@ pub enum Pane {
     Devices,
     /// The sample browser (ADR 0030): FL's browser, at the left.
     Browser,
+    /// The Routing tab: the routing graph as a matrix (round 25, `views::routing`), in the
+    /// lower zone beside the mixer; Alt+F9.
+    Routing,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -73,6 +76,7 @@ impl Pane {
             Pane::Inspector => "workspace.pane.inspector",
             Pane::Devices => "picker.panel.title",
             Pane::Browser => "samples.title",
+            Pane::Routing => "matrix.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -87,6 +91,7 @@ impl Pane {
             Pane::Inspector => "workspace.toggle.inspector",
             Pane::Devices => "picker.menu.view_devices",
             Pane::Browser => "samples.toggle",
+            Pane::Routing => "matrix.toggle",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -100,14 +105,18 @@ impl Pane {
             Pane::Inspector => Glyph::Inspector,
             Pane::Devices => Glyph::Browser,
             Pane::Browser => Glyph::Browser,
+            Pane::Routing => Glyph::Send,
             Pane::Device(_) => Glyph::Device,
         }
     }
 
     /// Whether it belongs in the lower zone: the three editors that used to take turns in
-    /// the centre of the window.
+    /// the centre of the window, and the Routing tab beside the mixer.
     pub fn is_lower(self) -> bool {
-        matches!(self, Pane::PianoRoll | Pane::ChannelRack | Pane::Mixer)
+        matches!(
+            self,
+            Pane::PianoRoll | Pane::ChannelRack | Pane::Mixer | Pane::Routing
+        )
     }
 
     /// The legacy central view this pane is, if it is one.

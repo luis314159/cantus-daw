@@ -1,0 +1,41 @@
+# matrix — round 25: the Routing tab's matrix, and the pre-fader engine's and the
+# inspector's POST | PRE strings (ADR 0041). Owned by the matrix builder (D+F).
+# Every key here needs its twin in matrix.es.txt.
+action.view-routing = Show or hide the routing matrix
+matrix.pane = Routing
+matrix.toggle = Show or hide the routing matrix (Alt+F9)
+matrix.title = Routing
+matrix.summary = {strips} strips · {routes} routes
+matrix.hidden = {n} hidden
+matrix.filter.all = All
+matrix.filter.in_use = In use
+matrix.filter.hint = All strips, or only those in use: routed somewhere other than the master, or fed by something
+matrix.from = From ↓
+matrix.to = To →
+matrix.tracks = Tracks
+matrix.master_short = M
+matrix.head.hint = Click: select it (the mixer and the inspector follow)
+matrix.keys = Arrows: move · Enter: send · Ctrl+Enter: output · Alt+Enter: key · + / −: level · Delete: remove · Esc: leave
+matrix.cell.pair = {from} → {to}
+matrix.cell.empty = Click: send · Ctrl+click: route the output here · Alt+click: key a sidechain
+matrix.cell.empty_output = Ctrl+click: this becomes the only output
+matrix.cell.empty_key = Alt+click: key a sidechain from this strip
+matrix.cell.master_empty = Click: route the output to the master
+matrix.cell.master_output = The output goes to the master
+matrix.cell.output = Output · Right-click: the route menu · Alt+click: key a sidechain
+matrix.cell.send = Send, {tap}
+matrix.cell.send_do = Drag: level · Double-click: 0 dB · Ctrl+click: make it the output · Shift+drag: fine · Ctrl+drag: copy along the column · Right-click: the route menu
+matrix.cell.keys = keys {n} insert(s) here
+matrix.cell.track_on = The track plays into this strip
+matrix.cell.track_off = Click: the track plays into this strip
+matrix.cell.notes = notes into {n} insert(s)
+matrix.copy = Release: copy the send to {n} strip(s)
+matrix.key_menu.title = Key which insert?
+matrix.key_menu.none = Nothing here takes a key
+matrix.key_menu.duck = Add a ducking compressor keyed from {from}
+matrix.key_menu.gate = Add a gate keyed from {from}
+cmd.copy_send = copy send along a column
+matrix.tap.post.name = Post-fader send
+matrix.tap.post.hint = Taken after the fader and the pan: the send follows the fader. Click PRE to take it before them
+matrix.tap.pre.name = Pre-fader send
+matrix.tap.pre.hint = Taken before the fader and the pan: the send keeps its level when the fader moves; mute still silences it. Click POST to take it after them

@@ -236,10 +236,18 @@ fn session(seed: u64) -> Project {
             }
             let to = higher[rng.range(0, higher.len() - 1)];
             if !s.sends.iter().any(|x| x.to == to) && s.output != Some(to) {
+                // Both taps (round 25): a pre-fader send reads the pair before the
+                // fader, or a copy of it when automation rides the fader.
+                let tap = if rng.chance(0.4) {
+                    SendTap::Pre
+                } else {
+                    SendTap::Post
+                };
                 s.sends.push(Send {
                     to,
                     level: rng.unit(),
                     enabled: true,
+                    tap,
                 });
             }
         }

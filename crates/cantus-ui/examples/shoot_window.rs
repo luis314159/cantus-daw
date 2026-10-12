@@ -1,8 +1,9 @@
 //! The whole window, rendered headless (ADR 0024 §14; `research/ui/cantus-audit.md`,
-//! Appendix A): the application as it opens — toolbar, workspace, status bar — in Slate
-//! and in Paper, at 1280 × 720 and 1920 × 1080, plus the cases the look must survive: the
-//! interface at 75 % and 200 %, Spanish, the appearance page, each editor in front, and the
-//! splash.
+//! Appendix A): the application as it opens — toolbar, workspace, status bar — in Cantus
+//! Night and Cantus Paper (the defaults, ADR 0046), at 1280 × 720 and 1920 × 1080, plus the
+//! cases the look must survive: the interface at 75 % and 200 %, Spanish, the appearance
+//! page, each editor in front, and the splash; and every other shipped theme at 1280 × 720,
+//! at 75 %, 100 % and 200 %, in English and Spanish, with its Themes page.
 //!
 //! `cargo run -p cantus-ui --example shoot_window [-- out_dir [case…]]`
 //!
@@ -19,6 +20,8 @@ use std::path::{Path, PathBuf};
 
 struct Case {
     name: &'static str,
+    /// The shipped theme (`kit::appearance::PRESETS` id) and the mode it is shown in.
+    preset: &'static str,
     dark: bool,
     size: (f32, f32),
     zoom: f32,
@@ -58,10 +61,14 @@ fn no_inspector(a: &mut CantusApp) {
 
 fn cases() -> Vec<Case> {
     let mut v = Vec::new();
-    for (theme, dark) in [("slate", true), ("paper", false)] {
+    for (theme, preset, dark) in [
+        ("cantus_night", "cantus_night", true),
+        ("cantus_paper", "cantus_paper", false),
+    ] {
         for size in [(1280.0, 720.0), (1920.0, 1080.0)] {
             v.push(Case {
                 name: theme,
+                preset,
                 dark,
                 size,
                 zoom: 1.0,
@@ -84,6 +91,33 @@ fn cases() -> Vec<Case> {
         for (name, zoom, locale, setup) in extra {
             v.push(Case {
                 name: Box::leak(format!("{theme}-{name}").into_boxed_str()),
+                preset,
+                dark,
+                size: (1280.0, 720.0),
+                zoom,
+                locale,
+                setup,
+            });
+        }
+    }
+    // Every other shipped theme: as it opens, its Themes page, both languages, three zooms.
+    for (preset, make) in cantus_ui::kit::appearance::PRESETS {
+        if preset == "cantus_night" || preset == "cantus_paper" {
+            continue;
+        }
+        let dark = make().dark;
+        let extra: [Extra; 6] = [
+            ("main", 1.0, Locale::En, nothing),
+            ("themes", 1.0, Locale::En, appearance_themes),
+            ("pianoroll", 1.0, Locale::En, piano_roll),
+            ("es", 1.0, Locale::Es, appearance_themes),
+            ("z75", 0.75, Locale::En, nothing),
+            ("z200", 2.0, Locale::En, nothing),
+        ];
+        for (name, zoom, locale, setup) in extra {
+            v.push(Case {
+                name: Box::leak(format!("{preset}-{name}").into_boxed_str()),
+                preset,
                 dark,
                 size: (1280.0, 720.0),
                 zoom,
@@ -108,6 +142,9 @@ fn shoot(dir: &Path, case: &Case) {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if case.dark { Mode::Dark } else { Mode::Light };
+    let mode = app.appearance.mode;
+    app.appearance
+        .assign(mode, format!("preset:{}", case.preset));
     app.attach(&ctx);
     // A strip is selected, as after a click on the desk.
     if let Some(strip) = app.project().tracks.get(1).and_then(|t| t.strip) {

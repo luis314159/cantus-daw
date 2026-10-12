@@ -171,6 +171,9 @@ pub(super) fn title(
     }
     x = kr.right() + 10.0;
 
+    // The cable view (round 25): none, the selection's, all.
+    x = cable_view(v, ui, b, s, r, x);
+
     // Takes: the one running, or the list of those made.
     x = takes(v, app, ui, b, s, r, x);
 
@@ -187,6 +190,7 @@ pub(super) fn title(
             s,
             r,
             right,
+            x,
             "mixer.solo_off",
             Tok::Highlight,
             true,
@@ -201,6 +205,7 @@ pub(super) fn title(
             s,
             r,
             right,
+            x,
             "mixer.unmute_all",
             Tok::Led,
             false,
@@ -231,6 +236,7 @@ fn led_key(
     s: &Style,
     r: Rect,
     right: f32,
+    left: f32,
     label: &'static str,
     hue: Tok,
     solo: bool,
@@ -245,6 +251,10 @@ fn led_key(
         pos2(right - w, r.center().y - 10.0),
         pos2(right, r.center().y + 10.0),
     );
+    // No room left of the title: the key gives way (the desk's menu has it too).
+    if kr.left() < left + 6.0 {
+        return right;
+    }
     let resp = key(ui, kr, label);
     led::button(
         b,
@@ -547,6 +557,7 @@ pub(super) fn legend(
         }
     }
     ratio_handle(v, ui, b, s, geo, fit);
+    band_handle(v, ui, b, s, geo, fit);
 }
 
 /// FL's 3-dot handle between the meter and the fader: drag to move height between them,
@@ -632,7 +643,8 @@ pub(super) fn wheel(v: &mut MixerView, app: &mut CantusApp, ui: &mut Ui, geo: &G
         || row_at(Row::Pan)
         || row_at(Row::Width)
         || row_at(Row::Eq)
-        || row_at(Row::Sends);
+        || row_at(Row::Sends)
+        || row_at(Row::SendList);
     let in_legend = geo.legend.contains(p);
     let used;
     if mods.command {
@@ -662,7 +674,8 @@ pub(super) fn wheel(v: &mut MixerView, app: &mut CantusApp, ui: &mut Ui, geo: &G
         }
         used = true;
     } else {
-        let head = row_at(Row::Number) || row_at(Row::Name) || row_at(Row::Meter);
+        let head =
+            row_at(Row::Number) || row_at(Row::Name) || row_at(Row::Meter) || row_at(Row::Cables);
         let on_hbar = geo.hbar.expand(3.0).contains(p);
         if fit.scrolls && !head && !on_hbar {
             v.scroll_y -= smooth.y;
@@ -679,7 +692,7 @@ pub(super) fn wheel(v: &mut MixerView, app: &mut CantusApp, ui: &mut Ui, geo: &G
 }
 
 /// The strip under `p`, in any dock.
-fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus_core::StripId> {
+pub(super) fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus_core::StripId> {
     if !geo.rows.contains(p) {
         return None;
     }
@@ -704,5 +717,136 @@ fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus_core::Stri
         find(&v.desk.left, geo.left.left() + geo.master_w)
     } else {
         None
+    }
+}
+
+/// What the title row's right side needs: the window's title and the desk-wide keys
+/// that show (FL's "Mixer"; *Solo off*, *Unmute all*), so the left side gives way first.
+fn right_side_width(v: &MixerView, ui: &Ui, s: &Style) -> f32 {
+    let measure = |key: &'static str, role: Role, caps: bool| {
+        text::measure(ui.ctx(), &Text::key(key, role, s.t.text).caps(caps), s.tk()).x
+    };
+    let mut w = 10.0 + measure("kit.mixer.title", Role::Title, false) + 12.0 + 24.0;
+    if v.desk.any_solo {
+        w += measure("mixer.solo_off", Role::Label, true) + 36.0;
+    }
+    if v.desk.any_muted {
+        w += measure("mixer.unmute_all", Role::Label, true) + 36.0;
+    }
+    w
+}
+
+/// The title row's cable view (round 25, the owner's answer 1): the cables glyph and a
+/// three-way switch — *Off · Selected · All*, the selection's by default. Where the row
+/// has no room for the switch (a narrow desk, a large UI scale), the glyph alone is the
+/// key, and a click steps to the next view. Returns the new left edge.
+fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
+    let t = &s.t;
+    let cy = r.center().y;
+    let view = v.prefs.current.cables;
+    let lit = view != layout::CableView::Off;
+    let room = r.right() - x - right_side_width(v, ui, s);
+    if room < 190.0 {
+        let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
+        let resp = key(ui, kr, "cables");
+        let st = State::of(&resp, lit);
+        cap::toolbar_key(b, kr, s, st, cap::KeyFace::Text(""));
+        let ink = if lit {
+            t.highlight_glyph
+        } else if st.hovered {
+            t.text
+        } else {
+            t.text_dim
+        };
+        glyph::paint(b, kr.shrink(4.0), Glyph::Cables, ink);
+        if resp.hovered() {
+            let name = crate::i18n::t(view.key());
+            hint::set_text(ui.ctx(), &v.words.cable_view, &name, hint::Caps::NONE);
+        }
+        if resp.clicked() {
+            let mut p = v.prefs.current;
+            p.cables = layout::CableView::from_index((view.index() + 1) % 3);
+            v.prefs.set(p);
+        }
+        return kr.right() + 8.0;
+    }
+    let gr = Rect::from_min_size(pos2(x, cy - 8.0), vec2(16.0, 16.0));
+    glyph::paint(b, gr, Glyph::Cables, if lit { t.text } else { t.text_dim });
+    let labels = [
+        Src::Key(layout::CableView::Off.key()),
+        Src::Key(layout::CableView::Selected.key()),
+        Src::Key(layout::CableView::All.key()),
+    ];
+    let wr = Rect::from_min_size(pos2(gr.right() + 4.0, cy - 10.0), vec2(168.0, 20.0));
+    let resp = key(ui, gr.union(wr), "cables");
+    let hovered = resp
+        .hover_pos()
+        .and_then(|p| segmented::hit(wr, labels.len(), p.x));
+    if resp.clicked() {
+        if let Some(i) = hovered {
+            let mut p = v.prefs.current;
+            p.cables = layout::CableView::from_index(i);
+            v.prefs.set(p);
+        }
+    }
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), &v.words.cable_view, "", hint::Caps::NONE);
+    }
+    let _ = resp.on_hover_text(&v.words.cable_view);
+    segmented::paint(
+        b,
+        wr,
+        &s.hue_of(Tok::Highlight),
+        State::REST,
+        &labels,
+        view.index(),
+        hovered,
+    );
+    wr.right() + 10.0
+}
+
+/// The cable band's handle (round 25): a 3-dot grip at the top of its legend cell; drag
+/// to make the band taller or shorter (20 to 64 pt), double-click for the default.
+fn band_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
+    let Some((a, _)) = fit.row(Row::Cables) else {
+        return;
+    };
+    let y = geo.y0 + a + 5.0;
+    let hr = Rect::from_center_size(pos2(geo.legend.right() - 14.0, y), vec2(22.0, 10.0));
+    let resp = ui.interact(
+        hr.intersect(geo.rows),
+        Id::new("mixer-band-size"),
+        Sense::click_and_drag(),
+    );
+    let st = State::of(&resp, false);
+    if st.hovered || resp.dragged() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+        hint::set_text(ui.ctx(), &v.words.band, "", hint::Caps::NONE);
+    }
+    let mut p = v.prefs.current;
+    if resp.dragged() {
+        // The band is the bottom row: its top edge up makes it taller.
+        p.band = (p.band - resp.drag_delta().y).clamp(layout::BAND_MIN, layout::BAND_MAX);
+        v.prefs.current = p;
+    }
+    if resp.drag_stopped() {
+        v.prefs.set(p);
+        v.prefs.save();
+    }
+    if resp.double_clicked() {
+        p.band = layout::BAND;
+        v.prefs.set(p);
+    }
+    let dot = if st.hovered || st.active {
+        s.t.text
+    } else {
+        s.t.text_dim
+    };
+    for i in -1..=1 {
+        b.circle(
+            pos2(hr.center().x + i as f32 * 4.0, hr.center().y),
+            1.2,
+            Fill::Solid(dot),
+        );
     }
 }

@@ -22,6 +22,7 @@ fn undoing_the_removal_of_a_middle_send_puts_it_back_in_its_place() {
                     to: *to,
                     level: 0.2 + i as f32 * 0.2,
                     enabled: true,
+                    tap: cantus_core::SendTap::Post,
                 },
             },
             Origin::User,

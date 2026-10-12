@@ -42,10 +42,12 @@ pub enum Part {
     Splitter,
     Scrollbar,
     Menu,
+    /// A routing cable (round 25): every kind, faint, lit and selected.
+    Cable,
 }
 
 /// Every sheet, with the name its golden image carries.
-pub const PARTS: [(&str, Part); 22] = [
+pub const PARTS: [(&str, Part); 23] = [
     ("cap", Part::Cap),
     ("well", Part::Well),
     ("tile", Part::Tile),
@@ -68,6 +70,7 @@ pub const PARTS: [(&str, Part); 22] = [
     ("splitter", Part::Splitter),
     ("scrollbar", Part::Scrollbar),
     ("menu", Part::Menu),
+    ("cable", Part::Cable),
 ];
 
 /// The room one state of a part takes on its sheet.
@@ -91,6 +94,7 @@ pub fn slot(part: Part) -> Vec2 {
         Part::Splitter => Vec2::new(40.0, 80.0),
         Part::Scrollbar => Vec2::new(150.0, 24.0),
         Part::Menu => Vec2::new(210.0, 196.0),
+        Part::Cable => Vec2::new(150.0, 150.0),
     }
 }
 
@@ -110,6 +114,7 @@ pub fn ground_tok(part: Part) -> Tok {
         Part::Tile => Tok::PanelLight,
         Part::ToolbarKey => Tok::Toolbar,
         Part::Tab | Part::Splitter | Part::Scrollbar | Part::Menu | Part::SectionBand => Tok::Panel,
+        Part::Cable => Tok::Strip,
         Part::Card => Tok::DeviceGround,
         Part::Cap | Part::Led => Tok::Strip,
         _ => Tok::Deck,
@@ -389,6 +394,54 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
             );
             let hovered = (st.hovered || st.active).then_some(4);
             menu::paint(b, r, s, &items, hovered);
+        }
+        Part::Cable => cable_sheet(b, rect, s, st),
+    }
+}
+
+/// Every cable kind in one state, one under another, from a port at the left to one at
+/// the right: rest is *All* mode's faint cable, active the selected one (its halo),
+/// disabled a switched-off send, the others lit; the last row a doubled send.
+fn cable_sheet(b: &mut Brush, rect: Rect, s: &Style, st: State) {
+    use super::cable::{self, CableKind, CableLook};
+    let kinds = [
+        CableKind::Output,
+        CableKind::Send {
+            on: !st.disabled,
+            pre: false,
+        },
+        CableKind::Send {
+            on: !st.disabled,
+            pre: true,
+        },
+        CableKind::Key,
+        CableKind::Master,
+        CableKind::Send {
+            on: true,
+            pre: false,
+        },
+    ];
+    // On the desk a cable wears its strip's colour; here the space hue stands in for it.
+    let color = s.t.hue_space;
+    b.register(rect, "cable", &[], &[Some(Tok::HueSpace)]);
+    let rows = kinds.len() as f32;
+    let h = rect.height() / rows;
+    for (i, kind) in kinds.iter().enumerate() {
+        let y = rect.top() + 4.0 + i as f32 * h;
+        let (from, to) = (
+            Pos2::new(rect.left() + 10.0, y),
+            Pos2::new(rect.right() - 10.0 - i as f32 * 8.0, y),
+        );
+        let look = CableLook {
+            kind: *kind,
+            color,
+            lit: st.hovered || st.active || st.lit || st.focused || st.disabled,
+            selected: st.active,
+            doubled: i == kinds.len() - 1,
+        };
+        cable::paint(b, s, from, to, h - 7.0, &look);
+        for p in [from, to] {
+            b.circle_stroke(p, s.s(3.5), s.s(1.4), color);
         }
     }
 }

@@ -91,10 +91,11 @@ fn at_swap(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
 fn at_chip(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
     chrome::spot(ctx, Spot::Chip(a.project().tracks[1].id)).map(|r| r.center())
 }
-fn at_slot(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
+fn at_chain(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
+    // Round 25: the inserts left the desk; Extra large shows the chain in one line.
     use cantus_ui::views::mixer::{self, Control};
     let s = a.project().tracks[0].strip?;
-    mixer::control_rect(ctx, Some(s), Control::Slot(1)).map(|r| chrome::badge_rect(r, 1.0).center())
+    mixer::control_rect(ctx, Some(s), Control::Chain).map(|r| r.center())
 }
 fn at_rack(a: &CantusApp, ctx: &egui::Context) -> Option<Pos2> {
     chrome::spot(ctx, Spot::RackButton(a.project().tracks[1].id))
@@ -120,7 +121,7 @@ fn cases() -> Vec<Case> {
         c("tray", both, minimise_both, no_aim),
         c("max", calor, maximise, no_aim),
         c("chip", nothing, no_then, at_chip),
-        c("slot", mixer_xl, no_then, at_slot),
+        c("chain", mixer_xl, no_then, at_chain),
         c("rack", rack, no_then, at_rack),
     ]
 }

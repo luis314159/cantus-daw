@@ -84,7 +84,8 @@ worker threads (`Manager`). The interface polls once a frame and never waits.
 The zip side uses `zip` 8 with deflate through `flate2`'s pure-Rust backend
 (`miniz_oxide`, already in the tree). `sha2` was already a workspace dependency.
 
-**5. Default content is CC0 only.** Every pack in the manifest is `CC0-1.0`, and a test
+**5. Default content is CC0 only.** *(Amended by ADR 0042, 2026-10-10: the owner accepted
+CC BY 3.0/4.0 with the credit shown; NC, ND and SA stay out.)* Every pack in the manifest is `CC0-1.0`, and a test
 fails otherwise. CC-BY material (Salamander Grand, Naked Drums, the DrumGizmo kits, and
 Dustyroom's Fake Acoustic Drum Kit, whose page now says CC BY 4.0) stays out until the
 owner rules on it. So does anything whose licence texts disagree: Karoryfer's *The Hat

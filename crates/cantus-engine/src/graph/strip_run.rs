@@ -41,16 +41,30 @@ pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
     }
 }
 
+/// What [`strip_chain`] leaves for [`strip_outputs`] besides the scratch pair.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Fader {
+    /// The fader's gains after the pan law and mute (`(1, 1)` when a ramp already scaled
+    /// the pair).
+    pub gl: f32,
+    pub gr: f32,
+    pub muted: bool,
+    /// A ramp scaled the pair and the strip has a pre-fader send, so the pair as it was
+    /// before the fader is in the scratch's `dry_l`/`dry_r`. Otherwise the scratch pair
+    /// itself is pre-fader (the fader is still in `gl`/`gr`).
+    pub pre_apart: bool,
+}
+
 /// Polarity → swap → inserts → EQ → width → pan law → fader → mute → automation, in
-/// place in the slot's scratch pair. Returns the fader's gains (`(1, 1)` when a ramp
-/// already scaled the pair) and whether the strip is muted.
+/// place in the slot's scratch pair. Returns the fader's gains, whether the strip is muted
+/// and where its pre-fader pair is.
 pub(crate) fn strip_chain(
     nodes: &Nodes,
     ctx: &PassCtx,
     slot: usize,
     st: &mut StripSlot,
     sc: &mut Scratch,
-) -> (f32, f32, bool) {
+) -> Fader {
     let n = ctx.n;
     let Scratch {
         buf_l,
@@ -201,17 +215,36 @@ pub(crate) fn strip_chain(
     let (gl, gr, muted) = (st.gain * pl, st.gain * pr, st.muted);
     let (gl, gr) = if muted { (0.0, 0.0) } else { (gl, gr) };
     // An automated fader or pan ramping (ADR 0027): applied to the buffer, so every tap
-    // after it — keys, the recorder, outputs, sends — is post-fader.
+    // after it — keys, the recorder, outputs, post-fader sends — is post-fader. A
+    // pre-fader send needs the pair before it: kept apart first, only when there is one.
+    let riding = st.gain_ramp.is_some() || st.pan_ramp.is_some();
     match ctx.k0(ctx.transport.samples()) {
-        Some(k0) if !muted && auto::ramp_strip(st, ctx.law, k0, l, r) => (1.0, 1.0, muted),
-        _ => (gl, gr, muted),
+        Some(k0) if !muted && riding => {
+            let pre_apart = st.has_pre;
+            if pre_apart {
+                dry_l.copy_from_slice(l);
+                dry_r.copy_from_slice(r);
+            }
+            auto::ramp_strip(st, ctx.law, k0, l, r);
+            Fader {
+                gl: 1.0,
+                gr: 1.0,
+                muted,
+                pre_apart,
+            }
+        }
+        _ => Fader {
+            gl,
+            gr,
+            muted,
+            pre_apart: false,
+        },
     }
 }
 
 /// What leaves the strip, from the scratch pair after its chain: the stem, the key, the
-/// take, the output edge, the delayed sends' lines, and the post-chain pair for the
-/// undelayed sends its consumers scale themselves.
-#[allow(clippy::too_many_arguments)]
+/// take, the output edge, the delayed sends' lines, and the post-chain pair (and, under a
+/// fader ride, the pre-fader one) for the undelayed sends its consumers scale themselves.
 pub(crate) fn strip_outputs(
     nodes: &Nodes,
     ctx: &PassCtx,
@@ -219,19 +252,25 @@ pub(crate) fn strip_outputs(
     st: &mut StripSlot,
     out: &mut StripOut,
     sc: &mut Scratch,
-    gl: f32,
-    gr: f32,
-    muted: bool,
+    fader: Fader,
 ) {
     let n = ctx.n;
+    let Fader {
+        gl,
+        gr,
+        muted,
+        pre_apart,
+    } = fader;
     let Scratch {
         buf_l,
         buf_r,
+        dry_l,
+        dry_r,
         edge_l,
         edge_r,
         ..
     } = sc;
-    {
+    let undelayed_pre = {
         let l = &buf_l[..n];
         let r = &buf_r[..n];
         if ctx.tap {
@@ -320,28 +359,43 @@ pub(crate) fn strip_outputs(
         out.gl = gl;
         out.gr = gr;
         st.peak = st.peak.max(peak);
-        // Post-fader sends: the same signal that just left the fader, at each send's
-        // level. A delayed one goes through its line here (a muted strip feeds its line
-        // silence, so the line drains); an undelayed one its consumer scales from the pair
-        // kept below. A muted strip without lines sends nothing.
-        let (send_count, sends) = (st.send_count, st.sends);
+        // Sends: a post-fader one is the same signal that just left the fader, a
+        // pre-fader one the pair before the fader and the pan law (kept apart under a
+        // ride), each at its level. A delayed one goes through its line here (a muted strip
+        // feeds its line silence, so the line drains); an undelayed one its consumer scales
+        // from the pairs kept below. A muted strip without lines sends nothing.
+        let (send_count, sends, taps) = (st.send_count, st.sends, st.send_tap);
         for (k, (_, level)) in sends.iter().take(send_count).enumerate() {
             out.send_level[k] = *level;
+            out.send_tap[k] = taps[k];
         }
+        out.pre_apart = pre_apart;
+        let (pre_l, pre_r) = if pre_apart {
+            (&dry_l[..n], &dry_r[..n])
+        } else {
+            (l, r)
+        };
         let mut undelayed = false;
+        let mut undelayed_pre = false;
         if !muted || st.send_line.iter().any(|x| x.is_some()) {
             for (k, (_, level)) in sends.iter().take(send_count).enumerate() {
                 let Some(li) = st.send_line[k] else {
                     undelayed |= !muted;
+                    undelayed_pre |= !muted && !taps[k].is_post();
                     continue;
                 };
-                let (sl, sr) = (gl * level, gr * level);
+                // Mute silences either tap: its gains are then 0, and the line drains.
+                let (src_l, src_r, sl, sr) = match taps[k] {
+                    SendTap::Post => (l, r, gl * level, gr * level),
+                    SendTap::Pre if muted => (pre_l, pre_r, 0.0, 0.0),
+                    SendTap::Pre => (pre_l, pre_r, *level, *level),
+                };
                 match nodes.edges[li].try_borrow_mut() {
                     Some(mut e) => {
                         let [el, er] = &mut *e;
                         for i in 0..n {
-                            el[i] = l[i] * sl;
-                            er[i] = r[i] * sr;
+                            el[i] = src_l[i] * sl;
+                            er[i] = src_r[i] * sr;
                         }
                         if let Some(mut line) = nodes.line(li) {
                             line.run(&mut el[..n], &mut er[..n]);
@@ -354,9 +408,15 @@ pub(crate) fn strip_outputs(
         if !undelayed {
             return;
         }
-    }
+        undelayed_pre
+    };
     // The pair itself, for the undelayed sends: handed over, not copied — the scratch pair
     // and the strip's own swap places.
     std::mem::swap(buf_l, &mut out.post_l);
     std::mem::swap(buf_r, &mut out.post_r);
+    // Under a ride the pre-fader pair goes the same way, when an undelayed send reads it.
+    if pre_apart && undelayed_pre {
+        std::mem::swap(dry_l, &mut out.pre_l);
+        std::mem::swap(dry_r, &mut out.pre_r);
+    }
 }

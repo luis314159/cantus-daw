@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 22;
+pub const SCHEMA_VERSION: u32 = 23;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -205,6 +205,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_19_to_20,
     migrate_20_to_21,
     migrate_21_to_22,
+    migrate_22_to_23,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -619,6 +620,14 @@ fn migrate_21_to_22(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 23 (ADR 0041): a send says where it taps its strip (`Send::tap`, post-fader or
+/// pre-fader). A send without the field is post-fader, which is what every send of an
+/// older project was, so the step writes nothing; the number is what makes an older build
+/// refuse a project whose pre-fader sends it would silently turn post-fader.
+fn migrate_22_to_23(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1019,5 +1028,67 @@ mod linked_clip_tests {
             .find(|c| c.name == "edited by hand")
             .unwrap();
         assert_eq!(odd.link, None);
+    }
+}
+
+#[cfg(test)]
+mod send_tap_tests {
+    use super::*;
+    use cantus_core::SendTap;
+
+    fn read(n: u32) -> Option<String> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(format!("v{n}.cantus"));
+        std::fs::read_to_string(path).ok()
+    }
+
+    /// Schema 23 (ADR 0041): every send of an older project opens post-fader, which is
+    /// what every send was before the tap existed.
+    #[test]
+    fn every_send_of_an_older_project_stays_post_fader() {
+        let mut sends = 0;
+        for n in 1..23 {
+            let Some(text) = read(n) else {
+                continue;
+            };
+            let r = parse(&text, true).unwrap();
+            assert_eq!(r.migrated_from, Some(n));
+            for s in &r.file.project.strips {
+                for send in &s.sends {
+                    assert_eq!(send.tap, SendTap::Post, "v{n}: {}", s.name);
+                    sends += 1;
+                }
+            }
+        }
+        assert!(sends > 0, "the old fixtures carry sends");
+    }
+
+    /// The schema-23 fixture holds a pre-fader send; it survives a round trip, and a
+    /// post-fader send writes no tap at all (the file of a project without a pre-fader
+    /// send is the file it was before).
+    #[test]
+    fn the_v23_fixture_keeps_its_pre_fader_send() {
+        let r = parse(&read(23).expect("the v23 fixture"), true).expect("opens");
+        let p = &r.file.project;
+        let pre: Vec<_> = p
+            .strips
+            .iter()
+            .flat_map(|s| s.sends.iter())
+            .filter(|x| x.tap == SendTap::Pre)
+            .collect();
+        assert_eq!(pre.len(), 1);
+        assert_eq!(pre[0].level, 0.5);
+        let again = ProjectFile::wrap(p.clone(), "test")
+            .unwrap()
+            .to_json()
+            .unwrap();
+        assert_eq!(&parse(&again, true).unwrap().file.project, p);
+        assert_eq!(
+            again.matches("\"tap\"").count(),
+            1,
+            "only the pre send writes it"
+        );
+        assert!(again.contains("\"tap\": \"Pre\""));
     }
 }

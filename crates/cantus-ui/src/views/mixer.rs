@@ -13,8 +13,10 @@
 //! Top to bottom: the colour number cell, the name (running up the strip below 36 pt of
 //! width, elided in the middle above), the meter, the mute and solo lamps, pan, the fader,
 //! (Wide and up) the fader's value, phase / swap / mono, width, the three EQ bars, the FX
-//! bulb and record, the sends, and (Extra large) the insert slots, empty ones as darker
-//! wells. Every strip has the same rows at the same heights ([`layout::fit`]), so a row
+//! bulb and record, (Extra large) the chain in one line, (Wide and up) the output chip,
+//! (Extra large) the strip's own sends, FL's send row, and the cable band. The inserts
+//! live in the inspector (round 25, ADR 0041 §9): Extra large is level, pan, sends and
+//! routing. Every strip has the same rows at the same heights ([`layout::fit`]), so a row
 //! reads straight across the desk, and a **legend column** at the left names each row
 //! once — the strips carry values and icons, never the same word forty times.
 //!
@@ -23,6 +25,11 @@
 //! when it would close a loop, a lit ▲ where it already goes, and a knob where it already
 //! sends (drag: the level). The selected strip itself shows where it goes, and its menu
 //! lists every destination — built when it opens, never every frame.
+//!
+//! **Cables** (round 25, [`cables`]): under the strips, every route drawn — the output
+//! solid, a send thinner with its level on a pill (*PRE* when pre-fader), a key dashed in
+//! the dynamics hue, a doubled signal with a warning mark — for the selection by default,
+//! all of them or none from the title row's switch.
 //!
 //! ## The desk
 //!
@@ -52,8 +59,12 @@
 //! in the same batched mesh; strings come from a per-language table built once
 //! ([`Words`]); nothing is cloned or formatted a frame in steady state.
 
+#[path = "mixer_cables.rs"]
+mod cables;
 #[path = "mixer_desk.rs"]
-mod desk;
+pub(crate) mod desk;
+#[path = "mixer_drag.rs"]
+mod drag;
 #[path = "mixer_layout.rs"]
 pub mod layout;
 #[path = "mixer_menu.rs"]
@@ -64,6 +75,8 @@ mod meters;
 mod paint;
 #[path = "mixer_parts.rs"]
 mod parts;
+#[path = "mixer_routehere.rs"]
+mod routehere;
 #[path = "mixer_strip.rs"]
 mod strip;
 
@@ -71,11 +84,12 @@ use crate::app::CantusApp;
 use crate::i18n::{self, t};
 use crate::kit::{Brush, Style};
 use cantus_core::{MixerStrip, StripId};
-use layout::{Colourful, RowSet, WidthMode};
+use layout::{CableView, Colourful, RowSet, WidthMode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+pub use cables::Drawn as DrawnCable;
 pub use parts::phase_button;
 pub use strip::Control;
 
@@ -87,6 +101,31 @@ pub fn control_rect(
     control: Control,
 ) -> Option<egui::Rect> {
     ctx.read_response(strip::pid(strip, control.part()))
+        .map(|r| r.rect)
+}
+
+/// Where the tap chip of a strip's own send row `row` (Extra large) was drawn last frame.
+pub fn tap_chip_rect(ctx: &egui::Context, strip: StripId, row: u8) -> Option<egui::Rect> {
+    ctx.read_response(strip::pid(Some(strip), strip::Part::SendRow(row)).with("tap"))
+        .map(|r| r.rect)
+}
+
+/// Where the selected send cable's tap chip (beside its pill) was drawn last frame.
+pub fn pill_tap_rect(ctx: &egui::Context, from: StripId, to: StripId) -> Option<egui::Rect> {
+    ctx.read_response(egui::Id::new(("mixer-cable-pill", from.0, to.0)).with("tap"))
+        .map(|r| r.rect)
+}
+
+/// Where a send cable's level pill was drawn last frame.
+pub fn pill_rect(ctx: &egui::Context, from: StripId, to: StripId) -> Option<egui::Rect> {
+    ctx.read_response(egui::Id::new(("mixer-cable-pill", from.0, to.0)))
+        .map(|r| r.rect)
+}
+
+/// Where the end mark of a lit cable (`DrawnCable::edge`) was drawn last frame: its
+/// destination's (`source == false`) or, on the selected cable, its source's.
+pub fn end_mark_rect(ctx: &egui::Context, edge: u32, source: bool) -> Option<egui::Rect> {
+    ctx.read_response(egui::Id::new(("mixer-cable-end", edge, source)))
         .map(|r| r.rect)
 }
 
@@ -109,6 +148,10 @@ pub struct DeskPrefs {
     /// The meter's share of the flexible height.
     pub ratio: f32,
     pub colourful: Colourful,
+    /// Which cables the band draws (round 25: the selection's by default).
+    pub cables: CableView,
+    /// The cable band's height in points at 100 % (the legend's handle).
+    pub band: f32,
 }
 
 impl Default for DeskPrefs {
@@ -118,7 +161,18 @@ impl Default for DeskPrefs {
             rows: RowSet::default(),
             ratio: layout::DEFAULT_RATIO,
             colourful: Colourful::default(),
+            cables: CableView::default(),
+            band: layout::BAND,
         }
+    }
+}
+
+impl DeskPrefs {
+    /// The rows on: the ▾ menu's switches, and the cable band while the cable view is.
+    pub fn shown(&self) -> RowSet {
+        let mut r = self.rows;
+        r.set(layout::Row::Cables, self.cables != CableView::Off);
+        r
     }
 }
 
@@ -215,12 +269,29 @@ pub(crate) struct Words {
     /// The master's number and name: a click shows its chain, a right-click its menu.
     pub master_head: String,
     pub pan_law: String,
+    /// The pan law's chip on the master, "{law} dB law" (and its short form "{law} dB").
+    pub pan_law_chip: String,
+    pub pan_law_short: String,
     pub ratio: String,
     pub menu: String,
     pub modes: String,
     pub wave: String,
-    pub slot_empty: String,
-    pub slot: String,
+    pub chain: String,
+    pub chain_empty: String,
+    pub output: String,
+    pub send_row: String,
+    pub send_add: String,
+    pub send_more: String,
+    pub port: String,
+    pub cable: String,
+    pub cable_view: String,
+    pub pill: String,
+    pub chip: String,
+    pub band: String,
+    pub send_off: String,
+    pub pre: String,
+    pub kind: [String; 3],
+    pub tap: [String; 2],
     pub group: String,
     pub solo_off: String,
     pub unmute_all: String,
@@ -267,12 +338,32 @@ impl Words {
             master: t("mixer.master"),
             master_head: t("master.head_tip"),
             pan_law: t("panlaw.tip"),
+            pan_law_chip: t("mixer.pan_law.chip"),
+            pan_law_short: t("mixer.pan_law.short"),
             ratio: t("mixer.hint.ratio"),
             menu: t("mixer.hint.menu"),
             modes: t("mixer.hint.modes"),
             wave: t("mixer.wave_tip"),
-            slot_empty: t("mixer.hint.slot_empty"),
-            slot: t("mixer.hint.slot"),
+            chain: t("mixer.hint.chain"),
+            chain_empty: t("mixer.hint.chain_empty"),
+            output: t("mixer.hint.output"),
+            send_row: t("mixer.hint.send_row"),
+            send_add: t("mixer.hint.send_add"),
+            send_more: t("mixer.hint.send_more"),
+            port: t("cables.hint.port"),
+            cable: t("cables.hint.cable"),
+            cable_view: t("cables.hint.view"),
+            pill: t("cables.hint.pill"),
+            chip: t("cables.hint.chip"),
+            band: t("cables.hint.band"),
+            send_off: t("cables.send_off"),
+            pre: t("routing.tap.pre"),
+            kind: [
+                t("cables.kind.output"),
+                t("cables.kind.send"),
+                t("cables.kind.key"),
+            ],
+            tap: [t("cables.tap.post"), t("cables.tap.pre")],
             group: t("mixer.hint.group"),
             solo_off: t("mixer.solo_off"),
             unmute_all: t("mixer.unmute_all"),
@@ -307,9 +398,15 @@ pub struct MixerView {
     /// Ctrl+wheel notches this frame, for the fader or knob under the pointer.
     pub(crate) ctrl_notches: f32,
     popups: menu::Popups,
-    /// An insert slot being dragged to a new place: its strip (or the master), the
-    /// effect, and the slot it started in.
-    slot_drag: Option<(StripId, cantus_core::EffectId, usize)>,
+    /// The cable band's state: the selected cable, what was drawn this frame (round 25,
+    /// `mixer_cables`).
+    band: cables::Band,
+    /// A cable, a cable's end, a track, a strip or a group being dragged (round 25,
+    /// `mixer_drag`, the interaction builder's).
+    drag: drag::Drag,
+    /// Why the last click on a from-selected arrow did nothing (its strip, the words),
+    /// said in the hint bar while the pointer stays on that arrow.
+    pub(crate) arrow_said: Option<(StripId, String)>,
     /// The desk's one brush: a mesh per clip region, the text on top.
     brush: Brush,
     /// Reused for numbers and hint names, so a frame formats without allocating.
@@ -377,9 +474,75 @@ impl MixerView {
         self.desk_width
     }
 
+    /// Cables the band drew in the last frame (the frame-budget test reads it).
+    pub fn cables_drawn(&self) -> usize {
+        self.band.drawn.len()
+    }
+
+    /// What the band drew in the last frame, for tests: each cable's route, its two ends
+    /// on screen, and whether it was lit.
+    pub fn cables(&self) -> &[cables::Drawn] {
+        &self.band.drawn
+    }
+
+    /// Where the band's level pills went in the last frame (tests hold that none overlaps
+    /// another or a port).
+    pub fn cable_pills(&self) -> &[egui::Rect] {
+        self.band.pills()
+    }
+
+    /// The cable selected on the desk (a click on it; Delete removes it).
+    pub fn selected_cable(&self) -> Option<cantus_core::routing::Route> {
+        self.band.selected
+    }
+
+    /// The selected cable Delete may remove: one the band drew on the last pass (never a
+    /// cable hidden by the *Off* view, scrolled out of sight, or on a desk not on screen).
+    pub fn deletable_cable(&self) -> Option<cantus_core::routing::Route> {
+        let sel = self.band.selected?;
+        let fresh = self.band.pass + 1 >= self.band.keys_pass;
+        (fresh && self.band.drawn.iter().any(|d| d.route == sel)).then_some(sel)
+    }
+
+    /// Whether Esc belongs to the desk now: a drag in progress (or a route armed by a
+    /// click) cancels, a selected cable is let go — the keymap's *Clear selection* stays
+    /// out of it.
+    pub fn claims_escape(&self) -> bool {
+        // Only a desk on screen (drawn on the last pass) — a hidden one never eats Esc.
+        let shown = self.band.pass + 1 >= self.band.keys_pass;
+        shown && (drag::active(self) || self.band.selected.is_some())
+    }
+
+    /// Open the selected strip's route menu on the next frame (the keymap's *Route menu*,
+    /// Shift+F10).
+    pub fn want_route_menu(&mut self) {
+        self.drag.route_menu = true;
+    }
+
+    /// The keymap runs on this egui pass (see [`Self::deletable_cable`]).
+    pub fn keys_on_pass(&mut self, pass: u64) {
+        self.band.keys_pass = pass;
+    }
+
+    /// Forget the selected cable (it was removed, or the selection moved on).
+    pub fn clear_cable_selection(&mut self) {
+        self.band.selected = None;
+    }
+
     /// The middle dock's horizontal scroll, and the desk's vertical one, in points.
     pub fn scroll(&self) -> (f32, f32) {
         (self.scroll_x, self.scroll_y)
+    }
+
+    /// The strip a click armed a route from (click mode: the next click on a strip makes
+    /// the route), if any.
+    pub fn armed(&self) -> Option<StripId> {
+        drag::armed(self)
+    }
+
+    /// Select a cable as a click on it does (tools and pictures).
+    pub fn select_cable(&mut self, route: Option<cantus_core::routing::Route>) {
+        self.band.selected = route;
     }
 
     /// How many strips the multi-selection holds (1 for a single selection), without
@@ -433,6 +596,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     // Anything the frame queued for the app (menus, renames) was applied inside; put the
     // view back.
     app.mixer = view;
+}
+
+/// The owner id the desk opens `views::route_menu` menus under.
+pub(crate) fn route_owner() -> egui::Id {
+    egui::Id::new("mixer.route_menu")
 }
 
 /// The style the desk paints with: the installed tokens at 100 %.
@@ -495,28 +663,15 @@ impl MixerView {
         self.desk.refresh(app);
         self.meters.begin_frame();
         let s = style();
-        let prefs = self.prefs.current;
         let full = ui.available_rect_before_wrap();
         ui.allocate_rect(full, egui::Sense::hover());
-        let fit = layout::fit(
-            full.height() - size::TITLE - size::HBAR - size::TOP,
-            prefs.width,
-            prefs.rows,
-            prefs.ratio,
-            self.desk.most_inserts + 1,
-        );
+        let fit = self.fit(full);
         let geo = self.geometry(full, &fit);
         self.follow_selection(app, &geo, &fit);
         paint::wheel(self, app, ui, &geo, &fit);
         // The wheel may have scrolled or changed the width: lay out again.
         let prefs = self.prefs.current;
-        let fit = layout::fit(
-            full.height() - size::TITLE - size::HBAR - size::TOP,
-            prefs.width,
-            prefs.rows,
-            prefs.ratio,
-            self.desk.most_inserts + 1,
-        );
+        let fit = self.fit(full);
         let geo = self.geometry(full, &fit);
         self.clamp_scroll(&geo, &fit);
         let geo = self.geometry(full, &fit);
@@ -580,12 +735,21 @@ impl MixerView {
             x += w;
         }
         paint::dividers(&mut b, &s, &geo);
+
+        // 5. The cable band across the whole desk (round 25: `mixer_cables`, the desk
+        //    builder's), then the drag in progress (`mixer_drag`, the interaction
+        //    builder's): the rubber band, auto-scroll, the drop. Same clip as the right
+        //    dock, so they share its flush: the band adds no draw call (ADR 0041 §12).
+        pass.clip = geo.rows;
+        cables::band(self, app, ui, &mut b, &pass, &geo);
+        drag::finish(self, app, ui, &mut b, &s, &geo);
         b.flush(&ui.painter().with_clip_rect(geo.rows));
         self.brush = b;
 
-        // Overlays: the name being typed, the open menu.
+        // Overlays: the name being typed, the open menu, the route menu (round 25).
         self.rename_box(app, ui);
         menu::show(self, app, ui);
+        crate::views::route_menu::show(app, ui, route_owner());
 
         // The next frame only while something moves, and at 60 Hz at most (§13).
         if self.meters.moving() {
@@ -596,6 +760,21 @@ impl MixerView {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(33));
         }
+    }
+
+    /// Where the rows go in `full`, for the set-up in use.
+    fn fit(&self, full: egui::Rect) -> layout::Fit {
+        let prefs = self.prefs.current;
+        layout::fit(
+            full.height() - size::TITLE - size::HBAR - size::TOP,
+            prefs.width,
+            prefs.shown(),
+            prefs.ratio,
+            layout::Wants {
+                send_rows: layout::send_rows_for(self.desk.most_sends),
+                band: prefs.band,
+            },
+        )
     }
 
     /// Lay the desk out in `full`.

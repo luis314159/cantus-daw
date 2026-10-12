@@ -13,8 +13,10 @@ use crate::kit::color::{safe_track, FillSize};
 use crate::kit::menu::{self as kmenu, Check, Item};
 use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{Fill, Style};
+use crate::routing_actions::{level_text, ReturnKind};
+use cantus_core::routing::{Route, RouteKind};
 use cantus_core::{
-    Color, Command, Dock, EffectId, EffectKind, GroupId, PanLaw, Send, StripId, TrackId,
+    Color, Command, Dock, EffectId, EffectKind, GroupId, PanLaw, Send, SendTap, StripId, TrackId,
     MAX_INSERTS,
 };
 use egui::{pos2, vec2, Id, Pos2, Rect, Sense};
@@ -123,6 +125,13 @@ enum Act {
     /// Record what leaves the strip's fader (the take recorder), for a strip whose record
     /// dot arms its input.
     Capture(StripId),
+    /// Round 25: *New return ▸* from a *Send to* list — the strip (and the selection it is
+    /// in) sending into a new return.
+    NewReturn(StripId, ReturnKind),
+    /// The strip's route menu (*Where it goes…*, the route menu's key).
+    RouteMenu(StripId),
+    /// One of the strip's routes: its own menu (`views::route_menu`).
+    OpenRoute(Route),
 }
 
 /// A row's words.
@@ -330,6 +339,13 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 }
             }
             e.push(Entry::band("mixer.menu.routing"));
+            e.push(
+                Entry::act(Label::Key("routing.menu.where"), Act::RouteMenu(id)).shortcut(
+                    super::drag::route_key(app)
+                        .map(|k| k.display())
+                        .unwrap_or_default(),
+                ),
+            );
             e.push(Entry::sub(Label::Key("mixer.menu.output"), Sub::Output(id)));
             e.push(Entry::sub(
                 Label::Key("mixer.menu.send_to"),
@@ -360,6 +376,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 );
             }
             e.push(Entry::sub(Label::Key("comp.duck.menu"), Sub::Duck(id)));
+            route_entries(app, id, &mut e);
             e.push(Entry::band("master.menu.effects"));
             e.push(Entry::sub(Label::Key("effect.add"), Sub::AddEffect(id)));
             e.push(
@@ -622,6 +639,16 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
             let Some(s) = p.strip(id) else {
                 return;
             };
+            // Round 25 (design §4.3): a return made on the spot, the send into it with
+            // it — first, so it is in reach without scrolling on a long desk.
+            e.push(Entry::band("routing.menu.new_return"));
+            for (key, kind) in [
+                ("routing.menu.return_empty", ReturnKind::Empty),
+                ("routing.menu.return_reverb", ReturnKind::Reverb),
+                ("routing.menu.return_delay", ReturnKind::Delay),
+            ] {
+                e.push(Entry::act(Label::Key(key), Act::NewReturn(id, kind)));
+            }
             e.push(Entry::band("mixer.menu.send_to"));
             for (i, other) in p.strips.iter().enumerate() {
                 if other.id == id {
@@ -746,7 +773,14 @@ fn width_of(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
 }
 
 /// Show `entries` as a kit menu at `at`, scrolling when taller than the window.
-fn list(ctx: &egui::Context, id: Id, at: Pos2, entries: &[Entry], s: &Style) -> Shown {
+fn list(
+    ctx: &egui::Context,
+    id: Id,
+    at: Pos2,
+    parent: Option<Rect>,
+    entries: &[Entry],
+    s: &Style,
+) -> Shown {
     let items: Vec<Item<'_>> = entries
         .iter()
         .map(|e| {
@@ -773,8 +807,14 @@ fn list(ctx: &egui::Context, id: Id, at: Pos2, entries: &[Entry], s: &Style) -> 
     let screen = ctx.content_rect();
     let max_h = (screen.height() - 16.0).max(120.0);
     let h = kmenu::height(&items, s.d(1.0)).min(max_h);
+    // A submenu that would run off the right goes to its parent's left, never over it
+    // (round 25: over it, a click meant for the parent's row picked the submenu's).
+    let x = match parent {
+        Some(p) if at.x + width > screen.right() - 8.0 => p.left() + 4.0 - width,
+        _ => at.x,
+    };
     let at = pos2(
-        at.x,
+        x,
         at.y.min(screen.bottom() - 8.0 - h).max(screen.top() + 8.0),
     );
     let mut out = Shown {
@@ -902,7 +942,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
     let s = Style::current();
     let base = Id::new(("mixer-menu", v.popups.serial));
     let rows = entries(v, app, menu);
-    let top = list(&ctx, base, at, &rows, &s);
+    let top = list(&ctx, base, at, None, &rows, &s);
     let mut act: Option<Act> = None;
     let mut keep_open = false;
     if let Some(i) = top.clicked.or(top.toggled) {
@@ -940,7 +980,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
             _ => {
                 let mut sub_rows = Vec::new();
                 sub_entries(v, app, sub, &mut sub_rows);
-                let shown = list(&ctx, sid, sat, &sub_rows, &s);
+                let shown = list(&ctx, sid, sat, Some(top.rect), &sub_rows, &s);
                 sub_rect = shown.rect;
                 if let Some(i) = shown.clicked.or(shown.toggled) {
                     if let Then::Act(a) = sub_rows[i].then {
@@ -952,6 +992,19 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
         }
     }
     let fresh = std::mem::take(&mut v.popups.fresh);
+    // Round 25: rows that open another menu where this one was.
+    match act {
+        Some(Act::RouteMenu(id)) => {
+            v.popups.open(Menu::Route(id), at);
+            return;
+        }
+        Some(Act::OpenRoute(r)) => {
+            v.popups.close();
+            crate::views::route_menu::open(&ctx, super::route_owner(), r, at);
+            return;
+        }
+        _ => {}
+    }
     if let Some(a) = act {
         apply(v, app, a);
         if !keep_open {
@@ -1169,6 +1222,72 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         Act::Arm(id) => arm_strip(app, id),
         Act::Capture(id) => app.toggle_capture(cantus_engine::CaptureTarget::Strip(id)),
+        Act::NewReturn(id, kind) => {
+            let sources = targets(app, id);
+            app.new_return(&sources, kind);
+        }
+        // Opened by `show`, where the menu's place is known.
+        Act::RouteMenu(_) | Act::OpenRoute(_) => {}
+    }
+}
+
+/// The strip menu's *Its routes* rows (round 25): its output to a strip, each send and
+/// each key into one of its inserts — a click opens that route's own menu.
+fn route_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
+    let p = app.project();
+    let Some(s) = p.strip(id) else {
+        return;
+    };
+    let name = |x: StripId| crate::views::route_menu::strip_label(app, x);
+    let mut rows: Vec<Entry> = Vec::new();
+    if let Some(out) = s.output {
+        rows.push(Entry::act(
+            Label::Own(crate::i18n::tf(
+                "routing.menu.row_output",
+                &[("to", &name(out))],
+            )),
+            Act::OpenRoute(Route::output(id, out)),
+        ));
+    }
+    for send in &s.sends {
+        let mut level = level_text(send.level);
+        if send.tap != SendTap::Post {
+            level.push(' ');
+            level.push_str(&crate::i18n::t(send.tap.label_key()));
+        }
+        rows.push(
+            Entry::act(
+                Label::Own(crate::i18n::tf(
+                    "routing.menu.row_send",
+                    &[("to", &name(send.to))],
+                )),
+                Act::OpenRoute(Route::send(id, send.to)),
+            )
+            .shortcut(level)
+            .check(on(send.enabled)),
+        );
+    }
+    for fx in &s.effects {
+        if let Some(from) = fx.sidechain {
+            rows.push(Entry::act(
+                Label::Own(crate::i18n::tf(
+                    "routing.menu.row_key",
+                    &[
+                        ("from", &name(from)),
+                        ("effect", &crate::i18n::t(fx.spec.kind.name_key())),
+                    ],
+                )),
+                Act::OpenRoute(Route {
+                    from,
+                    to: id,
+                    kind: RouteKind::Key(Some(fx.id)),
+                }),
+            ));
+        }
+    }
+    if !rows.is_empty() {
+        e.push(Entry::band("routing.menu.routes"));
+        e.extend(rows);
     }
 }
 

@@ -18,6 +18,7 @@
 
 mod appid;
 pub use appid::{current_app_id, set_app_id, APP_ID};
+pub mod taskicon;
 
 use std::path::{Path, PathBuf};
 

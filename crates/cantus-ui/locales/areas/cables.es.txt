@@ -1,0 +1,28 @@
+# cables — ronda 25: la banda de cables de la mesa (ADR 0041). Cada clave aquí es la
+# gemela de una de cables.en.txt.
+
+# La fila de la banda en la columna de leyenda.
+cables.legend = Ruteo
+
+# El interruptor de la fila de título: qué cables dibuja la banda.
+cables.view = Cables
+cables.view.off = Ocultos
+cables.view.selected = Selección
+cables.view.selected.short = Sel.
+cables.view.all = Todos
+cables.hint.view = Cables bajo los canales: ninguno, los de los canales seleccionados o todos
+
+# La barra de ayuda sobre la banda.
+cables.hint.port = Arrastra a un canal, o clic aquí y luego en un canal: un envío · Ctrl: dirigir la salida allí · Alt: sidechain
+cables.hint.cable = Clic para seleccionar · Supr lo quita · arrastra su extremo para moverlo · clic derecho para su menú
+cables.hint.pill = Nivel del envío · arrastra para cambiarlo · doble clic para 0 dB · clic derecho para el menú de la ruta
+cables.hint.chip = Desplazarse hasta este canal
+cables.hint.band = Arrastra para hacer la banda de cables más alta o más baja · doble clic para restablecer
+
+# Qué es un cable, en la barra de ayuda («3 Teclas → 15 Reverb · envío · −6.0 dB · post-fader»).
+cables.kind.output = salida
+cables.kind.send = envío
+cables.kind.key = sidechain
+cables.tap.post = post-fader
+cables.tap.pre = pre-fader
+cables.send_off = apagado

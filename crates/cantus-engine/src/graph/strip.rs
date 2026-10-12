@@ -44,9 +44,14 @@ pub(crate) struct StripSlot {
     pub muted: bool,
     /// The strip slot this one feeds; `None` is the master.
     pub output: Option<usize>,
-    /// Post-fader sends as `(strip slot, level)`; the first `send_count` are live.
+    /// Sends as `(strip slot, level)`; the first `send_count` are live.
     pub sends: [(usize, f32); MAX_SENDS_PER_STRIP],
+    /// Where each send takes its copy (aligned with `sends`): after the fader, or before
+    /// it and the pan law (round 25, ADR 0041 §2).
+    pub send_tap: [SendTap; MAX_SENDS_PER_STRIP],
     pub send_count: usize,
+    /// A live send is pre-fader: under a fader ride, the pair before the ramp is kept.
+    pub has_pre: bool,
     /// Per insert (aligned with `effects`): the strip it is keyed from, by id as the
     /// snapshot says and by slot once resolved — and whether that strip runs before this
     /// one (a key from a strip processed later is silence, as the serial engine heard it).
@@ -92,7 +97,9 @@ impl StripSlot {
             muted: false,
             output: None,
             sends: [(0, 0.0); MAX_SENDS_PER_STRIP],
+            send_tap: [SendTap::Post; MAX_SENDS_PER_STRIP],
             send_count: 0,
+            has_pre: false,
             key_id: [None; MAX_EFFECTS_PER_TRACK],
             key: [None; MAX_EFFECTS_PER_TRACK],
             key_before: [false; MAX_EFFECTS_PER_TRACK],
@@ -133,11 +140,19 @@ pub(crate) struct StripOut {
     /// the pair).
     pub gl: f32,
     pub gr: f32,
-    /// Each send's level this pass, for the consumers that scale the post-chain pair.
+    /// Each send's level and tap this pass, for the consumers that scale the post-chain
+    /// pair.
     pub send_level: [f32; MAX_SENDS_PER_STRIP],
+    pub send_tap: [SendTap; MAX_SENDS_PER_STRIP],
     /// After the chain and the fader's ramp, before the fader's constant gains.
     pub post_l: Vec<f32>,
     pub post_r: Vec<f32>,
+    /// `pre_l`/`pre_r` hold this pass's pre-fader pair: a fader ride scaled `post_l` in
+    /// place, so the pair before the ramp was kept apart. Otherwise the pre-fader pair *is*
+    /// `post_l`/`post_r` (the fader is still in `gl`/`gr`).
+    pub pre_apart: bool,
+    pub pre_l: Vec<f32>,
+    pub pre_r: Vec<f32>,
     /// The output edge, as its destination adds it.
     pub out_l: Vec<f32>,
     pub out_r: Vec<f32>,
@@ -151,8 +166,12 @@ impl StripOut {
             gl: 1.0,
             gr: 1.0,
             send_level: [0.0; MAX_SENDS_PER_STRIP],
+            send_tap: [SendTap::Post; MAX_SENDS_PER_STRIP],
             post_l: vec![0.0; PASS_FRAMES],
             post_r: vec![0.0; PASS_FRAMES],
+            pre_apart: false,
+            pre_l: vec![0.0; PASS_FRAMES],
+            pre_r: vec![0.0; PASS_FRAMES],
             out_l: vec![0.0; PASS_FRAMES],
             out_r: vec![0.0; PASS_FRAMES],
         }
@@ -216,8 +235,30 @@ pub(crate) fn with_input(
                 return false;
             }
             let level = o.send_level[k as usize];
-            let (sl, sr) = (o.gl * level, o.gr * level);
-            add(Contribution::Scaled(&o.post_l[..n], &o.post_r[..n], sl, sr));
+            match o.send_tap[k as usize] {
+                SendTap::Post => {
+                    let (sl, sr) = (o.gl * level, o.gr * level);
+                    add(Contribution::Scaled(&o.post_l[..n], &o.post_r[..n], sl, sr));
+                }
+                // Before the fader and the pan law: the level alone. (Mute and solo
+                // silenced it above.)
+                SendTap::Pre if o.pre_apart => {
+                    add(Contribution::Scaled(
+                        &o.pre_l[..n],
+                        &o.pre_r[..n],
+                        level,
+                        level,
+                    ));
+                }
+                SendTap::Pre => {
+                    add(Contribution::Scaled(
+                        &o.post_l[..n],
+                        &o.post_r[..n],
+                        level,
+                        level,
+                    ));
+                }
+            }
         }
     }
     true
@@ -281,8 +322,8 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
             sc.buf_l[..n].iter_mut().for_each(|x| *x = 0.0);
             sc.buf_r[..n].iter_mut().for_each(|x| *x = 0.0);
         }
-        let (gl, gr, muted) = super::strip_run::strip_chain(nodes, ctx, slot, &mut st, sc);
-        super::strip_run::strip_outputs(nodes, ctx, slot, &mut st, &mut out, sc, gl, gr, muted);
+        let fader = super::strip_run::strip_chain(nodes, ctx, slot, &mut st, sc);
+        super::strip_run::strip_outputs(nodes, ctx, slot, &mut st, &mut out, sc, fader);
     }
     nodes.strip_peak[slot].store(st.peak.to_bits(), Relaxed);
     nodes.strip_gr[slot].store(st.gr().to_bits(), Relaxed);

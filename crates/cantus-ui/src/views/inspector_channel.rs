@@ -65,6 +65,7 @@ pub fn show(
         inserts(sh, st, app, chain);
         eq::show(sh, st, None);
         sends::sends(sh, app, None);
+        super::receives::receives(sh, app, None);
         sends::routing(sh, app, None, Some(chain));
         return;
     }
@@ -81,6 +82,7 @@ pub fn show(
             inserts(sh, st, app, chain);
             eq::show(sh, st, Some(ms));
             sends::sends(sh, app, Some(ms));
+            super::receives::receives(sh, app, Some(ms));
             sends::routing(sh, app, Some(ms), Some(chain));
         }
         None => {
@@ -97,6 +99,7 @@ pub fn show(
             }
             eq::show(sh, st, None);
             sends::sends(sh, app, None);
+            super::receives::receives(sh, app, None);
             sends::routing(sh, app, None, None);
         }
     }

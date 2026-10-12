@@ -51,7 +51,6 @@ pub const KEYS: &[&str] = &[
     "interop.report.d_vca",
     "interop.report.d_cycle",
     "interop.report.d_send",
-    "interop.report.d_pre_sends",
     "interop.report.d_too_many_strips",
     "interop.report.d_too_many_tracks",
     "interop.report.d_audio_clips",

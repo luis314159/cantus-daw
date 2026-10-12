@@ -9,7 +9,9 @@
 //! role takes its hue and saturation from a token (tile ← the brand colour at low
 //! saturation, wave ← the highlight, playhead ← the bright brand colour, patina ← the
 //! selection) and **keeps its designed lightness**, so the gradients keep their depth.
-//! The rewrite is done on the SVG text before parsing.
+//! The rewrite is done on the SVG text before parsing. In *Icon* colours (round 25, ADR
+//! 0046) the wave and the playhead take the taskbar icon's colours instead, so the
+//! title-bar mark and the splash can follow the icon.
 //!
 //! **The default is #2, "C de onda con playhead-cruz", in its original colours.** Below
 //! 48 px #2's glow turns to blur, so [`small_master`] draws a simplified #2 on the pixel
@@ -85,6 +87,8 @@ pub enum Tint {
     Original,
     /// In the theme's colours, role by role.
     Theme,
+    /// In the taskbar icon's colours (the wave and the playhead), the rest as *Theme*.
+    Icon,
 }
 
 /// Which logo the interface shows, and how it is coloured: #2 in its original colours
@@ -116,8 +120,33 @@ impl LogoChoice {
     }
 }
 
+/// The taskbar icon's colours, which the *Icon* tint follows (set by the application
+/// whenever the appearance changes).
+fn icon_colours() -> &'static std::sync::RwLock<super::mark::MarkColours> {
+    static C: OnceLock<std::sync::RwLock<super::mark::MarkColours>> = OnceLock::new();
+    C.get_or_init(|| std::sync::RwLock::new(super::mark::MarkColours::ORIGINAL))
+}
+
+/// Tell the *Icon* tint which colours the taskbar icon has now.
+pub fn set_icon_colours(c: super::mark::MarkColours) {
+    *icon_colours().write().unwrap_or_else(|e| e.into_inner()) = c;
+}
+
+fn rgb3(c: [u8; 3]) -> Color32 {
+    Color32::from_rgb(c[0], c[1], c[2])
+}
+
 /// The token each role takes its hue and saturation from, and a saturation scale.
-fn role_target(role: &str, t: &Tokens) -> Option<(Color32, f32)> {
+fn role_target(role: &str, tint: Tint, t: &Tokens) -> Option<(Color32, f32)> {
+    if tint == Tint::Icon {
+        let ic = *icon_colours().read().unwrap_or_else(|e| e.into_inner());
+        match role {
+            "wave" => return Some((rgb3(ic.wave[1]), 1.0)),
+            "playhead" => return Some((rgb3(ic.playhead), 1.0)),
+            "tile" => return Some((rgb3(ic.wave[2]), 0.35)),
+            _ => {}
+        }
+    }
     match role {
         "tile" => Some((t.brand, 0.35)),
         "wave" => Some((t.highlight, 1.0)),
@@ -147,20 +176,20 @@ pub fn tinted(src: &str, tint: Tint, t: &Tokens) -> String {
             return out;
         };
         let tag = &rest[open..open + close + 1];
-        out.push_str(&retint_tag(tag, t));
+        out.push_str(&retint_tag(tag, tint, t));
         rest = &rest[open + close + 1..];
     }
     out.push_str(rest);
     out
 }
 
-fn retint_tag(tag: &str, t: &Tokens) -> String {
+fn retint_tag(tag: &str, tint: Tint, t: &Tokens) -> String {
     let Some(i) = tag.find("data-role=\"") else {
         return tag.to_string();
     };
     let role_start = i + "data-role=\"".len();
     let role = &tag[role_start..role_start + tag[role_start..].find('"').unwrap_or(0)];
-    let Some((target, sat_scale)) = role_target(role, t) else {
+    let Some((target, sat_scale)) = role_target(role, tint, t) else {
         return tag.to_string();
     };
     let th = Hsl::of(opaque(target));
@@ -475,6 +504,16 @@ mod tests {
         let h = Hsl::of(found);
         assert!((h.l - designed.l).abs() < 0.02);
         assert!((h.h - target.h).abs() < 3.0);
+        // Icon colours: the wave follows the icon's middle stop.
+        set_icon_colours(crate::kit::mark::MarkColours::from_one([0x2f, 0x7c, 0xf6]));
+        let blue = tinted(Logo(6).source(), Tint::Icon, &t);
+        let found = blue
+            .split("stroke=\"")
+            .nth(1)
+            .and_then(|s| crate::theme::parse_hex(&s[..7]))
+            .expect("a stroke colour");
+        assert!((Hsl::of(found).h - Hsl::of(Color32::from_rgb(0x2f, 0x7c, 0xf6)).h).abs() < 3.0);
+        set_icon_colours(crate::kit::mark::MarkColours::ORIGINAL);
         // Original is untouched.
         assert_eq!(
             tinted(Logo(2).source(), Tint::Original, &t),

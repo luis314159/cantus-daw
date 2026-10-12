@@ -880,8 +880,13 @@ fn track_controls(
     let button = ui.interact(
         rr.button.union(rr.selector),
         ui.id().with(("rack-button", id.0)),
-        Sense::click(),
+        Sense::click_and_drag(),
     );
+    // Round 25 (answer 11): a channel dragged out of the rack onto a mixer strip routes
+    // there (the click still opens the instrument: a drag needs the pointer to travel).
+    if button.drag_started_by(egui::PointerButton::Primary) {
+        egui::DragAndDrop::set_payload(ui.ctx(), crate::routing_actions::TrackDrag(id));
+    }
     if button.hovered() {
         // Round 20: what the button does now (the selector beside it selects).
         let tip = crate::i18n::t("swap.rack.channel_tip");

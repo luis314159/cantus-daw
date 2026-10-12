@@ -1,0 +1,31 @@
+# look — round 25: the theme family (Cantus Night, the default, and its twins) and the
+# taskbar icon's colour (ADR 0046). Owned by the look builder.
+# Every key here needs its twin in look.es.txt.
+theme.cantus_night = Cantus Night (dark)
+theme.cantus_paper = Cantus Paper (light)
+theme.daylight = Daylight (light)
+theme.blue_hour = Blue Hour (dark)
+theme.ultraviolet = Ultraviolet (dark)
+theme.lagoon = Lagoon (dark)
+theme.contrast = High contrast (dark)
+theme.contrast_light = High contrast (light)
+look.preview = Preview of {name}
+look.in_use.dark = In use for dark mode
+look.in_use.light = In use for light mode
+look.icon = Taskbar icon
+look.icon.chosen = Icon: {name}
+look.icon.colour = Icon colour
+look.icon.note = The window's and the taskbar's icon, changed at once. Pinned shortcuts and the installer keep the designed colours.
+look.icon.original = As designed
+look.icon.theme = Theme accent
+look.icon.custom = Your colour
+look.icon.pick = Choose the icon's colour
+look.icon.amber = Amber
+look.icon.copper = Copper
+look.icon.verdigris = Verdigris
+look.icon.blue = Blue
+look.icon.violet = Violet
+look.icon.rose = Rose
+look.icon.silver = Silver (for a dark taskbar)
+look.icon.graphite = Graphite (for a light taskbar)
+kit.logo.tint.icon = Icon colours

@@ -243,7 +243,7 @@ pub fn paint_logo(
         egui::pos2(snap(rect.max.x), snap(rect.max.y)),
     );
     let px = (rect.width().min(rect.height()) * ppp).round().max(1.0) as u32;
-    let theme = if choice.tint == Tint::Theme {
+    let theme = if choice.tint != Tint::Original {
         tokens.generation
     } else {
         0

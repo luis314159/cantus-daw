@@ -69,6 +69,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     }
     let then = ws.after(app, ui, area, tab_bar);
     app.workspace = ws;
+    // What the tabs asked to bring forward (Show the destination, a chain line opening
+    // the inspector): applied now the dock is back.
+    app.apply_wanted_panes();
     if then == Some(After::ResetLayout) {
         app.reset_layout();
     }
@@ -115,6 +118,7 @@ impl TabViewer for Viewer<'_> {
             Pane::Inspector => super::inspector::show(app, ui),
             Pane::Devices => super::picker_panel::show(app, ui),
             Pane::Browser => super::samples_browser::show(app, ui),
+            Pane::Routing => super::routing::show(app, ui),
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }

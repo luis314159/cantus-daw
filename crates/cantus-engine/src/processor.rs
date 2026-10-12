@@ -38,8 +38,8 @@ use crate::inst::{Controller, NativeUnit, NoteOn, UnitKind};
 use crate::messages::*;
 use crate::transport::Transport;
 use cantus_core::{
-    apply_width, balance_gains, EffectId, InstrumentSpec, NoteEvent, PanLaw, Snapshot, StripId,
-    TrackId,
+    apply_width, balance_gains, EffectId, InstrumentSpec, NoteEvent, PanLaw, SendTap, Snapshot,
+    StripId, TrackId,
 };
 use cantus_dsp::{ChannelEq, Click, Firmus, FirmusSettings, Pulsus, Wave};
 use rtrb::{Consumer, Producer, RingBuffer};

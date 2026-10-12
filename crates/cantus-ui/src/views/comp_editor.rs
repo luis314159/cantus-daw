@@ -51,7 +51,7 @@ use crate::views::fx::frame;
 use crate::views::fx::host::{DawHost, FxHost, KeySource, KeyTarget};
 use crate::views::fx::FactoryPreset;
 use cantus_core::fx::compressor::{KEY_BANDS, KEY_BAND_FIELDS};
-use cantus_core::{Command, EffectId, EffectKind, EffectSpec, StripId};
+use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::comprimo::{
     loudness, tele, CompSettings, Listen, StepResponse, Style as CompStyle, StyleSpec, RATIO_INF,
 };
@@ -738,6 +738,21 @@ impl CantusApp {
     /// constantly; here it is one menu item on the strip (`research/fabfilter/pro-c.md`,
     /// P1-12). Returns the new effect, or `None` when the key would close a loop.
     pub fn duck_strip_from(&mut self, strip: StripId, key: StripId) -> Option<EffectId> {
+        let slot = self.ducking_compressor();
+        let effect = slot.id;
+        // One batch, built where every routing batch is (round 25, ADR 0041).
+        let cmd = cantus_core::routing::plan::key_with(
+            self.project(),
+            key,
+            strip,
+            slot,
+            "cmd.comp_duck",
+        )?;
+        self.exec(cmd).then_some(effect)
+    }
+
+    /// A Comprimo set to duck (see [`Self::duck_strip_from`]), with a fresh id.
+    pub fn ducking_compressor(&mut self) -> cantus_core::EffectSlot {
         let bpm = self.project().tempo_bpm as f32;
         let eighth_ms = (30_000.0 / bpm.max(1.0)).clamp(40.0, 600.0);
         let mut slot = self.bus.new_effect(EffectKind::Compressor);
@@ -752,24 +767,7 @@ impl CantusApp {
         ] {
             slot.spec.set(k, v);
         }
-        let effect = slot.id;
-        let index = self.project().effects_of(strip)?.len();
-        let ok = self.exec(Command::Batch {
-            label_key: "cmd.comp_duck".into(),
-            commands: vec![
-                Command::InsertEffect {
-                    strip,
-                    index,
-                    slot: Box::new(slot),
-                },
-                Command::SetEffectSidechain {
-                    strip,
-                    effect,
-                    source: Some(key),
-                },
-            ],
-        });
-        ok.then_some(effect)
+        slot
     }
 
     /// The gain reduction a strip's compressors are applying now, dB, if the engine

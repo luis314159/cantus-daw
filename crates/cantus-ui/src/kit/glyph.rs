@@ -103,6 +103,11 @@ pub enum Glyph {
     Replace,
     /// A linked clip (ADR 0037): two links of a chain, one through the other.
     Link,
+    // --- the mixer's routing (round 25) ---
+    /// A key on its side: a sidechain key (a key cable's end, a matrix key cell).
+    Key,
+    /// Two ports and a cable between them: the desk's cable view.
+    Cables,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -435,6 +440,25 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
                 w * 0.85,
                 color,
             );
+        }
+        Glyph::Key => {
+            // A key on its side (round 25): the bow at the left, the shaft, two teeth.
+            b.circle_stroke(p(-2.8, 0.0), 2.4 * u, w * 0.9, color);
+            b.segment(p(-0.4, 0.0), p(5.2, 0.0), w, color, false);
+            b.segment(p(3.0, 0.0), p(3.0, 2.4), w, color, false);
+            b.segment(p(4.8, 0.0), p(4.8, 1.8), w, color, false);
+        }
+        Glyph::Cables => {
+            // Two ports and the cable hanging between them (round 25): the desk's cable
+            // view.
+            let mut pts = [Pos2::ZERO; 9];
+            for (i, q) in pts.iter_mut().enumerate() {
+                let a = PI * i as f32 / 8.0;
+                *q = p(-4.2 * a.cos(), -2.6 + 6.4 * a.sin());
+            }
+            b.polyline(&pts, w, color);
+            b.dot(p(-4.2, -3.2), 1.7 * u, color);
+            b.dot(p(4.2, -3.2), 1.7 * u, color);
         }
         _ => {}
     }

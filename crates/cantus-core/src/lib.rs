@@ -22,6 +22,7 @@ pub mod instrument;
 pub mod links;
 pub mod model;
 pub mod pads;
+pub mod routing;
 pub mod snapshot;
 pub mod time;
 
@@ -43,7 +44,7 @@ pub use instrument::{
 pub use model::{
     apply_width, balance_gains, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz,
     AudioSourceId, Clip, ClipId, ClipWindow, Color, Dock, EffectId, EqBand, EqField, GroupId,
-    LinkId, LoopRegion, Master, MixerStrip, Note, NoteId, PanLaw, Pitch, Project, Send, StripEq,
+    LinkId, LoopRegion, Master, MixerStrip, Note, NoteId, PanLaw, Pitch, Project, Send, SendTap, StripEq,
     StripGroup, StripId, Track, TrackIcon, TrackId, Velocity, DEFAULT_RIGHT_DOCK, DEFAULT_STRIPS,
     EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS,
     MAX_TRACK_HEIGHT, MAX_WIDTH, MIN_GAIN_DB, MIN_TRACK_HEIGHT,
