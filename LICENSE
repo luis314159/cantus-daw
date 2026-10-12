@@ -8,6 +8,12 @@ docs/adr/0047-licensing-revised.md.
   cantus-export, cantus-launch, cantus-update, cantus-plugins, cantus-bench, xtask, web:
       GPL-3.0-or-later   (see LICENSE-GPL)
 
+Not covered by these licences: crates/cantus-ui/locales/verses/es.txt, the Reina-Valera
+1960 verses (© Sociedades Bíblicas en América Latina, 1960; renewed © Sociedades Bíblicas
+Unidas, 1988). It is not included in builds until its publisher's written permission is
+granted, and may not be redistributed without that permission. The other verse files are
+public domain (see crates/cantus-ui/locales/verses/README.md).
+
 The program as distributed is a combined work under GPL-3.0-or-later. Contributions:
 CONTRIBUTING.md and CLA.md. The name and logos: TRADEMARKS.md. Third-party components
 and their licences: THIRD-PARTY-NOTICES.md. Privacy: PRIVACY.md.

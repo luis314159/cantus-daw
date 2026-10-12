@@ -101,11 +101,16 @@ fn the_window_names_the_maker_the_version_the_licence_and_the_credits() {
         }
         assert!(painted.contains(cantus_ui::app::APP_VERSION), "{painted}");
         assert!(painted.contains("lalmazan.com"));
-        // The RVR1960's notice, word for word, in either language.
-        assert!(
-            painted.contains("Reina-Valera 1960 © Sociedades Bíblicas en América Latina, 1960."),
+        // The RVR1960's notice, word for word, in either language — once the build carries
+        // it (its publisher's written permission, `verse::RVR1960_PERMITTED`); until then
+        // About credits only the translations it shows.
+        let notice = "Reina-Valera 1960 © Sociedades Bíblicas en América Latina, 1960.";
+        assert_eq!(
+            painted.contains(notice),
+            cantus_ui::verse::RVR1960_PERMITTED,
             "{painted}"
         );
+        assert!(painted.contains("Reina-Valera 1909"), "{painted}");
         cantus_ui::i18n::set_locale(Locale::En);
     }
 }

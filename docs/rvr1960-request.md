@@ -116,9 +116,11 @@ Creador de Cantus — https://cantusdaw.com · https://lalmazan.com
 
 ## Antes de enviarlo
 
-- El correo promete dos cosas que la app y la documentación deben cumplir (Claude las hace
-  cuando lo pidas): que la **RV1909 sea la predeterminada mientras no haya permiso**, y que
-  `THIRD-PARTY-NOTICES.md` / `LICENSE` digan que el archivo de versículos RVR1960
-  (`crates/cantus-ui/locales/verses/es.txt`) no está bajo la GPL y no puede redistribuirse
-  sin permiso.
+- [x] Lo que el correo promete ya es cierto (2026-10-11): la app usa la **RV1909** y no
+  lleva dentro el texto de la RVR1960 mientras no haya permiso (`verse::RVR1960_PERMITTED`
+  en `false`), y `LICENSE` y `crates/cantus-ui/locales/verses/README.md` dicen que el
+  archivo de la RVR1960 no está bajo la GPL ni la MPL y no puede redistribuirse sin permiso.
+- [ ] Cuando llegue el permiso: guardar la respuesta, pedirle a Claude que ponga
+  `RVR1960_PERMITTED` en `true` (la RVR1960 vuelve como predeterminada) y que use la
+  redacción del aviso que pidan.
 - Si mencionas paquetes de sonidos de pago o donativos, que coincida con lo que dice la web.

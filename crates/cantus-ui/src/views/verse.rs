@@ -473,19 +473,24 @@ pub fn settings(app: &mut CantusApp, ui: &mut Ui) {
             app.store_settings();
         }
     });
+    // One Spanish translation offered (the RVR1960 awaits its permission): nothing to choose.
+    let offered = Spanish::offered();
+    if offered.len() < 2 {
+        return;
+    }
     ui.horizontal(|ui| {
         w::row_label(ui, "verse.settings.spanish", LABEL_W, 24.0);
-        let mut sel = Spanish::ALL
+        let mut sel = offered
             .iter()
             .position(|x| *x == app.settings.verse.spanish)
             .unwrap_or(0);
-        let labels: Vec<Src<'_>> = Spanish::ALL
+        let labels: Vec<Src<'_>> = offered
             .iter()
             .map(|x| Src::Key(x.translation().name_key()))
             .collect();
         let width = (ui.available_width() / k - 8.0).clamp(200.0, 320.0);
         if segmented(ui, &mut sel, &labels, &t("verse.settings.spanish"), width).changed() {
-            app.settings.verse.spanish = Spanish::ALL[sel];
+            app.settings.verse.spanish = offered[sel];
             app.store_settings();
         }
     });
@@ -495,6 +500,7 @@ pub fn settings(app: &mut CantusApp, ui: &mut Ui) {
 pub fn credits() -> Vec<(String, String)> {
     Translation::ALL
         .iter()
+        .filter(|tr| !tr.verses().is_empty())
         .map(|tr| (t(tr.name_key()), t(tr.licence_key())))
         .collect()
 }

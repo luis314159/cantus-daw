@@ -49,20 +49,23 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       ≤ 300 versículos en una app gratuita, con el aviso de copyright. **El correo ya está
       redactado** en [`rvr1960-request.md`](rvr1960-request.md) (inglés y español), con la
       lista para adjuntar en [`rvr1960-verses.txt`](rvr1960-verses.txt). Mientras no llegue:
-      la beta sale con la **RV1909** (dominio público) como predeterminada.
+      la beta sale con la **RV1909** (dominio público) — **ya está hecho**: la app no lleva
+      dentro el texto de la RVR1960 hasta que se active `RVR1960_PERMITTED`.
 - [ ] **Marca "Cantus"**: ver la búsqueda preliminar abajo; pagar una búsqueda profesional
       y registrar (IMPI en México primero; luego Protocolo de Madrid si conviene).
 - [ ] **Revisión legal del CLA** (`CLA.md`) antes de aceptar el primer aporte de otra
       persona.
 - [ ] **Hacer público el repositorio** (descargas, auto-actualización y SignPath lo
       necesitan): antes, sacar del historial las capturas de otros productos
-      (`research/*/screenshots/`) y revisar que no haya secretos.
+      (`research/*/screenshots/`) y revisar que no haya secretos. Si para entonces no ha
+      llegado el permiso de la RVR1960, sacar también `crates/cantus-ui/locales/verses/es.txt`
+      (del repositorio y del historial): publicarlo en GitHub también requiere permiso.
 
 ## 3. Lo que hace Claude cuando lo pidas
 
 - [ ] La limpieza del historial en una copia aparte, para revisarla antes de publicar.
 - [ ] La solicitud a SignPath y la página de política de firma en la web (si eliges SignPath).
-- [ ] RV1909 como predeterminada mientras no haya permiso de la RVR1960.
+- [x] RV1909 como predeterminada mientras no haya permiso de la RVR1960 (hecho 2026-10-11).
 - [ ] Las notas de la versión (`docs/releases/v0.1.0-beta.1.md`), al día con las rondas 23–25.
 - [ ] El botón de la web que descargue el instalador directo (no la página de releases).
 - [ ] La etiqueta `v0.1.0-beta.1` cuando todo lo de arriba esté listo.

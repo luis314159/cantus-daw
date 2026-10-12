@@ -10,10 +10,12 @@
 //!   screen is a [`Reference`]: when the interface language changes while it shows, the
 //!   same passage is shown in the other translation.
 //! - **Translations.** English: the World English Bible (public domain; the edition that
-//!   says "LORD", as English readers know it). Spanish: the Reina-Valera 1960 by default —
-//!   quoted within the American Bible Society's allowance (under 500 verses, credited) —
-//!   or the public-domain Reina-Valera 1909, one setting away and the fallback if the
-//!   RVR1960 file is ever emptied.
+//!   says "LORD", as English readers know it). Spanish: the public-domain Reina-Valera
+//!   1909 — and the Reina-Valera 1960, the owner's choice, once its publisher's written
+//!   permission is in ([`RVR1960_PERMITTED`]; the American Bible Society's terms ask it of
+//!   applications, `docs/rvr1960-request.md`). Until then the build neither carries nor
+//!   offers the RVR1960 text; with it, the RVR1960 is the default and the 1909 one
+//!   setting away.
 //! - **On by default, with an off switch** (the owner: so someone who does not share our
 //!   beliefs can turn it off): `Settings ▸ General`, and *don't show again* on the verse.
 //! - **Never in the way.** The files are compiled in and parsed on first use (a few
@@ -26,23 +28,50 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::OnceLock;
 
+/// Whether the Reina-Valera 1960's publisher has given Cantus written permission. The
+/// American Bible Society's terms allow up to 500 verses without it in non-commercial
+/// works, but ask written permission of applications; the request is
+/// `docs/rvr1960-request.md`. **Set it to `true` only once the permission is in hand**:
+/// the build then carries the RVR1960 file, offers it and makes it the default.
+pub const RVR1960_PERMITTED: bool = false;
+
 /// The Spanish translation the verse is taken from.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Spanish {
-    /// Reina-Valera 1960, within its publisher's quotation allowance (the owner's choice).
-    #[default]
+    /// Reina-Valera 1960, within its publisher's permission (the owner's choice).
     Rvr1960,
     /// Reina-Valera 1909, public domain.
     Rv1909,
 }
 
+impl Default for Spanish {
+    fn default() -> Self {
+        if RVR1960_PERMITTED {
+            Spanish::Rvr1960
+        } else {
+            Spanish::Rv1909
+        }
+    }
+}
+
 impl Spanish {
     pub const ALL: [Spanish; 2] = [Spanish::Rvr1960, Spanish::Rv1909];
 
+    /// The choices Settings offers: both once the RVR1960 is permitted, else the 1909 only.
+    pub fn offered() -> &'static [Spanish] {
+        if RVR1960_PERMITTED {
+            &Spanish::ALL
+        } else {
+            &[Spanish::Rv1909]
+        }
+    }
+
+    /// The translation this choice reads: a saved RVR1960 reads the 1909 until the
+    /// RVR1960 is permitted.
     pub fn translation(self) -> Translation {
         match self {
-            Spanish::Rvr1960 => Translation::Rvr1960,
-            Spanish::Rv1909 => Translation::Rv1909,
+            Spanish::Rvr1960 if RVR1960_PERMITTED => Translation::Rvr1960,
+            Spanish::Rvr1960 | Spanish::Rv1909 => Translation::Rv1909,
         }
     }
 }
@@ -60,7 +89,7 @@ impl Default for VerseSettings {
     fn default() -> Self {
         VerseSettings {
             show: true,
-            spanish: Spanish::Rvr1960,
+            spanish: Spanish::default(),
         }
     }
 }
@@ -115,6 +144,8 @@ impl Translation {
     pub fn source(self) -> &'static str {
         match self {
             Translation::Web => include_str!("../locales/verses/en.txt"),
+            // Not in the build until its publisher's written permission is in.
+            Translation::Rvr1960 if !RVR1960_PERMITTED => "",
             Translation::Rvr1960 => include_str!("../locales/verses/es.txt"),
             Translation::Rv1909 => include_str!("../locales/verses/es-1909.txt"),
         }

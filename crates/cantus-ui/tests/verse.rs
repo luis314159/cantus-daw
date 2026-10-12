@@ -14,6 +14,13 @@ use cantus_ui::views::verse as view;
 use egui::{Pos2, Rect, Vec2};
 use std::collections::HashMap;
 
+/// The RVR1960 file as the repository holds it — the app carries it only once its
+/// publisher's written permission is in (`verse::RVR1960_PERMITTED`), but its list is kept
+/// right either way.
+fn rvr1960() -> Vec<verse::Verse> {
+    verse::parse(include_str!("../locales/verses/es.txt")).expect("the RVR1960 file parses")
+}
+
 /// Verses per book (the Protestant canon, KJV/RV versification), from the RV1909 file
 /// of eBible.org: what "half of a book" is measured against.
 const BOOK_VERSES: [(&str, u32); 66] = [
@@ -93,9 +100,18 @@ fn with_locale<R>(l: Locale, f: impl FnOnce() -> R) -> R {
 #[test]
 fn every_verse_file_parses_and_is_not_empty() {
     for t in Translation::ALL {
-        let v = verse::parse(t.source()).unwrap_or_else(|e| panic!("{t:?}: {e}"));
+        // The RVR1960 is checked from the repository's file: the build carries it only
+        // with its publisher's permission.
+        let src = if t == Translation::Rvr1960 {
+            include_str!("../locales/verses/es.txt")
+        } else {
+            t.source()
+        };
+        let v = verse::parse(src).unwrap_or_else(|e| panic!("{t:?}: {e}"));
         assert!(v.len() >= 200, "{t:?} has only {} passages", v.len());
-        assert_eq!(t.verses().len(), v.len());
+        if t != Translation::Rvr1960 || verse::RVR1960_PERMITTED {
+            assert_eq!(t.verses().len(), v.len());
+        }
         for p in &v {
             assert!(
                 !p.text.contains("  "),
@@ -123,7 +139,11 @@ fn every_locale_has_a_translation_in_its_language() {
     }
     assert_eq!(
         Translation::for_locale(Locale::Es, Spanish::Rvr1960),
-        Translation::Rvr1960
+        if verse::RVR1960_PERMITTED {
+            Translation::Rvr1960
+        } else {
+            Translation::Rv1909
+        }
     );
     assert_eq!(
         Translation::for_locale(Locale::Es, Spanish::Rv1909),
@@ -142,10 +162,14 @@ fn every_translation_holds_the_same_passages_in_the_same_order() {
         .iter()
         .map(|v| v.reference)
         .collect();
-    for t in [Translation::Rvr1960, Translation::Rv1909] {
-        let other: Vec<Reference> = t.verses().iter().map(|v| v.reference).collect();
-        assert_eq!(en, other, "{t:?} differs from the WEB's list");
-    }
+    let rv1960: Vec<Reference> = rvr1960().iter().map(|v| v.reference).collect();
+    assert_eq!(en, rv1960, "the RVR1960 file differs from the WEB's list");
+    let rv1909: Vec<Reference> = Translation::Rv1909
+        .verses()
+        .iter()
+        .map(|v| v.reference)
+        .collect();
+    assert_eq!(en, rv1909, "the RV1909 differs from the WEB's list");
     assert_eq!(verse::references(), en);
 }
 
@@ -156,7 +180,7 @@ fn the_spanish_list_stays_inside_the_rvr1960_allowance() {
     let books: HashMap<&str, u32> = BOOK_VERSES.into_iter().collect();
     let mut per_book: HashMap<&str, u32> = HashMap::new();
     let mut total = 0u32;
-    for v in Translation::Rvr1960.verses() {
+    for v in &rvr1960() {
         let n = u32::from(v.reference.count());
         total += n;
         *per_book.entry(v.reference.book).or_default() += n;
@@ -229,8 +253,9 @@ fn the_motto_is_there_in_every_translation() {
         .unwrap()
         .text
         .contains("heartily"));
-    assert!(Translation::Rvr1960
-        .passage(col)
+    assert!(rvr1960()
+        .iter()
+        .find(|v| v.reference == col)
         .unwrap()
         .text
         .contains("de corazón"));
@@ -330,11 +355,17 @@ fn switching_the_language_shows_the_same_passage_in_the_other_translation() {
     assert!(en.contains("COLOSSIANS 3:23 \u{00b7} WEB"), "{en}");
     assert!(en.contains("heartily"), "{en}");
 
-    // Settings ▸ Language, live: the same passage, in Spanish, from the RVR1960.
+    // Settings ▸ Language, live: the same passage, in Spanish — the RVR1960 once it is
+    // permitted, the public-domain RV1909 until then.
     i18n::set_locale(Locale::Es);
     let (_, es) = card_frame(&mut app, &ctx, Vec2::new(1280.0, 800.0));
-    assert!(es.contains("COLOSENSES 3:23 \u{00b7} RVR1960"), "{es}");
-    assert!(es.contains("de corazón"), "{es}");
+    if verse::RVR1960_PERMITTED {
+        assert!(es.contains("COLOSENSES 3:23 \u{00b7} RVR1960"), "{es}");
+        assert!(es.contains("de corazón"), "{es}");
+    } else {
+        assert!(es.contains("COLOSENSES 3:23 \u{00b7} RV1909"), "{es}");
+        assert!(es.contains("de ánimo"), "{es}");
+    }
     assert!(es.contains("No volver a mostrar"), "{es}");
     assert_eq!(
         app.verse.map(|c| c.reference),
@@ -364,7 +395,14 @@ fn the_splash_follows_the_language_too() {
     let ctx = support::ctx();
     for (l, cite) in [
         (Locale::En, "PSALM 96:1 \u{00b7} WEB"),
-        (Locale::Es, "SALMOS 96:1 \u{00b7} RVR1960"),
+        (
+            Locale::Es,
+            if verse::RVR1960_PERMITTED {
+                "SALMOS 96:1 \u{00b7} RVR1960"
+            } else {
+                "SALMOS 96:1 \u{00b7} RV1909"
+            },
+        ),
     ] {
         i18n::set_locale(l);
         let text = support::paint(&ctx, boot::size(true), 2, |ui| {
@@ -505,4 +543,42 @@ fn the_card_goes_by_itself_after_a_while() {
     let (p, _) = card_frame(&mut app, &ctx, Vec2::new(1280.0, 800.0));
     assert!(p.is_none());
     assert!(app.verse.is_none());
+}
+
+/// The RVR1960 waits for its publisher's written permission (the American Bible Society's
+/// terms ask it of applications; the request: `docs/rvr1960-request.md`). Until then the
+/// app neither carries nor offers it: the Spanish verses are the public-domain RV1909, a
+/// saved RVR1960 choice reads the RV1909, Settings has nothing to choose and About credits
+/// only what is shown. With the permission, one constant brings it back as the default.
+#[test]
+fn the_rvr1960_waits_for_its_permission() {
+    let saved = VerseSettings {
+        show: true,
+        spanish: Spanish::Rvr1960,
+    };
+    i18n::set_locale(Locale::Es);
+    let credits: Vec<String> = view::credits().into_iter().map(|(n, l)| n + &l).collect();
+    if verse::RVR1960_PERMITTED {
+        assert_eq!(VerseSettings::default().spanish, Spanish::Rvr1960);
+        assert_eq!(Spanish::offered(), &[Spanish::Rvr1960, Spanish::Rv1909]);
+        assert!(!Translation::Rvr1960.verses().is_empty());
+        assert!(credits.iter().any(|c| c.contains("1960")));
+    } else {
+        assert_eq!(VerseSettings::default().spanish, Spanish::Rv1909);
+        assert_eq!(Spanish::offered(), &[Spanish::Rv1909]);
+        assert!(
+            Translation::Rvr1960.source().is_empty(),
+            "the build carries the RVR1960"
+        );
+        assert!(Translation::Rvr1960.verses().is_empty());
+        assert_eq!(
+            Translation::for_locale(Locale::Es, saved.spanish),
+            Translation::Rv1909
+        );
+        assert!(
+            !credits.iter().any(|c| c.contains("1960")),
+            "About credits a translation it does not show: {credits:?}"
+        );
+    }
+    i18n::set_locale(Locale::En);
 }

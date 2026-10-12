@@ -7,7 +7,7 @@ show again* on the verse itself.
 | File | Translation | Language | Licence |
 |---|---|---|---|
 | `en.txt` | World English Bible (the edition that says "LORD") | English | Public domain |
-| `es.txt` | Reina-Valera 1960 | Spanish (default) | © — quoted within the publisher's allowance, credited |
+| `es.txt` | Reina-Valera 1960 | Spanish, **not in the build until written permission** (`verse::RVR1960_PERMITTED`) | © Sociedades Bíblicas Unidas — not under the GPL or MPL |
 | `es-1909.txt` | Reina-Valera 1909 | Spanish (one setting away; the fallback) | Public domain |
 
 Every file holds the **same passages, in the same order** (`tools/list.txt`, 281 passages,
@@ -47,6 +47,18 @@ because it says "LORD" where the classic WEB says "Yahweh": what English readers
 their own Bibles, and the counterpart of the Reina-Valera's "Jehová".
 
 ## The Reina-Valera 1960: the owner's decision and its terms
+
+> **Update 2026-10-11 — waiting for written permission.** Re-reading the publisher's page,
+> its terms list **"mobile apps or other new media, such as websites"** among the uses that
+> need written permission, whatever the number of verses. Cantus is an application, so
+> the allowance below is not enough. The request is drafted in `docs/rvr1960-request.md`
+> (the owner sends it). Until the answer: `verse::RVR1960_PERMITTED` is `false`, the build
+> does **not** carry `es.txt` (the text is not compiled in — checked by searching the
+> release `.exe` for its wording), Settings offers only the RV1909, a saved RVR1960 choice
+> reads the RV1909, and About credits only what is shown. `es.txt` stays in the repository
+> under its own copyright, **not under the GPL or MPL**; nobody may redistribute it without
+> the publisher's permission. When the permission arrives, set the constant to `true`
+> (the tests cover both states) and record the permission here.
 
 The owner chose the RVR1960 (2026-10-05), relying on its quotation allowance. The terms,
 read on the publisher's own page on 2026-10-05 — American Bible Society, *Rights and
