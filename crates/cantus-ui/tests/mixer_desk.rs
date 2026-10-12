@@ -229,6 +229,31 @@ fn the_legend_names_each_row_once_and_strips_carry_no_words() {
     }
 }
 
+/// The cable band says what its lines mean without a hover: under ROUTING, a sample of
+/// each line — output, send, sidechain key — with its word, in both languages. (The owner
+/// asked, on the demo, why the kick's cables were dotted: they were its sidechain keys.)
+#[test]
+fn the_routing_legend_names_each_kind_of_cable() {
+    for locale in cantus_ui::i18n::Locale::ALL {
+        let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
+        cantus_ui::i18n::set_locale(locale);
+        let text = r.idle(2);
+        for key in [
+            "cables.legend.output",
+            "cables.legend.send",
+            "cables.legend.key",
+        ] {
+            let word = cantus_ui::i18n::t(key).to_uppercase();
+            assert_eq!(
+                text.matches(&format!("| {word} |")).count(),
+                1,
+                "{locale:?}: {word} once in the legend: {text}"
+            );
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
 /// At 720 px of window the desk fits first (dropping rows) and scrolls when even that is
 /// too tall: the sends row is always reachable.
 #[test]

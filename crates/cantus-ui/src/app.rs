@@ -173,6 +173,8 @@ pub struct CantusApp {
     pub appearance_page: views::appearance::Page,
     /// The window's and the taskbar's icon, in the colour the appearance names (ADR 0046).
     pub window_icon: crate::window_icon::WindowIcon,
+    /// Whether the taskbar is light: what the automatic icon colour follows.
+    pub taskbar: crate::window_icon::Taskbar,
     /// User preferences, from `settings.json` (`crate::settings`).
     pub settings: Settings,
     /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
@@ -423,6 +425,7 @@ impl CantusApp {
             appearance_watch: Default::default(),
             appearance_page: Default::default(),
             window_icon: Default::default(),
+            taskbar: Default::default(),
             theme_ctx: None,
             settings: Settings::default(),
             settings_path: settings::settings_path(&directories_fallback()),
@@ -636,7 +639,10 @@ impl CantusApp {
         let dark = views::appearance_file::system_dark(&ctx);
         let t = self.appearance.resolve(dark);
         // The icon's colours first: the *Icon* logo tint reads them as the theme installs.
-        let mark = self.appearance.icon.mark(&t.kit_tokens());
+        let mark = self
+            .appearance
+            .icon
+            .mark_on(&t.kit_tokens(), self.taskbar.light());
         crate::kit::logo::set_icon_colours(mark);
         self.window_icon.want(mark);
         theme::apply(&t, &ctx);
@@ -3456,6 +3462,11 @@ impl CantusApp {
 impl eframe::App for CantusApp {
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frame(root);
+        // The taskbar going light or dark changes the automatic icon (read here, by the
+        // real window only, at most every two seconds).
+        if self.taskbar.poll() {
+            self.apply_appearance();
+        }
         self.window_icon.sync(root.ctx(), frame);
     }
 }

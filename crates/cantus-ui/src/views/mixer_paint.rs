@@ -528,6 +528,7 @@ pub(super) fn legend(
             .policy(Policy::Abbreviate);
         let _ = text::paint(b, box_, &tt, s.tk());
     }
+    cables_key(ui, b, s, geo, fit);
     // The dB scale, where it does not collide with itself or with the row's name.
     if let Some((a, z)) = fit.row(Row::Fader) {
         let fr = Rect::from_min_max(pos2(x0, geo.y0 + a), pos2(x1, geo.y0 + z));
@@ -558,6 +559,82 @@ pub(super) fn legend(
     }
     ratio_handle(v, ui, b, s, geo, fit);
     band_handle(v, ui, b, s, geo, fit);
+}
+
+/// Under ROUTING, what the band's lines mean, without a hover: a sample of each — an
+/// output thick, a send thin, a sidechain key dashed, as the band draws them — and its
+/// word; on hover, the whole sentence in the hint bar. Where the band is too short for
+/// three lines, only the hover says it.
+fn cables_key(ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
+    let Some((a, z)) = fit.row(Row::Cables) else {
+        return;
+    };
+    let t = &s.t;
+    let (a, z) = (geo.y0 + a, geo.y0 + z);
+    let l = geo.legend;
+    let (x0, x1) = (l.left() + 8.0, l.right() - 6.0);
+    // Below the row's name (which sits at the top of a tall row, centred in a short one).
+    let top = if z - a > 30.0 {
+        a + 13.0
+    } else {
+        (a + z) * 0.5 + 7.0
+    };
+    // Micro is capitals 8.5 pt (about 6 px tall): 9 px a line keeps them apart, so the
+    // name and the three lines fit the band's default 40 px.
+    const LINE: f32 = 9.0;
+    if z - top >= LINE * 3.0 {
+        use crate::kit::cable::{self, CableKind};
+        let ink = t.text_dim;
+        for (i, (key, kind)) in [
+            ("cables.legend.output", CableKind::Output),
+            (
+                "cables.legend.send",
+                CableKind::Send {
+                    on: true,
+                    pre: false,
+                },
+            ),
+            ("cables.legend.key", CableKind::Key),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let y = top + LINE * (i as f32 + 0.5);
+            // As the band strokes it: its width, and a key in the dynamics hue, dashed,
+            // ending in its key mark.
+            let w = s.s(cable::width(kind));
+            if kind == CableKind::Key {
+                let hue = t.hue_dynamics;
+                for k in 0..2 {
+                    let u = x0 + k as f32 * 5.0;
+                    b.segment(pos2(u, y), pos2(u + 3.0, y), w, hue, false);
+                }
+                cable::key_mark(b, s, pos2(x0 + 13.0, y), s.s(8.0), hue);
+            } else {
+                b.segment(pos2(x0, y), pos2(x0 + 14.0, y), w, ink, false);
+            }
+            // Taller than the line, so an accent (ENVÍO) is not cut; nothing paints above.
+            let tr = Rect::from_min_max(pos2(x0 + 21.0, y - 6.5), pos2(x1, y + 6.5));
+            let tt = Text::key(key, Role::Micro, ink)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Abbreviate);
+            let _ = text::paint(b, tr, &tt, s.tk());
+        }
+    }
+    let row = Rect::from_min_max(pos2(l.left(), a), pos2(l.right(), z));
+    let resp = ui.interact(
+        row.intersect(geo.rows),
+        Id::new("mixer-cables-key"),
+        Sense::hover(),
+    );
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            &crate::i18n::t("cables.legend.hint"),
+            "",
+            hint::Caps::NONE,
+        );
+    }
 }
 
 /// FL's 3-dot handle between the meter and the fader: drag to move height between them,

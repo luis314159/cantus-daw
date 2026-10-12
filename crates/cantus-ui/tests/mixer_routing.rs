@@ -715,6 +715,30 @@ fn a_click_on_a_port_then_on_a_strip_sends() {
     undo_restores(&mut r.app, &before);
 }
 
+/// The hint bar reads whole in both languages while a route is armed or carried: the
+/// modifiers ("…· Esc: cancel") are what only the bar says — the chip beside the pointer
+/// already carries the destination's words — so the bar's value gives way to them, never
+/// the other way round. (Round 25: in Spanish the bar cut "Esc: cancelar".)
+#[test]
+fn the_hint_bar_keeps_the_modifiers_whole_while_routing() {
+    for locale in cantus_ui::i18n::Locale::ALL {
+        let mut r = Rig::window(starter_project());
+        cantus_ui::i18n::set_locale(locale);
+        r.idle(3);
+        let s = r.ids();
+        r.click(r.rect(Some(s[1]), Control::Port).center());
+        assert_eq!(r.app.mixer.armed(), Some(s[1]));
+        r.pointer = Some(r.rect(Some(s[5]), Control::Fader).center());
+        let text = r.idle(3);
+        let keys = cantus_ui::i18n::t("routing.arm.hint");
+        assert!(
+            text.contains(&keys),
+            "{locale:?}: the hint bar cut {keys:?}"
+        );
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
 /// Ctrl held at the second click: the destination becomes the only output.
 #[test]
 fn ctrl_at_the_second_click_routes_the_output() {

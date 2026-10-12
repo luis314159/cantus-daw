@@ -149,7 +149,7 @@ cmd.set_notes = editar notas
 cmd.quantize = cuantizar
 cmd.ai_add_notes = IA: añadir notas
 
-about.text = Cantus — una estación de trabajo de audio digital libre y de código abierto escrita en Rust.\nCrates centrales MIT/Apache-2.0, aplicación GPL-3.0-or-later.\n\n"Hagan lo que hagan, trabajen de corazón." — Colosenses 3:23
+about.text = Cantus — una estación de trabajo de audio digital libre y de código abierto escrita en Rust.\nAplicación GPL-3.0-o-posterior, motor MPL-2.0.\n\n"Hagan lo que hagan, trabajen de corazón." — Colosenses 3:23
 shortcuts.text = Arrastra el borde derecho de una nota para redimensionarla · Clic derecho elimina · Ctrl+arrastrar selecciona por marco · Mayús al arrastrar fija el tono · Ctrl al arrastrar fija el tiempo · Alt al arrastrar ignora la rejilla · Alt+rueda edita la velocidad · Ctrl+rueda hace zoom · Mayús+rueda desplaza en horizontal · Con el teclado del ordenador activo, A–L tocan la pista seleccionada y Z/X cambian de octava · En el arreglo: arrastra el borde de un clip para recortarlo, Alt+arrastrar copia en vez de mover, Mayús+arrastrar desplaza la música dentro del clip, Ctrl al arrastrar ignora la rejilla, arrastra en vacío para seleccionar clips, Ctrl+clic añade a la selección, clic derecho abre el menú del clip
 
 transport.record = Grabar

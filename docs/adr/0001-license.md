@@ -1,6 +1,8 @@
 # ADR 0001 — Licensing model
 
-**Status:** Accepted · **Date:** 2026-09-07
+**Status:** Accepted, **amended by ADR 0047** (2026-10-11: the SDK crates are MPL-2.0,
+not MIT OR Apache-2.0; a contributor agreement is required; the name and logos are the
+owner's marks) · **Date:** 2026-09-07
 
 ## Context
 The master spec (idea.md §8) says the license must be decided in Phase 0 because it is

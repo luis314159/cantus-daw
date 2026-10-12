@@ -16,6 +16,7 @@ look.icon = Taskbar icon
 look.icon.chosen = Icon: {name}
 look.icon.colour = Icon colour
 look.icon.note = The window's and the taskbar's icon, changed at once. Pinned shortcuts and the installer keep the designed colours.
+look.icon.auto = Automatic (follows the taskbar: deep copper on a light one)
 look.icon.original = As designed
 look.icon.theme = Theme accent
 look.icon.custom = Your colour

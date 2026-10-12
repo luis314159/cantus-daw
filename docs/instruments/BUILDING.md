@@ -43,7 +43,7 @@ in the frame), make it minimal, put it in its own commit whose message starts wi
 `SHARED:`, and explain it in your final report.
 
 **Dependencies**: only MIT, Apache-2.0, BSD, ISC or Zlib crates (the core, DSP and engine
-crates are MIT OR Apache-2.0); check the licence file. No code copied from GPL projects
+crates are MPL-2.0, ADR 0047); check the licence file. No code copied from GPL projects
 (Vital, Surge, Dexed, OB-Xd, setBfree, sfizz is BSD but check) — read their documentation,
 implement from the published literature.
 

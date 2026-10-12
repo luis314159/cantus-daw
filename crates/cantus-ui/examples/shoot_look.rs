@@ -43,7 +43,7 @@ fn main() {
                 "look-{preset}-z{}{lang}.png",
                 (zoom * 100.0) as u32
             ));
-            let size = Vec2::new(760.0, 520.0);
+            let size = Vec2::new(880.0, 520.0);
             raster::shoot(&ctx, size, zoom, 4, Some(&path), |root| {
                 egui::CentralPanel::default().show(root, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
@@ -64,8 +64,8 @@ fn swatches(app: &mut CantusApp, ui: &mut egui::Ui) {
         for (preset, _) in PRESETS {
             let base = format!("preset:{preset}");
             let t = appearance_look::preview_tokens(app, &base);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(112.0, 88.0), egui::Sense::hover());
-            let chip = Rect::from_min_size(rect.min, Vec2::new(112.0, 64.0));
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(136.0, 88.0), egui::Sense::hover());
+            let chip = Rect::from_min_size(rect.min, Vec2::new(136.0, 64.0));
             with_brush(ui.painter(), |b| {
                 appearance_look::paint_preview(b, chip, &t, s.k);
                 let label = Rect::from_min_max(Pos2::new(rect.left(), chip.bottom()), rect.max);

@@ -133,6 +133,7 @@ pub fn paint_preview(b: &mut Brush, rect: Rect, t: &Tokens, k: f32) {
 /// The square chips of the icon's colours, and what each chooses.
 fn choices() -> Vec<(IconColour, String)> {
     let mut v = vec![
+        (IconColour::Auto, t("look.icon.auto")),
         (IconColour::Original, t("look.icon.original")),
         (IconColour::Theme, t("look.icon.theme")),
     ];
@@ -168,13 +169,15 @@ pub fn icon_section(app: &mut CantusApp, ui: &mut Ui) {
                 (IconColour::Custom(_), IconColour::Custom(_)) => true,
                 (a, b) => *a == b,
             };
-            // A dark taskbar behind the light colours, a light one behind Graphite.
-            let back = if *choice == IconColour::Preset(IconPreset::Graphite) {
-                backs[1]
-            } else {
-                backs[0]
+            // A dark taskbar behind the light colours, a light one behind Graphite, and
+            // behind the automatic choice the taskbar this Windows has.
+            let light = app.taskbar.light();
+            let back = match choice {
+                IconColour::Preset(IconPreset::Graphite) => backs[1],
+                IconColour::Auto if light => backs[1],
+                _ => backs[0],
             };
-            let mark = choice.mark(&tokens);
+            let mark = choice.mark_on(&tokens, light);
             let tex = mark_texture(
                 ui.ctx(),
                 &mark,

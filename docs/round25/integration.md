@@ -140,6 +140,38 @@ Looked at, whole window, both themes, English and Spanish, 75 % and 200 %:
 
 Pictures are written to `F:/projects/daw-r23/shots-r25/final/` (not in the repository).
 
+## After the push: the three things the owner asked to fix (2026-10-11)
+
+Round 25 went to master as 14ddaf5; the owner then asked for the three things the
+report had left open, for excellence (Colossians 3:23):
+
+- **The 0 dB pan law is exactly unity** at centre and on the near side (`ZeroDb.gains`
+  *is* `balance_gains`, whose near channel is now exactly 1 — the taper alone rounds to
+  0.99999994 in `f32`). `DSP_VERSION` 4: a centred strip under that law is one rounding
+  step louder (≤ 6e-8 of the signal); every golden hash held (they were checked with
+  `CANTUS_GOLDEN_DUMP` and none moved — no golden passes a centred strip through the
+  0 dB law). Tests seen failing first:
+  `model::tests::the_zero_db_law_is_unity_at_centre_and_on_the_near_side`, and
+  `send_tap.rs`'s pre = post at a 0 dB fader, centre and the 0 dB law, now with nothing
+  folded into the pre send's level; the legacy test now holds the far channel to the bit
+  and the near one to one step.
+- **The hint bar keeps the modifiers whole**: when name and value do not both fit and
+  the value is not live, the name keeps its room and the value (which the chip beside the
+  pointer also shows) is the one cut. Spanish cut "Esc: cancelar" before. Test
+  `the_hint_bar_keeps_the_modifiers_whole_while_routing` (both languages, the whole
+  window), seen failing in Spanish.
+- **The automatic icon colour** (ADR 0046, amended): the default follows Windows'
+  taskbar — the designed gradient on a dark one, a deep copper twin on a light one —
+  read from `SystemUsesLightTheme` (`cantus_launch::taskicon::light_taskbar`) every two
+  seconds by the real window. Test
+  `the_automatic_icon_reads_on_a_dark_and_a_light_taskbar`.
+- `shoot_look`'s swatch sheet is wider, so the Spanish names read whole.
+- **A key to the cable band** (the owner asked, on the demo, why the kick's cables were
+  dotted — they were its sidechain keys on the chords, bass and choir compressors): under
+  ROUTING in the legend column, a sample of each line (output thick, send thin, sidechain
+  key dashed) with its word, and the whole sentence in the hint bar on hover. Test
+  `mixer_desk::the_routing_legend_names_each_kind_of_cable` (both languages).
+
 ## What is left
 
 - **Click mode while the desk is off screen**: an armed route survives the desk being

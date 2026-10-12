@@ -99,11 +99,22 @@ pub fn paint_panel(b: &mut Brush, rect: Rect, s: &Style, project: &str, idle: Op
             Some((name, value, caps, live)) => {
                 // "Cutoff  2.4 kHz": the name, then the value (in the focus colour while
                 // it is being dragged, FL's live readout).
-                let vw = if value.is_empty() {
+                let mut vw = if value.is_empty() {
                     0.0
                 } else {
                     text::measure(&ctx, &Text::new(value, Role::Value, t.text), tk).x + 10.0 * k
                 };
+                // When both do not fit, a live value keeps its room (the number being
+                // dragged); otherwise the name does — a routing hint's modifiers are said
+                // only here, while its value rides on the chip beside the pointer too.
+                let nw =
+                    text::measure(&ctx, &Text::new(name, Role::Label, t.text), tk).x + 10.0 * k;
+                if !live && vw > 0.0 && nw + vw > bottom.width() {
+                    vw = (bottom.width() - nw.min(bottom.width() * 0.8)).max(0.0);
+                    if vw < 36.0 * k {
+                        vw = 0.0;
+                    }
+                }
                 let name_r = Rect::from_min_max(
                     bottom.min,
                     Pos2::new((bottom.right() - vw).max(bottom.left()), bottom.bottom()),
@@ -116,7 +127,7 @@ pub fn paint_panel(b: &mut Brush, rect: Rect, s: &Style, project: &str, idle: Op
                         .policy(Policy::Elide(Elide::End)),
                     tk,
                 );
-                if !value.is_empty() {
+                if vw > 0.0 {
                     let vr = Rect::from_min_max(
                         Pos2::new(bottom.right() - vw + 6.0 * k, bottom.top()),
                         bottom.max,

@@ -16,6 +16,7 @@ look.icon = Icono de la barra de tareas
 look.icon.chosen = Icono: {name}
 look.icon.colour = Color del icono
 look.icon.note = El icono de la ventana y de la barra de tareas, cambiado al momento. Los accesos anclados y el instalador conservan los colores originales.
+look.icon.auto = Automático (sigue a la barra de tareas: cobre intenso si es clara)
 look.icon.original = Como se diseñó
 look.icon.theme = Acento del tema
 look.icon.custom = Tu color

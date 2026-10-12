@@ -18,6 +18,9 @@
 
 <!-- Anything risky, left for later, or decided on the way (an ADR if it is a decision). -->
 
-By contributing you agree that your contribution is licensed as the crates you change are
-(GPL-3.0-or-later for the application, MIT OR Apache-2.0 for the engine crates — see
-`docs/adr/0001-license.md`).
+## Licence
+
+Your contribution is licensed as the crates you change are (GPL-3.0-or-later for the
+application, MPL-2.0 for the engine crates — `LICENSE`, `docs/adr/0047-licensing-revised.md`).
+
+- [ ] I agree to the [Cantus Contributor Licence Agreement 1.0](../CLA.md)

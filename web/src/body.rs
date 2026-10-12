@@ -56,7 +56,7 @@ pub fn free() -> Html {
                         { promise(l.t("No account, no telemetry.", "Sin cuenta, sin telemetría."),
                                   l.t("Your projects, audio and MIDI stay on your computer.", "Tus proyectos, audio y MIDI se quedan en tu computadora.")) }
                         { promise(l.t("Open source.", "Código abierto."),
-                                  l.t("GPL-3.0-or-later. Read it, build it, change it.", "GPL-3.0-o-posterior. Léelo, compílalo, cámbialo.")) }
+                                  l.t("App GPL-3.0-or-later, engine MPL-2.0. Read it, build it, change it — and what you change and share stays open.", "App GPL-3.0-o-posterior, motor MPL-2.0. Léelo, compílalo, cámbialo; lo que cambies y compartas sigue abierto.")) }
                         { promise(l.t("Support is optional.", "Apoyar es opcional."),
                                   l.t("Donations and extra sound packs can fund the work, but never unlock the essentials.", "Las donaciones y los paquetes de sonidos adicionales pueden financiar el trabajo, pero nunca desbloquean lo esencial.")) }
                     </ul>
@@ -179,11 +179,12 @@ pub fn footer() -> Html {
                 <nav aria-label={l.t("Footer", "Pie de página")}>
                     <a href={GITHUB}>{ "GitHub" }</a>
                     <a href={format!("{GITHUB}/blob/master/PRIVACY.md")}>{ l.t("Privacy", "Privacidad") }</a>
-                    <a href={format!("{GITHUB}/blob/master/LICENSE-GPL")}>{ l.t("Licence", "Licencia") }</a>
+                    <a href={format!("{GITHUB}/blob/master/LICENSE")}>{ l.t("Licence", "Licencia") }</a>
+                    <a href={format!("{GITHUB}/blob/master/CONTRIBUTING.md")}>{ l.t("Contribute", "Contribuir") }</a>
                     <a href={format!("{GITHUB}/blob/master/THIRD-PARTY-NOTICES.md")}>{ l.t("Third-party notices", "Avisos de terceros") }</a>
                 </nav>
-                <p>{ l.t("Created by Luis Ángel Almazán. Free software, GPL-3.0-or-later. cantusdaw.com · cantusdaw.studio",
-                         "Creado por Luis Ángel Almazán. Software libre, GPL-3.0-o-posterior. cantusdaw.com · cantusdaw.studio") }</p>
+                <p>{ l.t("Created by Luis Ángel Almazán. Free software: app GPL-3.0-or-later, engine MPL-2.0. Cantus and its logos are trademarks of Luis Ángel Almazán. cantusdaw.com · cantusdaw.studio",
+                         "Creado por Luis Ángel Almazán. Software libre: app GPL-3.0-o-posterior, motor MPL-2.0. Cantus y sus logotipos son marcas de Luis Ángel Almazán. cantusdaw.com · cantusdaw.studio") }</p>
                 <p class="creed">{ l.t("Christ is King", "Viva Cristo Rey") }</p>
             </div>
         </footer>
