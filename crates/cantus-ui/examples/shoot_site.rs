@@ -35,7 +35,8 @@ fn main() {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
-    let mut app = CantusApp::from_parts(Some(demos::startup_project()), EngineHandle::dummy(), false);
+    let (engine, mut processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(demos::startup_project()), engine, false);
     // Never touch the user's files.
     let tmp = std::env::temp_dir().join("cantus-shoot-site");
     app.settings_path = tmp.join("settings.json");
@@ -44,6 +45,29 @@ fn main() {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if paper { Mode::Light } else { Mode::Dark };
     app.attach(&ctx);
+    // A working studio: the demo interface, here an ASIO driver at 48 kHz and 256 samples.
+    cantus_ui::audio_setup::demo::setup(&mut app);
+    if let Some(live) = app.audio_setup.demo.as_mut() {
+        live.driver = "ASIO".into();
+        live.device = "ASIO4ALL v2".into();
+        live.wanted = live.device.clone();
+        live.block = 256;
+    }
+    // Named by its driver, as an unlisted interface is.
+    app.audio_setup.scan = None;
+    app.settings.audio.device = Some("ASIO4ALL v2".into());
+    app.set_status(cantus_ui::i18n::t("status.autosaved"));
+    // The desk ends cleanly: the strips nothing feeds (the empty slots) are removed.
+    let empty: Vec<_> = app
+        .project()
+        .strips
+        .iter()
+        .filter(|s| s.name.is_empty() && s.effects.is_empty())
+        .map(|s| s.id)
+        .collect();
+    for id in empty {
+        app.exec(cantus_core::Command::RemoveStrip { id });
+    }
     app.central = cantus_ui::app::CentralView::Mixer;
     cantus_ui::views::mixer::set_width_mode(&mut app, WidthMode::from_index(2));
     let mut prefs = app.mixer.prefs();
@@ -52,6 +76,14 @@ fn main() {
     // The chords: sidechained from the kick, sent to the reverb; the selected strip's cables.
     if let Some(strip) = app.project().tracks.get(5).and_then(|t| t.strip) {
         app.select_strip(strip);
+    }
+    // Playing, a few bars in: the clock, the playhead and the meters move.
+    app.sync_engine();
+    app.seek(cantus_core::Ticks::beats(24));
+    app.toggle_play();
+    let mut audio = vec![0f32; 800 * 2];
+    for _ in 0..40 {
+        processor.process(&mut audio, 2);
     }
     let name = if paper { "app-mixer-xl-paper.png" } else { "app-mixer-xl.png" };
     let path = dir.join(name);
@@ -71,6 +103,7 @@ fn main() {
             app.workspace.impose_sizes(INSPECTOR_PX, 0.0);
         }
         frame += 1;
+        processor.process(&mut audio, 2);
         let pal = cantus_ui::theme::p();
         egui::Panel::top(egui::Id::new("site-caption"))
             .exact_size(CAPTION)
