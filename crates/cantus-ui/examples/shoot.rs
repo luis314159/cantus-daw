@@ -125,10 +125,11 @@ fn main() {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
+        // `-dark` is Cantus Night, the default theme (the website's pictures); `-light` is Paper.
         let theme = if dark {
-            cantus_ui::theme::ink_and_gold()
-        } else {
             cantus_ui::theme::default_theme()
+        } else {
+            cantus_ui::theme::paper()
         };
         cantus_ui::theme::apply(&theme, &ctx);
         // The mixer and `startup` (the whole window) show what the program opens on.
