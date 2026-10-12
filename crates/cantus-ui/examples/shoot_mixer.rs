@@ -4,7 +4,7 @@
 //!
 //! `cargo run --release -p cantus-ui --example shoot_mixer -- <out-dir> [filter…]`
 //!
-//! Writes `mixer-<theme>-<w>x<h>-<strips>[-<variant>].png` for Slate and Paper, at
+//! Writes `mixer-<theme>-<w>x<h>-<strips>[-<variant>].png` for Cantus Night (the default), Slate and Paper, at
 //! 1280 × 720 (the laptop where the old desk lost its bottom 170 px) and 1920 × 1080,
 //! with 16 and 64 strips, the transport playing so the meters move. Variants: `es`
 //! (Spanish), `75` and `200` (UI scale), `wide` and `xl` (width modes, `xl-75`,
@@ -223,6 +223,7 @@ fn main() {
     let filters: Vec<String> = args.collect();
     std::fs::create_dir_all(&dir).expect("output dir");
     let themes = [
+        ("night", cantus_ui::theme::default_theme()),
         ("slate", cantus_ui::theme::slate()),
         ("paper", cantus_ui::theme::paper()),
     ];

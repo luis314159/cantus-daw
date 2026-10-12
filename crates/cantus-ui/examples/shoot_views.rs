@@ -51,6 +51,7 @@ fn main() {
         .collect();
 
     let themes = [
+        ("night", cantus_ui::theme::default_theme()),
         ("slate", cantus_ui::theme::slate()),
         ("paper", cantus_ui::theme::paper()),
     ];

@@ -97,6 +97,7 @@ pub fn shots(out: &Path, scale: f32) {
     }
     wav(&user.join("Guitar stab.wav"));
     let themes = [
+        ("night", cantus_ui::theme::default_theme()),
         ("slate", cantus_ui::theme::slate()),
         ("paper", cantus_ui::theme::paper()),
     ];
