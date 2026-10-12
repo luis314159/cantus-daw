@@ -27,10 +27,11 @@ path = "src/main.rs"
 [target.'cfg(windows)'.dependencies]
 # The message box that says why Cantus cannot start (main.rs), and the taskbar identity
 # the program shares with its shortcuts (appid.rs), and the running window's taskbar icon
-# in the colour the user chose (taskicon.rs).
+# in the colour the user chose, and whether the taskbar is light (taskicon.rs).
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_System_Com",
+    "Win32_System_Registry",
     "Win32_UI_HiDpi",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

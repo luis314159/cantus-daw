@@ -7,6 +7,40 @@
 //! changes, so a steady frame does nothing.
 
 use crate::kit::mark::{mark_svg, MarkColours};
+use std::time::{Duration, Instant};
+
+/// Whether Windows draws the taskbar light, as last read — what the automatic icon colour
+/// follows. Read at most every two seconds, and only by the real window's frame (tests
+/// that drive the views see a dark taskbar unless they say otherwise).
+#[derive(Debug, Default)]
+pub struct Taskbar {
+    light: bool,
+    last: Option<Instant>,
+}
+
+impl Taskbar {
+    /// Whether the taskbar is light (false until read, and off Windows).
+    pub fn light(&self) -> bool {
+        self.light
+    }
+
+    /// Set what the taskbar is (tests, and [`Self::poll`]); returns whether it changed.
+    pub fn set(&mut self, light: bool) -> bool {
+        std::mem::replace(&mut self.light, light) != light
+    }
+
+    /// Read Windows' setting if two seconds have passed; returns whether it changed.
+    pub fn poll(&mut self) -> bool {
+        if self
+            .last
+            .is_some_and(|l| l.elapsed() < Duration::from_secs(2))
+        {
+            return false;
+        }
+        self.last = Some(Instant::now());
+        self.set(cantus_launch::taskicon::light_taskbar().unwrap_or(false))
+    }
+}
 
 /// What the window shows, and what it should show.
 #[derive(Debug, Default)]

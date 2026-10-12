@@ -305,10 +305,9 @@ impl PanLaw {
         match self {
             // Equal-power taper on the far channel, and the near channel simply left
             // alone — a pan pot that can never make a track louder than its fader says.
-            PanLaw::ZeroDb => (
-                (power_l * std::f32::consts::SQRT_2).min(1.0),
-                (power_r * std::f32::consts::SQRT_2).min(1.0),
-            ),
+            // The balance formulation: exactly unity at centre and on the near side
+            // (`DSP_VERSION` 4; `cos(π/4)·√2` alone is 0.99999994 in `f32`).
+            PanLaw::ZeroDb => balance_gains(p),
             PanLaw::Minus3dB => (power_l, power_r),
             PanLaw::Minus4_5dB => ((power_l * amp_l).sqrt(), (power_r * amp_r).sqrt()),
             PanLaw::Minus6dB => (amp_l, amp_r),
@@ -1528,11 +1527,14 @@ pub fn balance_gains(pan: f32) -> (f32, f32) {
     if p == 0.0 {
         return (1.0, 1.0);
     }
+    // Only the far channel tapers; the near one is exactly unity. (The taper alone rounds
+    // to 0.99999994 on the near side for small pans — `DSP_VERSION` 4 made it exact.)
     let angle = (p + 1.0) * 0.25 * std::f32::consts::PI;
-    (
-        (math::cos(angle) * std::f32::consts::SQRT_2).min(1.0),
-        (math::sin(angle) * std::f32::consts::SQRT_2).min(1.0),
-    )
+    if p < 0.0 {
+        (1.0, (math::sin(angle) * std::f32::consts::SQRT_2).min(1.0))
+    } else {
+        ((math::cos(angle) * std::f32::consts::SQRT_2).min(1.0), 1.0)
+    }
 }
 
 /// MIDI pitch → frequency in Hz with A4 = 440 Hz.
@@ -1609,11 +1611,40 @@ mod tests {
         }
     }
 
-    /// The compatibility guarantee behind the migration: `ZeroDb` is *exactly* the
-    /// expression the engine used before the law existed, so a project written by an
-    /// earlier Cantus renders sample for sample as it did.
+    /// The 0 dB law's promise, to the bit: a centred strip is unity, and panning only ever
+    /// lowers the far channel — the near one stays exactly 1. (`cos(π/4)·√2` is
+    /// 0.99999994 in `f32`; until `DSP_VERSION` 4 every centred strip under this law was
+    /// one rounding step quiet, and a pre send was not post to the bit — round 25.)
     #[test]
-    fn the_zero_db_law_is_bit_identical_to_what_cantus_did_before() {
+    fn the_zero_db_law_is_unity_at_centre_and_on_the_near_side() {
+        assert_eq!(PanLaw::ZeroDb.gains(0.0), (1.0, 1.0));
+        assert_eq!(PanLaw::ZeroDb.gains(-0.0), (1.0, 1.0));
+        assert_eq!(balance_gains(0.0), (1.0, 1.0));
+        for i in 0..=4000 {
+            let p = i as f32 / 4000.0;
+            for g in [PanLaw::ZeroDb.gains(p), balance_gains(p)] {
+                assert_eq!(g.1, 1.0, "near (right) channel at pan {p}");
+                assert!(g.0 <= 1.0, "far channel boosts at pan {p}");
+            }
+            for g in [PanLaw::ZeroDb.gains(-p), balance_gains(-p)] {
+                assert_eq!(g.0, 1.0, "near (left) channel at pan {}", -p);
+                assert!(g.1 <= 1.0, "far channel boosts at pan {}", -p);
+            }
+        }
+        // Tiny pans, where the taper's rounding lived.
+        for p in [f32::MIN_POSITIVE, 1e-7, 1e-6, 1e-5, 1e-4] {
+            assert_eq!(PanLaw::ZeroDb.gains(p).1, 1.0, "pan {p}");
+            assert_eq!(PanLaw::ZeroDb.gains(-p).0, 1.0, "pan {}", -p);
+        }
+    }
+
+    /// The compatibility guarantee behind the migration: `ZeroDb` is the expression the
+    /// engine used before the law existed, so a project written by an earlier Cantus
+    /// renders as it did — bit for bit until `DSP_VERSION` 4, which made the near channel
+    /// exactly unity where the old taper rounded to 0.99999994 (one step, ≤ 6e-8; the far
+    /// channel is unchanged to the bit).
+    #[test]
+    fn the_zero_db_law_is_what_cantus_did_before_but_exact_on_the_near_side() {
         fn legacy(pan: f32) -> (f32, f32) {
             // Verbatim from `Processor::render`, before ADR 0012: equal-power taper,
             // scaled so the centre is unity, with the near channel clamped to the fader.
@@ -1631,7 +1662,22 @@ mod tests {
             let p = i as f32 / 1000.0 - 1.0;
             let now = PanLaw::ZeroDb.gains(p);
             let then = legacy(p);
-            assert_eq!(now, then, "pan {p} changed: {then:?} became {now:?}");
+            // The far channel is untouched; the near one is 1 where it was 1 or one
+            // rounding step under it.
+            let (near_now, near_then, far_now, far_then) = if p < 0.0 {
+                (now.0, then.0, now.1, then.1)
+            } else if p > 0.0 {
+                (now.1, then.1, now.0, then.0)
+            } else {
+                assert_eq!(now, (1.0, 1.0), "centre");
+                continue;
+            };
+            assert_eq!(far_now, far_then, "pan {p}: the far channel changed");
+            assert_eq!(near_now, 1.0, "pan {p}: the near channel is not unity");
+            assert!(
+                1.0 - near_then <= 6e-8,
+                "pan {p}: the old near channel was {near_then}"
+            );
         }
     }
 

@@ -1,16 +1,24 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-10 (round 25: **mixer cabling** (BACKLOG §6d.3) — cables on the desk from a strip's port to another strip, by drag or by two clicks (plain = a send at 0 dB, Ctrl = the only output, Alt = a sidechain key), the selected strip's cables or all of them, pre/post-fader sends heard in the engine (schema 23) and shown as one chip, a doubled path allowed and marked, the routing matrix (Alt+F9), strips and groups moved by drag or Alt+arrows, a track dropped on a strip (ADRs 0041, 0043–0045); **the theme family**: Cantus Night (the website's palette) is the new default, twelve themes with previews, and the taskbar icon is the website's mark, recolourable live (ADR 0046); content under CC BY accepted with credit (ADR 0042). Round 24: gain staging, Save off the interface thread, linked clips, performance wave 2. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 142 green (207 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (407), clippy clean
+**Updated:** 2026-10-10 (round 25: **mixer cabling** (BACKLOG §6d.3) — cables on the desk from a strip's port to another strip, by drag or by two clicks (plain = a send at 0 dB, Ctrl = the only output, Alt = a sidechain key), the selected strip's cables or all of them, pre/post-fader sends heard in the engine (schema 23) and shown as one chip, a doubled path allowed and marked, the routing matrix (Alt+F9), strips and groups moved by drag or Alt+arrows, a track dropped on a strip (ADRs 0041, 0043–0045); **the theme family**: Cantus Night (the website's palette) is the new default, twelve themes with previews, and the taskbar icon is the website's mark, recolourable live (ADR 0046); content under CC BY accepted with credit (ADR 0042). Round 24: gain staging, Save off the interface thread, linked clips, performance wave 2. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 146 green (207 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (407), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
 ## The next session: what round 25 left
 
-Round 25 is on branch **`r25/integration`** (worktree `F:\projects\daw-r23\beta-hardening`,
-on master a89edf4): the contract (piece A: core routing, `SendTap`, schema 23), the
-builders `r25/{interaction,matrix,desk}` (worktrees in `F:\projects\daw-r25\`) and
-`r25/look` merged, then the fixes of three reviewers' 27 findings and the owner's click
-mode. Reports: `docs/round25/` (`integration.md` is the account).
+Round 25 is on **master** (14ddaf5, pushed 2026-10-11 as one commit of `r25/integration`):
+the contract (piece A: core routing, `SendTap`, schema 23), the builders
+`r25/{interaction,matrix,desk}` (worktrees in `F:\projects\daw-r25\`) and `r25/look`
+merged, then the fixes of three reviewers' 27 findings and the owner's click mode. Then,
+on the owner's word, the three things the report had left (branch `r25/polish`): the
+0 dB pan law exactly unity (`DSP_VERSION` 4, no golden moved), the hint bar keeping the
+modifiers whole, the automatic icon colour for a light taskbar; and a key to the cable
+band's lines (the owner asked why the demo's kick cables were dotted — its sidechain
+keys). And the licences revised (ADR 0047): the engine crates MPL-2.0, the application
+GPL-3.0-or-later, `CLA.md`, `TRADEMARKS.md`, `CONTRIBUTING.md`, the website's wording. The
+owner's to-do list for the public beta, in Spanish, with the trademark search, the signing
+choice and the RVR1960 permission: **`docs/beta-checklist.md`**. Reports: `docs/round25/`
+(`integration.md` is the account).
 
 1. **The owner, by hand, with the real build**: route by drag and by two clicks, with and
    without Ctrl and Alt, and undo each; a PRE send heard before the fader (pull the fader
@@ -19,20 +27,16 @@ mode. Reports: `docs/round25/` (`integration.md` is the account).
    icon's colour with Cantus **pinned** to the taskbar (does the running button follow, or
    keep the shortcut's icon? — if the latter, set a relaunch icon on the window); the
    round-24 checks (2048-frame ASIO recording, a large save while playing, linked clips).
-2. **The owner's decision**: the 0 dB pan law's centre gain is 0.999 999 94, not 1 — leave
-   it (recommended) or make it exact (a `DSP_VERSION` bump and new golden hashes).
-3. **The beta** (unchanged from round 24): a 10-minute live run on a real device with 0
+2. **The beta** (unchanged from round 24): a 10-minute live run on a real device with 0
    overruns; the hardware matrix (UMC in duplex); an installer run by hand; the tag
    `v0.1.0-beta.1`; SignPath, the trademark search, songs with the friction log.
-4. **Small things left** (`docs/round25/integration.md`, `look.md`): the Spanish hint bar
-   cuts its first half when a target label shares it; an armed route survives the desk
-   being hidden (Esc lets it go); typing a level in the route menu; the inspector's *Add
+3. **Small things left** (`docs/round25/integration.md`, `look.md`): an armed route
+   survives the desk being hidden (Esc lets it go); typing a level in the route menu; the inspector's *Add
    send* could offer *New return*; cable lanes re-share as hovering lights more cables;
-   ~17 allocations a frame while a desk control is hovered (the hint bar); an "auto" icon
-   colour for a light taskbar (the designed amber is 1.4:1 on white); swatches in the Look
-   tab's base-theme menus; CC BY in `cantus-content` (the manifest test, a credits view,
+   ~17 allocations a frame while a desk control is hovered (the hint bar); swatches in the
+   Look tab's base-theme menus; CC BY in `cantus-content` (the manifest test, a credits view,
    the notices' Content section — ADR 0042).
-5. **Then** the rest of §6d.2 (an Inspector row for a link group, a "Link to…" picker),
+4. **Then** the rest of §6d.2 (an Inspector row for a link group, a "Link to…" picker),
    a loom model of `cantus_rt::fork`, a quiet-machine `xtask perf --full --save` baseline,
    and BACKLOG §3e (the instruments researched this round).
 
@@ -184,7 +188,10 @@ under CC BY accepted with the credit shown; NC, ND, SA refused), ADR 0043 (the c
 on the desk), ADR 0044 (desk gestures, click mode §10), ADR 0045 (pre-fader sends in the
 engine, the routing matrix), ADR 0046 (the theme family, Cantus Night as the default, the
 mark and its live colour). Schema 23. Keymap file version 6 (Alt+F9, Shift+F10 route
-menu). No golden hash moved; `DSP_VERSION` stays 3.
+menu). No golden hash moved. After the push: `DSP_VERSION` 4 — the 0 dB pan law and
+the balance exactly unity at centre and on the near side (one rounding step, ≤ 6e-8; no
+golden moved); the automatic icon colour (ADR 0046 amended); the hint bar's modifiers
+whole; a key to the cable band.
 
 | Part | What changed |
 |---|---|

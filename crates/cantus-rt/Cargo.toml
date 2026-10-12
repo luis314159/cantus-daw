@@ -1,7 +1,7 @@
 [package]
 name = "cantus-rt"
 description = "Cantus's real-time ground: thread priority (MMCSS, Mach time constraint and audio workgroups, rtkit/SCHED_FIFO), CPU topology (P/E cores, last-level caches), cache padding, pre-faulted and locked memory, the floating-point environment. The only home of the engine's unsafe OS code (ADR 0031 §2.7)."
-license = "MIT OR Apache-2.0"
+license = "MPL-2.0"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

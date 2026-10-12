@@ -23,8 +23,15 @@ user-changeable colour, in-app logo still configurable.
   Blue Hour, Ultraviolet, Lagoon, High Contrast ×2, + 4 old); taskbar icon recoloured live
   via WM_SETICON (cantus-launch/src/taskicon.rs). Pinned-button behaviour unchecked.
 - Pictures: `F:\projects\daw-r23\shots-r25\{final,look}`.
-- Pending owner: pan-law centre gain 0.99999994 — (a) leave (recommended) or (b) fix with
-  DSP_VERSION bump; permission to push; hand checks (STATUS "The next session").
+- Pushed as master 14ddaf5 (2026-10-11, one commit). Then owner said "fix what you said" +
+  push: r25/polish = pan law exact (DSP_VERSION 4, no golden moved), hint bar keeps
+  modifiers, automatic icon colour (SystemUsesLightTheme), cable-band legend (owner asked
+  why kick cables were dotted = sidechain keys), licences ADR 0047, docs/beta-checklist.md
+  (owner's Spanish to-do: hardware, songs, SignPath vs Certum, RVR1960 needs written
+  permission for apps — email licensing@americanbible.org, RV1909 default meanwhile,
+  trademark: Mexico clean, US mostly clean, EU Italian CANTUS for software).
+- Site screenshots: a Sonnet agent on branch r25/site (worktree F:\projects\daw-r25\site);
+  tell it when r25/polish is merged so mixer shots include the legend.
 - Owner's push rule: commit/push only when asked; ask after the test build.
 
 See [[round-24]], [[decision-cc-by-content]], [[ui-quality-bar]], [[machine-f-drive-build-quirks]].

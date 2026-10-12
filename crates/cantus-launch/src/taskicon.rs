@@ -31,6 +31,14 @@ pub fn set_window_icons(
     imp::set(hwnd, big_png, big, small_png, small)
 }
 
+/// Whether Windows draws the taskbar light (*Settings ▸ Personalisation ▸ Colours ▸
+/// Choose your default Windows mode* = Light), which is not the apps' mode: a dark taskbar
+/// with light apps is common. `None` off Windows or when the setting cannot be read (older
+/// Windows: the taskbar is dark). A registry read of one value — cheap enough to poll.
+pub fn light_taskbar() -> Option<bool> {
+    imp::light_taskbar()
+}
+
 #[cfg(windows)]
 #[allow(unsafe_code)]
 mod imp {
@@ -77,6 +85,31 @@ mod imp {
         }
     }
 
+    pub fn light_taskbar() -> Option<bool> {
+        use windows_sys::Win32::System::Registry::{
+            RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD,
+        };
+        let key: Vec<u16> = "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\0"
+            .encode_utf16()
+            .collect();
+        let value: Vec<u16> = "SystemUsesLightTheme\0".encode_utf16().collect();
+        let (mut data, mut size) = (0u32, 4u32);
+        // SAFETY: NUL-terminated key and value names; `data` is a live DWORD of the size
+        // passed.
+        let r = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                key.as_ptr(),
+                value.as_ptr(),
+                RRF_RT_REG_DWORD,
+                std::ptr::null_mut(),
+                (&mut data as *mut u32).cast(),
+                &mut size,
+            )
+        };
+        (r == 0).then_some(data != 0)
+    }
+
     pub fn set(hwnd: isize, big_png: &[u8], big: u32, small_png: &[u8], small: u32) -> bool {
         if hwnd == 0 {
             return false;
@@ -115,6 +148,10 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
+    pub fn light_taskbar() -> Option<bool> {
+        None
+    }
+
     pub fn sizes(_hwnd: isize) -> (u32, u32) {
         (64, 32)
     }

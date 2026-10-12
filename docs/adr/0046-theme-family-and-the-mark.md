@@ -101,8 +101,15 @@ window's icon was set once by eframe and never again.
 - `cantus-ui` depends on `cantus-launch` (a small library: windows-sys only). Its unsafe
   code stays in `cantus-launch`, beside `appid.rs`; `cantus-ui` keeps
   `forbid(unsafe_code)`.
-- Light taskbars: the original's pale amber end and playhead are weak on white (≈1.4:1);
-  Graphite is offered for that, and Copper reads on both.
+- Light taskbars: the original's pale amber end and playhead are weak on white (≈1.4:1).
+  **Amended after the round's push (owner, 2026-10-11):** the default is now
+  **Automatic** — the designed gradient on a dark taskbar and its deep copper twin
+  (`MarkColours::ON_LIGHT`, every stroke ≥ 3:1 on Windows' light taskbar) on a light one,
+  following Windows' *default mode* (`SystemUsesLightTheme`, not the apps' mode) as it
+  changes, read every two seconds by the real window only (`window_icon::Taskbar`). *As
+  designed* stays a choice for those who want the pale amber anyway; Graphite and Copper
+  remain. A file written before loads as Automatic, which on a dark taskbar is the
+  designed mark.
 - `Tint::Icon` and `IconColour` are new enum variants/fields: older builds read new files
   with the defaults for what they do not know (the field) but would refuse a theme file
   whose logo tint is `Icon`.
@@ -119,6 +126,9 @@ window's icon was set once by eframe and never again.
   starting in it gives, and back is Cantus Night, to the pixel; the real views through
   every preset and back.
 - `kit::appearance::tests` — a fresh install shows Cantus Night/Paper; a saved Slate/Paper
-  is kept; an old file without `icon` loads as `Original`; the icon colour round-trips.
+  is kept; an old file without `icon` loads as `Auto`; the icon colour round-trips;
+  `the_automatic_icon_reads_on_a_dark_and_a_light_taskbar` — the default follows the
+  taskbar, every stroke of each mark ≥ 3:1 on its taskbar, and the designed amber fails
+  on white (the reason for the twin).
 - `window_icon::tests` — the mark renders at every icon size with nothing behind it, and a
   colour is applied once, not every frame; `kit::logo` — the *Icon* tint follows the icon.

@@ -3,6 +3,10 @@
 
 # La fila de la banda en la columna de leyenda.
 cables.legend = Ruteo
+cables.legend.output = salida
+cables.legend.send = envío
+cables.legend.key = sidechain
+cables.legend.hint = Los cables del canal seleccionado: línea gruesa = su salida · línea fina = un envío · línea punteada que acaba en una llave = es la key de un sidechain (controla un compresor allí)
 
 # El interruptor de la fila de título: qué cables dibuja la banda.
 cables.view = Cables

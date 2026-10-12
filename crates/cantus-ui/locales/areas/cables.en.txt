@@ -4,6 +4,11 @@
 
 # The band's row in the legend column.
 cables.legend = Routing
+# Under it, a sample of each line and its word, and what the band means on hover.
+cables.legend.output = out
+cables.legend.send = send
+cables.legend.key = sidechain
+cables.legend.hint = The cables of the selected strip: thick line = its output · thin line = a send · dashed line ending in a key = it keys a sidechain (it drives a compressor there)
 
 # The title row's switch: which cables the band draws (`.short` for a narrow desk).
 cables.view = Cables

@@ -46,9 +46,10 @@ impl Processor {
         // stereo field; the master carries a mix that is already stereo, and running it
         // through, say, the −6 dB law would take 6 dB off every centred mix for nothing.
         // `balance_gains` is the balance formulation — the `ZeroDb` law's taper on the far
-        // channel — and returns *exactly* unity at centre. `ZeroDb.gains(0)` computes
-        // `cos(π/4)·√2`, which in f32 is 0.99999994: a master at its default touched every
-        // sample by one rounding step. It no longer does (see the capture null test).
+        // channel — and returns *exactly* unity at centre and on the near side. (The taper
+        // alone, `cos(π/4)·√2`, is 0.99999994 in f32: a master at its default once touched
+        // every sample by one rounding step — see the capture null test. Since
+        // `DSP_VERSION` 4 the `ZeroDb` law *is* this balance.)
         let (master_l, master_r) = balance_gains(master_pan);
         let master = MasterStrip {
             gain: master_gain,

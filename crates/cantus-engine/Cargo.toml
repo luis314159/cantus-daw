@@ -1,7 +1,7 @@
 [package]
 name = "cantus-engine"
 description = "Cantus DAW — real-time audio engine: transport, sequencer, graph, lock-free messaging, offline render."
-license = "MIT OR Apache-2.0"
+license = "MPL-2.0"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

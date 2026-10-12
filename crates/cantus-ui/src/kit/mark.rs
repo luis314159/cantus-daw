@@ -32,6 +32,14 @@ impl MarkColours {
         playhead: [0xff, 0xd2, 0x5e],
     };
 
+    /// The designed gradient taken deep for a light taskbar: the website's copper to its
+    /// deep copper and a burnt shade, a deep amber playhead — every stroke ≥ 3:1 on
+    /// Windows' light taskbar, where the designed pale amber is 1.4:1.
+    pub const ON_LIGHT: MarkColours = MarkColours {
+        wave: [[0xd4, 0x62, 0x2a], [0xa9, 0x46, 0x17], [0x7a, 0x2e, 0x0c]],
+        playhead: [0xb8, 0x6a, 0x00],
+    };
+
     /// A mark in one colour: the wave from a lighter tint of it to a deeper shade, the
     /// playhead a light tint — the original's shape of light, in another hue.
     pub fn from_one(c: [u8; 3]) -> MarkColours {

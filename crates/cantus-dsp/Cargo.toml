@@ -1,7 +1,7 @@
 [package]
 name = "cantus-dsp"
 description = "Cantus DAW — allocation-free DSP primitives: oscillators, envelopes, filters, instruments."
-license = "MIT OR Apache-2.0"
+license = "MPL-2.0"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -204,17 +204,22 @@ look, and `tests/frame_budget.rs` holds the speed.
 
 | Crate | License | Purpose |
 |---|---|---|
-| `cantus-core` | MIT OR Apache-2.0 | musical time, project model, commands, undo/redo, snapshots |
-| `cantus-dsp` | MIT OR Apache-2.0 | every instrument's and effect's DSP, null-test harness |
-| `cantus-engine` | MIT OR Apache-2.0 | audio thread, transport, mixer graph, delay compensation, offline render |
-| `cantus-project` | MIT OR Apache-2.0 | project file format, migrations, MIDI files, DAWproject |
+| `cantus-core` | MPL-2.0 | musical time, project model, commands, undo/redo, snapshots |
+| `cantus-dsp` | MPL-2.0 | every instrument's and effect's DSP, null-test harness |
+| `cantus-engine` | MPL-2.0 | audio thread, transport, mixer graph, delay compensation, offline render |
+| `cantus-project` | MPL-2.0 | project file format, migrations, MIDI files, DAWproject |
 | `cantus-host` | GPL-3.0-or-later | hosting CLAP and VST3 plug-ins |
 | `cantus-plugins` | GPL-3.0-or-later | Cantus's effects as CLAP and VST3 |
 | `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, tool specs, command bridge |
 | `cantus-ui` | GPL-3.0-or-later | the interface, its design system and the hand-drawn kit |
 | `cantus` | GPL-3.0-or-later | the binary |
 
-See [ADR 0001](docs/adr/0001-license.md) for why the license is split. The bundled fonts
+The engine crates (and `cantus-rt`) are MPL-2.0: whoever distributes a modified file
+must publish it, while the engine can still be used unchanged inside other programs. The
+application is GPL-3.0-or-later, and the program as distributed is one combined work under
+it. See [ADR 0001](docs/adr/0001-license.md) and [ADR 0047](docs/adr/0047-licensing-revised.md);
+contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and the [CLA](CLA.md); the name and
+logos: [TRADEMARKS.md](TRADEMARKS.md). The bundled fonts
 (IBM Plex Sans, Sans Condensed and Mono, in `crates/cantus-ui/assets/fonts/`) are licensed
 under the [SIL Open Font License 1.1](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt) and
 shipped unmodified — "IBM Plex" is a Reserved Font Name.

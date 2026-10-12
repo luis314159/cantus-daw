@@ -395,7 +395,7 @@ Grand and the best multi-mic kits (DrumGizmo, Naked Drums) are CC-BY; **Sonatina
 Philharmonia's samples for redistribution; Pianobook, Decent Samples, Splice/Spitfire and BBC
 SO libraries are link-only. **No permissively licensed singing voice, choir or acoustic
 guitar exists** — open singing corpora are mostly non-commercial and the standard open
-vocoder (OpenVPI NSF-HiFiGAN) is CC BY-NC-SA. `cantus-dsp` is MIT/Apache, so GPL references
+vocoder (OpenVPI NSF-HiFiGAN) is CC BY-NC-SA. `cantus-dsp` is MPL-2.0 (ADR 0047), so GPL references
 (aubio, Rubber Band, Loris, reSID) are read, not ported; MIT/BSD ones (Signalsmith Stretch,
 WORLD, Clouds, STK) may be.
 

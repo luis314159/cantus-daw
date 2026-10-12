@@ -1,6 +1,7 @@
 # Working on Cantus — conventions for Claude (and anyone else)
 
-Cantus is a free, open-source (GPL-3.0-or-later) DAW in Rust, FL Studio-shaped, made by
+Cantus is a free, open-source (application GPL-3.0-or-later, engine crates MPL-2.0 — ADR
+0047) DAW in Rust, FL Studio-shaped, made by
 Luis Ángel Almazán with Christian values (motto: Colossians 3:23 — "whatever you do, work at
 it with all your heart"). The owner writes in Spanish; the repository is written in English.
 The final goal is to be, undeniably and measurably, the best DAW in the world — free or
@@ -48,6 +49,9 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
   never load an ASIO driver whose interface is unplugged.
 - `THIRD-PARTY-NOTICES.md` is generated (`cargo run -p xtask -- notices`); a test fails when a
   new crate has no notice or an unapproved licence.
+- **Licences (ADR 0047):** `cantus-core/dsp/engine/project/rt` are MPL-2.0 (never copy GPL
+  code into them), the rest GPL-3.0-or-later; an outside contribution is merged only with
+  the CLA agreed (`CLA.md`); the name and logos are the owner's marks (`TRADEMARKS.md`).
 - Commit only when the owner asks; never stage or discard the owner's own uncommitted work.
 
 ## The owner's standing direction

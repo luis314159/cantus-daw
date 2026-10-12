@@ -184,16 +184,15 @@ fn a_pre_send_does_not_follow_its_fader_or_its_pan() {
 /// the pre send by its level alone, one multiplication each.
 ///
 /// The design's literal case — a 0 dB fader, centre pan and the 0 dB law, pre equal to
-/// post — is this with a law gain of 1. In `f32` the 0 dB law's centre is
-/// `cos(π/4)·√2 = 0.99999994`, one step under unity (pinned below), so there the two
-/// differ by that step (≤ 6e-8 of the signal) unless the pre send's level carries it, as
-/// here. Every fader and law at centre is checked the same way.
+/// post — is this with a law gain of exactly 1 (since `DSP_VERSION` 4; it was one
+/// rounding step under unity before, pinned below), and is also checked with no level
+/// folded at all. Every fader and law at centre is checked the same way.
 #[test]
 fn at_a_0_db_fader_centre_pan_and_the_0_db_law_pre_is_post_to_the_bit() {
     assert_eq!(
         PanLaw::ZeroDb.gains(0.0),
-        (0.999_999_94, 0.999_999_94),
-        "the 0 dB law's centre moved: the note above (and maybe this test) is stale"
+        (1.0, 1.0),
+        "the 0 dB law's centre is not unity"
     );
     let centred = |tap: SendTap, law: PanLaw, gain_db: f32| {
         let mut p = sends_project(tap);
@@ -226,6 +225,25 @@ fn at_a_0_db_fader_centre_pan_and_the_0_db_law_pre_is_post_to_the_bit() {
             &format!("pre against post, {law:?} at {gain_db} dB"),
         );
     }
+    // The literal case, untouched: nothing folded into the pre send's level.
+    let literal = |tap: SendTap| {
+        let mut p = sends_project(tap);
+        p.pan_law = PanLaw::ZeroDb;
+        p.tracks[0].clips.retain(|c| c.automation.is_none());
+        for s in p.strips.iter_mut() {
+            s.gain_db = 0.0;
+            s.pan = 0.0;
+        }
+        p
+    };
+    let post = render_at(&literal(SendTap::Post), 512);
+    assert!(peak(&post) > 0.01, "literal case: silent");
+    assert_null(
+        &render_at(&literal(SendTap::Pre), 512),
+        &post,
+        0.0,
+        "pre against post at a 0 dB fader, centre pan and the 0 dB law",
+    );
 }
 
 #[test]

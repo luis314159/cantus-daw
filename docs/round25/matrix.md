@@ -75,7 +75,8 @@ Read with `docs/round25/mixer-routing-design.md` (§5, §7.3, §10), ADR 0041 an
    `f32`**: the 0 dB law's centre is `cos(π/4)·√2 = 0.99999994`. The test holds the exact
    relation (a pre send with the fader's gain folded into its level equals the post send
    to the bit, at centre, for three laws) and pins the law's value. Making the law exactly
-   unity at centre is a separate DSP change for the owner (it would move goldens).
+   unity at centre was a separate DSP change for the owner — made after the round's push
+   (`DSP_VERSION` 4, no golden moved): the literal case now holds to the bit too.
 5. The column copy is a batch of `SetStripSend` built in the view (no new command; the
    batch is a known shape — the fuzz already covers `SetStripSend`).
 

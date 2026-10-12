@@ -396,8 +396,12 @@ impl Appearance {
 /// tile behind it, in its designed gradient unless the user picks another.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum IconColour {
-    /// Amber → copper, as designed (the default).
+    /// As designed on a dark taskbar, and its deep copper twin on a light one, following
+    /// Windows' setting as it changes (the default; the designed pale amber is 1.4:1 on a
+    /// white taskbar).
     #[default]
+    Auto,
+    /// Amber → copper, as designed, whatever the taskbar.
     Original,
     /// The theme's own accent (its brand colour), following every theme change.
     Theme,
@@ -463,11 +467,23 @@ impl IconPreset {
 }
 
 impl IconColour {
-    /// The mark's colours for this choice, under the theme whose tokens are `t`.
+    /// The mark's colours for this choice, under the theme whose tokens are `t`, on a dark
+    /// taskbar.
     pub fn mark(self, t: &super::tokens::Tokens) -> super::mark::MarkColours {
+        self.mark_on(t, false)
+    }
+
+    /// The mark's colours for this choice, under the theme whose tokens are `t`, on a
+    /// taskbar that is light or not (only [`IconColour::Auto`] looks).
+    pub fn mark_on(
+        self,
+        t: &super::tokens::Tokens,
+        light_taskbar: bool,
+    ) -> super::mark::MarkColours {
         use super::mark::MarkColours;
         match self {
-            IconColour::Original => MarkColours::ORIGINAL,
+            IconColour::Auto if light_taskbar => MarkColours::ON_LIGHT,
+            IconColour::Auto | IconColour::Original => MarkColours::ORIGINAL,
             IconColour::Theme => {
                 let [r, g, b, _] = super::color::opaque(t.brand).to_array();
                 MarkColours::from_one([r, g, b])
@@ -670,8 +686,9 @@ mod tests {
         let back = Appearance::from_json(&old.to_string()).unwrap();
         assert_eq!(back.resolve_mode(Mode::Dark).name, "Slate");
         assert_eq!(back.resolve_mode(Mode::Light).name, "Paper");
-        // …and, written before the icon existed, the mark as designed.
-        assert_eq!(back.icon, IconColour::Original);
+        // …and, written before the icon existed, the automatic mark (as designed on a dark
+        // taskbar, which is where every earlier release's icon was seen).
+        assert_eq!(back.icon, IconColour::Auto);
         // Every preset is reachable by its id, and named in both languages.
         for (id, make) in PRESETS {
             assert_eq!(a.base_theme(&format!("preset:{id}"), Mode::Dark), make());
@@ -689,6 +706,7 @@ mod tests {
         use crate::kit::mark::MarkColours;
         let t = crate::theme::daylight().kit_tokens();
         for c in [
+            IconColour::Auto,
             IconColour::Original,
             IconColour::Theme,
             IconColour::Preset(IconPreset::Verdigris),
@@ -711,5 +729,51 @@ mod tests {
             .collect();
         seen.dedup();
         assert_eq!(seen.len(), IconPreset::ALL.len());
+    }
+
+    /// The default icon reads on either taskbar: the designed gradient on a dark one, its
+    /// deep twin on a light one — every stroke at 3:1 or better (WCAG's floor for graphics),
+    /// where the designed pale amber is 1.4:1 on white. Only the automatic choice looks at
+    /// the taskbar.
+    #[test]
+    fn the_automatic_icon_reads_on_a_dark_and_a_light_taskbar() {
+        use crate::kit::mark::MarkColours;
+        assert_eq!(Appearance::default().icon, IconColour::Auto);
+        let t = crate::theme::daylight().kit_tokens();
+        assert_eq!(IconColour::Auto.mark_on(&t, false), MarkColours::ORIGINAL);
+        assert_eq!(IconColour::Auto.mark_on(&t, true), MarkColours::ON_LIGHT);
+        assert_eq!(
+            IconColour::Original.mark_on(&t, true),
+            MarkColours::ORIGINAL
+        );
+        assert_eq!(
+            IconColour::Preset(IconPreset::Blue).mark_on(&t, true),
+            IconColour::Preset(IconPreset::Blue).mark(&t)
+        );
+        let [dark, light] = taskbar_previews();
+        let floor = |m: MarkColours, back: Color32, what: &str| {
+            for c in m.wave.iter().chain([&m.playhead]) {
+                let k = super::super::color::contrast(rgb(*c), back);
+                assert!(k >= 3.0, "{what}: {c:02x?} is {k:.2}:1");
+            }
+        };
+        floor(MarkColours::ON_LIGHT, light, "deep mark on a light taskbar");
+        // Windows 11's light taskbar is a little lighter than the chips' preview.
+        floor(
+            MarkColours::ON_LIGHT,
+            Color32::from_rgb(0xf3, 0xf3, 0xf3),
+            "on #f3f3f3",
+        );
+        floor(
+            MarkColours::ORIGINAL,
+            dark,
+            "designed mark on a dark taskbar",
+        );
+        // The reason for the twin: the designed gradient fails on a light taskbar.
+        let pale = super::super::color::contrast(rgb(MarkColours::ORIGINAL.wave[0]), light);
+        assert!(
+            pale < 3.0,
+            "the designed amber reads on white after all ({pale:.2}:1)"
+        );
     }
 }
