@@ -149,7 +149,7 @@ cmd.set_notes = edit notes
 cmd.quantize = quantize
 cmd.ai_add_notes = AI: add notes
 
-about.text = Cantus — a free, open-source digital audio workstation built in Rust.\nApplication GPL-3.0-or-later, engine MPL-2.0.\n\n"Whatever you do, work at it with all your heart." — Colossians 3:23
+about.text = Cantus™ — a free, open-source digital audio workstation built in Rust.\nApplication GPL-3.0-or-later, engine MPL-2.0. Cantus and its logos are trademarks of Luis Ángel Almazán.\n\n"Whatever you do, work at it with all your heart." — Colossians 3:23
 shortcuts.text = Drag a note's right edge to resize · Right-click deletes · Ctrl+drag marquee-selects · Shift while dragging locks the pitch · Ctrl while dragging locks the time · Alt while dragging ignores the grid · Alt+wheel edits velocity · Ctrl+wheel zooms · Shift+wheel scrolls sideways · With the typing keyboard on, A–L play the selected track and Z/X change octave · In the arrangement: drag a clip's edge to trim it, Alt+drag to copy instead of move, Shift+drag to slip the music inside the clip, Ctrl while dragging ignores the grid, drag empty space to select clips, Ctrl+click adds one to the selection, right-click opens the clip's menu
 
 transport.record = Record

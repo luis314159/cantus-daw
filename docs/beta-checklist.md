@@ -46,7 +46,9 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       versículos sin permiso en obras no comerciales, **pero piden permiso por escrito para
       "aplicaciones y otros medios nuevos, como sitios web"** — Cantus es una aplicación.
       Escribir a **licensing@americanbible.org** (o su formulario) pidiendo permiso para
-      ≤ 300 versículos en una app gratuita, con el aviso de copyright. Mientras no llegue:
+      ≤ 300 versículos en una app gratuita, con el aviso de copyright. **El correo ya está
+      redactado** en [`rvr1960-request.md`](rvr1960-request.md) (inglés y español), con la
+      lista para adjuntar en [`rvr1960-verses.txt`](rvr1960-verses.txt). Mientras no llegue:
       la beta sale con la **RV1909** (dominio público) como predeterminada.
 - [ ] **Marca "Cantus"**: ver la búsqueda preliminar abajo; pagar una búsqueda profesional
       y registrar (IMPI en México primero; luego Protocolo de Madrid si conviene).
@@ -119,7 +121,7 @@ protege menos:
 | Paso | Cuándo | Costo oficial aproximado |
 |---|---|---|
 | CANTUS en el **IMPI**, en línea, clase 9, sin abogado si quieres (el trámite "Marca en Línea" es guiado) | Ahora | **≈ MXN 2,814** (≈ US$150) |
-| Usar **™** junto al nombre desde ya (no requiere registro; ® solo cuando esté registrada) | Ahora | Gratis |
+| Usar **™** junto al nombre desde ya (no requiere registro; ® solo cuando esté registrada) — **hecho**: web, app (Acerca de) y README | Ahora | Gratis |
 | Clase 42 en el IMPI (si algún día hay servicio en línea) | Cuando haga falta | ≈ MXN 2,814 |
 | EE. UU. y UE por Madrid | Cuando haya usuarios o ingresos que lo justifiquen. Dentro de 6 meses se conserva la fecha mexicana; después se puede igual, solo sin esa prioridad (riesgo bajo de que alguien se adelante) | ≈ US$2,500 + búsqueda profesional para la UE |
 

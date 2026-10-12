@@ -2,7 +2,7 @@
   <img src="crates/cantus-ui/assets/logos/02.svg" width="128" alt="Cantus logo">
 </p>
 
-<h1 align="center">Cantus</h1>
+<h1 align="center">Cantus™</h1>
 
 <p align="center">
   A free, open-source digital audio workstation, written in Rust and drawn by hand.<br>
