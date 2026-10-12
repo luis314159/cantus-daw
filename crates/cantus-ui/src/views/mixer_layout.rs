@@ -268,6 +268,172 @@ impl CableView {
     }
 }
 
+/// Which of the selection's cables count as its own (round 25, the owner's request of
+/// 2026-10-11): what goes *out* of the selected strips (their output, sends and keys), what
+/// comes *in* (their feeders' outputs, sends and keys arriving at them), or both — today's
+/// behaviour and the default. In *Selected* it decides what is drawn; in *All* what is lit.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CableScope {
+    Out,
+    In,
+    #[default]
+    Both,
+}
+
+impl CableScope {
+    pub const ALL: [CableScope; 3] = [CableScope::Out, CableScope::In, CableScope::Both];
+
+    /// Its menu row (an i18n key).
+    pub fn key(self) -> &'static str {
+        match self {
+            CableScope::Out => "cables.scope.out",
+            CableScope::In => "cables.scope.in",
+            CableScope::Both => "cables.scope.both",
+        }
+    }
+
+    /// Whether a cable belongs to the selection, given whether its source (`from`) and
+    /// its destination (`to`) are selected.
+    pub fn takes(self, from: bool, to: bool) -> bool {
+        match self {
+            CableScope::Out => from,
+            CableScope::In => to,
+            CableScope::Both => from || to,
+        }
+    }
+}
+
+/// A kind of cable the band can hide (the options menu's switches).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum CableKindSel {
+    Outputs,
+    Sends,
+    Keys,
+}
+
+impl CableKindSel {
+    pub const ALL: [CableKindSel; 3] = [CableKindSel::Outputs, CableKindSel::Sends, CableKindSel::Keys];
+
+    /// Its menu row (an i18n key).
+    pub fn key(self) -> &'static str {
+        match self {
+            CableKindSel::Outputs => "cables.kinds.outputs",
+            CableKindSel::Sends => "cables.kinds.sends",
+            CableKindSel::Keys => "cables.kinds.keys",
+        }
+    }
+}
+
+/// A one-click set-up of the options menu ("Quick views").
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum CablePreset {
+    /// Every kind, both ways, every detail: the default.
+    Everything,
+    /// Only what the selection sends (the owner's "only the current channel's sends").
+    Sends,
+    /// Only what arrives at the selection: its feeders.
+    Feeders,
+}
+
+impl CablePreset {
+    pub const ALL: [CablePreset; 3] = [
+        CablePreset::Everything,
+        CablePreset::Sends,
+        CablePreset::Feeders,
+    ];
+
+    /// Its menu row (an i18n key).
+    pub fn key(self) -> &'static str {
+        match self {
+            CablePreset::Everything => "cables.preset.everything",
+            CablePreset::Sends => "cables.preset.sends",
+            CablePreset::Feeders => "cables.preset.feeders",
+        }
+    }
+
+    /// The options it sets.
+    pub fn opts(self) -> CableOpts {
+        let all = CableOpts::default();
+        match self {
+            CablePreset::Everything => all,
+            CablePreset::Sends => CableOpts {
+                scope: CableScope::Out,
+                outputs: false,
+                keys: false,
+                ..all
+            },
+            CablePreset::Feeders => CableOpts {
+                scope: CableScope::In,
+                ..all
+            },
+        }
+    }
+}
+
+/// The cable band's view options beside the *Off · Selected · All* switch (the options
+/// menu): whose cables, which kinds, how much detail. A desk preference kept with the
+/// rest of [`super::DeskPrefs`]; a desk saved before them reads as the default, which is
+/// the band as round 25 drew it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CableOpts {
+    pub scope: CableScope,
+    /// The kinds drawn: a hidden kind is neither drawn nor hit-tested (nor removed by
+    /// Delete, which only removes a cable the band drew).
+    pub outputs: bool,
+    pub sends: bool,
+    pub keys: bool,
+    /// The level pills on the sends (with their *PRE* tag and, when selected, the tap
+    /// chip beside them).
+    pub levels: bool,
+    /// The selection's outputs into the master (one per selected strip, all converging).
+    pub master: bool,
+}
+
+impl Default for CableOpts {
+    fn default() -> Self {
+        CableOpts {
+            scope: CableScope::Both,
+            outputs: true,
+            sends: true,
+            keys: true,
+            levels: true,
+            master: true,
+        }
+    }
+}
+
+impl CableOpts {
+    /// Whether a kind is drawn.
+    pub fn shows(&self, k: CableKindSel) -> bool {
+        match k {
+            CableKindSel::Outputs => self.outputs,
+            CableKindSel::Sends => self.sends,
+            CableKindSel::Keys => self.keys,
+        }
+    }
+
+    /// Show or hide a kind.
+    pub fn toggle(&mut self, k: CableKindSel) {
+        let on = !self.shows(k);
+        match k {
+            CableKindSel::Outputs => self.outputs = on,
+            CableKindSel::Sends => self.sends = on,
+            CableKindSel::Keys => self.keys = on,
+        }
+    }
+
+    /// Whether anything differs from the default (the title row's options key is lit).
+    pub fn filtered(&self) -> bool {
+        *self != CableOpts::default()
+    }
+
+    /// The quick view these options are, if any.
+    pub fn preset(&self) -> Option<CablePreset> {
+        CablePreset::ALL.into_iter().find(|p| p.opts() == *self)
+    }
+}
+
 /// Which row families are switched on (the desk's ▾ menu), as bits.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RowSet(pub u16);
@@ -768,5 +934,32 @@ mod tests {
             "the owner's answer 1"
         );
         assert_eq!(CableView::from_index(2), CableView::All);
+    }
+
+    /// The options default to the band as round 25 drew it; the quick views are what
+    /// they say, and only the default is unfiltered.
+    #[test]
+    fn cable_options_default_to_everything_and_presets_say_what_they_are() {
+        let d = CableOpts::default();
+        assert_eq!(d.scope, CableScope::Both);
+        assert!(d.outputs && d.sends && d.keys && d.levels && d.master);
+        assert!(!d.filtered());
+        assert_eq!(d.preset(), Some(CablePreset::Everything));
+        let s = CablePreset::Sends.opts();
+        assert!(s.sends && !s.outputs && !s.keys && s.scope == CableScope::Out);
+        assert!(s.filtered());
+        assert_eq!(s.preset(), Some(CablePreset::Sends));
+        let f = CablePreset::Feeders.opts();
+        assert_eq!(f.scope, CableScope::In);
+        assert!(f.outputs && f.sends && f.keys);
+        let mut o = d;
+        o.toggle(CableKindSel::Keys);
+        assert!(!o.keys && o.filtered() && o.preset().is_none());
+        o.toggle(CableKindSel::Keys);
+        assert_eq!(o, d);
+        // Scope: out takes the source's side, in the destination's, both either.
+        assert!(CableScope::Out.takes(true, false) && !CableScope::Out.takes(false, true));
+        assert!(CableScope::In.takes(false, true) && !CableScope::In.takes(true, false));
+        assert!(CableScope::Both.takes(true, false) && CableScope::Both.takes(false, true));
     }
 }

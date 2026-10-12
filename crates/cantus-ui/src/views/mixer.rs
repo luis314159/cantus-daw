@@ -29,7 +29,9 @@
 //! **Cables** (round 25, [`cables`]): under the strips, every route drawn — the output
 //! solid, a send thinner with its level on a pill (*PRE* when pre-fader), a key dashed in
 //! the dynamics hue, a doubled signal with a warning mark — for the selection by default,
-//! all of them or none from the title row's switch.
+//! all of them or none from the title row's switch; the key beside it opens the view's
+//! options (whose cables — out, in, both —, which kinds, the send levels, the outputs into
+//! the master, quick views).
 //!
 //! ## The desk
 //!
@@ -84,7 +86,7 @@ use crate::app::CantusApp;
 use crate::i18n::{self, t};
 use crate::kit::{Brush, Style};
 use cantus_core::{MixerStrip, StripId};
-use layout::{CableView, Colourful, RowSet, WidthMode};
+use layout::{CableOpts, CableView, Colourful, RowSet, WidthMode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -129,6 +131,14 @@ pub fn end_mark_rect(ctx: &egui::Context, edge: u32, source: bool) -> Option<egu
         .map(|r| r.rect)
 }
 
+/// Where a key of the desk's title row was drawn last frame: `menu`, `add`, `width`,
+/// `wave`, `cables` (the view switch), `cable-options`, `takes`, `take`, or a desk-wide
+/// key by its i18n key (`mixer.solo_off`, `mixer.unmute_all`).
+pub fn title_rect(ctx: &egui::Context, key: &str) -> Option<egui::Rect> {
+    ctx.read_response(egui::Id::new(("mixer-title", key)))
+        .map(|r| r.rect)
+}
+
 /// `120 Hz`, `1.5 kHz` — the way a frequency is said, not stored.
 pub fn hz_text(hz: f32) -> String {
     if hz >= 1_000.0 {
@@ -152,6 +162,9 @@ pub struct DeskPrefs {
     pub cables: CableView,
     /// The cable band's height in points at 100 % (the legend's handle).
     pub band: f32,
+    /// The cable view's options (the title row's options menu): whose cables, which
+    /// kinds, how much detail. Absent from a desk saved before them: the default.
+    pub cable_opts: CableOpts,
 }
 
 impl Default for DeskPrefs {
@@ -163,6 +176,7 @@ impl Default for DeskPrefs {
             colourful: Colourful::default(),
             cables: CableView::default(),
             band: layout::BAND,
+            cable_opts: CableOpts::default(),
         }
     }
 }
@@ -285,6 +299,7 @@ pub(crate) struct Words {
     pub port: String,
     pub cable: String,
     pub cable_view: String,
+    pub cable_opts: String,
     pub pill: String,
     pub chip: String,
     pub band: String,
@@ -353,6 +368,7 @@ impl Words {
             port: t("cables.hint.port"),
             cable: t("cables.hint.cable"),
             cable_view: t("cables.hint.view"),
+            cable_opts: t("cables.hint.options"),
             pill: t("cables.hint.pill"),
             chip: t("cables.hint.chip"),
             band: t("cables.hint.band"),
@@ -586,6 +602,14 @@ pub fn open_menu(app: &mut CantusApp, strip: Option<StripId>, at: egui::Pos2) {
         None => menu::Menu::Desk,
     };
     app.mixer.popups.open(m, at);
+}
+
+/// Screenshots and tests: open the cable view's options menu under its title-row key
+/// (as a click on it does; the key must have been drawn on an earlier frame), or at `at`.
+pub fn open_cable_options(app: &mut CantusApp, ctx: &egui::Context, at: egui::Pos2) {
+    let key = title_rect(ctx, "cable-options");
+    let at = key.map_or(at, |r| r.left_bottom());
+    app.mixer.popups.open_from(menu::Menu::Cables, at, key);
 }
 
 /// Show the desk. Takes the view out of the app for the frame, so painting can borrow

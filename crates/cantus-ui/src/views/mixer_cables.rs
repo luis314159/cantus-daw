@@ -11,6 +11,12 @@
 //! A send carries its level on a pill (Wide and Extra large; Compact on hover) with *PRE*
 //! in the cable's colour when it is pre-fader; a doubled signal its warning mark.
 //!
+//! **The view's options** (the key beside the switch, ADR 0043 §7): the selection's
+//! cables can be what goes *out* of it, what comes *in*, or both (the default); outputs,
+//! sends and sidechain keys can each be hidden; the send levels and the selection's
+//! outputs into the master are details that can be left out. What is hidden is not drawn
+//! and so neither hit nor selected — Delete removes only a cable drawn on the last pass.
+//!
 //! **What it does.** A port starts a drag (`mixer_drag`: plain = send, Ctrl = output,
 //! Alt = key); a lit cable's end mark moves that route; a click selects a cable (Delete
 //! removes it, Esc lets it go); right-click opens the route menu; dragging a pill sets the
@@ -23,7 +29,7 @@
 
 use super::desk::{Place, MASTER_END};
 use super::drag::{self, Source, Target};
-use super::layout::{CableView, Row, WidthMode};
+use super::layout::{CableOpts, CableView, Row, WidthMode};
 use super::strip::{knob_input, pid, sense, strip_color, Part, Pass};
 use super::{in_selection, route_owner, Geo, MixerView};
 use crate::app::CantusApp;
@@ -189,7 +195,8 @@ pub(super) fn band(
     let hovered_strip = pointer
         .filter(|p| geo.rows.contains(*p))
         .and_then(|p| super::paint::strip_at(v, geo, p));
-    collect(v, app, &ports, view, hovered_strip, port_y, room);
+    let opts = pass.prefs.cable_opts;
+    collect(v, app, &ports, view, opts, hovered_strip, port_y, room);
     if let Some(sel) = v.band.selected {
         // A selected cable scrolled out of sight (or no longer drawn) is let go.
         if !v.band.drawn.iter().any(|d| d.route == sel) {
@@ -231,16 +238,20 @@ pub(super) fn band(
     // The ports first: the chips and pills sensed after them are on top.
     port_row(v, app, ui, b, pass, geo, &ports, port_y);
     chips(v, app, ui, b, pass, geo, port_y, z);
-    pills(
-        v,
-        app,
-        ui,
-        b,
-        pass,
-        hot,
-        port_y,
-        (area.left(), area.right()),
-    );
+    // The send levels are a detail the options can leave out: then no pill is drawn or
+    // grabbed (the level stays in the hint bar, the send row and the inspector).
+    if opts.levels {
+        pills(
+            v,
+            app,
+            ui,
+            b,
+            pass,
+            hot,
+            port_y,
+            (area.left(), area.right()),
+        );
+    }
     ends(v, app, ui, b, pass);
     interact(v, app, ui, &band, hot);
 }
@@ -248,16 +259,24 @@ pub(super) fn band(
 /// The cables this frame draws, and where: the selection's (and the hovered strip's and
 /// the selected cable) lit, the rest faint in *All*; an output to the master only for the
 /// selection, as FL does (sixty identical cables into the master say nothing).
+///
+/// The view's options filter first: a hidden kind (or the master outputs, when left
+/// out) is never drawn, so never hit-tested, selected or removed by Delete; the scope
+/// decides which of the selection's cables count as its own — what leaves it, what
+/// arrives at it, or both.
+#[allow(clippy::too_many_arguments)]
 fn collect(
     v: &mut MixerView,
     app: &CantusApp,
     ports: &Ports,
     view: CableView,
+    opts: CableOpts,
     hovered: Option<StripId>,
     port_y: f32,
     room: f32,
 ) {
     let selected = v.band.selected;
+    let scope = opts.scope;
     for (i, e) in v.desk.edges.iter().enumerate() {
         let Some(&(fi, ti)) = v.desk.ends.get(i) else {
             continue;
@@ -265,14 +284,26 @@ fn collect(
         if fi == MASTER_END {
             continue;
         }
+        let kind_shown = match e.kind {
+            EdgeKind::Output => opts.outputs,
+            EdgeKind::Send { .. } => opts.sends,
+            EdgeKind::Key { .. } => opts.keys,
+        };
+        if !kind_shown || (e.is_master_output() && !opts.master) {
+            continue;
+        }
         let route = route_of(e);
         let to_master = ti == MASTER_END;
-        let touches = in_selection(app, e.from) || (!to_master && in_selection(app, e.to));
-        let hov = hovered.is_some_and(|h| h == e.from || (!to_master && h == e.to));
+        let touches = scope.takes(
+            in_selection(app, e.from),
+            !to_master && in_selection(app, e.to),
+        );
+        let hov = hovered.is_some_and(|h| scope.takes(h == e.from, !to_master && h == e.to));
         let chosen = selected == Some(route);
         let lit = touches || hov || chosen;
         let show = if e.is_master_output() {
-            in_selection(app, e.from) || hov || chosen
+            // Its source's side only (never the master's): what the scope says of it.
+            lit
         } else {
             match view {
                 CableView::Off => false,

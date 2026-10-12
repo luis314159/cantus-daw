@@ -528,7 +528,7 @@ pub(super) fn legend(
             .policy(Policy::Abbreviate);
         let _ = text::paint(b, box_, &tt, s.tk());
     }
-    cables_key(ui, b, s, geo, fit);
+    cables_key(ui, b, s, geo, fit, v.prefs.current.cable_opts);
     // The dB scale, where it does not collide with itself or with the row's name.
     if let Some((a, z)) = fit.row(Row::Fader) {
         let fr = Rect::from_min_max(pos2(x0, geo.y0 + a), pos2(x1, geo.y0 + z));
@@ -564,8 +564,17 @@ pub(super) fn legend(
 /// Under ROUTING, what the band's lines mean, without a hover: a sample of each — an
 /// output thick, a send thin, a sidechain key dashed, as the band draws them — and its
 /// word; on hover, the whole sentence in the hint bar. Where the band is too short for
-/// three lines, only the hover says it.
-fn cables_key(ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
+/// three lines, only the hover says it. A kind the view's options hide is dimmed, and the
+/// hover names it ("Hidden by the cable options: Outputs"), so a missing cable is never a
+/// mystery.
+fn cables_key(
+    ui: &mut Ui,
+    b: &mut Brush,
+    s: &Style,
+    geo: &Geo,
+    fit: &Fit,
+    opts: layout::CableOpts,
+) {
     let Some((a, z)) = fit.row(Row::Cables) else {
         return;
     };
@@ -584,27 +593,37 @@ fn cables_key(ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
     const LINE: f32 = 9.0;
     if z - top >= LINE * 3.0 {
         use crate::kit::cable::{self, CableKind};
-        let ink = t.text_dim;
-        for (i, (key, kind)) in [
-            ("cables.legend.output", CableKind::Output),
+        use layout::CableKindSel as K;
+        for (i, (key, kind, sel)) in [
+            ("cables.legend.output", CableKind::Output, K::Outputs),
             (
                 "cables.legend.send",
                 CableKind::Send {
                     on: true,
                     pre: false,
                 },
+                K::Sends,
             ),
-            ("cables.legend.key", CableKind::Key),
+            ("cables.legend.key", CableKind::Key, K::Keys),
         ]
         .into_iter()
         .enumerate()
         {
             let y = top + LINE * (i as f32 + 0.5);
+            // Hidden by the options: dimmed, sample and word alike.
+            let dim = |c: egui::Color32| {
+                if opts.shows(sel) {
+                    c
+                } else {
+                    with_alpha(c, 0.32)
+                }
+            };
+            let ink = dim(t.text_dim);
             // As the band strokes it: its width, and a key in the dynamics hue, dashed,
             // ending in its key mark.
             let w = s.s(cable::width(kind));
             if kind == CableKind::Key {
-                let hue = t.hue_dynamics;
+                let hue = dim(t.hue_dynamics);
                 for k in 0..2 {
                     let u = x0 + k as f32 * 5.0;
                     b.segment(pos2(u, y), pos2(u + 3.0, y), w, hue, false);
@@ -628,10 +647,25 @@ fn cables_key(ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
         Sense::hover(),
     );
     if resp.hovered() {
+        // Built only while hovered: the hidden kinds, by name.
+        let mut hidden = String::new();
+        for k in layout::CableKindSel::ALL {
+            if !opts.shows(k) {
+                if !hidden.is_empty() {
+                    hidden.push_str(", ");
+                }
+                hidden.push_str(&crate::i18n::t(k.key()));
+            }
+        }
+        let value = if hidden.is_empty() {
+            hidden
+        } else {
+            crate::i18n::tf("cables.legend.hidden", &[("kinds", &hidden)])
+        };
         hint::set_text(
             ui.ctx(),
             &crate::i18n::t("cables.legend.hint"),
-            "",
+            &value,
             hint::Caps::NONE,
         );
     }
@@ -816,14 +850,15 @@ fn right_side_width(v: &MixerView, ui: &Ui, s: &Style) -> f32 {
 /// The title row's cable view (round 25, the owner's answer 1): the cables glyph and a
 /// three-way switch — *Off · Selected · All*, the selection's by default. Where the row
 /// has no room for the switch (a narrow desk, a large UI scale), the glyph alone is the
-/// key, and a click steps to the next view. Returns the new left edge.
+/// key, and a click steps to the next view. Either way the options key follows it (ADR
+/// 0043 §7). Returns the new left edge.
 fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
     let t = &s.t;
     let cy = r.center().y;
     let view = v.prefs.current.cables;
     let lit = view != layout::CableView::Off;
     let room = r.right() - x - right_side_width(v, ui, s);
-    if room < 190.0 {
+    if room < 190.0 + OPTIONS_KEY + 4.0 {
         let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
         let resp = key(ui, kr, "cables");
         let st = State::of(&resp, lit);
@@ -845,7 +880,7 @@ fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: 
             p.cables = layout::CableView::from_index((view.index() + 1) % 3);
             v.prefs.set(p);
         }
-        return kr.right() + 8.0;
+        return cable_options(v, ui, b, s, r, kr.right() + 4.0) + 8.0;
     }
     let gr = Rect::from_min_size(pos2(x, cy - 8.0), vec2(16.0, 16.0));
     glyph::paint(b, gr, Glyph::Cables, if lit { t.text } else { t.text_dim });
@@ -879,7 +914,46 @@ fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: 
         view.index(),
         hovered,
     );
-    wr.right() + 10.0
+    cable_options(v, ui, b, s, r, wr.right() + 4.0) + 10.0
+}
+
+/// The options key's width.
+const OPTIONS_KEY: f32 = 20.0;
+
+/// The cable view's options key beside the switch: a funnel, lit while anything differs
+/// from the default (so a hidden kind is never forgotten); a click opens the options
+/// menu under it, a second click closes it. Returns its right edge.
+fn cable_options(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
+    let t = &s.t;
+    let kr = Rect::from_min_size(
+        pos2(x, r.center().y - 10.0),
+        vec2(OPTIONS_KEY, OPTIONS_KEY),
+    );
+    let resp = key(ui, kr, "cable-options");
+    let open = v.popups.is_open(Menu::Cables);
+    let filtered = v.prefs.current.cable_opts.filtered();
+    let st = State::of(&resp, open || filtered);
+    cap::toolbar_key(b, kr, s, st, cap::KeyFace::Text(""));
+    let ink = if filtered {
+        t.highlight_glyph
+    } else if st.hovered || open {
+        t.text
+    } else {
+        t.text_dim
+    };
+    glyph::paint(b, kr.shrink(5.0), Glyph::Filter, ink);
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), &v.words.cable_opts, "", hint::Caps::NONE);
+    }
+    if resp.clicked() {
+        if open {
+            v.popups.close();
+        } else {
+            v.popups
+                .open_from(Menu::Cables, pos2(kr.left(), r.bottom()), Some(kr));
+        }
+    }
+    kr.right()
 }
 
 /// The cable band's handle (round 25): a 3-dot grip at the top of its legend cell; drag
