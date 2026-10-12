@@ -97,6 +97,54 @@ aunque será una marca de protección estrecha porque hay muchos "cantus" en la 
       las marcas italianas se usan; si sí, pedir a ACCA una carta de coexistencia.
 - [ ] Ojo: durante 5 años el registro de Madrid depende del mexicano.
 
+### ¿Y si registro "CANTUSDAW" y le sigo diciendo "Cantus"? (pregunta del 2026-10-11)
+
+**No conviene.** Cuesta lo mismo (se paga por clase, no por nombre), no evita los choques y
+protege menos:
+
+- **No esquiva a nadie.** Al comparar marcas se mira la parte que distingue; "DAW" es
+  descriptivo (estación de trabajo de audio digital) y se ignora o se "descarta". CANTUSDAW
+  se compara como CANTUS: la marca italiana para software sigue siendo el mismo obstáculo en
+  la UE.
+- **Protege solo "CANTUSDAW".** Otro podría lanzar "Cantus Audio" o "Cantus Studio" y sería
+  más difícil detenerlo con un registro de CANTUSDAW.
+- **Hay que usar lo que se registra.** En México, a los 3 años se declara el uso de la marca
+  tal como se registró; usar siempre "Cantus" con un registro de "CANTUSDAW" debilita esa
+  declaración.
+- Registrar **CANTUS** sí cubre "Cantus DAW", "Cantus" a secas y el dominio cantusdaw.com
+  como forma de uso. El dominio no necesita registro de marca.
+
+**Cómo gastar poco (recomendado):**
+
+| Paso | Cuándo | Costo oficial aproximado |
+|---|---|---|
+| CANTUS en el **IMPI**, en línea, clase 9, sin abogado si quieres (el trámite "Marca en Línea" es guiado) | Ahora | **≈ MXN 2,814** (≈ US$150) |
+| Usar **™** junto al nombre desde ya (no requiere registro; ® solo cuando esté registrada) | Ahora | Gratis |
+| Clase 42 en el IMPI (si algún día hay servicio en línea) | Cuando haga falta | ≈ MXN 2,814 |
+| EE. UU. y UE por Madrid | Cuando haya usuarios o ingresos que lo justifiquen. Dentro de 6 meses se conserva la fecha mexicana; después se puede igual, solo sin esa prioridad (riesgo bajo de que alguien se adelante) | ≈ US$2,500 + búsqueda profesional para la UE |
+
+### Anexo: marcas y productos encontrados
+
+| Nombre | Titular | Qué cubre | Dónde | Estado |
+|---|---|---|---|---|
+| CANTUS | Guido Cianciulli (ligado a ACCA Software) | Clase 9 "software", 35, 42 | Italia | Registrada, renovada 2018 (≈ 2029) |
+| CANTUS | ACCA Software S.r.l. | Clases 9, 35, 42 | Italia | Probablemente caducada (sin renovación registrada) |
+| CANTUS | Stagetec GmbH | Consolas de mezcla digitales (clase 9) | Canadá (muerta en EE. UU., UE, Reino Unido, Alemania) | Registrada hasta 2028; producto descontinuado |
+| CANTUS | Cantus Co., Ltd. | Software amplio, incluido audio/video (9), SaaS (42) | Corea del Sur | Registrada hasta 2033 |
+| AURUM CANTUS | Penglai Jinlang | Aparatos de sonido (9) | EE. UU., Madrid (España, Japón, Australia…), China | Viva hasta 2035 |
+| CANTUS | Petra Moore LLC | SaaS de citas y facturas (42) | EE. UU. | Solicitud de 2026, sin examinar |
+| Cantus Lunaris | Gaby Grosser-Koß | Datos descargables, juegos (9), música (41) | UE | Registrada 2026 |
+| LogoCantus | LogoCantus UG | Apps de aprendizaje (9), enseñanza musical (41) | Alemania | Registrada 2026 |
+| encantus | Encantus GmbH | Software (9), 37, 42 | Alemania | Registrada |
+| CANTUS PLANUS | Cantus Planus S.r.l. | CD/DVD (9), 41 | Italia | Registrada |
+| CANTO | Canto, Inc. | Software de gestión de archivos digitales (9, 42) | UE, EE. UU. | Registrada |
+| CANTUS | ACC Brands / BASF | Cerveza y restaurantes / agroquímicos | México | No chocan (otras clases) |
+| Cantus – Gregorian Chants | Best Service GmbH | Librería de coros para Kontakt | Mundial, desde ~2013 | Sin registro (derechos por uso) |
+
+Otros usos sin registro: Cantus Database (canto llano, universidad, no comercial), la app
+Cantus+, CantuStudio (iOS), "Cantus 1" de Datura (2012, abandonado), el ensamble vocal Cantus
+(Minneapolis), Antares Kantos (descontinuado).
+
 ## 5. Detalles conocidos que no bloquean la beta
 
 Una ruta armada sobrevive a ocultar el mixer (Esc la suelta); escribir un nivel en el menú de
@@ -104,3 +152,16 @@ ruta; *Añadir envío* del inspector podría ofrecer *Nuevo retorno*; los carril
 se reacomodan al pasar el ratón; el hint gasta ~17 asignaciones por cuadro al pasar sobre el
 mixer; muestras de color en los menús de tema base; en español la leyenda dice SALIDA igual que
 la fila SALIDA del modo ancho.
+
+## Fuentes (consultadas el 2026-10-11)
+
+- Firma: [SignPath Foundation — condiciones](https://signpath.org/terms) (licencia OSI sin
+  licencia comercial dual, sin componentes propietarios, compilación automatizada y
+  verificable, política de firma en la web, el editor es "SignPath Foundation");
+  opciones y precios en `docs/round20/signing.md`.
+- Biblia: [American Bible Society — permisos](https://bibles.com/pages/american-bible-society-rights-and-permissions)
+  (hasta 500 versículos sin permiso en obras no comerciales; permiso escrito para apps y
+  "otros medios nuevos, como sitios web"; contacto licensing@americanbible.org).
+- Marca: USPTO, TMview e IMPI MARCia; tasas: IMPI (guías que citan su tarifa, confirmar en
+  el sitio del IMPI), [USPTO](https://www.uspto.gov/trademarks/trademark-fee-information),
+  EUIPO y [WIPO Madrid](https://www.wipo.int/madrid/en/fees/). No es asesoría legal.
