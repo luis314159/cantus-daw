@@ -45,6 +45,34 @@ curve. A hard cap also breaks the arc diagram's promise that nested cables never
    capacity. Measured: 64 strips, 129 sends and 16 keys in *All* — 146 cables, 0 extra
    allocations, 0 extra draw calls, +0.2 ms build + tessellate (1.48 → 1.68 ms p50,
    release).
+7. **The view has options** (amended 2026-10-11, the owner: "an option to show only the
+   current channel's sends, or more view options, to see more or less information as one
+   wants"). `DeskPrefs::cable_opts: CableOpts` beside the *Off · Selected · All* switch,
+   set from a kit menu behind a funnel key right of the switch (lit while anything differs
+   from the default; in the folded title row it follows the single cables key):
+   - **Whose cables** (`CableScope`): of the selected strips, what goes *out* (their
+     output, sends, keys), what comes *in* (their feeders' outputs, sends and keys
+     arriving at them), or **both** — the default, round 25's behaviour. In *Selected*
+     the scope decides what is drawn, in *All* what is lit; hovering a strip follows it.
+   - **Which kinds**: outputs, sends, sidechain keys, each on or off. A hidden kind is
+     filtered before anything else in `collect`, so it is neither drawn nor hit-tested;
+     a selected cable whose kind is hidden is let go, and Delete (which only removes a
+     cable drawn on the last pass, `deletable_cable`) never removes it.
+   - **Detail**: *Send levels* (the pills, their *PRE* tag and the selected send's tap
+     chip; the cable keeps its pre-fader gap) and *Outputs to the master* (one per
+     selected strip, all converging on the master — noise with a big selection).
+   - **Quick views**: *Everything (default)* — the one-click way back —, *Only the
+     selection's sends* (the owner's case: out, sends only) and *Only what feeds the
+     selection* (in, every kind); the last two also put the view on *Selected*. The
+     radio shows which quick view the options are, none when custom.
+   - The switches keep the menu open (several set in one visit while the band redraws
+     under it); a quick view closes it; a second click on the key closes it too.
+   - Under ROUTING, the legend dims a hidden kind's sample and word, and its hover names
+     the hidden kinds ("Hidden by the cable options: Outputs, Sidechain keys"), so a
+     missing cable is never a mystery.
+   - Persistence: `#[serde(default)]` on `DeskPrefs` and on `CableOpts`, so a
+     `mixer.json` written before the options (or with only some of them) reads as the
+     default. View preferences, not project data: no schema change, no `Command`.
 
 ## Consequences
 
@@ -56,6 +84,10 @@ curve. A hard cap also breaks the arc diagram's promise that nested cables never
   row has no room; the desk-wide *Solo off* / *Unmute all* keys give way before they
   overlap the left side (both stay in the desk's menu).
 
+- The options cost nothing per frame: one more test per edge in `collect` (a match on
+  its kind), no allocation (the legend's hidden-kinds sentence is built only while
+  hovered, the menu's rows only while it is open).
+
 ## What the tests hold
 
 `kit::cable` unit tests (depth grows and caps; the path runs port to port below them;
@@ -63,4 +95,12 @@ nested cables never cross; the hit test), `mixer_layout` tests (rows per mode, t
 order, saved bits), `mixer_desk` tests (the band's cables port to port in every view, PRE,
 the doubled hint, select / Delete / undo, the pill's drag, edge chips, Extra large's send
 rows, no overlaps at 75 % and 200 % in both languages), `frame_budget` (no allocation, no
-draw call, *Selected* draws only the selection's), the kit gallery's `cable` sheets.
+draw call, *Selected* draws only the selection's), the kit gallery's `cable` sheets;
+§7: `mixer_cables_view` (the options round trip through `mixer.json` and an old desk
+reads as today; only sends shown draws and selects no output or key, in *Selected* and
+*All*; *in* draws the feeders and lights only them in *All*; Delete on a hidden kind does
+nothing; no pills or *PRE* tag without send levels, no master route without it; the menu
+by real clicks — a kind stays switched with the menu open, a quick view resets and
+closes, the key toggles it; the legend names hidden kinds; the title row never overlaps
+at 1280 px, 75/100/200 %, English and Spanish, with the desk-wide keys showing; every
+word in both languages), `mixer_layout` (defaults and quick views).

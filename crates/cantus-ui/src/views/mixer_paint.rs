@@ -321,6 +321,11 @@ fn title_text(
         edge = dr.left();
     }
     let wr = Rect::from_min_max(pos2(edge - ww - 1.0, r.top()), pos2(edge, r.bottom()));
+    // On a desk too narrow for it the word gives way rather than lie over the keys at
+    // the left (the panel's tab names the mixer already).
+    if wr.left() < left_limit + 4.0 {
+        return edge;
+    }
     let _ = text::paint(b, wr, &win, s.tk());
     edge = wr.left() - 12.0;
     let multi = v.selection_len(app);
@@ -833,11 +838,14 @@ pub(super) fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus
 
 /// What the title row's right side needs: the window's title and the desk-wide keys
 /// that show (FL's "Mixer"; *Solo off*, *Unmute all*), so the left side gives way first.
-fn right_side_width(v: &MixerView, ui: &Ui, s: &Style) -> f32 {
+fn right_side_width(v: &MixerView, ui: &Ui, s: &Style, leds: bool) -> f32 {
     let measure = |key: &'static str, role: Role, caps: bool| {
         text::measure(ui.ctx(), &Text::key(key, role, s.t.text).caps(caps), s.tk()).x
     };
     let mut w = 10.0 + measure("kit.mixer.title", Role::Title, false) + 12.0 + 24.0;
+    if !leds {
+        return w;
+    }
     if v.desk.any_solo {
         w += measure("mixer.solo_off", Role::Label, true) + 36.0;
     }
@@ -850,14 +858,15 @@ fn right_side_width(v: &MixerView, ui: &Ui, s: &Style) -> f32 {
 /// The title row's cable view (round 25, the owner's answer 1): the cables glyph and a
 /// three-way switch — *Off · Selected · All*, the selection's by default. Where the row
 /// has no room for the switch (a narrow desk, a large UI scale), the glyph alone is the
-/// key, and a click steps to the next view. Either way the options key follows it (ADR
-/// 0043 §7). Returns the new left edge.
+/// key, and a click steps to the next view. The options key follows it (ADR 0043 §7)
+/// while the row has room; the desk's ▸ menu always has the options too. Returns the new
+/// left edge.
 fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
     let t = &s.t;
     let cy = r.center().y;
     let view = v.prefs.current.cables;
     let lit = view != layout::CableView::Off;
-    let room = r.right() - x - right_side_width(v, ui, s);
+    let room = r.right() - x - right_side_width(v, ui, s, true);
     if room < 190.0 + OPTIONS_KEY + 4.0 {
         let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
         let resp = key(ui, kr, "cables");
@@ -880,7 +889,14 @@ fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: 
             p.cables = layout::CableView::from_index((view.index() + 1) % 3);
             v.prefs.set(p);
         }
-        return cable_options(v, ui, b, s, r, kr.right() + 4.0) + 8.0;
+        // The options key follows while the row has room for it; where it has not, the
+        // desk's ▸ menu holds the same options (*Cable options ▸*).
+        // The desk-wide keys at the right give way to it (they are in the menu too).
+        let room = r.right() - x - right_side_width(v, ui, s, false);
+        if room >= 2.0 * OPTIONS_KEY + 8.0 {
+            return cable_options(v, ui, b, s, r, kr.right() + 4.0) + 8.0;
+        }
+        return kr.right() + 8.0;
     }
     let gr = Rect::from_min_size(pos2(x, cy - 8.0), vec2(16.0, 16.0));
     glyph::paint(b, gr, Glyph::Cables, if lit { t.text } else { t.text_dim });
@@ -925,10 +941,7 @@ const OPTIONS_KEY: f32 = 20.0;
 /// menu under it, a second click closes it. Returns its right edge.
 fn cable_options(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
     let t = &s.t;
-    let kr = Rect::from_min_size(
-        pos2(x, r.center().y - 10.0),
-        vec2(OPTIONS_KEY, OPTIONS_KEY),
-    );
+    let kr = Rect::from_min_size(pos2(x, r.center().y - 10.0), vec2(OPTIONS_KEY, OPTIONS_KEY));
     let resp = key(ui, kr, "cable-options");
     let open = v.popups.is_open(Menu::Cables);
     let filtered = v.prefs.current.cable_opts.filtered();

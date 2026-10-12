@@ -170,7 +170,15 @@ fn routed(r: &mut Rig) -> (Vec<StripId>, Route) {
     );
     r.app.set_strip_send(ids[3], Send::new(ids[1]));
     r.app.add_effect(ids[6], EffectKind::Compressor);
-    let fx = r.app.project().strip(ids[6]).unwrap().effects.last().unwrap().id;
+    let fx = r
+        .app
+        .project()
+        .strip(ids[6])
+        .unwrap()
+        .effects
+        .last()
+        .unwrap()
+        .id;
     r.app.exec(Command::SetEffectSidechain {
         strip: ids[6],
         effect: fx,
@@ -255,7 +263,10 @@ fn only_sends_shown_draws_and_selects_no_output_or_key() {
     assert!(!drawn.is_empty(), "the sends are drawn");
     for d in &drawn {
         assert_eq!(d.route.kind, RouteKind::Send, "only sends: {d:?}");
-        assert_eq!(d.route.from, ids[1], "only the selection's own (out): {d:?}");
+        assert_eq!(
+            d.route.from, ids[1],
+            "only the selection's own (out): {d:?}"
+        );
     }
     assert!(r.drawn(Route::send(ids[1], ids[14])).is_some());
     // Where the output's cable ran: nothing to hit.
@@ -319,7 +330,10 @@ fn the_in_scope_draws_the_feeders_cables() {
         assert!(d.lit, "{route:?}");
     }
     for route in &own {
-        assert!(r.drawn(*route).is_none(), "in: not what leaves it: {route:?}");
+        assert!(
+            r.drawn(*route).is_none(),
+            "in: not what leaves it: {route:?}"
+        );
     }
     r.opts(|o| o.scope = CableScope::Out);
     r.idle(2);
@@ -379,7 +393,10 @@ fn detail_switches_hide_pills_and_master_outputs() {
     assert!(r.drawn(Route::output(ids[4], StripId::MASTER)).is_none());
     r.app.select_strip(ids[1]);
     let texts = r.idle(2);
-    assert!(!r.app.mixer.cable_pills().is_empty(), "levels on by default");
+    assert!(
+        !r.app.mixer.cable_pills().is_empty(),
+        "levels on by default"
+    );
     assert!(texts.iter().any(|(t, _)| t == "PRE"), "the PRE tag");
     let pill = mixer::pill_rect(&r.ctx, ids[1], ids[14]).expect("the pill");
     r.opts(|o| o.levels = false);
@@ -491,9 +508,17 @@ fn the_title_row_never_overlaps() {
         "mixer.unmute_all",
     ];
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        for ppp in [0.75f32, 1.0, 2.0] {
+        for (px, ppp) in [
+            (1280.0f32, 0.75f32),
+            (1280.0, 1.0),
+            (1280.0, 2.0),
+            // A desk in the lower zone beside the inspector, at 200 %: the switch folds
+            // and the options key gives way to the desk's menu.
+            (720.0, 2.0),
+            (900.0, 2.0),
+        ] {
             for filtered in [false, true] {
-                let mut r = Rig::new(starter_project(), vec2(1280.0, 720.0) / ppp);
+                let mut r = Rig::new(starter_project(), vec2(px, 720.0) / ppp);
                 cantus_ui::i18n::set_locale(locale);
                 r.ctx.set_pixels_per_point(ppp);
                 let (ids, _) = routed(&mut r);
@@ -507,12 +532,17 @@ fn the_title_row_never_overlaps() {
                     r.opts(|o| *o = CablePreset::Feeders.opts());
                 }
                 let texts = r.idle(3);
-                let what = format!("{locale:?} {ppp} filtered {filtered}");
+                let what = format!("{locale:?} {px} px {ppp} filtered {filtered}");
                 let keys: Vec<(&str, Rect)> = KEYS
                     .iter()
                     .filter_map(|k| mixer::title_rect(&r.ctx, k).map(|rect| (*k, rect)))
                     .collect();
-                for must in ["menu", "add", "width", "cables", "cable-options"] {
+                let must: &[&str] = if px >= 1280.0 {
+                    &["menu", "add", "width", "cables", "cable-options"]
+                } else {
+                    &["menu", "add", "width", "cables"]
+                };
+                for &must in must {
                     assert!(
                         keys.iter().any(|(k, _)| *k == must),
                         "{what}: {must} is in the row"
@@ -547,7 +577,10 @@ fn the_title_row_never_overlaps() {
                             "{what}: {t:?} {tr:?} lies over {k} {kr:?}"
                         );
                     }
-                    assert!(!t.contains('\u{2026}') || home.is_none(), "{what}: {t:?} cut");
+                    assert!(
+                        !t.contains('\u{2026}') || home.is_none(),
+                        "{what}: {t:?} cut"
+                    );
                 }
             }
         }
@@ -560,6 +593,7 @@ fn the_title_row_never_overlaps() {
 #[test]
 fn the_options_words_exist_in_both_languages() {
     let mut keys: Vec<&str> = vec![
+        "cables.menu.options",
         "cables.menu.scope",
         "cables.menu.kinds",
         "cables.menu.detail",
@@ -584,6 +618,84 @@ fn the_options_words_exist_in_both_languages() {
         assert!(!en.is_empty() && en != *key, "{key}: no English");
         assert!(!es.is_empty() && es != *key, "{key}: no Spanish");
         assert_ne!(en, es, "{key}: the Spanish is the English");
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// The desk's ▸ menu holds the cable options too (*Cable options ▸*), so they are in
+/// reach where the title row has no room for their key; a switch there keeps the menu
+/// open, as in the key's menu.
+#[test]
+fn the_desk_menu_holds_the_cable_options() {
+    let (mut r, _, _) = wide_rig();
+    mixer::open_menu(&mut r.app, None, egui::pos2(20.0, 300.0));
+    let texts = r.idle(2);
+    let label = cantus_ui::i18n::t("cables.menu.options");
+    let at = texts
+        .iter()
+        .find(|(t, _)| *t == label)
+        .map(|(_, r)| r.center())
+        .expect("Cable options in the desk's menu");
+    r.hover(at);
+    let texts = r.idle(2);
+    let sends = cantus_ui::i18n::t("cables.kinds.sends");
+    let row = texts
+        .iter()
+        .find(|(t, _)| *t == sends)
+        .map(|(_, r)| r.center())
+        .expect("the submenu's kinds");
+    // Across to the submenu along its row, then a click.
+    r.hover(egui::pos2(row.x, at.y));
+    r.click(row);
+    assert!(!r.app.mixer.prefs().cable_opts.sends, "sends hidden");
+    let texts = r.idle(1);
+    assert!(
+        texts.iter().any(|(t, _)| *t == sends),
+        "the submenu stays open"
+    );
+}
+
+/// The options menu reads whole — every heading and row, uncut — in both languages, at
+/// 100 % and 200 %.
+#[test]
+fn the_options_menu_reads_whole_in_both_languages() {
+    let bands = [
+        "cables.menu.scope",
+        "cables.menu.kinds",
+        "cables.menu.detail",
+        "cables.menu.quick",
+    ];
+    let mut rows: Vec<&str> = vec!["cables.detail.levels", "cables.detail.master"];
+    rows.extend(CableScope::ALL.iter().map(|s| s.key()));
+    rows.extend(
+        cantus_ui::views::mixer::layout::CableKindSel::ALL
+            .iter()
+            .map(|k| k.key()),
+    );
+    rows.extend(CablePreset::ALL.iter().map(|p| p.key()));
+    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        for ppp in [1.0f32, 2.0] {
+            let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0) / ppp);
+            cantus_ui::i18n::set_locale(locale);
+            r.ctx.set_pixels_per_point(ppp);
+            r.idle(2);
+            mixer::open_cable_options(&mut r.app, &r.ctx.clone(), egui::pos2(300.0, 40.0));
+            let texts = r.idle(2);
+            for key in bands {
+                let want = cantus_ui::i18n::t(key).to_uppercase();
+                assert!(
+                    texts.iter().any(|(t, _)| t.to_uppercase() == want),
+                    "{locale:?} {ppp}: {want:?} whole in {texts:?}"
+                );
+            }
+            for key in &rows {
+                let want = cantus_ui::i18n::t(key);
+                assert!(
+                    texts.iter().any(|(t, _)| *t == want),
+                    "{locale:?} {ppp}: {want:?} whole"
+                );
+            }
+        }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }

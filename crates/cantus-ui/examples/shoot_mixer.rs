@@ -10,8 +10,12 @@
 //! (Spanish), `75` and `200` (UI scale), `wide` and `xl` (width modes, `xl-75`,
 //! `xl-200`), `cables-pick` (a pre-fader send's cable selected: its tap chip), `master` (a
 //! mastering chain on the master, the master chosen so the inspector shows it, Extra
-//! large) and `master-menu` (its menu open). A filter keeps only the files whose name
-//! contains it.
+//! large) and `master-menu` (its menu open); the cable view's options (ADR 0043 §7):
+//! `cables-sends` (only the selection's sends, also `-es`, `-75`, `-200`), `cables-in`
+//! (the drum bus selected, what feeds it; `cables-in-all` in *All*), `cables-lean` (no
+//! send levels, no outputs to the master) and `cables-menu` (the options menu open, the
+//! keys hidden; `-es`, `-200`). Themes: Slate, Paper and Cantus Night. A filter keeps only
+//! the files whose name contains it.
 
 use cantus_core::{Color, Project, Send, Ticks};
 use cantus_engine::EngineHandle;
@@ -225,6 +229,7 @@ fn main() {
     let themes = [
         ("slate", cantus_ui::theme::slate()),
         ("paper", cantus_ui::theme::paper()),
+        ("night", cantus_ui::theme_family::cantus_night()),
     ];
     let sizes = [(1280.0f32, 720.0f32), (1920.0, 1080.0)];
     let (sel, all) = (Some(CableView::Selected), Some(CableView::All));
@@ -255,6 +260,17 @@ fn main() {
         var("-cables-es", Es, 1.0, Some(1), sel, Routes::Grown),
         var("-cables-75", En, 0.75, Some(1), sel, Routes::Grown),
         var("-cables-200", En, 2.0, Some(1), sel, Routes::Grown),
+        // The cable view's options (ADR 0043 §7).
+        var("-cables-sends", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-sends-es", Es, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-sends-75", En, 0.75, Some(1), sel, Routes::Grown),
+        var("-cables-sends-200", En, 2.0, Some(1), sel, Routes::Grown),
+        var("-cables-in", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-in-all", En, 1.0, Some(1), all, Routes::Grown),
+        var("-cables-lean", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-menu", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-menu-es", Es, 1.0, Some(1), sel, Routes::Grown),
+        var("-cables-menu-200", En, 2.0, Some(1), sel, Routes::Grown),
         var(
             "-cables-off",
             En,
@@ -326,7 +342,41 @@ fn shoot_one(
     if v.routes == Routes::Grown {
         routed(&mut app);
     }
-    let pick = if v.routes == Routes::House {
+    // The cable view's options.
+    {
+        use cantus_ui::views::mixer::layout::{CableOpts, CablePreset};
+        let opts = if v.suffix.starts_with("-cables-sends") {
+            Some(CablePreset::Sends.opts())
+        } else if v.suffix.starts_with("-cables-in") {
+            Some(CablePreset::Feeders.opts())
+        } else if v.suffix.starts_with("-cables-lean") {
+            Some(CableOpts {
+                levels: false,
+                master: false,
+                ..CableOpts::default()
+            })
+        } else if v.suffix.starts_with("-cables-menu") {
+            Some(CableOpts {
+                keys: false,
+                ..CableOpts::default()
+            })
+        } else {
+            None
+        };
+        if let Some(o) = opts {
+            let mut p = app.mixer.prefs();
+            p.cable_opts = o;
+            app.mixer.set_prefs(p);
+        }
+    }
+    let pick = if v.suffix.starts_with("-cables-in") {
+        // The drum bus: what feeds it.
+        app.project()
+            .strips
+            .iter()
+            .find(|s| s.name == "Drum Bus")
+            .map_or(app.project().strips[8].id, |s| s.id)
+    } else if v.routes == Routes::House {
         // The chords: sidechained from the kick, sent to both returns.
         app.project()
             .strips
@@ -370,7 +420,15 @@ fn shoot_one(
     let path = dir.join(format!("{name}.png"));
     // The size in points is the window's pixels over the UI scale.
     let size = egui::vec2(w / v.ppp, h / v.ppp);
+    let mut frames = 0;
+    let menu = v.suffix.starts_with("-cables-menu");
     shoot(&ctx, size, v.ppp, 24, Some(&path), |root| {
+        frames += 1;
+        if menu && frames == 3 {
+            // Under its key, as a click opens it (the key was drawn on the frames before).
+            let at = egui::pos2(w * 0.4, 40.0);
+            cantus_ui::views::mixer::open_cable_options(&mut app, &root.ctx().clone(), at);
+        }
         processor.process(&mut audio, 2);
         let mut frame = eframe::Frame::_new_kittest();
         eframe::App::ui(&mut app, root, &mut frame);

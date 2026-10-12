@@ -312,7 +312,11 @@ pub enum CableKindSel {
 }
 
 impl CableKindSel {
-    pub const ALL: [CableKindSel; 3] = [CableKindSel::Outputs, CableKindSel::Sends, CableKindSel::Keys];
+    pub const ALL: [CableKindSel; 3] = [
+        CableKindSel::Outputs,
+        CableKindSel::Sends,
+        CableKindSel::Keys,
+    ];
 
     /// Its menu row (an i18n key).
     pub fn key(self) -> &'static str {

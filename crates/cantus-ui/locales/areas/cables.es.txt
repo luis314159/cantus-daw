@@ -33,6 +33,7 @@ cables.send_off = apagado
 
 # Las opciones junto al interruptor: de qué canales, qué tipos, cuánto detalle, vistas rápidas.
 cables.hint.options = Opciones de cables: de qué canales, qué tipos, cuánto detalle
+cables.menu.options = Opciones de cables
 cables.menu.scope = Los seleccionados muestran
 cables.scope.out = Lo que sale
 cables.scope.in = Lo que entra

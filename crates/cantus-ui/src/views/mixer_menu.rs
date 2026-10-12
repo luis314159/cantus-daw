@@ -63,6 +63,9 @@ enum Sub {
     AddEffect(StripId),
     /// The device input of the strip's recording track (FL's mixer input; ADR 0025).
     Input(StripId),
+    /// The cable view's options (the rows of the title row's options key, which gives
+    /// way on a narrow desk).
+    Cables,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -318,6 +321,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Sub::Colourful,
             ));
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
+            e.push(Entry::sub(Label::Key("cables.menu.options"), Sub::Cables));
             e.push(Entry::separator());
             e.push(
                 Entry::act(Label::Key("mixer.wave"), Act::Wave)
@@ -537,39 +541,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::separator());
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
         }
-        Menu::Cables => {
-            let o = v.prefs.current.cable_opts;
-            e.push(Entry::band("cables.menu.scope"));
-            for sc in CableScope::ALL {
-                e.push(
-                    Entry::act(Label::Key(sc.key()), Act::CableScope(sc))
-                        .check(radio(o.scope == sc)),
-                );
-            }
-            e.push(Entry::band("cables.menu.kinds"));
-            for k in CableKindSel::ALL {
-                e.push(Entry::act(Label::Key(k.key()), Act::CableKind(k)).check(on(o.shows(k))));
-            }
-            e.push(Entry::band("cables.menu.detail"));
-            e.push(
-                Entry::act(Label::Key("cables.detail.levels"), Act::CableLevels)
-                    .check(on(o.levels))
-                    .enabled(o.sends),
-            );
-            e.push(
-                Entry::act(Label::Key("cables.detail.master"), Act::CableMaster)
-                    .check(on(o.master))
-                    .enabled(o.outputs),
-            );
-            e.push(Entry::band("cables.menu.quick"));
-            let now = o.preset();
-            for pr in CablePreset::ALL {
-                e.push(
-                    Entry::act(Label::Key(pr.key()), Act::CablePreset(pr))
-                        .check(radio(now == Some(pr))),
-                );
-            }
-        }
+        Menu::Cables => sub_entries(v, app, Sub::Cables, &mut e),
         Menu::Slot(id, fx) => {
             let Some(s) = p.effects_of(id) else {
                 return e;
@@ -617,6 +589,39 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
     let prefs = v.prefs.current;
     match sub {
         Sub::Colors(_) => {}
+        Sub::Cables => {
+            let o = v.prefs.current.cable_opts;
+            e.push(Entry::band("cables.menu.scope"));
+            for sc in CableScope::ALL {
+                e.push(
+                    Entry::act(Label::Key(sc.key()), Act::CableScope(sc))
+                        .check(radio(o.scope == sc)),
+                );
+            }
+            e.push(Entry::band("cables.menu.kinds"));
+            for k in CableKindSel::ALL {
+                e.push(Entry::act(Label::Key(k.key()), Act::CableKind(k)).check(on(o.shows(k))));
+            }
+            e.push(Entry::band("cables.menu.detail"));
+            e.push(
+                Entry::act(Label::Key("cables.detail.levels"), Act::CableLevels)
+                    .check(on(o.levels))
+                    .enabled(o.sends),
+            );
+            e.push(
+                Entry::act(Label::Key("cables.detail.master"), Act::CableMaster)
+                    .check(on(o.master))
+                    .enabled(o.outputs),
+            );
+            e.push(Entry::band("cables.menu.quick"));
+            let now = o.preset();
+            for pr in CablePreset::ALL {
+                e.push(
+                    Entry::act(Label::Key(pr.key()), Act::CablePreset(pr))
+                        .check(radio(now == Some(pr))),
+                );
+            }
+        }
         Sub::Width => {
             for mode in WidthMode::ALL {
                 e.push(
@@ -831,6 +836,18 @@ fn width_of(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
                 row += 18.0;
             }
             w = w.max(row);
+        } else if let Item::Band(label) = it {
+            // A band's heading, in capitals, is never cut where the rows leave it room.
+            let t = Text {
+                src: *label,
+                role: Role::Section,
+                caps: true,
+                align: egui::Align2::LEFT_CENTER,
+                policy: text::Policy::default(),
+                color: s.t.text,
+            };
+            // The row's inset (4 + 4) and the heading's margin (8 + 8), and a little air.
+            w = w.max(text::measure(ctx, &t, s.tk()).x + 28.0);
         }
     }
     w.min(420.0)
@@ -1049,7 +1066,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
                 if let Some(i) = shown.clicked.or(shown.toggled) {
                     if let Then::Act(a) = sub_rows[i].then {
                         act = Some(a);
-                        keep_open = shown.toggled.is_some();
+                        keep_open = shown.toggled.is_some() || a.keeps_open();
                     }
                 }
             }

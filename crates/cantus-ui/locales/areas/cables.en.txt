@@ -36,6 +36,7 @@ cables.send_off = switched off
 # The options beside the switch (the owner's request of 2026-10-11): whose cables, which
 # kinds, how much detail, and quick views (ADR 0043 §7).
 cables.hint.options = Cable options: whose cables, which kinds, how much detail
+cables.menu.options = Cable options
 cables.menu.scope = Selected strips show
 cables.scope.out = What goes out
 cables.scope.in = What comes in
