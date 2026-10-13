@@ -1,6 +1,10 @@
 //! The launcher's choice, on made-up processors and folders; the levels' feature lists
 //! against what rustc itself enables for each `target-cpu`.
 
+// Most of these tests choose between x86-64 levels and run only on x86-64; elsewhere
+// (Apple silicon in CI) their helpers and imports are unused.
+#![cfg_attr(not(target_arch = "x86_64"), allow(unused_imports, dead_code))]
+
 use cantus_launch::{choose, cpu_level, info, refusal_text, Choice, Level, Refusal, DETECT};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
