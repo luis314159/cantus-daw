@@ -155,7 +155,13 @@ impl CantusApp {
     }
 
     /// A pass began recording audio into `dir`, where `before` were the files already.
-    pub(crate) fn journal_pass_started(&mut self, dir: &Path, before: &[PathBuf], plan: &PassPlan, transport_start: cantus_core::Ticks) {
+    pub(crate) fn journal_pass_started(
+        &mut self,
+        dir: &Path,
+        before: &[PathBuf],
+        plan: &PassPlan,
+        transport_start: cantus_core::Ticks,
+    ) {
         if self.session.is_none() {
             return;
         }
@@ -244,9 +250,11 @@ impl CantusApp {
     /// Put the offered item `i` in the place of the open project: its last save, then
     /// its autosave over it as one undo step, then the takes recorded since, as one more.
     pub fn restore_recovery(&mut self, i: usize) -> bool {
-        let Some(item) = self.recovery.as_mut().and_then(|o| {
-            (i < o.items.len()).then(|| o.items.remove(i))
-        }) else {
+        let Some(item) = self
+            .recovery
+            .as_mut()
+            .and_then(|o| (i < o.items.len()).then(|| o.items.remove(i)))
+        else {
             return false;
         };
         // A save in flight writes the project being replaced: it lands first.

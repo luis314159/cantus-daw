@@ -46,7 +46,10 @@ fn sample_process() -> Option<Proc> {
             .output()
             .ok()?;
         let s = String::from_utf8_lossy(&out.stdout);
-        let v: Vec<u64> = s.split_whitespace().filter_map(|w| w.parse().ok()).collect();
+        let v: Vec<u64> = s
+            .split_whitespace()
+            .filter_map(|w| w.parse().ok())
+            .collect();
         (v.len() == 4).then(|| Proc {
             working_set: v[0],
             private: v[1],
@@ -63,7 +66,9 @@ fn sample_process() -> Option<Proc> {
                 .unwrap_or(0)
                 * 1024
         };
-        let fds = std::fs::read_dir("/proc/self/fd").map(|d| d.count()).unwrap_or(0) as u64;
+        let fds = std::fs::read_dir("/proc/self/fd")
+            .map(|d| d.count())
+            .unwrap_or(0) as u64;
         Some(Proc {
             working_set: kb("VmRSS:"),
             private: kb("RssAnon:"),
@@ -216,9 +221,13 @@ fn run(cfg: Config) -> Vec<Row> {
             rows.push(row);
             window.clear();
             // The callback must keep running: a stall is a hang.
-            let last_block = Duration::from_micros(live.stats.last_block_at_us.load(Ordering::Relaxed));
+            let last_block =
+                Duration::from_micros(live.stats.last_block_at_us.load(Ordering::Relaxed));
             let since = live.started.elapsed().saturating_sub(last_block);
-            assert!(since < Duration::from_secs(5), "the callback stalled for {since:?}");
+            assert!(
+                since < Duration::from_secs(5),
+                "the callback stalled for {since:?}"
+            );
         }
         if done {
             break;
@@ -293,7 +302,10 @@ fn run(cfg: Config) -> Vec<Row> {
 
         let dt = harness::frame(&mut app, &ctx, size, t.as_secs_f64());
         if dt > Duration::from_millis(250) {
-            println!("soak: slow frame {dt:?} at {:.1} s after {last}", t.as_secs_f64());
+            println!(
+                "soak: slow frame {dt:?} at {:.1} s after {last}",
+                t.as_secs_f64()
+            );
             slow.push((t.as_secs_f64(), dt, last.clone()));
         }
         last.clear();

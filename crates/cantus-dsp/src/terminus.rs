@@ -49,11 +49,11 @@ pub mod loudness;
 #[path = "terminus_os.rs"]
 pub mod os;
 #[cfg(test)]
-#[path = "terminus_tests_tp.rs"]
-mod tests_tp;
-#[cfg(test)]
 #[path = "terminus_tests_dither.rs"]
 mod tests_dither;
+#[cfg(test)]
+#[path = "terminus_tests_tp.rs"]
+mod tests_tp;
 
 use loudness::{column_len, KWeighting};
 use os::{Decim, Interp, TruePeak, TP_DELAY};

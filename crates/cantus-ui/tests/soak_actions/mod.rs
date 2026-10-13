@@ -4,8 +4,8 @@
 //! the fake input, saves and opens, the demo songs.
 #![allow(dead_code)]
 
-use cantus_core::automation::AutoTarget;
 use cantus_core::audio::TrackInput;
+use cantus_core::automation::AutoTarget;
 use cantus_core::{Command, EffectKind, Ticks, TrackId};
 use cantus_ui::CantusApp;
 use std::path::Path;
@@ -250,7 +250,12 @@ pub fn arm_audio_track(app: &mut CantusApp) -> Option<TrackId> {
         Some(id) => id,
         None => {
             app.add_audio_track();
-            app.project().tracks.iter().rev().find(|t| t.input.is_some())?.id
+            app.project()
+                .tracks
+                .iter()
+                .rev()
+                .find(|t| t.input.is_some())?
+                .id
         }
     };
     app.exec(Command::SetTrackInput {

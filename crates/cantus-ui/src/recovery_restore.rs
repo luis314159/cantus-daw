@@ -90,13 +90,18 @@ pub fn wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
 
 /// A take of `pass` as the engine would have finished it, read back from its file (the
 /// header repaired first). `None` when the file is gone, empty or unreadable.
-pub fn finished_take(pass: &JournalPass, track: cantus_core::TrackId, path: &Path) -> Option<FinishedTake> {
+pub fn finished_take(
+    pass: &JournalPass,
+    track: cantus_core::TrackId,
+    path: &Path,
+) -> Option<FinishedTake> {
     let frames = repair_wav(path).ok()?;
     if frames == 0 {
         return None;
     }
     let spec = hound::WavReader::open(path).ok()?.spec();
-    let fpt = f64::from(spec.sample_rate) * 60.0 / (pass.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
+    let fpt =
+        f64::from(spec.sample_rate) * 60.0 / (pass.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
     Some(FinishedTake {
         track,
         path: path.to_path_buf(),
@@ -113,16 +118,12 @@ pub fn finished_take(pass: &JournalPass, track: cantus_core::TrackId, path: &Pat
 /// takes on disk that no file of the project holds. `None` when there is nothing.
 pub fn item(orphan: Orphan) -> Option<Item> {
     let j = &orphan.journal;
-    let autosave = j
-        .autosave
-        .clone()
-        .filter(|_| j.dirty)
-        .and_then(|p| {
-            let l = cantus_project::load(&p, true)
-                .or_else(|_| cantus_project::load(&p, false))
-                .ok()?;
-            Some((p, l.project))
-        });
+    let autosave = j.autosave.clone().filter(|_| j.dirty).and_then(|p| {
+        let l = cantus_project::load(&p, true)
+            .or_else(|_| cantus_project::load(&p, false))
+            .ok()?;
+        Some((p, l.project))
+    });
     let held = match (&autosave, &j.project_path) {
         (Some((_, p)), _) => referenced(p, None),
         (None, Some(path)) => cantus_project::load(path, false)

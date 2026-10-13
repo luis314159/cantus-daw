@@ -31,7 +31,11 @@ pub fn open_failed(path: &Path, e: &StoreError) -> String {
         Problem::Damaged => tf("recovery.open.damaged", &[("file", &file)]),
         Problem::Newer { found, supported } => tf(
             "recovery.open.newer",
-            &[("file", &file), ("found", &found), ("supported", &supported)],
+            &[
+                ("file", &file),
+                ("found", &found),
+                ("supported", &supported),
+            ],
         ),
         Problem::NotAProject => tf("recovery.open.not_project", &[("file", &file)]),
         Problem::Integrity => tf("recovery.open.damaged", &[("file", &file)]),
@@ -65,6 +69,10 @@ pub fn save_failed(path: &Path, e: &StoreError) -> String {
         .unwrap_or_default();
     tf(
         "recovery.save_failed",
-        &[("file", &file_name(path)), ("folder", &folder), ("why", &why)],
+        &[
+            ("file", &file_name(path)),
+            ("folder", &folder),
+            ("why", &why),
+        ],
     )
 }

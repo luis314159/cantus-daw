@@ -345,8 +345,16 @@ mod tests {
             ("powxy64", digest(1e-3, 1.0, |x| powf(x, 0.1 + 9.0 * x))),
             ("atan2_64", digest(-1.0, 1.0, |x| atan2(x, 0.5 - x))),
             ("powi64", digest(-2.0, 2.0, |x| powi(x, 7) + powi(x, -3))),
-            ("powxy32", digest(1e-3, 1.0, |x| powf(x as f32, (0.1 + 9.0 * x) as f32))),
-            ("powwide32", digest(-30.0, 30.0, |x| powf(libm::exp2(x) as f32, (x / 7.0) as f32))),
+            (
+                "powxy32",
+                digest(1e-3, 1.0, |x| powf(x as f32, (0.1 + 9.0 * x) as f32)),
+            ),
+            (
+                "powwide32",
+                digest(-30.0, 30.0, |x| {
+                    powf(libm::exp2(x) as f32, (x / 7.0) as f32)
+                }),
+            ),
             ("db_gain32", digest(-150.0, 24.0, |x| db_to_gain(x as f32))),
         ];
         let want = PINNED;

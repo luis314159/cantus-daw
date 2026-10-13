@@ -92,7 +92,10 @@ fn child() {
             app.end_gesture();
             say(format!("EDIT {i} {}", ms()));
         } else if let Some(l) = &live {
-            let n = l.stats.input_frames.load(std::sync::atomic::Ordering::Relaxed);
+            let n = l
+                .stats
+                .input_frames
+                .load(std::sync::atomic::Ordering::Relaxed);
             say(format!("INPUT {n} {}", ms()));
         }
         let dt = harness::frame(&mut app, &ctx, SIZE, t0.elapsed().as_secs_f64());
@@ -103,7 +106,13 @@ fn child() {
 
 fn spawn(mode: &str, data: &Path, project: &Path) -> Child {
     Proc::new(std::env::current_exe().unwrap())
-        .args(["child", "--exact", "--ignored", "--nocapture", "--test-threads=1"])
+        .args([
+            "child",
+            "--exact",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
         .env("CANTUS_CRASH_CHILD", mode)
         .env("CANTUS_DATA_DIR", data)
         .env("CANTUS_CRASH_PROJECT", project)
@@ -216,7 +225,11 @@ fn killed_mid_edit_the_autosave_brings_back_all_but_the_last_interval() {
     assert_eq!(app.path.as_deref(), Some(proj.as_path()));
     assert!(app.bus.is_dirty(), "restored work is unsaved work");
     app.undo();
-    assert_eq!(app.project().name, "base", "undo goes back to the last save");
+    assert_eq!(
+        app.project().name,
+        "base",
+        "undo goes back to the last save"
+    );
     app.redo();
     app.end_session(false);
     // Offered once.
@@ -263,7 +276,10 @@ fn killed_mid_recording_the_take_survives_and_comes_back() {
         r.samples::<f32>().map(|s| s.unwrap()).collect()
     };
     let flushed = read(wav);
-    assert!(!flushed.is_empty(), "the header was flushed before the kill");
+    assert!(
+        !flushed.is_empty(),
+        "the header was flushed before the kill"
+    );
     let s0 = harness::which(flushed[0]).expect("the take starts on the input");
     for (j, v) in flushed.iter().enumerate() {
         assert_eq!(harness::which(*v), Some(s0 + j as u64), "frame {j}");
@@ -286,15 +302,25 @@ fn killed_mid_recording_the_take_survives_and_comes_back() {
     let all = read(wav);
     assert_eq!(all.len() as u64, repaired);
     for (j, v) in all.iter().enumerate() {
-        assert_eq!(harness::which(*v), Some(s0 + j as u64), "repaired frame {j}");
+        assert_eq!(
+            harness::which(*v),
+            Some(s0 + j as u64),
+            "repaired frame {j}"
+        );
     }
-    println!("repaired: {repaired} frames (+{} past the last header flush)", repaired - header);
+    println!(
+        "repaired: {repaired} frames (+{} past the last header flush)",
+        repaired - header
+    );
 
     // The next launch offers the take and lays it on its track.
     let mut app = next_launch(&data);
     let offer = app.recovery.as_ref().expect("the take is offered");
     assert_eq!(offer.items[0].take_count(), 1);
-    assert!(offer.items[0].autosave.is_none(), "nothing else was unsaved");
+    assert!(
+        offer.items[0].autosave.is_none(),
+        "nothing else was unsaved"
+    );
     assert!(app.restore_recovery(0));
     let p = app.project();
     let voice = p.tracks.iter().find(|t| t.name == "Voice").unwrap();

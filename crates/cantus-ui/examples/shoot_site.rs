@@ -85,32 +85,44 @@ fn main() {
     for _ in 0..40 {
         processor.process(&mut audio, 2);
     }
-    let name = if paper { "app-mixer-xl-paper.png" } else { "app-mixer-xl.png" };
+    let name = if paper {
+        "app-mixer-xl-paper.png"
+    } else {
+        "app-mixer-xl.png"
+    };
     let path = dir.join(name);
     let mut frame = 0;
-    raster::shoot(&ctx, egui::vec2(SIZE.0, SIZE.1), 1.0, 14, Some(&path), |root| {
-        // The browser opens once the window's width is known, so it takes its own width.
-        if frame == 1 {
-            app.toggle_pane(Pane::Browser);
-            app.central = cantus_ui::app::CentralView::Mixer;
-        }
-        // ... then the browser and the inspector take the widths the site's crops expect.
-        if frame == 3 {
-            let main = app.workspace.dock.main_surface_mut();
-            if let egui_dock::Node::Horizontal(split) = &mut main[egui_dock::NodeIndex::root()] {
-                split.fraction = BROWSER_PX / SIZE.0;
+    raster::shoot(
+        &ctx,
+        egui::vec2(SIZE.0, SIZE.1),
+        1.0,
+        14,
+        Some(&path),
+        |root| {
+            // The browser opens once the window's width is known, so it takes its own width.
+            if frame == 1 {
+                app.toggle_pane(Pane::Browser);
+                app.central = cantus_ui::app::CentralView::Mixer;
             }
-            app.workspace.impose_sizes(INSPECTOR_PX, 0.0);
-        }
-        frame += 1;
-        processor.process(&mut audio, 2);
-        let pal = cantus_ui::theme::p();
-        egui::Panel::top(egui::Id::new("site-caption"))
-            .exact_size(CAPTION)
-            .resizable(false)
-            .frame(egui::Frame::NONE.fill(pal.panel))
-            .show(root, |_| {});
-        app.frame(root);
-    });
+            // ... then the browser and the inspector take the widths the site's crops expect.
+            if frame == 3 {
+                let main = app.workspace.dock.main_surface_mut();
+                if let egui_dock::Node::Horizontal(split) = &mut main[egui_dock::NodeIndex::root()]
+                {
+                    split.fraction = BROWSER_PX / SIZE.0;
+                }
+                app.workspace.impose_sizes(INSPECTOR_PX, 0.0);
+            }
+            frame += 1;
+            processor.process(&mut audio, 2);
+            let pal = cantus_ui::theme::p();
+            egui::Panel::top(egui::Id::new("site-caption"))
+                .exact_size(CAPTION)
+                .resizable(false)
+                .frame(egui::Frame::NONE.fill(pal.panel))
+                .show(root, |_| {});
+            app.frame(root);
+        },
+    );
     println!("wrote {}", path.display());
 }

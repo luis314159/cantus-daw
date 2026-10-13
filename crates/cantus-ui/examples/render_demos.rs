@@ -11,8 +11,8 @@ use std::sync::Arc;
 use cantus_core::Snapshot;
 use cantus_engine::{render, RenderOptions};
 use cantus_export::job::Control;
-use cantus_export::{export_rendered, Audio, ExportSettings, Format, Mp3Mode, Rate};
 use cantus_export::settings::Tags;
+use cantus_export::{export_rendered, Audio, ExportSettings, Format, Mp3Mode, Rate};
 use cantus_ui::demos;
 
 /// Where each demo's whole band plays, in bars (start, end).
@@ -29,7 +29,10 @@ fn window(id: &str) -> (i64, i64) {
 }
 
 fn main() {
-    let out: PathBuf = std::env::args_os().nth(1).map(PathBuf::from).expect("usage: render_demos <out-dir>");
+    let out: PathBuf = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .expect("usage: render_demos <out-dir>");
     std::fs::create_dir_all(&out).expect("create the output folder");
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 
@@ -42,10 +45,19 @@ fn main() {
                 let (a, b) = window(d.id);
                 let r = render(
                     Arc::new(Snapshot::compile(&p, 0)),
-                    &RenderOptions { start: bar * a, end: Some(bar * b), tail_seconds: 1.5, ..Default::default() },
+                    &RenderOptions {
+                        start: bar * a,
+                        end: Some(bar * b),
+                        tail_seconds: 1.5,
+                        ..Default::default()
+                    },
                 )
                 .expect("the demo renders");
-                let audio = Audio { rate: r.sample_rate, channels: r.channels, samples: r.samples };
+                let audio = Audio {
+                    rate: r.sample_rate,
+                    channels: r.channels,
+                    samples: r.samples,
+                };
                 let s = ExportSettings {
                     format: Format::Mp3,
                     mp3: Mp3Mode::Cbr(128),
@@ -60,8 +72,15 @@ fn main() {
                     ..Default::default()
                 };
                 let path = out.join(format!("{}.mp3", d.id));
-                let done = export_rendered(audio, &s, &tags, &path, &Control::new()).expect("the file is written");
-                println!("{}: {:.1} s, peak {:.1} dBFS -> {}", d.id, done.seconds, done.peak_db, path.display());
+                let done = export_rendered(audio, &s, &tags, &path, &Control::new())
+                    .expect("the file is written");
+                println!(
+                    "{}: {:.1} s, peak {:.1} dBFS -> {}",
+                    d.id,
+                    done.seconds,
+                    done.peak_db,
+                    path.display()
+                );
             });
         }
     });

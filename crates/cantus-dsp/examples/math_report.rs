@@ -68,7 +68,10 @@ fn pair64(name: &str) -> (F64, F64) {
         "powf" => (|x, y| x.powf(y), |x, y| math::powf(x, y)),
         "atan2" => (|x, y| x.atan2(y), |x, y| math::atan2(x, y)),
         "hypot" => (|x, y| x.hypot(y), |x, y| math::hypot(x, y)),
-        "db" => (|x, _| 10f64.powf(x / 20.0), |x, _| math::powf(10.0, x / 20.0)),
+        "db" => (
+            |x, _| 10f64.powf(x / 20.0),
+            |x, _| math::powf(10.0, x / 20.0),
+        ),
         other => panic!("no function {other}"),
     }
 }
@@ -143,7 +146,11 @@ fn ulp(r: f64, f32_ulp: bool) -> f64 {
 fn err(v: f64, hi: f64, lo: f64, f32_ulp: bool) -> f64 {
     // A true value past f32's range: the right answer is its rounding (∞).
     if f32_ulp && !(hi as f32).is_finite() {
-        return if v == hi as f32 as f64 { 0.0 } else { f64::INFINITY };
+        return if v == hi as f32 as f64 {
+            0.0
+        } else {
+            f64::INFINITY
+        };
     }
     if !v.is_finite() || !hi.is_finite() {
         return if v == hi { 0.0 } else { f64::INFINITY };
@@ -172,7 +179,6 @@ fn time(n: usize, mut pass: impl FnMut() -> f64) -> f64 {
     black_box(sink);
     best
 }
-
 
 /// One row: errors (worst, mean) and ns per call of each implementation, std first.
 struct Row {
@@ -295,9 +301,11 @@ fn main() {
             100.0 * r.same, r.ns[0], r.ns[1], r.ns[2],
         );
     }
-    println!("
+    println!(
+        "
 The candidate round 21 recommended, in the cantus columns:
-");
+"
+    );
     for (case, r) in extra {
         println!(
             "| {case} | f32 | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.1} % | {:.1} | {:.1} | {:.1} |",

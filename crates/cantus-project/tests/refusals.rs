@@ -54,7 +54,11 @@ fn a_file_cut_off_anywhere_is_called_truncated_and_left_alone() {
         if n < bytes.len() - 2 {
             assert_eq!(p, Problem::Truncated, "cut at {n}");
         }
-        assert_eq!(fs::read(&cut).unwrap(), &bytes[..n], "the file is not touched");
+        assert_eq!(
+            fs::read(&cut).unwrap(),
+            &bytes[..n],
+            "the file is not touched"
+        );
     }
     // An empty file — what a power cut during a careless save leaves — is truncated too.
     fs::write(&cut, b"").unwrap();
@@ -85,7 +89,10 @@ fn damaged_newer_and_foreign_files_are_each_named() {
     fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
     // Its hash no longer matches; opened anyway (as *Open* offers), it is damaged.
     assert_eq!(problem(&path), Problem::Integrity);
-    assert_eq!(load(&path, false).err().unwrap().problem(), Problem::Damaged);
+    assert_eq!(
+        load(&path, false).err().unwrap().problem(),
+        Problem::Damaged
+    );
 
     // A newer schema: refused with both numbers, the file left as it is.
     let mut v: serde_json::Value = serde_json::from_str(&text).unwrap();
@@ -113,7 +120,10 @@ fn damaged_newer_and_foreign_files_are_each_named() {
     let edited = text.replacen("\"Lead\"", "\"Lead (edited)\"", 1);
     fs::write(&path, edited).unwrap();
     assert_eq!(problem(&path), Problem::Integrity);
-    assert!(load(&path, false).is_ok(), "and it opens when the user says so");
+    assert!(
+        load(&path, false).is_ok(),
+        "and it opens when the user says so"
+    );
 }
 
 #[test]
@@ -159,7 +169,12 @@ fn an_autosave_that_cannot_be_written_beside_the_project_goes_to_the_fallback() 
     let r = autosave(&demo(), Some(&path), &fallback, "t").unwrap();
     assert!(r.fallback.is_some(), "the reason is reported");
     assert!(r.path.starts_with(&fallback));
-    assert!(r.path.file_name().unwrap().to_string_lossy().starts_with("song"));
+    assert!(r
+        .path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("song"));
     assert_eq!(load(&r.path, true).unwrap().project, demo());
     // And a real save there fails visibly, leaving nothing half-made.
     fs::remove_file(&folder).unwrap();

@@ -47,11 +47,16 @@ fn a_ditherer_at_rest_is_a_new_one() {
                 assert!(d.at_rest(), "{shaping:?} {bits}: 64 zeros bring it to rest");
                 assert_eq!(d, fresh, "{shaping:?} {bits}: at rest is a new ditherer");
                 // More silence: silent and still at rest.
-                assert!(run(&mut d, &[0.0; 1_000], bits, shaping).iter().all(|v| v.to_bits() == 0));
+                assert!(run(&mut d, &[0.0; 1_000], bits, shaping)
+                    .iter()
+                    .all(|v| v.to_bits() == 0));
                 assert_eq!(d, fresh);
                 // The next sound: the same bits as a new ditherer's.
                 let next = sound(3_000, 99);
-                let (a, b) = (run(&mut d, &next, bits, shaping), run(&mut fresh.clone(), &next, bits, shaping));
+                let (a, b) = (
+                    run(&mut d, &next, bits, shaping),
+                    run(&mut fresh.clone(), &next, bits, shaping),
+                );
                 assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()));
             }
         }
@@ -63,13 +68,18 @@ fn a_ditherer_at_rest_is_a_new_one() {
 #[test]
 fn silence_first_is_silent_and_short_gaps_keep_the_stream() {
     let mut d = Ditherer::new(SEEDS[0]);
-    assert!(run(&mut d, &[0.0; 500], 16, Shaping::Optimized).iter().all(|v| v.to_bits() == 0));
+    assert!(run(&mut d, &[0.0; 500], 16, Shaping::Optimized)
+        .iter()
+        .all(|v| v.to_bits() == 0));
     // A gap of 10 zeros inside a sound: dithered, the counter goes on.
     let mut x = sound(1_000, 5);
     x[400..410].iter_mut().for_each(|v| *v = 0.0);
     let mut a = Ditherer::new(SEEDS[0]);
     let out = run(&mut a, &x, 16, Shaping::Flat);
-    assert!(out[400..410].iter().any(|v| *v != 0.0), "a short gap is dithered");
+    assert!(
+        out[400..410].iter().any(|v| *v != 0.0),
+        "a short gap is dithered"
+    );
     assert_eq!(a.n, 1_000);
 }
 
@@ -91,7 +101,10 @@ fn the_noise_is_white_triangular_and_independent() {
     for (k, v) in streams.iter().enumerate() {
         let mean = v.iter().sum::<f64>() / N as f64;
         let var = v.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / N as f64;
-        let lag1 = v.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum::<f64>()
+        let lag1 = v
+            .windows(2)
+            .map(|w| (w[0] - mean) * (w[1] - mean))
+            .sum::<f64>()
             / (N - 1) as f64
             / var;
         let inner = v.iter().filter(|x| x.abs() < 0.5).count() as f64 / N as f64;
@@ -99,11 +112,18 @@ fn the_noise_is_white_triangular_and_independent() {
         assert!(mean.abs() < sd * tol, "seed {k}: mean {mean}");
         assert!((var - 1.0 / 6.0).abs() < 0.002, "seed {k}: variance {var}");
         assert!(lag1.abs() < tol, "seed {k}: lag-1 correlation {lag1}");
-        assert!((inner - 0.75).abs() < 0.002, "seed {k}: {inner} within ±½ LSB");
+        assert!(
+            (inner - 0.75).abs() < 0.002,
+            "seed {k}: {inner} within ±½ LSB"
+        );
     }
     for a in 0..SEEDS.len() {
         for b in a + 1..SEEDS.len() {
-            let c = streams[a].iter().zip(&streams[b]).map(|(x, y)| x * y).sum::<f64>()
+            let c = streams[a]
+                .iter()
+                .zip(&streams[b])
+                .map(|(x, y)| x * y)
+                .sum::<f64>()
                 / N as f64
                 / (1.0 / 6.0);
             assert!(c.abs() < tol, "seeds {a} and {b}: correlation {c}");
@@ -151,7 +171,10 @@ fn a_dithering_limiter_comes_to_rest_as_a_new_one() {
         fresh.process(&mut b.0, &mut b.1, None);
         assert!(a.0.iter().any(|v| *v != 0.0));
         assert!(
-            a.0.iter().chain(&a.1).zip(b.0.iter().chain(&b.1)).all(|(p, q)| p.to_bits() == q.to_bits()),
+            a.0.iter()
+                .chain(&a.1)
+                .zip(b.0.iter().chain(&b.1))
+                .all(|(p, q)| p.to_bits() == q.to_bits()),
             "{shaping:?}: at rest, not as a new limiter"
         );
     }

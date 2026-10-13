@@ -34,8 +34,7 @@ impl CantusApp {
     /// are unsaved changes.
     pub fn maybe_autosave(&mut self) {
         self.poll_autosave(false);
-        if self.autosave_job.is_some() || self.last_autosave.elapsed() < self.autosave_interval()
-        {
+        if self.autosave_job.is_some() || self.last_autosave.elapsed() < self.autosave_interval() {
             return;
         }
         self.last_autosave = Instant::now();

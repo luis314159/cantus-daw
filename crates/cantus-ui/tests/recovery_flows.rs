@@ -118,10 +118,26 @@ fn open_refuses_a_bad_file_and_leaves_everything_as_it_was() {
     let mut newer: serde_json::Value = serde_json::from_str(&text).unwrap();
     newer["schema_version"] = serde_json::Value::from(cantus_project::SCHEMA_VERSION + 1);
     let cases: Vec<(&str, Vec<u8>, &str)> = vec![
-        ("cut.cantus", text.as_bytes()[..text.len() / 3].to_vec(), "incomplete"),
-        ("bad.cantus", b"{\"format\": \"cantus-project\", \"schema_version\": 20, \"project\": 7}".to_vec(), "damaged"),
-        ("newer.cantus", serde_json::to_vec_pretty(&newer).unwrap(), "newer Cantus"),
-        ("other.cantus", b"{\"hello\": 1}".to_vec(), "not a Cantus project"),
+        (
+            "cut.cantus",
+            text.as_bytes()[..text.len() / 3].to_vec(),
+            "incomplete",
+        ),
+        (
+            "bad.cantus",
+            b"{\"format\": \"cantus-project\", \"schema_version\": 20, \"project\": 7}".to_vec(),
+            "damaged",
+        ),
+        (
+            "newer.cantus",
+            serde_json::to_vec_pretty(&newer).unwrap(),
+            "newer Cantus",
+        ),
+        (
+            "other.cantus",
+            b"{\"hello\": 1}".to_vec(),
+            "not a Cantus project",
+        ),
         ("empty.cantus", Vec::new(), "incomplete"),
     ];
     let mut a = app(dir.path(), song());
@@ -136,17 +152,33 @@ fn open_refuses_a_bad_file_and_leaves_everything_as_it_was() {
         assert!(a.status.error, "{name}: {}", a.status.text);
         assert!(a.status.text.contains(words), "{name}: {}", a.status.text);
         assert!(a.status.text.contains(name), "{name}: {}", a.status.text);
-        assert!(a.status.text.contains("unchanged"), "{name}: {}", a.status.text);
-        assert_eq!(a.project(), &before, "{name}: the open project is untouched");
+        assert!(
+            a.status.text.contains("unchanged"),
+            "{name}: {}",
+            a.status.text
+        );
+        assert_eq!(
+            a.project(),
+            &before,
+            "{name}: the open project is untouched"
+        );
         assert_eq!(a.path.as_deref(), Some(here.as_path()));
         assert!(a.bus.is_dirty(), "{name}: still unsaved");
-        assert_eq!(fs::read(&p).unwrap(), bytes, "{name}: the file is untouched");
+        assert_eq!(
+            fs::read(&p).unwrap(),
+            bytes,
+            "{name}: the file is untouched"
+        );
     }
     // A damaged file with a good backup beside it says where the good copy is.
     cantus_project::save(&song(), &good, "t").unwrap();
     fs::write(&good, b"{").unwrap();
     a.open(&good);
-    assert!(a.status.text.contains("good.cantus.bak"), "{}", a.status.text);
+    assert!(
+        a.status.text.contains("good.cantus.bak"),
+        "{}",
+        a.status.text
+    );
 
     // And in Spanish.
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
@@ -167,11 +199,22 @@ fn a_save_that_cannot_be_written_fails_visibly_and_loses_nothing() {
     let path = blocked.join("precious.cantus");
     a.save_to_path(&path);
     assert!(a.status.error);
-    assert!(a.status.text.contains("Could not save"), "{}", a.status.text);
-    assert!(a.status.text.contains("Nothing was lost"), "{}", a.status.text);
+    assert!(
+        a.status.text.contains("Could not save"),
+        "{}",
+        a.status.text
+    );
+    assert!(
+        a.status.text.contains("Nothing was lost"),
+        "{}",
+        a.status.text
+    );
     assert_eq!(a.project(), &before);
     assert!(a.bus.is_dirty());
-    assert_eq!(a.path, None, "the session is not pointed at a file it could not write");
+    assert_eq!(
+        a.path, None,
+        "the session is not pointed at a file it could not write"
+    );
 
     // A project whose folder stops being writable autosaves to the fallback and says so.
     let ok = dir.path().join("Song").join("song.cantus");

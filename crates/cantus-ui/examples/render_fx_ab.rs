@@ -42,12 +42,22 @@ fn window(id: &str) -> (i64, i64) {
 }
 
 fn count(p: &Project, kind: EffectKind) -> usize {
-    p.strips.iter().flat_map(|s| s.effects.iter()).chain(p.master.effects.iter()).filter(|e| e.spec.kind == kind).count()
+    p.strips
+        .iter()
+        .flat_map(|s| s.effects.iter())
+        .chain(p.master.effects.iter())
+        .filter(|e| e.spec.kind == kind)
+        .count()
 }
 
 fn bypass(p: &Project, kind: EffectKind) -> Project {
     let mut q = p.clone();
-    for slot in q.strips.iter_mut().flat_map(|s| s.effects.iter_mut()).chain(q.master.effects.iter_mut()) {
+    for slot in q
+        .strips
+        .iter_mut()
+        .flat_map(|s| s.effects.iter_mut())
+        .chain(q.master.effects.iter_mut())
+    {
         if slot.spec.kind == kind {
             slot.bypass = true;
         }
@@ -60,7 +70,12 @@ fn render_window(p: &Project, id: &str) -> Vec<f32> {
     let (a, b) = window(id);
     let r = render(
         Arc::new(Snapshot::compile(p, 0)),
-        &RenderOptions { start: bar * a, end: Some(bar * b), tail_seconds: 1.0, ..Default::default() },
+        &RenderOptions {
+            start: bar * a,
+            end: Some(bar * b),
+            tail_seconds: 1.0,
+            ..Default::default()
+        },
     )
     .expect("the demo renders");
     assert_eq!(r.channels, 2);
@@ -101,14 +116,31 @@ fn lag_frames(dry: &[f32], wet: &[f32]) -> i32 {
 }
 
 fn write(samples: Vec<f32>, path: &Path, title: &str) {
-    let audio = Audio { rate: 48_000, channels: 2, samples };
-    let s = ExportSettings { format: Format::Mp3, mp3: Mp3Mode::Cbr(128), rate: Rate::Hz(44_100), ..Default::default() };
-    let tags = Tags { title: title.into(), artist: "Cantus".into(), album: "Effects, with and without".into(), ..Default::default() };
+    let audio = Audio {
+        rate: 48_000,
+        channels: 2,
+        samples,
+    };
+    let s = ExportSettings {
+        format: Format::Mp3,
+        mp3: Mp3Mode::Cbr(128),
+        rate: Rate::Hz(44_100),
+        ..Default::default()
+    };
+    let tags = Tags {
+        title: title.into(),
+        artist: "Cantus".into(),
+        album: "Effects, with and without".into(),
+        ..Default::default()
+    };
     export_rendered(audio, &s, &tags, path, &Control::new()).expect("the file is written");
 }
 
 fn main() {
-    let out: PathBuf = std::env::args_os().nth(1).map(PathBuf::from).expect("usage: render_fx_ab <out-dir>");
+    let out: PathBuf = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .expect("usage: render_fx_ab <out-dir>");
     std::fs::create_dir_all(&out).expect("create the output folder");
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let built: Vec<(&Demo, Project)> = demos::ALL.iter().map(|d| (d, (d.build)())).collect();
@@ -128,17 +160,31 @@ fn main() {
                     let with = render_window(p, d.id);
                     let without = render_window(&bypass(p, kind), d.id);
                     let db = change_db(&without, &with);
-                    println!("{stem}: {} -> change {:.1} dB below the dry mix, lag {} frames", d.id, db, lag_frames(&without, &with));
+                    println!(
+                        "{stem}: {} -> change {:.1} dB below the dry mix, lag {} frames",
+                        d.id,
+                        db,
+                        lag_frames(&without, &with)
+                    );
                     // A pair that is out of step in time would flam when switched: skip it.
                     let lag = lag_frames(&without, &with);
                     if lag.abs() <= 2 && best.as_ref().is_none_or(|b| db > b.0) {
                         best = Some((db, d.id, without, with));
                     }
                 }
-                let (db, id, without, with) = best.unwrap_or_else(|| panic!("no demo uses {kind:?}"));
+                let (db, id, without, with) =
+                    best.unwrap_or_else(|| panic!("no demo uses {kind:?}"));
                 println!("{stem}: kept {id} ({db:.1} dB)");
-                write(without, &out.join(format!("{stem}-without.mp3")), &format!("{stem} without ({id})"));
-                write(with, &out.join(format!("{stem}-with.mp3")), &format!("{stem} with ({id})"));
+                write(
+                    without,
+                    &out.join(format!("{stem}-without.mp3")),
+                    &format!("{stem} without ({id})"),
+                );
+                write(
+                    with,
+                    &out.join(format!("{stem}-with.mp3")),
+                    &format!("{stem} with ({id})"),
+                );
             });
         }
     });

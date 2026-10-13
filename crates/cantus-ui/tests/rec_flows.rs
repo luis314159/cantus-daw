@@ -114,7 +114,10 @@ fn arming_monitoring_and_inputs_round_trip_and_undo() {
     let (mut a, keys, audio) = with_audio_track();
     let before = a.project().clone();
     let start = a.bus.history().len();
-    assert!(a.project().track(audio).unwrap().armed, "it comes armed (round 22)");
+    assert!(
+        a.project().track(audio).unwrap().armed,
+        "it comes armed (round 22)"
+    );
     a.toggle_arm(keys, false);
     assert!(a.project().track(audio).unwrap().armed && a.project().track(keys).unwrap().armed);
     // Shift: this track alone, in one step.

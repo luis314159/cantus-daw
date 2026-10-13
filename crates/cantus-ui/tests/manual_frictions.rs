@@ -40,7 +40,11 @@ fn new_and_open_ask_before_unsaved_work_goes() {
     edit(&mut a, "Precious");
     a.run_action(Action::NewProject);
     assert_eq!(a.unsaved_prompt, Some(Then::New));
-    assert_eq!(a.project().name, "Precious", "nothing replaced while asking");
+    assert_eq!(
+        a.project().name,
+        "Precious",
+        "nothing replaced while asking"
+    );
     a.answer_unsaved(Answer::Cancel);
     assert!(a.unsaved_prompt.is_none());
     assert_eq!(a.project().name, "Precious");

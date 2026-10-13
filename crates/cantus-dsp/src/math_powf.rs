@@ -226,7 +226,11 @@ mod tests {
             return f64::INFINITY;
         }
         let e = ((r as f32).abs().to_bits() >> 23) as i32;
-        let ulp = libm::exp2(if e == 0 { -149.0 } else { (e - 127 - 23) as f64 });
+        let ulp = libm::exp2(if e == 0 {
+            -149.0
+        } else {
+            (e - 127 - 23) as f64
+        });
         (v as f64 - r).abs() / ulp
     }
 
@@ -240,12 +244,22 @@ mod tests {
             ("10^[-7.5,2]", |r| (10.0, r.uni(-7.5, 2.0))),
             ("2^[-10,10]", |r| (2.0, r.uni(-10.0, 10.0))),
             ("(0,1]^[0.1,10]", |r| (r.uni(1e-6, 1.0), r.uni(0.1, 10.0))),
-            ("[1e-38,1e38]^[-4,4]", |r| (r.logu(1e-38, 1e38), r.uni(-4.0, 4.0))),
-            ("[0.999,1.001]^[-1e4,1e4]", |r| (r.uni(0.999, 1.001), r.uni(-1e4, 1e4))),
-            ("subnormal^[-1,1]", |r| (r.logu(1.5e-45, 1e-38), r.uni(-1.0, 1.0))),
+            ("[1e-38,1e38]^[-4,4]", |r| {
+                (r.logu(1e-38, 1e38), r.uni(-4.0, 4.0))
+            }),
+            ("[0.999,1.001]^[-1e4,1e4]", |r| {
+                (r.uni(0.999, 1.001), r.uni(-1e4, 1e4))
+            }),
+            ("subnormal^[-1,1]", |r| {
+                (r.logu(1.5e-45, 1e-38), r.uni(-1.0, 1.0))
+            }),
             ("edges: 2^(127..128), 2^(-151..-148)", |r| {
                 let x = r.logu(1.1, 1e4);
-                let t = if r.u() < 0.5 { r.uni(127.0, 128.2) } else { r.uni(-151.0, -148.0) };
+                let t = if r.u() < 0.5 {
+                    r.uni(127.0, 128.2)
+                } else {
+                    r.uni(-151.0, -148.0)
+                };
                 (x, (t as f64 / libm::log2(x as f64)) as f32)
             }),
         ];
@@ -267,7 +281,13 @@ mod tests {
     #[test]
     fn the_kernels_hold_their_bounds() {
         let mut rng = Rng(0x10_92);
-        let rel = |v: f64, r: f64| if r == 0.0 { v.abs() } else { (v - r).abs() / r.abs() };
+        let rel = |v: f64, r: f64| {
+            if r == 0.0 {
+                v.abs()
+            } else {
+                (v - r).abs() / r.abs()
+            }
+        };
         let (mut log2_worst, mut exp2_worst) = (0f64, 0f64);
         let mut log2_at = |x: f32| {
             log2_worst = log2_worst.max(rel(log2_kernel(x), libm::log2(x as f64)));
@@ -288,8 +308,14 @@ mod tests {
             libm::log2(log2_worst),
             libm::log2(exp2_worst),
         );
-        assert!(log2_worst < libm::exp2(-44.0), "log2 kernel: {log2_worst:e}");
-        assert!(exp2_worst < libm::exp2(-47.0), "exp2 kernel: {exp2_worst:e}");
+        assert!(
+            log2_worst < libm::exp2(-44.0),
+            "log2 kernel: {log2_worst:e}"
+        );
+        assert!(
+            exp2_worst < libm::exp2(-47.0),
+            "exp2 kernel: {exp2_worst:e}"
+        );
     }
 
     /// `db_to_gain` is `10^(db/20)` correctly rounded (against `f64`), over every level a
@@ -299,13 +325,21 @@ mod tests {
         let mut rng = Rng(0xdb);
         let mut wrong = 0;
         for i in 0..400_000 {
-            let db = if i % 2 == 0 { rng.uni(-200.0, 40.0) } else { rng.uni(-3_100.0, 800.0) };
+            let db = if i % 2 == 0 {
+                rng.uni(-200.0, 40.0)
+            } else {
+                rng.uni(-3_100.0, 800.0)
+            };
             let r = libm::pow(10.0, db as f64 / 20.0);
             let v = db_to_gain(db);
             if v != r as f32 {
                 wrong += 1;
-                let ulp = libm::exp2(((r as f32).to_bits() >> 23) as f64 - 150.0).max(libm::exp2(-149.0));
-                assert!((v as f64 - r).abs() / ulp < 0.5 + 1.0 / 1024.0, "{db} dB: {v:e} against {r:e}");
+                let ulp =
+                    libm::exp2(((r as f32).to_bits() >> 23) as f64 - 150.0).max(libm::exp2(-149.0));
+                assert!(
+                    (v as f64 - r).abs() / ulp < 0.5 + 1.0 / 1024.0,
+                    "{db} dB: {v:e} against {r:e}"
+                );
             }
         }
         eprintln!("db_to_gain: {wrong} of 400000 not the nearest f32's bits");

@@ -864,13 +864,24 @@ fn a_dynamic_band_comes_home_exactly() {
             }
             eq.process(&mut l, &mut r);
             if blk == 39 {
-                assert!(eq.bands.iter().any(|b| b.delta_db != 0.0), "{mode:?}: no movement");
+                assert!(
+                    eq.bands.iter().any(|b| b.delta_db != 0.0),
+                    "{mode:?}: no movement"
+                );
             }
         }
         for b in eq.bands.iter().filter(|b| b.target.active) {
-            assert_eq!(b.delta_db.to_bits(), 0, "{mode:?}: the release ends at +0 dB");
+            assert_eq!(
+                b.delta_db.to_bits(),
+                0,
+                "{mode:?}: the release ends at +0 dB"
+            );
             if mode == Mode::LinearPhase {
-                assert!(b.state.iter().flatten().all(|st| st.z1.to_bits() == 0 && st.z2.to_bits() == 0));
+                assert!(b
+                    .state
+                    .iter()
+                    .flatten()
+                    .all(|st| st.z1.to_bits() == 0 && st.z2.to_bits() == 0));
             }
         }
         assert!(
