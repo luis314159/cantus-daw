@@ -34,4 +34,7 @@ if [ "$what" = "test" ]; then
 else
   cargo clippy --workspace --all-targets --keep-going 2>&1 | grep -E "^(error|warning)|-->" | head -120
   echo "CLIPPY EXIT ${PIPESTATUS[0]}"
+  # xtask (perf, null hashes, packaging) builds the plug-ins without their editor.
+  cargo clippy -p cantus-plugins --no-default-features --all-targets 2>&1 | grep -E "^(error|warning)|-->" | head -40
+  echo "PLUGINS WITHOUT EDITOR EXIT ${PIPESTATUS[0]}"
 fi
