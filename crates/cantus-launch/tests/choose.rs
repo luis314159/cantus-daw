@@ -177,6 +177,7 @@ fn the_feature_lists_are_rustcs_own() {
     assert!(cpu_level(&cantus_launch::detected).is_some());
 }
 
+#[cfg(target_arch = "x86_64")]
 #[test]
 fn the_info_names_what_would_start() {
     let tmp = tempfile::tempdir().unwrap();
@@ -190,4 +191,20 @@ fn the_info_names_what_would_start() {
         "starts: {}",
         dir.join(Level::V2.program()).display()
     )));
+}
+
+/// Off x86-64 (Apple silicon) there are no levels: the launcher starts the one `cantus`
+/// program beside it, and says so.
+#[cfg(not(target_arch = "x86_64"))]
+#[test]
+fn off_x86_64_the_info_names_the_one_program() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().to_path_buf();
+    let program = dir.join(format!("cantus{}", std::env::consts::EXE_SUFFIX));
+    std::fs::write(&program, b"").unwrap();
+    let text = info(&dir, &cpu(None), None);
+    assert!(
+        text.contains(&format!("starts: {}", program.display())),
+        "{text}"
+    );
 }
