@@ -267,12 +267,12 @@ pub fn ambient(b: &mut Brush, area: Rect, t: &super::Tokens) {
 /// part inside `clip` only — rings of geometry whose colours follow a smooth bell (no
 /// texture, so the GPU and the CPU renderer draw it alike, without a seam or a step).
 fn glow_field(b: &mut Brush, clip: Rect, center: Pos2, radii: egui::Vec2, color: Color32) {
-    const RINGS: usize = 12;
+    const RINGS: usize = 8;
     let stops: [(f32, Color32); RINGS + 1] = std::array::from_fn(|k| {
         let t = k as f32 / RINGS as f32;
         let s = 1.0 - t;
         // Smoothstep: flat at the centre, no ring at the rim.
         (t, color.gamma_multiply(s * s * (3.0 - 2.0 * s)))
     });
-    b.radial(clip, center, radii, &stops, 12);
+    b.radial(clip, center, radii, &stops, 8);
 }

@@ -59,7 +59,7 @@ Measured on `shoot_window`, `shoot_mixer` and `shoot_site` pictures (before/afte
     desk and the piano roll's grid — the hero's two radial gradients, under the lines
     and the clips.
 - **Cheap by construction**: the sheen is one gradient rect (≤ 16 vertices); a glow is
-  12 rings × 48 segments of geometry, clipped exactly to its ground (no texture: the GPU
+  8 rings × 32 segments of geometry, clipped exactly to its ground (no texture: the GPU
   and the CPU renderer draw it alike, and a stretched texture showed steps in the CPU
   renderer; a vertex grid showed diagonal seams). No allocation once the brush's buffers
   have grown; no extra draw call (it is in each view's own mesh).
@@ -75,9 +75,12 @@ Measured on `shoot_window`, `shoot_mixer` and `shoot_site` pictures (before/afte
 | playhead on the lanes | 13.2 : 1 | 11.9 : 1 |
 | fader cap L | 0.80 | 0.66 |
 
-Frame cost (`tests/night_budget.rs`, whole window at 1080p, playing): see the report and
-the test's output — no allocation and no draw call added; the glow triangles are a few
-thousand at most.
+Frame cost (`tests/night_budget.rs`, the whole window at 1080p, playing, Cantus Night
+against itself with the gradients cleared): **217 allocations both, 98 draw calls both,
++1 118 triangles** (53 071 against 51 953); build + tessellate in release, best of three
+interleaved runs of 200 frames, **p50 0.74 ms against 0.75 ms** (p95 1.00 / 0.94) — within
+the noise. A first version with 12 rings × 48 segments cost +2 156 triangles and +0.07 ms;
+8 × 32 looks the same (no ring shows even with the picture's brightness tripled).
 
 ## Tests
 

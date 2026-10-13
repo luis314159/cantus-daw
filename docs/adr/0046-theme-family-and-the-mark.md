@@ -162,7 +162,7 @@ wells, and one flat brown-black plane with none of the website's light
      top right and cool at the bottom left of the large grounds (`kit::light::ambient`:
      the arrangement's lanes, the mixer desk, the piano roll's grid), under lines and clips.
    **Cost**: the sheen is one gradient rect; a glow is a ring mesh
-   (`Brush::radial`: 12 rings × 48 segments, single-coloured along each ring, clipped
+   (`Brush::radial`: 8 rings × 32 segments, single-coloured along each ring, clipped
    exactly to its ground) — no texture, so the GPU and the CPU renderer agree and no seam
    or step shows; no allocation on a warm frame; no extra draw call.
    **Legibility**: `Tokens::pairings` measures the gradients wherever a theme paints them
