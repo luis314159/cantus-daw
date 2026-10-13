@@ -174,7 +174,8 @@ pub(crate) struct Instance {
     pub(crate) gui: UnsafeCell<Option<ext::Gui>>,
     /// What an open editor did, for the audio thread to apply and send (`gui.rs`).
     edits_rx: UnsafeCell<rtrb::Consumer<crate::instance::Edit>>,
-    #[cfg_attr(not(windows), allow(dead_code))]
+    // Read by the editor (`gui.rs`), which exists on Windows with the `editor` feature.
+    #[cfg_attr(not(all(windows, feature = "editor")), allow(dead_code))]
     edits_tx: gui::EditTx,
 }
 

@@ -51,8 +51,8 @@ impl Notifier {
 
     /// An edit from the plug-in's own editor, to the host (UI thread): the standard's
     /// `beginEdit`, `performEdit` (normalised) and `endEdit`.
-    // Called from the editor view and the timer, which exist on Windows only so far.
-    #[cfg_attr(not(windows), allow(dead_code))]
+    // Called from the editor view, which exists on Windows with the `editor` feature.
+    #[cfg_attr(not(all(windows, feature = "editor")), allow(dead_code))]
     pub fn edit(&self, edit: crate::instance::Edit) {
         use crate::instance::Edit;
         let table = self.shared.table;

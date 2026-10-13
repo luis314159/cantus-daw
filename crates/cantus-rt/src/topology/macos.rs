@@ -64,7 +64,7 @@ pub fn detect_from(source: Source) -> Option<Topology> {
         let cores_per_llc = (sharers as u32 / per_core).max(1);
         let class = (levels - 1 - level) as u8;
         for c in 0..physical {
-            let llc = (level as u32) << 16 | c / cores_per_llc;
+            let llc = ((level as u32) << 16) | (c / cores_per_llc);
             if !caches.iter().any(|d: &(u32, u8, u64)| d.0 == llc) {
                 caches.push((llc, llc_level, llc_bytes));
             }

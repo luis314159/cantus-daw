@@ -8,6 +8,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # 200+ test binaries with full debug info filled the Ubuntu runner's disk (the linker
+  # died with a bus error): no debug info in dev/test builds, as on the owner's machine.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   test:
