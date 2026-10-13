@@ -12,6 +12,8 @@
 .nav-in { display: flex; align-items: center; gap: 1.5rem; height: 4.5rem; }
 .brand { display: inline-flex; align-items: center; gap: 0.3rem; text-decoration: none; font: 700 1.5rem/1 var(--display); letter-spacing: -0.02em; }
 .brand img { width: 2.8rem; height: 2.8rem; margin-left: -0.4rem; }
+/* The trademark sign: small and light, in the text face, not the display face's full-size glyph. */
+.brand .tm { align-self: flex-start; margin: 0.15rem 0 0 -0.2rem; font: 600 0.6rem/1 var(--body); letter-spacing: 0; opacity: 0.7; }
 .nav-links { display: flex; gap: 0.25rem; margin-left: auto; }
 .nav-links a { text-decoration: none; padding: 0.5rem 0.8rem; border-radius: 0.5rem; color: var(--night-ink-2); font-weight: 500; font-size: 0.97rem; }
 .nav-links a:hover { color: var(--strong); background: color-mix(in srgb, var(--strong) 7%, transparent); }

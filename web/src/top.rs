@@ -46,7 +46,7 @@ pub fn nav() -> Html {
     html! {
         <header class={classes!("nav", scrolled.then_some("is-scrolled"))}>
             <div class="wrap nav-in">
-                <a class="brand" href="#top" aria-label="Cantus">{ icons::logo() }{ "Cantus™" }</a>
+                <a class="brand" href="#top" aria-label="Cantus">{ icons::logo() }{ "Cantus" }<sup class="tm" aria-hidden="true">{ "™" }</sup></a>
                 <nav class="nav-links" aria-label={l.t("Sections", "Secciones")}>
                     <a href="#product">{ l.t("Product", "Producto") }</a>
                     <a href="#listen">{ l.t("Listen", "Escucha") }</a>
