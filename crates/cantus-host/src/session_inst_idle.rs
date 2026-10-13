@@ -362,6 +362,9 @@ impl PluginHost {
         match h.window.take() {
             Some(w) => {
                 h.main.close_editor();
+                // The window goes after the editor closed (on Windows it destroys the
+                // native window; elsewhere it is a placeholder with nothing to drop).
+                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
                 drop(w);
                 true
             }

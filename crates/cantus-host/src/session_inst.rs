@@ -205,6 +205,9 @@ impl PluginHost {
         if let Some(mut h) = self.instruments.remove(&track) {
             if let Some(w) = h.window.take() {
                 h.main.close_editor();
+                // The window goes after the editor closed (on Windows it destroys the
+                // native window; elsewhere it is a placeholder with nothing to drop).
+                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
                 drop(w);
             }
             if let Ok(s) = h.main.save_state() {

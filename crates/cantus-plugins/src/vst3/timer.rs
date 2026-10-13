@@ -51,6 +51,8 @@ impl Notifier {
 
     /// An edit from the plug-in's own editor, to the host (UI thread): the standard's
     /// `beginEdit`, `performEdit` (normalised) and `endEdit`.
+    // Called from the editor view and the timer, which exist on Windows only so far.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn edit(&self, edit: crate::instance::Edit) {
         use crate::instance::Edit;
         let table = self.shared.table;
@@ -80,6 +82,7 @@ impl Notifier {
     }
 
     /// UI thread: tell the host if the latency moved since it last read it.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn tick(&self) {
         let now = self.shared.latency();
         if self.reported.swap(now, Ordering::AcqRel) == now {
@@ -121,7 +124,9 @@ pub fn unregister(n: &Arc<Notifier>) {
     }
 }
 
-/// Tick every instance on this thread.
+/// Tick every instance on this thread (the Windows timer's callback; the other systems'
+/// run loops are not wired yet).
+#[cfg_attr(not(windows), allow(dead_code))]
 fn tick_all() {
     // A copy: a host may call back into an instance (and so into `unregister`) from
     // `restartComponent`.

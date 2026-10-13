@@ -75,6 +75,22 @@ Ignored by default, run when the hardware or files are there:
 Tests and the soak harness can keep their files away from your own settings with
 `CANTUS_DATA_DIR=<folder>`.
 
+### Linux, from Windows (what GitHub Actions' Linux jobs see)
+
+CI builds with `RUSTFLAGS=-D warnings` on Ubuntu too, and code behind `#[cfg(windows)]`
+leaves Linux-only warnings (dead code) that a Windows build never shows. Check them before
+pushing, in WSL Ubuntu 24.04, without sudo:
+
+```text
+wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/fetch-deps.sh'          # once
+wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh <branch> clippy' # or: test
+```
+
+`fetch-deps.sh` installs rustup and unpacks the `-dev` packages (ALSA, D-Bus, OpenSSL,
+Wayland, xkbcommon, pkg-config) into `~/linux-deps/root`; `check.sh` clones the main
+repository into `~/cantus-ci`, checks out the branch and runs clippy or the tests with CI's
+flags.
+
 ## 5. Package a release
 
 ```text
