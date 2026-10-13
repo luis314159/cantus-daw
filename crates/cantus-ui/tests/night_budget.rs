@@ -157,8 +157,14 @@ fn cantus_night_s_gradients_cost_no_allocation_and_no_draw_call() {
         "whole window, Cantus Night: {a_lit} allocations, {t_lit} triangles, {d_lit} draw \
          calls; flat: {a_plain}, {t_plain}, {d_plain}"
     );
-    assert!(a_lit <= a_plain, "the gradients allocate: {a_lit} > {a_plain}");
-    assert_eq!(d_lit, d_plain, "the gradients paint into the views' own meshes");
+    assert!(
+        a_lit <= a_plain,
+        "the gradients allocate: {a_lit} > {a_plain}"
+    );
+    assert_eq!(
+        d_lit, d_plain,
+        "the gradients paint into the views' own meshes"
+    );
     assert!(
         t_lit <= t_plain + 6_000,
         "the gradients took {} triangles",
@@ -171,10 +177,7 @@ fn cantus_night_s_gradients_cost_no_allocation_and_no_draw_call() {
 fn cantus_night_s_gradients_timing() {
     let night = cantus_ui::theme_family::cantus_night_tokens();
     let ms = |frames: Vec<Frame>| {
-        let mut v: Vec<f64> = frames
-            .iter()
-            .map(|f| f.time.as_secs_f64() * 1e3)
-            .collect();
+        let mut v: Vec<f64> = frames.iter().map(|f| f.time.as_secs_f64() * 1e3).collect();
         v.sort_by(f64::total_cmp);
         (v[v.len() / 2], v[v.len() * 95 / 100])
     };
@@ -193,5 +196,8 @@ fn cantus_night_s_gradients_timing() {
          {:.2} ms p95 {:.2} ms",
         best[0].0, best[0].1, best[1].0, best[1].1
     );
-    assert!(best[0].0 <= best[1].0 * 1.10 + 0.10, "the gradients cost time");
+    assert!(
+        best[0].0 <= best[1].0 * 1.10 + 0.10,
+        "the gradients cost time"
+    );
 }

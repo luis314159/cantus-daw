@@ -1179,7 +1179,12 @@ impl Tokens {
             for (n, bar) in [("toolbar", self.toolbar), ("panel", self.panel)] {
                 let lit = over(self.sheen, bar);
                 add(&format!("text on the {n}'s sheen"), self.text, lit, 4.5);
-                add(&format!("text_dim on the {n}'s sheen"), self.text_dim, lit, 4.5);
+                add(
+                    &format!("text_dim on the {n}'s sheen"),
+                    self.text_dim,
+                    lit,
+                    4.5,
+                );
             }
             let both = |bg| over(self.glow_cool, over(self.glow, bg));
             for (n, bg) in [("panel", self.panel), ("strip", self.strip)] {
@@ -1189,16 +1194,36 @@ impl Tokens {
                     ("both glows", both(bg)),
                 ] {
                     add(&format!("text on the {n}'s {g}"), self.text, lit, 4.5);
-                    add(&format!("text_dim on the {n}'s {g}"), self.text_dim, lit, 4.5);
+                    add(
+                        &format!("text_dim on the {n}'s {g}"),
+                        self.text_dim,
+                        lit,
+                        4.5,
+                    );
                     add(&format!("label on the {n}'s {g}"), self.label, lit, 4.5);
-                    add(&format!("selection on the {n}'s {g}"), self.selection, lit, 3.0);
+                    add(
+                        &format!("selection on the {n}'s {g}"),
+                        self.selection,
+                        lit,
+                        3.0,
+                    );
                     add(&format!("focus on the {n}'s {g}"), self.focus, lit, 3.0);
                 }
             }
             for (n, bg) in [("lanes", self.row_black), ("bars", self.row_white)] {
                 let lit = both(bg);
-                add(&format!("playhead on the {n}' glows"), self.playhead, lit, 3.0);
-                add(&format!("selection on the {n}' glows"), self.selection, lit, 3.0);
+                add(
+                    &format!("playhead on the {n}' glows"),
+                    self.playhead,
+                    lit,
+                    3.0,
+                );
+                add(
+                    &format!("selection on the {n}' glows"),
+                    self.selection,
+                    lit,
+                    3.0,
+                );
             }
         }
         v

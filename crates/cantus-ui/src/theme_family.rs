@@ -134,7 +134,7 @@ pub const fn cantus_night_tokens() -> Tokens {
         track_veil: Color32::from_rgba_unmultiplied_const(0x2b, 0x22, 0x1c, 110),
         sheen: Color32::from_rgba_unmultiplied_const(0xff, 0xd9, 0xb0, 18),
         glow: Color32::from_rgba_unmultiplied_const(0xd4, 0x62, 0x2a, 30),
-        glow_cool: Color32::from_rgba_unmultiplied_const(0x3e, 0x8e, 0x7e, 20),
+        glow_cool: Color32::from_rgba_unmultiplied_const(0x3e, 0x8e, 0x7e, 14),
         dark: true,
         radius: 3.0,
         round: 1.0,

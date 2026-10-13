@@ -112,10 +112,16 @@ fn a_flat_theme_draws_no_gradient_and_the_glows_stay_in_their_ground() {
         Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(40.0, 900.0)),
     ] {
         let (n, pts) = painted(|b| light::ambient(b, ground, &night));
-        assert!(n > 0 && n < 4000, "{n} vertices for the glows of {ground:?}");
+        assert!(
+            n > 0 && n < 4000,
+            "{n} vertices for the glows of {ground:?}"
+        );
         let room = ground.expand(0.01);
         for p in pts {
-            assert!(room.contains(p), "a glow vertex at {p:?} is outside {ground:?}");
+            assert!(
+                room.contains(p),
+                "a glow vertex at {p:?} is outside {ground:?}"
+            );
         }
     }
     // The sheen is one gradient rect: a handful of vertices.
@@ -128,17 +134,28 @@ fn the_text_over_every_gradient_stays_legible_and_cantus_night_reads_comfortably
     let t = cantus_night_tokens();
     let pairs = t.pairings();
     assert!(
-        pairs.iter().any(|(w, ..)| w.contains("sheen")) && pairs.iter().any(|(w, ..)| w.contains("glow")),
+        pairs.iter().any(|(w, ..)| w.contains("sheen"))
+            && pairs.iter().any(|(w, ..)| w.contains("glow")),
         "the gradients are measured"
     );
-    assert!(t.legibility_failures().is_empty(), "{:#?}", t.legibility_failures());
+    assert!(
+        t.legibility_failures().is_empty(),
+        "{:#?}",
+        t.legibility_failures()
+    );
     // A flat theme measures nothing about gradients it does not paint.
-    assert!(!Tokens::slate().pairings().iter().any(|(w, ..)| w.contains("glow")));
+    assert!(!Tokens::slate()
+        .pairings()
+        .iter()
+        .any(|(w, ..)| w.contains("glow")));
 
     // Primary text: well past AAA (7:1) everywhere it is read, gradients included, but
     // not the maximum glare of ivory on near-black — about 12:1 on the panel.
     let on_panel = contrast(t.text, t.panel);
-    assert!((10.0..=13.5).contains(&on_panel), "text on panel {on_panel:.2}:1");
+    assert!(
+        (10.0..=13.5).contains(&on_panel),
+        "text on panel {on_panel:.2}:1"
+    );
     let lit = [
         over(t.sheen, t.toolbar),
         over(t.sheen, t.panel),
@@ -153,7 +170,10 @@ fn the_text_over_every_gradient_stays_legible_and_cantus_night_reads_comfortably
     }
     // Secondary text: AA with room, and clearly a step below the primary.
     let dim = contrast(t.text_dim, t.panel);
-    assert!((4.5..=8.0).contains(&dim), "secondary text on panel {dim:.2}:1");
+    assert!(
+        (4.5..=8.0).contains(&dim),
+        "secondary text on panel {dim:.2}:1"
+    );
     // What carries meaning still shows: meters on their well, the selection and the
     // playhead at 3:1 or more.
     for (what, fg, bg) in [

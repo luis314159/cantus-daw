@@ -255,11 +255,11 @@ pub fn ambient(b: &mut Brush, area: Rect, t: &super::Tokens) {
     let (w, h) = (area.width(), area.height());
     if t.glow.a() > 0 {
         let c = area.min + egui::vec2(0.82 * w, 0.08 * h);
-        glow_field(b, area, c, egui::vec2(0.62 * w, 1.1 * h), t.glow);
+        glow_field(b, area, c, egui::vec2(0.78 * w, 1.35 * h), t.glow);
     }
     if t.glow_cool.a() > 0 {
-        let c = area.min + egui::vec2(0.06 * w, 1.0 * h);
-        glow_field(b, area, c, egui::vec2(0.48 * w, 0.95 * h), t.glow_cool);
+        let c = area.min + egui::vec2(0.0, 1.0 * h);
+        glow_field(b, area, c, egui::vec2(0.62 * w, 1.25 * h), t.glow_cool);
     }
 }
 

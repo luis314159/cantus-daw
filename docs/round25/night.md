@@ -55,7 +55,7 @@ Measured on `shoot_window`, `shoot_mixer` and `shoot_site` pictures (before/afte
     bands. The active key takes the site's button gradient (pale top, highlight, deeper
     bottom) instead of FL's mid band when a theme has a sheen.
   - `depth.glow` (copper #d4622a at 12 %) near the top right and `depth.glow_cool`
-    (verdigris #3e8e7e at 8 %) at the bottom left of the arrangement's lanes, the mixer
+    (verdigris #3e8e7e at 5.5 %) at the bottom left of the arrangement's lanes, the mixer
     desk and the piano roll's grid — the hero's two radial gradients, under the lines
     and the clips.
 - **Cheap by construction**: the sheen is one gradient rect (≤ 16 vertices); a glow is
@@ -77,10 +77,12 @@ Measured on `shoot_window`, `shoot_mixer` and `shoot_site` pictures (before/afte
 
 Frame cost (`tests/night_budget.rs`, the whole window at 1080p, playing, Cantus Night
 against itself with the gradients cleared): **217 allocations both, 98 draw calls both,
-+1 118 triangles** (53 071 against 51 953); build + tessellate in release, best of three
-interleaved runs of 200 frames, **p50 0.74 ms against 0.75 ms** (p95 1.00 / 0.94) — within
-the noise. A first version with 12 rings × 48 segments cost +2 156 triangles and +0.07 ms;
-8 × 32 looks the same (no ring shows even with the picture's brightness tripled).
++990 triangles** (52 943 against 51 953); build + tessellate in release, best of three
+interleaved runs of 200 frames, three runs: **p50 0.77 / 0.81 / 0.77 ms against 0.73 /
+0.77 / 0.73 ms** (p95 0.91–1.07 against 0.97–1.12) — about +0.04 ms on a light frame,
+0.25 % of a 60-Hz frame, inside the p95 noise. A first version with 12 rings × 48 segments
+cost +2 156 triangles and +0.07 ms; 8 × 32 looks the same (no ring shows even with the
+picture's brightness tripled).
 
 ## Tests
 
@@ -96,8 +98,17 @@ the noise. A first version with 12 rings × 48 segments cost +2 156 triangles an
 - `tests/night_budget.rs` — Cantus Night against itself with the gradients cleared: no more
   allocations, the same draw calls, ≤ 6 000 more triangles; timing with `--ignored`.
 
+Run: `cargo test -p cantus-ui --no-fail-fast` — 845 passed, 0 failed, 19 ignored (golden
+kit images and the theme round trip unchanged: they paint Slate/Paper, or compare a theme
+with itself); `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
 ## Pictures
 
-`F:/projects/daw-r25/night-shots/` — `before/`, the iterations, and `after/`. The website
+`F:/projects/daw-r25/night-shots/` — `before/`, the iterations (`v1`…`v6`), `after/`, and
+`pairs/` (numbered before/after/stacked: the whole window at 1920 × 1080 and 1280 × 720, in
+Spanish, the mixer, the piano roll, the EQ, compressor and generic plug-in editors, the site
+hero). The first glow (a stretched texture) showed steps in the CPU renderer and the second
+(a vertex grid) diagonal seams; the ring mesh shows neither. A third pass widened both glows
+and quietened the cool one, which had left a dark crescent between them. The website
 hero for `web/assets/app-mixer-xl.png` is `after/app-mixer-xl.png` (not committed — the
 integrator updates the site).
