@@ -30,3 +30,24 @@ cables.kind.key = sidechain
 cables.tap.post = post-fader
 cables.tap.pre = pre-fader
 cables.send_off = apagado
+
+# Las opciones junto al interruptor: de qué canales, qué tipos, cuánto detalle, vistas rápidas.
+cables.hint.options = Opciones de cables: de qué canales, qué tipos, cuánto detalle
+cables.menu.options = Opciones de cables
+cables.menu.scope = Los seleccionados muestran
+cables.scope.out = Lo que sale
+cables.scope.in = Lo que entra
+cables.scope.both = En ambos sentidos
+cables.menu.kinds = Tipos
+cables.kinds.outputs = Salidas
+cables.kinds.sends = Envíos
+cables.kinds.keys = Keys de sidechain
+cables.menu.detail = Detalle
+cables.detail.levels = Niveles de envío
+cables.detail.master = Salidas al master
+cables.menu.quick = Vistas rápidas
+cables.preset.everything = Todo (por defecto)
+cables.preset.sends = Solo los envíos de la selección
+cables.preset.feeders = Solo lo que entra a la selección
+# El hover de la leyenda, cuando las opciones ocultan un tipo.
+cables.legend.hidden = Ocultos por las opciones de cables: {kinds}

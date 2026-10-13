@@ -108,6 +108,8 @@ pub enum Glyph {
     Key,
     /// Two ports and a cable between them: the desk's cable view.
     Cables,
+    /// A funnel: a view's filter options (the cable view's options menu).
+    Filter,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -459,6 +461,19 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.polyline(&pts, w, color);
             b.dot(p(-4.2, -3.2), 1.7 * u, color);
             b.dot(p(4.2, -3.2), 1.7 * u, color);
+        }
+        Glyph::Filter => {
+            // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.
+            let pts = [
+                p(-5.0, -4.4),
+                p(5.0, -4.4),
+                p(1.3, 0.3),
+                p(1.3, 4.6),
+                p(-1.3, 3.2),
+                p(-1.3, 0.3),
+                p(-5.0, -4.4),
+            ];
+            b.polyline(&pts, w, color);
         }
         _ => {}
     }

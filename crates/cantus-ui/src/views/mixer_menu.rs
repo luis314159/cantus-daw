@@ -5,7 +5,7 @@
 //! strip's "send to" targets every frame for a `+` nobody had pressed (O(N³), 2.8 ms and
 //! 8,064 allocations at 64 strips). Here the rows exist only while the menu shows.
 
-use super::layout::{Colourful, Row, WidthMode};
+use super::layout::{CableKindSel, CablePreset, CableScope, CableView, Colourful, Row, WidthMode};
 use super::{in_selection, MixerView};
 use crate::app::CantusApp;
 use crate::keymap::Action;
@@ -42,6 +42,9 @@ pub(super) enum Menu {
     Slot(StripId, EffectId),
     /// The master's menu (right-click on its number or name): its chain (ADR 0026).
     Master,
+    /// The cable view's options (the key beside the title row's *Off · Selected · All*):
+    /// whose cables, which kinds, how much detail, the quick views.
+    Cables,
 }
 
 /// A submenu, opened from a row with a chevron.
@@ -60,6 +63,9 @@ enum Sub {
     AddEffect(StripId),
     /// The device input of the strip's recording track (FL's mixer input; ADR 0025).
     Input(StripId),
+    /// The cable view's options (the rows of the title row's options key, which gives
+    /// way on a narrow desk).
+    Cables,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -132,6 +138,24 @@ enum Act {
     RouteMenu(StripId),
     /// One of the strip's routes: its own menu (`views::route_menu`).
     OpenRoute(Route),
+    /// The cable view's options (ADR 0043 §7): whose cables, a kind shown or hidden,
+    /// the send levels, the outputs into the master, a quick view.
+    CableScope(CableScope),
+    CableKind(CableKindSel),
+    CableLevels,
+    CableMaster,
+    CablePreset(CablePreset),
+}
+
+impl Act {
+    /// A switch that keeps its menu open, so several are set in one visit while the band
+    /// redraws under it (the cable options; a quick view closes it).
+    fn keeps_open(self) -> bool {
+        matches!(
+            self,
+            Act::CableScope(_) | Act::CableKind(_) | Act::CableLevels | Act::CableMaster
+        )
+    }
 }
 
 /// A row's words.
@@ -235,6 +259,9 @@ pub(super) struct Popups {
     /// Opened this frame: the click that opened it must not close it.
     fresh: bool,
     serial: u64,
+    /// The key that opened it (the cable options' key): a press on it is the key's to
+    /// toggle the menu, not a click elsewhere that closes it.
+    anchor: Option<Rect>,
 }
 
 impl Popups {
@@ -242,7 +269,14 @@ impl Popups {
         self.open = Some((m, at));
         self.sub = None;
         self.fresh = true;
+        self.anchor = None;
         self.serial = self.serial.wrapping_add(1);
+    }
+
+    /// Open `m` from a key at `key` (a second click on the key closes it again).
+    pub fn open_from(&mut self, m: Menu, at: Pos2, key: Option<Rect>) {
+        self.open(m, at);
+        self.anchor = key;
     }
 
     pub fn is_open(&self, m: Menu) -> bool {
@@ -287,6 +321,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Sub::Colourful,
             ));
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
+            e.push(Entry::sub(Label::Key("cables.menu.options"), Sub::Cables));
             e.push(Entry::separator());
             e.push(
                 Entry::act(Label::Key("mixer.wave"), Act::Wave)
@@ -506,6 +541,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::separator());
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
         }
+        Menu::Cables => sub_entries(v, app, Sub::Cables, &mut e),
         Menu::Slot(id, fx) => {
             let Some(s) = p.effects_of(id) else {
                 return e;
@@ -553,6 +589,39 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
     let prefs = v.prefs.current;
     match sub {
         Sub::Colors(_) => {}
+        Sub::Cables => {
+            let o = v.prefs.current.cable_opts;
+            e.push(Entry::band("cables.menu.scope"));
+            for sc in CableScope::ALL {
+                e.push(
+                    Entry::act(Label::Key(sc.key()), Act::CableScope(sc))
+                        .check(radio(o.scope == sc)),
+                );
+            }
+            e.push(Entry::band("cables.menu.kinds"));
+            for k in CableKindSel::ALL {
+                e.push(Entry::act(Label::Key(k.key()), Act::CableKind(k)).check(on(o.shows(k))));
+            }
+            e.push(Entry::band("cables.menu.detail"));
+            e.push(
+                Entry::act(Label::Key("cables.detail.levels"), Act::CableLevels)
+                    .check(on(o.levels))
+                    .enabled(o.sends),
+            );
+            e.push(
+                Entry::act(Label::Key("cables.detail.master"), Act::CableMaster)
+                    .check(on(o.master))
+                    .enabled(o.outputs),
+            );
+            e.push(Entry::band("cables.menu.quick"));
+            let now = o.preset();
+            for pr in CablePreset::ALL {
+                e.push(
+                    Entry::act(Label::Key(pr.key()), Act::CablePreset(pr))
+                        .check(radio(now == Some(pr))),
+                );
+            }
+        }
         Sub::Width => {
             for mode in WidthMode::ALL {
                 e.push(
@@ -767,6 +836,18 @@ fn width_of(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
                 row += 18.0;
             }
             w = w.max(row);
+        } else if let Item::Band(label) = it {
+            // A band's heading, in capitals, is never cut where the rows leave it room.
+            let t = Text {
+                src: *label,
+                role: Role::Section,
+                caps: true,
+                align: egui::Align2::LEFT_CENTER,
+                policy: text::Policy::default(),
+                color: s.t.text,
+            };
+            // The row's inset (4 + 4) and the heading's margin (8 + 8), and a little air.
+            w = w.max(text::measure(ctx, &t, s.tk()).x + 28.0);
         }
     }
     w.min(420.0)
@@ -949,7 +1030,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
         match rows[i].then {
             Then::Act(a) => {
                 act = Some(a);
-                keep_open = top.toggled.is_some();
+                keep_open = top.toggled.is_some() || a.keeps_open();
             }
             Then::Sub(sub) => {
                 let r = top.row_of_hovered.unwrap_or(top.rect);
@@ -985,7 +1066,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
                 if let Some(i) = shown.clicked.or(shown.toggled) {
                     if let Then::Act(a) = sub_rows[i].then {
                         act = Some(a);
-                        keep_open = shown.toggled.is_some();
+                        keep_open = shown.toggled.is_some() || a.keeps_open();
                     }
                 }
             }
@@ -1019,7 +1100,11 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
             i.pointer.interact_pos(),
         )
     });
-    let inside = pointer.is_some_and(|p| top.rect.contains(p) || sub_rect.contains(p));
+    let inside = pointer.is_some_and(|p| {
+        top.rect.contains(p)
+            || sub_rect.contains(p)
+            || v.popups.anchor.is_some_and(|a| a.contains(p))
+    });
     if escape || (pressed && !inside && !fresh) {
         v.popups.close();
     }
@@ -1228,6 +1313,30 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         // Opened by `show`, where the menu's place is known.
         Act::RouteMenu(_) | Act::OpenRoute(_) => {}
+        Act::CableScope(sc) => {
+            prefs.cable_opts.scope = sc;
+            v.prefs.set(prefs);
+        }
+        Act::CableKind(k) => {
+            prefs.cable_opts.toggle(k);
+            v.prefs.set(prefs);
+        }
+        Act::CableLevels => {
+            prefs.cable_opts.levels = !prefs.cable_opts.levels;
+            v.prefs.set(prefs);
+        }
+        Act::CableMaster => {
+            prefs.cable_opts.master = !prefs.cable_opts.master;
+            v.prefs.set(prefs);
+        }
+        Act::CablePreset(pr) => {
+            prefs.cable_opts = pr.opts();
+            // "Only the selection's …" means the selection's alone: the band shows them.
+            if pr != CablePreset::Everything {
+                prefs.cables = CableView::Selected;
+            }
+            v.prefs.set(prefs);
+        }
     }
 }
 
