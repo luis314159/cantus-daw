@@ -100,6 +100,7 @@ pub struct Plugin {
     pub tag: Mutex<Vec<u8>>,
     pub processing: AtomicBool,
     pub editor_created: bool,
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub editor: isize,
     // Audio-thread state, sized at activation.
     sample_rate: f64,

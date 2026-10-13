@@ -44,6 +44,7 @@ pub struct Plugin {
     pub processing: AtomicBool,
     /// The editor: created (`gui.create`), and its window once it has a parent.
     pub editor_created: bool,
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub editor: isize,
     // Audio-thread state, sized at activation.
     delay_l: Vec<f32>,

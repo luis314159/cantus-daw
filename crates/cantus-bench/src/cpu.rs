@@ -59,7 +59,7 @@ mod imp {
         let mut ts = TimeSpec { sec: 0, nsec: 0 };
         // SAFETY: `ts` is a live timespec (64-bit fields on every 64-bit target we build).
         let ok = unsafe { clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts) };
-        (ok == 0).then(|| ts.sec as f64 + ts.nsec as f64 * 1e-9)
+        (ok == 0).then_some(ts.sec as f64 + ts.nsec as f64 * 1e-9)
     }
 }
 

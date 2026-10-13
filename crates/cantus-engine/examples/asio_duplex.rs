@@ -11,11 +11,22 @@
 //! then both played). Never name a driver whose interface is unplugged (loading the UMC
 //! driver with no UMC attached crashed the process in round 19).
 
+#[cfg(windows)]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+#[cfg(windows)]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(windows)]
 use std::sync::Arc;
+#[cfg(windows)]
 use std::time::{Duration, Instant};
 
+/// ASIO is a Windows driver model: elsewhere there is nothing to reproduce.
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("asio_duplex: ASIO exists on Windows only");
+}
+
+#[cfg(windows)]
 fn main() {
     let _ = env_logger::builder().try_init();
     let args: Vec<String> = std::env::args().collect();
@@ -181,6 +192,7 @@ fn main() {
 }
 
 /// The calling thread's window messages, dispatched (what a GUI thread's loop does).
+#[cfg(windows)]
 mod win {
     #[repr(C)]
     struct Msg {

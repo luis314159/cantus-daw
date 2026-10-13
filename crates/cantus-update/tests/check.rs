@@ -7,7 +7,9 @@ use cantus_update::release::{self, ParseError, Release};
 use cantus_update::verify::{self, Signature, VerifyError};
 use cantus_update::{Config, InstallKind, Status, Updater, Version};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
