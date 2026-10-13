@@ -524,6 +524,7 @@ impl Inspector {
                 crate::kit::Tok::Panel,
                 crate::kit::Tok::Text,
                 crate::kit::Tok::TextDim,
+                crate::kit::Tok::Sheen,
             ],
             &[],
         );

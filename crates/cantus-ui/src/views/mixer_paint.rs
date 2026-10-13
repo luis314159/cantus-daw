@@ -13,7 +13,7 @@ use crate::kit::{cap, chrome, hint, led, light, segmented, Brush, Fill, State, S
 use egui::{pos2, vec2, Align2, Id, Rect, Sense, Ui};
 
 /// The tokens the desk's own surfaces paint with (for inspect mode).
-const GROUND_TOKENS: &[Tok] = &[Tok::Panel, Tok::Strip];
+const GROUND_TOKENS: &[Tok] = &[Tok::Panel, Tok::Strip, Tok::Sheen, Tok::Glow, Tok::GlowCool];
 const LEGEND_TOKENS: &[Tok] = &[Tok::Panel, Tok::TextDim];
 
 /// The desk's ground under everything, and the title row's band.

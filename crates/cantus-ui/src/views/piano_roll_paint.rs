@@ -17,6 +17,8 @@ use cantus_core::{Clip, Ticks};
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect};
 
 const GRID_TOKENS: &[Tok] = &[
+    Tok::Glow,
+    Tok::GlowCool,
     Tok::RowWhite,
     Tok::RowBlack,
     Tok::Ink,

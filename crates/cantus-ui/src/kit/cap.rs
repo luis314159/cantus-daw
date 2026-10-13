@@ -20,6 +20,7 @@ pub const KEY_TOKENS: &[Tok] = &[
     Tok::Text,
     Tok::TextDim,
     Tok::Focus,
+    Tok::Sheen,
 ];
 
 /// What a cap is made of.

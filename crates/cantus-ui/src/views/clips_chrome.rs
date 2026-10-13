@@ -28,7 +28,7 @@ pub const KEY: f32 = 26.0;
 pub const BAR: f32 = 12.0;
 
 /// The tokens the toolbar's ground paints with (for inspect mode).
-const GROUND_TOKENS: &[Tok] = &[Tok::Toolbar, Tok::Light, Tok::Dark];
+const GROUND_TOKENS: &[Tok] = &[Tok::Toolbar, Tok::Light, Tok::Dark, Tok::Sheen];
 
 // ---- the wheel and the middle button ------------------------------------------------
 

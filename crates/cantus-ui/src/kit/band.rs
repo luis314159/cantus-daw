@@ -10,7 +10,7 @@ use super::text::{self, Elide, Policy, Role, Src, Text};
 use super::{State, Style, Tok};
 
 /// The tokens a section band paints with, beside its hue (for inspect mode).
-pub const SECTION_TOKENS: &[Tok] = &[Tok::Panel, Tok::Label, Tok::KnobTrack];
+pub const SECTION_TOKENS: &[Tok] = &[Tok::Panel, Tok::Label, Tok::KnobTrack, Tok::Sheen];
 /// The tokens a card paints with, beside its hue.
 pub const CARD_TOKENS: &[Tok] = &[
     Tok::Deck,
