@@ -1,6 +1,6 @@
 # ADR 0046 — The theme family (Cantus Night by default) and the mark as the icon
 
-**Status:** Accepted · **Date:** 2026-10-10 · **Round:** 25 (builder *look*) ·
+**Status:** Accepted, amended 2026-10-12 (§8) · **Date:** 2026-10-10 · **Round:** 25 (builder *look*; §8 builder *night*) ·
 **Extends:** ADR 0024 (the kit: colour roles, presets, appearance, logos §12) ·
 **Schema:** none (the project model is untouched; `appearance.json` gains a field with a
 serde default)
@@ -132,3 +132,57 @@ window's icon was set once by eframe and never again.
   on white (the reason for the twin).
 - `window_icon::tests` — the mark renders at every icon size with nothing behind it, and a
   colour is applied once, not every frame; `kit::logo` — the *Icon* tint follows the icon.
+
+## Amendment — §8: Cantus Night refined for long sessions; gradient tokens (round 25, *night*, 2026-10-12)
+
+**Context.** The owner: *"Make the default theme look better and more pleasant to the eye
+for working for hours; if you like, add gradients like the website's style."* Looked at
+for hours, the first Cantus Night glared: ivory text at 15.5:1 everywhere, track headers and
+clip bars as large saturated fills, rows of ivory fader caps and full-amber keys, pure-dark
+wells, and one flat brown-black plane with none of the website's light
+(`docs/round25/night.md`).
+
+**Decision.**
+
+8. **Cantus Night, refined** (same identity — espresso, ivory, copper, amber, verdigris; the
+   canvas still #120d0a): surfaces a step lighter and calmer; primary text #e6d9ca (12.7:1
+   on the panel instead of 15.5:1 — well past AAA, short of glare), secondary #b09a86
+   (6.6:1); caps, white keys, active keys, focus, playhead and selection a step softer,
+   each still at its floor with room; the meter clip red unchanged. **Four new kit tokens**
+   (69 roles), every theme defining each; **clear means off**, and every theme but Cantus
+   Night ships them clear, so it looks exactly as before:
+   - `editor.track_veil` — a colour mixed by its alpha into a track's *large* fills
+     (headers, clip bars; `views::clips_chrome::Tints`). The colour cell keeps the bright
+     hue. Night: #2b221c at 43 %.
+   - `depth.sheen` — a top-light over bars, fading to clear two thirds down
+     (`kit::light::sheen`: the transport, view toolbars, the mixer's and inspector's title
+     rows, section bands). A theme with a sheen also lights its active keys the website's
+     way (`cap::highlight_stops`: pale top, highlight, deeper bottom) instead of FL's band.
+   - `depth.glow`, `depth.glow_cool` — the website hero's two radial glows, warm near the
+     top right and cool at the bottom left of the large grounds (`kit::light::ambient`:
+     the arrangement's lanes, the mixer desk, the piano roll's grid), under lines and clips.
+   **Cost**: the sheen is one gradient rect; a glow is a ring mesh
+   (`Brush::radial`: 8 rings × 32 segments, single-coloured along each ring, clipped
+   exactly to its ground) — no texture, so the GPU and the CPU renderer agree and no seam
+   or step shows; no allocation on a warm frame; no extra draw call.
+   **Legibility**: `Tokens::pairings` measures the gradients wherever a theme paints them
+   (text, secondary text, labels, selection and focus over the sheen and over each glow and
+   both together; the playhead and selection over the lanes' glows), so the family test,
+   the contrast floor and the knobs' easing hold them like any other pairing.
+
+**Consequences.** A user theme (or an override in the editor) can turn the gradients and
+the veil on in any theme — they are ordinary tokens in the *Depth* and *Editors* groups,
+named in both languages; theme files written before keep loading and derive them clear. A
+theme file written now carries the four keys; an older build ignores them (unknown keys are
+kept and ignored). The website hero (`web/assets/app-mixer-xl.png`) was re-rendered with
+`shoot_site`.
+
+**What the tests hold.** `tests/theme_gradients.rs` — every preset defines the four tokens;
+only Cantus Night is lit; an old theme file derives flat; a flat theme paints no vertex of
+gradient; the glows stay inside their ground, under 4 000 vertices; text over every
+gradient ≥ 7:1, Night's primary text 10–13.5:1 and secondary 4.5–8:1; meters, selection and
+playhead ≥ 3:1; the veil calms each track colour's large fill, keeps its hue (≤ 12°) and the
+colour cell, and its name ≥ 4.5:1. `tests/night_budget.rs` — the whole window in Night with
+and without its gradients: no more allocations, the same draw calls, ≤ 6 000 more
+triangles (timing with `--ignored`). `theme::tests::the_default_theme_is_cantus_night`
+still pins the website's night and copper.

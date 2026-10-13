@@ -20,6 +20,7 @@ pub const KEY_TOKENS: &[Tok] = &[
     Tok::Text,
     Tok::TextDim,
     Tok::Focus,
+    Tok::Sheen,
 ];
 
 /// What a cap is made of.
@@ -86,9 +87,20 @@ pub enum KeyFace<'a> {
 
 /// The highlight gradient FL uses for an active key: the highlight at the edges, its
 /// pale band through the middle (`fl-studio.md` §1.2), deeper with the theme's depth.
+///
+/// A theme with a sheen (ADR 0046 §8) lights its keys the website's way instead: the
+/// pale band at the top, the highlight through the middle, a deeper shade at the bottom.
 pub fn highlight_stops(s: &Style) -> [(f32, Color32); 4] {
     let (h, band, d) = (s.t.highlight, s.t.highlight_band, s.t.depth);
     let band = h.lerp_to_gamma(band, d.clamp(0.0, 1.0));
+    if s.t.sheen.a() > 0 {
+        return [
+            (0.0, h.lerp_to_gamma(band, 0.7)),
+            (0.5, h),
+            (0.52, h),
+            (1.0, shade(h, -0.08 * d)),
+        ];
+    }
     [
         (0.0, shade(h, 0.02 * d)),
         (0.42, band),

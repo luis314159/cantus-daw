@@ -28,7 +28,7 @@ pub const KEY: f32 = 26.0;
 pub const BAR: f32 = 12.0;
 
 /// The tokens the toolbar's ground paints with (for inspect mode).
-const GROUND_TOKENS: &[Tok] = &[Tok::Toolbar, Tok::Light, Tok::Dark];
+const GROUND_TOKENS: &[Tok] = &[Tok::Toolbar, Tok::Light, Tok::Dark, Tok::Sheen];
 
 // ---- the wheel and the middle button ------------------------------------------------
 
@@ -329,6 +329,9 @@ impl Tints {
             h.l = h.l.min(0.38);
             large = h.rgb();
         }
+        // The theme's veil calms the large fills (ADR 0046 §8); the small one, the colour
+        // cell, keeps the bright hue.
+        large = crate::kit::color::veiled(large, s.t.track_veil);
         let t = Tint {
             small,
             large,
@@ -394,6 +397,7 @@ impl Toolbar {
                     kit::color::shade(base, -0.02 * t.depth),
                 ),
             );
+            kit::light::sheen(b, r, t);
             b.hline(
                 r.left(),
                 r.right(),

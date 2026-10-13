@@ -420,6 +420,10 @@ kit_tokens! {
         RowBlack row_black "editor.row_black",
         /// The playhead's line and its marker in the rulers.
         Playhead playhead "editor.playhead",
+        /// The calm laid over a track's colour where it fills a large area (track
+        /// headers, clip bars): its colour, mixed in by its alpha. Clear leaves the
+        /// colour as FL's band makes it; the colour cell keeps the bright hue either way.
+        TrackVeil track_veil "editor.track_veil",
     }
     Menus => {
         Menu menu "menu.face",
@@ -444,6 +448,15 @@ kit_tokens! {
         Light light "depth.light",
         /// The shade under parts and inside bevels.
         Dark dark_shade "depth.dark",
+        /// Light laid over bars from above (the transport, view toolbars, title rows):
+        /// its colour at the top edge, fading to clear. Clear keeps every bar flat.
+        Sheen sheen "depth.sheen",
+        /// The warm glow in large empty grounds (the arrangement, the mixer desk), as on
+        /// the website's hero: its colour at the top right, fading to clear. Clear keeps
+        /// the grounds flat.
+        Glow glow "depth.glow",
+        /// The cool counter-glow at the bottom left of the same grounds.
+        GlowCool glow_cool "depth.glow_cool",
     }
 }
 
@@ -572,6 +585,10 @@ impl Tokens {
             playhead: hex(0x9be34f),
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
+            track_veil: Color32::TRANSPARENT,
+            sheen: Color32::TRANSPARENT,
+            glow: Color32::TRANSPARENT,
+            glow_cool: Color32::TRANSPARENT,
             dark: true,
             radius: 2.0,
             round: 1.0,
@@ -650,6 +667,10 @@ impl Tokens {
             playhead: hex(0x3f8a00),
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
+            track_veil: Color32::TRANSPARENT,
+            sheen: Color32::TRANSPARENT,
+            glow: Color32::TRANSPARENT,
+            glow_cool: Color32::TRANSPARENT,
             dark: false,
             radius: 2.0,
             round: 1.0,
@@ -727,6 +748,10 @@ impl Tokens {
             playhead: hex(0xf2c14e),
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
+            track_veil: Color32::TRANSPARENT,
+            sheen: Color32::TRANSPARENT,
+            glow: Color32::TRANSPARENT,
+            glow_cool: Color32::TRANSPARENT,
             dark: true,
             radius: 3.0,
             round: 1.0,
@@ -804,6 +829,10 @@ impl Tokens {
             playhead: hex(0xad7810),
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
+            track_veil: Color32::TRANSPARENT,
+            sheen: Color32::TRANSPARENT,
+            glow: Color32::TRANSPARENT,
+            glow_cool: Color32::TRANSPARENT,
             dark: false,
             radius: 3.0,
             round: 1.0,
@@ -827,7 +856,7 @@ impl Tokens {
     }
 }
 
-use super::color::{mix, on_fill, shade};
+use super::color::{mix, on_fill, over, shade};
 use crate::theme::{Palette, Theme};
 
 impl Tokens {
@@ -939,6 +968,10 @@ impl Tokens {
             playhead: p.gold_bright,
             light: Color32::WHITE,
             dark_shade: Color32::BLACK,
+            track_veil: Color32::TRANSPARENT,
+            sheen: Color32::TRANSPARENT,
+            glow: Color32::TRANSPARENT,
+            glow_cool: Color32::TRANSPARENT,
             dark,
             radius: p.corner_radius as f32,
             round: 1.0,
@@ -1139,7 +1172,66 @@ impl Tokens {
             self.panel_raised,
             1.8,
         );
+        // The gradients (ADR 0046 §8), measured where they are strongest: the sheen at a
+        // bar's top edge, both glows at their centres and where they overlap. A flat
+        // theme (every gradient token clear) paints none, so has nothing more to hold.
+        if !self.is_flat() {
+            for (n, bar) in [("toolbar", self.toolbar), ("panel", self.panel)] {
+                let lit = over(self.sheen, bar);
+                add(&format!("text on the {n}'s sheen"), self.text, lit, 4.5);
+                add(
+                    &format!("text_dim on the {n}'s sheen"),
+                    self.text_dim,
+                    lit,
+                    4.5,
+                );
+            }
+            let both = |bg| over(self.glow_cool, over(self.glow, bg));
+            for (n, bg) in [("panel", self.panel), ("strip", self.strip)] {
+                for (g, lit) in [
+                    ("warm glow", over(self.glow, bg)),
+                    ("cool glow", over(self.glow_cool, bg)),
+                    ("both glows", both(bg)),
+                ] {
+                    add(&format!("text on the {n}'s {g}"), self.text, lit, 4.5);
+                    add(
+                        &format!("text_dim on the {n}'s {g}"),
+                        self.text_dim,
+                        lit,
+                        4.5,
+                    );
+                    add(&format!("label on the {n}'s {g}"), self.label, lit, 4.5);
+                    add(
+                        &format!("selection on the {n}'s {g}"),
+                        self.selection,
+                        lit,
+                        3.0,
+                    );
+                    add(&format!("focus on the {n}'s {g}"), self.focus, lit, 3.0);
+                }
+            }
+            for (n, bg) in [("lanes", self.row_black), ("bars", self.row_white)] {
+                let lit = both(bg);
+                add(
+                    &format!("playhead on the {n}' glows"),
+                    self.playhead,
+                    lit,
+                    3.0,
+                );
+                add(
+                    &format!("selection on the {n}' glows"),
+                    self.selection,
+                    lit,
+                    3.0,
+                );
+            }
+        }
         v
+    }
+
+    /// True when the theme paints no gradient at all: every gradient token is clear.
+    pub fn is_flat(&self) -> bool {
+        self.sheen.a() == 0 && self.glow.a() == 0 && self.glow_cool.a() == 0
     }
 
     /// The pairings that fall short, with the ratio they reach.

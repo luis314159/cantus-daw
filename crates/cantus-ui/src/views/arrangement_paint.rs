@@ -19,6 +19,8 @@ use egui::{pos2, vec2, Align2, Pos2, Rect};
 
 /// What the lanes paint with (for inspect mode).
 const LANE_TOKENS: &[Tok] = &[
+    Tok::Glow,
+    Tok::GlowCool,
     Tok::RowBlack,
     Tok::RowWhite,
     Tok::Grid,
@@ -38,9 +40,15 @@ const RULER_TOKENS: &[Tok] = &[
     Tok::Playhead,
 ];
 /// What a header paints with besides its track's colour.
-const HEADER_TOKENS: &[Tok] = &[Tok::Selection, Tok::Led, Tok::Highlight, Tok::Focus];
+const HEADER_TOKENS: &[Tok] = &[
+    Tok::Selection,
+    Tok::Led,
+    Tok::Highlight,
+    Tok::Focus,
+    Tok::TrackVeil,
+];
 /// What a clip paints with besides its colour.
-const CLIP_TOKENS: &[Tok] = &[Tok::RowBlack, Tok::RowWhite, Tok::Selection];
+const CLIP_TOKENS: &[Tok] = &[Tok::RowBlack, Tok::RowWhite, Tok::Selection, Tok::TrackVeil];
 
 /// The visible columns of the timeline: the first and last beat drawn and how far apart
 /// the lines are. Zoomed out, a beat is a pixel wide and a line per beat is a grey smear,
@@ -93,6 +101,8 @@ pub(super) fn lanes(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             bar += 1.0;
         }
     }
+    // The theme's glows (ADR 0046 §8): under the lines and the clips, over the rows.
+    crate::kit::light::ambient(b, rect, t);
     // Lane separators: one line under each visible row, and on down the empty rows.
     let base = app.arrangement.track_height;
     let mut y = geo.bottom() + base;

@@ -524,6 +524,7 @@ impl Inspector {
                 crate::kit::Tok::Panel,
                 crate::kit::Tok::Text,
                 crate::kit::Tok::TextDim,
+                crate::kit::Tok::Sheen,
             ],
             &[],
         );
@@ -531,6 +532,7 @@ impl Inspector {
             b.snap_rect(rect),
             Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.01)),
         );
+        crate::kit::light::sheen(b, rect, t);
         b.hline(
             rect.left(),
             rect.right(),

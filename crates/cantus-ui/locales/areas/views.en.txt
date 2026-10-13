@@ -12,6 +12,7 @@ kit.group.editor = Editors
 kit.token.editor.row_white = Row (white key)
 kit.token.editor.row_black = Row (black key) and lanes
 kit.token.editor.playhead = Playhead
+kit.token.editor.track_veil = Veil over large track colours
 pianoroll.menu = Piano roll menu
 pianoroll.grid_tip = What notes snap to (Alt while dragging: no snap)
 pianoroll.snap_tip = Snap notes to the grid

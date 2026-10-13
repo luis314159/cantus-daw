@@ -12,6 +12,7 @@ kit.group.editor = Editores
 kit.token.editor.row_white = Fila (tecla blanca)
 kit.token.editor.row_black = Fila (tecla negra) y pistas
 kit.token.editor.playhead = Cabezal de reproducción
+kit.token.editor.track_veil = Velo sobre los colores de pista grandes
 pianoroll.menu = Menú del piano roll
 pianoroll.grid_tip = A qué se ajustan las notas (Alt al arrastrar: sin ajuste)
 pianoroll.snap_tip = Ajustar las notas a la cuadrícula

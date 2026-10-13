@@ -80,6 +80,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     with_brush(&painter, |b| {
         let r = b.snap_rect(rect);
         b.rect(r, Fill::V(shade(t.toolbar, 0.03), shade(t.toolbar, -0.02)));
+        crate::kit::light::sheen(b, r, &t);
         b.hline(
             r.left(),
             r.right(),

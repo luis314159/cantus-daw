@@ -10,7 +10,7 @@ use super::text::{self, Elide, Policy, Role, Src, Text};
 use super::{State, Style, Tok};
 
 /// The tokens a section band paints with, beside its hue (for inspect mode).
-pub const SECTION_TOKENS: &[Tok] = &[Tok::Panel, Tok::Label, Tok::KnobTrack];
+pub const SECTION_TOKENS: &[Tok] = &[Tok::Panel, Tok::Label, Tok::KnobTrack, Tok::Sheen];
 /// The tokens a card paints with, beside its hue.
 pub const CARD_TOKENS: &[Tok] = &[
     Tok::Deck,
@@ -65,6 +65,9 @@ pub fn section(
     let f = |c: Color32| c.gamma_multiply(a);
     let base = shade(s.t.panel, if s.t.dark { -0.08 } else { -0.05 });
     b.rect(rect, Fill::Solid(f(base)));
+    if a >= 1.0 {
+        super::light::sheen(b, rect, &s.t);
+    }
     b.hline(
         rect.left(),
         rect.right(),

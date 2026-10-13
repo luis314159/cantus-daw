@@ -8,6 +8,7 @@
 //!   in Slate and Paper, in English and Spanish, at 100 % and 150 % (pixels per point) —
 //!   and, for the no-overlap check, at the window scales 75 % and 200 %. `--quick`: Slate
 //!   and Paper in English at 100 % only. PNGs go to `target/shots/effects` by default.
+//! - `--night`: the dark shots in Cantus Night (the default theme) instead of Slate.
 //! - **Bench** (`--bench`, run it with `--release`): per editor, 200 frames at 100 %
 //!   after 30 of warm-up; the median CPU time to build a frame and to tessellate it, and the
 //!   allocations a frame makes in steady state, counted by the global allocator below.
@@ -26,6 +27,8 @@ struct Counting;
 
 static COUNTING: AtomicBool = AtomicBool::new(false);
 static ALLOCS: AtomicUsize = AtomicUsize::new(0);
+/// `--night`: the dark shots in Cantus Night (the default theme) instead of Slate.
+static NIGHT: AtomicBool = AtomicBool::new(false);
 /// `CANTUS_ALLOC_TRACE`: print a backtrace for each allocation of one frame.
 static TRACE: AtomicBool = AtomicBool::new(false);
 
@@ -148,7 +151,9 @@ fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
-    let theme = if dark {
+    let theme = if dark && NIGHT.load(Ordering::Relaxed) {
+        cantus_ui::theme_family::cantus_night()
+    } else if dark {
         cantus_ui::theme::slate()
     } else {
         cantus_ui::theme::paper()
@@ -237,6 +242,7 @@ fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let quick = args.iter().any(|a| a == "--quick");
     let benching = args.iter().any(|a| a == "--bench");
+    NIGHT.store(args.iter().any(|a| a == "--night"), Ordering::Relaxed);
     args.retain(|a| !a.starts_with("--"));
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -315,7 +321,11 @@ fn main() {
             }
             let name = format!(
                 "{kind}-{}-{}-{}{}.png",
-                if dark { "slate" } else { "paper" },
+                match (dark, NIGHT.load(Ordering::Relaxed)) {
+                    (true, true) => "night",
+                    (true, false) => "slate",
+                    _ => "paper",
+                },
                 lang.code(),
                 (ppp * 100.0) as u32,
                 if k == 1.0 {

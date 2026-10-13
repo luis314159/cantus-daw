@@ -420,6 +420,130 @@ impl Brush {
         }
     }
 
+    /// A radial gradient as plain geometry: an ellipse of `radii` round `center`, coloured
+    /// by `stops` (`t` 0 at the centre … 1 at the rim, ascending, at least two), drawn
+    /// inside `clip` only. Rings of quads, each a single colour along the ring, so the
+    /// GPU and the CPU renderer interpolate it alike and no seam shows where triangles
+    /// meet; quads across the clip's edge are clipped exactly (a glow at a corner of its
+    /// view). `quarter_steps` sets the outline's smoothness: points per quarter turn.
+    pub fn radial(
+        &mut self,
+        clip: Rect,
+        center: Pos2,
+        radii: Vec2,
+        stops: &[(f32, Color32)],
+        quarter_steps: usize,
+    ) {
+        let full = Rect::from_center_size(center, radii * 2.0);
+        if stops.len() < 2 || radii.min_elem() <= 0.0 || !full.intersects(clip) {
+            return;
+        }
+        let q = quarter(quarter_steps.clamp(2, 24));
+        let n = q.len() - 1;
+        // The unit circle's point `j` of `4n`, counter-clockwise from +x.
+        let unit = |j: usize| -> Vec2 {
+            let (s, c) = q[j % n];
+            match (j / n) % 4 {
+                0 => Vec2::new(c, s),
+                1 => Vec2::new(-s, c),
+                2 => Vec2::new(-c, -s),
+                _ => Vec2::new(s, -c),
+            }
+        };
+        let at = |t: f32, j: usize| center + unit(j) * radii * t;
+        for w in stops.windows(2) {
+            let ((t0, c0), (t1, c1)) = (w[0], w[1]);
+            if t1 <= t0 || (c0.a() == 0 && c1.a() == 0) {
+                continue;
+            }
+            for j in 0..4 * n {
+                let quad = [at(t0, j), at(t0, j + 1), at(t1, j + 1), at(t1, j)];
+                let cols = [c0, c0, c1, c1];
+                self.clipped_quad(clip, quad, cols);
+            }
+        }
+    }
+
+    /// A convex quad with a colour per corner, the part inside `clip` only.
+    fn clipped_quad(&mut self, clip: Rect, quad: [Pos2; 4], cols: [Color32; 4]) {
+        if quad.iter().all(|p| clip.contains(*p)) {
+            let i: [u32; 4] = std::array::from_fn(|k| self.v(quad[k], cols[k]));
+            self.tri(i[0], i[1], i[2]);
+            self.tri(i[0], i[2], i[3]);
+            return;
+        }
+        let (min, max) = quad.iter().fold(
+            (Pos2::new(f32::MAX, f32::MAX), Pos2::new(f32::MIN, f32::MIN)),
+            |(lo, hi), p| (lo.min(*p), hi.max(*p)),
+        );
+        if !Rect::from_min_max(min, max).intersects(clip) {
+            return;
+        }
+        // Sutherland–Hodgman against the four sides, on the stack: a quad clipped by a
+        // rectangle has at most eight corners.
+        let mut a: ([(Pos2, Color32); 8], usize) = ([(Pos2::ZERO, Color32::TRANSPARENT); 8], 4);
+        for k in 0..4 {
+            a.0[k] = (quad[k], cols[k]);
+        }
+        let sides: [(u8, f32); 4] = [
+            (0, clip.left()),
+            (1, clip.right()),
+            (2, clip.top()),
+            (3, clip.bottom()),
+        ];
+        for (side, edge) in sides {
+            let inside = |p: Pos2| match side {
+                0 => p.x >= edge,
+                1 => p.x <= edge,
+                2 => p.y >= edge,
+                _ => p.y <= edge,
+            };
+            let cross = |p: Pos2, r: Pos2| {
+                if side < 2 {
+                    (edge - p.x) / (r.x - p.x)
+                } else {
+                    (edge - p.y) / (r.y - p.y)
+                }
+            };
+            let mut out: ([(Pos2, Color32); 8], usize) =
+                ([(Pos2::ZERO, Color32::TRANSPARENT); 8], 0);
+            let mut push = |v: (Pos2, Color32)| {
+                if out.1 < 8 {
+                    out.0[out.1] = v;
+                    out.1 += 1;
+                }
+            };
+            for k in 0..a.1 {
+                let (p, pc) = a.0[k];
+                let (r, rc) = a.0[(k + 1) % a.1];
+                match (inside(p), inside(r)) {
+                    (true, true) => push((r, rc)),
+                    (true, false) => {
+                        let f = cross(p, r);
+                        push((p + (r - p) * f, pc.lerp_to_gamma(rc, f)));
+                    }
+                    (false, true) => {
+                        let f = cross(p, r);
+                        push((p + (r - p) * f, pc.lerp_to_gamma(rc, f)));
+                        push((r, rc));
+                    }
+                    (false, false) => {}
+                }
+            }
+            a = out;
+            if a.1 < 3 {
+                return;
+            }
+        }
+        let first = self.v(a.0[0].0, a.0[0].1);
+        let mut prev = self.v(a.0[1].0, a.0[1].1);
+        for k in 2..a.1 {
+            let next = self.v(a.0[k].0, a.0[k].1);
+            self.tri(first, prev, next);
+            prev = next;
+        }
+    }
+
     fn quad(&mut self, y0: f32, y1: f32, x0: f32, x1: f32, top: Color32, bottom: Color32) {
         let a = self.v(Pos2::new(x0, y0), top);
         let b = self.v(Pos2::new(x1, y0), top);
