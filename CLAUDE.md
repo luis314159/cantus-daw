@@ -52,6 +52,10 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
 - **Licences (ADR 0047):** `cantus-core/dsp/engine/project/rt` are MPL-2.0 (never copy GPL
   code into them), the rest GPL-3.0-or-later; an outside contribution is merged only with
   the CLA agreed (`CLA.md`); the name and logos are the owner's marks (`TRADEMARKS.md`).
+- **CI is Windows and Linux with `RUSTFLAGS=-D warnings`** and `cargo fmt --all -- --check`:
+  code behind `#[cfg(windows)]` leaves Linux-only dead-code warnings a Windows build never
+  shows. Before pushing, run `cargo fmt --all` and the Linux check in WSL
+  (`tools/wsl/check.sh <branch> clippy|test`, `docs/DEVELOPING.md` §4).
 - Commit only when the owner asks; never stage or discard the owner's own uncommitted work.
 
 ## The owner's standing direction

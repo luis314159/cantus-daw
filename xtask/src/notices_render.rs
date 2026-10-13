@@ -49,17 +49,25 @@ pub fn licence_files(c: &Crate) -> Vec<(String, String)> {
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|n| is_licence_name(n))
         .collect();
-    for sub in ["LICENSES", "licenses"] {
-        let d = c.dir.join(sub);
-        if d.is_dir() {
-            top.extend(
-                std::fs::read_dir(&d)
-                    .into_iter()
-                    .flatten()
-                    .flatten()
-                    .map(|e| format!("{sub}/{}", e.file_name().to_string_lossy())),
-            );
-        }
+    // A `LICENSES` folder by its real name, found by listing the crate: joining both
+    // spellings counted the one folder twice on a case-insensitive file system (Windows),
+    // so the notices differed between Windows and Linux.
+    let subs: Vec<String> = std::fs::read_dir(&c.dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.eq_ignore_ascii_case("licenses"))
+        .collect();
+    for sub in subs {
+        top.extend(
+            std::fs::read_dir(c.dir.join(&sub))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| format!("{sub}/{}", e.file_name().to_string_lossy())),
+        );
     }
     if let Some((_, extra)) = EXTRA.iter().find(|(n, _)| *n == c.name) {
         top.extend(extra.iter().map(|s| s.to_string()));

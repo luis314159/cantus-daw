@@ -270,7 +270,11 @@ fn sfz_export_round_trips() {
     let (mut a, track) = with_sampler();
     smp::apply_import(&mut a, track, imp);
     let s = spec(&a, track);
-    let text = sfz::export(&s, &|p: &str| p.to_string());
+    // Relative to the library, as a real export writes them: `C:/lib/…` is absolute on
+    // Windows only, so written whole it would be joined to the library again on Linux.
+    let text = sfz::export(&s, &|p: &str| {
+        p.strip_prefix("C:/lib/").unwrap_or(p).to_string()
+    });
     let back = parse_sfz(&text);
     let (mut b, track_b) = with_sampler();
     smp::apply_import(&mut b, track_b, back);

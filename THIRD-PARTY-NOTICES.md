@@ -1620,7 +1620,7 @@ SOFTWARE.
 
 ### T33
 
-In: crc-catalog 2.5.0 (`LICENSES/Apache-2.0.txt`), crc-catalog 2.5.0 (`licenses/Apache-2.0.txt`).
+In: crc-catalog 2.5.0 (`LICENSES/Apache-2.0.txt`).
 
 ```text
 [The Apache License, Version 2.0 — its standard text is under "Standard texts" at the end of this file.]
@@ -1655,7 +1655,7 @@ APPENDIX: How to apply the Apache License to your work.
 
 ### T34
 
-In: crc-catalog 2.5.0 (`LICENSES/MIT.txt`), crc-catalog 2.5.0 (`licenses/MIT.txt`).
+In: crc-catalog 2.5.0 (`LICENSES/MIT.txt`).
 
 ```text
 MIT License

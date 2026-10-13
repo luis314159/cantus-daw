@@ -109,12 +109,19 @@ pub const LAUNCHER: &str = "cantus.exe";
 pub const SCANNER: &str = "cantus-scan.exe";
 const TEXTS: [&str; 3] = ["LICENSE.txt", "COPYRIGHT.txt", "README.txt"];
 
+/// A level's program in the release: `cantus-x86-64-v3.exe`. The release is the Windows
+/// one wherever this runs (CI tests it on Linux too), so the suffix is not the host's —
+/// unlike a program copied to be run here (`check`), which keeps the host's.
+pub fn release_program(level: Level) -> String {
+    format!("cantus-{}.exe", level.name())
+}
+
 /// The install folder's files for a release carrying `levels`, in staging order.
 pub fn app_names(levels: &[Level]) -> Vec<String> {
     let mut v = vec![LAUNCHER.to_owned()];
     let mut sorted = levels.to_vec();
     sorted.sort();
-    v.extend(sorted.iter().map(|l| l.program()));
+    v.extend(sorted.iter().map(|l| release_program(*l)));
     v.push(SCANNER.to_owned());
     v.extend(TEXTS.iter().map(|t| t.to_string()));
     v
@@ -126,7 +133,7 @@ pub fn stage(inputs: &Inputs, stage: &Path, version: &str) -> Staged {
     let app = stage.join("app");
     copy_into(&inputs.launcher, &app.join(LAUNCHER));
     for (level, exe) in &inputs.programs {
-        copy_into(exe, &app.join(level.program()));
+        copy_into(exe, &app.join(release_program(*level)));
     }
     copy_into(&inputs.scanner, &app.join(SCANNER));
     copy_into(&inputs.license, &app.join("LICENSE.txt"));

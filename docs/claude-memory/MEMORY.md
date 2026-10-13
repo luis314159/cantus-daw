@@ -17,3 +17,4 @@
 - [Decision: CC BY content accepted](decision-cc-by-content.md) — CC0 + CC BY 3.0/4.0 with credit shown; NC/ND/SA out; ADR 0042
 - [Round 25: mixer cabling + themes/icon](round-25.md) — pushed 14ddaf5 + r25/polish (pan law exact, DSP 4, licences ADR 0047, docs/beta-checklist.md); ADRs 0041-0047; schema 23
 - [Decision: licences MPL engine + CLA](decision-licensing-mpl-cla.md) — engine MPL-2.0, app GPL, CLA with free-forever promise, trademark policy; ADR 0047
+- [CI is Linux too](feedback-ci-linux.md) — -D warnings + fmt --check on Ubuntu; run tools/wsl/check.sh before pushing
