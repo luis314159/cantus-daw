@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-10 (round 25: **mixer cabling** (BACKLOG §6d.3) — cables on the desk from a strip's port to another strip, by drag or by two clicks (plain = a send at 0 dB, Ctrl = the only output, Alt = a sidechain key), the selected strip's cables or all of them, pre/post-fader sends heard in the engine (schema 23) and shown as one chip, a doubled path allowed and marked, the routing matrix (Alt+F9), strips and groups moved by drag or Alt+arrows, a track dropped on a strip (ADRs 0041, 0043–0045); **the theme family**: Cantus Night (the website's palette) is the new default, twelve themes with previews, and the taskbar icon is the website's mark, recolourable live (ADR 0046); content under CC BY accepted with credit (ADR 0042). Round 24: gain staging, Save off the interface thread, linked clips, performance wave 2. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 159 green (208 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (407), clippy clean
+**Updated:** 2026-10-10 (round 25: **mixer cabling** (BACKLOG §6d.3) — cables on the desk from a strip's port to another strip, by drag or by two clicks (plain = a send at 0 dB, Ctrl = the only output, Alt = a sidechain key), the selected strip's cables or all of them, pre/post-fader sends heard in the engine (schema 23) and shown as one chip, a doubled path allowed and marked, the routing matrix (Alt+F9), strips and groups moved by drag or Alt+arrows, a track dropped on a strip (ADRs 0041, 0043–0045); **the theme family**: Cantus Night (the website's palette) is the new default, twelve themes with previews, and the taskbar icon is the website's mark, recolourable live (ADR 0046); content under CC BY accepted with credit (ADR 0042). Round 24: gain staging, Save off the interface thread, linked clips, performance wave 2. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 2 164 green (210 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (407), clippy clean
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -24,7 +24,12 @@ sends, keys), the detail (send levels, outputs to the master), quick views, kept
 (`docs/round25/cables-view.md`, ADR 0043 §7); the **RVR1960 gated** until its publisher's
 written permission (`verse::RVR1960_PERMITTED`, not in the build; the RV1909 the default;
 the request `docs/rvr1960-request.md`); the ™ on the site, README and About; the website's
-17 screenshots in Cantus Night (`shoot_site` makes the hero). Reports: `docs/round25/`
+17 screenshots in Cantus Night (`shoot_site` makes the hero). And **Cantus Night refined for long
+sessions** (2026-10-13, the owner: "more pleasant to work for hours, gradients like the
+website"): calmer surfaces and text (primary 12.7:1), track colours veiled in large fills,
+the website's light as four theme tokens (a top sheen on bars, copper and verdigris glows
+behind empty grounds), no extra allocation or draw call (`docs/round25/night.md`, ADR 0046
+§8). Reports: `docs/round25/`
 (`integration.md` is the account).
 
 1. **The owner, by hand, with the real build**: route by drag and by two clicks, with and
