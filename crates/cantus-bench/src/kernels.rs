@@ -81,9 +81,11 @@ pub fn signal(frames: usize) -> (Vec<f32>, Vec<f32>) {
     let (mut l, mut r) = (Vec::with_capacity(frames), Vec::with_capacity(frames));
     for i in 0..frames {
         let t = i as f32 / SAMPLE_RATE as f32;
-        let env = 0.5 + 0.5 * (std::f32::consts::TAU * 2.0 * t).sin();
-        let tone = (std::f32::consts::TAU * 220.0 * t).sin() * 0.5
-            + (std::f32::consts::TAU * 6_300.0 * t).sin() * 0.2;
+        // `cantus_dsp::math::sin`, not std's: the platform libm (MSVC, glibc) gives
+        // different bits, and this signal feeds the Windows = Linux null hashes.
+        let env = 0.5 + 0.5 * cantus_dsp::math::sin(std::f32::consts::TAU * 2.0 * t);
+        let tone = cantus_dsp::math::sin(std::f32::consts::TAU * 220.0 * t) * 0.5
+            + cantus_dsp::math::sin(std::f32::consts::TAU * 6_300.0 * t) * 0.2;
         l.push((noise() * 0.3 + tone) * env * 0.25);
         r.push((noise() * 0.3 + tone * 0.9) * env * 0.25);
     }
