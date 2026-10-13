@@ -65,6 +65,9 @@ pub fn section(
     let f = |c: Color32| c.gamma_multiply(a);
     let base = shade(s.t.panel, if s.t.dark { -0.08 } else { -0.05 });
     b.rect(rect, Fill::Solid(f(base)));
+    if a >= 1.0 {
+        super::light::sheen(b, rect, &s.t);
+    }
     b.hline(
         rect.left(),
         rect.right(),

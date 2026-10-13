@@ -109,6 +109,26 @@ pub fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     a.lerp_to_gamma(b, t.clamp(0.0, 1.0))
 }
 
+/// `top` (premultiplied, translucent or not) laid over the opaque `under`, as the
+/// renderer blends it: what a gradient's stop looks like on the surface it is painted
+/// on, for measuring the text drawn over it.
+pub fn over(top: Color32, under: Color32) -> Color32 {
+    let k = 1.0 - top.a() as f32 / 255.0;
+    let ch = |t: u8, u: u8| (t as f32 + u as f32 * k).round().clamp(0.0, 255.0) as u8;
+    let [tr, tg, tb, _] = top.to_array();
+    let [ur, ug, ub, _] = under.to_array();
+    Color32::from_rgb(ch(tr, ur), ch(tg, ug), ch(tb, ub))
+}
+
+/// `c` under a veil: mixed toward the veil's colour by the veil's alpha. A clear veil
+/// leaves `c` exactly as it is.
+pub fn veiled(c: Color32, veil: Color32) -> Color32 {
+    if veil.a() == 0 {
+        return c;
+    }
+    mix(c, opaque(veil), veil.a() as f32 / 255.0)
+}
+
 /// Relative luminance, WCAG 2.1.
 pub fn luminance(c: Color32) -> f32 {
     let ch = |v: u8| {

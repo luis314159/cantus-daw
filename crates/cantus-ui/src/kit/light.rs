@@ -227,3 +227,52 @@ pub fn glow(b: &mut Brush, center: Pos2, radius: f32, color: Color32, strength: 
         b.layer_quad(rect, uv, strength);
     }
 }
+
+/// The theme's sheen over a bar (ADR 0046 §8): `t.sheen` at the bar's top edge, fading to
+/// clear two thirds of the way down — the website's lit buttons and panel heads. A flat
+/// theme (clear sheen) paints nothing, not even a vertex.
+pub fn sheen(b: &mut Brush, rect: Rect, t: &super::Tokens) {
+    if t.sheen.a() == 0 || rect.height() <= 0.0 {
+        return;
+    }
+    let stops = [
+        (0.0, t.sheen),
+        (0.3, t.sheen.gamma_multiply(0.45)),
+        (0.7, Color32::TRANSPARENT),
+        (1.0, Color32::TRANSPARENT),
+    ];
+    b.rect(b.snap_rect(rect), Fill::Stops(&stops));
+}
+
+/// The theme's glows in a large empty ground (ADR 0046 §8), as on the website's hero: the
+/// warm one centred near the top right, the cool one at the bottom left, each an ellipse
+/// of rings of geometry, clipped to `area`. Paint it after the ground's
+/// fill and before what sits on it. A flat theme paints nothing.
+pub fn ambient(b: &mut Brush, area: Rect, t: &super::Tokens) {
+    if area.width() <= 0.0 || area.height() <= 0.0 {
+        return;
+    }
+    let (w, h) = (area.width(), area.height());
+    if t.glow.a() > 0 {
+        let c = area.min + egui::vec2(0.82 * w, 0.08 * h);
+        glow_field(b, area, c, egui::vec2(0.62 * w, 1.1 * h), t.glow);
+    }
+    if t.glow_cool.a() > 0 {
+        let c = area.min + egui::vec2(0.06 * w, 1.0 * h);
+        glow_field(b, area, c, egui::vec2(0.48 * w, 0.95 * h), t.glow_cool);
+    }
+}
+
+/// One glow: an ellipse of radii `radii` round `center`, in `color` at its alpha, the
+/// part inside `clip` only — rings of geometry whose colours follow a smooth bell (no
+/// texture, so the GPU and the CPU renderer draw it alike, without a seam or a step).
+fn glow_field(b: &mut Brush, clip: Rect, center: Pos2, radii: egui::Vec2, color: Color32) {
+    const RINGS: usize = 12;
+    let stops: [(f32, Color32); RINGS + 1] = std::array::from_fn(|k| {
+        let t = k as f32 / RINGS as f32;
+        let s = 1.0 - t;
+        // Smoothstep: flat at the centre, no ring at the rim.
+        (t, color.gamma_multiply(s * s * (3.0 - 2.0 * s)))
+    });
+    b.radial(clip, center, radii, &stops, 12);
+}

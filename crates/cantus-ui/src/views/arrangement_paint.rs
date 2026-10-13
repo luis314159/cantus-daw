@@ -93,6 +93,8 @@ pub(super) fn lanes(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             bar += 1.0;
         }
     }
+    // The theme's glows (ADR 0046 §8): under the lines and the clips, over the rows.
+    crate::kit::light::ambient(b, rect, t);
     // Lane separators: one line under each visible row, and on down the empty rows.
     let base = app.arrangement.track_height;
     let mut y = geo.bottom() + base;

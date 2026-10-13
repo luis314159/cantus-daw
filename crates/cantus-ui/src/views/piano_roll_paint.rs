@@ -135,6 +135,8 @@ pub(super) fn grid(
             b.hline(g.left(), g.right(), y1 - 0.5 * b.px(), b.px(), t.grid);
         }
     }
+    // The theme's glows (ADR 0046 §8): over the rows, under the lines and the notes.
+    crate::kit::light::ambient(b, g, t);
     // Before and after the clip's content: "not part of this clip", a step darker.
     let outside = shade(t.row_black, -0.07);
     let window = clip.period().map_or(clip.length, |p| p.min(clip.length));

@@ -21,8 +21,10 @@ pub(super) fn ground(b: &mut Brush, s: &Style, geo: &Geo) {
     let t = &s.t;
     b.register(geo.full, "mixer_ground", GROUND_TOKENS, &[]);
     b.rect(b.snap_rect(geo.full), Fill::Solid(t.panel));
+    light::ambient(b, geo.full, t);
     let r = b.snap_rect(geo.title);
     b.rect(r, Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.01)));
+    light::sheen(b, r, t);
     b.hline(
         r.left(),
         r.right(),
