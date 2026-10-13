@@ -29,9 +29,9 @@ cd "$HOME/cantus-ci" || exit 1
 git fetch -q "$src" "$ref" && git checkout -q --force FETCH_HEAD || exit 1
 git log --oneline -1
 if [ "$what" = "test" ]; then
-  cargo test --workspace --no-fail-fast 2>&1 | grep -E "^test result|panicked|^error|FAILED" | tail -60
+  cargo test --workspace --no-fail-fast --keep-going 2>&1 | grep -E "^test result|panicked|^error|FAILED" | tail -60
   echo "TEST EXIT ${PIPESTATUS[0]}"
 else
-  cargo clippy --workspace --all-targets 2>&1 | grep -E "^(error|warning)|-->" | head -120
+  cargo clippy --workspace --all-targets --keep-going 2>&1 | grep -E "^(error|warning)|-->" | head -120
   echo "CLIPPY EXIT ${PIPESTATUS[0]}"
 fi

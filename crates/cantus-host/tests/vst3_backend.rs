@@ -178,6 +178,8 @@ impl Probe {
         unsafe { f(set) }
     }
 
+    // The editor's tests run where editors open (Windows so far).
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn resize_editor(&self, w: i32, h: i32) -> i32 {
         let f = self.call::<unsafe extern "C" fn(i32, i32) -> i32>(b"cantus_test_resize_editor\0");
         // SAFETY: as above.
@@ -185,6 +187,7 @@ impl Probe {
     }
 
     /// (parent window, width, height) of the newest editor.
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn editor(&self) -> (usize, i32, i32) {
         let f =
             self.call::<unsafe extern "C" fn(*mut i32, *mut i32) -> usize>(b"cantus_test_editor\0");
