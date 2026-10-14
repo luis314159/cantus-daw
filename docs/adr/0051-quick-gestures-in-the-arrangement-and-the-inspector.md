@@ -73,6 +73,10 @@ under the track, not its header.
   name line (the body face's row height against the line's, at most 1), and the icon is
   no taller than the line: at full size they overflowed into the rows round it (seen in
   the pictures, `examples/shoot_gestures.rs`, `short-*`).
+  A **clip's label** on such a row (no title bar) is scaled the same way to the clip's
+  height, never drawn outside it, and **hidden below six tenths of its size**
+  (`paint::label_fit`); the clip's hover hint now leads with its **name** (then its
+  essentials), so a hidden label is still read there.
 - **From one name to another in one click**: with a track's name open, a click on another
   track's letters commits the first (one `SetTrackName`, as a click away does) and opens
   the second, its name selected, in the same click. The second name is opened once every

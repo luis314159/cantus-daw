@@ -117,4 +117,13 @@ rename field and the track icon overflowed into the rows round them — the name
 field now scale to the name line and the icon is no taller than it (test
 `on_short_rows_the_name_field_stays_inside_its_row`, seen failing without the fit). Left
 as it was (not this round's): the clips' labels in the lanes on such short rows overflow
-the same way.
+the same way — closed after (below).
+
+**Then closed too** (the coordinator: no leftovers): a clip's label on a short row (no
+title bar) is scaled to the clip's height, never drawn outside it, and hidden below six
+tenths of its size (`paint::label_fit`, unit-tested); hovering a clip now names it in the
+hint bar before its essentials, so a hidden label is still read. Test
+`on_short_rows_a_clips_label_fits_the_clip_or_hides` (0.34 × 40 and 0.6 × 22 scaled
+inside the clip, 0.34 × 22 hidden; the hint names the clip at each) — seen failing with
+the old labels (0.6 × 22: the label ran 1 pt below the clip). Pictures re-rendered and
+looked at (`short-*`).

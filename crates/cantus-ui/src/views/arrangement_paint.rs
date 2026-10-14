@@ -629,6 +629,9 @@ pub(super) struct ClipLook {
     /// A linked copy of a selected clip (ADR 0037): outlined faintly in the selection's
     /// colour, so the whole group shows when one member is picked.
     pub sibling: bool,
+    /// The height the label's words need at full size: a clip shorter than that scales
+    /// them, and hides them below a readable size (round 27).
+    pub label_row: f32,
 }
 
 /// The chrome of one clip: a body in a deep (or pale) version of its colour, a title bar
@@ -702,8 +705,11 @@ pub(super) fn clip_chrome(
         );
     }
     // The name: on the bar, or on the body when there is no bar; kept inside the part of
-    // the clip that is on screen.
-    if !look.renaming && body.width() >= 14.0 * k {
+    // the clip that is on screen. A clip with no bar (a short row) scales the words to its
+    // height — never drawn outside it — and hides them below a readable size: the name is
+    // then in the hover hint (round 27).
+    let fit = label_fit(title_h > 0.0, body.height(), look.label_row);
+    if let (false, true, Some(fit)) = (look.renaming, body.width() >= 14.0 * k, fit) {
         let line = if title_h > 0.0 {
             Rect::from_min_max(body.min, pos2(body.right(), body.top() + title_h))
         } else {
@@ -723,8 +729,8 @@ pub(super) fn clip_chrome(
         // FL's ▸ at the start of a clip's bar: the clip has a menu (right-click).
         if title_h > 0.0 && body.right() - left > 36.0 * k {
             let g = Rect::from_min_size(
-                pos2(left, line.center().y - 4.0 * k),
-                egui::vec2(8.0 * k, 8.0 * k),
+                pos2(left, line.center().y - 4.0 * k * fit),
+                egui::vec2(8.0 * k * fit, 8.0 * k * fit),
             );
             crate::kit::glyph::paint(b, g, crate::kit::glyph::Glyph::Menu, ink);
             left = g.right();
@@ -734,8 +740,8 @@ pub(super) fn clip_chrome(
         if let Some(count) = linked {
             if right - left > 30.0 * k {
                 let g = Rect::from_min_size(
-                    pos2(left + 2.0 * k, line.center().y - 5.0 * k),
-                    egui::vec2(10.0 * k, 10.0 * k),
+                    pos2(left + 2.0 * k, line.center().y - 5.0 * k * fit),
+                    egui::vec2(10.0 * k * fit, 10.0 * k * fit),
                 );
                 crate::kit::glyph::paint(b, g, crate::kit::glyph::Glyph::Link, ink);
                 left = g.right();
@@ -745,7 +751,7 @@ pub(super) fn clip_chrome(
                 let count_box =
                     Rect::from_min_max(pos2(right - w, line.top()), pos2(right, line.bottom()));
                 let tx = Text::new(count, Role::Label, ink).align(Align2::RIGHT_CENTER);
-                let _ = text::paint(b, count_box, &tx, s.tk());
+                let _ = text::paint(b, count_box, &tx, s.tk() * fit);
                 right = count_box.left() - 2.0 * k;
             }
         }
@@ -755,7 +761,7 @@ pub(super) fn clip_chrome(
             let tx = Text::new(name, Role::Label, ink)
                 .align(Align2::LEFT_CENTER)
                 .policy(Policy::Elide(Elide::End));
-            let _ = text::paint(b, name_box, &tx, s.tk());
+            let _ = text::paint(b, name_box, &tx, s.tk() * fit);
         }
     }
     let top = body.top()
@@ -842,6 +848,20 @@ pub(super) fn clip_label<'a>(scratch: &'a mut Scratch, name: &str, muted: bool) 
     &scratch.label
 }
 
+/// Below this share of its size a clip label is guessed at rather than read: hidden.
+const MIN_LABEL_FIT: f32 = 0.6;
+
+/// How much a clip label's words are scaled: 1 on a title bar (sized for them); on a clip
+/// with no bar, enough for the words to fit inside its height (`label_row` is their height
+/// at full size); `None` — hidden — below a readable size.
+pub(super) fn label_fit(bar: bool, body_h: f32, label_row: f32) -> Option<f32> {
+    if bar {
+        return Some(1.0);
+    }
+    let fit = ((body_h - 1.0) / label_row.max(1.0)).min(1.0);
+    (fit >= MIN_LABEL_FIT).then_some(fit)
+}
+
 /// The height of a clip's title bar: none on a body too short to hold one.
 pub(super) fn title_height(body: Rect, k: f32) -> f32 {
     if body.height() >= 22.0 * k {
@@ -853,7 +873,17 @@ pub(super) fn title_height(body: Rect, k: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::dashes;
+    use super::{dashes, label_fit};
+
+    /// A clip label fits its clip: full size on a bar or a tall body, scaled on a short
+    /// one, hidden below six tenths of its size (round 27).
+    #[test]
+    fn a_clip_label_is_scaled_to_a_short_clip_or_hidden() {
+        assert_eq!(label_fit(true, 8.0, 14.0), Some(1.0));
+        assert_eq!(label_fit(false, 30.0, 14.0), Some(1.0));
+        assert_eq!(label_fit(false, 11.5, 14.0), Some(10.5 / 14.0));
+        assert_eq!(label_fit(false, 7.0, 14.0), None);
+    }
 
     /// A 64-bar clip at the widest zoom is about 100 000 px; only the dashes on screen are
     /// drawn, and they sit where they would if the whole edge were drawn.

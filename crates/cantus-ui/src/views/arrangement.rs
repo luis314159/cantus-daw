@@ -140,6 +140,8 @@ struct Scratch {
     /// "×2", "×3"…: how many copies share a linked clip (ADR 0037), built once per
     /// language and count.
     counts: Vec<String>,
+    /// The height a clip label's words need at full size, this frame.
+    label_row: f32,
 }
 
 impl Scratch {
@@ -1621,6 +1623,7 @@ fn clips(
                 renaming,
                 reserve,
                 sibling: marks.is_sibling(clip, sel),
+                label_row: scratch.label_row,
             };
             let linked = marks.count(clip).map(|n| {
                 while counts.len() < n {
@@ -1815,6 +1818,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // ---- paint: the ruler, the lanes and the clips, then what goes over them ----------
     let mut scratch = std::mem::take(&mut app.arrangement.scratch);
     scratch.refresh_words();
+    // A clip label's words need this tall a line at full size (short clips scale them).
+    scratch.label_row = label_row(ui.ctx(), s);
     let mut auto_st = std::mem::take(&mut app.arrangement.auto);
     auto_st.drawn.clear();
     let lanes_p = ui.painter().with_clip_rect(f.lanes);
@@ -1904,17 +1909,22 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             );
         } else if hit.is_none() {
             hint::set_text(ui.ctx(), chrome::word("clip.new_tip"), "", Caps::NONE);
-        } else {
-            hint::set_text(
-                ui.ctx(),
-                // A clip's essentials (the whole list is the idle hint's tooltip).
-                &t("arrangement.clip_hint"),
-                "",
-                Caps {
-                    menu: true,
-                    ..Caps::NONE
-                },
-            );
+        } else if let Some(h) = hit {
+            // The clip's name, then its essentials (the whole list is the idle hint's
+            // tooltip): the name reads here even where the clip is too short to show it
+            // (round 27, ADR 0051).
+            let caps = Caps {
+                menu: true,
+                ..Caps::NONE
+            };
+            let tip = chrome::word("arrangement.clip_hint");
+            match crate::clips::clip_of(app.project(), (h.track, h.clip))
+                .map(|c| c.name.as_str())
+                .filter(|n| !n.is_empty())
+            {
+                Some(name) => hint::set_text(ui.ctx(), name, tip, caps),
+                None => hint::set_text(ui.ctx(), tip, "", caps),
+            }
         }
     }
     // An audio clip's handle: its own pointer and hint (live while it is dragged).
@@ -2446,5 +2456,11 @@ pub fn normalize_selection(app: &mut CantusApp) -> usize {
 /// The height a track name's words need at full size (the body face's row).
 fn name_row(ctx: &egui::Context, s: &Style) -> f32 {
     let font = kit::text::Role::Body.font(s.tk());
+    ctx.fonts_mut(|f| f.row_height(&font)).max(1.0)
+}
+
+/// The height a clip label's words need at full size (the label face's row).
+fn label_row(ctx: &egui::Context, s: &Style) -> f32 {
+    let font = kit::text::Role::Label.font(s.tk());
     ctx.fonts_mut(|f| f.row_height(&font)).max(1.0)
 }

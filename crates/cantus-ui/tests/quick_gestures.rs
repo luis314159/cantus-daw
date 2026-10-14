@@ -27,6 +27,8 @@ struct Rig {
     frame: u64,
     pointer: Option<Pos2>,
     cursor: CursorIcon,
+    /// The words drawn in the last frame, and where.
+    texts: Vec<(String, Rect)>,
     _dir: tempfile::TempDir,
 }
 
@@ -59,6 +61,7 @@ impl Rig {
             frame: 0,
             pointer: None,
             cursor: CursorIcon::Default,
+            texts: Vec::new(),
             _dir: dir,
         };
         r.idle(3);
@@ -82,6 +85,13 @@ impl Rig {
         let app = &mut self.app;
         let mut out = self.ctx.run_ui(input, |ui| app.frame(ui));
         self.cursor = out.platform_output.cursor_icon;
+        self.texts.clear();
+        for c in &out.shapes {
+            if let egui::epaint::Shape::Text(t) = &c.shape {
+                self.texts
+                    .push((t.galley.text().to_string(), t.visual_bounding_rect()));
+            }
+        }
         out.textures_delta.clear();
     }
 
@@ -1136,5 +1146,62 @@ fn on_short_rows_the_name_field_stays_inside_its_row() {
             edit.top() >= row.top() - 0.5 && edit.bottom() <= row.bottom() + 0.5,
             "{base}×{height}: the field {edit:?} inside the row {row:?}"
         );
+    }
+}
+
+/// The coordinator's last leftover: on short rows a clip's label is scaled to the clip
+/// and never drawn outside it; below a readable size it is hidden, and its name is in the
+/// hover hint.
+#[test]
+fn on_short_rows_a_clips_label_fits_the_clip_or_hides() {
+    for (base, height, shown) in [
+        (40.0f32, 0.34f32, true),
+        (22.0, 0.6, true),
+        (22.0, 0.34, false),
+    ] {
+        let mut p = band();
+        for t in &mut p.tracks {
+            t.height = height;
+        }
+        let mut r = Rig::new(p);
+        r.app.arrangement.track_height = base;
+        r.idle(3);
+        let geo = r.app.arrangement.geometry().unwrap();
+        let row = geo.rows[LEAD];
+        let clip = &r.app.project().tracks[LEAD].clips[0];
+        let (a, b) = (
+            geo.x(clip.start.as_beats_f64() as f32),
+            geo.x(clip.end().as_beats_f64() as f32),
+        );
+        // The clip's body, as the arrangement draws it: the row less a small inset.
+        let inset = (row.height * 0.04).clamp(1.0, 2.0);
+        let body = Rect::from_min_max(
+            pos2(a, row.top + inset),
+            pos2(b, row.top + row.height - inset),
+        );
+        let drawn: Vec<Rect> = r
+            .texts
+            .iter()
+            .filter(|(s, _)| s == "Melody")
+            .map(|(_, rect)| *rect)
+            .collect();
+        if shown {
+            assert!(!drawn.is_empty(), "{base}×{height}: the label is drawn");
+            for d in &drawn {
+                assert!(
+                    d.top() >= body.top() - 0.5 && d.bottom() <= body.bottom() + 0.5,
+                    "{base}×{height}: the label {d:?} inside the clip {body:?}"
+                );
+            }
+        } else {
+            assert!(
+                drawn.is_empty(),
+                "{base}×{height}: too short to read: hidden"
+            );
+        }
+        // Its name is in the hover hint whatever the height.
+        r.hover(pos2(a + 6.0, row.top + row.height * 0.5));
+        let h = cantus_ui::kit::hint::current(&r.ctx).expect("the clip's hint");
+        assert_eq!(h.name, "Melody", "{base}×{height}: {h:?}");
     }
 }
