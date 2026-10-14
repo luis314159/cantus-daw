@@ -386,4 +386,12 @@ impl PluginHost {
             .get(&track)
             .is_some_and(HostedInst::window_minimised)
     }
+
+    /// Whether `track`'s instrument window is open and in front: F8 and the rack's button
+    /// close only that one, and bring any other back (round 27, ADR 0051).
+    pub fn instrument_window_frontmost(&self, track: TrackId) -> bool {
+        self.instruments
+            .get(&track)
+            .is_some_and(HostedInst::window_frontmost)
+    }
 }

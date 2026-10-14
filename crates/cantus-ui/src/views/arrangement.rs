@@ -1018,6 +1018,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
     // Input.
     let base = app.arrangement.track_height;
     let mut to_delete = None;
+    let mut open_name = None;
     for (i, row) in geo.rows.iter().enumerate() {
         if !visible(row) {
             continue;
@@ -1128,10 +1129,10 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         let pressed_at = resp.interact_pointer_pos();
         if resp.clicked() {
             app.select_track(id);
-            if on_letters(pressed_at) && app.arrangement.rename.is_none() {
-                if let Some(name) = app.project().track(id).map(|t| t.name.clone()) {
-                    app.arrangement.rename = Some((id, name));
-                }
+            // Opened once every row has run: another track's open name commits first,
+            // whether its row comes before this one or after.
+            if on_letters(pressed_at) {
+                open_name = Some(id);
             }
         }
         if resp.double_clicked() && !on_letters(pressed_at) {
@@ -1206,8 +1207,34 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 track_menu(app, ui, id, &mut to_delete);
             });
     }
+    // A click on a name's letters (round 27, ADR 0051 §2): a name still open on another
+    // track — its row ran before the click reached its field — commits as a click away
+    // would, then this one opens, selected, in the same click.
+    if let Some(id) = open_name {
+        match app.arrangement.rename.take() {
+            Some((rid, text)) if rid != id => commit_track_name(app, rid, &text),
+            same => app.arrangement.rename = same,
+        }
+        if app.arrangement.rename.is_none() {
+            if let Some(name) = app.project().track(id).map(|t| t.name.clone()) {
+                app.arrangement.rename = Some((id, name));
+            }
+        }
+    }
     if let Some(id) = to_delete {
         app.delete_track(id);
+    }
+}
+
+/// Rename `id` to `text` (trimmed), unless that is empty or its name already: one
+/// `SetTrackName`, one undo step; an untouched edit runs nothing (ADR 0024 §15).
+fn commit_track_name(app: &mut CantusApp, id: TrackId, text: &str) {
+    let new_name = text.trim();
+    if !new_name.is_empty() && app.project().track(id).is_some_and(|t| t.name != new_name) {
+        app.exec(Command::SetTrackName {
+            id,
+            name: new_name.to_string(),
+        });
     }
 }
 
@@ -1227,13 +1254,8 @@ fn rename_in_place(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, at: Rect
         return;
     }
     if out.event == Some(kit::field::Event::Commit) {
-        let new_name = name.trim().to_string();
-        app.arrangement.rename = None;
-        if !new_name.is_empty() && app.project().track(rid).is_some_and(|t| t.name != new_name) {
-            app.exec(Command::SetTrackName {
-                id: rid,
-                name: new_name,
-            });
+        if let Some((_, text)) = app.arrangement.rename.take() {
+            commit_track_name(app, rid, &text);
         }
     }
 }

@@ -62,6 +62,12 @@ under the track, not its header.
   no undo step, a click elsewhere commits, an untouched rename runs nothing, and no shortcut
   or the typing piano reads the keys while it is open. A **drag** that starts on the
   letters still reorders (egui reports no click once the pointer travelled).
+- **From one name to another in one click**: with a track's name open, a click on another
+  track's letters commits the first (one `SetTrackName`, as a click away does) and opens
+  the second, its name selected, in the same click. The second name is opened once every
+  row has run (`open_name`), and a first name still open then — its row came after the
+  clicked one, so its field had not yet seen the click — is committed explicitly
+  (`commit_track_name`, the field's own commit), whichever row is above.
 - **Hovering the letters** shows the I-beam and the hint *Click: rename* (its caps say it is
   typed and has a menu); hovering the rest of the header says *Double-click: open the
   instrument · Drag: reorder · Right-click: menu*. The lamps, the icon and the arm lamp
@@ -105,12 +111,22 @@ only while it has it; the click that asked for the editor was on Cantus's own wi
 does. When it is refused anyway, the window is still on top of its siblings and Windows
 flashes its taskbar button — its own answer, kept rather than worked around
 (`AttachThreadInput` tricks steal focus from other programs). A plug-in that floats a window
-of its own leaves ours hidden: `focus` does not show it. `PluginWindow::is_minimised` lets
-`instrument_window_shown` treat a minimised plug-in window as not shown, so `F8` and the
-rack's button bring it back instead of closing it. **Elsewhere** (Linux, macOS) there is no
-plug-in window yet (opening fails with `Unsupported`): `focus` is a documented no-op and
-`is_minimised` is `false`, both `pub` on a `pub` type — no `cfg` dead code under
-`-D warnings`.
+of its own leaves ours hidden: `focus` does not show it. **Elsewhere** (Linux, macOS) there
+is no plug-in window yet (opening fails with `Unsupported`): `focus` is a documented no-op,
+`is_minimised` and `is_frontmost` are `false`, all `pub` on a `pub` type — no `cfg` dead
+code under `-D warnings`.
+
+**F8 and the rack's channel button toggle what the user sees.** Closed → opened; open but
+**not in front** — minimised, its tab behind another tab, its window under another window
+— → brought back and to the front (`present` / `focus`); **in front → closed**
+(`instrument_window_in_front`, `toggle_instrument_window_of`). *In front*, for a device:
+not minimised, drawn this pass or the last (a tab behind another is not drawn), and the top
+layer at its body's middle is its own, or the background a docked tab shares — no window
+or dialog of the middle or foreground orders over it (`workspace_device::in_front`; it
+lives in the context, so the rack's button asks it from inside a tab). For a hosted
+plug-in's window: shown, not minimised, and the window at its middle on screen is it or
+its child (`PluginWindow::is_frontmost`: `WindowFromPoint` → `GetAncestor(GA_ROOT)`); a
+plug-in that floats its own window counts as in front, so F8 closes it as before.
 
 The inspector's hosted row reads **Open** when the window is closed and **Show** when it is
 open (it was *Close*): a click opens it or brings it back and to the front. The window
@@ -161,7 +177,8 @@ rack fits the whole pattern (`rack.fit`) from its first step.
 - A double-click on a Firmus or an audio track shows the inspector rather than nothing.
 - The mixer and the rack rename on a double-click, the arrangement on a click on the
   letters — deliberately (§2).
-- The inspector's hosted row no longer closes the plug-in's window.
+- The inspector's hosted row no longer closes the plug-in's window; F8 and the rack's
+  channel button close an editor only when it is in front.
 - No schema change, no new `Command` (the rename is `SetTrackName`, already in the undo
   fuzz), no new keymap action. New strings in `locales/areas/gestures.{en,es}.txt`
   (`track.header.tip`, `track.header.name_tip`) and `hosted.show_window` (replacing
@@ -169,12 +186,14 @@ rack fits the whole pattern (`rack.fit`) from its first step.
 - Public additions: `ArrangementView::header_hits`, `HeaderHit`, `clips::{editor_for,
   ClipEditor}`, `CantusApp::{open_track_instrument, open_clip_editor}`,
   `piano_roll::fit_clip`, `PianoRollView::grid_size`, `workspace_device::{present,
-  take_reveals}`, `AreaState::raise`, `PluginWindow::is_minimised`,
-  `HostedInst::window_minimised`, `PluginHost::instrument_window_minimised`.
+  take_reveals, in_front}`, `AreaState::raise`, `CantusApp::instrument_window_in_front`,
+  `PluginWindow::{is_minimised, is_frontmost}`, `HostedInst::{window_minimised,
+  window_frontmost}`, `Hosted::window_frontmost`,
+  `PluginHost::{instrument_window_minimised, instrument_window_frontmost}`.
 
 ## What the tests hold
 
-`crates/cantus-ui/tests/quick_gestures.rs` (14), whole-window, the pointer driving each
+`crates/cantus-ui/tests/quick_gestures.rs` (16), whole-window, the pointer driving each
 gesture through `CantusApp::frame`: a double-click on a header opens Unda's editor (in
 front, the track selected, no rename), Pulsus's, and shows the inspector for Firmus and an
 audio track; a click on the letters of an unselected track selects it and opens the field
@@ -192,10 +211,18 @@ empty, automation, audio, a note off the grid, a held note, a coarser grid); *Op
 on a minimised native instrument restores it, focused, its tab in front, and brings a
 docked tab from behind the arrangement (and the kit's editor likewise); on two overlapping
 floating editors it raises the one asked for; on a minimised effect editor it restores and
-draws it. With the behaviours reverted to master's (the new accessors kept), ten of the
+draws it. With the behaviours reverted to master's (the new accessors kept), ten of those
 fourteen fail; the other four are the two guards that held before (typing, a click off the
-letters), the hover (not reverted) and the pure rule.
+letters), the hover (not reverted) and the pure rule. Added after the first review, both
+seen failing first: **F8** opens a closed editor, brings back a minimised one, brings a
+docked tab forward from behind the arrangement (it used to close it) and raises a
+floating one from under another window (it used to close it), and closes it only when
+it is in front; **a click on another track's letters** with a name open commits the
+first (one undo step) and opens the second with its name selected, in the same click,
+with the first above the second and below it (below, the second used not to open).
 
 `crates/cantus-host/tests/clap_window.rs` (Windows): a second *open* restores a minimised
 plug-in window, leaves a maximised one maximised (it failed with the old `SW_RESTORE`),
-and puts it back above another window of the process.
+and puts it back above another window of the process; it is not *frontmost* while
+minimised or while another window of the process covers its middle, and is when nothing
+does.

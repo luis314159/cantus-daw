@@ -25,7 +25,7 @@ nobody hears.
 
 ## Tests, and what each holds
 
-- `crates/cantus-ui/tests/quick_gestures.rs` (14, new) — whole-window, the pointer driving
+- `crates/cantus-ui/tests/quick_gestures.rs` (16, new) — whole-window, the pointer driving
   each gesture through `CantusApp::frame` (listed in ADR 0051 *What the tests hold*). With
   the behaviours reverted to master's (accessors kept) ten fail; the other four are guards
   that held before (typing, a click off the letters), the hover (not reverted) and the pure
@@ -61,10 +61,28 @@ non-Windows `PluginWindow` gains `is_minimised` (`false`) beside its no-op `focu
 `pub` on a `pub` type (no dead code under `-D warnings`). The new host test is in the
 Windows-only `clap_window.rs`. Nothing else is platform-specific.
 
+## After the first review (the coordinator: no leftovers)
+
+Both items the first report left are closed, tests first and seen failing
+(`quick_gestures.rs` now 16):
+
+- **F8 and the rack's channel button toggle what the user sees**
+  (`instrument_window_in_front`, `workspace_device::in_front`, `PluginWindow::is_frontmost`):
+  an editor open but minimised, behind another tab or under another window comes forward;
+  only the one in front closes. The test failed at the tab behind the arrangement (F8
+  closed it); it now also covers a floating editor under another and the final close.
+  The host test covers *frontmost* (minimised: no; covered by another window: no).
+- **From one name to another in one click**: with a name open, a click on another track's
+  letters commits the first (one undo step) and opens the second with its name selected.
+  It failed when the first track was below the second (its field had not yet seen the
+  click when the second row ran); the second name now opens after every row has run, and
+  a first name still open then is committed explicitly.
+
+ADR 0051 (§2, §3, the tests) and the manual EN/ES (*Quick gestures*, the device windows'
+F8) say so.
+
 ## Left
 
-- F8 (`toggle_instrument_window_of`) still *closes* a native editor whose tab is open but
-  behind another tab (it counts as shown); *Open editor* and the header's double-click
-  bring it forward. Whether F8 should do the same is the owner's call (it is a toggle).
 - The owner, by hand with a real CLAP/VST3 instrument: minimise its window, *Show* in the
-  inspector or double-click the track — it comes back, maximised if it was.
+  inspector, F8 or double-click the track — it comes back, maximised if it was; F8 again
+  closes it.

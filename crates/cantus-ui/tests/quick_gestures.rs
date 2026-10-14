@@ -761,3 +761,110 @@ fn open_editor_restores_a_minimised_effect_editor() {
     assert_eq!(device::focused(&r.ctx), Some(key));
     assert!(device::shown(&r.ctx, key).is_some(), "drawn");
 }
+
+// ---- round 27, the coordinator's two leftovers ----------------------------------------
+
+/// F8 (and the rack's channel button, which runs the same toggle) is a toggle on what the
+/// user sees: an editor that is open but not in front — minimised, its tab behind another
+/// tab, its window under another — comes forward; only the frontmost one closes.
+#[test]
+fn f8_brings_an_editor_forward_and_closes_only_the_frontmost() {
+    let mut r = Rig::new(band());
+    let (lead, drums) = (r.track(LEAD), r.track(DRUMS));
+    r.app.select_track(lead);
+    r.idle(2);
+    let key = cantus_ui::views::inst::editor_id(lead).value();
+    // Closed → F8 opens it, in front.
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(r.app.inst.open, Some(lead), "F8 opened it");
+    assert!(r.app.instrument_window_in_front(lead), "in front");
+    // Minimised → F8 brings it back (it used to... open it again, minimised).
+    device::minimise(&r.ctx, key);
+    r.idle(3);
+    assert!(!r.app.instrument_window_in_front(lead));
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(r.app.inst.open, Some(lead), "minimised: still open");
+    assert!(!device::is_minimised(&r.ctx, key), "brought back");
+    assert!(r.app.instrument_window_in_front(lead));
+    // Docked behind the arrangement → F8 brings its tab forward.
+    r.app.workspace.hide(Pane::Device(key));
+    r.app.workspace.reveal(Pane::Device(key));
+    r.idle(2);
+    r.app.workspace.reveal(Pane::Arrangement);
+    r.idle(3);
+    assert!(!r.app.instrument_window_in_front(lead), "behind a tab");
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(
+        r.app.inst.open,
+        Some(lead),
+        "behind a tab: it used to close"
+    );
+    assert!(
+        r.app.workspace.is_visible(Pane::Device(key)),
+        "its tab in front"
+    );
+    assert!(r.app.instrument_window_in_front(lead));
+    // In front → F8 closes it.
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(r.app.inst.open, None, "the frontmost one closes");
+
+    // Floating under another floating window → F8 raises it; F8 again closes it.
+    let kit = cantus_ui::views::pulsus_editor::editor_id(drums).value();
+    let place = |x: f32, y: f32| Rect::from_min_size(pos2(x, y), vec2(700.0, 450.0));
+    device::remember_place(&r.ctx, key, place(300.0, 200.0));
+    device::remember_place(&r.ctx, kit, place(320.0, 220.0));
+    r.app.open_inst_editor(lead);
+    r.idle(4);
+    cantus_ui::views::pulsus_editor::open(&mut r.app, drums);
+    r.idle(4);
+    r.app.select_track(lead);
+    r.idle(2);
+    assert!(
+        !r.app.instrument_window_in_front(lead),
+        "under the kit's window"
+    );
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(
+        r.app.inst.open,
+        Some(lead),
+        "under a window: it used to close"
+    );
+    assert!(r.app.instrument_window_in_front(lead), "raised");
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(r.app.inst.open, None, "then F8 closes it");
+}
+
+/// With one name open, a click on another track's letters commits the first (one undo
+/// step) and opens the second in the same click, its name selected — whichever is above.
+#[test]
+fn a_click_on_another_name_commits_the_first_and_opens_the_second() {
+    for (first, second) in [(LEAD, BASS), (BASS, LEAD)] {
+        let mut r = Rig::new(band());
+        let (_, letters) = r.header(first);
+        r.click(letters.center());
+        assert_eq!(r.renaming(), Some(r.track(first)));
+        r.type_text("Zed");
+        let rev = r.app.bus.revision();
+        let (_, letters) = r.header(second);
+        r.click(letters.center());
+        assert_eq!(r.name(first), "Zed", "{first}: the first rename committed");
+        assert_eq!(r.app.bus.revision(), rev + 1, "{first}: one undo step");
+        assert_eq!(
+            r.renaming(),
+            Some(r.track(second)),
+            "{first}→{second}: the second field opened in the same click"
+        );
+        assert_eq!(r.app.selected_track, Some(r.track(second)));
+        assert!(!r.keyboard_free(), "it holds the keyboard");
+        r.type_text("Wren");
+        r.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(r.name(second), "Wren", "its name was selected: typed over");
+        assert_eq!(r.app.bus.revision(), rev + 2);
+    }
+}

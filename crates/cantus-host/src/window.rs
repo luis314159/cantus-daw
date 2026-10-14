@@ -40,6 +40,9 @@ mod other {
         pub fn is_minimised(&self) -> bool {
             false
         }
+        pub fn is_frontmost(&self) -> bool {
+            false
+        }
         pub fn closed(&self) -> bool {
             true
         }
@@ -58,16 +61,16 @@ mod win32 {
     use std::cell::Cell;
     use std::num::NonZeroIsize;
     use std::sync::Once;
-    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{GetStockObject, BLACK_BRUSH};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetWindowLongPtrW,
-        IsIconic, IsWindowVisible, LoadCursorW, RegisterClassW, SetForegroundWindow,
-        SetWindowLongPtrW, SetWindowPos, ShowWindow, CW_USEDEFAULT, GWLP_USERDATA, GWL_STYLE,
-        HWND_TOP, IDC_ARROW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN,
-        WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
+        AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetAncestor,
+        GetWindowLongPtrW, GetWindowRect, IsIconic, IsWindowVisible, LoadCursorW, RegisterClassW,
+        SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow, WindowFromPoint,
+        CW_USEDEFAULT, GA_ROOT, GWLP_USERDATA, GWL_STYLE, HWND_TOP, IDC_ARROW, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE,
+        WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
     };
 
     fn wide(s: &str) -> Vec<u16> {
@@ -258,6 +261,38 @@ mod win32 {
         pub fn is_minimised(&self) -> bool {
             // SAFETY: a query of our own window.
             !self.floating && unsafe { IsIconic(self.hwnd) != 0 }
+        }
+
+        /// Whether the window is in front as the user sees it (round 27, ADR 0051 §3):
+        /// shown, not minimised, and what is on top at its middle is this window (or the
+        /// plug-in's view inside it) — no other window over it. A plug-in that floats a
+        /// window of its own counts as in front: ours is hidden and theirs unknown, so F8
+        /// closes it as before.
+        pub fn is_frontmost(&self) -> bool {
+            if self.floating {
+                return true;
+            }
+            // SAFETY: queries of our own window and of the screen, on the UI thread.
+            unsafe {
+                if IsIconic(self.hwnd) != 0 || IsWindowVisible(self.hwnd) == 0 {
+                    return false;
+                }
+                let mut r = RECT {
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                };
+                if GetWindowRect(self.hwnd, &mut r) == 0 {
+                    return false;
+                }
+                let middle = POINT {
+                    x: (r.left + r.right) / 2,
+                    y: (r.top + r.bottom) / 2,
+                };
+                let w = WindowFromPoint(middle);
+                !w.is_null() && GetAncestor(w, GA_ROOT) == self.hwnd
+            }
         }
 
         /// The user pressed the window's close box.

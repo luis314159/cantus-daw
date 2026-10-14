@@ -216,9 +216,11 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
 - **Double-click a clip**: the **piano roll** opens on it, the whole clip in view; a step
   pattern (every note a short hit on the rack's grid) opens in the **channel rack**; an
   automation clip in its large editor; an audio clip shows in the inspector.
-- **Open editor** — in the inspector, the mixer's menus or an instrument's frame — and `F8`
-  bring a window that is already open back from the tray (or the taskbar, for a plug-in) and
-  to the front.
+- **Open editor** — in the inspector, the mixer's menus or an instrument's frame — brings a
+  window that is already open back from the tray (or the taskbar, for a plug-in) and to the
+  front. `F8` and the channel rack's channel button do the same when the window is
+  minimised, behind another tab or under another window, and close it only when it is
+  already in front.
 
 ### Clips in the arrangement
 
@@ -327,7 +329,8 @@ of its chain (click it to open the inspector).
   Strips and groups move by dragging or with `Alt+Left`/`Alt+Right`; a track header dropped
   on a strip plays into it.
 - **Device windows** have *Swap*, minimise (to the tray in the status bar), maximise and
-  close. `F8` opens the selected track's instrument, `Esc` closes the device you used last,
+  close. `F8` opens the selected track's instrument (or brings it to the front, or closes
+  it when it is already in front), `Esc` closes the device you used last,
   `F12` closes every floating one.
 
 **Solo** follows the routing: a soloed strip is heard with what feeds it and what it feeds.

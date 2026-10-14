@@ -379,6 +379,29 @@ pub fn shown(ctx: &Context, key: DeviceKey) -> Option<(Rect, Rect)> {
     with_registry(ctx, |r| r.get(key).and_then(|e| e.shown))
 }
 
+/// Whether a device is **in front** (round 27, ADR 0051 §3): open, not minimised, drawn
+/// this pass or the last (a tab behind another tab is not drawn), and with no other
+/// window or dialog over its middle. What F8 and the rack's channel button toggle on: an
+/// editor that is open but not in front comes forward; only the frontmost one closes.
+pub fn in_front(ctx: &Context, key: DeviceKey) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    let body = with_registry(ctx, |r| {
+        r.get(key)
+            .filter(|e| !e.minimised && !e.closed)
+            .and_then(|e| e.body)
+            .filter(|b| pass.saturating_sub(b.pass) <= 1)
+    });
+    let Some(body) = body else {
+        return false;
+    };
+    match ctx.layer_id_at(body.rect.center()) {
+        Some(top) if top == body.layer => true,
+        // Over a docked tab: nothing but the background it shares, a tooltip or a hint.
+        Some(top) => !matches!(top.order, egui::Order::Middle | egui::Order::Foreground),
+        None => true,
+    }
+}
+
 /// The device Esc closes: the one clicked last, if it is still open and on screen.
 pub fn focused(ctx: &Context) -> Option<DeviceKey> {
     with_registry(ctx, |r| {

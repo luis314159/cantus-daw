@@ -165,10 +165,25 @@ impl CantusApp {
         self.instrument_window_open(track) && !minimised
     }
 
-    /// `track`'s instrument window: open it when it is closed, bring it back when it is
-    /// minimised, close it when it shows (F8, and a click on the rack's channel button).
+    /// Whether `track`'s instrument window is open **and in front** (round 27, ADR 0051
+    /// §3): not minimised, its tab the one showing, no other window over it — for a hosted
+    /// plug-in, its own window not minimised and not covered.
+    pub fn instrument_window_in_front(&self, track: TrackId) -> bool {
+        if !self.instrument_window_open(track) {
+            return false;
+        }
+        match (&self.theme_ctx, self.instrument_window_key(track)) {
+            (Some(ctx), Some(key)) => device::in_front(ctx, key),
+            (None, Some(_)) => self.instrument_window_shown(track),
+            _ => self.plugins.instrument_window_frontmost(track),
+        }
+    }
+
+    /// `track`'s instrument window as the user sees it (F8, and a click on the rack's
+    /// channel button): closed → opened; open but not in front (minimised, behind another
+    /// tab, under another window) → brought back and to the front; in front → closed.
     pub fn toggle_instrument_window_of(&mut self, track: TrackId) {
-        if self.instrument_window_shown(track) {
+        if self.instrument_window_in_front(track) {
             self.close_instrument_window(track);
         } else {
             self.open_instrument_window(track);

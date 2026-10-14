@@ -114,6 +114,11 @@ impl Hosted {
         self.window.is_some()
     }
 
+    /// Whether its window is open and in front, nothing over it (round 27, ADR 0051).
+    pub fn window_frontmost(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.is_frontmost())
+    }
+
     /// The plug-in window's native handle, when one is open.
     pub fn window_handle(&self) -> Option<isize> {
         self.window.as_ref().and_then(|w| w.handle())

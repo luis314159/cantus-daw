@@ -234,8 +234,10 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
   de canales**; un clip de automatización, en su editor grande; un clip de audio se muestra
   en el inspector.
 - **Abrir editor** — en el inspector, los menús del mezclador o el marco de un instrumento —
-  y `F8` traen una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un
-  plug-in) y la ponen delante.
+  trae una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un plug-in) y
+  la pone delante. `F8` y el botón de canal del rack hacen lo mismo cuando la ventana está
+  minimizada, detrás de otra pestaña o bajo otra ventana, y solo la cierran cuando ya está
+  delante.
 
 ### Los clips en el arreglo
 
@@ -354,7 +356,8 @@ inspector).
   mueven arrastrando o con `Alt+Izquierda`/`Alt+Derecha`; una cabecera de pista soltada
   sobre un canal suena por él.
 - **Las ventanas de los dispositivos** tienen *Cambiar*, minimizar (a la bandeja de la
-  barra de estado), maximizar y cerrar. `F8` abre el instrumento de la pista seleccionada,
+  barra de estado), maximizar y cerrar. `F8` abre el instrumento de la pista seleccionada
+  (o lo trae delante, o lo cierra si ya está delante),
   `Esc` cierra el último dispositivo que usaste y `F12` cierra todos los flotantes.
 
 **El solo** sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo
