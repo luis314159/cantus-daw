@@ -48,6 +48,9 @@ pub enum Pane {
     Devices,
     /// The sample browser (ADR 0030): FL's browser, at the left.
     Browser,
+    /// The clip browser (round 26, ADR 0037): link groups and clips as tiles to drag onto
+    /// the arrangement, FL's playlist picker panel; at the left, Alt+F5.
+    Clips,
     /// The Routing tab: the routing graph as a matrix (round 25, `views::routing`), in the
     /// lower zone beside the mixer; Alt+F9.
     Routing,
@@ -76,6 +79,7 @@ impl Pane {
             Pane::Inspector => "workspace.pane.inspector",
             Pane::Devices => "picker.panel.title",
             Pane::Browser => "samples.title",
+            Pane::Clips => "links.browser.title",
             Pane::Routing => "matrix.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
@@ -91,6 +95,7 @@ impl Pane {
             Pane::Inspector => "workspace.toggle.inspector",
             Pane::Devices => "picker.menu.view_devices",
             Pane::Browser => "samples.toggle",
+            Pane::Clips => "links.browser.toggle",
             Pane::Routing => "matrix.toggle",
             Pane::Device(_) => "workspace.pane.device",
         }
@@ -105,6 +110,7 @@ impl Pane {
             Pane::Inspector => Glyph::Inspector,
             Pane::Devices => Glyph::Browser,
             Pane::Browser => Glyph::Browser,
+            Pane::Clips => Glyph::Link,
             Pane::Routing => Glyph::Send,
             Pane::Device(_) => Glyph::Device,
         }
@@ -373,6 +379,24 @@ impl Workspace {
                 // the left child's share, whatever its docs say).
                 let share = (BROWSER_W / width).clamp(0.12, 0.3);
                 s.split_left(NodeIndex::root(), share, vec![Pane::Browser]);
+            }
+            // Beside the arrangement, where FL keeps the playlist's picker panel: at the left
+            // of the arrangement's area when it is open (its share of that area), else at the
+            // left of everything.
+            Pane::Clips => {
+                let w = super::clip_browser::WIDTH;
+                match arrangement {
+                    Some(node) => {
+                        // A fifth of the arrangement's area: about FL's picker panel beside a
+                        // playlist, whatever the window measured when the pane was placed.
+                        let share = (w / (width * inspector_share)).clamp(0.2, 0.3);
+                        s.split_left(node, share, vec![Pane::Clips]);
+                    }
+                    None => {
+                        let share = (w / width).clamp(0.1, 0.3);
+                        s.split_left(NodeIndex::root(), share, vec![Pane::Clips]);
+                    }
+                }
             }
             Pane::Device(_) => match arrangement.or(lower) {
                 Some(node) => append(s, node, pane),

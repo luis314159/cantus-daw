@@ -1,7 +1,7 @@
 # The verse at start (BACKLOG §6c; views/verse.rs).
 verse.hide = Don't show again
 verse.close = Close the verse
-verse.hidden = The verse will not show at start. Settings ▸ General turns it back on.
+verse.hidden = The verse will not show at start. Settings > General turns it back on.
 verse.settings.general = General
 verse.settings.show = Show a verse at start
 verse.settings.show.short = Verse at start

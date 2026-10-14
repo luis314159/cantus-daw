@@ -253,6 +253,8 @@ pub struct Layer {
     pub one_shot: bool,
     /// Held keys have not let it go yet.
     pub released: bool,
+    /// A controller started it (no note owns it).
+    pub by_cc: bool,
     pub play: Playhead,
     /// Pitch in semitones before modulation: key offset, tunes, transpose.
     pub semis: f64,
@@ -292,6 +294,10 @@ pub struct Layer {
     pub vel: f32,
     pub relvel: f32,
     pub rnd: f32,
+    /// Its sample's next block came late (streamed, real time): it is fading out.
+    pub late: bool,
+    /// It played its head only, too fast to stream (third review #9): counted, told.
+    pub cut: bool,
 }
 
 impl Layer {

@@ -1,6 +1,6 @@
 {
- "format": 1,
- "updated": "2026-10-05",
+ "format": 2,
+ "updated": "2026-10-13",
  "packs": [
   {
    "id": "cantus-starter-drums",
@@ -1195,6 +1195,72 @@
      {"url": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/LICENSE", "to": "Licences/LICENSE.txt", "size": 7048, "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"}
     ]
    }
-  }
+  },
+ {
+  "id": "salamander-grand-piano",
+  "version": 1,
+  "name": {
+   "en": "Salamander Grand Piano",
+   "es": "Piano de cola Salamander"
+  },
+  "description": {
+   "en": "A Yamaha C5 grand recorded by Alexander Holm: 16 velocity layers sampled in minor thirds, string resonance and hammer releases (48 kHz, 24-bit FLAC). Plays in Exemplar, streamed from disk: the instrument picker offers it with 8 velocity layers (about 120 MB of memory) and with all 16 (about 185 MB); its first load decodes the samples once into Cantus's cache (1 GB for 8 layers, 2 GB for 16).",
+   "es": "Un Yamaha C5 de cola grabado por Alexander Holm: 16 capas de velocidad muestreadas en terceras menores, resonancias de cuerda y relajaciones de martillo (48 kHz, FLAC de 24 bits). Suena en Exemplar, leído del disco: el selector de instrumentos lo ofrece con 8 capas de velocidad (unos 120 MB de memoria) y con las 16 (unos 185 MB); la primera carga descodifica las muestras una vez en la caché de Cantus (1 GB con 8 capas, 2 GB con 16)."
+  },
+  "category": "instruments",
+  "licence": "CC-BY-3.0",
+  "licence_url": "https://creativecommons.org/licenses/by/3.0/legalcode",
+  "licence_file": "readme.txt",
+  "credits": [
+   {
+    "name": "Salamander Grand Piano V3 — Alexander Holm; FLAC edition by FreePats",
+    "url": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html",
+    "licence_url": "https://creativecommons.org/licenses/by/3.0/"
+   }
+  ],
+  "checked": "2026-10-13",
+  "installed_size": 746854368,
+  "source": {
+   "tar_gz": {
+    "url": "https://freepats.zenvoid.org/Piano/SalamanderGrandPiano/SalamanderGrandPiano-SFZ+FLAC-V3+20200602.tar.gz",
+    "size": 741757374,
+    "sha256": "b7760e168494cf095344e217b0af013fc449ad033abbbdf1c65211cf11dc038b",
+    "strip": "SalamanderGrandPiano-SFZ+FLAC-V3+20200602/",
+    "include": [
+     "samples/**",
+     "readme.txt",
+     "SalamanderGrandPiano-V3+20200602.sfz"
+    ]
+   }
+  },
+  "attribution": {
+   "title": "Salamander Grand Piano V3",
+   "author": "Alexander Holm",
+   "url": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"
+  },
+  "instruments": [
+   {
+    "id": "grand",
+    "name": {
+     "en": "Salamander Grand Piano",
+     "es": "Piano de cola Salamander"
+    },
+    "file": "SalamanderGrandPiano-V3+20200602.sfz",
+    "shelf": "keys",
+    "layers": 8,
+    "gain_db": -5.5
+   },
+   {
+    "id": "grand-full",
+    "name": {
+     "en": "Salamander Grand Piano · 16 layers",
+     "es": "Piano de cola Salamander · 16 capas"
+    },
+    "file": "SalamanderGrandPiano-V3+20200602.sfz",
+    "shelf": "keys",
+    "gain_db": -5.5
+   }
+  ]
+ }
  ]
 }

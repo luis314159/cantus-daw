@@ -381,33 +381,42 @@ pub(crate) fn typing_with(
     }
     let mut typed = ui.data(|d| d.get_temp::<Typed>(id))?;
     let r = pill.expand2(Vec2::new(6.0 * s.k, 2.0 * s.k));
-    with_brush(ui.painter(), |b| {
-        well::paint(b, r, s, State::LIT, None);
-    });
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r.shrink2(Vec2::new(4.0, 1.0))));
-    let edit = child.add(
-        egui::TextEdit::singleline(&mut typed.0)
-            .frame(egui::Frame::NONE)
-            .horizontal_align(egui::Align::Center)
-            .font(crate::design::role::Role::Value.font(s.tk()))
-            .desired_width(r.width() - 8.0),
-    );
-    edit.request_focus();
-    let enter = ui.input(|i| i.key_pressed(Key::Enter));
-    let leave = ui.input(|i| i.key_pressed(Key::Escape))
-        || (edit.lost_focus() && !enter)
-        || ui.input(|i| i.pointer.any_pressed()) && !edit.hovered() && !resp.secondary_clicked();
-    let out = if enter {
-        cantus_core::fx::readout::parse_readout(&typed.0, unit)
-    } else {
-        None
-    };
-    if enter || leave {
-        ui.data_mut(|d| d.remove::<Typed>(id));
-    } else {
-        ui.data_mut(|d| d.insert_temp(id, typed));
+    // The kit's field (round 26): the value selected as it opens; Enter or a click
+    // elsewhere sets what reads as a number, Esc leaves. Over the cell, whose face is
+    // painted after this (third review), at the editor's scale.
+    let mut event = None;
+    let mut edited = false;
+    egui::Area::new(id.with("area"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(r.min)
+        .show(ui.ctx(), |ui| {
+            let (r, _) = ui.allocate_exact_size(r.size(), Sense::hover());
+            let out = crate::kit::field::Field::new(id)
+                .role(crate::design::role::Role::Value)
+                .centered()
+                .scale(s.k)
+                .opens_when_shown()
+                .show(ui, r, &mut typed.0);
+            (event, edited) = (out.event, out.edited);
+        });
+    match event {
+        Some(crate::kit::field::Event::Commit) => {
+            ui.data_mut(|d| d.remove::<Typed>(id));
+            // The readout untouched sets nothing (it would round the value and end a
+            // host undo step).
+            edited
+                .then(|| cantus_core::fx::readout::parse_readout(&typed.0, unit))
+                .flatten()
+        }
+        Some(crate::kit::field::Event::Cancel) => {
+            ui.data_mut(|d| d.remove::<Typed>(id));
+            None
+        }
+        None => {
+            ui.data_mut(|d| d.insert_temp(id, typed));
+            None
+        }
     }
-    out
 }
 
 /// A cell bound to parameter `key` of the effect: a drag is one step of the host's undo.
@@ -746,27 +755,12 @@ pub fn text_field(
     width: f32,
 ) -> Response {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width * s.k, s.d(ROW)), Sense::hover());
-    let field = rect.shrink2(Vec2::new(s.s(7.0), s.s(3.0)));
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(field).id_salt(id));
-    let focused = child.memory(|m| m.has_focus(child.id().with("edit")));
-    with_brush(ui.painter(), |b| {
-        well::paint(b, rect, s, State::LIT.lit(focused), None)
-    });
-    let r = child.add(
-        egui::TextEdit::singleline(text)
-            .id(child.id().with("edit"))
-            .frame(egui::Frame::NONE)
-            .font(crate::design::role::Role::Body.font(s.tk()))
-            .desired_width(field.width()),
-    );
-    if text.is_empty() && !r.has_focus() {
-        with_brush(ui.painter(), |b| {
-            let t = Text::new(hint, Role::Placeholder, s.t.placeholder)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(ktext::Elide::End));
-            let _ = ktext::paint(b, field, &t, s.tk());
-        });
-    }
+    // The kit's field (round 26), standing: a click opens a session.
+    let r = crate::kit::field::Field::new(id)
+        .hint(hint)
+        .scale(s.k)
+        .show(ui, rect, text)
+        .resp;
     if r.hovered() {
         hint::set_text(
             ui.ctx(),
@@ -888,6 +882,166 @@ pub fn hover_in(ui: &Ui, rect: Rect) -> Option<Pos2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Final review, fields 2: a typed value opened and left untouched — Enter, or a click
+    /// elsewhere — sets nothing: no rounding to the readout, no host undo step.
+    #[test]
+    fn an_untouched_typed_value_sets_nothing() {
+        use egui::{Event, Modifiers, PointerButton};
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let s = Style::current();
+        let mut frame = 0u64;
+        let mut run = |events: Vec<Event>| {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(500.0, 400.0))),
+                time: Some(frame as f64 / 60.0),
+                events,
+                ..Default::default()
+            };
+            let mut got = None;
+            ctx.run_ui(input, |ui| {
+                let o = Cell::new(1_234.567, 20.0..=20_000.0, 1_000.0)
+                    .unit("Hz")
+                    .show(ui, &s);
+                got = Some((o.resp.rect, o.changed, o.done));
+            })
+            .textures_delta
+            .clear();
+            got.unwrap()
+        };
+        let click = |at, button, pressed| Event::PointerButton {
+            pos: at,
+            button,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        for close in ["enter", "away"] {
+            let at = run(Vec::new()).0.center();
+            run(vec![Event::PointerMoved(at)]);
+            for pressed in [true, false] {
+                run(vec![click(at, PointerButton::Secondary, pressed)]);
+            }
+            run(vec![Event::PointerGone]);
+            run(Vec::new());
+            assert!(crate::kit::field::active(&ctx), "{close}: the field opened");
+            let mut seen = Vec::new();
+            if close == "enter" {
+                seen.push(run(vec![Event::Key {
+                    key: Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                }]));
+            } else {
+                let away = Pos2::new(490.0, 390.0);
+                seen.push(run(vec![Event::PointerMoved(away)]));
+                for pressed in [true, false] {
+                    seen.push(run(vec![click(away, PointerButton::Primary, pressed)]));
+                }
+            }
+            seen.push(run(Vec::new()));
+            assert!(
+                !crate::kit::field::active(&ctx),
+                "{close}: the field closed"
+            );
+            for (_, changed, done) in seen {
+                assert_eq!(changed, None, "{close}: the untouched value was set");
+                assert!(!done, "{close}: an undo step was ended");
+            }
+        }
+    }
+
+    /// Third review (looking at the pictures): a typed value opens *over* its cell — the
+    /// cell's own face, painted after the field, hid it — with its words at the editor's
+    /// scale, and Enter sets what was typed.
+    #[test]
+    fn a_typed_value_opens_over_its_cell_at_the_editors_scale() {
+        use egui::{Event, Modifiers, PointerButton};
+        let mut rows = Vec::new();
+        for k in [1.0f32, 2.0] {
+            let ctx = egui::Context::default();
+            crate::design::install_fonts(&ctx);
+            crate::design::install_style(&ctx);
+            let s = Style::current().scaled(k);
+            let mut v = 125.0f32;
+            let mut frame = 0u64;
+            let mut run = |v: &mut f32, events: Vec<Event>| {
+                let mut cell = Rect::NOTHING;
+                frame += 1;
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(500.0, 400.0))),
+                    time: Some(frame as f64 / 60.0),
+                    events,
+                    ..Default::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    let o = Cell::new(*v, 0.0..=500.0, 0.0).unit("ms").show(ui, &s);
+                    cell = o.resp.rect;
+                    if let Some(x) = o.changed {
+                        *v = x;
+                    }
+                });
+                out.textures_delta.clear();
+                (out.shapes, cell)
+            };
+            let cell = run(&mut v, Vec::new()).1;
+            let at = cell.center();
+            run(&mut v, vec![Event::PointerMoved(at)]);
+            for pressed in [true, false] {
+                run(
+                    &mut v,
+                    vec![Event::PointerButton {
+                        pos: at,
+                        button: PointerButton::Secondary,
+                        pressed,
+                        modifiers: Modifiers::NONE,
+                    }],
+                );
+            }
+            run(&mut v, vec![Event::PointerGone]);
+            run(&mut v, Vec::new());
+            assert!(crate::kit::field::active(&ctx), "k {k}: the field opened");
+            run(&mut v, vec![Event::Text("80".into())]);
+            let shapes = run(&mut v, Vec::new()).0;
+            // The last words painted over the cell are the field's.
+            let last = shapes
+                .iter()
+                .rev()
+                .filter_map(|c| match &c.shape {
+                    egui::Shape::Text(t) => Some(t),
+                    _ => None,
+                })
+                .filter(|t| !t.galley.text().is_empty())
+                .find(|t| cell.intersects(t.galley.rect.translate(t.pos.to_vec2())))
+                .expect("words on the cell");
+            assert_eq!(
+                last.galley.text(),
+                "80",
+                "k {k}: the field is on top of its cell"
+            );
+            rows.push(last.galley.rect.height());
+            run(
+                &mut v,
+                vec![Event::Key {
+                    key: Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                }],
+            );
+            run(&mut v, Vec::new());
+            assert!((v - 80.0).abs() < 1e-4, "k {k}: Enter set {v}");
+        }
+        assert!(
+            (rows[1] / rows[0] - 2.0).abs() < 0.15,
+            "the words at the editor's scale: {rows:?}"
+        );
+    }
 
     #[test]
     fn the_readout_is_the_cores_to_the_letter() {

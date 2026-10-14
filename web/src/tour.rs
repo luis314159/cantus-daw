@@ -13,9 +13,24 @@ struct Crop {
     h: u32,
 }
 
-const ARRANGEMENT: Crop = Crop { x: 277, y: 92, w: 1340, h: 410 };
-const MIXER: Crop = Crop { x: 277, y: 515, w: 1340, h: 475 };
-const INSPECTOR: Crop = Crop { x: 1622, y: 96, w: 290, h: 700 };
+const ARRANGEMENT: Crop = Crop {
+    x: 277,
+    y: 92,
+    w: 1340,
+    h: 410,
+};
+const MIXER: Crop = Crop {
+    x: 277,
+    y: 515,
+    w: 1340,
+    h: 475,
+};
+const INSPECTOR: Crop = Crop {
+    x: 1622,
+    y: 96,
+    w: 290,
+    h: 700,
+};
 
 #[function_component(Tour)]
 pub fn tour() -> Html {

@@ -251,6 +251,7 @@ fn main() {
         Some("package") => package::package(&args[1..]),
         Some("asio-sdk") => asio_sdk::command(),
         Some("sign-file") => package::sign_file(&args[1..]),
+        Some("sums") => package::sums(&args[1..]),
         Some("sign-test-cert") => sign::make_test_cert(&target_dir()),
         Some("version") => println!("{}", package::VERSION),
         Some("perf") => perf::perf(&args[1..]),

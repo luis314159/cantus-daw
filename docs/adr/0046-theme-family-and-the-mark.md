@@ -186,3 +186,42 @@ colour cell, and its name ≥ 4.5:1. `tests/night_budget.rs` — the whole windo
 and without its gradients: no more allocations, the same draw calls, ≤ 6 000 more
 triangles (timing with `--ignored`). `theme::tests::the_default_theme_is_cantus_night`
 still pins the website's night and copper.
+
+## Amendment — round 26 (builder *mixer*, 2026-10-13): swatches in the base-theme menus
+
+The Look tab's two base-theme menus (the dark mode's and the light mode's) listed names
+only (`docs/round25/look.md`, "What is left"). Each row now carries its theme's preview
+swatch at its right — the same miniature the Themes tab's rows show
+(`appearance_look::paint_preview`), painted with that theme's own tokens (no literal
+colour), 40 × 16 pt — and the menu is as wide as its longest name plus the swatch, so no
+name runs under one. The shipped themes' tokens are the page's cached previews; a user
+theme's are worked out while the menu is open.
+
+**Selected text** (same round, the reviews' findings): a surface token,
+`surface.text_selection` (`Tok::TextSelect`, named *Text selection (in a field)* /
+*Selección de texto (en un campo)* in the theme editor, with the surfaces beside *Field
+(sunken)*): the fill behind selected text, every theme defining it — the selection's hue
+mixed into the field's well — with two promises held by the floor under every knob and by
+the pairings: the primary text on it at 4.5:1 or more (7:1 in the high-contrast pair),
+and the fill on the well at 1.3:1 or more (where no shade of the hue can keep both, the
+well moved away from the text). A theme file written before derives it. `theme::apply`
+gives egui's visuals the fill and the primary text as the selected glyphs' colour, from
+the tokens it installs (never read back from the process-wide slot another thread may be
+filling), so every text field reads in light and dark — egui's gold over a gold wash
+measured 2.4:1 on Paper. egui draws a focused field's own frame in the same stroke; so no
+view keeps egui's frame: the four that did (the layout's name, a track's and a clip's
+rename, a rack channel's) are the kit's field now — a lit well of ours under a frameless
+edit, as every other.
+
+**What the tests hold.** `tests/appearance_look.rs::every_theme_selects_text_legibly`
+(all twelve presets: text on the fill, the fill on the well, egui's visuals taking both;
+it could not compile without the token), `the_selection_fill_shows_under_every_knob`
+(every preset, five knobs at ±1 and ±½; seen failing: Cantus Night at Brightness −1,
+1.15:1), `apply_gives_egui_its_own_themes_selection` (2 000 applies against a thread
+applying another theme; seen failing 2 of 2 000; run 50 times clean),
+`every_text_field_is_the_kits_and_the_fill_is_named_as_one` (no `TextEdit` without
+`Frame::NONE` in the sources — seen failing on four —, the token in the surfaces, its name
+no other token's in either language); `tests/appearance_look.rs::the_base_theme_menus_carry_each_themes_swatch`
+— both menus, English and Spanish, 75 % and 200 %: a swatch for every base theme, none
+overlapping another, each holding its own theme's ink, toolbar and selection colours,
+no name under a swatch and none cut (seen failing: no swatches).

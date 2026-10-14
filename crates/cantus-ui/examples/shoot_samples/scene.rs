@@ -51,6 +51,8 @@ fn install_fake_starter(content: &Path) {
         licence_url: pack.licence_url.clone(),
         licence_file: pack.licence_file.clone(),
         credits: pack.credits.clone(),
+        attribution: pack.attribution.clone(),
+        instruments: vec![],
         installed_at: 0,
         files: 81,
         bytes: pack.installed_size,
@@ -193,18 +195,25 @@ pub fn shots(out: &Path, scale: f32) {
         app.samples.window.open = true;
         let path = out.join(format!("samples-content-{tn}.png"));
         let ctx = context(theme);
+        // Opened on the second frame: at a scale other than 100 % the first frame still
+        // has egui's provisional 5000-point screen, and the window would take its default
+        // place there, off the real one (round 26: these shots were blank at 75 %).
+        let mut frame = 0;
         shoot(
             &ctx,
             egui::vec2(900.0, 680.0),
             scale,
-            4,
+            6,
             Some(&path),
             |root| {
+                frame += 1;
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE.fill(cantus_ui::kit::Style::current().t.panel))
                     .show(root, |ui| {
-                        let ctx = ui.ctx().clone();
-                        views::samples_content::window(&mut app, &ctx);
+                        if frame > 1 {
+                            let ctx = ui.ctx().clone();
+                            views::samples_content::window(&mut app, &ctx);
+                        }
                     });
             },
         );

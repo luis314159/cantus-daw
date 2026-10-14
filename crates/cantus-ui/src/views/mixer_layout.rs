@@ -638,7 +638,12 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
             Drop::Off(r) => on.set(r, false),
             Drop::NameShort => name_short = rotated,
             Drop::FewerSends => w.send_rows = MIN_SEND_ROWS,
-            Drop::ShorterBand => w.band = BAND_MIN,
+            // The most of the band that fits, never less than its least (third review:
+            // a jump to the least made a fitting 40-pt band vanish behind a 64-pt wish).
+            Drop::ShorterBand => {
+                let short = need(on, name_short, w) - avail;
+                w.band = (w.band - short).floor().max(BAND_MIN);
+            }
         }
         dropped += 1;
     }
@@ -867,7 +872,25 @@ mod tests {
             0.38,
             wants,
         );
-        assert_eq!(span(&f, Row::Cables), BAND_MIN, "then the band");
+        // Then the band: by just what is missing (the most of it that fits, round 26).
+        assert_eq!(
+            span(&f, Row::Cables),
+            47.0,
+            "then the band, by the 1 pt short"
+        );
+        assert!(f.row(Row::Output).is_some());
+        let f = fit(
+            base - lost2 - 20.0,
+            WidthMode::Xl,
+            RowSet::default(),
+            0.38,
+            wants,
+        );
+        assert_eq!(
+            span(&f, Row::Cables),
+            28.0,
+            "then the band, by the 20 pt short"
+        );
         assert!(f.row(Row::Output).is_some());
         let lost3 = lost2 + (48.0 - BAND_MIN);
         let f = fit(

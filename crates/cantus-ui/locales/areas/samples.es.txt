@@ -19,6 +19,7 @@ samples.cancel = Cancelar
 samples.starter.title = Empieza con una batería
 samples.starter.body = {pack}: bombos, cajas, charles, toms, platillos, palmas — {mb} MB
 samples.starter.licence = CC0: tuyo para cualquier canción, gratis, sin tener que citar
+samples.starter.licence_by = {licence}: tuyo para cualquier canción, gratis; crédito a {author}
 samples.starter.download = Descargar
 samples.more_packs = Más paquetes…
 
@@ -47,6 +48,19 @@ samples.detail.credits = Hecho por
 samples.detail.licence_kept = La licencia se guarda junto a los sonidos, en {file}.
 samples.detail.actions = Paquete
 samples.licence.cc0 = dominio público, libre para cualquier uso
+samples.licence.cc_by = libre para cualquier uso, con crédito al autor
+
+# La página de un paquete CC BY (ADR 0042 §3-4): su crédito y lo que la licencia significa, en claro.
+samples.detail.credit = Crédito
+samples.credit.line = «{title}», de {author} ({url}), con licencia {licence} ({licence_url})
+samples.credit.line_cc0 = «{title}», de {author} ({url}), obra dedicada al dominio público con {licence} ({licence_url})
+samples.credit.licensor = {line} — licencia: {licence}, {licence_url}
+samples.cc0.courtesy = CC0 no pide crédito; al autor le gustaría este, y Cantus lo da con gusto.
+samples.ccby.plain = Este paquete está bajo {licence}: úsalo en cualquier música, comercial o no, y cambia los sonidos a tu gusto. Su única condición es dar crédito al autor, y Cantus lo da aquí, en Ayuda > Acerca de Cantus y en la carpeta del paquete. La música que hagas con él es tuya.
+samples.ccby.track = Si una canción publicada debe acreditar las muestras es cosa tuya juzgarlo.
+samples.ccby.author_says = En palabras del autor: «{note}»
+samples.ccby.usually = La mayoría de las bibliotecas como esta dicen que no hace falta; el archivo de licencia del paquete tiene los términos exactos.
+samples.ccby.kept = Instalado con este crédito: se guarda en el recibo del paquete, junto a la licencia ({file}).
 samples.install = Instalar
 samples.update = Actualizar
 samples.reinstall = Instalar de nuevo
@@ -64,3 +78,29 @@ samples.cat.fx = Efectos y foley
 
 # Historial de deshacer.
 cmd.samples_add_channel = Añadir un canal de muestra
+
+# Los instrumentos de un paquete en el selector de instrumentos (ronda 26).
+samples.sound.what = Instrumento muestreado · Exemplar
+samples.sound.pack = Paquete
+samples.sound.added = {name} está listo: {n} zonas en Exemplar
+samples.sound.failed = No se pudo cargar {name}: {why}
+samples.sound.offered = Suena en Exemplar: una vez instalado, el selector de instrumentos ofrece {names}.
+samples.sound.ready = En el selector de instrumentos: {names}.
+samples.sound.new_track = Pista nueva con {name}
+
+# Un proyecto al que le falta un paquete de sonidos (ronda 26).
+samples.missing.title = Paquete de sonidos no instalado
+samples.missing.title_elsewhere = Paquete de sonidos en otro lugar
+samples.missing.track = «{name}»
+samples.missing.body = «{pack}» no está instalado en este equipo, así que estas pistas no suenan hasta que lo esté: {tracks}. El resto del proyecto suena con normalidad.
+samples.missing.elsewhere = «{pack}» está instalado aquí, pero estas pistas apuntan a otra copia (¿de otro equipo?): {tracks}.
+samples.missing.install = Instalar en Paquetes de sonidos…
+samples.missing.relink = Usar el paquete instalado
+samples.missing.not_now = Ahora no
+samples.missing.title_incomplete = Paquete de sonidos incompleto
+samples.missing.incomplete = «{pack}» está instalado, pero le faltan archivos que tocan estas pistas (borrados, o su carpeta movida o renombrada): {tracks}.
+samples.missing.reinstall = Volver a instalar en Paquetes de sonidos…
+samples.missing.locate = Buscar la carpeta…
+samples.missing.not_there = Esa carpeta no tiene los archivos que faltan del paquete
+cmd.samples_relink = Usar el paquete de sonidos instalado
+samples.sound.preset_layers = {name} · {n} capas

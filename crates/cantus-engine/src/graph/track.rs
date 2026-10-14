@@ -305,6 +305,18 @@ fn track_segment(
                         on: ctx.split_voices,
                     };
                     let sig = u.unit.process_par(l, r, &par);
+                    let late = u.unit.take_late_reads();
+                    if late > 0 {
+                        nodes.stream_late.fetch_add(late as u64, Relaxed);
+                    }
+                    let cut = u.unit.take_cut_notes();
+                    if cut > 0 {
+                        nodes.stream_cut.fetch_add(cut as u64, Relaxed);
+                    }
+                    let wakes = u.unit.take_stream_wakes();
+                    if wakes > 0 {
+                        nodes.stream_wakes.fetch_add(wakes as u64, Relaxed);
+                    }
                     if ctx.probed.is_some() && ctx.probed == id {
                         match nodes.probe.try_borrow_mut() {
                             Some(mut p) => *p = Some(u.unit.telemetry()),

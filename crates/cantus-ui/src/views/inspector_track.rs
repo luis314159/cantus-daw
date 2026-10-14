@@ -326,13 +326,16 @@ fn bbt(app: &CantusApp, t: cantus_core::Ticks, length: bool, b: &mut String) {
     let _ = write!(b, "{}.{}.{}", bar - o, beat - o, sixteenth + 1 - o);
 }
 
-/// A clip: its name, where it sits, how long it is, whether it loops or is muted.
+/// A clip: its name (editable), its link group, where it sits, how long it is, whether it
+/// loops or is muted.
 pub fn clip(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     let Some(clip) = app.project().track(t).and_then(|x| x.clip(c)) else {
         return;
     };
     sh.band("inspector.ctx.clip", Function::Source, None, false, None);
-    sh.text_row("track.name", &clip.name, false, false);
+    // The name is the group's for a linked clip, and the link row says so (round 26).
+    link::name_row(sh, app, t, c, clip);
+    link::link_row(sh, app, t, c, clip);
     let rev = app.bus.revision();
     let start = sheet::name(sh.fmt.get(cache::key(("insp-clip-start", c)), rev, |b| {
         bbt(app, clip.start, false, b)
@@ -460,3 +463,7 @@ pub fn notes(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     ));
     sh.text_row("inspector.pitch", &range, false, false);
 }
+
+#[path = "inspector_clip_link.rs"]
+mod link;
+pub use link::{apply_link, LinkAct};

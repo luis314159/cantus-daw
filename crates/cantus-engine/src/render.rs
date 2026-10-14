@@ -20,6 +20,10 @@ pub enum RenderError {
     Wav(#[from] hound::Error),
     #[error("the render was cancelled")]
     Cancelled,
+    /// A streamed sample could not be read (second review #15): the bounce would be cut
+    /// short where it could not, so there is none.
+    #[error("a sample could not be read: {0}")]
+    Unreadable(String),
 }
 
 /// A render's progress, for a dialog that shows it and may stop it
@@ -95,6 +99,9 @@ pub struct Rendered {
     /// Interleaved samples.
     pub samples: Vec<f32>,
     pub peak: f32,
+    /// Notes that played only the start of a streamed sample (read faster than streaming
+    /// serves — third review #9): the export says so.
+    pub cut_notes: u64,
 }
 
 impl Rendered {
@@ -166,6 +173,10 @@ pub fn render_with_progress(
 
     let effect_count: usize = snap.effect_slots().count();
     let mut instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    // Offline, a voice streaming from disk waits for its blocks (ADR 0050 §6).
+    for u in &mut instruments {
+        u.unit.set_offline(true);
+    }
     instruments.extend(hosted.into_iter().map(Box::new));
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
@@ -268,6 +279,11 @@ pub fn render_with_progress(
         while rx.pop().is_ok() {}
     }
 
+    // A streamed voice that could not be read offline (its file and its source unreadable,
+    // or a disk too slow for the pool's patience) ended early: no silent difference.
+    if p.stats().stream_late > 0 {
+        return Err(RenderError::Unreadable(unreadable_in(&snapshot)));
+    }
     let mut peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
     if let Some(db) = opts.normalize_peak_db {
         if peak > 0.0 {
@@ -282,7 +298,26 @@ pub fn render_with_progress(
         channels: opts.channels,
         samples: out,
         peak,
+        cut_notes: p.stats().stream_cut,
     })
+}
+
+/// The files of `snapshot`'s failed streams, by name (or why none is named).
+pub(crate) fn unreadable_in(snapshot: &Snapshot) -> String {
+    let mut names: Vec<String> = snapshot
+        .tracks
+        .iter()
+        .flat_map(|t| t.assets.iter())
+        .filter_map(|(_, a)| crate::inst::stream::failed_source(a.as_deref()?))
+        .map(|p| p.display().to_string())
+        .collect();
+    names.sort();
+    names.dedup();
+    if names.is_empty() {
+        "a streamed sample was not read in time".into()
+    } else {
+        names.join(", ")
+    }
 }
 
 /// Render straight to a 32-bit float WAV file.

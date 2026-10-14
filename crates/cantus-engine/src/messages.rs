@@ -227,6 +227,16 @@ pub struct EngineStats {
     pub blocks_processed: u64,
     /// Recorder samples dropped because the capture ring was full.
     pub capture_overruns: u64,
+    /// Streamed voices that ended early because their sample's next block was not read
+    /// from disk in time (ADR 0050 §5): each faded out over 5 ms.
+    pub stream_late: u64,
+    /// Notes that played only the start of a streamed sample, read faster than streaming
+    /// serves (third review #9): decided at the note's start, the same offline.
+    pub stream_cut: u64,
+    /// Times streamed voices woke the stream reader: a non-blocking system call on the
+    /// audio thread (`WakeByAddressSingle`, a futex wake, `semaphore_signal`), only when the
+    /// reader is needed sooner than its next look (ADR 0050 §4, fourth review #1).
+    pub stream_wakes: u64,
     /// Delay compensation: how far the output lags the engine's position, in samples —
     /// the latency of the slowest path to the master. The position the engine reports as
     /// heard (`EngineEvent::Position::heard`), the click and recorded notes all allow for

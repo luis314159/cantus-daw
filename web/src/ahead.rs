@@ -34,22 +34,22 @@ pub fn ahead() -> Html {
                 <div class="road">
                     { col(l.t("Works today", "Funciona hoy"), vec![
                         l.t("Record, sequence, mix and export a whole song", "Grabar, secuenciar, mezclar y exportar una canción completa"),
-                        l.t("Eight instruments and ten effects of its own", "Ocho instrumentos y diez efectos propios"),
+                        l.t("Nine instruments and twelve effects of its own", "Nueve instrumentos y doce efectos propios"),
                         l.t("A multicore live engine; WASAPI and ASIO", "Un motor en vivo multinúcleo; WASAPI y ASIO"),
-                        l.t("Hosts CLAP and VST3 plug-ins", "Aloja plug-ins CLAP y VST3"),
-                        l.t("Export to WAV, FLAC, MP3 and Ogg", "Exportar a WAV, FLAC, MP3 y Ogg"),
+                        l.t("Hosts CLAP and VST3 plug-ins; exports WAV, FLAC, MP3 and Ogg", "Aloja plug-ins CLAP y VST3; exporta WAV, FLAC, MP3 y Ogg"),
+                        l.t("Cables between mixer channels, linked clips, copy and paste", "Cables entre canales del mezclador, clips enlazados, copiar y pegar"),
                     ]) }
                     { col(l.t("Next: making the beta solid", "Siguiente: dejar sólida la beta"), vec![
-                        l.t("More audio interfaces tried in duplex, and a two-hour soak", "Más interfaces de audio probadas en dúplex, y una prueba de dos horas"),
-                        l.t("Copy and paste in the piano roll and the arrangement", "Copiar y pegar en el piano roll y el arreglo"),
-                        l.t("Clips that stay linked until you make them unique", "Clips que siguen enlazados hasta que los haces únicos"),
+                        l.t("More audio interfaces tried in duplex, ten minutes live without a dropout", "Más interfaces de audio probadas en dúplex, diez minutos en vivo sin un corte"),
                         l.t("The installer, checked on clean machines", "El instalador, comprobado en máquinas limpias"),
-                        l.t("A new default look: white with blue, and a dark twin", "Un nuevo aspecto por defecto: blanco con azul, y su gemelo oscuro"),
+                        l.t("Signed downloads, so you know the file is ours", "Descargas firmadas, para saber que el archivo es nuestro"),
+                        l.t("Whole songs made with it, and every rough edge they find smoothed", "Canciones completas hechas con él, y cada aspereza que encuentren, pulida"),
+                        l.t("The source code and the releases public", "El código fuente y las versiones, públicos"),
                     ]) }
                     { col(l.t("Later", "Después"), vec![
-                        l.t("A mixer with cables between channels", "Un mezclador con cables entre canales"),
-                        l.t("More speed from splitting a single instrument's voices across cores", "Más velocidad al repartir las voces de un solo instrumento entre núcleos"),
+                        l.t("Audio that follows the tempo: time-stretch and warping", "Audio que sigue el tempo: estiramiento de tiempo y warping"),
                         l.t("Pitch and time editing of recordings, and a real-time auto-tuner", "Edición de afinación y tiempo de grabaciones, y un afinador automático en tiempo real"),
+                        l.t("macOS and Linux builds to download", "Versiones para macOS y Linux listas para descargar"),
                         l.t("Sound packs and stand-alone plug-ins on cantusdaw.studio", "Paquetes de sonidos y plug-ins independientes en cantusdaw.studio"),
                         l.t("Assistants that can operate the DAW, with your permission", "Asistentes que puedan operar el DAW, con tu permiso"),
                     ]) }

@@ -46,14 +46,11 @@ use std::fmt::Write as _;
 /// A port's centre under the band's top edge, and its radius, at 100 %.
 const PORT_Y: f32 = 6.0;
 const PORT_R: f32 = 3.5;
-/// The size of a port's hit area.
-const PORT_HIT: egui::Vec2 = vec2(14.0, 14.0);
+use super::lanes;
 /// A pill's height: a cable hangs no lower than half of it above the band's foot.
 const PILL_H: f32 = 13.0;
 /// An edge chip's size.
 const CHIP: egui::Vec2 = vec2(30.0, 13.0);
-/// How near the pointer must come for a cable to be hovered.
-const HIT: f32 = 4.0;
 
 /// One cable as the band drew it this frame (`MixerView::cables` shows them to tests).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -64,8 +61,18 @@ pub struct Drawn {
     pub to: Pos2,
     pub depth: f32,
     pub lit: bool,
+    /// Whether it takes a lane: lit by the selection (or a selected cable), not by the
+    /// hover — lanes never move under an approaching pointer (round 26, ADR 0043 §2).
+    pub laned: bool,
     /// The source's and the destination's end is an edge chip.
     pub chips: [bool; 2],
+    /// Its end mark shows, and where (`mixer_lanes`: never over another's glyph).
+    pub mark: bool,
+    pub mark_at: Pos2,
+    /// Lit by the hover, it found no depth of its own and yielded (`mixer_lanes`).
+    pub yielded: bool,
+    /// Lit by the hover, it hangs where the separations allow but could not nest.
+    pub relaxed: bool,
     /// Its index in the desk's edges.
     pub edge: u32,
 }
@@ -84,9 +91,8 @@ pub(crate) struct Band {
     pub keys_pass: u64,
     /// Where pills went this frame, so none overlaps another.
     pills: Vec<Rect>,
-    /// Scratch for the lit cables' lanes: their order by span, and each one's lane.
-    order: Vec<u32>,
-    lane: Vec<u8>,
+    /// Scratch for the cables' depths, marks and grab areas (`mixer_lanes`).
+    pub(super) scratch: lanes::Scratch,
 }
 
 impl Band {
@@ -177,7 +183,7 @@ pub(super) fn band(
     }
     let s = pass.s;
     let area =
-        Rect::from_min_max(pos2(geo.left.left(), a), pos2(geo.rows.right(), z)).intersect(geo.rows);
+        Rect::from_min_max(pos2(geo.left.left(), a), pos2(geo.inner_right, z)).intersect(geo.rows);
     if area.height() <= 1.0 {
         return;
     }
@@ -203,35 +209,31 @@ pub(super) fn band(
             v.band.selected = None;
         }
     }
-    lanes(&mut v.band, room);
+    // Where they hang, where their marks sit and where each is grabbed (`mixer_lanes`).
+    let chosen = v
+        .band
+        .selected
+        .and_then(|r| v.band.drawn.iter().position(|d| d.route == r));
+    port_centers(v, geo, &ports, port_y);
+    lanes::place(&mut v.band.drawn, &mut v.band.scratch, room, chosen);
 
-    // The cable under the pointer: the nearest within reach, lit ones first.
+    // The cable under the pointer: the nearest, a layer above winning a near-tie only.
+    // It is painted lit (and shows its pill) while it is pointed at.
     let in_band = pointer.filter(|p| area.contains(*p) && !dragging);
-    let hot = in_band.and_then(|p| {
-        let mut best: Option<(usize, f32)> = None;
-        for (k, d) in v.band.drawn.iter().enumerate() {
-            let dist = cable::hit(d.from, d.to, d.depth, p) - if d.lit { 1.0 } else { 0.0 };
-            if dist < HIT && best.is_none_or(|(_, b)| dist < b) {
-                best = Some((k, dist));
-            }
-        }
-        best.map(|(k, _)| k)
-    });
-    if let Some(k) = hot {
-        v.band.drawn[k].lit = true;
-    }
+    let hot = in_band.and_then(|p| lanes::hot(&v.band.drawn, p));
     // The band itself first, so the ports, pills, ends and chips sensed after it are on
     // top of it.
     let band = ui.interact(area, egui::Id::new("mixer-cable-band"), Sense::click());
 
-    // Faint cables under lit ones.
-    for lit in [false, true] {
+    // Faint cables under the hover's, the selection's on top of all.
+    for layer in 0..3 {
         for k in 0..v.band.drawn.len() {
             let d = v.band.drawn[k];
-            if d.lit != lit {
+            if lanes::layer(&d) != layer {
                 continue;
             }
-            let look = look_of(v, s, &d);
+            let mut look = look_of(v, s, &d);
+            look.lit |= hot == Some(k);
             cable::paint(b, s, d.from, d.to, d.depth, &look);
         }
     }
@@ -347,60 +349,14 @@ fn collect(
             to,
             depth: cable::depth_for(from, to, room) * depth_share(&e.kind),
             lit,
+            laned: touches || chosen,
             chips: [!fshow, !tshow],
+            mark: false,
+            mark_at: Pos2::ZERO,
+            yielded: false,
+            relaxed: false,
             edge: i as u32,
         });
-    }
-}
-
-/// The lit cables' depths: a lane each, so no two lit cables share a flat run (in a
-/// 32-pt band every long cable would otherwise hang at the cap, on top of the others).
-/// Shortest first, a cable takes the lane under every lit cable its span overlaps, so a
-/// cable nested in another hangs above it (nested cables never cross, `kit::cable`) and
-/// an output and a send between the same strips are two lines; the lanes then share the
-/// band's depth. A lone lit cable keeps the depth its span asks for. Faint cables keep
-/// theirs. Nothing allocates once the scratch lists have grown.
-fn lanes(band: &mut Band, room: f32) {
-    band.order.clear();
-    band.order.extend(
-        band.drawn
-            .iter()
-            .enumerate()
-            .filter(|(_, d)| d.lit)
-            .map(|(i, _)| i as u32),
-    );
-    if band.order.len() < 2 {
-        return;
-    }
-    let span = |d: &Drawn| (d.to.x - d.from.x).abs();
-    let drawn = &band.drawn;
-    band.order
-        .sort_unstable_by(|a, b| span(&drawn[*a as usize]).total_cmp(&span(&drawn[*b as usize])));
-    band.lane.clear();
-    band.lane.resize(band.drawn.len(), 0);
-    let mut most = 1u8;
-    for k in 0..band.order.len() {
-        let d = band.drawn[band.order[k] as usize];
-        let (lo, hi) = (d.from.x.min(d.to.x), d.from.x.max(d.to.x));
-        let mut lane = 1u8;
-        for j in 0..k {
-            let o = band.drawn[band.order[j] as usize];
-            let (olo, ohi) = (o.from.x.min(o.to.x), o.from.x.max(o.to.x));
-            if olo < hi - 0.5 && ohi > lo + 0.5 {
-                lane = lane.max(band.lane[band.order[j] as usize].saturating_add(1));
-            }
-        }
-        band.lane[band.order[k] as usize] = lane;
-        most = most.max(lane);
-    }
-    if most < 2 {
-        return;
-    }
-    let floor = cable::MIN_DEPTH.min(room);
-    for &i in &band.order {
-        let lane = band.lane[i as usize];
-        band.drawn[i as usize].depth =
-            floor + (room - floor) * f32::from(lane - 1) / f32::from(most - 1);
     }
 }
 
@@ -435,6 +391,8 @@ fn look_of(v: &MixerView, s: &Style, d: &Drawn) -> CableLook {
         lit: d.lit,
         selected: v.band.selected == Some(d.route),
         doubled: d.lit && v.desk.doubled.get(i).copied().unwrap_or(false),
+        mark: d.mark.then_some(d.mark_at),
+        related: d.yielded,
     }
 }
 
@@ -545,7 +503,8 @@ fn pills(
             continue;
         };
         let chosen = v.band.selected == Some(d.route);
-        if !d.lit || !(!compact || hot == Some(k) || chosen) {
+        let lit = d.lit || hot == Some(k);
+        if !lit || !(!compact || hot == Some(k) || chosen) {
             continue;
         }
         let path = cable::path(d.from, d.to, d.depth);
@@ -717,6 +676,37 @@ fn port_row(
     }
 }
 
+/// Every port's centre this frame, into the placement's scratch (no grab area lies on
+/// one): the master's and each strip's that shows.
+fn port_centers(v: &mut MixerView, geo: &Geo, ports: &Ports, port_y: f32) {
+    let out = &mut v.band.scratch.ports;
+    out.clear();
+    out.push(pos2(ports.master, port_y));
+    for (dock, origin) in [
+        (Dock::Left, ports.left),
+        (Dock::Middle, ports.middle),
+        (Dock::Right, ports.right),
+    ] {
+        let items = match dock {
+            Dock::Left => &v.desk.left,
+            Dock::Middle => &v.desk.middle,
+            Dock::Right => &v.desk.right,
+        };
+        let mut x = origin;
+        for item in items {
+            let w = super::desk::item_width(item, geo.pitch);
+            let c = pos2(x + (w - 1.0) * 0.5, port_y);
+            x += w;
+            if dock == Dock::Middle && (c.x < ports.shown.0 || c.x > ports.shown.1) {
+                continue;
+            }
+            if matches!(item, super::desk::Item::Strip(..)) {
+                out.push(c);
+            }
+        }
+    }
+}
+
 /// One port: a ring in the strip's colour, filled when the strip goes somewhere other
 /// than the master; larger while a drag is on or the strip is chosen. A press starts a
 /// cable (`mixer_drag`). The master's ring is a destination only.
@@ -734,7 +724,7 @@ fn port(
     let s = pass.s;
     let t = &s.t;
     let resp = strip.and_then(|(id, _)| {
-        let r = Rect::from_center_size(c, PORT_HIT);
+        let r = lanes::port_rect(c);
         sense(
             ui,
             pass,
@@ -783,55 +773,47 @@ fn port(
 /// from — the one way a key moves (a key belongs to its insert).
 fn ends(v: &mut MixerView, app: &mut CantusApp, ui: &Ui, b: &mut Brush, pass: &Pass) {
     let s = pass.s;
-    for k in 0..v.band.drawn.len() {
-        let d = v.band.drawn[k];
-        if !d.lit {
-            continue;
+    // Every grab area `mixer_lanes` gave: each lit cable's shown end mark, and the
+    // selected cable's tail — each its own, never over a port (the selected cable's
+    // excepted) or another's.
+    for n in 0..v.band.scratch.sensors.len() {
+        let (i, tail, r) = v.band.scratch.sensors[n];
+        let d = v.band.drawn[i as usize];
+        if tail {
+            let at = r.center();
+            let look = look_of(v, s, &d);
+            b.dot(at, s.s(2.4), cable::ink(s, &look));
+            end_sensor(v, app, ui, pass, &d, End::Source, r);
+        } else {
+            end_sensor(v, app, ui, pass, &d, End::Destination, r);
         }
-        let path = cable::path(d.from, d.to, d.depth);
-        let chosen = v.band.selected == Some(d.route);
-        for (end, at, chip) in [
-            (End::Destination, path.mark, d.chips[1]),
-            (End::Source, path.tail, d.chips[0]),
-        ] {
-            if chip || (end == End::Source && !chosen) {
-                continue;
-            }
-            if end == End::Source {
-                let look = look_of(v, s, &d);
-                b.dot(at, s.s(2.4), cable::ink(s, &look));
-            }
-            let mut r = Rect::from_center_size(at, vec2(10.0, 10.0));
-            // Never over the port beside it: a press on a port always starts a new cable
-            // (and a click on it arms one), even where a lit cable ends.
-            let port_at = if end == End::Destination {
-                d.to
-            } else {
-                d.from
-            };
-            let port = Rect::from_center_size(port_at, PORT_HIT);
-            if r.intersects(port) {
-                // Just under the port instead, where the cable leaves it: still there to
-                // grab whatever lane the cable takes.
-                r = Rect::from_min_size(pos2(r.left(), port.max.y), vec2(r.width(), 8.0));
-            }
-            let id = egui::Id::new(("mixer-cable-end", d.edge, end == End::Source));
-            if let Some(resp) = sense(ui, pass, r, id, Sense::drag()) {
-                drag::source(
-                    v,
-                    app,
-                    ui,
-                    &resp,
-                    Source::End {
-                        route: d.route,
-                        end,
-                    },
-                );
-                if resp.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                    hint::set_text(ui.ctx(), &v.words.cable, "", Caps::NONE);
-                }
-            }
+    }
+}
+
+fn end_sensor(
+    v: &mut MixerView,
+    app: &mut CantusApp,
+    ui: &Ui,
+    pass: &Pass,
+    d: &Drawn,
+    end: End,
+    r: Rect,
+) {
+    let id = egui::Id::new(("mixer-cable-end", d.edge, end == End::Source));
+    if let Some(resp) = sense(ui, pass, r, id, Sense::drag()) {
+        drag::source(
+            v,
+            app,
+            ui,
+            &resp,
+            Source::End {
+                route: d.route,
+                end,
+            },
+        );
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            hint::set_text(ui.ctx(), &v.words.cable, "", Caps::NONE);
         }
     }
 }
@@ -879,7 +861,12 @@ fn interact(
             i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace),
         )
     });
-    if esc {
+    // Esc lets the cable go only when nothing above the band took it: a field being
+    // typed in, or a route menu (the right-click that selected the cable opened it).
+    let taken = ctx.egui_wants_keyboard_input()
+        || crate::kit::field::active(&ctx)
+        || crate::views::route_menu::is_open(&ctx, route_owner());
+    if esc && !taken {
         v.band.selected = None;
     } else if del
         && !ctx.egui_wants_keyboard_input()
@@ -1005,79 +992,3 @@ const BAND_TOKENS: &[Tok] = &[
     Tok::Danger,
     Tok::Selection,
 ];
-
-#[cfg(test)]
-mod tests {
-    //! The band's geometry without a frame: the lanes of lit cables (integration finding
-    //! 25).
-    use super::*;
-
-    fn cable(i: u32, from: f32, to: f32, lit: bool) -> Drawn {
-        Drawn {
-            route: Route::send(StripId(100 + i as u64), StripId(200 + i as u64)),
-            from: pos2(from, 6.0),
-            to: pos2(to, 6.0),
-            depth: cable::depth_for(pos2(from, 6.0), pos2(to, 6.0), 30.0),
-            lit,
-            chips: [false, false],
-            edge: i,
-        }
-    }
-
-    /// Two lit cables whose spans overlap never hang at one depth (they would share a
-    /// flat run and read as one line), in any order and nesting; a cable nested in another
-    /// hangs above it; faint cables keep the depth their span asks for.
-    #[test]
-    fn no_two_lit_cables_share_a_flat_run() {
-        let spans: [(f32, f32); 7] = [
-            (10.0, 400.0),
-            (40.0, 120.0),
-            (60.0, 300.0),
-            (400.0, 10.0),
-            (500.0, 900.0),
-            (100.0, 140.0),
-            (120.0, 600.0),
-        ];
-        for rot in 0..spans.len() {
-            let mut band = Band::default();
-            for k in 0..spans.len() {
-                let (a, z) = spans[(k + rot) % spans.len()];
-                band.drawn.push(cable(k as u32, a, z, true));
-            }
-            let faint = cable(99, 20.0, 700.0, false);
-            band.drawn.push(faint);
-            lanes(&mut band, 30.0);
-            let d = &band.drawn;
-            for i in 0..d.len() {
-                for j in i + 1..d.len() {
-                    if !(d[i].lit && d[j].lit) {
-                        continue;
-                    }
-                    let (alo, ahi) = (d[i].from.x.min(d[i].to.x), d[i].from.x.max(d[i].to.x));
-                    let (blo, bhi) = (d[j].from.x.min(d[j].to.x), d[j].from.x.max(d[j].to.x));
-                    if alo < bhi - 0.5 && ahi > blo + 0.5 {
-                        assert!(
-                            (d[i].depth - d[j].depth).abs() > 0.5,
-                            "rot {rot}: {:?} and {:?} share a flat run at {}",
-                            (alo, ahi),
-                            (blo, bhi),
-                            d[i].depth
-                        );
-                        // Nested: the inner one hangs above (less deep).
-                        if alo >= blo && ahi <= bhi {
-                            assert!(d[i].depth < d[j].depth, "rot {rot}: nested below");
-                        } else if blo >= alo && bhi <= ahi {
-                            assert!(d[j].depth < d[i].depth, "rot {rot}: nested below");
-                        }
-                    }
-                }
-            }
-            let f = band.drawn.last().unwrap();
-            assert_eq!(f.depth, faint.depth, "a faint cable keeps its depth");
-            assert!(
-                band.drawn.iter().all(|d| d.depth <= 30.0 + 1e-3),
-                "in the band"
-            );
-        }
-    }
-}

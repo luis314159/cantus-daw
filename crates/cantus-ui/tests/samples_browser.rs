@@ -61,6 +61,8 @@ fn fixture() -> Fixture {
         licence_url: "https://creativecommons.org/publicdomain/zero/1.0/legalcode".into(),
         licence_file: "LICENSE".into(),
         credits: vec![],
+        attribution: None,
+        instruments: vec![],
         installed_at: 0,
         files: 4,
         bytes: 0,
@@ -376,6 +378,8 @@ fn the_starter_offer_installs_the_recommended_pack_in_one_click() {
             entry(&src, "Kicks/Kick.wav"),
             entry(&licence, "LICENSE"),
         ]),
+        attribution: None,
+        instruments: vec![],
     };
     let mut a = browser_app(
         &f,
@@ -430,5 +434,184 @@ fn the_content_window_shows_every_pack_with_its_licence() {
     assert!(
         text.contains("Virtuosity Drums"),
         "the credits are shown: {text}"
+    );
+}
+
+/// The content manifest with CC BY packs that `cantus-content`'s tests use (ADR 0042).
+const CC_BY_FIXTURE: &str = include_str!("../../cantus-content/tests/fixtures/manifest-cc-by.json");
+
+fn cc_by_manifest() -> Manifest {
+    Manifest::parse(CC_BY_FIXTURE).expect("the fixture manifest")
+}
+
+/// The Sound packs window with `id` selected, painted for a few frames.
+fn content_window_text(a: &mut CantusApp, id: &str) -> String {
+    a.samples.window.open = true;
+    a.samples.window.selected = Some(id.into());
+    let ctx = ctx();
+    paint(&ctx, SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(a, &ctx);
+    })
+}
+
+/// Write `pack`'s receipt into the content folder, as an install leaves it.
+fn install_receipt(content: &Path, pack: &Pack) {
+    let dir = content.join(&pack.id);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(&pack.licence_file), "CC BY").unwrap();
+    let r = Receipt {
+        id: pack.id.clone(),
+        version: pack.version,
+        name: pack.name.clone(),
+        licence: pack.licence.clone(),
+        licence_url: pack.licence_url.clone(),
+        licence_file: pack.licence_file.clone(),
+        credits: pack.credits.clone(),
+        attribution: pack.attribution.clone(),
+        instruments: vec![],
+        installed_at: 0,
+        files: 1,
+        bytes: 1,
+    };
+    std::fs::write(
+        dir.join(cantus_content::install::RECEIPT),
+        serde_json::to_string(&r).unwrap(),
+    )
+    .unwrap();
+}
+
+/// ADR 0042 §3–4: a CC BY pack's page shows its credit line before and after the
+/// download, and says plainly what the licence means — the pack is CC BY, music made with
+/// it is the user's, crediting a published track is the user's to judge — quoting the
+/// author's own words when the manifest has them.
+#[test]
+fn a_cc_by_pack_shows_its_credit_and_the_plain_words_before_and_after_download() {
+    let m = cc_by_manifest();
+    let piano = m.pack("fixture-grand-piano").unwrap().clone();
+    // The composed credit in the reader's language (the receipt and the notices keep
+    // the English one).
+    let composed = |locale| {
+        match locale {
+        cantus_ui::i18n::Locale::Es => "«Fixture Grand Piano V3», de Alex Example (https://example.org/piano), con licencia CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/legalcode)".to_string(),
+        _ => piano.credit_line().unwrap(),
+    }
+    };
+    // What the receipt kept differs from today's manifest, so the page shows which.
+    let mut installed = piano.clone();
+    installed.attribution.as_mut().unwrap().line =
+        "Installed credit: Fixture Grand Piano V3, Alex Example".into();
+    for (locale, words) in [
+        (
+            cantus_ui::i18n::Locale::En,
+            [
+                "free for any use, with credit to the author",
+                "The music you make with it is yours",
+                "yours to judge",
+                "In the author's words",
+            ],
+        ),
+        (
+            cantus_ui::i18n::Locale::Es,
+            [
+                "libre para cualquier uso, con crédito al autor",
+                "La música que hagas con él es tuya",
+                "es cosa tuya juzgarlo",
+                "En palabras del autor",
+            ],
+        ),
+    ] {
+        cantus_ui::i18n::set_locale(locale);
+        let f = fixture();
+        let mut a = browser_app(&f, m.clone());
+        let before = content_window_text(&mut a, &piano.id);
+        let line = composed(locale);
+        assert!(before.contains(&line), "{locale:?} before: {before}");
+        if locale == cantus_ui::i18n::Locale::Es {
+            assert!(
+                !before.contains("licensed under"),
+                "no English in Spanish: {before}"
+            );
+        }
+        assert!(before.contains("CC BY 3.0"), "{before}");
+        assert!(
+            before.contains(&piano.attribution.as_ref().unwrap().note),
+            "{before}"
+        );
+        for w in words {
+            assert!(before.contains(w), "{locale:?}: {w:?} not in {before}");
+        }
+        // Installed: the credit the receipt keeps, said to be kept.
+        install_receipt(&f.content, &installed);
+        let mut a = browser_app(&f, m.clone());
+        let after = content_window_text(&mut a, &piano.id);
+        assert!(
+            after.contains("Installed credit: Fixture Grand Piano V3, Alex Example"),
+            "{locale:?}: the receipt's credit once installed: {after}"
+        );
+        assert!(!after.contains(&line), "not the manifest's: {after}");
+        assert!(!before.contains("Installed credit"), "{before}");
+        let kept = match locale {
+            cantus_ui::i18n::Locale::Es => "se guarda en el recibo del paquete",
+            _ => "kept in the pack's receipt",
+        };
+        assert!(after.contains(kept), "{locale:?}: {after}");
+        assert!(!before.contains(kept), "said only once it is installed");
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+#[test]
+fn a_cc_by_pack_without_the_authors_words_says_what_such_libraries_usually_say() {
+    let m = cc_by_manifest();
+    let choir = m.pack("fixture-choir").unwrap().clone();
+    let f = fixture();
+    let mut a = browser_app(&f, m.clone());
+    let text = content_window_text(&mut a, &choir.id);
+    assert!(
+        text.contains("Fixture Choir by The Example Singers (example.org/choir), CC BY 4.0"),
+        "the licensor's own line, word for word: {text}"
+    );
+    assert!(
+        text.contains("https://creativecommons.org/licenses/by/4.0/legalcode"),
+        "with the licence's link the licensor's line leaves out: {text}"
+    );
+    assert!(
+        text.contains("Most libraries like this one say it need not"),
+        "{text}"
+    );
+    assert!(!text.contains("In the author's words"), "{text}");
+    // A CC0 pack keeps its plain line and grows no credit section.
+    let kit = content_window_text(&mut a, "fixture-cc0-kit");
+    assert!(kit.contains("public domain, free for any use"), "{kit}");
+    assert!(!kit.contains("with credit to the author"), "{kit}");
+    // Its author's courtesy credit is shown as a courtesy, never as a condition.
+    assert!(kit.contains("“Fixture Drums” by Example Studios"), "{kit}");
+    assert!(kit.contains("CC0 asks for no credit"), "{kit}");
+    assert!(
+        kit.contains("dedicated to the public domain under CC0 1.0"),
+        "a dedication, not a licence: {kit}"
+    );
+    assert!(!kit.contains("licensed under CC0"), "{kit}");
+    assert!(!kit.contains("Its one condition is credit"), "{kit}");
+}
+
+#[test]
+fn the_starter_offer_of_a_cc_by_pack_names_its_licence_and_author() {
+    let mut m = cc_by_manifest();
+    for p in &mut m.packs {
+        p.recommended = p.id == "fixture-choir";
+    }
+    let f = fixture();
+    let mut a = browser_app(&f, m);
+    a.samples.content_root = Some(f.content.parent().unwrap().join("Empty"));
+    a.settings.sample_folders.clear();
+    let ctx = ctx();
+    let text = paint(&ctx, SIZE, 2, |ui| samples_browser::show(&mut a, ui));
+    assert!(text.contains("CC BY 4.0"), "{text}");
+    assert!(text.contains("The Example Singers"), "{text}");
+    assert!(
+        !text.contains("no credit needed"),
+        "not the CC0 words: {text}"
     );
 }

@@ -5,7 +5,7 @@
 
 use cantus_content::fetch::{file_url, hex};
 use cantus_content::manifest::{
-    Category, Credit, FileEntry, Manifest, Pack, Source, Text, ZipSource,
+    Attribution, Category, Credit, FileEntry, Manifest, Pack, Source, Text, ZipSource,
 };
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -48,7 +48,23 @@ pub fn pack(id: &str, licence_file: &str, source: Source) -> Pack {
         checked: "2026-10-05".into(),
         installed_size: 0,
         source,
+        attribution: None,
+        instruments: vec![],
     }
+}
+
+/// `p` made a CC BY pack (`version` "3.0" or "4.0") with a credit line of its own.
+pub fn cc_by(mut p: Pack, version: &str) -> Pack {
+    p.licence = format!("CC-BY-{version}");
+    p.licence_url = format!("https://creativecommons.org/licenses/by/{version}/legalcode");
+    p.attribution = Some(Attribution {
+        title: format!("Upright {}", p.id),
+        author: "Ana Example".into(),
+        url: format!("https://example.org/{}", p.id),
+        line: String::new(),
+        note: String::new(),
+    });
+    p
 }
 
 /// Write `files` (`(to, bytes)`) under `src` and return a files-pack over them.
@@ -108,7 +124,7 @@ pub fn zip_pack(
 
 pub fn manifest(packs: Vec<Pack>) -> Manifest {
     Manifest {
-        format: 1,
+        format: cantus_content::manifest::FORMAT,
         updated: "2026-10-05".into(),
         packs,
     }
@@ -155,4 +171,88 @@ pub fn response(status: &str, content_type: &str, body: &[u8], declared_len: usi
     .into_bytes();
     r.extend_from_slice(body);
     r
+}
+
+/// One raw tar entry, written exactly as given (so a test can write what no honest tool
+/// would: `../` names, absolute paths, links, sizes that lie).
+pub struct TarEntry<'a> {
+    pub name: &'a str,
+    /// `b'0'` file, `b'5'` folder, `b'1'` hard link, `b'2'` symbolic link, `b'L'` GNU
+    /// long name, `b'x'` pax header.
+    pub kind: u8,
+    pub data: &'a [u8],
+    /// The size the header claims, when it is not the data's.
+    pub claims: Option<u64>,
+    pub link: &'a str,
+}
+
+pub fn file<'a>(name: &'a str, data: &'a [u8]) -> TarEntry<'a> {
+    TarEntry {
+        name,
+        kind: b'0',
+        data,
+        claims: None,
+        link: "",
+    }
+}
+
+fn octal(field: &mut [u8], v: u64) {
+    let s = format!("{v:0w$o}", w = field.len() - 1);
+    field[..s.len()].copy_from_slice(s.as_bytes());
+    field[field.len() - 1] = 0;
+}
+
+/// A ustar archive of `entries`, ended by two zero blocks.
+pub fn tar_bytes(entries: &[TarEntry]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for e in entries {
+        let mut h = [0u8; 512];
+        h[..e.name.len()].copy_from_slice(e.name.as_bytes());
+        octal(&mut h[100..108], 0o644);
+        octal(&mut h[108..116], 0);
+        octal(&mut h[116..124], 0);
+        let size = e.claims.unwrap_or(e.data.len() as u64);
+        if size >= 0o77777777777 {
+            h[124] = 0x80;
+            h[128..136].copy_from_slice(&size.to_be_bytes());
+        } else {
+            octal(&mut h[124..136], size);
+        }
+        octal(&mut h[136..148], 0);
+        h[156] = e.kind;
+        h[157..157 + e.link.len()].copy_from_slice(e.link.as_bytes());
+        h[257..263].copy_from_slice(b"ustar\0");
+        h[263..265].copy_from_slice(b"00");
+        h[148..156].copy_from_slice(b"        ");
+        let sum: u32 = h.iter().map(|&b| b as u32).sum();
+        let s = format!("{sum:06o}\0 ");
+        h[148..156].copy_from_slice(s.as_bytes());
+        out.extend_from_slice(&h);
+        out.extend_from_slice(e.data);
+        out.resize(out.len().div_ceil(512) * 512, 0);
+    }
+    out.resize(out.len() + 1024, 0);
+    out
+}
+
+pub fn gzip(bytes: &[u8]) -> Vec<u8> {
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    e.write_all(bytes).unwrap();
+    e.finish().unwrap()
+}
+
+/// A `.tar.gz` pack over `bytes` at `url`.
+pub fn tar_pack(
+    id: &str,
+    url: String,
+    bytes: &[u8],
+    strip: &str,
+    include: &[&str],
+    licence: &str,
+) -> Pack {
+    let mut p = zip_pack(id, url, bytes, strip, include, licence);
+    if let Source::Zip(z) = p.source {
+        p.source = Source::TarGz(z);
+    }
+    p
 }

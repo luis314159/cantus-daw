@@ -2,6 +2,8 @@
 //! table, and each distinct licence text once with the crates that carry it.
 
 use crate::notices::Crate;
+use cantus_content::credits::{self, Courtesy};
+use cantus_content::Manifest;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -159,7 +161,128 @@ fn ids(expr: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn render(ws: &Path, crates: &[Crate]) -> String {
+/// Markdown table cell text: no pipes, no line breaks.
+fn cell(s: &str) -> String {
+    s.replace('|', "\\|").replace(['\r', '\n'], " ")
+}
+
+/// The *Content* section (ADR 0042 §3), generated from the content manifest: every CC BY
+/// pack with its credit line word for word, every CC0 pack credited as a courtesy.
+pub fn content(m: &Manifest) -> String {
+    let lang = "en";
+    let list = credits::list(m, &[]);
+    let mut s = String::new();
+    s.push_str(
+        "## Content\n\n\
+         No samples are bundled with Cantus. *Sound packs…* (in the sample browser) \
+         downloads a pack only when you click *Install*, and installs it only with its \
+         licence file, which stays in the pack's folder \
+         (`%LOCALAPPDATA%\\Cantus\\Content\\<pack>`) beside a receipt \
+         (`cantus-pack.json`) that keeps its credit. Content is accepted under **CC0 1.0** \
+         and **CC BY 3.0 / 4.0** only (ADR 0042); nothing non-commercial, no-derivatives \
+         or share-alike. Music you make with these sounds is yours. *Help ▸ About Cantus* \
+         shows the same credits.\n\n",
+    );
+    s.push_str("### Under CC BY — the credit the licence asks for\n\n");
+    let by: Vec<_> = list
+        .iter()
+        .filter(|c| c.courtesy == Courtesy::Required)
+        .collect();
+    if by.is_empty() {
+        s.push_str("None of the packs offered now is under CC BY.\n\n");
+    } else {
+        s.push_str(
+            "CC BY's one condition is credit to the author. Each pack's credit, as its \
+             licensor asks:\n\n",
+        );
+        for c in by {
+            let p = m.pack(&c.id).expect("listed from the manifest");
+            s.push_str(&format!(
+                "- **{}** ({}) — {}\n  Licence file in the pack: `{}`.\n",
+                p.name.get(lang),
+                c.licence,
+                c.line,
+                p.licence_file
+            ));
+            if !c.note.is_empty() {
+                s.push_str(&format!(
+                    "  About crediting, in the author's words: *\u{201c}{}\u{201d}*\n",
+                    c.note
+                ));
+            }
+        }
+        s.push('\n');
+    }
+    s.push_str("### Under CC0 — no credit asked, given gladly\n\n");
+    let cc0: Vec<_> = list
+        .iter()
+        .filter(|c| c.courtesy == Courtesy::Courtesy)
+        .collect();
+    if cc0.is_empty() {
+        s.push_str("None of the packs offered now is under CC0.\n\n");
+    } else {
+        s.push_str("| Pack | Made by | Source |\n|---|---|---|\n");
+        for c in cc0 {
+            let p = m.pack(&c.id).expect("listed from the manifest");
+            let mut urls: Vec<String> = Vec::new();
+            for cr in &p.credits {
+                let u = format!("<{}>", cr.url);
+                if !urls.contains(&u) {
+                    urls.push(u);
+                }
+            }
+            s.push_str(&format!(
+                "| {} | {} | {} |\n",
+                cell(p.name.get(lang)),
+                cell(&c.line),
+                urls.join(", ")
+            ));
+        }
+        s.push('\n');
+    }
+    s.push_str(
+        "The list, with every file's URL and SHA-256, is \
+         `crates/cantus-content/manifest/content.json`.\n\n",
+    );
+    s
+}
+
+/// Where the head's Fonts section takes the bundled fonts' licence texts.
+const FONT_LICENCES: &str = "<!-- font-licences -->";
+
+/// The licence file of each font bundled in `crates/cantus-ui/assets/fonts/`
+/// (`LICENSE-*.txt`), each printed whole under its file name.
+fn font_licences(ws: &Path) -> String {
+    let dir = ws.join("crates/cantus-ui/assets/fonts");
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.path())
+                .filter(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| n.starts_with("LICENSE-") && n.ends_with(".txt"))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    files.sort();
+    let mut out = String::new();
+    for p in files {
+        let body = std::fs::read_to_string(&p)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        let body = body.trim_end();
+        let f = fence(body);
+        out.push_str(&format!(
+            "### `{}`\n\n{f}text\n{body}\n{f}\n\n",
+            p.file_name().unwrap().to_string_lossy()
+        ));
+    }
+    out
+}
+
+pub fn render(ws: &Path, crates: &[Crate], manifest: &Manifest) -> String {
     let head = std::fs::read_to_string(ws.join("xtask/notices/head.md"))
         .expect("xtask/notices/head.md")
         .replace("\r\n", "\n");
@@ -203,8 +326,9 @@ pub fn render(ws: &Path, crates: &[Crate]) -> String {
          Cargo.lock; `cargo run -p xtask -- notices --check` (and `cargo test -p xtask`) \
          fails when it is stale. Edit the head, not this file. -->\n\n",
     );
-    s.push_str(head.trim_end());
+    s.push_str(head.replace(FONT_LICENCES, &font_licences(ws)).trim_end());
     s.push_str("\n\n");
+    s.push_str(&content(manifest));
     let inside = crates.iter().filter(|c| !c.build_only).count();
     s.push_str(&format!(
         "## Rust crates\n\n\

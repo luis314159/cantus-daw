@@ -580,7 +580,8 @@ pub fn settings_section(app: &mut CantusApp, ui: &mut Ui) {
             .clone()
             .unwrap_or_else(|| app.settings.updates.proxy.clone().unwrap_or_default());
         let width = (ui.available_width() / Style::current().k - 8.0).max(160.0);
-        let resp = w::text_field(ui, &mut text, "update.settings.proxy.hint", width);
+        let id = egui::Id::new("update-proxy");
+        let resp = w::text_field(ui, id, &mut text, "update.settings.proxy.hint", width);
         if resp.changed() {
             app.update.proxy = Some(text.clone());
         }

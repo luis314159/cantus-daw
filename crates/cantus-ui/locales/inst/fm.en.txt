@@ -139,6 +139,7 @@ fm.easy = EASY
 fm.bake = Bake
 fm.bake.tip = Write the easy macros into the patch and set them back to zero (one undo step)
 fm.edge.tip = {from} → {to}: {v} rad. Drag to change, double-click to remove.
+fm.edge.back_tip = {from} → {to}, from a later operator: heard one sample late. {v} rad. Drag to change, double-click to remove.
 fm.node.hear = Send to the output
 fm.node.unhear = Take off the output
 fm.node.mute = Mute operator

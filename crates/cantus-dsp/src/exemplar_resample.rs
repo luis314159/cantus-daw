@@ -138,11 +138,72 @@ pub fn halve_periodic(data: &[f32], channels: usize) -> Vec<f32> {
     halve_with(data, channels, true)
 }
 
+/// How far either side of `2n` the mip-map filter reads for output frame `n`.
+pub fn halve_reach() -> usize {
+    let (m, beta) = halfband_size(120.0, 0.05);
+    halfband(m, beta).len() / 2
+}
+
+/// [`halve`] for output frames `out_first..` (as many as `out` holds) of a level whose
+/// whole length is `total` frames, from `src`: its frames `first..`, which must cover
+/// `2·out_first − reach … 2·(last out frame) + reach` where inside the level. The same
+/// numbers as `halve` frame for frame — `halve` is this over the whole level — so a block of
+/// a streamed sample's mip level is computed from its level-0 blocks (ADR 0050 §2).
+pub fn halve_span(
+    src: &[f32],
+    first: i64,
+    total: i64,
+    channels: usize,
+    out_first: usize,
+    out: &mut [f32],
+) {
+    let ch = channels.max(1);
+    let (m, beta) = halfband_size(120.0, 0.05);
+    let h = halfband(m, beta);
+    let c = (h.len() / 2) as i64;
+    let odd: Vec<(i64, f64)> = (1..=c)
+        .step_by(2)
+        .map(|k| (k, h[(c + k) as usize]))
+        .collect();
+    let at = |i: i64, chn: usize| -> f64 {
+        if i < 0 || i >= total {
+            0.0
+        } else {
+            src[(i - first) as usize * ch + chn] as f64
+        }
+    };
+    for (j, frame) in out.chunks_exact_mut(ch).enumerate() {
+        let centre = 2 * (out_first + j) as i64;
+        let inside = centre - c >= 0 && centre + c < total;
+        for (chn, o) in frame.iter_mut().enumerate() {
+            let mut acc;
+            if inside {
+                let x = |i: i64| src[(i - first) as usize * ch + chn] as f64;
+                acc = 0.5 * x(centre);
+                for &(k, coef) in &odd {
+                    acc += coef * (x(centre - k) + x(centre + k));
+                }
+            } else {
+                acc = 0.5 * at(centre, chn);
+                for &(k, coef) in &odd {
+                    acc += coef * (at(centre - k, chn) + at(centre + k, chn));
+                }
+            }
+            *o = acc as f32;
+        }
+    }
+}
+
 fn halve_with(data: &[f32], channels: usize, periodic: bool) -> Vec<f32> {
     let ch = channels.max(1);
     let frames = data.len() / ch;
     if frames == 0 {
         return Vec::new();
+    }
+    if !periodic {
+        let mut out = vec![0.0f32; frames.div_ceil(2) * ch];
+        halve_span(data, 0, frames as i64, ch, 0, &mut out);
+        return out;
     }
     let (m, beta) = halfband_size(120.0, 0.05);
     let h = halfband(m, beta);

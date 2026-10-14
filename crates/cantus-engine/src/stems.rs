@@ -191,6 +191,10 @@ pub enum StemsError {
     Wav(#[from] hound::Error),
     #[error("{0}")]
     Io(#[from] std::io::Error),
+    /// A streamed sample could not be read (third review #3): the stems would be cut short
+    /// where it could not, so there are none.
+    #[error("a sample could not be read: {0}")]
+    Unreadable(String),
 }
 
 /// A stem rendered to memory.
@@ -215,6 +219,8 @@ pub struct StemsDone {
     pub latency: usize,
     /// Some path could not be given its delay line, so some stem may be early.
     pub unaligned: bool,
+    /// Notes that played only the start of a streamed sample (third review #9).
+    pub cut_notes: u64,
 }
 
 /// Where one stem's samples go as they are rendered.
@@ -525,6 +531,10 @@ fn run(
     let effect_count: usize = snap.effect_slots().count();
     // Native instruments' units, as `render::render` sends them.
     let mut instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    // Offline, a voice streaming from disk waits for its blocks (ADR 0050 §6).
+    for u in &mut instruments {
+        u.unit.set_offline(true);
+    }
     instruments.extend(hosted.into_iter().map(Box::new));
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
@@ -660,12 +670,21 @@ fn run(
             return Err(e);
         }
     }
+    // As the mix (`render`): a streamed voice that ended early offline fails the stems,
+    // naming the file — never stems silently cut short (third review #3).
+    if p.stats().stream_late > 0 {
+        targets.extend(outs.into_iter().map(|o| o.target));
+        return Err(StemsError::Unreadable(crate::render::unreadable_in(
+            &snapshot,
+        )));
+    }
     let summary = StemsDone {
         written: Vec::new(),
         silent: Vec::new(),
         seconds: total as f64 / sr,
         latency,
         unaligned: p.stats().pdc_unserved > 0,
+        cut_notes: p.stats().stream_cut,
     };
     Ok((
         outs.into_iter().map(|o| (o.target, o.peak)).collect(),

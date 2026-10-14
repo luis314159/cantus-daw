@@ -372,9 +372,21 @@ pub fn parse(
         .unwrap_or_default();
     let mut unsupported = BTreeMap::<String, usize>::new();
     let mut group_of: Vec<(Vec<u32>, usize)> = Vec::new();
+    let mut keyless_regions = 0usize;
     for (ops, sg) in &regions {
+        // A region a controller starts (`on_locc64`/`on_hicc64`: Salamander's pedal
+        // noises) becomes a zone that controller starts; one that neither a key nor a
+        // controller plays (`lokey=-1` alone) is left off the keys rather than sounding on
+        // all of them (round 26).
+        let by_cc = controller_trigger(ops);
+        let keyless = |k: &str| ops.get(k).is_some_and(|v| v.trim() == "-1");
+        if by_cc.is_none() && (keyless("key") || (keyless("lokey") && keyless("hikey"))) {
+            keyless_regions += 1;
+            continue;
+        }
         for k in ops.keys() {
-            if !KNOWN.contains(&k.as_str()) && !ignorable(k) {
+            let cc_key = k.starts_with("on_locc") || k.starts_with("on_hicc");
+            if !KNOWN.contains(&k.as_str()) && !ignorable(k) && !cc_key {
                 *unsupported.entry(k.clone()).or_default() += 1;
             }
         }
@@ -398,6 +410,16 @@ pub fn parse(
             z.sample = Some(s);
         }
         region_to_zone(ops, offset, file_meta.as_ref(), &mut z);
+        if let Some((cc, lo, hi)) = by_cc {
+            // No key plays it: it sits on its root alone in the map.
+            let root = z.get(zf::ROOT);
+            z.set(zf::TRIG, 5.0)
+                .set(zf::CC, cc as f32)
+                .set(zf::CCLO, lo as f32)
+                .set(zf::CCHI, hi as f32)
+                .set(zf::LO, root)
+                .set(zf::HI, root);
+        }
         // Groups: one per SFZ group and envelope, so regions that differ keep their own.
         let env_key: Vec<u32> = std::iter::once(*sg as u32)
             .chain(
@@ -445,6 +467,12 @@ pub fn parse(
         z.set(zf::GROUP, gi as f32);
         out.zones.push(z);
     }
+    if keyless_regions > 0 {
+        let s = if keyless_regions == 1 { "" } else { "s" };
+        out.log.push(format!(
+            "regions neither a key nor a controller plays (lokey=-1) were left out ({keyless_regions} region{s})"
+        ));
+    }
     for (k, n) in unsupported {
         out.log
             .push(format!("unsupported opcode {k} ({n} regions)"));
@@ -452,6 +480,27 @@ pub fn parse(
     instrument_values(regions.first().map(|r| &r.0), &control, &mut out);
     out.clamp();
     out
+}
+
+/// A region a controller starts: `(controller, low, high)` from its first `on_loccN` /
+/// `on_hiccN` (SFZ: unassigned at −1; a missing end of the range is 0 or 127).
+fn controller_trigger(ops: &Ops) -> Option<(u8, u8, u8)> {
+    let val = |k: String| {
+        ops.get(&k)
+            .and_then(|v| v.trim().parse::<f32>().ok())
+            .filter(|v| *v >= 0.0)
+            .map(|v| v.round().min(127.0) as u8)
+    };
+    // The first controller with an end of its range assigned (`-1` is unassigned).
+    ops.keys().find_map(|k| {
+        let n = k
+            .strip_prefix("on_locc")
+            .or_else(|| k.strip_prefix("on_hicc"))?;
+        let cc = n.parse::<u8>().ok().filter(|n| *n < 128)?;
+        let lo = val(format!("on_locc{cc}"));
+        let hi = val(format!("on_hicc{cc}"));
+        (lo.is_some() || hi.is_some()).then(|| (cc, lo.unwrap_or(0), hi.unwrap_or(127)))
+    })
 }
 
 /// A region's opcodes onto a zone.
@@ -728,15 +777,27 @@ fn region_text(z: &Zone, rel: &dyn Fn(&str) -> String) -> String {
             .map(|g| g.0.to_string())
             .unwrap_or_else(|| "*sine".into()),
     };
-    let _ = write!(
-        r,
-        " lokey={} hikey={} pitch_keycenter={} lovel={} hivel={}",
-        z.lo(),
-        z.hi(),
-        z.root(),
-        z.vlo(),
-        z.vhi()
-    );
+    if z.get(zf::TRIG) as usize == 5 {
+        // A zone a controller starts: no key plays it.
+        let _ = write!(
+            r,
+            " lokey=-1 hikey=-1 pitch_keycenter={} on_locc{cc}={} on_hicc{cc}={}",
+            z.root(),
+            z.get(zf::CCLO),
+            z.get(zf::CCHI),
+            cc = z.get(zf::CC),
+        );
+    } else {
+        let _ = write!(
+            r,
+            " lokey={} hikey={} pitch_keycenter={} lovel={} hivel={}",
+            z.lo(),
+            z.hi(),
+            z.root(),
+            z.vlo(),
+            z.vhi()
+        );
+    }
     let mut opt = |cond: bool, text: String| {
         if cond {
             r.push(' ');
@@ -773,7 +834,7 @@ fn region_text(z: &Zone, rel: &dyn Fn(&str) -> String) -> String {
     );
     let trig = ["attack", "release", "first", "legato", "release_key"];
     opt(
-        v(zf::TRIG) > 0.0,
+        v(zf::TRIG) > 0.0 && v(zf::TRIG) < 5.0,
         format!("trigger={}", trig[(v(zf::TRIG) as usize).min(4)]),
     );
     opt(v(zf::RTDECAY) > 0.0, format!("rt_decay={}", v(zf::RTDECAY)));

@@ -74,6 +74,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                     midi(app, ui);
                     look(app, ui);
                     saving(app, ui);
+                    sample_cache(app, ui);
                     super::update::settings_section(app, ui);
                     w::band(ui, Src::Key("host.manager.title"));
                     super::plugins::manager(app, ui);
@@ -283,6 +284,91 @@ fn saving(app: &mut CantusApp, ui: &mut Ui) {
     };
     if (secs - before).abs() > f32::EPSILON && snapped as u64 != app.settings.autosave_seconds {
         app.settings.autosave_seconds = snapped as u64;
+        app.store_settings();
+    }
+}
+
+/// The sample cache (ADR 0050, review 11): its size limit — automatic, or chosen — the
+/// disk it is on, what it holds now, and *Clear*.
+pub fn sample_cache(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::settings::{DEFAULT_SAMPLE_CACHE_GB, MAX_SAMPLE_CACHE_GB, MIN_SAMPLE_CACHE_GB};
+    const GB: f64 = (1u64 << 30) as f64;
+    let gb_of = |b: u64| format!("{:.1}", b as f64 / GB);
+    w::band(ui, Src::Key("smp.cache.band"));
+    let room = app.sample_cache_room();
+    let mut gb = app
+        .settings
+        .sample_cache_gb
+        .unwrap_or((room.limit as f64 / GB) as f32)
+        .clamp(MIN_SAMPLE_CACHE_GB, MAX_SAMPLE_CACHE_GB);
+    let before = gb;
+    let mut auto = false;
+    // Automatic: the knob says so, and the line below gives the limit in force (third
+    // review #10: never a rounded or clamped figure beside the real one).
+    let auto_now = app.settings.sample_cache_gb.is_none();
+    let auto_word = t("smp.cache.auto_cell");
+    ui.horizontal(|ui| {
+        w::row_label(ui, "smp.cache.limit", LABEL_W, 70.0);
+        let name = t("smp.cache.limit");
+        Param::new(
+            &mut gb,
+            MIN_SAMPLE_CACHE_GB..=MAX_SAMPLE_CACHE_GB,
+            DEFAULT_SAMPLE_CACHE_GB,
+        )
+        .format(|v, b| {
+            if auto_now {
+                b.push_str(&auto_word);
+            } else {
+                let _ = write!(b, "{} GB", v.round() as u64);
+            }
+        })
+        .log(true)
+        .size(KnobSize::S)
+        .cell(Src::Key("smp.cache.limit.cell"))
+        .name(&name)
+        .show(ui);
+        let chosen = app.settings.sample_cache_gb.is_some();
+        auto = w::button(ui, Src::Key("smp.cache.auto"), 0.0, chosen).clicked();
+        if w::button(ui, Src::Key("smp.cache.clear"), 0.0, true).clicked() {
+            app.clear_sample_cache();
+        }
+    });
+    // The limit in force and the rule it comes from, then the disk's numbers — two lines,
+    // so neither is cut in any language (second review #10, third #10).
+    if room.auto {
+        note(
+            ui,
+            &tf("smp.cache.room.auto", &[("limit", &gb_of(room.limit))]),
+            false,
+        );
+    }
+    if let Some(s) = room.space {
+        note(
+            ui,
+            &tf(
+                "smp.cache.room",
+                &[("total", &gb_of(s.total)), ("free", &gb_of(s.free))],
+            ),
+            false,
+        );
+    }
+    note(
+        ui,
+        &tf("smp.cache.held", &[("size", &gb_of(room.held))]),
+        false,
+    );
+    let changed = if auto {
+        app.settings.sample_cache_gb = None;
+        true
+    } else if (gb - before).abs() > f32::EPSILON {
+        app.settings.sample_cache_gb = Some(gb.round().max(MIN_SAMPLE_CACHE_GB));
+        true
+    } else {
+        false
+    };
+    if changed {
+        app.settings.apply_sample_cache_limit();
+        app.inst.sampler.cache_size = None;
         app.store_settings();
     }
 }

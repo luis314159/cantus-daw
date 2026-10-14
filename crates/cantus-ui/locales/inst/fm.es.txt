@@ -139,6 +139,7 @@ fm.easy = FÁCIL
 fm.bake = Fijar
 fm.bake.tip = Escribir las macros fáciles en el sonido y volverlas a cero (un paso de deshacer)
 fm.edge.tip = {from} → {to}: {v} rad. Arrastra para cambiarlo; doble clic para quitarlo.
+fm.edge.back_tip = {from} → {to}, desde un operador posterior: se oye con una muestra de retraso. {v} rad. Arrastra para cambiarlo; doble clic para quitarlo.
 fm.node.hear = Enviar a la salida
 fm.node.unhear = Quitar de la salida
 fm.node.mute = Silenciar el operador

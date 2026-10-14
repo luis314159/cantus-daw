@@ -5,7 +5,7 @@ use yew::prelude::*;
 use crate::icons;
 use crate::lang::use_lang;
 use crate::platform::Os;
-use crate::top::{GITHUB, RELEASES, VERSION};
+use crate::top::{DOWNLOAD, GITHUB, RELEASES, VERSION};
 
 #[function_component(Engine)]
 pub fn engine() -> Html {
@@ -14,7 +14,10 @@ pub fn engine() -> Html {
     let chans = (0..22u32).map(|i| {
         let lvl = 38 + (i * 37 + 11) % 55;
         let dur = 0.9 + ((i * 53) % 17) as f32 / 10.0;
-        let style = format!("--lvl:{lvl};--dur:{dur:.1}s;animation-delay:-{:.1}s", (i % 7) as f32 * 0.37);
+        let style = format!(
+            "--lvl:{lvl};--dur:{dur:.1}s;animation-delay:-{:.1}s",
+            (i % 7) as f32 * 0.37
+        );
         html! { <div class="chan"><b {style}></b></div> }
     });
     html! {
@@ -66,7 +69,7 @@ pub fn free() -> Html {
                         { l.t("\u{201C}Whatever you do, work at it with all your heart.\u{201D}",
                               "\u{201C}Y todo lo que hagáis, hacedlo de ánimo, como al Señor, y no á los hombres.\u{201D}") }
                     </blockquote>
-                    <figcaption>{ l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (RV1909) — el lema bajo el que se construye Cantus.") }</figcaption>
+                    <figcaption>{ l.t("Colossians 3:23 — the motto Cantus is built under.", "Colosenses 3:23 (Reina-Valera 1909) — el lema bajo el que se construye Cantus.") }</figcaption>
                 </figure>
             </div>
         </section>
@@ -78,15 +81,17 @@ pub fn get() -> Html {
     let l = use_lang().lang;
     let os = use_state(Os::detect);
     let guide = format!("{GITHUB}/blob/master/docs/DEVELOPING.md");
-    // The card speaks to the visitor's system: Windows gets the installer; macOS and Linux
-    // get the honest answer (build from source today); phones are pointed at a computer.
+    // The card speaks to the visitor's system: Windows gets the installer itself, straight
+    // down (the newest release's, under its stable name — ADR 0048 §7), with every other
+    // file a link away; macOS and Linux get the honest answer (build from source today);
+    // phones are pointed at a computer.
     let (headline, lead, primary, primary_href) = match *os {
         Os::Windows => (
-            html! { <>{ icons::windows() }{ "Windows 10 / 11" }</> },
-            l.t("The installer and a portable zip are published with their SHA-256 sums. Prefer to build it yourself? The guide in the repository takes you from a clean machine to a running Cantus.",
-                "El instalador y un zip portátil se publican con sus sumas SHA-256. ¿Prefieres compilarlo tú? La guía del repositorio te lleva de una máquina limpia a un Cantus funcionando."),
-            l.t("Open the downloads", "Abrir las descargas"),
-            RELEASES.to_string(),
+            html! { <>{ icons::windows() }{ "Windows 11" }</> },
+            l.t("The newest installer, no administrator rights needed. A portable zip, the plug-ins alone and the SHA-256 sums are on the downloads page. Prefer to build it yourself? The guide in the repository takes you from a clean machine to a running Cantus.",
+                "El instalador más reciente, sin permisos de administrador. Un zip portátil, los plug-ins solos y las sumas SHA-256 están en la página de descargas. ¿Prefieres compilarlo tú? La guía del repositorio te lleva de una máquina limpia a un Cantus funcionando."),
+            l.t("Download the installer", "Descargar el instalador"),
+            DOWNLOAD.to_string(),
         ),
         Os::MacOs | Os::Linux => {
             let n = if *os == Os::MacOs { "macOS" } else { "Linux" };
@@ -119,11 +124,14 @@ pub fn get() -> Html {
                             <a class="btn btn-quiet" href={GITHUB}>{ icons::github() }{ l.t("Source code", "Código fuente") }</a>
                         </div>
                         <p class="note">{ lead }</p>
+                        if *os == Os::Windows {
+                            <p class="note"><a href={RELEASES}>{ l.t("All downloads, release notes and checksums", "Todas las descargas, notas de la versión y sumas") }</a></p>
+                        }
                     </article>
                     <aside class="get-side">
                         <h3>{ l.t("What you need", "Lo que necesitas") }</h3>
                         <dl>
-                            <dt>{ l.t("System", "Sistema") }</dt><dd>{ "Windows 10 / 11, x64" }</dd>
+                            <dt>{ l.t("System", "Sistema") }</dt><dd>{ l.t("Windows 11, x64 (Windows 10 untested)", "Windows 11, x64 (Windows 10 sin probar)") }</dd>
                             <dt>{ l.t("Audio", "Audio") }</dt><dd>{ l.t("Any device — WASAPI and ASIO", "Cualquier dispositivo — WASAPI y ASIO") }</dd>
                             <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ "CLAP, VST3" }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
@@ -200,7 +208,11 @@ const SPONSORS_LIVE: bool = false;
 #[function_component(Support)]
 pub fn support() -> Html {
     let l = use_lang().lang;
-    let way = |name: &'static str, line: &'static str, href: &'static str, cta: &'static str, primary: bool| {
+    let way = |name: &'static str,
+               line: &'static str,
+               href: &'static str,
+               cta: &'static str,
+               primary: bool| {
         html! {
             <li class="way">
                 <div><strong>{ name }</strong><span>{ line }</span></div>

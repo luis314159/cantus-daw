@@ -77,3 +77,8 @@ update.installer.flexasio_fetching = Descargando el FlexASIO más reciente desde
 update.installer.flexasio_done = FlexASIO está instalado.
 update.installer.flexasio_held = La red envió una página web en lugar de FlexASIO (quizá un proxy la está analizando); no se ejecutó nada. Instálalo más tarde desde los ajustes de audio de Cantus.
 update.installer.flexasio_failed = FlexASIO no se instaló. Puedes instalarlo más tarde desde los ajustes de audio de Cantus.
+# La página de privacidad del instalador (ronda 26): qué envía Cantus y la búsqueda diaria de actualizaciones.
+update.installer.privacy_title = Privacidad
+update.installer.privacy_subtitle = Qué envía Cantus por la red
+update.installer.privacy_text = Cantus no recoge nada sobre ti: sin telemetría, sin analíticas, sin cuenta.\n\nSolo se conecta a internet para:\n• preguntar a GitHub una vez al día si hay una versión nueva — la petición no lleva nada sobre ti ni sobre tu equipo; apágalo aquí abajo, o después en Ajustes > Actualizaciones;\n• descargar un paquete de sonidos o una actualización, cuando tú lo pides;\n• bajar FlexASIO ahora, solo si lo marcaste.\n\nLa declaración de privacidad instalada con Cantus (PRIVACY.txt) dice exactamente qué se envía.
+update.installer.privacy_check_updates = Buscar actualizaciones una vez al día (recomendado)

@@ -799,6 +799,66 @@ fn an_armed_route_is_let_go_by_esc_empty_space_or_its_own_strip() {
     assert!(r.app.project().strip(s[1]).unwrap().send_to(s[6]).is_some());
 }
 
+/// Round 26 (ADR 0044 §10): a route armed by a click lets go when the desk leaves the
+/// screen — its pane closed, or another tab brought over it — so it is never found still
+/// armed when the desk comes back; a selected cable is kept (Delete removes it once the
+/// desk shows it again). The signal is the desk itself: it was not drawn on the pass
+/// before this one.
+#[test]
+fn an_armed_route_lets_go_when_the_desk_is_hidden_and_a_selected_cable_stays() {
+    use cantus_core::routing::Route;
+    use cantus_ui::views::workspace::Pane;
+    let mut r = Rig::window(starter_project());
+    r.idle(3);
+    let s = r.ids();
+    r.app.exec(cantus_core::Command::SetStripOutput {
+        id: s[1],
+        output: Some(s[9]),
+    });
+    r.app.select_strip(s[1]);
+    r.idle(3);
+    assert!(r.app.workspace.is_visible(Pane::Mixer), "the desk shows");
+    let route = Route::output(s[1], s[9]);
+    for hide in [Pane::Mixer, Pane::Routing] {
+        // Armed from strip 3's port, with strip 2's output cable selected.
+        r.click(r.rect(Some(s[2]), Control::Port).center());
+        assert_eq!(r.app.mixer.armed(), Some(s[2]), "{hide:?}: armed");
+        r.app.mixer.select_cable(Some(route));
+        r.idle(1);
+        assert_eq!(r.app.mixer.selected_cable(), Some(route));
+        // The desk leaves the screen: its pane closed, or the Routing tab over it.
+        r.app.toggle_pane(hide);
+        r.idle(3);
+        assert!(!r.app.workspace.is_visible(Pane::Mixer), "{hide:?}: hidden");
+        // And comes back.
+        if hide == Pane::Mixer {
+            r.app.toggle_pane(Pane::Mixer);
+        } else {
+            r.app.show_pane(Pane::Mixer);
+        }
+        r.idle(3);
+        assert!(r.app.workspace.is_visible(Pane::Mixer), "{hide:?}: back");
+        assert_eq!(
+            r.app.mixer.armed(),
+            None,
+            "{hide:?}: the armed route let go"
+        );
+        assert_eq!(
+            r.app.mixer.selected_cable(),
+            Some(route),
+            "{hide:?}: the selected cable is kept"
+        );
+    }
+    // While the desk stays on screen nothing lets the route go by itself.
+    r.click(r.rect(Some(s[2]), Control::Port).center());
+    r.idle(5);
+    assert_eq!(
+        r.app.mixer.armed(),
+        Some(s[2]),
+        "still armed on a shown desk"
+    );
+}
+
 /// The selected strip's ▼ chip arms the same way (right-click still lists every
 /// destination), and a click on a strip's mute while armed routes instead of muting.
 #[test]
@@ -974,4 +1034,523 @@ fn a_receives_key_row_names_the_insert_as_the_chain_line_does() {
     let _ = comp;
     let text = r.idle(3);
     assert!(text.contains("Comp, slot 1 \u{2190} key"), "{text}");
+}
+
+// ---- round 26: typing a send's level in the route menu ------------------------------
+
+/// Round 26 (ADR 0044 §10, amended): *Level ▸ Type a level…* turns the route menu into a
+/// field — the kit's numeric entry, prefilled with the level and selected so typing
+/// replaces it. Enter sets it in one undo step; a Spanish decimal comma reads (the kit's
+/// parser accepts it everywhere); above 0 dB clamps to 0 dB; −∞ (or anything at or below
+/// the floor) is silence; words that are not a level keep the field open and change
+/// nothing; Esc cancels.
+#[test]
+fn a_level_typed_in_the_route_menu_sets_the_send_in_one_step() {
+    use cantus_core::routing::Route;
+    let mut r = Rig::new(starter_project());
+    let s = r.ids();
+    r.app.set_strip_send(
+        s[1],
+        Send {
+            level: 0.5,
+            ..Send::new(s[5])
+        },
+    );
+    r.app.end_gesture();
+    r.idle(2);
+    let route = Route::send(s[1], s[5]);
+    let level = |r: &Rig| {
+        r.app
+            .project()
+            .strip(s[1])
+            .and_then(|x| x.send_to(s[5]))
+            .unwrap()
+            .level
+    };
+    let open_field = |r: &mut Rig| {
+        route_menu::open(&r.ctx, desk_owner(), route, pos2(500.0, 300.0));
+        r.idle(2);
+        let row = route_menu::row_rect(&r.ctx, desk_owner(), "routing.menu.level").unwrap();
+        r.pointer = Some(row.center());
+        r.idle(3);
+        r.click_row(desk_owner(), "routing.menu.level_type");
+        r.idle(1);
+    };
+    let typed = |r: &Rig| route_menu::typed_level(&r.ctx, desk_owner());
+    let type_text = |r: &mut Rig, text: &str| {
+        r.frame(vec![Event::Text(text.into())]);
+        r.idle(1);
+    };
+    // Prefilled with the level now, selected: what is typed replaces it.
+    open_field(&mut r);
+    let now = typed(&r).expect("the field is open");
+    assert!(now.contains("6.0"), "prefilled with −6.0 dB: {now:?}");
+    let before = r.app.project().clone();
+    type_text(&mut r, "-4,5");
+    assert_eq!(
+        typed(&r).as_deref(),
+        Some("-4,5"),
+        "typing replaced the value"
+    );
+    r.key(Key::Enter, Modifiers::NONE);
+    assert!(typed(&r).is_none(), "Enter closed the field");
+    assert!(!route_menu::is_open(&r.ctx, desk_owner()));
+    let db = cantus_core::linear_to_db(level(&r));
+    assert!((db + 4.5).abs() < 0.01, "−4,5 read as −4.5 dB: {db}");
+    r.app.undo();
+    assert!(r.app.project() == &before, "one undo step");
+    // Above 0 dB: clamped to unity.
+    open_field(&mut r);
+    type_text(&mut r, "+6 dB");
+    r.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(level(&r), 1.0, "clamped to 0 dB");
+    // −∞ and the floor: silence.
+    for words in ["-inf", "\u{2212}\u{221e}", "-120"] {
+        open_field(&mut r);
+        type_text(&mut r, words);
+        r.key(Key::Enter, Modifiers::NONE);
+        assert_eq!(level(&r), 0.0, "{words:?} is silence");
+        r.app.undo();
+    }
+    // Not a level: the field stays, nothing changes; Esc cancels.
+    let kept = level(&r);
+    open_field(&mut r);
+    type_text(&mut r, "loud");
+    r.key(Key::Enter, Modifiers::NONE);
+    assert!(
+        typed(&r).is_some(),
+        "still open after words that are not a level"
+    );
+    assert_eq!(level(&r), kept);
+    r.key(Key::Escape, Modifiers::NONE);
+    assert!(typed(&r).is_none() && !route_menu::is_open(&r.ctx, desk_owner()));
+    open_field(&mut r);
+    type_text(&mut r, "-12");
+    r.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(level(&r), kept, "Esc cancels");
+    // Review finding 5: Enter on the prefill, untouched, changes nothing and adds no step
+    // — even for a level the prefill's one decimal cannot say exactly (−10.457 dB), or
+    // one below the faders' floor.
+    for odd in [0.3f32, 1e-5] {
+        r.app.set_strip_send(
+            s[1],
+            Send {
+                level: odd,
+                ..Send::new(s[5])
+            },
+        );
+        r.app.end_gesture();
+        r.idle(1);
+        let before = r.app.project().clone();
+        let steps = r.app.bus.revision();
+        open_field(&mut r);
+        r.key(Key::Enter, Modifiers::NONE);
+        assert!(typed(&r).is_none(), "{odd}: Enter closed the field");
+        assert!(r.app.project() == &before, "{odd}: the level is untouched");
+        assert_eq!(
+            r.app.bus.revision(),
+            steps,
+            "{odd}: no command, no undo step"
+        );
+    }
+}
+
+/// Review finding 3, under the app-wide field rules (third review): while the level field
+/// is open the app's shortcuts never act (Ctrl+Z here, which would have removed the send
+/// being edited); typed words land in the field; Esc closes it with nothing changed; and a
+/// click anywhere off the text box — the panel's own band included — commits and closes
+/// it, letting the keyboard go. The whole window, as a musician has it.
+#[test]
+fn the_level_field_keeps_the_keyboard_while_it_is_open() {
+    let mut r = Rig::window(starter_project());
+    r.idle(3);
+    let s = r.ids();
+    r.app.set_strip_send(
+        s[1],
+        Send {
+            level: 0.5,
+            ..Send::new(s[5])
+        },
+    );
+    r.app.end_gesture();
+    r.idle(2);
+    let at = pos2(500.0, 300.0);
+    let app = &r.app;
+    route_menu::open_level(&r.ctx, desk_owner(), app, s[1], s[5], at);
+    r.idle(3);
+    assert!(route_menu::typed_level(&r.ctx, desk_owner()).is_some());
+    let panel = route_menu::level_panel(&r.ctx, desk_owner()).expect("the panel was drawn");
+    r.key(Key::Z, Modifiers::COMMAND);
+    assert!(
+        r.app.project().strip(s[1]).unwrap().send_to(s[5]).is_some(),
+        "Ctrl+Z reached the app's undo while the field was open"
+    );
+    assert!(route_menu::typed_level(&r.ctx, desk_owner()).is_some());
+    // Typed words still land in the field, and Esc closes it with nothing changed.
+    r.frame(vec![Event::Text("9".into())]);
+    r.idle(1);
+    let now = route_menu::typed_level(&r.ctx, desk_owner()).unwrap();
+    assert!(now.contains('9'), "typing reaches the field: {now:?}");
+    r.key(Key::Escape, Modifiers::NONE);
+    assert!(route_menu::typed_level(&r.ctx, desk_owner()).is_none());
+    let l = r
+        .app
+        .project()
+        .strip(s[1])
+        .unwrap()
+        .send_to(s[5])
+        .unwrap()
+        .level;
+    assert_eq!(l, 0.5, "nothing changed");
+    // Open again: a click on the panel's own band, off the text box, commits (the
+    // prefill untouched: nothing set) and closes, and the keyboard is free.
+    let app = &r.app;
+    route_menu::open_level(&r.ctx, desk_owner(), app, s[1], s[5], at);
+    r.idle(3);
+    r.click(pos2(panel.left() + 20.0, panel.top() + 10.0));
+    assert!(
+        route_menu::typed_level(&r.ctx, desk_owner()).is_none(),
+        "closed"
+    );
+    assert!(!r.ctx.egui_wants_keyboard_input(), "the keyboard let go");
+}
+
+/// Round 26: the inspector's *Add send* — the empty Sends row and the band's + — opens
+/// the desk's own add-send list (`route_menu::open_add_send`, one code path): *New return
+/// ▸* first, then every strip by dock; a reverb return from there is one undo step.
+#[test]
+fn the_inspectors_add_send_offers_a_new_return() {
+    let mut r = Rig::window(starter_project());
+    r.size = vec2(1600.0, 2400.0);
+    let s = r.ids();
+    r.app.select_strip(s[0]);
+    r.idle(4);
+    let owner = route_menu::inspector_owner();
+    // No sends yet: the empty row opens the list.
+    let empty = r.id_rect(egui::Id::new("insp-send-empty"));
+    r.click(empty.center());
+    assert!(
+        route_menu::is_open(&r.ctx, owner),
+        "the route menu's add-send list"
+    );
+    let rows = route_menu::row_labels(&r.ctx, owner);
+    assert_eq!(
+        rows.first().map(String::as_str),
+        Some("routing.menu.new_return"),
+        "New return first: {rows:?}"
+    );
+    let before = r.app.project().clone();
+    r.click_row(owner, "routing.menu.new_return");
+    r.click_row(owner, "routing.menu.return_reverb");
+    let p = r.app.project();
+    let new = p.strips.last().unwrap();
+    assert_eq!(new.dock, Dock::Right);
+    assert_eq!(new.effects[0].spec.kind, cantus_core::EffectKind::Space);
+    assert!(
+        p.strip(s[0]).unwrap().send_to(new.id).is_some(),
+        "it sends there"
+    );
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.new_return"));
+    undo_restores(&mut r.app, &before);
+    // With a send already, the band's + opens the same list.
+    r.app.set_strip_send(s[0], Send::new(s[5]));
+    r.app.end_gesture();
+    r.app.select_strip(s[0]);
+    r.idle(4);
+    let plus = r.id_rect(egui::Id::new(("insp-band-plus", "kit.inspector.sends")));
+    r.click(plus.center());
+    assert!(route_menu::is_open(&r.ctx, owner));
+    let rows = route_menu::row_labels(&r.ctx, owner);
+    assert_eq!(
+        rows.first().map(String::as_str),
+        Some("routing.menu.new_return")
+    );
+    // A strip from the list adds the send.
+    let label = route_menu::row_labels(&r.ctx, owner)
+        .into_iter()
+        .find(|l| l.starts_with("8 "))
+        .unwrap_or_else(|| "8".to_string());
+    r.click_row(owner, &label);
+    assert!(r.app.project().strip(s[0]).unwrap().send_to(s[7]).is_some());
+}
+
+/// Round 26 (ADR 0043, amended): the cable legend is never invisible. At 1280 × 720 the
+/// band sits at its least (20 pt) and the three sample lines with their words do not fit
+/// under ROUTING; a compact key does — the three samples (output thick, send thin, key
+/// dashed in the dynamics hue) beside the row's name, inside its cell, touching neither
+/// the name nor each other. The whole window, English and Spanish, 100 % and 200 %.
+#[test]
+fn the_cable_legend_shows_when_the_band_is_at_its_least() {
+    use mixer::layout::WidthMode;
+    for (locale, ppp, mode) in cantus_ui::i18n::Locale::ALL
+        .into_iter()
+        .flat_map(|l| [1.0f32, 2.0].map(|p| (l, p)))
+        .flat_map(|(l, p)| [None, Some(WidthMode::Wide)].map(|m| (l, p, m)))
+    {
+        {
+            let mut r = Rig::window(starter_project());
+            cantus_ui::i18n::set_locale(locale);
+            r.ctx.set_pixels_per_point(ppp);
+            r.size = vec2(1280.0, 720.0) / ppp;
+            // The default width (Compact) and Wide.
+            if let Some(m) = mode {
+                mixer::set_width_mode(&mut r.app, m);
+            }
+            let s = r.ids();
+            r.app.select_strip(s[1]);
+            r.idle(4);
+            let key = r
+                .app
+                .mixer
+                .cable_key()
+                .unwrap_or_else(|| panic!("{locale:?} {ppp}: the band's row is on the desk"));
+            // Review finding 11: on screen — inside the desk's visible rows and the window.
+            let rows = r.app.mixer.rows_seen();
+            let window = egui::Rect::from_min_size(Pos2::ZERO, r.size);
+            assert!(
+                rows.expand(0.5).contains_rect(key.cell) && window.contains_rect(key.cell),
+                "{locale:?} {ppp} {mode:?}: the band's cell {:?} is off the desk's view {rows:?}",
+                key.cell
+            );
+            let marks = key.marks.expect("the legend's samples are drawn");
+            assert!(
+                key.compact || key.cell.height() >= 40.0,
+                "{locale:?} {ppp} {mode:?}: a short band ({:?}) has the compact key",
+                key.cell
+            );
+            // Review finding 12: the compact key is a row of three samples, never a stack
+            // that reads as a ≡ menu glyph.
+            if key.compact {
+                assert!(
+                    marks[0].right() < marks[1].left() && marks[1].right() < marks[2].left(),
+                    "{locale:?} {ppp} {mode:?}: the samples side by side: {marks:?}"
+                );
+            }
+            // Review finding 13: ROUTING where every row's name starts.
+            assert!(
+                (key.name.left() - (key.cell.left() + 8.0)).abs() < 1.0,
+                "{locale:?} {ppp} {mode:?}: the name {:?} not aligned with the column",
+                key.name
+            );
+            for (i, m) in marks.iter().enumerate() {
+                assert!(
+                    key.cell.contains_rect(*m),
+                    "{locale:?} {ppp}: sample {i} {m:?} outside its cell {:?}",
+                    key.cell
+                );
+                assert!(
+                    !m.intersects(key.name),
+                    "{locale:?} {ppp}: sample {i} {m:?} over the name {:?}",
+                    key.name
+                );
+                for o in &marks[i + 1..] {
+                    assert!(!m.intersects(*o), "{locale:?} {ppp}: samples overlap");
+                }
+                assert!(
+                    !m.intersects(key.handle),
+                    "{locale:?} {ppp}: sample {i} {m:?} against the band's handle"
+                );
+            }
+            assert!(key.cell.contains_rect(key.name), "the name in its cell");
+            assert!(
+                !key.name.intersects(key.handle),
+                "{locale:?} {ppp}: the name {:?} under the band's handle {:?}",
+                key.name,
+                key.handle
+            );
+            let words = cantus_ui::i18n::t("cables.legend").to_uppercase();
+            let text = r.idle(1);
+            assert!(
+                text.contains(&format!("| {words} |")),
+                "{locale:?} {ppp}: ROUTING whole ({words})"
+            );
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// Review findings 1 and 2: whatever the desk was carrying when it left the screen lets
+/// go — a cable dragged from a port, a press on a port that had not travelled yet, a strip
+/// carried by its number cell. Released while the desk is hidden (or after it is back), it
+/// makes nothing: no route, no move, no command.
+#[test]
+fn what_the_desk_carried_lets_go_when_it_is_hidden() {
+    use cantus_ui::views::workspace::Pane;
+    for case in ["cable", "press", "strip"] {
+        let mut r = Rig::window(starter_project());
+        r.idle(3);
+        let s = r.ids();
+        r.app.select_strip(s[1]);
+        r.idle(2);
+        let rev = r.app.bus.revision();
+        let order = r.order();
+        let from = match case {
+            "strip" => r.rect(Some(s[2]), Control::Head).center(),
+            _ => r.rect(Some(s[2]), Control::Port).center(),
+        };
+        let to = r.rect(Some(s[6]), Control::Fader).center();
+        r.pointer = Some(from);
+        r.idle(1);
+        r.button(from, true);
+        if case != "press" {
+            // Carried: past the 6-pt threshold, over strip 7.
+            for k in 1..=6 {
+                r.pointer = Some(from + (to - from) * (k as f32 / 6.0));
+                r.idle(1);
+            }
+        }
+        // The desk leaves the screen with the button still held.
+        r.app.toggle_pane(Pane::Routing);
+        r.idle(2);
+        assert!(!r.app.workspace.is_visible(Pane::Mixer), "{case}: hidden");
+        r.pointer = Some(to);
+        r.idle(2);
+        r.app.show_pane(Pane::Mixer);
+        r.idle(3);
+        assert!(r.app.workspace.is_visible(Pane::Mixer), "{case}: back");
+        r.button(to, false);
+        r.idle(3);
+        assert_eq!(
+            r.app.bus.revision(),
+            rev,
+            "{case}: a release after the desk was hidden made something: {:?}",
+            r.app.bus.undo_label_key()
+        );
+        assert_eq!(r.order(), order, "{case}: no strip moved");
+        assert!(
+            r.app.project().strip(s[2]).unwrap().sends.is_empty(),
+            "{case}: no send"
+        );
+        assert_eq!(r.app.mixer.armed(), None, "{case}: nothing armed");
+    }
+}
+
+// ---- round 26, second review: the pinned band (findings 7–11) -------------------------
+
+/// The whole window at 1280 × 720 and 200 %, Wide, strip 2 selected: the desk scrolls and
+/// the band is pinned to its foot.
+fn pinned_rig() -> Rig {
+    let mut r = Rig::window(starter_project());
+    r.ctx.set_pixels_per_point(2.0);
+    r.size = vec2(640.0, 360.0);
+    mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Wide);
+    let s = r.ids();
+    r.app.select_strip(s[1]);
+    r.idle(4);
+    r
+}
+
+fn wheel(r: &mut Rig, at: Pos2, dy: f32, modifiers: Modifiers) {
+    r.pointer = Some(at);
+    r.mods = modifiers;
+    r.frame(vec![Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: vec2(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers,
+    }]);
+    for _ in 0..20 {
+        r.frame(Vec::new());
+    }
+    r.mods = Modifiers::NONE;
+    r.idle(1);
+}
+
+/// Second review, findings 7 and 10 (and the third's 6): nothing hidden under the pinned
+/// band is grabbed through it (the meter/fader ratio handle), and the band's own height
+/// handle, while the desk holds the band at less than asked, grows it no further — a drag
+/// up writes no preference above what shows, and the band does not move.
+#[test]
+fn the_pinned_bands_legend_cell_grabs_nothing_hidden() {
+    let mut r = pinned_rig();
+    let key = r.app.mixer.cable_key().expect("the band's cell");
+    let before = r.app.mixer.prefs();
+    for p in [
+        pos2(key.handle.center().x, key.cell.bottom() - 3.0),
+        key.handle.center(),
+    ] {
+        r.drag(p, p + vec2(0.0, -15.0));
+        let now = r.app.mixer.prefs();
+        assert_eq!(
+            now.ratio, before.ratio,
+            "the hidden ratio handle moved ({p:?})"
+        );
+        assert!(
+            now.band == before.band || now.band <= key.cell.height() + 0.5,
+            "a preference above what shows ({p:?}): {}",
+            now.band
+        );
+        let k = r.app.mixer.cable_key().unwrap();
+        assert_eq!(k.cell, key.cell, "the band's cell moved");
+    }
+}
+
+/// Second review, finding 9: the pinned band stops at the vertical scrollbar — a click on
+/// the bar's track beside the band pages the desk.
+#[test]
+fn the_scrollbar_track_beside_a_pinned_band_pages() {
+    let mut r = pinned_rig();
+    let key = r.app.mixer.cable_key().unwrap();
+    let rows = r.app.mixer.rows_seen();
+    assert_eq!(r.app.mixer.scroll().1, 0.0);
+    r.click(pos2(rows.right() - 5.0, key.cell.center().y + 2.0));
+    assert!(
+        r.app.mixer.scroll().1 > 0.0,
+        "the track's click paged the desk"
+    );
+}
+
+/// Second review, finding 8: the wheel over the pinned band does what it does over the
+/// band at the desk's foot — sideways, never down — and Ctrl+wheel steps the width.
+#[test]
+fn the_wheel_over_a_pinned_band_acts_as_over_the_band() {
+    let mut r = pinned_rig();
+    // Down a page first (the scrollbar's track), so the band is pinned with the desk
+    // scrolled.
+    let rows = r.app.mixer.rows_seen();
+    r.click(pos2(rows.right() - 5.0, rows.top() + rows.height() * 0.6));
+    let (x0, y0) = r.app.mixer.scroll();
+    assert!(y0 > 0.0, "the desk scrolled down");
+    let key = r.app.mixer.cable_key().unwrap();
+    let on_band = pos2(key.cell.right() + 70.0, key.cell.bottom() - 2.0);
+    wheel(&mut r, on_band, -2.0, Modifiers::NONE);
+    let (x1, y1) = r.app.mixer.scroll();
+    assert_eq!(y1, y0, "the wheel over the band scrolled the desk down");
+    assert!(x1 > x0, "the wheel over the band scrolls sideways");
+    let mode = r.app.mixer.prefs().width;
+    wheel(&mut r, on_band, 1.0, Modifiers::COMMAND);
+    assert_ne!(
+        r.app.mixer.prefs().width,
+        mode,
+        "Ctrl+wheel over the band steps the width"
+    );
+}
+
+/// Second review, finding 11: Esc that closes the typed-level field keeps the cable the
+/// right-click selected.
+#[test]
+fn esc_on_the_level_field_keeps_the_selected_cable() {
+    use cantus_core::routing::Route;
+    let mut r = Rig::window(starter_project());
+    r.idle(3);
+    let s = r.ids();
+    r.app.set_strip_send(s[1], Send::new(s[5]));
+    r.app.end_gesture();
+    r.app.select_strip(s[1]);
+    r.idle(2);
+    let route = Route::send(s[1], s[5]);
+    r.app.mixer.select_cable(Some(route));
+    let app = &r.app;
+    route_menu::open_level(&r.ctx, desk_owner(), app, s[1], s[5], pos2(500.0, 300.0));
+    r.idle(3);
+    r.key(Key::Escape, Modifiers::NONE);
+    assert!(
+        route_menu::typed_level(&r.ctx, desk_owner()).is_none(),
+        "Esc closed the field"
+    );
+    assert_eq!(
+        r.app.mixer.selected_cable(),
+        Some(route),
+        "the cable stays selected"
+    );
 }

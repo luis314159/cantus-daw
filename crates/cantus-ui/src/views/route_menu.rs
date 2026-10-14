@@ -56,6 +56,8 @@ enum Kind {
     /// A key gesture onto a strip with nothing that takes a key: a ducking compressor or
     /// a gate keyed from the source.
     NothingToKey { from: StripId, host: StripId },
+    /// *Type a level…*: the menu became a field for a send's level in dB (round 26).
+    Level { from: StripId, to: StripId },
 }
 
 /// A submenu, opened from a row with a chevron (one level, as the desk's menus).
@@ -76,6 +78,8 @@ enum Sub {
 pub(crate) enum Pick {
     /// A send's level (`from`, `to`, linear).
     Level(StripId, StripId, f32),
+    /// Turn the menu into a field to type a send's level (`from`, `to`).
+    TypeLevel(StripId, StripId),
     /// A send switched on or off.
     Switch(StripId, StripId),
     Tap(StripId, StripId, SendTap),
@@ -221,6 +225,92 @@ pub fn row_labels(ctx: &Context, owner: Id) -> Vec<String> {
             .map(|o| o.rows.iter().map(|(l, _)| l.clone()).collect())
             .unwrap_or_default()
     })
+}
+
+/// The text typed into the *Type a level…* field `owner`'s menu turned into, while it is
+/// open (tests and tools read it).
+pub fn typed_level(ctx: &Context, owner: Id) -> Option<String> {
+    let open = ctx.data(|d| d.get_temp::<Open>(state_id(owner)))?;
+    if !matches!(open.kind, Kind::Level { .. }) {
+        return None;
+    }
+    Some(
+        ctx.data(|d| d.get_temp::<Typing>(typing_id(owner)))
+            .unwrap_or_default()
+            .text,
+    )
+}
+
+/// Open the *Type a level…* field for the send `from` → `to` at `at` (what *Level ▸ Type
+/// a level…* does; tools and pictures call it directly): prefilled with the level now,
+/// selected.
+pub fn open_level(ctx: &Context, owner: Id, app: &CantusApp, from: StripId, to: StripId, at: Pos2) {
+    let now = app
+        .project()
+        .strip(from)
+        .and_then(|x| x.send_to(to))
+        .map_or(0.0, |x| x.level);
+    let text = if now <= 0.0 {
+        "\u{2212}\u{221e}".to_string()
+    } else {
+        format!("{:.1}", linear_to_db(now)).replace('-', "\u{2212}")
+    };
+    let typing = Typing {
+        prefill: text.clone(),
+        text,
+        ..Typing::default()
+    };
+    ctx.data_mut(|d| d.insert_temp(typing_id(owner), typing));
+    put(ctx, owner, Kind::Level { from, to }, at);
+}
+
+/// The text being typed into a *Type a level…* field, kept by its owner.
+#[derive(Clone, Debug, Default)]
+struct Typing {
+    text: String,
+    /// The field has been given the keyboard (and its text selected) already.
+    focused: bool,
+    /// The last Enter found no level in the words: the caption says what to type.
+    bad: bool,
+    /// Where the panel was drawn last frame (tests click inside it).
+    panel: Option<Rect>,
+    /// What the field opened with: Enter on it unchanged sets nothing.
+    prefill: String,
+}
+
+/// Where the *Type a level…* panel `owner` opened was drawn last frame, while it is open.
+pub fn level_panel(ctx: &Context, owner: Id) -> Option<Rect> {
+    typed_level(ctx, owner)?;
+    ctx.data(|d| d.get_temp::<Typing>(typing_id(owner)))
+        .and_then(|t| t.panel)
+}
+
+fn typing_id(owner: Id) -> Id {
+    owner.with("route-menu-typing")
+}
+
+/// A typed level as a send's linear level: a number of decibels — "dB" after it or
+/// nothing, a decimal comma or point, a plain or typographic minus — clamped to 0 dB (a
+/// send carries at most the whole signal); −∞, or anything at or below the faders' floor
+/// (`MIN_GAIN_DB`), is silence. Any other unit ("50%", "-6k", "-6 Hz") is no level: `None`.
+pub(crate) fn parse_level(text: &str) -> Option<f32> {
+    let lower = text
+        .trim()
+        .to_lowercase()
+        .replace('\u{2212}', "-")
+        .replace(',', ".");
+    let bare = lower.strip_suffix("db").unwrap_or(&lower).trim();
+    let infinite = |s: &str| matches!(s, "inf" | "\u{221e}" | "infinity" | "infinito");
+    if let Some(rest) = bare.strip_prefix('-') {
+        if infinite(rest.trim()) {
+            return Some(0.0);
+        }
+    }
+    if infinite(bare.trim_start_matches('+')) {
+        return Some(1.0);
+    }
+    let db: f32 = bare.parse().ok().filter(|v: &f32| v.is_finite())?;
+    Some(cantus_core::db_to_linear(db.min(0.0)))
 }
 
 /// Hand `pick` to `owner`'s next [`show`] (this frame's, when it has not run yet).
@@ -402,6 +492,8 @@ fn rows(app: &CantusApp, kind: &Kind) -> Vec<Row> {
     let mut e = Vec::new();
     match kind {
         Kind::Route(r) => route_rows(app, *r, &mut e),
+        // A field, not rows (`level_field`).
+        Kind::Level { .. } => {}
         Kind::AddSend(from) => {
             let from = *from;
             let sources = app.gesture_sources(from);
@@ -654,6 +746,12 @@ fn sub_rows(app: &CantusApp, sub: Sub) -> Vec<Row> {
                 .strip(from)
                 .and_then(|s| s.send_to(to))
                 .map_or(0.0, |s| s.level);
+            // First, a level of one's own: the menu becomes a field (round 26).
+            e.push(Row::pick(
+                Label::Key("routing.menu.level_type"),
+                Pick::TypeLevel(from, to),
+            ));
+            e.push(Row::separator());
             for step in STEPS {
                 let level = step.map_or(0.0, cantus_core::db_to_linear);
                 let here = match step {
@@ -846,6 +944,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, owner: Id) {
         return;
     };
     let s = Style::current();
+    if let Kind::Level { from, to } = open.kind {
+        level_field(app, &ctx, owner, open, from, to, &s);
+        return;
+    }
     let base = owner.with(("route-menu-list", open.serial));
     let top_rows = rows(app, &open.kind);
     let mut names = Vec::new();
@@ -895,6 +997,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, owner: Id) {
             }
         }
     }
+    if let Some(Pick::TypeLevel(from, to)) = pick {
+        // The menu becomes the field, where the menu was.
+        open_level(&ctx, owner, app, from, to, open.at);
+        return;
+    }
     if let Some(p) = pick {
         close(&ctx, owner);
         apply(app, &ctx, p);
@@ -917,6 +1024,146 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, owner: Id) {
     ctx.data_mut(|d| d.insert_temp(state_id(owner), open));
 }
 
+/// *Type a level…*: the menu turned into a field where it was — the route's band, the
+/// kit's numeric entry (a well, the value face) prefilled with the level and selected,
+/// and what the keys do. Enter sets the level (one undo step) and closes; words that are
+/// not a level keep the field, selected again, and the caption says what to type. Esc
+/// cancels; a click outside sets what was typed (words that are not a level set nothing).
+fn level_field(
+    app: &mut CantusApp,
+    ctx: &Context,
+    owner: Id,
+    mut open: Open,
+    from: StripId,
+    to: StripId,
+    s: &Style,
+) {
+    use crate::kit::field::{Event, Field};
+    use crate::kit::with_brush;
+    let tid = typing_id(owner);
+    let mut typing = ctx.data(|d| d.get_temp::<Typing>(tid)).unwrap_or_default();
+    // Built only while the field shows.
+    let (fl, tl) = (strip_label(app, from), strip_label(app, to));
+    let title = tf("routing.menu.level_title", &[("from", &fl), ("to", &tl)]);
+    let keys = t(if typing.bad {
+        "routing.menu.level_bad"
+    } else {
+        "routing.menu.level_keys"
+    });
+    let k = s.d(1.0);
+    let band = [Item::Band(Src::Str(&title))];
+    let width = width_of(
+        ctx,
+        &[Item::Band(Src::Str(&title)), Item::action(Src::Str(&keys))],
+        s,
+    )
+    .max(220.0 * k);
+    let h = (kmenu::BAND + 30.0 + 20.0) * k + 8.0 * k;
+    let screen = ctx.content_rect();
+    let at = pos2(
+        open.at
+            .x
+            .min(screen.right() - 8.0 - width)
+            .max(screen.left() + 8.0),
+        open.at
+            .y
+            .min(screen.bottom() - 8.0 - h)
+            .max(screen.top() + 8.0),
+    );
+    let mut event = None;
+    let enter = ctx.input(|i| i.key_pressed(egui::Key::Enter));
+    let area = egui::Area::new(owner.with(("route-menu-level", open.serial)))
+        .order(egui::Order::Foreground)
+        .fixed_pos(at)
+        .constrain(true)
+        .show(ctx, |ui| {
+            // The panel takes the clicks on it, so none reaches what lies under it.
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(width, h), egui::Sense::click());
+            let head = kmenu::row(rect, &band, k, 0);
+            let field = Rect::from_min_size(
+                pos2(head.left() + 4.0 * k, head.bottom() + 4.0 * k),
+                egui::vec2(head.width() - 8.0 * k, 22.0 * k),
+            );
+            let caption = Rect::from_min_max(
+                pos2(head.left() + 8.0 * k, field.bottom() + 2.0 * k),
+                pos2(head.right() - 8.0 * k, rect.bottom() - 4.0 * k),
+            );
+            with_brush(ui.painter(), |b| {
+                kmenu::paint(b, rect, s, &band, None);
+                let ink = if typing.bad {
+                    s.t.danger
+                } else {
+                    crate::kit::color::with_alpha(s.t.menu_text, 0.72)
+                };
+                let _ = text::paint(
+                    b,
+                    caption,
+                    &Text::new(&keys, Role::Label, ink)
+                        .align(egui::Align2::LEFT_CENTER)
+                        .policy(text::Policy::Elide(text::Elide::End)),
+                    s.tk(),
+                );
+            });
+            // The kit's field (round 26): the level selected as it opens (and again after
+            // words that are not a level); Enter or a click elsewhere sets it, Esc leaves.
+            let out = Field::new(tid.with("field"))
+                .role(Role::Value)
+                .open(!typing.focused)
+                .show(ui, field, &mut typing.text);
+            typing.focused = true;
+            event = out.event;
+        });
+    let (pressed, pointer) = ctx.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos()));
+    let inside = pointer.is_some_and(|p| area.response.rect.contains(p));
+    typing.panel = Some(area.response.rect);
+    let done = |ctx: &Context| {
+        close(ctx, owner);
+        ctx.data_mut(|d| d.remove::<Typing>(tid));
+    };
+    match event {
+        Some(Event::Cancel) => {
+            done(ctx);
+            return;
+        }
+        Some(Event::Commit) => {
+            if typing.text.trim() == typing.prefill {
+                // The prefill untouched: nothing to set (its one decimal may not say the
+                // level exactly, and a level under the floor reads as silence).
+                done(ctx);
+                return;
+            }
+            match parse_level(&typing.text) {
+                Some(level) => {
+                    done(ctx);
+                    apply(app, ctx, Pick::Level(from, to, level));
+                    return;
+                }
+                None if enter => {
+                    // Selected again, and the caption says what a level looks like.
+                    typing.bad = true;
+                    typing.focused = false;
+                }
+                // Words that are not a level, left by a click elsewhere: nothing set.
+                None => {
+                    done(ctx);
+                    return;
+                }
+            }
+        }
+        None if pressed && !inside && !open.fresh && !typing.focused => {
+            done(ctx);
+            return;
+        }
+        None => {}
+    }
+    open.fresh = false;
+    open.rows.clear();
+    ctx.data_mut(|d| {
+        d.insert_temp(tid, typing);
+        d.insert_temp(state_id(owner), open);
+    });
+}
+
 /// Do what a row (or a deferred pick) says: one undo step at most.
 fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
     let send_of = |app: &CantusApp, from: StripId, to: StripId| {
@@ -932,6 +1179,8 @@ fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
                 app.end_gesture();
             }
         }
+        // Handled by `show`, which owns the menu it turns into a field.
+        Pick::TypeLevel(..) => {}
         Pick::Switch(from, to) => {
             if let Some(send) = send_of(app, from, to) {
                 let enabled = !send.enabled;
@@ -1043,5 +1292,63 @@ fn select_all(app: &mut CantusApp, strips: Vec<StripId>) {
     if let Some(first) = strips.first().copied() {
         app.select_strip(first);
         app.selected_strips = strips;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_level;
+    use cantus_core::linear_to_db;
+
+    fn db(text: &str) -> Option<f32> {
+        parse_level(text).map(|l| {
+            if l <= 0.0 {
+                f32::NEG_INFINITY
+            } else {
+                linear_to_db(l)
+            }
+        })
+    }
+
+    /// Round 26: what a musician types into *Type a level…* — with or without the unit, a
+    /// decimal comma or point, a typographic or plain minus — reads as decibels; above
+    /// 0 dB clamps to unity; −∞ and the floor are silence; anything else is no level.
+    #[test]
+    fn a_typed_level_reads_as_decibels_clamped_to_unity() {
+        for (text, want) in [
+            ("-6", -6.0),
+            ("-6 dB", -6.0),
+            ("\u{2212}4,5", -4.5),
+            ("-4.5dB", -4.5),
+            ("  -12,25  db ", -12.25),
+            ("0", 0.0),
+            ("+3", 0.0),
+            ("12 dB", 0.0),
+        ] {
+            let got = db(text).unwrap_or_else(|| panic!("{text:?} is a level"));
+            assert!((got - want).abs() < 0.01, "{text:?} read {got}");
+        }
+        for text in ["-inf", "\u{2212}\u{221e}", "-\u{221e} dB", "-120", "-96"] {
+            assert_eq!(parse_level(text), Some(0.0), "{text:?} is silence");
+        }
+        assert_eq!(parse_level("inf"), Some(1.0), "+∞ clamps to unity");
+        // Review finding 4: only decibels — no other unit the kit's parser knows.
+        for text in [
+            "",
+            "loud",
+            "-",
+            "dB",
+            "6 6",
+            "50%",
+            "-6k",
+            "-6 Hz",
+            "-6 db/oct",
+            "-6 ms",
+            "2 kHz",
+            "-6 st",
+            "4:1",
+        ] {
+            assert_eq!(parse_level(text), None, "{text:?} is no level");
+        }
     }
 }

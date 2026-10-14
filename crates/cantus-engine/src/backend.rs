@@ -59,6 +59,10 @@ pub struct AudioConfig {
     pub workers: Option<usize>,
 }
 
+/// The longest a waiting Exemplar zone table is held back, from the first change that
+/// waited (ADR 0050 §6, fourth review #2).
+pub const HOLD_BOUND: std::time::Duration = std::time::Duration::from_millis(250);
+
 pub struct EngineHandle {
     tx: Producer<EngineMessage>,
     rx: Consumer<EngineEvent>,
@@ -82,6 +86,14 @@ pub struct EngineHandle {
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
+    /// The newest snapshot, while some Exemplar's new zone table waits for its starts to be
+    /// read ([`Self::set_snapshot`]), and since when it has waited (an absolute bound).
+    pending: Option<Arc<Snapshot>>,
+    pending_since: Option<std::time::Instant>,
+    /// Zone tables sent before their starts were read, the bound reached (counted).
+    tables_late: u64,
+    /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
+    compiles: u64,
     note_inputs: Vec<NoteInput>,
     /// The consumer end of the mix recorder's ring; `None` without an audio device.
     capture: Option<Consumer<f32>>,
@@ -279,6 +291,10 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            pending: None,
+            pending_since: None,
+            tables_late: 0,
+            compiles: 0,
             note_inputs: Vec::new(),
             capture: Some(capture_rx),
             capture_target: CaptureTarget::Off,
@@ -343,6 +359,10 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            pending: None,
+            pending_since: None,
+            tables_late: 0,
+            compiles: 0,
             note_inputs: Vec::new(),
             capture: None,
             capture_target: CaptureTarget::Off,
@@ -537,7 +557,10 @@ impl EngineHandle {
         // one (tests, renders) at once.
         if self.is_live() {
             self.samples.set_background(true);
+            // Exemplar streams its long samples from disk (ADR 0050).
+            self.samples.set_streaming(true);
         }
+        self.compiles += 1;
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
@@ -550,8 +573,134 @@ impl EngineHandle {
         Arc::new(snapshot)
     }
 
-    /// Send a snapshot, first delivering units for any effect the engine does not have.
+    /// [`Self::compile`] for an offline render (export, stems): first waits for every
+    /// instrument file still loading in the background, so the render plays what playing
+    /// will once they are in — never the silence of a zone still on its way (ADR 0050 §7).
+    pub fn compile_for_render(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
+        let _ = self.compile(project, revision);
+        self.samples.wait_assets();
+        self.compile(project, revision)
+    }
+
+    /// Send a snapshot, first delivering units for any effect the engine does not have. It
+    /// goes at once — mute, transport, arming, tempo, every other edit — except the new zone
+    /// tables of Exemplars whose new starts are not read yet: those tracks keep the zones
+    /// they had until the blocks are in the pool, so a note right after the edit plays as
+    /// in memory (third review #6, fourth #2). They wait at most [`HOLD_BOUND`] from the
+    /// first change that waited — never restarted by later ones — and then go anyway
+    /// (counted: [`Self::tables_late`]); [`Self::flush_pending`] sends them, every frame,
+    /// without compiling anything.
     pub fn set_snapshot(&mut self, snapshot: Arc<Snapshot>) {
+        let unready = self.samples.unready_tracks();
+        if unready.is_empty() {
+            self.pending = None;
+            self.pending_since = None;
+            self.send_snapshot(snapshot);
+            return;
+        }
+        let since = *self
+            .pending_since
+            .get_or_insert_with(std::time::Instant::now);
+        if since.elapsed() >= HOLD_BOUND {
+            self.pending = None;
+            self.pending_since = None;
+            self.tables_late += 1;
+            self.send_snapshot(snapshot);
+            return;
+        }
+        let now = self.with_previous_zones(&snapshot, &unready);
+        self.pending = Some(snapshot);
+        self.send_snapshot(now);
+    }
+
+    /// Send the newest snapshot, its waiting zone tables included, once their starts are
+    /// read or the bound is reached (every frame; no compile). Returns whether one still
+    /// waits.
+    pub fn flush_pending(&mut self) -> bool {
+        if self.pending.is_none() {
+            return false;
+        }
+        let late = self
+            .pending_since
+            .is_some_and(|t| t.elapsed() >= HOLD_BOUND);
+        if late || self.samples.starts_ready() {
+            if late {
+                self.tables_late += 1;
+            }
+            self.pending_since = None;
+            if let Some(s) = self.pending.take() {
+                self.send_snapshot(s);
+            }
+        }
+        self.pending.is_some()
+    }
+
+    /// `snapshot` with the zone tables of `tracks` as the last snapshot sent had them (the
+    /// zones' parameters and texts, and their samples); everything else as it is.
+    fn with_previous_zones(
+        &self,
+        snapshot: &Arc<Snapshot>,
+        tracks: &[cantus_core::TrackId],
+    ) -> Arc<Snapshot> {
+        use cantus_core::inst::sampler::zone_key;
+        let Some(before) = self.rec.snapshot.as_ref() else {
+            return snapshot.clone();
+        };
+        let mut s = (**snapshot).clone();
+        for t in s.tracks.iter_mut().filter(|t| tracks.contains(&t.id)) {
+            let Some(old) = before.tracks.iter().find(|o| o.id == t.id) else {
+                continue;
+            };
+            let (
+                cantus_core::InstrumentSpec::Native(new),
+                cantus_core::InstrumentSpec::Native(was),
+            ) = (&mut t.instrument, &old.instrument)
+            else {
+                continue;
+            };
+            if new.kind != was.kind {
+                continue;
+            }
+            new.params.retain(|k, _| zone_key(k).is_none());
+            new.params.extend(
+                was.params
+                    .iter()
+                    .filter(|(k, _)| zone_key(k).is_some())
+                    .map(|(k, v)| (k.clone(), *v)),
+            );
+            new.text.retain(|k, _| zone_key(k).is_none());
+            new.text.extend(
+                was.text
+                    .iter()
+                    .filter(|(k, _)| zone_key(k).is_some())
+                    .map(|(k, v)| (k.clone(), v.clone())),
+            );
+            t.assets.clone_from(&old.assets);
+        }
+        Arc::new(s)
+    }
+
+    /// The last snapshot sent to the engine (tests).
+    pub fn sent_snapshot(&self) -> Option<&Arc<Snapshot>> {
+        self.rec.snapshot.as_ref()
+    }
+
+    /// Zone tables sent before their starts were read, the bound reached.
+    pub fn tables_late(&self) -> u64 {
+        self.tables_late
+    }
+
+    /// Snapshots compiled since the start.
+    pub fn compiles(&self) -> u64 {
+        self.compiles
+    }
+
+    /// Whether a snapshot waits for its zones' starts.
+    pub fn snapshot_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+
+    fn send_snapshot(&mut self, snapshot: Arc<Snapshot>) {
         // An effect this snapshot no longer has is forgotten now, not when the engine hands
         // its unit back: a remove and its undo in quick succession then send a fresh unit
         // with the undo's snapshot (round 22, the soak builder's E1).

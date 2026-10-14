@@ -3,7 +3,7 @@
 //! place — so a pack folder either is whole or does not exist (ADR 0030).
 
 use crate::fetch::{self, FetchError, Transport};
-use crate::manifest::{Credit, Pack, Source, Text, ZipSource};
+use crate::manifest::{Attribution, Credit, Pack, PackInstrument, Source, Text, ZipSource};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -25,8 +25,8 @@ impl Layout {
     pub fn pack_dir(&self, id: &str) -> PathBuf {
         self.root.join(id)
     }
-    fn staging(&self, id: &str) -> PathBuf {
-        self.root.join(".staging").join(id)
+    fn staging_root(&self) -> PathBuf {
+        self.root.join(".staging")
     }
     fn downloads(&self) -> PathBuf {
         self.root.join(".downloads")
@@ -46,10 +46,26 @@ pub struct Receipt {
     pub licence_url: String,
     pub licence_file: String,
     pub credits: Vec<Credit>,
+    /// A CC BY pack's credit line, as the manifest gave it at install (ADR 0042 §3).
+    /// Receipts written before round 26 have none and still load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<Attribution>,
+    /// The instruments the pack offers (round 26); none in older receipts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instruments: Vec<PackInstrument>,
     /// Seconds since the Unix epoch.
     pub installed_at: u64,
     pub files: u64,
     pub bytes: u64,
+}
+
+impl Receipt {
+    /// The credit line the pack was installed with, if its licence asks for one.
+    pub fn credit_line(&self) -> Option<String> {
+        self.attribution
+            .as_ref()
+            .map(|a| a.line(&self.licence, &self.licence_url))
+    }
 }
 
 /// Where an install is.
@@ -81,6 +97,8 @@ pub enum InstallError {
     NoLicence(String),
     #[error("disk: {0}")]
     Io(String),
+    #[error("another Cantus is installing this pack; try again when it has finished")]
+    Busy,
 }
 
 impl From<std::io::Error> for InstallError {
@@ -165,20 +183,108 @@ fn with_retries<T>(
     }
 }
 
+/// One install's own staging folder, `.staging/<id>.<process>.<n>`, with the pack's lock
+/// file `.staging/<id>.lock` held exclusively for as long as it lives: a second install of
+/// the same pack (another Cantus, say) is refused, and the crash cleanup
+/// ([`clear_all_staging`]) never touches a folder whose lock is held. Dropped without
+/// [`Staging::commit`], the folder goes.
+pub struct Staging {
+    dir: PathBuf,
+    lock: Option<std::fs::File>,
+    keep: bool,
+}
+
+impl Staging {
+    /// Take `id`'s lock and make a fresh folder; [`InstallError::Busy`] while another
+    /// install of it runs.
+    pub fn begin(layout: &Layout, id: &str) -> Result<Staging, InstallError> {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let root = layout.staging_root();
+        std::fs::create_dir_all(&root)?;
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(root.join(format!("{id}.lock")))?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => return Err(InstallError::Busy),
+            Err(std::fs::TryLockError::Error(e)) => return Err(e.into()),
+        }
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = root.join(format!("{id}.{}.{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir)?;
+        Ok(Staging {
+            dir,
+            lock: Some(lock),
+            keep: false,
+        })
+    }
+
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    /// The folder was moved into place: nothing to remove.
+    fn commit(mut self) {
+        self.keep = true;
+    }
+
+    /// Let the lock go and leave the folder, as a crashed process does (tests).
+    pub fn abandon(mut self) {
+        self.keep = true;
+        self.lock = None;
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+}
+
+/// How many files are under `dir`, at any depth.
+fn count_files(dir: &Path) -> u64 {
+    let mut n = 0;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push(e.path()),
+                Ok(_) => n += 1,
+                Err(_) => {}
+            }
+        }
+    }
+    n
+}
+
 /// Install (or update) `pack`. Blocking: the manager runs it on a worker thread.
 pub fn install(
     job: &Job,
     pack: &Pack,
     report: &mut dyn FnMut(Phase),
 ) -> Result<Receipt, InstallError> {
-    let staging = job.layout.staging(&pack.id);
-    std::fs::create_dir_all(&staging)?;
+    let guard = Staging::begin(job.layout, &pack.id)?;
+    let staging = guard.dir().to_path_buf();
+    let budget = budget(pack.installed_size);
     let (files, bytes) = match &pack.source {
         Source::Files(list) => install_files(job, list, &staging, report)?,
-        Source::Zip(z) => install_zip(job, z, &staging, report)?,
+        Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, report)?,
+        Source::TarGz(z) => install_archive(job, z, Archive::TarGz, budget, &staging, report)?,
     };
     if !staging.join(&pack.licence_file).is_file() {
         return Err(InstallError::NoLicence(pack.licence_file.clone()));
+    }
+    // What is on disk is what was unpacked: nothing lost, nothing extra.
+    let on_disk = count_files(&staging);
+    if on_disk != files {
+        return Err(InstallError::Archive(format!(
+            "{files} files were unpacked but {on_disk} are in the folder; it was not installed"
+        )));
     }
     let receipt = Receipt {
         id: pack.id.clone(),
@@ -188,6 +294,8 @@ pub fn install(
         licence_url: pack.licence_url.clone(),
         licence_file: pack.licence_file.clone(),
         credits: pack.credits.clone(),
+        attribution: pack.attribution.clone(),
+        instruments: pack.instruments.clone(),
         installed_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -210,6 +318,7 @@ pub fn install(
         let _ = std::fs::remove_dir_all(&old);
     }
     std::fs::rename(&staging, &dest)?;
+    guard.commit();
     Ok(receipt)
 }
 
@@ -247,13 +356,102 @@ fn install_files(
     Ok((list.len() as u64, total))
 }
 
-fn install_zip(
+/// The most an archive pack may unpack to: what the manifest says it weighs installed,
+/// a quarter more, and a megabyte — so a damaged or hostile archive (a gzip bomb, a header
+/// that claims terabytes) is stopped, not written until the disk is full.
+pub fn budget(installed_size: u64) -> u64 {
+    // Each entry also costs `ENTRY_COST` against it (`charge`), so an archive of countless
+    // empty files is stopped too.
+    installed_size
+        .saturating_add(installed_size / 4)
+        .saturating_add(1 << 20)
+}
+
+/// What each unpacked entry costs against the budget besides its bytes: an NTFS file
+/// record, so countless empty files are stopped as surely as one huge one.
+pub const ENTRY_COST: u64 = 1024;
+
+/// Charge one entry of `size` bytes against `budget` (`used` so far, entries included).
+fn charge(used: &mut u64, size: u64, budget: u64) -> Result<(), InstallError> {
+    let cost = size.saturating_add(ENTRY_COST);
+    if cost > budget.saturating_sub(*used) {
+        return Err(too_big(budget));
+    }
+    *used += ENTRY_COST;
+    Ok(())
+}
+
+/// Create `out`, which must not exist yet: staging starts empty, so a file already there
+/// is a second entry the file system itself maps onto the same file (an alias no name
+/// rule foresaw), and the archive is refused.
+fn create_new(out: &Path) -> Result<std::fs::File, InstallError> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(out)
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => InstallError::Archive(format!(
+                "two entries land on the same file, {}; the archive is refused",
+                out.display()
+            )),
+            _ => e.into(),
+        })
+}
+
+/// Charge each folder `rel` needs and no entry made before against the budget, like a
+/// file: an archive of countless folders is stopped as surely as one of countless files.
+fn charge_dirs(
+    dirs: &mut std::collections::HashSet<String>,
+    rel: &str,
+    used: &mut u64,
+    budget: u64,
+) -> Result<(), InstallError> {
+    let mut at = 0;
+    while let Some(i) = rel[at..].find('/') {
+        let dir = &rel[..at + i];
+        if dirs.insert(crate::manifest::file_key(dir)) {
+            if ENTRY_COST > budget.saturating_sub(*used) {
+                return Err(too_big(budget));
+            }
+            *used += ENTRY_COST;
+        }
+        at += i + 1;
+    }
+    Ok(())
+}
+
+/// Refuse a second entry that would be the same file on Windows (case, trailing dots and
+/// spaces: `LICENSE`, `license`, `LICENSE.`).
+fn claim(seen: &mut std::collections::HashSet<String>, rel: &str) -> Result<(), InstallError> {
+    if seen.insert(crate::manifest::file_key(rel)) {
+        Ok(())
+    } else {
+        Err(InstallError::Archive(format!(
+            "two entries land on the same file, {rel}; the archive is refused"
+        )))
+    }
+}
+
+/// The archive formats a pack may come in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Archive {
+    Zip,
+    TarGz,
+}
+
+fn install_archive(
     job: &Job,
     z: &ZipSource,
+    kind: Archive,
+    budget: u64,
     staging: &Path,
     report: &mut dyn FnMut(Phase),
 ) -> Result<(u64, u64), InstallError> {
-    let archive = job.layout.downloads().join(format!("{}.zip", z.sha256));
+    let ext = match kind {
+        Archive::Zip => "zip",
+        Archive::TarGz => "tar.gz",
+    };
+    let archive = job.layout.downloads().join(format!("{}.{ext}", z.sha256));
     let part = job.layout.downloads().join(format!("{}.part", z.sha256));
     let url = job.archive.clone().unwrap_or_else(|| z.url.clone());
     with_retries(job, report, |report| {
@@ -274,18 +472,56 @@ fn install_zip(
         )
     })?;
     report(Phase::Verifying);
-    let r = unpack(&archive, z, staging, job.cancel, report);
+    // From an empty folder: nothing of an earlier, interrupted attempt is kept.
+    let _ = std::fs::remove_dir_all(staging);
+    std::fs::create_dir_all(staging)?;
+    let r = match kind {
+        Archive::Zip => unpack(&archive, z, budget, staging, job.cancel, report),
+        Archive::TarGz => unpack_tar_gz(&archive, z, budget, staging, job.cancel, report),
+    };
+    if r.is_err() {
+        // A failed or cancelled unpack (the download is done and kept): no half pack stays.
+        let _ = std::fs::remove_dir_all(staging);
+    }
     if r.is_ok() {
         let _ = std::fs::remove_file(&archive);
     }
     r
 }
 
-/// Unpack the entries `z` keeps into `staging`. Entry names that would climb out of the
-/// folder are refused (zip-slip).
+/// Write `from` into `out`, refusing to go past `budget` bytes in all (`used` so far).
+fn copy_within(
+    from: &mut dyn std::io::Read,
+    out: &Path,
+    used: &mut u64,
+    budget: u64,
+) -> Result<u64, InstallError> {
+    let mut w = create_new(out)?;
+    let room = budget.saturating_sub(*used);
+    let n = std::io::copy(
+        &mut std::io::Read::take(from, room.saturating_add(1)),
+        &mut w,
+    )?;
+    if n > room {
+        return Err(too_big(budget));
+    }
+    *used += n;
+    Ok(n)
+}
+
+fn too_big(budget: u64) -> InstallError {
+    InstallError::Archive(format!(
+        "the archive unpacks to more than the manifest says ({} MB at most); it was not installed",
+        budget / 1_000_000
+    ))
+}
+
+/// Unpack the entries `z` keeps into `staging`, at most `budget` bytes. Entry names that
+/// would climb out of the folder are refused (zip-slip).
 pub fn unpack(
     archive: &Path,
     z: &ZipSource,
+    budget: u64,
     staging: &Path,
     cancel: &AtomicBool,
     report: &mut dyn FnMut(Phase),
@@ -294,6 +530,10 @@ pub fn unpack(
     let mut zip = zip::ZipArchive::new(file).map_err(|e| InstallError::Archive(e.to_string()))?;
     let total = zip.len() as u64;
     let (mut files, mut bytes) = (0u64, 0u64);
+    // What the budget has spent (bytes and entries) and the files written, by Windows name.
+    let mut used = 0u64;
+    let mut seen = std::collections::HashSet::new();
+    let mut dirs = std::collections::HashSet::new();
     for i in 0..zip.len() {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(FetchError::Cancelled.into());
@@ -318,12 +558,15 @@ pub fn unpack(
             continue;
         }
         crate::manifest::check_path(rel).map_err(InstallError::Archive)?;
+        claim(&mut seen, rel)?;
+        charge_dirs(&mut dirs, rel, &mut used, budget)?;
+        charge(&mut used, entry.size(), budget)?;
         let out = staging.join(rel);
         if let Some(dir) = out.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let mut w = std::fs::File::create(&out)?;
-        bytes += std::io::copy(&mut entry, &mut w)?;
+        let n = copy_within(&mut entry, &out, &mut used, budget)?;
+        bytes += n;
         files += 1;
         if i % 16 == 0 {
             report(Phase::Unpacking {
@@ -334,6 +577,125 @@ pub fn unpack(
     }
     report(Phase::Unpacking { done: total, total });
     Ok((files, bytes))
+}
+
+/// Unpack a `.tar.gz` as [`unpack`] does a zip: the entries `z` keeps, at most `budget`
+/// bytes, nothing outside `staging`. A kept entry that is a link (or anything but a file
+/// or a folder) is refused: a pack is plain files.
+pub fn unpack_tar_gz(
+    archive: &Path,
+    z: &ZipSource,
+    budget: u64,
+    staging: &Path,
+    cancel: &AtomicBool,
+    report: &mut dyn FnMut(Phase),
+) -> Result<(u64, u64), InstallError> {
+    let file = std::fs::File::open(archive)?;
+    let total = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let counted = std::cell::Cell::new(0u64);
+    let mut gz = flate2::read::MultiGzDecoder::new(Counted {
+        inner: std::io::BufReader::new(file),
+        n: &counted,
+    });
+    let (mut files, mut bytes) = (0u64, 0u64);
+    let mut used = 0u64;
+    let mut names = std::collections::HashSet::new();
+    let mut dirs = std::collections::HashSet::new();
+    let mut failure: Option<InstallError> = None;
+    let mut seen = 0u64;
+    let r = crate::tar::walk(&mut gz, &mut |entry, read| {
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            failure = Some(FetchError::Cancelled.into());
+            return Err("cancelled".into());
+        }
+        seen += 1;
+        if seen.is_multiple_of(16) {
+            report(Phase::Unpacking {
+                done: counted.get(),
+                total,
+            });
+        }
+        let name = entry.name.trim_start_matches("./");
+        let Some(rel) = name.strip_prefix(z.strip.as_str()) else {
+            return Ok(());
+        };
+        let rel = rel.trim_end_matches('/');
+        if rel.is_empty() || entry.kind == crate::tar::Kind::Dir || !keeps(z, rel) {
+            return Ok(());
+        }
+        let fail = |e: InstallError, failure: &mut Option<InstallError>| {
+            let msg = e.to_string();
+            *failure = Some(e);
+            Err(msg)
+        };
+        if let Err(e) = crate::manifest::check_path(rel) {
+            return fail(
+                InstallError::Archive(format!("unsafe entry name {}: {e}", entry.name)),
+                &mut failure,
+            );
+        }
+        if entry.kind != crate::tar::Kind::File {
+            return fail(
+                InstallError::Archive(format!(
+                    "{} is a link or a special file; a pack holds plain files",
+                    entry.name
+                )),
+                &mut failure,
+            );
+        }
+        if let Err(e) = claim(&mut names, rel) {
+            return fail(e, &mut failure);
+        }
+        if let Err(e) = charge_dirs(&mut dirs, rel, &mut used, budget) {
+            return fail(e, &mut failure);
+        }
+        if let Err(e) = charge(&mut used, entry.size, budget) {
+            return fail(e, &mut failure);
+        }
+        let out = staging.join(rel);
+        let made = (|| -> Result<(), InstallError> {
+            if let Some(dir) = out.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            let mut w = create_new(&out)?;
+            let mut written = 0u64;
+            read(&mut |chunk| {
+                use std::io::Write;
+                written += chunk.len() as u64;
+                w.write_all(chunk).map_err(|e| e.to_string())
+            })
+            .map_err(InstallError::Archive)?;
+            bytes += written;
+            used += written;
+            Ok(())
+        })();
+        match made {
+            Ok(()) => {
+                files += 1;
+                Ok(())
+            }
+            Err(e) => fail(e, &mut failure),
+        }
+    });
+    if let Err(msg) = r {
+        return Err(failure.unwrap_or(InstallError::Archive(msg)));
+    }
+    report(Phase::Unpacking { done: total, total });
+    Ok((files, bytes))
+}
+
+/// A reader that counts the compressed bytes read, for the progress bar.
+struct Counted<'a, R> {
+    inner: R,
+    n: &'a std::cell::Cell<u64>,
+}
+
+impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let k = self.inner.read(buf)?;
+        self.n.set(self.n.get() + k as u64);
+        Ok(k)
+    }
 }
 
 /// Whether an entry (after `strip`) is part of the pack.
@@ -400,8 +762,29 @@ pub fn installed(layout: &Layout) -> Vec<Receipt> {
     out
 }
 
-/// Forget what an abandoned install left behind: partial downloads are kept (they
-/// resume), staging folders are not.
-pub fn clear_staging(layout: &Layout, id: &str) {
-    let _ = std::fs::remove_dir_all(layout.staging(id));
+/// Staging folders a crash left behind, cleared when a manager starts: every folder
+/// whose pack lock nobody holds. A live install's (this Cantus or another) is left alone.
+pub fn clear_all_staging(layout: &Layout) {
+    let root = layout.staging_root();
+    let Ok(rd) = std::fs::read_dir(&root) else {
+        return;
+    };
+    for e in rd.flatten() {
+        if !e.file_type().is_ok_and(|t| t.is_dir()) {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().into_owned();
+        let id = name.split('.').next().unwrap_or(&name).to_string();
+        let Ok(lock) = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(root.join(format!("{id}.lock")))
+        else {
+            continue;
+        };
+        if lock.try_lock().is_ok() {
+            let _ = std::fs::remove_dir_all(e.path());
+        }
+    }
 }

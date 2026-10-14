@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 23;
+pub const SCHEMA_VERSION: u32 = 24;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -206,6 +206,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_20_to_21,
     migrate_21_to_22,
     migrate_22_to_23,
+    migrate_23_to_24,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -628,6 +629,15 @@ fn migrate_22_to_23(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 24 (round 26, ADR 0023's amendment): an Exemplar zone may be started by a
+/// controller (`z{n}.trig` = 5, with `z{n}.cc`, `z{n}.cclo`, `z{n}.cchi`: a piano's pedal
+/// noises). No older zone has the trigger or the keys — and the keys' defaults change no
+/// sample — so the step writes nothing; the number is what makes an older build refuse a
+/// project whose pedal noises it would play on the keys.
+fn migrate_23_to_24(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,6 +670,30 @@ mod tests {
             {"instrument": {"type": "Native", "kind": "Sampler", "params": 3}}
         ]}});
         assert!(migrate_20_to_21(&mut bad).is_err());
+    }
+
+    /// Schema 24: the fixture's pedal-noise zone reads back as a controller trigger, and an
+    /// older file (23) opens with no zone a controller starts.
+    #[test]
+    fn schema_24_keeps_a_zone_the_sustain_pedal_starts() {
+        use cantus_core::inst::sampler::{zf, Trigger, Zone};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v24.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Exemplar pedal")
+            .unwrap();
+        let z = Zone::of(t.instrument.native().unwrap(), 1).unwrap();
+        assert_eq!(Trigger::from_index(z.get(zf::TRIG)), Trigger::Controller);
+        assert_eq!(
+            (z.get(zf::CC), z.get(zf::CCLO), z.get(zf::CCHI)),
+            (64.0, 126.0, 127.0)
+        );
+        let old = std::fs::read_to_string(dir.join("v23.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tracks.iter().all(|t| t.name != "Exemplar pedal"));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

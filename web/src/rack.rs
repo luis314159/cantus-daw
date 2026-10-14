@@ -15,7 +15,8 @@ type Pattern = [[bool; STEPS]; ROWS];
 
 /// A bass line in A minor, one pitch per step (Hz); the row decides which steps sound.
 const BASS_HZ: [f32; STEPS] = [
-    55.0, 55.0, 65.41, 55.0, 82.41, 55.0, 73.42, 65.41, 55.0, 55.0, 65.41, 55.0, 98.0, 82.41, 73.42, 65.41,
+    55.0, 55.0, 65.41, 55.0, 82.41, 55.0, 73.42, 65.41, 55.0, 55.0, 65.41, 55.0, 98.0, 82.41,
+    73.42, 65.41,
 ];
 
 fn groove() -> Pattern {
@@ -73,7 +74,12 @@ pub fn rack() -> Html {
     // The scheduler reads the live pattern and tempo without being rebuilt on every edit.
     let live = use_mut_ref(|| (groove(), 124u32));
     *live.borrow_mut() = (*pattern, *bpm);
-    let sched = use_mut_ref(|| Sched { synth: None, next_time: 0.0, next_step: 0, lights: VecDeque::new() });
+    let sched = use_mut_ref(|| Sched {
+        synth: None,
+        next_time: 0.0,
+        next_step: 0,
+        lights: VecDeque::new(),
+    });
 
     {
         let sched = sched.clone();
@@ -83,7 +89,9 @@ pub fn rack() -> Html {
             let timer = on.then(|| {
                 Interval::new(25, move || {
                     let mut s = sched.borrow_mut();
-                    let Some(clock) = s.synth.as_ref().map(|y| y.now()) else { return };
+                    let Some(clock) = s.synth.as_ref().map(|y| y.now()) else {
+                        return;
+                    };
                     let (pat, tempo) = *live.borrow();
                     let spb = 60.0 / tempo as f64 / 4.0;
                     while s.next_time < clock + 0.12 {
@@ -110,7 +118,10 @@ pub fn rack() -> Html {
 
     // The page can react to playback (the hero's C of waves breathes with it).
     use_effect_with(*playing, |on| {
-        if let Some(body) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.body()) {
+        if let Some(body) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.body())
+        {
             let _ = body.class_list().toggle_with_force("is-playing", *on);
         }
     });
@@ -153,7 +164,10 @@ pub fn rack() -> Html {
         let bpm = bpm.clone();
         Callback::from(move |e: InputEvent| {
             use wasm_bindgen::JsCast;
-            if let Some(i) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+            if let Some(i) = e
+                .target()
+                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+            {
                 if let Ok(v) = i.value().parse::<u32>() {
                     bpm.set(v.clamp(70, 180));
                 }
@@ -189,7 +203,11 @@ pub fn rack() -> Html {
         html! { <div class="row"><div class="row-name">{ *name }</div><div class="cells">{ for cells }</div></div> }
     });
 
-    let play_label = if *playing { l.t("Stop", "Detener") } else { l.t("Play", "Reproducir") };
+    let play_label = if *playing {
+        l.t("Stop", "Detener")
+    } else {
+        l.t("Play", "Reproducir")
+    };
     let icon = if *playing {
         html! { <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg> }
     } else {

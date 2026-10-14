@@ -15,6 +15,7 @@ use cantus_core::inst::sampler::{
     MAX_ZONES,
 };
 use cantus_core::{NativeSpec, SampleData};
+use cantus_dsp::exemplar::stream::StartPin;
 use cantus_dsp::exemplar::{
     self as ex, builtin, Exemplar, Globals, GroupParams, LoopDir, Quality, Region, Source, Trig,
     ZoneParams,
@@ -39,6 +40,10 @@ pub mod tel {
     pub const PEAK: usize = 11;
     /// How many (zone, position) pairs follow.
     pub const PLAYING: usize = 12;
+    /// Zones whose sample streams from disk (ADR 0050).
+    pub const STREAMED: usize = 13;
+    /// Voices ended early by a late block since the unit was made.
+    pub const LATE: usize = 14;
     /// Pairs: zone index, position in its file (frames).
     pub const FIRST_PAIR: usize = 16;
     pub const MAX_PAIRS: usize = 16;
@@ -61,6 +66,8 @@ pub struct Unit {
     memory_mib: f32,
     stolen: u32,
     peak: f32,
+    streamed: usize,
+    late_total: u32,
 }
 
 impl Unit {
@@ -71,8 +78,13 @@ impl Unit {
         for (i, d) in defaults.iter_mut().enumerate() {
             *d = model::ZONE_PARAMS[i].default;
         }
+        let ex = Exemplar::new(sample_rate);
+        // Its layers say on these boards what they stream and where its zones may start
+        // (ADR 0050).
+        super::stream::hub().register_board(ex.board());
+        super::stream::hub().register_board(ex.starts());
         Unit {
-            ex: Exemplar::new(sample_rate),
+            ex,
             fs: sample_rate,
             vals: vec![defaults; MAX_ZONES].into_boxed_slice(),
             touched: vec![false; MAX_ZONES].into_boxed_slice(),
@@ -85,6 +97,8 @@ impl Unit {
             memory_mib: 0.0,
             stolen: 0,
             peak: 0.0,
+            streamed: 0,
+            late_total: 0,
         }
     }
 
@@ -174,6 +188,7 @@ pub fn zone_params(v: &[f32; zf::COUNT], rate: f32) -> ZoneParams {
         Trigger::First => Trig::First,
         Trigger::Legato => Trig::Legato,
         Trigger::ReleaseKey => Trig::ReleaseKey,
+        Trigger::Controller => Trig::Controller,
     };
     let lo = v[zf::LO] as u8;
     let vlo = v[zf::VLO] as u8;
@@ -222,6 +237,9 @@ pub fn zone_params(v: &[f32; zf::COUNT], rate: f32) -> ZoneParams {
         off_normal: v[zf::OFFMODE] >= 0.5,
         sw: v[zf::SW] as i16,
         delay_ms: v[zf::DELAY],
+        cc: (v[zf::CC] as u8).min(127),
+        cclo: (v[zf::CCLO] as u8).min(127),
+        cchi: (v[zf::CCHI] as u8).min(127),
     }
 }
 
@@ -301,6 +319,20 @@ impl InstrumentUnit for Unit {
             if !self.has_file[n] {
                 continue;
             }
+            if level == 0 {
+                if let Some(st) = super::stream::lookup(data) {
+                    // A streamed sample carries every level its file has; the zone keeps
+                    // the ones its own range needs, as in memory (ADR 0050, review 5).
+                    let shift = model::max_shift_of(spec, &self.vals[n], 12.0);
+                    let mut src = Source::from_stream(&st);
+                    src.limit_levels(1 + levels_for(shift, data.rate));
+                    self.srcs[n] = src;
+                    continue;
+                }
+            }
+            if self.srcs[n].stream.is_some() {
+                continue;
+            }
             let s = &mut self.srcs[n];
             if level == 0 {
                 s.channels = data.channels.clamp(1, 2) as usize;
@@ -314,6 +346,7 @@ impl InstrumentUnit for Unit {
         self.ex.clear_zones();
         self.ptrs.clear();
         let mut any = false;
+        self.streamed = 0;
         // Taken out and put back (no allocation) so the loop may borrow `self`.
         let used = std::mem::take(&mut self.used);
         for &n in &used {
@@ -327,6 +360,9 @@ impl InstrumentUnit for Unit {
             } else {
                 continue;
             };
+            if src.stream.is_some() {
+                self.streamed += 1;
+            }
             let z = zone_params(&self.vals[n], src.rate);
             for l in src.levels.iter().flatten() {
                 if self.ptrs.len() < self.ptrs.capacity() {
@@ -365,6 +401,11 @@ impl InstrumentUnit for Unit {
             self.ex.set_group(m, g);
         }
         self.ex.set_globals(&globals);
+        self.ex.publish_starts();
+        // The reader looks at once (the attach had them read already — second review #16).
+        if self.streamed > 0 {
+            super::stream::hub().boards_changed();
+        }
         std::mem::swap(&mut self.used, &mut self.prev_used);
     }
 
@@ -377,15 +418,28 @@ impl InstrumentUnit for Unit {
     }
 
     fn controller(&mut self, controller: Controller, value: f32) {
-        let which = match controller {
-            Controller::ModWheel => 0,
-            Controller::Pressure => 1,
-            Controller::PitchBend => 2,
-            Controller::Expression => 3,
-            Controller::Sustain => 4,
-            Controller::Cc(_) => return,
+        // Zones a controller starts hear it by its MIDI number (round 26: pedal noises).
+        let cc = match controller {
+            Controller::ModWheel => Some(1),
+            Controller::Expression => Some(11),
+            Controller::Sustain => Some(64),
+            Controller::Cc(n) => Some(n),
+            Controller::Pressure | Controller::PitchBend => None,
         };
-        self.ex.controller(which, value);
+        let which = match controller {
+            Controller::ModWheel => Some(0),
+            Controller::Pressure => Some(1),
+            Controller::PitchBend => Some(2),
+            Controller::Expression => Some(3),
+            Controller::Sustain => Some(4),
+            Controller::Cc(_) => None,
+        };
+        if let Some(w) = which {
+            self.ex.controller(w, value);
+        }
+        if let Some(n) = cc {
+            self.ex.cc(n, (value.clamp(0.0, 1.0) * 127.0).round() as u8);
+        }
     }
 
     fn all_notes_off(&mut self) {
@@ -420,6 +474,24 @@ impl InstrumentUnit for Unit {
         wrote
     }
 
+    fn set_offline(&mut self, offline: bool) {
+        self.ex.set_blocking(offline);
+    }
+
+    fn take_late_reads(&mut self) -> u32 {
+        let n = self.ex.take_late();
+        self.late_total = self.late_total.saturating_add(n);
+        n
+    }
+
+    fn take_cut_notes(&mut self) -> u32 {
+        self.ex.take_cut()
+    }
+
+    fn take_stream_wakes(&mut self) -> u32 {
+        self.ex.take_wakes()
+    }
+
     fn splits_voices(&self) -> bool {
         true
     }
@@ -445,6 +517,8 @@ impl InstrumentUnit for Unit {
             t[tel::FIRST_PAIR + 2 * i + 1] = l.position as f32;
         }
         t[tel::KEYSWITCH] = self.ex.keyswitch() as f32;
+        t[tel::STREAMED] = self.streamed as f32;
+        t[tel::LATE] = self.late_total as f32;
         t
     }
 }
@@ -491,6 +565,7 @@ impl MipCache {
             };
             let k = have.len() + 1;
             have.push(Arc::new(SampleData {
+                stream: None,
                 rate: (base.rate >> k).max(1),
                 channels: base.channels,
                 frames: next.into(),
@@ -504,13 +579,96 @@ impl MipCache {
 /// How many mip levels a zone needs: enough for its highest key plus the bend range and an
 /// octave of modulation, at an output rate of 44.1 kHz or more.
 pub fn levels_needed(spec: &NativeSpec, zone: &model::Zone, rate: u32) -> usize {
-    let shift = model::max_shift_semitones(spec, zone, 12.0);
+    levels_for(model::max_shift_semitones(spec, zone, 12.0), rate)
+}
+
+/// Mip levels a sample at `rate` needs to be played `shift` semitones above its root.
+pub fn levels_for(shift: f32, rate: u32) -> usize {
     let r_max = rate as f32 / 44_100.0 * math::exp2(shift / 12.0);
     if r_max < 2.0 {
         0
     } else {
         (math::log2(r_max).floor() as usize).min(ex::MAX_LEVELS - 1)
     }
+}
+
+/// The start pins an Exemplar of `spec` playing `assets` publishes as it is configured — a
+/// superset: every level its zones keep — computed off the audio thread, so the blocks are
+/// read before the snapshot reaches it (second review #16: a note in the very block a
+/// zone's start changes in plays as in memory).
+pub fn start_pins(spec: &NativeSpec, assets: &Assets) -> Vec<StartPin> {
+    let vel_ms = spec.get("start.vel").max(0.0);
+    let draft = Quality::from_index(spec.get("quality")) == Quality::Draft;
+    let mut out = Vec::new();
+    for (key, data) in assets {
+        let (Some((n, 0)), Some(d)) = (asset_level(key), data) else {
+            continue;
+        };
+        let Some(st) = super::stream::lookup(d) else {
+            continue;
+        };
+        let mut v = [0.0f32; zf::COUNT];
+        for (i, x) in v.iter_mut().enumerate() {
+            *x = spec.get(&format!("z{n}.{}", model::zone_field_name(i)));
+        }
+        let start = v[zf::START].max(0.0) as usize;
+        let end = start + (vel_ms * st.rate / 1000.0).ceil() as usize;
+        let head = st.head_frames(0);
+        let block = ex::stream::BLOCK;
+        let shift = model::max_shift_of(spec, &v, 12.0);
+        // A zone played fast (more than 8 frames of its file a frame) runs through its head
+        // in a few milliseconds: the blocks right after it are kept ready too, so a note's
+        // first blocks are there before the reader has seen it (third review #8).
+        let fast = d.rate as f32 / 44_100.0 * math::exp2(shift / 12.0) > 8.0;
+        if end + 2 * block <= head && !fast {
+            continue;
+        }
+        let lo = start.max(head) / block;
+        let hi = ((end + 2 * block).min(st.frames[0].max(1)) - 1) / block;
+        // A fast zone's first audio callback runs through its head and on: the blocks one
+        // callback reads at its top speed are kept ready after the head (third review #8).
+        let ratio_max = d.rate as f64 / 44_100.0 * math::exp2(shift / 12.0) as f64;
+        let local = if draft { ratio_max } else { ratio_max.min(2.0) };
+        let ahead = if fast {
+            ex::stream::Cursor::ahead_for(local.min(ex::head_only_above(44_100.0)))
+        } else {
+            0
+        };
+        let hi = hi
+            .max(lo + ex::stream::READ_AHEAD - 1 + ahead)
+            .min(st.blocks(0).saturating_sub(1));
+        out.push(StartPin {
+            stream: st.id,
+            block: lo,
+            count: (hi + 1).saturating_sub(lo).clamp(1, 255),
+            // Draft reads level 0 only, whatever the pitch.
+            levels: if draft {
+                1
+            } else {
+                (1 + levels_for(shift, d.rate)).min(st.levels())
+            },
+        });
+    }
+    out
+}
+
+/// For each file an instrument's zones play, whether it may be streamed (ADR 0050 §1):
+/// not when some zone loops it or plays it backwards (it stays in memory). Nothing else
+/// about a zone changes its stream (review 13).
+pub fn stream_files(spec: &NativeSpec) -> Vec<(String, bool)> {
+    let mut out: Vec<(String, bool)> = Vec::new();
+    for (_, z) in model::zones(spec) {
+        let Some(path) = z.sample.clone() else {
+            continue;
+        };
+        let v = &z.values;
+        let plain = !LoopMode::from_index(v[zf::MODE]).loops() && v[zf::REV] < 0.5;
+        match out.iter_mut().find(|(p, _)| *p == path) {
+            Some((_, ok)) => *ok &= plain,
+            None => out.push((path, plain)),
+        }
+    }
+    out
 }
 
 /// For a sampler track: add every zone's mip levels to its assets, as `z{n}.sample~{k}`.
@@ -525,6 +683,9 @@ pub fn attach_mips(
         let (Some((n, 0)), Some(data)) = (asset_level(key), data) else {
             continue;
         };
+        if data.stream.is_some() {
+            continue; // a stream brings its own levels
+        }
         let Some(zone) = model::Zone::of(spec, n) else {
             continue;
         };
@@ -550,5 +711,12 @@ impl Unit {
     /// The sample rate the unit was built for.
     pub fn sample_rate(&self) -> f32 {
         self.fs
+    }
+}
+
+/// The stream reader lets go of a dropped instrument's boards (second review #1).
+impl Drop for Unit {
+    fn drop(&mut self) {
+        super::stream::hub().boards_changed();
     }
 }

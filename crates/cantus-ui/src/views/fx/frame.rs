@@ -21,7 +21,7 @@ use crate::i18n::{t, tf};
 use crate::kit::menu::{self, Check, Item};
 use crate::kit::shell::{self, Ab, Event, Footer, Header, Preset, Shell};
 use crate::kit::text::Src;
-use crate::kit::{with_brush, Function, State, Style};
+use crate::kit::{with_brush, Function, Style};
 use cantus_core::EffectKind;
 use egui::{Pos2, Rect, Sense, Vec2};
 use std::collections::{BTreeMap, BTreeSet};
@@ -725,22 +725,20 @@ fn saving(
                     s.r(6.0),
                     crate::kit::Fill::Solid(s.t.deck),
                 );
-                crate::kit::well::paint(b, rect.shrink(5.0 * s.k), s, State::LIT, None);
             });
-            let field = rect.shrink2(Vec2::new(12.0, 7.0) * s.k);
-            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(field));
-            let r = child.add(
-                egui::TextEdit::singleline(name)
-                    .frame(egui::Frame::NONE)
-                    .hint_text(t("preset.name"))
-                    .desired_width(field.width()),
-            );
-            r.request_focus();
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                save = true;
-            }
-            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                done = true;
+            // The kit's field (round 26). A preset is a file, so only Enter on a name
+            // saves it; a click elsewhere, Esc or Enter on nothing closes the box
+            // (final review: it never stays open without the keyboard).
+            let hint = t("preset.name");
+            let out = crate::kit::field::Field::new(shell.id.with("save-name"))
+                .hint(&hint)
+                .scale(s.k)
+                .opens_when_shown()
+                .show(ui, rect.shrink(5.0 * s.k), name);
+            match name_box(out.event, out.enter, name) {
+                NameBox::Save => save = true,
+                NameBox::Close => done = true,
+                NameBox::Keep => {}
             }
         });
     if save {
@@ -759,13 +757,31 @@ fn saving(
                         params,
                     });
                 }
-                done = true;
             }
             Err(e) => host.status(e),
         }
+        // Saved or not (the status line says why), the session is over: the box closes.
+        done = true;
     }
     if done {
         chrome.saving = None;
+    }
+}
+
+/// What the preset name box does when its field's session ends.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum NameBox {
+    Keep,
+    Save,
+    Close,
+}
+
+fn name_box(event: Option<crate::kit::field::Event>, enter: bool, name: &str) -> NameBox {
+    use crate::kit::field::Event as F;
+    match event {
+        None => NameBox::Keep,
+        Some(F::Commit) if enter && !name.trim().is_empty() => NameBox::Save,
+        Some(_) => NameBox::Close,
     }
 }
 
@@ -828,5 +844,103 @@ impl ChipText {
             };
         }
         &self.oversampling.1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{pos2, Event as E, Key, Modifiers, PointerButton};
+
+    /// Final review, fields 4: only Enter on a name saves a preset (a file); a click
+    /// elsewhere with a name typed closes the box without writing it.
+    #[test]
+    fn only_enter_on_a_name_saves_a_preset() {
+        use crate::kit::field::Event as F;
+        assert_eq!(name_box(Some(F::Commit), true, "Warm"), NameBox::Save);
+        assert_eq!(name_box(Some(F::Commit), false, "Warm"), NameBox::Close);
+        assert_eq!(name_box(Some(F::Commit), true, "  "), NameBox::Close);
+        assert_eq!(name_box(Some(F::Cancel), false, "Warm"), NameBox::Close);
+        assert_eq!(name_box(None, false, "Warm"), NameBox::Keep);
+    }
+
+    /// Final review, fields 4: the name box for saving a preset, opened and left empty —
+    /// a click elsewhere, Esc or Enter — closes and saves nothing; it never stays open
+    /// without the keyboard (where Esc could no longer close it).
+    #[test]
+    fn the_preset_name_box_closes_and_never_saves_an_empty_name() {
+        let mut app = crate::CantusApp::from_parts(
+            Some(crate::starter_project()),
+            cantus_engine::EngineHandle::dummy(),
+            false,
+        );
+        let s0 = app.project().tracks[0].strip.unwrap();
+        app.add_effect(s0, EffectKind::Gate);
+        let fx = app.project().strip(s0).unwrap().effects[0].id;
+        let spec = app.project().strip(s0).unwrap().effects[0].spec.clone();
+        let shell = shell_of(EffectKind::Gate);
+        let s = Style::current();
+        for close in ["away", "esc", "enter"] {
+            let ctx = egui::Context::default();
+            crate::design::install_fonts(&ctx);
+            crate::design::install_style(&ctx);
+            let mut chrome = Chrome {
+                saving: Some(String::new()),
+                save_at: pos2(20.0, 20.0),
+                ..Chrome::default()
+            };
+            let mut frame = 0u64;
+            let mut run = |chrome: &mut Chrome, app: &mut crate::CantusApp, events: Vec<E>| {
+                frame += 1;
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))),
+                    time: Some(frame as f64 / 60.0),
+                    events,
+                    ..Default::default()
+                };
+                ctx.run_ui(input, |ui| {
+                    let mut host =
+                        super::super::host::DawHost::with_spec(app, s0, fx, spec.clone(), "test");
+                    saving(ui.ctx(), &shell, &mut host, chrome, &s);
+                })
+                .textures_delta
+                .clear();
+            };
+            for _ in 0..3 {
+                run(&mut chrome, &mut app, Vec::new());
+            }
+            assert!(
+                crate::kit::field::active(&ctx),
+                "{close}: the box took the keys"
+            );
+            let key = |k| E::Key {
+                key: k,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            };
+            match close {
+                "away" => {
+                    let at = pos2(700.0, 500.0);
+                    run(&mut chrome, &mut app, vec![E::PointerMoved(at)]);
+                    for pressed in [true, false] {
+                        let b = E::PointerButton {
+                            pos: at,
+                            button: PointerButton::Primary,
+                            pressed,
+                            modifiers: Modifiers::NONE,
+                        };
+                        run(&mut chrome, &mut app, vec![b]);
+                    }
+                }
+                "esc" => run(&mut chrome, &mut app, vec![key(Key::Escape)]),
+                _ => run(&mut chrome, &mut app, vec![key(Key::Enter)]),
+            }
+            for _ in 0..2 {
+                run(&mut chrome, &mut app, Vec::new());
+            }
+            assert!(chrome.saving.is_none(), "{close}: the box closed");
+        }
     }
 }

@@ -95,6 +95,7 @@ pub mod automate;
 pub mod brush;
 pub mod cache;
 pub mod color;
+pub mod field;
 pub mod glyph;
 pub mod hint;
 pub mod inspect;

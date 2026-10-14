@@ -6,19 +6,21 @@
 //! (`<data dir>/Content/<pack>/`), verifies every byte, unpacks it, keeps the licence file
 //! beside the samples, and writes a receipt. Installs run on worker threads
 //! ([`manager::Manager`]); the browser lists folders and searches an index built off the
-//! interface thread ([`library`]).
+//! interface thread ([`library`]). [`credits`] names who made every pack (ADR 0042).
 //!
 //! Network rules: `https://` only, certificates checked against the operating system's
 //! store (so a corporate proxy's root, installed by the administrator, is trusted the way
 //! the browser trusts it), proxy settings from the environment, a proxy's HTML page
 //! recognised and never written into the library, and nothing is ever bypassed.
 
+pub mod credits;
 pub mod fetch;
 pub mod install;
 pub mod library;
 pub mod manager;
 pub mod manifest;
+pub mod tar;
 
 pub use install::{Layout, Phase, Receipt};
-pub use manager::{Finished, Manager, Status};
-pub use manifest::{Category, Manifest, Pack, Source};
+pub use manager::{Finished, InstalledInstrument, Manager, Status};
+pub use manifest::{Attribution, Category, Licence, Manifest, Pack, Source};

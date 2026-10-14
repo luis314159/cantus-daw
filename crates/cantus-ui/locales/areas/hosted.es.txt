@@ -1,5 +1,5 @@
 # Área: hosted CLAP/VST3 instruments (round 20). Cada clave necesita su gemela en hosted.en.txt.
-hosted.missing_status = {name} no está en esta computadora ({why}). La pista conserva los datos de su sonido y suena en silencio hasta que se instale.
+hosted.missing_status = {name} no está en este equipo ({why}). La pista conserva los datos de su sonido y suena en silencio hasta que se instale.
 hosted.no_window = {name} no tiene ventana propia.
 
 # --- la tarjeta del inspector para un instrumento alojado ---

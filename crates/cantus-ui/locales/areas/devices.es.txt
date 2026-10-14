@@ -52,7 +52,7 @@ devices.status.engine = CPU {load}% · cortes {overruns} · voces {voices}
 devices.chip.text = {name} · {driver} · {rate} · {buffer} · {latency}
 devices.chip.none = Sin audio — haz clic para configurarlo
 devices.chip.lost = {name} · desconectada
-devices.chip.tip = Dispositivo de audio — haz clic para cambiar interfaz, controlador, frecuencia y búfer
+devices.chip.tip = Dispositivo de audio — clic: interfaz, controlador, frecuencia y búfer
 
 devices.state.good = Funcionando
 devices.state.warn = Revisar
@@ -152,7 +152,7 @@ devices.drivers.intro = Los controladores ASIO hablan directo con la interfaz: u
 devices.drivers.none_installed = No hay ningún controlador ASIO instalado.
 devices.drivers.installed = Instalados: {list}
 devices.drivers.rescan = Volver a buscar
-devices.drivers.where = Elígelos en el chip de audio: Controlador ▸ ASIO y luego el controlador ASIO.
+devices.drivers.where = Elígelos en el chip de audio: Controlador > ASIO y luego el controlador ASIO.
 devices.drivers.no_asio_build = Esta es una compilación de desarrollo de Cantus hecha sin el SDK de ASIO, así que no puede usar controladores ASIO aunque estén instalados. Cantus publicado incluye ASIO; para compilarlo tú, ejecuta cargo run -p xtask -- asio-sdk y vuelve a compilar. Mientras tanto WASAPI sigue funcionando.
 devices.drivers.flex = FlexASIO — libre y de código abierto
 devices.drivers.flex_body = Un controlador ASIO universal para cualquier dispositivo, de Etienne Dechamps (licencia MIT).

@@ -35,6 +35,13 @@ use std::sync::OnceLock;
 /// the build then carries the RVR1960 file, offers it and makes it the default.
 pub const RVR1960_PERMITTED: bool = false;
 
+// Permitting the RVR1960 without bringing its file back would offer an empty translation:
+// restore `locales/verses/es.txt` and its `include_str!` in `Translation::source` first.
+const _: () = assert!(
+    !RVR1960_PERMITTED,
+    "bring back locales/verses/es.txt and its include_str! in Translation::source"
+);
+
 /// The Spanish translation the verse is taken from.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Spanish {
@@ -144,9 +151,10 @@ impl Translation {
     pub fn source(self) -> &'static str {
         match self {
             Translation::Web => include_str!("../locales/verses/en.txt"),
-            // Not in the build until its publisher's written permission is in.
-            Translation::Rvr1960 if !RVR1960_PERMITTED => "",
-            Translation::Rvr1960 => include_str!("../locales/verses/es.txt"),
+            // Not in the build, nor in the public repository (ADR 0049), until its
+            // publisher's written permission is in: then `locales/verses/es.txt` comes back
+            // and this arm becomes `include_str!("../locales/verses/es.txt")`.
+            Translation::Rvr1960 => "",
             Translation::Rv1909 => include_str!("../locales/verses/es-1909.txt"),
         }
     }

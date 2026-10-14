@@ -664,3 +664,109 @@ fn pre_fader_sends_never_allocate() {
         FIRST.with(|f| f.get())
     );
 }
+
+/// Streaming from disk (ADR 0050): a piano-like Exemplar whose long samples stream — chords
+/// held past the heads, so voices copy blocks from the pool, publish their cursors and, as
+/// this rig runs far faster than real time, also meet late blocks and fade — with and
+/// without the pool's workers. Not one allocation on the callback or a worker.
+#[test]
+fn streaming_voices_never_allocate() {
+    use cantus_core::inst::sampler::Zone;
+    let dir = tempfile::tempdir().unwrap();
+    cantus_engine::inst::stream::hub().set_cache_dir(dir.path().join("cache"));
+    let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+    // The same instrument with its second zone removed: its stream let go while voices
+    // play (second review #2).
+    let mut first_only = NativeSpec::new(InstrumentKind::Sampler);
+    for (n, (lo, hi, root)) in [(0u8, 59u8, 48u8), (60, 127, 72)].iter().enumerate() {
+        let path = dir.path().join(format!("s{n}.wav"));
+        let w = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut wr = hound::WavWriter::create(&path, w).unwrap();
+        for i in 0..200_000 {
+            let v = (math::sin(i as f32 * 0.031 * (n + 1) as f32) * 9_000.0) as i16;
+            wr.write_sample(v).unwrap();
+            wr.write_sample(-v).unwrap();
+        }
+        wr.finalize().unwrap();
+        let z = Zone::new(Some(path.to_string_lossy().into()), *lo, *hi, *root);
+        for (k, v) in z.values_for(n) {
+            spec.set(&k, v).unwrap();
+            if n == 0 {
+                first_only.set(&k, v).unwrap();
+            }
+        }
+        for (k, t) in z.texts_for(n) {
+            spec.set_text(&k, Some(t.clone())).unwrap();
+            if n == 0 {
+                first_only.set_text(&k, Some(t)).unwrap();
+            }
+        }
+    }
+    let mut p = Project::new("stream");
+    p.tempo_bpm = 120.0;
+    let mut tr = p.make_track("Piano");
+    tr.instrument = InstrumentSpec::Native(spec);
+    let mut clip = p.make_clip("chords", Ticks::ZERO, Ticks::beats(16));
+    for bar in 0..4i64 {
+        for k in [36u8, 43, 48, 55, 60, 64, 67, 72] {
+            let note = p.make_note(Ticks::beats(bar * 4), Ticks::beats(4), k + bar as u8, 90);
+            clip.notes.push(note);
+        }
+    }
+    tr.clips.push(clip);
+    p.tracks.push(tr);
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        let mut cache = SampleCache::new();
+        cache.set_streaming(true);
+        let mut snap = Snapshot::compile(&p, 1);
+        assert!(cache.attach(&mut snap).is_empty());
+        assert!(
+            cantus_engine::inst::stream::lookup(snap.tracks[0].assets[0].1.as_ref().unwrap())
+                .is_some(),
+            "streamed"
+        );
+        for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+            rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+        }
+        let snap = Arc::new(snap);
+        rig.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("streaming", 700);
+        // A voice wakes the reader only when it needs it sooner than the reader's next look
+        // (a non-blocking system call on the audio thread, counted: ADR 0050 §4); ordinary
+        // playback like this makes none (inst_stream's `ordinary_playback_wakes_the_reader_
+        // not_once` holds that), so here only the bound: at most one per voice per callback.
+        let wakes = rig.p.stats().stream_wakes;
+        assert!(wakes <= 32 * 704, "wakes bounded ({name}): {wakes}");
+        // The second zone removed while its voices play: the zone's source and the ended
+        // voices' playheads let go of its stream on the audio thread — never the last
+        // holder (the hub's entry and the sample cache's head are), so never a free.
+        let mut q = p.clone();
+        q.tracks[0].instrument = InstrumentSpec::Native(first_only.clone());
+        let mut fewer = Snapshot::compile(&q, 2);
+        assert!(cache.attach(&mut fewer).is_empty());
+        let fewer = Arc::new(fewer);
+        rig.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&fewer)))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetSnapshot(fewer)).unwrap();
+        rig.play("letting go", 300);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "streaming allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

@@ -9,22 +9,23 @@ use cantus_ui::i18n::{default_thread_locale, Locale};
 use cantus_ui::{views, welcome_project};
 use egui::{Pos2, Rect, Vec2};
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 
 struct Counting;
 
-static COUNTING: AtomicBool = AtomicBool::new(false);
-static ALLOCS: AtomicUsize = AtomicUsize::new(0);
-
 thread_local! {
+    // Per thread (round 26): tests measuring at once never mix their numbers.
+    static COUNTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static ALLOCS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static THIS_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
-        if COUNTING.load(Ordering::Relaxed) && THIS_THREAD.with(|t| t.get()) {
-            ALLOCS.fetch_add(1, Ordering::Relaxed);
+        if COUNTING.try_with(|c| c.get()).unwrap_or_default() && THIS_THREAD.with(|t| t.get()) {
+            {
+                let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+            };
         }
         unsafe { System.alloc(l) }
     }
@@ -32,8 +33,10 @@ unsafe impl GlobalAlloc for Counting {
         unsafe { System.dealloc(p, l) }
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
-        if COUNTING.load(Ordering::Relaxed) && THIS_THREAD.with(|t| t.get()) {
-            ALLOCS.fetch_add(1, Ordering::Relaxed);
+        if COUNTING.try_with(|c| c.get()).unwrap_or_default() && THIS_THREAD.with(|t| t.get()) {
+            {
+                let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+            };
         }
         unsafe { System.realloc(p, l, n) }
     }
@@ -44,12 +47,12 @@ static A: Counting = Counting;
 
 fn count(f: impl FnOnce()) -> usize {
     THIS_THREAD.with(|t| t.set(true));
-    ALLOCS.store(0, Ordering::Relaxed);
-    COUNTING.store(true, Ordering::Relaxed);
+    ALLOCS.with(|c| c.set(0));
+    COUNTING.with(|c| c.set(true));
     f();
-    COUNTING.store(false, Ordering::Relaxed);
+    COUNTING.with(|c| c.set(false));
     THIS_THREAD.with(|t| t.set(false));
-    ALLOCS.load(Ordering::Relaxed)
+    ALLOCS.try_with(|c| c.get()).unwrap_or_default()
 }
 
 fn app() -> (CantusApp, egui::Context, tempfile::TempDir) {

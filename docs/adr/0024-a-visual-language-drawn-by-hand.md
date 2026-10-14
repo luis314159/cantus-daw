@@ -257,6 +257,15 @@ hosted plug-ins (ADR 0019); the exported plug-ins draw the same shell (`FxHost`,
   strip of capability icons (automatable, has a menu, warning). Every kit widget writes
   `app.hint = Hint { name, value, caps }` on hover; the value updates live while dragging; a
   meter reports the dB under the pointer.
+- **Every hint reads whole at a laptop's 1280 × 720** (round 26, final review), at 100 %
+  and 200 %, in both languages: a hover hint wider than its line (its name, or its name
+  and value — never a live value being dragged) takes both lines, wrapped, in its own
+  size when two lines hold it, else the small one; the project's name gives way only while
+  it shows. The idle hint (a view's or a tool's) stays on one line under the project's
+  name, in its essentials (`<key>.short`, `Policy::Abbreviate`) where the whole does not
+  fit; the whole is the panel's tooltip. Held by `final_look::every_hint_reads_whole_at_1280_by_720`
+  (every view's and tool's idle hint, and a pointer sweep over the window with the desk,
+  the piano roll and the rack below).
 - **A value pill** follows the pointer (12 pt to its right) **while dragging** any control — better
   than FL, which shows the value only in the hint bar.
 - Devices have their own **help line** in the footer (§8). Icons always have a tooltip too; the
@@ -349,6 +358,47 @@ the arrangement copies 18 MB a frame on the stress project; idle repaints 10 tim
 - **One font table**, **no bare words**, **no stock egui widget in `views/`**: lints over the
   source, as tests.
 - **`examples/shoot`** stays the design review, extended to every view and the whole window.
+
+### 15. One text field (round 26, builder *mixer*, third review)
+
+Every place a word or a number is typed — a rename (track, clip, pad, strip), a name in a
+dialog (the layout's, a preset's, a theme's), a search or filter (the device picker, the
+devices panel, the link picker, the clip browser, the samples browser), a typed value (a
+send's level, an effect knob's, an instrument knob's exact entry), the export's tags and
+the settings' fields — is **`kit::field::Field`**, with one look and one set of rules:
+
+- **The look**: the kit's well; the words inset 6 pt (plus a search's room for its
+  magnifier) by the frame's own inner margin — egui ignores `TextEdit::margin` under a
+  custom frame — and centred on the row; the hint in the placeholder colour; at a device
+  editor's own scale (`Field::scale`). The lit well is the focus indication: no second
+  ring (`design::paint_focus_ring` leaves text edits alone).
+- **Opening** (an editor appearing, `opens_when_shown`, or a click into a standing field)
+  takes the keyboard with the words selected, so typing replaces them.
+- **Enter** commits; **Esc** cancels — the words go back to what they were when the field
+  opened — and closes; **a click elsewhere** commits and closes. Either way the keyboard
+  is let go.
+- **While a field holds the keyboard nothing else reads it**: `field::active` is true from
+  the pass it takes the keyboard to the pass after it lets go, and the app's shortcuts,
+  the band's Esc and the typing piano wait on it.
+- A transient field (a typed value over a control that paints after it) opens in a
+  foreground area, so it is never under its own control's face.
+- **An untouched session changes nothing** (final review): `Out::edited` says whether the
+  words at the commit differ, spaces aside, from those the session opened with; a caller
+  sets nothing when they do not — no prefilled value rounded to its readout, no empty undo
+  step. `Out::enter` tells Enter from a click elsewhere, for a commit that writes a file
+  (a preset is saved on Enter only; a click elsewhere closes its box).
+- **Every field has an id of its own**, given by its caller and salted by what it edits
+  (a routing row's channel, an export tag's key): two fields shown with one id in a pass
+  would be one edit, so typing into one would write both — refused in debug builds. A
+  dialog's Esc waits while one of its fields holds the keyboard.
+
+The lint (`tests/appearance_look.rs`) refuses any `TextEdit`, `DragValue` or egui-framed
+text input outside `kit/field.rs`. Tests: `kit::field::tests` (select-all on open, Enter,
+Esc, a click elsewhere, a click into a standing field, the words inside the well),
+`tests/text_fields.rs` (every rename and the layout's name through the whole window:
+Enter, Esc, a click elsewhere, select-all, shortcuts held), the knob's and an effect
+cell's typed values (`widgets::knob::tests`, `views::fx::controls::tests`). Pictures:
+`examples/shoot_fields` (every kind open, Night and Paper, en/es, 75/100/200 %).
 
 ## Order of work
 

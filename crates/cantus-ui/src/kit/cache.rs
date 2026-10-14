@@ -323,7 +323,10 @@ impl KitCache {
             return g.clone();
         }
         self.stats.galley_misses += 1;
-        let g = ctx.fonts_mut(|f| f.layout_job(make()));
+        let job = make();
+        // A name in a script no bundled font has asks for the system's faces (round 26).
+        crate::font_fallback::note_text(ctx, &job.text);
+        let g = ctx.fonts_mut(|f| f.layout_job(job));
         self.galleys.insert(key, (g.clone(), pass));
         g
     }

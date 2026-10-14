@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="crates/cantus-ui/assets/logos/02.svg" width="128" alt="Cantus logo">
+  <img src="web/assets/logo.svg" width="128" alt="The Cantus mark">
 </p>
 
 <h1 align="center">Cantus™</h1>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/window-slate.png" alt="Cantus: arrangement, mixer and inspector in the Slate theme">
+  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Cantus Night: the sample browser, the arrangement, the mixer with its cables and the inspector">
 </p>
 
 > *"Whatever you do, work at it with all your heart."* — Colossians 3:23
@@ -24,71 +24,79 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 ## Highlights
 
 - **A look drawn by hand, FL Studio first** (ADR 0024). Every knob, fader, meter, slot and
-  window frame is painted by Cantus's own vector kit — one "lit from above" recipe, crisp at
-  any zoom from 75 % to 200 % and on 4K. No stock widget is visible.
-- **As configurable as you want it.** Dark, light or follow the system; hue, saturation,
-  brightness, contrast, depth, roundness, density and text size; 61 named colours you can
-  search, reset, compare A/B, save and share — or click any element of the interface and
-  recolour it on the spot.
-- **An FL-style mixer** that fits first and then scrolls, with a legend column, three strip
-  widths, docks, sends, groups, submixes and a per-channel sheet in the inspector.
-- **Seven effects and eight instruments of its own**, researched against the best on the
-  market and measured: EQ, compressor, limiter, reverb, multiband, de-esser, gate; wavetable,
-  analog, FM, sampler, bass, organ, electric piano and a drum machine.
+  window frame is painted by Cantus's own vector kit, crisp at any zoom from 75 % to 200 %
+  and on 4K. Twelve themes, **Cantus Night** by default; the taskbar icon is the Cantus
+  mark, in the colour you choose.
+- **An FL-style mixer with cables.** Drag from a strip's port to another strip (a send, the
+  only output with Ctrl, a sidechain key with Alt), pre- or post-fader sends, a routing
+  matrix (Alt+F9), submixes, groups and a per-channel sheet in the inspector.
+- **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
+  it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
+  (B), as in FL's playlist.
+- **Twelve effects and nine instruments of its own**, researched against the best on the
+  market and measured — plus free sound packs, among them the **Salamander Grand Piano**,
+  streamed from disk.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
-- **Fast, and tested to stay fast.** A 64-strip mixer frame in about 3 ms, nothing redrawn
-  when nothing moves, an audio thread that never allocates, and 1 100+ tests — null tests
-  that hold offline renders bit-identical to playback, golden images that hold the look, and
-  a frame budget that fails the build when the UI gets slow.
+- **Fast, and tested to stay fast.** An audio thread that never allocates, nothing redrawn
+  when nothing moves, and 2 000+ tests — null tests that hold offline renders bit-identical
+  to playback, golden images that hold the look, and a frame budget that fails the build
+  when the UI gets slow.
 
 ## A tour
 
+Every picture here is the program itself, drawn headless on its demo song by
+`cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run)).
+
 ### The workspace
 
-Panels dock, split, float and remember their size; every splitter resets on right-click.
-F5 / F6 / F7 / F9 bring up the arrangement, channel rack, piano roll and mixer, the hint bar
-names whatever is under the pointer, and a value pill follows every drag.
+Panels dock, split, float and remember their size. F5 / F6 / F7 / F9 bring up the
+arrangement, channel rack, piano roll and mixer, Alt+F8 the sample browser, I the
+inspector; the hint bar names whatever is under the pointer. English and Spanish, and
+names in any script.
 
-| Slate (dark) | Paper (light) |
+| Cantus Night (dark, the default) | Cantus Paper (light) |
 |---|---|
-| ![Workspace, Slate](docs/images/window-slate-720.png) | ![Workspace, Paper](docs/images/window-paper-720.png) |
+| ![Workspace, Cantus Night](docs/images/window-night-720.png) | ![Workspace, Cantus Paper](docs/images/window-paper-720.png) |
 
-### Make it yours
-
-<p>
-  <img src="docs/images/appearance.png" width="49%" alt="Appearance settings">
-  <img src="docs/images/theme-variations.png" width="49%" alt="The same mixer in four themes">
-</p>
-
-Pick an element on screen and recolour it; choose one of ten logos, in its own colours or
-tinted by your theme; the splash shows your logo while Cantus loads.
+### Mixer, cables and routing
 
 <p>
-  <img src="docs/images/pick-element.png" width="49%" alt="Pick an element to recolour it">
-  <img src="docs/images/logos.png" width="49%" alt="The ten logos">
+  <img src="docs/images/mixer.png" width="76%" alt="The mixer, Extra large, with every cable drawn">
+  <img src="docs/images/inspector.png" width="20%" alt="The channel inspector">
 </p>
 
-### Mixer and inspector
+The desk follows FL's strip: a colour number, the name, meter, mute and solo, pan, fader,
+phase and swap, the effect chain, the output and the sends — rows that line up across the
+desk, named once in a legend column. Under it, **cables**: drag from a strip's port to
+another, or click one and then the other; each send taps before or after the fader. The
+inspector shows the selected channel as a signal-flow sheet: inserts, the channel EQ you
+drag, sends, receives and routing, with the channel's own fader at the bottom.
 
 <p>
-  <img src="docs/images/mixer.png" width="70%" alt="The mixer">
-  <img src="docs/images/inspector.png" width="26%" alt="The channel inspector">
+  <img src="docs/images/matrix.png" width="49%" alt="The routing matrix">
 </p>
 
-The desk follows FL's strip: a colour number, the name, meter, mute and solo lamps, pan,
-fader, phase and swap, the FX lamp and sends — rows that line up across the desk, named once
-in a legend column. The inspector shows the selected channel as a signal-flow sheet: inserts
-as tiles that open a mini view, the channel EQ you drag, sends, routing and delay
-compensation, with the channel's own fader pinned at the bottom.
+The **routing matrix** (Alt+F9) shows every source against every destination: click a cell
+to route, drag for the level.
 
-### Arrangement, piano roll, channel rack
+### Arrangement, linked clips, piano roll, channel rack
+
+![Linked clips and the clip browser](docs/images/linked.png)
+
+Duplicate a clip, paste it or Alt-drag it and the copy is **the same clip**: edit one and
+every copy follows, until *Make unique* (Alt+U). *Link to…* (Alt+N) makes a clip become
+another; the inspector's *Link* row counts the copies. The **clip browser** (Alt+F5) lists
+every clip as a tile — drag one onto the arrangement, or click it and paint copies along a
+track with the **paint tool** (B).
 
 | | |
 |---|---|
-| ![Arrangement](docs/images/arrangement.png) | ![Piano roll](docs/images/pianoroll.png) |
-| ![Channel rack](docs/images/rack.png) | Scroll both ways, zoom by dragging a scrollbar's ends, Shift+wheel for time, Ctrl+wheel to zoom, middle-drag to pan. The piano roll holds 20 000 notes on screen within its frame budget. |
+| ![Piano roll](docs/images/pianoroll.png) | ![Channel rack](docs/images/rack.png) |
+
+The piano roll has FL's seven tools and a velocity lane, and holds 20 000 notes on screen
+within its frame budget; in the channel rack a step *is* a note.
 
 ### Effects
 
@@ -96,20 +104,50 @@ compensation, with the channel's own fader pinned at the bottom.
 |---|---|---|
 | ![Aequalis](docs/images/fx-eq.png) **Aequalis** — 24-band EQ, zero-latency, natural and linear phase, dynamic bands, EQ match | ![Comprimo](docs/images/fx-comp.png) **Comprimo** — compressor with nine visible detectors, key EQ, auto gain | ![Terminus](docs/images/fx-limiter.png) **Terminus** — true-peak limiter, BS.1770 loudness, delivery profiles |
 | ![Spatium](docs/images/fx-space.png) **Spatium** — reverb with decay fitted per frequency and shown in seconds | ![Multiplex](docs/images/fx-multiband.png) **Multiplex** — eight two-sided bands, three crossover modes | ![Sibilus](docs/images/fx-deesser.png) **Sibilus** — a de-esser that tells an *s* from a bright sound |
-| ![Porta](docs/images/fx-gate.png) **Porta** — gate and expander with hysteresis, MIDI trigger and hits to MIDI | ![Hosted plug-in](docs/images/fx-hosted.png) **Any CLAP or VST3** — with a generic editor or its own window | |
+| ![Porta](docs/images/fx-gate.png) **Porta** — gate and expander with hysteresis, MIDI trigger and hits to MIDI | ![Fervor](docs/images/fx-saturator.png) **Fervor** — saturation with a curve you draw | ![Latitudo](docs/images/fx-stereo.png) **Latitudo** — stereo width by frequency, mono bass, mid/side tone |
+| ![Culmen](docs/images/fx-maximizer.png) **Culmen** — mastering maximizer with loudness targets and *learn drive* | ![Hosted plug-in](docs/images/fx-hosted.png) **Any CLAP or VST3** — with a generic editor or its own window | Plus **Delay** and **Reverb**, simple and light. |
 
 Every effect is a bit-exact wire at settings that do nothing, and any strip can key any of
-them. Design notes and feature matrices: [docs/plugins/](docs/plugins/).
+them. Fervor, Latitudo and Culmen make the master chain a mastering chain. Design notes
+and feature matrices: [docs/plugins/](docs/plugins/).
 
 ### Instruments
 
 | | | | |
 |---|---|---|---|
-| ![Unda](docs/images/inst-wavetable.png) **Unda** — wavetable | ![Calor](docs/images/inst-analog.png) **Calor** — analog modelling | ![Modulus](docs/images/inst-fm.png) **Modulus** — 8-operator FM | ![Exemplar](docs/images/inst-sampler.png) **Exemplar** — multisampler |
+| ![Unda](docs/images/inst-wavetable.png) **Unda** — wavetable | ![Calor](docs/images/inst-analog.png) **Calor** — analog modelling | ![Modulus](docs/images/inst-fm.png) **Modulus** — 8-operator FM | ![Exemplar](docs/images/inst-sampler.png) **Exemplar** — multisampler, here playing the Salamander Grand Piano |
 | ![Gravis](docs/images/inst-bass.png) **Gravis** — 808, synth and string bass | ![Organum](docs/images/inst-organ.png) **Organum** — tonewheel organ | ![Lamina](docs/images/inst-epiano.png) **Lamina** — electric piano | ![Pulsus II](docs/images/inst-pulsus.png) **Pulsus II** — drums |
 
 They share one modulation model — eight macros and a matrix you connect by dragging a
-source onto a knob — one frame (Play · Edit · Matrix), and the project's undo.
+source onto a knob — one frame (Play · Edit · Matrix), and the project's undo. Firmus, the
+simple synth every new track starts with, makes nine.
+
+### Sounds
+
+<p>
+  <img src="docs/images/packs.png" width="60%" alt="Sound packs: the Salamander Grand Piano, installed, with its credit">
+</p>
+
+Free sound packs download on demand from *Sound packs…* — kits, percussion, a TX81Z and the
+**Salamander Grand Piano** (a Yamaha C5 in 16 velocity layers), which plays in Exemplar,
+streamed from disk through a sample cache. Packs are CC0, or CC BY with the credit shown on
+the pack's page and in *Help ▸ Credits*; the music you make with them is yours.
+
+### Make it yours
+
+<p>
+  <img src="docs/images/appearance.png" width="40%" alt="The Appearance page">
+  <img src="docs/images/themes.png" width="58%" alt="The twelve themes">
+</p>
+
+Dark, light or follow the system; hue, saturation, brightness, contrast, depth, roundness,
+density and text size; every colour role named, searchable and resettable — or click any
+element of the interface and recolour it on the spot. The taskbar icon is the Cantus mark,
+in its own colours or one of eight others, changed live:
+
+<p>
+  <img src="docs/images/mark.png" width="70%" alt="The Cantus mark in its own colours and the eight icon colours, on a dark and a light taskbar">
+</p>
 
 ## Everything it does
 
@@ -130,17 +168,22 @@ speaker), Lamina (tine and reed electric piano), Pulsus II (layers, round robin,
 modal voices, 16 choke groups), plus Firmus, the built-in polysynth.
 
 **Editing.** Arrangement with per-track heights, icons, time selection and clip editing
-(split, glue, trim, slip, repeat, per-clip mute, colour and name). Piano roll with FL-style
-tools, clipboard, quantize, slicing and a velocity lane. A channel rack where a step *is* a
-note. MIDI recording with one undo step per take; the computer keyboard as a MIDI
+(split, glue, trim, slip, repeat, per-clip mute, colour and name); linked clips, the clip
+browser and its paint tool (ADR 0037); copy and paste between projects (ADR 0036). Piano
+roll with FL-style tools, clipboard, quantize, slicing and a velocity lane. A channel rack
+where a step *is* a note. MIDI recording with one undo step per take; the computer keyboard as a MIDI
 controller; hardware MIDI in.
 
-**Mixer** (ADRs 0014–0016). Strips, buses, sends, solo with connected routes, a three-band
+**Mixer** (ADRs 0014–0016, 0041–0045). Strips, buses, sends before or after the fader,
+cables drawn under the desk, the routing matrix, solo with connected routes, a three-band
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018). The seven above, each with presets, A/B, a display that is the
-control, and design notes in `docs/plugins/`.
+**Effects** (ADRs 0017–0018, 0026). The twelve above, each with presets, A/B, a display that
+is the control, and design notes in `docs/plugins/`.
+
+**Sounds** (ADRs 0030, 0042, 0050). Sound packs downloaded on demand and checked by SHA-256,
+CC0 or CC BY with credit; long samples streamed from disk through a sample cache.
 
 **Standards** (ADRs 0019–0021). CLAP and VST3 hosting with a crash-proof scanner; our effects
 as CLAP/VST3 (`crates/cantus-plugins`); MIDI files, stems and DAWproject.
@@ -149,9 +192,10 @@ as CLAP/VST3 (`crates/cantus-plugins`); MIDI files, stems and DAWproject.
 (ADR 0004). Versioned JSON projects with SHA-256 integrity, schema migrations, atomic saves
 and autosave (ADR 0006).
 
-**Interface** (ADRs 0007, 0009, 0010, 0024). English and Spanish; every shortcut rebindable
-in `keymap.toml`, with presets modelled on FL Studio, Ableton Live and Bitwig; named layouts;
-the appearance settings above.
+**Interface** (ADRs 0007, 0009, 0010, 0024, 0046). English and Spanish, names in any script;
+every shortcut rebindable in `keymap.toml`, with presets modelled on FL Studio, Ableton Live
+and Bitwig; named layouts; twelve themes and the appearance settings above; one text field
+everywhere (Enter or a click elsewhere keeps what you typed, Esc puts it back).
 
 </details>
 

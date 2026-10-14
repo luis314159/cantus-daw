@@ -497,11 +497,13 @@ pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: H
 }
 
 /// Where the footer's parts are.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FooterRects {
     pub help: Rect,
     pub meter: Option<Rect>,
     pub grip: Rect,
+    /// Where each chip was drawn, in the footer's order (a chip's hover tip).
+    pub chips: Vec<Rect>,
 }
 
 /// Paint the footer: `help` is the hovered control's hint as one line ("Cutoff · 2.4
@@ -552,12 +554,14 @@ pub fn paint_footer(
         );
         x = out.left() - 10.0 * k;
     }
-    for chip in f.chips.iter().rev() {
+    let mut chips = vec![Rect::NOTHING; f.chips.len()];
+    for (i, chip) in f.chips.iter().enumerate().rev() {
         let w = text::measure(b.ctx(), &Text::new(chip, Role::Micro, t.text), s.tk()).x + 12.0 * k;
         let cr = Rect::from_min_max(
             Pos2::new(x - w, rect.center().y - 8.0 * k),
             Pos2::new(x, rect.center().y + 8.0 * k),
         );
+        chips[i] = cr;
         b.rrect(
             b.snap_rect(cr),
             3.0 * k,
@@ -583,6 +587,7 @@ pub fn paint_footer(
         help: hr,
         meter: meter_rect,
         grip,
+        chips,
     }
 }
 
@@ -974,6 +979,8 @@ pub struct Output {
     pub pending_scale: Option<f32>,
     /// Where the window's own buttons were drawn (round 20), when the header has them.
     pub window: Option<WindowRects>,
+    /// Where the footer's chips were drawn, in their order (a chip's hover tip).
+    pub chips: Vec<Rect>,
 }
 
 /// The shell as a widget: `Shell::new(id).show(ui, &header, &footer, |ui, style, body| …)`.
@@ -1184,6 +1191,7 @@ impl Shell {
 
         // The footer, with the help line of whatever the pointer is on.
         let pending_scale = pending.map(snap_scale);
+        let mut chips = Vec::new();
         HELP.with(|h| {
             let mut h = h.borrow_mut();
             h.clear();
@@ -1198,7 +1206,7 @@ impl Shell {
                 None => h.push_str(&crate::i18n::t("shell.help.idle")),
             });
             super::with_brush(&painter, |b| {
-                paint_footer(b, fr, &s, footer, &h);
+                chips = paint_footer(b, fr, &s, footer, &h).chips;
                 if let Some(p) = pending_scale {
                     scale_pill(b, grip.left_top(), &s, p);
                 }
@@ -1212,6 +1220,7 @@ impl Shell {
             footer: fr,
             pending_scale,
             window: r.window,
+            chips,
         }
     }
 }

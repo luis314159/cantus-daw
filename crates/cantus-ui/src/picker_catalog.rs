@@ -522,11 +522,67 @@ fn hosted(info: &PluginInfo) -> Device {
 
 /// Every device: ours in the curated order, then every offered plug-in of `plugins`.
 pub fn build<'a>(plugins: impl IntoIterator<Item = &'a PluginInfo>) -> Vec<Device> {
+    build_with(plugins, &[])
+}
+
+/// A pack's instrument (round 26): filed on its shelf and with the samplers, by the
+/// pack's author, found by its name, its pack's and what plays it.
+fn sound(order: usize, s: &cantus_content::InstalledInstrument) -> Device {
+    use cantus_content::manifest::Shelf;
+    let choice = crate::views::samples_content::sounds::SoundChoice(s.clone());
+    let name = choice.name();
+    let lang = crate::i18n::locale().code();
+    let pack = s.pack_name.get(lang).to_string();
+    let what = crate::views::samples_content::sounds::what();
+    let shelf = match s.instrument.shelf {
+        Shelf::Keys => Category::Keys,
+        Shelf::Drums => Category::Drums,
+        Shelf::Bass => Category::Bass,
+        Shelf::Synths => Category::Synths,
+        Shelf::Samplers => Category::Samplers,
+        Shelf::Other => Category::OtherInstruments,
+    };
+    let mut categories = vec![shelf];
+    if shelf != Category::Samplers {
+        categories.push(Category::Samplers);
+    }
+    let mut hay = format!(
+        "{name} {pack} {} {what} exemplar sampler {} {}",
+        s.author, s.instrument.name.en, s.instrument.name.es
+    );
+    for c in &categories {
+        hay.push(' ');
+        hay.push_str(&t(c.key()));
+        hay.push(' ');
+        hay.push_str(c.words());
+    }
+    Device {
+        key: s.key(),
+        choice: PickChoice::Sound(Box::new(choice)),
+        role: Role::Instrument,
+        source: Source::Native,
+        name,
+        what,
+        vendor: s.author.clone(),
+        categories,
+        slug: None,
+        order: order as u16,
+        haystack: fold(&hay),
+    }
+}
+
+/// [`build`], with the instruments the installed sound packs offer after ours.
+pub fn build_with<'a>(
+    plugins: impl IntoIterator<Item = &'a PluginInfo>,
+    sounds: &[cantus_content::InstalledInstrument],
+) -> Vec<Device> {
     let mut out: Vec<Device> = natives()
         .into_iter()
         .enumerate()
         .map(|(i, (slug, choice, cats))| native(i, slug, choice, cats))
         .collect();
+    let first = out.len();
+    out.extend(sounds.iter().enumerate().map(|(i, s)| sound(first + i, s)));
     let mut seen = std::collections::HashSet::new();
     for info in plugins {
         if offered(info) {
@@ -547,6 +603,7 @@ pub fn key_of(choice: &PickChoice) -> Option<String> {
             Format::Clap => format!("clap:{}", info.id),
             Format::Vst3 => format!("vst3:{}", info.id),
         }),
+        PickChoice::Sound(s) => Some(s.0.key()),
         c => slug_of(c).map(|s| format!("cantus:{s}")),
     }
 }

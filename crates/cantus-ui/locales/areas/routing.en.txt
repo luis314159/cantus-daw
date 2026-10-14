@@ -120,3 +120,8 @@ routing.drag.track_bar = Drop on a strip: the track plays into it · Esc: cancel
 # The keymap's route menu action (Shift+F10) and its Edit menu row.
 action.route-menu = Open the selected strip's route menu
 routing.menu.route_menu = Route menu of the selected strip
+# Round 26: a send's level typed in the route menu (Level ▸ Type a level…).
+routing.menu.level_type = Type a level…
+routing.menu.level_title = Level · {from} → {to}
+routing.menu.level_keys = dB, −∞ to 0 · Enter: set · Esc: cancel
+routing.menu.level_bad = Not a level: type dB, such as −6 or −4.5

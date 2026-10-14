@@ -228,7 +228,8 @@ on load: the odd member leaves the group with its content (`links::repair`,
   many clips were unlinked.
 - Automation clips can be linked too (same target only), by the same mechanism.
 - Left for later: an inspector row naming the group; a "Link to…" picker by group name;
-  dragging a pattern from a browser of groups (FL's picker panel).
+  dragging a pattern from a browser of groups (FL's picker panel) — all three done in
+  round 26 (the amendment at the end).
 
 ## What the tests hold
 
@@ -292,3 +293,319 @@ on load: the odd member leaves the group with its content (`links::repair`,
   clip's link, version 3 is refused.
 - Shots: `cargo run -p cantus-ui --example shoot_links -- <dir> [es]` — the arrangement
   with linked clips, the clip menu on a linked copy, the timeline menu's switch.
+
+## Amendment — 2026-10-13, round 26 (linked): linking by name, the inspector's link row
+
+**Context.** Two items from "Left for later" (BACKLOG §6d.2): *an inspector row naming the
+group; a "Link to…" picker by group name*. Until now a link could only be made to the
+clip being edited (Alt+L), so linking to a pattern elsewhere in a long song meant finding
+it, selecting it last, and pressing the key; and nothing outside the arrangement's ×N said
+that a clip was shared.
+
+**Decision.**
+
+1. **The list, in `cantus_core::links`.** `groups(project)` returns every link group once —
+   its shared name, its kind (`Kind::{Notes, Audio, Automation}`, what `compatible`
+   compares), its size, its first member (by track index, then start, then clip id: the
+   clip a link copies, whose track and bar tell two groups of one name apart) — and then
+   every clip of its own. Groups of two or more come first, then the clips of their own
+   (a group of one, left after the others were made unique, counts as a clip of its own);
+   each part by name ignoring case, then exactly, then by place. The order depends only
+   on what the project holds, never on how its clips are stored. **Clips of their own are
+   listed** because the first link of a pattern is to a clip that is in no group yet: a
+   picker of groups alone would be empty in every project until something was linked by
+   other means. The filter keeps a long song's list short.
+2. **What would happen, before it happens.** `would_link(project, sel, target)` answers
+   `Ok(n)` — how many selected clips `link_to` would put in the target's group — or why
+   none (`Refusal::Kind`: another kind of clip; `Target`: automation of another control;
+   `Already`: the target itself or already its group, or nothing selected; `Gone`). It is
+   written beside `link_to` and must agree with it exactly: a core test checks every target
+   against every selection of one or two clips in a scene, and the undo fuzz asserts it on
+   every *Link to* step (half of them now aim at an entry of `groups`, as the picker does).
+3. **The picker** (`views/link_picker.rs`, `link_picker_paint.rs`): a floating panel in the
+   kit — title, a line saying what is being linked ("“Beat B” becomes the clip you
+   choose"), a filter field (name or track, case and accents ignored, as the device
+   picker's search), the list in a well under two bands (*Linked clips*, *Clips of their
+   own*), two-line rows (name; kind and ×N at the right; the track and bar under it), and
+   a line with the keys. A row that would link nothing stays in the list, **dimmed, saying
+   why** instead of where it sits, and cannot be chosen; ↑ ↓ walk only the rows that link,
+   Enter chooses, a click chooses, Esc or a click outside closes. Choosing runs the existing
+   `CantusApp::link_clips_to(Some(target))` — `links::link_to` in one `Batch`, one undo step,
+   no new command shape. It opens at its anchor (the inspector row), else at the pointer,
+   else centred near the top of the window, and does not move while one types. Rows are
+   built when it opens and again only when the filter or the project revision changes.
+4. **Where it is reached.** A new action `LinkTo` (*Link to…*, clip category) — in every
+   clip's right-click menu (a clip of its own as much as a linked one), the menu bar's
+   Clip menu, the inspector's link row, and **Alt+N** (*N for name*; Alt and a letter, as
+   the other link keys, so the typing piano never takes them; every clip action has a key,
+   which a test holds). The keymap file goes to **version 7**; a version-6 file gets Alt+N
+   where it is free. Ctrl+Alt+L was considered and refused: Ctrl+Alt is AltGr on many
+   European layouts.
+5. **The inspector** (`views/inspector_clip_link.rs`, called from the clip section):
+   - **Name** becomes editable in place: a click turns the well into a field with the
+     whole name selected (the field opens the frame after the click, so the click does not
+     place the cursor); Enter or a click away renames, Esc leaves it, an emptied name is an
+     abandoned edit. A linked clip's name is its group's: the well ends with the chain mark
+     and ×N, the hint says that renaming renames every copy, and the rename is one
+     `SetClipName` that `Command::apply` already carries to every sibling — one undo step.
+     One edit at a time, for the clip it names; shown another clip, the inspector drops an
+     unfinished one.
+   - **Link**: on a linked clip, "3 linked copies" as a menu field whose list holds
+     *Select linked copies*, *Make unique* and *Link to…* (the inspector's own menu, a
+     `MenuId::ClipLink`); on a clip of its own, *Link to…*, which opens the picker at once.
+     A row's action runs on the selection when the clip is in it, else on the clip alone,
+     as the arrangement's menu does. The words come from the sheet's text cache, so a still
+     frame formats nothing.
+
+**Consequences.**
+
+- Linking is reachable by name from anywhere; two groups called "Verse" are told apart by
+  their track and bar.
+- No schema change, no new command, no golden hash: the name is the shared
+  `ClipContent::name`, and the picker issues the batch `link_to` always did.
+- A clip of its own appears in the picker's list, so a song with hundreds of clips has a
+  long list; the filter and the list's scrolling (the kit's scrollbar) are how it stays
+  usable (and *Linked only*, added after the review, below).
+- The keymap's file version moved (7); another builder adding a key this round takes 8.
+
+**What the tests hold (round 26).**
+
+- `cantus-core/tests/links_groups.rs` (7): every group listed once with its name, kind,
+  count, first member and place, clips of their own after, two entries of one name told
+  apart; groups first then each part by name (case ignored) then place; the order the same
+  whatever order the clips are stored in; a group of one is a clip of its own, an empty
+  project lists nothing; `would_link` agrees with `link_to` for every target and every
+  selection of one or two clips; each refusal names its reason (kind, target, already,
+  gone; a mixed selection links what it can); a rename through any member renames the
+  entry, and undo brings the old name back. Seen failing against stubs (7 of 7).
+- `undo_invariants.rs` (additive, no new arm — no new command shape): the *Link to* arm
+  aims half of its steps at an entry of `links::groups` and asserts `would_link` agrees
+  with the batch. With `would_link` broken (an *already linked* clip counted), the fuzz
+  fails at once.
+- `cantus-ui/tests/links_picker.rs` (13): the rows' count, kind, hint ("Drums · 1.1") and
+  reason; the filter ignores case and accents and finds a track; with nothing selected the
+  status says so and nothing opens; typing a name and Enter links the selection, keeps its
+  place, one undo step that restores the project; the arrows skip refused rows and a
+  refused row cannot be clicked (seen failing with the refusals switched off); Esc and a
+  click outside change nothing; the inspector names a linked clip's group (×3, "3 linked
+  copies") and offers *Link to…* on a clip of its own; renaming from the inspector renames
+  every copy in one undo step, Esc leaves it (seen failing before the field opened a frame
+  late: the click put the cursor at the end, "BeatGroove"); the link menu selects the
+  copies, makes unique and opens the picker; no two texts collide in the clip section
+  (220/280/420 pt) or the picker, English and Spanish, 75 % and 200 %, and the picker stays
+  on a 1280×720 screen; the clip's right-click menu offers *Link to…* and it opens the
+  picker for the clip right-clicked (seen failing before the entry); a still frame of a
+  linked clip allocates no more than one of its own (9 and 9; 14 with the count formatted
+  every frame — seen failing); Alt+N, no conflict, a version-6 keymap gets it, the label in
+  both languages (seen failing before the binding).
+- `app_flows::every_clip_action_has_a_key_bound_to_it` failed with the new action unbound,
+  which is what decided Alt+N.
+- Shots: `cargo run -p cantus-ui --example shoot_links -- <dir> [es] [light] [z0.75|z2]
+  [kind=…]` adds `links-picker`, `links-picker-filter` and `links-inspector`, in Cantus
+  Night or Cantus Paper and at any scale.
+
+### After the review, and the owner's additions (2026-10-14, round 26)
+
+An adversarial review (four lenses, a refuter per finding) confirmed nine findings; the
+owner asked to close the "Left" items in the same round. What changed:
+
+1. **Already wins** (`would_link`): in a mixed selection that holds the target or a member
+   of its group, the reason is *already the same clip*, not *another kind* — the reason
+   that names what the user sees. Order of reasons: already, another control, another kind.
+2. **One summary of the selection** (`links::Selection`): the selection is counted once —
+   deduplicated in a `HashSet`, per kind, per group (`(kind, target, LinkId)`), automation per
+   target — and every entry is answered in constant time (`Selection::would_link(&Group)`),
+   exactly as `would_link` (a property test over every entry × thousands of selections,
+   and the undo fuzz checks it on every *Link to* step). `Group` gained `target` (what an
+   automation entry drives). The picker keeps the list (`ui::links::PickList`, every row's
+   strings made then) per project revision and language; a keystroke only filters it.
+   Measured (release, 20 tracks × 100 clips, all 2 000 selected, the whole window's frame):
+   opening **1 400 ms → 5.7 ms**, a keystroke **806 ms → 2.1 ms**, a still frame
+   **10.2 ms → 1.8 ms** (closed: 1.7–2.0 ms).
+3. **Only the rows in view**: the list is virtualised (rows of one height, bands of
+   another, so a row's place is arithmetic; `ScrollArea::show_viewport`), sensed first and
+   painted with one brush. A still frame allocates the same with 2 000 rows as with 12
+   (28; 4 040 before). The arrows scroll the highlight into view.
+4. **Decomposed names**: the filter folds both sides the same way — lower case, the
+   precomposed accents mapped, and the combining marks U+0300–U+036F dropped — so
+   "Melodi\u{301}a" (a macOS file name) is found by "melodia" and "melodía".
+5. **Untitled** in the lead line and the hint bar too, as in the row.
+6. The module doc says Alt+N.
+7. **One well**: the filter's text edits over the whole well, inset by the kit's margin, so
+   the focus ring outlines the well; the placeholder is the kit's text. The same for the
+   inspector's name field. The field is shared (`link_picker::search_field`).
+8. **The verb stays**: the lead line cuts the clip's name (the longest start that fits,
+   with "…"), never "becomes the clip you choose".
+9. **Natural order**: names compare with runs of digits as numbers ("Groove 2" before
+   "Groove 10"; "02" equals "2", then the exact name decides), then place.
+
+**Linked only** (the owner's): a switch beside the filter lists only the link groups. It
+is **kept while the program runs, not saved**: it is a way of looking at one list, like a
+filter, and the right default for a first link is *all* (a pattern's first link is to a
+clip of its own); a saved switch would hide the clips a new session needs.
+
+**Keys in the inspector's menus** (the owner's): a row that runs a keymap action shows its
+binding at the right, as the arrangement's menus do; the link menu's three rows show
+Shift+Alt+L, Alt+U and Alt+N, and a menu with keys is at least 260 pt wide. Every other
+inspector menu row is a choice (an instrument, a route, a wave), not an action, so it
+shows none — the rule is the same everywhere.
+
+**The clip browser** (the owner's; FL Studio's playlist *picker panel*): FL keeps, at the
+left of the playlist, a column of tiles — every pattern and clip in its colour, with a
+mini preview — to click and paint, or drag into the playlist. Cantus's equivalent is a
+dock pane, **Clips** (`views::clip_browser`, Alt+F5 — F5 is the arrangement, FL's
+playlist — and View ▸ *Clip browser*), placed at the left of the arrangement's area:
+
+- It lists what *Link to…* lists (`PickList` with no selection): the link groups under
+  *Linked clips*, then the clips of their own, in the same natural order, filtered by name
+  or track with the same one-well field. Each **tile** is FL's: a title strip in the clip's
+  colour (its own, else its track's) with the chain mark for a group, the name and ×N; on
+  the colour's darker ground the kind and a miniature — its notes as dashes over its
+  length (at most 128), its curve as a line, nothing drawn for audio. Only the tiles in
+  view are laid out.
+- **Dragging a tile onto the arrangement places a linked copy** where it is let go: on the
+  row under the pointer, at the time under it snapped down to the grid as the arrangement
+  snaps — `CantusApp::place_linked_copy`, one `Batch` (`cmd.place_linked_copy`) of what
+  `Linker::copy` returns and an `InsertClip`: the same shape as a linked Duplicate, so no
+  new command and no new fuzz arm. A clip of its own and its copy become a new group. An
+  automation tile lands under the track it automates, as its Alt-drag copy does. The copy
+  is selected. While dragging, a chip with the name follows the pointer and a ghost in the
+  clip's colour shows where the copy would land (clipped to the timeline); let go off the
+  rows, nothing happens.
+- A click on a tile selects its clips (every copy of a group). *(Changed below: a click
+  chooses the paint source, a double-click selects.)*
+- The keymap's version 7 also brings Alt+F5 to a saved map.
+
+Why a pane and not a column inside the arrangement: the workspace is a dock (ADR 0024
+§5), and every panel that lists things to drag — the devices, the samples — is a pane one
+can move, resize and close; a column inside the arrangement could not be.
+
+**What the tests hold (the review and the additions).**
+
+- `links_groups.rs` (+3): *already* wins in a mixed selection; natural order with equal
+  names kept by place; the selection summary agrees with `would_link` for every entry over
+  every selection of one to three clips (duplicates, a missing clip, automation of two
+  targets). The first two seen failing on the old code, the third against a stub.
+- `undo_invariants.rs`: the *Link to* arm also checks the summary against `would_link`
+  for every entry.
+- `links_picker.rs` (+6): a decomposed name found both ways; *Untitled* in the lead line;
+  a long name cut and the verb whole, in English and Spanish; the focused rect is the well
+  with the text inset (seen failing with the old inset field); *Linked only* lists the
+  groups, is kept for the next opening and Enter still links; the inspector's link menu
+  shows its three keys without overlap (seen failing before).
+- `links_picker_big.rs` (new, 2 + 1 timing): only the rows in view are laid out and the
+  arrows keep the highlight in view; a still frame allocates the same with 2 000 rows as
+  with 12; and (release, `--ignored`) opening, a keystroke and a still frame each under
+  16.7 ms with 2 000 selected. All three seen failing on the old picker (2 000 rows laid
+  out; 4 040 allocations; 1 400 ms).
+- `links_browser.rs` (new, 6): the tiles (groups first) and the filter; a tile dragged
+  onto the arrangement places a copy that is in the group, holds its content, starts at
+  the snapped time on the row dropped on, is selected, and one undo restores the project
+  (seen failing with the snap removed); a clip of its own starts a group; an automation
+  tile stays on its track; a drop off the arrangement changes nothing; Alt+F5, a
+  version-6 keymap gets it, both languages; no text collides in the pane, 75 % and 200 %,
+  English and Spanish.
+- Shots: `shoot_links` adds `browser` and `browser-drag` (a tile held over the vocal
+  track: the chip and the ghost).
+
+### Painting with the chosen tile, and waveforms on audio tiles (2026-10-14, round 26)
+
+The two items the browser left open, closed in the same round at the owner's word.
+
+**Painting** — FL Studio's playlist paint tool (B) with the picker panel's selected
+pattern. The arrangement had no tool modes of its own (the tool keys were the piano
+roll's), so the paint tool is added the way the rest of the arrangement works:
+
+- **The source** is the clip browser's chosen tile: a click on a tile chooses it (the
+  tile wears the selection's ring; a click again lets it go); a double-click selects its
+  copies, as a click did before. With no tile chosen, the clip being edited becomes the
+  source when the tool comes out; with neither, the browser is shown and the status line
+  says to choose one.
+- **The tool**: **B** with the arrangement focused (B is the paint tool in FL's playlist and
+  piano roll; with the piano roll focused it is still its paint tool, so the key needed
+  no new binding and the keymap file did not move for it), and a toolbar key with the paint
+  icon, lit while it is out. **Esc** (with the arrangement focused; see the second review)
+  puts it away and lets the source go. The hint bar
+  names the source over the lanes ("Paint “Beat” · right-drag erases").
+- **Gestures**, each one undo step made when the stroke ends: a **click** places a linked
+  copy at the snapped time on the row; a **drag** paints copies end to end along the row it
+  was pressed on — from the snapped press point, one clip length apart, as far as the
+  pointer goes, left or right, never before the start — skipping any place where a copy
+  would overlap a copy of the source already there or another of the stroke (*corrected
+  by the second review below: it first skipped only equal starts*); a **right-drag** (or a drag with **Alt**) erases the copies
+  of the source the stroke passes over on that row. While a stroke lasts, the copies to be
+  placed show as ghosts in the clip's colour and those to be erased are crossed out.
+- **Erasing only the source's copies — decided.** FL's paint tool erases whatever clip it
+  passes over. Cantus's erases only the clip it paints (its group, or the clip alone),
+  because the stroke is about that clip: a sweep across a busy track removes the pattern
+  being laid down and never a neighbour by accident (the eraser of everything is the
+  arrangement's Delete). When the source itself is erased another copy of its group takes
+  its place; with none left, the tool is put away.
+- Commands: `cmd.paint_linked_copies` is one `Batch` of `Linker::copy`'s commands (one
+  `Linker`, so a clip of its own and its copies form one group) and `InsertClip`s;
+  `cmd.erase_linked_copies` is one `Batch` of `RemoveClip`s. Both are shapes the undo fuzz
+  already covers (linked copies, several in a batch; removals), so no new arm. The tool is
+  an overlay sensed above the timeline while it is out, so the arrangement's own gestures
+  (selecting, moving, the right-click menu) are untouched when it is away.
+
+**Waveforms**: an audio tile's miniature is its waveform, read from the peak store the
+arrangement uses (`PeakStore::lookup` → `SourcePeaks::columns` over the clip's window,
+reversed for a reversed clip) — nothing is decoded on the UI thread; the store reads files
+on its own worker. The columns are kept per clip with the project revision and the column
+count, so a still frame neither looks the peaks up nor makes anything; a change to the
+clip (any revision) makes them again. Until the peaks arrive the tile shows its kind only.
+
+**What the tests hold.**
+
+- `links_browser.rs` (+4): a click with the paint tool places one linked copy at the
+  snapped time, one undo step, undone exactly; a stroke from bar 4 to past bar 8 places
+  five copies end to end (12, 16, 20, 24, 28 beats), in the group, one step, and painting
+  the same stretch again changes nothing; a right-drag erases both copies of the riff and
+  leaves the beat painted between them, one step, the source cleared when its group is
+  gone, undone exactly; the hint bar names the source, Esc clears it and puts the tool away,
+  a double-click selects the group's copies. Seen failing before the tool (no API), then
+  two at run time (the hint cut short in the bar; a ghost outside the lanes).
+- `links_browser_waves.rs` (new, 2): the take's waveform arrives from the store, loud half
+  then quiet half, and comes back reversed after `SetClipAudio` reverses the clip; a still
+  frame of the pane with a waveform allocates no more than with a note clip in its place
+  (16 and 16). Both seen failing with the cache switched off and the reverse dropped.
+- Shots: `shoot_links` adds `browser-paint` (the bass line chosen, the tool out, a stroke
+  held along the bass row: its ghosts) and gives the vocal take peaks in the browser shots
+  (its tile and its clips show a waveform).
+
+### The second review of the paint tool and the browser (2026-10-14, round 26)
+
+A review of the work above and of the merged tree confirmed eleven findings; each fixed
+with a test seen failing first (on the old code, or with the fix switched off).
+
+- **No stacked copies.** Painting skipped a start only when it *equalled* a copy's start,
+  so a stroke from another grid point (or a click inside a copy) laid copies over copies —
+  the notes sounding twice. Now a start whose span overlaps a copy of the source already
+  on the track, or another copy of the same stroke, is skipped (`ui::links::paintable`,
+  shared by the stroke and its ghosts, which show only what will be placed).
+- **Leftward strokes reach the pointer**: going left, the copy whose span holds the
+  pointer is placed, as going right.
+- **Focus**: a stroke, and a click or double-click on a tile, give the arrangement the edit
+  focus, so B and Delete then act on it.
+- **Esc** no longer is read raw by the tool: it reaches it through `ClearSelection`, after
+  the mixer's claim, a device window to close and the appearance picker, and only while
+  the arrangement has the edit focus (`CantusApp::put_paint_away`). Esc meant for the piano
+  roll leaves the tool and its source alone.
+- **Automation sources** paint, show their ghosts and erase on the track they automate
+  (where the copy lands), in the tool and in a drag from the browser.
+- **The browser's scrollbar** scrolls (its offset was thrown away).
+- **The picker keeps the highlighted row in view** when the filter or the switch changes
+  the rows shown, and walking up to the first row under a band brings the band back.
+- **Peaks queued by the browser ask for a frame** when they arrive (the context is passed
+  to the store).
+- **The filter keeps the keyboard**: the arrows no longer move egui's focus off the field,
+  so the letter typed right after an arrow is not lost.
+- **Font coverage (merged tree)**: the release builder's test treats a character literal as
+  drawn text; the combining-mark range in `fold` is now written as numbers
+  (`0x300..=0x36F` on `u32::from(c)`), which is what it is — nothing is drawn.
+
+Tests: `links_browser.rs` +6 (no stacking on a one-beat grid, a click inside a copy; a
+leftward stroke; focus; Esc only from the arrangement; automation ghosts and erase in both
+gestures — seen failing with the row fix switched off; the browser's scrollbar),
+`links_picker_big.rs` +2 (the highlighted row in view after a filter and the band brought
+back; a letter after an arrow), `font_coverage` green on the merged tree.

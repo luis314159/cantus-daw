@@ -21,12 +21,16 @@
 //!
 //! The builders here return plain commands for one `Command::Batch`: [`Linker::copy`] (a
 //! linked copy, for paste, duplicate and the Alt-drag), [`make_unique`] and [`link_to`].
+//! For a list to pick a target from (round 26), [`groups`] names every group once and
+//! every clip of its own, in a stable order, and [`would_link`] says beforehand what
+//! [`link_to`] would do with a target — or why it would do nothing.
 
 use crate::{
-    AudioRegion, Automation, Clip, ClipId, Color, Command, LinkId, Note, Project, Ticks, TrackId,
+    AudioRegion, AutoTarget, Automation, Clip, ClipId, Color, Command, LinkId, Note, Project,
+    Ticks, TrackId,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// A clip, identified the way the selection identifies it.
 pub type ClipRef = (TrackId, ClipId);
@@ -441,4 +445,277 @@ pub fn link_to(
         });
     }
     out
+}
+
+// ---- the "Link to…" list (round 26) ------------------------------------------------------
+
+/// What a clip holds, as [`compatible`] compares it: a link joins clips of one kind only.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Kind {
+    Notes,
+    Audio,
+    Automation,
+}
+
+impl Kind {
+    pub fn of(c: &Clip) -> Kind {
+        if c.audio.is_some() {
+            Kind::Audio
+        } else if c.automation.is_some() {
+            Kind::Automation
+        } else {
+            Kind::Notes
+        }
+    }
+}
+
+/// One entry of the "Link to…" list: a link group of two or more clips, or a clip of its
+/// own (a clip in no group, or the last member left in one).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Group {
+    /// The group, when the clip is in one (a group of one keeps its id).
+    pub link: Option<LinkId>,
+    /// The member a link to this entry takes its content from: the first in track order,
+    /// then by start, then by id. Its track and start tell two entries of one name apart.
+    pub first: ClipRef,
+    /// The first member's track, by its place in the project.
+    pub track_index: usize,
+    /// Where the first member starts.
+    pub start: Ticks,
+    /// The shared name (`ClipContent::name`).
+    pub name: String,
+    pub kind: Kind,
+    /// What an automation entry drives (only clips of the same target link to it).
+    pub target: Option<AutoTarget>,
+    /// How many clips share it (one for a clip of its own).
+    pub count: usize,
+}
+
+/// Every link group once and every clip of its own, for a list to pick from: the groups
+/// of two or more first, then the clips of their own; each part by name — ignoring case,
+/// numbers compared as numbers ("Groove 2" before "Groove 10") — then exactly, then by
+/// where its first member sits. The order depends only on what the project holds, never
+/// on the order its clips are stored in.
+pub fn groups(project: &Project) -> Vec<Group> {
+    let mut by_link: HashMap<LinkId, usize> = HashMap::new();
+    let mut out: Vec<Group> = Vec::new();
+    for (ti, t) in project.tracks.iter().enumerate() {
+        for c in &t.clips {
+            let entry = Group {
+                link: c.link,
+                first: (t.id, c.id),
+                track_index: ti,
+                start: c.start,
+                name: c.name.clone(),
+                kind: Kind::of(c),
+                target: c.automation.as_ref().map(|a| a.target.clone()),
+                count: 1,
+            };
+            let Some(l) = c.link else {
+                out.push(entry);
+                continue;
+            };
+            match by_link.get(&l) {
+                None => {
+                    by_link.insert(l, out.len());
+                    out.push(entry);
+                }
+                Some(&i) => {
+                    let g = &mut out[i];
+                    g.count += 1;
+                    if place(&entry) < place(g) {
+                        g.first = entry.first;
+                        g.track_index = entry.track_index;
+                        g.start = entry.start;
+                    }
+                }
+            }
+        }
+    }
+    out.sort_by_cached_key(|g| (g.count < 2, natural(&g.name), g.name.clone(), place(g)));
+    out
+}
+
+/// Where an entry's first member sits, as the list orders ties.
+fn place(g: &Group) -> (usize, Ticks, ClipId) {
+    (g.track_index, g.start, g.first.1)
+}
+
+/// A name as a list of runs, for a natural order: text in lower case, and runs of digits
+/// compared as numbers (by their length without leading zeros, then their digits), a
+/// number before text.
+fn natural(name: &str) -> Vec<(bool, usize, String)> {
+    let mut out: Vec<(bool, usize, String)> = Vec::new();
+    for ch in name.chars().flat_map(char::to_lowercase) {
+        let digit = ch.is_ascii_digit();
+        match out.last_mut() {
+            Some((text, _, run)) if *text != digit => run.push(ch),
+            _ => out.push((!digit, 0, ch.to_string())),
+        }
+    }
+    for (text, len, run) in &mut out {
+        if !*text {
+            let trimmed = run.trim_start_matches('0');
+            *run = if trimmed.is_empty() { "0" } else { trimmed }.to_string();
+            *len = run.len();
+        }
+    }
+    out
+}
+
+/// Why linking a selection to a target would do nothing.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// No selected clip holds what the target holds (notes, audio, automation).
+    Kind,
+    /// The selection holds automation of another parameter than the target's.
+    Target,
+    /// A selected clip already is the target or one of its group (or none is selected).
+    Already,
+    /// The target is not in the project.
+    Gone,
+}
+
+/// The answer from what was counted: `n` would join; `already`, `other_target` and
+/// `kind` say what kept the rest out. *Already* comes first — it names the clip the user
+/// can see is the same — then another control, then another kind.
+fn verdict(n: usize, already: bool, other_target: bool, kind: bool) -> Result<usize, Refusal> {
+    match n {
+        0 if already => Err(Refusal::Already),
+        0 if other_target => Err(Refusal::Target),
+        0 if kind => Err(Refusal::Kind),
+        0 => Err(Refusal::Already),
+        n => Ok(n),
+    }
+}
+
+/// What [`link_to`] would do with `sel` and `target`, without doing it: how many selected
+/// clips would join the target's group, or why none would. A list shows a refused target
+/// dimmed, with its reason. (For many targets at once, [`Selection`] answers each in
+/// constant time.)
+pub fn would_link(project: &Project, sel: &[ClipRef], target: ClipRef) -> Result<usize, Refusal> {
+    let Some(t) = project.track(target.0).and_then(|x| x.clip(target.1)) else {
+        return Err(Refusal::Gone);
+    };
+    let mut seen: Vec<ClipRef> = vec![target];
+    let (mut n, mut already, mut kind, mut other_target) = (0, false, false, false);
+    if sel.contains(&target) {
+        already = true;
+    }
+    for r in sel {
+        if seen.contains(r) {
+            continue;
+        }
+        seen.push(*r);
+        let Some(c) = project.track(r.0).and_then(|x| x.clip(r.1)) else {
+            continue;
+        };
+        if !compatible(c, t) {
+            if Kind::of(c) == Kind::of(t) {
+                other_target = true;
+            } else {
+                kind = true;
+            }
+        } else if t.link.is_none() || c.link != t.link {
+            n += 1;
+        } else {
+            already = true;
+        }
+    }
+    verdict(n, already, other_target, kind)
+}
+
+/// A selection counted once, so that every entry of the list is answered in constant time
+/// ([`Selection::would_link`]) — what [`would_link`] answers for one target, without going
+/// through the selection again. Built once per change of the project or the selection.
+#[derive(Debug, Default)]
+pub struct Selection {
+    /// Every selected clip that exists, once.
+    clips: HashSet<ClipRef>,
+    /// How many of them are notes, audio, automation.
+    notes: usize,
+    audio: usize,
+    automation: usize,
+    /// Per kind (automation per target), how many are in each group.
+    in_group: HashMap<(Kind, Option<AutoTarget>, LinkId), usize>,
+    /// Automation clips per target.
+    per_target: HashMap<AutoTarget, usize>,
+}
+
+impl Selection {
+    pub fn of(project: &Project, sel: &[ClipRef]) -> Selection {
+        let mut s = Selection::default();
+        let wanted: HashSet<ClipRef> = sel.iter().copied().collect();
+        for t in &project.tracks {
+            for c in &t.clips {
+                if !wanted.contains(&(t.id, c.id)) {
+                    continue;
+                }
+                s.clips.insert((t.id, c.id));
+                let kind = Kind::of(c);
+                let target = c.automation.as_ref().map(|a| a.target.clone());
+                match kind {
+                    Kind::Notes => s.notes += 1,
+                    Kind::Audio => s.audio += 1,
+                    Kind::Automation => {
+                        s.automation += 1;
+                        if let Some(at) = &target {
+                            *s.per_target.entry(at.clone()).or_insert(0) += 1;
+                        }
+                    }
+                }
+                if let Some(l) = c.link {
+                    *s.in_group.entry((kind, target, l)).or_insert(0) += 1;
+                }
+            }
+        }
+        s
+    }
+
+    /// How many clips the selection holds (existing ones, each once).
+    pub fn len(&self) -> usize {
+        self.clips.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.clips.is_empty()
+    }
+
+    /// What linking the selection to entry `g` would do: exactly [`would_link`]'s answer
+    /// for `g.first`, in constant time.
+    pub fn would_link(&self, g: &Group) -> Result<usize, Refusal> {
+        let target_in = self.clips.contains(&g.first);
+        let compatible = match g.kind {
+            Kind::Notes => self.notes,
+            Kind::Audio => self.audio,
+            Kind::Automation => g
+                .target
+                .as_ref()
+                .and_then(|t| self.per_target.get(t))
+                .copied()
+                .unwrap_or(0),
+        };
+        let of_kind = match g.kind {
+            Kind::Notes => self.notes,
+            Kind::Audio => self.audio,
+            Kind::Automation => self.automation,
+        };
+        // The members of the target's group among the compatible clips (the target itself
+        // included when it is selected: a group's first member is in its group).
+        let same = g
+            .link
+            .and_then(|l| self.in_group.get(&(g.kind, g.target.clone(), l)))
+            .copied()
+            .unwrap_or(0);
+        let others_same = if target_in && g.link.is_some() {
+            same - 1
+        } else {
+            same
+        };
+        let n = compatible - target_in as usize - others_same;
+        let already = target_in || others_same > 0;
+        let other_target = of_kind > compatible;
+        let kind = self.clips.len() > of_kind;
+        verdict(n, already, other_target, kind)
+    }
 }

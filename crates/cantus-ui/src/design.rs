@@ -139,10 +139,34 @@ fn text_styles() -> std::collections::BTreeMap<TextStyle, FontId> {
     .collect()
 }
 
-/// Install the bundled fonts. Keeps egui's emoji faces as a fallback so a stray symbol
-/// still resolves to something rather than a tofu box.
+/// Install the bundled fonts ([`font_definitions`]), and the system faces the fallback has
+/// added so far (`font_fallback`; none unless the real window armed it).
 pub fn install_fonts(ctx: &Context) {
-    let mut fonts = egui::FontDefinitions::default();
+    ctx.set_fonts(crate::font_fallback::definitions());
+}
+
+/// The emoji fallback every chain ends with: emoji-icon-font (MIT, © 2014 John Slegers),
+/// the face egui's defaults carried, now bundled here because egui's other default fonts
+/// are compiled out (round 26: Ubuntu Light and Hack are not under OSI-approved licences,
+/// and no chain ever used them). Same bytes, same 0.9 scale as egui gave it.
+const EMOJI: &str = "emoji-icon-font";
+
+/// The fonts Cantus draws with: the bundled IBM Plex faces, each family's chain falling
+/// back to the emoji face so a stray symbol still resolves to something rather than a
+/// tofu box. `tests/font_coverage.rs` checks every character the interface shows against
+/// these chains.
+pub fn font_definitions() -> egui::FontDefinitions {
+    let mut fonts = egui::FontDefinitions::empty();
+    fonts.font_data.insert(
+        EMOJI.to_owned(),
+        Arc::new(
+            egui::FontData::from_static(include_bytes!("../assets/fonts/emoji-icon-font.ttf"))
+                .tweak(egui::FontTweak {
+                    scale: 0.90,
+                    ..Default::default()
+                }),
+        ),
+    );
     let mut add = |key: &str, bytes: &'static [u8]| {
         fonts
             .font_data
@@ -169,17 +193,7 @@ pub fn install_fonts(ctx: &Context) {
         add(key, bytes);
     }
 
-    // egui's defaults left in place after ours act as the fallback chain.
-    let fallback: Vec<String> = fonts
-        .families
-        .get(&FontFamily::Proportional)
-        .map(|v| v.iter().filter(|n| n.contains("emoji")).cloned().collect())
-        .unwrap_or_default();
-    let chain = |first: &str| {
-        let mut v = vec![first.to_owned()];
-        v.extend(fallback.iter().cloned());
-        v
-    };
+    let chain = |first: &str| vec![first.to_owned(), EMOJI.to_owned()];
     fonts.families.insert(FontFamily::Proportional, chain(SANS));
     fonts.families.insert(FontFamily::Monospace, chain(MONO));
     fonts.families.insert(family_strong(), chain(SANS_STRONG));
@@ -191,7 +205,7 @@ pub fn install_fonts(ctx: &Context) {
             .families
             .insert(FontFamily::Name((*key).into()), chain(key));
     }
-    ctx.set_fonts(fonts);
+    fonts
 }
 
 /// The type roles of ADR 0024 §3 — **roles, and only roles**. Every text the kit paints
@@ -475,6 +489,11 @@ pub fn paint_focus_ring(ctx: &Context, pal: &Palette) {
     // Text edits draw their own focus indication and are usually flush against a label;
     // an extra ring around them reads as a rendering bug.
     if !resp.sense.interactive() || resp.rect.width() <= 0.0 {
+        return;
+    }
+    // A text edit: the kit's field (`kit::field`) shows its focus as its lit well — one
+    // indication, not a ring around the well's edge (round 26).
+    if egui::text_edit::TextEditState::load(ctx, id).is_some() {
         return;
     }
     let painter = ctx.layer_painter(egui::LayerId::new(

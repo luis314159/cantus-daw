@@ -361,6 +361,9 @@ impl Processor {
             self.stats.capture_overruns += std::mem::take(&mut c.overruns);
         }
         self.stats.dropped_events += nodes.dropped.swap(0, Relaxed);
+        self.stats.stream_late += nodes.stream_late.swap(0, Relaxed);
+        self.stats.stream_cut += nodes.stream_cut.swap(0, Relaxed);
+        self.stats.stream_wakes += nodes.stream_wakes.swap(0, Relaxed);
         let budget = frames as f64 / self.sample_rate * 1e6;
         if let Some(pool) = self.pool.as_mut() {
             let s = pool.stats();

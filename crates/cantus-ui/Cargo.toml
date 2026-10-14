@@ -11,6 +11,9 @@ repository.workspace = true
 [dependencies]
 cantus-core.workspace = true
 cantus-dsp.workspace = true
+# The system font fallback reads character maps (font_fallback.rs) with the parser egui
+# itself uses: the same crate and version as epaint's, nothing new in the program.
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 cantus-engine.workspace = true
 cantus-project.workspace = true
 cantus-ai.workspace = true
@@ -44,3 +47,6 @@ asio = ["cantus-engine/asio"]
 [dev-dependencies]
 tempfile = "3"
 rtrb.workspace = true
+# The README's pictures (`examples/shoot_readme.rs`), written compressed; already in the
+# tree through tiny-skia.
+png = "0.18"

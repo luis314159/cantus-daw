@@ -18,6 +18,9 @@ RequestExecutionLevel user
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
 !include "Sections.nsh"
+!include "nsDialogs.nsh"
+!include "StrFunc.nsh"
+${StrStr}
 
 !define REG_APP "Software\Cantus"
 !define REG_UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\Cantus"
@@ -26,6 +29,10 @@ RequestExecutionLevel user
 !define PROGID "Cantus.Project"
 !define HOMEPAGE "https://github.com/luis314159/cantus"
 !define SHCNE_ASSOCCHANGED 0x08000000
+; The privacy page's choice, handed to Cantus in this file of its data folder (round 26).
+!define CHOICES_FILE "installer-choices.txt"
+Var CheckUpdates
+Var PrivacyBox
 
 !include "files.nsh"
 ; CANTUS_SET_APP_ID: the shortcuts carry the AppUserModelID the program sets for itself.
@@ -65,6 +72,8 @@ VIAddVersionKey /LANG=0 "LegalCopyright" "GPL-3.0-or-later"
 !insertmacro MUI_PAGE_LICENSE "${LICENSE_FILE}"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
+; What Cantus sends over the network, and whether it checks for updates (round 26).
+Page custom PrivacyPage PrivacyLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -131,7 +140,22 @@ Section "!$(CANTUS_SECTION_APP)" SecApp
   SectionIn RO
   Call WaitForCantus
   !insertmacro CANTUS_APP_FILES
+!ifdef PREBUILT_UNINSTALLER
+  ; Made by the uninstaller-only pass and signed before it was embedded (ADR 0048 §8).
+  SetOutPath "$INSTDIR"
+  File "/oname=uninstall.exe" "${PREBUILT_UNINSTALLER}"
+!else
   WriteUninstaller "$INSTDIR\uninstall.exe"
+!endif
+  ; The update check as chosen on the privacy page; Cantus applies it to its settings at
+  ; its next start (`settings::apply_installer_choices`). Not on a silent install or an
+  ; update, which show no page and so change nothing.
+  ${IfNot} ${Silent}
+    CreateDirectory "$LOCALAPPDATA\Cantus"
+    FileOpen $R0 "$LOCALAPPDATA\Cantus\${CHOICES_FILE}" w
+    FileWrite $R0 "check_daily=$CheckUpdates$\r$\n"
+    FileClose $R0
+  ${EndIf}
   CreateShortcut "$SMPROGRAMS\Cantus.lnk" "$INSTDIR\cantus.exe" "" "$INSTDIR\cantus.exe" 0
   ; cantus.exe is the launcher; the window belongs to the program it starts. The shared
   ; AppUserModelID makes the taskbar group the window under this shortcut, and pin it.
@@ -264,10 +288,82 @@ SectionEnd
 !macroend
 
 Function .onInit
+!ifdef UNINSTALLER_ONLY
+  ; The uninstaller-only pass: write uninstall.exe beside this program and stop.
+  WriteUninstaller "$EXEDIR\uninstall.exe"
+  SetErrorLevel 0
+  Quit
+!endif
+  Call ReadCheckUpdates
   !insertmacro RESTORE ${SecAssoc} "Assoc"
   !insertmacro RESTORE ${SecDesktop} "Desktop"
   !insertmacro RESTORE ${SecClap} "Clap"
   !insertmacro RESTORE ${SecVst3} "Vst3"
+FunctionEnd
+
+; ---- the privacy page ----------------------------------------------------------------
+
+
+; The update check starts as Cantus has it: off when its settings say so (or a choice an
+; earlier install left that Cantus has not applied yet says so), on otherwise.
+Function ReadCheckUpdates
+  StrCpy $CheckUpdates "1"
+  ClearErrors
+  FileOpen $R0 "$LOCALAPPDATA\Cantus\settings.json" r
+  ${IfNot} ${Errors}
+    ${Do}
+      ClearErrors
+      FileRead $R0 $R1
+      ${If} ${Errors}
+        ${ExitDo}
+      ${EndIf}
+      ${StrStr} $R2 $R1 '"check_daily": false'
+      ${If} $R2 != ""
+        StrCpy $CheckUpdates "0"
+      ${EndIf}
+    ${Loop}
+    FileClose $R0
+  ${EndIf}
+  ClearErrors
+  FileOpen $R0 "$LOCALAPPDATA\Cantus\${CHOICES_FILE}" r
+  ${IfNot} ${Errors}
+    FileRead $R0 $R1
+    FileClose $R0
+    ${StrStr} $R2 $R1 "check_daily=0"
+    ${If} $R2 != ""
+      StrCpy $CheckUpdates "0"
+    ${EndIf}
+    ${StrStr} $R2 $R1 "check_daily=1"
+    ${If} $R2 != ""
+      StrCpy $CheckUpdates "1"
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+Function PrivacyPage
+  !insertmacro MUI_HEADER_TEXT "$(CANTUS_PRIVACY_TITLE)" "$(CANTUS_PRIVACY_SUBTITLE)"
+  nsDialogs::Create 1018
+  Pop $R0
+  ${If} $R0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 70% "$(CANTUS_PRIVACY_TEXT)"
+  Pop $R1
+  ${NSD_CreateCheckbox} 0 75% 100% 14u "$(CANTUS_PRIVACY_CHECK_UPDATES)"
+  Pop $PrivacyBox
+  ${If} $CheckUpdates == "1"
+    ${NSD_Check} $PrivacyBox
+  ${EndIf}
+  nsDialogs::Show
+FunctionEnd
+
+Function PrivacyLeave
+  ${NSD_GetState} $PrivacyBox $R0
+  ${If} $R0 == ${BST_CHECKED}
+    StrCpy $CheckUpdates "1"
+  ${Else}
+    StrCpy $CheckUpdates "0"
+  ${EndIf}
 FunctionEnd
 
 Function .onInstSuccess

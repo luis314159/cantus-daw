@@ -1,0 +1,3 @@
+*.patch text eol=lf
+*.fingerprints text eol=lf
+*.py text eol=lf

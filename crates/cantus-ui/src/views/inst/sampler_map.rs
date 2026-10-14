@@ -494,7 +494,10 @@ pub fn map(
     s: &Style,
     zoomed: bool,
 ) -> Geo {
-    let zones = model::zones(spec);
+    let zones: Vec<_> = model::zones(spec)
+        .into_iter()
+        .filter(|(_, z)| !by_controller(z))
+        .collect();
     let (k0, k1) = if zoomed {
         fit(&zones, &app.inst.sampler)
     } else {
@@ -736,13 +739,20 @@ pub const LOOP_MODES: [&str; 4] = [
     "smp.mode.sustain",
 ];
 pub const LOOP_DIRS: [&str; 3] = ["smp.dir.forward", "smp.dir.pingpong", "smp.dir.backward"];
-pub const TRIGGERS: [&str; 5] = [
+pub const TRIGGERS: [&str; 6] = [
     "smp.trig.attack",
     "smp.trig.release",
     "smp.trig.first",
     "smp.trig.legato",
     "smp.trig.release_key",
+    "smp.trig.controller",
 ];
+
+/// Whether a controller starts the zone (round 26: pedal noises) — no key plays it, so
+/// the map leaves it out and its card shows the controller and range instead.
+pub fn by_controller(z: &Zone) -> bool {
+    model::Trigger::from_index(z.get(zf::TRIG)) == model::Trigger::Controller
+}
 
 /// A zone field's readout: notes by name, pan by side, whole numbers where they step.
 pub fn write_zone(f: usize, v: f32, b: &mut String) {
@@ -789,6 +799,29 @@ pub const ZONE_FIELDS: [usize; 23] = [
     zf::EXCL,
     zf::OFFBY,
     zf::SW,
+];
+
+/// The cells of a zone a controller starts: the controller and its range where the key
+/// and velocity ranges were (no key plays it), then what still applies.
+pub const CC_ZONE_FIELDS: [usize; 18] = [
+    zf::ROOT,
+    zf::CC,
+    zf::CCLO,
+    zf::CCHI,
+    zf::GROUP,
+    zf::DELAY,
+    zf::TUNE,
+    zf::GAIN,
+    zf::PAN,
+    zf::SEQ,
+    zf::SEQLEN,
+    zf::RLO,
+    zf::RHI,
+    zf::EXCL,
+    zf::OFFBY,
+    zf::SW,
+    zf::KEYTRACK,
+    zf::RTDECAY,
 ];
 
 /// Cells to a row in the zone card.
@@ -884,8 +917,13 @@ pub fn zone_card(
         );
         return;
     };
-    let rects = parts::cells(cr.body, s, KnobSize::M, ZONE_FIELDS.len(), ZONE_PER_ROW);
-    for (f, r) in ZONE_FIELDS.iter().zip(rects) {
+    let fields: &[usize] = if by_controller(&z) {
+        &CC_ZONE_FIELDS
+    } else {
+        &ZONE_FIELDS
+    };
+    let rects = parts::cells(cr.body, s, KnobSize::M, fields.len(), ZONE_PER_ROW);
+    for (f, r) in fields.iter().zip(rects) {
         zone_cell(app, ui, track, spec, n, &z, *f, r, s);
     }
     // The controls' row along the bottom of the body.
@@ -1126,11 +1164,14 @@ pub fn table(
 
 /// The inspector's read-only strip: zones as bars over the 128 keys.
 pub fn mini(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
-    let zones = model::zones(spec);
+    // The keys' zones: one a controller starts is no key's (as in the map).
+    let all = model::zones(spec);
+    let none = all.is_empty();
+    let zones: Vec<_> = all.into_iter().filter(|(_, z)| !by_controller(z)).collect();
     let s = Style::current().function(Function::Source);
     let w = ui.available_width().min(240.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 36.0), Sense::hover());
-    let caption = if zones.is_empty() {
+    let caption = if none {
         t("smp.builtin_tone")
     } else {
         tf("smp.n_zones", &[("n", &zones.len().to_string())])

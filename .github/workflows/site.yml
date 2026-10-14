@@ -39,6 +39,11 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           rustup target add wasm32-unknown-unknown
 
+      # web/ is outside the DAW's workspace, so ci.yml's fmt check never sees it.
+      - name: The site's code is formatted
+        working-directory: web
+        run: cargo fmt --check
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: web

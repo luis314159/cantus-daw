@@ -42,7 +42,11 @@ impl Synth {
         limiter.ratio().set_value(12.0);
         master.connect_with_audio_node(&limiter)?;
         limiter.connect_with_audio_node(&ctx.destination())?;
-        Ok(Self { ctx, noise, out: master.into() })
+        Ok(Self {
+            ctx,
+            noise,
+            out: master.into(),
+        })
     }
 
     pub fn now(&self) -> f64 {
@@ -85,7 +89,8 @@ impl Synth {
     pub fn kick(&self, t: f64) -> R<()> {
         let o = self.osc(OscillatorType::Sine, 150.0)?;
         o.frequency().set_value_at_time(150.0, t)?;
-        o.frequency().exponential_ramp_to_value_at_time(44.0, t + 0.12)?;
+        o.frequency()
+            .exponential_ramp_to_value_at_time(44.0, t + 0.12)?;
         let g = self.gain(t, 1.0, 0.002, 0.34)?;
         o.connect_with_audio_node(&g)?;
         o.start_with_when(t)?;
@@ -125,7 +130,8 @@ impl Synth {
         let o = self.osc(OscillatorType::Sawtooth, hz)?;
         let f = self.filter(BiquadFilterType::Lowpass, 900.0, 4.0)?;
         f.frequency().set_value_at_time(1400.0, t)?;
-        f.frequency().exponential_ramp_to_value_at_time(180.0, t + len)?;
+        f.frequency()
+            .exponential_ramp_to_value_at_time(180.0, t + len)?;
         let g = self.gain(t, 0.42, 0.006, len)?;
         o.connect_with_audio_node(&f)?;
         f.connect_with_audio_node(&g)?;

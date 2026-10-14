@@ -30,6 +30,16 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
   - [ ] soltar una pista sobre un canal del mixer;
   - [ ] los 12 temas; el color del icono con Cantus **anclado** a la barra de tareas;
   - [ ] Lamina se escucha al nivel de los demás.
+- [ ] Probar a mano lo de la ronda 26:
+  - [ ] *Enlazar con…* (Alt+N) desde un clip, y renombrar un grupo en la fila *Nombre* del
+        inspector;
+  - [ ] el navegador de clips (Alt+F5) con la herramienta de pintar (B o 2 con el arreglo
+        enfocado): clic coloca, arrastrar pinta, clic derecho borra, Esc la desactiva;
+  - [ ] instalar el piano Salamander en *Paquetes de sonidos* y tocarlo (8 y 16 capas; la
+        primera carga llena la caché de muestras);
+  - [ ] la tarjeta de paquete que falta (abrir un proyecto con un paquete sin instalar);
+  - [ ] *Nivel ▸ Escribir un nivel…* en el menú de ruta de un cable;
+  - [ ] un nombre en japonés o coreano en una pista (las letras del sistema llegan solas).
 
 ## 2. Decisiones y trámites tuyos
 
@@ -63,11 +73,19 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
 
 ## 3. Lo que hace Claude cuando lo pidas
 
-- [ ] La limpieza del historial en una copia aparte, para revisarla antes de publicar.
+- [x] La limpieza del historial en una copia aparte, para revisarla antes de publicar:
+      hecha en una copia (ronda 26; `check.sh` dice READY), con las dos rutas escritas en
+      [`round26/public.md`](round26/public.md). Publicarla sigue siendo decisión tuya.
 - [ ] La solicitud a SignPath y la página de política de firma en la web (si eliges SignPath).
+      **Borradores listos** en [`signing/`](signing/README.md) (ronda 26): ahí está qué
+      condiciones fallan hoy y la decisión pendiente sobre el CLA.
 - [x] RV1909 como predeterminada mientras no haya permiso de la RVR1960 (hecho 2026-10-11).
-- [ ] Las notas de la versión (`docs/releases/v0.1.0-beta.1.md`), al día con las rondas 23–25.
-- [ ] El botón de la web que descargue el instalador directo (no la página de releases).
+- [x] Las notas de la versión (`docs/releases/v0.1.0-beta.1.md`), al día con las rondas 23–25,
+      en inglés y español (hecho 2026-10-13, ronda 26).
+- [x] El botón de la web que descargue el instalador directo (no la página de releases):
+      cada versión publica también `Cantus-windows-x64-setup.exe` y la web enlaza
+      `…/releases/latest/download/` (hecho 2026-10-13, ronda 26; funciona cuando el
+      repositorio sea público).
 - [ ] La etiqueta `v0.1.0-beta.1` cuando todo lo de arriba esté listo.
 
 ## 4. Marca "Cantus" — búsqueda preliminar
@@ -152,11 +170,16 @@ Cantus+, CantuStudio (iOS), "Cantus 1" de Datura (2012, abandonado), el ensamble
 
 ## 5. Detalles conocidos que no bloquean la beta
 
-Una ruta armada sobrevive a ocultar el mixer (Esc la suelta); escribir un nivel en el menú de
-ruta; *Añadir envío* del inspector podría ofrecer *Nuevo retorno*; los carriles de los cables
-se reacomodan al pasar el ratón; el hint gasta ~17 asignaciones por cuadro al pasar sobre el
-mixer; muestras de color en los menús de tema base; en español la leyenda dice SALIDA igual que
-la fila SALIDA del modo ancho.
+Los siete de la ronda 25 están hechos en la ronda 26, con pruebas (`docs/round26/mixer.md`,
+ADR 0043 y 0044):
+
+- [x] una ruta armada sobrevive a ocultar el mixer — ahora se suelta;
+- [x] escribir un nivel en el menú de ruta (*Nivel ▸ Escribir un nivel…*);
+- [x] *Añadir envío* del inspector ofrece *Nuevo retorno*;
+- [x] los carriles de los cables ya no se reacomodan al pasar el ratón;
+- [x] las ~17 asignaciones del hint: el hint no gasta ninguna (las demás son de egui);
+- [x] muestras de color en los menús de tema base;
+- [x] en español, SALIDA ya no se lee dos veces (la fila del modo ancho dice *Destino*).
 
 ## Fuentes (consultadas el 2026-10-11)
 

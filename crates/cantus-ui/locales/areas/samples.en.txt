@@ -19,6 +19,7 @@ samples.cancel = Cancel
 samples.starter.title = Start with a drum kit
 samples.starter.body = {pack}: kicks, snares, hats, toms, cymbals, claps — {mb} MB
 samples.starter.licence = CC0: yours to use in any song, free of charge, no credit needed
+samples.starter.licence_by = {licence}: yours to use in any song, free of charge; credit to {author}
 samples.starter.download = Download
 samples.more_packs = More packs…
 
@@ -47,6 +48,19 @@ samples.detail.credits = Made by
 samples.detail.licence_kept = The licence is kept beside the sounds, in {file}.
 samples.detail.actions = Pack
 samples.licence.cc0 = public domain, free for any use
+samples.licence.cc_by = free for any use, with credit to the author
+
+# A CC BY pack's page (ADR 0042 §3-4): its credit, and what the licence means, plainly.
+samples.detail.credit = Credit
+samples.credit.line = “{title}” by {author} ({url}), licensed under {licence} ({licence_url})
+samples.credit.line_cc0 = “{title}” by {author} ({url}), dedicated to the public domain under {licence} ({licence_url})
+samples.credit.licensor = {line} — {licence}: {licence_url}
+samples.cc0.courtesy = CC0 asks for no credit; the author would like this one, and Cantus gives it gladly.
+samples.ccby.plain = This pack is under {licence}: use it in any music, commercial or not, and change the sounds as you like. Its one condition is credit to the author, and Cantus gives it here, in Help > About Cantus and in the pack's folder. The music you make with it is yours.
+samples.ccby.track = Whether a published track must credit the samples is yours to judge.
+samples.ccby.author_says = In the author's words: “{note}”
+samples.ccby.usually = Most libraries like this one say it need not; the licence file in the pack has the exact terms.
+samples.ccby.kept = Installed with this credit: it is kept in the pack's receipt, beside the licence ({file}).
 samples.install = Install
 samples.update = Update
 samples.reinstall = Install again
@@ -64,3 +78,29 @@ samples.cat.fx = Effects and foley
 
 # Undo history.
 cmd.samples_add_channel = Add a sample channel
+
+# A pack's instruments in the instrument picker (round 26).
+samples.sound.what = Sampled instrument · Exemplar
+samples.sound.pack = Pack
+samples.sound.added = {name} is ready: {n} zones in Exemplar
+samples.sound.failed = {name} could not be loaded: {why}
+samples.sound.offered = Plays in Exemplar: once installed, the instrument picker offers {names}.
+samples.sound.ready = In the instrument picker: {names}.
+samples.sound.new_track = New track with {name}
+
+# A project whose sound pack is missing (round 26).
+samples.missing.title = Sound pack not installed
+samples.missing.title_elsewhere = Sound pack found elsewhere
+samples.missing.track = “{name}”
+samples.missing.body = “{pack}” is not installed on this computer, so these tracks are silent until it is: {tracks}. The rest of the project plays as usual.
+samples.missing.elsewhere = “{pack}” is installed here, but these tracks point at another copy of it (from another computer?): {tracks}.
+samples.missing.install = Install in Sound packs…
+samples.missing.relink = Use the installed pack
+samples.missing.not_now = Not now
+samples.missing.title_incomplete = Sound pack incomplete
+samples.missing.incomplete = “{pack}” is installed, but files these tracks play are missing from it (deleted, or its folder moved or renamed): {tracks}.
+samples.missing.reinstall = Install again in Sound packs…
+samples.missing.locate = Find the folder…
+samples.missing.not_there = That folder does not hold the pack's missing files
+cmd.samples_relink = Use the installed sound pack
+samples.sound.preset_layers = {name} · {n} layers

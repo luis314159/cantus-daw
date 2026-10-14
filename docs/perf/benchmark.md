@@ -221,11 +221,15 @@ frames — a few minutes on a quiet laptop:
   `cargo run -p xtask -- perf --save` on a quiet machine; review the JSON; commit it.
 - `--full` runs and compares the full suite against `<class>-full.json`.
 
-CI (`.github/workflows/ci.yml`, job `perf`) runs the quick suite on `windows-latest`
-with the class `gha-windows-latest` and keeps the report as an artifact. Hosted runners
-are shared and vary by tens of percent, so the job **reports and does not fail** until a
-baseline for that class has been gathered over enough runs to know its spread; then remove
-`continue-on-error`. A self-hosted runner with a fixed class is the real gate.
+CI has the quick suite as its own workflow, **run by hand** (`.github/workflows/perf.yml`:
+*Actions ▸ Perf ▸ Run workflow*; ADR 0048 §5 — it ran on every push until round 26 and
+never failed one): `windows-latest`, the class `gha-windows-latest`, the report kept as an
+artifact. Hosted runners are shared and vary by tens of percent, so the job **reports and
+does not fail** until a baseline for that class has been gathered over enough runs to know
+its spread — run it a few times on different days for that, and after performance work;
+then remove `continue-on-error` and give the workflow a trigger again (pushes touching the
+engine, as `null-hashes.yml` has). A self-hosted runner with a fixed class is the real
+gate.
 
 ## 7. Inside the engine: histograms and blame
 

@@ -133,6 +133,9 @@ pub struct Done {
     /// Samples past full scale that the format cuts off (every format but 32-bit float
     /// WAV): integers clip there, and decoders of MP3 and Ogg do.
     pub clipped: usize,
+    /// Notes that played only the start of a streamed sample, read faster than streaming
+    /// serves (ADR 0050, third review #9): said with the result.
+    pub cut_notes: u64,
 }
 
 /// A file being written: `name.ext.part` until [`Part::commit`] renames it; dropped
@@ -358,6 +361,7 @@ pub fn export_mix(
     if ctl.cancelled() {
         return Err(ExportError::Cancelled);
     }
+    let cut_notes = r.cut_notes;
     let rendered = Audio {
         rate: r.sample_rate,
         channels: r.channels,
@@ -373,6 +377,7 @@ pub fn export_mix(
         peak_db: peak_db(&a),
         clipped: clipped(&a, s),
         loudness,
+        cut_notes,
         ..Default::default()
     })
 }

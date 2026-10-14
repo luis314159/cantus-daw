@@ -115,5 +115,6 @@ size and band, *Don't show again* on it, the card handed to the application),
   its style.
 - Other locales (Almeida, Louis Segond 1910, Luther 1912) when those languages come.
 - The RVR1960 prints each poetry line with a capital; joined into one paragraph that shows
-  mid-sentence ("Cantadle canción nueva: hacedlo bien…"). Faithful to the text; a future
+  mid-sentence (Psalm 33:3: a capital letter right after the semicolon). Faithful to the
+  text; a future
   look could set poetry in its lines.

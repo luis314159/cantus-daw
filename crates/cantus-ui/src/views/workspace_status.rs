@@ -46,6 +46,12 @@ struct Key {
     dropout: Option<u64>,
     midi: usize,
     keyboard: Option<i32>,
+    /// Instruments' samples loading in the background, and streamed voices ended late
+    /// (ADR 0050).
+    loading: Option<(usize, usize)>,
+    stream_late: u64,
+    /// Notes that played their streamed sample's start only (third review #9).
+    stream_cut: u64,
     locale: Locale,
     tk: u32,
     ppp: u32,
@@ -89,6 +95,42 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
         // The callback's histogram in the engine readout's tooltip (round 20, `perf_status`).
         let tip = Some(crate::perf_status::histogram_text(app.engine.stats()));
         push(engine, key.overruns > 0, tip, 4);
+    }
+    // Samples loading off the interface's thread: how far (ADR 0050 §7).
+    if let Some((done, total)) = key.loading {
+        push(
+            tf("smp.loading_status", &[("done", &done), ("total", &total)]),
+            false,
+            Some(t("smp.loading_tip")),
+            5,
+        );
+    }
+    // Voices that streamed from disk and ended early: a disk too slow (ADR 0050 §5).
+    if key.stream_late > 0 {
+        push(
+            tf("smp.stream_late", &[("n", &key.stream_late)]),
+            true,
+            Some(crate::i18n::tf_count(
+                "smp.stream_late_tip",
+                key.stream_late as usize,
+                &[],
+            )),
+            4,
+        );
+    }
+    // Notes pitched too high to stream: they played their sample's start only (third
+    // review #9) — a choice of the design, not the disk's fault.
+    if key.stream_cut > 0 {
+        push(
+            tf("smp.stream_cut", &[("n", &key.stream_cut)]),
+            false,
+            Some(crate::i18n::tf_count(
+                "smp.stream_cut_tip",
+                key.stream_cut as usize,
+                &[],
+            )),
+            4,
+        );
     }
     // The latest dropout and who it is blamed on (round 20, `perf_status`).
     if let Some(d) = app.engine.stats().last_dropout {
@@ -179,17 +221,28 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let insp_on = app.workspace.contains(Pane::Inspector);
 
     let stats = *app.engine.stats();
+    // The engine's load, overruns and voices are shown only with a device: without one
+    // they never rebuild the line (they changed with the machine's own load, frame to
+    // frame, for words that were not there).
+    let live = app.engine.is_live();
     let key = Key {
-        live: app.engine.is_live(),
+        live,
         rate: app.engine.sample_rate as u32,
-        load: (stats.load * 100.0).round() as u32,
-        overruns: stats.overruns,
-        voices: stats.active_voices,
+        load: if live {
+            (stats.load * 100.0).round() as u32
+        } else {
+            0
+        },
+        overruns: if live { stats.overruns } else { 0 },
+        voices: if live { stats.active_voices } else { 0 },
         latency: stats.latency_samples,
         unserved: stats.pdc_unserved,
         dropout: stats.last_dropout.map(|d| d.block),
         midi: app.midi_port_names.len(),
         keyboard: app.keyboard_piano.then_some(app.keyboard.octave),
+        loading: app.engine.samples.progress(),
+        stream_late: stats.stream_late,
+        stream_cut: stats.stream_cut,
         locale: crate::i18n::locale(),
         tk: tk.to_bits(),
         ppp: ctx.pixels_per_point().to_bits(),

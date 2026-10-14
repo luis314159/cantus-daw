@@ -11,7 +11,9 @@ const KEY: &str = "cantus-theme";
 
 impl Theme {
     pub fn detect() -> Self {
-        let Some(win) = web_sys::window() else { return Theme::Night };
+        let Some(win) = web_sys::window() else {
+            return Theme::Night;
+        };
         if let Ok(Some(store)) = win.local_storage() {
             match store.get_item(KEY) {
                 Ok(Some(v)) if v == "light" => return Theme::Day,

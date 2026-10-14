@@ -9,11 +9,18 @@
 //! continuous looped signal.
 
 use super::resample::{Kernel, Quality, Reader, MAX_HB, MAX_LEVELS, MAX_TAPS};
+use super::stream::{Board, Cursor, Stream, BLOCK};
 use std::sync::Arc;
 
 // Fetching taps through the loop, interpolating, decimating.
 #[path = "exemplar_read.rs"]
 mod read;
+
+// A streamed voice's window (ADR 0050).
+#[path = "exemplar_window.rs"]
+mod window;
+
+pub use window::Reach;
 
 /// A sample as a voice reads it: its mip-map levels (level 0 is the file), interleaved.
 #[derive(Clone, Debug, Default)]
@@ -26,9 +33,35 @@ pub struct Source {
     pub frames: usize,
     /// Cents the sample is sharp of its nominal root (built-in sounds): subtracted.
     pub tune_ct: f32,
+    /// Streamed from disk (ADR 0050): `levels` then hold only each level's head.
+    pub stream: Option<Arc<Stream>>,
 }
 
 impl Source {
+    /// A streamed sample as a voice reads it: the heads in memory, the rest from the pool.
+    pub fn from_stream(st: &Arc<Stream>) -> Source {
+        let mut levels: [Option<Arc<[f32]>>; MAX_LEVELS] = Default::default();
+        for (l, h) in levels.iter_mut().zip(st.heads.iter()) {
+            l.clone_from(h);
+        }
+        Source {
+            levels,
+            channels: st.channels,
+            rate: st.rate,
+            frames: st.frames[0],
+            tune_ct: 0.0,
+            stream: Some(st.clone()),
+        }
+    }
+
+    /// Keep levels `0..n` only — a zone's own mip-maps out of a stream that holds every
+    /// level its file has, so it plays exactly as its in-memory sample would.
+    pub fn limit_levels(&mut self, n: usize) {
+        for l in self.levels.iter_mut().skip(n.max(1)) {
+            *l = None;
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.levels[0].is_none() || self.frames == 0
     }
@@ -168,6 +201,32 @@ pub struct Playhead {
     p1: usize,
     p2: usize,
     done: bool,
+    /// A streamed source's window (ADR 0050): frames `win_base..win_base + win_len` of
+    /// level `win_level`, interleaved, in a buffer allocated once ([`Self::attach_window`]).
+    win: Vec<f32>,
+    win_cap: usize,
+    win_base: i64,
+    win_len: usize,
+    win_level: usize,
+    /// Output frames the window keeps beyond what is rendered (a fade's worth).
+    fade: usize,
+    /// A read missed a block (counted as late by the engine).
+    missed: std::cell::Cell<bool>,
+    /// Where it says what it reads: its instrument's board and its cell.
+    board: Option<(Arc<Board>, u16)>,
+    published: u64,
+    /// Offline: wait for a block rather than fade (ADR 0050 §6).
+    blocking: bool,
+    /// Decided once, at the voice's first read (second review #17): a control step reads
+    /// more than the stream reader keeps ready ahead — faster than it serves in real time —
+    /// so the voice plays its head and ends there, alike in real time and offline. `None`:
+    /// not decided.
+    pub(super) head_only: Option<bool>,
+    /// The local ratio above which it is decided so ([`Self::set_head_only_above`]).
+    pub(super) head_only_above: f64,
+    /// Times it woke the stream reader since the last [`Self::take_wakes`] (fourth review
+    /// #1: a counted system call on the audio thread, only when the reader is needed).
+    pub(super) wakes: u32,
 }
 
 /// The most odd taps a runtime decimator has (`MAX_HB / 4`).
@@ -189,6 +248,19 @@ impl Default for Playhead {
             p1: 0,
             p2: 0,
             done: true,
+            win: Vec::new(),
+            win_cap: 0,
+            win_base: 0,
+            win_len: 0,
+            win_level: 0,
+            fade: 0,
+            missed: std::cell::Cell::new(false),
+            board: None,
+            published: 0,
+            blocking: false,
+            head_only: None,
+            head_only_above: 64.0,
+            wakes: 0,
         }
     }
 }
@@ -197,7 +269,15 @@ impl Playhead {
     /// Start reading `src` over `region` at a ratio of `ratio` source frames per output
     /// frame. `offset` frames past the region's start (a velocity-driven start).
     pub fn start(&mut self, src: Source, region: Region, ratio: f64, reader: &Reader, offset: i64) {
-        let region = region.sanitized(src.frames as i64);
+        let mut region = region.sanitized(src.frames as i64);
+        if src.stream.is_some() {
+            // Never asked for (looped and reversed samples stay in memory), so never heard:
+            // a streamed sample plays forwards.
+            region.looping = false;
+            region.reverse = false;
+        }
+        self.win_len = 0;
+        self.head_only = None;
         self.src = src;
         self.region = region;
         self.pos = (region.start + offset.max(0)).min(region.end - 1) as f64;
@@ -215,6 +295,7 @@ impl Playhead {
         };
         if self.mode == Mode::Resampled {
             self.choose_level(ratio, true);
+            self.ensure(ratio, reader, super::voice::CONTROL as usize, false);
             self.prime(ratio, reader);
         }
     }
@@ -297,6 +378,7 @@ impl Playhead {
                 } else {
                     self.mode = Mode::Resampled;
                     self.choose_level(ratio, true);
+                    self.ensure(ratio, reader, super::voice::CONTROL as usize, false);
                     self.prime(ratio, reader);
                 }
             }

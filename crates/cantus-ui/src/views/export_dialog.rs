@@ -39,7 +39,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     // field gives up its focus on the Enter that confirms it — so both are asked before
     // anything is drawn).
     let list_open = egui::Popup::is_any_open(ctx);
-    let typing = ctx.egui_wants_keyboard_input();
+    let typing = ctx.egui_wants_keyboard_input() || crate::kit::field::active(ctx);
     let s = Style::current();
     let k = s.k;
     let screen = ctx.content_rect();
@@ -117,7 +117,9 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     // Over the veil and the window's own menus, every frame; its lists are sublayers of
     // it (see `pick`), so they stay on top of it.
     ctx.move_to_top(layer());
-    let escape = !list_open && ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    // Esc in a tag is the tag's alone (final review): it puts the words back, the dialog
+    // stays.
+    let escape = !list_open && !typing && ctx.input(|i| i.key_pressed(egui::Key::Escape));
     // Enter exports, as the button does — unless a tag is being typed or a list is open.
     let enter = !list_open
         && !typing

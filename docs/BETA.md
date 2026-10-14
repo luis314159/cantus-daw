@@ -64,7 +64,11 @@ notas. No hace falta para la beta: warp, MIDI learn, IA, macOS/Linux, aislar plu
 ## Not needed for the beta (known limitations)
 
 Warping/time-stretch, MIDI learn and control surfaces, AI features, macOS and Linux builds,
-hosted plug-in crash isolation, multiple arrangements.
+hosted plug-in crash isolation, multiple arrangements. Exemplar in Draft quality plays only
+the start of a long sample streamed from disk when a note reads it faster than streaming
+serves (its file's rate over the output's, times the pitch: over 64 at 48 kHz — about 72
+semitones up at equal rates, 48 for a 192 kHz file at 48 kHz); the status line and the
+export say so, and Normal quality plays it whole (ADR 0050).
 
 ## Path
 

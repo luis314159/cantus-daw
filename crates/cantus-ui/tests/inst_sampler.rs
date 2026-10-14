@@ -539,6 +539,40 @@ fn wav_metadata_gives_root_fine_tune_and_loop() {
     assert_eq!(import::name_hints("Violin_A3_ff_rr2").0, Some(57));
 }
 
+/// Round 26: reading a file's metadata skips its audio — a `smpl` chunk after a large
+/// `data` chunk is still found, and a FLAC (no chunks) is answered from its first bytes.
+#[test]
+fn file_metadata_skips_the_audio_and_finds_chunks_after_it() {
+    let mut fmt = Vec::new();
+    fmt.extend(1u16.to_le_bytes());
+    fmt.extend(2u16.to_le_bytes());
+    fmt.extend(44_100u32.to_le_bytes());
+    fmt.extend(176_400u32.to_le_bytes());
+    fmt.extend(4u16.to_le_bytes());
+    fmt.extend(16u16.to_le_bytes());
+    let mut smpl = vec![0u8; 36];
+    smpl[12..16].copy_from_slice(&50u32.to_le_bytes());
+    smpl[28..32].copy_from_slice(&1u32.to_le_bytes());
+    let mut lp = vec![0u8; 24];
+    lp[8..12].copy_from_slice(&700u32.to_le_bytes());
+    lp[12..16].copy_from_slice(&90_000u32.to_le_bytes());
+    smpl.extend(lp);
+    let mut body = b"WAVE".to_vec();
+    body.extend(riff(b"fmt ", &fmt));
+    body.extend(riff(b"data", &vec![0u8; 400_000]));
+    body.extend(riff(b"smpl", &smpl));
+    let dir = tempfile::tempdir().unwrap();
+    let wav = dir.path().join("late-smpl.wav");
+    std::fs::write(&wav, riff(b"RIFF", &body)).unwrap();
+    let m = import::meta_of(&wav).unwrap();
+    assert_eq!((m.rate, m.channels, m.frames), (44_100, 2, 100_000));
+    assert_eq!(m.root, Some(50));
+    assert_eq!(m.sustain_loop, Some((700, 90_000, false)));
+    let flac = dir.path().join("a.flac");
+    std::fs::write(&flac, [&b"fLaC"[..], &[0u8; 64][..]].concat()).unwrap();
+    assert!(import::meta_of(&flac).is_none());
+}
+
 // ---- the look (ADR 0024): words in their boxes, a drag on a cell -----------------------------
 
 /// Every straight text a frame painted: its string, where its letters are, and the clip it

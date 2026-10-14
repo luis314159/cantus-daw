@@ -11,6 +11,13 @@ HERE = os.path.abspath(sys.argv[1])
 DL = os.path.join(HERE, "dl")
 OUT = sys.argv[2]
 CC0 = "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+# ADR 0042: the licences content may be under, and their texts. A CC BY pack also needs
+# its credit line: attribution(title, author, url[, line, note]).
+LICENCES = {
+    "CC0-1.0": CC0,
+    "CC-BY-3.0": "https://creativecommons.org/licenses/by/3.0/legalcode",
+    "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/legalcode",
+}
 CHECKED = "2026-10-05"
 
 
@@ -57,6 +64,28 @@ def zip_pack(file, url, strip, include, exclude, sha256=None):
     return {"zip": src}, size
 
 
+def tar_gz_pack(file, url, strip, include, exclude, sha256=None):
+    """A `.tar.gz` source (round 26): the same rules as a zip, sizes from the archive."""
+    import tarfile
+    path = os.path.join(DL, file)
+    size = 0
+    with tarfile.open(path, "r:gz") as t:
+        for i in t:
+            if not i.isfile() or not i.name.startswith(strip):
+                continue
+            rel = i.name[len(strip):]
+            if rel and (not include or any(glob(p, rel) for p in include)) and not any(glob(p, rel) for p in exclude):
+                size += i.size
+    src = {"url": url, "size": os.path.getsize(path), "sha256": sha256 or sha(path)}
+    if strip:
+        src["strip"] = strip
+    if include:
+        src["include"] = include
+    if exclude:
+        src["exclude"] = exclude
+    return {"tar_gz": src}, size
+
+
 def files_pack(name):
     files = json.load(open(os.path.join(HERE, name + ".json")))
     return {"files": files}, sum(f["size"] for f in files)
@@ -88,14 +117,33 @@ def kar(repo, branch, file="LICENSE"):
 packs = []
 
 
-def add(id, cat, name, desc, source_size, licence_file, credits, recommended=False):
+def attribution(title, author, url, line="", note=""):
+    """A CC BY pack's credit as its licensor asks: `line` is their own wording, word for
+    word, when they give one; `note` their words about crediting music made with it."""
+    a = {"title": title, "author": author, "url": url}
+    if line:
+        a["line"] = line
+    if note:
+        a["note"] = note
+    return a
+
+
+def add(id, cat, name, desc, source_size, licence_file, credits, recommended=False,
+        licence="CC0-1.0", attribution=None, instruments=None, checked=CHECKED):
     source, size = source_size
+    assert licence in LICENCES, licence + " is not accepted (ADR 0042)"
+    # CC BY needs its credit line; a CC0 pack may carry one as a courtesy its author asked for.
+    assert attribution is not None or licence == "CC0-1.0", id + ": CC BY needs a credit line"
     p = {"id": id, "version": 1, "name": {"en": name[0], "es": name[1]},
          "description": {"en": desc[0], "es": desc[1]}, "category": cat}
     if recommended:
         p["recommended"] = True
-    p.update({"licence": "CC0-1.0", "licence_url": CC0, "licence_file": licence_file,
-              "credits": credits, "checked": CHECKED, "installed_size": size, "source": source})
+    p.update({"licence": licence, "licence_url": LICENCES[licence], "licence_file": licence_file,
+              "credits": credits, "checked": checked, "installed_size": size, "source": source})
+    if attribution is not None:
+        p["attribution"] = attribution
+    if instruments:
+        p["instruments"] = instruments
     packs.append(p)
 
 
@@ -197,7 +245,49 @@ add("vcsl-tx81z", "instruments",
      "Sample Library: bajos, teclados, pads y solistas para cargar en Exemplar."),
     files_pack("tx81z"), "Licences/LICENSE.txt", [VC])
 
-manifest = {"format": 1, "updated": CHECKED, "packs": packs}
+SAL = "SalamanderGrandPiano-SFZ+FLAC-V3+20200602"
+SAL_PAGE = "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"
+SAL_SFZ = "SalamanderGrandPiano-V3+20200602.sfz"
+
+
+def piano(id, en, es, layers=None):
+    i = {"id": id, "name": {"en": en, "es": es}, "file": SAL_SFZ, "shelf": "keys",
+         "gain_db": -5.5}
+    if layers:
+        i["layers"] = layers
+    return i
+
+
+add("salamander-grand-piano", "instruments",
+    ("Salamander Grand Piano", "Piano de cola Salamander"),
+    ("A Yamaha C5 grand recorded by Alexander Holm: 16 velocity layers sampled in minor "
+     "thirds, string resonance and hammer releases (48 kHz, 24-bit FLAC). Plays in Exemplar, "
+     "streamed from disk: the instrument picker offers it with 8 velocity layers (about "
+     "120 MB of memory) and with all 16 (about 185 MB); its first load decodes the samples "
+     "once into Cantus's cache (1 GB for 8 layers, 2 GB for 16).",
+     "Un Yamaha C5 de cola grabado por Alexander Holm: 16 capas de velocidad muestreadas en "
+     "terceras menores, resonancias de cuerda y relajaciones de martillo (48 kHz, FLAC de 24 "
+     "bits). Suena en Exemplar, leído del disco: el selector de instrumentos lo ofrece con 8 "
+     "capas de velocidad (unos 120 MB de memoria) y con las 16 (unos 185 MB); la primera "
+     "carga descodifica las muestras una vez en la caché de Cantus (1 GB con 8 capas, 2 GB "
+     "con 16)."),
+    tar_gz_pack(SAL + ".tar.gz",
+                "https://freepats.zenvoid.org/Piano/SalamanderGrandPiano/" + SAL + ".tar.gz",
+                SAL + "/", ["samples/**", "readme.txt", SAL_SFZ], []),
+    "readme.txt",
+    [credit("Salamander Grand Piano V3 — Alexander Holm; FLAC edition by FreePats",
+            SAL_PAGE, "https://creativecommons.org/licenses/by/3.0/")],
+    licence="CC-BY-3.0",
+    attribution=attribution("Salamander Grand Piano V3", "Alexander Holm", SAL_PAGE),
+    checked="2026-10-13",
+    instruments=[piano("grand", "Salamander Grand Piano", "Piano de cola Salamander", 8),
+                 piano("grand-full", "Salamander Grand Piano · 16 layers",
+                       "Piano de cola Salamander · 16 capas")])
+
+# Format 2 only when a pack needs it (a credit line, a tar.gz, instruments), so format-1
+# builds keep reading the rest.
+fmt = 2 if any("attribution" in p or "instruments" in p or "tar_gz" in p["source"] for p in packs) else 1
+manifest = {"format": fmt, "updated": max(p["checked"] for p in packs), "packs": packs}
 with open(OUT, "w", encoding="utf-8", newline="\n") as f:
     text = json.dumps(manifest, indent=1, ensure_ascii=False)
     # One line per file entry: the lists stay readable in a diff.

@@ -473,12 +473,16 @@ fn pinned_well(
     let cap = Text::key(key, Role::Micro, s.t.text_dim)
         .align(Align2::LEFT_CENTER)
         .policy(text::Policy::Abbreviate);
+    // The caption stops short of the value (last pass: "VOLUMEN+0.0 dB" at some widths);
+    // where its whole does not fit there, its short form, else elided.
+    let value_w = text::measure(ui.ctx(), &Text::new(text, Role::Value, s.t.text), s.tk()).x;
+    let left = r.left() + s.s(8.0);
+    let cap_right = (r.right() - s.s(6.0) - value_w - s.s(6.0))
+        .min(r.center().x)
+        .max(left);
     let _ = text::paint(
         &mut st.brush,
-        Rect::from_min_max(
-            pos2(r.left() + s.s(8.0), r.top()),
-            pos2(r.center().x, r.bottom()),
-        ),
+        Rect::from_min_max(pos2(left, r.top()), pos2(cap_right, r.bottom())),
         &cap,
         s.tk(),
     );

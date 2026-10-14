@@ -7,6 +7,9 @@
 //! package --sign          sign with the signer in the environment (sign.rs)
 //! package --sign-test     sign with the test certificate (`sign-test-cert`)
 //! package --v4            also the x86-64-v4 (AVX-512) program
+//! package --stage-only    build and lay out what SignPath signs (programs, plug-ins and
+//!                         the uninstaller, made by an uninstaller-only NSIS pass)
+//! package --from-stage D  zips, installer and sums from a signed stage D (ADR 0048 §8)
 //! ```
 //!
 //! **One Windows edition, every driver in it** (ADR 0025 §10, round 21): the program is
@@ -26,7 +29,8 @@
 //! launcher, laid out as released, must start one that lists ASIO. The plug-in scanner
 //! (`cantus-scan.exe`, which the app starts from beside itself) ships beside them.
 //!
-//! Out: `target/package/dist/` — `Cantus-<v>-windows-x64-setup.exe`,
+//! Out: `target/package/dist/` — `Cantus-<v>-windows-x64-setup.exe` (and the same file as
+//! `Cantus-windows-x64-setup.exe`, the stable name a website links to — ADR 0048 §7),
 //! `Cantus-<v>-windows-x64-portable.zip`, `Cantus-<v>-plugins-windows-x64.zip`,
 //! `SHA256SUMS.txt`. The names come from `cantus_update::release`, which the app's
 //! updater reads too.
@@ -54,6 +58,16 @@ pub struct Staged {
 }
 
 impl Staged {
+    /// A stage laid out by [`stage`] (`app/`, `clap/`, `vst3/`) — or one SignPath sent
+    /// back, signed, with the same layout. `uninstall.exe` at its top is not a staged file.
+    pub fn from_dir(stage: &Path) -> Staged {
+        Staged {
+            app: archive::walk(&stage.join("app")),
+            clap: archive::walk(&stage.join("clap")),
+            vst3: archive::walk(&stage.join("vst3")),
+        }
+    }
+
     /// The binaries a signer signs: the program and every plug-in library.
     pub fn binaries(&self) -> Vec<PathBuf> {
         let lib = |e: &&Entry| {
@@ -90,6 +104,10 @@ pub struct Inputs {
     /// `THIRD-PARTY-NOTICES.txt`, `PRIVACY.txt` and the manual's pages
     /// (`manual/en/index.html`, …), which About and *Help ▸ Manual* open (round 22).
     pub docs: Vec<(String, PathBuf)>,
+    /// Require every file the release signs (programs, launcher, scanner, plug-in
+    /// libraries, installer) to carry its product name and version (ADR 0048 §9). Off only
+    /// for the tests' stand-in files.
+    pub check_metadata: bool,
 }
 
 fn copy_into(from: &Path, to: &Path) {
@@ -225,6 +243,7 @@ pub fn dist_names(version: &str, installer: bool) -> Vec<String> {
     ];
     if installer {
         v.push(release::installer_name(version));
+        v.push(release::STABLE_INSTALLER_NAME.to_owned());
     }
     v.sort();
     v
@@ -238,6 +257,9 @@ pub struct InstallerJob {
     pub uninst_sign: Option<String>,
     /// Environment for makensis's children (the signer, for the uninstaller).
     pub env: Vec<(String, String)>,
+    /// Written by the installer (the PFX/Azure routes sign it through `uninst_sign`), or
+    /// a ready, signed `uninstall.exe` (`--from-stage`, the SignPath route).
+    pub uninstaller: nsis::Uninstaller,
 }
 
 /// Make every release file from `inputs` into `out/dist/`: stage, sign, zip, write the
@@ -249,61 +271,136 @@ pub fn assemble(
     installer: Option<&InstallerJob>,
     signer: Option<&Signer>,
 ) -> PathBuf {
-    let dist = out.join("dist");
-    let _ = std::fs::remove_dir_all(&dist);
-    std::fs::create_dir_all(&dist).unwrap();
-    let marker = out.join(cantus_update::install::PORTABLE_MARKER);
-    std::fs::write(&marker, cantus_update::install::PORTABLE_MARKER_TEXT).unwrap();
     let staged = stage(inputs, &out.join("stage"), version);
+    if inputs.check_metadata {
+        meta::require(&staged.binaries(), version);
+    }
     if let Some(s) = signer {
         let bins = staged.binaries();
         sign::sign(s, &bins);
         sign::check(&bins);
     }
+    package_staged(
+        &staged,
+        out,
+        version,
+        installer,
+        signer,
+        inputs.check_metadata,
+    )
+}
+
+/// The release files from a staged release — signed already when it comes back from
+/// SignPath (`--from-stage`): the zips, the installer when asked (signed here by a local
+/// signer), its stable copy and the sums, into `out/dist/`.
+pub fn package_staged(
+    staged: &Staged,
+    out: &Path,
+    version: &str,
+    installer: Option<&InstallerJob>,
+    signer: Option<&Signer>,
+    check_metadata: bool,
+) -> PathBuf {
+    let dist = out.join("dist");
+    let _ = std::fs::remove_dir_all(&dist);
+    std::fs::create_dir_all(&dist).unwrap();
+    let marker = out.join(cantus_update::install::PORTABLE_MARKER);
+    std::fs::write(&marker, cantus_update::install::PORTABLE_MARKER_TEXT).unwrap();
     archive::zip(
         &dist.join(release::portable_name(version)),
         &format!("Cantus-{version}"),
-        &portable_entries(&staged, &marker),
+        &portable_entries(staged, &marker),
     );
     archive::zip(
         &dist.join(release::plugins_name(version)),
         &format!("Cantus-{version}-plugins"),
-        &plugin_entries(&staged),
+        &plugin_entries(staged),
     );
     let work = out.join("nsis");
     let setup = dist.join(release::installer_name(version));
     let nsi = nsis::write_work(
         &work,
-        &staged,
+        staged,
         &nsis::Config {
             version: version.to_owned(),
             outfile: setup.clone(),
             icon: installer.map(|j| j.icon.clone()),
-            license: staged
-                .app
-                .iter()
-                .find(|e| e.name == "LICENSE.txt")
-                .expect("the licence is staged")
-                .src
-                .clone(),
+            license: licence_of(staged),
             uninst_sign: installer.and_then(|j| j.uninst_sign.clone()),
+            uninstaller: installer.map(|j| j.uninstaller.clone()).unwrap_or_default(),
         },
     );
     if let Some(job) = installer {
         let mut cmd = Command::new(&job.makensis);
         cmd.args(["/V3", "/INPUTCHARSET", "UTF8"]).arg(&nsi);
+        // `sign-file`, run by NSIS on the uninstaller it writes, checks this version.
+        cmd.env("CANTUS_SIGN_VERSION", version);
         for (k, v) in &job.env {
             cmd.env(k, v);
         }
         run(&mut cmd);
+        if check_metadata {
+            meta::require(std::slice::from_ref(&setup), version);
+        }
         if let Some(s) = signer {
             sign::sign(s, std::slice::from_ref(&setup));
             sign::check(std::slice::from_ref(&setup));
         }
+        // The same signed bytes under the name that never changes (ADR 0048 §7), for
+        // `releases/latest/download/<name>` links; the updater asks for the versioned one.
+        std::fs::copy(&setup, dist.join(release::STABLE_INSTALLER_NAME)).unwrap();
     }
     write_sums(&dist);
     dist
 }
+
+/// The licence the installer's licence page shows: the staged `LICENSE.txt`.
+fn licence_of(staged: &Staged) -> PathBuf {
+    staged
+        .app
+        .iter()
+        .find(|e| e.name == "LICENSE.txt")
+        .expect("the licence is staged")
+        .src
+        .clone()
+}
+
+/// The uninstaller, made before the installer so that it can be signed first (ADR 0048
+/// §8, the SignPath route): the script compiled in its uninstaller-only form into a small
+/// program carrying no release file, which writes `uninstall.exe` beside itself when run
+/// (Windows only). Returns the uninstaller's path, in `work`.
+pub fn write_uninstaller(
+    staged: &Staged,
+    work: &Path,
+    makensis: &Path,
+    icon: Option<&Path>,
+    version: &str,
+) -> PathBuf {
+    // No "setup"/"install" in the name: Windows' installer detection would ask for UAC.
+    let writer = work.join("cantus-uw.exe");
+    let nsi = nsis::write_work(
+        work,
+        staged,
+        &nsis::Config {
+            version: version.to_owned(),
+            outfile: writer.clone(),
+            icon: icon.map(Path::to_path_buf),
+            license: licence_of(staged),
+            uninst_sign: None,
+            uninstaller: nsis::Uninstaller::WriterOnly,
+        },
+    );
+    run(Command::new(makensis)
+        .args(["/V3", "/INPUTCHARSET", "UTF8"])
+        .arg(&nsi));
+    run(Command::new(&writer).current_dir(work));
+    let out = work.join(UNINSTALLER);
+    assert!(out.is_file(), "the writer left no {}", out.display());
+    out
+}
+
+/// The uninstaller's name, in the install folder and at the top of a stage.
+pub const UNINSTALLER: &str = "uninstall.exe";
 
 /// `SHA256SUMS.txt` over every other file in `dist`.
 pub fn write_sums(dist: &Path) {
@@ -422,6 +519,14 @@ pub fn package(args: &[String]) {
     if has("--asio") || has("--all") {
         eprintln!("note: --asio and --all are gone: there is one edition, with ASIO (round 21)");
     }
+    if let Some(i) = args.iter().position(|a| a == "--from-stage") {
+        let Some(dir) = args.get(i + 1) else {
+            eprintln!("usage: xtask package --from-stage <signed stage folder>");
+            std::process::exit(2);
+        };
+        from_stage(Path::new(dir), has("--no-installer"));
+        return;
+    }
     let build = !has("--no-build");
     let target = target_dir();
     let signer = if has("--sign-test") {
@@ -492,6 +597,7 @@ pub fn package(args: &[String]) {
         copyright: ws.join("LICENSE"),
         readme: ws.join("xtask/installer/README.txt"),
         docs: release_docs(&ws, &target),
+        check_metadata: true,
     };
 
     let installer = if has("--no-installer") {
@@ -522,10 +628,19 @@ pub fn package(args: &[String]) {
                 .as_ref()
                 .map(|_| format!("\"{}\" sign-file \"%1\"", me.display())),
             env,
+            uninstaller: nsis::Uninstaller::Written,
         })
     };
     let out = target.join("package");
     check_programs(&inputs, &out.join("check"));
+    if has("--stage-only") {
+        let Some(job) = installer.as_ref() else {
+            eprintln!("--stage-only writes the uninstaller with NSIS: drop --no-installer");
+            std::process::exit(2);
+        };
+        stage_only(&inputs, &out, job);
+        return;
+    }
     let dist = assemble(&inputs, &out, VERSION, installer.as_ref(), signer.as_ref());
     let want = dist_names(VERSION, installer.is_some());
     let got: Vec<String> = archive::walk(&dist).into_iter().map(|e| e.name).collect();
@@ -540,6 +655,129 @@ pub fn package(args: &[String]) {
     }
 }
 
+/// `package --stage-only`: build, check and lay out the release in `out/stage/` with its
+/// uninstaller at the top — every file SignPath is to sign, and nothing else (ADR 0048 §8).
+fn stage_only(inputs: &Inputs, out: &Path, job: &InstallerJob) {
+    let dir = out.join("stage");
+    let staged = stage(inputs, &dir, VERSION);
+    let made = write_uninstaller(
+        &staged,
+        &out.join("uninstaller"),
+        &job.makensis,
+        Some(&job.icon),
+        VERSION,
+    );
+    let uninstaller = dir.join(UNINSTALLER);
+    std::fs::copy(&made, &uninstaller).unwrap();
+    let mut bins = staged.binaries();
+    bins.push(uninstaller);
+    if inputs.check_metadata {
+        meta::require(&bins, VERSION);
+    }
+    eprintln!(
+        "staged for signing in {}: {} files",
+        dir.display(),
+        bins.len()
+    );
+}
+
+/// `package --from-stage <dir>`: the release from a stage that came back signed — the
+/// zips, the installer carrying the signed uninstaller (not one it writes), its stable
+/// copy and the sums. Nothing is built or signed here.
+fn from_stage(dir: &Path, no_installer: bool) {
+    let dir = stage_dir(dir).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(2)
+    });
+    let dir = dir.as_path();
+    let staged = Staged::from_dir(dir);
+    let uninstaller = dir.join(UNINSTALLER);
+    let mut bins = staged.binaries();
+    let installer = if no_installer {
+        None
+    } else {
+        if !uninstaller.is_file() {
+            eprintln!(
+                "{} has no {UNINSTALLER} (made by --stage-only)",
+                dir.display()
+            );
+            std::process::exit(1);
+        }
+        bins.push(uninstaller.clone());
+        let Some(makensis) = nsis::makensis() else {
+            eprintln!("makensis not found: install NSIS 3 or set CANTUS_MAKENSIS");
+            std::process::exit(1);
+        };
+        let icon = find_icon(&target_dir().join("release")).unwrap_or_else(|| {
+            eprintln!("the icon is not built (cargo build --release -p cantus-launch)");
+            std::process::exit(1)
+        });
+        Some(InstallerJob {
+            makensis,
+            icon,
+            uninst_sign: None,
+            env: Vec::new(),
+            uninstaller: nsis::Uninstaller::Prebuilt(uninstaller),
+        })
+    };
+    meta::require(&bins, VERSION);
+    // The stage must have come back signed: every program, plug-in library and the
+    // uninstaller (as the local-signer route checks after signing). A file SignPath's
+    // artifact configuration missed stops the release here, by name.
+    if cfg!(windows) {
+        eprintln!("checking the signatures of {} files:", bins.len());
+        sign::check(&bins);
+    } else {
+        eprintln!("--from-stage checks Authenticode signatures on Windows only");
+        std::process::exit(2);
+    }
+    let out = target_dir().join("package");
+    let dist = package_staged(&staged, &out, VERSION, installer.as_ref(), None, true);
+    let want = dist_names(VERSION, installer.is_some());
+    let got: Vec<String> = archive::walk(&dist).into_iter().map(|e| e.name).collect();
+    if got != want {
+        eprintln!("dist holds {got:?}, expected {want:?}");
+        std::process::exit(1);
+    }
+    eprintln!("release files in {}", dist.display());
+}
+
+/// The stage folder as makensis needs it: absolute. makensis resolves a relative `File`
+/// path from the script's own folder (`target/package/nsis/`), not from where xtask ran,
+/// so `--from-stage target/package/stage-signed` would name files that are not there.
+pub fn stage_dir(dir: &Path) -> Result<PathBuf, String> {
+    if !dir.is_dir() {
+        return Err(format!(
+            "{} is not a folder (the signed stage)",
+            dir.display()
+        ));
+    }
+    std::path::absolute(dir).map_err(|e| format!("{}: {e}", dir.display()))
+}
+
+/// The version `sign-file` requires of the uninstaller NSIS hands it: the one the job is
+/// building (`CANTUS_SIGN_VERSION`, which [`package_staged`] gives makensis), else this
+/// xtask's own — the release's.
+pub fn sign_version(from_env: Option<String>) -> String {
+    from_env
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| VERSION.to_owned())
+}
+
+/// `sums <dir>`: write `SHA256SUMS.txt` over every other file of `dir` (after a signed
+/// installer replaced the one the sums were made for).
+pub fn sums(args: &[String]) {
+    let Some(dir) = args.first() else {
+        eprintln!("usage: xtask sums <folder>");
+        std::process::exit(2);
+    };
+    write_sums(Path::new(dir));
+    eprintln!(
+        "{} written",
+        Path::new(dir).join(release::SUMS_NAME).display()
+    );
+}
+
 /// `sign-file <path>`: sign one file with the signer in the environment (NSIS calls this
 /// for the uninstaller it writes).
 pub fn sign_file(args: &[String]) {
@@ -547,6 +785,10 @@ pub fn sign_file(args: &[String]) {
         eprintln!("usage: xtask sign-file <path>");
         std::process::exit(2);
     };
+    // The uninstaller NSIS just wrote: it must name its product and version like every
+    // signed file (ADR 0048 §9; NSIS gives it the installer's version resource).
+    let version = sign_version(std::env::var("CANTUS_SIGN_VERSION").ok());
+    meta::require(&[PathBuf::from(path)], &version);
     match sign::from_env() {
         Ok(Some(s)) => sign::sign(&s, &[PathBuf::from(path)]),
         Ok(None) => eprintln!("CANTUS_SIGN is not set: {path} left unsigned"),
@@ -577,3 +819,10 @@ pub fn release_docs(ws: &Path, target: &Path) -> Vec<(String, PathBuf)> {
     );
     docs
 }
+
+#[cfg(test)]
+#[path = "package_ci_tests.rs"]
+mod ci_tests;
+
+#[path = "package_meta.rs"]
+pub mod meta;

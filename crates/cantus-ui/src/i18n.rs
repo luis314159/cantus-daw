@@ -252,6 +252,20 @@ pub fn tf(key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
     s
 }
 
+/// A message that counts `n` things: the `{key}_one` key when `n` is 1 (and the key
+/// exists), else `key` with `{n}` filled in, plus `args`.
+pub fn tf_count(key: &str, n: usize, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    let one = format!("{key}_one");
+    let key = if n == 1 && t(&one) != one {
+        one.as_str()
+    } else {
+        key
+    };
+    let mut all: Vec<(&str, &dyn std::fmt::Display)> = vec![("n", &n)];
+    all.extend_from_slice(args);
+    tf(key, &all)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

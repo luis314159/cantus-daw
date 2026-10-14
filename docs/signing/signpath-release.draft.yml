@@ -1,0 +1,122 @@
+# DRAFT — inert. NOT a workflow: it lives in docs/signing/, where GitHub never runs it.
+#
+# How release.yml's `package` job would sign through SignPath once the Foundation accepts
+# Cantus and the owner has created, in SignPath: the project (slug `cantus`), the GitHub.com
+# trusted build system linked to it, a signing policy `release-signing` (manual approval,
+# the Foundation's certificate) and two artifact configurations (below). Secrets/variables
+# in the repository: secrets.SIGNPATH_API_TOKEN (a CI user with "submitter" rights only),
+# vars.SIGNPATH_ORGANIZATION_ID. And vars.CANTUS_PUBLISHER = "SignPath Foundation" (the
+# certificate's CN; read docs/signing/README.md §5 about what that pin then means).
+#
+# No build cache: the job that submits to SignPath, and every job that builds what it
+# signs, runs without rust-cache or any restored cache — what is signed comes from a clean
+# build of the tagged source (SignPath's verifiable-build rule). release.yml's `package`
+# job uses rust-cache today; this job does not (a cold Windows release build, ~25 min).
+#
+# Why two signing requests (two approvals per release): the installer *contains* the signed
+# programs, so they must be signed before makensis runs, and the installer itself after.
+# NSIS writes the uninstaller in the middle of makensis (today xtask signs it there through
+# `!uninstfinalize`), which a remote signer cannot do: the uninstaller is made first by a
+# small "write the uninstaller only" NSIS pass and signed with the programs.
+#
+# The xtask side exists (round 26, ADR 0048 §8, tested with NSIS in package_tests.rs):
+# `package --stage-only` builds, checks and lays out target/package/stage/ with the
+# uninstaller at its top, made by an uninstaller-only NSIS pass; `package --from-stage <dir>`
+# makes the zips, the installer (carrying the signed uninstaller instead of writing one) and
+# the sums from a signed stage; `sums <dir>` rewrites SHA256SUMS.txt. Every file to sign is
+# checked for its product name and version first. The SignPath action, its inputs
+# and the artifact rules below are as SignPath documented them on 2026-10-13
+# (docs.signpath.io/trusted-build-systems/github; action signpath/github-action-submit-signing-request@v3).
+
+  package:
+    needs: test
+    runs-on: windows-latest          # SignPath (OSS) requires GitHub-hosted runners for every job
+    permissions:
+      contents: read
+      actions: read                  # the SignPath action reads the job and the artifact
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      # (NSIS and the ASIO SDK, verified, exactly as release.yml does today)
+
+      - name: Build and lay out the programs, plug-ins and uninstaller (unsigned)
+        run: cargo run -p xtask -- package --stage-only
+
+      - name: Upload what SignPath must sign
+        id: unsigned-stage
+        uses: actions/upload-artifact@v4
+        with:
+          name: cantus-stage-unsigned
+          path: target/package/stage/
+          if-no-files-found: error
+
+      # Artifact configuration `stage` (SignPath, XML), roughly:
+      #   <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+      #     <zip-file>
+      #       <pe-file-set>
+      #         <include path="**/cantus*.exe" /> <include path="**/uninstall.exe" />
+      #         <include path="**/*.clap" /> <include path="**/*.vst3/Contents/x86_64-win/*.vst3" />
+      #         <for-each>
+      #           <authenticode-sign />
+      #         </for-each>
+      #         (+ file metadata restrictions: product name "Cantus", product version = the tag)
+      #       </pe-file-set>
+      #     </zip-file>
+      #   </artifact-configuration>
+      - name: Sign the programs (an approver approves it in SignPath)
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cantus
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: stage
+          github-artifact-id: ${{ steps.unsigned-stage.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600   # a person approves: allow an hour
+          output-artifact-directory: target/package/stage-signed
+
+      - name: Zips, installer and sums from the signed programs
+        run: cargo run -p xtask -- package --from-stage target/package/stage-signed
+
+      - name: Upload the installer for its own signature
+        id: unsigned-setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: cantus-setup-unsigned
+          path: target/package/dist/Cantus-*-windows-x64-setup.exe
+          if-no-files-found: error
+
+      # Artifact configuration `installer`: <zip-file><pe-file path="*.exe"><authenticode-sign/></pe-file></zip-file>
+      - name: Sign the installer (second approval)
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: cantus
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: target/package/setup-signed
+
+      - name: The signed installer into dist, under both names, and the sums again
+        shell: bash
+        run: |
+          cd target/package
+          v="$(cargo run -q -p xtask -- version)"
+          cp "setup-signed/Cantus-$v-windows-x64-setup.exe" dist/
+          cp "setup-signed/Cantus-$v-windows-x64-setup.exe" dist/Cantus-windows-x64-setup.exe
+          cargo run -q -p xtask -- sums dist
+          powershell -Command "Get-ChildItem dist\*.exe | Get-AuthenticodeSignature | Format-Table Status,SignerCertificate -AutoSize"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cantus-windows
+          path: target/package/dist/
+          if-no-files-found: error
+
+# The `publish` job stays as it is (it only moves files to the GitHub release).

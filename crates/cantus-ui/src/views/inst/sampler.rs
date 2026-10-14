@@ -43,6 +43,14 @@ use cantus_engine::inst::sampler::tel;
 use std::path::{Path, PathBuf};
 
 pub use map::set_fields as set_zone_fields;
+
+/// Whether the selected zone's file is being read for its waveform (beside the window).
+pub fn wave_file_reading(app: &CantusApp) -> bool {
+    matches!(
+        app.inst.sampler.wave_file,
+        Some((_, wave::WaveFile::Reading(_)))
+    )
+}
 pub use presets::FACTORY_PRESETS;
 
 /// Editor state that is not part of the project.
@@ -61,6 +69,14 @@ pub struct State {
     pub show_log: bool,
     /// A SoundFont waiting for its preset to be chosen.
     pub pending_sf2: Option<(PathBuf, sf2::SoundFont)>,
+    /// The selected zone's whole file for its waveform, read beside the window when the
+    /// engine holds only a stream's head (review 19): one file at a time, let go when
+    /// another zone is shown.
+    pub wave_file: Option<(String, wave::WaveFile)>,
+    /// The sample cache's size and when it was read (Settings).
+    pub cache_size: Option<(std::time::Instant, cantus_engine::inst::stream::CacheRoom)>,
+    /// The status line said once this session that notes played their start only.
+    pub cut_told: bool,
 }
 
 /// Every command that replaces the instrument's zones and groups with an import's: one
@@ -347,8 +363,24 @@ fn relative(path: &Path, base: &Path) -> String {
         .replace('\\', "/")
 }
 
-/// Exemplar's own footer chips (ADR 0024 §8): the sample memory and the zone count.
-pub fn chips(tel: &cantus_engine::inst::Telemetry, out: &mut Vec<String>) {
+/// Exemplar's own footer chips (ADR 0024 §8): the sample memory and the zone count, the
+/// zones streamed from disk, and — while its samples load in the background — how far
+/// (ADR 0050).
+pub fn chips(
+    tel: &cantus_engine::inst::Telemetry,
+    loading: Option<(usize, usize)>,
+    out: &mut Vec<String>,
+    tips: &mut Vec<Option<String>>,
+) {
+    if let Some((done, total)) = loading {
+        out.push(tf(
+            "smp.loading_status",
+            &[("done", &done.to_string()), ("total", &total.to_string())],
+        ));
+        tips.push(Some(crate::i18n::t("smp.loading_tip")));
+    }
+    // The memory: what it counts (a long sample holds only its start here).
+    tips.push(Some(crate::i18n::t("smp.footer_tip")));
     out.push(tf(
         "smp.footer",
         &[
@@ -356,6 +388,24 @@ pub fn chips(tel: &cantus_engine::inst::Telemetry, out: &mut Vec<String>) {
             ("zones", &format!("{}", tel[tel::ZONES] as u32)),
         ],
     ));
+    if tel[tel::STREAMED] > 0.0 {
+        out.push(tf(
+            "smp.footer_streamed",
+            &[("n", &format!("{}", tel[tel::STREAMED] as u32))],
+        ));
+        tips.push(Some(crate::i18n::t("smp.footer_tip")));
+    }
+}
+
+/// The sample cache's progress while some file of this instrument is still loading.
+pub fn loading(app: &CantusApp, spec: &NativeSpec) -> Option<(usize, usize)> {
+    let progress = app.engine.samples.progress()?;
+    let mine = model::zones(spec).iter().any(|(_, z)| {
+        z.sample.as_deref().is_some_and(|p| {
+            app.engine.samples.status(Path::new(p)) == cantus_engine::SampleStatus::Loading
+        })
+    });
+    mine.then_some(progress)
 }
 
 /// Files dragged from the system: the key under the pointer when they are let go over

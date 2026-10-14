@@ -46,6 +46,12 @@ pub struct CableLook {
     pub selected: bool,
     /// A doubled signal (the owner's answer 5): the warning mark rides on it.
     pub doubled: bool,
+    /// Where its end mark goes (the band slides it down the corner, or leaves it out where
+    /// it would meet another's glyph); `None`: no mark.
+    pub mark: Option<Pos2>,
+    /// Lit by the hover but with no room of its own in the band: in its colour, thin, no
+    /// mark — still reads as the hovered strip's.
+    pub related: bool,
 }
 
 /// The tokens a cable paints with besides its strip's colour: the doubled mark's ground
@@ -174,7 +180,13 @@ pub fn ink(s: &Style, look: &CableLook) -> Color32 {
         CableKind::Key => s.t.hue_dynamics,
         _ => look.color,
     };
-    let mut a = if look.lit { 1.0 } else { 0.35 };
+    let mut a = if look.lit {
+        1.0
+    } else if look.related {
+        0.8
+    } else {
+        0.35
+    };
     if matches!(look.kind, CableKind::Send { on: false, .. }) {
         a *= 0.55;
     }
@@ -196,6 +208,8 @@ pub fn paint(b: &mut Brush, s: &Style, from: Pos2, to: Pos2, depth: f32, look: &
     let color = ink(s, look);
     let w = if look.lit {
         s.s(width(look.kind))
+    } else if look.related {
+        (b.px() * 1.5).max(s.s(0.9))
     } else {
         b.px()
     };
@@ -221,7 +235,10 @@ pub fn paint(b: &mut Brush, s: &Style, from: Pos2, to: Pos2, depth: f32, look: &
     } else {
         b.polyline(&pts, w, color);
     }
-    end_mark(b, s, &path, to, look, color);
+    if let Some(at) = look.mark {
+        let path = Path { mark: at, ..path };
+        end_mark(b, s, &path, to, look, color);
+    }
     if look.doubled {
         doubled_mark(b, s, path.run_start, s.s(10.0));
     }

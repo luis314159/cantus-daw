@@ -119,3 +119,8 @@ routing.drag.track_bar = Suelta en un canal: la pista suena en él · Esc: cance
 # La acción del menú de rutas (Mayús+F10) y su fila en el menú Editar.
 action.route-menu = Abrir el menú de rutas del canal seleccionado
 routing.menu.route_menu = Menú de rutas del canal seleccionado
+# Ronda 26: el nivel de un envío escrito en el menú de la ruta (Nivel ▸ Escribir un nivel…).
+routing.menu.level_type = Escribir un nivel…
+routing.menu.level_title = Nivel · {from} → {to}
+routing.menu.level_keys = dB, de −∞ a 0 · Intro: aplicar · Esc: cancelar
+routing.menu.level_bad = No es un nivel: escribe dB, como −6 o −4,5

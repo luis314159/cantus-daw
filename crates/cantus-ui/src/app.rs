@@ -157,6 +157,10 @@ pub struct CantusApp {
     pub picker: Option<crate::picker::PickPurpose>,
     /// The device picker's view: the catalogue, the search, favourites, thumbnails.
     pub picker_view: views::picker::PickerView,
+    /// The *Link to…* picker (round 26, ADR 0037).
+    pub link_picker: views::link_picker::LinkPicker,
+    /// The clip browser's filter and drag (round 26, ADR 0037).
+    pub clip_browser: views::clip_browser::ClipBrowser,
     /// The audio chip, its popover, the first-run setup, plug-and-play (round 20).
     pub audio_setup: crate::audio_setup::AudioSetup,
     pub midi_port_names: Vec<String>,
@@ -272,7 +276,9 @@ impl CantusApp {
         locale_from_flag: Option<i18n::Locale>,
     ) -> Self {
         let files = Files::read(&directories_fallback(), locale_from_flag);
-        design::install_fonts(&cc.egui_ctx);
+        // The real window shows names in any script: the system's fonts after ours, read
+        // when first needed (round 26). Tests and shots never arm it.
+        crate::font_fallback::install_for_window(&cc.egui_ctx);
         design::install_style(&cc.egui_ctx);
         let engine = start_engine(&files.settings);
         let midi = engine
@@ -295,6 +301,88 @@ impl CantusApp {
         );
         app.start_session(&data_dir());
         app
+    }
+
+    /// With or without a device, instruments load beside the window and Exemplar streams
+    /// (ADR 0050, review 18), within the limit Settings chose: what the real window does
+    /// at start (tests choose).
+    pub fn load_beside_the_window(&mut self) {
+        Self::load_beside(&mut self.engine, &self.settings);
+    }
+
+    fn load_beside(engine: &mut EngineHandle, settings: &Settings) {
+        engine.samples.set_background(true);
+        engine.samples.set_streaming(true);
+        settings.apply_sample_cache_limit();
+    }
+
+    /// What the real window starts beside itself, before its first snapshot (second
+    /// review #4, #11, #12): the sample cache in the data folder with the limit Settings
+    /// chose and its start sweep, instruments loading and streaming beside the window
+    /// with or without a device, Exemplar's built-in sounds computed on a thread. Only
+    /// [`Self::assemble`] calls it — the boot's path and `new`'s.
+    fn start_window_services(engine: &mut EngineHandle, settings: &Settings) {
+        Self::load_beside(engine, settings);
+        // Exemplar's streamed samples are decoded once into this cache (ADR 0050); setting
+        // it starts the sweep.
+        cantus_engine::inst::stream::hub().set_cache_dir(data_dir().join("cache").join("samples"));
+        // Exemplar's built-in sounds take a few hundred ms to compute: here, beside the
+        // window, not in the frame that first makes an Exemplar.
+        let _ = std::thread::Builder::new()
+            .name("cantus-warm-builtins".into())
+            .spawn(|| {
+                let _ = cantus_dsp::exemplar::builtin::builtins();
+            });
+    }
+
+    /// The sample cache's limit, its disk and what it holds — read at most every two
+    /// seconds (Settings shows it).
+    pub fn sample_cache_room(&mut self) -> cantus_engine::inst::stream::CacheRoom {
+        let fresh = self
+            .inst
+            .sampler
+            .cache_size
+            .filter(|(at, _)| at.elapsed() < Duration::from_secs(2));
+        if let Some((_, room)) = fresh {
+            return room;
+        }
+        let room = cantus_engine::inst::stream::hub().cache_room();
+        self.inst.sampler.cache_size = Some((std::time::Instant::now(), room));
+        room
+    }
+
+    /// Tidy the sample cache beside the window: entries whose source is gone (a pack
+    /// removed) or changed, then the least recently used above the limit.
+    pub fn sweep_sample_cache(&mut self) {
+        let _ = std::thread::Builder::new()
+            .name("cantus-cache-sweep".into())
+            .spawn(|| {
+                let _ = cantus_engine::inst::stream::hub().sweep();
+            });
+        self.inst.sampler.cache_size = None;
+    }
+
+    /// A pack's folder was deleted: its decoded samples leave the cache now, beside the
+    /// window (a source whose drive is only away stays — second review #7).
+    pub fn sweep_sample_cache_removed(&mut self, dir: PathBuf) {
+        let _ = std::thread::Builder::new()
+            .name("cantus-cache-sweep".into())
+            .spawn(move || {
+                let _ = cantus_engine::inst::stream::hub().sweep_removed(dir);
+            });
+        self.inst.sampler.cache_size = None;
+    }
+
+    /// *Clear cache*: every decoded file nothing plays now goes (beside the window); they
+    /// are decoded again when needed.
+    pub fn clear_sample_cache(&mut self) {
+        let _ = std::thread::Builder::new()
+            .name("cantus-cache-clear".into())
+            .spawn(|| {
+                let _ = cantus_engine::inst::stream::hub().clear_cache();
+            });
+        self.inst.sampler.cache_size = None;
+        self.set_status(t("smp.cache.cleared"));
     }
 
     /// Put the application together from what the boot gathered: the files read, the
@@ -324,6 +412,8 @@ impl CantusApp {
         ctx.set_zoom_factor(settings.ui_scale());
         crate::kit::logo::set_disk_cache(Some(directories_fallback().join("cache")));
         let peak_cache = directories_fallback().join("cache").join("peaks");
+        let mut engine = engine;
+        Self::start_window_services(&mut engine, &settings);
         let mut app = Self::from_parts(project, engine, stress);
         app.peaks.set_disk_cache(Some(peak_cache));
         app.mixer.load_prefs(&layouts_path);
@@ -416,6 +506,8 @@ impl CantusApp {
             rec: Default::default(),
             picker: None,
             picker_view: Default::default(),
+            link_picker: Default::default(),
+            clip_browser: Default::default(),
             audio_setup: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
@@ -719,10 +811,16 @@ impl CantusApp {
         // The running device is closed before the new one opens (round 21): ASIO loads one
         // driver at a time, and ASIO4ALL cannot open a device whose endpoint Cantus still
         // holds through WASAPI — opening the new engine first left it silent.
+        // The loaded samples outlive the device (ADR 0050 §7): a new device does not decode
+        // an instrument again.
+        let samples = std::mem::take(&mut self.engine.samples);
         self.engine = EngineHandle::dummy();
+        self.engine.samples = samples;
         match EngineHandle::start(&self.settings.audio.to_config()) {
             Ok(engine) => {
+                let samples = std::mem::take(&mut self.engine.samples);
                 self.engine = engine;
+                self.engine.samples = samples;
                 self.engine
                     .set_record_offset(self.settings.audio.record_offset_frames);
                 // Hosted plug-ins load again, for the new engine and its rate.
@@ -2713,9 +2811,7 @@ impl CantusApp {
         if d.scope == cantus_export::Scope::Stems {
             d.scope = cantus_export::Scope::Song;
         }
-        let was_open = self.export.dialog.replace(d);
-        views::export::start(self, &path);
-        self.export.dialog = was_open;
+        views::export::start_with(self, &path, Some(d));
     }
 
     pub fn export_in_progress(&self) -> bool {
@@ -2745,11 +2841,26 @@ impl CantusApp {
         self.synced_revision = u64::MAX;
     }
 
+    /// Send the project to the engine again at the next sync (a sample file came back).
+    pub(crate) fn resync_engine(&mut self) {
+        self.synced_revision = u64::MAX;
+    }
+
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
+        // A snapshot held back for its zones' starts: sent once they are read (third
+        // review #6) — never a wait on this thread.
+        self.engine.flush_pending();
         // A source the loader thread finished: attach it (ADR 0025 §9).
         if self.engine.samples.poll_loaded() {
             self.synced_revision = u64::MAX;
+        }
+        self.load_notes();
+        // Notes pitched too high to stream played their start only: said once a session
+        // (third review #9); the status bar's chip keeps the count.
+        if self.engine.stats().stream_cut > 0 && !self.inst.sampler.cut_told {
+            self.inst.sampler.cut_told = true;
+            self.set_status(t("smp.cut_notes"));
         }
         // An effect the last snapshot holds that the engine has no unit for: a remove and
         // its undo both went out before the engine handed the removed unit back, so the
@@ -2781,6 +2892,62 @@ impl CantusApp {
             let notices = self.plugins.sync(self.bus.project(), &mut self.engine);
             self.host_notices(notices);
             self.engine.set_snapshot(snapshot);
+        }
+    }
+
+    /// What sample loads had to say (ADR 0050, review 8): once per kind and batch, on the
+    /// status line.
+    fn load_notes(&mut self) {
+        use cantus_engine::inst::stream::LoadNote;
+        let notes = self.engine.samples.take_notes();
+        if notes.is_empty() {
+            return;
+        }
+        let unwritable: Vec<&String> = notes
+            .iter()
+            .filter_map(|n| match n {
+                LoadNote::CacheUnwritable(e) => Some(e),
+                _ => None,
+            })
+            .collect();
+        let changed = notes
+            .iter()
+            .filter(|n| matches!(n, LoadNote::Changed(_)))
+            .count();
+        let damaged = notes
+            .iter()
+            .filter(|n| matches!(n, LoadNote::Damaged(_)))
+            .count();
+        let rechecked = notes
+            .iter()
+            .filter(|n| matches!(n, LoadNote::ChangedSinceCached(_)))
+            .count();
+        // Second review #5, #15: a cache file that could not be read is said once; a sample
+        // that cannot be read at all, by name.
+        if let Some((file, error)) = notes.iter().find_map(|n| match n {
+            LoadNote::Unreadable(p, e) => Some((p, e)),
+            _ => None,
+        }) {
+            self.set_error(tf(
+                "smp.sample_unreadable",
+                &[("file", &file.display()), ("error", error)],
+            ));
+        } else if let Some(e) = unwritable.first() {
+            self.set_error(crate::i18n::tf_count(
+                "smp.cache_unwritable",
+                unwritable.len(),
+                &[("error", e)],
+            ));
+        } else if changed > 0 {
+            self.set_status(crate::i18n::tf_count("smp.sample_changed", changed, &[]));
+        } else if damaged > 0 {
+            self.set_status(crate::i18n::tf_count("smp.cache_damaged", damaged, &[]));
+        } else if rechecked > 0 {
+            self.set_status(crate::i18n::tf_count(
+                "smp.sample_rechecked",
+                rechecked,
+                &[],
+            ));
         }
     }
 
@@ -2829,7 +2996,13 @@ impl CantusApp {
     /// keys, so those bindings are suppressed and the tools stay reachable on the numbers.
     pub fn global_shortcuts(&mut self, ctx: &egui::Context) {
         // The device picker reads every key while it is open (type to search).
-        if ctx.egui_wants_keyboard_input() || self.rebinding.is_some() || self.picker.is_some() {
+        // A kit text field holds the keyboard — or just let it go with this very key
+        // (the Esc or Enter that closed it): its keys are its own (round 26).
+        if ctx.egui_wants_keyboard_input()
+            || crate::kit::field::active(ctx)
+            || self.rebinding.is_some()
+            || self.picker.is_some()
+        {
             return;
         }
         // The export dialog is modal: its keys are its own (Esc, Enter), and nothing
@@ -2984,6 +3157,10 @@ impl CantusApp {
                     // The window was the thing to clear.
                 } else if self.appearance_page.picking {
                     self.toggle_pick();
+                } else if self.focus == EditFocus::Arrangement && self.clip_browser.painting() {
+                    // The arrangement's paint tool takes Esc before the selection does, when
+                    // nothing above claimed it: it is put away (round 26, ADR 0037).
+                    self.put_paint_away();
                 } else if self.editing_clips() {
                     self.clear_clip_selection();
                     // Escape in the arrangement clears *both* selections. Two presses to
@@ -3007,6 +3184,7 @@ impl CantusApp {
             MakeUnique => self.make_unique_clips(),
             LinkClips => self.link_clips_to(None),
             SelectLinked => self.select_linked(),
+            LinkTo => self.open_link_picker(None),
             // In the mixer the arrows walk the strips (§10).
             NudgeLeft if self.focus == EditFocus::Mixer => self.step_strip(-1),
             NudgeRight if self.focus == EditFocus::Mixer => self.step_strip(1),
@@ -3022,6 +3200,9 @@ impl CantusApp {
                 self.automate_last_tweaked();
             }
             ToolDraw => self.piano_roll.tool = views::piano_roll::Tool::Draw,
+            // B in the arrangement: its paint tool, painting the clip browser's chosen tile
+            // (round 26, ADR 0037), as B is the paint tool in FL's playlist.
+            ToolPaint if self.focus == EditFocus::Arrangement => self.toggle_arrangement_paint(),
             ToolPaint => self.piano_roll.tool = views::piano_roll::Tool::Paint,
             ToolSelect => self.piano_roll.tool = views::piano_roll::Tool::Select,
             ToolDelete => self.piano_roll.tool = views::piano_roll::Tool::Delete,
@@ -3043,6 +3224,7 @@ impl CantusApp {
             ViewArrangement => self.toggle_pane(Pane::Arrangement),
             ToggleInspector => self.toggle_pane(Pane::Inspector),
             ToggleBrowser => self.toggle_pane(Pane::Browser),
+            ToggleClips => self.toggle_pane(Pane::Clips),
             CloseFloating => {
                 if let Some(ctx) = self.theme_ctx.clone() {
                     self.workspace.close_floating_devices(&ctx);
@@ -3262,44 +3444,11 @@ impl CantusApp {
         // About (round 22): the kit's window, with the notices, privacy and credits.
         views::about::frame(self, ctx);
         if let Some(name) = self.naming_layout.clone() {
-            let mut name = name;
-            let mut close = false;
-            let mut save = false;
-            egui::Window::new(t("layout.save_as"))
-                .collapsible(false)
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.label(t("layout.name"));
-                    let edit =
-                        ui.add(egui::TextEdit::singleline(&mut name).hint_text(t("layout.name")));
-                    // Focus the field when the dialog opens, but only then: re-requesting
-                    // every frame would trap focus and stop the user tabbing to the
-                    // buttons.
-                    if ui.ctx().memory(|m| m.focused()).is_none() {
-                        edit.request_focus();
-                    }
-                    save = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    ui.add_space(space::S2);
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(
-                                !name.trim().is_empty(),
-                                egui::Button::new(t("layout.save")),
-                            )
-                            .clicked()
-                        {
-                            save = true;
-                        }
-                        if ui.button(t("layout.cancel")).clicked() {
-                            close = true;
-                        }
-                    });
-                });
+            let (name, save, close) = layout_name_dialog(ctx, name);
             if save && !name.trim().is_empty() {
                 self.save_layout_as(&name, ctx);
-                close = true;
             }
-            self.naming_layout = if close { None } else { Some(name) };
+            self.naming_layout = if save || close { None } else { Some(name) };
         }
         views::eq_editor::window(self, ctx);
         views::comp_editor::window(self, ctx);
@@ -3323,6 +3472,8 @@ impl CantusApp {
     /// floating windows. `eframe::App::ui` calls it; so do the splash (`crate::boot`) once
     /// the application is up, and the whole-window screenshots.
     pub fn frame(&mut self, root: &mut egui::Ui) {
+        crate::font_fallback::note_input(root.ctx());
+        crate::font_fallback::poll(root.ctx());
         let ctx = root.ctx().clone();
         let ctx = &ctx;
         if self.theme_ctx.is_none() {
@@ -3381,6 +3532,7 @@ impl CantusApp {
         views::unsaved::frame(self, ctx);
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
+        views::link_picker::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
         views::update::frame(self, ctx);
@@ -3435,6 +3587,14 @@ impl CantusApp {
         if m[0].max(m[1]) > 1e-5 {
             ticker::moving(ctx, Reason::Meters);
         }
+        // Samples loading in the background (ADR 0050 §7): collect them and show how far.
+        if self.engine.samples.loading() {
+            ticker::wake_after(ctx, Duration::from_millis(50));
+        }
+        // A snapshot waiting for its zones' starts (at most 250 ms): look again soon.
+        if self.engine.snapshot_pending() {
+            ticker::wake_after(ctx, Duration::from_millis(5));
+        }
         // A save or an autosave being written: look again shortly to collect it.
         if self.autosave_job.is_some() || self.save_in_flight() {
             ticker::wake_after(ctx, Duration::from_millis(100));
@@ -3471,6 +3631,87 @@ impl eframe::App for CantusApp {
     }
 }
 
+/// The layout's name dialog (final review): the kit's dialog in the middle of the window —
+/// its panel and title bar, the name's field (it opens with the name selected; Enter
+/// saves, Esc leaves), the kit's buttons, Save lit. Returns the words, whether to save and
+/// whether to close.
+fn layout_name_dialog(ctx: &egui::Context, mut name: String) -> (String, bool, bool) {
+    use crate::kit::text::{self as ktext, Elide, Policy, Role, Text};
+    use egui::{pos2, vec2, Align2, Rect};
+    let s = crate::kit::Style::current();
+    let k = s.k;
+    let screen = ctx.content_rect();
+    let size = vec2(360.0 * k, 150.0 * k).min(screen.size() - vec2(16.0, 16.0));
+    let rect = Rect::from_center_size(screen.center(), size);
+    let (mut save, mut close) = (false, false);
+    egui::Area::new(egui::Id::new("cantus-layout-name"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(rect.min)
+        .show(ctx, |ui| {
+            ui.set_min_size(size);
+            views::audio_parts::panel(ui, rect, &s);
+            let head = Rect::from_min_size(rect.min, vec2(rect.width(), 32.0 * k));
+            let glyph = crate::kit::glyph::Glyph::Inspector;
+            if views::workspace_settings::title(ui, head, &s, glyph, "layout.dialog_title") {
+                close = true;
+            }
+            let x0 = rect.left() + 20.0 * k;
+            let x1 = rect.right() - 20.0 * k;
+            let label = Rect::from_min_max(
+                pos2(x0, head.bottom() + 12.0 * k),
+                pos2(x1, head.bottom() + 30.0 * k),
+            );
+            crate::kit::with_brush(ui.painter(), |b| {
+                let _ = ktext::paint(
+                    b,
+                    label,
+                    &Text::new(&t("layout.name"), Role::Body, s.t.text_dim)
+                        .align(Align2::LEFT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            });
+            let well = Rect::from_min_max(
+                pos2(x0, label.bottom() + 4.0 * k),
+                pos2(x1, label.bottom() + 4.0 * k + s.d(24.0)),
+            );
+            let hint = t("layout.name");
+            let out = crate::kit::field::Field::new(egui::Id::new("layout-name"))
+                .hint(&hint)
+                .opens_when_shown()
+                .show(ui, well, &mut name);
+            match out.event {
+                Some(crate::kit::field::Event::Commit) => save = out.enter,
+                Some(crate::kit::field::Event::Cancel) => close = true,
+                None => {}
+            }
+            let buttons = Rect::from_min_max(
+                pos2(x0, rect.bottom() - 44.0 * k),
+                pos2(x1, rect.bottom() - 14.0 * k),
+            );
+            let mut row = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(buttons)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            );
+            let ok = !name.trim().is_empty();
+            if views::audio_parts::button(&mut row, &t("layout.save"), true, ok, 90.0).clicked() {
+                save = true;
+            }
+            row.add_space(8.0 * k);
+            if views::audio_parts::button(&mut row, &t("layout.cancel"), false, true, 90.0)
+                .clicked()
+            {
+                close = true;
+            }
+        });
+    // Esc with the field already let go leaves the dialog too.
+    if !crate::kit::field::active(ctx) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        close = true;
+    }
+    (name, save, close)
+}
+
 /// What the application reads from disk before it can open — plain data, so the splash
 /// reads it on a thread (ADR 0024 §12): the settings, the look, the layouts, the keymap.
 pub struct Files {
@@ -3490,7 +3731,9 @@ impl Files {
     /// `--locale` wins over the stored preference.
     pub fn read(dir: &Path, locale_from_flag: Option<i18n::Locale>) -> Files {
         let settings_path = settings::settings_path(dir);
-        let settings = Settings::load(&settings_path);
+        let mut settings = Settings::load(&settings_path);
+        // The installer's privacy page: its update-check choice, applied once (round 26).
+        settings::apply_installer_choices(dir, &mut settings);
         match locale_from_flag {
             Some(l) => i18n::set_locale(l),
             None => {

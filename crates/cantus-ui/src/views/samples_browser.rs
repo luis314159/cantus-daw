@@ -274,6 +274,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     ui.scope_builder(UiBuilder::new().max_rect(search), |ui| {
         w::text_field(
             ui,
+            egui::Id::new("samples-search"),
             &mut app.samples.query,
             "samples.search",
             search.width() / k,
@@ -485,12 +486,18 @@ fn starter_card(
     let body_g = ui
         .painter()
         .layout(body, Role::Body.font(s.tk()), s.t.text_dim, wrap);
-    let lic_g = ui.painter().layout(
-        t("samples.starter.licence"),
-        Role::Micro.font(s.tk()),
-        s.t.text_dim,
-        wrap,
-    );
+    // What the licence asks, in a line: nothing (CC0), or credit to the author (CC BY,
+    // whose full credit line Sound packs… shows before the download — ADR 0042).
+    let licence = match (pack.licence_kind(), &pack.attribution) {
+        (Some(l), Some(a)) if l.needs_credit() => tf(
+            "samples.starter.licence_by",
+            &[("licence", &l.name()), ("author", &a.author)],
+        ),
+        _ => t("samples.starter.licence"),
+    };
+    let lic_g = ui
+        .painter()
+        .layout(licence, Role::Micro.font(s.tk()), s.t.text_dim, wrap);
     let title_h = 26.0 * k;
     let text_h = title_h + body_g.size().y + 4.0 * k + lic_g.size().y;
     let actions_h = if matches!(status, cantus_content::Status::Busy(_)) {
@@ -625,6 +632,8 @@ fn foot_line(app: &mut CantusApp, ui: &mut Ui, s: &Style, foot: Rect) {
 /// End of a frame: the dragged sample's chip and its target's ring, and a release
 /// remembered for the next frame. Also the content window.
 pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
+    // A sound pack the open project needs and does not find: said, with what to do.
+    super::samples_content::missing::frame(app, ctx);
     if app.samples.window.open {
         super::samples_content::window(app, ctx);
     }

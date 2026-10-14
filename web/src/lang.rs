@@ -20,7 +20,9 @@ impl Lang {
 
     /// The saved choice, else the browser's language, else English.
     pub fn detect() -> Self {
-        let Some(win) = web_sys::window() else { return Lang::En };
+        let Some(win) = web_sys::window() else {
+            return Lang::En;
+        };
         if let Ok(Some(store)) = win.local_storage() {
             match store.get_item(KEY) {
                 Ok(Some(v)) if v == "es" => return Lang::Es,

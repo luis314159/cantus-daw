@@ -206,6 +206,8 @@ pub struct Samples {
     pub notice: Option<String>,
     /// Scroll offset of the tree, in points.
     pub scroll: f32,
+    /// Sound packs the open project needs and does not find (round 26).
+    pub missing: crate::views::samples_content::missing::State,
 }
 
 impl Samples {

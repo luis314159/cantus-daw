@@ -233,6 +233,13 @@ fn facts(d: &crate::picker_catalog::Device) -> Vec<(String, String)> {
                 .join(" · "),
         ),
     ];
+    if let PickChoice::Sound(s) = &d.choice {
+        let lang = crate::i18n::locale().code();
+        rows.push((t("samples.sound.pack"), s.0.pack_name.get(lang).to_string()));
+        let licence = cantus_content::Licence::from_spdx(&s.0.licence)
+            .map_or(s.0.licence.clone(), |l| l.name().to_string());
+        rows.push((t("samples.detail.licence"), licence));
+    }
     if let PickChoice::Hosted(info) = &d.choice {
         if !info.version.is_empty() {
             rows.push((t("picker.details.version"), info.version.clone()));

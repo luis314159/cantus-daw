@@ -30,3 +30,5 @@ look.icon.rose = Rosa
 look.icon.silver = Plata (para una barra oscura)
 look.icon.graphite = Grafito (para una barra clara)
 kit.logo.tint.icon = Colores del icono
+# Ronda 26: el relleno tras el texto seleccionado en un campo, con las superficies (el editor de temas lo nombra).
+kit.token.surface.text_selection = Selección de texto (en un campo)

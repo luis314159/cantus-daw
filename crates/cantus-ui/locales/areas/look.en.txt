@@ -30,3 +30,5 @@ look.icon.rose = Rose
 look.icon.silver = Silver (for a dark taskbar)
 look.icon.graphite = Graphite (for a light taskbar)
 kit.logo.tint.icon = Icon colours
+# Round 26: the fill behind selected text in a field, with the surfaces (the theme editor names it).
+kit.token.surface.text_selection = Text selection (in a field)

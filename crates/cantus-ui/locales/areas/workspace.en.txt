@@ -19,6 +19,7 @@ workspace.menu.hide = Hide
 workspace.close = Close
 workspace.close_floating = Close floating windows
 workspace.mixer.hint = Arrows: move between strips · M mute · S solo · Alt+arrows move the strip
+workspace.mixer.hint.short = Arrows: strips · M mute · S solo
 workspace.splash.files = Reading your settings…
 workspace.clip = Clip
 workspace.tempo = Tempo
@@ -75,3 +76,5 @@ theme.form.text_size.short = TEXT
 theme.form.depth.short = DEPTH
 workspace.appearance.theme_name = Theme name
 workspace.autosave.cell = Time
+# The layout's name dialog: its title (the menu item says "…").
+layout.dialog_title = Save layout

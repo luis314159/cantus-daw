@@ -117,3 +117,59 @@ an unfed strip only, its hint, its menu routing the selected track, a return off
 sends first); New return with a reverb; Shift+F10 and the strip menu showing it; Receives
 (levels dragged as one step, the lamp, the name selecting the source, the empty well's
 menu).
+
+## Amendment — round 26 (builder *mixer*, 2026-10-13): click mode and the hidden desk, a typed level, one add-send list
+
+**Context.** Round 25 left: an armed route survived the desk being hidden and was still
+armed when it came back (letting it go on hide was tried and dropped — it also dropped a
+selected cable the musician expected to keep); the route menu's level was steps only
+(§10 of the decisions list: "typing a level is left"); the inspector's *Add send* was a
+list of its own without *New return ▸*.
+
+**Decision.**
+
+11. **The desk was hidden — a signal of its own.** The desk notes the egui pass it was
+    drawn on (`MixerView::shown_pass`); a gap when it is next drawn means it left the
+    screen in between (its pane closed, the Routing tab brought over it, any tab). Then
+    what it was in the middle of lets go — an armed route, a press not yet a drag, and
+    anything carried (`drag::desk_was_hidden`); a button still held through the hide is
+    stale, and no source takes it up again until every button is up (egui still reports
+    it down on the control it started on) — and nothing else: the selected cable is the
+    band's and stays, so Delete removes it once the desk shows it again (round 25's guard: Delete
+    only removes a cable drawn on the last pass).
+12. **A level of one's own** (§10 amended). *Level ▸* opens with **Type a level…**: the
+    menu becomes a field where it was — the route's band, the kit's numeric entry (a lit
+    well, the value face) prefilled with the level and selected, so what is typed replaces
+    it, and a caption with the range and the keys. The field holds the keyboard for as
+    long as it is open — a click on the panel around the text box does not hand the keys
+    back to the app, whose shortcuts (Ctrl+Z) would act under it. Enter sets the level in
+    one undo step (`SetStripSend` + end of gesture) and, on the prefill untouched, nothing
+    at all; only decibels read — a number, "dB" after it or nothing, a decimal comma or
+    point, a plain or typographic minus; any other unit ("50%", "-6k", "-6 Hz") is no
+    level; above 0 dB clamps to unity (a send carries at most the whole signal); −∞, or
+    anything at or below the faders' floor (−96 dB), is silence; words that are not a
+    level keep the field, selected again, the caption saying what to type; Esc cancels and
+    a click outside sets what was typed, as Enter does (third review: the kit field's one
+    rule, ADR 0024 §15); that Esc is the field's alone — the cable the right-click selected
+    stays selected (the band lets a cable go on Esc only when no field or route menu took
+    the key). Selected text is drawn on the theme's selection fill (ADR 0046). The field
+    belongs to the route menu, so it is the same from the desk, the matrix and the
+    inspector (`route_menu::open_level` opens it directly for tools).
+13. **One add-send list.** The inspector's *Add send* (the empty Sends row and the band's
+    +) opens `route_menu::open_add_send` under the inspector's owner — *New return ▸*
+    first, then every strip by dock, the selection's sends when the strip is in it, a
+    doubled signal said — the desk's list through the same code; the inspector's own list
+    (`MenuId::AddSend`) is gone.
+
+**What the tests hold.** `mixer_routing::an_armed_route_lets_go_when_the_desk_is_hidden_and_a_selected_cable_stays`
+(whole window; the mixer pane closed, then the Routing tab over it; seen failing: still
+armed), `what_the_desk_carried_lets_go_when_it_is_hidden` (a cable carried, a press not
+yet travelled, a strip by its number cell: hidden with the button held, released after the
+desk is back — no command; seen failing on the press: `cmd.add_send`),
+`the_level_field_keeps_the_keyboard_while_it_is_open` (seen failing: Ctrl+Z removed the
+send), `esc_on_the_level_field_keeps_the_selected_cable` (seen failing: the cable let go), the prefill case in the typed-level test (seen failing at a level of 0.3), `a_level_typed_in_the_route_menu_sets_the_send_in_one_step` (prefilled and
+selected, −4,5 read, one undo step, +6 clamps, −inf / −∞ / −120 silence, words keep the
+field, Esc cancels; seen failing: no such row), `route_menu::tests::a_typed_level_reads_as_decibels_clamped_to_unity`,
+`the_inspectors_add_send_offers_a_new_return` (the empty row and the band's +, New return
+first, a reverb return in one undo step, a strip from the list; seen failing: no route
+menu opened).

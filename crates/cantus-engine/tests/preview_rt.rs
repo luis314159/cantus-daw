@@ -59,6 +59,7 @@ fn armed<T>(f: impl FnOnce() -> T) -> (T, usize) {
 fn sample(rate: u32, channels: u8, frames: usize) -> Arc<SampleData> {
     let n = frames * channels as usize;
     Arc::new(SampleData {
+        stream: None,
         rate,
         channels,
         frames: (0..n)

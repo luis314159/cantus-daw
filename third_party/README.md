@@ -87,6 +87,15 @@ Round 19 and the owner's tests in round 20 found Cantus's ASIO path failing:
   (which load no driver), prints a `cargo:warning` saying so and how to fix it, and
   rebuilds by itself once the SDK appears in the cache. `ASIO_SYS_REQUIRE_SDK=1` turns that
   into a hard error — release builds set it.
+- **`build.rs` — only the host-side SDK files are compiled** (round 26): `common/asio.cpp`,
+  `host/asiodrivers.cpp` and `host/pc/asiolist.cpp`, Steinberg's, under the SDK's dual
+  licence (Cantus takes its GPL-3.0 option). Upstream compiled every `.cpp` in `common/`,
+  `host/` and `host/pc/`, which included the driver side — `combase.cpp` and
+  `dllentry.cpp` (Microsoft sample code, "All Rights Reserved", no licence), `register.cpp`,
+  `debugmessage.cpp` — none of which a host calls (`asiodrvr.cpp` was already left out).
+  Proved on this machine: the app links with `--features asio`, `cantus --audio-drivers`
+  says `WASAPI, ASIO` and `asio sdk: linked`, and the `enumerate` example loads the
+  installed software drivers (ASIO4ALL, FL Studio ASIO) and reads their formats.
 - **`src/lib.rs` — `SDK_LINKED`**: whether the real SDK is linked (`cfg(asio_sdk)`).
 - **`src/bindings/mod.rs` — `Driver::is_running()` / `has_buffers()`**, which the cpal
   patch needs to stop a running driver before taking its lock; `trace()` (the same

@@ -77,6 +77,8 @@ pub enum Action {
     LinkClips,
     /// Add every linked copy of the selected clips to the selection.
     SelectLinked,
+    /// Open the *Link to…* picker: link the selection to a group or clip chosen by name.
+    LinkTo,
     // Notes
     NudgeLeft,
     NudgeRight,
@@ -105,6 +107,8 @@ pub enum Action {
     ToggleInspector,
     /// Show or hide the sample browser (FL's Alt+F8; ADR 0030).
     ToggleBrowser,
+    /// The clip browser: link groups and clips as tiles to drag (round 26, ADR 0037).
+    ToggleClips,
     /// Show or hide the Routing tab's matrix (Alt+F9, beside the mixer's F9; round 25).
     ViewRouting,
     /// Close every floating device window (F12).
@@ -188,7 +192,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 78] = [
+    pub const ALL: [Action; 80] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -225,6 +229,7 @@ impl Action {
         Action::MakeUnique,
         Action::LinkClips,
         Action::SelectLinked,
+        Action::LinkTo,
         Action::NudgeLeft,
         Action::NudgeRight,
         Action::NudgeLeftBar,
@@ -247,6 +252,7 @@ impl Action {
         Action::ViewArrangement,
         Action::ToggleInspector,
         Action::ToggleBrowser,
+        Action::ToggleClips,
         Action::ViewRouting,
         Action::CloseFloating,
         Action::ZoomIn,
@@ -308,6 +314,7 @@ impl Action {
             Action::MakeUnique => "make-unique",
             Action::LinkClips => "link-clips",
             Action::SelectLinked => "select-linked",
+            Action::LinkTo => "link-to",
             Action::NudgeLeft => "nudge-left",
             Action::NudgeRight => "nudge-right",
             Action::NudgeLeftBar => "nudge-left-bar",
@@ -330,6 +337,7 @@ impl Action {
             Action::ViewArrangement => "view-arrangement",
             Action::ToggleInspector => "toggle-inspector",
             Action::ToggleBrowser => "toggle-browser",
+            Action::ToggleClips => "toggle-clips",
             Action::ViewRouting => "view-routing",
             Action::CloseFloating => "close-floating",
             Action::ZoomIn => "zoom-in",
@@ -377,7 +385,7 @@ impl Action {
                 Category::Arrangement
             }
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
-            | RenameClip | MakeUnique | LinkClips | SelectLinked => Category::Clips,
+            | RenameClip | MakeUnique | LinkClips | SelectLinked | LinkTo => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
@@ -395,6 +403,7 @@ impl Action {
             | PickElement
             | ToggleDeviceKeyboard
             | ToggleBrowser
+            | ToggleClips
             | ViewRouting
             | ToggleInstrumentWindow => Category::View,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -662,6 +671,9 @@ fn common() -> Vec<(Action, Binding)> {
         (ToggleInspector, Binding::key(Key::I)),
         (ToggleInspector, Binding::alt(Key::I)),
         (ToggleBrowser, Binding::alt(Key::F8)),
+        // The clip browser beside the arrangement: F5 is the arrangement (FL's playlist,
+        // whose picker panel it is).
+        (ToggleClips, Binding::alt(Key::F5)),
         // The Routing tab beside the mixer's F9 (the owner's answer 9, round 25).
         (ViewRouting, Binding::alt(Key::F9)),
         (ToggleDeviceKeyboard, Binding::alt(Key::K)),
@@ -738,6 +750,8 @@ fn clip_bindings() -> Vec<(Action, Binding)> {
                 ..Binding::alt(Key::L)
             },
         ),
+        // Link to a group chosen by name (round 26): N for name.
+        (LinkTo, Binding::alt(Key::N)),
     ]
 }
 
@@ -986,6 +1000,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 6 {
             map.fill_in(&NEW_IN_V6);
         }
+        if file.version.unwrap_or(1) < 7 {
+            map.fill_in(&NEW_IN_V7);
+        }
         Ok(map)
     }
 
@@ -1058,8 +1075,12 @@ struct KeymapFile {
 /// The file format. Version 2 added the workspace's actions (round 18); version 3 the
 /// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
-/// version 6 the route menu's key (round 25's integration).
-pub const FILE_VERSION: u32 = 6;
+/// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26).
+pub const FILE_VERSION: u32 = 7;
+
+/// Actions added in version 7: the *Link to…* picker (Alt+N) and the clip browser (Alt+F5),
+/// ADR 0037.
+const NEW_IN_V7: [Action; 2] = [Action::LinkTo, Action::ToggleClips];
 
 /// Actions added in version 6: the selected strip's route menu (Shift+F10).
 const NEW_IN_V6: [Action; 1] = [Action::RouteMenu];

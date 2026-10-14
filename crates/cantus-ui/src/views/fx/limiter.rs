@@ -2856,13 +2856,15 @@ fn output_card(
                 for (key, label, width, tip_key) in [
                     ("tp", "fx.lim.tp", 96.0, "fx.lim.tp_tip"),
                     ("dc", "fx.lim.dc", 96.0, "fx.lim.dc_tip"),
-                    ("delta", "fx.lim.delta", 44.0, "fx.lim.delta_tip"),
+                    // "Delta" in words (round 26: the Greek letter had no glyph in the
+                    // condensed face), with room for the light beside it.
+                    ("delta", "fx.lim.delta", 64.0, "fx.lim.delta_tip"),
                 ] {
                     let r = controls::led_param(ui, s, host, key, Src::Key(label), width);
                     tip(ui, r.hovered(), frame::tr(label), frame::tr(tip_key));
                 }
                 let labels = MONITOR_KEYS.map(Src::Key);
-                let mw = (w - 96.0 - 96.0 - 44.0 - 12.0).max(60.0);
+                let mw = (w - 96.0 - 96.0 - 64.0 - 12.0).max(60.0);
                 let r =
                     ui.scope(|ui| controls::segmented_param(ui, s, host, "monitor", &labels, mw));
                 let now = (host.spec().get("monitor").round().clamp(0.0, 2.0)) as usize;

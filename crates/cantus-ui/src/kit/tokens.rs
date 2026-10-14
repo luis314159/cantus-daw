@@ -325,6 +325,10 @@ kit_tokens! {
         PanelRaised panel_raised "surface.tile",
         /// Surfaces behind tiles (inspector). No body text directly on it.
         PanelLight panel_light "surface.behind_tiles",
+        /// The fill behind selected text in a field (a typed value, a name being edited):
+        /// the primary text keeps its colour on it, and it shows on the field's well
+        /// (round 26).
+        TextSelect text_select "surface.text_selection",
     }
     Lines => {
         Grid grid "lines.grid",
@@ -542,6 +546,7 @@ impl Tokens {
             text_dim: hex(0xcdd3d9),
             label: hex(0xc4cbd2),
             placeholder: hex(0x9ca2a8),
+            text_select: hex(0x566749),
             brand: hex(0xf2c14e),
             brand_bright: hex(0xffd97a),
             highlight: hex(0xffaa54),
@@ -624,6 +629,7 @@ impl Tokens {
             text_dim: hex(0x4d5a62),
             label: hex(0x3b474e),
             placeholder: hex(0x8a959c),
+            text_select: hex(0x94b479),
             brand: hex(0x956608),
             brand_bright: hex(0xb8801a),
             highlight: hex(0xc9650f),
@@ -705,6 +711,7 @@ impl Tokens {
             text_dim: hex(0x8f939e),
             label: hex(0xc9ccd3),
             placeholder: hex(0x5d626d),
+            text_select: hex(0x40587d),
             brand: hex(0xd4a24c),
             brand_bright: hex(0xf2c14e),
             highlight: hex(0xf2c14e),
@@ -786,6 +793,7 @@ impl Tokens {
             text_dim: hex(0x666158),
             label: hex(0x3f3a31),
             placeholder: hex(0x9a9384),
+            text_select: hex(0x8ca5cb),
             brand: hex(0x875c08),
             brand_bright: hex(0xad7810),
             highlight: hex(0xb2560c),
@@ -909,6 +917,11 @@ impl Tokens {
             text_dim: p.text_dim,
             label: mix(p.text, p.text_dim, 0.5),
             placeholder: mix(p.text_dim, p.panel_raised, 0.35),
+            text_select: mix(
+                p.selection,
+                shade(p.panel, if dark { -0.05 } else { -0.08 }),
+                0.35,
+            ),
             brand: p.gold,
             brand_bright: p.gold_bright,
             highlight: p.gold_bright,
@@ -1048,6 +1061,7 @@ impl Tokens {
             text_dim: x(self.text_dim),
             label: x(self.label),
             placeholder: x(self.placeholder),
+            text_select: s(self.text_select),
             cap: s(self.cap),
             knob_body: s(self.knob_body),
             knob_rim: s(self.knob_rim),
@@ -1085,6 +1099,9 @@ impl Tokens {
         self.value_pill_text = ensure_contrast(self.value_pill_text, self.value_pill, 4.5);
         // Placeholders stay faint on purpose, but never vanish.
         self.placeholder = ensure_contrast(self.placeholder, self.panel_raised, 1.8);
+        // Selected text keeps the primary text's colour on the selection's fill, and the
+        // fill shows on the field's well (second review, 14).
+        self.text_select = self.selection_fill();
         // The focus ring and the selection must show on whatever surface they land on,
         // wherever the knobs moved the ladder.
         self.focus = ensure_contrast_all(self.focus, &[self.panel, self.ink], 3.0);
@@ -1143,6 +1160,13 @@ impl Tokens {
         add("menu text on band", self.menu_text, self.menu_band, 4.5);
         add("hover text", self.menu_text_hover, self.menu_hover, 4.5);
         add("value pill", self.value_pill_text, self.value_pill, 4.5);
+        add("text on its selection", self.text, self.text_select, 4.5);
+        add(
+            "the selection's fill on the well",
+            self.text_select,
+            self.well,
+            1.3,
+        );
         for f in Function::ALL {
             for (n, bg) in [
                 ("deck", self.deck),
@@ -1232,6 +1256,36 @@ impl Tokens {
     /// True when the theme paints no gradient at all: every gradient token is clear.
     pub fn is_flat(&self) -> bool {
         self.sheen.a() == 0 && self.glow.a() == 0 && self.glow_cool.a() == 0
+    }
+
+    /// The fill behind selected text, held to its two promises: the primary text at 4.5:1
+    /// on it, and 1.3:1 at least against the field's well. Kept as it is when it holds
+    /// both; else the selection's hue mixed into the well, step by step, until one does
+    /// (or, where no shade of the hue can, the well moved away from the text); else the
+    /// text's promise alone.
+    fn selection_fill(&self) -> Color32 {
+        let holds = |c: Color32| contrast(self.text, c) >= 4.5 && contrast(c, self.well) >= 1.3;
+        let kept = ensure_contrast(self.text_select, self.text, 4.5);
+        if holds(kept) {
+            return kept;
+        }
+        for k in 1..=9 {
+            let t = k as f32 * 0.1;
+            // The selection's hue first; then away from the text — lighter than the well
+            // under dark text, darker under light — where the hue cannot hold both.
+            let away = if Hsl::of(self.text).l < 0.5 {
+                Color32::WHITE
+            } else {
+                Color32::BLACK
+            };
+            for base in [self.selection, away] {
+                let c = ensure_contrast(mix(base, self.well, t), self.text, 4.5);
+                if holds(c) {
+                    return c;
+                }
+            }
+        }
+        kept
     }
 
     /// The pairings that fall short, with the ratio they reach.

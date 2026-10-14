@@ -1,37 +1,109 @@
 name: CI
 
+# What runs on every push and pull request (ADR 0048, the CI budget): Linux and Windows,
+# fmt, clippy, the whole test suite and the engine's schedule fuzz. Every minute counts
+# while the repository is private (Linux x1, Windows x2, macOS x10 against the plan's
+# quota), so the expensive and rarely-changing checks live in their own workflows:
+#   macos.yml        macOS (Apple silicon): weekly when code changed, or by hand
+#   null-hashes.yml  v2 = v3 = baseline, Windows = Linux: when the DSP/engine side changes
+#   audit.yml        cargo audit: when the dependencies change, and weekly
+#   perf.yml         the quick performance suite (reports, never fails): by hand
+#   windows-release.yml  the app and launcher in release on Windows: when they change
+#
+# A commit that changes only documents runs nothing. "Only documents" is the root's *.md
+# (README, CLAUDE, CLA…), docs/, research/, tools/ and web/ (the site has site.yml);
+# Markdown anywhere else (crates/, xtask/notices/head.md…) is treated as code — EXCEPT
+# the files a test reads, which still trigger: the manual (xtask builds it and checks its
+# pictures and links), THIRD-PARTY-NOTICES.md (the notices check), PRIVACY.md (About's
+# links), the site's top.rs (the download link's name test) and release.yml (the ASIO
+# hash and the installer name tests). `paths` with `!` patterns is used instead of `paths-ignore`
+# because only `paths` can re-include a file after excluding its folder; later patterns
+# win. The two lists below are the same; xtask's `ci_paths` test keeps them equal and
+# checks that every document a test reads is re-included (ADR 0048 §2).
+
 on:
   push:
     branches: [master, main]
+    paths:
+      - "**"
+      - "!*.md"
+      - "!docs/**"
+      - "!research/**"
+      - "!tools/**"
+      - "!web/**"
+      - "!.github/**"
+      - "docs/manual/**"
+      - "THIRD-PARTY-NOTICES.md"
+      - "PRIVACY.md"
+      - "web/src/top.rs"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
   pull_request:
+    paths:
+      - "**"
+      - "!*.md"
+      - "!docs/**"
+      - "!research/**"
+      - "!tools/**"
+      - "!web/**"
+      - "!.github/**"
+      - "docs/manual/**"
+      - "THIRD-PARTY-NOTICES.md"
+      - "PRIVACY.md"
+      - "web/src/top.rs"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+# A new push to the same branch (or PR) cancels the run still going for the older one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   # 200+ test binaries with full debug info filled the Ubuntu runner's disk (the linker
-  # died with a bus error): no debug info in dev/test builds, as on the owner's machine.
+  # died with a bus error): no debug info in dev/test builds, as on the owner's machine;
+  # nor in the release check build (debug info changes no generated code, only link time
+  # and the cache's size).
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
   CARGO_INCREMENTAL: "0"
 
 jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # A hung test would otherwise bill up to six hours (x2 on Windows).
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+      # rust-toolchain.toml pins the compiler (and clippy, rustfmt): install exactly that
+      # one, rather than a "stable" the pin would never use.
+      - name: Rust (the pinned toolchain)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Pull requests read master's cache but do not write their own: the 10 GB
+          # cache budget stays with the branch every run starts from.
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       - name: Linux audio/window deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
-      - run: cargo fmt --all -- --check
+      # Formatting does not depend on the system: once, on the cheaper runner.
+      - name: fmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace
       # The engine on a three-worker pool with the schedule fuzz's stalls (ADR 0031 R13,
@@ -44,78 +116,10 @@ jobs:
       # The fork protocol with threads stalled inside its windows (ADR 0038 §4).
       - name: voice forks, stalls inside the protocol
         run: cargo test -p cantus-rt --features fuzz --test fork
-      - run: cargo build --release -p cantus
-
-  # The performance gate (docs/perf/benchmark.md §6): the quick suite against
-  # perf/baselines/<class>.json. Hosted runners vary by tens of percent, so this job
-  # reports and does not fail until a baseline for its class has been gathered over
-  # enough runs to know its spread; then drop `continue-on-error`.
-  perf:
-    name: perf (quick suite)
-    runs-on: windows-latest
-    continue-on-error: true
-    env:
-      CANTUS_PERF_CLASS: gha-windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo run -p xtask -- perf
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: perf-report
-          path: target/perf/latest.json
-
-  # The x86-64-v3 program and its x86-64-v2 fallback must make the same sound (ADR 0031
-  # §5.3, round 22): `xtask null-hashes` builds the null corpus (every math function,
-  # effect, instrument, demo song and project fixture; cantus-bench/src/hashes.rs) at v2,
-  # v3 and the plain x86-64 baseline the tests' goldens come from (v4 too on a runner with
-  # AVX-512), hashes each render, and fails naming any item whose bits differ.
-  null-hashes:
-    name: null hashes v2 = v3 (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Linux audio/window deps
+      # The release profile compiles and links, on the cheaper runner. What differs on
+      # Windows in release (`windows_subsystem` in cantus-app and cantus-launch,
+      # `cfg!(debug_assertions)` branches) is built by windows-release.yml when that code
+      # changes, and by release.yml at every tag.
+      - name: release build
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
-      - run: cargo run -p xtask -- null-hashes --baseline
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: null-hashes-${{ runner.os }}
-          path: target/null-hashes/
-
-  # And the same bits on both operating systems (R9 (4): another C runtime, another
-  # machine class): the v3 lists of the two runners, line for line.
-  null-hashes-across:
-    name: null hashes, Windows = Linux
-    needs: null-hashes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: null-hashes-Windows
-          path: windows
-      - uses: actions/download-artifact@v4
-        with:
-          name: null-hashes-Linux
-          path: linux
-      - name: Compare
-        run: diff <(grep -v '^#' windows/x86-64-v3.txt) <(grep -v '^#' linux/x86-64-v3.txt)
-
-  audit:
-    name: supply chain
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-audit --locked
-      - run: cargo audit
+        run: cargo build --release -p cantus

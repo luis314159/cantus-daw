@@ -537,14 +537,24 @@ pub fn p() -> Palette {
 pub fn apply(theme: &Theme, ctx: &egui::Context) {
     let pal = theme.palette();
     *current().write().unwrap() = pal;
-    crate::kit::tokens::install(theme.kit_tokens());
+    // The theme's own tokens, worked out once: installed for the views, and the same
+    // value handed to egui below — never read back from the process-wide slot another
+    // thread may be filling (second review, 13).
+    let kit = theme.kit_tokens();
+    crate::kit::tokens::install(kit);
     ctx.set_theme(if pal.dark {
         egui::Theme::Dark
     } else {
         egui::Theme::Light
     });
-    ctx.set_visuals_of(egui::Theme::Dark, visuals(&pal));
-    ctx.set_visuals_of(egui::Theme::Light, visuals(&pal));
+    // Selected text (a typed value, a name being edited) on the kit's own selection
+    // fill, in the primary text's colour (round 26: egui's gold over a gold wash read at
+    // 2.4:1 on light themes).
+    let mut v = visuals(&pal);
+    v.selection.bg_fill = kit.text_select;
+    v.selection.stroke = Stroke::new(1.0, kit.text);
+    ctx.set_visuals_of(egui::Theme::Dark, v.clone());
+    ctx.set_visuals_of(egui::Theme::Light, v);
     // A switch made in the middle of a frame (the Appearance page) leaves that frame half
     // in the old look: the next one is drawn at once, in the new look and from the new
     // font atlas (round 23).

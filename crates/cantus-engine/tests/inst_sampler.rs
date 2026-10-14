@@ -373,3 +373,35 @@ fn telemetry_names_the_zones_that_sound() {
     assert_eq!(t[tel::FIRST_PAIR], 1.0, "zone 1 plays");
     assert!(t[tel::FIRST_PAIR + 1] >= 0.0);
 }
+
+/// Round 26: a zone the sustain pedal starts (SFZ `on_locc64`), through the unit's
+/// controller contract — the pedal arrives as `Sustain`, any other controller by number.
+#[test]
+fn the_sustain_pedal_and_any_controller_start_the_zones_they_cross_into() {
+    let dir = tempfile::tempdir().unwrap();
+    let down = dir.path().join("down.wav");
+    let other = dir.path().join("cc20.wav");
+    let data = noise(9_000, 5);
+    write_wav(&down, 1, 48_000, &data);
+    write_wav(&other, 1, 48_000, &noise(9_000, 6));
+    let mut a = Zone::new(Some(down.to_string_lossy().into()), 60, 60, 60);
+    a.set(zf::TRIG, 5.0).set(zf::CC, 64.0).set(zf::CCLO, 64.0);
+    let mut b = Zone::new(Some(other.to_string_lossy().into()), 60, 60, 60);
+    b.set(zf::TRIG, 5.0).set(zf::CC, 20.0).set(zf::CCLO, 100.0);
+    let p = project(&spec_of(&[a, b]), &[]);
+    let mut u = unit_for(&p, &mut SampleCache::new());
+    u.note_on(on(60, 1.0, 1));
+    let (l, _) = play(u.as_mut(), 512);
+    assert!(l.iter().all(|x| *x == 0.0), "a key starts neither");
+    u.controller(einst::Controller::Sustain, 1.0);
+    let (l, _) = play(u.as_mut(), 4_000);
+    for i in 0..4_000 {
+        assert_eq!(l[i].to_bits(), data[i].to_bits(), "pedal noise frame {i}");
+    }
+    assert_eq!(u.active_voices(), 1);
+    u.controller(einst::Controller::Cc(20), 50.0 / 127.0);
+    assert_eq!(u.active_voices(), 1, "CC 20 below its range");
+    u.controller(einst::Controller::Cc(20), 1.0);
+    play(u.as_mut(), 1);
+    assert_eq!(u.active_voices(), 2, "CC 20 crossed into 100…127");
+}

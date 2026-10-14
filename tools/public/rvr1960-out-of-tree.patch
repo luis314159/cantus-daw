@@ -1,0 +1,133 @@
+diff --git a/crates/cantus-ui/src/verse.rs b/crates/cantus-ui/src/verse.rs
+index fda87d6..f6a9ab9 100644
+--- a/crates/cantus-ui/src/verse.rs
++++ b/crates/cantus-ui/src/verse.rs
+@@ -35,6 +35,13 @@ use std::sync::OnceLock;
+ /// the build then carries the RVR1960 file, offers it and makes it the default.
+ pub const RVR1960_PERMITTED: bool = false;
+ 
++// Permitting the RVR1960 without bringing its file back would offer an empty translation:
++// restore `locales/verses/es.txt` and its `include_str!` in `Translation::source` first.
++const _: () = assert!(
++    !RVR1960_PERMITTED,
++    "bring back locales/verses/es.txt and its include_str! in Translation::source"
++);
++
+ /// The Spanish translation the verse is taken from.
+ #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+ pub enum Spanish {
+@@ -144,9 +151,10 @@ impl Translation {
+     pub fn source(self) -> &'static str {
+         match self {
+             Translation::Web => include_str!("../locales/verses/en.txt"),
+-            // Not in the build until its publisher's written permission is in.
+-            Translation::Rvr1960 if !RVR1960_PERMITTED => "",
+-            Translation::Rvr1960 => include_str!("../locales/verses/es.txt"),
++            // Not in the build, nor in the public repository (ADR 0049), until its
++            // publisher's written permission is in: then `locales/verses/es.txt` comes back
++            // and this arm becomes `include_str!("../locales/verses/es.txt")`.
++            Translation::Rvr1960 => "",
+             Translation::Rv1909 => include_str!("../locales/verses/es-1909.txt"),
+         }
+     }
+diff --git a/crates/cantus-ui/tests/verse.rs b/crates/cantus-ui/tests/verse.rs
+index 1ba4518..dcfc284 100644
+--- a/crates/cantus-ui/tests/verse.rs
++++ b/crates/cantus-ui/tests/verse.rs
+@@ -14,11 +14,22 @@ use cantus_ui::views::verse as view;
+ use egui::{Pos2, Rect, Vec2};
+ use std::collections::HashMap;
+ 
+-/// The RVR1960 file as the repository holds it — the app carries it only once its
+-/// publisher's written permission is in (`verse::RVR1960_PERMITTED`), but its list is kept
+-/// right either way.
+-fn rvr1960() -> Vec<verse::Verse> {
+-    verse::parse(include_str!("../locales/verses/es.txt")).expect("the RVR1960 file parses")
++/// The RVR1960 file, when the tree holds it: the owner's private tree keeps it while its
++/// publisher's written permission is pending (`verse::RVR1960_PERMITTED`), the public
++/// repository does not (ADR 0049). Its list is kept right whenever it is there. (Leaked:
++/// `verse::parse` keeps `&'static str`s, as it does for the bundled files.) Only a file
++/// that does not exist, while the RVR1960 is not permitted, counts as absent: any other
++/// read error fails the test rather than skip its checks.
++fn rvr1960() -> Option<Vec<verse::Verse>> {
++    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/locales/verses/es.txt");
++    match std::fs::read_to_string(path) {
++        Ok(src) => Some(verse::parse(src.leak()).expect("the RVR1960 file parses")),
++        Err(e) if e.kind() == std::io::ErrorKind::NotFound && !verse::RVR1960_PERMITTED => None,
++        Err(e) => panic!(
++            "{path}: {e} (RVR1960 permitted: {})",
++            verse::RVR1960_PERMITTED
++        ),
++    }
+ }
+ 
+ /// Verses per book (the Protestant canon, KJV/RV versification), from the RV1909 file
+@@ -100,14 +111,16 @@ fn with_locale<R>(l: Locale, f: impl FnOnce() -> R) -> R {
+ #[test]
+ fn every_verse_file_parses_and_is_not_empty() {
+     for t in Translation::ALL {
+-        // The RVR1960 is checked from the repository's file: the build carries it only
+-        // with its publisher's permission.
+-        let src = if t == Translation::Rvr1960 {
+-            include_str!("../locales/verses/es.txt")
++        // The RVR1960 is checked from the tree's file, when it holds one: the build
++        // carries it only with its publisher's permission.
++        let v = if t == Translation::Rvr1960 {
++            match rvr1960() {
++                Some(v) => v,
++                None => continue,
++            }
+         } else {
+-            t.source()
++            verse::parse(t.source()).unwrap_or_else(|e| panic!("{t:?}: {e}"))
+         };
+-        let v = verse::parse(src).unwrap_or_else(|e| panic!("{t:?}: {e}"));
+         assert!(v.len() >= 200, "{t:?} has only {} passages", v.len());
+         if t != Translation::Rvr1960 || verse::RVR1960_PERMITTED {
+             assert_eq!(t.verses().len(), v.len());
+@@ -162,8 +175,10 @@ fn every_translation_holds_the_same_passages_in_the_same_order() {
+         .iter()
+         .map(|v| v.reference)
+         .collect();
+-    let rv1960: Vec<Reference> = rvr1960().iter().map(|v| v.reference).collect();
+-    assert_eq!(en, rv1960, "the RVR1960 file differs from the WEB's list");
++    if let Some(rvr) = rvr1960() {
++        let rv1960: Vec<Reference> = rvr.iter().map(|v| v.reference).collect();
++        assert_eq!(en, rv1960, "the RVR1960 file differs from the WEB's list");
++    }
+     let rv1909: Vec<Reference> = Translation::Rv1909
+         .verses()
+         .iter()
+@@ -180,7 +195,10 @@ fn the_spanish_list_stays_inside_the_rvr1960_allowance() {
+     let books: HashMap<&str, u32> = BOOK_VERSES.into_iter().collect();
+     let mut per_book: HashMap<&str, u32> = HashMap::new();
+     let mut total = 0u32;
+-    for v in &rvr1960() {
++    let Some(rvr) = rvr1960() else {
++        return; // not in this tree (the public repository): nothing is quoted
++    };
++    for v in &rvr {
+         let n = u32::from(v.reference.count());
+         total += n;
+         *per_book.entry(v.reference.book).or_default() += n;
+@@ -253,12 +271,14 @@ fn the_motto_is_there_in_every_translation() {
+         .unwrap()
+         .text
+         .contains("heartily"));
+-    assert!(rvr1960()
+-        .iter()
+-        .find(|v| v.reference == col)
+-        .unwrap()
+-        .text
+-        .contains("de corazón"));
++    if let Some(rvr) = rvr1960() {
++        assert!(rvr
++            .iter()
++            .find(|v| v.reference == col)
++            .unwrap()
++            .text
++            .contains("de corazón"));
++    }
+     assert!(Translation::Rv1909
+         .passage(col)
+         .unwrap()

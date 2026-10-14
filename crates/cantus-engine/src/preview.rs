@@ -124,6 +124,7 @@ mod tests {
 
     fn tone(rate: u32, frames: usize) -> Arc<SampleData> {
         Arc::new(SampleData {
+            stream: None,
             rate,
             channels: 1,
             frames: (0..frames)

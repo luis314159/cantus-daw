@@ -60,6 +60,21 @@ fn splash(dir: &Path) {
     }
 }
 
+/// The splash with the verse switched off: the band says how to turn it back on.
+fn hidden(dir: &Path) {
+    for (lang, locale, _) in LANGS.into_iter().take(2) {
+        i18n::set_locale(locale);
+        for ppp in [0.75f32, 1.0, 2.0] {
+            let ctx = ctx();
+            let path = dir.join(format!("splash-{lang}-hidden-{}.png", (ppp * 100.0) as u32));
+            raster::shoot(&ctx, boot::size(true), ppp, 4, Some(&path), |root| {
+                let _ = boot::paint_splash_with(root, 0.42, SplashVerse::Hidden);
+            });
+            println!("{}", path.display());
+        }
+    }
+}
+
 fn app(ctx: &egui::Context, spanish: Spanish) -> CantusApp {
     let tmp = std::env::temp_dir().join("cantus-shoot-verse");
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
@@ -127,6 +142,9 @@ fn main() {
     let want = |n: &str| only.is_empty() || only.iter().any(|o| o == n);
     if want("splash") {
         splash(&dir);
+    }
+    if want("hidden") {
+        hidden(&dir);
     }
     if want("card") {
         card(&dir);

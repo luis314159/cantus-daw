@@ -120,20 +120,32 @@ pub fn effects() -> Html {
     });
 
     let toggle_play = {
-        let (pair, playing, with, sel, stop) = (pair.clone(), playing.clone(), with.clone(), sel.clone(), stop.clone());
+        let (pair, playing, with, sel, stop) = (
+            pair.clone(),
+            playing.clone(),
+            with.clone(),
+            sel.clone(),
+            stop.clone(),
+        );
         Callback::from(move |_| {
             if *playing {
                 stop();
                 return;
             }
             let file = EFFECTS[*sel].file;
-            let (Some(without), Some(with_a)) = (make(file, "without"), make(file, "with")) else { return };
+            let (Some(without), Some(with_a)) = (make(file, "without"), make(file, "with")) else {
+                return;
+            };
             let loud = *with;
             without.set_volume(if loud { 0.0 } else { 1.0 });
             with_a.set_volume(if loud { 1.0 } else { 0.0 });
             let _ = without.play();
             let _ = with_a.play();
-            *pair.borrow_mut() = Some(Pair { index: *sel, without, with: with_a });
+            *pair.borrow_mut() = Some(Pair {
+                index: *sel,
+                without,
+                with: with_a,
+            });
             playing.set(true);
         })
     };
@@ -143,7 +155,11 @@ pub fn effects() -> Html {
         let (pair, with) = (pair.clone(), with.clone());
         Callback::from(move |_| {
             if let Some(p) = pair.borrow().as_ref() {
-                let (from, to) = if want_with { (&p.without, &p.with) } else { (&p.with, &p.without) };
+                let (from, to) = if want_with {
+                    (&p.without, &p.with)
+                } else {
+                    (&p.with, &p.without)
+                };
                 to.set_current_time(from.current_time());
                 to.set_volume(1.0);
                 from.set_volume(0.0);
@@ -169,8 +185,8 @@ pub fn effects() -> Html {
             <div class="wrap">
                 <header class="sec-head">
                     <h2>{ l.t("Effects with a window of their own", "Efectos con una ventana propia") }</h2>
-                    <p>{ l.t("Each effect shows what it is doing, on the audio that goes through it. Seven of the ten that ship with Cantus; saturation, a maximizer and stereo control complete the set.",
-                             "Cada efecto muestra lo que hace, sobre el audio que pasa por él. Siete de los diez que vienen con Cantus; saturación, un maximizador y control estéreo completan el conjunto.") }</p>
+                    <p>{ l.t("Each effect shows what it is doing, on the audio that goes through it. Seven of the twelve that ship with Cantus; saturation, a maximizer, stereo control, a delay and a reverb complete the set.",
+                             "Cada efecto muestra lo que hace, sobre el audio que pasa por él. Siete de los doce que vienen con Cantus; saturación, un maximizador, control estéreo, un delay y una reverb completan el conjunto.") }</p>
                 </header>
                 <div class="fx">
                     <ul class="fx-list">{ for items }</ul>

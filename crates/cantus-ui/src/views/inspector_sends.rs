@@ -5,7 +5,7 @@
 
 use super::menus::MenuId;
 use super::sheet::{self, Range, Sheet};
-use super::{Act, MenuOpen};
+use super::Act;
 use crate::app::CantusApp;
 use crate::kit::hint::{self, Caps};
 use crate::kit::{cache, led, tap, Function, State, Tok};
@@ -19,10 +19,7 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
     let room = ms.is_some_and(|m| m.sends.len() < MAX_SENDS);
     let band = sh.band("kit.inspector.sends", Function::Space, None, room, None);
     if let (true, Some(m), Some(anchor)) = (band.plus, ms, band.plus_rect) {
-        *sh.menu = Some(MenuOpen {
-            id: MenuId::AddSend(m.id),
-            anchor,
-        });
+        add_send(sh, m.id, anchor);
     }
     let Some(m) = ms.filter(|m| !m.sends.is_empty()) else {
         // No sends yet: the empty row says what would go there, and opens the list.
@@ -42,10 +39,7 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         };
         sheet::placeholder_well(sh.b, r, &s, st, "inspector.sends_add");
         if let (true, Some(m)) = (resp.clicked() && !dim, ms) {
-            *sh.menu = Some(MenuOpen {
-                id: MenuId::AddSend(m.id),
-                anchor: r,
-            });
+            add_send(sh, m.id, r);
         }
         return;
     };
@@ -158,6 +152,18 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
             sh.acts.push(Act::EndGesture);
         }
     }
+}
+
+/// *Add send*: the desk's own add-send list (`route_menu::open_add_send` — *New return ▸*
+/// first, then every strip by dock), under the inspector's route-menu owner, so the two
+/// places offer one list through one code path (round 26).
+fn add_send(sh: &mut Sheet<'_>, from: cantus_core::StripId, anchor: Rect) {
+    super::super::route_menu::open_add_send(
+        sh.ui.ctx(),
+        super::super::route_menu::inspector_owner(),
+        from,
+        anchor.left_bottom(),
+    );
 }
 
 fn set(id: cantus_core::StripId, send: Send) -> Act {

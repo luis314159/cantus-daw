@@ -29,7 +29,7 @@ Everything it names is in the program as it is today; where the beta still has g
 
 ## 1. Install
 
-You need Windows 11, 64-bit (Windows 10 should work but has not been tested), and about
+You need Windows 11, 64-bit (Windows 10 untested), and about
 200 MB of disk.
 
 1. Download `Cantus-0.1.0-beta.1-windows-x64-setup.exe` from the
@@ -41,13 +41,18 @@ You need Windows 11, 64-bit (Windows 10 should work but has not been tested), an
    (on), a desktop shortcut (off), the CLAP and VST3 plug-ins for other DAWs (on), and
    *FlexASIO driver (downloaded now)* (off — tick it if your sound card has no ASIO driver
    of its own; see [chapter 2](#2-first-run-set-up-your-audio)).
+4. The *Privacy* page says what Cantus sends over the network (only a daily question about
+   new versions, and the downloads you ask for). *Check for updates once a day
+   (recommended)* is ticked; untick it to turn the check off (also later in *Settings ▸
+   Updates*).
 
 **Portable copy.** Unzip `Cantus-0.1.0-beta.1-windows-x64-portable.zip` anywhere (a USB
 stick works). Because of the `portable.txt` beside `cantus.exe`, that copy keeps its
 settings in the `data` folder next to it and writes nothing to your profile.
 
-**Uninstall** from Windows' *Apps*. Your settings, presets and autosaves are removed only
-if you tick that box; your projects are never touched.
+**Uninstall** from Windows' *Apps*. Your settings, presets and autosaves — and the sample
+cache (up to 16 GB, see [chapter 11](#11-projects-autosave-and-settings)) — are removed
+only if you tick that box; your projects are never touched.
 
 ## 2. First run: set up your audio
 
@@ -112,17 +117,28 @@ thing you hear is music. Press `Space` to play it.
   redo, and six **window keys**: Browser, Arrangement, Channel rack, Piano roll, Mixer,
   Inspector.
 - **The arrangement** (centre): tracks and their clips on a timeline.
+- **The clip browser** (`Alt+F5`, *View ▸ Clip browser*): every clip of the song as a
+  tile, beside the arrangement (see [chapter 5](#clips-in-the-arrangement)).
 - **The lower zone**: the Mixer, the Piano roll and the Channel rack as tabs.
 - **The inspector** (right, `I`): everything about the selected track, strip or clip.
 - **The status bar** (bottom): what is under the pointer, CPU and dropouts, latency, MIDI
   inputs, minimised devices, and the audio chip.
 
 Every area can be shown or hidden with its window key or its function key (`F5`
-arrangement, `F6` channel rack, `F7` piano roll, `F9` mixer, `Alt+F8` browser, `I`
-inspector). Drag the splitters to resize; right-click a tab to float it in its own
+arrangement, `Alt+F5` clip browser, `F6` channel rack, `F7` piano roll, `F9` mixer,
+`Alt+F8` browser, `I` inspector). Drag the splitters to resize; right-click a tab to float it in its own
 window; save the arrangement of the window under *View ▸ Layout ▸ Save layout…*. The
-interface zooms from 75 % to 200 % (`Ctrl+Plus`, `Ctrl+Minus`, `Ctrl+0`). Colours, themes
-(light and dark) and the logo are under *View ▸ Appearance*.
+interface zooms from 75 % to 200 % (`Ctrl+Plus`, `Ctrl+Minus`, `Ctrl+0`). Twelve themes —
+Cantus Night (the default), Cantus Paper, Daylight, Blue Hour, high-contrast dark and light
+and more, each with a preview — the colours, the logo and the taskbar icon's colour are
+under *View ▸ Appearance*.
+
+**Typing a name or a value** works the same everywhere — renaming a track, a clip, a pad
+or a strip, a search, a level: the field opens with its words selected, so typing
+replaces them; `Enter` or a click elsewhere keeps what you typed; `Esc` puts back what was
+there. While you type, no shortcut fires. Names can be in any script — Japanese, Chinese,
+Korean, Hindi, Thai, Arabic, Hebrew…: Cantus uses your system's own fonts for them (see
+the [known issues](#14-known-issues-and-limitations) about right-to-left scripts).
 
 **Demo songs.** *File ▸ Demo songs…* (`Ctrl+Shift+N`) opens six songs made entirely with
 Cantus's own instruments and effects: Neon Tide (house), Morning Light (pop ballad),
@@ -202,6 +218,22 @@ shortcuts (including `R`) are off — use `Space` or the record key.
   gain* and *Remove fades*.
 - **Import audio**: drag WAV, AIFF, FLAC or Ogg files onto the arrangement (they land at
   the pointer), or *File ▸ Import audio…*. A MIDI file adds its tracks.
+- **Linked copies**: a paste, `Ctrl+D` or `Alt+drag` makes *the same clip* again — edit one
+  and every copy follows (notes, or an audio clip's gain, fades and reverse). A link mark and
+  a ×N count show it. *Make unique* (`Alt+U`) takes the selection out of its group;
+  *Select linked copies* (`Shift+Alt+L`); *Link selection to this clip* (`Alt+L`); *Link
+  to…* (`Alt+N`) picks, by name or track, a linked group or a clip of its own to become.
+  In the inspector, a linked clip's *Link* row shows how many copies it has and offers
+  *Link to…*; renaming it in the *Name* row renames every copy. Right-click an empty place
+  in the arrangement ▸ *Copies are linked* to make independent copies instead.
+- **The clip browser** (`Alt+F5`, or *View ▸ Clip browser*) shows every linked group and
+  every clip of its own once, as tiles in the clip's colour with a miniature of what it
+  holds; type to filter by name or track. **Drag a tile** onto the arrangement to place a
+  linked copy there. **Click a tile** to choose it for the **paint tool**: with the
+  arrangement focused, `B` (or `2`) takes the tool out — a click places a linked copy, a
+  drag paints copies end to end along the track, a right-drag (or `Alt`+drag) erases the
+  copies of that clip only; each stroke is one undo step; `Esc` puts the tool away.
+  Double-click a tile to select all its copies.
 
 The **grid** (the arrangement's toolbar) starts at one bar; choose finer values for
 detail. Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom.
@@ -250,8 +282,8 @@ or another strip (a bus). A strip has its level meter, mute and solo, pan, fader
 and swap, width, a three-band EQ, its inserts and its sends. Click to select, `Ctrl+click`
 to add, `Shift+click` for a run; dragging one fader of a selection moves them all. With
 the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
-`Ctrl+wheel` changes the strips' width; at *Extra large* the insert slots show inside each
-strip.
+`Ctrl+wheel` changes the strips' width; at *Extra large* each strip shows a one-line summary
+of its chain (click it to open the inspector).
 
 - **Inserts** (up to ten per strip): click an empty slot to choose an effect in the device
   picker, or right-click it for the quick list. On a filled slot, click the lamp to bypass
@@ -259,9 +291,22 @@ strip.
   inspector, each insert has a **Mix** ring (dry/wet).
 - **Sends**: select a strip, then look at the *Sends* row of the others — click the ▲ of
   the strip you want to send to (a reverb return, a parallel compressor); a knob then sets
-  the send's level. Sends are post-fader.
-- **Routing**: right-click a strip ▸ *Routing* ▸ *Output* or *Send to*, or select several
-  strips and *Create submix from selected*.
+  the send's level. Each send taps **after the fader (POST, the default) or before it
+  (PRE)** — click its PRE/POST chip; a PRE send keeps sounding when you pull the fader down.
+- **Cables**: each strip has a port. Drag from it to another strip, or click it and then
+  the destination (`Esc` cancels): plain makes a send at 0 dB, `Ctrl` makes it the strip's
+  only output, `Alt` makes it a sidechain key. The selected strip's cables (or all, or
+  none — the switch above the desk, with a filter for which kinds) are drawn in a band
+  under the desk; click a cable to select it, drag its end to move it, `Delete` removes it.
+  A doubled path is allowed and marked. Every change is one undo step.
+- **Routing**: right-click a strip ▸ *Routing* ▸ *Output* or *Send to*, `Shift+F10` for the
+  selected strip's route menu, or select several strips and *Create submix from selected*.
+  In a cable's or a send's route menu, *Level ▸ Type a level…* takes a level in dB (−∞ to
+  0; `Enter` or a click elsewhere sets it, in one undo step; `Esc` cancels).
+  **The routing matrix** (`Alt+F9`) shows every source against every destination: click a
+  cell to route, drag for the level (`Shift` for fine), `Ctrl+drag` copies down a column.
+  Strips and groups move by dragging or with `Alt+Left`/`Alt+Right`; a track header dropped
+  on a strip plays into it.
 - **Device windows** have *Swap*, minimise (to the tray in the status bar), maximise and
   close. `F8` opens the selected track's instrument, `Esc` closes the device you used last,
   `F12` closes every floating one.
@@ -342,12 +387,30 @@ packs you installed and *My folders* (click **+** to add any folder of samples).
   or onto the **arrangement** (an audio clip where you drop it). Each drop is one undo step.
 - With nothing installed, the browser offers **Start with a drum kit**: *Download* fetches
   *Cantus Starter Drums* (81 one-shots, 33 MB). *Sound packs…* (or *More packs…*) lists
-  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar —
-  with their size, licence and credits; *Install*, *Update*, *Remove*, *Show the folder*,
-  and *Install from a file…* for computers without internet.
+  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar, and the
+  **Salamander Grand Piano** (a Yamaha C5, 16 velocity layers) — with their size, licence
+  and credits; *Install*, *Update*, *Remove*, *Show the folder*, and *Install from a
+  file…* for computers without internet.
 
-Every pack is **CC0**: yours to use in any song, free, with no credit needed. Packs are
-saved in `%LOCALAPPDATA%\Cantus\Content\`; every file is checked against its SHA-256.
+Every pack is free. Most are **CC0** (no credit needed); the Salamander Grand Piano is
+**CC BY 3.0**: its credit is shown on its page in *Sound packs…* and in *Help ▸ Credits*,
+and kept in the pack's folder. Either way, the music you make with them is yours. Packs
+are saved in `%LOCALAPPDATA%\Cantus\Content\`; every file is checked against its SHA-256.
+
+**Pack instruments.** An installed pack that brings instruments (the Salamander: with 8
+velocity layers, about 120 MB of memory, or all 16, about 185 MB) shows them in the
+device picker's *Keys* shelf and on its *Sound packs…* page (*New track with …*); each
+plays in Exemplar. Long samples are **streamed from disk**: only their first moments stay
+in memory. The first time, Cantus decodes the samples once into its **sample cache** (1 GB
+for the Salamander's 8 layers, 2 GB for 16), beside the window, with *Loading samples… n
+of m* on the status bar; later loads take a fraction of a second. If the disk cannot keep
+up, the status bar counts *Disk late: n*.
+
+**A missing pack.** A project that plays a pack this computer does not have opens a card
+that names the pack and its silent tracks: *Install in Sound packs…*, *Use the installed
+pack* (when the project points at another copy, say from another computer), or *Find the
+folder…* (when files of an installed pack were moved). The rest of the project plays as
+usual.
 
 ## 10. Instruments and effects: the device picker
 
@@ -360,7 +423,8 @@ Open it with the **+** above the track headers (a new instrument track), by clic
 track's instrument chip (swap the instrument), *Swap* on any device window, an empty
 insert slot, or *View ▸ Device picker…*. Search by name, maker or kind; filter by shelf
 (*Favourites*, *Recent*, a category, or *Cantus / CLAP / VST3*); arrows move, `Enter`
-chooses, `Ctrl+D` marks a favourite, `Esc` closes. Swapping an instrument keeps its notes,
+chooses, `Ctrl+D` marks a favourite, `Esc` closes. Installed pack instruments (the
+Salamander Grand Piano) are under *Keys*. Swapping an instrument keeps its notes,
 clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypass.
 
 | Instrument | What it is |
@@ -407,7 +471,10 @@ DAWs.
 **Settings** (*View ▸ Settings…*): *General* (the verse at start, on or off, and the
 Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
 *MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
-shortcuts), *Saving*, *Updates* and *Plug-ins*.
+shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
+least recently used samples go first — and *Clear cache*; it lives in
+`%LOCALAPPDATA%\Cantus\cache\samples`, or in a portable copy's `data` folder), *Updates*
+and *Plug-ins*.
 
 ## 12. Keyboard shortcuts
 
@@ -432,12 +499,15 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Left` `Right` (`Shift`: a bar) | Nudge |
 | `Up` `Down` (`Shift`: an octave) | Transpose notes |
 | `Q` | Quantize |
-| `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools |
+| `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools; in the arrangement, `B` or `2` is the paint tool |
 | `Shift+L` · `Z` | Loop the time selection · zoom to it |
 | `Alt+A` | Automate the last parameter you moved |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arrangement, channel rack, piano roll, mixer · browser · inspector |
+| `Alt+F5` | Clip browser |
 | `F8` · `F12` | The selected track's instrument · close floating devices |
 | `M` · `S` · `Alt+Left`/`Alt+Right` | Mixer: mute · solo · move the strip |
+| `Alt+F9` · `Shift+F10` | The routing matrix · the selected strip's route menu |
+| `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Make unique · link the selection to this clip · select linked copies · link to… |
 | `Ctrl+T` | Typing keyboard plays notes |
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
 
@@ -460,16 +530,31 @@ This is a beta. What we know about:
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
   one time signature per project. No crossfades or clip gain envelopes.
-- Hosted plug-ins are not rendered into stems, and their parameters cannot be automated
-  yet; automation is drawn, not recorded (no latch or touch).
-- **Lamina and Exemplar** are 6–8 dB quieter than the other instruments at the same fader.
+- The parameters of hosted plug-ins cannot be automated yet; automation is drawn, not
+  recorded (no latch or touch). In stems exported *through the master chain*, a hosted
+  effect on the master is left out of the stems (the full mix has it).
+- Splitting a **looping** clip silences its right half: select the time range you need,
+  copy it and paste it instead (the pasted part keeps the loop).
+- Automation clips are pasted only within the project they came from, while Cantus stays
+  open; a first save or a *Save As* that copies imported audio into the project folder can
+  pause the window while the files are copied; Ctrl+V with nothing
+  copied does nothing and says nothing.
+- **Lamina** plays a little quieter than the other instruments (about 4 dB) at the same
+  fader, and the **Salamander Grand Piano** about 5 dB quieter.
+- The **Salamander's first load** decodes its samples into the sample cache (1–2 GB on
+  disk; about 10 s), beside the window; a note played before its samples
+  arrive is silent. Later loads are quick.
+- Names in other scripts use your system's fonts (read when first needed, never shipped
+  with Cantus). **Arabic and Hebrew show left to right with unjoined letters**, and scripts
+  that join or reorder letters (Devanagari, Thai…) show them without that: the toolkit
+  does not shape text yet.
 - **Audio**: the built-in Realtek ASIO driver delivers no sound on some laptops (use
   WASAPI or FlexASIO); ASIO4ALL can take several seconds to start; many ASIO drivers set
-  the buffer in their own control panel. Exclusive-mode WASAPI is not offered.
+  the buffer in their own control panel; plug an interface in *before* starting Cantus.
+  Exclusive-mode WASAPI is not offered.
 - **Performance**: dense projects at small buffers can drop out on modest computers; raise
   the buffer if the status bar counts dropouts.
-- The count-in is silent unless the metronome is on; the audio device cannot be changed
-  while recording; the sample browser has no keyboard navigation yet; projects refer to
+- The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
 - **Not in this beta**: macOS and Linux, warping, MIDI learn and control surfaces, AI
   features, several arrangements per project.

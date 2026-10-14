@@ -114,6 +114,8 @@ pub enum Act {
     Flat(StripId),
     /// The audio clip section's buttons (locate, show, normalise).
     Audio(audio::AudioAct),
+    /// The clip section's link row (round 26): select the copies, make unique, link to….
+    Link(TrackId, ClipId, track::LinkAct),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -755,6 +757,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::LoadSample(t, pad) => app.load_pad_sample(t, pad),
         Act::RemovePad(t, pad) => app.remove_pad(t, pad),
         Act::Audio(a) => audio::apply(app, a),
+        Act::Link(t, c, a) => track::apply_link(app, t, c, a),
         Act::Flat(id) => {
             let commands = (0..3u8)
                 .map(|band| Command::SetStripEq {

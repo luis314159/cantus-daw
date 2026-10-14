@@ -87,6 +87,7 @@ organ.rotary_bypassed = Directo: el altavoz rotativo está puenteado
 organ.horn = Bocina
 organ.drum = Tambor
 organ.ramp_title = rpm durante {s} s tras el cambio
+organ.ramp_point = {name}: 63 % en {time}
 organ.scanner_title = {mode}: recorre {ms} ms de línea a {hz} Hz
 organ.vib_off = ningún manual pasa por él
 organ.perc_title = Caída a −60 dB en {t}

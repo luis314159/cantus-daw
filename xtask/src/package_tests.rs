@@ -57,7 +57,42 @@ fn stand_ins(root: &Path) -> Inputs {
             ("THIRD-PARTY-NOTICES.txt".into(), root.join("NOTICES.md")),
             ("manual/en/index.html".into(), root.join("index.html")),
         ],
+        check_metadata: false,
     }
+}
+
+/// A release whose signed files lack their product name and version stops (ADR 0048 §9).
+#[test]
+#[should_panic(expected = "without their version resource")]
+fn a_release_stops_when_a_file_it_signs_has_no_version_resource() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut inputs = stand_ins(dir.path());
+    inputs.check_metadata = true;
+    package::assemble(&inputs, &dir.path().join("package"), V, None, None);
+}
+
+/// … and goes on when every one carries them.
+#[test]
+fn a_release_whose_files_carry_their_version_resource_is_made() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut inputs = stand_ins(dir.path());
+    let res = crate::package::meta::tests::with_resource(V);
+    let mut files = vec![inputs.launcher.clone(), inputs.scanner.clone()];
+    files.extend(inputs.programs.iter().map(|(_, p)| p.clone()));
+    for n in &inputs.plugins {
+        files.push(inputs.bundled.join(format!("{n}.clap")));
+        files.push(
+            inputs
+                .bundled
+                .join(format!("{n}.vst3/Contents/x86_64-win/{n}.vst3")),
+        );
+    }
+    for f in &files {
+        std::fs::write(f, &res).unwrap();
+    }
+    inputs.check_metadata = true;
+    let dist = package::assemble(&inputs, &dir.path().join("package"), V, None, None);
+    assert!(dist.join(release::portable_name(V)).is_file());
 }
 
 fn plugin_files(prefix: &str) -> Vec<String> {
@@ -98,9 +133,17 @@ fn the_package_task_produces_the_expected_file_list() {
             "Cantus-0.2.0-plugins-windows-x64.zip",
             "Cantus-0.2.0-windows-x64-portable.zip",
             "Cantus-0.2.0-windows-x64-setup.exe",
+            "Cantus-windows-x64-setup.exe",
             "SHA256SUMS.txt",
         ]
     );
+    // The installer under a name that never changes too (ADR 0048 §7), for the website's
+    // `releases/latest/download/<name>` link; the updater still asks for the versioned one.
+    assert_eq!(
+        release::STABLE_INSTALLER_NAME,
+        "Cantus-windows-x64-setup.exe"
+    );
+    assert_ne!(release::STABLE_INSTALLER_NAME, release::installer_name(V));
 
     // The portable zip: the launcher, both programs and the scanner at the top of one
     // folder, the marker, the plug-ins.
@@ -165,7 +208,7 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     let dir = tempfile::tempdir().unwrap();
     let inputs = stand_ins(dir.path());
     let staged = package::stage(&inputs, &dir.path().join("stage"), V);
-    let nsh = nsis::files_nsh(&staged);
+    let nsh = nsis::files_nsh_for(&staged, true);
     let macro_body = |name: &str| -> Vec<String> {
         let start = nsh.find(&format!("!macro {name}\n")).unwrap();
         let end = start + nsh[start..].find("!macroend").unwrap();
@@ -309,6 +352,7 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
         icon: None,
         license: "LICENSE.txt".into(),
         uninst_sign: None,
+        uninstaller: nsis::Uninstaller::Written,
     });
     assert!(config.contains(&format!("!define APP_ID \"{}\"\n", cantus_launch::APP_ID)));
     // The levels' names and flags, and the app's own answer to --version.
@@ -416,6 +460,7 @@ fn an_installer_compiles_when_nsis_is_here() {
         icon,
         uninst_sign,
         env,
+        uninstaller: nsis::Uninstaller::Written,
     };
     let dist = package::assemble(&inputs, &out, V, Some(&job), None);
     assert_eq!(
@@ -427,6 +472,16 @@ fn an_installer_compiles_when_nsis_is_here() {
         let bytes = std::fs::read(&setup).unwrap();
         assert_eq!(&bytes[..2], b"MZ", "a Windows program");
         assert!(bytes.len() > 30_000);
+        // The stable name is the same file, byte for byte, and SHA256SUMS lists both.
+        let stable = dist.join(release::STABLE_INSTALLER_NAME);
+        assert_eq!(std::fs::read(&stable).unwrap(), bytes, "the same installer");
+        let sums =
+            release::parse_sums(&std::fs::read_to_string(dist.join(release::SUMS_NAME)).unwrap());
+        assert_eq!(
+            sums.get(release::STABLE_INSTALLER_NAME),
+            sums.get(&release::installer_name(V))
+        );
+        assert!(sums.contains_key(release::STABLE_INSTALLER_NAME));
         // `CANTUS_KEEP_INSTALLER=<dir>` keeps them, to install and uninstall by hand.
         if let Some(keep) = std::env::var_os("CANTUS_KEEP_INSTALLER") {
             let keep = std::path::PathBuf::from(keep);
@@ -481,4 +536,154 @@ fn the_asio_sdk_is_checked_and_found() {
         "audio drivers: WASAPI\nasio sdk: not linked\n"
     ));
     assert!(!asio_sdk::lists_asio(""));
+}
+
+/// The three ways the installer comes by its uninstaller (ADR 0048 §8), in the script's
+/// generated config and file list.
+#[test]
+fn the_uninstaller_is_written_prebuilt_or_made_alone() {
+    let cfg = |u: nsis::Uninstaller, sign: Option<&str>| {
+        nsis::config_nsh(&nsis::Config {
+            version: V.into(),
+            outfile: "setup.exe".into(),
+            icon: None,
+            license: "LICENSE.txt".into(),
+            uninst_sign: sign.map(str::to_owned),
+            uninstaller: u,
+        })
+    };
+    // Written: signed mid-build when a local signer is set; nothing else defined.
+    let written = cfg(
+        nsis::Uninstaller::Written,
+        Some("\"x.exe\" sign-file \"%1\""),
+    );
+    assert!(written.contains("!uninstfinalize"));
+    assert!(!written.contains("PREBUILT_UNINSTALLER") && !written.contains("UNINSTALLER_ONLY"));
+    // Prebuilt: carried as a file, never re-signed by NSIS.
+    let prebuilt = cfg(
+        nsis::Uninstaller::Prebuilt(r"C:\stage\uninstall.exe".into()),
+        Some("ignored"),
+    );
+    assert!(prebuilt.contains("!define PREBUILT_UNINSTALLER \"C:\\stage\\uninstall.exe\""));
+    assert!(!prebuilt.contains("!uninstfinalize"));
+    // Writer only: the define the script's .onInit looks for.
+    let writer = cfg(nsis::Uninstaller::WriterOnly, None);
+    assert!(writer.contains("!define UNINSTALLER_ONLY"));
+    // The script itself honours each.
+    let nsi = std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi"))
+        .unwrap()
+        .replace("\r\n", "\n");
+    assert!(nsi.contains("!ifdef UNINSTALLER_ONLY\n  ; The uninstaller-only pass"));
+    assert!(nsi.contains("File \"/oname=uninstall.exe\" \"${PREBUILT_UNINSTALLER}\""));
+
+    // The writer carries no release file, but its uninstaller removes every one.
+    let dir = tempfile::tempdir().unwrap();
+    let inputs = stand_ins(dir.path());
+    let staged = package::stage(&inputs, &dir.path().join("stage"), V);
+    let full = nsis::files_nsh_for(&staged, true);
+    let alone = nsis::files_nsh_for(&staged, false);
+    assert!(full.contains("  File \""));
+    assert!(!alone.contains("  File \""), "the writer carries no file");
+    let deletes = |t: &str| {
+        t.lines()
+            .filter(|l| l.trim_start().starts_with("Delete"))
+            .count()
+    };
+    assert_eq!(deletes(&full), deletes(&alone));
+    assert!(deletes(&alone) > 5);
+}
+
+/// A stage read back from its folder (what SignPath returns) is the stage that was laid out.
+#[test]
+fn a_stage_reads_back_from_its_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let inputs = stand_ins(dir.path());
+    let stage_dir = dir.path().join("stage");
+    let staged = package::stage(&inputs, &stage_dir, V);
+    std::fs::write(stage_dir.join(package::UNINSTALLER), b"MZ").unwrap();
+    let back = package::Staged::from_dir(&stage_dir);
+    let names = |l: &[archive::Entry]| {
+        let mut v: Vec<String> = l.iter().map(|e| e.name.clone()).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(names(&back.app), names(&staged.app));
+    assert_eq!(names(&back.clap), names(&staged.clap));
+    assert_eq!(names(&back.vst3), names(&staged.vst3));
+    assert!(!back.app.iter().any(|e| e.name == package::UNINSTALLER));
+}
+
+/// With NSIS here: the uninstaller-only pass writes an uninstaller that names its product
+/// and version (SignPath's metadata rule, ADR 0048 §9), and an installer that carries it
+/// compiles from the same stage.
+#[test]
+#[cfg(windows)]
+fn the_uninstaller_is_made_alone_and_carried_by_the_installer_when_nsis_is_here() {
+    let Some(makensis) = nsis::makensis() else {
+        eprintln!("NSIS not found: skipped");
+        return;
+    };
+    let Some(icon) = makensis
+        .parent()
+        .map(|d| d.join(r"Contrib\Graphics\Icons\modern-install.ico"))
+        .filter(|p| p.is_file())
+    else {
+        eprintln!("no NSIS icon to hand: skipped");
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let inputs = stand_ins(dir.path());
+    let out = dir.path().join("package");
+    let staged = package::stage(&inputs, &out.join("stage"), V);
+    let un =
+        package::write_uninstaller(&staged, &out.join("uninstaller"), &makensis, Some(&icon), V);
+    let bytes = std::fs::read(&un).unwrap();
+    assert_eq!(&bytes[..2], b"MZ");
+    assert!(crate::package::meta::problems(std::slice::from_ref(&un), V).is_empty());
+    let job = InstallerJob {
+        makensis,
+        icon,
+        uninst_sign: None,
+        env: Vec::new(),
+        uninstaller: nsis::Uninstaller::Prebuilt(un),
+    };
+    let dist = package::package_staged(&staged, &out, V, Some(&job), None, false);
+    let setup = std::fs::read(dist.join(release::installer_name(V))).unwrap();
+    assert_eq!(&setup[..2], b"MZ");
+    assert!(
+        setup.len() > bytes.len(),
+        "the installer carries the uninstaller"
+    );
+    let script = std::fs::read_to_string(out.join("nsis").join("config.nsh")).unwrap();
+    assert!(script.contains("PREBUILT_UNINSTALLER"));
+}
+
+/// `--from-stage` with a relative folder, as the SignPath job calls it: the stage and every
+/// file in it are named by absolute paths, which makensis needs (it resolves relative ones
+/// from the script's folder).
+#[test]
+fn a_relative_stage_folder_becomes_absolute() {
+    let here = std::env::current_dir().unwrap();
+    let dir = tempfile::tempdir_in(&here).unwrap();
+    let rel = dir.path().strip_prefix(&here).unwrap().join("stage");
+    let inputs = stand_ins(dir.path());
+    let _ = package::stage(&inputs, &here.join(&rel), V);
+    assert!(rel.is_relative());
+    let abs = package::stage_dir(&rel).unwrap();
+    assert!(abs.is_absolute(), "{}", abs.display());
+    let staged = package::Staged::from_dir(&abs);
+    assert!(!staged.app.is_empty());
+    for e in staged.app.iter().chain(&staged.clap).chain(&staged.vst3) {
+        assert!(e.src.is_absolute(), "{}", e.src.display());
+    }
+    assert!(package::stage_dir(&rel.join("missing")).is_err());
+}
+
+/// `sign-file` checks the uninstaller against the version the job builds (the NSIS tests
+/// build 0.2.0), and against the release's own when nothing says otherwise.
+#[test]
+fn sign_file_checks_the_version_being_built() {
+    assert_eq!(package::sign_version(Some("0.2.0".into())), "0.2.0");
+    assert_eq!(package::sign_version(None), package::VERSION);
+    assert_eq!(package::sign_version(Some(" ".into())), package::VERSION);
 }

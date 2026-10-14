@@ -1,0 +1,93 @@
+name: macOS
+
+# macOS (Apple silicon, `macos-latest`) costs ten times a Linux minute while the repository
+# is private, so it no longer runs on every push (ADR 0048 §1):
+#   - by hand: Actions > macOS > Run workflow (or `gh workflow run macos.yml --ref <branch>`),
+#     before a release tag and after any change to macOS-specific code;
+#   - once a week (Monday 06:17 UTC), only if code changed since the commit the last
+#     successful macOS run on master tested (any commit, whatever its date: a merge of old
+#     commits counts) — a quiet week costs one Linux minute.
+# The same checks as ci.yml's test job (clippy, the whole suite, the engine's schedule
+# fuzz), without fmt (system-independent, ci.yml runs it) and without the release build.
+# Once the repository is public, GitHub's standard runners are free: this can go back to
+# every push by adding the `push` trigger of ci.yml.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  # Did code change since the commit the last successful macOS run tested? By hand: yes.
+  changed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.look.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'schedule'
+        with:
+          # Commits and trees only (no file contents): enough for `git diff -- <paths>`.
+          fetch-depth: 0
+          filter: blob:none
+      - id: look
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          last="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow macos.yml --branch master             --status success --limit 1 --json headSha -q '.[0].headSha' || true)"
+          if [ -z "$last" ] || ! git cat-file -e "$last^{commit}" 2>/dev/null; then
+            echo "No successful macOS run to compare with: run."
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The paths ci.yml treats as code (everything but the root's *.md and the
+          # document folders), plus the documents a test reads.
+          if git diff --quiet "$last" HEAD -- . ':(exclude,glob)*.md' ':(exclude)docs'                ':(exclude)research' ':(exclude)tools' ':(exclude)web' ':(exclude).github' &&
+             git diff --quiet "$last" HEAD -- docs/manual THIRD-PARTY-NOTICES.md PRIVACY.md                web/src/top.rs .github/workflows/macos.yml; then
+            echo "No code changed since $last: macOS skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    name: test (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets
+      - run: cargo test --workspace
+      - name: engine on the pool, schedule fuzz
+        run: cargo test -p cantus-engine --features fuzz
+        env:
+          CANTUS_WORKERS: "3"
+      - name: voice forks, stalls inside the protocol
+        run: cargo test -p cantus-rt --features fuzz --test fork

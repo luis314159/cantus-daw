@@ -22,13 +22,14 @@ pub enum MenuId {
     Output(StripId),
     AddInsert(StripId),
     Slot(StripId, EffectId),
-    AddSend(StripId),
     Send(StripId, StripId),
     Sidechain(StripId, EffectId),
     Wave(TrackId, FirmusParam),
     PadVoice(TrackId, usize),
     Choke(TrackId, usize),
     AddPad(TrackId),
+    /// A linked clip's link row (round 26): select the copies, make unique, link to….
+    ClipLink(TrackId, cantus_core::ClipId),
 }
 
 /// What a row of a list does.
@@ -43,7 +44,6 @@ enum Choice {
     Down,
     Bypass,
     Remove,
-    AddSend(StripId),
     SendToggle,
     SendRemove,
     ShowStrip(StripId),
@@ -57,6 +57,8 @@ enum Choice {
     /// Round 20: open the device picker — swap this insert, or add from every effect.
     Swap,
     Browse,
+    /// The link row's actions (round 26, ADR 0037).
+    Link(super::track::LinkAct),
 }
 
 /// One row, owning its words until the list closes.
@@ -71,6 +73,9 @@ struct Entry {
     enabled: bool,
     band: bool,
     choice: Option<Choice>,
+    /// The key bound to the action the row runs, shown at its right as the arrangement's
+    /// menus show theirs (round 26); `None` for a row that is no keymap action.
+    key: Option<String>,
 }
 
 fn act(label: Label, check: Check, choice: Choice) -> Entry {
@@ -80,6 +85,7 @@ fn act(label: Label, check: Check, choice: Choice) -> Entry {
         enabled: true,
         band: false,
         choice: Some(choice),
+        key: None,
     }
 }
 
@@ -90,6 +96,7 @@ fn band(key: &'static str) -> Entry {
         enabled: false,
         band: true,
         choice: None,
+        key: None,
     }
 }
 
@@ -251,24 +258,6 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 Choice::Remove,
             ));
         }
-        MenuId::AddSend(me) => {
-            let Some(s) = p.strip(me) else { return out };
-            for t in p.strips.iter().filter(|t| {
-                t.id != me && s.send_to(t.id).is_none() && !p.routing_would_cycle(me, Some(t.id))
-            }) {
-                out.push(act(
-                    Label::Text(strip_entry(app, t.id)),
-                    Check::None,
-                    Choice::AddSend(t.id),
-                ));
-            }
-            if out.is_empty() {
-                let mut none = act(Label::Key("mixer.send_none"), Check::None, Choice::Collapse);
-                none.enabled = false;
-                none.choice = None;
-                out.push(none);
-            }
-        }
         MenuId::Send(me, to) => {
             let on = p
                 .strip(me)
@@ -360,6 +349,23 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 ));
             }
         }
+        MenuId::ClipLink(..) => {
+            use super::track::LinkAct;
+            use crate::keymap::Action;
+            for (key, a, action) in [
+                ("clip.select_linked", LinkAct::Select, Action::SelectLinked),
+                ("clip.make_unique", LinkAct::MakeUnique, Action::MakeUnique),
+                (
+                    "links.inspector.link_to",
+                    LinkAct::LinkTo(None),
+                    Action::LinkTo,
+                ),
+            ] {
+                let mut e = act(Label::Key(key), Check::None, Choice::Link(a));
+                e.key = app.keymap.bindings_for(action).first().map(|b| b.display());
+                out.push(e);
+            }
+        }
     }
     out
 }
@@ -389,14 +395,19 @@ pub fn show(st: &mut Inspector, app: &mut CantusApp, ui: &mut Ui, s: &Style) {
                 Item::Action {
                     label,
                     check: e.check,
-                    shortcut: None,
+                    shortcut: e.key.as_deref(),
                     submenu: false,
                     enabled: e.enabled,
                 }
             }
         })
         .collect();
-    let width = open.anchor.width().max(s.s(180.0));
+    // A list whose rows show keys is wide enough for the words and the keys.
+    let keyed = entries.iter().any(|e| e.key.is_some());
+    let width = open
+        .anchor
+        .width()
+        .max(s.s(if keyed { 260.0 } else { 180.0 }));
     let inserts = |app: &CantusApp| match open.id {
         MenuId::AddInsert(sid) => app.project().effects_of(sid).map(|x| x.len()),
         _ => None,
@@ -501,10 +512,6 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                 _ => {}
             }
         }
-        (MenuId::AddSend(me), Choice::AddSend(to)) => {
-            app.set_strip_send(me, Send::new(to));
-            app.end_gesture();
-        }
         (MenuId::Send(me, to), c) => match c {
             Choice::SendToggle => {
                 if let Some(send) = app.project().strip(me).and_then(|s| s.send_to(to)).copied() {
@@ -550,6 +557,16 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
             }
         }
         (MenuId::AddPad(t), Choice::AddPad(v)) => app.add_pad(t, v),
+        (MenuId::ClipLink(t, c), Choice::Link(a)) => {
+            // *Link to…* hangs from the row the menu hung from.
+            let a = match a {
+                super::track::LinkAct::LinkTo(None) => {
+                    super::track::LinkAct::LinkTo(st.menu.map(|m| m.anchor.left_bottom()))
+                }
+                a => a,
+            };
+            super::track::apply_link(app, t, c, a);
+        }
         _ => {}
     }
 }

@@ -87,6 +87,7 @@ organ.rotary_bypassed = Direct: the rotary speaker is bypassed
 organ.horn = Horn
 organ.drum = Drum
 organ.ramp_title = rpm over {s} s after the switch
+organ.ramp_point = {name}: 63 % in {time}
 organ.scanner_title = {mode}: sweeps {ms} ms of line at {hz} Hz
 organ.vib_off = no manual goes through it
 organ.perc_title = Decay to −60 dB in {t}

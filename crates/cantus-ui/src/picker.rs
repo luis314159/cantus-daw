@@ -50,6 +50,8 @@ pub enum PickChoice {
     Effect(EffectKind),
     /// A hosted CLAP/VST3 plug-in, instrument or effect (ADR 0019, 0028).
     Hosted(Box<cantus_host::PluginInfo>),
+    /// An instrument an installed sound pack offers, played by Exemplar (round 26).
+    Sound(Box<crate::views::samples_content::sounds::SoundChoice>),
 }
 
 /// What a device dragged out of the browsing panel carries (round 20): drop targets — a
@@ -64,7 +66,10 @@ impl DevicePayload {
     /// Whether it is an instrument (else an effect).
     pub fn is_instrument(&self) -> bool {
         match &self.0 {
-            PickChoice::Firmus | PickChoice::Pulsus | PickChoice::Instrument(_) => true,
+            PickChoice::Firmus
+            | PickChoice::Pulsus
+            | PickChoice::Instrument(_)
+            | PickChoice::Sound(_) => true,
             PickChoice::Effect(_) => false,
             PickChoice::Hosted(info) => info.kind == cantus_host::PluginKind::Instrument,
         }
@@ -100,6 +105,11 @@ impl CantusApp {
             {
                 self.set_status(crate::i18n::t("swap.status.hosted_instrument"));
             }
+            return;
+        }
+        // A pack's instrument (round 26): an Exemplar holding its samples.
+        if let PickChoice::Sound(sound) = &choice {
+            self.apply_sound(purpose, sound);
             return;
         }
         // A hosted instrument (ADR 0028): through the host, which loads it first.

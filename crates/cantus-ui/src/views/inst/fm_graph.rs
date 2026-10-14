@@ -2,8 +2,8 @@
 //! the bottom row over OUT, their modulators above), each edge carrying its index as a
 //! value pill you drag. Drag from an operator onto another to connect it, onto itself for
 //! feedback, onto OUT to hear it; right-click an operator for its menu. A back edge (a
-//! later operator in the evaluation order) is dashed and marked z⁻¹: it reads the previous
-//! sample. The card's title bar holds the algorithm picker (the 32 DX7 topologies, drawn),
+//! later operator in the evaluation order) is dashed and its number carries a return mark:
+//! it reads the previous sample, as its hint says (round 26: its old `z⁻¹` had no glyph). The card's title bar holds the algorithm picker (the 32 DX7 topologies, drawn),
 //! the DX7 SysEx menu and Graph | Grid.
 
 use super::ops::pill_num;
@@ -530,11 +530,11 @@ pub(super) fn editor(
                 }
                 let key = matrix_key(s_, tt);
                 let width = (1.0 + v.abs().min(8.0) * 0.35) * k;
-                let (label_at, back) = if s_ == tt {
+                let label_at = if s_ == tt {
                     // Feedback: a loop on the operator's shoulder.
                     let c = pos[s_] + Vec2::new(r * 1.1, -r * 1.1);
                     b.circle_stroke(c, r * 0.6, width, h);
-                    (c + Vec2::new(r * 1.9, -r * 0.4), false)
+                    c + Vec2::new(r * 1.9, -r * 0.4)
                 } else {
                     let a = pos[s_];
                     let z = pos[tt];
@@ -567,13 +567,9 @@ pub(super) fn editor(
                         ],
                         h,
                     );
-                    (pts[12], back)
+                    pts[12]
                 };
-                let text = if back {
-                    format!("z\u{207b}\u{00b9} {}", index_text(v))
-                } else {
-                    index_text(v)
-                };
+                let text = index_text(v);
                 pills.push((key, label_at, text, ring(key), Some((s_, tt))));
             }
         }
@@ -686,11 +682,27 @@ pub(super) fn editor(
             if resp.double_clicked() {
                 disconnect(app, track, spec, a, b);
             }
+            // A back edge (from a later operator, heard one sample late): a return mark
+            // beside its number, and the hint says so (round 26: its old z⁻¹ had no glyph).
+            let back = a < b;
+            if back {
+                let mark = Rect::from_center_size(
+                    pr.left_center() - Vec2::new(8.0 * k, 0.0),
+                    Vec2::splat(11.0 * k),
+                );
+                crate::kit::with_brush(ui.painter(), |b| {
+                    crate::kit::glyph::paint(b, mark, crate::kit::glyph::Glyph::Undo, s.hue)
+                });
+            }
             if resp.hovered() {
                 crate::kit::hint::set_text(
                     ui.ctx(),
                     &tf(
-                        "fm.edge.tip",
+                        if back {
+                            "fm.edge.back_tip"
+                        } else {
+                            "fm.edge.tip"
+                        },
                         &[
                             ("from", &NAMES[a]),
                             ("to", &NAMES[b]),

@@ -30,8 +30,22 @@ pub struct ExportUi {
     /// cannot run headless).
     pub enter_pressed: u32,
     job: Option<Job>,
+    /// An export asked for while instrument samples still load (ADR 0050 §7, review 16):
+    /// it starts when they are in, the window free meanwhile; the dialog shows how far the
+    /// loading has got, and *Stop* drops it.
+    waiting: Option<Waiting>,
     /// How the last export ended, shown in the dialog's footer until it closes.
     pub last: Option<Result<String, String>>,
+}
+
+struct Waiting {
+    target: PathBuf,
+    /// The choices it was asked with (the dialog's, or `export_to`'s): the export starts
+    /// with them, the dialog left as it is — open or not (second review #14).
+    settings: ExportSettings,
+    /// Files loaded of the files asked for, last seen, and last said on the status line.
+    progress: (usize, usize),
+    shown: Option<(usize, usize)>,
 }
 
 struct Job {
@@ -46,12 +60,25 @@ struct Job {
 
 impl ExportUi {
     pub fn busy(&self) -> bool {
-        self.job.is_some()
+        self.job.is_some() || self.waiting.is_some()
+    }
+
+    /// Whether the export waits for instrument samples to load before it renders.
+    pub fn waiting(&self) -> bool {
+        self.waiting.is_some()
     }
 
     /// The running export's phase (a locale key) and how far it has got, 0…1 (every
     /// phase reports it, the render included; `None` is kept for a phase that cannot).
     pub fn progress(&self) -> Option<(&'static str, Option<f32>)> {
+        if let Some(w) = &self.waiting {
+            let (done, total) = w.progress;
+            // Nothing counted (yet): a bar without a fraction, never "0 %".
+            return Some((
+                "smp.export_waiting",
+                (total > 0).then(|| done as f32 / total as f32),
+            ));
+        }
         let j = self.job.as_ref()?;
         Some((j.ctl.phase().key(), Some(j.ctl.fraction())))
     }
@@ -223,10 +250,17 @@ pub fn choose_and_start(app: &mut CantusApp) {
 /// Start exporting with the dialog's choices (or the last ones) to `target` — a file,
 /// or for stems a folder. Returns whether it started.
 pub fn start(app: &mut CantusApp, target: &Path) -> bool {
+    start_with(app, target, None)
+}
+
+/// [`start`] with these choices (`None`: the dialog's, or the last ones) — the dialog left
+/// as it is.
+pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSettings>) -> bool {
     if app.export.busy() {
         return false;
     }
-    let mut d = match app.export.dialog.clone() {
+    let from_dialog = choices.is_none();
+    let mut d = match choices.or_else(|| app.export.dialog.clone()) {
         Some(d) => d,
         None => {
             let mut d = app.settings.export.clone();
@@ -250,11 +284,27 @@ pub fn start(app: &mut CantusApp, target: &Path) -> bool {
         target.parent().map(Path::to_path_buf)
     };
     remember(app, &d);
-    if let Some(open) = app.export.dialog.as_mut() {
+    if let Some(open) = app.export.dialog.as_mut().filter(|_| from_dialog) {
         open.folder = d.folder.clone();
     }
+    // Instrument samples still loading (ADR 0050 §7): the render waits for them — the
+    // file holds what playing will, never a zone still on its way — and the window does
+    // not (review 16).
+    if app.engine.samples.loading() {
+        let progress = app.engine.samples.progress().unwrap_or((0, 0));
+        app.export.waiting = Some(Waiting {
+            target: target.to_path_buf(),
+            settings: d,
+            progress,
+            shown: None,
+        });
+        app.export.last = None;
+        return true;
+    }
     let rate = app.engine.sample_rate.round() as u32;
-    let snapshot = app.engine.compile(app.bus.project(), app.bus.revision());
+    let snapshot = app
+        .engine
+        .compile_for_render(app.bus.project(), app.bus.revision());
     let mut render = RenderOptions {
         sample_rate: rate,
         tail_seconds: d.tail_seconds.max(0.0) as f64,
@@ -344,14 +394,53 @@ fn error_text(e: cantus_export::ExportError) -> String {
 
 /// Ask the running export to stop.
 pub fn stop(app: &mut CantusApp) {
+    if app.export.waiting.take().is_some() {
+        app.export.last = Some(Err(t("export_audio.stopped")));
+        app.set_status(t("export_audio.stopped"));
+    }
     if let Some(j) = &app.export.job {
         j.ctl.cancel();
     }
 }
 
+/// An export waiting for samples: how far they are, and the render once they are in.
+fn poll_waiting(app: &mut CantusApp) {
+    if app.export.waiting.is_none() {
+        return;
+    }
+    // Take in what arrived (and send the live engine its snapshot with it).
+    app.sync_engine();
+    let Some(w) = app.export.waiting.as_mut() else {
+        return;
+    };
+    if app.engine.samples.loading() {
+        let now = app.engine.samples.progress().unwrap_or(w.progress);
+        w.progress = now;
+        if w.shown != Some(now) {
+            w.shown = Some(now);
+            app.set_status(if now.1 > 0 {
+                tf(
+                    "smp.export_waiting_status",
+                    &[("done", &now.0), ("total", &now.1)],
+                )
+            } else {
+                t("smp.export_waiting_status_plain")
+            });
+        }
+        return;
+    }
+    let Some(w) = app.export.waiting.take() else {
+        return;
+    };
+    // The samples are in (the live engine has them too): the export starts with the
+    // choices it was asked with; the dialog stays as it is (second review #14).
+    start_with(app, &w.target, Some(w.settings));
+}
+
 /// See whether the export has finished (every frame); while it runs, the status line
 /// says how far it has got.
 pub fn poll(app: &mut CantusApp) {
+    poll_waiting(app);
     let Some(j) = &mut app.export.job else { return };
     let result = match j.rx.try_recv() {
         Ok(r) => r,
@@ -438,6 +527,13 @@ pub fn summary(done: &Done, target: &Path, asked: &ExportSettings) -> String {
     }
     if done.clipped > 0 {
         add(tf("export_audio.clipped", &[("n", &done.clipped)]));
+    }
+    if done.cut_notes > 0 {
+        add(crate::i18n::tf_count(
+            "smp.cut_notes_export",
+            done.cut_notes as usize,
+            &[],
+        ));
     }
     text
 }

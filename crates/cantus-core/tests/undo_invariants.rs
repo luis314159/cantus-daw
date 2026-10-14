@@ -1435,7 +1435,32 @@ fn link_to(rng: &mut Lcg, project: &mut Project) -> Command {
             link: Some(link),
         };
     }
+    // Half the time the target is one the *Link to…* picker offers (round 26): an entry of
+    // `links::groups`, by its first member. Either way `would_link` — what the picker dims
+    // a row by — must say beforehand exactly whether the batch links anything.
+    let target = match links::groups(project) {
+        // Chosen from the next id rather than the generator, so every other arm draws the
+        // same numbers as before (the coverage check counts on the seeds).
+        g if !g.is_empty() && project.next_id.is_multiple_of(2) => {
+            g[(project.next_id / 2) as usize % g.len()].first
+        }
+        _ => target,
+    };
     let commands = with_ids(project, |p, ids| links::link_to(p, &sel, target, ids));
+    assert_eq!(
+        links::would_link(project, &sel, target).is_ok(),
+        !commands.is_empty(),
+        "would_link disagrees with link_to: {sel:?} → {target:?}"
+    );
+    // And the picker's summary of the selection answers every entry as `would_link` does.
+    let summary = links::Selection::of(project, &sel);
+    for g in links::groups(project) {
+        assert_eq!(
+            summary.would_link(&g),
+            links::would_link(project, &sel, g.first),
+            "the selection summary disagrees: {sel:?} → {g:?}"
+        );
+    }
     Command::Batch {
         label_key: "cmd.link_clips".into(),
         commands,

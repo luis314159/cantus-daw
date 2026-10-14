@@ -76,9 +76,48 @@ pub fn meta_of_bytes(b: &[u8]) -> Option<Meta> {
 }
 
 /// A file's metadata; for formats without chunks (FLAC, Ogg) only what the name says.
+///
+/// Reads the chunks' headers and every chunk but the audio, which is skipped (round 26: a
+/// piano of 641 FLAC files took 7.9 s to import because every file was read whole). The
+/// audio chunk's header and first bytes go last, so the parsers see every other chunk and
+/// the audio's true size.
 pub fn meta_of(path: &Path) -> Option<Meta> {
-    let b = std::fs::read(path).ok()?;
-    meta_of_bytes(&b)
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path).ok()?;
+    let mut head = [0u8; 12];
+    f.read_exact(&mut head).ok()?;
+    let riff = &head[0..4] == b"RIFF" && &head[8..12] == b"WAVE";
+    let form = &head[0..4] == b"FORM" && (&head[8..12] == b"AIFF" || &head[8..12] == b"AIFC");
+    if !riff && !form {
+        return None;
+    }
+    let mut out = head.to_vec();
+    let mut audio: Vec<u8> = Vec::new();
+    let len = f.metadata().ok()?.len();
+    let mut at = 12u64;
+    while at + 8 <= len {
+        let mut h = [0u8; 8];
+        f.seek(SeekFrom::Start(at)).ok()?;
+        f.read_exact(&mut h).ok()?;
+        let size = if riff {
+            u32::from_le_bytes([h[4], h[5], h[6], h[7]])
+        } else {
+            u32::from_be_bytes([h[4], h[5], h[6], h[7]])
+        } as u64;
+        let is_audio = &h[0..4] == b"data" || &h[0..4] == b"SSND";
+        let keep = if is_audio { size.min(16) } else { size };
+        let mut body = vec![0u8; keep.min(len - at - 8) as usize];
+        f.read_exact(&mut body).ok()?;
+        let dst = if is_audio { &mut audio } else { &mut out };
+        dst.extend_from_slice(&h);
+        dst.extend_from_slice(&body);
+        if !is_audio && size % 2 == 1 {
+            dst.push(0);
+        }
+        at += 8 + size + (size & 1);
+    }
+    out.extend_from_slice(&audio);
+    meta_of_bytes(&out)
 }
 
 fn wav_meta(b: &[u8]) -> Meta {

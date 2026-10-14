@@ -272,6 +272,24 @@ fn main() {
         var("-cables-menu", En, 1.0, Some(1), sel, Routes::Grown),
         var("-cables-menu-es", Es, 1.0, Some(1), sel, Routes::Grown),
         var("-cables-menu-200", En, 2.0, Some(1), sel, Routes::Grown),
+        // Round 26: a send's level typed in the route menu; the inspector's Add send (the
+        // desk's list, New return first); the Look tab's base-theme menu with swatches.
+        var("-level", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-level-es", Es, 1.0, Some(1), sel, Routes::Grown),
+        var("-level-75", En, 0.75, Some(1), sel, Routes::Grown),
+        var("-level-200", En, 2.0, Some(1), sel, Routes::Grown),
+        var("-insp-send", En, 1.0, Some(1), sel, Routes::Grown),
+        var("-insp-send-es", Es, 1.0, Some(1), sel, Routes::Grown),
+        var("-look-menu", En, 1.0, None, None, Routes::None),
+        var("-look-menu-es", Es, 1.0, None, None, Routes::None),
+        var("-look-menu-75", En, 0.75, None, None, Routes::None),
+        var("-look-menu-200", En, 2.0, None, None, Routes::None),
+        // Second review: the other views' text fields, the kit's now (a clip being
+        // renamed, the layout's name); the selection fill on them.
+        var("-clip-rename", En, 1.0, None, None, Routes::None),
+        var("-clip-rename-200", En, 2.0, None, None, Routes::None),
+        var("-layout-name", En, 1.0, None, None, Routes::None),
+        var("-layout-name-es", Es, 1.0, None, None, Routes::None),
         var(
             "-cables-off",
             En,
@@ -328,6 +346,24 @@ fn shoot_one(
         _ => grown(n),
     };
     let mut app = CantusApp::from_parts(Some(project), engine, false);
+    // The window applies its appearance on its first frame: name the picture's theme
+    // there (Paper in the light mode), and never touch the user's files (round 26: the
+    // Paper pictures were Cantus Night before).
+    {
+        use cantus_ui::kit::appearance::Mode;
+        let tmp = std::env::temp_dir().join("cantus-shoot-mixer");
+        app.settings_path = tmp.join("settings.json");
+        app.layouts_path = tmp.join("layouts.json");
+        app.keymap_path = tmp.join("keymap.toml");
+        app.appearance_path = tmp.join("appearance.json");
+        let (preset, mode) = match name.split('-').nth(1) {
+            Some("paper") => ("paper", Mode::Light),
+            Some("slate") => ("slate", Mode::Dark),
+            _ => ("cantus_night", Mode::Dark),
+        };
+        app.appearance.mode = mode;
+        app.appearance.assign(mode, format!("preset:{preset}"));
+    }
     app.central = cantus_ui::app::CentralView::Mixer;
     if let Some(m) = v.mode {
         cantus_ui::views::mixer::set_width_mode(
@@ -423,12 +459,56 @@ fn shoot_one(
     let size = egui::vec2(w / v.ppp, h / v.ppp);
     let mut frames = 0;
     let menu = v.suffix.starts_with("-cables-menu");
+    let level = v.suffix.starts_with("-level");
+    let insp_send = v.suffix.starts_with("-insp-send");
+    let look = v.suffix.starts_with("-look-menu");
+    if v.suffix.starts_with("-clip-rename") {
+        let first = app
+            .project()
+            .tracks
+            .iter()
+            .find_map(|t| t.clips.first().map(|c| (t.id, c.id)));
+        if let Some((t, c)) = first {
+            app.select_clip(t, c);
+            app.begin_rename_clip();
+        }
+    }
+    if v.suffix.starts_with("-layout-name") {
+        app.naming_layout = Some("Mix A".into());
+    }
+    if look {
+        app.show_theme_editor = true;
+        app.appearance_page.tab = cantus_ui::views::appearance::Tab::Look;
+    }
+    let rev = app
+        .project()
+        .strips
+        .iter()
+        .find(|s| s.name == "Reverb")
+        .map(|s| s.id);
     shoot(&ctx, size, v.ppp, 24, Some(&path), |root| {
         frames += 1;
         if menu && frames == 3 {
             // Under its key, as a click opens it (the key was drawn on the frames before).
             let at = egui::pos2(w * 0.4, 40.0);
             cantus_ui::views::mixer::open_cable_options(&mut app, &root.ctx().clone(), at);
+        }
+        if frames == 3 {
+            let ctx = root.ctx().clone();
+            let at = egui::pos2(size.x * 0.42, size.y * 0.5);
+            if let (true, Some(rev)) = (level, rev) {
+                let desk = egui::Id::new("mixer.route_menu");
+                cantus_ui::views::route_menu::open_level(&ctx, desk, &app, pick, rev, at);
+            }
+            if insp_send {
+                let owner = cantus_ui::views::route_menu::inspector_owner();
+                let at = egui::pos2(size.x * 0.72, size.y * 0.28);
+                cantus_ui::views::route_menu::open_add_send(&ctx, owner, pick, at);
+            }
+            if look {
+                let at = egui::pos2(size.x * 0.45, size.y * 0.22);
+                app.appearance_page.base_menu = Some((cantus_ui::kit::appearance::Mode::Dark, at));
+            }
         }
         processor.process(&mut audio, 2);
         let mut frame = eframe::Frame::_new_kittest();

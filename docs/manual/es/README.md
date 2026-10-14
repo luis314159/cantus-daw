@@ -30,26 +30,31 @@ lo dice.
 
 ## 1. Instalación
 
-Necesitas Windows 11 de 64 bits (Windows 10 debería funcionar, pero no se ha probado) y
+Necesitas Windows 11 de 64 bits (Windows 10 sin probar) y
 unos 200 MB de disco.
 
 1. Descarga `Cantus-0.1.0-beta.1-windows-x64-setup.exe` de la
    [página de versiones](https://github.com/luis314159/cantus/releases).
 2. Ejecútalo. Se instala solo para ti, en `%LOCALAPPDATA%\Programs\Cantus`, y no pide
    permisos de administrador. Esta beta aún no está firmada, así que Windows puede mostrar
-   *"Windows protegió tu PC"*: elige *Más información ▸ Ejecutar de todas formas*.
+   *"Windows protegió su PC"*: elige *Más información ▸ Ejecutar de todas formas*.
 3. Elige los componentes: el programa (obligatorio), *Abrir los proyectos .cantus con
    Cantus* (activado), un acceso directo en el escritorio (desactivado), los plug-ins CLAP
    y VST3 para otros DAW (activados) y *Controlador FlexASIO (se descarga ahora)*
    (desactivado — márcalo si tu tarjeta de sonido no tiene controlador ASIO propio; ver el
    [capítulo 2](#2-primer-inicio-configura-tu-audio)).
+4. La página *Privacidad* dice qué envía Cantus por la red (solo una pregunta diaria por
+   versiones nuevas, y las descargas que tú pidas). *Buscar actualizaciones una vez al día
+   (recomendado)* viene marcada; desmárcala para apagar la búsqueda (también después, en
+   *Ajustes ▸ Actualizaciones*).
 
 **Copia portátil.** Descomprime `Cantus-0.1.0-beta.1-windows-x64-portable.zip` donde
 quieras (una memoria USB sirve). Por el archivo `portable.txt` junto a `cantus.exe`, esa
 copia guarda sus ajustes en la carpeta `data` de al lado y no escribe nada en tu perfil.
 
-**Desinstalar** desde *Aplicaciones* de Windows. Tus ajustes, presets y autoguardados solo
-se borran si marcas esa casilla; tus proyectos nunca se tocan.
+**Desinstalar** desde *Aplicaciones* de Windows. Tus ajustes, presets y autoguardados — y
+la caché de muestras (hasta 16 GB, ver el [capítulo 11](#11-proyectos-autoguardado-y-ajustes)) —
+solo se borran si marcas esa casilla; tus proyectos nunca se tocan.
 
 ## 2. Primer inicio: configura tu audio
 
@@ -118,17 +123,30 @@ que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla.
   doble clic para 120), el reloj, deshacer y rehacer, y seis **teclas de ventana**:
   Explorador, Arreglo, Rack de canales, Piano roll, Mezclador, Inspector.
 - **El arreglo** (centro): las pistas y sus clips sobre una línea de tiempo.
+- **El navegador de clips** (`Alt+F5`, *Ver ▸ Navegador de clips*): todos los clips de la
+  canción como mosaicos, junto al arreglo (ver el [capítulo 5](#los-clips-en-el-arreglo)).
 - **La zona inferior**: el Mezclador, el Piano roll y el Rack de canales en pestañas.
 - **El inspector** (derecha, `I`): todo sobre la pista, el canal o el clip seleccionado.
 - **La barra de estado** (abajo): lo que hay bajo el puntero, CPU y cortes, latencia,
   entradas MIDI, dispositivos minimizados y el chip de audio.
 
 Cada área se muestra u oculta con su tecla de ventana o su tecla de función (`F5` arreglo,
-`F6` rack de canales, `F7` piano roll, `F9` mezclador, `Alt+F8` explorador, `I`
-inspector). Arrastra los divisores para cambiar tamaños; clic derecho en una pestaña para
+`Alt+F5` navegador de clips, `F6` rack de canales, `F7` piano roll, `F9` mezclador,
+`Alt+F8` explorador, `I` inspector). Arrastra los divisores para cambiar tamaños; clic derecho en una pestaña para
 que flote en su propia ventana; guarda la forma de la ventana en *Ver ▸ Disposición ▸
 Guardar disposición…*. La interfaz se amplía del 75 % al 200 % (`Ctrl++`, `Ctrl+-`,
-`Ctrl+0`). Colores, temas (claro y oscuro) y el logo están en *Ver ▸ Apariencia*.
+`Ctrl+0`). Doce temas — Cantus Noche (el predeterminado), Cantus Papel, Luz de día, Hora
+azul, alto contraste oscuro y claro y más, cada uno con su vista previa —, los colores, el
+logo y el color del icono de la barra de tareas están en *Ver ▸ Apariencia*.
+
+**Escribir un nombre o un valor** funciona igual en todas partes — renombrar una pista, un
+clip, un pad o un canal, una búsqueda, un nivel: el campo se abre con su texto
+seleccionado, así que lo que escribes lo reemplaza; `Enter` o un clic fuera conserva lo
+escrito; `Esc` deja lo que había. Mientras escribes, ningún atajo se dispara. Los nombres
+pueden ir en cualquier escritura — japonés, chino, coreano, hindi, tailandés, árabe,
+hebreo…: Cantus usa para ellos las fuentes de tu sistema (ver los
+[problemas conocidos](#14-problemas-conocidos-y-limitaciones) sobre las escrituras de
+derecha a izquierda).
 
 **Canciones de demostración.** *Archivo ▸ Canciones de demostración…* (`Ctrl+Shift+N`)
 abre seis canciones hechas solo con los instrumentos y efectos de Cantus: Neon Tide
@@ -217,6 +235,24 @@ octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan �
   *Normalizar*, *Invertir*, *Restablecer ganancia* y *Quitar fundidos*.
 - **Importar audio**: arrastra archivos WAV, AIFF, FLAC u Ogg al arreglo (caen donde
   sueltas), o *Archivo ▸ Importar audio…*. Un archivo MIDI añade sus pistas.
+- **Copias enlazadas**: pegar, `Ctrl+D` o `Alt+arrastrar` crean *el mismo clip* otra vez —
+  editas uno y todas las copias lo siguen (las notas, o la ganancia, los fundidos y la
+  inversión de un clip de audio). Lo muestran una marca de enlace y la cuenta ×N. *Hacer
+  único* (`Alt+U`) saca la selección de su grupo; *Seleccionar enlazados* (`Shift+Alt+L`);
+  *Enlazar la selección a este clip* (`Alt+L`); *Enlazar a…* (`Alt+N`) elige, por nombre o
+  por pista, el grupo enlazado o el clip propio en que se convierte. En el inspector, la
+  fila *Enlace* de un clip enlazado dice cuántas copias tiene y ofrece *Enlazar a…*;
+  renombrarlo en la fila *Nombre* renombra todas las copias. Clic derecho en un lugar vacío
+  del arreglo ▸ *Las copias quedan enlazadas* para hacer copias independientes.
+- **El navegador de clips** (`Alt+F5`, o *Ver ▸ Navegador de clips*) muestra una vez cada
+  grupo enlazado y cada clip propio, como mosaicos del color del clip con una miniatura de
+  lo que contiene; escribe para filtrar por nombre o pista. **Arrastra un mosaico** al
+  arreglo para colocar ahí una copia enlazada. **Haz clic en un mosaico** para elegirlo para
+  la **herramienta de pintar**: con el arreglo enfocado, `B` (o `2`) la saca — un clic
+  coloca una copia enlazada, arrastrar pinta copias seguidas a lo largo de la pista,
+  arrastrar con el botón derecho (o `Alt`+arrastrar) borra solo las copias de ese clip;
+  cada trazo es un paso de deshacer; `Esc` la desactiva. Doble clic en un mosaico
+  selecciona todas sus copias.
 
 La **rejilla** (barra del arreglo) empieza en un compás; elige valores más finos para el
 detalle. Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom.
@@ -268,7 +304,8 @@ fader, fase e intercambio, anchura, EQ de tres bandas, sus inserciones y sus env
 selecciona, `Ctrl+clic` añade, `Shift+clic` toma un tramo; mover un fader de una selección
 mueve todos. Con el foco en el mezclador, `M` silencia, `S` pone solo,
 `Alt+Izquierda`/`Alt+Derecha` mueven el canal. `Ctrl+rueda` cambia el ancho de los canales;
-en *Extra grande* las ranuras de inserción se ven dentro de cada canal.
+en *Extra grande* cada canal muestra un resumen de su cadena en una línea (un clic abre el
+inspector).
 
 - **Inserciones** (hasta diez por canal): clic en una ranura vacía para elegir un efecto
   en el selector, o clic derecho para la lista rápida. En una ranura ocupada, clic en la
@@ -276,9 +313,24 @@ en *Extra grande* las ranuras de inserción se ven dentro de cada canal.
   quitarla. En el inspector, cada inserción tiene un anillo de **Mezcla** (seco/procesado).
 - **Envíos**: selecciona un canal y mira la fila *Envíos* de los demás — haz clic en el ▲
   del canal al que quieres enviar (un retorno de reverb, un compresor en paralelo); una
-  perilla fija entonces el nivel del envío. Los envíos son post-fader.
-- **Ruteo**: clic derecho en un canal ▸ *Enrutado* ▸ *Salida* o *Enviar a*, o selecciona
-  varios canales y *Crear submezcla con los seleccionados*.
+  perilla fija entonces el nivel del envío. Cada envío toma la señal **después del fader
+  (POST, por defecto) o antes (PRE)** — clic en su chip PRE/POST; un envío PRE sigue sonando
+  al bajar el fader.
+- **Cables**: cada canal tiene un puerto. Arrastra desde él a otro canal, o haz clic en él y
+  luego en el destino (`Esc` cancela): sin tecla es un envío a 0 dB, con `Ctrl` la única
+  salida del canal, con `Alt` una llave de sidechain. Los cables del canal seleccionado (o
+  todos, o ninguno — el interruptor sobre la mesa, con un filtro de tipos) se dibujan en
+  una banda bajo la mesa; clic en un cable lo selecciona, arrastrar su extremo lo mueve,
+  `Supr` lo quita. Un camino doble se permite y se marca. Cada cambio es un paso de deshacer.
+- **Ruteo**: clic derecho en un canal ▸ *Enrutado* ▸ *Salida* o *Enviar a*, `Shift+F10`
+  para el menú de ruta del canal seleccionado, o selecciona varios canales y *Crear
+  submezcla con los seleccionados*. En el menú de ruta de un cable o un envío, *Nivel ▸
+  Escribir un nivel…* toma un nivel en dB (de −∞ a 0; `Enter` o un clic fuera lo aplica,
+  en un paso de deshacer; `Esc` cancela). **La matriz de ruteo** (`Alt+F9`) muestra cada origen
+  frente a cada destino: clic en una celda para enrutar, arrastrar para el nivel (`Shift`
+  para afinar), `Ctrl+arrastrar` copia hacia abajo en una columna. Los canales y grupos se
+  mueven arrastrando o con `Alt+Izquierda`/`Alt+Derecha`; una cabecera de pista soltada
+  sobre un canal suena por él.
 - **Las ventanas de los dispositivos** tienen *Cambiar*, minimizar (a la bandeja de la
   barra de estado), maximizar y cerrar. `F8` abre el instrumento de la pista seleccionada,
   `Esc` cierra el último dispositivo que usaste y `F12` cierra todos los flotantes.
@@ -366,12 +418,31 @@ cualquier carpeta de muestras).
 - Sin nada instalado, el explorador ofrece **Empieza con una batería**: *Descargar* trae la
   *Batería inicial de Cantus* (81 golpes, 33 MB). *Paquetes de sonidos…* (o *Más
   paquetes…*) lista los demás — las baterías de Karoryfer, la percusión de VCSL y VSCO 2,
-  un TX81Z para Exemplar — con su tamaño, licencia y créditos; *Instalar*, *Actualizar*,
-  *Quitar*, mostrar la carpeta e *Instalar desde un archivo…* para equipos sin internet.
+  un TX81Z para Exemplar y el **piano de cola Salamander** (un Yamaha C5, 16 capas de
+  velocidad) — con su tamaño, licencia y créditos; *Instalar*, *Actualizar*, *Quitar*,
+  mostrar la carpeta e *Instalar desde un archivo…* para equipos sin internet.
 
-Todos los paquetes son **CC0**: tuyos para cualquier canción, gratis y sin tener que
-citar. Se guardan en `%LOCALAPPDATA%\Cantus\Content\`; cada archivo se verifica con su
-SHA-256.
+Todos los paquetes son gratuitos. Casi todos son **CC0** (sin tener que citar); el piano
+Salamander es **CC BY 3.0**: su crédito aparece en su página de *Paquetes de sonidos…* y en
+*Ayuda ▸ Créditos*, y se guarda en la carpeta del paquete. En los dos casos, la música que
+haces con ellos es tuya. Se guardan en `%LOCALAPPDATA%\Cantus\Content\`; cada archivo se
+verifica con su SHA-256.
+
+**Instrumentos de un paquete.** Un paquete instalado que trae instrumentos (el Salamander:
+con 8 capas de velocidad, unos 120 MB de memoria, o con las 16, unos 185 MB) los muestra en
+el estante *Teclados* del selector de dispositivos y en su página de *Paquetes de sonidos…*
+(*Pista nueva con …*); cada uno suena en Exemplar. Las muestras largas se **leen del
+disco**: en memoria queda solo su comienzo. La primera vez, Cantus descodifica las muestras
+una sola vez en su **caché de muestras** (1 GB para las 8 capas del Salamander, 2 GB para
+16), junto a la ventana, con *Cargando muestras… n de m* en la barra de estado; las cargas
+siguientes tardan una fracción de segundo. Si el disco no llega a tiempo, la barra de estado
+cuenta *Disco lento: n*.
+
+**Un paquete que falta.** Un proyecto que toca un paquete que este equipo no tiene abre una
+tarjeta con el paquete y sus pistas en silencio: *Instalar en Paquetes de sonidos…*, *Usar
+el paquete instalado* (cuando el proyecto apunta a otra copia, por ejemplo de otro equipo)
+o *Buscar la carpeta…* (cuando se movieron archivos de un paquete instalado). El resto del
+proyecto suena con normalidad.
 
 ## 10. Instrumentos y efectos: el selector de dispositivos
 
@@ -385,7 +456,8 @@ clic en el chip de instrumento de una pista (cambiar el instrumento), con *Cambi
 cualquier ventana de dispositivo, con una ranura de inserción vacía o con *Ver ▸ Selector
 de dispositivos…*. Busca por nombre, fabricante o tipo; filtra por estante (*Favoritos*,
 *Recientes*, una categoría, o *Cantus / CLAP / VST3*); las flechas se mueven, `Enter`
-elige, `Ctrl+D` marca un favorito, `Esc` cierra. Cambiar un instrumento conserva sus
+elige, `Ctrl+D` marca un favorito, `Esc` cierra. Los instrumentos de los paquetes
+instalados (el piano Salamander) están en *Teclados*. Cambiar un instrumento conserva sus
 notas, clips, canal del mezclador y efectos; cambiar un efecto conserva su ranura, su
 mezcla y su puenteo.
 
@@ -434,7 +506,10 @@ DAW.
 **Ajustes** (*Ver ▸ Ajustes…*): *General* (el versículo al iniciar, sí o no, y la Biblia en
 español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia y la corrección
 de grabación), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
-colores, atajos de teclado), *Guardado*, *Actualizaciones* y *Plug-ins*.
+colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
+de forma predeterminada; cuando se llena, salen primero las muestras que llevan más tiempo
+sin usarse — y *Vaciar caché*; vive en `%LOCALAPPDATA%\Cantus\cache\samples`, o en la
+carpeta `data` de una copia portátil), *Actualizaciones* y *Plug-ins*.
 
 ## 12. Atajos de teclado
 
@@ -459,12 +534,15 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Izquierda` `Derecha` (`Shift`: un compás) | Desplazar |
 | `Arriba` `Abajo` (`Shift`: una octava) | Transportar notas |
 | `Q` | Cuantizar |
-| `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll |
+| `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll; en el arreglo, `B` o `2` es la herramienta de pintar |
 | `Shift+L` · `Z` | Bucle en la selección de tiempo · ampliarla |
 | `Alt+A` | Automatizar el último parámetro que moviste |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arreglo, rack de canales, piano roll, mezclador · explorador · inspector |
+| `Alt+F5` | Navegador de clips |
 | `F8` · `F12` | El instrumento de la pista seleccionada · cerrar los dispositivos flotantes |
 | `M` · `S` · `Alt+Izquierda`/`Alt+Derecha` | Mezclador: silenciar · solo · mover el canal |
+| `Alt+F9` · `Shift+F10` | La matriz de ruteo · el menú de ruta del canal seleccionado |
+| `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Hacer único · enlazar la selección a este clip · seleccionar enlazados · enlazar a… |
 | `Ctrl+T` | El teclado del ordenador toca notas |
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
 
@@ -489,17 +567,33 @@ Esto es una beta. Lo que ya sabemos:
 - **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
   tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por
   clip.
-- Los plug-ins de terceros no se renderizan en los stems y sus parámetros aún no se pueden
-  automatizar; la automatización se dibuja, no se graba (sin latch ni touch).
-- **Lamina y Exemplar** suenan 6–8 dB más bajo que los demás instrumentos con el mismo
-  fader.
+- Los parámetros de los plug-ins de terceros aún no se pueden automatizar; la
+  automatización se dibuja, no se graba (sin latch ni touch). En los stems exportados *a
+  través de la cadena del máster*, un efecto de terceros en el máster no entra en los
+  stems (la mezcla completa sí lo lleva).
+- Cortar un clip **en bucle** silencia su mitad derecha: en su lugar, selecciona el rango
+  de tiempo que necesitas, cópialo y pégalo (la parte pegada conserva el bucle).
+- Los clips de automatización solo se pegan dentro del proyecto del que vienen, mientras
+  Cantus siga abierto; un primer guardado o un *Guardar como* que copia el audio importado
+  a la carpeta del proyecto puede detener la ventana mientras se copian los archivos; Ctrl+V sin
+  nada copiado no hace nada ni lo dice.
+- **Lamina** suena un poco más bajo que los demás instrumentos (unos 4 dB) con el mismo
+  fader, y el **piano Salamander** unos 5 dB más bajo.
+- La **primera carga del Salamander** descodifica sus muestras en la caché de muestras
+  (1–2 GB en disco; unos 10 s), junto a la ventana; una nota tocada antes de que lleguen
+  sus muestras no suena. Las cargas siguientes son rápidas.
+- Los nombres en otras escrituras usan las fuentes de tu sistema (se leen cuando hacen
+  falta; Cantus no las distribuye). **El árabe y el hebreo se ven de izquierda a derecha y
+  con las letras sin unir**, y las escrituras que unen o reordenan letras (devanagari,
+  tailandés…) se muestran sin hacerlo: la biblioteca de la interfaz aún no da forma al
+  texto.
 - **Audio**: el controlador ASIO integrado de Realtek no da sonido en algunas laptops (usa
   WASAPI o FlexASIO); ASIO4ALL puede tardar varios segundos en arrancar; muchos
-  controladores ASIO fijan el búfer en su propio panel. No se ofrece WASAPI exclusivo.
+  controladores ASIO fijan el búfer en su propio panel; conecta la interfaz *antes* de
+  abrir Cantus. No se ofrece WASAPI exclusivo.
 - **Rendimiento**: en equipos modestos, un proyecto denso con búfer pequeño puede cortarse;
   sube el búfer si la barra de estado cuenta cortes.
-- La claqueta no suena si el metrónomo está apagado; no se puede cambiar el dispositivo de
-  audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
+- No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
 - **Fuera de esta beta**: macOS y Linux, warping, MIDI learn y superficies de control,
   funciones de IA, varios arreglos por proyecto.

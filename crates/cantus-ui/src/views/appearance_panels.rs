@@ -187,8 +187,18 @@ pub fn look(app: &mut CantusApp, ui: &mut Ui) {
     w::band(ui, Src::Key("workspace.appearance.roles"));
     let tokens = tokens::current();
     let overrides = app.appearance.slot(mode).overrides.clone();
+    // The names' column as wide as the longest name in this language, two pairs a row
+    // where they fit, else one (final review: Spanish names were cut with room beside).
+    let label_w = ROLES
+        .iter()
+        .map(|(key, _)| text::measure(ui.ctx(), &Text::key(key, Role::Body, s.t.text), s.tk()).x)
+        .fold(0.0f32, f32::max)
+        / k
+        + 4.0;
+    let pair = (26.0 + 8.0 + label_w + 8.0) * k;
+    let two = 2.0 * pair <= ui.available_width();
     egui::Grid::new("cantus-roles")
-        .num_columns(4)
+        .num_columns(if two { 4 } else { 2 })
         .spacing(Vec2::new(8.0 * k, 6.0 * k))
         .show(ui, |ui| {
             for (i, (key, tok)) in ROLES.iter().enumerate() {
@@ -203,8 +213,8 @@ pub fn look(app: &mut CantusApp, ui: &mut Ui) {
                 if r.clicked() {
                     app.appearance_page.editing = Some((*tok, r.rect.right_top()));
                 }
-                w::row_label_left(ui, key, 110.0, 20.0);
-                if i % 2 == 1 {
+                w::row_label_left(ui, key, label_w, 20.0);
+                if !two || i % 2 == 1 {
                     ui.end_row();
                 }
             }
@@ -271,7 +281,13 @@ pub fn colours(app: &mut CantusApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         let fw = (ui.available_width() / k - 118.0).max(120.0);
         let mut q = std::mem::take(&mut app.appearance_page.search);
-        w::text_field(ui, &mut q, "theme.search", fw);
+        w::text_field(
+            ui,
+            egui::Id::new("theme-search"),
+            &mut q,
+            "theme.search",
+            fw,
+        );
         app.appearance_page.search = q;
         if w::button(ui, Src::Key("theme.inspect"), 110.0, true).clicked() {
             app.toggle_pick();
@@ -457,7 +473,13 @@ pub fn themes(app: &mut CantusApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         let fw = (ui.available_width() / k - 100.0).max(120.0);
         let mut name = std::mem::take(&mut app.appearance_page.name);
-        w::text_field(ui, &mut name, "workspace.appearance.theme_name", fw);
+        w::text_field(
+            ui,
+            egui::Id::new("theme-name"),
+            &mut name,
+            "workspace.appearance.theme_name",
+            fw,
+        );
         let ok = !name.trim().is_empty();
         if w::button(ui, Src::Key("theme.save_as"), 92.0, ok).clicked() {
             let n = name.trim().to_string();
@@ -740,15 +762,42 @@ pub fn popups(app: &mut CantusApp, ctx: &Context) {
                 enabled: true,
             })
             .collect();
+        // Each row carries its theme's swatch at the right, painted with that theme's own
+        // tokens as the Themes tab's rows are (round 26); the menu is as wide as its
+        // longest name plus the swatch, so no name runs under one.
+        let previews: Vec<crate::kit::Tokens> = bases
+            .iter()
+            .map(|b| super::appearance_look::preview_tokens(app, b))
+            .collect();
+        let k = s.k;
+        let sw = Vec2::new(40.0 * k, 16.0 * k);
+        let names_w = labels
+            .iter()
+            .map(|l| text::measure(ctx, &Text::new(l, Role::Body, s.t.menu_text), s.tk()).x)
+            .fold(0.0f32, f32::max);
+        let width = (22.0 * k + names_w + 16.0 * k + sw.x + 10.0 * k).max(220.0 * k);
         let mut chosen = None;
+        let mut swatches: Vec<(String, Rect)> = Vec::with_capacity(bases.len());
         let area = egui::Area::new(Id::new("cantus-base-menu"))
             .order(Order::Foreground)
             .fixed_pos(at)
             .constrain(true)
             .show(ctx, |ui| {
-                let (_, c) = crate::kit::widgets::menu_list(ui, &items, 220.0 * s.k);
+                let (resp, c) = crate::kit::widgets::menu_list(ui, &items, width);
                 chosen = c.clicked;
+                with_brush(ui.painter(), |b| {
+                    for (i, t) in previews.iter().enumerate() {
+                        let row = crate::kit::menu::row(resp.rect, &items, s.d(1.0), i);
+                        let r = Rect::from_center_size(
+                            Pos2::new(row.right() - 6.0 * k - sw.x * 0.5, row.center().y),
+                            sw,
+                        );
+                        super::appearance_look::paint_preview(b, r, t, k * 0.5);
+                        swatches.push((bases[i].clone(), r));
+                    }
+                });
             });
+        ctx.data_mut(|d| d.insert_temp(swatches_id(), swatches));
         let outside = ctx.input(|i| i.pointer.any_pressed())
             && !ctx
                 .pointer_interact_pos()
@@ -761,4 +810,15 @@ pub fn popups(app: &mut CantusApp, ctx: &Context) {
             app.appearance_page.base_menu = None;
         }
     }
+}
+
+fn swatches_id() -> Id {
+    Id::new("cantus-base-menu-swatches")
+}
+
+/// Where the open base-theme menu painted each theme's swatch last frame, by its base
+/// (`preset:<id>` / `user:<name>`) — for tests and tools.
+pub fn base_menu_swatches(ctx: &Context) -> Vec<(String, Rect)> {
+    ctx.data(|d| d.get_temp::<Vec<(String, Rect)>>(swatches_id()))
+        .unwrap_or_default()
 }

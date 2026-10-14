@@ -11,7 +11,12 @@
 #          vars.AZURE_SIGNING_PROFILE, vars.CANTUS_PUBLISHER, and secrets.AZURE_CLIENT_ID,
 #          secrets.AZURE_CLIENT_SECRET, secrets.AZURE_TENANT_ID
 # Without them the release is unsigned and the app verifies updates by SHA-256 only.
-# See docs/round20/signing.md.
+# See docs/round20/signing.md. SignPath Foundation (free for open source) needs a different,
+# two-request flow — drafted, inert, in docs/signing/signpath-release.draft.yml (ADR 0048 §8).
+#
+# The installer is published twice: versioned (what the app's updater asks for) and as
+# Cantus-windows-x64-setup.exe, the stable name the website's button links through
+# releases/latest/download/ (ADR 0048 §7).
 
 name: Release
 
@@ -150,6 +155,16 @@ jobs:
           path: dist
       - name: Check the sums
         run: cd dist && sha256sum -c SHA256SUMS.txt
+      # The website's button links releases/latest/download/<this name> (ADR 0048 §7;
+      # xtask's test keeps the name here, in the packager and in web/src/top.rs equal).
+      - name: The installer under its stable name
+        run: test -s dist/Cantus-windows-x64-setup.exe
+      # GitHub's "latest" release (what releases/latest/download/... follows) can never be
+      # a pre-release. So a beta is published as the latest release while no stable
+      # release exists — otherwise the download button would find nothing — and as a
+      # pre-release once one does. The app's updater does not read this flag: a stable
+      # build refuses any version with a suffix, a beta build reads the release list
+      # (ADR 0032 §4).
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -158,5 +173,20 @@ jobs:
           notes="docs/releases/$tag.md"
           args=(--title "Cantus ${tag#v}" --verify-tag)
           if [ -f "$notes" ]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
-          case "$tag" in *-*) args+=(--prerelease);; esac
+          # Only "404 Not Found" means there is no latest release yet; any other failure (a
+          # network error, rate limit, outage) stops the job rather than guess.
+          if latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>"$RUNNER_TEMP/latest.err")"; then
+            :
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/latest.err"; then
+            latest=""
+          else
+            cat "$RUNNER_TEMP/latest.err"; exit 1
+          fi
+          case "$latest" in v*|"") ;; *) echo "latest release has an unexpected tag: $latest"; exit 1 ;; esac
+          stable_exists=false
+          if [ -n "$latest" ] && [ "${latest#*-}" = "$latest" ]; then stable_exists=true; fi
+          case "$tag" in
+            *-*) if $stable_exists; then args+=(--prerelease); else args+=(--latest); fi ;;
+            *) args+=(--latest) ;;
+          esac
           gh release create "$tag" dist/* "${args[@]}"

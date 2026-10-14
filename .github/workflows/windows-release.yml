@@ -1,0 +1,60 @@
+name: Windows release build
+
+# What only a Windows *release* build checks (ADR 0048 §6): `cantus-app` and
+# `cantus-launch` are built with `windows_subsystem = "windows"` when `debug_assertions` is
+# off (no console window), and a few paths branch on `cfg!(debug_assertions)`; the test job
+# builds in the dev profile, and ci.yml's release build runs on Linux. So, on Windows, in
+# release, the app and its launcher — when the code that decides it changes (the two
+# crates, the manifests, the lock file, the toolchain) or by hand. Every tag builds the
+# whole release on Windows anyway (release.yml). About 12 minutes x2 when it runs: rarely,
+# against 24 billed minutes on every code push had it stayed in ci.yml.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "crates/cantus-app/**"
+      - "crates/cantus-launch/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - ".github/workflows/windows-release.yml"
+  pull_request:
+    paths:
+      - "crates/cantus-app/**"
+      - "crates/cantus-launch/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - ".github/workflows/windows-release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  build:
+    name: release build (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: cargo build --release -p cantus -p cantus-launch

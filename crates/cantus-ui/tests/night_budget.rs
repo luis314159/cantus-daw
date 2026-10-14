@@ -127,6 +127,13 @@ impl Rig {
         for _ in 0..warm {
             self.step();
         }
+        // Quiet before measuring: no instrument's samples still loading beside the
+        // window (their progress rebuilds the status line on whichever frame they land).
+        let t = Instant::now();
+        while self.app.engine.samples.progress().is_some() && t.elapsed().as_secs() < 20 {
+            std::thread::sleep(Duration::from_millis(5));
+            self.step();
+        }
         (0..frames).map(|_| self.step()).collect()
     }
 }

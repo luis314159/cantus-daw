@@ -19,6 +19,7 @@ workspace.menu.hide = Ocultar
 workspace.close = Cerrar
 workspace.close_floating = Cerrar las ventanas flotantes
 workspace.mixer.hint = Flechas: moverse entre canales · M silenciar · S solo · Alt+flechas mueven el canal
+workspace.mixer.hint.short = Flechas: canales · M silenciar · S solo
 workspace.splash.files = Leyendo tus ajustes…
 workspace.clip = Satura
 workspace.tempo = Tempo
@@ -75,3 +76,5 @@ theme.form.text_size.short = TEXTO
 theme.form.depth.short = PROF
 workspace.appearance.theme_name = Nombre del tema
 workspace.autosave.cell = Tiempo
+# The layout's name dialog: its title (the menu item says "…").
+layout.dialog_title = Guardar disposición

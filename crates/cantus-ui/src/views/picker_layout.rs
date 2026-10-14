@@ -31,7 +31,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, screen: Rect, purpose: &PickPurpos
     let (title, context) = picker::title(app, purpose);
     let verb = picker::verb(purpose);
     let v = &mut app.picker_view;
-    let search_focused = ui.memory(|m| m.has_focus(search_id()));
+    let search_focused = ui.memory(|m| m.has_focus(crate::kit::field::edit_id(search_id())));
     let mut action = picker_keys::read(v, ui, search_focused);
     // The scrim: the workspace dimmed; a click on it closes.
     // Allocated, so the overlay's layer covers the window and takes every pointer event.
@@ -335,28 +335,10 @@ fn head(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style, title: &str, contex
 
 /// The search: a well with a magnifier, the words, and a clear key.
 fn search_field(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
-    let st = if ui.memory(|m| m.has_focus(search_id())) {
-        State::FOCUS
-    } else {
-        State::REST
-    };
-    with_brush(ui.painter(), |b| {
-        crate::kit::well::paint(b, r, s, st, None);
-        let g = Rect::from_center_size(
-            pos2(r.left() + s.s(15.0), r.center().y),
-            egui::Vec2::splat(s.s(13.0)),
-        );
-        magnifier(b, g, s.t.text_dim, s.s(1.6));
-    });
     let clear = Rect::from_center_size(
         pos2(r.right() - s.s(14.0), r.center().y),
         egui::Vec2::splat(s.s(18.0)),
     );
-    let inner = Rect::from_min_max(
-        pos2(r.left() + s.s(28.0), r.top() + s.s(3.0)),
-        pos2(clear.left() - s.s(4.0), r.bottom() - s.s(3.0)),
-    );
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     let mut text = v.query.text.clone();
     let n = v
         .catalog
@@ -364,15 +346,19 @@ fn search_field(v: &mut PickerView, ui: &mut Ui, r: Rect, s: &Style) {
         .filter(|d| v.query.role.is_none_or(|r| d.role == r))
         .count();
     let hint = tf("picker.search", &[("n", &n)]);
-    let resp = child.add_sized(
-        inner.size(),
-        egui::TextEdit::singleline(&mut text)
-            .id(search_id())
-            .frame(egui::Frame::NONE)
-            .font(Role::Body.font(s.tk()))
-            .text_color(s.t.text)
-            .hint_text(egui::RichText::new(hint).color(s.t.placeholder)),
-    );
+    // The kit's field (round 26), with room for the magnifier and the clear key.
+    let resp = crate::kit::field::Field::new(search_id())
+        .hint(&hint)
+        .pad(22.0, (r.right() - clear.left()) / s.k - 2.0)
+        .show(ui, r, &mut text)
+        .resp;
+    with_brush(ui.painter(), |b| {
+        let g = Rect::from_center_size(
+            pos2(r.left() + s.s(15.0), r.center().y),
+            egui::Vec2::splat(s.s(13.0)),
+        );
+        magnifier(b, g, s.t.text_dim, s.s(1.6));
+    });
     if resp.clicked() {
         v.editing = true;
     }

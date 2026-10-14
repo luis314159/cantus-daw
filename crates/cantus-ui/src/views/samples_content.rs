@@ -1,6 +1,12 @@
 //! The *Content* window (ADR 0030): every pack in the manifest, what it is, what it
 //! weighs, its licence and who made it; install, update, remove, cancel, and install
-//! from an archive already on disk.
+//! from an archive already on disk. A CC BY pack shows its credit line before and after
+//! the download, and what the licence means in plain words (ADR 0042).
+
+#[path = "samples_missing.rs"]
+pub mod missing;
+#[path = "samples_sounds.rs"]
+pub mod sounds;
 
 use super::interop::form;
 use super::samples_paint::{self as paint, Icon};
@@ -11,7 +17,7 @@ use crate::kit::color::{shade, with_alpha};
 use crate::kit::glyph::Glyph;
 use crate::kit::text::{Role, Src};
 use crate::kit::{with_brush, Fill, Style};
-use cantus_content::{Pack, Phase, Source, Status};
+use cantus_content::{Attribution, Licence, Pack, Phase, Source, Status};
 use egui::{pos2, vec2, Align2, Context, Id, Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 
 /// How far an install has got, 0..1.
@@ -264,6 +270,130 @@ fn text_block(ui: &mut Ui, s: &Style, src: Src<'_>, role: Role, color: egui::Col
     ui.painter().galley(r.min, galley, color);
 }
 
+/// What the licence lets the user do, in a few words.
+fn licence_words(pack: &Pack) -> String {
+    if pack.needs_credit() {
+        t("samples.licence.cc_by")
+    } else {
+        t("samples.licence.cc0")
+    }
+}
+
+/// A CC BY pack's credit (ADR 0042 §3–4): the credit line — the manifest's before the
+/// download, the receipt's once installed — and what the licence means, in plain words,
+/// with the author's own words about crediting when the manifest quotes them.
+/// A credit as the reader sees it (ADR 0042 §3): the composed line in the interface's
+/// language (`samples.credit.line`; the receipt and the notices keep the English one), or
+/// the licensor's own line word for word — with the licence's name and link after it when
+/// the line leaves the link out (CC BY 4.0 §3(a)(1)(C)).
+pub fn credit_text(spdx: &str, licence_url: &str, a: &Attribution) -> String {
+    let name: &str = match Licence::from_spdx(spdx) {
+        Some(l) => l.name(),
+        None => spdx,
+    };
+    if a.line.trim().is_empty() {
+        // CC0 is a dedication to the public domain, not a licence: its own wording.
+        let key = if Licence::from_spdx(spdx) == Some(Licence::Cc0) {
+            "samples.credit.line_cc0"
+        } else {
+            "samples.credit.line"
+        };
+        tf(
+            key,
+            &[
+                ("title", &a.title),
+                ("author", &a.author),
+                ("url", &a.url),
+                ("licence", &name),
+                ("licence_url", &licence_url),
+            ],
+        )
+    } else if a.line.contains(licence_url) {
+        a.line.clone()
+    } else {
+        tf(
+            "samples.credit.licensor",
+            &[
+                ("line", &a.line),
+                ("licence", &name),
+                ("licence_url", &licence_url),
+            ],
+        )
+    }
+}
+
+fn credit(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack) {
+    let receipt = app
+        .samples
+        .content()
+        .installed()
+        .iter()
+        .find(|r| r.id == pack.id)
+        .cloned();
+    let installed = receipt.as_ref().and_then(|r| {
+        r.attribution
+            .as_ref()
+            .map(|a| credit_text(&r.licence, &r.licence_url, a))
+    });
+    let line = installed.clone().or_else(|| {
+        pack.attribution
+            .as_ref()
+            .map(|a| credit_text(&pack.licence, &pack.licence_url, a))
+    });
+    form::band(ui, "samples.detail.credit");
+    if let Some(line) = &line {
+        text_block(ui, s, Src::Str(line), Role::Body, s.t.text, 2.0);
+    }
+    if !pack.needs_credit() {
+        // CC0 with the credit its author asked for: a courtesy, never a condition.
+        text_block(
+            ui,
+            s,
+            Src::Key("samples.cc0.courtesy"),
+            Role::Micro,
+            s.t.text_dim,
+            2.0,
+        );
+        return;
+    }
+    if installed.is_some() {
+        text_block(
+            ui,
+            s,
+            Src::Str(&tf("samples.ccby.kept", &[("file", &pack.licence_file)])),
+            Role::Micro,
+            s.t.text_dim,
+            2.0,
+        );
+    }
+    let name = pack
+        .licence_kind()
+        .map_or(pack.licence.as_str(), |l| l.name());
+    text_block(
+        ui,
+        s,
+        Src::Str(&tf("samples.ccby.plain", &[("licence", &name)])),
+        Role::Micro,
+        s.t.text_dim,
+        3.0,
+    );
+    let note = pack
+        .attribution
+        .as_ref()
+        .map(|a| a.note.trim())
+        .unwrap_or_default();
+    let judge = if note.is_empty() {
+        format!("{} {}", t("samples.ccby.track"), t("samples.ccby.usually"))
+    } else {
+        format!(
+            "{} {}",
+            t("samples.ccby.track"),
+            tf("samples.ccby.author_says", &[("note", &note)])
+        )
+    };
+    text_block(ui, s, Src::Str(&judge), Role::Micro, s.t.text_dim, 2.0);
+}
+
 fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str) {
     let status = app.samples.content().status(&pack.id);
     let error = app.samples.content().error(&pack.id).map(|e| e.to_string());
@@ -275,6 +405,29 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         s.t.text,
         1.4,
     );
+    // The instruments it plays as, once installed: the main thing to do next, in the
+    // pack's header so it is in view without scrolling (round 26).
+    let sounds: Vec<sounds::SoundChoice> = app
+        .samples
+        .content()
+        .instruments()
+        .into_iter()
+        .filter(|i| i.pack == pack.id)
+        .map(sounds::SoundChoice)
+        .collect();
+    if !matches!(status, Status::Busy(_)) && !sounds.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            for (i, sound) in sounds.iter().enumerate() {
+                let label = tf("samples.sound.new_track", &[("name", &sound.name())]);
+                if form::button(ui, &label, i == 0, true) {
+                    app.apply_sound(
+                        crate::picker::PickPurpose::AddInstrument { index: None },
+                        sound,
+                    );
+                }
+            }
+        });
+    }
     text_block(
         ui,
         s,
@@ -285,7 +438,7 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
     );
     let files = match &pack.source {
         Source::Files(f) => f.len().to_string(),
-        Source::Zip(_) => "—".into(),
+        Source::Zip(_) | Source::TarGz(_) => "—".into(),
     };
     for (label, value, role) in [
         (
@@ -301,7 +454,7 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         (t("samples.detail.files"), files, Role::Value),
         (
             t("samples.detail.licence"),
-            format!("{} — {}", pack.licence, t("samples.licence.cc0")),
+            format!("{} — {}", pack.licence, licence_words(pack)),
             Role::Body,
         ),
         (
@@ -333,6 +486,9 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
             );
         });
     }
+    if pack.needs_credit() || pack.attribution.is_some() {
+        credit(app, ui, s, pack);
+    }
     form::band(ui, "samples.detail.credits");
     for c in &pack.credits {
         text_block(ui, s, Src::Str(&c.name), Role::Body, s.t.text, 1.0);
@@ -349,6 +505,33 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         s.t.text_dim,
         2.0,
     );
+    // The instruments it plays as (round 26), named before the download too.
+    if !pack.instruments.is_empty() || !sounds.is_empty() {
+        let names = if sounds.is_empty() {
+            pack.instruments
+                .iter()
+                .map(|i| format!("\u{201c}{}\u{201d}", i.name.get(lang)))
+                .collect::<Vec<_>>()
+        } else {
+            sounds
+                .iter()
+                .map(|c| format!("\u{201c}{}\u{201d}", c.name()))
+                .collect()
+        };
+        let key = if sounds.is_empty() {
+            "samples.sound.offered"
+        } else {
+            "samples.sound.ready"
+        };
+        text_block(
+            ui,
+            s,
+            Src::Str(&tf(key, &[("names", &names.join(", "))])),
+            Role::Body,
+            s.t.text,
+            2.0,
+        );
+    }
     form::band(ui, "samples.detail.actions");
     match &status {
         Status::Busy(phase) => {
@@ -384,7 +567,10 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                 if installed {
                     if app.samples.window.confirm_remove.as_deref() == Some(pack.id.as_str()) {
                         if form::button(ui, &t("samples.remove_confirm"), true, true) {
+                            let dir = app.samples.content().pack_dir(&pack.id);
                             let r = app.samples.content().remove(&pack.id);
+                            // Its decoded samples leave the sample cache too (ADR 0050).
+                            app.sweep_sample_cache_removed(dir);
                             app.samples.window.confirm_remove = None;
                             app.samples.notice = Some(match r {
                                 Ok(()) => {
@@ -402,13 +588,15 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                         let _ = crate::app::reveal(&dir);
                     }
                 }
-                if matches!(pack.source, Source::Zip(_))
-                    && form::button(ui, &t("samples.from_file"), false, true)
+                let archive = match pack.source {
+                    Source::Zip(_) => Some(("zip", &["zip"][..])),
+                    Source::TarGz(_) => Some(("tar.gz", &["gz", "tgz"][..])),
+                    Source::Files(_) => None,
+                };
+                if let Some((label, exts)) =
+                    archive.filter(|_| form::button(ui, &t("samples.from_file"), false, true))
                 {
-                    if let Some(f) = rfd::FileDialog::new()
-                        .add_filter("zip", &["zip"])
-                        .pick_file()
-                    {
+                    if let Some(f) = rfd::FileDialog::new().add_filter(label, exts).pick_file() {
                         app.samples.content().install_from_file(&pack.id, &f);
                     }
                 }

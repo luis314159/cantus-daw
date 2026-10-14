@@ -71,6 +71,28 @@ input (one id per key) cycles strictly with a per-key counter. Release samples l
 classes silence with a 5 ms fade (or a release). Everything steps on a 32-sample control
 grid counted from each layer's own start, never from a block boundary.
 
+**Zones a controller starts** (round 26, schema 24: `trig` = 5 with `cc`, `cclo`, `cchi`;
+SFZ `on_loccN`/`on_hiccN`, a piano's pedal noises): when controller `cc` moves into
+`cclo…cchi` from outside it, the zone starts on the next sample — at its root, full
+velocity, one round-robin turn and one random number per trigger (counted since the last
+stop), chokes first — owned by no note. It plays like a one-shot: a zone that loops is
+held while the value stays in the range and released when it leaves; one that does not
+plays to its end (SFZ players do the same), unless its class is silenced. The sustain pedal
+reaches it as CC 64, the mod wheel as 1, expression as 11. The map leaves such zones out
+(no key plays them); the zone card shows the controller and its range instead of the key
+and velocity ranges. A value already in the range when the unit starts (0, for a range
+that holds it) triggers nothing.
+
+**Streaming from disk** (round 26, ADR 0050): with the engine streaming (a live engine), a
+sample no zone loops or plays backwards, longer than its head, keeps only its head in memory
+(16 384 frames at level 0, more when a zone starts later) and streams the rest in 4 096-frame
+blocks from a cache file at its own exact depth (`i16`/`i24`/`f32`), decoded once; mip
+levels are computed from level 0 by the reader. Each layer copies what its next control
+step reads into a window of its own, so the resampler takes the very paths it takes in
+memory: streamed playback equals in-memory playback to the bit. A late block in real time
+fades the voice out over 5 ms and is counted (`EngineStats::stream_late`, the status line);
+an offline render waits.
+
 **The empty instrument** plays the built-in sine at −18 dB over the whole keyboard, so a
 fresh Exemplar is never a silent track (and the contract tests exercise the real engine).
 
@@ -278,10 +300,9 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
 
 ## Not done (and why)
 
-- **Disk streaming** (P1): everything is preloaded; the footer shows the memory. The
-  preload-sized-by-pitch design of the report §9.4 is the next step.
-- **Native-depth storage**: samples are `f32` (the shared `SampleData`), 22 MiB per minute
-  of 48 kHz stereo, plus the mip-maps a zone needs (up to that again).
+- **Looped and reversed samples stay in memory** (ADR 0050 §1): loops can jump anywhere and
+  are almost always short. A sample used whole (looped, short, or with streaming off) is
+  `f32` as before, 22 MiB per minute of 48 kHz stereo, plus its mip-maps.
 - **Loops at mip levels above 0** splice at the nearest level-*k* sample, so a very short
   loop that is not a multiple of 2^k frames long is off by up to 2^(k−1) frames per lap
   (a few cents on a 600-frame single cycle two octaves up). Built-in cycles are powers of

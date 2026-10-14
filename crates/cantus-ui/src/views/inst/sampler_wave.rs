@@ -40,6 +40,7 @@ pub struct Marker {
 }
 
 /// A zone's audio: interleaved frames, channels, rate.
+#[derive(Clone)]
 pub struct Audio {
     pub data: Arc<[f32]>,
     pub channels: usize,
@@ -52,19 +53,82 @@ impl Audio {
     }
 }
 
-/// The audio a zone plays: its file (decoded through the engine's cache) or its built-in.
+/// The selected zone's file for its waveform, as it is read beside the window.
+pub enum WaveFile {
+    Reading(std::sync::mpsc::Receiver<Option<Audio>>),
+    Ready(Audio),
+    Failed,
+}
+
+impl std::fmt::Debug for WaveFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            WaveFile::Reading(_) => "Reading",
+            WaveFile::Ready(_) => "Ready",
+            WaveFile::Failed => "Failed",
+        })
+    }
+}
+
+fn audio(d: &cantus_core::SampleData) -> Audio {
+    Audio {
+        data: d.frames.clone(),
+        channels: d.channels.max(1) as usize,
+        rate: d.rate as f32,
+    }
+}
+
+/// A file's whole audio for the waveform: what the engine holds whole, else read on a
+/// thread of its own — from the stream's cache file when there is one, decoded otherwise —
+/// and never kept beyond the zone shown (review 19).
+fn file_audio(app: &mut CantusApp, p: &str) -> Option<Audio> {
+    let path = std::path::Path::new(p);
+    if let Some(d) = app.engine.samples.whole(path) {
+        return Some(audio(&d));
+    }
+    let state = &mut app.inst.sampler.wave_file;
+    if state.as_ref().is_none_or(|(q, _)| q != p) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let owned = path.to_path_buf();
+        let _ = std::thread::Builder::new()
+            .name("cantus-zone-wave".into())
+            .spawn(move || {
+                let d = cantus_engine::inst::stream::read_whole(&owned).or_else(|| {
+                    cantus_engine::SampleCache::new()
+                        .load(&owned)
+                        .ok()
+                        .map(|a| (*a).clone())
+                });
+                let _ = tx.send(d.as_ref().map(audio));
+            });
+        *state = Some((p.to_string(), WaveFile::Reading(rx)));
+    }
+    let (_, w) = state.as_mut()?;
+    if let WaveFile::Reading(rx) = w {
+        match rx.try_recv() {
+            Ok(Some(a)) => *w = WaveFile::Ready(a),
+            Ok(None) | Err(std::sync::mpsc::TryRecvError::Disconnected) => *w = WaveFile::Failed,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        }
+    }
+    match w {
+        WaveFile::Ready(a) => Some(a.clone()),
+        _ => None,
+    }
+}
+
+/// Whether the selected zone's file is still being read for its waveform.
+pub fn wave_reading(app: &CantusApp, z: &Zone) -> bool {
+    match (&z.sample, &app.inst.sampler.wave_file) {
+        (Some(p), Some((q, WaveFile::Reading(_)))) => p == q,
+        _ => false,
+    }
+}
+
+/// The audio a zone plays: its file or its built-in.
 pub fn audio_of(app: &mut CantusApp, z: &Zone) -> Option<Audio> {
     match &z.sample {
-        Some(p) => app
-            .engine
-            .samples
-            .load(std::path::Path::new(p))
-            .ok()
-            .map(|d| Audio {
-                data: d.frames.clone(),
-                channels: d.channels.max(1) as usize,
-                rate: d.rate as f32,
-            }),
+        Some(p) => file_audio(app, p),
         None => builtin::get(z.get(zf::GEN) as u8).and_then(|b| {
             Some(Audio {
                 data: b.level0()?,
@@ -646,13 +710,24 @@ pub fn sample_card(
         return;
     };
     let Some(audio) = audio else {
+        let reading = wave_reading(app, &z);
+        if reading {
+            crate::views::workspace_ticker::wake_after(
+                ui.ctx(),
+                std::time::Duration::from_millis(50),
+            );
+        }
         parts::words(
             ui,
             d,
             s,
-            Src::Key("smp.unreadable"),
+            Src::Key(if reading {
+                "smp.wave_reading"
+            } else {
+                "smp.unreadable"
+            }),
             Role::Body,
-            s.t.danger,
+            if reading { s.t.text_dim } else { s.t.danger },
             Align2::CENTER_CENTER,
             Policy::Elide(Elide::End),
         );
@@ -976,16 +1051,29 @@ pub fn play_card(
             waveform(app, ui, track, spec, n, &z, &audio, d, s);
             span_in_title(app, ui, cr.title, s, &audio);
         }
-        Some((_, _, None)) => parts::words(
-            ui,
-            d,
-            s,
-            Src::Key("smp.unreadable"),
-            Role::Body,
-            s.t.danger,
-            Align2::CENTER_CENTER,
-            Policy::Elide(Elide::End),
-        ),
+        Some((_, z, None)) => {
+            let reading = wave_reading(app, &z);
+            if reading {
+                crate::views::workspace_ticker::wake_after(
+                    ui.ctx(),
+                    std::time::Duration::from_millis(50),
+                );
+            }
+            parts::words(
+                ui,
+                d,
+                s,
+                Src::Key(if reading {
+                    "smp.wave_reading"
+                } else {
+                    "smp.unreadable"
+                }),
+                Role::Body,
+                if reading { s.t.text_dim } else { s.t.danger },
+                Align2::CENTER_CENTER,
+                Policy::Elide(Elide::End),
+            )
+        }
         None => parts::words(
             ui,
             d,

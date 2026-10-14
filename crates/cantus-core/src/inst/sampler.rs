@@ -426,7 +426,7 @@ pub const ZONE_PARAMS: &[InstParamInfo] = &[
     p("z.seqlen", "smp.seqlen", 1.0, 16.0, 1.0, "", false, true),
     p("z.rlo", "smp.rlo", 0.0, 1.0, 0.0, "", false, false),
     p("z.rhi", "smp.rhi", 0.0, 1.0, 1.0, "", false, false),
-    p("z.trig", "smp.trigger", 0.0, 4.0, 0.0, "", false, true),
+    p("z.trig", "smp.trigger", 0.0, 5.0, 0.0, "", false, true),
     p(
         "z.rtdecay",
         "smp.rt_decay",
@@ -461,6 +461,11 @@ pub const ZONE_PARAMS: &[InstParamInfo] = &[
         false,
         false,
     ),
+    // A controller-triggered zone (`trig` = [`Trigger::Controller`]): the controller and
+    // the range its value must cross into (round 26, ADR 0023's amendment).
+    p("z.cc", "smp.cc", 0.0, 127.0, 64.0, "", false, true),
+    p("z.cclo", "smp.cclo", 0.0, 127.0, 64.0, "", false, true),
+    p("z.cchi", "smp.cchi", 0.0, 127.0, 127.0, "", false, true),
 ];
 
 pub fn params() -> &'static [InstParamInfo] {
@@ -579,7 +584,10 @@ pub mod zf {
     pub const OFFMODE: usize = 34;
     pub const SW: usize = 35;
     pub const DELAY: usize = 36;
-    pub const COUNT: usize = 37;
+    pub const CC: usize = 37;
+    pub const CCLO: usize = 38;
+    pub const CCHI: usize = 39;
+    pub const COUNT: usize = 40;
 }
 
 /// Index of each group field in [`GROUP_PARAMS`].
@@ -640,6 +648,9 @@ pub fn zone_field(field: &str) -> Option<usize> {
         "offmode" => zf::OFFMODE,
         "sw" => zf::SW,
         "delay" => zf::DELAY,
+        "cc" => zf::CC,
+        "cclo" => zf::CCLO,
+        "cchi" => zf::CCHI,
         _ => return None,
     })
 }
@@ -715,6 +726,9 @@ pub enum Trigger {
     Legato,
     /// On the key going up, even with the pedal down (SFZ `release_key`).
     ReleaseKey,
+    /// When controller `z{n}.cc` crosses into `cclo..=cchi` (SFZ `on_loccN`/`on_hiccN`:
+    /// a piano's pedal noises), whatever the keys do; released when it leaves the range.
+    Controller,
 }
 
 impl Trigger {
@@ -724,6 +738,7 @@ impl Trigger {
             2 => Trigger::First,
             3 => Trigger::Legato,
             4 => Trigger::ReleaseKey,
+            5 => Trigger::Controller,
             _ => Trigger::Attack,
         }
     }
@@ -914,8 +929,16 @@ impl Group {
 /// instrument's transpose and bend range, and `margin` for modulation. What sizes the
 /// octave mip-map the engine builds for its sample.
 pub fn max_shift_semitones(spec: &super::NativeSpec, zone: &Zone, margin: f32) -> f32 {
-    let keys = (zone.hi() as f32 - zone.root() as f32).max(0.0) * zone.get(zf::KEYTRACK) / 100.0;
-    let tune = (zone.get(zf::TUNE) + spec.get("tune").max(0.0)) / 100.0;
+    max_shift_of(spec, &zone.values, margin)
+}
+
+/// [`max_shift_semitones`] from a zone's numbers (allocation-free: the engine's
+/// `configure` sizes a streamed zone's mip levels with it, as the sample cache sizes an
+/// in-memory one's).
+pub fn max_shift_of(spec: &super::NativeSpec, v: &[f32; zf::COUNT], margin: f32) -> f32 {
+    let (hi, root) = (v[zf::HI] as u8, v[zf::ROOT] as u8);
+    let keys = (hi as f32 - root as f32).max(0.0) * v[zf::KEYTRACK] / 100.0;
+    let tune = (v[zf::TUNE] + spec.get("tune").max(0.0)) / 100.0;
     keys + tune + spec.get("transpose").max(0.0) + spec.get("bend") + margin
 }
 

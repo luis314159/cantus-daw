@@ -182,3 +182,20 @@ instrument's document:
 The frame itself changed after the builders' screenshots: white keys are outlined (they
 vanished on a light panel), the modulation strip packs its sources into rows, and a macro
 knob carries the macro's name with an `M1…M8` handle above it.
+
+## Amendment, 2026-10-14 (round 26, sampler): zones a controller starts, and streaming
+
+- **A fifth trigger, `Controller`** (`z{n}.trig` = 5, with `z{n}.cc`, `z{n}.cclo`,
+  `z{n}.cchi`; schema 24, whose migration writes nothing but makes an older build refuse a
+  project whose pedal noises it would play on the keys). A zone starts when its controller
+  crosses into its range from outside — on the next sample, owned by no note, at its root
+  and full velocity, with a round-robin count and a random number per trigger (forgotten at
+  a stop, which `at_rest` therefore includes). A looping zone is held while the value stays
+  in range; a zone that does not loop plays to its end (as SFZ players play pedal noises);
+  classes choke it like any layer. The SFZ importer maps `on_loccN`/`on_hiccN` (−1: no
+  trigger) and writes them back; the Salamander's four pedal-noise files are in its pack
+  again. Units hear every controller by its MIDI number (`Sustain` is 64).
+- **Streaming from disk** is ADR 0050: `InstrumentUnit` gained `set_offline` (an offline
+  render's voices wait for disk) and `take_late_reads` (counted into `EngineStats`), both
+  with defaults; an Exemplar registers its layers' board with the stream reader when it is
+  made, and `configure` finds a streamed sample through a lock-free registry.

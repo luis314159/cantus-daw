@@ -18,7 +18,9 @@ mixer.legend.eq.short = EQ
 mixer.legend.fx = Efectos · grabación
 mixer.legend.fx.short = FX · grabar
 mixer.legend.chain = Cadena FX
-mixer.legend.output = Salida
+# Ronda 26: la fila muestra adónde va cada canal («→ 9»): DESTINO, para no leerse como la
+# palabra SALIDA de la leyenda de cables, que nombra ese tipo de línea.
+mixer.legend.output = Destino
 mixer.legend.sends = Envíos
 mixer.legend.from_selected = Desde selección
 mixer.legend.from_selected.short = Desde sel.

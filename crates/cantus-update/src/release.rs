@@ -14,6 +14,13 @@ pub fn installer_name(version: &str) -> String {
     format!("Cantus-{version}-windows-x64-setup.exe")
 }
 
+/// The installer again, under a name that never changes, published beside the versioned
+/// one (ADR 0048 §7): a fixed link — the website's download button,
+/// `https://github.com/<repo>/releases/latest/download/Cantus-windows-x64-setup.exe` —
+/// then always brings the newest release's installer. The same bytes, listed in
+/// `SHA256SUMS.txt` too; the updater keeps asking for [`installer_name`].
+pub const STABLE_INSTALLER_NAME: &str = "Cantus-windows-x64-setup.exe";
+
 /// `Cantus-0.2.0-windows-x64-portable.zip`.
 pub fn portable_name(version: &str) -> String {
     format!("Cantus-{version}-windows-x64-portable.zip")

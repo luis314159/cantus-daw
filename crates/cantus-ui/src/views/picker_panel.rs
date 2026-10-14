@@ -36,7 +36,8 @@ pub struct Panel {
 
 /// Draw the panel in `ui` (a tab of the workspace).
 pub fn show(app: &mut CantusApp, ui: &mut Ui) {
-    app.picker_view.refresh(&app.plugins.db);
+    let sounds = app.samples.content().instruments();
+    app.picker_view.refresh(&app.plugins.db, &sounds);
     let s = Style::current();
     let full = ui.max_rect();
     let _ = ui.allocate_rect(full, Sense::hover());
@@ -93,29 +94,19 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         pos2(full.left() + pad, seg.bottom() + s.s(6.0)),
         vec2(full.width() - 2.0 * pad, s.s(24.0)),
     );
+    // The kit's field (round 26), with room for the magnifier.
+    let hint = t("picker.search.name");
+    crate::kit::field::Field::new(Id::new("devices-search"))
+        .hint(&hint)
+        .pad(18.0, 0.0)
+        .show(ui, search, &mut v.panel.text);
     with_brush(ui.painter(), |b| {
-        crate::kit::well::paint(b, search, &s, crate::kit::State::REST, None);
         let g = Rect::from_center_size(
             pos2(search.left() + s.s(13.0), search.center().y),
             egui::Vec2::splat(s.s(12.0)),
         );
         super::picker_layout::magnifier(b, g, s.t.text_dim, s.s(1.5));
     });
-    let inner = Rect::from_min_max(
-        pos2(search.left() + s.s(24.0), search.top() + s.s(2.0)),
-        pos2(search.right() - s.s(6.0), search.bottom() - s.s(2.0)),
-    );
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
-    let hint = t("picker.search.name");
-    child.add_sized(
-        inner.size(),
-        egui::TextEdit::singleline(&mut v.panel.text)
-            .id(Id::new("devices-search"))
-            .frame(egui::Frame::NONE)
-            .font(Role::Body.font(s.tk()))
-            .text_color(s.t.text)
-            .hint_text(egui::RichText::new(hint).color(s.t.placeholder)),
-    );
     let role = if v.panel.effects {
         DeviceRole::Effect
     } else {

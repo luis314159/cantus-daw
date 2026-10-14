@@ -40,11 +40,21 @@ impl Exemplar {
             Trig::Attack => matches!(cond, Trig::First | Trig::Legato),
             t => t == cond,
         };
-        if !trig_ok || self.sources[zi].is_empty() || self.groups[z.group as usize].mute {
+        if !trig_ok {
             return false;
         }
         let v7 = (s.vel * 127.0).round().clamp(1.0, 127.0) as u8;
         if s.key < z.lo || s.key > z.hi || v7 < z.vlo || v7 > z.vhi {
+            return false;
+        }
+        self.trigger_ok(zi, s)
+    }
+
+    /// What a zone asks of any trigger: a sound, its group not muted, its keyswitch in
+    /// force, its round-robin turn and its random range.
+    fn trigger_ok(&self, zi: usize, s: &Slot) -> bool {
+        let z = &self.zones[zi];
+        if self.sources[zi].is_empty() || self.groups[z.group as usize].mute {
             return false;
         }
         let sw = if self.keyswitch >= 0 {
@@ -127,7 +137,96 @@ impl Exemplar {
             + g.transpose as f64
     }
 
+    /// The layers controller `n` started whose zone loops and whose range `v` has left:
+    /// released (a sample that does not loop plays on, as SFZ players play pedal noises).
+    pub(super) fn cc_left(&mut self, n: u8, v: u8) {
+        let Exemplar { layers, zones, .. } = self;
+        for l in layers.iter_mut() {
+            if !(l.active && l.by_cc && !l.released) {
+                continue;
+            }
+            let z = &zones[l.zone as usize];
+            if z.cc != n || (z.cclo..=z.cchi).contains(&v) || !z.region.looping {
+                continue;
+            }
+            // As a key's release does (`release_slot`): a one-shot plays on, a sustain loop
+            // lets go, a continuous loop loops on through the release.
+            l.released = true;
+            if !l.one_shot {
+                l.env.release();
+                l.env2.release();
+                if l.sustain_loop {
+                    l.play.release_loop();
+                }
+            }
+        }
+    }
+
+    /// Start the zones controller `n` crossed into, going from `prev` to `v`: one trigger,
+    /// with its own round-robin count and random number, chokes first.
+    pub(super) fn cc_entered(&mut self, n: u8, prev: u8, v: u8) {
+        let entered = |z: &ZoneParams| {
+            z.trig == Trig::Controller
+                && z.cc == n
+                && (z.cclo..=z.cchi).contains(&v)
+                && !(z.cclo..=z.cchi).contains(&prev)
+        };
+        if !(0..self.order_len).any(|oi| entered(&self.zones[self.order[oi] as usize])) {
+            return;
+        }
+        let count = self.cc_count;
+        self.cc_count = count.wrapping_add(1);
+        let id = CC_IDS.wrapping_add(count as u64);
+        let s = Slot {
+            key: 60,
+            id,
+            vel: 1.0,
+            start: self.clock,
+            rr: count,
+            rnd: note_random(id, n),
+            ..Slot::default()
+        };
+        let ok = |e: &Exemplar, zi: usize| {
+            let z = &e.zones[zi];
+            entered(z) && e.trigger_ok(zi, &s)
+        };
+        let mut classes = [0u8; 8];
+        let mut nc = 0;
+        for oi in 0..self.order_len {
+            let zi = self.order[oi] as usize;
+            let c = self.zones[zi].excl;
+            if c > 0 && nc < classes.len() && !classes[..nc].contains(&c) && ok(self, zi) {
+                classes[nc] = c;
+                nc += 1;
+            }
+        }
+        for &c in &classes[..nc] {
+            self.choke(c);
+        }
+        for oi in 0..self.order_len {
+            let zi = self.order[oi] as usize;
+            if ok(self, zi) {
+                let mut at_root = s;
+                at_root.key = self.zones[zi].root;
+                self.start_layer_for(ORPHAN, at_root, zi, 1.0, false);
+            }
+        }
+    }
+
     pub(super) fn start_layer(&mut self, voice: usize, zi: usize, gain: f32, release: bool) {
+        let s = self.slots[voice];
+        self.start_layer_for(voice, s, zi, gain, release);
+    }
+
+    /// Start zone `zi` as a layer of `voice` (or of no note: [`ORPHAN`]) for the note `s`.
+    pub(super) fn start_layer_for(
+        &mut self,
+        voice: usize,
+        s: Slot,
+        zi: usize,
+        gain: f32,
+        release: bool,
+    ) {
         let z = self.zones[zi];
         let grp = self.groups[z.group as usize].clone();
         if grp.poly > 0 {
@@ -156,7 +255,6 @@ impl Exemplar {
                 i
             }
         };
-        let s = self.slots[voice];
         let g = &self.globals;
         let fs = self.fs;
         let ms = |x: f32| x * fs / 1000.0;
@@ -179,10 +277,14 @@ impl Exemplar {
         };
         let t = grp.vel_amp.unwrap_or(g.vel_amp);
         let vg = (1.0 + t * (s.vel * s.vel - 1.0)).max(0.0);
-        let amp = db(z.gain_db + grp.gain_db + g.gain_db)
-            * vg
-            * crossfade(&z, s.key, s.vel * 127.0)
-            * gain;
+        // Key and velocity crossfades are the keys' business: a layer a controller starts
+        // plays on its root at full velocity, whatever fades the zone has.
+        let xf = if voice == ORPHAN {
+            1.0
+        } else {
+            crossfade(&z, s.key, s.vel * 127.0)
+        };
+        let amp = db(z.gain_db + grp.gain_db + g.gain_db) * vg * xf * gain;
         let semis = self.base_semis(zi, s.key);
         let rate_ratio = self.sources[zi].rate as f64 / fs as f64;
         let bend = (self.bend * g.bend_range / 2.0) as f64;
@@ -212,6 +314,7 @@ impl Exemplar {
         l.offby = z.offby;
         l.off_normal = z.off_normal;
         l.one_shot = z.one_shot || release;
+        l.by_cc = voice == ORPHAN;
         l.sustain_loop = z.sustain_loop;
         l.released = false;
         l.semis = semis;
@@ -244,7 +347,9 @@ impl Exemplar {
             &readers[quality],
             offset,
         );
-        self.slots[voice].layers += 1;
+        if let Some(slot) = self.slots.get_mut(voice) {
+            slot.layers += 1;
+        }
     }
 
     /// Release a note: its layers enter their release (sustain loops let go), and its

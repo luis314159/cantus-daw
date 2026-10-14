@@ -149,6 +149,8 @@ fn resolve(src: Src<'_>, caps: bool) -> String {
 }
 
 fn layout(ctx: &Context, s: &str, role: Role, k: f32) -> Arc<Galley> {
+    // A name in a script no bundled font has asks for the system's faces (round 26).
+    crate::font_fallback::note_text(ctx, s);
     ctx.fonts_mut(|f| f.layout_job(job(s, role, k)))
 }
 

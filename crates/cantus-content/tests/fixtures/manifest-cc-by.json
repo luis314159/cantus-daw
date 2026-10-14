@@ -1,0 +1,93 @@
+{
+ "format": 2,
+ "updated": "2026-10-13",
+ "packs": [
+  {
+   "id": "fixture-cc0-kit",
+   "version": 1,
+   "name": {"en": "Fixture Kit", "es": "Kit de prueba"},
+   "description": {
+    "en": "A CC0 drum kit: no credit asked, credited as a courtesy.",
+    "es": "Una batería CC0: no pide crédito; se lo damos por cortesía."
+   },
+   "category": "drums",
+   "recommended": true,
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {"name": "Fixture Drums — Example Studios", "url": "https://example.org/drums", "licence_url": "https://example.org/drums/LICENSE"}
+   ],
+   "attribution": {
+    "title": "Fixture Drums",
+    "author": "Example Studios",
+    "url": "https://example.org/drums"
+   },
+   "checked": "2026-10-13",
+   "installed_size": 2000000,
+   "source": {"files": [
+    {"url": "https://example.org/drums/kick.wav", "to": "Kicks/Kick.wav", "size": 1000000, "sha256": "1111111111111111111111111111111111111111111111111111111111111111"},
+    {"url": "https://example.org/drums/LICENSE", "to": "LICENSE.txt", "size": 7000, "sha256": "2222222222222222222222222222222222222222222222222222222222222222"}
+   ]}
+  },
+  {
+   "id": "fixture-grand-piano",
+   "version": 1,
+   "name": {"en": "Fixture Grand Piano", "es": "Piano de cola de prueba"},
+   "description": {
+    "en": "A sampled concert grand, sixteen velocity layers: a CC BY 3.0 pack, credited wherever Cantus names it.",
+    "es": "Un piano de cola de concierto muestreado, dieciséis capas de velocidad: un paquete CC BY 3.0, acreditado dondequiera que Cantus lo nombre."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-3.0",
+   "licence_url": "https://creativecommons.org/licenses/by/3.0/legalcode",
+   "licence_file": "README.txt",
+   "credits": [
+    {"name": "Fixture Grand Piano — Alex Example", "url": "https://example.org/piano", "licence_url": "https://example.org/piano/README.txt"}
+   ],
+   "attribution": {
+    "title": "Fixture Grand Piano V3",
+    "author": "Alex Example",
+    "url": "https://example.org/piano",
+    "note": "You may use the samples in your music without crediting me; credit is needed only when you share the samples themselves."
+   },
+   "checked": "2026-10-13",
+   "installed_size": 1300000000,
+   "source": {"zip": {
+    "url": "https://example.org/piano/fixture-grand-piano.zip",
+    "size": 480000000,
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "strip": "FixtureGrand/",
+    "include": ["Samples/**", "README.txt"]
+   }}
+  },
+  {
+   "id": "fixture-choir",
+   "version": 1,
+   "name": {"en": "Fixture Choir", "es": "Coro de prueba"},
+   "description": {
+    "en": "Sung vowels from a small choir, under CC BY 4.0 with the credit line its authors wrote.",
+    "es": "Vocales cantadas por un coro pequeño, bajo CC BY 4.0 con la línea de crédito que escribieron sus autores."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "LICENSE.md",
+   "credits": [
+    {"name": "Fixture Choir — the Example Singers", "url": "https://example.org/choir", "licence_url": "https://example.org/choir/LICENSE.md"}
+   ],
+   "attribution": {
+    "title": "Fixture Choir",
+    "author": "The Example Singers",
+    "url": "https://example.org/choir",
+    "line": "Fixture Choir by The Example Singers (example.org/choir), CC BY 4.0"
+   },
+   "checked": "2026-10-13",
+   "installed_size": 90000000,
+   "source": {"files": [
+    {"url": "https://example.org/choir/ah.flac", "to": "Vowels/Ah.flac", "size": 45000000, "sha256": "4444444444444444444444444444444444444444444444444444444444444444"},
+    {"url": "https://example.org/choir/LICENSE.md", "to": "LICENSE.md", "size": 19000, "sha256": "5555555555555555555555555555555555555555555555555555555555555555"}
+   ]}
+  }
+ ]
+}

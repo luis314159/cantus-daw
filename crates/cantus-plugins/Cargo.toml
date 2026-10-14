@@ -51,6 +51,11 @@ raw-window-handle = { version = "0.6", optional = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi"] }
 
+[build-dependencies]
+# The Windows version resource (build.rs, ADR 0048 §9): product name and version on the
+# binaries a release signs. MIT; already in the workspace through cantus-app.
+winresource = "0.1"
+
 [dev-dependencies]
 cantus-core.workspace = true
 serde_json.workspace = true

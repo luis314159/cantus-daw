@@ -1150,7 +1150,10 @@ fn esc_on_the_desk_cancels_its_own_things_and_clears_nothing_else() {
     app_pass(&mut r, vec![esc()], true);
     assert!(r.app.selected_notes.is_empty(), "Esc clears as before");
     // A cable selected on a desk that then leaves the screen: Esc is not the hidden
-    // desk's to take.
+    // desk's to take. (The drag picked strip 3 up, and selected it: strip 2 again, so its
+    // cable hangs in its lane where `p` was taken — a cable only the hover lights keeps
+    // its span's depth, round 26.)
+    r.app.select_strip(ids[1]);
     r.idle(1);
     r.click(p.run_start + vec2(4.0, 0.0), Modifiers::NONE);
     assert!(r.app.mixer.selected_cable().is_some());
@@ -1228,4 +1231,548 @@ fn a_cable_with_both_ends_off_on_one_side_draws_nothing() {
     );
     let one = drawn(&r, Route::send(ids[1], ids[52])).expect("one end on screen draws");
     assert_eq!(one.chips, [false, true], "its far end is a chip");
+}
+
+/// Round 26 (ADR 0043 §2, amended): lanes come from the selection (and the view), never
+/// from the hover. Hovering a strip lights its routes, but the selection's cables keep
+/// their lanes — so an end mark never moves under a pointer approaching it, whether the
+/// pointer is on another strip or on the band under the mark's own column (which lights
+/// that strip's cables, its master output among them).
+#[test]
+fn hovering_a_strip_never_moves_the_selections_lanes() {
+    for view in [CableView::Selected, CableView::All] {
+        let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
+        mixer::set_width_mode(&mut r.app, WidthMode::Wide);
+        let ids = with_returns(&mut r);
+        r.app.exec(Command::SetStripOutput {
+            id: ids[1],
+            output: Some(ids[9]),
+        });
+        r.app.set_strip_send(ids[1], Send::new(ids[6]));
+        r.app.set_strip_send(ids[4], Send::new(ids[14]));
+        r.app.set_strip_send(ids[4], Send::new(ids[15]));
+        r.app.exec(Command::SetStripOutput {
+            id: ids[4],
+            output: Some(ids[8]),
+        });
+        r.app.end_gesture();
+        set_cables(&mut r, view);
+        r.app.select_strip(ids[1]);
+        r.pointer = Some(pos2(-50.0, -50.0));
+        r.idle(3);
+        let mine = [
+            Route::output(ids[1], ids[9]),
+            Route::send(ids[1], ids[14]),
+            Route::send(ids[1], ids[6]),
+        ];
+        let at_rest: Vec<_> = mine
+            .iter()
+            .map(|rt| drawn(&r, *rt).unwrap_or_else(|| panic!("{view:?}: {rt:?} drawn")))
+            .collect();
+        assert!(
+            at_rest
+                .iter()
+                .map(|d| d.depth)
+                .collect::<Vec<_>>()
+                .windows(2)
+                .any(|w| w[0] != w[1]),
+            "{view:?}: the selection's cables are in lanes"
+        );
+        // The pointer on strip 5's fader (its cables cross the selection's), then on the
+        // band under strip 10's port — where the end mark of strip 2's output sits.
+        let fader = r.rect(Some(ids[4]), Control::Fader).center();
+        let mark =
+            cantus_ui::kit::cable::path(at_rest[0].from, at_rest[0].to, at_rest[0].depth).mark;
+        let below = r.rect(Some(ids[9]), Control::Port).center() + vec2(0.0, 10.0);
+        for (what, p) in [
+            ("strip 5", fader),
+            ("strip 10's column", below),
+            ("the mark", mark),
+        ] {
+            r.hover(p);
+            r.idle(1);
+            for (rt, before) in mine.iter().zip(&at_rest) {
+                let now = drawn(&r, *rt).unwrap_or_else(|| panic!("{view:?} {what}: {rt:?}"));
+                assert!(
+                    (now.depth - before.depth).abs() < 0.01
+                        && (now.from - before.from).length() < 0.01
+                        && (now.to - before.to).length() < 0.01,
+                    "{view:?}, pointer on {what}: {rt:?} moved from {before:?} to {now:?}"
+                );
+            }
+            // Review findings 6 and 7: the cables the hover lights find room of their own —
+            // no two lit cables whose spans overlap share a flat run, and no two lit cables
+            // into one port share an end mark — hover-lit and laned alike.
+            let lit: Vec<_> = r
+                .app
+                .mixer
+                .cables()
+                .iter()
+                .filter(|d| d.lit)
+                .copied()
+                .collect();
+            for (i, a) in lit.iter().enumerate() {
+                for b in &lit[i + 1..] {
+                    let (alo, ahi) = (a.from.x.min(a.to.x), a.from.x.max(a.to.x));
+                    let (blo, bhi) = (b.from.x.min(b.to.x), b.from.x.max(b.to.x));
+                    if alo < bhi - 0.5 && ahi > blo + 0.5 {
+                        assert!(
+                            (a.depth - b.depth).abs() > 0.5,
+                            "{view:?}, pointer on {what}: {:?} and {:?} share a flat run at {}",
+                            a.route,
+                            b.route,
+                            a.depth
+                        );
+                    }
+                    if (a.to - b.to).length() < 0.5 && !a.chips[1] && !b.chips[1] {
+                        let ma = cantus_ui::kit::cable::path(a.from, a.to, a.depth).mark;
+                        let mb = cantus_ui::kit::cable::path(b.from, b.to, b.depth).mark;
+                        assert!(
+                            (ma - mb).length() >= 2.0,
+                            "{view:?}, pointer on {what}: {:?} and {:?} share an end mark",
+                            a.route,
+                            b.route
+                        );
+                    }
+                }
+            }
+        }
+        // Grabbing the selection's end mark — the pointer on it lights strip 10's own
+        // cables — moves the selection's route, never another strip's.
+        let target = r.rect(Some(ids[12]), Control::Fader).center();
+        r.pointer = Some(mark);
+        r.idle(2);
+        let press = |pos, pressed| Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        r.frame(vec![press(mark, true)]);
+        for k in 1..=8 {
+            r.pointer = Some(mark + (target - mark) * (k as f32 / 8.0));
+            r.frame(Vec::new());
+        }
+        r.frame(vec![press(target, false)]);
+        r.idle(2);
+        let p = r.app.project();
+        assert_eq!(
+            p.strip(ids[1]).unwrap().output,
+            Some(ids[12]),
+            "{view:?}: the selection's output moved to strip 13"
+        );
+        assert_eq!(
+            p.strip(ids[4]).unwrap().output,
+            Some(ids[8]),
+            "{view:?}: strip 5's kept"
+        );
+        assert_eq!(
+            p.strip(ids[9]).unwrap().output,
+            None,
+            "{view:?}: strip 10's kept"
+        );
+        r.app.undo();
+        r.pointer = Some(pos2(-50.0, -50.0));
+        r.idle(2);
+        // The hover did light something: strip 5's own send.
+        r.hover(fader);
+        assert!(
+            drawn(&r, Route::send(ids[4], ids[14])).is_some_and(|d| d.lit),
+            "{view:?}: hovering strip 5 lights its routes"
+        );
+    }
+}
+
+/// Round 26: no two words of the legend column read the same — the row names (and their
+/// short forms), ROUTING and its three line samples — and no word a strip or the band
+/// paints (the plate, the "+" rows, the tap chips, the PRE tag, MASTER) reads as one of
+/// them, in either language (round 25's Spanish legend said SALIDA under ROUTING beside
+/// Wide's SALIDA row). Then the painted desk, Wide and Extra large with the cables on:
+/// each legend word once.
+#[test]
+fn the_legend_words_never_read_the_same() {
+    use cantus_ui::views::mixer::layout::Row;
+    for locale in cantus_ui::i18n::Locale::ALL {
+        cantus_ui::i18n::set_locale(locale);
+        let tr = |k: &str| cantus_ui::i18n::t(k).to_uppercase();
+        let mut legend: Vec<(String, String)> = Vec::new();
+        for row in Row::ALL {
+            let key = row.legend_key();
+            legend.push((key.to_string(), tr(key)));
+            let short = format!("{key}.short");
+            if cantus_ui::i18n::t(&short) != short {
+                legend.push((short.clone(), tr(&short)));
+            }
+        }
+        for (key, kind, kinds) in [
+            (
+                "cables.legend.output",
+                "cables.kind.output",
+                "cables.kinds.outputs",
+            ),
+            (
+                "cables.legend.send",
+                "cables.kind.send",
+                "cables.kinds.sends",
+            ),
+            ("cables.legend.key", "cables.kind.key", "cables.kinds.keys"),
+        ] {
+            legend.push((key.to_string(), tr(key)));
+            // Review finding 10: the legend names a kind of line as everything else
+            // names that kind — the cable's hover and the options menu's kinds (the
+            // legend's word may be the short form of it, as English "out").
+            let word = tr(key);
+            for other in [kind, kinds] {
+                assert!(
+                    tr(other).contains(&word),
+                    "{locale:?}: the legend says {word:?}, {other} says {:?}",
+                    tr(other)
+                );
+            }
+        }
+        for (i, (ka, a)) in legend.iter().enumerate() {
+            for (kb, b) in &legend[i + 1..] {
+                let same_row = kb.strip_suffix(".short") == Some(ka.as_str());
+                assert!(
+                    same_row || a != b,
+                    "{locale:?}: {ka} and {kb} both read {a:?}"
+                );
+            }
+        }
+        for key in [
+            "routing.here.plate",
+            "mixer.send_add",
+            "mixer.chain.add",
+            "matrix.tap.post.name",
+            "matrix.tap.pre.name",
+            "routing.tap.pre",
+            "mixer.master",
+        ] {
+            let w = tr(key);
+            for (k, l) in &legend {
+                assert!(
+                    &w != l,
+                    "{locale:?}: {key} reads {w:?} like the legend's {k}"
+                );
+            }
+        }
+        for mode in [WidthMode::Wide, WidthMode::Xl] {
+            let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
+            cantus_ui::i18n::set_locale(locale);
+            mixer::set_width_mode(&mut r.app, mode);
+            let _ = with_returns(&mut r);
+            r.idle(2);
+            let legend_x = r.rect(None, Control::Fader).left();
+            let texts = r.texts();
+            let words: Vec<&String> = texts
+                .iter()
+                .filter(|(_, rect)| rect.right() < legend_x)
+                .map(|(w, _)| w)
+                .filter(|w| w.chars().any(char::is_alphabetic))
+                .collect();
+            for (i, w) in words.iter().enumerate() {
+                assert!(
+                    !words[i + 1..].contains(w),
+                    "{locale:?} {mode:?}: {w:?} twice in the legend column: {words:?}"
+                );
+            }
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// Second review, findings 1–3, on the real desk (Wide, 1600 × 1000): a cable the hover
+/// lights can be pointed at on its own run (a laned cable near it does not take the
+/// point), its end mark into a port a laned cable also enters stands apart, and a lone
+/// hover cable hangs where its span puts it, with its level pill.
+#[test]
+fn the_hovers_cables_are_pointable_marked_apart_and_hung_by_their_span() {
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
+    mixer::set_width_mode(&mut r.app, WidthMode::Wide);
+    let ids = with_returns(&mut r);
+    r.app.exec(Command::SetStripOutput {
+        id: ids[1],
+        output: Some(ids[9]),
+    });
+    r.app.exec(Command::SetStripOutput {
+        id: ids[4],
+        output: Some(ids[9]),
+    });
+    r.app.select_strip(ids[1]);
+    r.idle(3);
+    // Strip 5 hovered: 5 → 10 lights, beside the selection's 2 → 10.
+    let fader = r.rect(Some(ids[4]), Control::Fader).center();
+    r.hover(fader);
+    r.idle(1);
+    let theirs = drawn(&r, Route::output(ids[4], ids[9])).expect("5 → 10 lit by the hover");
+    let mine = drawn(&r, Route::output(ids[1], ids[9])).expect("2 → 10");
+    assert!(
+        theirs.lit && !theirs.laned && mine.laned,
+        "{theirs:?} {mine:?} {:?}",
+        r.app.mixer.cables()
+    );
+    let (mt, mm) = (
+        cantus_ui::kit::cable::path(theirs.from, theirs.to, theirs.depth).mark,
+        cantus_ui::kit::cable::path(mine.from, mine.to, mine.depth).mark,
+    );
+    assert!(
+        mt.distance(mm) >= 2.0,
+        "the marks into strip 10 meet: {mt:?} {mm:?}"
+    );
+    // On its source corner, still in strip 5's column (so strip 5 stays hovered).
+    let on_run = cantus_ui::kit::cable::path(theirs.from, theirs.to, theirs.depth).pts[3];
+    r.click(on_run, Modifiers::NONE);
+    assert_eq!(
+        r.app.mixer.selected_cable(),
+        Some(Route::output(ids[4], ids[9])),
+        "the hover's cable is the one under the pointer on its run"
+    );
+    // A lone hover cable: strip 13 selected, strip 5's long send to return 15 hovered.
+    r.app.mixer.select_cable(None);
+    r.app.exec(Command::SetStripOutput {
+        id: ids[4],
+        output: None,
+    });
+    r.app.set_strip_send(ids[4], Send::new(ids[14]));
+    r.app.end_gesture();
+    r.app.select_strip(ids[12]);
+    // At rest in All, it hangs faint where its span puts it…
+    set_cables(&mut r, CableView::All);
+    r.pointer = Some(pos2(-50.0, -50.0));
+    r.idle(2);
+    let faint = drawn(&r, Route::send(ids[4], ids[14])).expect("5 → 15 faint in All");
+    assert!(!faint.lit);
+    // …and lit by the hover, alone where it runs, it hangs there still.
+    r.hover(fader);
+    r.idle(1);
+    let send = drawn(&r, Route::send(ids[4], ids[14])).expect("5 → 15 lit by the hover");
+    assert!(send.lit, "{send:?}");
+    assert_eq!(
+        send.depth, faint.depth,
+        "a lone hover cable hangs by its span"
+    );
+    assert!(
+        send.depth > cantus_ui::kit::cable::MIN_DEPTH + 1.0,
+        "not on the floor"
+    );
+    let pill_x = (send.from.x + send.to.x) * 0.5;
+    assert!(
+        r.app
+            .mixer
+            .cable_pills()
+            .iter()
+            .any(|p| (p.center().x - pill_x).abs() < 30.0),
+        "the hover's send shows its level pill: {:?}",
+        r.app.mixer.cable_pills()
+    );
+}
+
+/// Third review, finding 2, on the real desk: two short cables into one port from
+/// neighbouring strips — 8 → 10 the selection's, 9 → 10 lit by the hover — each shows its
+/// end mark, the two clear of each other by their glyphs (an output's dot reaches 2.8 pt
+/// from its centre, and 1 pt of air between). Before, a hover cable fitted 1.5 pt from the
+/// selection's lost its mark without a word. In the least band (20 pt) the corner has no
+/// room for a second mark: the hover's cable yields, drawn in its colour without one.
+#[test]
+fn two_short_cables_into_one_port_both_show_their_marks_apart() {
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
+    mixer::set_width_mode(&mut r.app, WidthMode::Wide);
+    let ids = with_returns(&mut r);
+    for from in [ids[7], ids[8]] {
+        r.app.exec(Command::SetStripOutput {
+            id: from,
+            output: Some(ids[9]),
+        });
+    }
+    for band in [40.0f32, 20.0] {
+        let mut p = r.app.mixer.prefs();
+        p.band = band;
+        r.app.mixer.set_prefs(p);
+        r.app.select_strip(ids[7]);
+        r.pointer = Some(pos2(-50.0, -50.0));
+        r.idle(3);
+        let fader = r.rect(Some(ids[8]), Control::Fader).center();
+        r.hover(fader);
+        r.idle(1);
+        let mine = drawn(&r, Route::output(ids[7], ids[9])).expect("8 → 10");
+        let theirs = drawn(&r, Route::output(ids[8], ids[9])).expect("9 → 10");
+        assert!(mine.laned && mine.mark, "band {band}: {mine:?}");
+        if band < 40.0 && theirs.yielded {
+            assert!(!theirs.mark && !theirs.lit, "band {band}: {theirs:?}");
+            continue;
+        }
+        assert!(
+            theirs.lit && !theirs.laned && theirs.mark,
+            "band {band}: the hover's cable shows its mark: {theirs:?}"
+        );
+        let gap = mine.mark_at.distance(theirs.mark_at);
+        assert!(
+            gap >= 2.0 * 2.8 + 1.0 - 0.01,
+            "band {band}: the two marks meet ({gap} pt apart)"
+        );
+    }
+}
+
+/// Press at `a`, travel to `z` in steps, release.
+fn drag_desk(r: &mut Rig, a: Pos2, z: Pos2) {
+    let press = |pos, pressed| Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    r.pointer = Some(a);
+    r.frame(Vec::new());
+    r.frame(vec![press(a, true)]);
+    for k in 1..=10 {
+        r.pointer = Some(a + (z - a) * (k as f32 / 10.0));
+        r.frame(Vec::new());
+    }
+    r.frame(vec![press(z, false)]);
+    r.idle(2);
+}
+
+/// Third review, finding 6: the band's height handle never traps the band. A desk with
+/// room for a 40-pt band but not a 64-pt one shows the most that fits, and a drag down
+/// shrinks it at once; a drag up past the room, released, then down, shrinks it again.
+#[test]
+fn the_band_handle_never_traps_the_band() {
+    let set_band = |r: &mut Rig, band: f32| {
+        let mut p = r.app.mixer.prefs();
+        p.band = band;
+        r.app.mixer.set_prefs(p);
+    };
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 380.0));
+    let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
+    r.app.select_strip(ids[1]);
+    set_band(&mut r, 40.0);
+    r.idle(3);
+    let fits = r.app.mixer.cable_key().expect("the band").cell.height();
+    assert!(fits >= 39.0, "a 40-pt band fits this desk: {fits}");
+    // A preference taller than the room: the most that fits shows.
+    set_band(&mut r, 64.0);
+    r.idle(3);
+    let shown = r.app.mixer.cable_key().unwrap().cell.height();
+    assert!((39.0..64.0).contains(&shown), "the most that fits: {shown}");
+    // A drag down acts at once.
+    let h = r.app.mixer.cable_key().unwrap().handle.center();
+    drag_desk(&mut r, h, h + vec2(0.0, 10.0));
+    let after = r.app.mixer.cable_key().unwrap().cell.height();
+    assert!(
+        after < shown - 2.0,
+        "the drag down shrank the band: {shown} -> {after}"
+    );
+    assert!(
+        r.app.mixer.prefs().band <= after + 0.5,
+        "the preference is what shows"
+    );
+    // Up past the room, released, then down: it shrinks again.
+    set_band(&mut r, 40.0);
+    r.idle(3);
+    let h = r.app.mixer.cable_key().unwrap().handle.center();
+    drag_desk(&mut r, h, h + vec2(0.0, -60.0));
+    let up = r.app.mixer.cable_key().unwrap().cell.height();
+    assert!(up >= 39.0, "the band stayed at the most that fits: {up}");
+    let h = r.app.mixer.cable_key().unwrap().handle.center();
+    drag_desk(&mut r, h, h + vec2(0.0, 12.0));
+    let down = r.app.mixer.cable_key().unwrap().cell.height();
+    assert!(down < up - 2.0, "the drag down shrank it: {up} -> {down}");
+}
+
+/// Final review, visual 1: the right dock never covers the master. Three returns docked at
+/// the right on a narrow desk (1280 × 720 at 200 % leaves the mixer some 360 pt): where the
+/// master, the left dock and the right dock do not fit side by side, the right dock
+/// scrolls with the middle instead of lying over the master.
+#[test]
+fn the_right_dock_never_covers_the_master() {
+    for w in [300.0f32, 360.0, 420.0, 520.0, 800.0] {
+        for mode in WidthMode::ALL {
+            let mut r = Rig::new(starter_project(), vec2(w, 340.0));
+            mixer::set_width_mode(&mut r.app, mode);
+            let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
+            for id in [ids[13], ids[14], ids[15]] {
+                r.app.exec(Command::SetStripDock {
+                    id,
+                    dock: Dock::Right,
+                });
+            }
+            r.idle(4);
+            let master = r.rect(None, Control::Head);
+            for id in [ids[13], ids[14], ids[15]] {
+                let Some(head) = mixer::control_rect(&r.ctx, Some(id), Control::Head) else {
+                    continue;
+                };
+                assert!(
+                    !head.shrink(0.5).intersects(master.shrink(0.5)),
+                    "{w} pt, {mode:?}: a docked return {head:?} over the master {master:?}"
+                );
+            }
+        }
+    }
+}
+
+/// Final review, visual 6: renaming a strip that shows its track's name (Compact): the
+/// field opens with that name selected, as a popover under the number row — the next
+/// strips' numbers stay in sight — and an untouched name keeps following its track.
+#[test]
+fn a_strip_rename_opens_with_the_name_it_shows_clear_of_the_numbers() {
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 700.0));
+    mixer::set_width_mode(&mut r.app, WidthMode::Compact);
+    let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
+    assert!(
+        r.app.project().strips[0].name.is_empty(),
+        "named after its track"
+    );
+    let shown = r.app.project().tracks[0].name.clone();
+    r.idle(3);
+    let head = r.rect(Some(ids[0]), Control::Head);
+    let at = pos2(head.center().x, head.top() + 6.0);
+    r.click(at, Modifiers::NONE);
+    r.click(at, Modifiers::NONE);
+    r.idle(2);
+    assert!(r.app.mixer.renaming(), "the rename opened");
+    let field = r
+        .ctx
+        .memory(|m| m.focused())
+        .and_then(|id| r.ctx.read_response(id))
+        .expect("the field holds the keyboard")
+        .rect;
+    let texts = r.texts();
+    assert!(
+        texts
+            .iter()
+            .any(|(s, at)| *s == shown && field.expand(1.0).contains_rect(*at)),
+        "the field shows {shown:?}: {:?}",
+        texts
+            .iter()
+            .filter(|(_, at)| field.intersects(*at))
+            .collect::<Vec<_>>()
+    );
+    for n in 2..=6 {
+        let num = n.to_string();
+        let cell = texts
+            .iter()
+            .find(|(s, at)| *s == num && at.top() < field.bottom() + 40.0)
+            .unwrap_or_else(|| panic!("strip {n}'s number painted"))
+            .1;
+        assert!(
+            !cell.intersects(field),
+            "strip {n}'s number {cell:?} under the field {field:?}"
+        );
+    }
+    let rev = r.app.bus.revision();
+    r.frame(vec![Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    r.idle(2);
+    assert!(!r.app.mixer.renaming());
+    assert_eq!(r.app.bus.revision(), rev, "untouched: no command");
+    assert!(
+        r.app.project().strips[0].name.is_empty(),
+        "still its track's"
+    );
 }

@@ -24,6 +24,7 @@ pub fn source_of(data: Vec<f32>, channels: usize, rate: f32, periodic: bool) -> 
         rate,
         frames,
         tune_ct: 0.0,
+        stream: None,
     }
 }
 

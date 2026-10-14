@@ -1,7 +1,7 @@
 # El versículo al iniciar (BACKLOG §6c; views/verse.rs).
 verse.hide = No volver a mostrar
 verse.close = Cerrar el versículo
-verse.hidden = El versículo no se mostrará al iniciar. Ajustes ▸ General lo vuelve a activar.
+verse.hidden = El versículo no se mostrará al iniciar. Ajustes > General lo vuelve a activar.
 verse.settings.general = General
 verse.settings.show = Mostrar un versículo al iniciar
 verse.settings.show.short = Versículo al iniciar

@@ -3,10 +3,12 @@
 
 # La fila de la banda en la columna de leyenda.
 cables.legend = Ruteo
+# La línea gruesa es una salida, como la llaman las opciones de cables y la barra de ayuda
+# (ronda 26: la fila de la anchura Ancha que decía también SALIDA dice ahora DESTINO).
 cables.legend.output = salida
 cables.legend.send = envío
 cables.legend.key = sidechain
-cables.legend.hint = Los cables del canal seleccionado: línea gruesa = su salida · línea fina = un envío · línea punteada que acaba en una llave = es la key de un sidechain (controla un compresor allí)
+cables.legend.hint = Cables del canal seleccionado: gruesa = su salida · fina = un envío · punteada a una llave = key de un sidechain
 
 # El interruptor de la fila de título: qué cables dibuja la banda.
 cables.view = Cables
@@ -51,3 +53,5 @@ cables.preset.sends = Solo los envíos de la selección
 cables.preset.feeders = Solo lo que entra a la selección
 # El hover de la leyenda, cuando las opciones ocultan un tipo.
 cables.legend.hidden = Ocultos por las opciones de cables: {kinds}
+# Ronda 26: el asa de la banda mientras la mesa la mantiene en su mínimo.
+cables.hint.band_short = Haz el mezclador más alto u oculta filas (el menú de la mesa): la mesa es demasiado baja para una banda más alta

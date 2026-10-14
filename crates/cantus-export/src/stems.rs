@@ -77,6 +77,7 @@ pub fn export_stems(
             .map(|n| stem_output_name(n, s))
             .collect(),
         unaligned: rendered.unaligned,
+        cut_notes: rendered.cut_notes,
         seconds: rendered.seconds,
         peak_db: f32::NEG_INFINITY,
         ..Default::default()

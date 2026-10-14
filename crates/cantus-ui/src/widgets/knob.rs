@@ -219,27 +219,50 @@ impl Widget for Knob<'_> {
         if response.double_clicked() {
             v = default;
         }
-        // Exact entry on right-click: a popup with a number box. What is typed is what
-        // is set, clamped; the knob follows.
+        // Exact entry on right-click: the kit's field under the knob (round 26), the value
+        // selected. What is typed is what is set (read as the readouts print it, a unit or
+        // none), clamped; the knob follows. Esc leaves it as it was.
         let mut typed = None;
-        egui::Popup::context_menu(&response).show(|ui| {
-            let mut x = start;
-            let speed = ((max - min) / 400.0).max(1e-4) as f64;
-            let r = ui.add(
-                egui::DragValue::new(&mut x)
-                    .range(min..=max)
-                    .speed(speed)
-                    .suffix(if unit.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" {unit}")
-                    }),
-            );
-            r.request_focus();
-            if r.changed() {
-                typed = Some(x);
+        let tid = response.id.with("typed");
+        if response.secondary_clicked() {
+            let text = cantus_core::fx::readout::readout(start, &unit);
+            ui.data_mut(|d| d.insert_temp(tid, TypedValue(text)));
+        }
+        if let Some(mut tv) = ui.data(|d| d.get_temp::<TypedValue>(tid)) {
+            let ks = crate::kit::Style::current();
+            let size = egui::vec2(96.0 * ks.k, ks.d(22.0));
+            let at = response.rect.center_bottom() + egui::vec2(-size.x * 0.5, 2.0);
+            let mut event = None;
+            let mut edited = false;
+            egui::Area::new(tid)
+                .order(egui::Order::Foreground)
+                .fixed_pos(at)
+                .constrain(true)
+                .show(ui.ctx(), |ui| {
+                    let (r, _) = ui.allocate_exact_size(size, Sense::hover());
+                    let out = crate::kit::field::Field::new(tid)
+                        .role(crate::design::role::Role::Value)
+                        .centered()
+                        .opens_when_shown()
+                        .show(ui, r, &mut tv.0);
+                    (event, edited) = (out.event, out.edited);
+                });
+            match event {
+                Some(crate::kit::field::Event::Commit) => {
+                    // The readout untouched sets nothing (it would round the value).
+                    if edited {
+                        typed = cantus_core::fx::readout::parse_readout(&tv.0, &unit);
+                    }
+                    ui.data_mut(|d| d.remove::<TypedValue>(tid));
+                }
+                Some(crate::kit::field::Event::Cancel) => {
+                    ui.data_mut(|d| d.remove::<TypedValue>(tid));
+                }
+                None => {
+                    ui.data_mut(|d| d.insert_temp(tid, tv));
+                }
             }
-        });
+        }
         if let Some(x) = typed {
             v = x;
         }
@@ -413,4 +436,159 @@ mod tests {
         assert_eq!(hz, 1_234.567);
         assert!(!changed, "an untouched knob reported a change");
     }
+
+    /// Final review, fields 1: an exact entry opened and left untouched — Enter, or a
+    /// click elsewhere — sets nothing: no rounding to the readout's precision, no change
+    /// reported (no undo step).
+    #[test]
+    fn an_untouched_exact_entry_sets_nothing() {
+        use egui::{Event, Modifiers, PointerButton, Pos2, Rect};
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let mut v = 1_234.567f32;
+        let mut frame = 0u64;
+        let mut changed = false;
+        let mut run = |v: &mut f32, changed: &mut bool, events: Vec<Event>| {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))),
+                time: Some(frame as f64 / 60.0),
+                events,
+                ..Default::default()
+            };
+            let mut r = None;
+            ctx.run_ui(input, |ui| {
+                let resp = ui.add(
+                    Knob::new(v, 20.0..=20_000.0, 1_000.0)
+                        .log(true)
+                        .unit("Hz")
+                        .label("Freq"),
+                );
+                *changed |= resp.changed();
+                r = Some(resp.rect);
+            })
+            .textures_delta
+            .clear();
+            r.unwrap()
+        };
+        let click = |at, button, pressed| Event::PointerButton {
+            pos: at,
+            button,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        for close in ["enter", "away"] {
+            let at = run(&mut v, &mut changed, Vec::new()).center();
+            run(&mut v, &mut changed, vec![Event::PointerMoved(at)]);
+            for pressed in [true, false] {
+                run(
+                    &mut v,
+                    &mut changed,
+                    vec![click(at, PointerButton::Secondary, pressed)],
+                );
+            }
+            run(&mut v, &mut changed, Vec::new());
+            run(&mut v, &mut changed, Vec::new());
+            assert!(crate::kit::field::active(&ctx), "{close}: the field opened");
+            if close == "enter" {
+                run(
+                    &mut v,
+                    &mut changed,
+                    vec![Event::Key {
+                        key: Key::Enter,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: Modifiers::NONE,
+                    }],
+                );
+            } else {
+                let away = egui::pos2(390.0, 290.0);
+                run(&mut v, &mut changed, vec![Event::PointerMoved(away)]);
+                for pressed in [true, false] {
+                    run(
+                        &mut v,
+                        &mut changed,
+                        vec![click(away, PointerButton::Primary, pressed)],
+                    );
+                }
+            }
+            run(&mut v, &mut changed, Vec::new());
+            run(&mut v, &mut changed, Vec::new());
+            assert!(
+                !crate::kit::field::active(&ctx),
+                "{close}: the field closed"
+            );
+            assert_eq!(v, 1_234.567, "{close}: the value as it was");
+            assert!(!changed, "{close}: a change was reported");
+        }
+    }
+
+    /// Third review, finding 11: the exact entry is the kit's field (no egui DragValue):
+    /// a right-click opens it with the value selected, what is typed replaces it, Enter
+    /// sets it (clamped), Esc leaves the knob as it was.
+    #[test]
+    fn a_right_click_types_an_exact_value_in_the_kits_field() {
+        use egui::{Event, Modifiers, PointerButton, Pos2, Rect};
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let mut v = 0.37f32;
+        let mut frame = 0u64;
+        let mut run = |v: &mut f32, events: Vec<Event>| {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))),
+                time: Some(frame as f64 / 60.0),
+                events,
+                ..Default::default()
+            };
+            let mut r = None;
+            ctx.run_ui(input, |ui| {
+                r = Some(ui.add(Knob::new(v, 0.0..=1.0, 0.5).label("Mix")).rect);
+            })
+            .textures_delta
+            .clear();
+            r.unwrap()
+        };
+        let key = |k| Event::Key {
+            key: k,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        };
+        for (typed, end, want) in [
+            ("0.8", Key::Enter, 0.8f32),
+            ("2", Key::Enter, 1.0),
+            ("0.1", Key::Escape, 1.0),
+        ] {
+            let rect = run(&mut v, Vec::new());
+            let at = rect.center();
+            run(&mut v, vec![Event::PointerMoved(at)]);
+            for pressed in [true, false] {
+                run(
+                    &mut v,
+                    vec![Event::PointerButton {
+                        pos: at,
+                        button: PointerButton::Secondary,
+                        pressed,
+                        modifiers: Modifiers::NONE,
+                    }],
+                );
+            }
+            run(&mut v, Vec::new());
+            run(&mut v, Vec::new());
+            assert!(crate::kit::field::active(&ctx), "the field opened");
+            run(&mut v, vec![Event::Text(typed.into())]);
+            run(&mut v, vec![key(end)]);
+            run(&mut v, Vec::new());
+            assert!((v - want).abs() < 1e-5, "{typed:?} then {end:?}: {v}");
+        }
+    }
 }
+
+/// The words typed into a knob's exact entry, kept by the knob while it is open.
+#[derive(Clone, Debug, Default)]
+struct TypedValue(String);

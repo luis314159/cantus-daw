@@ -961,6 +961,26 @@ trademark search; the legal entity and the payment provider (Open Collective / G
 Patreon / Stripe-Paddle — compare fees and countries); the metrics of §10 of the plan, taken
 without telemetry (opt-in surveys, downloads, anonymous update checks — §6a).
 
+## 6g. Double-click to open, type to rename — FL's quick gestures (requested 2026-10-14)
+
+The owner, during round 26: the arrangement and the inspector should open things the way FL
+Studio does, with no hunting through menus. Each gesture gets a test that drives it in the
+whole window, and Esc never loses work.
+
+1. **Double-click a track header in the arrangement → open its instrument** (the plug-in or
+   native instrument's editor window; an audio track opens its inspector/editor instead).
+2. **Rename by typing**: with a track header selected (and the name field shown), typing
+   letters starts editing its name in place; Enter commits as one undo step
+   (`SetTrackName`), **Esc cancels and closes the edit** leaving the old name. Typing must
+   not fire single-key shortcuts or the typing piano while the edit is open.
+3. **Inspector ▸ Open editor brings the instrument's window to the front** — focused and
+   raised, **and restored if it was minimised** (today a minimised window stays minimised),
+   for native and hosted (CLAP/VST3) editors alike.
+4. **Double-click a clip in the arrangement → open its editor**: the piano roll by default,
+   or the channel rack (step sequencer) when the clip is a pattern made there — whichever the
+   clip was last edited in (a per-clip hint), the piano roll when unknown. An audio clip
+   opens its audio clip editor.
+
 ## 7. AI (research done in round 20: `research/ai/`)
 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio

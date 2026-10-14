@@ -223,7 +223,8 @@ impl Boot {
                 self.stage = Stage::Fonts;
             }
             Stage::Fonts => {
-                crate::design::install_fonts(ctx);
+                // The real window: the system font fallback armed (round 26).
+                crate::font_fallback::install_for_window(ctx);
                 crate::design::install_style(ctx);
                 self.fonts = true;
                 self.stage = Stage::Files;
@@ -462,10 +463,9 @@ impl eframe::App for Shell {
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         match self {
-            Shell::Running(app) => {
-                app.frame(root);
-                app.window_icon.sync(&ctx, frame);
-            }
+            // The app's own frame, whole (final review: the shell had a copy of it that
+            // missed the taskbar's poll): one path, so the two cannot drift.
+            Shell::Running(app) => eframe::App::ui(&mut **app, root, frame),
             Shell::Booting(boot) => {
                 let (key, progress, fonts) = (boot.stage.key(), boot.stage.progress(), boot.fonts);
                 let logo = boot.logo.clone();

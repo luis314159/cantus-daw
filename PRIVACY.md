@@ -37,7 +37,7 @@ or *Restart and update*.
 **What is kept.** `update.json` beside your settings: when the last check happened, the
 answer's tag and text (so a repeat costs nothing), and a version you chose to skip.
 
-**To switch it off:** *Settings ▸ Updates ▸ Check daily* → Off. A proxy can be typed in
+**To switch it off:** *Settings ▸ Updates ▸ Check daily* → Off — or untick *Check for updates once a day* on the installer's *Privacy* page, which shows this summary before anything is installed. A proxy can be typed in
 the same section; otherwise Cantus uses `HTTPS_PROXY` or Windows' proxy setting. HTTPS is
 always verified with Windows' own certificate store; verification is never turned off.
 
@@ -136,7 +136,7 @@ instala nada a menos que elijas *Instalar al cerrar Cantus* o *Reiniciar y actua
 **Qué se guarda.** `update.json` junto a tus ajustes: cuándo fue la última búsqueda, la
 etiqueta y el texto de la respuesta, y una versión que decidiste omitir.
 
-**Para apagarla:** *Ajustes ▸ Actualizaciones ▸ Buscar a diario* → No. En la misma sección
+**Para apagarla:** *Ajustes ▸ Actualizaciones ▸ Buscar a diario* → No — o desmarca *Buscar actualizaciones una vez al día* en la página *Privacidad* del instalador, que muestra este resumen antes de instalar nada. En la misma sección
 puedes escribir un proxy; si no, Cantus usa `HTTPS_PROXY` o el proxy de Windows. HTTPS se
 verifica siempre con el almacén de certificados de Windows; la verificación nunca se apaga.
 

@@ -55,6 +55,15 @@ A low-latency driver for testing: ASIO4ALL or FlexASIO (the app links both from
 *Audio setup*), or the interface maker's own. Never let an ASIO driver load while its
 interface is unplugged — some crash the process that loads them.
 
+**The README's pictures** come from one command, headless (no screen, no audio device):
+`cargo run --release -p cantus-ui --example shoot_readme` writes every one of them to
+`docs/images/`. Add names to shoot only some, and a folder first to write them elsewhere:
+`… --example shoot_readme -- <dir> fx- inst-`. The example's header lists what each picture
+shows. Set `CANTUS_SALAMANDER_ARCHIVE` to the Salamander Grand Piano's `.tar.gz` (the
+manifest's download) to show it in Exemplar; without it the picture is Exemplar's demo. With [oxipng](https://crates.io/crates/oxipng) installed (`cargo install oxipng`), it
+also optimises them losslessly, about a fifth smaller. Look at every picture before you
+commit it.
+
 ## 4. Test
 
 ```text
@@ -63,6 +72,11 @@ cargo test -p cantus-engine --features fuzz  # the scheduler's fuzz
 cargo clippy --workspace --all-targets       # must be clean
 cargo run -p xtask -- notices --check        # third-party notices up to date
 ```
+
+On a Windows set to another language, building the plug-ins' library prints `warning:
+linker stdout: Creando biblioteca … .dll.lib` (`linker_messages`): rustc hides MSVC's
+"Creating library" line only in English. It is harmless (CI's English runners never show
+it) but a local `RUSTFLAGS=-D warnings` build stops on it.
 
 Ignored by default, run when the hardware or files are there:
 

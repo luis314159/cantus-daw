@@ -521,6 +521,10 @@ pub(super) fn legend(
     let x0 = l.left() + 8.0;
     let x1 = l.right() - 6.0;
     for r in Row::ALL {
+        // The band's own cell is painted with the band (`band_legend`).
+        if r == Row::Cables {
+            continue;
+        }
         let Some((a, z)) = fit.row(r) else {
             continue;
         };
@@ -535,7 +539,6 @@ pub(super) fn legend(
             .policy(Policy::Abbreviate);
         let _ = text::paint(b, box_, &tt, s.tk());
     }
-    cables_key(ui, b, s, geo, fit, v.prefs.current.cable_opts);
     // The dB scale, where it does not collide with itself or with the row's name.
     if let Some((a, z)) = fit.row(Row::Fader) {
         let fr = Rect::from_min_max(pos2(x0, geo.y0 + a), pos2(x1, geo.y0 + z));
@@ -565,15 +568,75 @@ pub(super) fn legend(
         }
     }
     ratio_handle(v, ui, b, s, geo, fit);
+}
+
+/// The band's cell in the legend column — ROUTING, the key to its lines, the band's
+/// height handle — painted with the band (the desk's last pass) so it stands on top when
+/// the band is pinned to the desk's foot (round 26: the routing never scrolls out of
+/// sight; a hairline marks the strips running under it).
+pub(super) fn band_legend(
+    v: &mut MixerView,
+    ui: &mut Ui,
+    b: &mut Brush,
+    s: &Style,
+    geo: &Geo,
+    fit: &Fit,
+) {
+    let Some((a, z)) = fit.row(Row::Cables) else {
+        v.cable_key = None;
+        return;
+    };
+    let t = &s.t;
+    let (a, z) = (geo.y0 + a, geo.y0 + z);
+    if geo.pinned {
+        let y = b.snap(a) + b.px() * 0.5;
+        b.hline(
+            geo.rows.left(),
+            geo.inner_right,
+            y,
+            b.px(),
+            shade(t.panel, -0.22),
+        );
+        b.hline(
+            geo.rows.left(),
+            geo.inner_right,
+            y + b.px(),
+            b.px(),
+            shade(t.panel, 0.06),
+        );
+    }
+    let l = geo.legend;
+    let (x0, x1) = (l.left() + 8.0, l.right() - 6.0);
+    // Where every row's name goes (`legend`), kept clear of the handle at the right.
+    let handle = band_handle_rect(geo, a);
+    let box_ = if z - a > 30.0 {
+        Rect::from_min_max(pos2(x0, a), pos2(x1, a + 14.0))
+    } else {
+        Rect::from_center_size(pos2((x0 + x1) * 0.5, (a + z) * 0.5), vec2(x1 - x0, 14.0))
+    };
+    let box_ = Rect::from_min_max(
+        box_.min,
+        pos2(box_.right().min(handle.left() - 2.0), box_.bottom()),
+    );
+    let tt = Text::key(Row::Cables.legend_key(), Role::Micro, t.text_dim)
+        .align(Align2::LEFT_CENTER)
+        .policy(Policy::Abbreviate);
+    let name = text::paint(b, box_, &tt, s.tk()).map(|p| p.rect);
+    let opts = v.prefs.current.cable_opts;
+    v.cable_key = cables_key(ui, b, s, geo, fit, opts, name);
     band_handle(v, ui, b, s, geo, fit);
 }
 
 /// Under ROUTING, what the band's lines mean, without a hover: a sample of each — an
 /// output thick, a send thin, a sidechain key dashed, as the band draws them — and its
 /// word; on hover, the whole sentence in the hint bar. Where the band is too short for
-/// three lines, only the hover says it. A kind the view's options hide is dimmed, and the
-/// hover names it ("Hidden by the cable options: Outputs"), so a missing cable is never a
-/// mystery.
+/// the three lines under the name (below 40 pt, down to its least of 20 pt at 1280 ×
+/// 720), a **compact key**: the three samples side by side after the name, under the
+/// band's handle — an output plainly thicker than a send, a key's dash and its key mark —
+/// so the legend is never invisible, and the hover still says it all. A kind the view's
+/// options hide is dimmed, and the hover names it ("Hidden by the cable options:
+/// Outputs"), so a missing cable is never a mystery.
+#[allow(clippy::too_many_arguments)]
 fn cables_key(
     ui: &mut Ui,
     b: &mut Brush,
@@ -581,14 +644,18 @@ fn cables_key(
     geo: &Geo,
     fit: &Fit,
     opts: layout::CableOpts,
-) {
-    let Some((a, z)) = fit.row(Row::Cables) else {
-        return;
-    };
+    name: Option<Rect>,
+) -> Option<super::CableKey> {
+    use crate::kit::cable::{self, CableKind};
+    use layout::CableKindSel as K;
+    let (a, z) = fit.row(Row::Cables)?;
     let t = &s.t;
     let (a, z) = (geo.y0 + a, geo.y0 + z);
     let l = geo.legend;
     let (x0, x1) = (l.left() + 8.0, l.right() - 6.0);
+    let cell = Rect::from_min_max(pos2(l.left(), a), pos2(l.right(), z));
+    let name = name.unwrap_or(Rect::from_min_size(pos2(x0, (a + z) * 0.5), vec2(0.0, 0.0)));
+    let handle = band_handle_rect(geo, a);
     // Below the row's name (which sits at the top of a tall row, centred in a short one).
     let top = if z - a > 30.0 {
         a + 13.0
@@ -598,25 +665,36 @@ fn cables_key(
     // Micro is capitals 8.5 pt (about 6 px tall): 9 px a line keeps them apart, so the
     // name and the three lines fit the band's default 40 px.
     const LINE: f32 = 9.0;
-    if z - top >= LINE * 3.0 {
-        use crate::kit::cable::{self, CableKind};
-        use layout::CableKindSel as K;
-        for (i, (key, kind, sel)) in [
-            ("cables.legend.output", CableKind::Output, K::Outputs),
-            (
-                "cables.legend.send",
-                CableKind::Send {
-                    on: true,
-                    pre: false,
-                },
-                K::Sends,
-            ),
-            ("cables.legend.key", CableKind::Key, K::Keys),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let y = top + LINE * (i as f32 + 0.5);
+    let full = z - top >= LINE * 3.0;
+    // The compact key: in a row after the name, under the handle (which holds the cell's
+    // top right), three samples of up to 12 pt with 3-pt gaps.
+    const GAP: f32 = 3.0;
+    let cx0 = name.right() + 5.0;
+    let cx1 = l.right() - 4.0;
+    let sw = ((cx1 - cx0 - 2.0 * GAP) / 3.0).min(12.0);
+    let cy = ((a + z) * 0.5).max(handle.bottom() + 4.5).min(z - 4.0);
+    let compact = !full && sw >= 6.0 && cy - 3.5 >= a;
+    let samples = [
+        ("cables.legend.output", CableKind::Output, K::Outputs),
+        (
+            "cables.legend.send",
+            CableKind::Send {
+                on: true,
+                pre: false,
+            },
+            K::Sends,
+        ),
+        ("cables.legend.key", CableKind::Key, K::Keys),
+    ];
+    let mut marks = [Rect::NOTHING; 3];
+    if full || compact {
+        for (i, (key, kind, sel)) in samples.into_iter().enumerate() {
+            let (y, sx0, sx1, h) = if full {
+                (top + LINE * (i as f32 + 0.5), x0, x0 + 14.0, LINE - 0.5)
+            } else {
+                let x = cx0 + i as f32 * (sw + GAP);
+                (cy, x, x + sw, 7.0)
+            };
             // Hidden by the options: dimmed, sample and word alike.
             let dim = |c: egui::Color32| {
                 if opts.shows(sel) {
@@ -626,30 +704,48 @@ fn cables_key(
                 }
             };
             let ink = dim(t.text_dim);
-            // As the band strokes it: its width, and a key in the dynamics hue, dashed,
-            // ending in its key mark.
-            let w = s.s(cable::width(kind));
+            // As the band strokes it: its width (in the compact key an output twice a
+            // send's, so the two never read alike at that size), and a key in the
+            // dynamics hue, dashed, ending in its key mark.
+            let w = if full {
+                s.s(cable::width(kind))
+            } else if kind == CableKind::Output {
+                s.s(2.8)
+            } else {
+                s.s(1.2)
+            };
+            let mut right = sx1;
             if kind == CableKind::Key {
                 let hue = dim(t.hue_dynamics);
-                for k in 0..2 {
-                    let u = x0 + k as f32 * 5.0;
-                    b.segment(pos2(u, y), pos2(u + 3.0, y), w, hue, false);
+                let glyph = if full { 8.0 } else { 6.0 };
+                let dashes_end = if full { x0 + 8.0 } else { sx1 - glyph - 0.5 };
+                let mut u = sx0;
+                while u + 2.5 <= dashes_end + 0.01 {
+                    b.segment(pos2(u, y), pos2(u + 2.5, y), w.max(s.s(1.2)), hue, false);
+                    u += 4.5;
                 }
-                cable::key_mark(b, s, pos2(x0 + 13.0, y), s.s(8.0), hue);
+                let at = if full { x0 + 13.0 } else { sx1 - glyph * 0.5 };
+                cable::key_mark(b, s, pos2(at, y), s.s(glyph), hue);
+                right = right.max(at + glyph * 0.5);
             } else {
-                b.segment(pos2(x0, y), pos2(x0 + 14.0, y), w, ink, false);
+                b.segment(pos2(sx0, y), pos2(sx1, y), w, ink, false);
             }
-            // Taller than the line, so an accent (ENVÍO) is not cut; nothing paints above.
-            let tr = Rect::from_min_max(pos2(x0 + 21.0, y - 6.5), pos2(x1, y + 6.5));
-            let tt = Text::key(key, Role::Micro, ink)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Abbreviate);
-            let _ = text::paint(b, tr, &tt, s.tk());
+            if full {
+                // Taller than the line, so an accent (ENVÍO) is not cut; nothing paints
+                // above.
+                let tr = Rect::from_min_max(pos2(x0 + 21.0, y - 6.5), pos2(x1, y + 6.5));
+                let tt = Text::key(key, Role::Micro, ink)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Abbreviate);
+                if let Some(p) = text::paint(b, tr, &tt, s.tk()) {
+                    right = right.max(p.rect.right());
+                }
+            }
+            marks[i] = Rect::from_min_max(pos2(sx0, y - h * 0.5), pos2(right, y + h * 0.5));
         }
     }
-    let row = Rect::from_min_max(pos2(l.left(), a), pos2(l.right(), z));
     let resp = ui.interact(
-        row.intersect(geo.rows),
+        cell.intersect(geo.rows),
         Id::new("mixer-cables-key"),
         Sense::hover(),
     );
@@ -676,6 +772,19 @@ fn cables_key(
             hint::Caps::NONE,
         );
     }
+    Some(super::CableKey {
+        cell,
+        name,
+        marks: (full || compact).then_some(marks),
+        compact,
+        handle,
+    })
+}
+
+/// The band's height handle: at the right of the legend cell, near the band's top edge
+/// (`a`, the row's top on screen).
+fn band_handle_rect(geo: &Geo, a: f32) -> Rect {
+    Rect::from_center_size(pos2(geo.legend.right() - 14.0, a + 5.0), vec2(22.0, 10.0))
 }
 
 /// FL's 3-dot handle between the meter and the fader: drag to move height between them,
@@ -688,7 +797,8 @@ fn ratio_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &
     let y = geo.y0 + mz - 6.0;
     let hr = Rect::from_center_size(pos2(geo.legend.right() - 14.0, y), vec2(22.0, 12.0));
     let resp = ui.interact(
-        hr.intersect(geo.rows),
+        // Never through a pinned band: only where the strips show (second review, 7).
+        hr.intersect(geo.strips),
         Id::new("mixer-ratio"),
         Sense::click_and_drag(),
     );
@@ -757,12 +867,16 @@ pub(super) fn wheel(v: &mut MixerView, app: &mut CantusApp, ui: &mut Ui, geo: &G
         fit.row(r)
             .is_some_and(|(a, z)| p.y >= geo.y0 + a && p.y <= geo.y0 + z)
     };
-    let on_control = row_at(Row::Fader)
-        || row_at(Row::Pan)
-        || row_at(Row::Width)
-        || row_at(Row::Eq)
-        || row_at(Row::Sends)
-        || row_at(Row::SendList);
+    // Over a pinned band the band is what is under the pointer, whatever row lies hidden
+    // beneath it.
+    let in_band = geo.pinned && row_at(Row::Cables);
+    let on_control = !in_band
+        && (row_at(Row::Fader)
+            || row_at(Row::Pan)
+            || row_at(Row::Width)
+            || row_at(Row::Eq)
+            || row_at(Row::Sends)
+            || row_at(Row::SendList));
     let in_legend = geo.legend.contains(p);
     let used;
     if mods.command {
@@ -792,8 +906,11 @@ pub(super) fn wheel(v: &mut MixerView, app: &mut CantusApp, ui: &mut Ui, geo: &G
         }
         used = true;
     } else {
-        let head =
-            row_at(Row::Number) || row_at(Row::Name) || row_at(Row::Meter) || row_at(Row::Cables);
+        let head = in_band
+            || row_at(Row::Number)
+            || row_at(Row::Name)
+            || row_at(Row::Meter)
+            || row_at(Row::Cables);
         let on_hbar = geo.hbar.expand(3.0).contains(p);
         if fit.scrolls && !head && !on_hbar {
             v.scroll_y -= smooth.y;
@@ -977,8 +1094,17 @@ fn band_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &G
     let Some((a, _)) = fit.row(Row::Cables) else {
         return;
     };
-    let y = geo.y0 + a + 5.0;
-    let hr = Rect::from_center_size(pos2(geo.legend.right() - 14.0, y), vec2(22.0, 10.0));
+    let hr = band_handle_rect(geo, geo.y0 + a);
+    // The desk may hold the band at less than asked (too short a desk: the most that
+    // fits). The handle is never inert (third review): a drag starts from the band as it
+    // shows, so a drag down acts at its first point, and a drag up stops at what fits —
+    // no preference is ever written that nothing shows. The hint says when the desk is
+    // what holds it.
+    let held = fit.band + 0.5
+        < v.prefs
+            .current
+            .band
+            .clamp(layout::BAND_MIN, layout::BAND_MAX);
     let resp = ui.interact(
         hr.intersect(geo.rows),
         Id::new("mixer-band-size"),
@@ -987,12 +1113,23 @@ fn band_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &G
     let st = State::of(&resp, false);
     if st.hovered || resp.dragged() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-        hint::set_text(ui.ctx(), &v.words.band, "", hint::Caps::NONE);
+        let words = if held {
+            &v.words.band_short
+        } else {
+            &v.words.band
+        };
+        hint::set_text(ui.ctx(), words, "", hint::Caps::NONE);
     }
     let mut p = v.prefs.current;
     if resp.dragged() {
         // The band is the bottom row: its top edge up makes it taller.
-        p.band = (p.band - resp.drag_delta().y).clamp(layout::BAND_MIN, layout::BAND_MAX);
+        let from = p.band.min(fit.band);
+        let dy = resp.drag_delta().y;
+        p.band = if held && dy < 0.0 {
+            from
+        } else {
+            (from - dy).clamp(layout::BAND_MIN, layout::BAND_MAX)
+        };
         v.prefs.current = p;
     }
     if resp.drag_stopped() {
@@ -1005,6 +1142,8 @@ fn band_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &G
     }
     let dot = if st.hovered || st.active {
         s.t.text
+    } else if held {
+        with_alpha(s.t.text_dim, 0.55)
     } else {
         s.t.text_dim
     };

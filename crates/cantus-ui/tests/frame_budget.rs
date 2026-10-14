@@ -241,6 +241,13 @@ impl Rig {
         for _ in 0..warm {
             self.step();
         }
+        // Quiet before measuring: no instrument's samples still loading beside the
+        // window (their progress rebuilds the status line on whichever frame they land).
+        let t = Instant::now();
+        while self.app.engine.samples.progress().is_some() && t.elapsed().as_secs() < 20 {
+            std::thread::sleep(Duration::from_millis(5));
+            self.step();
+        }
         (0..n).map(|_| self.step()).collect()
     }
 }
@@ -569,8 +576,10 @@ fn fastest(frames: &[Frame]) -> Duration {
 /// - at rest, *All* allocates no more than *Off* in any frame;
 /// - with a cable hovered (its pill lit, its words in the hint bar), no more than one
 ///   allocation over the same desk with a fader hovered instead (hovering any control
-///   costs the hint bar's own ~17 allocations; the cable's second line of words is the one
-///   more);
+///   costs egui's own ~16 allocations — its hit test and interaction lists, and with debug
+///   assertions one plugin-list clone per widget under the pointer; the band is the one
+///   widget more under it — see `a_hovered_desk_control_costs_only_what_egui_charges_for_a_hover`
+///   and `the_hint_bar_costs_no_allocation`, round 26);
 /// - the build time within a documented tolerance of the plain desk's: the fastest of 30
 ///   frames with *All* at most 1.6 × the fastest with *Off*, plus 2 ms (the fastest frame,
 ///   so a busy test machine does not decide it).
@@ -639,5 +648,303 @@ fn the_band_in_wide_with_every_look_costs_no_allocation() {
         "the band costs too much: {:?} against {:?} off",
         fastest(&all),
         fastest(&off)
+    );
+}
+
+// ---- round 26: what hovering a control costs (BUILDING.md mixer item 5) ----------------
+
+/// Round 26: the hint bar itself allocates nothing. A control writes its hint into the
+/// slot's reused buffers (`kit::hint::set`) and the bar copies it into its own
+/// (`views::hint`); the words are laid out once and cached. Measured by the worst of 30
+/// warm frames painting the bar with a hovered hint (a name, a value, the capability
+/// icons), with a live value (and the pill by the pointer), and with nothing hovered (the
+/// idle words): all three allocate the same. (Round 25 credited the hint bar with the
+/// ~17 allocations a hovered desk control costs; they are egui's, below.)
+#[test]
+fn the_hint_bar_costs_no_allocation() {
+    use cantus_ui::kit::hint::{self, Caps};
+    use std::fmt::Write as _;
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let bar = egui::Rect::from_min_size(egui::pos2(10.0, 4.0), egui::vec2(420.0, 34.0));
+    let mut frame = 0u64;
+    // `bar`: paint the hint bar and the value pill — or, the control experiment, one plain
+    // shape where the bar would be (what egui charges for anything painted there).
+    // `layer`: a bare shape on a layer of the tooltip order too, as the pill's.
+    let mut run = |hovered: Option<(&str, &str, bool)>,
+                   down: bool,
+                   bar_on: bool,
+                   layer: bool,
+                   n: usize|
+     -> u64 {
+        let mut worst = 0;
+        for i in 0..20 + n {
+            frame += 1;
+            let p = egui::pos2(200.0, 200.0);
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, HD)),
+                time: Some(frame as f64 / 60.0),
+                predicted_dt: 1.0 / 60.0,
+                events: vec![
+                    egui::Event::PointerMoved(p),
+                    egui::Event::PointerButton {
+                        pos: p,
+                        button: egui::PointerButton::Primary,
+                        pressed: down,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            };
+            let (out, allocs, _) = counted(|| {
+                ctx.run_ui(input, |ui| {
+                    if let Some((name, value, live)) = hovered {
+                        hint::set(ui.ctx(), name, Caps::PARAM, live, |b| b.write_str(value));
+                    }
+                    if bar_on {
+                        let s = cantus_ui::kit::Style::current();
+                        cantus_ui::kit::with_brush(ui.painter(), |b| {
+                            views::hint::paint_panel(
+                                b,
+                                bar,
+                                &s,
+                                "Song for the Lord",
+                                Some("workspace.mixer.hint"),
+                            );
+                        });
+                        views::hint::value_pill(ui.ctx());
+                    } else {
+                        ui.painter().rect_filled(bar, 3.0, egui::Color32::DARK_GRAY);
+                    }
+                    if layer {
+                        let id = egui::Id::new("bare-tooltip-layer");
+                        ui.ctx()
+                            .layer_painter(egui::LayerId::new(egui::Order::Tooltip, id))
+                            .rect_filled(bar, 2.0, egui::Color32::GRAY);
+                    }
+                })
+            });
+            let mut out = out;
+            out.textures_delta.clear();
+            if i >= 20 {
+                worst = worst.max(allocs);
+            }
+        }
+        worst
+    };
+    // Review finding 8: against an absolute control, not the bar itself — a frame with
+    // one plain shape where the bar is, nothing of ours painted.
+    let control = run(None, false, false, false, 30);
+    let idle = run(None, false, true, false, 30);
+    let hovered = run(
+        Some(("Volume", "\u{2212}6.0 dB", false)),
+        false,
+        true,
+        false,
+        30,
+    );
+    // A drag: the button held in both, the value live and its pill in one, a plain shape
+    // and a bare shape on a tooltip layer of its own in the other.
+    let held = run(None, true, false, true, 30);
+    let live = run(
+        Some(("Volume", "\u{2212}4.5 dB", true)),
+        true,
+        true,
+        false,
+        30,
+    );
+    eprintln!(
+        "hint bar: control {control}, idle {idle}, hovered {hovered}; control held {held}, live value and pill {live} allocations (worst frame)"
+    );
+    assert!(
+        idle <= control,
+        "the idle bar: {idle} allocations against {control} for a plain shape"
+    );
+    assert!(
+        hovered <= control,
+        "a hovered hint: {hovered} allocations against {control} for a plain shape"
+    );
+    // The pill adds its own shapes to the frame, and egui gathers every layer's shapes into
+    // one list (`GraphicLayers::drain` appends them): crossing a power of two regrows
+    // that list once — egui's, not the pill's; nothing else may come with it.
+    assert!(
+        live <= held + 1,
+        "a live value and its pill: {live} against {held}"
+    );
+}
+
+/// Round 26: what hovering a desk control costs is egui's own price for hovering a
+/// widget, and nothing of ours. A bare egui frame shaped like the desk's (a central
+/// panel, the desk's area, and a control under the pointer among neighbours, as a fader
+/// sits among the strip's parts) is the control experiment: hovered against away, it pays
+/// for egui's hit test and interaction lists (and, in builds with debug assertions, its
+/// `on_widget_under_pointer` plugin hook, one list clone per widget under the pointer).
+/// The 64-strip desk with a fader hovered may cost no more over the same desk at rest
+/// than that.
+#[test]
+fn a_hovered_desk_control_costs_only_what_egui_charges_for_a_hover() {
+    let away = egui::pos2(-100.0, -100.0);
+    // The desk: 64 strips, Wide, a fader hovered.
+    let mut rig = Rig::new(64, false, HD);
+    views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
+    rig.play();
+    rig.pointer = Some(away);
+    let (rest, _) = max_allocs(&rig.run(20, 30));
+    let fader = views::mixer::control_rect(
+        &rig.ctx,
+        Some(rig.app.project().strips[5].id),
+        views::mixer::Control::Fader,
+    )
+    .expect("a fader on screen")
+    .center();
+    rig.pointer = Some(fader);
+    let (hover, _) = max_allocs(&rig.run(10, 30));
+    // The control: the same nesting in bare egui, a widget under the pointer among
+    // neighbours.
+    let ctx = egui::Context::default();
+    let mut frame = 0u64;
+    let mut bare = |at: egui::Pos2| -> u64 {
+        let mut worst = 0;
+        for i in 0..40 {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, HD)),
+                time: Some(frame as f64 / 60.0),
+                predicted_dt: 1.0 / 60.0,
+                events: vec![egui::Event::PointerMoved(at)],
+                ..Default::default()
+            };
+            let (out, allocs, _) = counted(|| {
+                ctx.run_ui(input, |root| {
+                    egui::CentralPanel::default().show(root, |ui| {
+                        let full = ui.available_rect_before_wrap();
+                        ui.allocate_rect(full, egui::Sense::hover());
+                        for k in 0..12 {
+                            let r = egui::Rect::from_center_size(
+                                fader
+                                    + egui::vec2(
+                                        (k % 4) as f32 * 9.0 - 13.5,
+                                        (k / 4) as f32 * 9.0 - 9.0,
+                                    ),
+                                egui::vec2(8.0, 8.0),
+                            );
+                            ui.interact(
+                                r,
+                                egui::Id::new(("bare", k)),
+                                egui::Sense::click_and_drag(),
+                            );
+                        }
+                    });
+                })
+            });
+            let mut out = out;
+            out.textures_delta.clear();
+            if i >= 10 {
+                worst = worst.max(allocs);
+            }
+        }
+        worst
+    };
+    let bare_rest = bare(away);
+    let bare_hover = bare(fader);
+    eprintln!(
+        "hover: desk {rest} -> {hover} (+{}), bare egui {bare_rest} -> {bare_hover} (+{}) allocations (worst frame)",
+        hover.saturating_sub(rest),
+        bare_hover.saturating_sub(bare_rest)
+    );
+    assert!(
+        hover.saturating_sub(rest) <= bare_hover.saturating_sub(bare_rest),
+        "a hovered fader costs {} allocations over the desk at rest; egui's own hover costs {}",
+        hover.saturating_sub(rest),
+        bare_hover.saturating_sub(bare_rest)
+    );
+}
+
+// ---- round 26, second review: a hovered bus with many inputs (finding 5) ---------------
+
+/// 64 strips; strip 6 a bus fed by 32 sends (strips 21 to 52), All cables, Wide.
+fn bus_desk() -> Project {
+    let mut p = grown(64);
+    let bus = p.strips[5].id;
+    for i in 20..52 {
+        p.strips[i].sends.push(Send::new(bus));
+    }
+    p
+}
+
+fn hover_fader(rig: &mut Rig, index: usize) -> Vec<Frame> {
+    let id = rig.app.project().strips[index].id;
+    let at = views::mixer::control_rect(&rig.ctx, Some(id), views::mixer::Control::Fader)
+        .expect("the fader on screen")
+        .center();
+    rig.pointer = Some(at);
+    rig.run(10, 30)
+}
+
+/// Second review, finding 5: hovering a bus with 32 inputs lights 32 cables that the
+/// placement fits around the selection's — at no allocation over hovering a plain strip
+/// (the placement keeps its scratch lists), and (timing, release) well under 0.3 ms more.
+#[test]
+fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
+    use views::mixer::layout::CableView;
+    let mut rig = Rig::with(bus_desk(), false, HD);
+    views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
+    cable_view(&mut rig, CableView::All);
+    rig.play();
+    rig.run(20, 0);
+    let (plain, _) = max_allocs(&hover_fader(&mut rig, 6));
+    let frames = hover_fader(&mut rig, 5);
+    let (bus, _) = max_allocs(&frames);
+    let bus_id = rig.app.project().strips[5].id;
+    let into = rig
+        .app
+        .mixer
+        .cables()
+        .iter()
+        .filter(|d| d.route.to == bus_id)
+        .count();
+    let lit = rig.app.mixer.cables().iter().filter(|d| d.lit).count();
+    eprintln!(
+        "hovered: plain strip {plain}, bus {bus} allocations (worst frame); {into} cables into the bus, {lit} lit"
+    );
+    assert!(into >= 32, "the bus's inputs are drawn: {into}");
+    assert!(
+        lit >= 3,
+        "as many lit (with their marks) as the band holds apart: {lit}"
+    );
+    assert!(
+        rig.app
+            .mixer
+            .cables()
+            .iter()
+            .filter(|d| d.route.to == bus_id)
+            .all(|d| d.lit || d.yielded),
+        "every input reads as the bus's: lit, or in its colour without a mark"
+    );
+    assert!(
+        bus <= plain,
+        "a hovered bus: {bus} allocations against {plain}"
+    );
+}
+
+#[test]
+#[ignore = "timing: run in release with --ignored"]
+fn a_hovered_bus_with_many_inputs_timing() {
+    use views::mixer::layout::CableView;
+    let mut rig = Rig::with(bus_desk(), false, HD);
+    views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
+    cable_view(&mut rig, CableView::All);
+    rig.play();
+    rig.run(20, 0);
+    let plain = fastest(&hover_fader(&mut rig, 6));
+    let bus = fastest(&hover_fader(&mut rig, 5));
+    eprintln!("fastest build: plain strip hovered {plain:?}, bus hovered {bus:?}");
+    assert!(
+        bus <= plain + Duration::from_micros(300),
+        "a hovered bus costs {:?} more",
+        bus.saturating_sub(plain)
     );
 }

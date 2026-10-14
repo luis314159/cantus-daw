@@ -94,6 +94,19 @@ impl Tool {
         }
     }
 
+    /// The tool's essentials (`<hint_key>.short`): what the grid says under the pointer.
+    pub fn short_hint_key(self) -> &'static str {
+        match self {
+            Tool::Draw => "tool.draw.hint.short",
+            Tool::Paint => "tool.paint.hint.short",
+            Tool::Select => "tool.select.hint.short",
+            Tool::Delete => "tool.delete.hint.short",
+            Tool::Mute => "tool.mute.hint.short",
+            Tool::Slice => "tool.slice.hint.short",
+            Tool::Playback => "tool.playback.hint.short",
+        }
+    }
+
     pub fn icon(self) -> crate::icons::Icon {
         use crate::icons::Icon;
         match self {
@@ -726,9 +739,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             _ => egui::CursorIcon::Default,
         };
         ui.ctx().set_cursor_icon(icon);
+        // The tool's essentials (final review: the whole Draw list was cut at a laptop's
+        // width); the whole is the idle hint and the hint panel's tooltip.
         hint::set_text(
             ui.ctx(),
-            chrome::word(app.piano_roll.tool.hint_key()),
+            chrome::word(app.piano_roll.tool.short_hint_key()),
             "",
             Caps::NONE,
         );

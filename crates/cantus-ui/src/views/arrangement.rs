@@ -233,6 +233,21 @@ impl Default for ArrangementView {
 }
 
 impl ArrangementView {
+    /// Start renaming a track in place (a double-click on its header does).
+    pub fn begin_rename_track(&mut self, id: TrackId, name: String) {
+        self.rename = Some((id, name));
+    }
+
+    /// The track being renamed, if any.
+    pub fn renaming_track(&self) -> Option<TrackId> {
+        self.rename.as_ref().map(|(t, _)| *t)
+    }
+
+    /// Whether a clip is being renamed.
+    pub fn renaming_clip(&self) -> bool {
+        self.rename_clip.is_some()
+    }
+
     /// A header being dragged to reorder: the track and the row its drop line marks (its
     /// own row while it is held outside the arrangement: no line).
     pub fn reorder_target(&self) -> Option<(TrackId, usize)> {
@@ -430,6 +445,15 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
         app.focus_arrangement();
         app.run_action(Action::MakeUnique);
     }
+    // The paint tool (B): lit while it is out; its source is the clip browser's tile.
+    let painting = app.clip_browser.painting();
+    let paint = bar.key(ui, id.with("paint"), Icon::Paint, painting, true, || {
+        tip(app, Action::ToolPaint, "links.paint.key")
+    });
+    if paint.is_some_and(|k| k.clicked()) {
+        app.focus_arrangement();
+        app.toggle_arrangement_paint();
+    }
     // The colour key shows the colour rather than an icon of one.
     let swatch = bar.swatch(ui, id.with("colour"), color.map(theme::track_color), || {
         tip(app, Action::ClipColorNext, "clip.color")
@@ -437,7 +461,7 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
     if let Some(r) = swatch {
         egui::Popup::menu(&r)
             .frame(chrome::menu_frame())
-            .show(|ui| color_menu(app, ui));
+            .show(|ui| color_menu(app, ui, false));
     }
     let del = bar.key(ui, id.with("delete"), Icon::Delete, false, true, || {
         tip(app, Action::Delete, "clip.delete")
@@ -553,9 +577,30 @@ pub(crate) fn grid_menu(ui: &mut egui::Ui, current: Ticks) -> Option<Ticks> {
 }
 
 /// The clip palette: a row of swatches and "follow the track".
-fn color_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+/// The clip colours: "follow the track", then the palette. In the clip's menu (`panel`)
+/// the row is a part of the menu — its panel under it, the swatches at the items' inset
+/// (final review: they lay on the window under the menu's last band).
+fn color_menu(app: &mut CantusApp, ui: &mut egui::Ui, panel: bool) {
     let s = Style::current();
-    ui.horizontal(|ui| {
+    if panel {
+        let (rect, _) =
+            ui.allocate_exact_size(vec2(MENU_W, s.d(kit::menu::ROW + 8.0)), Sense::hover());
+        kit::with_brush(ui.painter(), |b| kit::menu::paint(b, rect, &s, &[], None));
+        let inner = rect.shrink2(vec2(s.s(8.0), s.s(4.0)));
+        let mut row = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        row.spacing_mut().item_spacing.x = s.s(4.0);
+        swatches(app, &mut row, &s);
+    } else {
+        ui.horizontal(|ui| swatches(app, ui, &s));
+    }
+}
+
+fn swatches(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style) {
+    {
         // First, "follow the track": the swatch with the diagonal, as on the toolbar key.
         let (r, resp) = ui.allocate_exact_size(vec2(s.s(18.0), s.s(18.0)), Sense::click());
         kit::with_brush(ui.painter(), |b| {
@@ -593,7 +638,7 @@ fn color_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
                 ui.close();
             }
         }
-    });
+    }
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
@@ -623,6 +668,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     timeline(app, ui, &f, &geo, &s);
     headers(app, ui, &f, &geo, &s);
     corner(app, ui, &f, &s);
+    // The paint tool (B; round 26, ADR 0037), above the timeline while it is out.
+    super::clip_browser::paint_tool(app, ui, f.lanes, &geo);
     let v = &mut app.arrangement;
     kit::widgets::splitter(
         ui,
@@ -1108,17 +1155,19 @@ fn rename_in_place(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, at: Rect
         return;
     };
     let rid = *rid;
-    let mut child = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(at)
-            .layout(egui::Layout::left_to_right(egui::Align::Center)),
-    );
-    let resp = child.add(egui::TextEdit::singleline(name).desired_width(at.width()));
-    resp.request_focus();
-    if resp.lost_focus() || child.input(|i| i.key_pressed(egui::Key::Enter)) {
-        let new_name = name.clone();
+    // The kit's field (round 26): the name selected as it opens; Enter or a click
+    // elsewhere renames, Esc leaves the name as it was.
+    let out = kit::field::Field::new(egui::Id::new(("track-rename", rid.0)))
+        .opens_when_shown()
+        .show(ui, at, name);
+    if out.event == Some(kit::field::Event::Cancel) {
         app.arrangement.rename = None;
-        if app.project().track(rid).is_some_and(|t| t.name != new_name) {
+        return;
+    }
+    if out.event == Some(kit::field::Event::Commit) {
+        let new_name = name.trim().to_string();
+        app.arrangement.rename = None;
+        if !new_name.is_empty() && app.project().track(rid).is_some_and(|t| t.name != new_name) {
             app.exec(Command::SetTrackName {
                 id: rid,
                 name: new_name,
@@ -1701,24 +1750,22 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // naming. `F2` starts it; Enter and clicking away both commit.
     if let Some(body) = hits.renaming {
         let h = s.s(20.0).min(body.height());
-        let mut child = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(Rect::from_min_size(
-                    pos2(body.left() + 2.0, body.top() + 1.0),
-                    vec2((body.width() - 4.0).max(40.0), h),
-                ))
-                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        let well = Rect::from_min_size(
+            pos2(body.left() + 2.0, body.top() + 1.0),
+            vec2((body.width() - 4.0).max(40.0), h),
         );
         let mut done = None;
         if let Some((target, name)) = app.arrangement.rename_clip.as_mut() {
             let target = *target;
-            let edit = child.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
-            edit.request_focus();
-            if edit.lost_focus() || child.input(|i| i.key_pressed(egui::Key::Enter)) {
-                done = Some((target, name.clone()));
-            }
-            if child.input(|i| i.key_pressed(egui::Key::Escape)) {
-                done = Some((target, String::new()));
+            // The kit's field (round 26): Enter or a click elsewhere renames, Esc leaves
+            // the name (an empty name is an abandoned edit to `rename_clip`).
+            let out = kit::field::Field::new(egui::Id::new(("clip-rename", target.1 .0)))
+                .opens_when_shown()
+                .show(ui, well, name);
+            match out.event {
+                Some(kit::field::Event::Commit) => done = Some((target, name.clone())),
+                Some(kit::field::Event::Cancel) => done = Some((target, String::new())),
+                None => {}
             }
         }
         if let Some((target, name)) = done {
@@ -1747,7 +1794,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         } else {
             hint::set_text(
                 ui.ctx(),
-                &t("arrangement.hint"),
+                // A clip's essentials (the whole list is the idle hint's tooltip).
+                &t("arrangement.clip_hint"),
                 "",
                 Caps {
                     menu: true,
@@ -2209,6 +2257,8 @@ pub fn clip_menu_opened(app: &mut CantusApp, track: TrackId, clip: ClipId) {
 fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId) {
     use crate::keymap::Action;
     clip_menu_opened(app, track, clip);
+    // One menu: its sections' panels meet, the colour row's too.
+    ui.spacing_mut().item_spacing.y = 0.0;
     let (muted, looping, is_audio) = app
         .project()
         .track(track)
@@ -2239,6 +2289,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
     if selection.len() > 1 {
         entries.push(Entry::Run(Action::LinkClips, "clip.link_here"));
     }
+    // A group or clip chosen by name (round 26): the picker.
+    entries.push(Entry::Run(Action::LinkTo, "clip.link_to"));
     // An audio clip plays its file once: it has no repeat (ADR 0025).
     if !is_audio {
         entries.push(Entry::Run(
@@ -2269,7 +2321,7 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
         audio::edit::clip_menu(app, ui, (track, clip));
         let _ = menu(app, ui, &[Entry::Band("clip.color")]);
     }
-    color_menu(app, ui);
+    color_menu(app, ui, true);
     // An automation clip's section: open it, FL's articulators (ADR 0027).
     autolanes::clip_menu(app, ui, (track, clip));
 }

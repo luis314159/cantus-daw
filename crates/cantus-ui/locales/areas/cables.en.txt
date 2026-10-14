@@ -8,7 +8,7 @@ cables.legend = Routing
 cables.legend.output = out
 cables.legend.send = send
 cables.legend.key = sidechain
-cables.legend.hint = The cables of the selected strip: thick line = its output · thin line = a send · dashed line ending in a key = it keys a sidechain (it drives a compressor there)
+cables.legend.hint = The selected strip's cables: thick = its output · thin = a send · dashed to a key = it keys a sidechain
 
 # The title row's switch: which cables the band draws (`.short` for a narrow desk).
 cables.view = Cables
@@ -54,3 +54,5 @@ cables.preset.sends = Only the selection's sends
 cables.preset.feeders = Only what feeds the selection
 # The legend's hover, when the options hide a kind ({kinds}: "Outputs, Sidechain keys").
 cables.legend.hidden = Hidden by the cable options: {kinds}
+# Round 26: the band's handle while the desk holds the band at its least.
+cables.hint.band_short = Make the mixer taller or hide rows (the desk's menu): the desk is too short for a taller band

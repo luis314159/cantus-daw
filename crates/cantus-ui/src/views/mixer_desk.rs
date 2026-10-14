@@ -113,6 +113,12 @@ pub struct Desk {
     /// Per project strip: routing the selected strip into it would close a loop.
     pub would_cycle: Vec<bool>,
     stack: Vec<usize>,
+    /// The right dock's strips and separators as docked (whether pinned or not).
+    right_docked: (u16, u16),
+    /// The right dock scrolls with the middle (the desk too narrow for it beside the
+    /// master and the left dock: final review), and what the lists were built for.
+    unpin_right: bool,
+    built_unpinned: Option<bool>,
 }
 
 impl Desk {
@@ -124,6 +130,7 @@ impl Desk {
         if self.revision != Some(rev)
             || self.strips != p.strips.len()
             || self.locale != Some(locale)
+            || self.built_unpinned != Some(self.unpin_right)
         {
             self.rebuild(app);
             self.revision = Some(rev);
@@ -135,6 +142,17 @@ impl Desk {
             self.routes(app);
             self.routes_for = Some(key);
         }
+    }
+
+    /// The width the right dock takes pinned, at `pitch`.
+    pub fn right_docked_width(&self, pitch: f32) -> f32 {
+        f32::from(self.right_docked.0) * pitch + f32::from(self.right_docked.1) * SEPARATOR
+    }
+
+    /// Let the right dock scroll with the middle (or pin it again); returns whether that
+    /// changed — the lists are rebuilt on the next [`Self::refresh`].
+    pub fn set_unpinned(&mut self, unpin: bool) -> bool {
+        std::mem::replace(&mut self.unpin_right, unpin) != unpin
     }
 
     fn rebuild(&mut self, app: &CantusApp) {
@@ -190,6 +208,26 @@ impl Desk {
                     strips += 1;
                 }
             }
+        }
+        // The right dock as docked; where the desk has no room for it pinned, after the
+        // middle's last item, scrolling with it.
+        let count = |items: &[Item]| {
+            items.iter().fold((0u16, 0u16), |(st, se), i| match i {
+                Item::Strip(..) => (st + 1, se),
+                Item::Separator(_) => (st, se + 1),
+            })
+        };
+        self.right_docked = count(&self.right);
+        self.built_unpinned = Some(self.unpin_right);
+        if self.unpin_right && !self.right.is_empty() {
+            let (strips, seps) = count(&self.middle);
+            for place in self.place.iter_mut().filter(|p| p.dock == Dock::Right) {
+                place.dock = Dock::Middle;
+                place.strips += strips;
+                place.seps += seps;
+            }
+            let right = std::mem::take(&mut self.right);
+            self.middle.extend(right);
         }
         self.info.clear();
         self.fed.clear();

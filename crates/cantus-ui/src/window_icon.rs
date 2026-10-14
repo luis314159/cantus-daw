@@ -29,6 +29,11 @@ impl Taskbar {
         std::mem::replace(&mut self.light, light) != light
     }
 
+    /// Whether the setting has been read at all (tests: the running window polls it).
+    pub fn polled(&self) -> bool {
+        self.last.is_some()
+    }
+
     /// Read Windows' setting if two seconds have passed; returns whether it changed.
     pub fn poll(&mut self) -> bool {
         if self

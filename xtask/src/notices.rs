@@ -1,6 +1,7 @@
 //! `THIRD-PARTY-NOTICES.md`: every crate compiled into what Cantus ships, its licence and
 //! its licence files, with the hand-written notices (the patched cpal and asio-sys, the
-//! Steinberg ASIO SDK and the trademarks, fonts, Bible texts, sound packs) in front.
+//! Steinberg ASIO SDK and the trademarks, fonts, Bible texts) in front, and the *Content*
+//! section — every sound pack's credit — generated from the content manifest (ADR 0042).
 //!
 //! ```text
 //! cargo run -p xtask -- notices           # write THIRD-PARTY-NOTICES.md
@@ -19,6 +20,7 @@
 //! A test (`notices_tests.rs`) runs the check, so a new crate in `Cargo.lock` without a
 //! regenerated notice fails `cargo test`.
 
+use cantus_content::Manifest;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -217,10 +219,22 @@ fn term(t: &[&str], pos: &mut usize) -> Option<bool> {
     Some(ALLOWED.contains(&id.as_str()))
 }
 
-/// What is wrong with `text` as the notices for `crates`: crates not named in it,
-/// licences not allowed, and whether it differs from what would be written now.
-pub fn problems(text: &str, crates: &[Crate], expected: &str) -> Vec<String> {
+/// What is wrong with `text` as the notices for `crates` and the content of `manifest`:
+/// crates not named in it, licences not allowed, a CC BY pack whose credit line is
+/// missing (ADR 0042 §3), and whether it differs from what would be written now.
+pub fn problems(text: &str, crates: &[Crate], manifest: &Manifest, expected: &str) -> Vec<String> {
     let mut out = Vec::new();
+    let flat = text.replace("\r\n", "\n");
+    for p in &manifest.packs {
+        if let Some(line) = p.credit_full() {
+            if !flat.contains(&line) {
+                out.push(format!(
+                    "pack {}: its {} credit is missing: {line}",
+                    p.id, p.licence
+                ));
+            }
+        }
+    }
     for c in crates {
         if !allowed(&c.license) {
             out.push(format!(
@@ -249,11 +263,12 @@ pub fn command(args: &[String]) {
         std::process::exit(1)
     });
     let crates = shipped(&meta);
-    let expected = crate::notices_render::render(&ws, &crates);
+    let manifest = Manifest::bundled();
+    let expected = crate::notices_render::render(&ws, &crates, &manifest);
     let path = ws.join(FILE);
     if args.iter().any(|a| a == "--check") {
         let text = std::fs::read_to_string(&path).unwrap_or_default();
-        let found = problems(&text, &crates, &expected);
+        let found = problems(&text, &crates, &manifest, &expected);
         if found.is_empty() {
             eprintln!("{FILE}: {} crates, every one noticed", crates.len());
             return;

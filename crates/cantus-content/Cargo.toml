@@ -17,7 +17,10 @@ thiserror.workspace = true
 # operating system's store, so a corporate TLS-inspecting proxy whose root the
 # administrator installed is trusted exactly as the browser trusts it, and nothing is
 # ever turned off (ADR 0030).
-ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
+# rustls with ring and the platform verifier, without `rustls-webpki-roots`: the Mozilla
+# root list (CDLA-Permissive-2.0, a data licence) was compiled in and never used, since
+# the roots come from the platform verifier (round 26, docs/signing/README.md §2).
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier"] }
 # Archives: deflate through flate2's pure-Rust backend (miniz_oxide, already in the tree).
 zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
 flate2 = "1"

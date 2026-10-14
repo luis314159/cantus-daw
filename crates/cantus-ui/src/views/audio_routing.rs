@@ -251,7 +251,8 @@ fn name_row(
         } else {
             "devices.routing.name_out"
         };
-        let resp = w::text_field(ui, &mut name, hint, 200.0);
+        let id = egui::Id::new(("routing-name", input, c));
+        let resp = w::text_field(ui, id, &mut name, hint, 200.0);
         let h = if input {
             Hit::InputName(c)
         } else {

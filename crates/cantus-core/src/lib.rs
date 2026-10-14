@@ -51,7 +51,7 @@ pub use model::{
 };
 pub use pads::{
     DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,
-    PulsusParams, RoundRobin, SampleData, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
+    PulsusParams, RoundRobin, SampleData, StreamRef, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
 pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use time::{Ticks, TimeSignature, PPQ};

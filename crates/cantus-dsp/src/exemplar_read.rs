@@ -45,12 +45,23 @@ fn dot_lr(c2: &[f32], s: &[f32]) -> [f32; 2] {
     [l, r]
 }
 
-impl Playhead {
-    #[inline]
-    fn data(&self) -> &[f32] {
-        self.src.levels[self.level].as_deref().unwrap_or(&[])
+/// The interpolator's dot product over `taps` contiguous frames.
+#[inline]
+fn taps_dot(c: &[f32], d: &[f32], mono: bool) -> [f32; 2] {
+    if mono {
+        let v = dot(c, d);
+        [v, v]
+    } else {
+        let mut c2 = [0.0f32; 2 * MAX_TAPS];
+        for (j, x) in c.iter().enumerate() {
+            c2[2 * j] = *x;
+            c2[2 * j + 1] = *x;
+        }
+        dot_lr(&c2[..2 * c.len()], d)
     }
+}
 
+impl Playhead {
     /// Frame `j` of the current level, silence outside the file and past the region's end.
     #[inline]
     fn phys(&self, j: i64, out: &mut [f32; 2]) {
@@ -59,17 +70,24 @@ impl Playhead {
             *out = [0.0; 2];
             return;
         }
-        let d = self.data();
-        if self.src.channels == 1 {
-            let v = d.get(j as usize).copied().unwrap_or(0.0);
-            *out = [v, v];
-        } else {
-            let at = j as usize * 2;
-            *out = [
-                d.get(at).copied().unwrap_or(0.0),
-                d.get(at + 1).copied().unwrap_or(0.0),
-            ];
-        }
+        *out = match self.slice(j as usize, 1) {
+            Some(&[v]) => [v, v],
+            Some(&[a, b]) => [a, b],
+            _ => {
+                // A streamed frame the window does not hold (a read wider than it): from
+                // the pool, or silence and a miss.
+                let mut f = [0.0f32; 2];
+                if self.src.stream.is_some() && self.pool_read(j as usize, 1, &mut f) {
+                    if self.src.channels == 1 {
+                        [f[0], f[0]]
+                    } else {
+                        f
+                    }
+                } else {
+                    [0.0; 2]
+                }
+            }
+        };
     }
 
     /// Frame `b` of the loop, crossfaded with the audio one loop earlier near its end.
@@ -190,26 +208,20 @@ impl Playhead {
         }
         k.coefs(frac, coefs);
         let c = &coefs[..k.taps];
-        let ch = self.src.channels.clamp(1, 2);
-        let len = self.data().len();
-        if let Some(b) = self
-            .window_base(ws, n)
-            .filter(|b| (*b as usize + k.taps) * ch <= len)
-        {
-            let d = self.data();
-            let b = b as usize;
-            if self.src.channels == 1 {
-                let v = dot(c, &d[b..b + k.taps]);
-                [v, v]
-            } else {
-                let mut c2 = [0.0f32; 2 * MAX_TAPS];
-                for (j, x) in c.iter().enumerate() {
-                    c2[2 * j] = *x;
-                    c2[2 * j + 1] = *x;
-                }
-                dot_lr(&c2[..2 * k.taps], &d[2 * b..2 * (b + k.taps)])
+        let base = self.window_base(ws, n);
+        if let Some(d) = base.and_then(|b| self.slice(b as usize, k.taps)) {
+            return taps_dot(c, d, self.src.channels == 1);
+        }
+        // A streamed window the voice's own does not hold (a read wider than it): copied
+        // from the pool, so the same dot product sums the same numbers.
+        if let (Some(b), true) = (base, self.src.stream.is_some()) {
+            let mut far = [0.0f32; 2 * MAX_TAPS];
+            if self.pool_read(b as usize, k.taps, &mut far) {
+                let ch = if self.src.channels == 1 { 1 } else { 2 };
+                return taps_dot(c, &far[..k.taps * ch], ch == 1);
             }
-        } else {
+        }
+        {
             let mut acc = [0.0f32; 2];
             let mut t = [0.0f32; 2];
             for (j, cj) in c.iter().enumerate() {

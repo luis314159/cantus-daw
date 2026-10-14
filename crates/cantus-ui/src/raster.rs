@@ -322,6 +322,20 @@ pub fn shoot_events(
 ) -> Canvas {
     ctx.set_pixels_per_point(ppp);
     let mut textures = Textures::default();
+    // One frame that draws nothing first: until a frame has run at the new scale, egui
+    // still has its provisional screen (5000 points wide), and a window first shown then
+    // takes its default place there — off the real screen at any scale but 100 % (round
+    // 26: device windows, Sound packs, dialogs blank or cut at 75 % and 200 %).
+    let mut warm = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            time: Some(0.0),
+            ..Default::default()
+        },
+        |_| {},
+    );
+    textures.update(&warm.textures_delta);
+    warm.textures_delta.clear();
     let mut last = None;
     for frame in 0..frames.max(1) {
         // Time moves a quarter second a frame, so a window's opening fade and any other

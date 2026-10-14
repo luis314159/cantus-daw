@@ -91,11 +91,23 @@ fn main() {
     // if it doesn't create it
     let mut lib_path = out_dir.clone();
     lib_path.push("libasio.a");
-    if !lib_path.exists() {
+    // CANTUS PATCH: OUT_DIR outlives a change of this script, so the library is rebuilt
+    // whenever what it is built from differs from what the stamp beside it records (the
+    // SDK folder and the file list): a target folder built with upstream's whole-folder
+    // list gets the host-only one (round 26).
+    for f in HOST_FILES {
+        println!("cargo:rerun-if-changed={}", cpal_asio_dir.join(f).display());
+    }
+    println!("cargo:rerun-if-changed=asio-link/helpers.cpp");
+    let stamp_path = out_dir.join("libasio.files");
+    let stamp = lib_stamp(&cpal_asio_dir);
+    let stale = std::fs::read_to_string(&stamp_path).ok().as_deref() != Some(stamp.as_str());
+    if !lib_path.exists() || stale {
         if is_msvc {
             invoke_vcvars_if_not_set();
         }
         create_lib(&cpal_asio_dir);
+        std::fs::write(&stamp_path, &stamp).expect("write the libasio stamp");
     }
 
     // Print out links to needed libraries
@@ -157,43 +169,30 @@ fn find_libclang() -> Option<PathBuf> {
     None
 }
 
+/// CANTUS PATCH: the SDK files a *host* needs, and only those (round 26): the API's glue
+/// (`common/asio.cpp`), the driver list and loader (`host/asiodrivers.cpp`,
+/// `host/pc/asiolist.cpp`), all Steinberg's, under the SDK's dual licence (Steinberg ASIO
+/// Licence or GPL-3.0; Cantus takes the GPL-3.0). Upstream compiled every `.cpp` of `host`,
+/// `host/pc` and `common`, which brought in the *driver* side of the SDK — the COM server
+/// (`combase.cpp`, `dllentry.cpp`: Microsoft's sample code, "All Rights Reserved", with no
+/// licence), `register.cpp` (a driver registering itself), `asiodrvr.cpp` (a driver's base
+/// class) and `debugmessage.cpp` — none of which a host calls. `ASIOConvertSamples.cpp` is
+/// not used either (cpal converts samples itself).
+const HOST_FILES: [&str; 3] = ["common/asio.cpp", "host/asiodrivers.cpp", "host/pc/asiolist.cpp"];
+
+/// What `libasio.a` is built from, as the stamp records it.
+fn lib_stamp(cpal_asio_dir: &Path) -> String {
+    let mut lines = vec![cpal_asio_dir.display().to_string()];
+    lines.extend(HOST_FILES.iter().map(|f| f.to_string()));
+    lines.push("asio-link/helpers.cpp".to_string());
+    lines.join("\n")
+}
+
 fn create_lib(cpal_asio_dir: &Path) {
-    let mut cpp_paths: Vec<PathBuf> = Vec::new();
-    let mut host_dir = cpal_asio_dir.to_path_buf();
-    let mut pc_dir = cpal_asio_dir.to_path_buf();
-    let mut common_dir = cpal_asio_dir.to_path_buf();
-    host_dir.push("host");
-    common_dir.push("common");
-    pc_dir.push("host/pc");
-
-    // Gathers cpp files from directories
-    let walk_a_dir = |dir_to_walk, paths: &mut Vec<PathBuf>| {
-        for entry in WalkDir::new(dir_to_walk).max_depth(1) {
-            let entry = match entry {
-                Err(e) => {
-                    println!("error: {}", e);
-                    continue;
-                }
-                Ok(entry) => entry,
-            };
-            match entry.path().extension().and_then(|s| s.to_str()) {
-                None => continue,
-                Some("cpp") => {
-                    // Skip macos bindings
-                    if entry.path().file_name().unwrap().to_str() == Some("asiodrvr.cpp") {
-                        continue;
-                    }
-                    paths.push(entry.path().to_path_buf())
-                }
-                Some(_) => continue,
-            };
-        }
-    };
-
-    // Get all cpp files for building SDK library
-    walk_a_dir(host_dir, &mut cpp_paths);
-    walk_a_dir(pc_dir, &mut cpp_paths);
-    walk_a_dir(common_dir, &mut cpp_paths);
+    let cpp_paths: Vec<PathBuf> = HOST_FILES.iter().map(|f| cpal_asio_dir.join(f)).collect();
+    for p in &cpp_paths {
+        assert!(p.is_file(), "the ASIO SDK lacks {}", p.display());
+    }
 
     // build the asio lib
     cc::Build::new()

@@ -1,0 +1,45 @@
+name: Supply chain
+
+# `cargo audit` against the RustSec advisory database (ADR 0048 §4): when the dependencies
+# change, and once a week for advisories published against what is already locked — or by
+# hand. The tool is cached between runs (rust-cache keeps ~/.cargo/bin), so it is compiled
+# only when a new cargo-audit is released, not on every run.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - ".github/workflows/audit.yml"
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: "true"
+          cache-targets: "false"
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit

@@ -406,7 +406,7 @@ fn tags(ui: &mut Ui, d: &mut ExportSettings) {
     ] {
         row(ui, key, |ui| {
             let x = wd(ui);
-            let r = w::text_field(ui, text, key, x);
+            let r = w::text_field(ui, egui::Id::new(("export-tag", key)), text, key, x);
             put(ui, key, r.rect);
         });
     }

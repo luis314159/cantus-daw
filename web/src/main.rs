@@ -1,10 +1,10 @@
 //! cantusdaw.com — the Cantus website, a Yew single-page app (ADR 0034).
 
-mod audio;
 mod ahead;
+mod audio;
 mod body;
-mod icons;
 mod fx;
+mod icons;
 mod lang;
 mod listen;
 mod platform;

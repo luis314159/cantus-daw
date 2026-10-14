@@ -50,3 +50,79 @@ The owner ruled on 2026-10-10: *"citing is no problem — we accept that."*
   and a licence file for every CC BY pack.
 - `xtask notices --check` fails when a CC BY pack's credit is missing from
   `THIRD-PARTY-NOTICES.md`.
+
+## What landed (round 26, 2026-10-13)
+
+The rule is now code in `cantus-content`, `xtask notices` and the interface
+(`docs/round26/content.md` has the detail and the pictures).
+
+- **Manifest** (`manifest.rs`): `Licence` names the three accepted ids (`CC0-1.0`,
+  `CC-BY-3.0`, `CC-BY-4.0`, spelled exactly); any other id fails validation with "not
+  accepted". The licence URL must be that licence's own text (`…/publicdomain/zero/1.0/`,
+  `…/licenses/by/3.0/`, `…/licenses/by/4.0/` — a `by-nc/` or `by-sa/` text under a CC BY
+  id fails). A CC BY pack carries `attribution` — `title`, `author`, an `https` `url`, and
+  optionally `line` (the licensor's own wording, used word for word) and `note` (the
+  author's own words about crediting, quoted on the pack's page). Without it the pack
+  fails. The licence file stays required for every pack (ADR 0030 §2). `Pack::is_cc0`
+  is gone: `licence_kind()`, `needs_credit()`, `credit_line()` replace it. The composed
+  line is `“title” by author (url), licensed under CC BY n (licence url)`.
+- **Manifest format 2.** A manifest that carries a credit line must say `"format": 2`;
+  a format-1 build then refuses it by name ("update Cantus") instead of failing on an
+  unknown field, and a format-1 manifest with a credit line is invalid. The bundled
+  manifest is format 2, because it carries the CC BY Salamander (below); a manifest
+  without a credit line may still say format 1 and loads as before. `make_manifest.py`
+  writes format 2 only when a pack has a credit line, and refuses an unaccepted licence or a CC
+  BY pack without one.
+- **Receipt**: `cantus-pack.json` keeps the pack's `attribution` (absent for CC0, so a
+  CC0 receipt is byte-for-byte what it was); receipts written before round 26 load with
+  none (`serde(default)`).
+- **`credits::list`**: one list for every view — each manifest pack (CC BY with its full
+  line, *required*; CC0 with its makers, *courtesy*) and any installed pack the manifest
+  no longer lists, from its receipt.
+- ***Sound packs…***: a CC BY pack's page has a *Credit* band with the line (the
+  manifest's before the download, the receipt's after it, with "kept in the pack's
+  receipt"), the licence row says "free for any use, with credit to the author", and §4's
+  plain words: the pack is CC BY n; use it in any music and change the sounds; the one
+  condition is credit, which Cantus gives; the music is yours; whether a published track
+  must credit the samples is the user's to judge — followed by the author's own words
+  when the manifest quotes them, or by "most libraries like this one say it need not".
+  The browser's one-click offer of a CC BY pack names the licence and the author.
+- ***About ▸ Credits***: a *Credits* section at the end of About (so the buttons above
+  never move with the list's length), reached by a *Credits* button beside the documents
+  (`about::show_credits` for a menu): the Bible translations of the verse at start, then
+  every sound pack — "Name · CC BY 3.0 · credit required" with its line, "Name · CC0 1.0 ·
+  credited as a courtesy" with its makers.
+- **`THIRD-PARTY-NOTICES.md`**: the hand-written *Sound packs* section of
+  `xtask/notices/head.md` became a generated ***Content*** section (CC BY packs with their
+  line, licence file and the author's words; CC0 packs in a table). `notices --check` (and
+  `cargo test -p xtask`) names any CC BY pack whose credit line is missing, even when the
+  file is otherwise current.
+- **The Salamander Grand Piano is the first CC BY pack** (CC BY 3.0, Alexander Holm, the
+  FreePats SFZ+FLAC edition): a `.tar.gz` source (a strict tar reader of our own; names
+  that climb out, links and archives larger than the manifest says are refused, for zips
+  too), SHA-256 pinned, `readme.txt` as the licence file. The four pedal-noise files were
+  left out at first (Exemplar could not play them); they are in the pack since the
+  sampler's controller-triggered zones (ADR 0023's round-26 amendment, schema 24). The manifest is format 2. Its two instruments
+  (8 and 16 velocity layers, −5.5 dB for the headroom rule of ADR 0039) are offered in the
+  instrument picker once it is installed, and on its *Sound packs…* page; choosing one
+  gives a track an Exemplar playing it in one undo step. *Help ▸ Credits* opens About at
+  its credits. The measurements are in `docs/round26/content.md`.
+
+Review fixes, same round: required/courtesy is decided by the licence alone (a CC0 pack
+may carry a courtesy `attribution`, never shown as required); a licensor's own line is
+always followed by the licence's name and link unless it contains it
+(`Attribution::full`); the on-screen composed line is localised (`samples.credit.line`),
+the receipt and notices keep the English one; the licence URL must be exactly the
+licence's text (`Licence::is_text_url`: prefix + nothing / `legalcode[.<lang>]` /
+`deed.<lang>`, no `..`, `?`, `#`, `%`; ports refused); `Attribution` and `Credit` accept
+unknown fields so newer receipts still load in older builds.
+
+What the tests hold now: `crates/cantus-content/tests/licences.rs` (exactly the three ids;
+credit line and licence file required; the licence URL matches the id; the licensor's
+line word for word; format 2; the receipt carries the credit and old receipts load; the
+credits list), the fixture `crates/cantus-content/tests/fixtures/manifest-cc-by.json`
+(a CC0 pack, a CC BY 3.0 pack with the author's words, a CC BY 4.0 pack with the
+licensor's own line), `xtask/src/notices_tests.rs` (the Content section; a missing CC BY
+credit fails the check), `crates/cantus-ui/tests/samples_browser.rs` and
+`crates/cantus-ui/tests/about.rs` (the credit and plain words before and after the
+download, in both languages; About ▸ Credits; the Credits button scrolls to them).

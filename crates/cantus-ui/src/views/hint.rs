@@ -87,16 +87,76 @@ pub fn paint_panel(b: &mut Brush, rect: Rect, s: &Style, project: &str, idle: Op
         let split = text_r.height() * 0.4;
         let top = Rect::from_min_size(text_r.min, Vec2::new(text_r.width(), split));
         let bottom = Rect::from_min_max(Pos2::new(text_r.left(), text_r.top() + split), text_r.max);
-        let _ = text::paint(
-            b,
-            top,
-            &Text::new(project, Role::Micro, t.text_dim)
-                .align(Align2::LEFT_BOTTOM)
-                .policy(Policy::Elide(Elide::Middle)),
-            tk,
-        );
+        // A hint wider than its line — its name, or its name and value (not a live value
+        // being dragged) — takes both lines, wrapped (the project's name gives way while it
+        // shows): at a laptop's width many are (final review: "…a taller band: ma…"). In
+        // the hint's own size when two lines hold it, else the small one.
+        let long = match h {
+            Some((name, value, _, live)) if !live || value.is_empty() => {
+                let nw = text::measure(&ctx, &Text::new(name, Role::Label, t.text), tk).x;
+                let vw = if value.is_empty() {
+                    0.0
+                } else {
+                    text::measure(&ctx, &Text::new(value, Role::Value, t.text), tk).x + 10.0 * k
+                };
+                (nw + vw > bottom.width()).then_some((name, value))
+            }
+            _ => None,
+        };
+        if let Some((name, value)) = long {
+            let words = if value.is_empty() {
+                std::borrow::Cow::Borrowed(name)
+            } else {
+                std::borrow::Cow::Owned(format!("{name} \u{2014} {value}"))
+            };
+            for role in [Role::Label, Role::Micro] {
+                let g = super::audio_parts::wrapped(&ctx, &words, role, tk, text_r.width(), 2);
+                let fits = !g.elided && g.size().y <= text_r.height() + 1.0;
+                if fits || role == Role::Micro {
+                    let y = text_r.center().y - g.size().y * 0.5;
+                    b.text(Pos2::new(b.snap(text_r.left()), b.snap(y)), g, t.text, 0.0);
+                    break;
+                }
+            }
+        } else {
+            let _ = text::paint(
+                b,
+                top,
+                &Text::new(project, Role::Micro, t.text_dim)
+                    .align(Align2::LEFT_BOTTOM)
+                    .policy(Policy::Elide(Elide::Middle)),
+                tk,
+            );
+        }
+        // The capability icons at the bar's right, for any hint — one line or wrapped
+        // (last pass: a wrapped hint lost them); their room is out of `text_r` either way.
+        if let Some((_, _, caps, _)) = h {
+            let mut x = rect.right() - 6.0 * k - icon;
+            for (on, g) in [
+                (caps.warning, Glyph::Warning),
+                (caps.typed, Glyph::Typed),
+                (caps.menu, Glyph::MouseMenu),
+                (caps.automatable, Glyph::Automate),
+            ] {
+                if on {
+                    let gr = Rect::from_min_size(
+                        Pos2::new(x, rect.center().y - icon * 0.5),
+                        Vec2::splat(icon),
+                    );
+                    let ink = if g == Glyph::Warning {
+                        t.danger
+                    } else {
+                        t.text_dim
+                    };
+                    b.register(gr, "hint_icon", &[Tok::TextDim, Tok::Danger], &[]);
+                    glyph::paint(b, gr, g, ink);
+                    x -= icon + 4.0 * k;
+                }
+            }
+        }
         match h {
-            Some((name, value, caps, live)) => {
+            Some(_) if long.is_some() => {}
+            Some((name, value, _, live)) => {
                 // "Cutoff  2.4 kHz": the name, then the value (in the focus colour while
                 // it is being dragged, FL's live readout).
                 let mut vw = if value.is_empty() {
@@ -141,36 +201,17 @@ pub fn paint_panel(b: &mut Brush, rect: Rect, s: &Style, project: &str, idle: Op
                         tk,
                     );
                 }
-                let mut x = rect.right() - 6.0 * k - icon;
-                for (on, g) in [
-                    (caps.warning, Glyph::Warning),
-                    (caps.typed, Glyph::Typed),
-                    (caps.menu, Glyph::MouseMenu),
-                    (caps.automatable, Glyph::Automate),
-                ] {
-                    if on {
-                        let gr = Rect::from_min_size(
-                            Pos2::new(x, rect.center().y - icon * 0.5),
-                            Vec2::splat(icon),
-                        );
-                        let ink = if g == Glyph::Warning {
-                            t.danger
-                        } else {
-                            t.text_dim
-                        };
-                        glyph::paint(b, gr, g, ink);
-                        x -= icon + 4.0 * k;
-                    }
-                }
             }
             None => {
                 if let Some(key) = idle {
                     let _ = text::paint(
                         b,
                         bottom,
+                        // The idle hint in its essentials where the whole does not fit
+                        // (`<key>.short`); the whole is the panel's tooltip.
                         &Text::key(key, Role::Label, t.text_dim)
                             .align(Align2::LEFT_CENTER)
-                            .policy(Policy::Elide(Elide::End)),
+                            .policy(Policy::Abbreviate),
                         tk,
                     );
                 }

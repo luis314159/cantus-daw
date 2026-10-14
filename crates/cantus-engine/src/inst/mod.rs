@@ -28,6 +28,8 @@ pub mod epiano;
 pub mod fm;
 pub mod organ;
 pub mod sampler;
+pub mod stream;
+pub mod stream_cache;
 pub mod wavetable;
 
 /// Numbers an instrument reports to its editor each block: voices, envelope stages, the
@@ -200,6 +202,31 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// It will not be processed again: called on the audio thread before the unit is
     /// handed back (a hosted plug-in stops processing here, as its standard asks).
     fn stop(&mut self) {}
+
+    // ---- Round 26 (ADR 0050): streaming from disk.
+
+    /// An offline render (export, stems): wait for whatever is read from disk rather than
+    /// fade it out, so offline = real time. Called before the unit is sent.
+    fn set_offline(&mut self, _offline: bool) {}
+    /// Voices that ended early since the last call because their sample's next block was
+    /// not read in time (real time only); the engine counts them in
+    /// `EngineStats::stream_late`.
+    fn take_late_reads(&mut self) -> u32 {
+        0
+    }
+
+    /// Notes that played only the start of a streamed sample — read faster than streaming
+    /// serves (third review #9) — since the last call; `EngineStats::stream_cut`. The same
+    /// offline and in real time, never late.
+    fn take_cut_notes(&mut self) -> u32 {
+        0
+    }
+
+    /// Times its voices woke the stream reader (a counted non-blocking system call on the
+    /// audio thread: ADR 0050 §4) since the last call; `EngineStats::stream_wakes`.
+    fn take_stream_wakes(&mut self) -> u32 {
+        0
+    }
 }
 
 /// What a unit is, as the processor matches it against what a snapshot's track hosts: a

@@ -266,6 +266,26 @@ pub struct SampleData {
     /// 1 or 2. Interleaved when 2.
     pub channels: u8,
     pub frames: std::sync::Arc<[f32]>,
+    /// When the sample streams from disk (ADR 0050), the engine's stream — `frames` then
+    /// holds only its head. Opaque here: `cantus-core` does no I/O and knows no engine type.
+    pub stream: Option<StreamRef>,
+}
+
+/// An engine's handle on a sample streamed from disk, carried by [`SampleData`] so the
+/// stream travels with the asset (and lives as long as anything holds it).
+#[derive(Clone)]
+pub struct StreamRef(pub std::sync::Arc<dyn std::any::Any + Send + Sync>);
+
+impl std::fmt::Debug for StreamRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("StreamRef")
+    }
+}
+
+impl PartialEq for StreamRef {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 impl SampleData {

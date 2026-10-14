@@ -15,6 +15,8 @@
 //!   pool's idle threads (ADR 0038: an instrument's voices on several cores).
 //! - [`memory`]: pre-faulting and best-effort locking, so the audio thread never takes a
 //!   page fault.
+//! - [`disk`]: a volume's size and free space (the sample cache's limit).
+//! - [`files`]: the open-files limit, raised at start-up (the stream cache's handle budget).
 //! - [`fpenv`] and [`denormal`]: the floating-point environment — FTZ/DAZ for a block and its
 //!   re-assert after a hosted plug-in, and the interim CRT FMA3 switch (R9).
 //!
@@ -27,6 +29,8 @@
 
 pub mod cell;
 pub mod denormal;
+pub mod disk;
+pub mod files;
 pub mod fork;
 pub mod fpenv;
 pub mod memory;
@@ -45,11 +49,17 @@ pub use topology::Topology;
 pub struct ProcessInit {
     pub crt_fma3: fpenv::CrtFma3,
     pub power_throttling: thread::PowerThrottling,
+    /// The open-files limit after raising it ([`files::raise_limit`]).
+    pub open_files: u64,
 }
 
 impl std::fmt::Display for ProcessInit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}; {}", self.crt_fma3, self.power_throttling)
+        write!(
+            f,
+            "{}; {}; {} open files",
+            self.crt_fma3, self.power_throttling, self.open_files
+        )
     }
 }
 
@@ -61,5 +71,6 @@ pub fn init_process() -> ProcessInit {
     *ONCE.get_or_init(|| ProcessInit {
         crt_fma3: fpenv::disable_crt_fma3(),
         power_throttling: thread::opt_out_of_power_throttling(),
+        open_files: files::raise_limit(),
     })
 }

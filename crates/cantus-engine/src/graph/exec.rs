@@ -209,6 +209,12 @@ pub(crate) struct Nodes {
     /// Borrows that failed (a scheduler bug if ever non-zero) and notes or events dropped.
     pub conflicts: AtomicU64,
     pub dropped: AtomicU64,
+    /// Streamed voices ended early by a late block (ADR 0050), taken into the stats.
+    pub stream_late: AtomicU64,
+    /// Notes that played their streamed sample's start only (third review #9).
+    pub stream_cut: AtomicU64,
+    /// Times voices woke the stream reader (fourth review #1).
+    pub stream_wakes: AtomicU64,
     pub origin: Instant,
 }
 
@@ -285,6 +291,9 @@ impl Nodes {
                 .collect(),
             conflicts: AtomicU64::new(0),
             dropped: AtomicU64::new(0),
+            stream_late: AtomicU64::new(0),
+            stream_cut: AtomicU64::new(0),
+            stream_wakes: AtomicU64::new(0),
             origin: Instant::now(),
         };
         n.prefault();

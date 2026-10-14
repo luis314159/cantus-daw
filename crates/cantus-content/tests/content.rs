@@ -18,13 +18,19 @@ fn manager(root: &std::path::Path, m: Manifest) -> Manager {
 const WAIT: Duration = Duration::from_secs(30);
 
 #[test]
-fn the_bundled_manifest_is_valid_and_only_cc0() {
+fn the_bundled_manifest_is_valid_and_every_licence_accepted() {
     let m = Manifest::bundled();
-    assert_eq!(m.format, FORMAT);
+    assert!(m.format <= FORMAT);
     assert!(!m.packs.is_empty());
     for p in &m.packs {
-        // ADR 0001: bundled or offered by default means original or CC0.
-        assert!(p.is_cc0(), "{} is {}", p.id, p.licence);
+        // ADR 0042: CC0 1.0, or CC BY 3.0 / 4.0 with its credit line.
+        let licence = p.licence_kind();
+        assert!(licence.is_some(), "{} is {}", p.id, p.licence);
+        assert!(
+            !p.needs_credit() || p.credit_line().is_some(),
+            "{} needs its credit line",
+            p.id
+        );
         assert!(
             !p.credits.is_empty()
                 && p.credits
@@ -39,7 +45,7 @@ fn the_bundled_manifest_is_valid_and_only_cc0() {
         assert!(p.installed_size > 0);
         match &p.source {
             Source::Files(f) => assert!(f.iter().all(|f| f.url.starts_with("https://"))),
-            Source::Zip(z) => assert!(z.url.starts_with("https://")),
+            Source::Zip(z) | Source::TarGz(z) => assert!(z.url.starts_with("https://")),
         }
     }
     let starter = m.recommended().expect("a recommended pack");
@@ -451,7 +457,7 @@ fn the_starter_pack_downloads_for_real() {
     let id = mf.recommended().unwrap().id.clone();
     let count = match &mf.recommended().unwrap().source {
         Source::Files(f) => f.len() as u64,
-        Source::Zip(_) => 0,
+        Source::Zip(_) | Source::TarGz(_) => 0,
     };
     let mut m = Manager::with_transport(root.path(), mf, Arc::new(Net::new()), Patience::default());
     m.install(&id);

@@ -41,6 +41,7 @@ fn finish(rate: u32, in_channels: usize, samples: Vec<f32>) -> Result<SampleData
         return Err("the file holds no audio".to_string());
     }
     Ok(SampleData {
+        stream: None,
         rate,
         channels: out_channels as u8,
         frames: frames.into(),

@@ -59,6 +59,10 @@ const FLASH: f64 = 1.4;
 pub(crate) struct Drag {
     /// A press on a source that has not travelled far enough to be a drag.
     press: Option<Press>,
+    /// The desk was hidden while a button was held: that press belongs to before, and no
+    /// source takes it up again when the desk comes back (egui still reports the button
+    /// down on the control it started on) until every button is up.
+    stale: bool,
     /// The drag that is on.
     on: Option<On>,
     /// Click mode (the owner's answer 2: "release **or click** on the destination"): a
@@ -216,6 +220,13 @@ pub(super) fn source(
 ) {
     let _ = app;
     let d = &mut v.drag;
+    if d.stale {
+        if !ui.input(|i| i.pointer.any_down()) {
+            // Up at last: the next press is a new gesture (this frame's release is not).
+            d.stale = false;
+        }
+        return;
+    }
     if let Some(arm) = d.armed.as_mut() {
         // The control that armed the route moves when the middle scrolls: follow it.
         if arm.control == resp.id {
@@ -834,6 +845,23 @@ fn click_mode(
     } else {
         egui::CursorIcon::Crosshair
     });
+}
+
+/// The desk was not drawn on the pass before this one — its pane was closed, or another
+/// tab was brought over it — so what it was in the middle of lets go: an armed route
+/// (click mode), a press not yet a drag, and anything being carried. A selected cable is the band's and stays: the
+/// musician expects it back with the desk (round 26, ADR 0044 §10).
+pub(super) fn desk_was_hidden(v: &mut MixerView, ctx: &egui::Context) {
+    // A press that had not travelled yet would become a drag on the desk's return, and
+    // egui still reports the held button down on the control it started on.
+    v.drag.press = None;
+    v.drag.stale = ctx.input(|i| i.pointer.any_down());
+    if v.drag.armed.is_some() {
+        disarm(v, ctx);
+    }
+    if v.drag.on.is_some() {
+        cancel(v, ctx);
+    }
 }
 
 /// Let an armed route go (click mode).

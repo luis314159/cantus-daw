@@ -14,12 +14,36 @@ struct Song {
 }
 
 const SONGS: [Song; 6] = [
-    Song { id: "house", title: "Neon Tide", style: ("House", "House") },
-    Song { id: "ballad", title: "Morning Light", style: ("Pop ballad", "Balada pop") },
-    Song { id: "funk", title: "Sunday Strut", style: ("Funk and soul", "Funk y soul") },
-    Song { id: "lofi", title: "Paper Lanterns", style: ("Lo-fi hip-hop", "Hip-hop lo-fi") },
-    Song { id: "ambient", title: "Aurora", style: ("Cinematic", "Cinemática") },
-    Song { id: "trap", title: "Midnight Static", style: ("Trap", "Trap") },
+    Song {
+        id: "house",
+        title: "Neon Tide",
+        style: ("House", "House"),
+    },
+    Song {
+        id: "ballad",
+        title: "Morning Light",
+        style: ("Pop ballad", "Balada pop"),
+    },
+    Song {
+        id: "funk",
+        title: "Sunday Strut",
+        style: ("Funk and soul", "Funk y soul"),
+    },
+    Song {
+        id: "lofi",
+        title: "Paper Lanterns",
+        style: ("Lo-fi hip-hop", "Hip-hop lo-fi"),
+    },
+    Song {
+        id: "ambient",
+        title: "Aurora",
+        style: ("Cinematic", "Cinemática"),
+    },
+    Song {
+        id: "trap",
+        title: "Midnight Static",
+        style: ("Trap", "Trap"),
+    },
 ];
 
 fn clock(seconds: f64) -> String {

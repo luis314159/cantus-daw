@@ -394,18 +394,36 @@ pub fn ramp(b: &mut Brush, o: &OrganSettings, rotors: &Rotors, d: Rect, s: &Styl
             *p = at(tt, lag(from, to, tau, tt));
         }
         b.polyline(&pts, s.s(2.0), color);
-        // τ: 63 % of the way.
+        // The time constant: 63 % of the way.
         let p63 = at(tau.min(secs), lag(from, to, tau, tau));
         b.circle_stroke(p63, s.s(3.5), s.s(1.5), color);
-        let mut v = String::with_capacity(24);
-        v.push_str(&t_name(name));
-        v.push_str(" \u{3c4} ");
-        readout("", "s", tau, &mut v);
+        let mut secs_text = String::with_capacity(12);
+        readout("", "s", tau, &mut secs_text);
+        let v = tf(
+            "organ.ramp_point",
+            &[("name", &t_name(name)), ("time", &secs_text)],
+        );
+        // The key, clear of both curves (round 26: beside the ring it sat on the other
+        // rotor's curve): in the corner the curves leave empty — top right while they fall
+        // (spinning down, they end low), bottom right while they rise.
+        let line = s.s(16.0);
+        let w = s.s(170.0);
+        let top = if fast {
+            plot.bottom() - s.s(6.0) - line * (2 - i) as f32
+        } else {
+            plot.top() + s.s(4.0) + line * i as f32
+        };
         let lr = Rect::from_min_size(
-            Pos2::new(p63.x + s.s(6.0), p63.y - s.s(15.0) + i as f32 * s.s(17.0)),
-            Vec2::new(s.s(110.0), s.s(14.0)),
+            Pos2::new(plot.right() - s.s(8.0) - w, top),
+            Vec2::new(w, s.s(14.0)),
         )
-        .intersect(plot.expand(s.s(2.0)));
+        .intersect(plot);
+        b.circle_stroke(
+            Pos2::new(lr.left() - s.s(8.0), lr.center().y),
+            s.s(3.5),
+            s.s(1.5),
+            color,
+        );
         label(b, lr, &v, Role::Label, color, s);
         // Where the rotor is now, on the curve.
         if (to - from).abs() > 1.0 {

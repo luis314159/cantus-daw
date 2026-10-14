@@ -222,7 +222,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             "swap.tip.instrument",
         )),
     };
-    let chip_strings = footer_chips(app, &spec);
+    let (chip_strings, chip_tips) = footer_chips(app, &spec);
     let chips: Vec<&str> = chip_strings.iter().map(String::as_str).collect();
     let footer = Footer {
         chips: &chips,
@@ -243,6 +243,15 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                 shell_body(app, ui, track, &spec, s, body_rect);
             });
             crate::views::workspace_device::note_shown(ctx, key, rect, out.header, out.window);
+            // A chip that explains itself (Exemplar's memory): its tip on the help line.
+            let hovered = ui.input(|i| i.pointer.hover_pos());
+            if let Some(p) = hovered {
+                for (r, tip) in out.chips.iter().zip(&chip_tips) {
+                    if let (true, Some(tip)) = (r.contains(p), tip) {
+                        crate::kit::hint::set_text(ctx, tip, "", crate::kit::hint::Caps::NONE);
+                    }
+                }
+            }
             events = out.events;
             rect
         });
@@ -336,8 +345,9 @@ fn shell_body(
     }
 }
 
-/// The footer's chips: voices, steals, and what an instrument adds of its own.
-fn footer_chips(app: &CantusApp, spec: &NativeSpec) -> Vec<String> {
+/// The footer's chips: voices, steals, and what an instrument adds of its own — and, for
+/// each, the tip its hover shows on the help line, when it has one.
+fn footer_chips(app: &CantusApp, spec: &NativeSpec) -> (Vec<String>, Vec<Option<String>>) {
     let tel = app.inst_telemetry();
     let mut out = vec![tf(
         "inst.voices",
@@ -352,10 +362,11 @@ fn footer_chips(app: &CantusApp, spec: &NativeSpec) -> Vec<String> {
             &[("n", &format!("{}", tel[TEL_STOLEN] as u32))],
         ));
     }
+    let mut tips = vec![None; out.len()];
     if spec.kind == InstrumentKind::Sampler {
-        sampler::chips(&tel, &mut out);
+        sampler::chips(&tel, sampler::loading(app, spec), &mut out, &mut tips);
     }
-    out
+    (out, tips)
 }
 
 /// The track's own output as the footer's meter shows it.

@@ -1,8 +1,8 @@
 //! *Help ▸ About Cantus* (round 22), drawn with the kit in place of egui's stock window:
 //! the logo, the name and version, who made it, the motto in the reader's translation,
 //! the licence with the notices, privacy statement and licence text one click away, the
-//! Bible translations' credits, the trademark notices, and the manual, release notes, bug
-//! form and source.
+//! trademark notices, the manual, release notes, bug form and source, and the credits:
+//! the Bible translations and every sound pack (ADR 0042, round 26).
 
 use super::audio_parts as parts;
 use super::workspace_widgets as w;
@@ -12,6 +12,7 @@ use crate::i18n::{t, tf};
 use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{with_brush, Style};
+use cantus_content::credits::Courtesy;
 use egui::{Align2, Color32, Id, Pos2, Rect, Sense, Ui, Vec2};
 
 const SIZE: Vec2 = Vec2::new(580.0, 700.0);
@@ -32,6 +33,22 @@ pub fn motto(spanish: crate::verse::Spanish) -> (String, String) {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Link {
     Doc(Doc),
+    /// *Credits*: the window scrolls to its credits (handled inside; reported for tests).
+    Credits,
+}
+
+/// The memory flag that asks the next frames to scroll to the credits: how many frames
+/// more (the first frame of a new window has no scroll area to move yet).
+fn credits_flag() -> Id {
+    Id::new("cantus-about-to-credits")
+}
+
+const SCROLL_FRAMES: u8 = 3;
+
+/// Open the window scrolled to its credits (*About ▸ Credits*).
+pub fn show_credits(app: &mut CantusApp, ctx: &egui::Context) {
+    app.show_about = true;
+    ctx.data_mut(|d| d.insert_temp(credits_flag(), SCROLL_FRAMES));
 }
 
 /// The window, when open. Returns the link clicked this frame and opens nothing, so a
@@ -189,20 +206,13 @@ fn page(app: &mut CantusApp, ui: &mut Ui) -> Option<Link> {
                 clicked = Some(Link::Doc(doc));
             }
         }
+        if parts::button(ui, &t("about.open.credits"), false, true, 120.0).clicked() {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(credits_flag(), SCROLL_FRAMES));
+            clicked = Some(Link::Credits);
+        }
     });
     para(ui, &t("about.privacy"), Role::Label, s.t.text_dim);
-
-    // The verse at start: each translation and its licence (the RVR1960's word for word).
-    w::band(ui, Src::Key("verse.about.title"));
-    for (name, licence) in super::verse::credits() {
-        // The RVR1960's notice already names it, word for word.
-        let line = if licence.starts_with(&name) {
-            licence
-        } else {
-            format!("{name} — {licence}")
-        };
-        para(ui, &line, Role::Label, s.t.text_dim);
-    }
 
     w::band(ui, Src::Key("about.band.trademarks"));
     para(ui, &t("about.trademarks"), Role::Label, s.t.text_dim);
@@ -222,7 +232,71 @@ fn page(app: &mut CantusApp, ui: &mut Ui) -> Option<Link> {
         }
     });
     para(ui, &t("about.beta"), Role::Label, s.t.text_dim);
+
+    credits(app, ui, &s);
     clicked
+}
+
+/// *About ▸ Credits* (ADR 0042 §3): the Bible translations of the verse at start, then
+/// every sound pack — CC BY ones with their full credit line, CC0 ones as a courtesy line,
+/// and any installed pack the list no longer offers, from its receipt. Last, so the
+/// buttons above never move with the length of the list.
+fn credits(app: &mut CantusApp, ui: &mut Ui, s: &Style) {
+    let band = w::band(ui, Src::Key("about.band.credits"));
+    let left = ui
+        .ctx()
+        .data_mut(|d| d.remove_temp::<u8>(credits_flag()))
+        .unwrap_or(0);
+    if left > 0 {
+        ui.scroll_to_rect(band, Some(egui::Align::TOP));
+        if left > 1 {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(credits_flag(), left - 1));
+        }
+    }
+    // The verse at start: each translation and its licence (the RVR1960's word for word).
+    para(ui, &t("verse.about.title"), Role::Control, s.t.brand);
+    for (name, licence) in super::verse::credits() {
+        // The RVR1960's notice already names it, word for word.
+        let line = if licence.starts_with(&name) {
+            licence
+        } else {
+            format!("{name} — {licence}")
+        };
+        para(ui, &line, Role::Label, s.t.text_dim);
+    }
+    ui.add_space(4.0 * s.k);
+    para(ui, &t("about.credits.sounds"), Role::Control, s.t.brand);
+    para(
+        ui,
+        &t("about.credits.sounds_intro"),
+        Role::Label,
+        s.t.text_dim,
+    );
+    let lang = crate::i18n::locale().code();
+    let c = app.samples.content();
+    let list = cantus_content::credits::list(c.manifest(), c.installed());
+    if list.is_empty() {
+        para(ui, &t("about.credits.none"), Role::Label, s.t.text_dim);
+    }
+    for e in &list {
+        // Required or a courtesy by the licence alone, also for a pack only a receipt names.
+        let key = match e.courtesy {
+            Courtesy::Required => "about.credits.required",
+            Courtesy::Courtesy => "about.credits.courtesy",
+        };
+        let mut head = tf(key, &[("pack", &e.name.get(lang)), ("licence", &e.licence)]);
+        if e.from_receipt {
+            head = format!("{head} · {}", t("about.credits.no_longer"));
+        }
+        let line = match &e.attribution {
+            Some(a) => super::samples_content::credit_text(&e.spdx, &e.licence_url, a),
+            None => e.line.clone(),
+        };
+        ui.add_space(2.0 * s.k);
+        para(ui, &head, Role::Label, s.t.text);
+        para(ui, &line, Role::Label, s.t.text_dim);
+    }
 }
 
 /// A one-line label that takes only its own width (beside a button).

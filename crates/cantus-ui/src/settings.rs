@@ -149,6 +149,34 @@ pub struct Settings {
     /// a **linked** copy, the same clip in another place (FL's pattern clips, ADR 0037),
     /// or a copy of its own. On by default; *Make unique* detaches one copy either way.
     pub link_copies: bool,
+    /// The folder Exemplar's streamed samples are decoded into (ADR 0050): its size limit,
+    /// GB, or `None` — automatic: the smaller of 16 GB, a tenth of the disk and what leaves
+    /// 5 GB free (second review #10). The least recently used go first.
+    pub sample_cache_gb: Option<f32>,
+}
+
+/// The sample cache's size limit, GB: default and range.
+pub const DEFAULT_SAMPLE_CACHE_GB: f32 = 16.0;
+pub const MIN_SAMPLE_CACHE_GB: f32 = 1.0;
+pub const MAX_SAMPLE_CACHE_GB: f32 = 512.0;
+
+impl Settings {
+    /// The sample cache's limit in bytes, clamped (a hand-edited 0 would empty it at every
+    /// load).
+    pub fn sample_cache_bytes(&self) -> Option<u64> {
+        let gb = self.sample_cache_gb.filter(|g| g.is_finite())?;
+        let gb = gb.clamp(MIN_SAMPLE_CACHE_GB, MAX_SAMPLE_CACHE_GB);
+        Some((gb as f64 * (1u64 << 30) as f64) as u64)
+    }
+
+    /// Give the stream hub the limit chosen here (automatic when none was).
+    pub fn apply_sample_cache_limit(&self) {
+        let hub = cantus_engine::inst::stream::hub();
+        match self.sample_cache_bytes() {
+            Some(b) => hub.set_cache_limit(b),
+            None => hub.set_cache_auto(),
+        }
+    }
 }
 
 /// The updater's two preferences. The schedule itself (when it last asked) is in
@@ -187,6 +215,7 @@ impl Default for Settings {
             updates: UpdateSettings::default(),
             export: cantus_export::ExportSettings::default(),
             link_copies: true,
+            sample_cache_gb: None,
         }
     }
 }
@@ -258,9 +287,84 @@ pub fn settings_path(dir: &Path) -> PathBuf {
     dir.join("settings.json")
 }
 
+/// The file the installer's privacy page leaves in the data folder (`cantus.nsi`,
+/// `CHOICES_FILE`): `check_daily=1` or `check_daily=0`.
+pub const INSTALLER_CHOICES: &str = "installer-choices.txt";
+
+/// Apply the installer's choice (the daily update check, round 26) to `settings` once:
+/// set it, save the settings, remove the file. True when the settings changed. The
+/// installer reads the current choice from `settings.json` to preselect its box, so a
+/// reinstall that keeps the box as found changes nothing.
+pub fn apply_installer_choices(dir: &Path, settings: &mut Settings) -> bool {
+    let file = dir.join(INSTALLER_CHOICES);
+    let Ok(text) = std::fs::read_to_string(&file) else {
+        return false;
+    };
+    let _ = std::fs::remove_file(&file);
+    let choice = text
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("check_daily="))
+        .find_map(|v| match v.trim() {
+            "1" => Some(true),
+            "0" => Some(false),
+            _ => None,
+        });
+    let Some(check) = choice else {
+        log::warn!("{INSTALLER_CHOICES} says nothing usable; removed");
+        return false;
+    };
+    settings.updates.check_daily = check;
+    if let Err(e) = settings.save(&settings_path(dir)) {
+        log::warn!("cannot save the installer's update choice: {e}");
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The installer's privacy page leaves its choice in the data folder; the next start
+    /// applies it to the settings, saves them and removes the file (round 26).
+    #[test]
+    fn the_installers_update_choice_is_applied_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = settings_path(dir.path());
+        let choice = dir.path().join(INSTALLER_CHOICES);
+        // No file: nothing changes, nothing is written.
+        let mut s = Settings::load(&path);
+        assert!(!apply_installer_choices(dir.path(), &mut s));
+        assert!(s.updates.check_daily && !path.exists());
+        // "Off" from the installer, CRLF as NSIS writes it.
+        std::fs::write(&choice, "check_daily=0\r\n").unwrap();
+        assert!(apply_installer_choices(dir.path(), &mut s));
+        assert!(!s.updates.check_daily);
+        assert!(!choice.exists(), "applied once");
+        assert!(!Settings::load(&path).updates.check_daily, "and saved");
+        // "On" again, over a saved "off"; the rest of the settings stay.
+        s.autosave_seconds = 45;
+        s.save(&path).unwrap();
+        std::fs::write(&choice, "check_daily=1\n").unwrap();
+        let mut s = Settings::load(&path);
+        assert!(apply_installer_choices(dir.path(), &mut s));
+        let saved = Settings::load(&path);
+        assert!(saved.updates.check_daily);
+        assert_eq!(saved.autosave_seconds, 45);
+        // A file that says nothing usable is removed and changes nothing.
+        std::fs::write(&choice, "nonsense").unwrap();
+        assert!(!apply_installer_choices(dir.path(), &mut s));
+        assert!(!choice.exists());
+    }
+
+    /// The installer finds "off" in the settings by this exact text (`ReadCheckUpdates` in
+    /// cantus.nsi): the pretty JSON the app writes must keep it.
+    #[test]
+    fn the_settings_file_says_check_daily_false_as_the_installer_reads_it() {
+        let mut s = Settings::default();
+        s.updates.check_daily = false;
+        let text = serde_json::to_string_pretty(&s).unwrap();
+        assert!(text.contains("\"check_daily\": false"), "{text}");
+    }
 
     #[test]
     fn settings_round_trip_and_a_missing_file_is_fine() {

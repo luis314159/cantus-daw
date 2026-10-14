@@ -192,6 +192,17 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             views::hint::paint_panel(b, hint_r, &s, &name, idle);
         });
     });
+    // The idle hint in full, where the bar shows its essentials: the panel's tooltip.
+    if let Some(key) = views::workspace_status::tool_hint_key(app) {
+        let resp = ui.interact(
+            hint_r,
+            egui::Id::new("cantus-hint-panel"),
+            egui::Sense::hover(),
+        );
+        if resp.hovered() {
+            let _ = resp.on_hover_text(t_(key));
+        }
+    }
     menus(app, ui, menu_r, &s);
     transport_keys(app, ui, transport_r, &s);
     if let Some(r) = modes_r {
@@ -954,6 +965,11 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     {
         app.toggle_pane(Pane::Devices);
     }
+    // The clip browser (round 26): link groups and clips to drag onto the arrangement.
+    let mut shown = app.workspace.contains(Pane::Clips);
+    if ui.checkbox(&mut shown, t("action.toggle-clips")).changed() {
+        app.toggle_pane(Pane::Clips);
+    }
     if ui.button(t("picker.menu.open_picker")).clicked() {
         ui.close();
         app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
@@ -1019,6 +1035,12 @@ fn help_menu(app: &mut CantusApp, ui: &mut Ui) {
     if ui.button(t("menu.about")).clicked() {
         ui.close();
         app.show_about = true;
+    }
+    // About, scrolled to the credits: the Bible translations and every sound pack (round 26).
+    if ui.button(t("about.menu.credits")).clicked() {
+        ui.close();
+        let ctx = ui.ctx().clone();
+        views::about::show_credits(app, &ctx);
     }
 }
 
@@ -1110,6 +1132,7 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
             (Action::MakeUnique, "clip.make_unique"),
             (Action::LinkClips, "action.link-clips"),
             (Action::SelectLinked, "clip.select_linked"),
+            (Action::LinkTo, "clip.link_to"),
         ] {
             if views::arrangement::action_item(app, ui, action, key) {
                 ui.close();

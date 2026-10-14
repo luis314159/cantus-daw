@@ -29,6 +29,9 @@ pub mod builtin;
 #[path = "exemplar_loop.rs"]
 pub mod analysis;
 
+#[path = "exemplar_stream.rs"]
+pub mod stream;
+
 #[path = "exemplar_engine.rs"]
 mod engine;
 
@@ -40,7 +43,15 @@ mod tests;
 #[path = "exemplar_tests2.rs"]
 mod tests2;
 
-pub use engine::{crossfade, mix, note_random, LIVE_IDS};
+#[cfg(test)]
+#[path = "exemplar_tests3.rs"]
+mod tests3;
+
+#[cfg(test)]
+#[path = "exemplar_stream_tests.rs"]
+mod stream_tests;
+
+pub use engine::{crossfade, head_only_above, mix, note_random, LIVE_IDS};
 
 pub use play::{LoopDir, Region, Source};
 pub use resample::{halve, Quality, Reader, MAX_LEVELS};
@@ -187,6 +198,8 @@ pub enum Trig {
     First,
     Legato,
     ReleaseKey,
+    /// When controller `cc` crosses into `cclo..=cchi` (pedal noises): no key plays it.
+    Controller,
 }
 
 /// One zone, as the engine plays it.
@@ -234,6 +247,10 @@ pub struct ZoneParams {
     /// Plays only while this keyswitch is in force (−1: always).
     pub sw: i16,
     pub delay_ms: f32,
+    /// [`Trig::Controller`]: the controller and the range its value crosses into.
+    pub cc: u8,
+    pub cclo: u8,
+    pub cchi: u8,
 }
 
 impl Default for ZoneParams {
@@ -269,6 +286,9 @@ impl Default for ZoneParams {
             off_normal: false,
             sw: -1,
             delay_ms: 0.0,
+            cc: 64,
+            cclo: 64,
+            cchi: 127,
         }
     }
 }
@@ -318,6 +338,12 @@ pub struct Exemplar {
     keyswitch: i16,
     /// Per-key counters for live notes' round robin.
     live_rr: [u32; 128],
+    /// Every controller's last value (0…127), the controllers some zone listens to (a bit
+    /// each), and the controller triggers counted since the last stop — their round robin
+    /// and random numbers.
+    cc_last: [u8; 128],
+    cc_listen: u128,
+    cc_count: u32,
     clock: u64,
     serial: u64,
     stolen: u32,
@@ -331,6 +357,15 @@ pub struct Exemplar {
     lanes: crate::par::Lanes,
     lane_end: [u16; LANES],
     ended: Box<[bool]>,
+    /// Where each layer reads a streamed sample (ADR 0050), the blocks each zone may start
+    /// in beyond its head, and the late blocks counted.
+    board: std::sync::Arc<stream::Board>,
+    starts: std::sync::Arc<stream::Board>,
+    late: u32,
+    /// Notes that played their head only (too fast to stream: third review #9).
+    cut: u32,
+    /// Times its voices woke the stream reader (fourth review #1).
+    wakes: u32,
 }
 
 /// The longest span one fork of the parallel render covers, in frames.

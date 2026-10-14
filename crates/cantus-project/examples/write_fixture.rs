@@ -385,6 +385,22 @@ fn main() {
         tap: SendTap::Pre,
         ..Send::new(ret)
     });
+    // Schema 24 (round 26): an Exemplar whose second zone the sustain pedal starts — a
+    // pedal-down noise (CC 64 crossing into 126…127), on the built-in noise.
+    let mut pedal = p.make_track("Exemplar pedal");
+    let mut s = NativeSpec::new(InstrumentKind::Sampler);
+    for (k, v) in [
+        ("z0.gen", 1.0),
+        ("z1.gen", 5.0),
+        ("z1.trig", 5.0),
+        ("z1.cc", 64.0),
+        ("z1.cclo", 126.0),
+        ("z1.gain", -20.0),
+    ] {
+        s.set(k, v).unwrap();
+    }
+    pedal.instrument = InstrumentSpec::Native(s);
+    p.tracks.push(pedal);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

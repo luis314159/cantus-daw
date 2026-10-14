@@ -145,6 +145,16 @@ impl Default for ChannelRackView {
 }
 
 impl ChannelRackView {
+    /// Start renaming the rack's row `index` of `track` (a double-click on its button does).
+    pub fn begin_rename_pad(&mut self, track: TrackId, index: usize, name: String) {
+        self.rename = Some((track, index, name));
+    }
+
+    /// Whether a row is being renamed.
+    pub fn renaming_pad(&self) -> bool {
+        self.rename.is_some()
+    }
+
     /// Where the grid was drawn last frame, or `None` before the first one.
     ///
     /// Published for the same reason the arrangement publishes its timeline: a test that
@@ -1025,25 +1035,24 @@ fn pad_controls(
         .is_some_and(|(t, pi, _)| *t == id && *pi == i);
     if renaming {
         let mut done = None;
-        let mut child = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(rr.button.shrink(2.0))
-                .layout(egui::Layout::left_to_right(egui::Align::Center)),
-        );
         if let Some((_, _, text)) = app.rack.rename.as_mut() {
-            let edit =
-                child.add(egui::TextEdit::singleline(text).desired_width(rr.button.width() - 8.0));
-            edit.request_focus();
-            if edit.lost_focus() || child.input(|i| i.key_pressed(egui::Key::Enter)) {
-                done = Some(text.clone());
-            }
-            if child.input(|i| i.key_pressed(egui::Key::Escape)) {
-                done = Some(String::new());
+            // The kit's field (round 26): Enter or a click elsewhere renames, Esc leaves
+            // the name (an empty name, or the name untouched, is an abandoned edit).
+            let out = kit::field::Field::new(egui::Id::new(("pad-rename", id.0, i)))
+                .opens_when_shown()
+                .show(ui, rr.button.shrink(2.0), text);
+            match out.event {
+                Some(kit::field::Event::Commit) if out.edited => {
+                    done = Some(text.trim().to_string())
+                }
+                Some(kit::field::Event::Commit) => done = Some(String::new()),
+                Some(kit::field::Event::Cancel) => done = Some(String::new()),
+                None => {}
             }
         }
         if let Some(name) = done {
             app.rack.rename = None;
-            if !name.trim().is_empty() {
+            if !name.is_empty() {
                 app.exec(Command::SetPadName {
                     track: id,
                     pad: p.id,

@@ -116,6 +116,7 @@ pub fn lay_out(groups: &[Group], width: f32, tile_w: f32, k: f32) -> (Vec<Item>,
 pub fn subject(d: &Device) -> Option<Subject> {
     match d.choice {
         PickChoice::Instrument(k) => Some(Subject::Instrument(k)),
+        PickChoice::Sound(_) => Some(Subject::Instrument(cantus_core::InstrumentKind::Sampler)),
         PickChoice::Pulsus => Some(Subject::Pulsus),
         PickChoice::Effect(k) => Subject::of_effect(k),
         _ => None,

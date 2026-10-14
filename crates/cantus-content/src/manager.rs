@@ -27,6 +27,27 @@ pub enum Status {
     Busy(Option<Phase>),
 }
 
+/// An instrument an installed pack offers, where its file is.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InstalledInstrument {
+    pub pack: String,
+    pub pack_name: crate::manifest::Text,
+    pub instrument: crate::manifest::PackInstrument,
+    /// The instrument file, absolute.
+    pub path: PathBuf,
+    /// The pack's licence (SPDX id) and who made it (the credited author, else the first
+    /// credit), for the picker to say.
+    pub licence: String,
+    pub author: String,
+}
+
+impl InstalledInstrument {
+    /// The stable key favourites and recents keep it by: `pack:<pack>/<instrument>`.
+    pub fn key(&self) -> String {
+        format!("pack:{}/{}", self.pack, self.instrument.id)
+    }
+}
+
 /// An install that ended.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Finished {
@@ -36,7 +57,8 @@ pub struct Finished {
 
 enum Msg {
     Phase(String, Phase),
-    Done(String, Result<Receipt, InstallError>),
+    // Boxed: a receipt (with its credit line, ADR 0042) is much larger than a phase.
+    Done(String, Box<Result<Receipt, InstallError>>),
 }
 
 struct Running {
@@ -55,6 +77,9 @@ pub struct Manager {
     installed: Vec<Receipt>,
     /// The last failure of each pack, until it is tried again.
     errors: HashMap<String, InstallError>,
+    /// Bumped by every install that finishes and every removal, even of the same version:
+    /// what a view that depends on the files watches.
+    generation: u64,
 }
 
 impl Manager {
@@ -70,6 +95,8 @@ impl Manager {
         patience: Patience,
     ) -> Manager {
         let layout = Layout::new(root);
+        // Staging folders a crash left behind (no install runs before this manager exists).
+        install::clear_all_staging(&layout);
         let (tx, rx) = channel();
         let installed = install::installed(&layout);
         Manager {
@@ -82,7 +109,13 @@ impl Manager {
             running: HashMap::new(),
             installed,
             errors: HashMap::new(),
+            generation: 0,
         }
+    }
+
+    /// Changes whenever an install finishes or a pack is removed.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     pub fn manifest(&self) -> &Manifest {
@@ -99,6 +132,30 @@ impl Manager {
 
     pub fn pack_dir(&self, id: &str) -> PathBuf {
         self.layout.pack_dir(id)
+    }
+
+    /// Every instrument the installed packs offer, as their receipts name them, in the
+    /// packs' order.
+    pub fn instruments(&self) -> Vec<InstalledInstrument> {
+        self.installed
+            .iter()
+            .flat_map(|r| {
+                let author = r
+                    .attribution
+                    .as_ref()
+                    .map(|a| a.author.clone())
+                    .or_else(|| r.credits.first().map(|c| c.name.clone()))
+                    .unwrap_or_default();
+                r.instruments.iter().map(move |i| InstalledInstrument {
+                    pack: r.id.clone(),
+                    pack_name: r.name.clone(),
+                    instrument: i.clone(),
+                    path: self.layout.pack_dir(&r.id).join(&i.file),
+                    licence: r.licence.clone(),
+                    author: author.clone(),
+                })
+            })
+            .collect()
     }
 
     pub fn is_installed(&self, id: &str) -> bool {
@@ -190,6 +247,7 @@ impl Manager {
         }
         install::remove(&self.layout, id)?;
         self.installed.retain(|r| r.id != id);
+        self.generation += 1;
         Ok(())
     }
 
@@ -204,9 +262,13 @@ impl Manager {
                     }
                 }
                 Msg::Done(id, result) => {
+                    let result = *result;
                     self.running.remove(&id);
                     match &result {
-                        Ok(_) => self.installed = install::installed(&self.layout),
+                        Ok(_) => {
+                            self.installed = install::installed(&self.layout);
+                            self.generation += 1;
+                        }
                         Err(e) => {
                             self.errors.insert(id.clone(), e.clone());
                         }
@@ -263,12 +325,7 @@ fn run(
             let _ = tx.send(Msg::Phase(pack.id.clone(), phase));
         }
     };
+    // Partial downloads stay (they resume); the install's own staging folder never does.
     let result = install::install(&job, &pack, &mut report);
-    if result.is_err() {
-        // Partial downloads stay (they resume); a half-unpacked folder does not.
-        if !matches!(result, Err(InstallError::Fetch(_))) {
-            install::clear_staging(&layout, &pack.id);
-        }
-    }
-    let _ = tx.send(Msg::Done(pack.id.clone(), result));
+    let _ = tx.send(Msg::Done(pack.id.clone(), Box::new(result)));
 }

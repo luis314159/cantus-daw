@@ -35,6 +35,7 @@ impl Builtin {
             rate: self.rate as f32,
             frames: self.frames,
             tune_ct: self.tune_ct,
+            stream: None,
         }
     }
     /// Level 0, for the editor's waveform.

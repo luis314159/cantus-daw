@@ -438,6 +438,8 @@ fn cable_sheet(b: &mut Brush, rect: Rect, s: &Style, st: State) {
             lit: st.hovered || st.active || st.lit || st.focused || st.disabled,
             selected: st.active,
             doubled: i == kinds.len() - 1,
+            mark: Some(cable::path(from, to, h - 7.0).mark),
+            related: false,
         };
         cable::paint(b, s, from, to, h - 7.0, &look);
         for p in [from, to] {

@@ -149,25 +149,25 @@ pub fn swatch(ui: &mut Ui, c: Color32, size: Vec2, changed: bool, tip: &str) -> 
     resp.on_hover_text(tip)
 }
 
-/// A single-line text field in a well: egui's editing inside the kit's look.
-pub fn text_field(ui: &mut Ui, text: &mut String, hint_key: &str, width: f32) -> Response {
+/// A single-line text field: the kit's field (`kit::field`), standing — a click opens a
+/// session (the words selected), Enter or a click elsewhere keeps it, Esc puts the words
+/// back. `id` is the field's own, salted by what it edits (a row's channel): rows of one
+/// kind each have theirs (final review: an id from the `Ui` was shared by sibling rows).
+pub fn text_field(
+    ui: &mut Ui,
+    id: egui::Id,
+    text: &mut String,
+    hint_key: &str,
+    width: f32,
+) -> Response {
     let s = Style::current();
     let h = s.d(24.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width * s.k, h), Sense::hover());
-    with_brush(ui.painter(), |b| {
-        crate::kit::well::paint(b, rect, &s, State::REST, None);
-    });
-    let inner = rect.shrink2(Vec2::new(7.0 * s.k, 3.0 * s.k));
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     let hint_text = crate::i18n::t(hint_key);
-    child.add_sized(
-        inner.size(),
-        egui::TextEdit::singleline(text)
-            .frame(egui::Frame::NONE)
-            .font(Role::Body.font(s.tk()))
-            .text_color(s.t.text)
-            .hint_text(egui::RichText::new(hint_text).color(s.t.placeholder)),
-    )
+    crate::kit::field::Field::new(id)
+        .hint(&hint_text)
+        .show(ui, rect, text)
+        .resp
 }
 
 /// A section band across `ui`'s width: the kit's `SectionBand`.
@@ -288,4 +288,63 @@ pub fn paint_logo(
 /// A glyph painted in a square of `size` points, not a control.
 pub fn paint_glyph(ui: &Ui, rect: Rect, g: Glyph, c: Color32) {
     with_brush(ui.painter(), |b| glyph::paint(b, rect, g, c));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{pos2, vec2, Event, Modifiers, PointerButton, Pos2};
+
+    /// Final review, fields 3: two rows of one kind (an audio routing's outputs) each have
+    /// a field of their own — typing into the second never writes the first.
+    #[test]
+    fn sibling_rows_each_have_a_field_of_their_own() {
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        crate::design::install_style(&ctx);
+        let mut names = vec!["Out 1".to_string(), "Out 2".to_string()];
+        let mut rects = vec![Rect::NOTHING; 2];
+        let mut frame = 0u64;
+        let mut run = |names: &mut Vec<String>, rects: &mut Vec<Rect>, events: Vec<Event>| {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))),
+                time: Some(frame as f64 / 60.0),
+                events,
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| {
+                for (c, name) in names.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        let id = egui::Id::new(("routing-name", false, c));
+                        rects[c] = text_field(ui, id, name, "devices.routing.name_out", 200.0).rect;
+                    });
+                }
+            })
+            .textures_delta
+            .clear();
+        };
+        run(&mut names, &mut rects, Vec::new());
+        let at = rects[1].center();
+        run(&mut names, &mut rects, vec![Event::PointerMoved(at)]);
+        for pressed in [true, false] {
+            run(
+                &mut names,
+                &mut rects,
+                vec![Event::PointerButton {
+                    pos: at,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                }],
+            );
+        }
+        run(&mut names, &mut rects, vec![Event::Text("Monitors".into())]);
+        run(
+            &mut names,
+            &mut rects,
+            vec![Event::PointerMoved(pos2(390.0, 290.0))],
+        );
+        assert_eq!(names, ["Out 1", "Monitors"], "each row its own field");
+    }
 }

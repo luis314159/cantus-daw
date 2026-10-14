@@ -1,5 +1,5 @@
 //! Screenshots of the interface without a screen: `cargo run -p cantus-ui --example shoot
-//! -- <out-dir> [scale]`. Renders the mixer with each plug-in editor open over it, through
+//! -- <out-dir> [scale] [kind…]` (`CANTUS_SHOOT_LANG=es` for Spanish). Renders the mixer with each plug-in editor open over it, through
 //! the software renderer in `cantus_ui::raster`, into PNG files — for the design review,
 //! and for machines whose display is locked or absent.
 //!
@@ -56,7 +56,11 @@ fn main() {
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
     let scale: f32 = args.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);
     std::fs::create_dir_all(&dir).expect("output dir");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    // `CANTUS_SHOOT_LANG=es` photographs every scene in Spanish.
+    cantus_ui::i18n::set_locale(match std::env::var("CANTUS_SHOOT_LANG").as_deref() {
+        Ok("es") => cantus_ui::i18n::Locale::Es,
+        _ => cantus_ui::i18n::Locale::En,
+    });
 
     // `shoot <dir> [scale] [kind…]`: the kinds named, or every editor and the mixer.
     let kinds: Vec<String> = args.collect();
@@ -140,6 +144,39 @@ fn main() {
             welcome_project()
         };
         let mut app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
+        // An instrument's editor is a device tab of the workspace, docked as the program
+        // opens it: those scenes draw the whole window (round 26: drawing the mixer and
+        // the floating windows alone left the editor out — it has no tab to draw in).
+        let inst_scene = views::inst::kind_from_name(kind).is_some() || kind.starts_with("pulsus");
+        if inst_scene {
+            let tmp = std::env::temp_dir().join("cantus-shoot");
+            app.settings_path = tmp.join("settings.json");
+            app.layouts_path = tmp.join("layouts.json");
+            app.keymap_path = tmp.join("keymap.toml");
+            app.appearance_path = tmp.join("appearance.json");
+            // The whole window applies the app's own appearance: light or dark from it.
+            app.appearance.mode = if dark {
+                cantus_ui::kit::appearance::Mode::Dark
+            } else {
+                cantus_ui::kit::appearance::Mode::Light
+            };
+            app.attach(&ctx);
+            app.demo_editor(kind);
+            if let Some(k) = views::inst::kind_from_name(kind) {
+                views::inst::demo_feed(&mut app, k);
+            }
+            let path = dir.join(format!("{name}.png"));
+            shoot(
+                &ctx,
+                egui::vec2(1500.0, 940.0),
+                scale,
+                8,
+                Some(&path),
+                |root| app.frame(root),
+            );
+            println!("wrote {}", path.display());
+            continue;
+        }
         if kind == "startup" {
             startup_window(&mut app, &ctx, dark, &dir.join(format!("{name}.png")));
             continue;

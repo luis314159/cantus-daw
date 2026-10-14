@@ -74,18 +74,24 @@ impl PickerView {
         }
     }
 
-    /// The catalogue, rebuilt if the language or the plug-ins changed.
-    pub fn refresh(&mut self, db: &cantus_host::PluginDb) {
+    /// The catalogue, rebuilt if the language, the plug-ins or the installed sound packs'
+    /// instruments changed.
+    pub fn refresh(
+        &mut self,
+        db: &cantus_host::PluginDb,
+        sounds: &[cantus_content::InstalledInstrument],
+    ) {
         let plugins = db.plugins();
-        let h = crate::kit::cache::key(
+        let h = crate::kit::cache::key((
             plugins
                 .iter()
                 .map(|p| (p.format, p.id.as_str(), p.name.as_str(), p.vendor.as_str()))
                 .collect::<Vec<_>>(),
-        );
+            sounds.iter().map(|s| s.key()).collect::<Vec<_>>(),
+        ));
         let stamp = (crate::i18n::locale().code(), h);
         if self.stamp != Some(stamp) {
-            self.catalog = catalog::build(plugins);
+            self.catalog = catalog::build_with(plugins, sounds);
             self.stamp = Some(stamp);
         }
     }
@@ -173,7 +179,8 @@ fn current_of(app: &CantusApp, purpose: &PickPurpose) -> Option<String> {
 /// effects, the search empty, the device being replaced selected — or the last one chosen.
 pub fn open(app: &mut CantusApp, purpose: PickPurpose) {
     let current = current_of(app, &purpose);
-    app.picker_view.refresh(&app.plugins.db);
+    let sounds = app.samples.content().instruments();
+    app.picker_view.refresh(&app.plugins.db, &sounds);
     let v = &mut app.picker_view;
     let role = Role::of(&purpose);
     v.query = Query {
@@ -278,7 +285,8 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
     let Some(purpose) = app.picker.clone() else {
         return;
     };
-    app.picker_view.refresh(&app.plugins.db);
+    let sounds = app.samples.content().instruments();
+    app.picker_view.refresh(&app.plugins.db, &sounds);
     app.picker_view.thumbs.pump(ctx);
     let screen = ctx.content_rect();
     let mut action = super::picker_keys::Action::None;

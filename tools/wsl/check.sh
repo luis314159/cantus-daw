@@ -22,6 +22,11 @@ export OPENSSL_LIB_DIR="$root/usr/lib/x86_64-linux-gnu"
 export OPENSSL_INCLUDE_DIR="$root/usr/include"
 export RUSTFLAGS="-D warnings"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
+# As ci.yml: no debug info, no incremental cache. With them the target folder reached
+# 126 GB inside the WSL disk image, which lives on C: and filled it (2026-10-14).
+export CARGO_PROFILE_DEV_DEBUG=0
+export CARGO_PROFILE_TEST_DEBUG=0
+export CARGO_INCREMENTAL=0
 if [ ! -d "$HOME/cantus-ci/.git" ]; then
   git clone -q "$src" "$HOME/cantus-ci" || exit 1
 fi

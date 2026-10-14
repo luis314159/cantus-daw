@@ -17,7 +17,10 @@ pub use trigger::crossfade;
 
 /// Ids at or above this are live input (one per key, `cantus_engine`'s `native_id`).
 pub const LIVE_IDS: u64 = u64::MAX - 256;
-/// A layer no longer tied to a note (released by all-notes-off, or stolen and fading).
+/// Ids of controller triggers (counted from here), below the live notes'.
+const CC_IDS: u64 = LIVE_IDS - (1 << 32);
+/// A layer no longer tied to a note (released by all-notes-off, or stolen and fading), or
+/// one a controller started.
 const ORPHAN: usize = usize::MAX;
 
 /// SplitMix64: a well-mixed number from a note's id and key — the seed of every choice.
@@ -48,6 +51,18 @@ impl Exemplar {
     /// Allocates every table: call off the audio thread.
     pub fn new(fs: f32) -> Exemplar {
         let fs = if fs > 0.0 { fs } else { 48_000.0 };
+        let board = std::sync::Arc::new(super::stream::Board::new(MAX_LAYERS));
+        let mut layers = vec![Layer::default(); MAX_LAYERS].into_boxed_slice();
+        // Each layer's window for a streamed sample: a control step and a 5 ms fade ahead,
+        // twice over (a level is read at up to twice the rate), the taps and the decimator.
+        let fade = (STEAL_MS * fs / 1000.0).ceil() as usize;
+        let ahead = super::voice::CONTROL as usize + fade;
+        let frames =
+            (2 * ahead + 2 * resample::MAX_TAPS + 4 * super::play::HB_M + 64).next_multiple_of(256);
+        for (i, l) in layers.iter_mut().enumerate() {
+            l.play.attach_window(frames, fade, board.clone(), i as u16);
+            l.play.set_head_only_above(head_only_above(fs));
+        }
         Exemplar {
             fs,
             readers: [
@@ -62,7 +77,7 @@ impl Exemplar {
             sources: vec![Source::default(); MAX_ZONES].into_boxed_slice(),
             order: vec![0u16; MAX_ZONES].into_boxed_slice(),
             order_len: 0,
-            layers: vec![Layer::default(); MAX_LAYERS].into_boxed_slice(),
+            layers,
             slots: [Slot::default(); MAX_VOICES],
             alloc: Allocator::new(32),
             matrix: ModMatrix::default(),
@@ -73,6 +88,9 @@ impl Exemplar {
             sus: 0.0,
             keyswitch: -1,
             live_rr: [0; 128],
+            cc_last: [0; 128],
+            cc_listen: 0,
+            cc_count: 0,
             clock: 0,
             serial: 0,
             stolen: 0,
@@ -82,7 +100,94 @@ impl Exemplar {
             lanes: crate::par::Lanes::new(LANES, SPAN),
             lane_end: [u16::MAX; LANES],
             ended: vec![false; MAX_LAYERS].into_boxed_slice(),
+            board,
+            starts: std::sync::Arc::new(super::stream::Board::new_pins(MAX_ZONES)),
+            late: 0,
+            cut: 0,
+            wakes: 0,
         }
+    }
+
+    /// Where its zones say which blocks beyond their heads a note may start in.
+    pub fn starts(&self) -> &std::sync::Arc<super::stream::Board> {
+        &self.starts
+    }
+
+    /// Say, for every zone on a streamed sample, the blocks beyond its head a note may
+    /// start in (its start, plus the velocity's), and two more: the reader keeps them in
+    /// the pool. Call after the zones and globals are set (configure): allocation-free.
+    pub fn publish_starts(&mut self) {
+        use super::stream::{StartPin, BLOCK};
+        for zi in 0..MAX_ZONES {
+            self.starts.set(zi, 0);
+        }
+        for oi in 0..self.order_len {
+            let zi = self.order[oi] as usize;
+            let src = &self.sources[zi];
+            let Some(st) = src.stream.as_ref() else {
+                continue;
+            };
+            let start = self.zones[zi].region.start.max(0) as usize;
+            let vel = (self.globals.start_vel_ms.max(0.0) * src.rate / 1000.0).ceil();
+            let end = start + vel as usize;
+            let head = st.head_frames(0);
+            if end + 2 * BLOCK <= head {
+                continue;
+            }
+            let lo = start.max(head) / BLOCK;
+            let hi = ((end + 2 * BLOCK).min(st.frames[0].max(1)) - 1) / BLOCK;
+            // The levels a note of this zone can start at: its top key, tunes, transpose and
+            // a full bend up (the resampler's choice: level k for a ratio in [2^k, 2^(k+1))),
+            // within the levels the zone has.
+            let z = &self.zones[zi];
+            let g = &self.globals;
+            let shift = (z.hi as f32 - z.root as f32).max(0.0) * z.keytrack / 100.0
+                + (z.tune_ct + self.groups[z.group as usize].tune_ct + g.tune_ct) / 100.0
+                + g.transpose
+                + g.bend_range.max(0.0);
+            let ratio = src.rate / self.fs * crate::math::exp2(shift / 12.0);
+            let reach = if ratio >= 2.0 {
+                crate::math::log2(ratio).floor() as usize
+            } else {
+                0
+            };
+            let pin = StartPin {
+                stream: st.id,
+                block: lo,
+                count: (hi + 1).saturating_sub(lo).clamp(1, 255),
+                levels: reach.min(src.top_level()) + 1,
+            };
+            self.starts.set(zi, pin.pack());
+        }
+    }
+
+    /// Where its layers say what they stream (the reader scans it; ADR 0050).
+    pub fn board(&self) -> &std::sync::Arc<super::stream::Board> {
+        &self.board
+    }
+
+    /// Offline: a streamed voice waits for its blocks rather than fade (ADR 0050 §6).
+    pub fn set_blocking(&mut self, on: bool) {
+        for l in self.layers.iter_mut() {
+            l.play.set_blocking(on);
+        }
+    }
+
+    /// Streamed voices that ended early because a block came late, since the last call.
+    pub fn take_late(&mut self) -> u32 {
+        std::mem::take(&mut self.late)
+    }
+
+    /// Notes that played their head only — read faster than streaming serves (third review
+    /// #9) — since the last call. Never late: the same offline and in real time.
+    pub fn take_cut(&mut self) -> u32 {
+        std::mem::take(&mut self.cut)
+    }
+
+    /// Times its voices woke the stream reader — a non-blocking system call on the audio
+    /// thread (ADR 0050 §4, fourth review #1) — since the last call.
+    pub fn take_wakes(&mut self) -> u32 {
+        std::mem::take(&mut self.wakes)
     }
 
     pub fn sample_rate(&self) -> f32 {
@@ -109,9 +214,16 @@ impl Exemplar {
         }
     }
 
-    /// Forget the zone list (their sources stay until overwritten: the cache owns them).
+    /// Forget the zone list and let go of their sources (second review #2: a removed
+    /// zone's stream is released while the instrument lives). Allocation-free, and never
+    /// the last drop on the audio thread: the sample cache and the stream hub hold them.
     pub fn clear_zones(&mut self) {
+        for oi in 0..self.order_len {
+            let zi = self.order[oi] as usize;
+            self.sources[zi] = Source::default();
+        }
         self.order_len = 0;
+        self.cc_listen = 0;
     }
 
     /// Add zone `n`. Call in ascending `n`; the audio thread may call it (no allocation:
@@ -122,6 +234,9 @@ impl Exemplar {
         }
         self.zones[n].clone_from(z);
         self.sources[n].clone_from(src);
+        if z.trig == Trig::Controller {
+            self.cc_listen |= 1u128 << z.cc.min(127);
+        }
         self.order[self.order_len] = n as u16;
         self.order_len += 1;
     }
@@ -162,6 +277,18 @@ impl Exemplar {
             }
             _ => {}
         }
+    }
+
+    /// A MIDI controller's new value (0…127): the zones it crosses into start on the next
+    /// sample, and the looping layers it started whose range it leaves are released.
+    pub fn cc(&mut self, n: u8, v: u8) {
+        let (n, v) = (n.min(127), v.min(127));
+        let prev = std::mem::replace(&mut self.cc_last[n as usize], v);
+        if self.cc_listen & (1u128 << n) == 0 || prev == v {
+            return;
+        }
+        self.cc_left(n, v);
+        self.cc_entered(n, prev, v);
     }
 
     fn in_switch_range(&self, key: u8) -> bool {
@@ -259,12 +386,14 @@ impl Exemplar {
         }
         self.alloc.clear();
         self.keys_down = 0;
+        self.cc_count = 0;
     }
 
     /// Silence at once and forget every tail and every state that depends on the past.
     pub fn reset(&mut self) {
         for l in self.layers.iter_mut() {
             l.active = false;
+            l.play.let_go();
         }
         for s in &mut self.slots {
             *s = Slot::default();
@@ -273,6 +402,8 @@ impl Exemplar {
         self.keys_down = 0;
         self.keyswitch = -1;
         self.live_rr = [0; 128];
+        self.cc_last = [0; 128];
+        self.cc_count = 0;
         self.mw = 0.0;
         self.at = 0.0;
         self.bend = 0.0;
@@ -284,14 +415,18 @@ impl Exemplar {
     /// At rest (ADR 0031 §5.1): no layer sounding, no note or key held, the wheels and
     /// pedals where a reset leaves them, no keyswitch in force (a new unit has none: the
     /// next note would pick other zones) and no live note counted (live notes round-robin
-    /// by their count; a clip's notes by their id, which needs no memory). The clock only
-    /// times how long a note was held, so skipping it is exact.
+    /// by their count; a clip's notes by their id, which needs no memory), no controller a
+    /// zone listens to away from 0 and no controller trigger counted since the last stop
+    /// (both choose what the next one starts). The clock only times how long a note was
+    /// held, so skipping it is exact.
     pub fn at_rest(&self) -> bool {
         !self.layers.iter().any(|l| l.active)
             && self.alloc.is_clear()
             && self.keys_down == 0
             && self.keyswitch == -1
             && self.live_rr.iter().all(|c| *c == 0)
+            && self.cc_count == 0
+            && (0..128).all(|n| self.cc_listen & (1u128 << n) == 0 || self.cc_last[n] == 0)
             && self.mw == 0.0
             && self.at == 0.0
             && self.bend == 0.0
@@ -347,4 +482,24 @@ impl Exemplar {
         }
         n
     }
+}
+
+/// An instrument that goes zeroes its boards (second review #1): a copy the stream reader
+/// still holds until it next looks wants nothing of it.
+impl Drop for Exemplar {
+    fn drop(&mut self) {
+        for b in [&self.board, &self.starts] {
+            for i in 0..b.len() {
+                b.set(i, 0);
+            }
+        }
+    }
+}
+
+/// The local ratio above which a streamed voice plays its head only (third review #8): one
+/// millisecond of its reads at most a quarter of what the reader keeps ready ahead — the
+/// reader looks every millisecond while anything streams — 64 at 48 kHz.
+pub fn head_only_above(fs: f32) -> f64 {
+    let ahead = (super::stream::READ_AHEAD * super::stream::BLOCK) as f64;
+    ahead / 4.0 / (fs.max(1.0) as f64 / 1_000.0)
 }

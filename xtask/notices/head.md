@@ -14,10 +14,11 @@ ask us to carry. Nothing here limits the rights each licence gives you.
 - [Maths: libm and musl](#maths-libm-and-musl)
 - [Fonts](#fonts)
 - [Bible translations (the verse at start)](#bible-translations-the-verse-at-start)
-- [Sound packs (downloaded when you ask)](#sound-packs-downloaded-when-you-ask)
 - [Drivers Cantus links to but does not include](#drivers-cantus-links-to-but-does-not-include)
 - [The installer](#the-installer)
 - [The Rust toolchain](#the-rust-toolchain)
+- [Content](#content) — the sound packs Cantus downloads when you ask, and their
+  credits, generated from the content manifest
 - [Rust crates](#rust-crates) — every crate compiled into the program, generated from
   `Cargo.lock`
 - [Licence texts](#licence-texts) and [standard texts](#standard-texts)
@@ -29,7 +30,7 @@ Copyright © 2026 Luis Ángel Almazán and the Cantus contributors.
 | Part | Licence |
 |---|---|
 | The application — `cantus` (the program), `cantus-ui`, `cantus-ai`, `cantus-host`, `cantus-content`, `cantus-update`, `cantus-plugins` (the CLAP and VST3 plug-ins), `xtask` | GPL-3.0-or-later (`LICENSE-GPL`) |
-| The engine crates — `cantus-core`, `cantus-dsp`, `cantus-engine`, `cantus-project`, `cantus-rt` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) |
+| The engine crates — `cantus-core`, `cantus-dsp`, `cantus-engine`, `cantus-project`, `cantus-rt` | MPL-2.0 (`LICENSE-MPL`; each crate's `LICENSE` carries the licence's Exhibit A notice — ADR 0047) |
 
 The program as distributed is a combined work under the **GNU General Public License,
 version 3 or later** (ADR 0001). Its complete corresponding source is the Git tag of the
@@ -100,15 +101,16 @@ Felker, et al.), and the notices musl carries from FreeBSD and Sun Microsystems
 
 | Font | Where | Copyright | Licence |
 |---|---|---|---|
-| IBM Plex Sans, Sans Condensed and Mono (Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, also printed below |
-| Ubuntu Light | egui's default fonts (`epaint_default_fonts`), a fallback | Canonical Ltd. | Ubuntu Font Licence 1.0 |
-| Hack Regular | egui's default fonts, a fallback | © 2018 Source Foundry Authors; Bitstream Vera © 2003 Bitstream, Inc. | MIT, with the Bitstream Vera licence |
-| Noto Emoji | egui's default fonts, a fallback | Google | SIL Open Font License 1.1 |
-| emoji-icon-font | egui's default fonts, a fallback | © 2014 John Slegers | MIT |
+| IBM Plex Sans, Sans Condensed and Mono (Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
+| emoji-icon-font | the symbol fallback after every Plex face (`crates/cantus-ui/assets/fonts/`, as egui distributed it) | © 2014 John Slegers | MIT — `crates/cantus-ui/assets/fonts/LICENSE-emoji-icon-font.txt`, printed below |
 
-The texts of the last four are printed under [Licence texts](#licence-texts) with the
-crate `epaint_default_fonts`. Fonts are bundled with the program; they are not sold by
-themselves.
+Fonts are bundled with the program; they are not sold by themselves. egui's other default
+fonts (Ubuntu Light, Hack, Noto Emoji) are not built into Cantus (round 26). For names in
+scripts these fonts lack (Japanese, Korean, Hindi, Arabic…), Cantus reads your operating
+system's own fonts from its font folder when they are first needed; they are neither
+bundled nor distributed with Cantus.
+
+<!-- font-licences -->
 
 The IBM Plex licence, as `LICENSE-OFL.txt` begins: *"Copyright © 2017 IBM Corp. with
 Reserved Font Name "Plex". This Font Software is licensed under the SIL Open Font
@@ -121,36 +123,16 @@ verse at start* turns it off). The texts are in `crates/cantus-ui/locales/verses
 they were taken is in that folder's `README.md`. They are data under their own terms, not
 under the GPL.
 
-- **Reina-Valera 1960** (`es.txt`, the Spanish default), quoted within the American Bible
-  Society's published allowance (fewer than 500 verses, with the notice, in a product
-  available for non-commercial use; Cantus quotes 293). Its notice, word for word:
+- **Reina-Valera 1960** (`es.txt`) — **not in this build**: Cantus neither carries nor
+  shows it until its publisher's written permission is granted, and the file is kept
+  privately until then. With the permission, its notice, word for word, will be:
 
   > Reina-Valera 1960 © Sociedades Bíblicas en América Latina, 1960. Renovado © Sociedades
   > Bíblicas Unidas, 1988. Utilizado con permiso.
-
-  Anyone who redistributes Cantus commercially should delete `es.txt` (or empty it):
-  Cantus then uses the public-domain Reina-Valera 1909 by itself.
-- **Reina-Valera 1909** (`es-1909.txt`) — public domain; text from eBible.org.
+- **Reina-Valera 1909** (`es-1909.txt`, the Spanish text Cantus shows) — public domain;
+  text from eBible.org.
 - **World English Bible** (`en.txt`, the *Updated* edition) — public domain; text from
   eBible.org. "World English Bible" is a trademark of eBible.org; the text is unmodified.
-
-## Sound packs (downloaded when you ask)
-
-No samples are bundled with Cantus. *Sound packs* (in the sample browser) downloads, only
-when you click *Install*, packs released under **CC0 1.0** (public domain dedication) by
-their authors; a pack is installed only with its licence file, which stays in its folder
-(`%LOCALAPPDATA%\Cantus\Content\<pack>`). CC0 asks for no credit; we give it gladly:
-
-| Pack | Made by | Source |
-|---|---|---|
-| Cantus Starter Drums | a selection from Virtuosity Drums (Versilian Studios and Karoryfer Samples), Body Percussion (sfzinstruments) and VCSL (Versilian Studios) | <https://github.com/sfzinstruments/virtuosity_drums>, <https://github.com/sfzinstruments/body_percussion>, <https://github.com/sgossner/VCSL> |
-| AFR Kicks 2024 | Alexander F. Rødseth (xyproto) | <https://github.com/xyproto/synth/releases/tag/v1.4.4> |
-| Body Percussion | sfzinstruments | <https://github.com/sfzinstruments/body_percussion> |
-| Gogodze Phu Vol. I and II, Frankensnare, Big Rusty Drums, Swirly Drums (dry), Unruly Drums | Karoryfer Samples | <https://github.com/sfzinstruments> (`karoryfer.*`) |
-| VSCO 2 Percussion | Versilian Studios (VSCO 2 Community Edition) | <https://github.com/sgossner/VSCO-2-CE> |
-| TX81Z Multisamples | Versilian Studios (VCSL) | <https://github.com/sgossner/VCSL> |
-
-The list, with every file's SHA-256, is `crates/cantus-content/manifest/content.json`.
 
 ## Drivers Cantus links to but does not include
 

@@ -48,9 +48,10 @@ impl Default for Keep {
 pub fn available(purpose: &PickPurpose, choice: &PickChoice) -> bool {
     use cantus_host::PluginKind;
     match choice {
-        PickChoice::Firmus | PickChoice::Pulsus | PickChoice::Instrument(_) => {
-            purpose.wants_instrument()
-        }
+        PickChoice::Firmus
+        | PickChoice::Pulsus
+        | PickChoice::Instrument(_)
+        | PickChoice::Sound(_) => purpose.wants_instrument(),
         PickChoice::Effect(_) => !purpose.wants_instrument(),
         PickChoice::Hosted(info) => match info.kind {
             // ADR 0028: `apply_pick` puts it on a track through `set_hosted_instrument`.

@@ -4,6 +4,7 @@
 //! the lanes summed in layer order.
 
 use super::*;
+use crate::exemplar::play::Reach;
 use crate::exemplar::resample::Reader;
 use crate::exemplar::voice::{lfo_value, Stage, CONTROL};
 use crate::math;
@@ -63,6 +64,18 @@ impl Exemplar {
                     let slot = self.layers[li].slot;
                     self.layer_ended(slot);
                 }
+            }
+        }
+        for l in self.layers.iter_mut() {
+            if std::mem::take(&mut l.late) {
+                self.late += 1;
+            }
+            if std::mem::take(&mut l.cut) {
+                self.cut += 1;
+            }
+            self.wakes += l.play.take_wakes();
+            if !l.active {
+                l.play.let_go();
             }
         }
         self.clock += n as u64;
@@ -157,12 +170,37 @@ fn render_into(cx: &Ctx, l: &mut Layer, left: &mut [f32], right: &mut [f32]) -> 
     let n = left.len();
     let mut i = 0;
     while i < n {
+        let (readers, globals) = (cx.readers, cx.globals);
+        let reader = &readers[globals.quality as usize];
         if l.ctl == 0 {
             control(cx, l);
         }
-        let (readers, globals) = (cx.readers, cx.globals);
-        let reader = &readers[globals.quality as usize];
-        let run = (l.ctl as usize).min(n - i);
+        let mut run = (l.ctl as usize).min(n - i);
+        // A streamed sample: this run's reads and a fade more, ready (ADR 0050). A run
+        // whose reads would not fit the window is cut shorter; a block that is late fades
+        // the layer out over what it still holds.
+        if l.play.streamed() {
+            let fading = l.fade_step != 0.0;
+            match l.play.ensure(l.ratio, reader, run, fading) {
+                Reach::Ready(k) => run = run.min(k.max(1)),
+                Reach::Late(k) => {
+                    if !fading {
+                        l.late = true;
+                        let fade = (STEAL_MS * cx.fs / 1000.0).ceil() as usize;
+                        l.fade_out(k.min(fade).max(1) as f32);
+                    }
+                    run = run.min(k.max(1));
+                }
+                Reach::End(k) => {
+                    if !fading {
+                        l.cut = true;
+                        let fade = (STEAL_MS * cx.fs / 1000.0).ceil() as usize;
+                        l.fade_out(k.min(fade).max(1) as f32);
+                    }
+                    run = run.min(k.max(1));
+                }
+            }
+        }
         for t in i..i + run {
             if l.env.stage == Stage::Delay {
                 l.env.next();
@@ -191,6 +229,11 @@ fn render_into(cx: &Ctx, l: &mut Layer, left: &mut [f32], right: &mut [f32]) -> 
             if l.env.stage == Stage::Off || l.play.is_done() {
                 return true;
             }
+        }
+        // A wide read found a block gone (evicted under it): counted, and the layer fades.
+        if l.play.take_missed() && l.fade_step == 0.0 {
+            l.late = true;
+            l.fade_out((STEAL_MS * cx.fs / 1000.0).ceil());
         }
         l.ctl -= run as u32;
         l.age += run as u64;

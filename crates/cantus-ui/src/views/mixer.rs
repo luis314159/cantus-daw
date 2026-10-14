@@ -67,6 +67,8 @@ mod cables;
 pub(crate) mod desk;
 #[path = "mixer_drag.rs"]
 mod drag;
+#[path = "mixer_lanes.rs"]
+mod lanes;
 #[path = "mixer_layout.rs"]
 pub mod layout;
 #[path = "mixer_menu.rs"]
@@ -93,6 +95,20 @@ use std::path::{Path, PathBuf};
 
 pub use cables::Drawn as DrawnCable;
 pub use parts::phase_button;
+
+/// Where the cable legend under ROUTING was drawn last frame (tests hold it whole and
+/// apart): the row's cell in the legend column, the row's name, the three line samples
+/// (with their words in the full key; alone, beside the name, in the compact one), and
+/// whether the band was too short for the full key (round 26, ADR 0043 §8).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct CableKey {
+    pub cell: egui::Rect,
+    pub name: egui::Rect,
+    pub marks: Option<[egui::Rect; 3]>,
+    pub compact: bool,
+    /// The band's height handle (the 3 dots at the cell's right).
+    pub handle: egui::Rect,
+}
 pub use strip::Control;
 
 /// Where a control of the desk was last frame (`strip` `None` is the master), for tests
@@ -303,6 +319,8 @@ pub(crate) struct Words {
     pub pill: String,
     pub chip: String,
     pub band: String,
+    /// The band's handle while the desk holds the band at its least.
+    pub band_short: String,
     pub send_off: String,
     pub pre: String,
     pub kind: [String; 3],
@@ -372,6 +390,7 @@ impl Words {
             pill: t("cables.hint.pill"),
             chip: t("cables.hint.chip"),
             band: t("cables.hint.band"),
+            band_short: t("cables.hint.band_short"),
             send_off: t("cables.send_off"),
             pre: t("routing.tap.pre"),
             kind: [
@@ -432,6 +451,14 @@ pub struct MixerView {
     laid_out: usize,
     lanes_filling: usize,
     desk_width: f32,
+    /// The egui pass the desk was last drawn on: a gap means it left the screen in
+    /// between (its pane closed, another tab over it) — the clean "the desk was hidden"
+    /// signal an armed route lets go on (round 26, ADR 0044 §10).
+    shown_pass: u64,
+    /// Where the cable legend went last frame (`CableKey`).
+    pub(crate) cable_key: Option<CableKey>,
+    /// The desk's rows area last frame (where anything of the desk is visible).
+    rows_seen: Option<egui::Rect>,
 }
 
 impl std::fmt::Debug for MixerView {
@@ -446,6 +473,11 @@ impl std::fmt::Debug for MixerView {
 
 impl MixerView {
     /// Start renaming a strip in place (the menu's *Rename…* and a double-click).
+    /// Whether a strip or a group is being renamed.
+    pub fn renaming(&self) -> bool {
+        self.rename.is_some()
+    }
+
     pub fn begin_rename(&mut self, strip: &MixerStrip) {
         self.rename = Some((Renaming::Strip(strip.id), strip.name.clone()));
     }
@@ -499,6 +531,16 @@ impl MixerView {
     /// on screen, and whether it was lit.
     pub fn cables(&self) -> &[cables::Drawn] {
         &self.band.drawn
+    }
+
+    /// The desk's rows area in the last frame: what of the desk is visible.
+    pub fn rows_seen(&self) -> egui::Rect {
+        self.rows_seen.unwrap_or(egui::Rect::NOTHING)
+    }
+
+    /// Where the cable legend went in the last frame (`None` while the band is off).
+    pub fn cable_key(&self) -> Option<CableKey> {
+        self.cable_key
     }
 
     /// Where the band's level pills went in the last frame (tests hold that none overlaps
@@ -622,6 +664,28 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     app.mixer = view;
 }
 
+/// Pin the cable band to the desk's foot while the desk is scrolled away from it (round
+/// 26, ADR 0043 §8): the routing — the ports, the cables, the legend's key — never
+/// scrolls out of sight; the strips' rows above it scroll under its edge. At the foot of
+/// the scroll the band is where it would be anyway.
+fn pin_band(mut fit: layout::Fit, mut geo: Geo) -> (layout::Fit, Geo) {
+    let i = layout::Row::Cables.index();
+    let Some((a, z)) = fit.rows[i] else {
+        return (fit, geo);
+    };
+    let (top, bottom) = (geo.y0 + a, geo.y0 + z);
+    if bottom <= geo.rows.bottom() + 0.5 && top >= geo.rows.top() - 0.5 {
+        return (fit, geo);
+    }
+    let h = z - a;
+    let foot = geo.rows.bottom();
+    let top = (foot - h).max(geo.rows.top());
+    fit.rows[i] = Some((top - geo.y0, foot - geo.y0));
+    geo.strips = egui::Rect::from_min_max(geo.rows.min, egui::pos2(geo.rows.right(), top));
+    geo.pinned = true;
+    (fit, geo)
+}
+
 /// The owner id the desk opens `views::route_menu` menus under.
 pub(crate) fn route_owner() -> egui::Id {
     egui::Id::new("mixer.route_menu")
@@ -677,29 +741,57 @@ pub(crate) struct Geo {
     pub master_w: f32,
     /// The middle's content width.
     pub content_w: f32,
+    /// Where the strips' rows show: `rows`, less the cable band when it is pinned to the
+    /// desk's foot.
+    pub strips: egui::Rect,
+    /// The cable band is pinned to the desk's foot (the desk scrolls; the routing stays).
+    pub pinned: bool,
+    /// The rows' right edge, left of the vertical scrollbar when there is one: the band
+    /// stops there, so the bar's track stays the bar's (second review, 9).
+    pub inner_right: f32,
 }
 
 impl MixerView {
     /// One frame of the desk.
     fn frame(&mut self, app: &mut CantusApp, ui: &mut egui::Ui) {
+        let now = ui.ctx().cumulative_pass_nr();
+        if self.shown_pass != 0 && self.shown_pass + 1 < now {
+            drag::desk_was_hidden(self, ui.ctx());
+        }
+        self.shown_pass = now;
         self.words.refresh();
         self.prefs.follow(&app.layouts.current.name);
         self.desk.refresh(app);
         self.meters.begin_frame();
         let s = style();
         let full = ui.available_rect_before_wrap();
+        // The docks never cover each other (final review): where the master, the left
+        // dock, the right dock and a strip of the middle do not fit side by side, the right
+        // dock scrolls with the middle, after its last strip.
+        let pitch = self.prefs.current.width.pitch();
+        let pinned = size::LEGEND
+            + size::master(self.prefs.current.width)
+            + desk::items_width(&self.desk.left, pitch)
+            + self.desk.right_docked_width(pitch)
+            + 2.0 * size::DIVIDER
+            + pitch
+            + size::VBAR;
+        if self.desk.set_unpinned(pinned > full.width()) {
+            self.desk.refresh(app);
+        }
         ui.allocate_rect(full, egui::Sense::hover());
-        let fit = self.fit(full);
-        let geo = self.geometry(full, &fit);
+        // Every layout of the frame pins the band where it is drawn, so the wheel reads
+        // the band under the pointer, not a row hidden under it (second review, 8).
+        let (fit, geo) = self.layout(full);
         self.follow_selection(app, &geo, &fit);
         paint::wheel(self, app, ui, &geo, &fit);
         // The wheel may have scrolled or changed the width: lay out again.
         let prefs = self.prefs.current;
-        let fit = self.fit(full);
-        let geo = self.geometry(full, &fit);
+        let (fit, geo) = self.layout(full);
         self.clamp_scroll(&geo, &fit);
-        let geo = self.geometry(full, &fit);
+        let (fit, geo) = self.layout(full);
         self.desk_width = geo.middle.width();
+        self.rows_seen = Some(geo.rows);
 
         let mut b = std::mem::take(&mut self.brush);
         b.begin(ui.ctx());
@@ -715,7 +807,7 @@ impl MixerView {
         //    first, as the eye does.
         self.laid_out = 0;
         self.lanes_filling = 0;
-        pass.clip = geo.rows;
+        pass.clip = geo.strips;
         paint::legend(self, ui, &mut b, &s, &geo, &fit);
         let mut x = geo.left.left();
         parts::master(self, app, ui, &mut b, &mut pass, x, geo.master_w);
@@ -726,10 +818,10 @@ impl MixerView {
             strip::item(self, app, ui, &mut b, &mut pass, item, x, w);
             x += w;
         }
-        b.flush(&ui.painter().with_clip_rect(geo.rows));
+        b.flush(&ui.painter().with_clip_rect(geo.strips));
 
         // 3. The middle, clipped to itself: only the strips that show are laid out.
-        let clip = geo.middle.intersect(geo.rows);
+        let clip = geo.middle.intersect(geo.strips);
         pass.clip = clip;
         let mut x = geo.middle.left() - self.scroll_x;
         for i in 0..self.desk.middle.len() {
@@ -750,7 +842,7 @@ impl MixerView {
         b.flush(&ui.painter().with_clip_rect(clip));
 
         // 4. The right dock (returns), and the dock dividers.
-        pass.clip = geo.rows;
+        pass.clip = geo.strips;
         let mut x = geo.right.left();
         for i in 0..self.desk.right.len() {
             let item = self.desk.right[i];
@@ -759,12 +851,18 @@ impl MixerView {
             x += w;
         }
         paint::dividers(&mut b, &s, &geo);
+        if geo.pinned {
+            // The strips run under a pinned band: they stop at its edge (one more draw
+            // call, only while the desk is scrolled away from its foot).
+            b.flush(&ui.painter().with_clip_rect(geo.strips));
+        }
 
         // 5. The cable band across the whole desk (round 25: `mixer_cables`, the desk
         //    builder's), then the drag in progress (`mixer_drag`, the interaction
         //    builder's): the rubber band, auto-scroll, the drop. Same clip as the right
         //    dock, so they share its flush: the band adds no draw call (ADR 0041 §12).
         pass.clip = geo.rows;
+        paint::band_legend(self, ui, &mut b, &s, &geo, &fit);
         cables::band(self, app, ui, &mut b, &pass, &geo);
         drag::finish(self, app, ui, &mut b, &s, &geo);
         b.flush(&ui.painter().with_clip_rect(geo.rows));
@@ -799,6 +897,14 @@ impl MixerView {
                 band: prefs.band,
             },
         )
+    }
+
+    /// The rows and where everything goes, the band pinned to the desk's foot while the
+    /// desk is scrolled away from it.
+    fn layout(&self, full: egui::Rect) -> (layout::Fit, Geo) {
+        let fit = self.fit(full);
+        let geo = self.geometry(full, &fit);
+        pin_band(fit, geo)
     }
 
     /// Lay the desk out in `full`.
@@ -862,6 +968,9 @@ impl MixerView {
             pitch,
             master_w,
             content_w,
+            strips: rows,
+            pinned: false,
+            inner_right: right_edge,
         }
     }
 
@@ -930,39 +1039,56 @@ impl MixerView {
             }
             return;
         };
-        let s = style();
+        // Opening on a strip that shows its track's name: that name, selected (final
+        // review: the field opened empty).
+        if !self.rename_focused {
+            if let Some((Renaming::Strip(sid), text)) = self.rename.as_mut() {
+                if text.is_empty() {
+                    if let Some(i) = app.project().strip_index(*sid) {
+                        *text = self.desk.name(app, i).to_string();
+                    }
+                }
+            }
+        }
+        // A popover under the cell it renames (a strip's number, a group's separator):
+        // framed, over the desk, the next strips' numbers left in sight.
+        let pad = 4.0;
         let w = at.width().max(132.0);
-        let rect = egui::Rect::from_min_size(at.min, egui::vec2(w, 22.0));
+        let rect = egui::Rect::from_min_size(
+            egui::pos2(at.left(), at.bottom() + 2.0 + pad),
+            egui::vec2(w, 22.0),
+        );
         let id = egui::Id::new(("mixer-rename", self.rename_serial));
         let mut done: Option<bool> = None;
         egui::Area::new(id)
             .order(egui::Order::Foreground)
-            .fixed_pos(rect.min)
+            .fixed_pos(rect.min - egui::vec2(pad, pad))
             .constrain(true)
             .show(ui.ctx(), |ui| {
-                let (r, _) = ui.allocate_exact_size(rect.size(), egui::Sense::hover());
+                let (outer, _) = ui.allocate_exact_size(
+                    rect.size() + egui::vec2(2.0 * pad, 2.0 * pad),
+                    egui::Sense::hover(),
+                );
+                let s = style();
                 crate::kit::with_brush(ui.painter(), |b| {
-                    crate::kit::well::paint(b, r, &s, crate::kit::State::LIT, None);
+                    crate::kit::menu::paint(b, outer, &s, &[], None)
                 });
+                let r = outer.shrink(pad);
                 let Some((_, text)) = self.rename.as_mut() else {
                     return;
                 };
-                let edit = ui.put(
-                    r.shrink2(egui::vec2(6.0, 2.0)),
-                    egui::TextEdit::singleline(text)
-                        .frame(egui::Frame::NONE)
-                        .font(crate::kit::text::Role::Label.font(1.0))
-                        .text_color(s.t.text)
-                        .desired_width(r.width() - 12.0),
-                );
-                if !self.rename_focused {
-                    edit.request_focus();
-                    self.rename_focused = true;
-                }
-                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                    done = Some(false);
-                } else if edit.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    done = Some(true);
+                // The kit's field (round 26): the name selected as it opens; Enter or a
+                // click elsewhere keeps it, Esc drops it.
+                let out = crate::kit::field::Field::new(id.with("field"))
+                    .role(crate::kit::text::Role::Label)
+                    .opens_when_shown()
+                    .show(ui, r, text);
+                self.rename_focused = true;
+                match out.event {
+                    // Untouched: nothing to set (a strip keeps following its track).
+                    Some(crate::kit::field::Event::Commit) => done = Some(out.edited),
+                    Some(crate::kit::field::Event::Cancel) => done = Some(false),
+                    None => {}
                 }
             });
         let Some(keep) = done else {

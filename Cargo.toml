@@ -85,8 +85,10 @@ hound = "3.5"
 midir = "0.11"
 
 # GUI
-egui = "0.36"
-eframe = { version = "0.36", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+# Without egui's default fonts (round 26): Cantus draws with its own IBM Plex faces and
+# bundles the one fallback it used, emoji-icon-font (design::font_definitions).
+egui = { version = "0.36", default-features = false }
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "glow", "wayland", "x11"] }
 rfd = "0.15"
 
 # Utilities
