@@ -32,6 +32,12 @@ user-changeable colour, in-app logo still configurable.
   trademark: Mexico clean, US mostly clean, EU Italian CANTUS for software).
 - Site screenshots: a Sonnet agent on branch r25/site (worktree F:\projects\daw-r25\site);
   tell it when r25/polish is merged so mixer shots include the legend.
+- 2026-10-12/13: cable view options, Cantus Night refined (gradients), site screenshots,
+  RVR1960 gated (verse::RVR1960_PERMITTED=false; owner emails ABS), TM mark, then CI made
+  green on Windows/Linux (Linux-only dead code, fmt, Windows-only tests, the bench's std sin
+  broke Windows = Linux hashes) — master ffffe50. GitHub Actions minutes ran out
+  (private repo: Windows x2, macOS x10); macOS left unvalidated. Owner: keep history as is
+  until making the repo public; next session = docs/next-session.md (round 26).
 - Owner's push rule: commit/push only when asked; ask after the test build.
 
 See [[round-24]], [[decision-cc-by-content]], [[ui-quality-bar]], [[machine-f-drive-build-quirks]].

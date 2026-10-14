@@ -15,6 +15,6 @@
 - [F: machine build quirks](machine-f-drive-build-quirks.md) — cargo off PATH, incremental link failures (turn incremental off), UAC blocks *setup*/*update* test exes; 3 parallel builders nearly exhaust RAM (31 GB)
 - [Round 24: beta rest, linked clips, perf wave 2](round-24.md) — pushed as master a89edf4; 2 000 tests; 2-h soak passed; ADRs 0037-0040; §6d.3 designed
 - [Decision: CC BY content accepted](decision-cc-by-content.md) — CC0 + CC BY 3.0/4.0 with credit shown; NC/ND/SA out; ADR 0042
-- [Round 25: mixer cabling + themes/icon](round-25.md) — pushed 14ddaf5 + r25/polish (pan law exact, DSP 4, licences ADR 0047, docs/beta-checklist.md); ADRs 0041-0047; schema 23
+- [Round 25: mixer cabling + themes/icon](round-25.md) — done, master ffffe50; next = docs/next-session.md (round 26); Actions minutes out, keep history until public
 - [Decision: licences MPL engine + CLA](decision-licensing-mpl-cla.md) — engine MPL-2.0, app GPL, CLA with free-forever promise, trademark policy; ADR 0047
 - [CI is Linux too](feedback-ci-linux.md) — -D warnings + fmt --check on Ubuntu; run tools/wsl/check.sh before pushing

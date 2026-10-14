@@ -22,7 +22,13 @@ construyes con los ejemplos `shoot`.
    del historial `research/*/screenshots/` y (si aún no hay permiso) el archivo de la
    RVR1960 `crates/cantus-ui/locales/verses/es.txt`; buscar secretos en todo el historial;
    dejarme un informe con lo que cambiaría y los comandos para hacerlo de verdad. No hagas
-   push forzado ni toques el repositorio real sin preguntarme.
+   push forzado ni toques el repositorio real sin preguntarme: el historial se queda como
+   está hasta el día en que yo decida hacerlo público.
+2b. **Abaratar GitHub Actions** (los minutos del repositorio privado se acabaron el
+   2026-10-13; Windows cuenta ×2 y macOS ×10): macOS solo a mano (`workflow_dispatch`) o
+   una vez por semana, no correr cuando el commit solo cambia documentos (`paths-ignore`),
+   cancelar la corrida vieja cuando llega una nueva (`concurrency`). macOS quedó sin
+   validar en CI tras sus últimos arreglos.
 3. **Firma de código**: redacta la solicitud a SignPath Foundation y la página de
    «política de firma» que piden en la web (en un borrador, sin publicarla), y verifica que
    cumplimos sus condiciones (`docs/beta-checklist.md` §2).
