@@ -60,6 +60,11 @@ impl HostedInst {
         self.window.is_some()
     }
 
+    /// Whether its window is open but minimised to the taskbar (round 27, ADR 0051).
+    pub fn window_minimised(&self) -> bool {
+        self.window.as_ref().is_some_and(PluginWindow::is_minimised)
+    }
+
     /// The plug-in window's native handle, when one is open.
     pub fn window_handle(&self) -> Option<isize> {
         self.window.as_ref().and_then(|w| w.handle())

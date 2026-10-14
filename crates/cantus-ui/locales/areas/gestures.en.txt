@@ -1,0 +1,4 @@
+# gestures — round 27: FL's quick gestures in the arrangement and the inspector (ADR 0051).
+# Every key here needs its twin in gestures.es.txt.
+track.header.tip = Double-click: open the instrument · Drag: reorder · Right-click: menu
+track.header.name_tip = Click: rename

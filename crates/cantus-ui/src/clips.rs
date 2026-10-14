@@ -784,3 +784,43 @@ mod tests {
         );
     }
 }
+
+/// The editor a double-click on a clip opens (round 27, ADR 0051).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ClipEditor {
+    /// The piano roll, on the clip: the default for notes.
+    PianoRoll,
+    /// The channel rack (FL's step sequencer), on the clip's pattern.
+    ChannelRack,
+    /// The automation editor (ADR 0027).
+    Automation,
+    /// An audio clip has no editor of its own: the inspector shows it.
+    Inspector,
+}
+
+/// Which editor `clip` opens in, derived from what it holds — no hint is stored. Notes
+/// open in the channel rack when the content is **step-shaped** at the rack's grid
+/// `step`: every note starts on a step of the clip's own grid (where the rack's steps
+/// fall) and lasts no longer than a step — a hit, which is what a step the rack switches
+/// on is, and what a pattern drawn as hits in the piano roll is too. Anything else, an
+/// empty clip included, opens in the piano roll, which shows every note as it is.
+pub fn editor_for(clip: &Clip, step: Ticks) -> ClipEditor {
+    if clip.automation.is_some() {
+        return ClipEditor::Automation;
+    }
+    if clip.audio.is_some() {
+        return ClipEditor::Inspector;
+    }
+    let step = if step.0 > 0 { step } else { Ticks::SIXTEENTH };
+    let on_step = |n: &Note| (n.start - clip.offset).0.rem_euclid(step.0) == 0;
+    let stepped = !clip.notes.is_empty()
+        && clip
+            .notes
+            .iter()
+            .all(|n| on_step(n) && n.length <= step && n.length.0 > 0);
+    if stepped {
+        ClipEditor::ChannelRack
+    } else {
+        ClipEditor::PianoRoll
+    }
+}

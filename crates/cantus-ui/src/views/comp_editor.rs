@@ -701,8 +701,21 @@ impl CantusApp {
         }
     }
 
-    /// Open whichever editor an effect has.
+    /// Open whichever editor an effect has — or, when it is open already (shown, under
+    /// another window, or in the tray), bring it back and to the front as it is (round 27,
+    /// ADR 0051): the mixer's *Open the editor*, the inspector's slot.
     pub fn open_effect_editor(&mut self, strip: StripId, effect: EffectId) {
+        let at = Some((strip, effect));
+        let open = self.eq_editor.open == at
+            || self.comp_editor.open == at
+            || self.fx.open.map(|(s, e, _)| (s, e)) == at;
+        if open {
+            if let Some(ctx) = &self.theme_ctx {
+                let key = crate::views::fx::device_id(effect).value();
+                crate::views::workspace_device::present(ctx, key);
+            }
+            return;
+        }
         let kind = self.project().effect(strip, effect).map(|e| e.spec.kind);
         match kind {
             Some(EffectKind::Eq) => {

@@ -76,6 +76,11 @@ pub struct Entry {
     pub shown: Option<(Rect, Rect)>,
     /// Where its window buttons were drawn last (published geometry).
     pub buttons: Option<crate::kit::window_ctl::WindowRects>,
+    /// Round 27 (ADR 0051): asked to come to the front — its tab made the one showing in
+    /// its leaf (by the workspace, [`take_reveals`]) and its layer raised above the other
+    /// windows (by the device itself, the next time it is drawn).
+    pub reveal: bool,
+    pub raise: bool,
 }
 
 /// A change of place the workspace carries out on a device's tab.
@@ -150,6 +155,8 @@ impl Entry {
             hue: Function::Output,
             shown: None,
             buttons: None,
+            reveal: false,
+            raise: false,
         }
     }
 }
@@ -245,15 +252,47 @@ pub fn minimise(ctx: &Context, key: DeviceKey) {
     ctx.request_repaint();
 }
 
-/// Bring a minimised device back where it was, and make it the one Esc closes.
+/// Bring a minimised device back where it was, and make it the one Esc closes. It also
+/// comes to the front, as [`present`] does: a device brought back from the tray is the
+/// one the user wants to see.
 pub fn restore(ctx: &Context, key: DeviceKey) {
+    present(ctx, key);
+}
+
+/// **Every "open editor" of a device that is already open** (round 27, ADR 0051): back
+/// from the tray if it was minimised, its tab the one showing in its leaf, its window
+/// above the other windows, and the one Esc closes. A device not registered yet (opening
+/// for the first time) needs none of it: a new tab is placed in front, a new window on
+/// top.
+pub fn present(ctx: &Context, key: DeviceKey) {
     with_registry(ctx, |r| {
         if let Some(e) = r.get_mut(key) {
             e.minimised = false;
+            e.reveal = true;
+            e.raise = true;
         }
         r.focused = Some(key);
     });
     ctx.request_repaint();
+}
+
+/// The devices whose tab is to be brought in front this frame (taken: done once).
+pub fn take_reveals(ctx: &Context, out: &mut Vec<DeviceKey>) {
+    out.clear();
+    with_registry(ctx, |r| {
+        for e in r.entries.iter_mut().filter(|e| e.reveal) {
+            e.reveal = false;
+            out.push(e.key);
+        }
+    });
+}
+
+/// Raise `layer` above the windows of its order, unless it is the background the docked
+/// tabs share (raising that would put nothing in front of anything).
+fn raise_layer(ctx: &Context, layer: LayerId) {
+    if layer.order != egui::Order::Background {
+        ctx.move_to_top(layer);
+    }
 }
 
 /// Maximise a device to the workspace, or restore it to where it was. An area does it
@@ -394,6 +433,8 @@ pub struct AreaState {
     pub maximised: Option<Rect>,
     /// Where it floated last (this session), if anywhere.
     pub place: Option<Pos2>,
+    /// Asked to come to the front ([`present`]): the editor raises its area (once).
+    pub raise: bool,
 }
 
 /// An effect's editor registers itself as an area-hosted device every frame it is open.
@@ -415,11 +456,19 @@ pub fn register_area(
         if e.title.is_empty() {
             e.title = title();
         }
+        // An area is no tab: there is nothing to reveal, only a layer to raise (once,
+        // when it is drawn — a minimised one is not).
+        e.reveal = false;
+        let raise = e.raise && !e.minimised;
+        if raise {
+            e.raise = false;
+        }
         AreaState {
             closed: e.closed,
             minimised: e.minimised,
             maximised: area.filter(|a| e.maximised && a.is_positive()),
             place,
+            raise,
         }
     });
     if st.closed {
@@ -617,10 +666,16 @@ impl<'open> DeviceWindow<'open> {
             if e.closed {
                 None
             } else {
-                Some(e.body.filter(|b| b.pass == pass))
+                let body = e.body.filter(|b| b.pass == pass);
+                // Asked to come to the front: raised once it has a body to raise.
+                let raise = e.raise && body.is_some();
+                if raise {
+                    e.raise = false;
+                }
+                Some((body, raise))
             }
         });
-        let Some(body) = state else {
+        let Some((body, raise)) = state else {
             // The user closed the tab: close the editor, and forget it.
             with_registry(ctx, |r| r.entries.retain(|e| e.key != key));
             if let Some(open) = self.open {
@@ -633,6 +688,9 @@ impl<'open> DeviceWindow<'open> {
             ctx.request_repaint();
         }
         let body = body?;
+        if raise {
+            raise_layer(ctx, body.layer);
+        }
         let mut ui = Ui::new(
             ctx.clone(),
             Id::new(("cantus-device-body", key)),

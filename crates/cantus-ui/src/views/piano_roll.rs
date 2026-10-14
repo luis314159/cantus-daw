@@ -1106,6 +1106,24 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     app.piano_roll.count.1 = text;
 }
 
+/// A clip opened from the arrangement (round 27, ADR 0051): its window — one period of a
+/// clip that repeats, else its length — across the grid, from the content's start
+/// (`select_clip` scrolled there and centred the rows). Needs the grid's width from a
+/// frame it was drawn in; before that, the zoom stays.
+pub fn fit_clip(app: &mut CantusApp, track: TrackId, clip: ClipId) {
+    let Some(c) = clip_of(app, track, clip) else {
+        return;
+    };
+    let beats = ticks_to_beats(c.period().unwrap_or(c.length)).max(0.25);
+    let start = ticks_to_beats(c.content_start());
+    let w = app.piano_roll.last_grid.0;
+    let v = &mut app.piano_roll;
+    if w > 0.0 {
+        v.px_per_beat = (w * 0.95 / beats).clamp(MIN_PX_PER_BEAT, MAX_PX_PER_BEAT);
+    }
+    v.scroll_beats = start.max(0.0);
+}
+
 /// Show the selected notes — or every note when none is selected — filling the grid:
 /// the piano roll's zoom to selection. It runs on the next frame's layout, which is the
 /// grid this frame drew.

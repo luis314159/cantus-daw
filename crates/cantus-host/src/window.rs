@@ -35,7 +35,11 @@ mod other {
             Err(HostError::Unsupported("plug-in windows on this system"))
         }
         pub fn fit(&mut self, _size: EditorSize) {}
+        /// Nothing to bring forward: there is no window here (opening fails above).
         pub fn focus(&self) {}
+        pub fn is_minimised(&self) -> bool {
+            false
+        }
         pub fn closed(&self) -> bool {
             true
         }
@@ -59,10 +63,11 @@ mod win32 {
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetWindowLongPtrW,
-        LoadCursorW, RegisterClassW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
-        ShowWindow, CW_USEDEFAULT, GWLP_USERDATA, GWL_STYLE, IDC_ARROW, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE,
-        WNDCLASSW, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
+        IsIconic, IsWindowVisible, LoadCursorW, RegisterClassW, SetForegroundWindow,
+        SetWindowLongPtrW, SetWindowPos, ShowWindow, CW_USEDEFAULT, GWLP_USERDATA, GWL_STYLE,
+        HWND_TOP, IDC_ARROW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN,
+        WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
     };
 
     fn wide(s: &str) -> Vec<u16> {
@@ -105,6 +110,8 @@ mod win32 {
         hwnd: HWND,
         shared: Box<Shared>,
         style: u32,
+        /// The plug-in floats a window of its own; ours stays hidden and is never shown.
+        floating: bool,
     }
 
     impl PluginWindow {
@@ -163,6 +170,7 @@ mod win32 {
                     hwnd,
                     shared,
                     style,
+                    floating: false,
                 };
                 let parent = RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
                     NonZeroIsize::new(hwnd as isize).expect("checked non-null"),
@@ -170,6 +178,7 @@ mod win32 {
                 let size = main.open_editor(parent)?;
                 if main.editor_is_floating() {
                     // The plug-in has a window of its own; ours stays hidden.
+                    window.floating = true;
                     return Ok(window);
                 }
                 if !main.editor_can_resize() {
@@ -219,12 +228,36 @@ mod win32 {
             self.shared.fitting.set(false);
         }
 
+        /// Bring the window to the front (round 27, ADR 0051): back from the taskbar if it
+        /// was minimised — and only then, since `SW_RESTORE` on a maximised window would
+        /// un-maximise it — shown, on top of the other windows, and given the keyboard.
+        ///
+        /// The foreground lock: Windows lets a process take the foreground only while it
+        /// has it, and the click that asked for the editor was on Cantus's main window, so
+        /// it does. When it is refused anyway (another program came in front meanwhile),
+        /// the window still goes on top of its siblings, and Windows flashes its taskbar
+        /// button instead of stealing the focus — its own answer, which we keep. A window
+        /// kept hidden for a plug-in that floats its own is left alone.
         pub fn focus(&self) {
+            if self.floating {
+                return;
+            }
             // SAFETY: our own window, on the UI thread.
             unsafe {
-                ShowWindow(self.hwnd, SW_RESTORE);
+                if IsIconic(self.hwnd) != 0 {
+                    ShowWindow(self.hwnd, SW_RESTORE);
+                } else if IsWindowVisible(self.hwnd) == 0 {
+                    ShowWindow(self.hwnd, SW_SHOW);
+                }
+                SetWindowPos(self.hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
                 SetForegroundWindow(self.hwnd);
             }
+        }
+
+        /// Whether the window is minimised to the taskbar.
+        pub fn is_minimised(&self) -> bool {
+            // SAFETY: a query of our own window.
+            !self.floating && unsafe { IsIconic(self.hwnd) != 0 }
         }
 
         /// The user pressed the window's close box.

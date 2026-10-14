@@ -40,9 +40,12 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     let latency = tf("hosted.latency_value", &[("n", &h.latency())]);
     sh.text_row("hosted.latency", &latency, true, false);
     sh.text_row("hosted.params", &h.params.len().to_string(), true, false);
+    // The plug-in's own window: *Open*, or — open already, perhaps minimised or under
+    // other windows — *Show*, which brings it back and to the front (round 27, ADR 0051).
+    // It closes with its own close box, F8 or the rack's channel button.
     let open = h.window_open();
     let key = if open {
-        "hosted.close_window"
+        "hosted.show_window"
     } else {
         "hosted.open_window"
     };
@@ -53,6 +56,6 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         Function::Source,
         !h.has_editor(),
     ) {
-        sh.acts.push(Act::ToggleInstrumentWindow(t));
+        sh.acts.push(Act::OpenInstrument(t));
     }
 }

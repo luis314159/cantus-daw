@@ -402,7 +402,9 @@ pub(super) struct HeaderState {
 
 /// One track header: FL's coloured block — the colour cell with the number, the icon's
 /// place, the name elided in the middle and tinted toward the colour, the mute and solo
-/// lamps, the song in miniature, and the level as a hairline along the bottom.
+/// lamps, the song in miniature, and the level as a hairline along the bottom. Returns
+/// where the name's letters were drawn, on the name line's height (round 27, ADR 0051: a
+/// click there renames); `None` while it is being renamed or when nothing fitted.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn header(
     b: &mut Brush,
@@ -414,10 +416,8 @@ pub(super) fn header(
     song_len: f32,
     digits: &mut crate::views::clips_chrome::Digits,
     s: &Style,
-) {
-    let Some(track) = app.project().tracks.get(index) else {
-        return;
-    };
+) -> Option<Rect> {
+    let track = app.project().tracks.get(index)?;
     b.register(r.row, "track_header", HEADER_TOKENS, &[]);
     let t = &s.t;
     let face = if st.selected {
@@ -468,6 +468,7 @@ pub(super) fn header(
     let _ = text::paint(b, num_box.shrink2(vec2(2.0 * s.k, 0.0)), &num, s.tk());
 
     // The name, tinted toward the colour; dimmed when the track is not sounding.
+    let mut letters = None;
     if !st.renaming {
         let quiet = track.muted || st.silenced;
         let ink = if quiet {
@@ -478,7 +479,8 @@ pub(super) fn header(
         let name = Text::new(&track.name, Role::Body, ink)
             .align(Align2::LEFT_CENTER)
             .policy(Policy::Elide(Elide::Middle));
-        let _ = text::paint(b, r.name, &name, s.tk());
+        letters = text::paint(b, r.name, &name, s.tk())
+            .map(|p| Rect::from_x_y_ranges(p.rect.x_range(), r.name.y_range()));
     }
 
     // Mute is FL's enable lamp — lit while the track sounds; solo lights in the
@@ -582,6 +584,7 @@ pub(super) fn header(
             t.focus,
         );
     }
+    letters
 }
 
 /// An empty row below the last track: the header's shape, flat and faint, with the name

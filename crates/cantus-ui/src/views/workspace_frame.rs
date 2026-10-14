@@ -276,6 +276,15 @@ impl Workspace {
                 ctx.request_repaint();
             }
         }
+        // Round 27 (ADR 0051): *Open editor* on a device already open brings its tab in
+        // front of the others in its leaf (its window is raised when it draws). The
+        // buffer is only a buffer: it is refilled next frame.
+        device::take_reveals(ctx, &mut wanted);
+        for key in &wanted {
+            if self.contains(Pane::Device(*key)) {
+                self.reveal(Pane::Device(*key));
+            }
+        }
         self.wanted = wanted;
 
         // Sizes: a layout being applied, or the window resized (the inspector keeps its

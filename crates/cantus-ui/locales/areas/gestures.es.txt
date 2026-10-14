@@ -1,0 +1,4 @@
+# gestures — ronda 27: los gestos rápidos de FL en el arreglo y el inspector (ADR 0051).
+# Cada clave de gestures.en.txt tiene aquí su gemela.
+track.header.tip = Doble clic: abrir el instrumento · Arrastrar: reordenar · Clic derecho: menú
+track.header.name_tip = Clic: renombrar

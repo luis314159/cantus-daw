@@ -16,4 +16,4 @@ hosted.latency_value = {n} muestras
 hosted.params = Parámetros
 hosted.window = Ventana
 hosted.open_window = Abrir
-hosted.close_window = Cerrar
+hosted.show_window = Mostrar

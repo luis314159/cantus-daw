@@ -336,6 +336,11 @@ pub fn open_window_sized(
     if st.minimised {
         return true;
     }
+    if st.raise {
+        // *Open the editor* on an editor already open (round 27, ADR 0051): above the
+        // other windows. The area is `frame::place`'s, at the middle order.
+        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+    }
     let size = designed * frame::shell_of(kind).scale(ctx);
     let (at, size) = match st.maximised {
         Some(area) => (area.min, area.size()),

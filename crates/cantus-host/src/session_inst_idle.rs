@@ -378,4 +378,12 @@ impl PluginHost {
             .get(&track)
             .is_some_and(HostedInst::window_open)
     }
+
+    /// Whether `track`'s instrument window is open but minimised to the taskbar: F8 and
+    /// the rack's channel button bring it back rather than close it (round 27, ADR 0051).
+    pub fn instrument_window_minimised(&self, track: TrackId) -> bool {
+        self.instruments
+            .get(&track)
+            .is_some_and(HostedInst::window_minimised)
+    }
 }

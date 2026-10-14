@@ -99,8 +99,14 @@ impl State {
     }
 }
 
-/// Open the editor on a track's kit.
+/// Open the editor on a track's kit — or, already open, bring it back from the tray and to
+/// the front (round 27, ADR 0051).
 pub fn open(app: &mut CantusApp, track: TrackId) {
+    if app.pulsus.open == Some(track) {
+        if let Some(ctx) = &app.theme_ctx {
+            crate::views::workspace_device::present(ctx, editor_id(track).value());
+        }
+    }
     app.pulsus.open = Some(track);
     if let Some(kit) = kit_of(app, track) {
         if app.pulsus.selected.and_then(|id| kit.by_id(id)).is_none() {

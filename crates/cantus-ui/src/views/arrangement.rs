@@ -103,7 +103,12 @@ pub struct ArrangementView {
     /// — so its *Paste* lands there, not at the playhead (ADR 0036). Captured with
     /// [`Self::menu_clip`]; used once.
     pub menu_at: Option<(Ticks, Option<TrackId>)>,
+    /// The track being renamed in place, and the text so far (a click on its name's
+    /// letters opens it: round 27, ADR 0051).
     rename: Option<(TrackId, String)>,
+    /// Where each visible header and its name's letters were drawn this frame: the input
+    /// reads it (a click on the letters renames), and tests aim with it.
+    hits: Vec<HeaderHit>,
     /// A fade or gain handle being dragged, and the handle a menu was opened on.
     audio: audio::edit::State,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
@@ -225,6 +230,7 @@ impl Default for ArrangementView {
             rename_clip: None,
             geometry: None,
             rename: None,
+            hits: Vec::new(),
             audio: Default::default(),
             scratch: Scratch::default(),
             auto: Default::default(),
@@ -232,10 +238,26 @@ impl Default for ArrangementView {
     }
 }
 
+/// Where a track header was drawn this frame (round 27, ADR 0051).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct HeaderHit {
+    pub track: TrackId,
+    /// The header's row.
+    pub row: Rect,
+    /// The name's letters, on the name line's height: a click there renames. `None` while
+    /// the name is being edited.
+    pub letters: Option<Rect>,
+}
+
 impl ArrangementView {
-    /// Start renaming a track in place (a double-click on its header does).
+    /// Start renaming a track in place (a click on its name's letters does).
     pub fn begin_rename_track(&mut self, id: TrackId, name: String) {
         self.rename = Some((id, name));
+    }
+
+    /// Where each visible header and its name's letters were drawn this frame.
+    pub fn header_hits(&self) -> &[HeaderHit] {
+        &self.hits
     }
 
     /// The track being renamed, if any.
@@ -909,6 +931,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
 
     // Paint, with the project borrowed and nothing edited.
     let mut scratch = std::mem::take(&mut app.arrangement.scratch);
+    let mut hits = std::mem::take(&mut app.arrangement.hits);
+    hits.clear();
     {
         let a: &CantusApp = app;
         let any_solo = a.project().tracks.iter().any(|t| t.soloed);
@@ -946,7 +970,13 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                         || (v.drag.is_none() && pointer.is_some_and(|p| grip.contains(p))),
                     level,
                 };
-                paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
+                let letters =
+                    paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
+                hits.push(HeaderHit {
+                    track: track.id,
+                    row: hr.row,
+                    letters,
+                });
                 rec::paint_header(b, a, track, &rr, tint, pointer, s);
                 takes::paint_headers(b, a, track, row, clip, tint, s);
                 autolanes::paint_headers(b, a, i, track, row, clip, tint, s);
@@ -983,6 +1013,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         }
     }
     app.arrangement.scratch = scratch;
+    app.arrangement.hits = hits;
 
     // Input.
     let base = app.arrangement.track_height;
@@ -1030,6 +1061,33 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             ui.id().with(("arr-solo", id.0)),
             Sense::click(),
         );
+        // Round 27 (ADR 0051): the name's letters rename on a click — an I-beam over them
+        // and the hint says so; the rest of the header opens the instrument on a
+        // double-click. The lamps, the icon and the arm lamp write their own hints after.
+        let letters = app
+            .arrangement
+            .hits
+            .iter()
+            .find(|h| h.track == id)
+            .and_then(|h| h.letters);
+        let on_letters = |p: Option<Pos2>| p.zip(letters).is_some_and(|(p, l)| l.contains(p));
+        if resp.hovered() && app.arrangement.drag.is_none() && app.arrangement.reorder.is_none() {
+            let hover = resp.hover_pos();
+            let tip = if on_letters(hover) {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                "track.header.name_tip"
+            } else {
+                "track.header.tip"
+            };
+            if let Some(t) = app.project().track(id) {
+                let caps = Caps {
+                    menu: true,
+                    typed: on_letters(hover),
+                    ..Caps::NONE
+                };
+                hint::set_text(ui.ctx(), &t.name, chrome::word(tip), caps);
+            }
+        }
         for (r, key) in [(&m, "track.mute_tip"), (&so, "track.solo_tip")] {
             if r.hovered() {
                 hint::set_text(ui.ctx(), chrome::word(key), "", Caps::NONE);
@@ -1064,16 +1122,20 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
         }
+        // A click selects; on the letters it also opens the name, selected, in place (the
+        // owner's rule of 2026-10-14: only there, and never by typing). A double-click
+        // anywhere else opens the instrument — FL's channel button.
+        let pressed_at = resp.interact_pointer_pos();
         if resp.clicked() {
             app.select_track(id);
+            if on_letters(pressed_at) && app.arrangement.rename.is_none() {
+                if let Some(name) = app.project().track(id).map(|t| t.name.clone()) {
+                    app.arrangement.rename = Some((id, name));
+                }
+            }
         }
-        if resp.double_clicked() {
-            let name = app
-                .project()
-                .track(id)
-                .map(|t| t.name.clone())
-                .unwrap_or_default();
-            app.arrangement.rename = Some((id, name));
+        if resp.double_clicked() && !on_letters(pressed_at) {
+            app.open_track_instrument(id);
         }
         // A drag that starts on the divider resizes; anywhere else it reorders. Decided at
         // the **press origin**, never at the pointer: egui reports a drag only once the
@@ -1876,13 +1938,11 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     if resp.double_clicked() {
         if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
             audio::edit::reset(app, (h.track, h.clip), handle);
-        }
-        // An automation clip opens in the large editor (ADR 0027).
-        if let Some(h) = hit.filter(|h| {
-            crate::clips::clip_of(app.project(), (h.track, h.clip))
-                .is_some_and(|c| c.automation.is_some())
-        }) {
-            app.open_automation_editor(h.track, h.clip);
+        } else if let Some(h) = hit {
+            // FL's double-click (round 27, ADR 0051): the clip's editor, on the clip, in
+            // front and focused — the piano roll, the channel rack for a step pattern,
+            // the automation editor (ADR 0027), the inspector for audio.
+            app.open_clip_editor(h.track, h.clip);
         }
         if let Some(pos) = resp.interact_pointer_pos() {
             if pos.y >= body_top && hit.is_none() {

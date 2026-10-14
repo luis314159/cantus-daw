@@ -146,6 +146,15 @@ impl CantusApp {
             self.open_hosted_window(track);
             return;
         }
+        // Already open (shown, behind another tab, under another window or in the tray):
+        // brought back and to the front as it is (round 27, ADR 0051) — closing and
+        // opening it again would leave a minimised one in the tray.
+        if self.inst.open == Some(track) {
+            if let Some(ctx) = &self.theme_ctx {
+                crate::views::workspace_device::present(ctx, editor_id(track).value());
+            }
+            return;
+        }
         self.close_inst_editor();
         self.inst.open = Some(track);
         self.engine.set_instrument_probe(Some(track));

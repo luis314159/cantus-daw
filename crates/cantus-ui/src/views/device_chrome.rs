@@ -116,9 +116,9 @@ impl CantusApp {
             || self.plugins.instrument_window_open(track)
     }
 
-    /// Open `track`'s instrument window, or bring it back from the tray. A track whose
-    /// instrument has no window of its own (Firmus, edited in the inspector) shows the
-    /// inspector instead.
+    /// Open `track`'s instrument window, or bring it back from the tray and to the front
+    /// (round 27, ADR 0051). A track whose instrument has no window of its own (Firmus,
+    /// edited in the inspector) shows the inspector instead.
     pub fn open_instrument_window(&mut self, track: TrackId) {
         let Some(spec) = self.project().track(track).map(|t| t.instrument.clone()) else {
             return;
@@ -126,7 +126,8 @@ impl CantusApp {
         if let (Some(ctx), Some(key)) = (self.theme_ctx.clone(), self.instrument_window_key(track))
         {
             if self.instrument_window_open(track) {
-                device::restore(&ctx, key);
+                // Round 27 (ADR 0051): back from the tray, in front, focused.
+                device::present(&ctx, key);
                 return;
             }
         }
@@ -158,7 +159,8 @@ impl CantusApp {
     pub fn instrument_window_shown(&self, track: TrackId) -> bool {
         let minimised = match (&self.theme_ctx, self.instrument_window_key(track)) {
             (Some(ctx), Some(key)) => device::is_minimised(ctx, key),
-            _ => false,
+            // A hosted plug-in's own window, minimised to the taskbar (round 27).
+            _ => self.plugins.instrument_window_minimised(track),
         };
         self.instrument_window_open(track) && !minimised
     }

@@ -16,4 +16,4 @@ hosted.latency_value = {n} samples
 hosted.params = Parameters
 hosted.window = Window
 hosted.open_window = Open
-hosted.close_window = Close
+hosted.show_window = Show
