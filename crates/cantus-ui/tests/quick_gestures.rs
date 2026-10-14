@@ -487,13 +487,31 @@ fn a_double_click_on_a_notes_clip_opens_the_piano_roll_on_it() {
         (Some(lead), Some(clip)),
         "on that clip"
     );
-    // Scrolled to the clip's content: its first note at the left.
+    // Shown whole: from the content's start, its eight beats across the grid, and every
+    // note's row on screen.
     let v = &r.app.piano_roll;
+    let (w, h) = v.grid_size();
     assert!(
         v.scroll_beats <= 0.01,
         "the content's start in view ({})",
         v.scroll_beats
     );
+    let beats = w / v.px_per_beat;
+    assert!(
+        (8.0..=9.0).contains(&beats),
+        "the clip across the grid ({beats} beats)"
+    );
+    let shown = h / v.key_height;
+    for n in &r.app.project().tracks[LEAD].clips[0].notes {
+        let lane = n.pitch as f32;
+        assert!(
+            lane < v.top_lane && lane > v.top_lane - shown,
+            "pitch {} on screen (top {}, {} rows)",
+            n.pitch,
+            v.top_lane,
+            shown
+        );
+    }
     assert_eq!(
         r.app.project().tracks[LEAD].clips.len(),
         1,

@@ -364,6 +364,9 @@ pub struct PianoRollView {
     last_grid: (f32, f32),
     /// The toolbar's note count, rebuilt when the count changes.
     count: (usize, String),
+    /// A clip opened from the arrangement, to fit to the grid the next time it is laid out
+    /// ([`fit_clip`]).
+    fit_pending: Option<(TrackId, ClipId)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -380,6 +383,13 @@ struct NoteDrag {
     press: Pos2,
     track: TrackId,
     clip: ClipId,
+}
+
+impl PianoRollView {
+    /// The note grid's size when it was last laid out, in points (zero before).
+    pub fn grid_size(&self) -> (f32, f32) {
+        self.last_grid
+    }
 }
 
 impl Default for PianoRollView {
@@ -403,6 +413,7 @@ impl Default for PianoRollView {
             axis: None,
             last_grid: (0.0, 0.0),
             count: (usize::MAX, String::new()),
+            fit_pending: None,
         }
     }
 }
@@ -601,6 +612,12 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     }
     let f = Frame::of(full, keys_w, app.piano_roll.vel_h, &s);
     app.piano_roll.last_grid = (f.grid.width(), f.grid.height());
+    // A clip opened from the arrangement (round 27, ADR 0051): fitted to this grid before
+    // it is drawn, so the first frame shows it.
+    if app.piano_roll.fit_pending == Some((track_id, clip_id)) {
+        app.piano_roll.fit_pending = None;
+        fit_now(app, &axis, track_id, clip_id);
+    }
 
     let resp = ui.allocate_rect(f.grid, Sense::click_and_drag());
     let vel_resp = ui.allocate_rect(f.vel, Sense::click_and_drag());
@@ -1107,21 +1124,48 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
 }
 
 /// A clip opened from the arrangement (round 27, ADR 0051): its window — one period of a
-/// clip that repeats, else its length — across the grid, from the content's start
-/// (`select_clip` scrolled there and centred the rows). Needs the grid's width from a
-/// frame it was drawn in; before that, the zoom stays.
+/// clip that repeats, else its length — across the grid from the content's start, and its
+/// notes' rows in the middle, the keys made smaller only when they would not fit. Done the
+/// next time the piano roll is laid out, where the grid's size is known (a piano roll
+/// behind another tab has none yet).
 pub fn fit_clip(app: &mut CantusApp, track: TrackId, clip: ClipId) {
+    app.piano_roll.fit_pending = Some((track, clip));
+    if let Some(c) = clip_of(app, track, clip) {
+        app.piano_roll.scroll_beats = ticks_to_beats(c.content_start()).max(0.0);
+    }
+}
+
+/// [`fit_clip`] on the grid just laid out.
+fn fit_now(app: &mut CantusApp, axis: &Axis, track: TrackId, clip: ClipId) {
     let Some(c) = clip_of(app, track, clip) else {
         return;
     };
     let beats = ticks_to_beats(c.period().unwrap_or(c.length)).max(0.25);
-    let start = ticks_to_beats(c.content_start());
-    let w = app.piano_roll.last_grid.0;
+    let start = ticks_to_beats(c.content_start()).max(0.0);
+    let lanes = c.notes.iter().fold(None, |acc: Option<(usize, usize)>, n| {
+        let Some(l) = axis.lane_of(n.pitch) else {
+            return acc;
+        };
+        Some(acc.map_or((l, l), |(a, b)| (a.min(l), b.max(l))))
+    });
+    let rows = axis.len() as f32;
+    let chromatic = axis.is_chromatic();
+    let (w, h) = app.piano_roll.last_grid;
     let v = &mut app.piano_roll;
     if w > 0.0 {
         v.px_per_beat = (w * 0.95 / beats).clamp(MIN_PX_PER_BEAT, MAX_PX_PER_BEAT);
     }
-    v.scroll_beats = start.max(0.0);
+    v.scroll_beats = start;
+    // A kit's rows already fill the grid; a keyboard's are centred on the notes.
+    if let (true, Some((lo, hi)), true) = (chromatic, lanes, h > 0.0) {
+        let span = (hi - lo) as f32 + 3.0;
+        if span * v.key_height > h {
+            v.key_height = (h / span).clamp(KEY_MIN, KEY_MAX);
+        }
+        let shown = h / v.key_height;
+        let mid = (lo + hi) as f32 * 0.5;
+        v.top_lane = (mid + shown * 0.5 + 0.5).clamp(1.0, rows.max(1.0));
+    }
 }
 
 /// Show the selected notes — or every note when none is selected — filling the grid:
