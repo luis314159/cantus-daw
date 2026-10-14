@@ -380,9 +380,13 @@ pub fn shown(ctx: &Context, key: DeviceKey) -> Option<(Rect, Rect)> {
 }
 
 /// Whether a device is **in front** (round 27, ADR 0051 §3): open, not minimised, drawn
-/// this pass or the last (a tab behind another tab is not drawn), and with no other
-/// window or dialog over its middle. What F8 and the rack's channel button toggle on: an
-/// editor that is open but not in front comes forward; only the frontmost one closes.
+/// this pass or the last (a tab behind another tab is not drawn), and — for a window of
+/// its own — no other window or dialog over its middle. What F8 and the rack's channel
+/// button toggle on: an editor that is open but not in front comes forward; only the
+/// frontmost one closes. Only what bringing it forward can change counts: a docked tab
+/// showing in its leaf is as far in front as it can be (a floating window over it cannot
+/// be put under it — the background is never raised), or F8 would bring it "forward" for
+/// ever and never close it.
 pub fn in_front(ctx: &Context, key: DeviceKey) -> bool {
     let pass = ctx.cumulative_pass_nr();
     let body = with_registry(ctx, |r| {
@@ -394,10 +398,15 @@ pub fn in_front(ctx: &Context, key: DeviceKey) -> bool {
     let Some(body) = body else {
         return false;
     };
+    if body.layer.order == egui::Order::Background {
+        return true;
+    }
     match ctx.layer_id_at(body.rect.center()) {
         Some(top) if top == body.layer => true,
-        // Over a docked tab: nothing but the background it shares, a tooltip or a hint.
-        Some(top) => !matches!(top.order, egui::Order::Middle | egui::Order::Foreground),
+        // Only another window of its own order covers it — raising it puts it above that
+        // one; a dialog, a menu, a tooltip of a higher order stays above it whatever is
+        // done, so it does not count either.
+        Some(top) => top.order != body.layer.order,
         None => true,
     }
 }

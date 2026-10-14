@@ -213,14 +213,19 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
   (one undo step), `Esc` puts back the old one. A click elsewhere on the header only
   selects the track, and typing with a track selected never renames it. (Mixer strips and
   rack pads rename on a double-click.)
-- **Double-click a clip**: the **piano roll** opens on it, the whole clip in view; a step
-  pattern (every note a short hit on the rack's grid) opens in the **channel rack**; an
-  automation clip in its large editor; an audio clip shows in the inspector.
+- **Double-click a clip**: the **piano roll** opens on it, the whole clip in view. A step
+  pattern the rack shows with nothing lost — every note a short hit on a step, one pitch
+  per channel (a drum kit may use all its pads; a melody on a synth opens the piano roll,
+  as in FL) — opens in the **channel rack** instead, at the pattern's own grid and
+  scrolled to its track. An automation clip opens in its large editor; an audio clip shows
+  in the inspector.
 - **Open editor** — in the inspector, the mixer's menus or an instrument's frame — brings a
-  window that is already open back from the tray (or the taskbar, for a plug-in) and to the
-  front. `F8` and the channel rack's channel button do the same when the window is
-  minimised, behind another tab or under another window, and close it only when it is
-  already in front.
+  window that is already open back from the tray (or the taskbar, for a plug-in instrument
+  or effect) and to the front; while a plug-in's window is open its key reads *Show*. `F8`
+  and the channel rack's channel button do the same when the window is minimised, behind
+  another tab or under another window, and close it only when it is already in front.
+  (Cantus cannot bring forward a plug-in that floats a window of its own: its key reads
+  *Close*.)
 
 ### Clips in the arrangement
 

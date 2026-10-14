@@ -40,22 +40,46 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     let latency = tf("hosted.latency_value", &[("n", &h.latency())]);
     sh.text_row("hosted.latency", &latency, true, false);
     sh.text_row("hosted.params", &h.params.len().to_string(), true, false);
-    // The plug-in's own window: *Open*, or — open already, perhaps minimised or under
-    // other windows — *Show*, which brings it back and to the front (round 27, ADR 0051).
-    // It closes with its own close box, F8 or the rack's channel button.
-    let open = h.window_open();
-    let key = if open {
-        "hosted.show_window"
-    } else {
-        "hosted.open_window"
-    };
+    // The plug-in's own window (round 27, ADR 0051 §3): *Open*; open already — perhaps
+    // minimised or under other windows — *Show*, which brings it back and to the front
+    // (it closes with its own close box, F8, or the rack's channel button); and *Close*
+    // for a plug-in that floats a window of its own, which Cantus cannot bring forward.
+    let (key, close) = window_row(h.window_open(), h.window_floating());
     if sh.led_row(
         "hosted.window",
         key,
-        open,
+        h.window_open(),
         Function::Source,
         !h.has_editor(),
     ) {
-        sh.acts.push(Act::OpenInstrument(t));
+        sh.acts.push(if close {
+            Act::CloseInstrument(t)
+        } else {
+            Act::OpenInstrument(t)
+        });
+    }
+}
+
+/// The window row's word, and whether a click closes: by the window's state.
+fn window_row(open: bool, floating: bool) -> (&'static str, bool) {
+    match (open, floating) {
+        (false, _) => ("hosted.open_window", false),
+        (true, false) => ("hosted.show_window", false),
+        (true, true) => ("hosted.close_window", true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::window_row;
+
+    /// Review 4: a plug-in that floats its own editor keeps a working *Close*; any other
+    /// open window gets *Show*.
+    #[test]
+    fn the_window_row_shows_or_closes_by_the_windows_state() {
+        assert_eq!(window_row(false, false), ("hosted.open_window", false));
+        assert_eq!(window_row(false, true), ("hosted.open_window", false));
+        assert_eq!(window_row(true, false), ("hosted.show_window", false));
+        assert_eq!(window_row(true, true), ("hosted.close_window", true));
     }
 }

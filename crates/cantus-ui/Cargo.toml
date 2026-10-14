@@ -50,3 +50,8 @@ rtrb.workspace = true
 # The README's pictures (`examples/shoot_readme.rs`), written compressed; already in the
 # tree through tiny-skia.
 png = "0.18"
+
+# Round 27 (ADR 0051): tests that minimise a plug-in's own window and check it comes back;
+# already in the tree through cantus-host.
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

@@ -104,6 +104,8 @@ pub enum Act {
     OpenEditor(StripId, EffectId),
     /// An instrument's window: opened, or brought back and to the front (ADR 0051).
     OpenInstrument(TrackId),
+    /// A hosted plug-in's window that floats on its own: closed (ADR 0051 §3).
+    CloseInstrument(TrackId),
     OpenPulsus(TrackId, cantus_core::PadId),
     /// Open the device picker (round 20): swap the instrument, add or swap an insert.
     Pick(crate::picker::PickPurpose),
@@ -746,6 +748,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::SelectTrack(t) => app.select_track(t),
         Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
         Act::OpenInstrument(t) => app.open_inst_editor(t),
+        Act::CloseInstrument(t) => app.close_instrument_window(t),
         Act::Pick(purpose) => app.open_picker(purpose),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);

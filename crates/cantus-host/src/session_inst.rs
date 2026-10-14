@@ -65,6 +65,11 @@ impl HostedInst {
         self.window.as_ref().is_some_and(PluginWindow::is_minimised)
     }
 
+    /// Whether its window belongs to a plug-in that floats its own (round 27, ADR 0051).
+    pub fn window_floating(&self) -> bool {
+        self.window.as_ref().is_some_and(|w| w.is_floating())
+    }
+
     /// Whether its window is open and in front, nothing over it (round 27, ADR 0051).
     pub fn window_frontmost(&self) -> bool {
         self.window.as_ref().is_some_and(PluginWindow::is_frontmost)

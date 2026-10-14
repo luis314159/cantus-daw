@@ -983,13 +983,19 @@ its name's letters, never by typing with a track selected.** All four landed in 
 3. ✓ **Every *Open editor* brings the window to the front** — restored if minimised (from
    the tray, or the taskbar for a plug-in's window, which stays maximised if it was), its
    tab in front, its window raised, focused — for native instruments, Pulsus, effects (the
-   mixer menu, the inspector's inserts) and hosted plug-ins. The inspector's hosted row
-   reads *Show* while the window is open (it used to close it).
+   mixer menu, the inspector's inserts) and hosted plug-in instruments and effects. The
+   inspector's hosted row and a hosted effect's card read *Show* while the window is open
+   (they used to close it); a plug-in that floats a window of its own keeps *Close* (Cantus
+   cannot bring it forward). F8 and the rack's channel button bring an editor that is not
+   in front forward and close only the one in front.
 4. ✓ **Double-click a clip in the arrangement → open its editor, on it**: the piano roll
-   (fitted to the clip, focused), or the channel rack when the clip is a **step pattern** —
-   decided from the content, not a stored hint (no schema change): every note a hit on the
-   rack's grid. Automation clips keep their editor; an audio clip (no audio editor exists)
-   shows in the inspector; an empty lane still makes a clip.
+   (fitted to the clip, focused), or the channel rack when the rack shows the clip **with
+   nothing lost** — decided from the content, not a stored hint (no schema change): every
+   note a hit on a step of the clip's own grid, one pitch per channel on a melodic
+   instrument (a melody opens the piano roll, as in FL; a kit may use all its pads); the
+   rack opens at that grid, scrolled to the clip's track. Automation clips keep their
+   editor; an audio clip (no audio editor exists) shows in the inspector; an empty lane
+   still makes a clip.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

@@ -229,15 +229,19 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
   otro lugar de la cabecera solo selecciona la pista, y escribir con una pista seleccionada
   nunca la renombra. (Los canales del mezclador y los pads del rack se renombran con doble
   clic.)
-- **Doble clic en un clip**: se abre el **piano roll** en él, con el clip entero a la vista;
-  un patrón de pasos (cada nota un golpe corto en la rejilla del rack) se abre en el **rack
-  de canales**; un clip de automatización, en su editor grande; un clip de audio se muestra
-  en el inspector.
+- **Doble clic en un clip**: se abre el **piano roll** en él, con el clip entero a la vista.
+  Un patrón de pasos que el rack muestra sin perder nada — cada nota un golpe corto en un
+  paso, un tono por canal (una batería puede usar todos sus pads; una melodía en un
+  sintetizador se abre en el piano roll, como en FL) — se abre en el **rack de canales**,
+  en la rejilla del propio patrón y desplazado hasta su pista. Un clip de automatización se
+  abre en su editor grande; un clip de audio se muestra en el inspector.
 - **Abrir editor** — en el inspector, los menús del mezclador o el marco de un instrumento —
-  trae una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un plug-in) y
-  la pone delante. `F8` y el botón de canal del rack hacen lo mismo cuando la ventana está
-  minimizada, detrás de otra pestaña o bajo otra ventana, y solo la cierran cuando ya está
-  delante.
+  trae una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un
+  instrumento o un efecto plug-in) y la pone delante; mientras la ventana de un plug-in está
+  abierta, su botón dice *Mostrar*. `F8` y el botón de canal del rack hacen lo mismo cuando
+  la ventana está minimizada, detrás de otra pestaña o bajo otra ventana, y solo la cierran
+  cuando ya está delante. (Cantus no puede traer delante un plug-in que abre su propia
+  ventana flotante: su botón dice *Cerrar*.)
 
 ### Los clips en el arreglo
 

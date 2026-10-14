@@ -599,44 +599,286 @@ fn an_automation_clip_an_audio_clip_and_an_empty_lane_keep_their_double_clicks()
 
 #[test]
 fn the_rack_opens_only_for_step_shaped_content() {
-    use cantus_ui::clips::{editor_for, ClipEditor};
+    use cantus_ui::clips::{editor_for, rack_grid, ClipEditor};
     let p = band();
     let grid = Ticks::SIXTEENTH;
+    let kit = p.tracks[DRUMS].instrument.lanes();
+    let keys = p.tracks[LEAD].instrument.lanes();
     let drums = p.tracks[DRUMS].clips[0].clone();
-    assert_eq!(editor_for(&drums, grid), ClipEditor::ChannelRack, "steps");
+    assert_eq!(
+        editor_for(&drums, kit, grid),
+        ClipEditor::ChannelRack,
+        "steps"
+    );
     let melody = &p.tracks[LEAD].clips[0];
     assert_eq!(
-        editor_for(melody, grid),
+        editor_for(melody, keys, grid),
         ClipEditor::PianoRoll,
         "long notes"
     );
     let empty = &p.tracks[BASS].clips[0];
     assert_eq!(
-        editor_for(empty, grid),
+        editor_for(empty, keys, grid),
         ClipEditor::PianoRoll,
         "unknown: the roll"
     );
     let auto = &p.tracks[BASS].clips[1];
-    assert_eq!(editor_for(auto, grid), ClipEditor::Automation);
+    assert_eq!(editor_for(auto, keys, grid), ClipEditor::Automation);
     let take = &p.tracks[VOICE].clips[0];
-    assert_eq!(editor_for(take, grid), ClipEditor::Inspector);
-    // One note off the step grid, or one held longer than a step: the piano roll.
+    assert_eq!(editor_for(take, keys, grid), ClipEditor::Inspector);
+    // One note off every step grid, or one held longer than a step: the piano roll.
     let mut off = drums.clone();
     off.notes[1].start += Ticks(7);
     assert_eq!(
-        editor_for(&off, grid),
+        editor_for(&off, kit, grid),
         ClipEditor::PianoRoll,
         "off the grid"
     );
     let mut held = drums.clone();
     held.notes[2].length = Ticks::QUARTER;
-    assert_eq!(editor_for(&held, grid), ClipEditor::PianoRoll, "held");
-    // A coarser rack grid: hits on sixteenths between its steps are not its steps.
+    assert_eq!(editor_for(&held, kit, grid), ClipEditor::PianoRoll, "held");
+    // The clip's own grid decides, not the rack's current one: sixteenths with the rack at
+    // eighths still open in the rack, at sixteenths.
     assert_eq!(
-        editor_for(&drums, Ticks::SIXTEENTH * 2),
-        ClipEditor::PianoRoll,
-        "a sixteenth between eighths"
+        rack_grid(&drums, kit, Ticks::SIXTEENTH * 2),
+        Some(Ticks::SIXTEENTH)
     );
+}
+
+/// Review 5: a channel's row in the rack plays one pitch (a melodic track's one row adds
+/// any pitch but shows only on/off; a kit has a row per pad) — FL's rack too, where a
+/// melodic pattern opens in the piano roll. So the rack opens only when it shows the clip
+/// with nothing lost.
+#[test]
+fn the_rack_opens_only_when_it_loses_nothing() {
+    use cantus_ui::clips::{editor_for, rack_grid, ClipEditor};
+    let mut p = band();
+    let keys_inst = p.tracks[LEAD].instrument.clone();
+    let kit_inst = p.tracks[DRUMS].instrument.clone();
+    let keys = keys_inst.lanes();
+    let mut line = p.make_clip("Bass line", Ticks::ZERO, Ticks::beats(4));
+    for (i, pitch) in [36u8, 36, 43, 48, 39, 41, 36, 46].into_iter().enumerate() {
+        let n = p.make_note(
+            Ticks::SIXTEENTH * (i as i64 * 2),
+            Ticks::SIXTEENTH,
+            pitch,
+            100,
+        );
+        line.notes.push(n);
+    }
+    assert_eq!(
+        editor_for(&line, keys, Ticks::SIXTEENTH),
+        ClipEditor::PianoRoll,
+        "a sixteenth bass line on a synth: the piano roll"
+    );
+    let mut hats = line.clone();
+    for n in &mut hats.notes {
+        n.pitch = 42;
+    }
+    assert_eq!(
+        editor_for(&hats, keys, Ticks::SIXTEENTH),
+        ClipEditor::ChannelRack,
+        "one pitch on a synth: its row shows it"
+    );
+    // A kit shows a row per pad (and per stray pitch): a pattern across pads, the rack.
+    let kit = kit_inst.lanes();
+    assert_eq!(
+        editor_for(&line, kit, Ticks::SIXTEENTH),
+        ClipEditor::ChannelRack,
+        "across a kit's rows"
+    );
+    // Two notes of one pitch on one step are one step in the rack: the piano roll.
+    let mut doubled = hats.clone();
+    let mut twin = doubled.notes[0].clone();
+    twin.id = cantus_core::NoteId(9_999);
+    doubled.notes.push(twin);
+    assert_eq!(
+        editor_for(&doubled, keys, Ticks::SIXTEENTH),
+        ClipEditor::PianoRoll
+    );
+    // Review 7: triplets made in the rack at 1/16T open there — at 1/16T — whatever grid
+    // the rack has now.
+    let mut trip = p.make_clip("Triplets", Ticks::ZERO, Ticks::beats(2));
+    for i in 0..12 {
+        let n = p.make_note(Ticks(160 * i), Ticks(160), 42, 90);
+        trip.notes.push(n);
+    }
+    assert_eq!(rack_grid(&trip, kit, Ticks::SIXTEENTH), Some(Ticks(160)));
+    assert_eq!(
+        editor_for(&trip, kit, Ticks::SIXTEENTH),
+        ClipEditor::ChannelRack
+    );
+    p.tracks.clear();
+}
+
+#[test]
+fn a_double_click_on_a_sixteenth_line_opens_the_roll_and_on_triplets_the_rack_at_triplets() {
+    let mut p = band();
+    let mut line = p.make_clip("Bass line", Ticks::beats(16), Ticks::beats(4));
+    for (i, pitch) in [36u8, 43, 48, 39].into_iter().enumerate() {
+        let n = p.make_note(
+            Ticks::SIXTEENTH * (i as i64 * 2),
+            Ticks::SIXTEENTH,
+            pitch,
+            100,
+        );
+        line.notes.push(n);
+    }
+    p.tracks[LEAD].clips.push(line);
+    let mut trip = p.make_clip("Triplets", Ticks::beats(16), Ticks::beats(2));
+    for i in 0..12 {
+        let n = p.make_note(Ticks(160 * i), Ticks(160), 36, 90);
+        trip.notes.push(n);
+    }
+    p.tracks[DRUMS].clips.push(trip);
+    let mut r = Rig::new(p);
+    r.app.show_central(CentralView::Mixer);
+    r.idle(3);
+    r.double_click(r.clip_at(LEAD, 1));
+    assert_eq!(r.app.central, CentralView::PianoRoll, "a melody: the roll");
+    assert_eq!(r.app.rack.grid, Ticks::SIXTEENTH);
+    r.double_click(r.clip_at(DRUMS, 1));
+    assert_eq!(
+        r.app.central,
+        CentralView::ChannelRack,
+        "triplet steps: the rack"
+    );
+    assert_eq!(r.app.rack.grid, Ticks(160), "at the clip's own grid");
+}
+
+/// Review 6: the rack opens with the clip's track in view (and selected), however far down.
+#[test]
+fn the_rack_opens_with_the_clips_track_in_view() {
+    let mut p = Project::new("Many");
+    for i in 0..40 {
+        let t = p.make_track(format!("Synth {i}"));
+        p.tracks.push(t);
+    }
+    let mut kit = p.make_track("Kit");
+    kit.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+    let mut clip = p.make_clip("Four", Ticks::ZERO, Ticks::beats(4));
+    for i in 0..4 {
+        clip.notes
+            .push(p.make_note(Ticks::QUARTER * i, Ticks::SIXTEENTH, 36, 110));
+    }
+    kit.clips.push(clip);
+    p.tracks.push(kit);
+    let mut r = Rig::new(p);
+    let last = r.app.project().tracks.len() - 1;
+    let id = r.track(last);
+    let c = r.app.project().tracks[last].clips[0].id;
+    r.app.arrangement.scroll_y = 100_000.0;
+    r.idle(3);
+    r.double_click(r.clip_at(last, 0));
+    assert_eq!(r.app.central, CentralView::ChannelRack);
+    assert_eq!(
+        (r.app.selected_track, r.app.selected_clip),
+        (Some(id), Some(c))
+    );
+    r.idle(3);
+    let geo = r.app.rack.geometry().expect("the rack drew");
+    let row = geo
+        .rows
+        .iter()
+        .find(|row| row.track == last)
+        .expect("the kit's row");
+    assert!(
+        row.top >= geo.grid_top - 0.5 && row.top + row.height <= r.size.y,
+        "the kit's row on screen: {} (grid from {})",
+        row.top,
+        geo.grid_top
+    );
+}
+
+/// Review 2 = 10: a docked editor under a floating window cannot be raised above it, so
+/// the window over it does not make it "not in front": F8 closes it.
+#[test]
+fn f8_closes_a_docked_editor_under_a_floating_window() {
+    let mut r = Rig::new(band());
+    let lead = r.track(LEAD);
+    r.app.select_track(lead);
+    r.idle(2);
+    let key = cantus_ui::views::inst::editor_id(lead).value();
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    r.app.workspace.hide(Pane::Device(key));
+    r.app.workspace.reveal(Pane::Device(key));
+    r.idle(3);
+    assert!(r
+        .app
+        .workspace
+        .find(Pane::Device(key))
+        .unwrap()
+        .surface
+        .is_main());
+    let body = device::with_registry(&r.ctx, |g| g.get(key).and_then(|e| e.body))
+        .expect("drawn")
+        .rect;
+    // An EQ's editor floating over the tab's middle.
+    let strip = r.app.project().strips[0].id;
+    let slot = r.app.bus.new_effect(cantus_core::EffectKind::Eq);
+    let fx = slot.id;
+    assert!(r.app.exec(Command::InsertEffect {
+        strip,
+        index: 0,
+        slot: Box::new(slot)
+    }));
+    let fx_key = cantus_ui::views::fx::device_id(fx).value();
+    let at = Rect::from_center_size(body.center(), vec2(400.0, 300.0));
+    device::remember_place(&r.ctx, fx_key, at);
+    r.app.open_effect_editor(strip, fx);
+    r.idle(4);
+    assert_ne!(
+        r.ctx.layer_id_at(body.center()).map(|l| l.order),
+        Some(egui::Order::Background)
+    );
+    r.app.select_track(lead);
+    r.key(Key::F8, Modifiers::NONE);
+    r.idle(3);
+    assert_eq!(r.app.inst.open, None, "F8 closed the docked editor");
+}
+
+/// Review 1: on short rows the name's letters reach into the row above's band and this
+/// row's resize grip; a click on them still selects this track and opens its name.
+#[test]
+fn the_letters_win_over_the_neighbours_bands_on_short_rows() {
+    for (base, height) in [(40.0f32, 0.34f32), (22.0, 0.6)] {
+        let mut p = band();
+        for t in &mut p.tracks {
+            t.height = height;
+        }
+        let mut r = Rig::new(p);
+        r.app.arrangement.track_height = base;
+        r.idle(3);
+        for (what, dy) in [("top", 1.0f32), ("bottom", -1.0)] {
+            let (_, letters) = r.header(DRUMS);
+            let y = if dy > 0.0 {
+                letters.top() + dy
+            } else {
+                letters.bottom() + dy
+            };
+            let at = pos2(letters.center().x, y);
+            r.click(at);
+            assert_eq!(
+                r.app.selected_track,
+                Some(r.track(DRUMS)),
+                "{base}×{height} {what}: this track selected"
+            );
+            assert_eq!(
+                r.renaming(),
+                Some(r.track(DRUMS)),
+                "{base}×{height} {what}: its name opened"
+            );
+            r.key(Key::Escape, Modifiers::NONE);
+            assert_eq!(r.renaming(), None);
+            r.hover(at);
+            assert_eq!(
+                r.cursor,
+                CursorIcon::Text,
+                "{base}×{height} {what}: an I-beam"
+            );
+        }
+    }
 }
 
 // ---- 3. Open editor brings the window back and to the front ---------------------------

@@ -705,6 +705,16 @@ impl CantusApp {
     /// another window, or in the tray), bring it back and to the front as it is (round 27,
     /// ADR 0051): the mixer's *Open the editor*, the inspector's slot.
     pub fn open_effect_editor(&mut self, strip: StripId, effect: EffectId) {
+        // A hosted effect's own window, open — perhaps minimised to the taskbar or under
+        // other windows: back and to the front too (`open_window` only brings it forward).
+        if self
+            .plugins
+            .hosted(effect)
+            .is_some_and(|h| h.window_open() && !h.window_floating())
+        {
+            let owner = self.plugins.owner_window;
+            let _ = self.plugins.open_window(effect, "", owner);
+        }
         let at = Some((strip, effect));
         let open = self.eq_editor.open == at
             || self.comp_editor.open == at

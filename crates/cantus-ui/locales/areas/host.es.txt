@@ -27,6 +27,7 @@ host.scan_done = Búsqueda de plug-ins terminada: {found} utilizables, {scanned}
 host.editor.latency = latencia {samples} mst · {ms} ms
 host.editor.open_window = Abrir la ventana del plug-in
 host.editor.close_window = Cerrar la ventana del plug-in
+host.editor.show_window = Mostrar la ventana del plug-in
 host.editor.window_tip = El editor propio del plug-in, en una ventana aparte
 host.editor.no_window = Este plug-in no tiene editor propio; todos sus parámetros están aquí
 host.editor.window_failed = No se pudo abrir la ventana del plug-in: {error}

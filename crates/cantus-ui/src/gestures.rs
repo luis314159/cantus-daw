@@ -1,7 +1,8 @@
 //! FL's quick gestures, from the application's side (round 27, ADR 0051): what a
-//! double-click on a track header and on a clip open. The views decide *where* a gesture
-//! landed; this decides what it means, so the arrangement, the clip browser and the tests
-//! all reach the same editor by the same road.
+//! double-click on a track header and on a clip in the arrangement open. The arrangement
+//! decides *where* a gesture landed; this decides what it means, and the tests drive the
+//! same road. (A double-click on a clip browser tile selects the clip's copies instead,
+//! ADR 0037.)
 
 use crate::app::{CantusApp, CentralView};
 use crate::clips::{self, ClipEditor};
@@ -32,14 +33,19 @@ impl CantusApp {
     }
 
     /// A double-click on a clip: its editor, on it, in front and with the focus — the
-    /// piano roll, or the channel rack for a step pattern ([`clips::editor_for`]), the
-    /// automation editor for an automation clip, the inspector for an audio clip. Returns
-    /// which, or `None` when the clip is gone.
+    /// piano roll, or the channel rack for a step pattern it shows with nothing lost
+    /// ([`clips::editor_for`]), the automation editor for an automation clip, the
+    /// inspector for an audio clip. Returns which, or `None` when the clip is gone.
     pub fn open_clip_editor(&mut self, track: TrackId, clip: ClipId) -> Option<ClipEditor> {
-        let which = clips::editor_for(
-            clips::clip_of(self.project(), (track, clip))?,
-            self.rack.grid,
-        );
+        let (which, grid) = {
+            let t = self.project().track(track)?;
+            let c = t.clip(clip)?;
+            let lanes = t.instrument.lanes();
+            (
+                clips::editor_for(c, lanes, self.rack.grid),
+                clips::rack_grid(c, t.instrument.lanes(), self.rack.grid),
+            )
+        };
         match which {
             ClipEditor::Automation => {
                 self.open_automation_editor(track, clip);
@@ -61,9 +67,14 @@ impl CantusApp {
                 self.select_clip(track, clip);
                 self.central = CentralView::ChannelRack;
                 self.show_pane(Pane::ChannelRack);
-                // The whole pattern across the rack, from its first step.
+                // At the clip's own grid, the whole pattern across the rack from its first
+                // step, the clip's track scrolled into view.
+                if let Some(g) = grid {
+                    self.rack.grid = g;
+                }
                 self.rack.fit = true;
                 self.rack.scroll_steps = 0.0;
+                self.rack.reveal_track(track);
                 self.focus_piano_roll();
             }
         }

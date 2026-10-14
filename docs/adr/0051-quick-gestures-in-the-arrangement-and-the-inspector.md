@@ -61,7 +61,14 @@ under the track, not its header.
   name selected, `Enter` commits one `SetTrackName`, `Esc` closes leaving the old name and
   no undo step, a click elsewhere commits, an untouched rename runs nothing, and no shortcut
   or the typing piano reads the keys while it is open. A **drag** that starts on the
-  letters still reorders (egui reports no click once the pointer travelled).
+  letters still reorders (egui reports no click once the pointer travelled), never resizes.
+- **The letters win over their neighbours.** A row's interactive area starts below the
+  divider grip above it (a press on the line belongs to the row whose height it changes),
+  so on a short row (0.34 × 40, or 0.6 × the smallest zoom of 22) the name line reaches
+  into the row above's band and into this row's own resize grip. The letters are therefore
+  **a widget of their own** (`arr-name`, click and drag), sensed after the row and the rows
+  above it: a click anywhere on them is this track's — select and open its name — the
+  I-beam shows there, a drag from them reorders, and a right-click opens the track menu.
 - **From one name to another in one click**: with a track's name open, a click on another
   track's letters commits the first (one `SetTrackName`, as a click away does) and opens
   the second, its name selected, in the same click. The second name is opened once every
@@ -116,42 +123,79 @@ is no plug-in window yet (opening fails with `Unsupported`): `focus` is a docume
 `is_minimised` and `is_frontmost` are `false`, all `pub` on a `pub` type — no `cfg` dead
 code under `-D warnings`.
 
-**F8 and the rack's channel button toggle what the user sees.** Closed → opened; open but
-**not in front** — minimised, its tab behind another tab, its window under another window
-— → brought back and to the front (`present` / `focus`); **in front → closed**
-(`instrument_window_in_front`, `toggle_instrument_window_of`). *In front*, for a device:
-not minimised, drawn this pass or the last (a tab behind another is not drawn), and the top
-layer at its body's middle is its own, or the background a docked tab shares — no window
-or dialog of the middle or foreground orders over it (`workspace_device::in_front`; it
-lives in the context, so the rack's button asks it from inside a tab). For a hosted
-plug-in's window: shown, not minimised, and the window at its middle on screen is it or
-its child (`PluginWindow::is_frontmost`: `WindowFromPoint` → `GetAncestor(GA_ROOT)`); a
-plug-in that floats its own window counts as in front, so F8 closes it as before.
+**A hosted effect's own window** comes back the same way: the mixer menu's *Open the
+editor* and the inspector's insert rows (`open_effect_editor`) bring an open plug-in window
+back from the taskbar and to the front (`open_window` → `focus`) as well as the effect's
+card; the card's key reads *Open plug-in window*, *Show plug-in window* while it is open
+(it used to close it — it now brings it forward; the window closes with its own close
+box), and *Close plug-in window* for a plug-in that floats its own (`plugins::window_key`,
+`show_plugin_window`).
 
-The inspector's hosted row reads **Open** when the window is closed and **Show** when it is
-open (it was *Close*): a click opens it or brings it back and to the front. The window
-closes with its own close box, `F8` or the rack's channel button.
+**F8 and the rack's channel button toggle what the user sees.** Closed → opened; open but
+**not in front** → brought back and to the front (`present` / `focus`); **in front →
+closed** (`instrument_window_in_front`, `toggle_instrument_window_of`). The rack's channel
+button now does it for a hosted instrument too (it toggled native editors only). *Not in
+front* counts **only what bringing it forward can change**, or the toggle would bring it
+"forward" for ever and never close it:
+
+- a device (`workspace_device::in_front`; it lives in the context, so the rack's button
+  asks it from inside a tab): minimised, or not drawn this pass or the last (a tab behind
+  another tab), or — for a window of its own — another window **of its own layer order**
+  over its middle. A **docked tab** showing in its leaf is in front whatever floats over
+  it: the background it shares is never raised, so a floating window over it cannot be
+  put under it. A dialog, a menu or a tooltip of a higher order stays above whatever is
+  done, so it does not count either;
+- a hosted plug-in's window (`PluginWindow::is_frontmost`): minimised or hidden, or a
+  window over its middle that `focus` can go above. The window at the middle
+  (`WindowFromPoint` → `GetAncestor(GA_ROOT)`) is it, **or a window it owns, directly or
+  not** (`GW_OWNER` chain: the plug-in's own popups, preset browsers and dialogs, which
+  always stay above their owner); **an always-on-top window** (`WS_EX_TOPMOST`, any
+  program's) does not count — `HWND_TOP` cannot go above it; a middle on **no screen**
+  (`MonitorFromPoint`) counts as in front. A plug-in that floats its own window counts as
+  in front, so F8 closes it as before.
+
+The inspector's hosted row reads **Open** when the window is closed, **Show** when it is
+open (it was *Close*): a click opens it or brings it back and to the front; it closes with
+its own close box, `F8` or the rack's channel button. A plug-in that **floats a window of
+its own** keeps **Close** there: Cantus cannot bring that window forward, only close it
+(`inspector_hosted::window_row`).
 
 ### 4. A double-click on a clip opens its editor, on it
 
 `CantusApp::open_clip_editor` (`src/gestures.rs`), from the arrangement's double-click on a
 clip (not on an audio clip's handle — that still resets the handle — and not on an empty
-lane, which still makes a four-bar clip). Which editor is `clips::editor_for(clip,
-rack.grid)`, **derived from the clip** with nothing stored:
+lane, which still makes a four-bar clip). Which editor is `clips::editor_for(clip, lanes,
+rack.grid)` — the clip and its track's instrument's lanes — **derived from the content**,
+nothing stored:
 
 | The clip | Opens |
 |---|---|
 | automation | the automation editor (ADR 0027) |
 | audio | the inspector, on the clip (there is no audio clip editor; the inspector holds its gain, fades and reverse) |
-| notes, **step-shaped** at the rack's grid | the **channel rack** on its pattern |
+| notes the rack shows **with nothing lost** | the **channel rack** on its pattern, at the clip's own grid |
 | notes otherwise, or empty | the **piano roll** on the clip |
 
-*Step-shaped*: at least one note, and every note starts on a step of the clip's own grid
-(content tick minus the clip's offset, a multiple of the rack's step — where the rack's
-steps fall) and lasts no longer than a step. That is exactly what a step the rack switches
-on is (a hit of `min(1/16, step)`), and what a drum pattern drawn as hits in the piano roll
-is too — the rack shows it as steps without loss. A melody, a held note, a note off the
-grid or an empty clip opens in the piano roll, which shows everything as it is.
+**The rule: the rack only when it can show and edit the clip without losing anything**
+(`clips::rack_grid`), at some step grid:
+
+- **every note is a step**: it starts on a step of the clip's own grid (content tick minus
+  the clip's offset, a multiple of the step) and lasts no longer than one step — a hit,
+  which is what a step the rack switches on is;
+- **every note has a row of its own**: a channel's row plays one pitch — in FL's channel
+  rack too, where a melodic pattern is edited in the piano roll. Cantus's rack gives a
+  melodic (chromatic) instrument **one row**, which adds any pitch but shows only on and
+  off, so on such a track every note must be **the same pitch** (a hi-hat on a synth
+  qualifies; a sixteenth-note bass line does not — it opens the piano roll, where its
+  pitches are); a **kit** gets a row per pad and per stray pitch (`Axis::build`), so a
+  pattern across its pads qualifies;
+- **no two notes are one step**: the same pitch twice on the same step would show as one.
+
+**The grid is the clip's own**, not whatever the rack was last set to: the rack's current
+grid is tried first, then sixteenths, eighths, thirty-seconds, sixteenth and eighth
+triplets, and quarters; the first that fits is set as the rack's grid when the rack opens
+(a pattern made at 1/16T opens at 1/16T with the rack at 1/16). A melody, a held note, a
+note off every grid, two pitches on a melodic track or an empty clip opens the piano roll,
+which shows everything as it is.
 
 Why not a stored hint ("the editor it was last edited in", the backlog's first wording):
 it would be a schema bump (25) and a migration for a field the musician never sees, linked
@@ -167,7 +211,9 @@ the arrows act on its notes) and **shows the clip**: the piano roll fits its win
 period of a looping clip, else its length) across the grid from the content's start and
 centres its notes' rows, making the keys smaller only when they would not fit — at its next
 layout, where the grid's size is known (`piano_roll::fit_clip`, `fit_pending`); the channel
-rack fits the whole pattern (`rack.fit`) from its first step.
+rack, at the clip's grid, fits the whole pattern (`rack.fit`) from its first step and
+scrolls the clip's track — its channel and a kit's pad rows — into view at its next layout
+(`ChannelRackView::reveal_track`); the track is the selected one.
 
 ## Consequences
 
@@ -177,23 +223,27 @@ rack fits the whole pattern (`rack.fit`) from its first step.
 - A double-click on a Firmus or an audio track shows the inspector rather than nothing.
 - The mixer and the rack rename on a double-click, the arrangement on a click on the
   letters — deliberately (§2).
-- The inspector's hosted row no longer closes the plug-in's window; F8 and the rack's
+- The inspector's hosted row and a hosted effect's card no longer close the plug-in's
+  window (but for a plug-in that floats its own); F8 and the rack's
   channel button close an editor only when it is in front.
 - No schema change, no new `Command` (the rename is `SetTrackName`, already in the undo
   fuzz), no new keymap action. New strings in `locales/areas/gestures.{en,es}.txt`
-  (`track.header.tip`, `track.header.name_tip`) and `hosted.show_window` (replacing
-  `hosted.close_window`).
+  (`track.header.tip`, `track.header.name_tip`), `hosted.show_window` and
+  `host.editor.show_window`. A Windows-only dev-dependency for cantus-ui's tests
+  (`windows-sys`, already in the tree through cantus-host) minimises a plug-in window.
 - Public additions: `ArrangementView::header_hits`, `HeaderHit`, `clips::{editor_for,
-  ClipEditor}`, `CantusApp::{open_track_instrument, open_clip_editor}`,
+  ClipEditor, rack_grid}`, `CantusApp::{open_track_instrument, open_clip_editor,
+  show_plugin_window, instrument_window_in_front}`, `ChannelRackView::reveal_track`,
+  `plugins::window_key`,
   `piano_roll::fit_clip`, `PianoRollView::grid_size`, `workspace_device::{present,
-  take_reveals, in_front}`, `AreaState::raise`, `CantusApp::instrument_window_in_front`,
-  `PluginWindow::{is_minimised, is_frontmost}`, `HostedInst::{window_minimised,
-  window_frontmost}`, `Hosted::window_frontmost`,
+  take_reveals, in_front}`, `AreaState::raise`,
+  `PluginWindow::{is_minimised, is_frontmost, is_floating}`, `HostedInst::{window_minimised,
+  window_frontmost, window_floating}`, `Hosted::{window_frontmost, window_floating}`,
   `PluginHost::{instrument_window_minimised, instrument_window_frontmost}`.
 
 ## What the tests hold
 
-`crates/cantus-ui/tests/quick_gestures.rs` (16), whole-window, the pointer driving each
+`crates/cantus-ui/tests/quick_gestures.rs` (21), whole-window, the pointer driving each
 gesture through `CantusApp::frame`: a double-click on a header opens Unda's editor (in
 front, the track selected, no rename), Pulsus's, and shows the inspector for Firmus and an
 audio track; a click on the letters of an unselected track selects it and opens the field
@@ -220,9 +270,23 @@ floating one from under another window (it used to close it), and closes it only
 it is in front; **a click on another track's letters** with a name open commits the
 first (one undo step) and opens the second with its name selected, in the same click,
 with the first above the second and below it (below, the second used not to open).
+After the adversarial review (11 findings), each seen failing first: **the rack-or-roll
+rule** — a sixteenth-note bass line on a synth opens the piano roll (it opened the rack),
+a one-pitch hi-hat on a synth and a pattern across a kit's pads open the rack, two notes of
+one pitch on one step open the roll, and the clip's own grid decides (sixteenths with the
+rack at eighths; triplets at 1/16T with the rack at 1/16, the rack set to 1/16T when it
+opens) — in the rule's test and whole-window; **the rack scrolls the clip's track into
+view** (a kit below forty tracks); **F8 closes a docked editor under a floating effect
+editor** (it brought it "forward" for ever); **the letters win** on rows of 0.34 × 40 and
+0.6 × 22, at their top and bottom (a click there selected the track above). The
+inspector's hosted row keeps *Close* for a floating plug-in (`inspector_hosted`'s unit
+test), and `hosted_plugins.rs` (Windows): the mixer's *Open the editor* brings a hosted
+effect's minimised window back (it stayed minimised), the card's *Show* keeps it open and
+brings it back, and the card's key is *Close* for a floating plug-in.
 
 `crates/cantus-host/tests/clap_window.rs` (Windows): a second *open* restores a minimised
 plug-in window, leaves a maximised one maximised (it failed with the old `SW_RESTORE`),
 and puts it back above another window of the process; it is not *frontmost* while
 minimised or while another window of the process covers its middle, and is when nothing
-does.
+does. And it is in front with its own popup over its middle, and with an always-on-top
+window over it (both made it "not in front" for ever).

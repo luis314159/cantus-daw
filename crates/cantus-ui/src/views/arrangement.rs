@@ -1071,10 +1071,22 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             .iter()
             .find(|h| h.track == id)
             .and_then(|h| h.letters);
-        let on_letters = |p: Option<Pos2>| p.zip(letters).is_some_and(|(p, l)| l.contains(p));
-        if resp.hovered() && app.arrangement.drag.is_none() && app.arrangement.reorder.is_none() {
-            let hover = resp.hover_pos();
-            let tip = if on_letters(hover) {
+        // The letters are a widget of their own, sensed after this row and the rows above:
+        // on a short row they reach into the row above's band and this row's resize grip,
+        // and there too a click on them is this track's name (review 1).
+        let name = letters.map(|l| {
+            ui.interact(
+                l.intersect(clip),
+                ui.id().with(("arr-name", id.0)),
+                Sense::click_and_drag(),
+            )
+        });
+        let on_name = name.as_ref().is_some_and(|n| n.hovered());
+        if (resp.hovered() || on_name)
+            && app.arrangement.drag.is_none()
+            && app.arrangement.reorder.is_none()
+        {
+            let tip = if on_name {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
                 "track.header.name_tip"
             } else {
@@ -1083,7 +1095,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             if let Some(t) = app.project().track(id) {
                 let caps = Caps {
                     menu: true,
-                    typed: on_letters(hover),
+                    typed: on_name,
                     ..Caps::NONE
                 };
                 hint::set_text(ui.ctx(), &t.name, chrome::word(tip), caps);
@@ -1126,24 +1138,32 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         // A click selects; on the letters it also opens the name, selected, in place (the
         // owner's rule of 2026-10-14: only there, and never by typing). A double-click
         // anywhere else opens the instrument — FL's channel button.
-        let pressed_at = resp.interact_pointer_pos();
         if resp.clicked() {
+            app.select_track(id);
+        }
+        if name.as_ref().is_some_and(|n| n.clicked()) {
             app.select_track(id);
             // Opened once every row has run: another track's open name commits first,
             // whether its row comes before this one or after.
-            if on_letters(pressed_at) {
-                open_name = Some(id);
-            }
+            open_name = Some(id);
         }
-        if resp.double_clicked() && !on_letters(pressed_at) {
+        if resp.double_clicked() {
             app.open_track_instrument(id);
         }
+        // A drag from the letters reorders, as from the rest of the header (never a resize:
+        // the letters are not the grip).
+        let from_name = name.as_ref().filter(|n| {
+            n.drag_started_by(PointerButton::Primary)
+                || n.dragged_by(PointerButton::Primary)
+                || n.drag_stopped()
+        });
+        let d = from_name.unwrap_or(&resp);
         // A drag that starts on the divider resizes; anywhere else it reorders. Decided at
         // the **press origin**, never at the pointer: egui reports a drag only once the
         // pointer has travelled, by which time it has left the five-pixel grip.
-        if resp.drag_started_by(PointerButton::Primary) {
+        if d.drag_started_by(PointerButton::Primary) {
             let origin = ui.input(|i| i.pointer.press_origin());
-            if origin.is_some_and(|p| grip.contains(p)) {
+            if from_name.is_none() && origin.is_some_and(|p| grip.contains(p)) {
                 app.arrangement.divider = Some((id, height));
             } else {
                 app.select_track(id);
@@ -1153,8 +1173,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 egui::DragAndDrop::set_payload(ui.ctx(), crate::routing_actions::TrackDrag(id));
             }
         }
-        if resp.dragged_by(PointerButton::Primary) {
-            if let Some(pos) = resp.interact_pointer_pos() {
+        if d.dragged_by(PointerButton::Primary) {
+            if let Some(pos) = d.interact_pointer_pos() {
                 if let Some((did, start_h)) = app.arrangement.divider {
                     if did == id {
                         let origin = ui
@@ -1186,7 +1206,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 }
             }
         }
-        if resp.drag_stopped() {
+        if d.drag_stopped() {
             app.arrangement.divider = None;
             if let Some((did, to)) = app.arrangement.reorder.take() {
                 // Released outside the arrangement (on the mixer, which routed it): the
@@ -1201,11 +1221,13 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             }
             app.end_gesture();
         }
-        egui::Popup::context_menu(&resp)
-            .frame(chrome::menu_frame())
-            .show(|ui| {
-                track_menu(app, ui, id, &mut to_delete);
-            });
+        for r in std::iter::once(&resp).chain(name.as_ref()) {
+            egui::Popup::context_menu(r)
+                .frame(chrome::menu_frame())
+                .show(|ui| {
+                    track_menu(app, ui, id, &mut to_delete);
+                });
+        }
     }
     // A click on a name's letters (round 27, ADR 0051 §2): a name still open on another
     // track — its row ran before the click reached its field — commits as a click away

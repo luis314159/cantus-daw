@@ -464,15 +464,13 @@ fn body_ui(
     let top = g.full((band::TITLE + 8.0 + controls::ROW + 8.0) * k);
     controls::card(ui, s, top, Src::Key("fx.hosted.card"), None, |ui, cr| {
         let w = cr.body.width() / k;
-        let (has_editor, open) = app
+        let (has_editor, open, floating) = app
             .plugins
             .hosted(effect)
-            .map_or((false, false), |h| (h.has_editor(), h.window_open()));
-        let label = if open {
-            "host.editor.close_window"
-        } else {
-            "host.editor.open_window"
-        };
+            .map_or((false, false, false), |h| {
+                (h.has_editor(), h.window_open(), h.window_floating())
+            });
+        let label = window_key(open, floating);
         let tip = if has_editor {
             frame_tr("host.editor.window_tip")
         } else {
@@ -480,7 +478,7 @@ fn body_ui(
         };
         ui.add_enabled_ui(has_editor, |ui| {
             if controls::key(ui, s, Src::Key(label), tip, 170.0, open).clicked() {
-                app.toggle_plugin_window(effect);
+                app.show_plugin_window(effect);
             }
         });
         if sidechain {
@@ -1151,4 +1149,37 @@ pub fn demo_setup(app: &mut CantusApp, library: &std::path::Path, open_editor: b
     }
     app.sync_engine();
     app.open_effect_editor(strip, effect);
+}
+
+/// The card's key for the plug-in's own window (round 27, ADR 0051 §3): *Open plug-in
+/// window*; open already — perhaps minimised or under other windows — *Show plug-in
+/// window*, which brings it back and to the front (it closes with its own close box); and
+/// *Close plug-in window* for a plug-in that floats a window of its own, which Cantus
+/// cannot bring forward.
+pub fn window_key(open: bool, floating: bool) -> &'static str {
+    match (open, floating) {
+        (false, _) => "host.editor.open_window",
+        (true, false) => "host.editor.show_window",
+        (true, true) => "host.editor.close_window",
+    }
+}
+
+impl CantusApp {
+    /// The card's key: open the plug-in's own window, or bring it back and to the front —
+    /// or close it, for a plug-in that floats its own (round 27, ADR 0051 §3).
+    pub fn show_plugin_window(&mut self, effect: EffectId) {
+        let floating = self
+            .plugins
+            .hosted(effect)
+            .is_some_and(|h| h.window_open() && h.window_floating());
+        if floating || !self.plugins.hosted(effect).is_some_and(|h| h.window_open()) {
+            self.toggle_plugin_window(effect);
+        } else {
+            let owner = self.plugins.owner_window;
+            // Open already: `open_window` only brings it forward (the title is not used).
+            if let Err(e) = self.plugins.open_window(effect, "", owner) {
+                self.set_error(tf("host.editor.window_failed", &[("error", &e)]));
+            }
+        }
+    }
 }

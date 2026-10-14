@@ -107,6 +107,8 @@ pub struct ChannelRackView {
     paint: Option<(bool, Option<(usize, usize)>)>,
     /// A pad being renamed in place: its track, its index, and the text so far.
     rename: Option<(TrackId, usize, String)>,
+    /// A track to scroll into view at the next layout ([`Self::reveal_track`]).
+    reveal: Option<TrackId>,
     geometry: Option<RackGeometry>,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
     scratch: Scratch,
@@ -138,6 +140,7 @@ impl Default for ChannelRackView {
             stroke: 0,
             paint: None,
             rename: None,
+            reveal: None,
             geometry: None,
             scratch: Scratch::default(),
         }
@@ -160,6 +163,12 @@ impl ChannelRackView {
     /// Published for the same reason the arrangement publishes its timeline: a test that
     /// recomputes the layout breaks the day a toolbar is added, which is the day it is
     /// least useful.
+    /// Scroll `track`'s rows into view the next time the rack is laid out (round 27, ADR
+    /// 0051 §4: a clip opened from the arrangement is shown, whatever its track).
+    pub fn reveal_track(&mut self, track: TrackId) {
+        self.reveal = Some(track);
+    }
+
     pub fn geometry(&self) -> Option<RackGeometry> {
         self.geometry.clone()
     }
@@ -476,6 +485,28 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     geo.steps = pattern.count;
     let top = f.grid.top() - app.rack.scroll_y;
     layout_rows(&mut geo.rows, app, &scratch.axes, top, app.rack.row_h);
+    // A clip opened from the arrangement (round 27, ADR 0051 §4): its track's rows — the
+    // channel and a kit's pads — scrolled into the grid, before anything is drawn.
+    if let Some(t) = app.rack.reveal.take() {
+        let index = app.project().tracks.iter().position(|x| x.id == t);
+        let span = index.and_then(|i| {
+            let mut rows = geo.rows.iter().filter(|r| r.track == i);
+            let first = rows.next()?;
+            let last = rows.next_back().unwrap_or(first);
+            Some((first.top, last.top + last.height))
+        });
+        if let Some((a, b)) = span {
+            let mut dy = (b - f.grid.bottom()).max(0.0);
+            if a - dy < f.grid.top() {
+                dy = a - f.grid.top();
+            }
+            if dy != 0.0 {
+                app.rack.scroll_y = (app.rack.scroll_y + dy).max(0.0);
+                let top = f.grid.top() - app.rack.scroll_y;
+                layout_rows(&mut geo.rows, app, &scratch.axes, top, app.rack.row_h);
+            }
+        }
+    }
     {
         let a: &CantusApp = app;
         // The playhead's step, folded into the pattern when it repeats.
@@ -936,7 +967,8 @@ fn track_controls(
         let on_button = button
             .interact_pointer_pos()
             .is_some_and(|p| rr.button.contains(p));
-        if on_button && app.instrument_window_key(id).is_some() {
+        // A native editor or a hosted plug-in's own window (round 27, ADR 0051 §3).
+        if on_button && (app.instrument_window_key(id).is_some() || app.is_hosted_instrument(id)) {
             app.toggle_instrument_window_of(id);
         }
     }

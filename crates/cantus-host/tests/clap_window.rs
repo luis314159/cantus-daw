@@ -9,7 +9,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DestroyWindow, FindWindowExW, GetAncestor, GetClientRect, GetWindow,
     GetWindowRect, IsIconic, IsWindow, IsWindowVisible, IsZoomed, SetWindowPos, ShowWindow,
     WindowFromPoint, GA_ROOT, GW_HWNDPREV, HWND_TOP, SWP_NOMOVE, SWP_NOSIZE, SW_MAXIMIZE,
-    SW_MINIMIZE, SW_RESTORE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    SW_MINIMIZE, SW_RESTORE, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
 };
 
 fn wide(s: &str) -> Vec<u16> {
@@ -184,4 +184,74 @@ fn top_at_middle(w: HWND) -> HWND {
         };
         GetAncestor(WindowFromPoint(p), GA_ROOT)
     }
+}
+
+/// Review 3 = 11: the plug-in's own popup (owned by its window) over its middle is part of
+/// it, and an always-on-top window cannot be gone above — neither makes the window "not in
+/// front" for ever (F8 could then never close it).
+#[test]
+fn its_own_popup_or_a_topmost_window_over_it_leaves_it_in_front() {
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, host_with_plugin(shared_folder()));
+    let id = rig.insert_plugin(strip);
+    rig.host
+        .open_window(id, "Cantus Test Gain — test", None)
+        .expect("the window opens");
+    let hwnd = rig.host.hosted(id).unwrap().window_handle().unwrap() as HWND;
+    let class = wide("BUTTON");
+    let over = |owner: HWND, ex: u32| -> HWND {
+        // SAFETY: plain Win32 calls on windows this test made.
+        unsafe {
+            let mut r = RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+            GetWindowRect(hwnd, &mut r);
+            let w = CreateWindowExW(
+                ex,
+                class.as_ptr(),
+                class.as_ptr(),
+                WS_POPUP | WS_VISIBLE,
+                r.left,
+                r.top,
+                r.right - r.left,
+                r.bottom - r.top,
+                owner,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            );
+            assert!(!w.is_null());
+            w
+        }
+    };
+    let popup = over(hwnd, 0);
+    if top_at_middle(hwnd) == popup {
+        assert!(
+            rig.host.hosted(id).unwrap().window_frontmost(),
+            "its own popup is part of it"
+        );
+    }
+    // SAFETY: as above.
+    unsafe {
+        DestroyWindow(popup);
+    }
+    let topmost = over(std::ptr::null_mut(), WS_EX_TOPMOST);
+    assert_eq!(
+        top_at_middle(hwnd),
+        topmost,
+        "the topmost window over its middle"
+    );
+    assert!(
+        rig.host.hosted(id).unwrap().window_frontmost(),
+        "an always-on-top window does not count"
+    );
+    // SAFETY: as above.
+    unsafe {
+        DestroyWindow(topmost);
+    }
+    assert!(rig.host.close_window(id));
 }

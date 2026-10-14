@@ -17,7 +17,7 @@
 //! 3. **Nothing is destroyed to make an edit.** Notes outside a window are kept, so every
 //!    operation here is undone by the inverse the command bus already produces.
 
-use cantus_core::{Clip, ClipId, Color, Command, Note, Project, Ticks, TrackId};
+use cantus_core::{Clip, ClipId, Color, Command, Lanes, Note, Project, Ticks, TrackId, PPQ};
 
 /// A clip, identified the way the selection identifies it.
 pub type ClipRef = (TrackId, ClipId);
@@ -798,29 +798,70 @@ pub enum ClipEditor {
     Inspector,
 }
 
-/// Which editor `clip` opens in, derived from what it holds — no hint is stored. Notes
-/// open in the channel rack when the content is **step-shaped** at the rack's grid
-/// `step`: every note starts on a step of the clip's own grid (where the rack's steps
-/// fall) and lasts no longer than a step — a hit, which is what a step the rack switches
-/// on is, and what a pattern drawn as hits in the piano roll is too. Anything else, an
-/// empty clip included, opens in the piano roll, which shows every note as it is.
-pub fn editor_for(clip: &Clip, step: Ticks) -> ClipEditor {
+/// Which editor `clip` opens in, on a track whose instrument has `lanes`, derived from what
+/// it holds — no hint is stored (ADR 0051 §4). Automation opens its editor and audio the
+/// inspector. Notes open in the **channel rack only when it shows and edits them with
+/// nothing lost** ([`rack_grid`]); anything else — a melody, a held note, a note off every
+/// step grid, an empty clip — opens in the piano roll, which shows every note as it is.
+pub fn editor_for(clip: &Clip, lanes: Lanes<'_>, current: Ticks) -> ClipEditor {
     if clip.automation.is_some() {
         return ClipEditor::Automation;
     }
     if clip.audio.is_some() {
         return ClipEditor::Inspector;
     }
-    let step = if step.0 > 0 { step } else { Ticks::SIXTEENTH };
-    let on_step = |n: &Note| (n.start - clip.offset).0.rem_euclid(step.0) == 0;
-    let stepped = !clip.notes.is_empty()
-        && clip
-            .notes
-            .iter()
-            .all(|n| on_step(n) && n.length <= step && n.length.0 > 0);
-    if stepped {
+    if rack_grid(clip, lanes, current).is_some() {
         ClipEditor::ChannelRack
     } else {
         ClipEditor::PianoRoll
     }
+}
+
+/// The rack's grids a step pattern is tried at, after the rack's current one: sixteenths
+/// first (the rack's own default, FL's), then eighths, thirty-seconds, the triplets and
+/// quarters.
+const RACK_GRIDS: [Ticks; 6] = [
+    Ticks(PPQ / 4),
+    Ticks(PPQ / 2),
+    Ticks(PPQ / 8),
+    Ticks(PPQ / 6),
+    Ticks(PPQ / 3),
+    Ticks(PPQ),
+];
+
+/// The step grid at which the channel rack shows `clip` **with nothing lost**, if any —
+/// the rack's `current` grid when it does, else the first of [`RACK_GRIDS`] that does, so
+/// the clip's own grid decides and not whatever the rack was last set to. Nothing lost
+/// means, at that grid `step`:
+///
+/// - **every note is a step**: it starts on a step of the clip's own grid (content tick
+///   minus the offset, a multiple of `step`, where the rack's steps fall) and lasts no
+///   longer than one (a hit, which is what a step the rack switches on is);
+/// - **every note has a row of its own**: a channel's row plays one pitch, as FL's does —
+///   a melodic instrument's single row adds any pitch but shows only on and off, so on a
+///   chromatic instrument every note must be the **same pitch** (a melody opens the piano
+///   roll, as in FL); a kit shows a row per pad and per stray pitch, so any pitch is shown;
+/// - **no two notes are one step**: the same pitch on the same step twice would show as
+///   one.
+pub fn rack_grid(clip: &Clip, lanes: Lanes<'_>, current: Ticks) -> Option<Ticks> {
+    let first = clip.notes.first()?;
+    if lanes.is_chromatic() && clip.notes.iter().any(|n| n.pitch != first.pitch) {
+        return None;
+    }
+    let mut seen: Vec<(Ticks, u8)> = clip.notes.iter().map(|n| (n.start, n.pitch)).collect();
+    seen.sort_unstable();
+    if seen.windows(2).any(|w| w[0] == w[1]) {
+        return None;
+    }
+    let fits = |step: Ticks| {
+        step.0 > 0
+            && clip.notes.iter().all(|n| {
+                (n.start - clip.offset).0.rem_euclid(step.0) == 0
+                    && n.length.0 > 0
+                    && n.length <= step
+            })
+    };
+    std::iter::once(current)
+        .chain(RACK_GRIDS)
+        .find(|g| fits(*g))
 }

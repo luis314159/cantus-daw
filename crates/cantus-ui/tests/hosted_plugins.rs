@@ -120,3 +120,53 @@ fn the_generic_editor_shows_the_plugins_parameters_in_its_own_words() {
         .map(|p| p.params[&0]);
     assert_eq!(v, Some(-4.5));
 }
+
+/// Round 27, review 8 (ADR 0051 §3): the mixer's *Open the editor* on a hosted effect whose
+/// own window is minimised brings that window back from the taskbar, and the card's key —
+/// *Show plug-in window* while it is open — brings it back too rather than closing it.
+#[cfg(windows)]
+#[test]
+fn open_editor_brings_a_hosted_effects_own_window_back_from_the_taskbar() {
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IsIconic, ShowWindow, SW_MINIMIZE};
+    let mut a = app(cantus_ui::starter_project());
+    cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
+    let Some((strip, effect, _)) = a.fx.open else {
+        panic!("the editor did not open");
+    };
+    a.toggle_plugin_window(effect);
+    let hwnd = a
+        .plugins
+        .hosted(effect)
+        .and_then(|h| h.window_handle())
+        .expect("its own window") as HWND;
+    // SAFETY: plain Win32 calls on the window the test opened.
+    unsafe {
+        ShowWindow(hwnd, SW_MINIMIZE);
+        assert_ne!(IsIconic(hwnd), 0);
+    }
+    a.open_effect_editor(strip, effect);
+    // SAFETY: as above.
+    assert_eq!(unsafe { IsIconic(hwnd) }, 0, "Open the editor restored it");
+    // SAFETY: as above.
+    unsafe {
+        ShowWindow(hwnd, SW_MINIMIZE);
+    }
+    a.show_plugin_window(effect);
+    assert!(
+        a.plugins.hosted(effect).unwrap().window_open(),
+        "Show keeps it open"
+    );
+    // SAFETY: as above.
+    assert_eq!(unsafe { IsIconic(hwnd) }, 0, "and brings it back");
+    assert_eq!(
+        cantus_ui::views::plugins::window_key(true, false),
+        "host.editor.show_window"
+    );
+    assert_eq!(
+        cantus_ui::views::plugins::window_key(true, true),
+        "host.editor.close_window",
+        "a plug-in that floats its own window: Cantus can only close it"
+    );
+    assert!(a.plugins.close_window(effect));
+}

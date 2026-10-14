@@ -17,3 +17,4 @@ hosted.params = Parámetros
 hosted.window = Ventana
 hosted.open_window = Abrir
 hosted.show_window = Mostrar
+hosted.close_window = Cerrar

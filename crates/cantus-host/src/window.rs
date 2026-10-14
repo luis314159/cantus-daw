@@ -40,6 +40,9 @@ mod other {
         pub fn is_minimised(&self) -> bool {
             false
         }
+        pub fn is_floating(&self) -> bool {
+            false
+        }
         pub fn is_frontmost(&self) -> bool {
             false
         }
@@ -62,15 +65,18 @@ mod win32 {
     use std::num::NonZeroIsize;
     use std::sync::Once;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
-    use windows_sys::Win32::Graphics::Gdi::{GetStockObject, BLACK_BRUSH};
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetStockObject, MonitorFromPoint, BLACK_BRUSH, MONITOR_DEFAULTTONULL,
+    };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetAncestor,
+        AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, GetAncestor, GetWindow,
         GetWindowLongPtrW, GetWindowRect, IsIconic, IsWindowVisible, LoadCursorW, RegisterClassW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow, WindowFromPoint,
-        CW_USEDEFAULT, GA_ROOT, GWLP_USERDATA, GWL_STYLE, HWND_TOP, IDC_ARROW, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_RESTORE, SW_SHOW, WM_CLOSE,
-        WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
+        CW_USEDEFAULT, GA_ROOT, GWLP_USERDATA, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, HWND_TOP,
+        IDC_ARROW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+        SW_RESTORE, SW_SHOW, WM_CLOSE, WM_SIZE, WNDCLASSW, WS_CLIPCHILDREN, WS_EX_TOPMOST,
+        WS_MAXIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_THICKFRAME,
     };
 
     fn wide(s: &str) -> Vec<u16> {
@@ -268,6 +274,12 @@ mod win32 {
         /// plug-in's view inside it) — no other window over it. A plug-in that floats a
         /// window of its own counts as in front: ours is hidden and theirs unknown, so F8
         /// closes it as before.
+        /// The plug-in floats a window of its own (ours stays hidden): Cantus cannot bring
+        /// it forward, only close it.
+        pub fn is_floating(&self) -> bool {
+            self.floating
+        }
+
         pub fn is_frontmost(&self) -> bool {
             if self.floating {
                 return true;
@@ -290,8 +302,28 @@ mod win32 {
                     x: (r.left + r.right) / 2,
                     y: (r.top + r.bottom) / 2,
                 };
+                // A middle on no screen (the window dragged mostly off it): nothing to
+                // bring forward there.
+                if MonitorFromPoint(middle, MONITOR_DEFAULTTONULL).is_null() {
+                    return true;
+                }
                 let w = WindowFromPoint(middle);
-                !w.is_null() && GetAncestor(w, GA_ROOT) == self.hwnd
+                if w.is_null() {
+                    return true;
+                }
+                let top = GetAncestor(w, GA_ROOT);
+                // Ours, or a window it owns (directly or not): the plug-in's own popups,
+                // preset browsers and dialogs, which always stay above their owner.
+                let mut owner = top;
+                while !owner.is_null() {
+                    if owner == self.hwnd {
+                        return true;
+                    }
+                    owner = GetWindow(owner, GW_OWNER);
+                }
+                // An always-on-top window cannot be gone above by `focus`: it does not
+                // count as covering, or F8 could never close the editor.
+                (GetWindowLongPtrW(top, GWL_EXSTYLE) as u32) & WS_EX_TOPMOST != 0
             }
         }
 
