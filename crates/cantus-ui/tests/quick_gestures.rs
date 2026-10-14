@@ -1110,3 +1110,31 @@ fn a_click_on_another_name_commits_the_first_and_opens_the_second() {
         assert_eq!(r.app.bus.revision(), rev + 2);
     }
 }
+
+/// Looked at in the pictures (round 27): on a short row the name's field and its words fit
+/// the row — at full size they overflowed into the rows round it.
+#[test]
+fn on_short_rows_the_name_field_stays_inside_its_row() {
+    for (base, height) in [(40.0f32, 0.34f32), (22.0, 0.6)] {
+        let mut p = band();
+        for t in &mut p.tracks {
+            t.height = height;
+        }
+        let mut r = Rig::new(p);
+        r.app.arrangement.track_height = base;
+        r.idle(3);
+        let (row, letters) = r.header(DRUMS);
+        assert!(
+            letters.top() >= row.top() - 0.5 && letters.bottom() <= row.bottom() + 0.5,
+            "{base}×{height}: the letters inside the row"
+        );
+        r.click(letters.center());
+        assert_eq!(r.renaming(), Some(r.track(DRUMS)));
+        let id = cantus_ui::kit::field::edit_id(egui::Id::new(("track-rename", r.track(DRUMS).0)));
+        let edit = r.ctx.read_response(id).expect("the field drawn").rect;
+        assert!(
+            edit.top() >= row.top() - 0.5 && edit.bottom() <= row.bottom() + 0.5,
+            "{base}×{height}: the field {edit:?} inside the row {row:?}"
+        );
+    }
+}

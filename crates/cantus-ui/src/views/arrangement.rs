@@ -931,6 +931,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
 
     // Paint, with the project borrowed and nothing edited.
     let mut scratch = std::mem::take(&mut app.arrangement.scratch);
+    // The name's words at full size need this tall a line; a shorter one scales them.
+    let body_row = name_row(ui.ctx(), s);
     let mut hits = std::mem::take(&mut app.arrangement.hits);
     hits.clear();
     {
@@ -969,6 +971,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                     divider: v.divider.is_some_and(|(d, _)| d == track.id)
                         || (v.drag.is_none() && pointer.is_some_and(|p| grip.contains(p))),
                     level,
+                    fit: (hr.name.height() / body_row).min(1.0),
                 };
                 let letters =
                     paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
@@ -1268,7 +1271,11 @@ fn rename_in_place(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, at: Rect
     let rid = *rid;
     // The kit's field (round 26): the name selected as it opens; Enter or a click
     // elsewhere renames, Esc leaves the name as it was.
+    // Its words as large as the line allows: on a short row a full-size field overflowed
+    // into the rows round it.
+    let fit = (at.height() / name_row(ui.ctx(), &Style::current())).min(1.0);
     let out = kit::field::Field::new(egui::Id::new(("track-rename", rid.0)))
+        .scale(fit)
         .opens_when_shown()
         .show(ui, at, name);
     if out.event == Some(kit::field::Event::Cancel) {
@@ -2434,4 +2441,10 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
 /// gain); the menu and the inspector both come here. Returns how many were set.
 pub fn normalize_selection(app: &mut CantusApp) -> usize {
     audio::edit::normalize(app)
+}
+
+/// The height a track name's words need at full size (the body face's row).
+fn name_row(ctx: &egui::Context, s: &Style) -> f32 {
+    let font = kit::text::Role::Body.font(s.tk());
+    ctx.fonts_mut(|f| f.row_height(&font)).max(1.0)
 }

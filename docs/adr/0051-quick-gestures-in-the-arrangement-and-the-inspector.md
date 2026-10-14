@@ -69,6 +69,10 @@ under the track, not its header.
   **a widget of their own** (`arr-name`, click and drag), sensed after the row and the rows
   above it: a click anywhere on them is this track's — select and open its name — the
   I-beam shows there, a drag from them reorders, and a right-click opens the track menu.
+- **On a short row the words fit the row.** The name and its field are scaled to the
+  name line (the body face's row height against the line's, at most 1), and the icon is
+  no taller than the line: at full size they overflowed into the rows round it (seen in
+  the pictures, `examples/shoot_gestures.rs`, `short-*`).
 - **From one name to another in one click**: with a track's name open, a click on another
   track's letters commits the first (one `SetTrackName`, as a click away does) and opens
   the second, its name selected, in the same click. The second name is opened once every

@@ -102,3 +102,19 @@ All fixed, tests first, each seen failing (`quick_gestures.rs` now 21):
 - The owner, by hand with a real CLAP/VST3 instrument: minimise its window, *Show* in the
   inspector, F8 or double-click the track — it comes back, maximised if it was; F8 again
   closes it.
+
+## The pictures of the review's changes
+
+`examples/shoot_gestures.rs` gained `rack-far`, `short-hover`, `short-open`,
+`hosted-open`, `hosted-show` (the inspector alone, 290 × 900 points, so the row is on
+screen at 200 %), `card-open` and `card-show` — Night and Paper, EN and ES, 75/100/200 %,
+in `F:\projects\daw-r27\shots\gestures\`. Looked at: *Mostrar* / *Show* in the inspector
+and *Mostrar la ventana del plug-in* on the card fit whole at every scale (the *Close*
+words, shown only for a plug-in that floats its own window, which the test plug-ins do not,
+are shorter than *Show*'s in both languages); the rack on the kit below forty tracks shows
+the kit and its pads. **Found and fixed**: on short rows (0.34 × 40, 0.6 × 22) the name, its
+rename field and the track icon overflowed into the rows round them — the name and the
+field now scale to the name line and the icon is no taller than it (test
+`on_short_rows_the_name_field_stays_inside_its_row`, seen failing without the fit). Left
+as it was (not this round's): the clips' labels in the lanes on such short rows overflow
+the same way.

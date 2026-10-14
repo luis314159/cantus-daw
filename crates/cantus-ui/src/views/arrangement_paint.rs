@@ -355,7 +355,9 @@ pub(super) fn header_rects(row: Rect, s: &Style) -> HeaderRects {
     let arm = pos2(mute.x - (LED + 5.0) * k, line.center().y);
     let icon = Rect::from_center_size(
         pos2(cell.right() + 12.0 * k, line.center().y),
-        vec2(15.0 * k, 15.0 * k),
+        // No taller than the name line: on a short row a full-size icon overlapped the rows
+        // round it.
+        vec2(1.0, 1.0) * (15.0 * k).min(line.height()),
     );
     let name = Rect::from_min_max(
         pos2(icon.right() + 5.0 * k, line.top()),
@@ -396,6 +398,9 @@ pub(super) struct HeaderState {
     pub drop_above: bool,
     /// Its bottom edge is being dragged or aimed at.
     pub divider: bool,
+    /// How much the name's words are scaled to fit the name line (1 but on short rows,
+    /// where the full-size words would overflow into the rows round it).
+    pub fit: f32,
     /// The track's peak, 0…1 of the meter's range.
     pub level: f32,
 }
@@ -479,7 +484,7 @@ pub(super) fn header(
         let name = Text::new(&track.name, Role::Body, ink)
             .align(Align2::LEFT_CENTER)
             .policy(Policy::Elide(Elide::Middle));
-        letters = text::paint(b, r.name, &name, s.tk())
+        letters = text::paint(b, r.name, &name, s.tk() * st.fit)
             .map(|p| Rect::from_x_y_ranges(p.rect.x_range(), r.name.y_range()));
     }
 
