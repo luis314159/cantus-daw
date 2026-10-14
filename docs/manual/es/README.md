@@ -215,6 +215,28 @@ octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan �
 
 ## 5. Editar: clips, piano roll, automatización
 
+### Gestos rápidos
+
+Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
+
+- **Doble clic en la cabecera de una pista** (en cualquier sitio menos su nombre): se abre su
+  **instrumento** — la ventana del instrumento (Unda, Pulsus II…) o la ventana propia de un
+  plug-in CLAP/VST3. Firmus y las pistas de audio, que no tienen ventana, muestran el
+  inspector.
+- **Clic en el nombre de una pista** — sobre las letras mismas (el puntero se vuelve un
+  cursor de texto) — para **renombrarla** allí mismo: el nombre queda seleccionado, escribe
+  el nuevo, `Enter` lo guarda (un paso de deshacer), `Esc` devuelve el anterior. Un clic en
+  otro lugar de la cabecera solo selecciona la pista, y escribir con una pista seleccionada
+  nunca la renombra. (Los canales del mezclador y los pads del rack se renombran con doble
+  clic.)
+- **Doble clic en un clip**: se abre el **piano roll** en él, con el clip entero a la vista;
+  un patrón de pasos (cada nota un golpe corto en la rejilla del rack) se abre en el **rack
+  de canales**; un clip de automatización, en su editor grande; un clip de audio se muestra
+  en el inspector.
+- **Abrir editor** — en el inspector, los menús del mezclador o el marco de un instrumento —
+  y `F8` traen una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un
+  plug-in) y la ponen delante.
+
 ### Los clips en el arreglo
 
 - **Crear**: doble clic en un lugar vacío de una pista (un clip de 4 compases), o graba.

@@ -201,6 +201,25 @@ shortcuts (including `R`) are off — use `Space` or the record key.
 
 ## 5. Edit: clips, piano roll, automation
 
+### Quick gestures
+
+As in FL Studio, the arrangement opens things with no hunting through menus:
+
+- **Double-click a track header** (anywhere but its name): its **instrument** opens — the
+  instrument's window (Unda, Pulsus II…) or a CLAP/VST3 plug-in's own window. Firmus and
+  audio tracks, which have no window, show the inspector instead.
+- **Click a track's name** — on the letters themselves (the pointer becomes a text cursor)
+  — to **rename** it in place: the name is selected, type the new one, `Enter` keeps it
+  (one undo step), `Esc` puts back the old one. A click elsewhere on the header only
+  selects the track, and typing with a track selected never renames it. (Mixer strips and
+  rack pads rename on a double-click.)
+- **Double-click a clip**: the **piano roll** opens on it, the whole clip in view; a step
+  pattern (every note a short hit on the rack's grid) opens in the **channel rack**; an
+  automation clip in its large editor; an audio clip shows in the inspector.
+- **Open editor** — in the inspector, the mixer's menus or an instrument's frame — and `F8`
+  bring a window that is already open back from the tray (or the taskbar, for a plug-in) and
+  to the front.
+
 ### Clips in the arrangement
 
 - **Create**: double-click an empty place on a track (a 4-bar clip), or record.

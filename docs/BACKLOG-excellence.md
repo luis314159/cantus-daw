@@ -961,25 +961,35 @@ trademark search; the legal entity and the payment provider (Open Collective / G
 Patreon / Stripe-Paddle — compare fees and countries); the metrics of §10 of the plan, taken
 without telemetry (opt-in surveys, downloads, anonymous update checks — §6a).
 
-## 6g. Double-click to open, type to rename — FL's quick gestures (requested 2026-10-14)
+## 6g. Double-click to open, click the name to rename — FL's quick gestures (requested 2026-10-14) — **done in round 27** (ADR 0051)
 
 The owner, during round 26: the arrangement and the inspector should open things the way FL
 Studio does, with no hunting through menus. Each gesture gets a test that drives it in the
-whole window, and Esc never loses work.
+whole window, and Esc never loses work. **The owner's clarification of 2026-10-14 replaced
+item 2's first wording ("rename by typing"): a track is renamed only by clicking exactly on
+its name's letters, never by typing with a track selected.** All four landed in round 27
+(`r27/gestures`, `crates/cantus-ui/tests/quick_gestures.rs`):
 
-1. **Double-click a track header in the arrangement → open its instrument** (the plug-in or
-   native instrument's editor window; an audio track opens its inspector/editor instead).
-2. **Rename by typing**: with a track header selected (and the name field shown), typing
-   letters starts editing its name in place; Enter commits as one undo step
-   (`SetTrackName`), **Esc cancels and closes the edit** leaving the old name. Typing must
-   not fire single-key shortcuts or the typing piano while the edit is open.
-3. **Inspector ▸ Open editor brings the instrument's window to the front** — focused and
-   raised, **and restored if it was minimised** (today a minimised window stays minimised),
-   for native and hosted (CLAP/VST3) editors alike.
-4. **Double-click a clip in the arrangement → open its editor**: the piano roll by default,
-   or the channel rack (step sequencer) when the clip is a pattern made there — whichever the
-   clip was last edited in (a per-clip hint), the piano roll when unknown. An audio clip
-   opens its audio clip editor.
+1. ✓ **Double-click a track header in the arrangement → open its instrument** (a native
+   instrument's editor, Pulsus's, or a CLAP/VST3 plug-in's own window — brought to the front
+   when it is open already). Firmus (edited in the inspector) and an audio track (its
+   instrument never plays) select the track and show the inspector.
+2. ✓ **Rename by clicking on the name's letters** (only there): the click also selects the
+   track; the kit field opens in place with the name selected; Enter commits as one undo
+   step (`SetTrackName`), **Esc cancels and closes** leaving the old name, a click away
+   commits; no shortcut or the typing piano reads the keys while it is open. The letters
+   show an I-beam and the hint *Click: rename*. Typing never starts a rename. (The mixer's
+   strips and the rack's pads keep their double-click rename — ADR 0051 §2 says why.)
+3. ✓ **Every *Open editor* brings the window to the front** — restored if minimised (from
+   the tray, or the taskbar for a plug-in's window, which stays maximised if it was), its
+   tab in front, its window raised, focused — for native instruments, Pulsus, effects (the
+   mixer menu, the inspector's inserts) and hosted plug-ins. The inspector's hosted row
+   reads *Show* while the window is open (it used to close it).
+4. ✓ **Double-click a clip in the arrangement → open its editor, on it**: the piano roll
+   (fitted to the clip, focused), or the channel rack when the clip is a **step pattern** —
+   decided from the content, not a stored hint (no schema change): every note a hit on the
+   rack's grid. Automation clips keep their editor; an audio clip (no audio editor exists)
+   shows in the inspector; an empty lane still makes a clip.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

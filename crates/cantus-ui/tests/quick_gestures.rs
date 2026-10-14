@@ -622,7 +622,7 @@ fn the_rack_opens_only_for_step_shaped_content() {
     assert_eq!(editor_for(take, grid), ClipEditor::Inspector);
     // One note off the step grid, or one held longer than a step: the piano roll.
     let mut off = drums.clone();
-    off.notes[1].start = off.notes[1].start + Ticks(7);
+    off.notes[1].start += Ticks(7);
     assert_eq!(
         editor_for(&off, grid),
         ClipEditor::PianoRoll,
