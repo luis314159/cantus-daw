@@ -107,6 +107,29 @@ pub struct Voice {
     step_peak: f64,
     /// The design the strings were laid out for (its generation in the instrument).
     pub design_gen: u64,
+    /// A strike for a newer keyboard while the strings still ring for an older one: they
+    /// fade out over [`RETUNE_FADE`] samples, then the new strings are laid and struck
+    /// (sound review 2: a key struck again while it rang kept the old tuning for good).
+    retune: Option<Retune>,
+}
+
+/// Samples a ringing voice takes to fade out before a strike for a newer keyboard.
+pub const RETUNE_FADE: u32 = 128;
+
+/// A strike waiting for the old strings to fade (everything [`Voice::strike`] takes).
+#[derive(Clone, Copy, Debug)]
+struct Retune {
+    key: Key,
+    design: LoopDesign,
+    gen: u64,
+    settings: VoiceSettings,
+    vel: f64,
+    soft: f64,
+    id: u64,
+    /// Samples of the fade left.
+    left: u32,
+    /// Let go before the strike landed: the pedal it was let go at.
+    released: Option<f64>,
 }
 
 impl Voice {
@@ -160,6 +183,7 @@ impl Voice {
             quiet: 0,
             step_peak: 0.0,
             design_gen: 0,
+            retune: None,
         }
     }
 
@@ -180,6 +204,23 @@ impl Voice {
         soft: f64,
         id: u64,
     ) {
+        if self.active && self.design_gen != design_gen {
+            // Strings ringing for an older keyboard: they fade, then this strike lands on
+            // the new ones (the newest strike wins if several come meanwhile).
+            let left = self.retune.map_or(RETUNE_FADE, |r| r.left);
+            self.retune = Some(Retune {
+                key,
+                design: *design,
+                gen: design_gen,
+                settings,
+                vel,
+                soft,
+                id,
+                left,
+                released: None,
+            });
+            return;
+        }
         self.settings = settings;
         // The settings may have moved (decay, coupling): the loss follows at the next step.
         self.set_contact = -1.0;
@@ -228,6 +269,9 @@ impl Voice {
 
     /// Where the damper goes, for the key's state and the pedal (0…1).
     pub fn set_pedal(&mut self, pedal: f64) {
+        if let Some(r) = self.retune.as_mut().filter(|r| r.released.is_some()) {
+            r.released = Some(pedal);
+        }
         self.target = if self.key_down || !self.key.damper {
             0.0
         } else {
@@ -240,8 +284,28 @@ impl Voice {
         self.set_pedal(pedal);
     }
 
+    /// Let go of any strike waiting for the old strings to fade (all notes off).
+    pub fn release_all_waiting(&mut self, pedal: f64) {
+        if let Some(r) = self.retune.as_mut() {
+            r.released = Some(pedal);
+        }
+    }
+
+    /// Let go of the strike waiting for the old strings to fade, if it is `id`'s: it
+    /// lands released. Whether it was.
+    pub fn release_waiting(&mut self, id: u64, pedal: f64) -> bool {
+        match self.retune.as_mut() {
+            Some(r) if r.id == id => {
+                r.released = Some(pedal);
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// Stop at once (a reset).
     pub fn kill(&mut self) {
+        self.retune = None;
         if self.active {
             self.strings.silence();
         }
@@ -281,6 +345,26 @@ impl Voice {
 
     /// Render `out.len()` samples of the bridge force (N) into `out` (added).
     pub fn render(&mut self, out: &mut [f64]) {
+        if let Some(r) = self.retune {
+            // The old strings fade out; then the waiting strike lands on the new ones.
+            let n = (r.left as usize).min(out.len());
+            self.render_gain(&mut out[..n], true);
+            if self.retune.is_some_and(|r| r.left == 0) {
+                let r = self.retune.take().unwrap_or(r);
+                self.kill();
+                self.strike(r.key, &r.design, r.gen, r.settings, r.vel, r.soft, r.id);
+                if let Some(pedal) = r.released {
+                    self.release(pedal);
+                }
+            }
+            self.render_gain(&mut out[n..], false);
+            return;
+        }
+        self.render_gain(out, false);
+    }
+
+    /// [`Self::render`]'s samples; `fading`, each scaled by what is left of the fade.
+    fn render_gain(&mut self, out: &mut [f64], fading: bool) {
         if !self.active {
             return;
         }
@@ -309,12 +393,22 @@ impl Voice {
                 self.res[0] = r;
                 y += 0.5 * dc + 0.5 * r;
             }
+            if fading {
+                if let Some(r) = self.retune.as_mut() {
+                    y *= f64::from(r.left) / f64::from(RETUNE_FADE);
+                    r.left = r.left.saturating_sub(1);
+                }
+            }
             *o += y;
             self.step_peak = self.step_peak.max(f.abs());
             self.phase += 1;
             if self.phase == CONTROL {
                 self.phase = 0;
-                if self.step_peak < QUIET_N && !self.key_down && !self.strings.hammering() {
+                if self.step_peak < QUIET_N
+                    && !self.key_down
+                    && !self.strings.hammering()
+                    && self.retune.is_none()
+                {
                     self.quiet += 1;
                     if self.quiet >= QUIET_STEPS {
                         self.kill();

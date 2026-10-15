@@ -188,6 +188,14 @@ impl Chorda {
         self.generation += 1;
     }
 
+    /// No keyboard: new strikes are silent until one is set (a unit waiting for its own
+    /// tuning's, ADR 0059 §6). What rings rings on.
+    pub fn clear_keyboard(&mut self) {
+        if self.keyboard.take().is_some() {
+            self.generation += 1;
+        }
+    }
+
     pub fn keyboard(&self) -> Option<&Arc<Keyboard>> {
         self.keyboard.as_ref()
     }
@@ -245,7 +253,9 @@ impl Chorda {
         }
         let i = (key - LOWEST) as usize;
         let v = &mut self.voices[i];
-        if v.active && v.key_down && v.id == id {
+        if v.release_waiting(id, self.pedal) {
+            // Its strike waits for the old strings to fade: it lands let go.
+        } else if v.active && v.key_down && v.id == id {
             v.release(self.pedal);
         }
     }
@@ -267,6 +277,7 @@ impl Chorda {
 
     pub fn all_notes_off(&mut self) {
         for v in self.voices.iter_mut().filter(|v| v.active) {
+            v.release_all_waiting(self.pedal);
             v.release(self.pedal);
         }
     }
@@ -297,6 +308,24 @@ impl Chorda {
     #[cfg(test)]
     pub fn damper_of(&self, key: u8) -> f64 {
         self.voices[(key - LOWEST) as usize].contact()
+    }
+
+    /// The keyboard's generation now, and the one key `key`'s strings were laid out for
+    /// (tests).
+    #[cfg(test)]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    #[cfg(test)]
+    pub fn voice_generation(&self, key: u8) -> u64 {
+        self.voices[(key - LOWEST) as usize].design_gen
+    }
+
+    /// Sympathetic strings still waiting for a new keyboard's layout (tests).
+    #[cfg(test)]
+    pub fn sympathetic_waiting(&self) -> usize {
+        self.sym.waiting()
     }
 
     pub fn board_largest(&self) -> [f64; 5] {
