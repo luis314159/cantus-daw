@@ -213,7 +213,15 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         pos2(keys.right(), body.top()),
         pos2(body.right(), body.top() + s.s(RULER_H)),
     );
-    let grid = Rect::from_min_max(pos2(keys.right(), ruler.bottom()), body.max);
+    // The scroll bars (that are also zooms, the piano roll's): under the rows and beside.
+    let bar_w = s.s(crate::views::clips_chrome::BAR);
+    let grid = Rect::from_min_max(
+        pos2(keys.right(), ruler.bottom()),
+        pos2(body.right() - bar_w, body.bottom() - bar_w),
+    );
+    let hbar = Rect::from_min_max(pos2(grid.left(), grid.bottom()), pos2(grid.right(), body.bottom()));
+    let vbar = Rect::from_min_max(pos2(grid.right(), grid.top()), pos2(body.right(), grid.bottom()));
+    let keys = Rect::from_min_max(keys.min, pos2(keys.right(), grid.bottom()));
     let Some(edit) = edit else {
         paint::waiting(ui, body, &take, &s);
         app.pitch.view.geo = None;
@@ -227,6 +235,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     };
     fit(app, track, clip, &edit, grid);
     input::navigate(app, ui, grid, keys);
+    input::bars(app, ui, grid, hbar, vbar, &edit);
     let v = &app.pitch.view;
     let geo = Geo {
         keys,

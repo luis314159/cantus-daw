@@ -397,3 +397,35 @@ fn every_pitch_string_is_in_both_languages() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let _ = pos2(0.0, 0.0);
 }
+
+/// The demo project for the owner's ears opens, its corrected voice plays a render (not
+/// the file), the take as sung plays the file, and the double plays a render of its own.
+#[test]
+fn the_demo_project_opens_and_plays_its_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = cantus_ui::pitch::demo::write_demo(dir.path()).unwrap();
+    let p = cantus_project::load(&path, true).unwrap().project;
+    let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names.len(), 5, "{names:?}");
+    let e = p.tracks[0].clips[0].audio.as_ref().unwrap().pitch.as_deref().unwrap();
+    assert!(e.audible() && e.notes.len() >= 7, "{} notes", e.notes.len());
+    assert!(!p.tracks[3].clips[0].notes.is_empty(), "the melody");
+    let mut app = CantusApp::from_parts(Some(p), EngineHandle::dummy(), false);
+    let proj = app.project().clone();
+    let snap = app.engine.compile(&proj, 1);
+    let file: Vec<f32> = cantus_ui::views::fx::tonus::demo::voice_line();
+    let data = |i: usize| snap.tracks[i].audio[0].data.clone().expect("attached");
+    let differs = |d: &cantus_core::SampleData| {
+        d.frames.iter().zip(&file).any(|(a, b)| a.to_bits() != b.to_bits())
+    };
+    // Muted tracks are not compiled: unmute to look at the double and the take as sung.
+    assert!(differs(&data(0)), "the corrected voice plays its render");
+    app.exec(Command::SetTrackMute {
+        id: app.project().tracks[1].id,
+        muted: false,
+    });
+    let proj = app.project().clone();
+    let snap = app.engine.compile(&proj, 2);
+    let sung = snap.tracks[1].audio[0].data.clone().unwrap();
+    assert!(!differs(&sung), "the take as sung plays the file");
+}

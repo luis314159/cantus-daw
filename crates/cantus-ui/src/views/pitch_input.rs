@@ -57,6 +57,46 @@ pub(super) fn navigate(app: &mut CantusApp, ui: &egui::Ui, grid: Rect, keys: Rec
     v.top = v.top.clamp(12.0, 132.0);
 }
 
+/// The scroll bars: time in seconds across the take, the rows from the top; their ends
+/// zoom (the piano roll's bars).
+pub(super) fn bars(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    grid: Rect,
+    hbar: Rect,
+    vbar: Rect,
+    edit: &PitchEdit,
+) {
+    use chrome::Span;
+    let v = &mut app.pitch.view;
+    if v.px_per_frame <= 0.0 {
+        return;
+    }
+    let rate = edit.rate.max(1) as f64;
+    let total = (edit.frames as f64 / rate) as f32;
+    let shown = (grid.width() as f64 / v.px_per_frame / rate) as f32;
+    let start = (v.scroll / rate) as f32;
+    let span = Span::new(start.max(0.0), shown, total.max(start + shown));
+    let zoom = Some((
+        (grid.width() as f64 / ZOOM_MAX / rate) as f32,
+        (grid.width() as f64 / ZOOM_MIN / rate) as f32,
+    ));
+    if let Some(n) = chrome::bar(ui, hbar, ui.id().with("pitch-hbar"), span, zoom, "views.nav.hbar") {
+        v.scroll = n.start as f64 * rate;
+        v.px_per_frame = (grid.width() as f64 / (n.len as f64 * rate)).clamp(ZOOM_MIN, ZOOM_MAX);
+    }
+    // Rows from the top: the bar's start is how far below the highest the top row is.
+    const HIGHEST: f32 = 132.0;
+    let rows = HIGHEST - 12.0;
+    let shown = grid.height() / v.row_h;
+    let span = Span::new((HIGHEST - v.top).max(0.0), shown.min(rows), rows);
+    let zoom = Some((grid.height() / super::ROW_MAX, grid.height() / super::ROW_MIN));
+    if let Some(n) = chrome::bar(ui, vbar, ui.id().with("pitch-vbar"), span, zoom, "views.nav.vbar") {
+        v.row_h = (grid.height() / n.len).clamp(super::ROW_MIN, super::ROW_MAX);
+        v.top = (HIGHEST - n.start).clamp(12.0, HIGHEST);
+    }
+}
+
 /// Which part of a blob is under a point: its body, or one of its ends.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Part {

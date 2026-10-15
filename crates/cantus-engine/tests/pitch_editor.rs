@@ -406,3 +406,28 @@ fn the_analysis_is_cached_on_disk_and_read_back_the_same() {
     assert_eq!(a.key, b.key);
 }
 
+
+/// How fast: a three-minute take analysed and rendered with every note corrected — the
+/// cost of opening a take and of each edit's render (stated in docs/round28/pitch.md).
+#[test]
+fn a_three_minute_take_analyses_and_renders_in_seconds() {
+    let line = voice_of(&sung(), 3.2);
+    let mut x = Vec::with_capacity(line.len() * 57);
+    while x.len() < 180 * SR as usize {
+        x.extend_from_slice(&line);
+    }
+    let t = std::time::Instant::now();
+    let a = analyse_take(&[&x], SR);
+    let analysis = t.elapsed().as_secs_f64();
+    let e = corrected(&a);
+    let t = std::time::Instant::now();
+    let out = render_edit(&[&x, &x], &a, &e);
+    let render = t.elapsed().as_secs_f64();
+    eprintln!(
+        "3 min take: {} notes; analysis {analysis:.2} s, stereo render of every note {render:.2} s",
+        a.notes.len()
+    );
+    assert_eq!(out[0].len(), x.len());
+    assert!(a.notes.len() > 200);
+    assert!(analysis < 20.0 && render < 20.0, "{analysis} s, {render} s");
+}
