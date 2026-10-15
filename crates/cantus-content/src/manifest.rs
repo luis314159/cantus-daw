@@ -331,6 +331,18 @@ pub struct Mic {
     /// Polarity reversed (a snare's bottom microphone).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub invert: bool,
+    /// The instruments this microphone faces (names, or the start of names: `Tom1`,
+    /// `Hihat`); empty, it faces them all.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub own: Vec<String>,
+    /// How much lower it is heard on every other instrument, dB (≤ 0): what a mixing
+    /// engineer's gate on a tom's microphone does.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub bleed_db: f32,
+}
+
+fn is_zero(x: &f32) -> bool {
+    *x == 0.0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -338,6 +350,10 @@ pub struct Mic {
 pub struct KeyMap {
     pub instrument: String,
     pub keys: Vec<u8>,
+    /// The instrument raised or lowered in the mix, dB (a brush is far quieter than a
+    /// stick; a balance a mixing engineer would set).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gain_db: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -484,6 +500,9 @@ impl Build {
             if !m.pan.is_finite() || m.pan.abs() > 100.0 {
                 return Err(format!("microphone {}: pan within ±100", m.channel));
             }
+            if !m.bleed_db.is_finite() || !(-96.0..=0.0).contains(&m.bleed_db) {
+                return Err(format!("microphone {}: bleed within −96…0 dB", m.channel));
+            }
         }
         if self.keys.is_empty() {
             return Err("no instrument is built".into());
@@ -496,6 +515,9 @@ impl Build {
             }
             if k.keys.is_empty() {
                 return Err(format!("{} has no key", k.instrument));
+            }
+            if !k.gain_db.is_finite() || k.gain_db.abs() > 48.0 {
+                return Err(format!("{}: gain within ±48 dB", k.instrument));
             }
             for &n in &k.keys {
                 if n > 127 || !keys.insert(n) {

@@ -179,26 +179,33 @@ fn build_spec(unpacked: u64) -> Build {
                 gain_db: 0.0,
                 pan: -100.0,
                 invert: false,
+                own: vec![],
+                bleed_db: 0.0,
             },
             Mic {
                 channel: "B".into(),
                 gain_db: -6.0,
                 pan: 100.0,
                 invert: true,
+                own: vec![],
+                bleed_db: 0.0,
             },
         ],
         keys: vec![
             KeyMap {
                 instrument: "Snare".into(),
                 keys: vec![38, 40],
+                gain_db: 0.0,
             },
             KeyMap {
                 instrument: "HatClosed".into(),
                 keys: vec![42],
+                gain_db: 0.0,
             },
             KeyMap {
                 instrument: "HatOpen".into(),
                 keys: vec![46],
+                gain_db: 0.0,
             },
         ],
         chokes: vec![Choke {
@@ -598,4 +605,123 @@ fn a_cancelled_build_stops() {
     let cancel = std::sync::atomic::AtomicBool::new(true);
     let e = kitbuild::build(&build_spec(1), dir.path(), "x", &cancel, &mut |_, _| {}).unwrap_err();
     assert_eq!(e, "cancelled");
+}
+
+#[test]
+fn a_microphone_is_heard_at_its_bleed_level_on_the_drums_it_does_not_face() {
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let mut p = kit_pack(src.path());
+    if let Some(b) = p.build.as_mut() {
+        // A is the snare's microphone: on the hats it is 20 dB down (a gate, as a mixing
+        // engineer would set one).
+        b.mics[0].own = vec!["Snare".into()];
+        b.mics[0].bleed_db = -20.0;
+    }
+    installed(&p, root.path()).unwrap();
+    let step = 1.0 / 8_388_608.0;
+    let left = |f: &str| wav::read(&root.path().join(f)).unwrap().samples[200];
+    let snare = left("drs/Samples/Snare/02.wav");
+    assert!(
+        (snare - amp(0.02, 1)).abs() <= step,
+        "the snare's own microphone at 0 dB"
+    );
+    let hat = left("drs/Samples/HatClosed/02.wav");
+    assert!(
+        (hat - amp(0.05, 1) * 0.1).abs() <= step,
+        "20 dB down on a hat: {hat}"
+    );
+}
+
+#[test]
+fn an_instrument_may_be_raised_or_lowered_in_the_mix() {
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let mut p = kit_pack(src.path());
+    if let Some(b) = p.build.as_mut() {
+        b.keys[1].gain_db = 6.0; // the closed hat
+    }
+    installed(&p, root.path()).unwrap();
+    let step = 1.0 / 8_388_608.0;
+    let left = |f: &str| wav::read(&root.path().join(f)).unwrap().samples[200];
+    let hat = left("drs/Samples/HatClosed/01.wav");
+    assert!(
+        (hat - amp(0.05, 0) * 1.995_262_3).abs() <= 2.0 * step,
+        "+6 dB: {hat}"
+    );
+    let open = left("drs/Samples/HatOpen/01.wav");
+    assert!(
+        (open - amp(0.04, 0)).abs() <= step,
+        "the open hat as it was: {open}"
+    );
+}
+
+/// The real DRSKit archive, when it is on this machine (`CANTUS_DRSKIT_ARCHIVE`): installed
+/// from the file through the bundled manifest's entry — its hash, its build — into the
+/// stereo instrument: the files and bytes the manifest says, nothing clamped, every
+/// General MIDI drum key the kit has, the credit in the receipt.
+#[test]
+#[ignore]
+fn the_real_drskit_installs_mixed_from_its_archive() {
+    let Ok(archive) = std::env::var("CANTUS_DRSKIT_ARCHIVE") else {
+        eprintln!("CANTUS_DRSKIT_ARCHIVE is not set");
+        return;
+    };
+    let root = tempfile::tempdir().unwrap();
+    let mut m = Manager::with_transport(
+        root.path(),
+        cantus_content::Manifest::bundled(),
+        Arc::new(Net::new()),
+        Patience::none(),
+    );
+    let t = std::time::Instant::now();
+    assert!(m.install_from_file("drskit", Path::new(&archive)));
+    let r = m
+        .wait_idle(Duration::from_secs(3600))
+        .remove(0)
+        .result
+        .expect("installed");
+    eprintln!(
+        "installed in {:?}: {} files, {} bytes",
+        t.elapsed(),
+        r.files,
+        r.bytes
+    );
+    let pack = m.manifest().pack("drskit").unwrap().clone();
+    assert_eq!(
+        r.bytes, pack.installed_size,
+        "the manifest's size is the build's"
+    );
+    let dir = m.pack_dir("drskit");
+    let files = tree(&dir);
+    assert_eq!(
+        r.files as usize + 1,
+        files.len(),
+        "the receipt counts all but itself"
+    );
+    assert!(files.iter().all(|f| f == "README.md"
+        || f == "DRSKit.sfz"
+        || f == "cantus-pack.json"
+        || (f.starts_with("Samples/") && f.ends_with(".wav"))));
+    let mut peak = 0f32;
+    for f in files.iter().filter(|f| f.ends_with(".wav")) {
+        let a = wav::read(&dir.join(f)).unwrap();
+        assert_eq!((a.channels, a.rate), (2, 44_100), "{f}");
+        peak = a.samples.iter().fold(peak, |p, x| p.max(x.abs()));
+    }
+    eprintln!("peak {:.2} dBFS", 20.0 * peak.log10());
+    assert!(peak < 0.89, "1 dB of headroom at least: {peak}");
+    let text = std::fs::read_to_string(dir.join("DRSKit.sfz")).unwrap();
+    assert!(text.contains("DrumGizmo"), "credited at the top");
+    for key in [
+        35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 55, 57, 59,
+    ] {
+        assert!(
+            text.contains(&format!("lokey={key} ")) || text.contains(&format!("hikey={key} ")),
+            "General MIDI key {key}"
+        );
+    }
+    assert!(r.credit_line().unwrap().contains("DrumGizmo"));
+    assert_eq!(m.instruments().len(), 1);
+    assert_eq!(m.instruments()[0].key(), "pack:drskit/kit");
 }

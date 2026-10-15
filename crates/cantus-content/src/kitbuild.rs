@@ -70,11 +70,16 @@ struct Gains {
     r: f32,
 }
 
-fn gains(b: &Build) -> Vec<Gains> {
+/// Each microphone's gains on `instrument` (raised or lowered by `inst_db`): at its own
+/// level on the drums it faces, at its bleed level on the others.
+fn gains(b: &Build, instrument: &str, inst_db: f32) -> Vec<Gains> {
     b.mics
         .iter()
         .map(|m| {
-            let g = db(b.gain_db + m.gain_db) * if m.invert { -1.0 } else { 1.0 };
+            let faces =
+                m.own.is_empty() || m.own.iter().any(|o| instrument.starts_with(o.as_str()));
+            let bleed = if faces { 0.0 } else { m.bleed_db };
+            let g = db(b.gain_db + inst_db + m.gain_db + bleed) * if m.invert { -1.0 } else { 1.0 };
             let (pl, pr) = pan_gains(m.pan);
             Gains {
                 channel: m.channel.clone(),
@@ -330,8 +335,23 @@ pub fn build(
     cancel: &AtomicBool,
     report: &mut dyn FnMut(u64, u64),
 ) -> Result<Built, String> {
+    let built = render(b, dir, dir, credit, cancel, report)?;
+    prune(dir, b)?;
+    Ok(built)
+}
+
+/// Mix the kit in `src` and write the instrument and its files into `out` (the same folder
+/// at install; another one to try a mix without touching the kit).
+pub fn render(
+    b: &Build,
+    src: &Path,
+    out: &Path,
+    credit: &str,
+    cancel: &AtomicBool,
+    report: &mut dyn FnMut(u64, u64),
+) -> Result<Built, String> {
+    let dir = src;
     let kit: Kit = drumgizmo::read_kit(dir, &b.kit)?;
-    let mics = gains(b);
     for m in &b.mics {
         if !kit.channels.contains(&m.channel) {
             return Err(format!("microphone {} is not one of the kit's", m.channel));
@@ -347,7 +367,7 @@ pub fn build(
         plan.push((k, inst));
     }
     let total: u64 = plan.iter().map(|(_, i)| i.samples.len() as u64).sum();
-    let out_root = drumgizmo::path_of(dir, &b.folder);
+    let out_root = drumgizmo::path_of(out, &b.folder);
     std::fs::create_dir_all(&out_root).map_err(|e| e.to_string())?;
     let mut built = Built::default();
     let mut reader = Reader {
@@ -360,6 +380,7 @@ pub fn build(
         crate::manifest::check_path(&inst.name).map_err(|e| format!("{}: {e}", inst.name))?;
         let sub = out_root.join(&inst.name);
         std::fs::create_dir_all(&sub).map_err(|e| e.to_string())?;
+        let mics = gains(b, &inst.name, k.gain_db);
         let mut hits = Vec::new();
         for (i, s) in inst.samples.iter().enumerate() {
             if cancel.load(Ordering::Relaxed) {
@@ -409,8 +430,7 @@ pub fn build(
     }
     drop(reader);
     let text = sfz(&parts, &b.folder, credit);
-    std::fs::write(drumgizmo::path_of(dir, &b.sfz), text).map_err(|e| e.to_string())?;
-    prune(dir, b)?;
+    std::fs::write(drumgizmo::path_of(out, &b.sfz), text).map_err(|e| e.to_string())?;
     Ok(built)
 }
 
