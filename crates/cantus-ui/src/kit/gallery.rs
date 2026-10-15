@@ -206,7 +206,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
                 } else {
                     &[]
                 },
-                live: (st.lit && size != KnobSize::Mini).then_some(v + 0.12),
+                live: None,
             };
             if !look.rings.is_empty() {
                 // The ring's colour is a modulation source's: here, the modulation hue.
