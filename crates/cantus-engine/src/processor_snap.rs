@@ -540,7 +540,7 @@ impl Processor {
         let nodes = &self.nodes;
         let mut h = 0xcbf2_9ce4_8422_2325u64;
         let mut mix = |v: usize| {
-            h ^= v as u64 + 1;
+            h ^= (v as u64).wrapping_add(1);
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         };
         for slot in 0..MAX_STRIPS {
@@ -559,7 +559,11 @@ impl Processor {
                 mix(t.latency());
             }
         }
-        mix(self.master.latency());
+        // The master chain insert by insert, as the strips: each has its own dry line.
+        mix(usize::MAX);
+        for e in &self.master.effects {
+            mix(e.latency());
+        }
         h
     }
 

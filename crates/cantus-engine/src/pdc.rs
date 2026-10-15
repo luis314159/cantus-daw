@@ -117,6 +117,37 @@ impl DelayLine {
         self.silent = usize::MAX;
     }
 
+    /// A new delay for the edge this line already serves, **keeping what it holds**
+    /// (ADR 0056): the read point moves. Shorter, the next sample out is the one `delay`
+    /// back — the stretch between is skipped; longer, the difference comes out as silence,
+    /// then the stream resumes. An automated latency switch then costs at most the change,
+    /// never a dropout of the whole delay. No allocation: the ring is turned in place.
+    pub fn retime(&mut self, delay: usize) {
+        let new = delay.clamp(1, self.len());
+        let old = self.delay;
+        if new == old {
+            return;
+        }
+        // Oldest first from index 0.
+        self.buf_l[..old].rotate_left(self.pos);
+        self.buf_r[..old].rotate_left(self.pos);
+        if new < old {
+            let s = old - new;
+            self.buf_l.copy_within(s..old, 0);
+            self.buf_r.copy_within(s..old, 0);
+        } else {
+            let s = new - old;
+            self.buf_l.copy_within(0..old, s);
+            self.buf_r.copy_within(0..old, s);
+            self.buf_l[..s].iter_mut().for_each(|x| *x = 0.0);
+            self.buf_r[..s].iter_mut().for_each(|x| *x = 0.0);
+        }
+        self.delay = new;
+        self.pos = 0;
+        // Whatever it held may still come out.
+        self.silent = 0;
+    }
+
     pub fn delay(&self) -> usize {
         self.delay
     }
@@ -254,6 +285,15 @@ impl Compensation {
         }
     }
 
+    /// Line `i`, which keeps its edge, at a new delay with what it holds (see
+    /// [`DelayLine::retime`]).
+    fn retime(&mut self, i: usize, delay: usize) {
+        if let Some(mut l) = self.lines.get(i) {
+            l.retime(delay);
+            self.delay[i] = l.delay();
+        }
+    }
+
     fn release(&mut self, i: usize) {
         self.edge[i] = None;
         if let Some(mut l) = self.lines.get(i) {
@@ -269,7 +309,8 @@ impl Compensation {
         [false; POOL]
     }
 
-    /// `edge` needs `delay` samples. Keeps the line it had when the delay is unchanged.
+    /// `edge` needs `delay` samples. Keeps the line it had while it is long enough — at a
+    /// new delay, with what it holds (`DelayLine::retime`).
     pub fn want(&mut self, kept: &mut [bool; POOL], edge: Edge, delay: usize) {
         if delay == 0 {
             return;
@@ -278,7 +319,7 @@ impl Compensation {
         if let Some(i) = self.line_for(edge) {
             if self.len[i] >= delay {
                 if self.delay[i] != delay {
-                    self.assign(i, edge, delay);
+                    self.retime(i, delay);
                 }
                 kept[i] = true;
                 return;
@@ -365,6 +406,43 @@ impl Default for Compensation {
 mod tests {
     use super::*;
 
+
+    /// Review 1 (ADR 0056): a line whose delay changes while it runs keeps what it holds —
+    /// shorter, it skips ahead; longer, it waits only the difference — instead of starting
+    /// empty (a dropout of its whole delay at every automated latency switch).
+    #[test]
+    fn a_new_delay_keeps_what_the_line_holds() {
+        let ramp = |a: usize, n: usize| -> Vec<f32> { (a..a + n).map(|v| (v + 1) as f32).collect() };
+        let mut c = Compensation::new();
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Track(0), 100);
+        c.finish(&kept);
+        let i = c.line_for(Edge::Track(0)).unwrap();
+        let run = |c: &Compensation, a: usize, n: usize| -> Vec<f32> {
+            let mut l = ramp(a, n);
+            let mut r = l.clone();
+            c.lines.get(i).unwrap().run(&mut l, &mut r);
+            l
+        };
+        let _ = run(&c, 0, 500);
+        // Shorter: the very next sample is the one 60 back — no silence at all.
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Track(0), 60);
+        c.finish(&kept);
+        let y = run(&c, 500, 200);
+        for (k, v) in y.iter().enumerate() {
+            assert_eq!(*v, (500 + k + 1 - 60) as f32, "shorter, sample {k}");
+        }
+        // Longer: 40 samples of nothing (the difference), then the one 100 back.
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Track(0), 100);
+        c.finish(&kept);
+        let y = run(&c, 700, 200);
+        for (k, v) in y.iter().enumerate() {
+            let want = if k < 40 { 0.0 } else { (700 + k + 1 - 100) as f32 };
+            assert_eq!(*v, want, "longer, sample {k}");
+        }
+    }
     #[test]
     fn a_line_delays_by_exactly_its_delay_and_knows_when_it_is_empty() {
         let mut line = DelayLine::new();
