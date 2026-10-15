@@ -218,3 +218,46 @@ fn the_preview_says_the_targets_in_one_line() {
     assert!(text.contains("A Minor"), "{text}");
     assert!(text.contains("Hard"), "{text}");
 }
+
+/// The demo project writes, opens, and plays: the natural voice is corrected (it differs
+/// from the line as written), the MIDI voice hears the melody track, and the track for the
+/// owner's voice has an input and Tonus on its strip.
+#[test]
+fn the_demo_project_opens_and_plays_corrected() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = tonus::demo::write_demo(dir.path()).unwrap();
+    let loaded = cantus_project::load(&path, true).expect("the demo opens");
+    let p = loaded.project;
+    let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names.len(), 5, "{names:?}");
+    let tonus_on = |i: usize| {
+        let s = p.tracks[i].strip.unwrap();
+        p.strip(s).unwrap().effects[0].clone()
+    };
+    assert_eq!(tonus_on(0).spec.kind, EffectKind::AutoTune);
+    assert_eq!(tonus_on(2).midi_from, Some(p.tracks[3].id), "the MIDI voice hears the melody");
+    assert!(p.tracks[4].input.is_some(), "your voice has an input");
+    assert_eq!(tonus_on(4).spec.kind, EffectKind::AutoTune);
+    // Render the first voice alone, with and without Tonus.
+    let render = |p: &Project| {
+        let mut snap = Snapshot::compile(p, 1);
+        let errors = cantus_engine::SampleCache::new().attach_audio(&mut snap, 48_000);
+        assert!(errors.is_empty(), "{errors:?}");
+        let opts = cantus_engine::RenderOptions {
+            tail_seconds: 0.1,
+            ..Default::default()
+        };
+        cantus_engine::render(std::sync::Arc::new(snap), &opts)
+            .unwrap()
+            .samples
+    };
+    let corrected = render(&p);
+    let mut dry = p.clone();
+    let s0 = dry.tracks[0].strip.unwrap();
+    dry.strip_mut(s0).unwrap().effects.clear();
+    let plain = render(&dry);
+    assert!(corrected.iter().all(|v| v.is_finite()));
+    let peak = corrected.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak > 0.05, "it sounds: {peak}");
+    assert!(corrected != plain, "Tonus changed the voice");
+}

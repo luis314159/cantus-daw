@@ -34,6 +34,8 @@ use cantus_engine::fx::tonus as tel;
 use egui::{pos2, vec2, Rect, Sense};
 use std::collections::VecDeque;
 
+#[path = "tonus_demo.rs"]
+pub mod demo;
 #[path = "tonus_graph.rs"]
 mod graph;
 #[path = "tonus_keys.rs"]
