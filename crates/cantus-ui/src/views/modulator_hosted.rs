@@ -16,8 +16,53 @@ pub const SHOWN: usize = 48;
 
 /// The plug-in's words for each value shown, by parameter, with the value's bits they
 /// were asked for: the plug-in is asked again only when the value moves (review 1), and a
-/// frame clones a reference, never a string.
-type Texts = std::collections::HashMap<u32, (u64, std::sync::Arc<str>)>;
+/// frame clones a reference, never a string. Every word is forgotten when the stamp
+/// changes — another plug-in or instance on the track, or any value the project stores
+/// for it (a plug-in may word one parameter by another's state: a rate in Hz or in notes
+/// by its sync switch) (review 2).
+#[derive(Clone, Default)]
+struct Texts {
+    stamp: u64,
+    words: std::collections::HashMap<u32, (u64, std::sync::Arc<str>)>,
+}
+
+impl Texts {
+    /// The words for parameter `id` at the value with `bits`, asked of `ask` only when not
+    /// known for this stamp.
+    fn get(
+        &mut self,
+        stamp: u64,
+        id: u32,
+        bits: u64,
+        ask: impl FnOnce() -> String,
+    ) -> std::sync::Arc<str> {
+        if self.stamp != stamp {
+            self.stamp = stamp;
+            self.words.clear();
+        }
+        match self.words.get(&id) {
+            Some((b, s)) if *b == bits => s.clone(),
+            _ => {
+                let s: std::sync::Arc<str> = ask().into();
+                self.words.insert(id, (bits, s.clone()));
+                s
+            }
+        }
+    }
+}
+
+/// The stamp of the words of `h`, as the project stores `spec`: its instance and every
+/// stored value (no allocation).
+fn stamp(h: &cantus_host::HostedInst, spec: Option<&cantus_core::ExternalPlugin>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut s = std::collections::hash_map::DefaultHasher::new();
+    h.instance().hash(&mut s);
+    for (id, v) in spec.iter().flat_map(|e| e.params.iter()) {
+        id.hash(&mut s);
+        v.to_bits().hash(&mut s);
+    }
+    s.finish()
+}
 
 /// Whether `hay` holds `needle` (already lower case), ignoring case, without allocating
 /// for an ASCII name.
@@ -74,6 +119,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
         .filter(listed)
         .filter(|p| contains_ci(&p.name, &needle));
     let spec = app.project().track(t).and_then(|x| x.instrument.external());
+    let stamp = stamp(h, spec);
     for p in matching.by_ref().take(SHOWN) {
         let value = spec
             .and_then(|e| e.params.get(&p.id).copied())
@@ -87,25 +133,19 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
             .map_or(value, |pos| lo + f64::from(pos) * (hi - lo));
         let bits = shown_v.to_bits();
         let text = sh.ui.data_mut(|d| {
-            let texts = d.get_temp_mut_or_default::<Texts>(tid);
-            match texts.get(&p.id) {
-                Some((b, s)) if *b == bits => s.clone(),
-                _ => {
-                    let s: std::sync::Arc<str> = h
-                        .param_text(p.id, shown_v)
+            d.get_temp_mut_or_default::<Texts>(tid)
+                .get(stamp, p.id, bits, || {
+                    h.param_text(p.id, shown_v)
                         .unwrap_or_else(|| format!("{shown_v:.2}"))
-                        .into();
-                    texts.insert(p.id, (bits, s.clone()));
-                    s
-                }
-            }
+                })
         });
         let range = Range {
             stepped: p.stepped,
             ..Range::lin(lo as f32, hi as f32, p.default as f32)
         };
         let id = p.id;
-        let row_id = Id::new(("mod-hosted-param", t, id));
+        // The instance in the row's id too: the sheet keeps its value's words by it.
+        let row_id = Id::new(("mod-hosted-param", t, id, h.instance()));
         param_row(
             sh,
             app,
@@ -197,6 +237,24 @@ fn param_row(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_plugins_words_are_forgotten_when_the_stamp_changes() {
+        // Review 2: synth B's parameter 0 at 0.5 showed synth A's "Saw" (same id, same
+        // value bits) until the value moved.
+        let mut texts = super::Texts::default();
+        let bits = 0.5f64.to_bits();
+        let mut asked = 0;
+        let mut ask = |w: &str| {
+            asked += 1;
+            w.to_string()
+        };
+        assert_eq!(&*texts.get(1, 0, bits, || ask("Saw")), "Saw");
+        assert_eq!(&*texts.get(1, 0, bits, || ask("never")), "Saw");
+        assert_eq!(&*texts.get(2, 0, bits, || ask("50 %")), "50 %");
+        assert_eq!(&*texts.get(2, 0, 0.6f64.to_bits(), || ask("60 %")), "60 %");
+        assert_eq!(asked, 3);
+    }
+
     #[test]
     fn the_filter_ignores_case_without_allocating_for_ascii_names() {
         assert!(super::contains_ci("Filter Cutoff", "cutoff"));

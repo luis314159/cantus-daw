@@ -713,3 +713,69 @@ fn new_comp_at_the_limit_says_so() {
         a.status.text
     );
 }
+
+/// Review 2: a copy of a window pasted far from its takes (the good chorus again at bar
+/// 9) plays the take's source, but it is no window of the comp: a switch leaves it on the
+/// playing lane, and the merge's range ends where the comp's windows do.
+#[test]
+fn a_windows_copy_away_from_its_takes_is_not_the_comps() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    a.duplicate_comp(t);
+    let w = window_at(&a, t, beats(2));
+    let window = a.project().track(t).unwrap().clip(w).unwrap().clone();
+    let mut copy = a.bus.new_clip("copy", beats(32), window.length);
+    copy.audio = window.audio.clone();
+    copy.offset = window.offset;
+    a.exec(Command::InsertClip {
+        track: t,
+        clip: Box::new(copy),
+    });
+    let tr = a.project().track(t).unwrap();
+    let windows = comping::comp_windows(tr);
+    assert!(
+        windows.iter().all(|c| c.start < beats(8)),
+        "the far copy is no window: {:?}",
+        windows.iter().map(|c| c.start).collect::<Vec<_>>()
+    );
+    a.switch_comp(t, 0);
+    assert!(
+        lane0(&a, t).iter().any(|c| c.0 == beats(32).0),
+        "the copy stays on the playing lane: {:?}",
+        lane0(&a, t)
+    );
+    a.switch_comp(t, 1);
+    assert_eq!(
+        lane0(&a, t).iter().filter(|c| c.0 == beats(32).0).count(),
+        1,
+        "and is not doubled coming back"
+    );
+}
+
+/// Integration review: a comp window moved off its take (to bar 9) still plays that take:
+/// *Delete unused takes* keeps the take.
+#[test]
+fn a_take_a_moved_window_still_plays_is_not_unused() {
+    let mut p = Project::default();
+    let (t, a_src, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    let w = window_at(&a, t, beats(2));
+    let length = a.project().track(t).unwrap().clip(w).unwrap().length;
+    a.exec(Command::SetClipBounds {
+        track: t,
+        clip: w,
+        start: beats(32),
+        length,
+    });
+    a.delete_unused_takes(t);
+    let tr = a.project().track(t).unwrap();
+    assert!(
+        tr.clips
+            .iter()
+            .any(|c| c.lane > 0 && c.audio.as_ref().is_some_and(|x| x.source == a_src)),
+        "take A stays: a window still plays it"
+    );
+}

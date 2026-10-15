@@ -40,6 +40,18 @@ pub struct HostedInst {
 }
 
 impl HostedInst {
+    /// Which loaded instance this is: another plug-in, another load of it, or a state
+    /// loaded into it reads differently — what a cache of its words is keyed by.
+    pub fn instance(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.key.hash(&mut h);
+        self.info.id.hash(&mut h);
+        (&*self.main as *const dyn MainThread as *const () as usize).hash(&mut h);
+        self.generation.load(Ordering::Acquire).hash(&mut h);
+        h.finish()
+    }
+
     pub fn param_text(&self, id: u32, value: f64) -> Option<String> {
         self.main.param_text(id, value)
     }

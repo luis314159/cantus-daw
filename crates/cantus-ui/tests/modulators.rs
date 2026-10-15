@@ -377,36 +377,99 @@ fn the_modulators_section_draws_every_kind() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
 
-/// Nesting from the interface (ADR 0057, review 1): another modulator's handle dropped on
-/// a modulator's amount connects it there — one undo step — and a modulator is never
-/// offered its own amount.
+/// Nesting from the interface (ADR 0057, review 1; review 2: a real drop): another
+/// modulator's handle carried from its title row and let go over a modulator's amount row
+/// in the inspector connects it there — one undo step — and the amount's *Modulate…* list
+/// leaves the modulator itself out.
 #[test]
 fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
-    let mut a = app(starter_project());
-    let (t, s, _) = pan(&a);
-    let lfo = a
-        .add_modulator(
-            ModHost::Track(t),
-            ModKind::Lfo,
-            Some(AutoTarget::StripPan(s)),
-        )
-        .unwrap();
-    let rnd = a
-        .add_modulator(ModHost::Track(t), ModKind::Random, None)
-        .unwrap();
+    use egui::{pos2, Event, Modifiers, PointerButton, Pos2};
+    let mut p = starter_project();
+    let t = p.tracks[0].id;
+    let s = p.tracks[0].strip.unwrap();
+    let mut ids = Vec::new();
+    for (k, name) in [(ModKind::Lfo, "Wobble"), (ModKind::Random, "Dice")] {
+        let mut m = Modulator::new(ModulatorId(p.alloc_id()), k);
+        m.name = name.into();
+        if k == ModKind::Lfo {
+            m.routes.push(ModRoute {
+                target: AutoTarget::StripPan(s),
+                depth: 0.3,
+            });
+        }
+        ids.push(m.id);
+        p.modulators_mut(ModHost::Track(t)).unwrap().push(m);
+    }
+    let (lfo, rnd) = (ids[0], ids[1]);
+    let mut a = app(p);
+    a.select_track(t);
     let steps = a.bus.history().len();
     let amount = AutoTarget::ModAmount(lfo);
-    a.modulation_choice(&amount, Choice::Connect(rnd.0), egui::Rect::NOTHING);
-    assert_eq!(a.bus.history().len(), steps + 1);
+    let ctx = ctx();
+    let size = egui::vec2(360.0, 2400.0);
+    let frame = |a: &mut CantusApp, events: Vec<Event>| -> String {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, size)),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| cantus_ui::views::inspector::show(a, ui));
+            cantus_ui::views::modulator::popup::frame(a, ui.ctx());
+        });
+        out.textures_delta.clear();
+        let mut text = String::new();
+        for c in &out.shapes {
+            if let egui::Shape::Text(t) = &c.shape {
+                text.push_str(t.galley.text());
+                text.push('|');
+            }
+        }
+        text
+    };
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![]);
+    let row = ctx
+        .read_response(egui::Id::new(("mod-num", lfo, "amount")))
+        .expect("the LFO's amount row")
+        .rect;
+    let button = |p, pressed| Event::PointerButton {
+        pos: p,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    // Picked up away from any control, carried over the amount, let go there.
+    let away = pos2(size.x - 2.0, size.y - 2.0);
+    frame(&mut a, vec![Event::PointerMoved(away), button(away, true)]);
+    egui::DragAndDrop::set_payload(&ctx, ModHandle(rnd.0));
+    frame(&mut a, vec![Event::PointerMoved(row.center())]);
+    frame(&mut a, vec![button(row.center(), false)]);
+    assert_eq!(a.bus.history().len(), steps + 1, "one undo step");
     let route = |a: &CantusApp| {
         a.project()
             .modulator(rnd)
             .and_then(|(_, _, m)| m.route(&amount).map(|r| r.depth))
     };
-    assert!(route(&a).is_some(), "nested");
-    // Its own handle on its own amount: nothing.
-    a.modulation_choice(&amount, Choice::Connect(lfo.0), egui::Rect::NOTHING);
-    assert_eq!(a.bus.history().len(), steps + 1);
+    assert!(route(&a).is_some(), "the drop nested it");
+    // The amount's Modulate… list: the random source, never the LFO itself.
+    a.modulators.popup = Some((amount.clone(), row));
+    frame(&mut a, vec![]);
+    let text = frame(&mut a, vec![]);
+    // The list's Connect part: between its band and the New band.
+    let connect = text
+        .split_once("|CONNECT|")
+        .and_then(|(_, rest)| rest.split_once("|NEW MODULATOR|"))
+        .map(|(c, _)| c.to_string())
+        .unwrap_or_else(|| panic!("the list is drawn: {text}"));
+    assert!(connect.contains("Dice"), "{connect}");
+    assert!(
+        !connect.contains("Wobble"),
+        "never its own amount: {connect}"
+    );
+    a.modulators.popup = None;
     a.undo();
     assert!(route(&a).is_none());
 }
@@ -611,4 +674,168 @@ fn two_parameters_a_plugin_window_moves_in_one_frame_are_both_recorded() {
             "parameter {id} was recorded"
         );
     }
+}
+
+/// A frame of the desk (`mixer`) or of the inspector, with `events` and `mods` held.
+fn desk_frame(
+    ctx: &egui::Context,
+    a: &mut CantusApp,
+    inspector: bool,
+    events: Vec<egui::Event>,
+    mods: egui::Modifiers,
+) {
+    let mut ev = vec![egui::Event::ModifiersChanged(mods)];
+    ev.extend(events);
+    let size = if inspector {
+        egui::vec2(360.0, 2400.0)
+    } else {
+        egui::vec2(1400.0, 800.0)
+    };
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        events: ev,
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| {
+                if inspector {
+                    cantus_ui::views::inspector::show(a, ui)
+                } else {
+                    cantus_ui::views::mixer::show(a, ui)
+                }
+            });
+    })
+    .textures_delta
+    .clear();
+}
+
+fn press(p: egui::Pos2, pressed: bool) -> egui::Event {
+    egui::Event::PointerButton {
+        pos: p,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// Carry modulator `id`'s handle (picked up at `away`) and let it go at `at`.
+fn drop_handle(
+    ctx: &egui::Context,
+    a: &mut CantusApp,
+    inspector: bool,
+    id: ModulatorId,
+    away: egui::Pos2,
+    at: egui::Pos2,
+) {
+    let none = egui::Modifiers::NONE;
+    desk_frame(
+        ctx,
+        a,
+        inspector,
+        vec![egui::Event::PointerMoved(away), press(away, true)],
+        none,
+    );
+    egui::DragAndDrop::set_payload(ctx, ModHandle(id.0));
+    desk_frame(ctx, a, inspector, vec![egui::Event::PointerMoved(at)], none);
+    desk_frame(ctx, a, inspector, vec![press(at, false)], none);
+}
+
+/// Review 2: while a modulator maps, a desk control's drag is the depth's — but only the
+/// drag: a double-click still resets the fader to unity, as every other control does.
+#[test]
+fn a_desk_fader_double_clicked_while_a_modulator_maps_goes_to_unity() {
+    use cantus_ui::views::mixer::{self, Control};
+    let mut a = app(starter_project());
+    let (_, s, _) = pan(&a);
+    a.set_strip_gain(s, -6.0);
+    a.end_gesture();
+    let id = a
+        .add_modulator(ModHost::Strip(s), ModKind::Lfo, None)
+        .unwrap();
+    a.toggle_mapping(id);
+    let ctx = ctx();
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let none = egui::Modifiers::NONE;
+    desk_frame(&ctx, &mut a, false, vec![], none);
+    desk_frame(&ctx, &mut a, false, vec![], none);
+    let fr = mixer::control_rect(&ctx, Some(s), Control::Fader).expect("the strip's fader");
+    // Below the cap, so a plain click in the groove would move it too.
+    let at = egui::pos2(fr.center().x, fr.bottom() - 6.0);
+    let mut events = vec![egui::Event::PointerMoved(at)];
+    desk_frame(&ctx, &mut a, false, std::mem::take(&mut events), none);
+    for _ in 0..2 {
+        desk_frame(&ctx, &mut a, false, vec![press(at, true)], none);
+        desk_frame(&ctx, &mut a, false, vec![press(at, false)], none);
+    }
+    assert_eq!(a.project().strip(s).unwrap().gain_db, 0.0, "unity");
+}
+
+/// Review 2: a send's level takes a modulator like every parameter — its handle dropped
+/// on the desk's send knob (the selected strip's send, FL's send row) connects the send.
+#[test]
+fn a_handle_dropped_on_a_desk_send_knob_connects_the_send() {
+    use cantus_ui::views::mixer::{self, Control};
+    let mut a = app(starter_project());
+    let (t, s, _) = pan(&a);
+    a.add_strip();
+    let ret = a.project().strips.last().unwrap().id;
+    assert!(a.add_sends(&[s], ret));
+    a.select_track(t);
+    a.select_strip(s);
+    let id = a
+        .add_modulator(ModHost::Strip(s), ModKind::Lfo, None)
+        .unwrap();
+    let ctx = ctx();
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let none = egui::Modifiers::NONE;
+    desk_frame(&ctx, &mut a, false, vec![], none);
+    desk_frame(&ctx, &mut a, false, vec![], none);
+    let knob = mixer::control_rect(&ctx, Some(ret), Control::Send).expect("the send knob");
+    let steps = a.bus.history().len();
+    drop_handle(
+        &ctx,
+        &mut a,
+        false,
+        id,
+        egui::pos2(4.0, 796.0),
+        knob.center(),
+    );
+    let send = AutoTarget::Send { strip: s, to: ret };
+    assert!(
+        a.project()
+            .modulator(id)
+            .is_some_and(|(_, _, m)| m.route(&send).is_some()),
+        "the drop connected the send"
+    );
+    assert_eq!(a.bus.history().len(), steps + 1);
+}
+
+/// Review 2: the inspector's pinned strip takes a modulator as the desk's copy does — a
+/// handle dropped on its fader connects the channel's volume.
+#[test]
+fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
+    let mut a = app(starter_project());
+    let (t, s, _) = pan(&a);
+    a.select_track(t);
+    let id = a
+        .add_modulator(ModHost::Strip(s), ModKind::Lfo, None)
+        .unwrap();
+    let ctx = ctx();
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let none = egui::Modifiers::NONE;
+    desk_frame(&ctx, &mut a, true, vec![], none);
+    desk_frame(&ctx, &mut a, true, vec![], none);
+    let fader = ctx
+        .read_response(egui::Id::new(("insp-pin-fader", Some(s))))
+        .expect("the pinned fader")
+        .rect;
+    drop_handle(&ctx, &mut a, true, id, egui::pos2(2.0, 2.0), fader.center());
+    assert!(
+        a.project()
+            .modulator(id)
+            .is_some_and(|(_, _, m)| m.route(&AutoTarget::StripGain(s)).is_some()),
+        "the drop connected the volume"
+    );
 }

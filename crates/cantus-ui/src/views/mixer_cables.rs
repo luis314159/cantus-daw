@@ -588,10 +588,22 @@ fn pills(
             .strip(d.route.from)
             .and_then(|st| st.send_to(d.route.to))
             .copied();
-        if let (Some(send), Some(p)) = (send, knob_input(v, ui, pass, &resp, level, 1.0)) {
+        // The level is a parameter (review 2): the handle's drop, the Alt-drag depth.
+        let dm = super::strip::DeskMod::new(
+            app,
+            cantus_core::AutoTarget::Send {
+                strip: d.route.from,
+                to: d.route.to,
+            },
+            level,
+            s,
+        );
+        let depth = dm.input(app, ui, &resp);
+        dm.paint_drop(b, ui, Some(&resp), r, s);
+        if let (Some(send), Some(p)) = (send, knob_input(v, ui, pass, &resp, level, 1.0, !depth)) {
             app.set_strip_send(d.route.from, Send { level: p, ..send });
         }
-        if resp.drag_stopped() {
+        if resp.drag_stopped() && !depth {
             app.end_gesture();
         }
         if hovered {

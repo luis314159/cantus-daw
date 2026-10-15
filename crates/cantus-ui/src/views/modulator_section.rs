@@ -132,7 +132,6 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, host: ModHost, band_key: &'stat
 /// one level of nesting): its menu's *Modulate…*, another modulator's handle dropped on
 /// it, the Alt-drag depth, *Create automation clip*.
 fn amount(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
-    let base = m.clone();
     let key = MergeKey::of(&("mod-field", m.id.0, "amount"));
     param_row(
         sh,
@@ -145,8 +144,11 @@ fn amount(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         sheet::percent,
         function_of(m.source.kind()),
         AutoTarget::ModAmount(m.id),
+        // A switched-off modulator's amount dims with the rest of it (review 2).
+        m.muted,
+        // Cloned only when the value moves, never per frame (review 2).
         move |v| {
-            let mut e = base;
+            let mut e = m.clone();
             e.amount = v;
             Act::Mod(ModAct::Set(Box::new(e), Some(key)))
         },
@@ -409,7 +411,8 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
 /// A label | value row bound to a parameter that can be automated and modulated (ADR 0027,
 /// 0057): [`Sheet::param_row`], with the parameter's menu on a right-click (*Create
 /// automation clip*, *Modulate…*), Alt+drag for the depth of its modulation, a modulator's
-/// handle dropped on it, and the marks and live position of what drives it.
+/// handle dropped on it, and the marks and live position of what drives it. `dim` draws it
+/// as switched off (a muted modulator's amount).
 #[allow(clippy::too_many_arguments)]
 pub fn param_row(
     sh: &mut Sheet<'_>,
@@ -422,12 +425,48 @@ pub fn param_row(
     write: impl FnOnce(f32, &mut String),
     f: Function,
     target: AutoTarget,
+    dim: bool,
     act: impl FnOnce(f32) -> Act,
 ) {
     let row = sh.row();
-    sh.label(row.label, key, false);
-    crate::kit::automate::probe::note(key, true);
+    sh.label(row.label, key, dim);
     let name = sheet::name(sh.fmt.tr(key));
+    let d = wired_value(
+        sh, app, key, row.value, id, v, range, gain, &name, write, f, target, dim, true,
+    );
+    if let Some(nv) = d.value {
+        sh.acts.push(act(nv));
+    }
+    if d.ended {
+        sh.acts.push(Act::EndGesture);
+    }
+}
+
+/// A value well ([`Sheet::value`]) bound to `target`, for rows that lay out their own
+/// cells (a send's level, a receive's): Alt+drag for the depth of its modulation (the
+/// value's drag left out, nothing else), a modulator's handle dropped on it, the marks
+/// and live position of what drives it, and — with `menu` — the parameter's menu on a
+/// right-click (*Create automation clip*, *Modulate…*; a row whose right-click is its
+/// own menu offers both there). The returned drag's `value` and `ended` are the value's
+/// own (none while the drag is a depth's). `probe` names it to the kit's probe.
+#[allow(clippy::too_many_arguments)]
+pub fn wired_value(
+    sh: &mut Sheet<'_>,
+    app: &CantusApp,
+    probe: &str,
+    rect: Rect,
+    id: Id,
+    v: f32,
+    range: &Range,
+    gain: bool,
+    name: &str,
+    write: impl FnOnce(f32, &mut String),
+    f: Function,
+    target: AutoTarget,
+    dim: bool,
+    menu: bool,
+) -> sheet::Drag {
+    crate::kit::automate::probe::note(probe, true);
     let base = if gain {
         sheet::gain_pos(v)
     } else {
@@ -441,30 +480,36 @@ pub fn param_row(
         modulation: Some(m),
     };
     let depth_drag = crate::kit::automate::depth_drag(sh.ui, Some(offer));
-    let d = sh.value(row.value, id, v, range, gain, &name, write, f, false);
-    if let Some(nv) = d.value.filter(|_| !depth_drag) {
-        sh.acts.push(act(nv));
-    }
-    if d.ended && !depth_drag {
-        sh.acts.push(Act::EndGesture);
+    let mut d = sh.value(rect, id, v, range, gain, name, write, f, dim);
+    // Only the drag is the depth's: a double-click still resets the value (as the kit's
+    // `Param` and the desk's controls do).
+    if depth_drag && (d.resp.dragged() || d.resp.drag_stopped()) {
+        d.value = None;
+        d.ended = false;
     }
     let s = sh.s;
     if offer.automated {
-        crate::kit::automate::mark(sh.b, row.value, &s);
+        crate::kit::automate::mark(sh.b, rect, &s);
     }
     if n > 0 {
-        crate::kit::automate::mod_mark(sh.b, row.value, &s);
+        crate::kit::automate::mod_mark(sh.b, rect, &s);
         // Where modulation has it now: a tick on the well's level bar.
         if let Some(live) = m.live {
-            let x = row.value.left() + s.s(3.0);
-            let y = row.value.bottom() - row.value.height() * live.clamp(0.0, 1.0);
+            let x = rect.left() + s.s(3.0);
+            let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
             sh.b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
         }
     }
-    let rect = row.value;
-    let choice = crate::kit::automate::modulation_choice(sh.ui, &d.resp, Some(offer))
-        .or_else(|| crate::kit::automate::menu(sh.ui, &d.resp, offer));
+    let choice =
+        crate::kit::automate::modulation_choice(sh.ui, &d.resp, Some(offer)).or_else(|| {
+            if menu {
+                crate::kit::automate::menu(sh.ui, &d.resp, offer)
+            } else {
+                None
+            }
+        });
     if let Some(c) = choice {
         sh.acts.push(Act::Mod(ModAct::Param(target, c, rect)));
     }
+    d
 }

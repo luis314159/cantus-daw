@@ -100,7 +100,10 @@ pub fn show(
                 .params()
                 .iter()
                 .filter(|p| p.key != "mix" && !p.stepped)
-                .take(3)
+                // An effect with no editor of its own (Delay, Reverb) is edited and
+                // modulated only here: every one of its parameters (review 2: Reverb's
+                // pre-delay had no row).
+                .take(if kind.has_editor() { 3 } else { usize::MAX })
             {
                 let range = Range {
                     min: info.min,
@@ -132,6 +135,7 @@ pub fn show(
                         effect: e,
                         key: key.to_string(),
                     },
+                    false,
                     |v| {
                         Act::Merge(
                             Command::SetEffectParam {
