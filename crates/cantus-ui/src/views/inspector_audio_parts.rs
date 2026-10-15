@@ -113,6 +113,19 @@ pub(super) fn button(
     key: &str,
     strong: bool,
 ) -> bool {
+    button_with(sh, id, key, strong, None, true)
+}
+
+/// [`button`] with a tip key for the help line (its value, after the name), drawn
+/// disabled (and never clicked) when not `enabled` (round 28: *Edit pitch*).
+pub(super) fn button_with(
+    sh: &mut Sheet<'_>,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    key: &str,
+    strong: bool,
+    tip: Option<&str>,
+    enabled: bool,
+) -> bool {
     let s = sh.s;
     let row = sh.row();
     let w = row.value.width().min(s.s(140.0));
@@ -120,7 +133,10 @@ pub(super) fn button(
     let r = sh
         .ui
         .interact(br, Id::new(("insp-btn", id)), Sense::click());
-    let st = State::of(&r, strong);
+    let st = State {
+        disabled: !enabled,
+        ..State::of(&r, strong)
+    };
     let look = cap::CapLook {
         lit: Some(if strong { s.t.highlight } else { s.t.selection }),
         ..Default::default()
@@ -134,9 +150,10 @@ pub(super) fn button(
     let _ = text::paint(sh.b, br.shrink2(Vec2::new(s.s(6.0), 0.0)), &tx, s.tk());
     if r.hovered() {
         let name = sh.fmt.tr(key).to_string();
-        hint::set_text(sh.ui.ctx(), &name, "", Caps::NONE);
+        let value = tip.map(|k| sh.fmt.tr(k).to_string()).unwrap_or_default();
+        hint::set_text(sh.ui.ctx(), &name, &value, Caps::NONE);
     }
-    r.clicked()
+    r.clicked() && enabled
 }
 
 /// A fade's curve as five drawn keys in the value column, the current one lit. Returns

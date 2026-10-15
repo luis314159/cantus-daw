@@ -827,3 +827,18 @@ fn the_clip_menu_makes_midi_and_a_double() {
     r.app.pitch_make(t, c, Some(cantus_core::pitch::midi::Interval::Fifth));
     assert_eq!(r.app.project().tracks.len(), n + 2);
 }
+
+/// The inspector's *Edit pitch* says what it does on the help line.
+#[test]
+fn the_inspectors_pitch_button_explains_itself() {
+    let mut r = Rig::new();
+    let (t, c) = r.voice();
+    r.app.select_clip(t, c);
+    r.app.show_pane(Pane::Inspector);
+    r.idle(4);
+    let at = r.word("Edit pitch");
+    r.pointer = Some(at);
+    r.idle(3);
+    let tip = cantus_ui::i18n::t("pitch.inspector.edit_tip");
+    assert!(r.texts.iter().any(|(w, _)| w.contains(&tip[..20])), "{:?}", r.texts);
+}
