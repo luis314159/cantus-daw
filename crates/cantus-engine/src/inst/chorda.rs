@@ -1,17 +1,20 @@
 //! Chorda — the modelled grand piano: the engine's unit, and the keyboards its strings are
 //! designed for (ADR 0059).
 //!
-//! **Designs off the audio thread.** A keyboard — every key's string loop fitted to its
-//! partials — depends on the tuning (`a4`, `stretch`, `stiffness`) and the sample rate, and
-//! takes about a second to compute on the machine's cores. They live in a registry that
-//! never evicts (32 tunings at most in a session): [`prepare`] asks for the ones a snapshot
-//! needs, on a thread of their own, before the snapshot is sent ([`super::units_for`]); the
-//! unit looks its tuning up on the audio thread with a lock-free scan and takes it the
-//! moment it is there. A unit is made with the reference keyboard (440 Hz, the model's
-//! stretch and stiffness), computed once per session and sample rate — at start-up beside
-//! the window ([`warm`]), or by the first unit made, which waits for it. While another
-//! tuning is being designed the instrument keeps playing the one it had; an **offline**
-//! render waits for it, so an export always plays the tuning asked for.
+//! **Designs off every thread that must not wait.** A keyboard — every key's string loop
+//! fitted to its partials — depends on the tuning (`a4`, `stretch`, `stiffness`) and the
+//! sample rate, and takes a second or two on the machine's cores. One designer thread makes
+//! them, one at a time: the reference keyboard at start-up and after a device change
+//! ([`warm`]), and each track's tuning once it has *settled* ([`prepare`], on every snapshot:
+//! a knob being dragged asks for a tuning a frame, and only the one let go is designed).
+//! They live in a registry that never evicts (Unda's rule: what the audio thread holds is
+//! never freed there); the unit looks its tuning up with a lock-free scan and takes it the
+//! moment it is there. Nothing waits on the interface thread: a unit made before its
+//! keyboard exists is **silent**, and the editor says *designing the strings* with the
+//! design's progress, until it arrives; while another tuning is designed the instrument
+//! plays the one it had. An **offline** render waits for its own (designing it on the spot
+//! if it must), so an export always plays the tuning asked for. The three tuning keys are
+//! set, never automated or modulated (`InstrumentKind::automatable`).
 //!
 //! **Controllers, natively**: sustain is the damper pedal, continuously (half-pedalling);
 //! CC 67 is the soft pedal (una corda). A piano has no pitch bend.
@@ -64,12 +67,19 @@ const SRC_SUS: usize = 13;
 /// The soft pedal's controller.
 pub const SOFT_CC: u8 = 67;
 
-// ---- the keyboards' registry ------------------------------------------------------------
+// ---- the keyboards' registry and their designer ------------------------------------------
 
-/// A keyboard's identity: the sample rate and the three tuning numbers, as bits.
+/// A keyboard's identity: the sample rate and the three tuning numbers (rounded as
+/// [`settled`] rounds them), as bits.
 pub type DesignKey = [u32; 4];
 
-const REGISTRY: usize = 32;
+/// Keyboards a session keeps. Never evicted (as Unda's tables): a keyboard the audio thread
+/// holds is never freed there. Designs are made only of tunings that have settled, so a
+/// session rarely holds more than a handful.
+const REGISTRY: usize = 128;
+/// How long a track's tuning must stay before it is designed (a knob being dragged asks for
+/// one tuning a frame; only the one it is let go at is designed).
+const SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
 struct Entry {
     key: DesignKey,
@@ -78,7 +88,35 @@ struct Entry {
 
 static ENTRIES: [OnceLock<Entry>; REGISTRY] = [const { OnceLock::new() }; REGISTRY];
 static NEXT: Mutex<usize> = Mutex::new(0);
-static PENDING: Mutex<Vec<DesignKey>> = Mutex::new(Vec::new());
+
+/// A tuning asked for: by a track at a sample rate (the newest replaces the track's last),
+/// or at once.
+struct Want {
+    owner: Option<(u64, u32)>,
+    key: DesignKey,
+    tuning: Tuning,
+    fs: f32,
+    since: std::time::Instant,
+    now: bool,
+}
+
+#[derive(Default)]
+struct Designer {
+    wants: Vec<Want>,
+    /// The design under way and its keys done (0…88).
+    busy: Option<(DesignKey, Arc<std::sync::atomic::AtomicUsize>)>,
+    /// Designs the registry had no room for: never designed again this session.
+    refused: Vec<DesignKey>,
+    running: bool,
+}
+
+static DESIGNER: Mutex<Designer> = Mutex::new(Designer {
+    wants: Vec::new(),
+    busy: None,
+    refused: Vec::new(),
+    running: false,
+});
+static WAKE: std::sync::Condvar = std::sync::Condvar::new();
 
 /// The tuning parameter values ask for.
 pub fn tuning_of(values: &[f32; N]) -> Tuning {
@@ -88,19 +126,31 @@ pub fn tuning_of(values: &[f32; N]) -> Tuning {
             .position(|i| i.key == k)
             .map_or(0.0, |i| values[i])
     };
-    Tuning {
+    settled(Tuning {
         a4: get("a4") as f64,
         stretch: get("stretch") as f64,
         stiffness: get("stiffness") as f64,
+    })
+}
+
+/// A tuning as it is designed: A4 to a hundredth of a hertz, the stretch and the stiffness
+/// to a thousandth (below anything heard; two knob positions that close share a design).
+pub fn settled(t: Tuning) -> Tuning {
+    let round = |v: f64, step: f64| (v / step).round() * step;
+    Tuning {
+        a4: round(t.a4, 0.01),
+        stretch: round(t.stretch, 0.001),
+        stiffness: round(t.stiffness, 0.001),
     }
 }
 
-fn key_of(tuning: Tuning, fs: f32) -> DesignKey {
+pub fn key_of(tuning: Tuning, fs: f32) -> DesignKey {
+    let t = settled(tuning);
     [
         fs.to_bits(),
-        (tuning.a4 as f32).to_bits(),
-        (tuning.stretch as f32).to_bits(),
-        (tuning.stiffness as f32).to_bits(),
+        (t.a4 as f32).to_bits(),
+        (t.stretch as f32).to_bits(),
+        (t.stiffness as f32).to_bits(),
     ]
 }
 
@@ -113,22 +163,20 @@ pub fn lookup(key: DesignKey) -> Option<Arc<Keyboard>> {
         .map(|e| e.keyboard.clone())
 }
 
-fn insert(key: DesignKey, keyboard: Keyboard) {
+/// Keep a design: whether the registry had room.
+fn insert(key: DesignKey, keyboard: Arc<Keyboard>) -> bool {
     let Ok(mut next) = NEXT.lock() else {
-        return;
+        return false;
     };
     if lookup(key).is_some() {
-        return;
+        return true;
     }
     if *next >= REGISTRY {
-        log::warn!("Chorda: the keyboard registry is full; this tuning keeps the last one");
-        return;
+        return false;
     }
-    let _ = ENTRIES[*next].set(Entry {
-        key,
-        keyboard: Arc::new(keyboard),
-    });
+    let _ = ENTRIES[*next].set(Entry { key, keyboard });
     *next += 1;
+    true
 }
 
 fn threads() -> usize {
@@ -137,74 +185,183 @@ fn threads() -> usize {
         .clamp(1, 8)
 }
 
-/// Design `tuning` at `fs` on a thread of its own, unless it is designed or on its way.
-pub fn request(tuning: Tuning, fs: f32) {
+/// Ask for `tuning` at `fs`: for `owner` (a track: designed once it has settled, replacing
+/// what the track asked for before) or, with no owner, at once. Never waits.
+fn ask(owner: Option<(u64, u32)>, tuning: Tuning, fs: f32) {
+    let tuning = settled(tuning);
     let key = key_of(tuning, fs);
     if lookup(key).is_some() {
+        if let (Some(o), Ok(mut d)) = (owner, DESIGNER.lock()) {
+            d.wants.retain(|w| w.owner != Some(o));
+        }
         return;
     }
-    {
-        let Ok(mut pending) = PENDING.lock() else {
-            return;
-        };
-        if pending.contains(&key) {
-            return;
-        }
-        pending.push(key);
+    let Ok(mut d) = DESIGNER.lock() else {
+        return;
+    };
+    if d.refused.contains(&key) {
+        return;
     }
-    let spawned = std::thread::Builder::new()
-        .name("cantus-chorda-design".into())
-        .spawn(move || {
-            insert(key, Keyboard::compute(tuning, fs as f64, threads()));
-            if let Ok(mut pending) = PENDING.lock() {
-                pending.retain(|k| *k != key);
+    let now = std::time::Instant::now();
+    match owner {
+        Some(o) => {
+            if let Some(w) = d.wants.iter_mut().find(|w| w.owner == Some(o)) {
+                if w.key != key {
+                    *w = Want {
+                        owner,
+                        key,
+                        tuning,
+                        fs,
+                        since: now,
+                        now: false,
+                    };
+                }
+            } else {
+                d.wants.push(Want {
+                    owner,
+                    key,
+                    tuning,
+                    fs,
+                    since: now,
+                    now: false,
+                });
             }
-        });
-    if spawned.is_err() {
-        if let Ok(mut pending) = PENDING.lock() {
-            pending.retain(|k| *k != key);
         }
+        None => {
+            if !d.wants.iter().any(|w| w.owner.is_none() && w.key == key) {
+                d.wants.push(Want {
+                    owner,
+                    key,
+                    tuning,
+                    fs,
+                    since: now,
+                    now: true,
+                });
+            }
+        }
+    }
+    if !d.running {
+        let spawned = std::thread::Builder::new()
+            .name("cantus-chorda-design".into())
+            .spawn(design_loop);
+        d.running = spawned.is_ok();
+    }
+    WAKE.notify_all();
+}
+
+/// The designer's thread: one design at a time, the wanted ones first, a track's only once
+/// it has settled; it ends when nothing is left to design.
+fn design_loop() {
+    loop {
+        let job = {
+            let Ok(mut d) = DESIGNER.lock() else {
+                return;
+            };
+            loop {
+                d.wants.retain(|w| lookup(w.key).is_none());
+                if d.wants.is_empty() {
+                    d.running = false;
+                    return;
+                }
+                let ready = d
+                    .wants
+                    .iter()
+                    .position(|w| w.now)
+                    .or_else(|| d.wants.iter().position(|w| w.since.elapsed() >= SETTLE));
+                if let Some(i) = ready {
+                    let w = &d.wants[i];
+                    let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+                    let job = (w.key, w.tuning, w.fs, done.clone());
+                    d.busy = Some((w.key, done));
+                    break job;
+                }
+                let Ok((g, _)) = WAKE.wait_timeout(d, std::time::Duration::from_millis(50)) else {
+                    return;
+                };
+                d = g;
+            }
+        };
+        let (key, tuning, fs, done) = job;
+        let keyboard = Arc::new(Keyboard::compute_counted(
+            tuning,
+            fs as f64,
+            threads(),
+            &done,
+        ));
+        let kept = insert(key, keyboard);
+        if let Ok(mut d) = DESIGNER.lock() {
+            d.busy = None;
+            if !kept {
+                log::warn!("Chorda: no room for another tuning this session; keeping the last");
+                d.refused.push(key);
+                d.wants.retain(|w| w.key != key);
+            }
+        }
+        WAKE.notify_all();
     }
 }
 
-/// The keyboard for `tuning` at `fs`, waiting for it (or computing it here) if need be. Off
-/// the audio thread only.
+/// The keyboard for `tuning` at `fs`, waiting for the designer (or designing it here when
+/// the registry has no room). Never on the audio thread: an offline render, a test.
 pub fn ensure(tuning: Tuning, fs: f32) -> Arc<Keyboard> {
+    let tuning = settled(tuning);
     let key = key_of(tuning, fs);
-    request(tuning, fs);
     loop {
         if let Some(k) = lookup(key) {
             return k;
         }
-        let gone = PENDING.lock().map(|p| !p.contains(&key)).unwrap_or(true);
-        if gone && lookup(key).is_none() {
-            // The registry is full, or its thread could not start: design it here.
+        let refused = DESIGNER.lock().map_or(true, |d| d.refused.contains(&key));
+        if refused {
             return Arc::new(Keyboard::compute(tuning, fs as f64, threads()));
         }
+        ask(None, tuning, fs);
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
 }
 
-/// Ask for the keyboards a snapshot's Chorda tracks need (from [`super::units_for`]).
+/// How far the design `tuning` at `fs` has come: `None` when it is designed (or never will
+/// be), otherwise 0…1 (0 while it waits its turn or for the knob to settle).
+pub fn progress(tuning: Tuning, fs: f32) -> Option<f32> {
+    let key = key_of(tuning, fs);
+    if lookup(key).is_some() {
+        return None;
+    }
+    let d = DESIGNER.lock().ok()?;
+    if d.refused.contains(&key) {
+        return None;
+    }
+    match &d.busy {
+        Some((k, done)) if *k == key => {
+            Some(done.load(std::sync::atomic::Ordering::Relaxed) as f32 / 88.0)
+        }
+        _ => Some(0.0),
+    }
+}
+
+/// Ask for the keyboards a snapshot's Chorda tracks need (from [`super::units_for`], on
+/// every snapshot): each track's tuning, designed once it has settled.
 pub fn prepare(snapshot: &cantus_core::Snapshot, fs: f32) {
     for t in &snapshot.tracks {
         if let Some(n) = t.instrument.native() {
             if n.kind == cantus_core::InstrumentKind::Chorda {
-                request(tuning_of(&values_of(n)), fs);
+                ask(Some((t.id.0, fs.to_bits())), tuning_of(&values_of(n)), fs);
             }
         }
     }
 }
 
-/// Start designing the reference keyboard for `fs` (at start-up, beside the window).
+/// Start designing the reference keyboard for `fs` (at start-up, after a device change).
 pub fn warm(fs: f32) {
-    request(Tuning::default(), fs);
+    ask(None, Tuning::default(), fs);
 }
 
-/// Whether the reference keyboard for `fs` is designed or on its way.
+/// Whether the reference keyboard for `fs` is designed or asked for.
 pub fn is_warm(fs: f32) -> bool {
     let key = key_of(Tuning::default(), fs);
-    lookup(key).is_some() || PENDING.lock().is_ok_and(|p| p.contains(&key))
+    lookup(key).is_some()
+        || DESIGNER.lock().is_ok_and(|d| {
+            d.wants.iter().any(|w| w.key == key) || d.busy.as_ref().is_some_and(|b| b.0 == key)
+        })
 }
 
 // ---- parameters → settings --------------------------------------------------------------
@@ -307,16 +464,17 @@ pub struct Unit {
     sources: [f32; SOURCE_TAGS.len()],
     /// Whether any route reads velocity or key.
     per_note: bool,
-    /// The keyboard asked for and the one playing.
+    /// The keyboard asked for (and its tuning) and the one playing (none yet: silent).
     want: DesignKey,
-    have: DesignKey,
+    want_tuning: Tuning,
+    have: Option<DesignKey>,
     fs: f32,
     offline: bool,
 }
 
 impl Unit {
-    /// Allocates the instrument and takes the reference keyboard (computed once per session
-    /// and sample rate, waited for if it is not ready).
+    /// Allocates the instrument and takes the reference keyboard if it is designed — never
+    /// waiting for it (it is asked for, and taken when it arrives).
     pub fn new(sample_rate: f32) -> Self {
         let fs = if sample_rate > 0.0 {
             sample_rate
@@ -329,7 +487,16 @@ impl Unit {
         }
         let mut dsp = Chorda::new(fs);
         let key = key_of(Tuning::default(), fs);
-        dsp.set_keyboard(ensure(Tuning::default(), fs));
+        let have = match lookup(key) {
+            Some(k) => {
+                dsp.set_keyboard(k);
+                Some(key)
+            }
+            None => {
+                warm(fs);
+                None
+            }
+        };
         let mut u = Unit {
             dsp,
             base,
@@ -337,7 +504,8 @@ impl Unit {
             sources: [0.0; SOURCE_TAGS.len()],
             per_note: false,
             want: key,
-            have: key,
+            want_tuning: Tuning::default(),
+            have,
             fs,
             offline: false,
         };
@@ -361,28 +529,20 @@ impl Unit {
             .any(|r| r.src as usize == src || r.via.is_some_and(|v| v as usize == src))
     }
 
-    /// Take the keyboard asked for if it is there (an offline render waits for it).
+    /// Take the keyboard asked for if it is there. Offline (never the audio thread) it is
+    /// waited for — designed on the spot if the designer cannot keep it — once.
     fn follow_design(&mut self) {
-        if self.want == self.have {
+        if self.have == Some(self.want) {
             return;
         }
         if let Some(k) = lookup(self.want) {
             self.dsp.set_keyboard(k);
-            self.have = self.want;
+            self.have = Some(self.want);
             return;
         }
-        if !self.offline {
-            return;
-        }
-        // Offline (not the audio thread): wait for the design, two minutes at most.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        while std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            if let Some(k) = lookup(self.want) {
-                self.dsp.set_keyboard(k);
-                self.have = self.want;
-                return;
-            }
+        if self.offline {
+            self.dsp.set_keyboard(ensure(self.want_tuning, self.fs));
+            self.have = Some(self.want);
         }
     }
 
@@ -394,7 +554,8 @@ impl Unit {
 impl InstrumentUnit for Unit {
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.base = values_of(spec);
-        self.want = key_of(tuning_of(&self.base), self.fs);
+        self.want_tuning = tuning_of(&self.base);
+        self.want = key_of(self.want_tuning, self.fs);
         routes(spec, &mut self.matrix);
         for (m, key) in MACRO_KEYS.iter().enumerate() {
             self.sources[m] = spec.get(key);
@@ -403,7 +564,7 @@ impl InstrumentUnit for Unit {
         self.update();
         if let Some(k) = lookup(self.want) {
             self.dsp.set_keyboard(k);
-            self.have = self.want;
+            self.have = Some(self.want);
         }
     }
 
@@ -507,7 +668,7 @@ impl InstrumentUnit for Unit {
         t[tel::SOFT] = m.soft;
         t[tel::PEAK_L] = m.peak_l;
         t[tel::PEAK_R] = m.peak_r;
-        t[tel::DESIGNED] = (self.want == self.have) as u8 as f32;
+        t[tel::DESIGNED] = (self.have == Some(self.want)) as u8 as f32;
         t[tel::ALIVE] = 1.0;
         t
     }

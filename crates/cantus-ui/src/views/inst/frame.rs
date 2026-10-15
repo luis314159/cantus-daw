@@ -877,8 +877,11 @@ fn param(
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
-        .rings(&rings)
-        .automation(automated.is_some());
+        .rings(&rings);
+    // A key that is set, never automated (Chorda's tuning) offers no clip.
+    if spec.kind.automatable(key) {
+        p = p.automation(automated.is_some());
+    }
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }

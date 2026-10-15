@@ -155,6 +155,10 @@ impl Runtime {
                 }
                 AutoTarget::Instrument { track: t, key } => track(*t).and_then(|ti| {
                     let native = snapshot.tracks[ti].instrument.native()?;
+                    // A key that is set, never automated (Chorda's tuning): the clip is inert.
+                    if !native.kind.automatable(key) {
+                        return None;
+                    }
                     let i = match rt.natives.iter().position(|c| c.track == ti) {
                         Some(i) => i,
                         None => {

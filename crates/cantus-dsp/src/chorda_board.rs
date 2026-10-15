@@ -44,6 +44,7 @@ struct Layout {
     delay: usize,
     frac: f64,
     sections: usize,
+    poles: [(f64, f64); 2],
     a1: [f64; 2],
     a2: [f64; 2],
 }
@@ -56,10 +57,12 @@ impl Layout {
             delay: d.delay.max(2),
             frac: d.frac,
             sections,
+            poles: [(0.0, 0.0); 2],
             a1: [0.0; 2],
             a2: [0.0; 2],
         };
         for i in 0..sections {
+            l.poles[i] = d.poles[i];
             let (a1, a2) = super::design::second_coefs(d.poles[i].0, d.poles[i].1);
             l.a1[i] = a1;
             l.a2[i] = a2;
@@ -79,6 +82,7 @@ struct SymString {
     a1: [f64; 2],
     a2: [f64; 2],
     sections: usize,
+    poles: [(f64, f64); 2],
     bq: [[f64; 4]; 2],
     g: f64,
     alpha: f64,
@@ -130,6 +134,7 @@ impl SymString {
         self.line.reset(l.delay);
         self.frac = l.frac;
         self.sections = l.sections;
+        self.poles = l.poles;
         self.a1 = l.a1;
         self.a2 = l.a2;
         self.fir = [0.0; 2];
@@ -177,6 +182,7 @@ impl Sympathetic {
                 a1: [0.0; 2],
                 a2: [0.0; 2],
                 sections: 0,
+                poles: [(0.0, 0.0); 2],
                 bq: [[0.0; 4]; 2],
                 g: 0.0,
                 alpha: 0.0,
@@ -384,8 +390,26 @@ impl Sympathetic {
                 // reflection `(1 − YZ)/(1 + YZ)` keeps the loop under unity at every
                 // frequency, DC too (the loss filter alone is capped at 1 there).
                 let rate = 6.907_755 / super::voice::damped_t60(s.key.key as f64);
-                let (g, a, yz) =
-                    super::string::loss(&s.key, self.fs, 0.5, self.decay, s.contact * rate, 0.0);
+                let fs = self.fs;
+                let (delay, frac, n, poles) = (s.line.len_now(), s.frac, s.sections, s.poles);
+                // The loop's own trip at each partial: its group delay there.
+                let trip = |k: u32| {
+                    let w = std::f64::consts::TAU * s.key.partial(k) / fs;
+                    let mut d = delay as f64 + 1.0 + super::design::first_delay(w, frac);
+                    for (r, t) in &poles[..n] {
+                        d += super::design::second_delay(w, *r, *t);
+                    }
+                    d / fs
+                };
+                let (g, a, yz) = super::string::loss_timed(
+                    &s.key,
+                    fs,
+                    0.5,
+                    self.decay,
+                    s.contact * rate,
+                    0.0,
+                    &trip,
+                );
                 s.g = g * (1.0 - yz) / (1.0 + yz);
                 s.alpha = a;
                 s.yz = yz;

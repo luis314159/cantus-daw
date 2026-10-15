@@ -95,6 +95,16 @@ impl InstrumentKind {
         dispatch!(self, m::READY)
     }
 
+    /// Whether a parameter may be automated (a clip may drive it): every one but those a
+    /// kind derives off the audio thread — Chorda's tuning, which designs its strings
+    /// (ADR 0059).
+    pub fn automatable(self, key: &str) -> bool {
+        match self {
+            InstrumentKind::Chorda => !chorda::DESIGN_KEYS.contains(&key),
+            _ => true,
+        }
+    }
+
     /// Every parameter the generic editors list (knobs, automation, a plug-in export). A
     /// kind with a structured space (zones, matrix slots) may accept more keys through
     /// [`param`](Self::param) than it lists here.
