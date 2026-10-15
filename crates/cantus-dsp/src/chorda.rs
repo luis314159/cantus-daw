@@ -58,3 +58,7 @@ pub use engine::{Chorda, ChordaSettings, Meter, CHUNK};
 #[cfg(test)]
 #[path = "chorda_tests_engine.rs"]
 mod tests_engine;
+
+#[cfg(test)]
+#[path = "chorda_tests_piano.rs"]
+mod tests_piano;

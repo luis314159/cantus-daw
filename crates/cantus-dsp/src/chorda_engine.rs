@@ -325,9 +325,13 @@ impl Chorda {
             let n = CHUNK.min(left.len() - done);
             self.chunk(n, par);
             for i in 0..n {
-                let (l, r) =
-                    self.board
-                        .tick(self.dl[i], self.dr[i], self.mono[i] + self.sym_out[i]);
+                // The sympathetic strings radiate from the middle of the board.
+                let sym = self.sym_out[i];
+                let (l, r) = self.board.tick(
+                    self.dl[i] + 0.5 * sym,
+                    self.dr[i] + 0.5 * sym,
+                    self.mono[i] + sym,
+                );
                 let (l, r) = ((l * self.gain) as f32, (r * self.gain) as f32);
                 left[done + i] += l;
                 right[done + i] += r;

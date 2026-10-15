@@ -125,8 +125,6 @@ struct Str {
     frac: f64,
     frac_x: f64,
     frac_y: f64,
-    /// Each dispersion section's state: x[n−1], x[n−2], y[n−1], y[n−2].
-    bq: [[f64; 4]; MAX_SECTIONS],
     hammer: Hammer,
     /// The wave that last arrived at the bridge (after the filters).
     arrived: f64,
@@ -142,7 +140,6 @@ impl Str {
             frac: 0.0,
             frac_x: 0.0,
             frac_y: 0.0,
-            bq: [[0.0; 4]; MAX_SECTIONS],
             hammer: Hammer::default(),
             arrived: 0.0,
         }
@@ -152,7 +149,6 @@ impl Str {
         self.fir = [0.0; 2];
         self.frac_x = 0.0;
         self.frac_y = 0.0;
-        self.bq = [[0.0; 4]; MAX_SECTIONS];
         self.hammer = Hammer::default();
         self.arrived = 0.0;
     }
@@ -168,6 +164,9 @@ pub struct KeyStrings {
     a1: [f64; MAX_SECTIONS],
     a2: [f64; MAX_SECTIONS],
     sections: usize,
+    /// Each dispersion section's state, string by string: x[n−1], x[n−2], y[n−1], y[n−2]
+    /// (section-major, so the strings' chains run side by side).
+    bq: [[[f64; 4]; MAX_STRINGS]; MAX_SECTIONS],
     /// The loss filter: gain and the side taps' weight.
     g: f64,
     alpha: f64,
@@ -190,6 +189,7 @@ impl KeyStrings {
             a1: [0.0; MAX_SECTIONS],
             a2: [0.0; MAX_SECTIONS],
             sections: 0,
+            bq: [[[0.0; 4]; MAX_STRINGS]; MAX_SECTIONS],
             g: 0.0,
             alpha: 0.0,
             yz: 0.0,
@@ -236,6 +236,7 @@ impl KeyStrings {
         let nut = ((key.strike * total as f64 / 2.0).round() as usize).max(1);
         let to = ((total - 2 * nut) / 2).max(1);
         let from = (total - 2 * nut - to).max(1);
+        self.bq = [[[0.0; 4]; MAX_STRINGS]; MAX_SECTIONS];
         for (i, s) in self.strings.iter_mut().enumerate().take(self.n) {
             s.nut.reset(2 * nut);
             s.to_bridge.reset(to);
@@ -295,6 +296,7 @@ impl KeyStrings {
 
     /// Silence the strings at once (a voice ending).
     pub fn silence(&mut self) {
+        self.bq = [[[0.0; 4]; MAX_STRINGS]; MAX_SECTIONS];
         for s in self.strings.iter_mut().take(self.n) {
             let (a, b, c) = (s.nut.len, s.to_bridge.len, s.from_bridge.len);
             s.nut.reset(a);
@@ -320,9 +322,8 @@ impl KeyStrings {
         let n = self.n;
         let inv_fs = 1.0 / self.fs;
         let half_z = 0.5 / self.z;
-        let mut sum = 0.0;
-        for i in 0..n {
-            let s = &mut self.strings[i];
+        let mut xs = [0.0; MAX_STRINGS];
+        for (i, s) in self.strings.iter_mut().enumerate().take(n) {
             let in_n = -s.nut.read();
             let in_b = s.from_bridge.read();
             let mut f2z = 0.0;
@@ -351,18 +352,16 @@ impl KeyStrings {
             let y = s.frac * (lossy - s.frac_y) + s.frac_x;
             s.frac_x = lossy;
             s.frac_y = y;
-            // … and the dispersion sections.
-            let mut x = y;
-            for k in 0..self.sections {
-                let st = &mut s.bq[k];
-                let (a1, a2) = (self.a1[k], self.a2[k]);
-                let out = a2 * x + a1 * st[0] + st[1] - a1 * st[2] - a2 * st[3];
-                st[1] = st[0];
-                st[0] = x;
-                st[3] = st[2];
-                st[2] = out;
-                x = out;
-            }
+            xs[i] = y;
+        }
+        // … and the dispersion sections, the strings' chains side by side.
+        match n {
+            3 => self.disperse::<3>(&mut xs),
+            2 => self.disperse::<2>(&mut xs),
+            _ => self.disperse::<1>(&mut xs),
+        }
+        let mut sum = 0.0;
+        for (s, x) in self.strings.iter_mut().zip(xs).take(n) {
             s.arrived = x;
             sum += x;
         }
@@ -372,6 +371,28 @@ impl KeyStrings {
             s.from_bridge.write(v_b - s.arrived);
         }
         self.z * (2.0 * sum - n as f64 * v_b)
+    }
+
+    #[inline(always)]
+    fn disperse<const N: usize>(&mut self, xs: &mut [f64; MAX_STRINGS]) {
+        let secs = self.sections;
+        for ((st, a1), a2) in self.bq[..secs]
+            .iter_mut()
+            .zip(&self.a1[..secs])
+            .zip(&self.a2[..secs])
+        {
+            let (a1, a2) = (*a1, *a2);
+            for i in 0..N {
+                let s = &mut st[i];
+                let x = xs[i];
+                let out = a2 * x + a1 * s[0] + s[1] - a1 * s[2] - a2 * s[3];
+                s[1] = s[0];
+                s[0] = x;
+                s[3] = s[2];
+                s[2] = out;
+                xs[i] = out;
+            }
+        }
     }
 }
 

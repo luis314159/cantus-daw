@@ -27,6 +27,9 @@ pub const MODES: usize = 40;
 /// The low band's decimation.
 pub const DECIMATE: u32 = 4;
 const FDN: usize = 4;
+/// The bridge's motion a sympathetic string's end follows, against the voices' own
+/// coupling: a fifth (the bridge is stiffer where the struck key's strings do not cross it).
+const SYMPATHY: f64 = 0.2;
 
 /// A sympathetic string: one loop, its damper, its drive.
 #[derive(Clone, Debug)]
@@ -193,7 +196,7 @@ impl Sympathetic {
                     x = out;
                 }
                 // The bridge moves with the drive: the end's reflection, and the force.
-                let v_b = level * s.yz / s.z * d;
+                let v_b = SYMPATHY * level * s.yz / s.z * d;
                 s.line.write(2.0 * v_b - x);
                 let f = s.z * 2.0 * (x - v_b);
                 s.peak = s.peak.max(f.abs());
