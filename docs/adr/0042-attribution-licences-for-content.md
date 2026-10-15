@@ -126,3 +126,90 @@ licensor's own line), `xtask/src/notices_tests.rs` (the Content section; a missi
 credit fails the check), `crates/cantus-ui/tests/samples_browser.rs` and
 `crates/cantus-ui/tests/about.rs` (the credit and plain words before and after the
 download, in both languages; About ▸ Credits; the Credits button scrolls to them).
+
+## Amendment, 2026-10-15 (round 28, sound): the acoustic drum kit, and packs built at install
+
+**The kit chosen, its licence read at the source.** The owner named Naked Drums or a
+DrumGizmo kit (BACKLOG §5).
+
+- **Naked Drums is refused.** The SFZ port (`github.com/sfzinstruments/
+  WilkinsonAudio.NakedDrums`) carries a CC BY 4.0 `LICENSE`, but it was put there by the
+  people who converted the kit, not by its maker. Wilkinson Audio sold Naked Drums (USD 60)
+  and made it a free download in May 2016 (Bedroom Producers Blog, 2016-04-30); its own
+  product page, in the Internet Archive from 2019–2020, offers it free and points at the
+  SFZ conversion "by some very cool people", but names no licence anywhere, and the store is
+  gone. The porter's announcement (KVR, 2020-06-30) claims no permission. Rule 2's "anything
+  whose licence texts disagree between sources" covers a licence the rights holder never
+  stated: until Wilkinson Audio grants CC BY in writing (the owner may ask them), it stays
+  out.
+- **DrumGizmo's DRSKit 2.1 is accepted** (CC BY 4.0). The rights holders state it
+  themselves: the kit's page on drumgizmo.org ("The DRSKit drumkit source files are released
+  under the Creative Commons Attribution 4.0 International License") and the `README.md`
+  inside the archive (which the pack keeps as its licence file). Their page adds: "When the
+  samples are used in a composition, any context in which other credits (e.g. to
+  performers) are presented must include an attribution." That is the licensor saying how
+  the attribution CC BY 4.0 already asks for is given (§3(a)(2): "in any reasonable manner
+  based on the medium"), not a further condition; Cantus quotes it word for word as the
+  author's words on the pack's page (§4), so a user publishing music knows it. It goes to
+  the pre-release legal review with the rest (owner-only).
+- The archive is DrumGizmo's own (`drumgizmo.org/kits/DRSKit/DRSKit2_1.zip`, 2 803 397 710
+  bytes); its published MD5 (`8c4d4b61…c133`) matched the download, and the manifest pins
+  our SHA-256 (`529f2dca…f090`). Virtuosity Drums (CC0) stays the source of the starter
+  kit's one-shots; DRSKit is the owner's named kit, the fuller one (two kicks, three toms,
+  two crashes, a ride, sticks and brushes, 13 microphones, up to 30 strengths per drum).
+
+**Packs built at install (manifest format 3).** A DrumGizmo kit is one multi-channel file
+per hit (DRSKit: 13 microphones, 32-bit float, 44.1 kHz, 4.3 GB unpacked) that no sampler
+plays as it is. A pack may now carry a **`build`** step that the install runs after
+unpacking, before the pack is moved into place (`cantus_content::kitbuild`):
+
+1. read the kit (`drumgizmo.rs`: the kit file's channels and instruments, each
+   instrument's samples with their `power` and which channel of which file each
+   microphone is — DRSKit's files store their channels in another order than the kit
+   lists them);
+2. mix each hit the pack builds to **stereo**: each microphone at its gain, panned with
+   the equal-power law, its polarity reversed if asked, **at its bleed level on the drums
+   it does not face** (a tom's close microphone 20 dB down on a snare hit, as a mixing
+   engineer's gate would have it), each instrument raised or lowered for the balance, the
+   whole mix at its gain — sums in the manifest's order with `cantus_dsp::math`, written as
+   24-bit WAV at the kit's rate, so every machine writes the same bits;
+3. measure every hit (the RMS of its first 50 ms) and write an **SFZ** for Exemplar:
+   velocity layers by level on SFZ's velocity curve (a hit `L` dB under the drum's
+   loudest is what velocity `127·10^(L/40)` plays; each hit's gain makes every velocity
+   play at that curve, so the loudness is continuous and the timbre changes from layer to
+   layer), round robins of `round_robin` hits per layer taken **in order** (ADR 0023's
+   round-28 amendment: no sample twice in a row), the keys the manifest gives (General MIDI,
+   DrumGizmo's own for the rest), chokes as exclusive classes with a release, the
+   manifest's labels as the groups' names, the credit at the top;
+4. remove every unpacked file the pack does not keep (`keep`, the licence among them), and
+   count what is left for the receipt.
+
+The manifest pins every number of the mix (`mics`, `keys`, `chokes`, `gain_db`,
+`round_robin`, `range_db`), so a pack is reviewable data and the same archive always builds
+the same files; the unpack's budget is the build's `unpacked_size`; a build that fails
+installs nothing and leaves nothing. The progress shows the unpacking, then *Mixing the
+microphones: n of m hits*. A pack instrument may set Exemplar's `voices`, and one on the
+*Drums* shelf turns Exemplar's drum rows on. Format-2 builds refuse a format-3 manifest by
+name (as format 2 did).
+
+**Mixed at install, measured against the alternatives** (DRSKit, this machine):
+
+| | Stereo mix at install (chosen) | A stereo stem per bus (close, overheads, room) | Every microphone a zone |
+|---|---|---|---|
+| Disk (24-bit) | **490 MB** | 1.47 GB | 3.2 GB |
+| Heads in memory (streaming) | **123 MiB** | ≈ 370 MiB | ≈ 800 MiB |
+| Voices per hit | **1** | 3 | 13 |
+| Zones | **591** | 1 773 (> 1 024) | 7 683 (> 1 024) |
+| Per-microphone level | fixed by the mix | per bus, by Exemplar's groups | per microphone, needs multiple outputs |
+
+Faders for each microphone need an instrument with several outputs (BACKLOG §3e item 11,
+Pulsus III's mic buses), not Exemplar's single stereo output: left there, not half-built.
+
+**Measured** (`kit_build.rs`, `pack_drums.rs`, ignored tests on the real archive): the real
+archive installs from its file in 104–128 s (copy, unpack 4.3 GB, mix 525 hits) to 527 files
+and 489 577 116 bytes; peak −4.9 dBFS, nothing clamped; 16 hits softer than 30 dB under
+their drum's loudest left out; Exemplar imports its 591 zones in 0.09 s, holds 123 MiB of
+heads streaming, renders 15× faster than real time on one thread; a rock groove sits at
+−26.2 LUFS with −7.4 dBTP, everything at velocity 127 at −0.9 dBTP — ADR 0039's headroom
+rule sets the instrument's gain at 0 dB; 186 velocity layers, each with at least two hits
+in turn.

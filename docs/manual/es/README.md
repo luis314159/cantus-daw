@@ -557,13 +557,16 @@ cualquier carpeta de muestras).
 - Sin nada instalado, el explorador ofrece **Empieza con una batería**: *Descargar* trae la
   *Batería inicial de Cantus* (81 golpes, 33 MB). *Paquetes de sonidos…* (o *Más
   paquetes…*) lista los demás — las baterías de Karoryfer, la percusión de VCSL y VSCO 2,
-  un TX81Z para Exemplar y el **piano de cola Salamander** (un Yamaha C5, 16 capas de
-  velocidad) — con su tamaño, licencia y créditos; *Instalar*, *Actualizar*, *Quitar*,
+  un TX81Z para Exemplar, el **piano de cola Salamander** (un Yamaha C5, 16 capas de
+  velocidad) y **DRSKit**, una batería acústica grabada por el equipo de DrumGizmo — con
+  su tamaño, licencia y créditos; *Instalar*, *Actualizar*, *Quitar*,
   mostrar la carpeta e *Instalar desde un archivo…* para equipos sin internet.
 
 Todos los paquetes son gratuitos. Casi todos son **CC0** (sin tener que citar); el piano
-Salamander es **CC BY 3.0**: su crédito aparece en su página de *Paquetes de sonidos…* y en
-*Ayuda ▸ Créditos*, y se guarda en la carpeta del paquete. En los dos casos, la música que
+Salamander es **CC BY 3.0** y DRSKit **CC BY 4.0**: su crédito aparece en su página de
+*Paquetes de sonidos…* y en *Ayuda ▸ Créditos*, y se guarda en la carpeta del paquete
+(DrumGizmo pide además, con sus propias palabras citadas en la página del paquete, que se le
+cite allí donde se den los demás créditos de una canción). En los dos casos, la música que
 haces con ellos es tuya. Se guardan en `%LOCALAPPDATA%\Cantus\Content\`; cada archivo se
 verifica con su SHA-256.
 
@@ -576,6 +579,31 @@ una sola vez en su **caché de muestras** (1 GB para las 8 capas del Salamander,
 16), junto a la ventana, con *Cargando muestras… n de m* en la barra de estado; las cargas
 siguientes tardan una fracción de segundo. Si el disco no llega a tiempo, la barra de estado
 cuenta *Disco lento: n*.
+
+**La batería acústica.** *DRSKit* (el equipo de DrumGizmo y Jes Eiler, de DRSDrums) se
+grabó con 13 micrófonos; al instalarla (una descarga de 2,8 GB), Cantus los mezcla en una
+batería estéreo —cada tambor en su lugar del campo estéreo, el micrófono inferior de la
+caja en fase, los micrófonos cercanos de los toms y los platillos atenuados en los demás
+tambores, como harían las puertas de un ingeniero de mezcla—, de modo que cada golpe suena
+como una sola muestra estéreo. Tarda unos dos minutos tras la descarga y ocupa unos
+490 MB. *Batería acústica DRSKit* aparece entonces en el estante *Baterías* del selector de
+dispositivos y suena en Exemplar en las teclas de batería de General MIDI: bombo 36 (35, un
+bombo más abierto), golpe de aro 37, caja 38, toms 41 · 43–45 · 47–50, charles cerrado 42,
+de pedal 44 y medio abierto 46, crash 49 y 57, ride 51 y 59, campana 53 — y las teclas
+propias de DrumGizmo para el resto (el charles abierto 58, las puntas de los platillos
+54–55, el ride con cadena y las escobillas, de 60 a 76). Cada tambor tiene hasta 30
+intensidades como capas de velocidad, y los golpes de una capa se turnan **en orden**, así
+que un redoble nunca repite la misma muestra dos veces seguidas; un charles cerrado o de
+pedal apaga uno abierto. En el piano roll y en el rack de canales la batería muestra **una
+fila por tambor**, con su nombre (el interruptor *Filas de batería* de Exemplar, en su
+vista *Editar*). El equilibrio de los micrófonos lo fija la mezcla: un fader por micrófono
+necesita un instrumento con varias salidas, un paso posterior.
+
+**Round robin en orden.** La vista *Editar* de Exemplar tiene el orden del round robin: *En
+orden* (cada nota de una altura toma el siguiente turno según su lugar en la canción, así
+que reproducir desde cualquier punto elige lo mismo que la canción entera) o *Por nota*
+(derivado de cada nota: como siguen sonando los Exemplar de proyectos guardados antes de
+esta versión). Un instrumento importado toca su round robin en orden.
 
 **Un paquete que falta.** Un proyecto que toca un paquete que este equipo no tiene abre una
 tarjeta con el paquete y sus pistas en silencio: *Instalar en Paquetes de sonidos…*, *Usar
@@ -596,7 +624,7 @@ cualquier ventana de dispositivo, con una ranura de inserción vacía o con *Ver
 de dispositivos…*. Busca por nombre, fabricante o tipo; filtra por estante (*Favoritos*,
 *Recientes*, una categoría, o *Cantus / CLAP / VST3*); las flechas se mueven, `Enter`
 elige, `Ctrl+D` marca un favorito, `Esc` cierra. Los instrumentos de los paquetes
-instalados (el piano Salamander) están en *Teclados*. Cambiar un instrumento conserva sus
+instalados están en su estante: el piano Salamander en *Teclados*, DRSKit en *Baterías*. Cambiar un instrumento conserva sus
 notas, clips, canal del mezclador y efectos; cambiar un efecto conserva su ranura, su
 mezcla y su puenteo.
 
@@ -772,7 +800,10 @@ Esto es una beta. Lo que ya sabemos:
   a la carpeta del proyecto puede detener la ventana mientras se copian los archivos; Ctrl+V sin
   nada copiado no hace nada ni lo dice.
 - **Lamina** suena un poco más bajo que los demás instrumentos (unos 4 dB) con el mismo
-  fader, y el **piano Salamander** unos 5 dB más bajo.
+  fader, y el **piano Salamander** unos 5 dB más bajo. **DRSKit** es una batería en bruto,
+  sin compresión: un ritmo queda en torno a −26 LUFS con picos cerca de −7 dBFS (a toda
+  intensidad llega a −1 dBFS, lo máximo que permite la regla de margen) — sube su fader o
+  pon un compresor en su canal, como con una batería grabada.
 - La **primera carga del Salamander** descodifica sus muestras en la caché de muestras
   (1–2 GB en disco; unos 10 s), junto a la ventana; una nota tocada antes de que lleguen
   sus muestras no suena. Las cargas siguientes son rápidas.

@@ -516,14 +516,17 @@ packs you installed and *My folders* (click **+** to add any folder of samples).
   or onto the **arrangement** (an audio clip where you drop it). Each drop is one undo step.
 - With nothing installed, the browser offers **Start with a drum kit**: *Download* fetches
   *Cantus Starter Drums* (81 one-shots, 33 MB). *Sound packs…* (or *More packs…*) lists
-  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar, and the
-  **Salamander Grand Piano** (a Yamaha C5, 16 velocity layers) — with their size, licence
+  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar, the
+  **Salamander Grand Piano** (a Yamaha C5, 16 velocity layers) and **DRSKit**, an acoustic
+  drum kit recorded by the DrumGizmo team — with their size, licence
   and credits; *Install*, *Update*, *Remove*, *Show the folder*, and *Install from a
   file…* for computers without internet.
 
 Every pack is free. Most are **CC0** (no credit needed); the Salamander Grand Piano is
-**CC BY 3.0**: its credit is shown on its page in *Sound packs…* and in *Help ▸ Credits*,
-and kept in the pack's folder. Either way, the music you make with them is yours. Packs
+**CC BY 3.0** and DRSKit **CC BY 4.0**: their credit is shown on their page in *Sound
+packs…* and in *Help ▸ Credits*, and kept in the pack's folder (DrumGizmo also asks, in
+its own words quoted on the pack's page, for a credit wherever a song's other credits are
+given). Either way, the music you make with them is yours. Packs
 are saved in `%LOCALAPPDATA%\Cantus\Content\`; every file is checked against its SHA-256.
 
 **Pack instruments.** An installed pack that brings instruments (the Salamander: with 8
@@ -534,6 +537,29 @@ in memory. The first time, Cantus decodes the samples once into its **sample cac
 for the Salamander's 8 layers, 2 GB for 16), beside the window, with *Loading samples… n
 of m* on the status bar; later loads take a fraction of a second. If the disk cannot keep
 up, the status bar counts *Disk late: n*.
+
+**The acoustic drum kit.** *DRSKit* (DrumGizmo team and Jes Eiler of DRSDrums) was
+recorded with 13 microphones; when you install it (a 2.8 GB download), Cantus mixes them
+into a stereo kit — every drum at its place in the stereo field, the snare's bottom
+microphone in polarity, the toms' and cymbals' close microphones turned down on the other
+drums as a mixing engineer's gates would — so each hit plays as one stereo sample. It
+takes about two minutes after the download and leaves about 490 MB. *DRSKit acoustic
+drums* is then on the device picker's *Drums* shelf, playing in Exemplar on the General
+MIDI drum keys: kick 36 (35 a more open kick), side stick 37, snare 38, toms 41 · 43–45 ·
+47–50, hi-hat closed 42, pedal 44 and half open 46, crashes 49 and 57, ride 51 and 59, bell
+53 — and DrumGizmo's own keys for the rest (the open hi-hat 58, the cymbals' tips 54–55,
+the ride with its chain, and the brushes from 60 to 76). Each drum has up to 30 strengths
+as velocity layers, and the hits of a layer take their turns **in order**, so a roll never
+plays the same sample twice in a row; a closed or pedal hi-hat silences an open one. In
+the piano roll and the channel rack the kit shows **a row per drum**, by name (Exemplar's
+*Drum rows* switch, in its *Edit* view). The microphones' balance is fixed by the mix:
+faders for each microphone need an instrument with several outputs, a later step.
+
+**Round robin in order.** Exemplar's *Edit* view has the round robin's order: *In order*
+(each note of a pitch takes the next turn by its place in the song, so a render from any
+point chooses what the whole song does there) or *By note* (drawn from each note — how
+Exemplars in projects saved before this version keep playing). An imported instrument plays
+its round robins in order.
 
 **A missing pack.** A project that plays a pack this computer does not have opens a card
 that names the pack and its silent tracks: *Install in Sound packs…*, *Use the installed
@@ -553,7 +579,7 @@ track's instrument chip (swap the instrument), *Swap* on any device window, an e
 insert slot, or *View ▸ Device picker…*. Search by name, maker or kind; filter by shelf
 (*Favourites*, *Recent*, a category, or *Cantus / CLAP / VST3*); arrows move, `Enter`
 chooses, `Ctrl+D` marks a favourite, `Esc` closes. Installed pack instruments (the
-Salamander Grand Piano) are under *Keys*. Swapping an instrument keeps its notes,
+Salamander Grand Piano) are under *Keys*, DRSKit under *Drums*. Swapping an instrument keeps its notes,
 clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypass.
 
 | Instrument | What it is |
@@ -721,7 +747,10 @@ This is a beta. What we know about:
   pause the window while the files are copied; Ctrl+V with nothing
   copied does nothing and says nothing.
 - **Lamina** plays a little quieter than the other instruments (about 4 dB) at the same
-  fader, and the **Salamander Grand Piano** about 5 dB quieter.
+  fader, and the **Salamander Grand Piano** about 5 dB quieter. **DRSKit** is a raw,
+  uncompressed kit: a groove sits around −26 LUFS with peaks near −7 dBFS (at full
+  strength it reaches −1 dBFS, the most the headroom rule allows) — raise its fader or put
+  a compressor on its strip, as with a recorded kit.
 - The **Salamander's first load** decodes its samples into the sample cache (1–2 GB on
   disk; about 10 s), beside the window; a note played before its samples
   arrive is silent. Later loads are quick.
