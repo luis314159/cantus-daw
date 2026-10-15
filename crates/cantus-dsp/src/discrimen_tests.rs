@@ -279,3 +279,40 @@ fn a_section_switched_off_is_emptied() {
     u.set(&DiscrimenSettings::default());
     assert!(u.sections_clear(), "the body's comp and tilt were emptied");
 }
+
+/// Review 1: a NaN or an infinity passes through as itself but locks nothing — not the
+/// detector, not a part's compressor or tilt — and the unit comes to rest.
+#[test]
+fn a_non_finite_sample_locks_nothing() {
+    let s = DiscrimenSettings {
+        look_ahead: true,
+        transient: Part {
+            gain_db: 3.0,
+            comp: 0.5,
+            tilt_db: 2.0,
+        },
+        body: Part {
+            gain_db: -2.0,
+            comp: 0.5,
+            tilt_db: -2.0,
+        },
+        ..DiscrimenSettings::default()
+    };
+    let mut x = hits(24_000, 0.8);
+    x[100] = f32::NAN;
+    x[200] = f32::INFINITY;
+    let mut u = with(s);
+    let (y, _) = run(&mut u, &x, &x, 256);
+    assert!(y[1_000..].iter().all(|v| v.is_finite()), "finite after the NaN");
+    let (reference, _) = run(&mut with(s), &hits(24_000, 0.8), &hits(24_000, 0.8), 256);
+    for i in 12_000..14_000 {
+        assert!((y[i] - reference[i]).abs() < 1e-3, "sample {i}");
+    }
+    let z = vec![0f32; 64];
+    let mut n = 0;
+    while !u.at_rest() {
+        run(&mut u, &z, &z, 64);
+        n += 64;
+        assert!(n < 30 * 48_000, "no rest after a NaN");
+    }
+}

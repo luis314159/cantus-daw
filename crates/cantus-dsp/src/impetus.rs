@@ -18,7 +18,7 @@
 //! filters run only in a split mode and are emptied when it ends; after a run of silence
 //! everything is flushed to +0.0 (per sample), so the unit comes to rest exactly.
 
-use crate::dynfx_follow::Quiet;
+use crate::dynfx_follow::{sane, Quiet};
 use crate::dynfx_meter::{Columns, Fold, Hold};
 use crate::dynfx_transient::{Diff, DiffTimes};
 use crate::dynfx_transient::{Svf, SvfCoef};
@@ -228,16 +228,16 @@ impl Impetus {
             let (hx, hy) = match band {
                 Band::Full => (x, y),
                 Band::Highs => (
-                    self.lp[0].run(x, &self.xover).1,
-                    self.lp[1].run(y, &self.xover).1,
+                    self.lp[0].run(sane(x), &self.xover).1,
+                    self.lp[1].run(sane(y), &self.xover).1,
                 ),
                 Band::Lows => (
-                    self.lp[0].run(x, &self.xover).0,
-                    self.lp[1].run(y, &self.xover).0,
+                    self.lp[0].run(sane(x), &self.xover).0,
+                    self.lp[1].run(sane(y), &self.xover).0,
                 ),
             };
             let (kx, ky) = match key {
-                Some((kl, kr)) => (kl[i], kr[i]),
+                Some((kl, kr)) => (sane(kl[i]), sane(kr[i])),
                 None => (0.0, 0.0),
             };
             let level = if key.is_some() {
