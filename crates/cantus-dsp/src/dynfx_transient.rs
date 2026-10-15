@@ -148,6 +148,8 @@ impl Diff {
     /// dB, each ≥ 0.
     #[inline]
     pub fn run(&mut self, level: f32, t: &DiffTimes) -> (f32, f32) {
+        // Not a number: silence (the running maximum would hold it for its whole window).
+        let level = if level.is_finite() { level } else { 0.0 };
         let m = self.max.push(level, t.hold);
         let af = self.att_fast.run(m, &t.att_fast);
         let asl = self.att_slow.run(m, &t.att_slow);
@@ -314,6 +316,33 @@ mod tests {
             let rb = b.run((v * 0.25).abs(), &t);
             assert_eq!(ra.0.to_bits(), rb.0.to_bits());
             assert_eq!(ra.1.to_bits(), rb.1.to_bits());
+        }
+    }
+
+    /// Review 1: a sample that is not a number reads as silence — it never locks the
+    /// envelopes (a NaN in a follower stays NaN for good).
+    #[test]
+    fn a_non_finite_level_locks_nothing() {
+        let t = DiffTimes::new(10.0, 200.0, SR);
+        let mut d = Diff::default();
+        for v in hit(2_000, 0.8) {
+            d.run(v.abs(), &t);
+        }
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let (a, s) = d.run(bad, &t);
+            assert!(a.is_finite() && s.is_finite());
+        }
+        let mut steady = (0f32, 0f32);
+        for i in 0..48_000 {
+            let v = 0.5 * crate::math::sin(std::f32::consts::TAU * 440.0 * i as f32 / SR);
+            steady = d.run(v.abs(), &t);
+        }
+        assert!(steady.0 < 0.05 && steady.1 < 0.05, "{steady:?}");
+        let mut n = 0;
+        while !d.is_zero() {
+            d.run(0.0, &t);
+            n += 1;
+            assert!(n < 30 * 48_000, "no rest after a NaN");
         }
     }
 

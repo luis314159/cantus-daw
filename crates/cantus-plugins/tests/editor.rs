@@ -224,3 +224,54 @@ fn the_frames_bypass_and_a_b_are_the_hosts_gestures() {
         "switching sides sends the other side's values: {e:?}"
     );
 }
+
+/// Review 1: the exported Speculum's tap carries its own frames, left and right, every one
+/// in order, and the clock it gives is the newest frame's (the block's last, not its
+/// start); another kind's editor has no such stream.
+#[test]
+fn the_exported_speculum_reads_its_own_stereo_frames_and_the_newest_frames_beat() {
+    use cantus_plugins::instance::HostTransport;
+    let shared = Shared::new(desc::of(EffectKind::Analyzer).unwrap());
+    shared.editor_open.store(true, Ordering::Release);
+    let mut proc_ = Processor::new(shared.clone(), 48_000.0);
+    let mut ph = PluginHost::new(shared.clone(), Box::new(Collect(Default::default())));
+    let n = 480;
+    let l: Vec<f32> = (0..n)
+        .map(|i| cantus_dsp::math::sin(i as f32 * 0.05) * 0.5)
+        .collect();
+    let r: Vec<f32> = (0..n)
+        .map(|i| cantus_dsp::math::cos(i as f32 * 0.11) * 0.3)
+        .collect();
+    proc_.set_transport(Some(HostTransport {
+        playing: true,
+        tempo: Some(120.0),
+        beats: Some(2.0),
+        bar_start: Some(0.0),
+        time_sig: Some((4, 4)),
+        loop_beats: None,
+        seconds: None,
+    }));
+    let (mut a, mut b) = (l.clone(), r.clone());
+    proc_.process(&mut a, &mut b, None, &[]);
+    ph.refresh();
+    let mut out = Vec::new();
+    let take = ph.take_stereo(&mut out);
+    assert!(take.stream);
+    assert_eq!(out.len(), n);
+    for (i, (x, y)) in out.iter().enumerate() {
+        assert_eq!(
+            (x.to_bits(), y.to_bits()),
+            (l[i].to_bits(), r[i].to_bits()),
+            "frame {i}"
+        );
+    }
+    let (beat, tempo) = take.clock.expect("playing");
+    assert_eq!(tempo, 120.0);
+    let want = 2.0 + (n - 1) as f64 * 120.0 / 60.0 / 48_000.0;
+    assert!((beat - want).abs() < 1e-9, "{beat} vs {want}");
+    // A gate's editor has no stereo stream.
+    let (_, mut gate_host, _) = host();
+    let mut none = Vec::new();
+    assert_eq!(gate_host.take_stereo(&mut none), Default::default());
+    assert!(none.is_empty());
+}

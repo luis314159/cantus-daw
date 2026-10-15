@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 30;
+pub const SCHEMA_VERSION: u32 = 31;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -213,6 +213,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_27_to_28,
     migrate_28_to_29,
     migrate_29_to_30,
+    migrate_30_to_31,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -685,13 +686,51 @@ fn migrate_28_to_29(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 30 (round 28, review 2 of ADR 0054): a pitch note says whether its pitch is
+/// Schema 30 (round 28, sound, ADR 0042/0023): Exemplar's round robin plays **in order**
+/// (`rr.order` = 1, the default: a
+/// clip's note takes its turn by its ordinal on the track, so a roll never repeats a sample
+/// and a render from any point cycles as the whole one does). Every Exemplar saved before
+/// drew its turns from the notes' ids: its `rr.order` is written as 0, so it renders to the
+/// same bits it did; a value already there is kept. The same step brings Exemplar's `kit`
+/// (a drum kit's rows in the piano roll and the channel rack): absent, an Exemplar is a
+/// keyboard, as every older one was, so it writes nothing for it.
+fn migrate_29_to_30(value: &mut Value) -> Result<(), String> {
+    write_sampler_default(value, "rr.order", 0.0)
+}
+
+/// Write `key` = `v` into every Exemplar's parameters that lacks it.
+fn write_sampler_default(value: &mut Value, key: &str, v: f64) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        if !native || inst.get("kind").and_then(Value::as_str) != Some("Sampler") {
+            continue;
+        }
+        let params = inst
+            .entry("params")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(params) = params.as_object_mut() else {
+            return Err("an Exemplar's params are not a map".into());
+        };
+        params.entry(key).or_insert_with(|| Value::from(v));
+    }
+    Ok(())
+}
+
+/// Schema 31 (round 28, review 2 of ADR 0054): a pitch note says whether its pitch is
 /// *Correct pitch*'s (`PitchNote::corrected`), so the macro re-targets it after a key change
 /// and never takes back a hand move. A file without it has every pitch as the hand's — an
 /// older build would have guessed from the key — and no project with pitch edits has
 /// shipped, so the step writes nothing; the number makes an older build refuse a file
 /// whose macro notes it would misread.
-fn migrate_29_to_30(_value: &mut Value) -> Result<(), String> {
+fn migrate_30_to_31(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -934,10 +973,55 @@ mod tests {
         assert!(p.recording.record_automation);
     }
 
-    /// Schema 30 (round 28, review 2): the vocal's second note was set by *Correct pitch*
+    /// Schema 30 (round 28, sound): every Exemplar saved before keeps its seeded round
+    /// robin (`rr.order` written as 0); one already carrying the key keeps it; other kinds
+    /// are untouched. The v30 fixture holds an Exemplar made now (in order, not stored).
+    #[test]
+    fn schema_30_keeps_an_old_exemplars_round_robin_seeded() {
+        let mut v = serde_json::json!({"project": {"tracks": [
+            {"instrument": {"type": "Native", "kind": "Sampler"}},
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": {"z0.gen": 3.0}}},
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": {"rr.order": 1.0}}},
+            {"instrument": {"type": "Native", "kind": "Organ"}},
+            {"instrument": {"type": "Firmus"}},
+        ]}});
+        migrate_29_to_30(&mut v).unwrap();
+        let t = &v["project"]["tracks"];
+        assert_eq!(t[0]["instrument"]["params"]["rr.order"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["rr.order"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["z0.gen"], 3.0);
+        assert_eq!(t[2]["instrument"]["params"]["rr.order"], 1.0);
+        assert!(t[3]["instrument"].get("params").is_none());
+        assert!(t[4]["instrument"].get("params").is_none());
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let samplers = |file: &str| -> Vec<(String, f32)> {
+            let text = std::fs::read_to_string(dir.join(file)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            p.tracks
+                .iter()
+                .filter_map(|t| {
+                    let n = t.instrument.native()?;
+                    (n.kind == cantus_core::InstrumentKind::Sampler)
+                        .then(|| (t.name.clone(), n.get("rr.order")))
+                })
+                .collect()
+        };
+        let old = samplers("v29.cantus");
+        assert!(
+            !old.is_empty() && old.iter().all(|(_, o)| *o == 0.0),
+            "{old:?}"
+        );
+        let new = samplers("v30.cantus");
+        assert!(
+            new.contains(&("Exemplar in order".to_string(), 1.0)),
+            "{new:?}"
+        );
+    }
+
+    /// Schema 31 (round 28, review 2): the vocal's second note was set by *Correct pitch*
     /// and says so; an older file's notes do not.
     #[test]
-    fn schema_30_keeps_which_pitch_is_the_macros() {
+    fn schema_31_keeps_which_pitch_is_the_macros() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let notes = |name: &str| {
             let text = std::fs::read_to_string(dir.join(name)).unwrap();
@@ -951,10 +1035,10 @@ mod tests {
                 .unwrap()
                 .notes
         };
-        let now = notes("v30.cantus");
+        let now = notes("v31.cantus");
         assert!(now.iter().any(|n| n.id == 1 && n.corrected), "{now:?}");
         assert!(now.iter().any(|n| !n.corrected));
-        assert!(notes("v29.cantus").iter().all(|n| !n.corrected));
+        assert!(notes("v30.cantus").iter().all(|n| !n.corrected));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

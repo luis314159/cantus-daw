@@ -352,3 +352,53 @@ fn after_silence_it_rests_and_is_as_new() {
     let (b, _) = run(&mut fresh, &y, &y, 77);
     assert!(a.iter().zip(&b).all(|(p, q)| p.to_bits() == q.to_bits()));
 }
+
+/// Review 1: oversampled, without the guard, a hard clip holds its ceiling in sample peak
+/// (within the decimator's ripple on the distortion it band-limits) — the residual lands on
+/// the samples it belongs to.
+#[test]
+fn an_oversampled_clip_holds_its_ceiling_without_the_guard() {
+    let x: Vec<f32> = (0..24_000)
+        .map(|i| math::sin(std::f32::consts::TAU * 1_000.0 * i as f32 / SR))
+        .collect();
+    for os in [2usize, 4, 8, 16] {
+        let s = TonsorSettings {
+            drive_db: 12.0,
+            ceiling_db: -1.0,
+            curve: Curve::Hard,
+            oversampling: os,
+            ..TonsorSettings::default()
+        };
+        let mut t = with(s);
+        let lat = t.latency();
+        let (ol, _) = run(&mut t, &x, &x, 256);
+        let peak = ol[lat + 4_800..].iter().fold(0f32, |m, v| m.max(v.abs()));
+        let over = db(peak / math::db_to_gain(-1.0));
+        eprintln!("os {os}: sample peak {over:+.3} dB against the ceiling");
+        assert!(over < 0.1, "os {os}: {over} dB over the ceiling");
+    }
+}
+
+/// Review 1: switching between two factors above 1× (the latency is the same) keeps the dry
+/// line: a signal under the ceiling stays the input delayed, with no 40-sample hole.
+#[test]
+fn switching_between_two_factors_keeps_the_dry_line() {
+    let x = tones(9_600, 0.7);
+    let s = TonsorSettings {
+        oversampling: 4,
+        ..TonsorSettings::default()
+    };
+    let mut t = with(s);
+    let lat = t.latency();
+    let (mut ol, mut or) = (x.clone(), x.clone());
+    t.process(&mut ol[..4_000], &mut or[..4_000]);
+    t.set(&TonsorSettings {
+        oversampling: 8,
+        ..s
+    });
+    assert_eq!(t.latency(), lat);
+    t.process(&mut ol[4_000..], &mut or[4_000..]);
+    for i in lat..x.len() {
+        assert_eq!(ol[i].to_bits(), x[i - lat].to_bits(), "sample {i}");
+    }
+}

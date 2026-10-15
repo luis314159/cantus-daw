@@ -507,6 +507,11 @@ impl InstrumentSpec {
     /// The rows a note editor should draw for this instrument.
     pub fn lanes(&self) -> Lanes<'_> {
         match self {
+            InstrumentSpec::Native(n)
+                if n.kind == crate::InstrumentKind::Sampler && crate::inst::sampler::is_kit(n) =>
+            {
+                Lanes::Keys(crate::inst::sampler::kit_lanes(n))
+            }
             InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) | InstrumentSpec::External(_) => {
                 Lanes::Chromatic
             }

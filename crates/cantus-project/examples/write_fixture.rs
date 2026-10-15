@@ -628,7 +628,23 @@ fn main() {
         p.recording.comp_xfade_ms = 15.0;
         p.recording.record_automation = false;
     }
-    // Schema 30 (round 28, review 2): the vocal's second note set by *Correct pitch* at
+    // Schema 30 (round 28, sound): an Exemplar made now, whose two round-robin zones take
+    // their turns in order (`rr.order` at its default, 1, not stored); every older Exemplar
+    // reads back with 0.
+    let mut rr = p.make_track("Exemplar in order");
+    let mut s = NativeSpec::new(InstrumentKind::Sampler);
+    for (k, v) in [
+        ("z0.gen", 1.0),
+        ("z0.seqlen", 2.0),
+        ("z1.gen", 2.0),
+        ("z1.seq", 2.0),
+        ("z1.seqlen", 2.0),
+    ] {
+        s.set(k, v).unwrap();
+    }
+    rr.instrument = InstrumentSpec::Native(s);
+    p.tracks.push(rr);
+    // Schema 31 (round 28, review 2): the vocal's second note set by *Correct pitch* at
     // 50 %, which the note now records.
     if let Some(e) = p.tracks[vocal_index]
         .clips

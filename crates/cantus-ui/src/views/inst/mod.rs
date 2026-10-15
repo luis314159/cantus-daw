@@ -105,6 +105,7 @@ pub struct InstEditors {
     pub bass: bass::State,
     pub epiano: epiano::State,
     pub organ: organ::State,
+    pub chorda: chorda::State,
 }
 
 impl InstEditors {

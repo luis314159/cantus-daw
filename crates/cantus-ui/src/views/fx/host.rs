@@ -775,7 +775,7 @@ impl FxHost for DawHost<'_> {
         let per_frame_of = |tempo: f64, sr: f64| tempo / 60.0 / sr.max(1.0);
         let sr = engine.sample_rate;
         let mut clock = None;
-        engine.drain_scope(effect, |c| {
+        let lost = engine.drain_scope(effect, |c| {
             let n = c.frames as usize;
             out.extend(c.l[..n].iter().copied().zip(c.r[..n].iter().copied()));
             clock = c.beat.map(|b| {
@@ -788,6 +788,7 @@ impl FxHost for DawHost<'_> {
         StereoTake {
             stream: true,
             clock,
+            lost,
         }
     }
 }
@@ -800,4 +801,6 @@ pub struct StereoTake {
     /// The song's position of the newest frame, quarter notes, and the tempo, while the
     /// song plays.
     pub clock: Option<(f64, f64)>,
+    /// Frames lost before these (a full ring: the editor was not drained for too long).
+    pub lost: u64,
 }

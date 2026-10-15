@@ -153,6 +153,8 @@ pub struct State {
     pub meter: Option<Rect>,
     /// Where the curves' keys were drawn last frame.
     pub curve_keys: Option<Rect>,
+    /// Where the oversampling keys were drawn last frame.
+    pub os_keys: Option<Rect>,
 }
 
 /// Tonsor's editor in Cantus's own window: the host is the project.
@@ -333,7 +335,19 @@ fn body_ui(
         |ui, _| {
             controls::column(ui, &sd, seg_w, |ui| {
                 let labels = OS_KEYS.map(Src::Key);
+                let keys =
+                    Rect::from_min_size(ui.cursor().min, vec2(seg_w * k, sd.d(controls::ROW)));
+                st.os_keys = Some(keys);
                 controls::segmented_param(ui, &sd, host, "os", &labels, seg_w);
+                // What a step of oversampling buys and costs, on the keys.
+                if controls::hover_in(ui, keys).is_some() {
+                    hint::set_text(
+                        ui.ctx(),
+                        frame::tr("fx.tonsor.os"),
+                        frame::tr("tonsor.os_tip"),
+                        Caps::NONE,
+                    );
+                }
             });
         },
     );
@@ -473,7 +487,12 @@ fn transfer_card(
                 }
                 canvas::tag(
                     b,
-                    pos2(plot.left() + 6.0 * k, y_of(ceil_out) + 3.0 * k),
+                    // Under its line, but never on the axis label above or the numbers below.
+                    pos2(
+                        plot.left() + 6.0 * k,
+                        (y_of(ceil_out) + 3.0 * k)
+                            .clamp(plot.top() + 18.0 * k, plot.bottom() - 20.0 * k),
+                    ),
                     Align2::LEFT_TOP,
                     frame::tr("tonsor.tag.ceiling"),
                     ink.text,
@@ -493,7 +512,7 @@ fn transfer_card(
                     b.dot(at, 4.0 * k, ink.text);
                 }
                 // The axes' names, and what the curve is.
-                let t = Text::key("tonsor.axis.in", Role::Micro, ink.dim).caps(true);
+                let t = Text::key("tonsor.axis.in", Role::Micro, ink.dim).caps(false);
                 canvas::put(
                     b,
                     pos2(plot.right(), plot.bottom() - 4.0 * k),
@@ -502,7 +521,7 @@ fn transfer_card(
                     k,
                     Some(ink.plate),
                 );
-                let t = Text::key("tonsor.axis.out", Role::Micro, ink.dim).caps(true);
+                let t = Text::key("tonsor.axis.out", Role::Micro, ink.dim).caps(false);
                 canvas::put(
                     b,
                     pos2(plot.left() + 6.0 * k, plot.top() + 4.0 * k),

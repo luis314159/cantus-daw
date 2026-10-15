@@ -2,3 +2,73 @@
 # Every key here needs its twin in chorda.es.txt.
 instrument.chorda = Chorda
 chorda.about = A grand piano played from a physical model: strings, hammers, soundboard and pedals.
+
+# Parameters
+chorda.model = Model
+chorda.a4 = A4
+chorda.stretch = Stretch
+chorda.stiffness = Stiffness
+chorda.hardness = Hardness
+chorda.hysteresis = Felt memory
+chorda.dynamics = Dynamics
+chorda.vel_curve = Velocity curve
+chorda.decay = Decay
+chorda.unison = Unison
+chorda.coupling = Bridge coupling
+chorda.sympathy = Sympathy
+chorda.phantom = Phantom partials
+chorda.damper = Dampers
+chorda.una = Soft pedal
+chorda.body = Soundboard
+chorda.tilt = Tilt
+chorda.width = Width
+
+# Editor cards (ADR 0024)
+chorda.strings = STRINGS AND HAMMERS
+chorda.pedals = PEDALS
+chorda.hammer = HAMMER
+chorda.resonance = RESONANCE
+chorda.output = OUTPUT
+chorda.tuning = TUNING
+chorda.ring = THE STRINGS' RING
+chorda.legend = {key} · {hz} Hz · {n} strings of {cm} cm, struck at {pct} %
+chorda.legend_one = {key} · {hz} Hz · one string of {cm} cm, struck at {pct} %
+chorda.sustain_line = Sustain {p} % · dampers {down} % down
+chorda.soft_line = Soft pedal {p} %
+chorda.tuning_line = A4 {a4} Hz · A0 {a0} ct · C8 {c8} ct
+chorda.designing = designing the strings
+chorda.felt_line = {key} hammer: {g} g, felt exponent {p}
+chorda.ring_line = {key} rings {s} s (first partial) · dashed: damped
+
+# Presets
+chorda.preset.concert = Concert Grand
+chorda.preset.studio = Studio Bright
+chorda.preset.ballad = Warm Ballad
+chorda.preset.jazz = Jazz Club
+chorda.preset.felt = Felt Piano
+chorda.preset.honky = Honky-Tonk
+chorda.preset.baroque = Baroque Pitch (A 415)
+chorda.preset.wash = Pedal Wash
+chorda.preset.pop = Pop Forward
+chorda.preset.old = Old Grand
+chorda.tag.grand = Grand
+chorda.tag.soft = Soft
+chorda.tag.character = Character
+
+# Abbreviations for labels that do not fit a cell (the kit's Abbreviate policy)
+chorda.stretch.short = STRETCH
+chorda.stiffness.short = STIFF
+chorda.hardness.short = HARD
+chorda.hysteresis.short = MEMORY
+chorda.dynamics.short = DYN
+chorda.vel_curve.short = VEL CRV
+chorda.decay.short = DECAY
+chorda.unison.short = UNISON
+chorda.coupling.short = COUPLING
+chorda.sympathy.short = SYMPATHY
+chorda.phantom.short = PHANTOM
+chorda.damper.short = DAMPERS
+chorda.una.short = SOFT
+chorda.body.short = BOARD
+chorda.tilt.short = TILT
+chorda.width.short = WIDTH

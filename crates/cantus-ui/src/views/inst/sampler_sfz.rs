@@ -446,7 +446,14 @@ pub fn parse(
                     ));
                 }
                 group_of.push((env_key, i));
-                let mut g = Group::default();
+                // The group's name, as SFZ labels it (round 28: a drum kit's drums).
+                let mut g = Group {
+                    name: ops
+                        .get("group_label")
+                        .map(|l| l.trim().to_string())
+                        .filter(|l| !l.is_empty()),
+                    ..Group::default()
+                };
                 let ms = |k: &str, d: f32| (num(ops, k).unwrap_or(d) * 1000.0).max(0.1);
                 g.values[gf::ATTACK] = Some(ms("ampeg_attack", 0.0));
                 g.values[gf::HOLD] = Some(ms("ampeg_hold", 0.0));

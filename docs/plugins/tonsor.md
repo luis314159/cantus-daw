@@ -87,9 +87,13 @@ over the last second of audio.
   latency, through the whole engine too (the bass waits by the same amount).
 - Inter-sample overs: a hot mix with a quarter-rate tone at 45° clipped plainly at −1 dB
   leaves **+1.88 dB** over the ceiling in dBTP; with the guard, **−0.045 dB** at 1× and
-  **−0.09 dB** at 4× and 16× (the 32-point reference), −0.10 dB on the meter.
+  **−0.072 dB** at 4× and 16× (the 32-point reference), −0.10 dB on the meter.
+- An oversampled hard clip without the guard holds its ceiling in sample peak within
+  **+0.034 dB** at 2× … 16× (review 1: the residual had been added a fraction of a sample
+  early, +2.26 dB).
+- Switching between two factors above 1× keeps the dry line (same latency, no hole).
 - Aliasing: a 7 kHz sine clipped hard folds its 5th and 7th harmonics at **−15.9 dB** at 1×
-  and **−87 dB** at 16×.
+  and **−84.7 dB** at 16×.
 - The curve drawn is the curve played within 0.05 dB from −20 to +8 dB in.
 
 ## Presets

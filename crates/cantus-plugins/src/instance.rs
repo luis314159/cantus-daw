@@ -215,6 +215,8 @@ struct HostView {
     beats: AtomicU64,
     /// The host gives a timeline (beats or seconds): the beats mean something.
     timeline: AtomicBool,
+    /// `f64` bits: the song at the last block's last frame (Speculum's clock).
+    last_beats: AtomicU64,
     /// Numerator in the high half, denominator in the low.
     sig: AtomicU32,
 }
@@ -227,6 +229,9 @@ pub struct HostSeen {
     pub tempo: f64,
     /// Quarter notes from the song's start; `None` when the host gives no timeline.
     pub beats: Option<f64>,
+    /// At the last block's last frame: the newest frame an editor has drained
+    /// (Speculum's clock); `None` when the host gives no timeline.
+    pub last_beats: Option<f64>,
     pub time_sig: (u16, u16),
 }
 
@@ -271,6 +276,9 @@ pub struct Shared {
     /// consumer to the editor — and given back when they go; the lock is only ever taken
     /// on the main thread, when one of them is made or dropped.
     pairs: Mutex<TapEnds>,
+    /// Speculum's frames its tap could not take (the editor drained too late), since the
+    /// editor last asked (ADR 0056, review 1).
+    pub scope_lost: AtomicU64,
 }
 
 /// The analyser tap's two ends, each here while nobody has it.
@@ -303,6 +311,7 @@ impl Shared {
                 let (tx, rx) = RingBuffer::new(PAIRS);
                 Mutex::new((Some(tx), Some(rx)))
             },
+            scope_lost: AtomicU64::new(0),
         })
     }
 
@@ -331,6 +340,10 @@ impl Shared {
                     .timeline
                     .load(Ordering::Relaxed)
                     .then(|| f64::from_bits(h.beats.load(Ordering::Relaxed))),
+                last_beats: h
+                    .timeline
+                    .load(Ordering::Relaxed)
+                    .then(|| f64::from_bits(h.last_beats.load(Ordering::Relaxed))),
                 time_sig: ((sig >> 16) as u16, (sig & 0xFFFF) as u16),
             }
         })
@@ -348,6 +361,15 @@ impl Shared {
             (u32::from(p.time_sig_num) << 16) | u32::from(p.time_sig_den),
             Ordering::Relaxed,
         );
+        // The block's last frame is one frame before where it ended.
+        let sr = f64::from(self.sample_rate()).max(1.0);
+        let frame = if p.playing {
+            p.tempo_bpm / 60.0 / sr
+        } else {
+            0.0
+        };
+        h.last_beats
+            .store((p.beats - frame).to_bits(), Ordering::Relaxed);
         h.known.store(true, Ordering::Release);
     }
 
@@ -954,6 +976,9 @@ impl Processor {
         if self.shared.desc.kind == cantus_core::EffectKind::Analyzer {
             for i in 0..n {
                 if tx.slots() == 0 {
+                    self.shared
+                        .scope_lost
+                        .fetch_add((n - i) as u64, Ordering::Relaxed);
                     break;
                 }
                 let _ = tx.push((l[i], r[i]));

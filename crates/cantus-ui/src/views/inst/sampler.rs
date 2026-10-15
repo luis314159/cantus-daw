@@ -85,7 +85,9 @@ pub fn import_commands(track: TrackId, now: &NativeSpec, imp: &import::Import) -
     let mut commands = Vec::new();
     for k in now.params.keys() {
         let zone_or_group = model::zone_key(k).is_some() || model::group_key(k).is_some();
-        let taken = imp.values.iter().any(|(key, _)| key == k);
+        // An instrument file's round robins are a strict cycle: an import plays them in
+        // order (`rr.order` back to its default) on an Exemplar saved before round 28 too.
+        let taken = imp.values.iter().any(|(key, _)| key == k) || k == "rr.order";
         if zone_or_group || taken {
             commands.push(Command::ClearInstrumentValue {
                 track,

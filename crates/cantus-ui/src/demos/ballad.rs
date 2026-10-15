@@ -1,6 +1,6 @@
 //! **Morning Light** — a worship / pop ballad in D major at 74 BPM.
 //!
-//! Lamina's ballad tines carry it from the first bar; Unda's warm pad and Exemplar's
+//! Chorda's warm grand carries it from the first bar; Unda's warm pad and Exemplar's
 //! nylon guitar fill the chorus; Modulus plays the melody on its FM flute and Exemplar's
 //! bells answer it; Gravis is a fingered electric bass; Pulsus II's studio kit is split
 //! over four tracks into a drum bus. Intro 4 · verse 8 · chorus 8 · bridge 4 · chorus 8 ·
@@ -86,7 +86,7 @@ pub fn build() -> Project {
     );
     let keys = s.part(
         &t("demos.track.piano"),
-        native(I::ElectricPiano, "epiano.preset.ballad", &[]),
+        native(I::Chorda, "chorda.preset.ballad", &[]),
         colors::KEYS,
         TrackIcon::Keys,
     );

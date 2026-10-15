@@ -91,6 +91,26 @@ impl TrackSlot {
         }
     }
 
+    /// A clip's note-on with its ordinal on the track ([`crate::inst::InstrumentUnit::note_on_seq`]).
+    pub fn note_on_seq(&mut self, pitch: u8, velocity: u8, tag: u64, ordinal: u32) {
+        match self.instrument {
+            SlotInstrument::Native => {
+                if let Some(n) = self.native.as_mut() {
+                    n.unit.note_on_seq(
+                        NoteOn {
+                            key: pitch,
+                            velocity: velocity as f32 / 127.0,
+                            id: native_id(pitch, tag),
+                            channel: 0,
+                        },
+                        ordinal,
+                    );
+                }
+            }
+            _ => self.note_on(pitch, velocity, tag),
+        }
+    }
+
     pub fn note_off(&mut self, pitch: u8, tag: u64) {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_off(pitch, tag),

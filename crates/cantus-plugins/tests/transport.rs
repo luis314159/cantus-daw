@@ -217,6 +217,8 @@ fn the_editor_sees_the_hosts_transport() {
     // The song where the block ended: 256 samples past beat 4.25 at 97 BPM.
     let end = 4.25 + 256.0 * 97.0 / 60.0 / SR as f64;
     assert!((t.beats.unwrap() - end).abs() < 1e-9);
+    // And where the block's last frame is (what Speculum's clock reads): 255 frames on.
+    assert!((t.last_beats.unwrap() - (4.25 + 255.0 * 97.0 / 60.0 / f64::from(SR))).abs() < 1e-9);
 }
 
 #[test]

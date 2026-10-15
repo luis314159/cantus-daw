@@ -32,6 +32,9 @@ const PHASE_TAPS: usize = 2 * HALF;
 const TAPS: usize = 2 * HALF + 1;
 /// The longest decimator (16×), padded to a multiple of 8.
 const MAX_DOWN: usize = (2 * DOWN_HALF * MAX_FACTOR + 1).div_ceil(8) * 8;
+/// The decimator's history: its window, and the `F − 1` points of the newest sample that
+/// come after point 0, where the window ends.
+const RING: usize = (2 * DOWN_HALF * MAX_FACTOR + MAX_FACTOR).div_ceil(8) * 8;
 /// Kaiser β of the interpolator (Terminus's: ±0.02 dB to 0.44 fs) and of the decimator
 /// (about 80 dB down from the base rate's Nyquist frequency).
 const UP_BETA: f64 = 6.0;
@@ -231,7 +234,7 @@ impl Up {
 /// The residual's decimator of one channel.
 #[derive(Clone, Debug)]
 pub struct Down {
-    ring: Box<[f32; 2 * MAX_DOWN]>,
+    ring: Box<[f32; 2 * RING]>,
     pos: usize,
     /// High-rate zeros pushed in a row: at `len` the ring holds only zeros.
     zeros: usize,
@@ -240,7 +243,7 @@ pub struct Down {
 impl Default for Down {
     fn default() -> Self {
         Down {
-            ring: Box::new([0.0; 2 * MAX_DOWN]),
+            ring: Box::new([0.0; 2 * RING]),
             pos: 0,
             zeros: usize::MAX,
         }
@@ -256,7 +259,7 @@ impl Down {
 
     /// Only zeros in the history (cheap: counted as they are pushed).
     pub fn is_clear(&self) -> bool {
-        self.zeros >= MAX_DOWN
+        self.zeros >= RING
     }
 
     /// Push one base sample's `factor` residual points (oldest first) and return the
@@ -273,8 +276,8 @@ impl Down {
         for &v in &pts[..factor] {
             all_zero &= v.to_bits() == 0;
             self.ring[self.pos] = v;
-            self.ring[self.pos + MAX_DOWN] = v;
-            self.pos = if self.pos + 1 == MAX_DOWN {
+            self.ring[self.pos + RING] = v;
+            self.pos = if self.pos + 1 == RING {
                 0
             } else {
                 self.pos + 1
@@ -285,11 +288,12 @@ impl Down {
         } else {
             0
         };
-        if self.zeros >= len {
+        // The window ends at the newest sample's point 0, so the residual it gives back is
+        // the one at `n − HALF − DOWN_HALF`, the dry line's sample, exactly.
+        if self.zeros >= len + factor - 1 {
             return 0.0;
         }
-        // The newest `len` points against the taps (symmetric: the order does not matter).
-        let start = self.pos + MAX_DOWN - len;
+        let start = self.pos + RING - len - (factor - 1);
         dot_offset(&t.down[..len], &self.ring[start..start + len])
     }
 }

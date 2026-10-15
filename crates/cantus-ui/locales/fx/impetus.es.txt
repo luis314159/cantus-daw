@@ -1,5 +1,5 @@
 # Impetus — de Impetus. Cada clave necesita su gemela en impetus.en.txt.
-effect.impetus = Impetus transitorios
+effect.impetus = Impetus moldeador
 fx.impetus.about = Más o menos ataque y sostenido, leídos de diferencias de nivel: igual a cualquier volumen.
 fx.impetus.attack = Ataque
 fx.impetus.sustain = Sostenido
@@ -19,7 +19,7 @@ impetus.card.timing = Tiempos
 impetus.card.band = Banda
 impetus.card.output = Salida
 impetus.card.history = Entrada y ganancia
-impetus.card.hit = Un golpe a través
+impetus.card.hit = Un golpe procesado
 impetus.axis.boost = Realce
 impetus.axis.cut = Corte
 impetus.legend.in = Entrada
@@ -38,3 +38,8 @@ preset.impetus.room = Sacar la sala
 preset.impetus.dry = Secar
 preset.impetus.kick = Golpe de bombo
 preset.impetus.pluck = Cuerdas punteadas
+impetus.key = Detectar en
+impetus.key_own = Su propia señal
+impetus.key_tip = Lo que oye el detector: la señal del propio Impetus o cualquier canal de la mesa —un bombo que moldea un bajo, el micro de arriba de una caja que moldea su sala— sin montar ningún envío.
+impetus.key.own = Propia
+impetus.key.sidechain = Sidechain

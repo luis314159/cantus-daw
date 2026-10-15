@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 30,
   "app_version": "fixture",
-  "saved_at": 1792089757,
+  "saved_at": 1792089713,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -982,8 +982,6 @@
                     "sung": 72.1,
                     "level_db": -12.5,
                     "pitch": 72.0,
-                    "centre": 0.5,
-                    "corrected": true,
                     "start": 74400,
                     "end": 124800
                   },
@@ -1467,6 +1465,36 @@
         "gain_db": 0.0,
         "pan": 0.0,
         "strip": 13,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 83,
+        "name": "Exemplar in order",
+        "color": {
+          "r": 217,
+          "g": 93,
+          "b": 93
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "Sampler",
+          "params": {
+            "z0.gen": 1.0,
+            "z0.seqlen": 2.0,
+            "z1.gen": 2.0,
+            "z1.seq": 2.0,
+            "z1.seqlen": 2.0
+          }
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 6,
         "muted": false,
         "soloed": false,
         "armed": false,
@@ -2628,7 +2656,7 @@
       "comp_xfade_ms": 15.0
     },
     "pattern_mode": true,
-    "next_id": 83
+    "next_id": 84
   },
-  "integrity": "453e6c754f47b97c9e66aa1ac183c5b90bd687212abbbc3697576cebef20129a"
+  "integrity": "18321dc8b78367494b6356f1fc6a5cd1075ab582b516573f700bcaf1b8644f17"
 }

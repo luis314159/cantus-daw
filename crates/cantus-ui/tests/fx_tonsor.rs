@@ -195,3 +195,22 @@ fn no_word_is_cut_in_either_language() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Review 1: pointing at the oversampling keys says what a step buys and costs.
+#[test]
+fn the_oversampling_keys_explain_themselves() {
+    let (mut a, _, _) = with_tonsor();
+    let ctx = ctx();
+    frame(&mut a, &ctx, vec![]);
+    frame(&mut a, &ctx, vec![]);
+    let keys =
+        a.fx.tonsor
+            .os_keys
+            .expect("the oversampling keys were drawn");
+    frame(&mut a, &ctx, vec![egui::Event::PointerMoved(keys.center())]);
+    frame(&mut a, &ctx, vec![]);
+    let hint = cantus_ui::kit::hint::current(&ctx)
+        .map(|h| h.value.clone())
+        .unwrap_or_default();
+    assert!(hint.contains("fold back"), "{hint}");
+}

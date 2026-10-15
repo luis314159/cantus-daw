@@ -11,19 +11,25 @@
 
 use super::FxUnit;
 use cantus_core::fx::speculum::{FLOORS, SCOPE_BEATS};
-use cantus_core::EffectSpec;
+use cantus_core::{EffectId, EffectSpec};
 use cantus_dsp::speculum::{Channel, SpeculumSettings, Sync, FFT_SIZES};
 
 /// How many Speculums can be watched at once (each a ring of its own).
 pub const MAX_SCOPES: usize = 8;
 /// Frames a chunk carries.
 pub const CHUNK: usize = 64;
-/// Chunks a ring holds (65 536 frames: 1.4 s at 48 kHz, more than any editor frame waits).
+/// Chunks a ring holds: 65 536 frames (1.4 s at 48 kHz, more than any editor frame waits) —
+/// a chunk is filled across passes, however short they are, so the capacity is in frames.
 pub const SCOPE_CHUNKS: usize = 1_024;
 
 /// Frames of a watched Speculum's signal, with where the song was at the first of them.
 #[derive(Copy, Clone, Debug)]
 pub struct ScopeChunk {
+    /// The Speculum whose frames these are: a ring handed to another drops what is not its
+    /// own (review 1).
+    pub owner: EffectId,
+    /// Frames lost just before these, the ring having been full (the editor says so).
+    pub lost: u32,
     /// Frames used, 1 … [`CHUNK`].
     pub frames: u16,
     /// The song's position at the first frame, quarter notes, while it plays.
@@ -35,6 +41,8 @@ pub struct ScopeChunk {
 
 impl ScopeChunk {
     pub const EMPTY: ScopeChunk = ScopeChunk {
+        owner: EffectId(0),
+        lost: 0,
         frames: 0,
         beat: None,
         tempo_bpm: 0.0,

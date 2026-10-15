@@ -380,6 +380,7 @@ fn the_starter_offer_installs_the_recommended_pack_in_one_click() {
         ]),
         attribution: None,
         instruments: vec![],
+        build: None,
     };
     let mut a = browser_app(
         &f,

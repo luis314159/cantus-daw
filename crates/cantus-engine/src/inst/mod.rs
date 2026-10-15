@@ -116,6 +116,13 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// would click.
     fn configure(&mut self, spec: &NativeSpec, assets: &Assets);
     fn note_on(&mut self, note: NoteOn);
+    /// A note from a clip, with its ordinal: how many note-ons of its pitch come before it
+    /// on the track (`NoteEvent::ordinal`), so an instrument that cycles (a sampler's round
+    /// robin) cycles the same way from any start. Default: [`Self::note_on`].
+    fn note_on_seq(&mut self, note: NoteOn, ordinal: u32) {
+        let _ = ordinal;
+        self.note_on(note);
+    }
     /// Release the note with this id (or, for id-less input, the key).
     fn note_off(&mut self, key: u8, id: u64, velocity: f32);
     /// Stop the note at once, as a choke group does. Defaults to a release.
@@ -352,6 +359,7 @@ pub fn units_for(
     have: impl Fn(TrackId, InstrumentKind) -> bool,
 ) -> Vec<Box<NativeUnit>> {
     prepare_assets(snapshot);
+    chorda::prepare(snapshot, sample_rate);
     snapshot
         .tracks
         .iter()

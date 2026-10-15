@@ -20,7 +20,7 @@
 //! `1 + 5·amount`, the transient's fast, the body's slow) and a tilt around 1 kHz. A
 //! section at its default does not run and holds nothing: switched off, it is emptied.
 
-use crate::dynfx_follow::{Follower, Quiet, Times, SETTLE};
+use crate::dynfx_follow::{sane, Follower, Quiet, Times, SETTLE};
 use crate::dynfx_meter::{Columns, Fold, Hold};
 use crate::dynfx_transient::{Diff, DiffTimes, RunMax};
 use crate::math;
@@ -174,7 +174,8 @@ impl Section {
     #[inline]
     fn run(&mut self, p: &Part, g_lp: f32, x: [f32; 2]) -> [f32; 2] {
         let gain = self.gain.next();
-        let mut y = x;
+        // Not a number: silence here, so no envelope or filter of the part keeps it.
+        let mut y = [sane(x[0]), sane(x[1])];
         if p.comp > 0.0 {
             let lvl = self.env.run(y[0].abs().max(y[1].abs()), &self.times);
             let gr = comp_reduction_db(p.comp, crate::dynfx_follow::to_db(lvl));

@@ -129,6 +129,9 @@ pub struct State {
     pub hit_rect: Option<Rect>,
     /// Where the band keys were drawn last frame.
     pub band_keys: Option<Rect>,
+    /// The key's field (or switch), and the host's answer kept until its revision moves.
+    pub key_field: Option<Rect>,
+    key: Option<(u64, Option<super::host::KeySource>)>,
 }
 
 /// Impetus's editor in Cantus's own window: the host is the project.
@@ -259,6 +262,18 @@ fn body_ui(
                 ));
                 let labels = BAND_KEYS.map(Src::Key);
                 controls::segmented_param(ui, &sd, host, "band", &labels, seg_w);
+                // What the detector hears: its own signal, or another strip's (a sidechain).
+                controls::caption(ui, &sd, Src::Key("impetus.key"), seg_w);
+                st.key_field = dynfx::key_source(
+                    host,
+                    &mut st.key,
+                    ui,
+                    &sd,
+                    seg_w,
+                    "impetus.key_own",
+                    "impetus.key_tip",
+                    ["impetus.key.own", "impetus.key.sidechain"],
+                );
             });
             let split = is.band != cantus_dsp::impetus::Band::Full;
             ui.add_enabled_ui(split, |ui| {

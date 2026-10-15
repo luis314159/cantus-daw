@@ -30,6 +30,10 @@ pub fn fraction(phase: Option<&Phase>) -> f32 {
         Some(Phase::Unpacking { done, total }) => {
             0.9 + 0.1 * (*done as f64 / (*total).max(1) as f64) as f32
         }
+        // A pack built at install unpacks to 95 % and mixes its kit in the rest.
+        Some(Phase::Building { done, total }) => {
+            0.95 + 0.05 * (*done as f64 / (*total).max(1) as f64) as f32
+        }
         _ => 0.0,
     }
 }
@@ -49,6 +53,10 @@ pub fn phase_text(phase: Option<&Phase>) -> String {
         ),
         Some(Phase::Verifying) => t("samples.phase.verifying"),
         Some(Phase::Unpacking { .. }) => t("samples.phase.unpacking"),
+        Some(Phase::Building { done, total }) => tf(
+            "samples.phase.building",
+            &[("done", &done.to_string()), ("total", &total.to_string())],
+        ),
     }
 }
 

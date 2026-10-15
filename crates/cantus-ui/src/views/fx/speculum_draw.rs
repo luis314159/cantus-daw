@@ -54,7 +54,14 @@ pub fn view(
             }
         }
         if v.analysis.frames() == 0 {
-            let t = Text::key("speculum.no_stream", Role::Body, ink.dim).caps(false);
+            // No stream at all (no audio device, or eight Speculums already watched), or a
+            // stream with nothing in it yet.
+            let key = if v.stream {
+                "speculum.no_stream"
+            } else {
+                "speculum.no_ring"
+            };
+            let t = Text::key(key, Role::Body, ink.dim).caps(false);
             canvas::put(
                 b,
                 rect.center(),
@@ -615,19 +622,45 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         );
         line(b, frame::tr("speculum.m.range"), l.range, "LU");
         line(b, frame::tr("speculum.m.true_peak"), tp, "dBTP");
-        line(
-            b,
-            frame::tr("speculum.m.target"),
-            Some(f64::from(set.target_lufs)),
-            "LUFS",
-        );
+        // The target is the loudness view's (and its history's); the overview has no room.
     }
-    // Peak and RMS, left and right, as bars from −60 dBFS.
+    // Peak and RMS per channel: the numbers, and bars from −60 dBFS (faint: the peak held a
+    // second; solid: the RMS over 300 ms) on a scale.
+    let has = v.analysis.frames() > 0;
+    let title = Text::key("speculum.card.levels", Role::Micro, ink.dim).caps(true);
+    canvas::put(
+        b,
+        pos2(inside.left(), y + 7.0 * k),
+        Align2::LEFT_CENTER,
+        &title,
+        k,
+        None,
+    );
+    let mut x = inside.left() + cols_w;
+    for (key, c) in [
+        ("speculum.m.rms", ink.hue),
+        ("speculum.m.peak", Ink::a(ink.hue, 0.45)),
+    ] {
+        let t = Text::key(key, Role::Micro, ink.dim).caps(true);
+        let at = canvas::put(b, pos2(x, y + 7.0 * k), Align2::RIGHT_CENTER, &t, k, None);
+        b.rect(
+            Rect::from_center_size(
+                pos2(at.left() - 8.0 * k, at.center().y),
+                vec2(10.0 * k, 6.0 * k),
+            ),
+            Fill::Solid(c),
+        );
+        x = at.left() - 20.0 * k;
+    }
+    y += 16.0 * k;
+    let value_w = 116.0 * k;
+    let frac = |db: f32| ((db + 60.0) / 60.0).clamp(0.0, 1.0);
+    let mut bar_span = (0f32, 0f32);
     for (c, key) in [
         (0usize, "speculum.legend.left"),
         (1, "speculum.legend.right"),
     ] {
-        let lr = Rect::from_min_size(pos2(inside.left(), y + 2.0 * k), vec2(cols_w, 10.0 * k));
+        let lr = Rect::from_min_size(pos2(inside.left(), y), vec2(cols_w, 14.0 * k));
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
         canvas::put(
             b,
@@ -637,17 +670,87 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
             k,
             None,
         );
-        let bar = Rect::from_min_max(pos2(lr.left() + 70.0 * k, lr.top()), lr.max);
-        let frac = |db: f32| ((db + 60.0) / 60.0).clamp(0.0, 1.0);
-        dynfx::bar(b, bar, frac(lv.peak_db[c]), Ink::a(ink.hue, 0.45), ink, k);
+        let bar = Rect::from_min_max(
+            pos2(lr.left() + 70.0 * k, lr.top() + 2.0 * k),
+            pos2(lr.right() - value_w, lr.bottom() - 2.0 * k),
+        );
+        bar_span = (bar.left(), bar.right());
+        dynfx::bar(
+            b,
+            bar,
+            if has { frac(lv.peak_db[c]) } else { 0.0 },
+            Ink::a(ink.hue, 0.45),
+            ink,
+            k,
+        );
         let rms = Rect::from_min_max(
             bar.min,
             pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()),
         );
-        if rms.width() > 0.0 {
+        if has && rms.width() > 0.0 {
             b.rrect(rms, 2.0 * k, Fill::Solid(ink.hue));
         }
-        y += 14.0 * k;
+        let at = pos2(lr.right(), lr.center().y);
+        if has && lv.peak_db[c] > -150.0 {
+            canvas::putf(
+                b,
+                at,
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.text,
+                k,
+                None,
+                format_args!(
+                    "{:.1} \u{b7} {:.1} dBFS",
+                    lv.peak_db[c],
+                    lv.rms_db[c].max(-99.9)
+                ),
+            );
+        } else {
+            canvas::putf(
+                b,
+                at,
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.dim,
+                k,
+                None,
+                format_args!("{dash}"),
+            );
+        }
+        y += 15.0 * k;
+    }
+    // The bars' scale.
+    if bar_span.1 > bar_span.0 && y + 12.0 * k <= inside.bottom() {
+        for db in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
+            let x = bar_span.0 + (bar_span.1 - bar_span.0) * frac(db);
+            canvas::putf(
+                b,
+                pos2(x, y),
+                Align2::CENTER_TOP,
+                Role::Micro,
+                ink.dim,
+                k,
+                None,
+                format_args!("{db:.0}"),
+            );
+        }
+        y += 12.0 * k;
+    }
+    // Gaps: frames the stream lost (the editor was not drained in time).
+    if v.lost > 0 {
+        let ms = v.lost as f64 * 1000.0 / f64::from(v.analysis.sample_rate());
+        let lr = Rect::from_min_size(pos2(inside.left(), y + 2.0 * k), vec2(cols_w, row));
+        dynfx::stat(
+            b,
+            lr,
+            frame::tr("speculum.m.gaps"),
+            ink.danger,
+            ink,
+            k,
+            format_args!("{ms:.0} ms"),
+        );
+        y += row;
     }
     // Thirty seconds of short-term against the target.
     let hist = Rect::from_min_max(pos2(inside.left(), y + 8.0 * k), inside.max);

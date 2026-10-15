@@ -839,3 +839,17 @@ fn the_whole_edit_view_for_the_design_review() {
         });
     }
 }
+
+/// Round 28 (sound): an instrument file's round robins mean a strict cycle (SFZ's
+/// `seq_length`, Decent Sampler's round robin, a folder's `rr` takes), so an import into an
+/// Exemplar saved before round 28 (round robin seeded, `rr.order` = 0) plays them in order
+/// — and the undo gives the seeded order back.
+#[test]
+fn an_import_plays_its_round_robins_in_order_even_on_an_old_exemplar() {
+    let (mut a, track) = with_sampler();
+    a.set_inst_value(track, "rr.order", 0.0, false);
+    smp::apply_import(&mut a, track, three_zone_import());
+    assert_eq!(spec(&a, track).get("rr.order"), 1.0);
+    a.undo();
+    assert_eq!(spec(&a, track).get("rr.order"), 0.0);
+}

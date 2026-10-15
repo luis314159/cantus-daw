@@ -202,6 +202,8 @@ pub struct Processor {
     analysed: Option<cantus_core::EffectId>,
     /// The Speculums whose signals go to the scope rings (ADR 0056).
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
+    /// How late each watched Speculum's signal is against the transport (`scope_delays`).
+    scoped_delay: [usize; crate::fx::speculum::MAX_SCOPES],
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -315,6 +317,7 @@ impl Processor {
             capture_slot: None,
             analysed: None,
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
+            scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
@@ -768,7 +771,7 @@ pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
         };
         slot.drums.trigger(ev.pitch, ev.velocity, hit);
     } else if ev.is_on() {
-        slot.note_on(ev.pitch, ev.velocity, ev.note.0);
+        slot.note_on_seq(ev.pitch, ev.velocity, ev.note.0, ev.ordinal);
     } else {
         slot.note_off(ev.pitch, ev.note.0);
     }

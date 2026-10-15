@@ -64,7 +64,7 @@ A note's shift (semitones), with `home = round(sung)`:
 *Correct pitch* by an amount `a` sets `pitch = home + a·(target − home)` and `centre = a`,
 so the note sounds at `sung + a·(target − sung)`: nothing at 0, its target at 1, never past
 it, and run again at another amount it is as if run once (review 1). Which pitch is the
-macro's is **stored on the note** (`PitchNote::corrected`, schema 30, review 2): set by
+macro's is **stored on the note** (`PitchNote::corrected`, schema 31, review 2): set by
 *Correct pitch*, cleared by a hand move — so a run after a key change re-targets the
 macro's notes (they were left between semitones) and a hand move onto the key's note is
 kept (it was taken back); an older file's notes are all the hand's. A step of the key

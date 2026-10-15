@@ -174,7 +174,7 @@ pub struct PitchNote {
     /// The note's gain, dB.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub gain_db: f32,
-    /// Its `pitch` is *Correct pitch*'s (schema 30): the macro set it toward the key's note,
+    /// Its `pitch` is *Correct pitch*'s (schema 31): the macro set it toward the key's note,
     /// so a later run — after a key change too — sets it afresh; a hand move clears it, and
     /// the macro then keeps the note where the hand put it.
     #[serde(default, skip_serializing_if = "is_false")]
