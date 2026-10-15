@@ -164,7 +164,9 @@ fn a_seam_moves_as_a_unit_from_its_handle_and_from_a_windows_edge() {
     // A window's edge trimmed in the arrangement at a seam moves the seam too.
     let clip = a.project().track(t).unwrap().clip(r).unwrap().clone();
     let cmd = comping::seam_trim(a.project(), t, &clip, true, Ticks(-120)).unwrap();
-    assert!(matches!(cmd.as_slice(), [Command::SetCompSeam { at: x, .. }] if *x == at - Ticks(120)));
+    assert!(
+        matches!(cmd.as_slice(), [Command::SetCompSeam { at: x, .. }] if *x == at - Ticks(120))
+    );
     a.commit_clip_drag(
         (t, r),
         cantus_ui::views::arrangement::ClipDragResult::TrimStart { delta: Ticks(-120) },

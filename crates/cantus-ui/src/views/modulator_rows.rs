@@ -150,6 +150,19 @@ fn list(sh: &mut Sheet<'_>, m: &Modulator, key: &'static str, value: &str, kind:
         ..State::of(&r, false)
     };
     well::menu_field(sh.b, row.value, &sh.s, st, value, false);
+    // Named on the status line like every other row (review 1).
+    if r.hovered() {
+        let name = sheet::name(sh.fmt.tr(key));
+        crate::kit::hint::set_text(
+            sh.ui.ctx(),
+            &name,
+            value,
+            crate::kit::hint::Caps {
+                menu: true,
+                ..crate::kit::hint::Caps::NONE
+            },
+        );
+    }
     if r.clicked() {
         sh.acts.push(Act::Mod(ModAct::List(m.id, kind, row.value)));
     }
