@@ -14,7 +14,7 @@
 
 use crate::desc::{self, Descriptor, VENDOR};
 use crate::ftz::DenormalGuard;
-use crate::instance::{ParamEvent, Processor, Shared};
+use crate::instance::{HostTransport, ParamEvent, Processor, Shared};
 use clap_sys::entry::clap_plugin_entry;
 use clap_sys::events::*;
 use clap_sys::ext::latency::{clap_host_latency, CLAP_EXT_LATENCY};
@@ -414,6 +414,8 @@ unsafe extern "C" fn plugin_process(
     let n = p.frames_count as usize;
     let events = &mut *inst.events.get();
     read_events(&inst.shared, p.in_events, events);
+    // Where the host's song is (ADR 0055): a synced unit follows the host's tempo.
+    proc_.set_transport(host_transport(p.transport));
     // What the editor did since the last block, first.
     gui::drain_edits(inst, Some(&mut *proc_), p.out_events);
 
@@ -485,4 +487,30 @@ unsafe extern "C" fn plugin_process(
         }
     }
     CLAP_PROCESS_CONTINUE
+}
+
+/// CLAP's transport, read into the format-free form; `None` when the host sends none (a
+/// free-running host, or an offline pass that does not say). Fixed-point beat times are
+/// `CLAP_BEATTIME_FACTOR` per quarter note.
+///
+/// # Safety
+/// `t` is null or points to a transport event the host keeps alive for the call.
+pub unsafe fn host_transport(t: *const clap_event_transport) -> Option<HostTransport> {
+    if t.is_null() {
+        return None;
+    }
+    let t = &*t;
+    let beat = |b: clap_sys::fixedpoint::clap_beattime| {
+        b as f64 / clap_sys::fixedpoint::CLAP_BEATTIME_FACTOR as f64
+    };
+    let has = |flag: u32| t.flags & flag != 0;
+    Some(HostTransport {
+        playing: has(CLAP_TRANSPORT_IS_PLAYING),
+        tempo: has(CLAP_TRANSPORT_HAS_TEMPO).then_some(t.tempo),
+        beats: has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE).then(|| beat(t.song_pos_beats)),
+        bar_start: has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE).then(|| beat(t.bar_start)),
+        time_sig: has(CLAP_TRANSPORT_HAS_TIME_SIGNATURE).then_some((t.tsig_num, t.tsig_denom)),
+        loop_beats: (has(CLAP_TRANSPORT_IS_LOOP_ACTIVE) && has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE))
+            .then(|| (beat(t.loop_start_beats), beat(t.loop_end_beats))),
+    })
 }

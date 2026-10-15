@@ -187,7 +187,19 @@ impl FxHost for PluginHost {
     }
 
     fn transport(&self) -> Transport {
-        Transport::default()
+        // The host's transport as the audio thread last saw it (ADR 0055); before the
+        // first block, the default (120 BPM in 4/4, stopped).
+        let Some(h) = self.shared.host_transport() else {
+            return Transport::default();
+        };
+        let ppq = cantus_core::PPQ as f64;
+        let (num, den) = h.time_sig;
+        Transport {
+            playing_at: h.playing.then_some((h.beats * ppq).floor() as i64),
+            ticks_per_second: h.tempo / 60.0 * ppq,
+            ticks_per_bar: (f64::from(num.max(1)) * 4.0 / f64::from(den.max(1)) * ppq).round()
+                as i64,
+        }
     }
 
     fn key_source(&self) -> Option<KeySource> {

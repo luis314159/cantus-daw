@@ -7,7 +7,7 @@
 use super::{copy_wstr, read_wstr, timer};
 use crate::desc::Descriptor;
 use crate::ftz::DenormalGuard;
-use crate::instance::{ParamEvent, Processor, Shared};
+use crate::instance::{HostTransport, ParamEvent, Processor, Shared};
 use crate::params::{Param, Role};
 use ::vst3::Steinberg::Vst::*;
 use ::vst3::Steinberg::*;
@@ -384,6 +384,8 @@ impl IAudioProcessorTrait for Plugin {
         let _denormals = DenormalGuard::new();
         let data = &*data;
         let events = self.read_changes(data.inputParameterChanges);
+        // Where the host's song is (ADR 0055): a synced unit follows the host's tempo.
+        proc_.set_transport(context_transport(data.processContext));
         let n = data.numSamples.max(0) as usize;
         if n == 0 || data.numOutputs < 1 || data.outputs.is_null() {
             // A parameter-only call: the values still land.
@@ -467,7 +469,15 @@ impl IAudioProcessorTrait for Plugin {
 
 impl IProcessContextRequirementsTrait for Plugin {
     unsafe fn getProcessContextRequirements(&self) -> uint32 {
-        0
+        // What a synced unit follows (ADR 0055): the tempo, the position in quarter notes,
+        // whether it plays, the bar, the metre and the loop.
+        use IProcessContextRequirements_::Flags_::*;
+        (kNeedTempo
+            | kNeedProjectTimeMusic
+            | kNeedTransportState
+            | kNeedBarPositionMusic
+            | kNeedTimeSignature
+            | kNeedCycleMusic) as uint32
     }
 }
 
@@ -699,4 +709,33 @@ impl IUnitInfoTrait for Plugin {
     ) -> tresult {
         kNotImplemented
     }
+}
+
+/// VST3's process context, read into the format-free form; `None` when the host sends
+/// none. Each field counts only when the host's state flags say it is valid.
+///
+/// # Safety
+/// `c` is null or points to a context the host keeps alive for the call.
+pub unsafe fn context_transport(c: *const ProcessContext) -> Option<HostTransport> {
+    if c.is_null() {
+        return None;
+    }
+    let c = &*c;
+    use ProcessContext_::StatesAndFlags_::*;
+    let has = |flag: u32| c.state & flag != 0;
+    let music = has(kProjectTimeMusicValid as u32);
+    Some(HostTransport {
+        playing: has(kPlaying as u32),
+        tempo: has(kTempoValid as u32).then_some(c.tempo),
+        beats: music.then_some(c.projectTimeMusic),
+        bar_start: has(kBarPositionValid as u32).then_some(c.barPositionMusic),
+        time_sig: has(kTimeSigValid as u32).then(|| {
+            (
+                c.timeSigNumerator.clamp(1, 64) as u16,
+                c.timeSigDenominator.clamp(1, 64) as u16,
+            )
+        }),
+        loop_beats: (has(kCycleActive as u32) && has(kCycleValid as u32))
+            .then_some((c.cycleStartMusic, c.cycleEndMusic)),
+    })
 }

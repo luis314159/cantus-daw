@@ -129,6 +129,8 @@ pub struct Plug {
     params: *const clap_plugin_params,
     state: *const clap_plugin_state,
     latency: *const clap_plugin_latency,
+    /// The host's transport sent with each block (round 28, ADR 0055); `None`: none.
+    pub transport: std::cell::Cell<Option<clap_event_transport>>,
 }
 
 /// A parameter event for [`Plug::process`]: `(offset, id, value in CLAP's units)`.
@@ -154,6 +156,7 @@ impl Plug {
                 params: ext(CLAP_EXT_PARAMS) as *const _,
                 state: ext(CLAP_EXT_STATE) as *const _,
                 latency: ext(CLAP_EXT_LATENCY) as *const _,
+                transport: std::cell::Cell::new(None),
                 host,
                 plugin,
                 kind,
@@ -290,6 +293,7 @@ impl Plug {
         list: &EventList,
     ) {
         let mut key_ptrs = key.unwrap_or([ptr::null_mut(); 2]);
+        let transport = self.transport.get();
         let inputs = [
             clap_audio_buffer {
                 data32: in_ptrs.as_mut_ptr(),
@@ -316,7 +320,9 @@ impl Plug {
         let p = clap_process {
             steady_time: -1,
             frames_count: n as u32,
-            transport: ptr::null(),
+            transport: transport
+                .as_ref()
+                .map_or(ptr::null(), |t| t as *const clap_event_transport),
             audio_inputs: inputs.as_ptr(),
             audio_outputs: outputs.as_mut_ptr(),
             audio_inputs_count: if key.is_some() { 2 } else { 1 },

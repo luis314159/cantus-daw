@@ -131,6 +131,8 @@ struct V3 {
     component: ComPtr<IComponent>,
     processor: ComPtr<IAudioProcessor>,
     controller: ComPtr<IEditController>,
+    /// The host's process context sent with each block (round 28, ADR 0055).
+    context: std::cell::Cell<Option<ProcessContext>>,
 }
 
 fn factory() -> ComPtr<IPluginFactory3> {
@@ -161,6 +163,7 @@ impl V3 {
                 component,
                 processor,
                 controller,
+                context: std::cell::Cell::new(None),
             }
         }
     }
@@ -247,6 +250,7 @@ impl V3 {
                 .collect(),
         });
         let changes_ptr = changes.to_com_ptr::<IParameterChanges>().unwrap();
+        let mut context = self.context.get();
         let mut data = ProcessData {
             processMode: ProcessModes_::kRealtime as int32,
             symbolicSampleSize: SymbolicSampleSizes_::kSample32 as int32,
@@ -259,7 +263,9 @@ impl V3 {
             outputParameterChanges: std::ptr::null_mut(),
             inputEvents: std::ptr::null_mut(),
             outputEvents: std::ptr::null_mut(),
-            processContext: std::ptr::null_mut(),
+            processContext: context
+                .as_mut()
+                .map_or(std::ptr::null_mut(), |c| c as *mut ProcessContext),
         };
         unsafe { assert_eq!(self.processor.process(&mut data), kResultOk) };
     }
@@ -484,4 +490,75 @@ fn porta_offers_its_editor_as_a_vst3_view_and_the_others_do_not() {
             );
         }
     }
+}
+
+/// Round 28 (ADR 0055): the host's transport through VST3's `ProcessContext` — a synced
+/// Tremor gate in another DAW follows that DAW's tempo and position, bit-identical to the
+/// engine's DSP given the same song position, and the plug-in asks the host for it.
+#[test]
+fn a_synced_tremor_follows_the_hosts_tempo_and_position_through_vst3() {
+    let gate = [
+        ("depth", 1.0),
+        ("sync", 1.0),
+        ("div", 8.0),
+        ("shape", 2.0),
+        ("edge", 0.0),
+    ];
+    let (tempo, start, n) = (90.0f64, 2.5f64, 96_000usize);
+    // The engine's DSP, given the song position once per block of 512.
+    let spec = spec_with(EffectKind::Tremolo, &gate);
+    let mut d = cantus_dsp::tremor::Tremor::new(SR);
+    d.set(&cantus_engine::fx::tremor::settings(&spec));
+    d.reset();
+    let (mut el, mut er) = (vec![1.0f32; n], vec![1.0f32; n]);
+    let start_samples = (start * 60.0 / tempo * SR as f64).round() as i64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        d.set_transport(&cantus_dsp::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: start_samples + at as i64,
+        });
+        d.process(&mut el[at..at + m], &mut er[at..at + m]);
+        at += m;
+    }
+    for blocks in [&[512][..], &[7], &[4096], &[5, 333, 64]] {
+        let v = V3::new(EffectKind::Tremolo);
+        assert!(v.set_state(&state_of(EffectKind::Tremolo, &gate)));
+        v.activate(4096);
+        unsafe {
+            let req = v
+                .component
+                .cast::<IProcessContextRequirements>()
+                .unwrap()
+                .getProcessContextRequirements();
+            use IProcessContextRequirements_::Flags_::*;
+            for need in [kNeedTempo, kNeedProjectTimeMusic, kNeedTransportState] {
+                assert!(req & need as u32 != 0, "the plug-in asks for {need}");
+            }
+        }
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        let (mut at, mut b) = (0usize, 0usize);
+        while at < n {
+            let m = blocks[b % blocks.len()].min(n - at);
+            b += 1;
+            let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+            use ProcessContext_::StatesAndFlags_::*;
+            c.state = (kPlaying | kTempoValid | kProjectTimeMusicValid | kTimeSigValid) as u32;
+            c.sampleRate = SR as f64;
+            c.tempo = tempo;
+            c.projectTimeMusic = start + at as f64 * tempo / 60.0 / SR as f64;
+            c.timeSigNumerator = 4;
+            c.timeSigDenominator = 4;
+            v.context.set(Some(c));
+            v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+            at += m;
+        }
+        assert_identical(&format!("VST3 blocks {blocks:?}"), &l, &el);
+    }
+    // It is the gate on the host's beats: shut at beat 2.5 + a little, open at beat 3.25.
+    let at = |beat: f64| ((beat - start) * 60.0 / tempo * SR as f64) as usize;
+    assert_eq!(el[at(2.7)], 0.0);
+    assert_eq!(el[at(3.25)], 1.0);
 }
