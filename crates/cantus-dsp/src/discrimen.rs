@@ -358,7 +358,9 @@ impl Discrimen {
     pub fn skip(&mut self, frames: usize) {
         self.diff.skip(frames);
         self.quiet.skip(frames);
-        self.zrun = self.zrun.saturating_add(frames.min(u32::MAX as usize) as u32);
+        self.zrun = self
+            .zrun
+            .saturating_add(frames.min(u32::MAX as usize) as u32);
         self.cols.skip(frames, [0.0; 3]);
     }
 

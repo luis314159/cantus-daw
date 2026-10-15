@@ -129,7 +129,9 @@ fn the_curve_drawn_is_the_curve_played() {
         let a = cantus_dsp::math::db_to_gain(in_db);
         let n = 9_600;
         let mut l: Vec<f32> = (0..n)
-            .map(|i| a * cantus_dsp::math::sin(std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0))
+            .map(|i| {
+                a * cantus_dsp::math::sin(std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0)
+            })
             .collect();
         let mut r = l.clone();
         d.process(&mut l, &mut r);
@@ -175,10 +177,7 @@ fn every_preset_moves_the_sound() {
         let (mut l, mut r) = (x.clone(), x.clone());
         d.process(&mut l, &mut r);
         let lat = d.latency();
-        let moved = l[lat..]
-            .iter()
-            .zip(&x)
-            .any(|(a, b)| (a - b).abs() > 1e-3);
+        let moved = l[lat..].iter().zip(&x).any(|(a, b)| (a - b).abs() > 1e-3);
         assert!(moved, "{label} does something");
     }
 }

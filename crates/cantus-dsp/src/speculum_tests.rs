@@ -25,7 +25,6 @@ fn noise(n: usize, seed: u32, amp: f32) -> Vec<f32> {
 fn feed(a: &mut Analysis, l: &[f32], r: &[f32]) {
     for (cl, cr) in l.chunks(800).zip(r.chunks(800)) {
         a.push(cl, cr, None);
-
     }
 }
 
@@ -75,7 +74,11 @@ fn it_reads_the_ebu_tech_3341_vectors() {
 /// EBU Tech 3342, the loudness range of two levels in turn: 10, 5 and 20 LU (±1).
 #[test]
 fn it_reads_the_ebu_tech_3342_range() {
-    for (a_db, b_db, want) in [(-20.0f32, -30.0f32, 10.0), (-20.0, -15.0, 5.0), (-40.0, -20.0, 20.0)] {
+    for (a_db, b_db, want) in [
+        (-20.0f32, -30.0f32, 10.0),
+        (-20.0, -15.0, 5.0),
+        (-40.0, -20.0, 20.0),
+    ] {
         let mut a = Analysis::new(SR);
         for db in [a_db, b_db] {
             let x = sine(20 * 48_000, 1_000.0, db);
@@ -114,9 +117,21 @@ fn it_reads_true_peak_peak_and_rms() {
     let r = sine(9_600, 1_000.0, -12.0);
     feed(&mut a, &l, &r);
     let lv = a.levels();
-    assert!((lv.true_peak_db - -3.01).abs() < 0.1, "true peak {}", lv.true_peak_db);
-    assert!((lv.peak_db[0] - -6.02).abs() < 0.05, "left peak {}", lv.peak_db[0]);
-    assert!((lv.rms_db[1] - -15.01).abs() < 0.1, "right rms {}", lv.rms_db[1]);
+    assert!(
+        (lv.true_peak_db - -3.01).abs() < 0.1,
+        "true peak {}",
+        lv.true_peak_db
+    );
+    assert!(
+        (lv.peak_db[0] - -6.02).abs() < 0.05,
+        "left peak {}",
+        lv.peak_db[0]
+    );
+    assert!(
+        (lv.rms_db[1] - -15.01).abs() < 0.1,
+        "right rms {}",
+        lv.rms_db[1]
+    );
 }
 
 /// The phase correlation: +1 for one signal in both channels, −1 for one inverted, about

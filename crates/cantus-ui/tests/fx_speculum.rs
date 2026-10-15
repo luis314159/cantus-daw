@@ -57,22 +57,61 @@ fn every_view_paints_what_it_measures_and_its_settings() {
     let cases: [(f32, &[&str], &[&str]); 6] = [
         (
             0.0,
-            &["overview", "spectrum", "oscilloscope", "vectorscope", "loudness", "momentary", "correlation", "1k", "on the beat"],
+            &[
+                "overview",
+                "spectrum",
+                "oscilloscope",
+                "vectorscope",
+                "loudness",
+                "momentary",
+                "correlation",
+                "1k",
+                "on the beat",
+            ],
             &["fft", "average", "slope/oct"],
         ),
-        (1.0, &["spectrum", "100", "10k", "average", "held"], &["fft", "channel", "floor", "16k", "l+r"]),
+        (
+            1.0,
+            &["spectrum", "100", "10k", "average", "held"],
+            &["fft", "channel", "floor", "16k", "l+r"],
+        ),
         (2.0, &["spectrogram", "1k"], &["fft"]),
-        (3.0, &["oscilloscope", "on the beat"], &["sync", "trigger", "length", "8 beats", "window"]),
+        (
+            3.0,
+            &["oscilloscope", "on the beat"],
+            &["sync", "trigger", "length", "8 beats", "window"],
+        ),
         (4.0, &["vectorscope", "correlation", "left", "right"], &[]),
-        (5.0, &["momentary", "short-term", "integrated", "range", "true peak max", "lufs", "lu", "dbtp", "short-term, last 30 s", "peak"], &["target", "reset"]),
+        (
+            5.0,
+            &[
+                "momentary",
+                "short-term",
+                "integrated",
+                "range",
+                "true peak max",
+                "lufs",
+                "lu",
+                "dbtp",
+                "short-term, last 30 s",
+                "peak",
+            ],
+            &["target", "reset"],
+        ),
     ];
     for (view, shows, settings) in cases {
         set_view(&mut a, s0, fx, view);
         let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0)).to_lowercase();
         for want in shows.iter().chain(settings.iter()) {
-            assert!(text.contains(want), "view {view}: missing {want:?} in {text}");
+            assert!(
+                text.contains(want),
+                "view {view}: missing {want:?} in {text}"
+            );
         }
-        assert!(!text.contains('\u{2026}'), "view {view}: a word cut short in {text}");
+        assert!(
+            !text.contains('\u{2026}'),
+            "view {view}: a word cut short in {text}"
+        );
     }
 }
 
@@ -84,7 +123,11 @@ fn a_click_on_a_tab_chooses_the_view_as_one_step() {
     frame(&mut a, &ctx, vec![]);
     let tabs = a.fx.speculum.tabs.expect("the tabs were drawn");
     // Six tabs: the fifth is the vectorscope.
-    click(&mut a, &ctx, egui::pos2(tabs.left() + tabs.width() * 4.5 / 6.0, tabs.center().y));
+    click(
+        &mut a,
+        &ctx,
+        egui::pos2(tabs.left() + tabs.width() * 4.5 / 6.0, tabs.center().y),
+    );
     let view = a.project().strip(s0).unwrap().effects[0].spec.get("view");
     assert_eq!(view, 4.0);
     a.undo();
@@ -115,7 +158,9 @@ fn docking_moves_it_to_a_tab_with_what_it_measured() {
     frame(&mut a, &ctx, vec![]);
     let key = egui::Id::new(("speculum-dock", fx.0)).value();
     let mut title = String::new();
-    assert!(cantus_ui::views::workspace_device::title(&ctx, key, &mut title));
+    assert!(cantus_ui::views::workspace_device::title(
+        &ctx, key, &mut title
+    ));
     assert!(title.starts_with("Speculum"), "{title}");
 }
 

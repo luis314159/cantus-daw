@@ -42,8 +42,7 @@ impl Rates {
         };
         self.last = Some(s);
         self.total += step;
-        self.seen
-            .push_back((self.total, counts.map(f64::from)));
+        self.seen.push_back((self.total, counts.map(f64::from)));
         while self.seen.len() > 512 {
             self.seen.pop_front();
         }
@@ -306,7 +305,10 @@ mod tests {
         let mut s = 16_777_216.0f64 - 24_000.0;
         let mut c = 16_777_216.0f64 - 100.0;
         for _ in 0..20 {
-            r.push(s.rem_euclid(WRAP) as f32, [c.rem_euclid(WRAP) as f32, 0.0, 0.0]);
+            r.push(
+                s.rem_euclid(WRAP) as f32,
+                [c.rem_euclid(WRAP) as f32, 0.0, 0.0],
+            );
             s += 4_800.0;
             c += 48.0;
         }
@@ -329,7 +331,13 @@ mod tests {
     #[test]
     fn a_history_keeps_its_last_values_and_drops_nonsense() {
         let mut h = History::new(3);
-        for (b, v) in [(1.0, 1.0), (2.0, f32::NAN), (2.0, 5.0), (3.0, 3.0), (4.0, 4.0)] {
+        for (b, v) in [
+            (1.0, 1.0),
+            (2.0, f32::NAN),
+            (2.0, 5.0),
+            (3.0, 3.0),
+            (4.0, 4.0),
+        ] {
             h.push(b, v);
         }
         assert_eq!(h.values().collect::<Vec<_>>(), vec![0.0, 3.0, 4.0]);

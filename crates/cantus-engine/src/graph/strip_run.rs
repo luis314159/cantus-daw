@@ -193,7 +193,15 @@ pub(crate) fn strip_chain(
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
-            scope(nodes, &ctx.scoped, &ctx.position, ctx.sample_rate, e.id, l, r);
+            scope(
+                nodes,
+                &ctx.scoped,
+                &ctx.position,
+                ctx.sample_rate,
+                e.id,
+                l,
+                r,
+            );
             continue;
         }
         let wet = mix[i];
@@ -250,7 +258,15 @@ pub(crate) fn strip_chain(
             }
         }
         // A watched Speculum: its signal to its scope ring (ADR 0056).
-        scope(nodes, &ctx.scoped, &ctx.position, ctx.sample_rate, e.id, l, r);
+        scope(
+            nodes,
+            &ctx.scoped,
+            &ctx.position,
+            ctx.sample_rate,
+            e.id,
+            l,
+            r,
+        );
     }
     prof.enter(Node::Strip(slot));
     // The strip's own EQ, after the inserts and before the channel is placed — where a

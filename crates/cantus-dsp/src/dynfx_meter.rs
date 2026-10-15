@@ -41,7 +41,9 @@ impl Hold {
         if v.is_finite() {
             self.cur = self.cur.max(v);
         }
-        self.age = self.age.saturating_add(frames.min(u32::MAX as usize) as u32);
+        self.age = self
+            .age
+            .saturating_add(frames.min(u32::MAX as usize) as u32);
     }
 
     pub fn get(&self) -> f32 {

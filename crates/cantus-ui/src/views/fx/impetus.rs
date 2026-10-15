@@ -31,7 +31,12 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ("preset.impetus.punch", &[("attack", 0.6), ("speed", 12.0)]),
     (
         "preset.impetus.snap",
-        &[("attack", 0.8), ("speed", 6.0), ("band", 1.0), ("xover", 1_500.0)],
+        &[
+            ("attack", 0.8),
+            ("speed", 6.0),
+            ("band", 1.0),
+            ("xover", 1_500.0),
+        ],
     ),
     (
         "preset.impetus.soften",
@@ -60,7 +65,12 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ),
     (
         "preset.impetus.pluck",
-        &[("attack", 0.5), ("sustain", 0.3), ("speed", 8.0), ("length", 400.0)],
+        &[
+            ("attack", 0.5),
+            ("sustain", 0.3),
+            ("speed", 8.0),
+            ("length", 400.0),
+        ],
     ),
 ];
 
@@ -136,7 +146,11 @@ pub fn framed(
         };
     }
     st.chrome.reset_for(effect.0);
-    let out = editor(&mut DawHost::new(app, strip, effect, "impetus"), &mut st, ui);
+    let out = editor(
+        &mut DawHost::new(app, strip, effect, "impetus"),
+        &mut st,
+        ui,
+    );
     app.fx.impetus = st;
     out
 }
@@ -307,8 +321,8 @@ fn history_card(
                 for (i, c) in st.history.iter().enumerate() {
                     let x = plot.left() + (skip + i) as f32 * w;
                     // The input's peak, −60 … 0 dBFS, as a faint band around the middle.
-                    let lvl = ((cantus_dsp::dynfx_follow::to_db(c[0]) + 60.0) / 60.0)
-                        .clamp(0.0, 1.0);
+                    let lvl =
+                        ((cantus_dsp::dynfx_follow::to_db(c[0]) + 60.0) / 60.0).clamp(0.0, 1.0);
                     if lvl > 0.0 {
                         b.rect(
                             Rect::from_min_max(
@@ -422,9 +436,8 @@ fn hit_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State) {
             let Some((_, input, output)) = st.hit.as_ref() else {
                 return;
             };
-            let y_of = |db: f32| {
-                plot.bottom() - plot.height() * ((db + 48.0) / 54.0).clamp(0.0, 1.0)
-            };
+            let y_of =
+                |db: f32| plot.bottom() - plot.height() * ((db + 48.0) / 54.0).clamp(0.0, 1.0);
             let line = |v: &[f32]| -> Vec<Pos2> {
                 v.iter()
                     .enumerate()
@@ -447,7 +460,10 @@ fn hit_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State) {
                 b.polyline(&o, 2.0 * k, ink.hue);
                 // The legend: in, out.
                 let mut x = plot.left();
-                for (key, c) in [("impetus.legend.in", ink.faint), ("impetus.legend.out", ink.hue)] {
+                for (key, c) in [
+                    ("impetus.legend.in", ink.faint),
+                    ("impetus.legend.out", ink.hue),
+                ] {
                     b.hline(x, x + 14.0 * k, r.top() + 12.0 * k, 2.0 * k, c);
                     let t = Text::key(key, Role::Micro, ink.dim).caps(true);
                     let at = canvas::put(
@@ -462,13 +478,18 @@ fn hit_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State) {
                 }
                 for (j, key) in ["impetus.law.1", "impetus.law.2"].iter().enumerate() {
                     let line = Rect::from_min_size(
-                        pos2(r.left() + 8.0 * k, plot.bottom() + (4.0 + 12.0 * j as f32) * k),
+                        pos2(
+                            r.left() + 8.0 * k,
+                            plot.bottom() + (4.0 + 12.0 * j as f32) * k,
+                        ),
                         vec2(r.width() - 16.0 * k, 12.0 * k),
                     );
                     let t = Text::key(key, Role::Micro, ink.dim)
                         .caps(false)
                         .align(Align2::LEFT_CENTER)
-                        .policy(crate::kit::text::Policy::Elide(crate::kit::text::Elide::End));
+                        .policy(crate::kit::text::Policy::Elide(
+                            crate::kit::text::Elide::End,
+                        ));
                     let _ = crate::kit::text::paint(b, line, &t, k);
                 }
                 canvas::edge_b(b, r, &ink);
@@ -498,7 +519,11 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
             let mut pts = [Pos2::ZERO; N];
             for (j, p) in pts.iter_mut().enumerate() {
                 let t = j as f32 / (N - 1) as f32;
-                let env = if t < 0.1 { t / 0.1 } else { cantus_dsp::math::exp(-(t - 0.1) * 4.0) };
+                let env = if t < 0.1 {
+                    t / 0.1
+                } else {
+                    cantus_dsp::math::exp(-(t - 0.1) * 4.0)
+                };
                 let bend = if t < 0.25 {
                     1.0 + 0.5 * is.attack * (1.0 - t / 0.25)
                 } else {
@@ -530,7 +555,12 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 /// The settings `--editor impetus` and the screenshot tool open it with.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
     DawHost::new(app, strip, effect, "impetus").set_many(
-        &[("attack", 0.6), ("sustain", -0.4), ("speed", 10.0), ("length", 220.0)],
+        &[
+            ("attack", 0.6),
+            ("sustain", -0.4),
+            ("speed", 10.0),
+            ("length", 220.0),
+        ],
         "cmd.fx_preset",
     );
 }
@@ -539,8 +569,8 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
 pub fn demo_signal(n: usize) -> f32 {
     let beat = n % 12_000;
     let t = beat as f32 / 48_000.0;
-    let kick = cantus_dsp::math::exp(-t / 0.09)
-        * cantus_dsp::math::sin(std::f32::consts::TAU * 70.0 * t);
+    let kick =
+        cantus_dsp::math::exp(-t / 0.09) * cantus_dsp::math::sin(std::f32::consts::TAU * 70.0 * t);
     let snare = if (n / 12_000) % 2 == 1 {
         cantus_dsp::math::exp(-t / 0.05) * cantus_dsp::math::sin(n as f32 * 1.7) * 0.5
     } else {

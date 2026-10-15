@@ -128,7 +128,10 @@ fn every_frame_of_a_watched_speculum_reaches_its_ring() {
     for w in beats.windows(2) {
         let (b0, n0) = w[0];
         let (b1, _) = w[1];
-        assert!((b1 - b0 - n0 as f64 * per_frame).abs() < 1e-9, "{b0} + {n0} → {b1}");
+        assert!(
+            (b1 - b0 - n0 as f64 * per_frame).abs() < 1e-9,
+            "{b0} + {n0} → {b1}"
+        );
     }
 }
 

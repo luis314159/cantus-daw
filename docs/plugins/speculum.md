@@ -96,7 +96,7 @@ A sample that is not a number is read as silence: nothing it touches is poisoned
   two docked), each measured exactly the 800 frames the engine played per frame; the copy
   on the audio thread allocates nothing. The three add about 13 000 triangles and no draw
   call to the window (65 206 / 91 against 52 038 / 91).
-- Timed (release, `speculum_budget -- --ignored`): see `docs/round28/dynfx.md`.
+- Timed (release, `speculum_budget -- --ignored`): the whole 1080p window with the three, build + tessellate, **median 1.30 ms, 95th percentile 1.84 ms** (the view budget is 8 ms, a 60-Hz frame 16.7 ms).
 
 ## Presets
 

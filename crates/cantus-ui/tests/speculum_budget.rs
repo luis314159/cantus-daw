@@ -155,8 +155,18 @@ fn three_analysers_at_once_lose_no_frame() {
         "three analysers: {} triangles, {} draw calls (worst); the window without them: {}, {}",
         worst.0, worst.1, base.0, base.1
     );
-    assert!(worst.0 <= base.0 + 60_000, "{} triangles over {}", worst.0, base.0);
-    assert!(worst.1 <= base.1 + 40, "{} draw calls over {}", worst.1, base.1);
+    assert!(
+        worst.0 <= base.0 + 60_000,
+        "{} triangles over {}",
+        worst.0,
+        base.0
+    );
+    assert!(
+        worst.1 <= base.1 + 40,
+        "{} draw calls over {}",
+        worst.1,
+        base.1
+    );
 }
 
 /// The frame budget, timed (release).
@@ -174,5 +184,8 @@ fn three_analysers_draw_within_the_frame_budget() {
     eprintln!("the window with three analysers: median {median:?}, 95th percentile {p95:?}");
     let budget = if cfg!(debug_assertions) { 120.0 } else { 8.0 };
     assert!(median.as_secs_f64() * 1e3 < budget, "median {median:?}");
-    assert!(p95.as_secs_f64() * 1e3 < 2.0 * budget.max(8.0), "p95 {p95:?}");
+    assert!(
+        p95.as_secs_f64() * 1e3 < 2.0 * budget.max(8.0),
+        "p95 {p95:?}"
+    );
 }

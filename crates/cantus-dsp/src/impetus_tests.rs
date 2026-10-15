@@ -206,7 +206,11 @@ fn a_key_drives_the_detector() {
 fn the_render_is_the_same_at_every_block_size() {
     let x = hits(30_000, 0.7, 180.0);
     let key = hits(30_000, 0.6, 70.0);
-    for (band, keyed) in [(Band::Full, false), (Band::Highs, true), (Band::Lows, false)] {
+    for (band, keyed) in [
+        (Band::Full, false),
+        (Band::Highs, true),
+        (Band::Lows, false),
+    ] {
         let s = ImpetusSettings {
             attack: 0.8,
             sustain: -0.6,
@@ -218,7 +222,10 @@ fn the_render_is_the_same_at_every_block_size() {
         let reference = run(&mut with(s), &x, k, 512);
         for block in [1usize, 7, 64, 1000] {
             let y = run(&mut with(s), &x, k, block);
-            assert!(y.iter().zip(&reference).all(|(a, b)| a.to_bits() == b.to_bits()));
+            assert!(y
+                .iter()
+                .zip(&reference)
+                .all(|(a, b)| a.to_bits() == b.to_bits()));
         }
     }
 }
@@ -271,5 +278,9 @@ fn the_telemetry_carries_columns_of_input_and_gain() {
     let mut cols = Vec::new();
     crate::dynfx_meter::new_columns(&t, None, |c| cols.push(c));
     assert_eq!(cols.len(), crate::dynfx_meter::COLS);
-    assert!(t[tel::GAIN_MAX] > 6.0, "the boost held: {}", t[tel::GAIN_MAX]);
+    assert!(
+        t[tel::GAIN_MAX] > 6.0,
+        "the boost held: {}",
+        t[tel::GAIN_MAX]
+    );
 }

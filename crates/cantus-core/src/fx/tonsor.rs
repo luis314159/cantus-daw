@@ -36,8 +36,26 @@ pub const CHOICES: &[(&str, &str)] = &[
 ];
 
 pub const PARAMS: &[EffectParamInfo] = &[
-    p("drive", "fx.tonsor.drive", -12.0, 24.0, 0.0, "dB", false, false),
-    p("ceil", "fx.tonsor.ceil", -24.0, 0.0, 0.0, "dB", false, false),
+    p(
+        "drive",
+        "fx.tonsor.drive",
+        -12.0,
+        24.0,
+        0.0,
+        "dB",
+        false,
+        false,
+    ),
+    p(
+        "ceil",
+        "fx.tonsor.ceil",
+        -24.0,
+        0.0,
+        0.0,
+        "dB",
+        false,
+        false,
+    ),
     p("knee", "fx.tonsor.knee", 0.0, 12.0, 0.0, "dB", false, false),
     p("curve", "fx.tonsor.curve", 0.0, 2.0, 1.0, "", false, true),
     p("os", "fx.tonsor.os", 0.0, 4.0, 0.0, "", false, true),

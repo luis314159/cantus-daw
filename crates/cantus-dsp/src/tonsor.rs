@@ -282,7 +282,11 @@ impl Guard {
         let old = self.held[self.pos];
         self.held_low = self.held_low + usize::from(h < 1.0) - usize::from(old < 1.0);
         self.held[self.pos] = h;
-        self.pos = if self.pos + 1 == GUARD_W { 0 } else { self.pos + 1 };
+        self.pos = if self.pos + 1 == GUARD_W {
+            0
+        } else {
+            self.pos + 1
+        };
         // The mean over the window, oldest first (so the sum's order is the stream's).
         let g = if self.held_low == 0 {
             1.0
@@ -423,8 +427,7 @@ impl Tonsor {
     }
 
     pub fn rest_blocker(&self) -> Option<&'static str> {
-        if !(self.drive.still() && self.ceiling.still() && self.knee.still() && self.post.still())
-        {
+        if !(self.drive.still() && self.ceiling.still() && self.knee.still() && self.post.still()) {
             return Some("a gain is gliding");
         }
         if self.zrun < HISTORY {
@@ -435,7 +438,9 @@ impl Tonsor {
 
     /// `frames` of silence skipped at rest.
     pub fn skip(&mut self, frames: usize) {
-        self.zrun = self.zrun.saturating_add(frames.min(u32::MAX as usize) as u32);
+        self.zrun = self
+            .zrun
+            .saturating_add(frames.min(u32::MAX as usize) as u32);
         self.samples = ((self.samples as usize + frames) % WRAP as usize) as u32;
     }
 

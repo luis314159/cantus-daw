@@ -127,7 +127,9 @@ impl Quiet {
 
     /// `frames` silent samples skipped.
     pub fn skip(&mut self, frames: usize) {
-        self.run = self.run.saturating_add(frames.min(u32::MAX as usize) as u32);
+        self.run = self
+            .run
+            .saturating_add(frames.min(u32::MAX as usize) as u32);
     }
 
     pub fn reset(&mut self) {

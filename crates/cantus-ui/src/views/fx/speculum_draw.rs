@@ -7,7 +7,9 @@ use super::View;
 use crate::kit::color::mix;
 use crate::kit::text::{Role, Text};
 use crate::kit::{with_brush, Brush, Fill, Style};
-use cantus_dsp::speculum::{Channel, SpeculumSettings, Sync, HI_HZ, LO_HZ, SPECTRO_BANDS, SPECTRO_ROWS};
+use cantus_dsp::speculum::{
+    Channel, SpeculumSettings, Sync, HI_HZ, LO_HZ, SPECTRO_BANDS, SPECTRO_ROWS,
+};
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect};
 
 /// The display of view `which` (0 overview … 5 loudness) in `rect`.
@@ -36,8 +38,14 @@ pub fn view(
                 let w = (rect.width() - gap) * 0.62;
                 let top = (rect.height() - gap) * 0.58;
                 let a = Rect::from_min_size(rect.min, vec2(w, top));
-                let bb = Rect::from_min_max(pos2(a.right() + gap, rect.top()), pos2(rect.right(), a.bottom()));
-                let c = Rect::from_min_max(pos2(rect.left(), a.bottom() + gap), pos2(a.right(), rect.bottom()));
+                let bb = Rect::from_min_max(
+                    pos2(a.right() + gap, rect.top()),
+                    pos2(rect.right(), a.bottom()),
+                );
+                let c = Rect::from_min_max(
+                    pos2(rect.left(), a.bottom() + gap),
+                    pos2(a.right(), rect.bottom()),
+                );
                 let d = Rect::from_min_max(pos2(bb.left(), c.top()), rect.max);
                 spectrum(b, a, ink, k, v, set);
                 scope(b, c, ink, k, v, set);
@@ -47,7 +55,14 @@ pub fn view(
         }
         if v.analysis.frames() == 0 {
             let t = Text::key("speculum.no_stream", Role::Body, ink.dim).caps(false);
-            canvas::put(b, rect.center(), Align2::CENTER_CENTER, &t, k, Some(ink.plate));
+            canvas::put(
+                b,
+                rect.center(),
+                Align2::CENTER_CENTER,
+                &t,
+                k,
+                Some(ink.plate),
+            );
         }
     });
 }
@@ -57,7 +72,14 @@ fn panel(b: &mut Brush, r: Rect, ink: &Ink, k: f32, key: &str) -> Rect {
     canvas::ground_b(b, r, ink, None);
     canvas::edge_b(b, r, ink);
     let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-    canvas::put(b, pos2(r.left() + 6.0 * k, r.top() + 4.0 * k), Align2::LEFT_TOP, &t, k, None);
+    canvas::put(
+        b,
+        pos2(r.left() + 6.0 * k, r.top() + 4.0 * k),
+        Align2::LEFT_TOP,
+        &t,
+        k,
+        None,
+    );
     r.shrink2(vec2(6.0 * k, 4.0 * k))
 }
 
@@ -79,12 +101,28 @@ fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         pos2(inside.right() - 4.0 * k, inside.bottom() - 14.0 * k),
     );
     let (top, floor) = (6.0f32, set.floor_db);
-    let y_of = |db: f32| plot.bottom() - plot.height() * ((db - floor) / (top - floor)).clamp(0.0, 1.0);
+    let y_of =
+        |db: f32| plot.bottom() - plot.height() * ((db - floor) / (top - floor)).clamp(0.0, 1.0);
     let mut db = 0.0f32;
     while db >= floor {
         let y = y_of(db);
-        b.hline(plot.left(), plot.right(), y, b.px(), if db == 0.0 { ink.grid_strong } else { ink.grid });
-        canvas::putf(b, pos2(plot.left() - 4.0 * k, y), Align2::RIGHT_CENTER, Role::Micro, ink.dim, k, None, format_args!("{db:.0}"));
+        b.hline(
+            plot.left(),
+            plot.right(),
+            y,
+            b.px(),
+            if db == 0.0 { ink.grid_strong } else { ink.grid },
+        );
+        canvas::putf(
+            b,
+            pos2(plot.left() - 4.0 * k, y),
+            Align2::RIGHT_CENTER,
+            Role::Micro,
+            ink.dim,
+            k,
+            None,
+            format_args!("{db:.0}"),
+        );
         db -= 24.0;
     }
     for (hz, label) in [
@@ -101,7 +139,14 @@ fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         b.vline(x, plot.top(), plot.bottom(), b.px(), ink.grid);
         if let Some(l) = label {
             let t = Text::new(l, Role::Micro, ink.dim).caps(false);
-            canvas::put(b, pos2(x, plot.bottom() + 2.0 * k), Align2::CENTER_TOP, &t, k, None);
+            canvas::put(
+                b,
+                pos2(x, plot.bottom() + 2.0 * k),
+                Align2::CENTER_TOP,
+                &t,
+                k,
+                None,
+            );
         }
     }
     let a = &v.analysis;
@@ -133,16 +178,35 @@ fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     // The legend: what each line is.
     let mut x = plot.right();
     let legend: &[(&str, Color32)] = if set.channel == Channel::Both {
-        &[("speculum.legend.right", colours[1]), ("speculum.legend.left", colours[0])]
+        &[
+            ("speculum.legend.right", colours[1]),
+            ("speculum.legend.left", colours[0]),
+        ]
     } else if set.hold {
-        &[("speculum.legend.held", Ink::a(ink.hue, 0.55)), ("speculum.legend.average", ink.hue)]
+        &[
+            ("speculum.legend.held", Ink::a(ink.hue, 0.55)),
+            ("speculum.legend.average", ink.hue),
+        ]
     } else {
         &[]
     };
     for (key, c) in legend {
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-        let at = canvas::put(b, pos2(x, inside.top() + 2.0 * k), Align2::RIGHT_TOP, &t, k, None);
-        b.hline(at.left() - 16.0 * k, at.left() - 4.0 * k, at.center().y, 2.0 * k, *c);
+        let at = canvas::put(
+            b,
+            pos2(x, inside.top() + 2.0 * k),
+            Align2::RIGHT_TOP,
+            &t,
+            k,
+            None,
+        );
+        b.hline(
+            at.left() - 16.0 * k,
+            at.left() - 4.0 * k,
+            at.center().y,
+            2.0 * k,
+            *c,
+        );
         x = at.left() - 24.0 * k;
     }
 }
@@ -177,7 +241,8 @@ fn spectrogram_texture(ctx: &egui::Context, v: &mut View, ink: &Ink, set: &Specu
     match v.texture.as_mut() {
         Some(t) => t.set(img, egui::TextureOptions::LINEAR),
         None => {
-            v.texture = Some(ctx.load_texture("speculum-spectrogram", img, egui::TextureOptions::LINEAR))
+            v.texture =
+                Some(ctx.load_texture("speculum-spectrogram", img, egui::TextureOptions::LINEAR))
         }
     }
 }
@@ -197,21 +262,31 @@ fn spectrogram(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &Specul
         let t = cantus_dsp::math::ln(hz / LO_HZ) / cantus_dsp::math::ln(HI_HZ / LO_HZ);
         let y = plot.bottom() - plot.height() * t;
         let tx = Text::new(label, Role::Micro, ink.dim).caps(false);
-        canvas::put(b, pos2(plot.left() - 4.0 * k, y), Align2::RIGHT_CENTER, &tx, k, None);
+        canvas::put(
+            b,
+            pos2(plot.left() - 4.0 * k, y),
+            Align2::RIGHT_CENTER,
+            &tx,
+            k,
+            None,
+        );
     }
 }
 
 /// The oscilloscope: the window's lowest and highest sample per column, around the middle.
 fn scope(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &mut View, set: &SpeculumSettings) {
     let inside = panel(b, r, ink, k, "speculum.card.scope");
-    let plot = Rect::from_min_max(
-        pos2(inside.left(), inside.top() + 16.0 * k),
-        inside.max,
-    );
+    let plot = Rect::from_min_max(pos2(inside.left(), inside.top() + 16.0 * k), inside.max);
     let mid = plot.center().y;
     b.hline(plot.left(), plot.right(), mid, b.px(), ink.grid_strong);
     for q in [0.25f32, 0.75] {
-        b.hline(plot.left(), plot.right(), plot.top() + plot.height() * q, b.px(), ink.grid);
+        b.hline(
+            plot.left(),
+            plot.right(),
+            plot.top() + plot.height() * q,
+            b.px(),
+            ink.grid,
+        );
     }
     let cols = ((plot.width() / k) as usize).clamp(16, 1_024);
     let (lo, hi) = (&mut v.lo[..cols], &mut v.hi[..cols]);
@@ -221,7 +296,16 @@ fn scope(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &mut View, set: &Speculum
         let w = plot.width() / cols as f32;
         for j in 0..cols {
             let x = plot.left() + j as f32 * w;
-            let (a, c) = (mid - hi[j].clamp(-1.0, 1.0) * half, mid - lo[j].clamp(-1.0, 1.0) * half);
+            // Each column reaches its neighbour's, so the trace is one line, not dashes.
+            let (mut top, mut bot) = (hi[j], lo[j]);
+            if j > 0 {
+                top = top.max(lo[j - 1]);
+                bot = bot.min(hi[j - 1]);
+            }
+            let (a, c) = (
+                mid - top.clamp(-1.0, 1.0) * half,
+                mid - bot.clamp(-1.0, 1.0) * half,
+            );
             b.rect(
                 Rect::from_min_max(pos2(x, a), pos2(x + w.max(k), c.max(a + k))),
                 Fill::Solid(ink.hue),
@@ -236,15 +320,40 @@ fn scope(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &mut View, set: &Speculum
     };
     if beat && !v.analysis.on_beat() {
         let t = Text::key("speculum.waiting", Role::Micro, ink.dim).caps(false);
-        canvas::put(b, pos2(inside.right(), inside.top()), Align2::RIGHT_TOP, &t, k, Some(ink.plate));
+        canvas::put(
+            b,
+            pos2(inside.right(), inside.top()),
+            Align2::RIGHT_TOP,
+            &t,
+            k,
+            Some(ink.plate),
+        );
     } else if beat {
         let i = cantus_core::fx::speculum::SCOPE_BEATS
             .iter()
             .position(|x| *x == set.scope_beats)
             .unwrap_or(2);
-        canvas::tag(b, pos2(inside.right(), inside.top()), Align2::RIGHT_TOP, frame::tr(word), ink.text, k, Some(ink.plate), format_args!("{}", frame::tr(super::BEATS_KEYS[i])));
+        canvas::tag(
+            b,
+            pos2(inside.right(), inside.top()),
+            Align2::RIGHT_TOP,
+            frame::tr(word),
+            ink.text,
+            k,
+            Some(ink.plate),
+            format_args!("{}", frame::tr(super::BEATS_KEYS[i])),
+        );
     } else {
-        canvas::tag(b, pos2(inside.right(), inside.top()), Align2::RIGHT_TOP, frame::tr(word), ink.text, k, Some(ink.plate), format_args!("{:.0} ms", set.scope_ms));
+        canvas::tag(
+            b,
+            pos2(inside.right(), inside.top()),
+            Align2::RIGHT_TOP,
+            frame::tr(word),
+            ink.text,
+            k,
+            Some(ink.plate),
+            format_args!("{:.0} ms", set.scope_ms),
+        );
     }
 }
 
@@ -252,42 +361,108 @@ fn scope(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &mut View, set: &Speculum
 fn vector(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View) {
     let inside = panel(b, r, ink, k, "speculum.card.vector");
     let bar_h = 22.0 * k;
-    let area = Rect::from_min_max(pos2(inside.left(), inside.top() + 16.0 * k), pos2(inside.right(), inside.bottom() - bar_h));
+    let area = Rect::from_min_max(
+        pos2(inside.left(), inside.top() + 16.0 * k),
+        pos2(inside.right(), inside.bottom() - bar_h),
+    );
     let side = area.width().min(area.height());
     let sq = Rect::from_center_size(area.center(), vec2(side, side));
     let c = sq.center();
     let rad = side * 0.5;
     b.circle_stroke(c, rad, b.px(), ink.grid);
-    b.segment(pos2(c.x, sq.top()), pos2(c.x, sq.bottom()), b.px(), ink.grid_strong, false);
-    b.segment(pos2(sq.left(), c.y), pos2(sq.right(), c.y), b.px(), ink.grid, false);
-    for (dx, key) in [(-1.0f32, "speculum.legend.left"), (1.0, "speculum.legend.right")] {
+    b.segment(
+        pos2(c.x, sq.top()),
+        pos2(c.x, sq.bottom()),
+        b.px(),
+        ink.grid_strong,
+        false,
+    );
+    b.segment(
+        pos2(sq.left(), c.y),
+        pos2(sq.right(), c.y),
+        b.px(),
+        ink.grid,
+        false,
+    );
+    for (dx, key) in [
+        (-1.0f32, "speculum.legend.left"),
+        (1.0, "speculum.legend.right"),
+    ] {
         let at = pos2(c.x + dx * rad * 0.70, c.y - rad * 0.70);
         b.segment(c, at, b.px(), ink.grid, false);
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-        let align = if dx < 0.0 { Align2::RIGHT_BOTTOM } else { Align2::LEFT_BOTTOM };
+        let align = if dx < 0.0 {
+            Align2::RIGHT_BOTTOM
+        } else {
+            Align2::LEFT_BOTTOM
+        };
         canvas::put(b, at, align, &t, k, None);
     }
     let dot = (1.4 * k).max(b.px());
     let col = Ink::a(ink.hue, 0.55);
     for (m, s) in v.analysis.vector_points() {
-        let p = pos2(c.x + s.clamp(-1.0, 1.0) * rad, c.y - m.clamp(-1.0, 1.0) * rad);
+        let p = pos2(
+            c.x + s.clamp(-1.0, 1.0) * rad,
+            c.y - m.clamp(-1.0, 1.0) * rad,
+        );
         b.rect(Rect::from_center_size(p, vec2(dot, dot)), Fill::Solid(col));
     }
     // The correlation, −1 … +1.
-    let bar = Rect::from_min_max(pos2(inside.left() + 70.0 * k, inside.bottom() - bar_h + 8.0 * k), pos2(inside.right() - 40.0 * k, inside.bottom() - 6.0 * k));
+    let bar = Rect::from_min_max(
+        pos2(inside.left() + 70.0 * k, inside.bottom() - bar_h + 8.0 * k),
+        pos2(inside.right() - 40.0 * k, inside.bottom() - 6.0 * k),
+    );
     let t = Text::key("speculum.m.corr", Role::Micro, ink.dim).caps(true);
-    canvas::put(b, pos2(inside.left(), bar.center().y), Align2::LEFT_CENTER, &t, k, None);
+    canvas::put(
+        b,
+        pos2(inside.left(), bar.center().y),
+        Align2::LEFT_CENTER,
+        &t,
+        k,
+        None,
+    );
     b.rrect(bar, 2.0 * k, Fill::Solid(ink.grid));
-    b.vline(bar.center().x, bar.top() - 2.0 * k, bar.bottom() + 2.0 * k, b.px(), ink.grid_strong);
+    b.vline(
+        bar.center().x,
+        bar.top() - 2.0 * k,
+        bar.bottom() + 2.0 * k,
+        b.px(),
+        ink.grid_strong,
+    );
     match v.analysis.correlation() {
         Some(cv) => {
             let x = bar.center().x + cv * bar.width() * 0.5;
             let colour = if cv < 0.0 { ink.danger } else { ink.ok };
-            b.rrect(Rect::from_min_max(pos2(x.min(bar.center().x), bar.top()), pos2(x.max(bar.center().x), bar.bottom())), 2.0 * k, Fill::Solid(colour));
-            canvas::putf(b, pos2(inside.right(), bar.center().y), Align2::RIGHT_CENTER, Role::Value, ink.text, k, None, format_args!("{cv:+.2}"));
+            b.rrect(
+                Rect::from_min_max(
+                    pos2(x.min(bar.center().x), bar.top()),
+                    pos2(x.max(bar.center().x), bar.bottom()),
+                ),
+                2.0 * k,
+                Fill::Solid(colour),
+            );
+            canvas::putf(
+                b,
+                pos2(inside.right(), bar.center().y),
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.text,
+                k,
+                None,
+                format_args!("{cv:+.2}"),
+            );
         }
         None => {
-            canvas::putf(b, pos2(inside.right(), bar.center().y), Align2::RIGHT_CENTER, Role::Value, ink.dim, k, None, format_args!("\u{2014}"));
+            canvas::putf(
+                b,
+                pos2(inside.right(), bar.center().y),
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.dim,
+                k,
+                None,
+                format_args!("\u{2014}"),
+            );
         }
     }
 }
@@ -319,33 +494,91 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         .into_iter()
         .enumerate()
         {
-            let t = Rect::from_min_size(pos2(inside.left() + i as f32 * (w + gap), y), vec2(w, tile_h));
+            let t = Rect::from_min_size(
+                pos2(inside.left() + i as f32 * (w + gap), y),
+                vec2(w, tile_h),
+            );
             b.rrect(t, 3.0 * k, Fill::Solid(ink.plate));
             let word = Text::key(key, Role::Micro, ink.dim).caps(true);
-            canvas::put(b, pos2(t.left() + 8.0 * k, t.top() + 6.0 * k), Align2::LEFT_TOP, &word, k, None);
+            canvas::put(
+                b,
+                pos2(t.left() + 8.0 * k, t.top() + 6.0 * k),
+                Align2::LEFT_TOP,
+                &word,
+                k,
+                None,
+            );
             let near = val.is_some_and(|x| (x - f64::from(set.target_lufs)).abs() <= 1.0);
             let colour = if near { ink.ok } else { ink.text };
             match val {
-                Some(x) => canvas::putf(b, pos2(t.right() - 44.0 * k, t.bottom() - 8.0 * k), Align2::RIGHT_BOTTOM, Role::Display, colour, k, None, format_args!("{x:.1}")),
-                None => canvas::putf(b, pos2(t.right() - 44.0 * k, t.bottom() - 8.0 * k), Align2::RIGHT_BOTTOM, Role::Display, ink.dim, k, None, format_args!("{dash}")),
+                Some(x) => canvas::putf(
+                    b,
+                    pos2(t.right() - 44.0 * k, t.bottom() - 8.0 * k),
+                    Align2::RIGHT_BOTTOM,
+                    Role::Display,
+                    colour,
+                    k,
+                    None,
+                    format_args!("{x:.1}"),
+                ),
+                None => canvas::putf(
+                    b,
+                    pos2(t.right() - 44.0 * k, t.bottom() - 8.0 * k),
+                    Align2::RIGHT_BOTTOM,
+                    Role::Display,
+                    ink.dim,
+                    k,
+                    None,
+                    format_args!("{dash}"),
+                ),
             };
             let unit = Text::new("LUFS", Role::Micro, ink.dim).caps(false);
-            canvas::put(b, pos2(t.right() - 8.0 * k, t.bottom() - 10.0 * k), Align2::RIGHT_BOTTOM, &unit, k, None);
+            canvas::put(
+                b,
+                pos2(t.right() - 8.0 * k, t.bottom() - 10.0 * k),
+                Align2::RIGHT_BOTTOM,
+                &unit,
+                k,
+                None,
+            );
         }
         y += tile_h + 8.0 * k;
         let third = (inside.width() - 2.0 * gap) / 3.0;
         for (i, (key, val, unit)) in [
             ("speculum.m.range", l.range, "LU"),
             ("speculum.m.true_peak", tp, "dBTP"),
-            ("speculum.m.target", Some(f64::from(set.target_lufs)), "LUFS"),
+            (
+                "speculum.m.target",
+                Some(f64::from(set.target_lufs)),
+                "LUFS",
+            ),
         ]
         .into_iter()
         .enumerate()
         {
-            let lr = Rect::from_min_size(pos2(inside.left() + i as f32 * (third + gap), y), vec2(third, row));
+            let lr = Rect::from_min_size(
+                pos2(inside.left() + i as f32 * (third + gap), y),
+                vec2(third, row),
+            );
             match val {
-                Some(x) => dynfx::stat(b, lr, frame::tr(key), ink.text, ink, k, format_args!("{x:.1} {unit}")),
-                None => dynfx::stat(b, lr, frame::tr(key), ink.dim, ink, k, format_args!("{dash}")),
+                Some(x) => dynfx::stat(
+                    b,
+                    lr,
+                    frame::tr(key),
+                    ink.text,
+                    ink,
+                    k,
+                    format_args!("{x:.1} {unit}"),
+                ),
+                None => dynfx::stat(
+                    b,
+                    lr,
+                    frame::tr(key),
+                    ink.dim,
+                    ink,
+                    k,
+                    format_args!("{dash}"),
+                ),
             }
         }
         y += row + 4.0 * k;
@@ -355,27 +588,62 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         let mut line = |b: &mut Brush, word: &str, val: Option<f64>, unit: &str| {
             let lr = Rect::from_min_size(pos2(inside.left(), y), vec2(cols_w, row));
             match val {
-                Some(x) => dynfx::stat(b, lr, word, ink.text, ink, k, format_args!("{x:.1} {unit}")),
+                Some(x) => {
+                    dynfx::stat(b, lr, word, ink.text, ink, k, format_args!("{x:.1} {unit}"))
+                }
                 None => dynfx::stat(b, lr, word, ink.dim, ink, k, format_args!("{dash}")),
             }
             y += row;
         };
-        line(b, frame::tr("speculum.m.momentary"), lufs(l.momentary), "LUFS");
-        line(b, frame::tr("speculum.m.short_term"), lufs(l.short_term), "LUFS");
-        line(b, frame::tr("speculum.m.integrated"), l.integrated.and_then(lufs), "LUFS");
+        line(
+            b,
+            frame::tr("speculum.m.momentary"),
+            lufs(l.momentary),
+            "LUFS",
+        );
+        line(
+            b,
+            frame::tr("speculum.m.short_term"),
+            lufs(l.short_term),
+            "LUFS",
+        );
+        line(
+            b,
+            frame::tr("speculum.m.integrated"),
+            l.integrated.and_then(lufs),
+            "LUFS",
+        );
         line(b, frame::tr("speculum.m.range"), l.range, "LU");
         line(b, frame::tr("speculum.m.true_peak"), tp, "dBTP");
-        line(b, frame::tr("speculum.m.target"), Some(f64::from(set.target_lufs)), "LUFS");
+        line(
+            b,
+            frame::tr("speculum.m.target"),
+            Some(f64::from(set.target_lufs)),
+            "LUFS",
+        );
     }
     // Peak and RMS, left and right, as bars from −60 dBFS.
-    for (c, key) in [(0usize, "speculum.legend.left"), (1, "speculum.legend.right")] {
+    for (c, key) in [
+        (0usize, "speculum.legend.left"),
+        (1, "speculum.legend.right"),
+    ] {
         let lr = Rect::from_min_size(pos2(inside.left(), y + 2.0 * k), vec2(cols_w, 10.0 * k));
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-        canvas::put(b, pos2(lr.left(), lr.center().y), Align2::LEFT_CENTER, &t, k, None);
+        canvas::put(
+            b,
+            pos2(lr.left(), lr.center().y),
+            Align2::LEFT_CENTER,
+            &t,
+            k,
+            None,
+        );
         let bar = Rect::from_min_max(pos2(lr.left() + 70.0 * k, lr.top()), lr.max);
         let frac = |db: f32| ((db + 60.0) / 60.0).clamp(0.0, 1.0);
         dynfx::bar(b, bar, frac(lv.peak_db[c]), Ink::a(ink.hue, 0.45), ink, k);
-        let rms = Rect::from_min_max(bar.min, pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()));
+        let rms = Rect::from_min_max(
+            bar.min,
+            pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()),
+        );
         if rms.width() > 0.0 {
             b.rrect(rms, 2.0 * k, Fill::Solid(ink.hue));
         }
@@ -385,12 +653,27 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     let hist = Rect::from_min_max(pos2(inside.left(), y + 8.0 * k), inside.max);
     if hist.height() > 30.0 * k {
         let t = Text::key("speculum.m.history", Role::Micro, ink.dim).caps(true);
-        canvas::put(b, pos2(hist.left(), hist.top()), Align2::LEFT_TOP, &t, k, None);
+        canvas::put(
+            b,
+            pos2(hist.left(), hist.top()),
+            Align2::LEFT_TOP,
+            &t,
+            k,
+            None,
+        );
         let plot = Rect::from_min_max(pos2(hist.left(), hist.top() + 14.0 * k), hist.max);
         let (lo, hi) = (set.target_lufs - 24.0, set.target_lufs + 6.0);
         let y_of = |x: f32| plot.bottom() - plot.height() * ((x - lo) / (hi - lo)).clamp(0.0, 1.0);
         canvas::ground_b(b, plot, ink, None);
-        canvas::dashed(b, pos2(plot.left(), y_of(set.target_lufs)), pos2(plot.right(), y_of(set.target_lufs)), 1.0 * k, ink.ok, 4.0 * k, 3.0 * k);
+        canvas::dashed(
+            b,
+            pos2(plot.left(), y_of(set.target_lufs)),
+            pos2(plot.right(), y_of(set.target_lufs)),
+            1.0 * k,
+            ink.ok,
+            4.0 * k,
+            3.0 * k,
+        );
         let n = v.history().count();
         if n > 1 {
             let mut pts = [Pos2::ZERO; super::HISTORY];

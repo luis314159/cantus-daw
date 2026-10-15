@@ -86,11 +86,22 @@ fn a_click_chooses_the_mode_and_what_is_heard_each_as_one_step() {
     frame(&mut a, &ctx, vec![]);
     frame(&mut a, &ctx, vec![]);
     let keys = a.fx.discrimen.mode_keys.expect("the mode keys were drawn");
-    click(&mut a, &ctx, egui::pos2(keys.left() + keys.width() * 0.75, keys.center().y));
+    click(
+        &mut a,
+        &ctx,
+        egui::pos2(keys.left() + keys.width() * 0.75, keys.center().y),
+    );
     let get = |a: &CantusApp, k: &str| a.project().strip(s0).unwrap().effects[0].spec.get(k);
     assert_eq!(get(&a, "mode"), 1.0, "look-ahead chosen");
-    let keys = a.fx.discrimen.listen_keys.expect("the listen keys were drawn");
-    click(&mut a, &ctx, egui::pos2(keys.left() + keys.width() * 0.83, keys.center().y));
+    let keys =
+        a.fx.discrimen
+            .listen_keys
+            .expect("the listen keys were drawn");
+    click(
+        &mut a,
+        &ctx,
+        egui::pos2(keys.left() + keys.width() * 0.83, keys.center().y),
+    );
     assert_eq!(get(&a, "listen"), 2.0, "the body alone");
     a.undo();
     assert_eq!(get(&a, "listen"), 0.0);

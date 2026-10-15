@@ -68,8 +68,16 @@ fn the_parts_sum_back_to_the_input_to_the_bit() {
                 } else {
                     (0.0, 0.0)
                 };
-                assert_eq!(ol[i].to_bits(), wl.to_bits(), "look {look} sens {sens}: L {i}");
-                assert_eq!(or[i].to_bits(), wr.to_bits(), "look {look} sens {sens}: R {i}");
+                assert_eq!(
+                    ol[i].to_bits(),
+                    wl.to_bits(),
+                    "look {look} sens {sens}: L {i}"
+                );
+                assert_eq!(
+                    or[i].to_bits(),
+                    wr.to_bits(),
+                    "look {look} sens {sens}: R {i}"
+                );
             }
         }
     }
@@ -128,7 +136,10 @@ fn the_transient_part_holds_the_onsets_and_the_body_the_rest() {
             100.0 * onset_share,
             100.0 * tail_share
         );
-        assert!(onset_share > if look { 0.85 } else { 0.6 }, "{look}: {onset_share}");
+        assert!(
+            onset_share > if look { 0.85 } else { 0.6 },
+            "{look}: {onset_share}"
+        );
         assert!(tail_share < 0.05, "{look}: {tail_share}");
         // And the body is what is left.
         assert!(energy(&b[12_000..12_096]) < energy(&x[12_000..12_096]));

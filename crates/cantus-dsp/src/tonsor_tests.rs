@@ -169,7 +169,10 @@ fn the_true_peak_ceiling_holds_where_a_plain_clip_does_not() {
     };
     let (ol, _) = run(&mut with(plain), &x, &x, 256);
     let over_plain = db(reference_true_peak(&ol, 3.0) / c);
-    assert!(over_plain > 0.5, "a plain clip leaves overs: {over_plain} dB");
+    assert!(
+        over_plain > 0.5,
+        "a plain clip leaves overs: {over_plain} dB"
+    );
     for os in [1usize, 4, 16] {
         let guarded = TonsorSettings {
             true_peak: true,
@@ -301,7 +304,11 @@ fn the_meter_counts_clips_and_inter_sample_overs() {
     let mut tel = [0f32; 64];
     t.telemetry(&mut tel);
     assert_eq!(tel[tel::CLIPPED], 0.0, "no sample over 0 dBFS");
-    assert!(tel[tel::OVERS] > 1_000.0, "inter-sample overs: {}", tel[tel::OVERS]);
+    assert!(
+        tel[tel::OVERS] > 1_000.0,
+        "inter-sample overs: {}",
+        tel[tel::OVERS]
+    );
     assert!(tel[tel::IN_TP] > 2.5, "input true peak {}", tel[tel::IN_TP]);
     assert_eq!(tel[tel::SAMPLES], 4_800.0);
     // Now hot: clipped samples counted, the reduction held after a quiet block.

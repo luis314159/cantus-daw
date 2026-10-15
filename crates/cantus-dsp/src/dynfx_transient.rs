@@ -334,7 +334,10 @@ mod tests {
         for v in hit(3_000, 0.7) {
             let a = d.run(v.abs(), &t);
             let b = fresh.run(v.abs(), &t);
-            assert_eq!((a.0.to_bits(), a.1.to_bits()), (b.0.to_bits(), b.1.to_bits()));
+            assert_eq!(
+                (a.0.to_bits(), a.1.to_bits()),
+                (b.0.to_bits(), b.1.to_bits())
+            );
         }
     }
 

@@ -304,14 +304,8 @@ fn body_ui(
         |ui, _| {
             controls::param_with(ui, &sd, host, "drive", Size::L, Some(&db_pill));
             controls::column(ui, &sd, 112.0, |ui| {
-                let r = controls::led_param(
-                    ui,
-                    &sd,
-                    host,
-                    "match",
-                    Src::Key("fx.tonsor.match"),
-                    112.0,
-                );
+                let r =
+                    controls::led_param(ui, &sd, host, "match", Src::Key("fx.tonsor.match"), 112.0);
                 tip(ui, &r, "fx.tonsor.match", "tonsor.match_tip");
             });
         },
@@ -568,10 +562,10 @@ fn meter_card(
             let mut y = r.top();
             with_brush(&ui.painter_at(cr.body), |b| {
                 let line = |b: &mut crate::kit::Brush,
-                                y: &mut f32,
-                                word: &str,
-                                color: egui::Color32,
-                                args: std::fmt::Arguments<'_>| {
+                            y: &mut f32,
+                            word: &str,
+                            color: egui::Color32,
+                            args: std::fmt::Arguments<'_>| {
                     let lr = Rect::from_min_size(pos2(r.left(), *y), vec2(r.width(), row));
                     dynfx::stat(b, lr, word, color, &ink, k, args);
                     *y += row;
@@ -587,7 +581,13 @@ fn meter_card(
                         format_args!("{red:.1} dB"),
                     );
                 } else {
-                    line(b, &mut y, frame::tr("tonsor.m.reduction"), ink.dim, format_args!("{dash}"));
+                    line(
+                        b,
+                        &mut y,
+                        frame::tr("tonsor.m.reduction"),
+                        ink.dim,
+                        format_args!("{dash}"),
+                    );
                 }
                 let bar_r = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), 5.0 * k));
                 dynfx::bar(b, bar_r, red / 12.0, ink.danger, &ink, k);
@@ -620,7 +620,13 @@ fn meter_card(
                         format_args!("{in_tp:+.1} {unit}"),
                     );
                 } else {
-                    line(b, &mut y, frame::tr("tonsor.m.in_tp"), ink.dim, format_args!("{dash}"));
+                    line(
+                        b,
+                        &mut y,
+                        frame::tr("tonsor.m.in_tp"),
+                        ink.dim,
+                        format_args!("{dash}"),
+                    );
                 }
                 if live && out_tp > -150.0 {
                     let over = out_tp > ceiling + 0.05;
@@ -632,7 +638,13 @@ fn meter_card(
                         format_args!("{out_tp:+.1} {unit}"),
                     );
                 } else {
-                    line(b, &mut y, frame::tr("tonsor.m.out_tp"), ink.dim, format_args!("{dash}"));
+                    line(
+                        b,
+                        &mut y,
+                        frame::tr("tonsor.m.out_tp"),
+                        ink.dim,
+                        format_args!("{dash}"),
+                    );
                 }
                 if ts.true_peak {
                     line(

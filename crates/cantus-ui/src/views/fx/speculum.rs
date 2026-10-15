@@ -214,7 +214,11 @@ pub fn framed(
         };
     }
     st.chrome.reset_for(effect.0);
-    let out = editor(&mut DawHost::new(app, strip, effect, "speculum"), &mut st, ui);
+    let out = editor(
+        &mut DawHost::new(app, strip, effect, "speculum"),
+        &mut st,
+        ui,
+    );
     app.fx.speculum = st;
     // ⋯ › Dock in the workspace: a tab of its own, and the floating editor closes.
     if out.more == Some(0) {
@@ -290,7 +294,10 @@ pub fn body_ui(
     };
     let display = Rect::from_min_max(
         pos2(area.left(), tabs.bottom() + gap),
-        pos2(area.right(), area.bottom() - settings_h - if settings_h > 0.0 { gap } else { 0.0 }),
+        pos2(
+            area.right(),
+            area.bottom() - settings_h - if settings_h > 0.0 { gap } else { 0.0 },
+        ),
     );
     let ink = Ink::of(&so);
     draw::view(ui, &so, &ink, display, view, set, which);
@@ -310,49 +317,111 @@ fn settings_card(
     rect: Rect,
     which: usize,
 ) {
-    controls::card(ui, s, rect, Src::Key("speculum.card.settings"), None, |ui, _| {
-        let pill_ms = Some(&super::modfx::ms_pill as controls::Pill<'_>);
-        let seg = |ui: &mut egui::Ui,
-                   host: &mut dyn FxHost,
-                   key: &'static str,
-                   caption: &'static str,
-                   labels: &[Src<'_>],
-                   w: f32| {
-            controls::column(ui, s, w, |ui| {
-                controls::caption(ui, s, Src::Key(caption), w);
-                controls::segmented_param(ui, s, host, key, labels, w);
-            });
-        };
-        if matches!(which, 0..=2) {
-            seg(ui, host, "fft", "speculum.k.fft", &FFT_KEYS.map(Src::Key), 200.0);
-            dynfx::param_labelled(ui, s, host, "avg", Size::M, pill_ms, "speculum.k.avg");
-            let slope = Some(&slope_pill as controls::Pill<'_>);
-            dynfx::param_labelled(ui, s, host, "slope", Size::M, slope, "speculum.k.slope");
-            seg(ui, host, "chan", "speculum.k.chan", &CHAN_KEYS.map(Src::Key), 200.0);
-            seg(ui, host, "floor", "speculum.k.floor", &FLOOR_KEYS.map(Src::Key), 170.0);
-            controls::column(ui, s, 96.0, |ui| {
-                controls::caption(ui, s, Src::Key("fx.speculum.hold"), 96.0);
-                controls::led_param(ui, s, host, "hold", Src::Key("speculum.legend.held"), 96.0);
-            });
-        }
-        if which == 3 {
-            seg(ui, host, "sync", "speculum.k.sync", &SYNC_KEYS.map(Src::Key), 210.0);
-            seg(ui, host, "beats", "speculum.k.length", &BEATS_KEYS.map(Src::Key), 330.0);
-            dynfx::param_labelled(ui, s, host, "ms", Size::M, pill_ms, "speculum.k.window");
-        }
-        if which == 5 {
-            let lufs = Some(&lufs_pill as controls::Pill<'_>);
-            dynfx::param_labelled(ui, s, host, "target", Size::M, lufs, "speculum.k.target");
-            controls::column(ui, s, 120.0, |ui| {
-                controls::caption(ui, s, Src::Key("speculum.m.integrated"), 120.0);
-                let r = controls::key(ui, s, Src::Key("speculum.reset"), frame::tr("speculum.reset_tip"), 120.0, false);
-                if r.clicked() {
-                    view.analysis.reset_loudness();
-                    view.history.clear();
-                }
-            });
-        }
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("speculum.card.settings"),
+        None,
+        |ui, _| {
+            let pill_ms = Some(&super::modfx::ms_pill as controls::Pill<'_>);
+            let seg = |ui: &mut egui::Ui,
+                       host: &mut dyn FxHost,
+                       key: &'static str,
+                       caption: &'static str,
+                       labels: &[Src<'_>],
+                       w: f32| {
+                controls::column(ui, s, w, |ui| {
+                    controls::caption(ui, s, Src::Key(caption), w);
+                    controls::segmented_param(ui, s, host, key, labels, w);
+                });
+            };
+            if matches!(which, 0..=2) {
+                seg(
+                    ui,
+                    host,
+                    "fft",
+                    "speculum.k.fft",
+                    &FFT_KEYS.map(Src::Key),
+                    200.0,
+                );
+                dynfx::param_labelled(ui, s, host, "avg", Size::M, pill_ms, "speculum.k.avg");
+                let slope = Some(&slope_pill as controls::Pill<'_>);
+                dynfx::param_labelled(ui, s, host, "slope", Size::M, slope, "speculum.k.slope");
+                seg(
+                    ui,
+                    host,
+                    "chan",
+                    "speculum.k.chan",
+                    &CHAN_KEYS.map(Src::Key),
+                    200.0,
+                );
+                seg(
+                    ui,
+                    host,
+                    "floor",
+                    "speculum.k.floor",
+                    &FLOOR_KEYS.map(Src::Key),
+                    170.0,
+                );
+                controls::column(ui, s, 96.0, |ui| {
+                    controls::caption(ui, s, Src::Key("fx.speculum.hold"), 96.0);
+                    controls::led_param(
+                        ui,
+                        s,
+                        host,
+                        "hold",
+                        Src::Key("speculum.legend.held"),
+                        96.0,
+                    );
+                });
+            }
+            if which == 3 {
+                seg(
+                    ui,
+                    host,
+                    "sync",
+                    "speculum.k.sync",
+                    &SYNC_KEYS.map(Src::Key),
+                    210.0,
+                );
+                // The length counts on the beat; the window counts free or triggered.
+                let beat = host.spec().get("sync") >= 1.5;
+                ui.add_enabled_ui(beat, |ui| {
+                    seg(
+                        ui,
+                        host,
+                        "beats",
+                        "speculum.k.length",
+                        &BEATS_KEYS.map(Src::Key),
+                        330.0,
+                    );
+                });
+                ui.add_enabled_ui(!beat, |ui| {
+                    dynfx::param_labelled(ui, s, host, "ms", Size::M, pill_ms, "speculum.k.window");
+                });
+            }
+            if which == 5 {
+                let lufs = Some(&lufs_pill as controls::Pill<'_>);
+                dynfx::param_labelled(ui, s, host, "target", Size::M, lufs, "speculum.k.target");
+                controls::column(ui, s, 120.0, |ui| {
+                    controls::caption(ui, s, Src::Key("speculum.m.integrated"), 120.0);
+                    let r = controls::key(
+                        ui,
+                        s,
+                        Src::Key("speculum.reset"),
+                        frame::tr("speculum.reset_tip"),
+                        120.0,
+                        false,
+                    );
+                    if r.clicked() {
+                        view.analysis.reset_loudness();
+                        view.history.clear();
+                    }
+                });
+            }
+        },
+    );
 }
 
 const FFT_KEYS: [&str; 5] = [
@@ -474,7 +543,8 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
             let mut pts = [egui::Pos2::ZERO; N];
             for (j, p) in pts.iter_mut().enumerate() {
                 let t = j as f32 / (N - 1) as f32;
-                let bump = cantus_dsp::math::sin(t * 19.0) * 0.08 + cantus_dsp::math::sin(t * 7.0) * 0.1;
+                let bump =
+                    cantus_dsp::math::sin(t * 19.0) * 0.08 + cantus_dsp::math::sin(t * 7.0) * 0.1;
                 *p = pos2(
                     plot.left() + plot.width() * t,
                     plot.top() + plot.height() * (0.2 + 0.6 * t - bump).clamp(0.0, 1.0),
@@ -511,13 +581,16 @@ pub fn demo_signal(n: usize) -> (f32, f32) {
     let per_beat = (60.0 / 128.0 * sr) as usize;
     let tb = (n % per_beat) as f32 / sr;
     let kick = cantus_dsp::math::exp(-tb / 0.08)
-        * cantus_dsp::math::sin(std::f32::consts::TAU * (50.0 + 90.0 * cantus_dsp::math::exp(-tb / 0.02)) * tb);
+        * cantus_dsp::math::sin(
+            std::f32::consts::TAU * (50.0 + 90.0 * cantus_dsp::math::exp(-tb / 0.02)) * tb,
+        );
     let bass = 0.18 * cantus_dsp::math::sin(std::f32::consts::TAU * 55.0 * t);
     let chord = [220.0f32, 277.2, 329.6, 440.0]
         .iter()
         .map(|f| 0.05 * cantus_dsp::math::sin(std::f32::consts::TAU * f * t))
         .sum::<f32>();
-    let hiss = 0.01 * cantus_dsp::math::sin(n as f32 * 2.7) * cantus_dsp::math::sin(n as f32 * 0.37);
+    let hiss =
+        0.01 * cantus_dsp::math::sin(n as f32 * 2.7) * cantus_dsp::math::sin(n as f32 * 0.37);
     let l = 0.5 * kick + bass + chord + hiss;
     let r = 0.5 * kick + bass + 0.8 * chord - hiss;
     (l, r)

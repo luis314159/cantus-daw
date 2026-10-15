@@ -33,11 +33,21 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ("preset.discrimen.less_attack", &[("t.gain", -6.0)]),
     (
         "preset.discrimen.drum_room",
-        &[("b.gain", -4.0), ("b.comp", 0.4), ("b.tilt", -1.5), ("mode", 1.0)],
+        &[
+            ("b.gain", -4.0),
+            ("b.comp", 0.4),
+            ("b.tilt", -1.5),
+            ("mode", 1.0),
+        ],
     ),
     (
         "preset.discrimen.snappy",
-        &[("t.gain", 4.0), ("t.tilt", 2.0), ("b.gain", -5.0), ("mode", 1.0)],
+        &[
+            ("t.gain", 4.0),
+            ("t.tilt", 2.0),
+            ("b.gain", -5.0),
+            ("mode", 1.0),
+        ],
     ),
     (
         "preset.discrimen.bright_attack",
@@ -51,12 +61,19 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         "preset.discrimen.only_transients",
         &[("listen", 1.0), ("mode", 1.0)],
     ),
-    ("preset.discrimen.only_body", &[("listen", 2.0), ("mode", 1.0)]),
+    (
+        "preset.discrimen.only_body",
+        &[("listen", 2.0), ("mode", 1.0)],
+    ),
 ];
 
 const MODE_KEYS: [&str; 2] = ["discrimen.mode.0", "discrimen.mode.1"];
 const MODE_WORDS: [&str; 2] = ["discrimen.words.0", "discrimen.words.1"];
-const LISTEN_KEYS: [&str; 3] = ["discrimen.listen.0", "discrimen.listen.1", "discrimen.listen.2"];
+const LISTEN_KEYS: [&str; 3] = [
+    "discrimen.listen.0",
+    "discrimen.listen.1",
+    "discrimen.listen.2",
+];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]
@@ -132,7 +149,8 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
 
 /// Whether nothing is processed: the two parts add up to the input.
 pub fn idle(ds: &DiscrimenSettings) -> bool {
-    let quiet = |p: &cantus_dsp::discrimen::Part| p.gain_db == 0.0 && p.comp == 0.0 && p.tilt_db == 0.0;
+    let quiet =
+        |p: &cantus_dsp::discrimen::Part| p.gain_db == 0.0 && p.comp == 0.0 && p.tilt_db == 0.0;
     quiet(&ds.transient) && quiet(&ds.body) && ds.listen == Listen::Both
 }
 
@@ -159,7 +177,10 @@ fn body_ui(
     // The right column: the parts now, and under them what is heard.
     let seg_w = 200.0;
     let listen_h = 64.0 * k;
-    let now = Rect::from_min_max(r1[1].min, pos2(r1[1].right(), r1[1].bottom() - listen_h - gap));
+    let now = Rect::from_min_max(
+        r1[1].min,
+        pos2(r1[1].right(), r1[1].bottom() - listen_h - gap),
+    );
     let listen = Rect::from_min_max(pos2(r1[1].left(), now.bottom() + gap), r1[1].max);
     now_card(ui, s, now, tel, ds, sr, live);
     let so = s.function(Function::Output);
@@ -213,7 +234,11 @@ fn body_ui(
         },
     );
     for (i, title, keys) in [
-        (1usize, "discrimen.card.transient", ["t.gain", "t.comp", "t.tilt"]),
+        (
+            1usize,
+            "discrimen.card.transient",
+            ["t.gain", "t.comp", "t.tilt"],
+        ),
         (2, "discrimen.card.body", ["b.gain", "b.comp", "b.tilt"]),
     ] {
         controls::card(ui, &sd, r2[i], Src::Key(title), None, |ui, _| {
@@ -261,7 +286,8 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                 pos2(plot.left(), plot.bottom() + 4.0 * k),
                 pos2(plot.right(), r.bottom() - 6.0 * k),
             );
-            let level = |v: f32| ((cantus_dsp::dynfx_follow::to_db(v) + 60.0) / 60.0).clamp(0.0, 1.0);
+            let level =
+                |v: f32| ((cantus_dsp::dynfx_follow::to_db(v) + 60.0) / 60.0).clamp(0.0, 1.0);
             with_brush(&ui.painter_at(r), |b| {
                 canvas::ground_b(b, r, &ink, s.hue_tok);
                 for q in [0.25f32, 0.5, 0.75] {
@@ -278,14 +304,20 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                     let hb = level(c[1]) * plot.height();
                     if hb > 0.0 {
                         b.rect(
-                            Rect::from_min_max(pos2(x, plot.bottom() - hb), pos2(x + wx, plot.bottom())),
+                            Rect::from_min_max(
+                                pos2(x, plot.bottom() - hb),
+                                pos2(x + wx, plot.bottom()),
+                            ),
                             crate::kit::Fill::Solid(body_c),
                         );
                     }
                     let ht = level(c[0]) * plot.height();
                     if ht > 0.0 {
                         b.rect(
-                            Rect::from_min_max(pos2(x, plot.bottom() - ht), pos2(x + wx, plot.bottom())),
+                            Rect::from_min_max(
+                                pos2(x, plot.bottom() - ht),
+                                pos2(x + wx, plot.bottom()),
+                            ),
                             crate::kit::Fill::Solid(Ink::a(ink.hue, 0.85)),
                         );
                     }
@@ -300,7 +332,13 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                         );
                     }
                 }
-                b.hline(strip.left(), strip.right(), strip.bottom(), b.px(), ink.grid_strong);
+                b.hline(
+                    strip.left(),
+                    strip.right(),
+                    strip.bottom(),
+                    b.px(),
+                    ink.grid_strong,
+                );
                 // The legend.
                 let mut x = r.left() + 8.0 * k;
                 let y = r.top() + legend_h * 0.5;
@@ -313,7 +351,8 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                         crate::kit::Fill::Solid(c),
                     );
                     let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-                    let at = canvas::put(b, pos2(x + 14.0 * k, y), Align2::LEFT_CENTER, &t, k, None);
+                    let at =
+                        canvas::put(b, pos2(x + 14.0 * k, y), Align2::LEFT_CENTER, &t, k, None);
                     x = at.right() + 14.0 * k;
                 }
                 let t = Text::key("discrimen.legend.mask", Role::Micro, ink.dim).caps(true);
@@ -327,7 +366,14 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                 );
                 if idle(ds) {
                     let t = Text::key("discrimen.idle", Role::Body, ink.dim).caps(false);
-                    canvas::put(b, plot.center(), Align2::CENTER_CENTER, &t, k, Some(ink.plate));
+                    canvas::put(
+                        b,
+                        plot.center(),
+                        Align2::CENTER_CENTER,
+                        &t,
+                        k,
+                        Some(ink.plate),
+                    );
                 }
                 canvas::edge_b(b, r, &ink);
             });
@@ -362,11 +408,12 @@ fn now_card(
             let dash = "\u{2014}";
             with_brush(&ui.painter_at(cr.body), |b| {
                 let mut y = r.top();
-                let mut line = |b: &mut crate::kit::Brush, word: &str, args: std::fmt::Arguments<'_>| {
-                    let lr = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), row));
-                    dynfx::stat(b, lr, word, ink.text, &ink, k, args);
-                    y += row;
-                };
+                let mut line =
+                    |b: &mut crate::kit::Brush, word: &str, args: std::fmt::Arguments<'_>| {
+                        let lr = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), row));
+                        dynfx::stat(b, lr, word, ink.text, &ink, k, args);
+                        y += row;
+                    };
                 for (key, v) in [
                     ("discrimen.m.transient", tel[tel::T_PEAK]),
                     ("discrimen.m.body", tel[tel::B_PEAK]),
@@ -403,8 +450,11 @@ fn now_card(
                 let t = Text::key(words, Role::Micro, ink.dim)
                     .caps(false)
                     .align(Align2::LEFT_TOP)
-                    .policy(crate::kit::text::Policy::Elide(crate::kit::text::Elide::End));
-                let text_r = Rect::from_min_max(pos2(r.left(), y + 6.0 * k), pos2(r.right(), y + 20.0 * k));
+                    .policy(crate::kit::text::Policy::Elide(
+                        crate::kit::text::Elide::End,
+                    ));
+                let text_r =
+                    Rect::from_min_max(pos2(r.left(), y + 6.0 * k), pos2(r.right(), y + 20.0 * k));
                 let _ = crate::kit::text::paint(b, text_r, &t, k);
             });
         },

@@ -523,10 +523,7 @@ impl Processor {
 
     /// Give the processor the producer ends of the scope rings, one per watchable Speculum
     /// (ADR 0056; `EngineHandle::watch_scope`). Extra producers are ignored.
-    pub fn attach_scopes(
-        &mut self,
-        producers: Vec<Producer<crate::fx::speculum::ScopeChunk>>,
-    ) {
+    pub fn attach_scopes(&mut self, producers: Vec<Producer<crate::fx::speculum::ScopeChunk>>) {
         for (cell, p) in self.nodes.scopes.iter().zip(producers) {
             match cell.try_borrow_mut() {
                 Some(mut t) => t.ring = Some(p),

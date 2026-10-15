@@ -211,7 +211,11 @@ impl Up {
     pub fn push(&mut self, x: f32, factor: usize, tables: &Tables, out: &mut [f32; MAX_FACTOR]) {
         self.ring[self.pos] = x;
         self.ring[self.pos + TAPS] = x;
-        self.pos = if self.pos + 1 == TAPS { 0 } else { self.pos + 1 };
+        self.pos = if self.pos + 1 == TAPS {
+            0
+        } else {
+            self.pos + 1
+        };
         let w = &self.ring[self.pos..self.pos + TAPS];
         out[0] = w[TAPS - 1 - HALF];
         if factor > 1 {
@@ -270,7 +274,11 @@ impl Down {
             all_zero &= v.to_bits() == 0;
             self.ring[self.pos] = v;
             self.ring[self.pos + MAX_DOWN] = v;
-            self.pos = if self.pos + 1 == MAX_DOWN { 0 } else { self.pos + 1 };
+            self.pos = if self.pos + 1 == MAX_DOWN {
+                0
+            } else {
+                self.pos + 1
+            };
         }
         self.zeros = if all_zero {
             self.zeros.saturating_add(factor)

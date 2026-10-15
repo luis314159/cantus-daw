@@ -37,7 +37,8 @@ fn with_no_overs_every_configuration_is_the_render_later_by_its_latency() {
         set_all(&mut p, fx, &[("os", os), ("tp", tp), ("curve", 0.0)]);
         let slot = strip_of(&mut p, 0).effects[0].clone();
         let lat = cantus_engine::EffectUnit::new(&slot, 48_000.0).latency();
-        let want = cantus_dsp::tonsor::latency_for(&cantus_engine::fx::tonsor::settings(&slot.spec));
+        let want =
+            cantus_dsp::tonsor::latency_for(&cantus_engine::fx::tonsor::settings(&slot.spec));
         assert_eq!(lat, want);
         assert!(lat > 0);
         let out = render_of(&p);
@@ -146,6 +147,10 @@ fn an_automated_latency_keeps_the_mix_in_line() {
     // After the switch back, in line again.
     let (a, b) = (6 * beat + 4 * lat + 16, 8 * beat);
     for f in a..b {
-        assert_eq!(out[2 * f].to_bits(), reference[2 * f].to_bits(), "frame {f} after");
+        assert_eq!(
+            out[2 * f].to_bits(),
+            reference[2 * f].to_bits(),
+            "frame {f} after"
+        );
     }
 }

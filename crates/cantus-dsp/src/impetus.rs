@@ -21,8 +21,8 @@
 use crate::dynfx_follow::Quiet;
 use crate::dynfx_meter::{Columns, Fold, Hold};
 use crate::dynfx_transient::{Diff, DiffTimes};
-use crate::math;
 use crate::dynfx_transient::{Svf, SvfCoef};
+use crate::math;
 use crate::modfx_line::Glide;
 
 /// Which part of the spectrum is shaped.

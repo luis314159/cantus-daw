@@ -559,7 +559,13 @@ impl Analysis {
                 -200.0
             }
         };
-        let pk = |v: f32| if v > 0.0 { 20.0 * math::log10(v) } else { -200.0 };
+        let pk = |v: f32| {
+            if v > 0.0 {
+                20.0 * math::log10(v)
+            } else {
+                -200.0
+            }
+        };
         Levels {
             true_peak_db: self.loud.true_peak_db().max(-200.0),
             peak_db: [pk(self.peaks[0].get()), pk(self.peaks[1].get())],

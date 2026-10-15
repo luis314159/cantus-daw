@@ -25,7 +25,11 @@ fn at_zero_amounts_every_band_and_a_key_are_a_wire() {
         for keyed in [false, true] {
             let mut p = demo_project();
             let fx = add_effect(&mut p, EffectKind::Transient);
-            set_all(&mut p, fx, &[("band", band), ("speed", 3.0), ("xover", 900.0)]);
+            set_all(
+                &mut p,
+                fx,
+                &[("band", band), ("speed", 3.0), ("xover", 900.0)],
+            );
             if keyed {
                 let bass = p.tracks[1].strip.unwrap();
                 strip_of(&mut p, 0).effects[0].sidechain = Some(bass);
@@ -84,7 +88,12 @@ fn live_playback_renders_what_the_offline_render_does() {
     let fx = add_effect(&mut p, EffectKind::Transient);
     busy(&mut p, fx, 1.0);
     let offline = render_of(&p);
-    assert_null(&offline, &realtime(&p, offline.len()), 0.0, "live = offline");
+    assert_null(
+        &offline,
+        &realtime(&p, offline.len()),
+        0.0,
+        "live = offline",
+    );
 }
 
 #[test]

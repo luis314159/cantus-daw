@@ -24,7 +24,10 @@ fn a_step_covers_63_percent_in_one_attack_time_and_falls_in_one_release_time() {
     for _ in 0..up {
         v = f.run(1.0);
     }
-    assert!((v - (1.0 - crate::math::exp(-1.0f32))).abs() < 0.01, "attack: {v}");
+    assert!(
+        (v - (1.0 - crate::math::exp(-1.0f32))).abs() < 0.01,
+        "attack: {v}"
+    );
     // Settle at the top, then fall.
     for _ in 0..48_000 {
         f.run(1.0);
