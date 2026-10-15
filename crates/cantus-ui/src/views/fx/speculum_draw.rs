@@ -622,12 +622,7 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         );
         line(b, frame::tr("speculum.m.range"), l.range, "LU");
         line(b, frame::tr("speculum.m.true_peak"), tp, "dBTP");
-        line(
-            b,
-            frame::tr("speculum.m.target"),
-            Some(f64::from(set.target_lufs)),
-            "LUFS",
-        );
+        // The target is the loudness view's (and its history's); the overview has no room.
     }
     // Peak and RMS per channel: the numbers, and bars from −60 dBFS (faint: the peak held a
     // second; solid: the RMS over 300 ms) on a scale.
@@ -680,7 +675,7 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         y += 15.0 * k;
     }
     // The bars' scale.
-    if bar_span.1 > bar_span.0 {
+    if bar_span.1 > bar_span.0 && y + 12.0 * k <= inside.bottom() {
         for db in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
             let x = bar_span.0 + (bar_span.1 - bar_span.0) * frac(db);
             canvas::putf(b, pos2(x, y), Align2::CENTER_TOP, Role::Micro, ink.dim, k, None, format_args!("{db:.0}"));
