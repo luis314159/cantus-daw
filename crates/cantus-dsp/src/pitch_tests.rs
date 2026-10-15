@@ -328,3 +328,62 @@ fn the_design_reaches_f_min_and_f_max() {
         assert!((sum - 1.0).abs() < 1e-4);
     }
 }
+
+/// Review 1: a legato leap up an octave (220 → 440 Hz, no gap) is followed, not held an
+/// octave low by the octave guard.
+#[test]
+fn a_legato_octave_leap_up_is_followed() {
+    let sr = 48_000.0;
+    let x = testkit::voice(sr, 1.0, Vowel::A, 0.5, |t| if t < 0.5 { 220.0 } else { 440.0 });
+    let step = 0.5 * sr as f64;
+    let truth = |t: f64| if t < step { 220.0 } else { 440.0 };
+    let frames: Vec<PitchFrame> = stream(&x, sr)
+        .into_iter()
+        .filter(|f| f.centre > step + 0.04 * sr as f64)
+        .collect();
+    let s = score(&frames, &truth, 0.0, 0.0, x.len());
+    assert_eq!(s.gross, 0, "{s:?}");
+    // And a leap down.
+    let y = testkit::voice(sr, 1.0, Vowel::A, 0.5, |t| if t < 0.5 { 440.0 } else { 220.0 });
+    let truth = |t: f64| if t < step { 440.0 } else { 220.0 };
+    let frames: Vec<PitchFrame> = stream(&y, sr)
+        .into_iter()
+        .filter(|f| f.centre > step + 0.04 * sr as f64)
+        .collect();
+    let s = score(&frames, &truth, 0.0, 0.0, y.len());
+    assert_eq!(s.gross, 0, "down: {s:?}");
+}
+
+/// Review 1: the Viterbi pass renormalises each frame, so a long take keeps the precision
+/// of a short one (the log-probabilities stay near zero).
+#[test]
+fn the_viterbi_pass_stays_near_zero_on_long_takes() {
+    // 4 000 unvoiced frames (21 s at 48 kHz): without renormalising, about −33 000.
+    let peak = super::offline::viterbi_peak_of_silence(4_000);
+    assert!(peak < 100.0, "the log-probabilities drifted to {peak}");
+}
+
+/// Review 1: `f0_at` is symmetric at the edges of a voiced stretch: the nearest frame
+/// decides, at an onset as at an offset.
+#[test]
+fn f0_at_follows_the_nearest_frame_at_both_edges() {
+    let frame = |voiced: bool| PitchFrame {
+        f0: if voiced { 200.0 } else { 0.0 },
+        voiced,
+        ..PitchFrame::default()
+    };
+    let onset = Analysis {
+        sample_rate: 48_000.0,
+        hop: 100,
+        frames: vec![frame(false), frame(true)],
+        epochs: Vec::new(),
+    };
+    assert_eq!(onset.f0_at(25.0), None, "an onset: nearest frame unvoiced");
+    assert_eq!(onset.f0_at(75.0), Some(200.0));
+    let offset = Analysis {
+        frames: vec![frame(true), frame(false)],
+        ..onset.clone()
+    };
+    assert_eq!(offset.f0_at(25.0), Some(200.0));
+    assert_eq!(offset.f0_at(75.0), None, "an offset: nearest frame unvoiced");
+}

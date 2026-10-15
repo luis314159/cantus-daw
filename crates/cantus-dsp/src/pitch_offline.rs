@@ -65,7 +65,7 @@ impl Analysis {
         match b {
             Some(b) if a.voiced && b.voiced => Some(a.f0 + (b.f0 - a.f0) * frac),
             _ if frac < 0.5 && a.voiced => Some(a.f0),
-            Some(b) if b.voiced => Some(b.f0),
+            Some(b) if frac >= 0.5 && b.voiced => Some(b.f0),
             _ => None,
         }
     }
@@ -343,11 +343,25 @@ fn hz_bin(hz: f32) -> Option<usize> {
 /// The most likely path through voiced and unvoiced pitch states: per frame, the voiced
 /// state's bin or `None`.
 fn viterbi(cands: &[Candidates], fs: f32) -> Vec<Option<usize>> {
+    viterbi_peak(cands, fs).0
+}
+
+/// The largest |δ| a Viterbi pass over `frames` silent frames reaches (the tests' probe of
+/// its precision on long takes).
+#[cfg(test)]
+pub(super) fn viterbi_peak_of_silence(frames: usize) -> f32 {
+    let cands = vec![Candidates::default(); frames];
+    viterbi_peak(&cands, 12_000.0).1
+}
+
+/// [`viterbi`], and the largest |δ| it held.
+fn viterbi_peak(cands: &[Candidates], fs: f32) -> (Vec<Option<usize>>, f32) {
     let n = bins();
     let t_len = cands.len();
     if t_len == 0 {
-        return Vec::new();
+        return (Vec::new(), 0.0);
     }
+    let mut peak = 0.0f32;
     // log T(i, j): a triangle of half-width MAX_STEP, normalised per source bin.
     let m = MAX_STEP as i64;
     let row_norm: Vec<f32> = (0..n as i64)
@@ -423,7 +437,16 @@ fn viterbi(cands: &[Candidates], fs: f32) -> Vec<Option<usize>> {
                 bt[v * n + j] = off | ((from_v as u8) << 7);
             }
         }
+        // Renormalise: subtract the best score, so δ stays near zero however long the
+        // take and f32 keeps the precision the transitions need (the path is unchanged).
+        let best = next.iter().fold(f32::NEG_INFINITY, |m, v| m.max(*v));
+        if best.is_finite() {
+            for v in &mut next {
+                *v -= best;
+            }
+        }
         std::mem::swap(&mut delta, &mut next);
+        peak = delta.iter().fold(peak, |p, d| p.max(d.abs()));
     }
     let mut s = (0..2 * n)
         .max_by(|&a, &b| delta[a].total_cmp(&delta[b]).then(b.cmp(&a)))
@@ -440,7 +463,7 @@ fn viterbi(cands: &[Candidates], fs: f32) -> Vec<Option<usize>> {
         let i = (j as i64 + (b & 0x7f) as i64 - m) as usize;
         s = from_v * n + i;
     }
-    path
+    (path, peak)
 }
 
 /// The epochs of every voiced stretch: anchored on the stretch's largest peak in its
