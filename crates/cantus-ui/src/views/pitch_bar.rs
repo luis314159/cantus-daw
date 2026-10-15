@@ -15,16 +15,19 @@ use cantus_core::pitch::midi::Interval;
 use cantus_core::pitch::{edit, PitchEdit, PitchKey, PitchOp};
 use cantus_core::{ClipId, Ticks, TrackId};
 
-/// The note names, C … B (Tonus's, one language for both).
-pub const KEY_NAMES: [&str; 12] = crate::views::fx::tonus::KEY_NAMES;
+/// The tonics, in the letters the notes are named with everywhere in the editor (the
+/// blobs, the keyboard, the readouts): one notation in every language (review 1).
+pub const TONICS: [&str; 12] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
-/// "A minor": a key in words.
+/// "A minor" / "A menor": a key in words, the mode as a phrase reads it.
 pub fn key_words(k: PitchKey) -> String {
     tf(
         "pitch.key.value",
         &[
-            ("tonic", &t(KEY_NAMES[k.tonic as usize % 12])),
-            ("scale", &t(&format!("fx.tonus.scale.{}", k.scale.min(12)))),
+            ("tonic", &TONICS[k.tonic as usize % 12]),
+            ("scale", &t(&format!("pitch.key.scale.{}", k.scale.min(12)))),
         ],
     )
 }
@@ -259,9 +262,9 @@ fn clip_name(app: &CantusApp, track: TrackId, clip: ClipId) -> String {
 /// The key menu: the tonic, then the scale (Tonus's list).
 fn key_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, e: &PitchEdit) {
     let mut items: Vec<Item<'_>> = vec![Item::Band(Src::Key("pitch.key.tonic"))];
-    for (i, k) in KEY_NAMES.iter().enumerate() {
+    for (i, k) in TONICS.iter().enumerate() {
         items.push(Item::Action {
-            label: Src::Key(k),
+            label: Src::Str(k),
             check: Check::Radio(e.key.tonic as usize == i),
             shortcut: None,
             submenu: false,
@@ -269,7 +272,7 @@ fn key_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         });
     }
     items.push(Item::Band(Src::Key("pitch.key.scale")));
-    let scales: Vec<String> = (0..13).map(|i| format!("fx.tonus.scale.{i}")).collect();
+    let scales: Vec<String> = (0..13).map(|i| format!("pitch.key.scale.{i}")).collect();
     for (i, k) in scales.iter().enumerate() {
         items.push(Item::Action {
             label: Src::Key(k),

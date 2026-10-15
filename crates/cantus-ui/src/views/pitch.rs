@@ -34,9 +34,10 @@ mod input;
 #[path = "pitch_paint.rs"]
 mod paint;
 #[path = "pitch_panel.rs"]
-mod panel;
+pub mod panel;
 
-pub use panel::quantise;
+pub use bar::key_words;
+pub use panel::{quantise, PanelLayout};
 
 /// The key strip's width, the ruler's height, the note panel's height (at 100 %).
 const KEYS_W: f32 = 56.0;
@@ -166,6 +167,8 @@ pub struct PitchView {
     pub blobs: Vec<(u32, Rect)>,
     /// The MIDI chip being dragged out.
     pub midi_drag: bool,
+    /// Where the note panel's cards were laid out last frame.
+    pub panel: Option<panel::PanelLayout>,
 }
 
 impl Default for PitchView {
@@ -187,6 +190,7 @@ impl Default for PitchView {
             geo: None,
             blobs: Vec::new(),
             midi_drag: false,
+            panel: None,
         }
     }
 }

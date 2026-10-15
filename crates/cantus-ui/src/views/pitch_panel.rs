@@ -29,6 +29,29 @@ pub fn note_words(m: f32) -> String {
     format!("{} {cents:+} ct", pitch_name(near.clamp(0.0, 127.0) as u8))
 }
 
+/// Where the panel's cards were laid out last frame (the tests check nothing spills).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct PanelLayout {
+    pub note: Rect,
+    /// What the note card's contents took.
+    pub note_used: Rect,
+    pub macros: Rect,
+    pub macros_used: Rect,
+    /// The cards did not fit even with small knobs: they scroll sideways.
+    pub scrolled: bool,
+    pub size: KnobSize,
+}
+
+/// The width (at 100 %) each card's contents take with knobs of `z`: the note card's
+/// readout column and five cells, the macro card's two cells (a size up, so their
+/// words fit) and its key column, each with the card's padding.
+fn widths(z: KnobSize) -> (f32, f32) {
+    let up = if z == KnobSize::M { KnobSize::L } else { KnobSize::M };
+    let note = 140.0 + 6.0 + controls::cells_width(&[z; 5]) + 24.0;
+    let macros = controls::cells_width(&[up; 2]) + 6.0 + 112.0 + 24.0;
+    (note, macros)
+}
+
 pub(super) fn show(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -40,14 +63,54 @@ pub(super) fn show(
 ) {
     let gap = s.s(6.0);
     let inner = rect.shrink(s.s(4.0));
-    let note_w = (controls::cells_width(&[KnobSize::M; 5]) + 140.0 + 24.0) * s.k;
-    let split = (inner.left() + note_w).min(inner.left() + inner.width() * 0.62);
-    let left = Rect::from_min_max(inner.min, pos2(split, inner.bottom()));
-    let right = Rect::from_min_max(pos2(split + gap, inner.top()), inner.max);
-    note_card(app, ui, track, clip, current, left, s);
-    macro_card(app, ui, track, clip, current, right, s);
+    // Knobs as large as the width allows; below the small ones' width, the cards keep
+    // their size and the panel scrolls sideways (nothing overlaps, nothing is cut).
+    let fits = |z: KnobSize| {
+        let (n, m) = widths(z);
+        (n + m) * s.k + gap <= inner.width()
+    };
+    let z = if fits(KnobSize::M) {
+        KnobSize::M
+    } else {
+        KnobSize::S
+    };
+    let (n, m) = widths(z);
+    let (note_w, macro_w) = (n * s.k, m * s.k);
+    let need = note_w + gap + macro_w;
+    let mut lay = |ui: &mut egui::Ui, r: Rect, scrolled: bool| {
+        // The note card takes what it needs; the macros the rest (at least their need).
+        let note_w = note_w.max(r.width() - gap - macro_w).min(note_w * 1.15);
+        let left = Rect::from_min_max(r.min, pos2(r.left() + note_w, r.bottom()));
+        let right = Rect::from_min_max(pos2(left.right() + gap, r.top()), r.max);
+        let note_used = note_card(app, ui, track, clip, current, left, z, s);
+        let macros_used = macro_card(app, ui, track, clip, current, right, z, s);
+        app.pitch.view.panel = Some(PanelLayout {
+            note: left,
+            note_used,
+            macros: right,
+            macros_used,
+            scrolled,
+            size: z,
+        });
+    };
+    if need <= inner.width() {
+        lay(ui, inner, false);
+    } else {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
+            egui::ScrollArea::horizontal()
+                .id_salt(("pitch-panel", clip.0))
+                .show(ui, |ui| {
+                    let (r, _) = ui.allocate_exact_size(
+                        egui::vec2(need, inner.height() - s.s(14.0)),
+                        egui::Sense::hover(),
+                    );
+                    lay(ui, r, true);
+                });
+        });
+    }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn note_card(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -55,12 +118,13 @@ fn note_card(
     clip: ClipId,
     current: &PitchEdit,
     rect: Rect,
+    z: KnobSize,
     s: &Style,
-) {
+) -> Rect {
     let sel = app.pitch.view.selected.clone();
     let first = current.notes.iter().find(|n| sel.contains(&n.id)).cloned();
     let hs = s.hue_of(Tok::HueTone);
-    let _ = controls::card(ui, &hs, rect, Src::Key("pitch.card.note"), None, |ui, _| {
+    let (used, _) = controls::card(ui, &hs, rect, Src::Key("pitch.card.note"), None, |ui, _| {
         controls::column(ui, &hs, 140.0, |ui| {
             controls::caption(ui, &hs, Src::Key("pitch.note.sounds"), 140.0);
             let sounds = first
@@ -100,7 +164,7 @@ fn note_card(
                     .map_or(field.default_value(), |n| field.get(n));
                 let name = crate::i18n::t(&format!("{label}_tip"));
                 let out = Cell::new(value, lo..=hi, field.default_value())
-                    .size(KnobSize::M)
+                    .size(z)
                     .label(Src::Key(label))
                     .name(&name)
                     .unit(unit)
@@ -116,9 +180,12 @@ fn note_card(
                 }
             }
         });
+        ui.min_rect()
     });
+    used
 }
 
+#[allow(clippy::too_many_arguments)]
 fn macro_card(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -126,9 +193,15 @@ fn macro_card(
     clip: ClipId,
     current: &PitchEdit,
     rect: Rect,
+    z: KnobSize,
     s: &Style,
-) {
+) -> Rect {
     let hs = s.hue_of(Tok::HueSource);
+    let up = if z == KnobSize::M {
+        KnobSize::L
+    } else {
+        KnobSize::M
+    };
     let sel = app.pitch.view.selected.clone();
     let ids: Vec<u32> = if sel.is_empty() {
         current.notes.iter().map(|n| n.id).collect()
@@ -140,9 +213,9 @@ fn macro_card(
     } else {
         "pitch.card.macros"
     };
-    let _ = controls::card(ui, &hs, rect, Src::Key(title), None, |ui, _| {
+    let (used, _) = controls::card(ui, &hs, rect, Src::Key(title), None, |ui, _| {
         let amount = Cell::new(app.pitch.view.correct_pitch, 0.0..=1.0, 1.0)
-            .size(KnobSize::M)
+            .size(up)
             .label(Src::Key("pitch.macro.pitch"))
             .name(&crate::i18n::t("pitch.macro.pitch_tip"))
             .unit("%")
@@ -151,7 +224,7 @@ fn macro_card(
             app.pitch.view.correct_pitch = v;
         }
         let drift = Cell::new(app.pitch.view.correct_drift, 0.0..=1.0, 0.5)
-            .size(KnobSize::M)
+            .size(up)
             .label(Src::Key("pitch.macro.drift"))
             .name(&crate::i18n::t("pitch.macro.drift_tip"))
             .unit("%")
@@ -179,7 +252,9 @@ fn macro_card(
                 quantise(app, track, clip, current, &ids);
             }
         });
+        ui.min_rect()
     });
+    used
 }
 
 /// *Quantise timing*: each note's start to the nearest line of the editor's grid on the

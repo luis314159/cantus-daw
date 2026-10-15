@@ -38,6 +38,20 @@ pitch.no_source = This clip has no audio file
 pitch.status = {n} notes · {key}
 pitch.status_one = One note · {key}
 pitch.key.value = {tonic} {scale}
+# The key's mode, as a phrase reads it ("A minor").
+pitch.key.scale.0 = chromatic
+pitch.key.scale.1 = major
+pitch.key.scale.2 = minor
+pitch.key.scale.3 = harmonic minor
+pitch.key.scale.4 = melodic minor
+pitch.key.scale.5 = Dorian
+pitch.key.scale.6 = Phrygian
+pitch.key.scale.7 = Lydian
+pitch.key.scale.8 = Mixolydian
+pitch.key.scale.9 = Locrian
+pitch.key.scale.10 = major pentatonic
+pitch.key.scale.11 = minor pentatonic
+pitch.key.scale.12 = blues
 
 # The bar.
 pitch.tool.edit = Edit

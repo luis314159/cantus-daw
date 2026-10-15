@@ -88,6 +88,7 @@ fn project(path: &std::path::Path, frames: u64) -> Project {
 struct Rig {
     ctx: egui::Context,
     app: CantusApp,
+    size: egui::Vec2,
     frame: u64,
     pointer: Option<Pos2>,
     texts: Vec<(String, Rect)>,
@@ -116,6 +117,7 @@ impl Rig {
         let mut r = Rig {
             ctx,
             app,
+            size: vec2(1600.0, 900.0),
             frame: 0,
             pointer: None,
             texts: Vec::new(),
@@ -133,7 +135,7 @@ impl Rig {
         }
         ev.extend(events);
         let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1600.0, 900.0))),
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.frame as f64 / 60.0),
             predicted_dt: 1.0 / 60.0,
             events: ev,
@@ -705,4 +707,41 @@ fn glue_keeps_pitch_edits_or_refuses() {
         cantus_ui::audio_clips::glue(t, &[&left, &right]).is_none(),
         "edits differ"
     );
+}
+
+/// The key in words: one notation with the notes (letters), the mode in lower case.
+#[test]
+fn the_key_reads_as_the_notes_do() {
+    use cantus_core::pitch::PitchKey;
+    use cantus_ui::i18n::{set_locale, Locale};
+    let a_minor = PitchKey { tonic: 9, scale: 2 };
+    let g_dorian = PitchKey { tonic: 7, scale: 5 };
+    set_locale(Locale::Es);
+    assert_eq!(cantus_ui::views::pitch::key_words(a_minor), "A menor");
+    assert_eq!(cantus_ui::views::pitch::key_words(g_dorian), "G dórico");
+    set_locale(Locale::En);
+    assert_eq!(cantus_ui::views::pitch::key_words(a_minor), "A minor");
+    assert_eq!(cantus_ui::i18n::t("pitch.macro.pitch"), "Pitch");
+    set_locale(Locale::Es);
+    assert_eq!(cantus_ui::i18n::t("pitch.macro.pitch"), "Afinación");
+    set_locale(Locale::En);
+}
+
+/// The note panel never spills into the macros, at any width: smaller knobs, then a
+/// sideways scroll.
+#[test]
+fn the_note_panel_fits_its_width() {
+    for (w, scrolled) in [(1600.0f32, false), (1000.0, false), (640.0, true)] {
+        let mut r = Rig::new();
+        r.size = vec2(w, 900.0);
+        r.app.workspace.hide(Pane::Inspector);
+        r.idle(3);
+        r.open();
+        r.idle(3);
+        let p = r.app.pitch.view.panel.expect("drawn");
+        assert!(p.note_used.right() <= p.note.right() + 1.0, "{w}: {p:?}");
+        assert!(p.macros_used.right() <= p.macros.right() + 1.0, "{w}: {p:?}");
+        assert!(p.note.right() < p.macros.left(), "{w}: {p:?}");
+        assert_eq!(p.scrolled, scrolled, "{w}: {p:?}");
+    }
 }
