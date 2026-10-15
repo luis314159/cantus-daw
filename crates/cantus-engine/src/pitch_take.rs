@@ -21,6 +21,9 @@ pub const DIP_DB: f32 = 9.0;
 pub const DIP_SPAN_S: f64 = 0.060;
 /// The smoothing that takes the vibrato out before the cut points are chosen, seconds.
 pub const SMOOTH_S: f64 = 0.180;
+/// A piece of a stretch shorter than this between two notes is the slide from one to the
+/// other (a scoop, a fall), not a note of its own: it joins the neighbour it is nearer.
+pub const TRANSITION_S: f64 = 0.150;
 
 /// What a frame of the take is, for the editor's drawing.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -308,6 +311,24 @@ fn steps(
             }
             None => break,
         }
+    }
+    // A slide into a note (or out of it) is part of the note.
+    let short = frames_of(TRANSITION_S, hop, rate);
+    loop {
+        let seg = (0..bounds.len() - 1).find(|&k| bounds[k + 1] - bounds[k] < short);
+        let Some(k) = seg.filter(|_| bounds.len() > 2) else {
+            break;
+        };
+        let me = mean(bounds[k], bounds[k + 1]);
+        let left = (k > 0).then(|| (mean(bounds[k - 1], bounds[k]) - me).abs());
+        let right =
+            (k + 2 < bounds.len()).then(|| (mean(bounds[k + 1], bounds[k + 2]) - me).abs());
+        // Remove the boundary toward the nearer neighbour.
+        match (left, right) {
+            (Some(l), Some(r)) if r < l => bounds.remove(k + 1),
+            (_, None) | (Some(_), Some(_)) => bounds.remove(k),
+            (None, Some(_)) => bounds.remove(k + 1),
+        };
     }
     // Each cut to the steepest point of the raw pitch near it.
     let reach = frames_of(SMOOTH_S / 2.0, hop, rate);

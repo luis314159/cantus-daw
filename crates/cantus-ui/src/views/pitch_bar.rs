@@ -120,7 +120,7 @@ pub(super) fn show(
     bar.divider(ui);
     let sel = app.pitch.view.selected.clone();
     let join = t("pitch.join");
-    if let Some(r) = bar.word(ui, id.with("join"), &join, 50.0, || t("pitch.join_tip")) {
+    if let Some(r) = bar.word(ui, id.with("join"), &join, wide(ui, &join, 50.0), || t("pitch.join_tip")) {
         if r.clicked() {
             let mut x = e.clone();
             if edit::join(&mut x, &sel) {
@@ -132,7 +132,7 @@ pub(super) fn show(
         }
     }
     let reset = t("pitch.reset");
-    if let Some(r) = bar.word(ui, id.with("reset"), &reset, 54.0, || t("pitch.reset_tip")) {
+    if let Some(r) = bar.word(ui, id.with("reset"), &reset, wide(ui, &reset, 54.0), || t("pitch.reset_tip")) {
         if r.clicked() {
             let ids: Vec<u32> = if sel.is_empty() {
                 e.notes.iter().map(|n| n.id).collect()
@@ -163,7 +163,7 @@ pub(super) fn show(
     // MIDI out: drag onto an instrument track, or click for a new one.
     midi_chip(app, ui, &mut bar, id, track, clip);
     let double = t("pitch.double");
-    if let Some(resp) = bar.word(ui, id.with("double"), &double, 62.0, || t("pitch.double_tip")) {
+    if let Some(resp) = bar.word(ui, id.with("double"), &double, wide(ui, &double, 62.0), || t("pitch.double_tip")) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
             let items: Vec<Item<'_>> = Interval::ALL
                 .iter()
@@ -203,6 +203,15 @@ pub(super) fn show(
             }
         });
     }
+}
+
+/// A key's width for its word: at least `min`, wide enough for the word in capitals.
+fn wide(ui: &egui::Ui, word: &str, min: f32) -> f32 {
+    use crate::kit::text::{measure, Role, Text};
+    let s = crate::kit::Style::current();
+    let caps = word.to_uppercase();
+    let m = measure(ui.ctx(), &Text::new(&caps, Role::Control, s.t.text), s.tk()).x / s.k;
+    min.max(m + 20.0)
 }
 
 fn clip_name(app: &CantusApp, track: TrackId, clip: ClipId) -> String {
@@ -278,7 +287,7 @@ fn midi_chip(
     clip: ClipId,
 ) {
     let word = t("pitch.midi");
-    let Some(r) = bar.word(ui, id.with("midi"), &word, 50.0, || t("pitch.midi_tip")) else {
+    let Some(r) = bar.word(ui, id.with("midi"), &word, wide(ui, &word, 50.0), || t("pitch.midi_tip")) else {
         return;
     };
     let drag = ui.interact(r.rect, id.with("midi-drag"), egui::Sense::drag());

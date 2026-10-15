@@ -15,6 +15,9 @@ use cantus_engine::pitch::TakeAnalysis;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[path = "pitch_demo.rs"]
+pub mod demo;
+
 /// What the editor knows about a clip's take.
 #[derive(Clone, Debug)]
 pub enum Take {

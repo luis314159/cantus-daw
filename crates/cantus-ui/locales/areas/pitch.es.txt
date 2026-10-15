@@ -97,7 +97,7 @@ pitch.field.gain_tip = El nivel de la nota
 # Las macros.
 pitch.card.macros = Corregir la selección
 pitch.card.macros_all = Corregir todas las notas
-pitch.macro.pitch = Afinación
+pitch.macro.pitch = Tono
 pitch.macro.pitch_tip = Cuánto lleva Corregir afinación el centro de cada nota a su nota
 pitch.macro.drift = Deriva
 pitch.macro.drift_tip = Cuánto aplana Corregir deriva el vaivén lento dentro de cada nota

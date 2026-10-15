@@ -199,7 +199,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         return;
     }
     ui.allocate_rect(full, Sense::hover());
-    let panel_h = s.s(PANEL_H).min(full.height() * 0.45);
+    let panel_h = (crate::views::fx::controls::card_height(crate::kit::knob::KnobSize::M) + 8.0)
+        .max(PANEL_H)
+        * s.k;
+    let panel_h = panel_h.min(full.height() * 0.5);
     let panel = Rect::from_min_max(pos2(full.left(), full.bottom() - panel_h), full.max);
     let body = Rect::from_min_max(full.min, pos2(full.right(), panel.top()));
     let keys = Rect::from_min_max(

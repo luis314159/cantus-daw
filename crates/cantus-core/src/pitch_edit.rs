@@ -263,16 +263,20 @@ pub fn correct_drift(edit: &mut PitchEdit, ids: &[u32], amount: f32) -> bool {
 /// respected) so it starts where `snap` puts its start (output frames → output frames).
 pub fn quantise(edit: &mut PitchEdit, ids: &[u32], snap: impl Fn(u64) -> u64) -> bool {
     let mut changed = false;
-    let order: Vec<u32> = edit
+    // Where each note wants to go, decided before any moves: then the notes moving earlier
+    // move first to last, and those moving later last to first, so none is blocked by a
+    // neighbour that is about to move out of its way.
+    let moves: Vec<(u32, i64)> = edit
         .notes
         .iter()
         .filter(|n| ids.contains(&n.id))
-        .map(|n| n.id)
+        .map(|n| (n.id, snap(n.start) as i64 - n.start as i64))
         .collect();
-    for id in order {
-        let start = edit.note(id).map(|n| n.start).unwrap_or(0);
-        let delta = snap(start) as i64 - start as i64;
-        changed |= shift_timing(edit, id, delta);
+    for (id, delta) in moves.iter().filter(|m| m.1 < 0) {
+        changed |= shift_timing(edit, *id, *delta);
+    }
+    for (id, delta) in moves.iter().rev().filter(|m| m.1 > 0) {
+        changed |= shift_timing(edit, *id, *delta);
     }
     changed
 }
