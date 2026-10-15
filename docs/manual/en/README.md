@@ -543,23 +543,32 @@ recorded with 13 microphones; when you install it (a 2.8 GB download), Cantus mi
 into a stereo kit — every drum at its place in the stereo field, the snare's bottom
 microphone in polarity, the toms' and cymbals' close microphones turned down on the other
 drums as a mixing engineer's gates would — so each hit plays as one stereo sample. It
-takes about two minutes after the download and leaves about 490 MB. *DRSKit acoustic
-drums* is then on the device picker's *Drums* shelf, playing in Exemplar on the General
-MIDI drum keys: kick 36 (35 a more open kick), side stick 37, snare 38, toms 41 · 43–45 ·
-47–50, hi-hat closed 42, pedal 44 and half open 46, crashes 49 and 57, ride 51 and 59, bell
-53 — and DrumGizmo's own keys for the rest (the open hi-hat 58, the cymbals' tips 54–55,
-the ride with its chain, and the brushes from 60 to 76). Each drum has up to 30 strengths
-as velocity layers, and the hits of a layer take their turns **in order**, so a roll never
-plays the same sample twice in a row; a closed or pedal hi-hat silences an open one. In
-the piano roll and the channel rack the kit shows **a row per drum**, by name (Exemplar's
-*Drum rows* switch, in its *Edit* view). The microphones' balance is fixed by the mix:
+takes about two minutes after the download and leaves about 470 MB; **while it installs it
+needs about 7.6 GB free** (the download, the unpacked kit and the mix side by side — the
+pack's page says so, and an install without the room is refused before anything is
+downloaded). If the mixing is cancelled or fails, the download is kept: the next try
+starts from it. *DRSKit acoustic drums* is then on the device picker's *Drums* shelf,
+playing in Exemplar on the General MIDI drum keys with its own drums only: kick 36 (35 a
+more open kick), side stick 37, snare 38 (40 a damped snare), toms 41 · 43–45 · 47–50,
+hi-hat closed 42, pedal 44 and open 46, crashes 49 and 57, ride 51 and 59, bell 53. The
+General MIDI keys the kit has no sound for (tambourine, cowbell, the Latin percussion)
+stay silent, so a General MIDI part never plays a cymbal in their place; DrumGizmo's other
+articulations are above them, on keys 82–100 (the half-open hi-hat 82, the tips and the
+chained ride 83–90, the brushes 91–100). Each drum has its strengths as velocity layers
+down to 24 dB under its loudest, and the hits of a layer take their turns **in order** —
+counted per drum and per layer, so a roll, a tom fill across the drum's keys or an accent
+on every fourth hat never plays the same sample twice in a row; a closed or pedal hi-hat
+silences an open one. In the piano roll and the channel rack the kit shows **a row per
+drum**, by name, in the interface's language (Exemplar's *Drum rows* switch, in its *Edit*
+view). The microphones' balance is fixed by the mix:
 faders for each microphone need an instrument with several outputs, a later step.
 
 **Round robin in order.** Exemplar's *Edit* view has the round robin's order: *In order*
-(each note of a pitch takes the next turn by its place in the song, so a render from any
+(each note takes the next turn of the samples it reaches — whatever key or velocity
+reaches the same ones shares the turns — by its place in the song, so a render from any
 point chooses what the whole song does there) or *By note* (drawn from each note — how
-Exemplars in projects saved before this version keep playing). An imported instrument plays
-its round robins in order.
+Exemplars in projects and user presets saved before this version keep playing). An
+imported instrument plays its round robins in order.
 
 **A missing pack.** A project that plays a pack this computer does not have opens a card
 that names the pack and its silent tracks: *Install in Sound packs…*, *Use the installed
@@ -621,9 +630,10 @@ shifts the hammers for the next notes: softer and darker.
 - Ten presets (*Concert Grand*, *Warm Ballad*, *Felt Piano*, *Honky-Tonk*, *Baroque Pitch*
   at A = 415 Hz…) each come with four macros: hardness, resonance, body and decay.
 
-Changing **A4, the stretch or the stiffness** designs the strings again, beside the window
-(a few seconds; the Edit view says *designing the strings*): the piano keeps its previous
-tuning until the new one is ready. An export always waits for it.
+Changing **A4, the stretch or the stiffness** designs the strings again, beside the window,
+once the knob has settled (a second or two; the editor says *designing the strings* with
+how far it has come): the piano keeps its previous tuning until the new one is ready. An
+export always waits for it. These three are set, not automated.
 
 ### The modulation effects
 
@@ -774,14 +784,15 @@ This is a beta. What we know about:
   pause the window while the files are copied; Ctrl+V with nothing
   copied does nothing and says nothing.
 - **Chorda** designs its strings for the audio device's sample rate when Cantus starts (a
-  few seconds, beside the window). Loading it before that, or at a sample rate it has not
-  met (after changing the device), waits for the design — the window pauses for those
-  seconds once. Its tuning parameters (A4, stretch, stiffness) cannot be automated or
-  modulated.
+  second or two, beside the window — the window never waits). Played before that, or at
+  a sample rate it has not met (after changing the device), it is silent until the design
+  is ready, and its editor says *designing the strings* with how far it has come. Its
+  tuning parameters (A4, stretch, stiffness) are set, not automated or modulated: they
+  offer no automation clip.
 - **Lamina** plays a little quieter than the other instruments (about 4 dB) at the same
   fader, and the **Salamander Grand Piano** about 5 dB quieter. **DRSKit** is a raw,
-  uncompressed kit: a groove sits around −26 LUFS with peaks near −7 dBFS (at full
-  strength it reaches −1 dBFS, the most the headroom rule allows) — raise its fader or put
+  uncompressed kit: a groove sits around −26 LUFS with peaks near −8 dBFS (at full
+  strength it reaches −0.8 dBFS, near the most the headroom rule allows) — raise its fader or put
   a compressor on its strip, as with a recorded kit.
 - The **Salamander's first load** decodes its samples into the sample cache (1–2 GB on
   disk; about 10 s), beside the window; a note played before its samples

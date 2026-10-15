@@ -42,16 +42,20 @@ sustain pedal leaves it — `1 − smoothstep` over 15–65 % of the travel, the
 gliding over 8 ms. Controller 64 is the sustain pedal (continuous), 67 the soft pedal.
 
 **The post-voice stage** (`chorda_board.rs`): the keys' own strings ringing in sympathy (at
-their speaking pitches, a reduced design each), and the soundboard — 40 modes at a quarter of
-the rate, a four-line FDN for the high band, the direct radiation and a 20 dB radiation rise
-between 120 Hz and 1.2 kHz.
+their speaking pitches — two inversions in each string's loop, as in a voice — a reduced
+design each, their dampers gripping as the *dampers* setting says, silenced while their
+key's voice plays them), and the soundboard — 40 modes at a quarter of the rate, a
+four-line FDN for the high band, the direct radiation and a 20 dB radiation rise between
+120 Hz and 1.2 kHz.
 
 **The instrument** (`chorda_engine.rs`): 88 voices, one per key; their lanes rendered across
 the pool and summed in key order; every clock counted from the stream (ADR 0059 §5).
 
-**The unit** (`inst/chorda.rs`, engine): the designs come from a lock-free registry, computed
-on threads of their own — the reference keyboard at start-up and after a device change, a
-project's tunings when its units are built; an offline render waits for its own.
+**The unit** (`inst/chorda.rs`, engine): the designs come from a lock-free registry that one
+designer thread fills — the reference keyboard at start-up and after a device change, a
+track's tuning once it has settled (never one per frame of a knob drag). A unit never
+waits: made before its keyboard it is silent and its editor shows the design's progress;
+an offline render waits for its own. The tuning keys are not automatable.
 
 **The editor**: *Play* — the piano from above (every key's strings at their length, the bridge,
 the strike line, the dampers, the keyboard; the last key played lit, its hammer shifted by the
@@ -67,7 +71,7 @@ Shares are fractions shown in %; 100 % is the model as measured.
 
 | Key | Range (default) | What it does |
 |---|---|---|
-| `model` | 1 | The model a song was made with; a later one never changes it |
+| `model` | 1 | The model a song was made with, stored with every instance; a later one never changes it |
 | `a4` | 415–466 Hz (440) | A4's first partial; designs the strings again |
 | `stretch` | 0–200 % (100) | The octaves' widening an aural tuner gives; designs again |
 | `stiffness` | 50–150 % (100) | The strings' inharmonicity `B`; designs again |
@@ -106,13 +110,12 @@ equal to real time, headroom, and the editor's views, gestures and texts.
 
 | What | Value |
 |---|---|
-| Worst partial against the stretched target, designed (88 keys) | 0.47 cents at 44.1 kHz, 0.49 at 48 kHz |
-| Worst partial measured on the rendered sound (A0 … C8, sampled keys) | 0.40 cents |
+| Worst partial on the rendered sound, all 88 keys | 0.47 cents at 44.1 kHz, 0.49 at 48 and 96 kHz, 0.48 at A4 415 Hz / 70 % stretch, 0.50 at 150 % stiffness |
 | T60 against Bensa et al. (C2, C4, C7, first partials) | 0.96–1.01 of the measured |
 | Prompt sound / aftersound, middle C held | 24.6 / 8.7 dB/s |
 | Half pedal: decay after release, pedal 0 → 100 % (dampers alone) | 241 → 41 dB/s, monotonic |
-| Sympathy with the pedal / without (energy against the dry note) | −17 dB / −32 dB |
-| 64 pedal-down voices, 256 frames, one thread, release | 18–19 % of a core |
+| Sympathy with the pedal / without (energy against the dry note) | −16 dB / −35 dB |
+| 64 pedal-down voices, 256 frames, one thread, release | 18–19.5 % of a core |
 | Both hands fortissimo with the pedal / mezzo-forte middle C | −3.3 / −22.7 dBFS |
 | A keyboard's design (88 + 88 reduced), eight threads | about two seconds |
 

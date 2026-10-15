@@ -586,24 +586,34 @@ batería estéreo —cada tambor en su lugar del campo estéreo, el micrófono i
 caja en fase, los micrófonos cercanos de los toms y los platillos atenuados en los demás
 tambores, como harían las puertas de un ingeniero de mezcla—, de modo que cada golpe suena
 como una sola muestra estéreo. Tarda unos dos minutos tras la descarga y ocupa unos
-490 MB. *Batería acústica DRSKit* aparece entonces en el estante *Baterías* del selector de
-dispositivos y suena en Exemplar en las teclas de batería de General MIDI: bombo 36 (35, un
-bombo más abierto), golpe de aro 37, caja 38, toms 41 · 43–45 · 47–50, charles cerrado 42,
-de pedal 44 y medio abierto 46, crash 49 y 57, ride 51 y 59, campana 53 — y las teclas
-propias de DrumGizmo para el resto (el charles abierto 58, las puntas de los platillos
-54–55, el ride con cadena y las escobillas, de 60 a 76). Cada tambor tiene hasta 30
-intensidades como capas de velocidad, y los golpes de una capa se turnan **en orden**, así
-que un redoble nunca repite la misma muestra dos veces seguidas; un charles cerrado o de
-pedal apaga uno abierto. En el piano roll y en el rack de canales la batería muestra **una
-fila por tambor**, con su nombre (el interruptor *Filas de batería* de Exemplar, en su
-vista *Editar*). El equilibrio de los micrófonos lo fija la mezcla: un fader por micrófono
+470 MB; **mientras se instala necesita unos 7,6 GB libres** (la descarga, la batería
+desempaquetada y la mezcla a la vez — la página del paquete lo dice, y una instalación sin
+ese espacio se rechaza antes de descargar nada). Si la mezcla se cancela o falla, la
+descarga se conserva: el siguiente intento parte de ella. *Batería acústica DRSKit*
+aparece entonces en el estante *Baterías* del selector de dispositivos y suena en Exemplar
+en las teclas de batería de General MIDI solo con sus propios tambores: bombo 36 (35, un
+bombo más abierto), golpe de aro 37, caja 38 (40, una caja apagada), toms 41 · 43–45 ·
+47–50, charles cerrado 42, de pedal 44 y abierto 46, crash 49 y 57, ride 51 y 59, campana
+53. Las teclas de General MIDI para las que la batería no tiene sonido (pandereta,
+cencerro, la percusión latina) quedan en silencio, así que una parte de General MIDI nunca
+toca un platillo en su lugar; las otras articulaciones de DrumGizmo están por encima, en
+las teclas 82–100 (el charles medio abierto 82, las puntas y el ride con cadena 83–90, las
+escobillas 91–100). Cada tambor tiene sus intensidades como capas de velocidad hasta 24 dB
+por debajo de la más fuerte, y los golpes de una capa se turnan **en orden** — contados
+por tambor y por capa, así que un redoble, un fill de toms entre las teclas del tambor o un
+acento cada cuatro golpes de charles nunca repite la misma muestra dos veces seguidas; un
+charles cerrado o de pedal apaga uno abierto. En el piano roll y en el rack de canales la
+batería muestra **una fila por tambor**, con su nombre en el idioma de la interfaz (el
+interruptor *Filas de batería* de Exemplar, en su vista *Editar*). El equilibrio de los micrófonos lo fija la mezcla: un fader por micrófono
 necesita un instrumento con varias salidas, un paso posterior.
 
 **Round robin en orden.** La vista *Editar* de Exemplar tiene el orden del round robin: *En
-orden* (cada nota de una altura toma el siguiente turno según su lugar en la canción, así
-que reproducir desde cualquier punto elige lo mismo que la canción entera) o *Por nota*
-(derivado de cada nota: como siguen sonando los Exemplar de proyectos guardados antes de
-esta versión). Un instrumento importado toca su round robin en orden.
+orden* (cada nota toma el siguiente turno de las muestras que alcanza — las teclas o
+velocidades que alcanzan las mismas comparten los turnos — según su lugar en la canción,
+así que reproducir desde cualquier punto elige lo mismo que la canción entera) o *Por
+nota* (derivado de cada nota: como siguen sonando los Exemplar de proyectos y presets de
+usuario guardados antes de esta versión). Un instrumento importado toca su round robin en
+orden.
 
 **Un paquete que falta.** Un proyecto que toca un paquete que este equipo no tiene abre una
 tarjeta con el paquete y sus pistas en silencio: *Instalar en Paquetes de sonidos…*, *Usar
@@ -671,8 +681,10 @@ martillos para las notas siguientes: más suave y más oscuro.
   cuerpo y extinción.
 
 Cambiar **La4, el estiramiento o la rigidez** vuelve a diseñar las cuerdas, junto a la
-ventana (unos segundos; la vista Editar dice *diseñando las cuerdas*): el piano conserva
-su afinación anterior hasta que la nueva esté lista. Una exportación siempre la espera.
+ventana, cuando la perilla se ha quedado quieta (uno o dos segundos; el editor dice
+*diseñando las cuerdas* con cuánto lleva): el piano conserva su afinación anterior hasta
+que la nueva esté lista. Una exportación siempre la espera. Estos tres se fijan, no se
+automatizan.
 
 ### Los efectos de modulación
 
@@ -830,14 +842,15 @@ Esto es una beta. Lo que ya sabemos:
   a la carpeta del proyecto puede detener la ventana mientras se copian los archivos; Ctrl+V sin
   nada copiado no hace nada ni lo dice.
 - **Chorda** diseña sus cuerdas para la frecuencia de muestreo del dispositivo de audio al
-  arrancar Cantus (unos segundos, junto a la ventana). Cargarlo antes, o a una frecuencia
-  que aún no conoce (tras cambiar de dispositivo), espera el diseño — la ventana se detiene
-  esos segundos una vez. Sus parámetros de afinación (La4, estiramiento, rigidez) no se
-  pueden automatizar ni modular.
+  arrancar Cantus (uno o dos segundos, junto a la ventana — la ventana nunca espera).
+  Tocado antes, o a una frecuencia que aún no conoce (tras cambiar de dispositivo), queda
+  en silencio hasta que el diseño está listo, y su editor dice *diseñando las cuerdas* con
+  cuánto lleva. Sus parámetros de afinación (La4, estiramiento, rigidez) se fijan, no se
+  automatizan ni se modulan: no ofrecen clip de automatización.
 - **Lamina** suena un poco más bajo que los demás instrumentos (unos 4 dB) con el mismo
   fader, y el **piano Salamander** unos 5 dB más bajo. **DRSKit** es una batería en bruto,
-  sin compresión: un ritmo queda en torno a −26 LUFS con picos cerca de −7 dBFS (a toda
-  intensidad llega a −1 dBFS, lo máximo que permite la regla de margen) — sube su fader o
+  sin compresión: un ritmo queda en torno a −26 LUFS con picos cerca de −8 dBFS (a toda
+  intensidad llega a −0,8 dBFS, cerca de lo máximo que permite la regla de margen) — sube su fader o
   pon un compresor en su canal, como con una batería grabada.
 - La **primera carga del Salamander** descodifica sus muestras en la caché de muestras
   (1–2 GB en disco; unos 10 s), junto a la ventana; una nota tocada antes de que lleguen

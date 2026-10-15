@@ -64,9 +64,21 @@ dB/s aftersound at middle C). **Phantom partials** come from the tension's modul
 
 - **Sympathetic strings**: every key's own string, at its speaking pitch (a reduced design
   of that key, at most two dispersion sections: the first partial exact, the low ones
-  close), driven one way by the bridge's motion (`0.2 · Y · F`), its damper the key's —
-  lifted by the pedal continuously, or skipped while the key's own voice sounds; the keys
-  above E6 ring always. Never a detuned or non-speaking loop (Casio, Yamaha).
+  close), driven one way by the bridge's motion (`0.2 · Y · F`, high-passed at 20 Hz: a
+  bridge does not move steadily), its damper the key's — lifted by the pedal continuously
+  and gripping as firmly as the *dampers* setting says, as a voice's does; the keys above
+  E6 ring always. Never a detuned or non-speaking loop (Casio, Yamaha). Its loop is one
+  ring for the round trip with **two** inversions — the nut's rigid reflection
+  (`arrived = −x`, as a voice's `-nut.read()`) and the bridge's `2·v_b − arrived` — so it
+  rings at `k·f₀`; one inversion (review 1 found it in the first version) would have put
+  it at `(k − ½)·f₀`, an octave down with odd partials only — close to the non-speaking
+  resonator the patents describe. Half the first partial's loss is the bridge's
+  reflection `(1 − YZ)/(1 + YZ)` (as in a voice), which keeps the loop under unity at DC;
+  the loss filter is set from the loop's own trip time at each partial (its group
+  delay), so a sharp dispersion section does not slow a partial's decay. A string is
+  silenced as its key's voice takes over and comes back silent when the voice has ended
+  (never its stale state replayed); a new keyboard lays a string out only once it is
+  silent (never a cut).
 - **The soundboard** after Bank et al. 2003: 40 low modes at a quarter of the rate (60 Hz –
   1.5 kHz, loss factor ≈ 3 %), a four-line Hadamard FDN for the high band whose decay
   shortens with frequency, and the direct radiation (a 35 Hz high-pass, a tilt). A filter
@@ -79,8 +91,12 @@ dB/s aftersound at middle C). **Phantom partials** come from the tension's modul
 
 A released key's damper grips with a contact `1 − smoothstep(0.15 … 0.65)` of the pedal
 (the half-pedal zone) times the *dampers* setting, gliding over 8 ms: no step between two
-models, so re-pedalling leaves no discontinuity. The soft pedal (CC 67) shifts the next
-strikes' hammers off one string onto softer felt (*soft pedal* sets how far).
+models, so re-pedalling leaves no discontinuity. A key struck from rest finds its damper
+already lifted (the key's travel lifts it before the hammer lands). A strike takes the
+settings of the moment — a new decay or coupling reaches a voice struck again, and the
+ringing sympathetic strings. A ringing voice keeps its strings when a new keyboard arrives
+(it takes the new one at its next strike from rest). The soft pedal (CC 67) shifts the
+next strikes' hammers off one string onto softer felt (*soft pedal* sets how far).
 
 ### 5. Every clock counts from the stream, so any split gives the same bits
 
@@ -92,19 +108,30 @@ cut that look); the board's tail is flushed below 1e-10 only on the grid. `skip`
 clock as processing would. (The instrument contract caught the first version's chunks
 counted from each block.)
 
-### 6. Designs are computed off the audio thread and looked up lock-free
+### 6. One designer, nothing waits on the interface thread
 
-A registry of 32 entries (`OnceLock`s, keyed by A4, stretch, stiffness and the rate): the
-snapshot's tunings are requested when its units are built (`units_for`), the reference
-keyboard is requested at start-up (`assemble`) and after a device change. A real-time unit
-plays its last keyboard until the new one is ready (the editor says *designing the
-strings*); an offline render waits for its own (at most two minutes). `a4`, `stretch` and
-`stiffness` are set, never modulated or automated (a route to them is ignored).
+One designer thread makes keyboards, one at a time, into a registry that never evicts (128
+`OnceLock` entries keyed by A4 to 0.01 Hz, stretch and stiffness to 0.001, and the rate;
+Unda's rule: what the audio thread holds is never freed there) and that the audio thread
+scans lock-free. It is asked for the reference keyboard at start-up (`assemble`) and after
+a device change, at once; and for each track's tuning on every snapshot (`units_for`),
+designed only once it has **settled** for 250 ms — a knob being dragged asks for a tuning
+a frame, and only the one let go is designed (review 1: the first version designed one a
+frame and filled its registry in a drag). A tuning the registry has no room for is
+remembered and never designed again that session. A unit never waits: made before its
+keyboard exists it is silent, and the editor says *designing the strings* with the
+design's progress, until the keyboard arrives; while another tuning is designed it plays
+the one it had. An offline render waits for its own, designing it on the spot if the
+registry cannot keep it. `a4`, `stretch` and `stiffness` are set, never modulated or
+automated: `InstrumentKind::automatable` says so, the engine ignores a lane on them (an
+export never waits for a tuning nobody asked for), the knob offers no clip and the app
+refuses one with the reason.
 
 ### 7. The model is versioned
 
-`model` (1) is stored with every instance; a later model never changes a song made with
-this one.
+`model` (1) is stored with every new instance (`NativeSpec::new`); a user preset or a
+DAWproject state written without it reads it as 1 (`read_unversioned`). A later model
+changes `MODEL` and never a song made with this one.
 
 ## Consequences
 
@@ -113,8 +140,8 @@ this one.
   Matrix, ten presets with four macros, both languages, the ballad demo.
 - 88 voices (one per key: a repeated note strikes the strings that still ring), every
   delay line allocated when the unit is built, never on the audio thread.
-- The window pauses a few seconds once when Chorda is first loaded at a rate it has not
-  designed (the manual's known limitations).
+- The first time Chorda plays at a sample rate (or a tuning) it has not designed, it is
+  silent for the second or two the design takes, and says so; the window never waits.
 - **The owner's, before release** (`docs/beta-checklist.md`): the blind listening test
   (≥ 20 listeners against Pianoteq 9 and a sampled grand) and the legal review of the
   structure against every claim of the patents above.
@@ -123,12 +150,15 @@ this one.
 
 | Done when | Test | Measured |
 |---|---|---|
-| Every partial within 1 cent | `chorda::tests_design::every_key_is_designed_within_a_cent…` (88 keys, 44.1 and 48 kHz); `tests_string::a_string_rings_on_the_stiff_strings_partials_within_a_cent` (rendered, phase vocoder) | worst 0.49 cents designed (48 kHz), 0.40 cents measured on the sound |
+| Every partial within 1 cent | `tests_string::every_key_rings_within_a_cent_at_every_rate_and_tuning` (rendered, phase vocoder: all 88 keys at 44.1, 48 and 96 kHz, at A4 415 Hz with 70 % stretch, and at 150 % stiffness); `tests_design::every_key_is_designed_within_a_cent…` | worst on the sound 0.47 (44.1 kHz), 0.49 (48), 0.49 (96), 0.48 (415 Hz), 0.50 cents (stiffest) |
 | Per-partial T60 within −25 %/+40 % of Bensa et al. | `tests_string::a_string_decays_as_bensa_et_al_measured` (C2, C4, C7) | within −4 % / +1 % |
 | Half pedal continuous | `tests_piano::half_pedalling_is_continuous`, `re_pedalling_leaves_no_discontinuity` | decay 241 → 41 dB/s across the pedal, largest step 57 dB/s (28 % of the range) |
-| 64 pedal-down voices < 25 % of a core at 256 frames | `tests_piano::measure_sixty_four_pedal_down_voices` (ignored, release) | 18.2–19.1 % (best of three, this PC) |
+| 64 pedal-down voices < 25 % of a core at 256 frames | `tests_piano::measure_sixty_four_pedal_down_voices` (ignored, release) | 18.2–19.5 % (best of three, this PC; 19.5 % after review 1) |
 | Defaults change no sample; any split; parallel = serial; exact rest | `inst_chorda.rs`, `inst_contract.rs` (split, voices, at_rest, block sizes), `tests_engine::notes_and_pedals_inside_a_block…` | to the bit |
 | Offline = real time | `inst_chorda::offline_render_equals_real_time` (reference tuning and a designed one) | to the bit |
 | Headroom | `inst_chorda::its_levels_leave_headroom…`, `instrument_levels` (every preset, dense riff) | both hands ff with the pedal −3.3 dBFS; loudest preset −6 dBFS |
-| Two-stage decay, una corda, sympathy | `tests_piano::*` | 24.6 / 8.7 dB/s; softer and darker; sympathy −17 dB with the pedal, −32 dB without |
+| Two-stage decay, una corda, sympathy | `tests_piano::*` | 24.6 / 8.7 dB/s; softer and darker; sympathy −16 dB with the pedal, −35 dB without |
+| A sympathetic string at its key's pitch | `tests_engine::a_sympathetic_string_rings_at_its_keys_own_pitch` (C3, C4, C5, E7) | the first two partials 70–145 dB over `f₀/2`; the first within 5 cents |
+| No ghost, no cut, the grip, a new decay, a lifted damper | `tests_piano::a_struck_string_leaves_no_ghost…`, `a_new_keyboard_never_cuts…`, `without_dampers_the_strings_ring_in_sympathy`, `a_new_decay_reaches…`, `a_fresh_strike_finds_its_damper_already_lifted` | — |
+| Never waits; designs what settles; tuning not automatable | `inst_chorda` (engine): `a_unit_never_waits_for_its_keyboard`, `a_dragged_tuning_designs_only_where_it_settles`, `a_lane_on_the_tuning_is_inert…`; UI: `the_tuning_is_set_never_automated`, `while_the_strings_are_designed_the_editor_says_so`, `inst_chorda_boot` | — |
 | The editor | `cantus-ui/tests/inst_chorda.rs` (views, undo, drop, presets, no elided or overlapping text at 75–200 % and in Spanish, kit lint, the boot path) | — |
