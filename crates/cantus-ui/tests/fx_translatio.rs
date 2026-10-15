@@ -27,7 +27,7 @@ fn the_editor_paints_the_shift_the_partials_and_the_rejection() {
         "what a 220 hz tone becomes",
         "left up · right down",
         "rejection",
-        "69 db",
+        "69db",
         "up",
         "down",
         "both",
