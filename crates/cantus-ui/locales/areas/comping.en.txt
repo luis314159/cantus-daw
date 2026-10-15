@@ -1,1 +1,36 @@
 # comping — round 28: comping takes. Every key here needs its twin in comping.es.txt.
+cmd.set_comp_seam = move a comp seam
+cmd.set_track_comps = edit the comps
+cmd.comp_xfade = seam crossfade
+cmd.comp_switch = switch comp
+cmd.comp_duplicate = new comp
+cmd.comp_delete = delete comp
+cmd.comp_rename = rename comp
+cmd.comp_flatten = flatten comp
+cmd.comp_merge = flatten and merge comp
+
+# Seams on the playing lane.
+comping.seam = Comp seam
+comping.seam_tip = Drag to move the seam (both takes at once) · right-click for its crossfade
+comping.menu.xfade = Crossfade
+comping.xfade_off = Off
+comping.xfade_all = Use it for every seam of the track
+
+# The comp's chip and menu.
+comping.chip = Comp {name}
+comping.chip_tip = The comp playing: switch, new, rename, flatten, merge
+comping.menu.comps = Comps
+comping.new = New comp (a copy)
+comping.rename = Rename comp…
+comping.delete = Delete comp {name}
+comping.flatten = Flatten (keep the comp, drop the takes)
+comping.merge = Flatten and merge into one clip
+comping.quick_swipe = Quick swipe comping
+comping.grouped = Comp grouped tracks together
+comping.menu.xfade_all = Seam crossfade
+comping.lane_tip_off = Quick swipe is off: drag selects time · click selects the take
+
+# Merging.
+rec.merge_nothing = Nothing to merge: the comp has no audio windows
+rec.merge_failed = The comp could not be merged: {error}
+rec.merged = Comp merged into one clip

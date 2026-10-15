@@ -283,6 +283,14 @@ pub struct RecordSettings {
     /// equal-power — Logic's and Studio One's kind of default.
     #[serde(default = "comp_xfade", skip_serializing_if = "is_comp_xfade")]
     pub comp_xfade_ms: f32,
+    /// Quick swipe comping (Logic's): a drag across a take lane comps. Off, the drag
+    /// selects time and a click selects the take (schema 29).
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub quick_swipe: bool,
+    /// Tracks whose strips share a mixer group comp together: a swipe on one swipes the
+    /// same range of the same lane on each (schema 29, ADR 0058).
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub comp_grouped: bool,
 }
 
 fn comp_xfade() -> f32 {
@@ -340,6 +348,8 @@ impl Default for RecordSettings {
             click_accent: true,
             record_automation: true,
             comp_xfade_ms: comp_xfade(),
+            quick_swipe: true,
+            comp_grouped: true,
         }
     }
 }

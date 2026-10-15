@@ -2133,6 +2133,16 @@ impl CantusApp {
                     Vec::new(),
                 );
             }
+            // A comp window's edge at a seam moves the seam: both sides (ADR 0058).
+            let seam = match result {
+                ClipDragResult::TrimStart { delta } => Some((true, delta)),
+                ClipDragResult::TrimEnd { delta } => Some((false, delta)),
+                _ => None,
+            }
+            .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
+            if let Some(cmd) = seam {
+                return (vec![cmd], Vec::new());
+            }
             match result {
                 ClipDragResult::Move { delta, rows, copy } => {
                     clips::transpose_selection(project, &sel, delta, rows, copy, link, ids)

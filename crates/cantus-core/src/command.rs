@@ -2127,9 +2127,12 @@ impl Command {
                     .iter()
                     .position(|s| s.id == id)
                     .ok_or(CommandError::AudioSourceNotFound(id))?;
+                // A window kept in an alternate comp plays it too, when that comp plays
+                // (ADR 0058).
                 let used = project.tracks.iter().any(|t| {
                     t.clips
                         .iter()
+                        .chain(t.comps.iter().flat_map(|c| c.windows.iter()))
                         .any(|c| c.audio.as_ref().is_some_and(|a| a.source == id))
                 });
                 if used {

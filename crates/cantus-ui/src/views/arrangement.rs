@@ -37,6 +37,9 @@ mod paint;
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
+/// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
+#[path = "arrangement_comp.rs"]
+mod comp;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
