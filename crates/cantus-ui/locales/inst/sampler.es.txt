@@ -353,3 +353,10 @@ smp.q.best.short = Máx.
 smp.seam_before.short = ANTES DEL FIN
 smp.seam_after.short = TRAS EL INICIO
 smp.col.sample.short = MUESTRA
+
+# Orden del round robin (ronda 28, sound)
+smp.rr_order = Orden del round robin
+smp.rr.in_order = En orden
+smp.rr.by_note = Por nota
+smp.rr.in_order_tip = Cada nota de una altura toma el siguiente turno del round robin según su lugar en la canción: un redoble nunca repite la misma muestra dos veces seguidas, y reproducir desde cualquier punto elige lo mismo que la canción entera
+smp.rr.by_note_tip = El turno de cada nota se deriva de la propia nota: variado y repetible desde cualquier punto, pero dos notas seguidas pueden sonar con la misma muestra (como suenan los Exemplar de proyectos anteriores)

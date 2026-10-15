@@ -353,3 +353,10 @@ smp.seam_after.short = AFTER START
 smp.col.sample.short = SMP
 smp.q.draft.short = Draft
 smp.q.best.short = Best
+
+# Round robin's order (round 28, sound)
+smp.rr_order = Round-robin order
+smp.rr.in_order = In order
+smp.rr.by_note = By note
+smp.rr.in_order_tip = Each note of a pitch takes the next round-robin turn by its place in the song: a roll never plays the same sample twice in a row, and playing from any point chooses what the whole song does there
+smp.rr.by_note_tip = Each note's turn is drawn from the note itself: varied and repeatable from any point, but two notes in a row may play the same sample (how Exemplars in older projects play)

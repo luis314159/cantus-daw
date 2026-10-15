@@ -470,9 +470,27 @@ fn tools(
     if let Some(i) = parts::seg(ui, qr, s, q, &names, &hint) {
         app.set_inst_value(track, "quality", i as f32, false);
     }
-    let lr = Rect::from_min_max(
-        pos2(qr.left() - gap - 132.0 * k, row.top()),
+    // Round robin's order (round 28): in order by each note's place in the song, or drawn
+    // from the note (Exemplars saved before). Shown when the row has room for it.
+    let rw = 190.0 * k;
+    let rr = Rect::from_min_max(
+        pos2(qr.left() - gap - rw, row.top()),
         pos2(qr.left() - gap, row.bottom()),
+    );
+    let mut left = qr.left();
+    if rr.left() > x {
+        let order = (spec.get("rr.order").round() as usize).min(1);
+        let names = [Src::Key("smp.rr.by_note"), Src::Key("smp.rr.in_order")];
+        let tips = ["smp.rr.by_note_tip", "smp.rr.in_order_tip"];
+        let hint = format!("{} \u{b7} {}", t("smp.rr_order"), t(tips[order]));
+        if let Some(i) = parts::seg(ui, rr, s, order, &names, &hint) {
+            app.set_inst_value(track, "rr.order", i as f32, false);
+        }
+        left = rr.left();
+    }
+    let lr = Rect::from_min_max(
+        pos2(left - gap - 132.0 * k, row.top()),
+        pos2(left - gap, row.bottom()),
     );
     if !app.inst.sampler.log.is_empty() && lr.left() > x {
         let label = tf(
