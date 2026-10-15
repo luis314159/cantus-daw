@@ -1,14 +1,14 @@
 //! Chorda — the modelled grand piano: its parameter model (ADR 0059). Owned by this
 //! instrument's builder (ADR 0023).
 //!
-//! Values in the instrument's own units: the tuning in Hz and %, the unison spread in cents,
-//! levels and the tilt in dB; shares (stiffness, decay, sympathy…) in %, where 100 % is the
-//! model as measured. Keys are forever once shipped.
+//! Values in the instrument's own units: A4 in Hz, the unison spread in cents, levels and
+//! the tilt in dB; shares (stretch, stiffness, decay, sympathy…) as fractions shown in %,
+//! where 1 (100 %) is the model as measured. Keys are forever once shipped.
 //!
 //! | Group | Keys |
 //! |---|---|
 //! | Model | `model` (1: the first model; a later one never changes a song made with this), `a4` (Hz), `stretch` (%), `stiffness` (%) |
-//! | Hammer | `hardness` (%: −100 softer … 100 harder felt), `hysteresis` (%), `dynamics` (%), `vel.curve` |
+//! | Hammer | `hardness` (−1 softer … 1 harder felt), `hysteresis` (%), `dynamics` (%), `vel.curve` |
 //! | Strings | `decay` (%), `unison` (ct), `coupling` (%) |
 //! | Resonance | `sympathy` (%), `phantom` (%) |
 //! | Pedals | `damper` (%), `una` (%: how far the soft pedal shifts the hammers) |
@@ -40,8 +40,8 @@ pub const PARAMS: &[InstParamInfo] = &[
         "stretch",
         "chorda.stretch",
         0.0,
-        200.0,
-        100.0,
+        2.0,
+        1.0,
         "%",
         false,
         false,
@@ -49,9 +49,9 @@ pub const PARAMS: &[InstParamInfo] = &[
     p(
         "stiffness",
         "chorda.stiffness",
-        50.0,
-        150.0,
-        100.0,
+        0.5,
+        1.5,
+        1.0,
         "%",
         false,
         false,
@@ -59,8 +59,8 @@ pub const PARAMS: &[InstParamInfo] = &[
     p(
         "hardness",
         "chorda.hardness",
-        -100.0,
-        100.0,
+        -1.0,
+        1.0,
         0.0,
         "%",
         false,
@@ -70,8 +70,8 @@ pub const PARAMS: &[InstParamInfo] = &[
         "hysteresis",
         "chorda.hysteresis",
         0.0,
-        98.0,
-        90.0,
+        0.98,
+        0.9,
         "%",
         false,
         false,
@@ -79,9 +79,9 @@ pub const PARAMS: &[InstParamInfo] = &[
     p(
         "dynamics",
         "chorda.dynamics",
-        50.0,
-        150.0,
-        100.0,
+        0.5,
+        1.5,
+        1.0,
         "%",
         false,
         false,
@@ -96,23 +96,14 @@ pub const PARAMS: &[InstParamInfo] = &[
         true,
         false,
     ),
-    p(
-        "decay",
-        "chorda.decay",
-        25.0,
-        400.0,
-        100.0,
-        "%",
-        true,
-        false,
-    ),
+    p("decay", "chorda.decay", 0.25, 4.0, 1.0, "%", true, false),
     p("unison", "chorda.unison", 0.0, 8.0, 1.0, "ct", false, false),
     p(
         "coupling",
         "chorda.coupling",
         0.0,
-        90.0,
-        50.0,
+        0.9,
+        0.5,
         "%",
         false,
         false,
@@ -121,8 +112,8 @@ pub const PARAMS: &[InstParamInfo] = &[
         "sympathy",
         "chorda.sympathy",
         0.0,
-        200.0,
-        100.0,
+        2.0,
+        1.0,
         "%",
         false,
         false,
@@ -131,26 +122,17 @@ pub const PARAMS: &[InstParamInfo] = &[
         "phantom",
         "chorda.phantom",
         0.0,
-        300.0,
-        100.0,
+        3.0,
+        1.0,
         "%",
         false,
         false,
     ),
-    p(
-        "damper",
-        "chorda.damper",
-        0.0,
-        100.0,
-        100.0,
-        "%",
-        false,
-        false,
-    ),
-    p("una", "chorda.una", 0.0, 100.0, 100.0, "%", false, false),
-    p("body", "chorda.body", 0.0, 200.0, 100.0, "%", false, false),
+    p("damper", "chorda.damper", 0.0, 1.0, 1.0, "%", false, false),
+    p("una", "chorda.una", 0.0, 1.0, 1.0, "%", false, false),
+    p("body", "chorda.body", 0.0, 2.0, 1.0, "%", false, false),
     p("tilt", "chorda.tilt", -12.0, 12.0, 0.0, "dB", false, false),
-    p("width", "chorda.width", 0.0, 100.0, 70.0, "%", false, false),
+    p("width", "chorda.width", 0.0, 1.0, 0.7, "%", false, false),
     p("gain", "inst.gain", -48.0, 12.0, 0.0, "dB", false, false),
 ];
 

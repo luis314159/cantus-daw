@@ -419,6 +419,9 @@ impl CantusApp {
         let peak_cache = directories_fallback().join("cache").join("peaks");
         let mut engine = engine;
         Self::start_window_services(&mut engine, &settings);
+        // Chorda's strings for this sample rate, designed beside the window (round 28,
+        // ADR 0059): ready before anybody loads the piano.
+        cantus_engine::inst::chorda::warm(engine.sample_rate as f32);
         let mut app = Self::from_parts(project, engine, stress);
         app.peaks.set_disk_cache(Some(peak_cache));
         // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).

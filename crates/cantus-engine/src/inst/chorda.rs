@@ -80,7 +80,8 @@ static ENTRIES: [OnceLock<Entry>; REGISTRY] = [const { OnceLock::new() }; REGIST
 static NEXT: Mutex<usize> = Mutex::new(0);
 static PENDING: Mutex<Vec<DesignKey>> = Mutex::new(Vec::new());
 
-fn tuning_of(values: &[f32; N]) -> Tuning {
+/// The tuning parameter values ask for.
+pub fn tuning_of(values: &[f32; N]) -> Tuning {
     let get = |k: &str| {
         PARAMS
             .iter()
@@ -89,8 +90,8 @@ fn tuning_of(values: &[f32; N]) -> Tuning {
     };
     Tuning {
         a4: get("a4") as f64,
-        stretch: get("stretch") as f64 / 100.0,
-        stiffness: get("stiffness") as f64 / 100.0,
+        stretch: get("stretch") as f64,
+        stiffness: get("stiffness") as f64,
     }
 }
 
@@ -200,6 +201,12 @@ pub fn warm(fs: f32) {
     request(Tuning::default(), fs);
 }
 
+/// Whether the reference keyboard for `fs` is designed or on its way.
+pub fn is_warm(fs: f32) -> bool {
+    let key = key_of(Tuning::default(), fs);
+    lookup(key).is_some() || PENDING.lock().is_ok_and(|p| p.contains(&key))
+}
+
 // ---- parameters → settings --------------------------------------------------------------
 
 pub fn values_of(spec: &NativeSpec) -> [f32; N] {
@@ -214,28 +221,28 @@ pub fn values_of(spec: &NativeSpec) -> [f32; N] {
 pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
     let mut s = ChordaSettings::default();
     let mut hardness = 0.0;
-    // The hammer's slowest strike against its fastest: 15.7 (24 dB) at 100 %.
+    // The hammer's slowest strike against its fastest: 15.7 (24 dB) at 1.
     let span = (5.5f64 / 0.35).ln();
     for (info, v) in PARAMS.iter().zip(values) {
         let v = *v as f64;
         match info.key {
-            "hardness" => hardness = v / 100.0,
-            "hysteresis" => s.voice.felt.eps = v / 100.0,
+            "hardness" => hardness = v,
+            "hysteresis" => s.voice.felt.eps = v,
             "dynamics" => {
                 s.voice.v_max = 5.5;
-                s.voice.v_min = 5.5 * cantus_dsp::math::exp(-span * v / 100.0);
+                s.voice.v_min = 5.5 * cantus_dsp::math::exp(-span * v);
             }
             "vel.curve" => s.voice.vel_curve = v,
-            "decay" => s.voice.decay = v / 100.0,
+            "decay" => s.voice.decay = v,
             "unison" => s.voice.detune_ct = v,
-            "coupling" => s.voice.coupling = v / 100.0,
-            "sympathy" => s.sympathetic = v / 100.0,
-            "phantom" => s.voice.phantom = v / 100.0,
-            "damper" => s.voice.damper = v / 100.0,
-            "una" => s.voice.una_depth = v / 100.0,
-            "body" => s.body = v / 100.0,
+            "coupling" => s.voice.coupling = v,
+            "sympathy" => s.sympathetic = v,
+            "phantom" => s.voice.phantom = v,
+            "damper" => s.voice.damper = v,
+            "una" => s.voice.una_depth = v,
+            "body" => s.body = v,
             "tilt" => s.tilt_db = v,
-            "width" => s.width = v / 100.0,
+            "width" => s.width = v,
             "gain" => s.gain_db = v,
             _ => {}
         }
