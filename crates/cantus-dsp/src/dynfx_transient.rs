@@ -75,7 +75,7 @@ fn ratio_db(a: f32, b: f32) -> f32 {
 
 /// The largest of the last `hold` samples: a monotonic queue in a fixed ring.
 #[derive(Clone, Debug)]
-struct RunMax {
+pub(crate) struct RunMax {
     val: Box<[f32]>,
     at: Box<[u32]>,
     head: usize,
@@ -97,7 +97,7 @@ impl Default for RunMax {
 
 impl RunMax {
     #[inline]
-    fn push(&mut self, v: f32, hold: u32) -> f32 {
+    pub(crate) fn push(&mut self, v: f32, hold: u32) -> f32 {
         self.t = self.t.wrapping_add(1);
         // Drop what is no larger than the new value from the back, what is too old from
         // the front.
@@ -121,11 +121,11 @@ impl RunMax {
     }
 
     /// What it holds can never come out again above zero.
-    fn is_zero(&self) -> bool {
+    pub(crate) fn is_zero(&self) -> bool {
         self.len == 0 || self.val[self.head].to_bits() == 0
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.head = 0;
         self.len = 0;
         self.t = 0;
