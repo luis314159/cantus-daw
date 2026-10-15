@@ -300,6 +300,8 @@ impl Processor {
 
     /// Play or release a live note on one slot, and tell the effects listening to it.
     fn sound_live(&mut self, slot: usize, pitch: u8, velocity: u8) {
+        // Modulators hearing the track: envelopes open, LFOs retrigger (ADR 0057).
+        self.auto_live_note(slot, velocity > 0);
         if let Some(mut s) = self.nodes.track(slot) {
             if velocity > 0 {
                 s.note_on(pitch, velocity, LIVE_TAG);

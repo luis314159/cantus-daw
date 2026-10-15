@@ -13,6 +13,7 @@ pub mod backend;
 pub mod devices;
 pub mod effects;
 pub mod fx;
+pub mod modulator;
 pub mod graph;
 pub mod hotplug;
 pub mod inst;

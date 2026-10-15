@@ -891,3 +891,22 @@ fn a_dynamic_band_comes_home_exactly() {
         );
     }
 }
+
+/// A bell set at 0 dB (flat: no sections, the EQ a wire) and then raised — by a knob, by
+/// automation, by a modulator (round 28, ADR 0057) — glides up to its new gain. It used to
+/// stay flat for ever: a wire never ran the update that starts the glide.
+#[test]
+fn a_band_raised_from_zero_db_glides_up() {
+    let sr = 48_000.0;
+    let mut eq = eq_with(&[bell(1_000.0, 0.0, 0.7)], Options::default(), sr);
+    let mut all = [BandSettings::default(); MAX_BANDS];
+    all[0] = bell(1_000.0, 12.0, 0.7);
+    eq.set(&all, 0.0);
+    let mut l = tone(48_000, 1_000.0, 0.1, sr);
+    let mut r = l.clone();
+    for (cl, cr) in l.chunks_mut(64).zip(r.chunks_mut(64)) {
+        eq.process(cl, cr);
+    }
+    let gain_db = 20.0 * math::log10(rms(&l[24_000..]) / rms(&tone(24_000, 1_000.0, 0.1, sr)));
+    assert!((gain_db - 12.0).abs() < 0.5, "{gain_db} dB");
+}

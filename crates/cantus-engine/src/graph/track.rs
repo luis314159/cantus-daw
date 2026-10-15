@@ -300,6 +300,14 @@ fn track_segment(
                     // that follow it (a hosted synth's arpeggiator).
                     let position = song_position_of(&transport, &ctx.snapshot, ctx.sample_rate);
                     u.unit.set_position(&position);
+                    // A hosted instrument's automation in this segment, at its offsets
+                    // into it (ADR 0057).
+                    {
+                        let crate::inst::NativeUnit {
+                            unit, automation, ..
+                        } = &mut **u;
+                        automation.deliver(sub, end, |o, id, v| unit.automate(o, id, v));
+                    }
                     let par = PoolPar {
                         forks: &nodes.forks,
                         on: ctx.split_voices,

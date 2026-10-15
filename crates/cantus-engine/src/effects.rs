@@ -169,6 +169,9 @@ pub struct EffectUnit {
     pub replaced: bool,
     /// The memory last asked for, so an unchanged need is asked for once.
     asked: Option<MemoryNeed>,
+    /// A hosted plug-in's timed parameter changes for the next pass (ADR 0057): room only
+    /// for a hosted unit.
+    pub automation: crate::modulator::AutoQueue,
 }
 
 impl EffectUnit {
@@ -191,6 +194,7 @@ impl EffectUnit {
             dsp,
             replaced: false,
             asked: None,
+            automation: crate::modulator::AutoQueue::default(),
         };
         unit.configure(&slot.spec);
         if let Some(need) = unit.memory_need() {
@@ -286,6 +290,9 @@ impl EffectUnit {
             dsp: Dsp::Fx(unit),
             replaced: false,
             asked: None,
+            automation: crate::modulator::AutoQueue::with_capacity(
+                crate::modulator::HOSTED_QUEUE,
+            ),
         }
     }
 
@@ -425,7 +432,8 @@ impl EffectUnit {
     }
 
     /// Process with an external key for the effects that take one (a compressor's
-    /// sidechain); the others ignore it.
+    /// sidechain); the others ignore it. A hosted unit first hears the pass's timed
+    /// parameter changes (ADR 0057).
     #[inline]
     pub fn process_keyed(&mut self, l: &mut [f32], r: &mut [f32], key: Option<(&[f32], &[f32])>) {
         match &mut self.dsp {
@@ -433,7 +441,21 @@ impl EffectUnit {
             Dsp::Reverb(v) => v.process(l, r),
             Dsp::Eq(e) => e.process_keyed(l, r, key),
             Dsp::Comp(c) => c.process(l, r, key),
-            Dsp::Fx(u) => u.process(l, r, key),
+            Dsp::Fx(u) => {
+                self.automation
+                    .deliver_all(|offset, id, value| u.automate(offset, id, value));
+                u.process(l, r, key)
+            }
+        }
+    }
+
+    /// The engine's automation was planned again (ADR 0057): a hosted unit lets go of
+    /// what it is no longer sent.
+    #[inline]
+    pub fn automation_replanned(&mut self) {
+        self.automation.clear();
+        if let Dsp::Fx(u) = &mut self.dsp {
+            u.automation_replanned();
         }
     }
 }

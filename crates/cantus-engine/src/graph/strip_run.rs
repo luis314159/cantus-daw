@@ -359,6 +359,7 @@ pub(crate) fn strip_outputs(
         out.gl = gl;
         out.gr = gr;
         st.peak = st.peak.max(peak);
+        st.follow_peak = st.follow_peak.max(peak);
         // Sends: a post-fader one is the same signal that just left the fader, a
         // pre-fader one the pair before the fader and the pan law (kept apart under a
         // ride), each at its level. A delayed one goes through its line here (a muted strip

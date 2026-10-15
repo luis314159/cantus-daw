@@ -1610,10 +1610,12 @@ impl Aequalis {
     pub fn is_active(&self) -> bool {
         self.output_gain != 1.0
             || self.opts.solo.is_some()
-            || self
-                .bands
-                .iter()
-                .any(|b| b.target.active && (b.sections > 0 || b.target.dynamic))
+            || self.bands.iter().any(|b| {
+                // A band still gliding away from a flat 0 dB is active too, or the update
+                // that moves it would never run (round 28).
+                b.target.active
+                    && (b.sections > 0 || b.target.dynamic || b.gain != f64::from(b.target.gain_db))
+            })
     }
 
     /// The gain change each band's dynamics are applying now, dB (for the display).

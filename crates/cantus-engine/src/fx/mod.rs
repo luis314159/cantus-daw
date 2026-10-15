@@ -132,6 +132,42 @@ pub trait FxUnit: Send + std::fmt::Debug {
     fn note(&mut self, offset: usize, note: FxNote) {
         let _ = (offset, note);
     }
+
+    /// A hosted plug-in's parameter `id` driven by automation or modulators (ADR 0057),
+    /// `offset` samples into the next `process` call (always inside it), in time order.
+    /// Called on the audio thread before that `process`; must not allocate. A native unit
+    /// is configured through its parameter set instead. Default: ignored.
+    fn automate(&mut self, offset: usize, id: u32, value: HostedValue) {
+        let _ = (offset, id, value);
+    }
+
+    /// The engine's automation was planned again (a new snapshot): from the next control
+    /// point on, a parameter this unit is not sent [`Self::automate`] for is the project's
+    /// own again. Default: ignored.
+    fn automation_replanned(&mut self) {}
+}
+
+/// What automation and modulation ask of a hosted parameter (ADR 0057), in the plug-in's
+/// **normalised** domain (0…1 of its range): the automated position (`NaN`: nothing
+/// automates it here, the project's own value is the base) and the modulators' sum, which
+/// the unit adds to the base and clamps.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct HostedValue {
+    pub pos: f32,
+    pub modulation: f32,
+}
+
+impl HostedValue {
+    /// Nothing drives the parameter here: the project's own value.
+    pub const RELEASED: HostedValue = HostedValue {
+        pos: f32::NAN,
+        modulation: 0.0,
+    };
+
+    /// Whether it leaves the parameter to the project.
+    pub fn is_released(&self) -> bool {
+        !self.pos.is_finite() && self.modulation == 0.0
+    }
 }
 
 /// A parameter change made by a unit's own editor, by the unit's parameter id: a gesture's
