@@ -593,10 +593,37 @@ clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypas
 | Gravis | Bass: 808, synth and modelled electric bass |
 | Lamina | Electric piano |
 | Organum | Tonewheel organ with drawbars and a rotary speaker |
+| Chorda | Grand piano played from a physical model: strings, hammers, soundboard, pedals |
 
 The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander), Sibilus
 (de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer),
 Spatium (reverb), Fervor (saturation), Latitudo (stereo), Delay and Reverb.
+
+### Chorda: the modelled grand piano
+
+Chorda is a grand piano computed as you play — no samples. Every key has its own one, two
+or three strings, struck by a felt hammer and ringing into a soundboard; the strings of the
+other keys ring along when the dampers let them. So it answers the way a piano does: the
+harder you play, the brighter; a held chord rings on, the strings beating gently; with the
+**sustain pedal** (controller 64) the whole instrument resonates, and **half pedalling**
+works — a pedal partly down damps partly. The **soft pedal** (una corda, controller 67)
+shifts the hammers for the next notes: softer and darker.
+
+- **Play** shows the piano from above — every key's strings at their length, the bridge,
+  where the hammers strike, the dampers — with the key you last played lit, and the pedals:
+  the sustain pedal's travel drawn over the law of how far the dampers are down at each
+  position. Below: the hammer (hardness, dynamics, velocity curve), the resonance
+  (sympathy, decay, soundboard) and the output (tilt, width, gain).
+- **Edit** adds the tuning (A4, the stretch an aural tuner gives a piano's octaves, the
+  strings' stiffness) with its curve in cents across the keyboard, the felt's stiffness,
+  the strings' ring key by key, the unisons' spread, the bridge coupling and the phantom
+  partials.
+- Ten presets (*Concert Grand*, *Warm Ballad*, *Felt Piano*, *Honky-Tonk*, *Baroque Pitch*
+  at A = 415 Hz…) each come with four macros: hardness, resonance, body and decay.
+
+Changing **A4, the stretch or the stiffness** designs the strings again, beside the window
+(a few seconds; the Edit view says *designing the strings*): the piano keeps its previous
+tuning until the new one is ready. An export always waits for it.
 
 ### The modulation effects
 
@@ -746,6 +773,11 @@ This is a beta. What we know about:
   open; a first save or a *Save As* that copies imported audio into the project folder can
   pause the window while the files are copied; Ctrl+V with nothing
   copied does nothing and says nothing.
+- **Chorda** designs its strings for the audio device's sample rate when Cantus starts (a
+  few seconds, beside the window). Loading it before that, or at a sample rate it has not
+  met (after changing the device), waits for the design — the window pauses for those
+  seconds once. Its tuning parameters (A4, stretch, stiffness) cannot be automated or
+  modulated.
 - **Lamina** plays a little quieter than the other instruments (about 4 dB) at the same
   fader, and the **Salamander Grand Piano** about 5 dB quieter. **DRSKit** is a raw,
   uncompressed kit: a groove sits around −26 LUFS with peaks near −7 dBFS (at full

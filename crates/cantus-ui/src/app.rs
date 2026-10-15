@@ -840,6 +840,8 @@ impl CantusApp {
                     .set_record_offset(self.settings.audio.record_offset_frames);
                 // Hosted plug-ins load again, for the new engine and its rate.
                 self.plugins.reload_all(self.engine.sample_rate);
+                // Chorda's strings for the new rate (a rate it has met before is kept).
+                cantus_engine::inst::chorda::warm(self.engine.sample_rate as f32);
                 self.midi_inputs = None;
                 if self.engine.is_live() {
                     let inputs = MidiInputs::open_all(self.engine.midi_sender());

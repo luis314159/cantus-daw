@@ -639,10 +639,40 @@ mezcla y su puenteo.
 | Gravis | Bajo: 808, sintetizado y eléctrico modelado |
 | Lamina | Piano eléctrico |
 | Organum | Órgano de ruedas fónicas con barras y altavoz rotatorio |
+| Chorda | Piano de cola tocado desde un modelo físico: cuerdas, martillos, tabla armónica, pedales |
 
 Los efectos son Aequalis (EQ), Comprimo (compresor), Porta (puerta y expansor), Sibilus
 (de-esser), Multiplex (dinámica multibanda), Terminus (limitador), Culmen (maximizador),
 Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Delay y Reverb.
+
+### Chorda: el piano de cola modelado
+
+Chorda es un piano de cola que se calcula mientras tocas — sin muestras. Cada tecla tiene
+sus propias una, dos o tres cuerdas, golpeadas por un martillo de fieltro y sonando sobre
+una tabla armónica; las cuerdas de las demás teclas suenan con ellas cuando los apagadores
+las dejan. Así responde como un piano: cuanto más fuerte tocas, más brillante; un acorde
+sostenido sigue sonando, con el batido suave de sus cuerdas; con el **pedal derecho**
+(controlador 64) resuena todo el instrumento, y el **medio pedal** funciona — un pedal a
+medio bajar apaga a medias. El **pedal suave** (una corda, controlador 67) desplaza los
+martillos para las notas siguientes: más suave y más oscuro.
+
+- **Tocar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud,
+  el puente, dónde golpean los martillos, los apagadores — con la última tecla tocada
+  iluminada, y los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
+  bajan los apagadores en cada posición. Debajo: el martillo (dureza, dinámica, curva de
+  velocidad), la resonancia (simpatía, extinción, tabla armónica) y la salida
+  (inclinación, anchura, ganancia).
+- **Editar** añade la afinación (La4, el estiramiento que un afinador de oído da a las
+  octavas de un piano, la rigidez de las cuerdas) con su curva en cents a lo largo del
+  teclado, la rigidez del fieltro, lo que suena cada cuerda tecla por tecla, la abertura
+  de los unísonos, el acople al puente y los parciales fantasma.
+- Diez presets (*Cola de concierto*, *Balada cálida*, *Piano de fieltro*, *Honky-tonk*,
+  *Diapasón barroco* a La = 415 Hz…), cada uno con cuatro macros: dureza, resonancia,
+  cuerpo y extinción.
+
+Cambiar **La4, el estiramiento o la rigidez** vuelve a diseñar las cuerdas, junto a la
+ventana (unos segundos; la vista Editar dice *diseñando las cuerdas*): el piano conserva
+su afinación anterior hasta que la nueva esté lista. Una exportación siempre la espera.
 
 ### Los efectos de modulación
 
@@ -799,6 +829,11 @@ Esto es una beta. Lo que ya sabemos:
   Cantus siga abierto; un primer guardado o un *Guardar como* que copia el audio importado
   a la carpeta del proyecto puede detener la ventana mientras se copian los archivos; Ctrl+V sin
   nada copiado no hace nada ni lo dice.
+- **Chorda** diseña sus cuerdas para la frecuencia de muestreo del dispositivo de audio al
+  arrancar Cantus (unos segundos, junto a la ventana). Cargarlo antes, o a una frecuencia
+  que aún no conoce (tras cambiar de dispositivo), espera el diseño — la ventana se detiene
+  esos segundos una vez. Sus parámetros de afinación (La4, estiramiento, rigidez) no se
+  pueden automatizar ni modular.
 - **Lamina** suena un poco más bajo que los demás instrumentos (unos 4 dB) con el mismo
   fader, y el **piano Salamander** unos 5 dB más bajo. **DRSKit** es una batería en bruto,
   sin compresión: un ritmo queda en torno a −26 LUFS con picos cerca de −7 dBFS (a toda
