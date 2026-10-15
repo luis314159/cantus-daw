@@ -22,6 +22,8 @@ use std::time::{Duration, Instant};
 pub struct Ram {
     at: Option<Instant>,
     bytes: Option<u64>,
+    /// The block of the last dropout said on the status line.
+    dropout: Option<u64>,
 }
 
 impl Ram {
@@ -39,12 +41,17 @@ impl Ram {
     }
 }
 
-/// "690 MB", "1.25 GB", or a dash.
+/// "690 MB", "1.3 GB", or a dash — never wider than "999 MB".
 pub fn ram_text(bytes: Option<u64>, out: &mut String) {
     out.clear();
     match bytes {
-        Some(b) if b >= 1 << 30 => {
-            let _ = write!(out, "{:.2} GB", b as f64 / (1u64 << 30) as f64);
+        Some(b) if b >= 1000 << 20 => {
+            let gb = b as f64 / (1u64 << 30) as f64;
+            if gb < 99.95 {
+                let _ = write!(out, "{gb:.1} GB");
+            } else {
+                let _ = write!(out, "{gb:.0} GB");
+            }
         }
         Some(b) => {
             let _ = write!(out, "{} MB", (b + (1 << 19)) >> 20);
@@ -59,7 +66,7 @@ const WORDS: [&str; 4] = [
     "topbar.voices",
     "topbar.dropouts",
 ];
-const WIDEST: [&str; 4] = ["100 %", "9999 MB", "9999", "99999"];
+const WIDEST: [&str; 4] = ["100 %", "999 MB", "999+", "999+"];
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct Key {
@@ -90,6 +97,22 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
     let (l, v) = columns(ctx, s);
     2.0 * (l + v) + 22.0 * s.k
+}
+
+/// Every frame, whether the group is on the bar or folded: the RAM reading, and a new
+/// dropout said once on the status line with what took the time (round 20's blame) — the
+/// count stays in the group.
+pub fn watch(app: &mut CantusApp) {
+    app.topbar.ram.tick();
+    let stats = app.engine.stats();
+    let Some(d) = stats.last_dropout else {
+        return;
+    };
+    if app.topbar.ram.dropout != Some(d.block) {
+        app.topbar.ram.dropout = Some(d.block);
+        let text = crate::perf_status::dropout_text(app.project(), &d);
+        app.set_error(text);
+    }
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -129,8 +152,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             let dash = '\u{2014}';
             if live {
                 let _ = write!(texts[0], "{} %", key.load);
-                let _ = write!(texts[2], "{}", key.voices);
-                let _ = write!(texts[3], "{}", key.overruns);
+                count(&mut texts[2], key.voices as u64);
+                count(&mut texts[3], key.overruns);
             } else {
                 texts[0].push(dash);
                 texts[2].push(dash);
@@ -200,6 +223,15 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
 }
 
+/// A count, never wider than "999+".
+fn count(out: &mut String, n: u64) {
+    if n > 999 {
+        out.push_str("999+");
+    } else {
+        let _ = write!(out, "{n}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,7 +242,11 @@ mod tests {
         ram_text(Some(690 << 20), &mut s);
         assert_eq!(s, "690 MB");
         ram_text(Some((1 << 30) + (1 << 28)), &mut s);
-        assert_eq!(s, "1.25 GB");
+        assert_eq!(s, "1.3 GB");
+        ram_text(Some(999 << 20), &mut s);
+        assert_eq!(s, "999 MB");
+        ram_text(Some(150 << 30), &mut s);
+        assert_eq!(s, "150 GB");
         ram_text(None, &mut s);
         assert_eq!(s, "\u{2014}");
     }

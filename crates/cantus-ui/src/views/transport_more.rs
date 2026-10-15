@@ -66,11 +66,17 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
             }
         },
     );
-    // A dot on the key when groups are folded into it.
+    // A dot on the key when groups are folded into it — in the device's colour when the
+    // audio device is folded and something is wrong with it (round 20's chip, still seen).
     if n > 0 {
         with_brush(ui.painter(), |b| {
             let c = Pos2::new(kr.right() - 4.0 * k, kr.top() + 4.0 * k);
-            b.circle(c, 2.5 * k, Fill::Solid(s.t.highlight));
+            let ink = match crate::views::audio_chip::health(app) {
+                crate::views::audio_chip::Health::Good => s.t.highlight,
+                h if folded.contains(&Group::Device) => s.t.get(h.tok()),
+                _ => s.t.highlight,
+            };
+            b.circle(c, (if ink == s.t.highlight { 2.5 } else { 3.5 }) * k, Fill::Solid(ink));
         });
     }
     let toggle = resp.clicked();

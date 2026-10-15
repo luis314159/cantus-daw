@@ -251,3 +251,22 @@ fn every_group_keeps_to_its_own_width() {
     ctx.set_zoom_factor(1.0);
     set_locale(Locale::En);
 }
+
+/// The groups' widths at 100 %, both languages (a record for the ADR):
+/// `cargo test -p cantus-ui --test topbar_layout widths -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn widths() {
+    let (a, _dir) = app();
+    let ctx = ctx();
+    for locale in [Locale::En, Locale::Es] {
+        set_locale(locale);
+        let mut o = ctx.run_ui(Default::default(), |ui| {
+            let w = transport::wants(&a, ui.ctx());
+            let r = transport::room(ui.ctx(), 1920.0);
+            let total: f32 = w.iter().map(|w| w.min + r.gap).sum();
+            eprintln!("{locale:?}: {w:?}\nroom {r:?}\ngroups {total} + left {}", r.left_min);
+        });
+        o.textures_delta.clear();
+    }
+}

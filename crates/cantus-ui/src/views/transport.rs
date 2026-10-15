@@ -67,6 +67,8 @@ const GAP: f32 = 10.0;
 const PAD: f32 = 8.0;
 /// The space between two keys of a group.
 const STEP: f32 = 2.0;
+/// The hint panel's least width at 100 %.
+const HINT_MIN: f32 = 300.0;
 
 /// The top bar's own state, kept on the application (`CantusApp::topbar`).
 #[derive(Debug, Default)]
@@ -230,9 +232,11 @@ pub fn room(ctx: &egui::Context, width: f32) -> Room {
         width,
         pad: PAD * k,
         gap: GAP * k,
-        left_min: logo + menus_w.max(170.0 * k),
-        left_max: logo + menus_w.max(440.0 * k),
-        left_compact: logo + compact_w,
+        // The hint panel keeps room for its two lines, as the bar before round 28 gave it at
+        // 1280 × 720 (the final review: every hint whole there, at 100 % and 200 %).
+        left_min: logo + menus_w.max(HINT_MIN * k),
+        left_max: logo + menus_w.max(460.0 * k),
+        left_compact: logo + compact_w + HINT_MIN * k,
         more: more::KEY_W * k,
     }
 }
@@ -257,12 +261,16 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         ),
     );
     let ground = ui.allocate_rect(rect, Sense::click());
+    let layer = ui.layer_id();
+    let first = ui
+        .ctx()
+        .graphics_mut(|g| g.entry(layer).next_idx());
     let ctx = ui.ctx().clone();
     // The things the bar keeps up to date whatever it shows: the pattern being played,
     // a run of taps that ended, the RAM reading.
     pattern::follow(app);
     tempo::tap_tick(app);
-    app.topbar.ram.tick();
+    perf::watch(app);
 
     let (wants, n) = wants_cached(app, &ctx);
     let room = room(&ctx, rect.width());
@@ -303,6 +311,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     if ground.secondary_clicked() {
         more::open_customise(app);
     }
+    texts_last(&ctx, layer, first);
     more::customise_panel(app, &ctx, rect);
 }
 
@@ -427,4 +436,51 @@ pub fn draw_group(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
 pub fn last_overflow(ctx: &egui::Context) -> Vec<(Group, Rect)> {
     ctx.data(|d| d.get_temp::<Vec<(Group, Rect)>>(Id::new("cantus-topbar-overflow")))
         .unwrap_or_default()
+}
+
+thread_local! {
+    /// The bar's shapes while they are put in order (reused: no allocation once grown).
+    static SHAPES: RefCell<Vec<egui::epaint::ClippedShape>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Put the bar's words after its shapes: each group paints a well, then its words, then the
+/// next group's well — and every switch between the kit's atlas and the font's is a draw
+/// call. The bar's words never lie under one of its shapes (the groups never overlap), so
+/// drawing them all last changes no pixel and saves a draw call per group.
+fn texts_last(ctx: &egui::Context, layer: egui::LayerId, first: egui::layers::ShapeIdx) {
+    SHAPES.with(|buf| {
+        let mut buf = buf.borrow_mut();
+        buf.clear();
+        ctx.graphics_mut(|g| {
+            let list = g.entry(layer);
+            let end = list.next_idx().0;
+            for i in first.0..end {
+                list.mutate_shape(egui::layers::ShapeIdx(i), |c| {
+                    buf.push(std::mem::replace(
+                        c,
+                        egui::epaint::ClippedShape {
+                            clip_rect: c.clip_rect,
+                            shape: egui::Shape::Noop,
+                        },
+                    ));
+                });
+            }
+            let is_text = |c: &egui::epaint::ClippedShape| matches!(c.shape, egui::Shape::Text(_));
+            let mut i = first.0;
+            for text in [false, true] {
+                for c in buf.iter_mut().filter(|c| is_text(c) == text) {
+                    let c = std::mem::replace(
+                        c,
+                        egui::epaint::ClippedShape {
+                            clip_rect: c.clip_rect,
+                            shape: egui::Shape::Noop,
+                        },
+                    );
+                    list.set(egui::layers::ShapeIdx(i), c.clip_rect, c.shape);
+                    i += 1;
+                }
+            }
+        });
+        buf.clear();
+    });
 }

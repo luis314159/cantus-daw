@@ -38,7 +38,7 @@ fn tap_w(ctx: &egui::Context, s: &Style) -> f32 {
 }
 
 fn metre_w(ctx: &egui::Context, s: &Style) -> f32 {
-    text::measure(ctx, &Text::new("12/16", Role::Hero, s.t.text), s.tk()).x + 16.0 * s.k
+    text::measure(ctx, &Text::new("32/32", Role::Value, s.t.text), s.tk()).x + 16.0 * s.k
 }
 
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
@@ -233,7 +233,7 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             let _ = text::paint(
                 b,
                 well.shrink2(Vec2::new(4.0 * k, 0.0)),
-                &Text::new(value, Role::Hero, s.t.text)
+                &Text::new(value, Role::Value, s.t.text)
                     .align(Align2::CENTER_CENTER)
                     .policy(Policy::Elide(Elide::End)),
                 s.tk(),

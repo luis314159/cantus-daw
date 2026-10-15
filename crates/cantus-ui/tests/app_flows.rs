@@ -889,7 +889,7 @@ fn every_dialog_renders_what_it_should_say() {
         "Cantus",                   // About
         "Keyboard shortcuts",       // the editor's title
         "Play / pause",             // an action label, so the list really rendered
-        "Ctrl+Shift+S",             // a binding, so display_for really rendered
+        "Ctrl+M",                   // a binding, so display_for really rendered
         "Alt+wheel edits velocity", // the mouse help a keymap cannot express
         "Layout name",              // the layout naming prompt
         "Settings",                 // the preferences window

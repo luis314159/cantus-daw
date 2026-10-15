@@ -22,7 +22,9 @@ fn studio() -> (CantusApp, tempfile::TempDir) {
     (a, dir)
 }
 
-const SCREEN: egui::Vec2 = egui::vec2(1280.0, 720.0);
+// Wide enough for the top bar to keep the audio chip on it (round 28, ADR 0052: at 1280 it
+// folds into the ⋯ menu).
+const SCREEN: egui::Vec2 = egui::vec2(1600.0, 900.0);
 
 fn run(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) {
     let input = egui::RawInput {
