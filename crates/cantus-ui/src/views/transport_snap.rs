@@ -95,9 +95,9 @@ fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32, f32) {
         .iter()
         .map(|(k, _)| k)
         .chain(std::iter::once(&"grid.custom"))
-        .map(|k| text::measure(ctx, &Text::key(k, Role::Value, s.t.text), tk).x)
+        .map(|k| text::measure(ctx, &Text::key(k, Role::Control, s.t.text), tk).x)
         .fold(0.0, f32::max)
-        + 26.0 * s.k;
+        + 28.0 * s.k;
     let snap = text::measure(
         ctx,
         &Text::key("pianoroll.snap", Role::Control, s.t.text).caps(true),

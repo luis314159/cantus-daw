@@ -233,6 +233,10 @@ fn every_group_keeps_to_its_own_width() {
                         }
                         s => (s.visual_bounding_rect(), 3.0, String::new()),
                     };
+                    assert!(
+                        !text.contains('\u{2026}'),
+                        "{what}: {text:?} was shortened: the group is too narrow for its words"
+                    );
                     if !r.is_finite() || r.area() == 0.0 {
                         continue;
                     }

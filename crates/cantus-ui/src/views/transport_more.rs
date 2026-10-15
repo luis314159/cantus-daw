@@ -80,13 +80,12 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
     let ctx = ui.ctx().clone();
     // Closed by a click on the window itself — not inside the menu, nor inside a popover
     // it opened (those are foreground layers too), nor on the ⋯ key.
-    let outside = ctx.input(|i| {
-        i.pointer.any_click()
-            && i.pointer.interact_pos().is_some_and(|p| {
-                ctx.layer_id_at(p)
-                    .is_none_or(|l| !matches!(l.order, Order::Foreground | Order::Tooltip))
-            })
-    });
+    let (click, at) = ctx.input(|i| (i.pointer.any_click(), i.pointer.interact_pos()));
+    let outside = click
+        && at.is_some_and(|p| {
+            ctx.layer_id_at(p)
+                .is_none_or(|l| !matches!(l.order, Order::Foreground | Order::Tooltip))
+        });
     if open && outside && !resp.hovered() {
         egui::Popup::close_id(&ctx, popup_id());
         return;
@@ -113,6 +112,8 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         .map(|w| w.min)
         .fold(220.0 * k, f32::max);
     let h = (HEIGHT * s.t.density).round();
+    // Where each folded group went (tests click into them).
+    let mut drawn: Vec<(Group, Rect)> = Vec::with_capacity(folded.len());
     for g in folded {
         let (band_r, _) = ui.allocate_exact_size(vec2(width, s.s(band::BAND)), Sense::hover());
         with_brush(ui.painter(), |b| {
@@ -125,7 +126,10 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         let (row, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
         let r = Rect::from_min_size(row.min, vec2(w, h));
         draw(*g, app, ui, r, &s);
+        drawn.push((*g, r));
     }
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(Id::new("cantus-topbar-overflow"), drawn));
     if !folded.is_empty() {
         ui.add_space(4.0 * k);
     }

@@ -359,7 +359,8 @@ fn tip_with_key(app: &CantusApp, text: String, action: Action) -> String {
 // ---- the tools -----------------------------------------------------------------------
 
 fn zoom_w(ctx: &egui::Context, s: &Style) -> f32 {
-    text::measure(ctx, &Text::new("200 %", Role::Value, s.t.text), s.tk()).x + 22.0 * s.k
+    // The kit's menu field: the value in the control role, 7 pt before it, the ▾ after.
+    text::measure(ctx, &Text::new("200 %", Role::Control, s.t.text), s.tk()).x + 28.0 * s.k
 }
 
 pub fn tools_width(ctx: &egui::Context, s: &Style) -> f32 {

@@ -60,13 +60,14 @@ fn toggle_w(ctx: &egui::Context, s: &Style) -> f32 {
         .iter()
         .map(|m| match m {
             Src::Key(k) => {
-                text::measure(ctx, &Text::key(k, Role::Micro, s.t.text).caps(true), s.tk()).x
+                text::measure(ctx, &Text::key(k, Role::Control, s.t.text), s.tk()).x
             }
             Src::Str(_) => 0.0,
         })
         .fold(0.0, f32::max)
         * 2.0
-        + 20.0 * s.k
+        + 2.0 * 10.0 * s.k
+        + 4.0 * s.k
 }
 
 /// The meter's least and most width.
@@ -84,9 +85,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let loud = m.master_loudness;
     let lufs = app.settings.topbar.meter_lufs;
     let held = app.topbar.hold.feed(peaks[0].max(peaks[1]));
-    let row_h = 15.0 * k;
+    let row_h = 17.0 * k;
     let top = Rect::from_min_size(
-        Pos2::new(r.left(), r.center().y - 21.0 * k),
+        Pos2::new(r.left(), r.center().y - 23.0 * k),
         Vec2::new(r.width(), row_h),
     );
     let lanes = Rect::from_min_size(

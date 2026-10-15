@@ -90,7 +90,7 @@ pub struct TopBar {
 
 impl TopBar {
     /// Whether the MIDI-input lamp is lit: an event came in during the last 150 ms.
-    pub(crate) fn midi_lamp(&mut self, received: u64) -> bool {
+    pub fn midi_lamp(&mut self, received: u64) -> bool {
         let now = std::time::Instant::now();
         if received != self.midi.0 {
             self.midi = (received, Some(now));
@@ -421,4 +421,10 @@ pub fn snap_editor(app: &CantusApp) -> (&'static str, cantus_core::Ticks, bool) 
 pub fn draw_group(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
     let s = Style::current();
     draw(g, app, ui, rect, &s);
+}
+
+/// The groups drawn in the open ⋯ menu this frame, and where (tests).
+pub fn last_overflow(ctx: &egui::Context) -> Vec<(Group, Rect)> {
+    ctx.data(|d| d.get_temp::<Vec<(Group, Rect)>>(Id::new("cantus-topbar-overflow")))
+        .unwrap_or_default()
 }
