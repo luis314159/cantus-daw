@@ -235,8 +235,10 @@ pub enum Trigger {
     AllOff,
 }
 
-/// Notes waiting for their sample: a chord's worth and then some.
-const MAX_TRIGGERS: usize = 64;
+/// Notes waiting for their sample: as many as an exported plug-in takes in one block
+/// (`cantus_plugins::instance::NOTE_CAPACITY`), so a host's flood — a note-off for every
+/// key on stop — keeps its timing; past it, the oldest acts early (see [`Porta::note`]).
+pub const MAX_TRIGGERS: usize = 1024;
 
 impl Default for GateSettings {
     fn default() -> Self {
@@ -590,6 +592,9 @@ pub struct Porta {
     // pitches held, and the velocity of the last note-on.
     triggers: [(u64, Trigger); MAX_TRIGGERS],
     trigger_count: usize,
+    /// The earliest `due` among the waiting notes (`u64::MAX`: none), so a sample with
+    /// nothing due costs one comparison.
+    next_due: u64,
     held: [bool; 128],
     held_count: u32,
     velocity: u8,
@@ -648,6 +653,7 @@ impl Porta {
             fresh: true,
             triggers: [(0, Trigger::AllOff); MAX_TRIGGERS],
             trigger_count: 0,
+            next_due: u64::MAX,
             held: [false; 128],
             held_count: 0,
             velocity: 127,
@@ -659,51 +665,65 @@ impl Porta {
     /// A note, `offset` samples into the next [`Self::process`] call (MIDI mode; ignored
     /// otherwise, but kept track of, so switching modes finds the notes held). It acts on
     /// the key's timeline — with lookahead, as early as the key would be heard — exactly
-    /// at its sample, whatever the block size. No allocation; a 65th note waiting at once
-    /// is dropped.
+    /// at its sample, whatever the block size. No allocation; a note past [`MAX_TRIGGERS`]
+    /// waiting at once makes room by acting on the oldest at once, before it is due: its
+    /// timing is lost, never a note (a dropped note-off would hold the gate open for good).
     pub fn note(&mut self, offset: usize, t: Trigger) {
         if self.trigger_count == MAX_TRIGGERS {
-            return;
+            let (_, oldest) = self.triggers[0];
+            self.triggers.copy_within(1.., 0);
+            self.trigger_count -= 1;
+            self.apply_trigger(oldest);
         }
         let due = self.n + offset as u64 + self.key_delay as u64;
         self.triggers[self.trigger_count] = (due, t);
         self.trigger_count += 1;
+        self.next_due = self.next_due.min(due);
     }
 
     /// Apply the notes due by now, in the order they came.
     fn apply_triggers(&mut self) {
         let now = self.n;
         let mut kept = 0;
-        let waiting = self.triggers;
-        for &(due, t) in &waiting[..self.trigger_count] {
+        let mut next = u64::MAX;
+        // In place: what stays moves down, never past what is still to be read.
+        for i in 0..self.trigger_count {
+            let (due, t) = self.triggers[i];
             if due > now {
                 self.triggers[kept] = (due, t);
                 kept += 1;
+                next = next.min(due);
                 continue;
             }
-            match t {
-                Trigger::On { pitch, velocity } => {
-                    let p = (pitch & 0x7f) as usize;
-                    if !self.held[p] {
-                        self.held[p] = true;
-                        self.held_count += 1;
-                    }
-                    self.velocity = velocity.clamp(1, 127);
-                }
-                Trigger::Off { pitch } => {
-                    let p = (pitch & 0x7f) as usize;
-                    if self.held[p] {
-                        self.held[p] = false;
-                        self.held_count -= 1;
-                    }
-                }
-                Trigger::AllOff => {
-                    self.held = [false; 128];
-                    self.held_count = 0;
-                }
-            }
+            self.apply_trigger(t);
         }
         self.trigger_count = kept;
+        self.next_due = next;
+    }
+
+    /// One note acting on the notes held.
+    fn apply_trigger(&mut self, t: Trigger) {
+        match t {
+            Trigger::On { pitch, velocity } => {
+                let p = (pitch & 0x7f) as usize;
+                if !self.held[p] {
+                    self.held[p] = true;
+                    self.held_count += 1;
+                }
+                self.velocity = velocity.clamp(1, 127);
+            }
+            Trigger::Off { pitch } => {
+                let p = (pitch & 0x7f) as usize;
+                if self.held[p] {
+                    self.held[p] = false;
+                    self.held_count -= 1;
+                }
+            }
+            Trigger::AllOff => {
+                self.held = [false; 128];
+                self.held_count = 0;
+            }
+        }
     }
 
     /// In MIDI mode, the gain a note asks for (`open`) or no note (closed), dB: the curve's
@@ -805,6 +825,7 @@ impl Porta {
         self.armed = true;
         self.fresh = true;
         self.trigger_count = 0;
+        self.next_due = u64::MAX;
         self.held = [false; 128];
         self.held_count = 0;
     }
@@ -937,7 +958,7 @@ impl Porta {
         let hit_n = ((HIT_WINDOW_MS * 0.001 * self.sr) as u32).max(1);
         let settle_n = (0.001 * self.sr).round() as u32;
         for i in 0..n {
-            if self.trigger_count > 0 {
+            if self.next_due <= self.n {
                 self.apply_triggers();
             }
             let (xl, xr) = (left[i], right[i]);

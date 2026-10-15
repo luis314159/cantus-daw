@@ -56,25 +56,31 @@
 | Formants kept at −3 / +3 / +5 st | envelope distance 1.0 / 0.9 / 1.4 dB (moved with the pitch: 9.6 / 7.9 / 10.3 dB) |
 | Tonus, speed 0, notes 30–35 cents off | within 0.1 cent of the target |
 | Tonus, speed 0, a note with ±40 cents vibrato | mean 2.3, worst 3.8 cents |
-| Tonus, 60 ms | note centre within 5 cents; vibrato kept; no step above 1.6 × the input's own |
+| Tonus, 60 ms | note centre within 5 cents; vibrato kept |
+| Tonus, a legato note change (a whole tone, the voice sounding) | largest second difference around it 1.02 × a steady voice's at 60 ms, 0.98 × at 0 ms: no click |
 | MIDI targets | change on the note's sample; same bits at blocks 1, 37, 64, 512, 4096 (DSP, engine, CLAP, VST3) |
 | Rest | 0.35 s of silence |
 | Monitoring | the monitored voice 128 samples late (exact), nothing else in the project latent |
 
 ## Tests and what each holds
 
-- `cantus-dsp`: `pitch_tests.rs` (9), `psola_tests.rs` (10), `tonus_tests.rs` (11) — the
+- `cantus-dsp`: `pitch_tests.rs` (12), `psola_tests.rs` (11), `tonus_tests.rs` (14) — the
   figures above; the nulls bit for bit; block-size independence; exact rest; determinism.
 - `cantus-engine/tests/fx_tonus.rs` (7): latency; the four nulls through the whole engine
   are the dry mix delayed by exactly 128 (delay compensation included); block-size
   independence while correcting; offline = real time; MIDI targets from another track's
   clip; monitoring late by 128 only, and by the project's largest latency when another
   strip has one. `fx_contract.rs` (split, rest twins) passes at defaults/heavy/random.
-- `cantus-plugins/tests/notes.rs` (3) and `clap/notes.rs` unit tests: the ports/bus on
-  exactly the note-taking kinds; CLAP (both dialects) and VST3 notes = the DSP's bits at any
-  block size. `clap.rs`/`vst3.rs`: bit-identical to the DSP; ids blessed.
-- `cantus-ui/tests/fx_tonus.rs` (7): painting, columns once through the wrap, the keyboard's
-  clicks (one undo each), *More*, presets, preview, the demo project opens and plays.
+- `cantus-plugins/tests/notes.rs` (7) and `clap/notes.rs` unit tests (4): the ports/bus on
+  exactly the note-taking kinds (VST3's refused elsewhere); CLAP (both dialects) and VST3
+  notes = the DSP's bits at any block size, for Tonus and Porta; floods of notes lose no
+  note-off; CLAP's key −1 releases only the note id or channel it names.
+  `clap.rs`/`vst3.rs`: bit-identical to the DSP; ids blessed.
+- `cantus-ui/tests/fx_tonus.rs` (12): painting, columns once through the wrap, the keyboard's
+  clicks (one undo each), *More*, presets, preview (*Hard* for every source), the demo
+  project opens and plays its first note on A3, a transposed output in view, Speed and
+  Amount explained on hover, *Reset notes* named in the history, the MIDI messages whole in
+  both languages.
 
 ## Files outside my area (additive)
 
@@ -125,3 +131,85 @@ and Paper; EN/ES; 75/100/200 %; the preview).
   crate.
 - The Linux check in WSL was not run from this worktree (one cargo at a time on a shared
   machine); nothing I added is behind `cfg(windows)`.
+
+## Review 1
+
+The review (`reviews/voice-1.json`) confirmed 20 findings; all are fixed, each with a test
+seen failing first unless said otherwise. Commits `79b5632` … `32a7c2c`.
+
+**The base (DSP)**
+- *The streaming octave guard locked a lower octave* (pitch_stream.rs) — one-sided now: up
+  an octave, a shorter lag found as a first dip under the threshold wins unless the old dip
+  is deeper by more than 0.02; down an octave the old test stays. Test: legato leaps
+  220 → 440 Hz and back, no gross error after the step.
+- *Viterbi log-probabilities never renormalised* (pitch_offline.rs) — the frame's maximum is
+  subtracted after each frame (same path, deterministic). Test: 4 000 unvoiced frames stay
+  near zero (about −33 000 before).
+- *`f0_at` voiced half a hop early at onsets* — the arm checks `frac >= 0.5`, symmetric with
+  offsets. Test on both edges.
+- *The offline first grain out of phase* (psola_offline.rs) — the first grain of an engaged
+  stretch reads the take where the output is, and the second, on an epoch, is placed at the
+  same offset, so the fade-in is no comb. Test: at a ratio of 1 the fade-in ahead of a
+  change is the take.
+- *A released correction never reached zero* (tonus.rs, two findings) — the glide lands on
+  its target within 1e-6 semitone, so the shifter disengages and the output is the exact
+  delayed input again. Test: release a held MIDI note mid-phrase, bit for bit after.
+- *Note events dropped past 128 per call* (tonus.rs, two findings) and *the wrapper's 1 024
+  notes per block against Porta's 64 and Tonus's 128* (instance.rs) — Tonus and Porta now
+  queue `NOTE_CAPACITY` (1 024) notes, checked at compile time in `tests/notes.rs`; past
+  that the oldest queued notes act at once (timing lost, never a note). Porta's per-sample
+  due check became one comparison and its compaction in place (it copied its whole queue
+  every sample while a note waited). Tests: 600 On/Off pairs leave Tonus holding only the
+  note still down; `MAX_TRIGGERS + 256` offs at once release Porta; through CLAP (both
+  dialects) and VST3, 128 note-offs at once, and 64 notes and an all-notes-off at once,
+  close Porta's gate, bit for bit with its DSP.
+- *The no-click test never changed note while voiced* — `a_legato_note_change_makes_no_click`
+  jumps the MIDI target a whole tone inside one voiced stretch, against a steady voice's
+  baseline: 1.02 × at 60 ms, 0.98 × at 0 ms (it passed as written: there was no click).
+  The 1.6 × claim on the old test is gone from this report and the plug-in page.
+
+**Engine and plug-ins**
+- *"It is corrected" passed on latency alone* — the engine test compares with the dry mix
+  moved by Tonus's latency (seen failing with Tonus bypassed); the demo test measures the
+  first note, sung 28 cents sharp, landing on A3 within 8 cents (seen failing on the dry
+  render, which reads 57.28).
+- *A CLAP off/choke with key −1 was all-notes-off* — `clap/notes.rs` keeps `Held` (the
+  channels holding each key, the key of each note id): key −1 with a note id releases that
+  note, with a channel that channel's keys, only all three −1 everything. A MIDI
+  all-notes-off (CC 120/123) is its channel's, as MIDI defines it. Unit tests and a Porta
+  test through the plug-in.
+- *No test of the VST3 event bus on other kinds, nor of Porta's notes* — every kind:
+  `getBusCount(kEvent, kInput)` is 1 exactly on the note-taking kinds, `getBusInfo` refuses
+  the others; the test found `activateBus` accepting an event bus on every kind — it
+  refuses now. Porta (MIDI trigger) through CLAP (both dialects) and VST3 at several block
+  sizes, bit for bit with its DSP.
+
+**Editor**
+- *The pitch display pinned the output to the edge on a transposition* — it centres between
+  the sung and output means and takes more lanes (up to 33) when they are far apart; a
+  pitch outside the lanes is not drawn but marked with an arrow at that edge. Test at
+  −12, −24 and +24 (failing at −24 before). It also found that an editor before any
+  telemetry centred on note 0 (zeros read as a target C−1): the header names no target
+  until the unit has run.
+- *Speed and Amount explanations never shown* (two findings) — on hover the hint is the
+  explanation with the value. `tonus.out` deleted; `fx.tonus.note.0` kept (the plug-ins'
+  choices use it).
+- *Reset notes recorded as "preset"* — `cmd.tonus_reset_notes` (Reset notes / Restablecer
+  notas).
+- *The preview said "0 ms" for a MIDI source at speed 0* — one wording for both branches,
+  the editor's pill (Hard, or the time as the knob shows it).
+- *Spanish host sentence in an abbreviated caps caption* — both MIDI messages are body
+  lines; the test measures them within the 236-pt column in both languages and finds the
+  message painted as written. Spanish: "Las notas llegan por el MIDI del anfitrión.",
+  "Elige la pista cuyas notas sigue Tonus."
+- *Spanish wording* — Humanizar, Tolerancia, Profundidad, Transposición (short forms
+  Humaniz., Toler., Prof., Transp. where the knob is narrow), matching the *More* hint;
+  English's transposition knob reads Transpose, no longer the Pitch card's name. Shot again
+  (`shots\voice\review1\`, now with an octave-down state).
+
+**Files outside my area (review 1, additive or minimal):** `cantus-dsp/src/porta.rs` (the
+queue: capacity, in-place compaction, one due check per sample, the oldest acting early
+when full — no change below capacity, no golden hash moved) and `porta_tests.rs` (one
+test); `cantus-plugins/src/clap.rs` (the `Held` field, cleared on activate and reset),
+`src/vst3/plugin.rs` (`activateBus`), `tests/notes.rs`. No public API of `pitch*.rs` or
+`psola*.rs` changed; `tonus::MAX_EVENTS` and `porta::MAX_TRIGGERS` became public constants.

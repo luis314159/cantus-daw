@@ -327,6 +327,11 @@ impl IComponentTrait for Plugin {
         if (media, dir, index) == (AUDIO, INPUT, 1) {
             self.sidechain_bus.store(state != 0, Ordering::Release);
         }
+        // The event bus exists only on a kind that hears notes: no other to switch.
+        let notes = self.shared.desc.kind.takes_notes();
+        if media == EVENT && (dir != INPUT || index != 0 || !notes) {
+            return kInvalidArgument;
+        }
         kResultOk
     }
 

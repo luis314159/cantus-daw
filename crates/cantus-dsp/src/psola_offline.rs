@@ -78,6 +78,7 @@ pub fn render(channels: &[&[f32]], analysis: &Analysis, plan: &Plan) -> Vec<Vec<
     let sr = analysis.sample_rate;
     let mut out: Vec<Vec<f32>> = vec![vec![0.0; plan.len]; channels.len()];
     let mut ola = Ola::new();
+    let mut first: Option<f64> = None;
     let mut mix = 0.0f32;
     let step = 1.0 / (FADE_S * sr).max(1.0);
     let noise = NOISE_PERIOD_S * sr;
@@ -118,12 +119,13 @@ pub fn render(channels: &[&[f32]], analysis: &Analysis, plan: &Plan) -> Vec<Vec<
         }
         if mix == 0.0 {
             ola.clear();
+            first = None;
             for (o, v) in out.iter_mut().zip(&buf) {
                 o[t] = *v;
             }
             continue;
         }
-        grow(&mut ola, tf, analysis, plan, noise);
+        grow(&mut ola, &mut first, tf, analysis, plan, noise);
         ola.retire(tf);
         for (ch, x) in channels.iter().enumerate() {
             let wet = ola
@@ -141,11 +143,17 @@ pub fn render(channels: &[&[f32]], analysis: &Analysis, plan: &Plan) -> Vec<Vec<
 }
 
 /// Create grains until one is centred after `t`.
-fn grow(ola: &mut Ola, t: f64, a: &Analysis, plan: &Plan, noise: f32) {
+///
+/// The first grain of an engaged stretch reads the take where the output is (in phase with
+/// the dry take it fades in over); `first` then holds its offset (source − output), and
+/// the second grain, on an epoch, is placed where that same offset puts it — so the two
+/// agree, the fade is no comb, and the grains after go on from the epochs as usual.
+fn grow(ola: &mut Ola, first: &mut Option<f64>, t: f64, a: &Analysis, plan: &Plan, noise: f32) {
     let (s, prev_a) = match ola.last() {
         None => {
             let src = plan.time.source(t);
             let (p_a, _, f) = local(a, plan, src, noise);
+            *first = Some(src - t);
             ola.push(Grain {
                 s: t,
                 a: src,
@@ -165,8 +173,18 @@ fn grow(ola: &mut Ola, t: f64, a: &Analysis, plan: &Plan, noise: f32) {
     let src = plan.time.source(s_new);
     let (p_a, _, f) = local(a, plan, src, noise);
     let voiced = a.frame_at(src).is_some_and(|fr| fr.voiced);
+    let offset = first.take();
+    let mut s_new = s_new;
     let mark = if voiced {
-        nearest_epoch(a, src).unwrap_or(src)
+        let e = nearest_epoch(a, src).unwrap_or(src);
+        if let Some(d) = offset {
+            // In phase with the first grain: the output time this epoch is read at.
+            let at = e - d;
+            if at > s + 1.0 {
+                s_new = at;
+            }
+        }
+        e
     } else {
         // Unvoiced: grains on a lattice of the noise period around the source time.
         lattice(prev_a, p_a as f64, src, f64::INFINITY)
@@ -175,7 +193,7 @@ fn grow(ola: &mut Ola, t: f64, a: &Analysis, plan: &Plan, noise: f32) {
     ola.push(Grain {
         s: s_new,
         a: mark,
-        hl: p_s.min(hr),
+        hl: ((s_new - s) as f32).min(hr),
         hr,
         f,
     });

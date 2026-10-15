@@ -96,7 +96,8 @@ tune*, *Hard tune with a created vibrato*, *Throat up*, *Throat down*, *MIDI lea
 | Latency at 48 kHz | 128 samples (2.67 ms), constant | ≤ 144 (3 ms) |
 | Hard tune (speed 0) on steady notes 30–35 cents off | within 0.1 cent of the target | no warble |
 | Hard tune on a note with ±40 cents of vibrato | mean 2.3, worst 3.8 cents from the target | below 5 cents (an ear's threshold for a wobble) |
-| Natural speed (60 ms) | the note's centre within 5 cents after 0.3 s; vibrato kept (> 40 cents swing); no sample-to-sample step larger than the input's own × 1.6 | no click |
+| Natural speed (60 ms) | the note's centre within 5 cents after 0.3 s; vibrato kept (> 40 cents swing) | natural |
+| A legato note change (the target jumps a whole tone while the voice sounds) | the output's largest second difference around the change 1.02 × a steady voice's at 60 ms, 0.98 × at 0 ms | no click |
 | MIDI targets | the target changes on the note's own sample at block sizes 1, 37, 64, 512, 4096; the output is the same bits at every block size | sample-accurate |
 | Monitoring | the monitored voice is late by exactly 128 samples when nothing else in the project has latency | Tonus's latency only |
 | Formants kept at ±3–5 semitones | 0.9–1.6 dB envelope distance (8–10 dB when they follow the pitch) | preserved |

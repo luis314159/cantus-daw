@@ -102,7 +102,12 @@ Moulines and Charpentier 1990), in the MPL crate `cantus-dsp`.
   applied at their sample, re-deciding the target there. In the **exported plug-ins**, every
   kind that takes notes (Tonus, Porta) now has a **CLAP note port** (CLAP and MIDI dialects)
   and a **VST3 event bus**; `instance::Processor::process_with_notes` hands each note to
-  the unit at its own sample inside the grid's pieces.
+  the unit at its own sample inside the grid's pieces. No note is ever lost: Tonus and Porta
+  queue as many notes as a plug-in block carries (`NOTE_CAPACITY`, 1 024 — a host's
+  note-off for every key on stop keeps its timing); past that, the oldest queued notes act
+  at once, early but never dropped. A CLAP off or choke addresses what it names: key −1
+  with a note id releases that note, with a channel that channel's keys, only all three −1
+  everything; a MIDI all-notes-off (CC 120/123) is its channel's (review 1).
 - **The nulls** (Tonus corrects at its defaults — a chromatic tuner at 20 ms, what a
   singer expects): **amount 0**, every note on **bypass**, a **MIDI source with nothing
   held**, and the slot's bypass are the input delayed by 128 samples, bit for bit — through
@@ -189,7 +194,9 @@ let out: Vec<Vec<f32>> = render(
   project's largest latency when there is one; `fx_contract.rs` (split invariance, exact
   rest twins) at defaults, heavy and random settings.
 - `cantus-plugins` `notes.rs`: the note port / event bus on exactly the kinds that take
-  notes; CLAP (both dialects) and VST3 notes give the DSP's bits at every block size;
+  notes; CLAP (both dialects) and VST3 notes give the DSP's bits at every block size,
+  for Tonus and for Porta; a flood of 128 note-offs, and 64 notes and an all-notes-off, at
+  once close Porta's gate; a CLAP off by note id or channel releases only that;
   `clap.rs`/`vst3.rs` bit-identical to the DSP, `ids.txt` blessed.
 - `cantus-ui` `fx_tonus.rs`: the editor paints the detected note, target, shift and cards;
   columns taken once through the wrap; the keyboard (click, right-click, one undo each,

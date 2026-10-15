@@ -168,6 +168,8 @@ pub(crate) struct Instance {
     events: UnsafeCell<Vec<ParamEvent>>,
     /// The block's notes, for a kind that hears them (`notes.rs`).
     notes: UnsafeCell<Vec<NoteIn>>,
+    /// What the host holds, so a release by note id or channel finds its keys.
+    held: UnsafeCell<notes::Held>,
     /// A right channel for a host that hands a mono output.
     scratch: UnsafeCell<Vec<f32>>,
     host_latency: AtomicPtr<clap_host_latency>,
@@ -209,6 +211,7 @@ impl Instance {
             audio: UnsafeCell::new(None),
             events: UnsafeCell::new(Vec::new()),
             notes: UnsafeCell::new(Vec::new()),
+            held: UnsafeCell::new(notes::Held::default()),
             scratch: UnsafeCell::new(Vec::new()),
             host_latency: AtomicPtr::new(ptr::null_mut()),
             reported_latency: AtomicU32::new(0),
@@ -303,6 +306,7 @@ unsafe extern "C" fn plugin_activate(
     let notes = &mut *inst.notes.get();
     notes.clear();
     notes.reserve(NOTE_CAPACITY);
+    (*inst.held.get()).clear();
     let scratch = &mut *inst.scratch.get();
     *scratch = vec![0.0; (max_frames as usize).max(1)];
     inst.restart_asked.store(false, Ordering::Release);
@@ -324,8 +328,11 @@ unsafe extern "C" fn plugin_start(_plugin: *const clap_plugin) -> bool {
 unsafe extern "C" fn plugin_stop(_plugin: *const clap_plugin) {}
 
 unsafe extern "C" fn plugin_reset(plugin: *const clap_plugin) {
-    if let Some(p) = Instance::from(plugin).and_then(|i| i.audio().as_mut()) {
-        p.reset();
+    if let Some(inst) = Instance::from(plugin) {
+        (*inst.held.get()).clear();
+        if let Some(p) = inst.audio().as_mut() {
+            p.reset();
+        }
     }
 }
 
@@ -423,7 +430,7 @@ unsafe extern "C" fn plugin_process(
     read_events(&inst.shared, p.in_events, events);
     let notes = &mut *inst.notes.get();
     if inst.shared.desc.kind.takes_notes() {
-        notes::read(p.in_events, notes);
+        notes::read(p.in_events, notes, &mut *inst.held.get());
     }
     // Where the host's song is (ADR 0055): a synced unit follows the host's tempo.
     proc_.set_transport(host_transport(p.transport));

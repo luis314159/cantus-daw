@@ -947,3 +947,37 @@ fn notes_open_it_on_their_sample_and_the_last_one_off_closes_it() {
         );
     }
 }
+
+/// Round 28 (voice's review): more notes waiting at once than the queue holds lose no
+/// note-off — the oldest acts early instead — so a held note's release always closes it.
+#[test]
+fn a_flood_past_the_queue_loses_no_note_off() {
+    let mut p = gate(GateSettings {
+        midi: true,
+        range_db: 100.0,
+        ..GateSettings::default()
+    });
+    p.note(
+        0,
+        Trigger::On {
+            pitch: 72,
+            velocity: 100,
+        },
+    );
+    let (mut l, mut r) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    p.process(&mut l, &mut r, None);
+    assert_eq!(p.held_count, 1);
+    // Every key released twice over, all on one sample: past the queue.
+    for i in 0..MAX_TRIGGERS + 256 {
+        p.note(
+            10,
+            Trigger::Off {
+                pitch: (i % 128) as u8,
+            },
+        );
+    }
+    p.process(&mut l, &mut r, None);
+    assert_eq!(p.held_count, 0, "a note-off was lost");
+    assert_eq!(p.trigger_count, 0);
+    assert!(p.held.iter().all(|h| !h));
+}

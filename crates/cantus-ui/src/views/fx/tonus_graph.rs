@@ -32,14 +32,15 @@ fn is_black(pc: i32) -> bool {
     matches!(pc, 1 | 3 | 6 | 8 | 10)
 }
 
-/// Draw the display in `d`; returns the graph's rect and the panel's.
+/// Draw the display in `d`; returns the graph's rect, the panel's and the lanes (the
+/// lowest note, how many).
 pub(super) fn show(
     st: &mut State,
     ui: &mut egui::Ui,
     s: &Style,
     ss: &TonusSettings,
     d: Rect,
-) -> (Rect, Rect) {
+) -> (Rect, Rect, (i32, i32)) {
     let k = s.k;
     let ink = Ink::of(s);
     let panel_w = (172.0 * k).min(d.width() * 0.32);
@@ -47,16 +48,30 @@ pub(super) fn show(
     let panel = Rect::from_min_max(pos2(graph.right(), d.top()), d.max);
     let (on, by) = classes(st, ss);
 
-    // The centre follows the voice: the mean of the last voiced input, eased.
-    let (mut sum, mut n) = (0.0f32, 0u32);
+    // The centre follows the voice: midway between the means of the last voiced input and
+    // of what came out (apart by the transposition), eased.
+    let (mut sum, mut n, mut sum_out, mut n_out) = (0.0f32, 0u32, 0.0f32, 0u32);
     for c in st.history.iter().rev().take(120) {
         if c.input > 0.0 {
             sum += c.input;
             n += 1;
         }
+        if c.output > 0.0 {
+            sum_out += c.output;
+            n_out += 1;
+        }
     }
-    let want = if n > 0 {
-        sum / n as f32
+    let mean_in = (n > 0).then(|| sum / n as f32);
+    let mean_out = (n_out > 0).then(|| sum_out / n_out as f32);
+    // How far apart the two curves are, in semitones: the lanes take both in.
+    let apart = match (mean_in, mean_out) {
+        (Some(i), Some(o)) => (o - i).abs(),
+        _ => 0.0,
+    };
+    let want = if let (Some(i), Some(o)) = (mean_in, mean_out) {
+        (i + o) * 0.5
+    } else if let Some(m) = mean_in.or(mean_out) {
+        m
     } else if let Some(t) = st.header.target {
         t as f32
     } else if st.centre > 0.0 {
@@ -69,13 +84,18 @@ pub(super) fn show(
     } else {
         st.centre + (want - st.centre) * 0.15
     };
-    let lanes = ((graph.height() / (16.0 * k)) as i32).clamp(7, 25) | 1;
+    // As many lanes as fit at a readable height, more when the curves are far apart (a
+    // transposition), each curve with four lanes to spare either side.
+    let fit = ((graph.height() / (16.0 * k)) as i32).clamp(7, 25);
+    let lanes = fit.max(apart.ceil() as i32 + 9).min(MAX_LANES) | 1;
     let lo = st.centre.round() as i32 - lanes / 2;
     let lane_h = graph.height() / lanes as f32;
     let gutter = 36.0 * k;
     let plot = Rect::from_min_max(pos2(graph.left() + gutter, graph.top()), graph.max);
-    let y_of = |p: f32| -> f32 {
-        (graph.bottom() - (p - lo as f32 + 0.5) * lane_h).clamp(graph.top(), graph.bottom())
+    // A pitch's height; above or below the lanes, none: never drawn flat along an edge.
+    let y_of = |p: f32| -> Option<f32> {
+        let y = graph.bottom() - (p - lo as f32 + 0.5) * lane_h;
+        (graph.top()..=graph.bottom()).contains(&y).then_some(y)
     };
     let mut pts = std::mem::take(&mut st.pts);
 
@@ -149,13 +169,31 @@ pub(super) fn show(
             for (i, c) in st.history.iter().enumerate() {
                 let v = if output { c.output } else { c.input };
                 let x = x_of(i);
-                if v > 0.0 && x >= plot.left() {
-                    pts.push(pos2(x, y_of(v)));
-                } else {
-                    stroke(b, &mut pts, w, color);
+                match y_of(v) {
+                    Some(y) if v > 0.0 && x >= plot.left() => pts.push(pos2(x, y)),
+                    _ => stroke(b, &mut pts, w, color),
                 }
             }
             stroke(b, &mut pts, w, color);
+            // Out of the lanes now: an arrow at that edge, pointing where it went.
+            if let Some(c) = st.history.back() {
+                let v = if output { c.output } else { c.input };
+                if v > 0.0 && y_of(v).is_none() {
+                    let (edge, dir) = if v > lo as f32 {
+                        (graph.top(), 1.0)
+                    } else {
+                        (graph.bottom(), -1.0)
+                    };
+                    let tip = pos2(plot.right() - 8.0 * k, edge + dir * 2.0 * k);
+                    let base = edge + dir * 9.0 * k;
+                    let arrow = [
+                        tip,
+                        pos2(tip.x + 5.0 * k, base),
+                        pos2(tip.x - 5.0 * k, base),
+                    ];
+                    b.polygon(&arrow, color);
+                }
+            }
         }
         // The panel.
         b.vline(
@@ -169,8 +207,11 @@ pub(super) fn show(
         canvas::edge_b(b, d, &ink);
     });
     st.pts = pts;
-    (graph, panel)
+    (graph, panel, (lo, lanes))
 }
+
+/// The most lanes the graph divides into: two octaves and their margins.
+const MAX_LANES: i32 = 33;
 
 /// Draw a polyline and empty the buffer.
 fn stroke(b: &mut Brush, pts: &mut Vec<Pos2>, w: f32, color: Color32) {

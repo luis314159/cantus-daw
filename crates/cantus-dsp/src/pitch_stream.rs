@@ -12,11 +12,17 @@ const KEEP_APERIODICITY: f32 = 0.4;
 const KEEP_SIBILANCE: f32 = 0.65;
 const KEEP_GATE_DB: f32 = GATE_DB - 6.0;
 const FRAMES_TO_FLIP: u8 = 2;
-/// An octave jump from the last voiced frame is checked against the dip at the old lag:
-/// if that dip is this deep, the voice did not jump.
+/// An octave jump from the last voiced frame is checked against the dip at the old lag.
+/// Down an octave (a longer lag): if the old dip is this deep and no shallower than the new
+/// one by more than [`OCTAVE_MARGIN`], the voice did not jump (a real octave down leaves no
+/// dip at the old, shorter lag). Up an octave (a shorter lag): anything periodic at `P/2`
+/// is periodic at `P` too, so the old dip is always deep; the shorter lag wins when it was
+/// a first dip under the threshold, unless the old dip is deeper by more than
+/// [`OCTAVE_UP_MARGIN`] (a real leap leaves both dips near zero; a second harmonic that
+/// tempts the search leaves the shorter one shallower).
 const OCTAVE_KEEP: f32 = 0.3;
-/// … and no shallower than the new dip by more than this (a wrong octave never locks in).
 const OCTAVE_MARGIN: f32 = 0.1;
+const OCTAVE_UP_MARGIN: f32 = 0.02;
 
 /// The streaming monophonic tracker (see the module docs). Allocates in `new` only.
 #[derive(Clone, Debug)]
@@ -182,18 +188,23 @@ impl PitchTracker {
         let (level_db, sibilance) = level_and_sibilance(raw_e, wf, low_e, d);
 
         self.yin.run(&self.lin, w, tau_max);
-        let mut tau = self
-            .yin
-            .first_dip(tau_min, tau_max, THRESHOLD)
-            .unwrap_or_else(|| self.yin.global_min(tau_min, tau_max));
+        let dip = self.yin.first_dip(tau_min, tau_max, THRESHOLD);
+        let mut tau = dip.unwrap_or_else(|| self.yin.global_min(tau_min, tau_max));
         if self.last_tau > 0.0 {
             let r = tau as f32 / self.last_tau;
-            if (1.8..2.2).contains(&r) || (0.45..0.55).contains(&r) {
+            let down = (1.8..2.2).contains(&r);
+            let up = (0.45..0.55).contains(&r);
+            if down || up {
                 let around = self.last_tau.round() as usize;
                 let span = (self.last_tau * 0.1).ceil() as usize + 1;
                 let alt = self.yin.local_min_near(around, span, tau_min, tau_max);
                 let (old, new) = (self.yin.cmnd[alt], self.yin.cmnd[tau]);
-                if old < OCTAVE_KEEP && old < new + OCTAVE_MARGIN {
+                let keep = if down {
+                    old < OCTAVE_KEEP && old < new + OCTAVE_MARGIN
+                } else {
+                    old < OCTAVE_KEEP && (dip.is_none() || old + OCTAVE_UP_MARGIN < new)
+                };
+                if keep {
                     tau = alt;
                 }
             }

@@ -272,4 +272,164 @@ fn the_demo_project_opens_and_plays_corrected() {
     let peak = corrected.iter().fold(0.0f32, |m, v| m.max(v.abs()));
     assert!(peak > 0.05, "it sounds: {peak}");
     assert!(corrected != plain, "Tonus changed the voice");
+    // And it tuned it: the first note, sung 28 cents sharp of A3, comes out on A3.
+    let left: Vec<f32> = corrected.chunks_exact(2).map(|f| f[0]).collect();
+    let a = cantus_dsp::pitch::analyse(&left, 48_000.0);
+    let sung: Vec<f32> = a
+        .frames
+        .iter()
+        .filter(|f| f.voiced && f.centre > 0.6 * 48_000.0 && f.centre < 0.9 * 48_000.0)
+        .map(|f| cantus_dsp::pitch::hz_to_midi(f.f0))
+        .collect();
+    let mean = sung.iter().sum::<f32>() / sung.len().max(1) as f32;
+    assert!(
+        sung.len() > 20 && (mean - 57.0).abs() < 0.08,
+        "A3 came out at {mean}"
+    );
+}
+
+/// Review 1: with a transposition (the octave-down preset's −12, the knob's −24), what
+/// comes out is drawn where it is — the lanes span both curves — not pinned flat along the
+/// graph's edge.
+#[test]
+fn the_display_keeps_a_transposed_output_in_view() {
+    // Before any telemetry (the unit has not run): around A3, not at note 0.
+    let (mut a, _, _) = with_tonus();
+    let (lo, lanes) = geometry(&mut a).lanes;
+    assert!(
+        (40..=57).contains(&lo),
+        "no telemetry yet: lanes from {lo}, {lanes} of them"
+    );
+    for trans in [-12.0, -24.0, 24.0] {
+        let (mut a, s0, fx) = with_tonus();
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, EffectKind::AutoTune);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "trans".into(),
+            value: trans,
+        });
+        cantus_ui::views::fx::demo_feed(&mut a, EffectKind::AutoTune);
+        let g = geometry(&mut a);
+        let (lo, lanes) = g.lanes;
+        let (bottom, top) = (lo as f32 - 0.5, (lo + lanes) as f32 - 0.5);
+        let (mut ins, mut outs) = (0, 0);
+        for c in a.fx.tonus.history.iter().rev().take(120) {
+            if c.input > 0.0 {
+                ins += 1;
+                let p = c.input;
+                assert!(
+                    p > bottom && p < top,
+                    "{trans}: sung {p} out of {lo}+{lanes}"
+                );
+            }
+            if c.output > 0.0 {
+                outs += 1;
+                let p = c.output;
+                assert!(
+                    p > bottom && p < top,
+                    "{trans}: out {p} out of {lo}+{lanes}"
+                );
+            }
+        }
+        assert!(ins > 20 && outs > 20, "{trans}: {ins} sung, {outs} out");
+    }
+}
+
+/// The hint a hover at `at` writes.
+fn hover(a: &mut CantusApp, at: egui::Pos2) -> cantus_ui::kit::hint::Hint {
+    let ctx = ctx();
+    frame(a, &ctx, vec![]);
+    frame(a, &ctx, vec![]);
+    frame(a, &ctx, vec![egui::Event::PointerMoved(at)]);
+    frame(a, &ctx, vec![]);
+    cantus_ui::kit::hint::current(&ctx).expect("a hint under the pointer")
+}
+
+/// Review 1: Speed and Amount explain themselves on hover — what 0 ms means, the natural
+/// range, what 0 % leaves — with the value beside it.
+#[test]
+fn speed_and_amount_explain_themselves_on_hover() {
+    let (mut a, s0, fx) = with_tonus();
+    a.exec(Command::SetEffectParam {
+        strip: s0,
+        effect: fx,
+        key: "speed".into(),
+        value: 0.0,
+    });
+    let g = geometry(&mut a);
+    let h = hover(&mut a, g.speed.center());
+    assert_eq!(h.name, cantus_ui::i18n::t("tonus.speed_tip"));
+    assert_eq!(h.value, "Hard");
+    let g = geometry(&mut a);
+    let h = hover(&mut a, g.amount.center());
+    assert_eq!(h.name, cantus_ui::i18n::t("tonus.amount_tip"));
+    assert_eq!(h.value, "100%");
+}
+
+/// Review 1: *Reset notes* is its own step in the undo history, not a preset.
+#[test]
+fn reset_notes_is_named_in_the_history() {
+    let (mut a, s0, fx) = with_tonus();
+    a.exec(Command::SetEffectParam {
+        strip: s0,
+        effect: fx,
+        key: "n7".into(),
+        value: 2.0,
+    });
+    let g = geometry(&mut a);
+    click(&mut a, g.reset.center(), egui::PointerButton::Primary);
+    assert_eq!(spec(&a, s0).get("n7"), 0.0, "reset");
+    assert_eq!(a.bus.undo_label_key(), Some("cmd.tonus_reset_notes"));
+    assert!(cantus_ui::i18n::t("cmd.tonus_reset_notes") != "cmd.tonus_reset_notes");
+}
+
+/// Review 1: the preview words a speed of 0 as *Hard* whatever the source, as the editor
+/// does.
+#[test]
+fn the_preview_says_hard_for_every_source() {
+    for src in [0.0, 1.0, 2.0] {
+        let mut s = EffectSpec::new(EffectKind::AutoTune);
+        s.set("src", src);
+        s.set("speed", 0.0);
+        let ctx = ctx();
+        let text = paint(&ctx, egui::vec2(420.0, 120.0), 1, |ui| {
+            cantus_ui::views::fx::preview(ui, &s);
+        });
+        assert!(text.contains("Hard"), "src {src}: {text}");
+        assert!(!text.contains("0 ms"), "src {src}: {text}");
+    }
+}
+
+/// Review 1: the MIDI source's messages are sentences on a body line — not a caption's
+/// abbreviated capitals — and fit the source column (236 pt) in both languages.
+#[test]
+fn the_midi_messages_are_whole_sentences_in_both_languages() {
+    use cantus_ui::i18n::{set_locale, t, Locale};
+    use cantus_ui::kit::text::{measure, Role, Text};
+    for locale in [Locale::En, Locale::Es] {
+        set_locale(locale);
+        let ctx = ctx();
+        for key in ["tonus.midi_host", "tonus.midi_waiting"] {
+            let mut w = 0.0;
+            paint(&ctx, egui::vec2(400.0, 100.0), 1, |ui| {
+                let s = t(key);
+                let words = Text::new(&s, Role::Body, egui::Color32::WHITE);
+                w = measure(ui.ctx(), &words, 1.0).x;
+            });
+            assert!(w <= 236.0, "{locale:?} {key}: {w} pt for {:?}", t(key));
+        }
+        // In Cantus, the MIDI source with no track chosen says so as written.
+        let (mut a, s0, fx) = with_tonus();
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "src".into(),
+            value: 1.0,
+        });
+        let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+        let want = t("tonus.midi_waiting");
+        assert!(text.contains(&want), "{locale:?}: {want:?} in {text}");
+    }
+    set_locale(Locale::En);
 }

@@ -176,10 +176,15 @@ fn the_render_does_not_depend_on_the_block_size_while_it_corrects() {
     set(&mut p, fx, "throat", 2.0);
     set(&mut p, fx, "vdepth", 20.0);
     let reference = render_with(&p, 512);
-    assert!(
-        reference != render_with(&without_tonus(&p), 512),
-        "the voice is corrected"
-    );
+    // Corrected, not merely delayed: against the dry mix moved by Tonus's latency (what a
+    // Tonus that never engaged would give), the render differs.
+    let dry = render_with(&without_tonus(&p), 512);
+    let shift = 2 * LATENCY;
+    let moved = reference[shift..]
+        .iter()
+        .zip(&dry[..dry.len() - shift])
+        .fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
+    assert!(moved > 1e-3, "the voice is corrected: {moved}");
     for block in [1usize, 37, 64, 4_096] {
         assert_null(
             &reference,
