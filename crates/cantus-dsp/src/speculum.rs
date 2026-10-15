@@ -312,7 +312,7 @@ impl Analysis {
             sum += v;
         }
         // A full-scale sine at a bin's centre reads 0 dB: |X| = A·ΣW/2.
-        self.norm = (2.0 / sum).powi(2) as f32;
+        self.norm = math::powi(2.0 / sum, 2) as f32;
     }
 
     /// The loudness meter, its integrated reading and its range, and its true peak, from

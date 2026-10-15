@@ -37,6 +37,11 @@ frames). Measurements on the editor's thread; integrated loudness every 200 ms o
 
 ## Tests and what each holds
 
+120 new tests (one timed, ignored). The whole of `cantus-dsp`, `cantus-core`, `cantus-project`,
+`cantus-engine`, `cantus-bench`, `cantus-plugins` and `cantus-ui` pass; `cargo clippy --workspace
+--all-targets -D warnings` and the plug-ins without default features are clean; `cargo fmt`.
+The Linux check in WSL was not run (no `cfg(windows)` code was added).
+
 - `cantus-dsp` (`dynfx_*`, `tonsor_tests`, `impetus_tests`, `discrimen_tests`,
   `speculum_tests`): the figures above, each null, block-size independence, latencies where
   an impulse comes out, exact rest and as-new after `skip`.
@@ -69,6 +74,8 @@ frames). Measurements on the editor's thread; integrated loudness every 200 ms o
   docked Speculums.
 - `crates/cantus-plugins/src/{instance.rs, editor.rs}`: Speculum's tap carries left/right;
   PluginHost's `take_stereo`.
+- `crates/cantus-plugins/tests/clap.rs`: besides my automation keys, the two "it did
+  something" checks expect Speculum to change nothing (it is a pass-through).
 - Shared lines: `heavy.rs`, `kernels.rs`, `fx_contract.rs` (unchanged), plug-in tests
   `common/mod.rs` (settings, direct variants; the stub variant became `Wire` for Speculum),
   `clap.rs` (automation keys), `golden/ids.txt` (appended; Speculum's `out` line removed).

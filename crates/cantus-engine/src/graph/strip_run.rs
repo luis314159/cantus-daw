@@ -66,7 +66,7 @@ pub(crate) fn scope(
         c.frames = k as u16;
         c.beat = position
             .playing
-            .then(|| position.beats + at as f64 * beats_per_frame);
+            .then_some(position.beats + at as f64 * beats_per_frame);
         c.tempo_bpm = position.tempo_bpm;
         c.l[..k].copy_from_slice(&l[at..at + k]);
         c.r[..k].copy_from_slice(&r[at..at + k]);

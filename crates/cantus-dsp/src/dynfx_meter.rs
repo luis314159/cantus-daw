@@ -62,6 +62,15 @@ pub enum Fold {
     Min,
 }
 
+/// One reading folded into what a column holds.
+#[inline]
+fn fold(f: Fold, acc: f32, x: f32) -> f32 {
+    match f {
+        Fold::Max => acc.max(x),
+        Fold::Min => acc.min(x),
+    }
+}
+
 /// Columns of three readings.
 #[derive(Clone, Debug)]
 pub struct Columns {
@@ -97,12 +106,9 @@ impl Columns {
     /// One sample's readings.
     #[inline]
     pub fn push(&mut self, v: [f32; 3]) {
-        for i in 0..3 {
-            if v[i].is_finite() {
-                self.acc[i] = match self.folds[i] {
-                    Fold::Max => self.acc[i].max(v[i]),
-                    Fold::Min => self.acc[i].min(v[i]),
-                };
+        for ((a, f), x) in self.acc.iter_mut().zip(self.folds).zip(v) {
+            if x.is_finite() {
+                *a = fold(f, *a, x);
             }
         }
         self.n += 1;
@@ -128,11 +134,8 @@ impl Columns {
     pub fn skip(&mut self, mut frames: usize, v: [f32; 3]) {
         while frames > 0 {
             let take = (COL_LEN - self.n).min(frames);
-            for i in 0..3 {
-                self.acc[i] = match self.folds[i] {
-                    Fold::Max => self.acc[i].max(v[i]),
-                    Fold::Min => self.acc[i].min(v[i]),
-                };
+            for ((a, f), x) in self.acc.iter_mut().zip(self.folds).zip(v) {
+                *a = fold(f, *a, x);
             }
             self.n += take;
             frames -= take;
