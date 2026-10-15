@@ -161,3 +161,38 @@ fn pattern_mode_plays_the_pattern_looped_to_the_sample() {
     );
     assert!(looped.iter().any(|x| x.abs() > 0.01), "the pattern sounds");
 }
+
+/// The true peak the interface reads is the highest of every block it drains, not the last
+/// block's (review 1): a hit early in a frame's worth of 64-frame callbacks is still shown.
+#[test]
+fn the_true_peak_read_is_the_highest_of_the_blocks_drained() {
+    let (mut engine, mut processor) = EngineHandle::manual(SR);
+    let mut p = demo_project();
+    p.loop_enabled = false;
+    let snap = engine.compile(&p, 1);
+    engine.set_snapshot(snap);
+    engine.play();
+    let mut highest = 0f32;
+    let mut last = 0f32;
+    // A UI frame's worth of callbacks: 12 × 64 frames, the riff's first notes in them.
+    for _ in 0..12 {
+        let mut buf = [0f32; 128];
+        processor.process(&mut buf, 2);
+        last = buf.iter().fold(0f32, |m, x| m.max(x.abs()));
+        highest = highest.max(last);
+    }
+    // Then silence for the last blocks: what the old reading would have shown.
+    engine.stop();
+    for _ in 0..40 {
+        let mut buf = [0f32; 128];
+        processor.process(&mut buf, 2);
+    }
+    let _ = last;
+    engine.poll();
+    let tp = engine.meters().master_loudness.true_peak;
+    assert!(highest > 0.01, "the riff sounded: {highest}");
+    assert!(
+        tp >= highest * 0.999,
+        "true peak {tp} < the frame's sample peak {highest}"
+    );
+}

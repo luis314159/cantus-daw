@@ -353,6 +353,8 @@ impl Processor {
         ] {
             exec::touch(v);
         }
+        // The master meter's histograms (review 1: ADR 0031 R11).
+        self.master_loud.prefault();
     }
 
     /// Ask the first block to promote the calling (callback) thread for the driver API
