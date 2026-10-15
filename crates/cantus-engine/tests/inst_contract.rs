@@ -172,6 +172,7 @@ impl Rig {
             kind: cantus_engine::UnitKind::Native(kind),
             serial,
             unit: Box::new(Probe::default()),
+            automation: Default::default(),
         })));
     }
     fn snapshot(&mut self, p: &Project, rev: u64) {

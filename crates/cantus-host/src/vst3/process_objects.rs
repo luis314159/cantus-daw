@@ -19,7 +19,9 @@ use ::vst3::{Class, ComWrapper};
 /// Distinct parameters one block can carry, each way.
 pub const MAX_QUEUES: usize = 128;
 /// Points per parameter per block.
-pub const QUEUE_POINTS: usize = 32;
+/// Points one parameter's queue holds in one block: a full pass of automation is a value per
+/// 16 samples (ADR 0057), 64 in 1 024 frames, and a few more.
+pub const QUEUE_POINTS: usize = 80;
 /// Note events per block, each way.
 pub const MAX_EVENTS: usize = 512;
 
