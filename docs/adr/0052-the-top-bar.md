@@ -18,46 +18,67 @@ signature, one click sound, no pattern mode, no RAM reading and no loudness on t
 
 ## Decisions
 
-### 1. The bar is a list of groups laid out by a pure function
+### 1. The bar is a list of groups laid out by a pure function, in FL's two rows
 
 `views/transport_layout.rs`: thirteen `Group`s (PAT/SONG, transport, tempo, metronome,
-position, snap, undo, windows, performance, meter, inputs, device, tools) and the left
+position, snap, undo, windows, inputs, performance, meter, device, tools) and the left
 block (logo, menus over the project's name and the hint panel). `layout(room, wants)` is a
 pure function of the bar's width and each group's least/most width, in fixed arrays (no
 allocation):
 
+- **two rows, as FL's strip.** A group with two lines of its own (PAT/SONG, the
+  metronome, the clock, CPU/RAM, the meter) is *tall*: a column of the bar's height. The
+  others are one row high (22-pt keys) and stack two to a column in the owner's order —
+  by default the transport over the tempo, the snap over undo, the windows over the
+  inputs, the audio chip over the tools. At **1920 px, 100 %, every group is on the
+  bar, in English and in Spanish** (`the_default_bar_shows_every_group_at_1920`); the
+  audio chip is capped at 200 pt there (a long device name is shortened in the chip, its
+  whole text in the hint);
 - groups keep the owner's order; a hidden one is left out;
 - when they do not fit, the **least important** (a fixed rank: transport 0, position 1,
-  tempo 2, mode 3, metronome 4, device 5, meter 6, performance 7, snap 8, undo 9, windows
-  10, inputs 11, tools 12) **folds whole** into the **⋯ menu** at the right end, where the
-  same drawing code shows it at the same size, usable; nothing is ever shrunk, clipped or
-  overlapped;
-- the menus fold into one key (≡, each menu a submenu) only when the groups left matter
-  more than they do (`MENUS_IMPORTANCE` = 3);
+  tempo 2, mode 3, metronome 4, device 5, meter 6, windows 7, performance 8, snap 9,
+  undo 10, inputs 11, tools 12) **folds whole** into the **⋯ menu**; then every folded
+  group that fits again, most important first, comes back (a wide fold can free room for
+  a narrow group). Nothing is ever shrunk, clipped or overlapped;
+- **the menus never fold.** They sit above the hint panel, in its width, and the panel
+  keeps at least 300 pt — the final review's rule that every hint reads whole at
+  1280 × 720 at 100 % and 200 % (`final_look.rs`). A compact ≡ key would save no width
+  while the panel needs its 300 pt, so there is none (review 1 found the first version's
+  one could never be reached);
 - room to spare goes to the left block (up to 460 pt), then to the meter (up to 280 pt).
 
-The hint panel keeps at least 300 pt: the final review's rule that every hint reads whole
-at 1280 × 720, at 100 % and 200 %, holds (`final_look.rs`). Each group's width is
-**measured** in the interface's language at the context's zoom, cached per (language,
-zoom, text scale, groups, chip width): the bar at rest measures nothing; a warm frame of
-the bar allocates **1** time (was 12).
+Each group's width is **measured** in the interface's language at the context's zoom,
+cached per (language, zoom, text scale, groups, chip width, metre — the clock is as wide
+as the widest position its metre can show: two beat digits from 10 beats, four tick digits
+for a half-note beat): the bar at rest measures nothing; the owner's order is resolved into
+a fixed array each frame, so a custom order allocates nothing more than the default.
+
+**The overflow** keeps its open state on the bar (`TopBar`), not in egui's single popup
+slot, and is drawn as an area under the popovers it opens: the folded groups' own menus and
+popovers (the grid list, the metronome's options, the metre's editor, the zoom steps, the
+count-in) open from it and work there (review 1 found them closing it). Esc (when none of
+them is open), a click on the window outside it, or the ⋯ key close it; it scrolls inside
+the window and hangs under the bar.
 
 **Shown, hidden and order** are the owner's: `Settings::topbar` (`order`, `hidden`,
 `meter_lufs`), edited in *Customise top bar…* (⋯, *View*, right-click on the bar): tick,
-drag by the grip, *Reset*. Unknown ids are ignored; a group newer than the file goes in
-after its default predecessor.
+drag by the grip (the drop line shows where the group lands), *Reset*. Unknown ids are
+ignored; a group newer than the file goes in after its default predecessor.
 
 **Draw calls.** Each group painted its wells, then its words, then the next group's wells:
 every switch between the kit's atlas and the font's is a draw call. After drawing, the
 bar's shapes are reordered (shapes, then words — the groups never overlap, so no pixel
-changes): the whole-window budget scenario holds at 87 draw calls (ceiling 96).
+changes); the project name's field is drawn after that, so the panel's words never show
+under it (and the panel leaves the name out while it is renamed).
 
 **Proved by** `tests/topbar_layout.rs`: a sweep of 800–3 840 px × zooms 0.75–2.0 × six
-group sets (shuffled, some hidden) × EN/ES — 11 172 layouts — asserting no two parts
-overlap, none leaves the bar, none is narrower than it needs, every shown group is on the
-bar or in ⋯, in the owner's order, and the transport stays at 800 px / 100 %; real frames
-at 800/1280/1920/2560 × 75/100/200 % × EN/ES with every text inside the bar; and each
-group drawn alone in its own width with every word inside it and none shortened with "…".
+group sets (shuffled, some hidden) × EN/ES, asserting that no two parts overlap in the
+bar's two rows, none leaves the bar, none is narrower than it needs, every tall group has
+the bar's height, every shown group is on the bar or in ⋯, in the owner's order, and the
+transport stays at 800 px / 100 %; real frames at 800/1280/1920/2560 × 75/100/200 % ×
+EN/ES with every text inside the bar; each group drawn alone in its own width and row with
+every word inside it and none shortened with "…"; the clock whole in 4/4, 3/2, 12/8, 32/2
+and 7/16 at bar 123; every group shown at 1920 px; the allocations of an owner's order.
 
 ### 2. Pattern mode: a project the engine plays, not a mode of the engine
 
@@ -81,6 +102,14 @@ edited clip changes. **Recording is refused in pattern mode** with the way out o
 status line (a take belongs to the song; loop recording into a moving window would place
 takes nobody could find). **Export renders the song**, always: pattern mode is a way of
 listening. The clock counts from the pattern's start; its metre is lit.
+
+Review 1 closed what that left open: the playhead **stays in the pattern** (Home, a second
+Stop, a click on the ruler outside it go to its top — the engine wraps only from inside the
+loop, so outside it played silence); the pattern is the **last note clip chosen** —
+selecting a track, an audio clip or nothing keeps it, as FL keeps its pattern; pattern
+mode **cannot be switched on mid-take** (refused with a hint; an undo or redo that brings it
+back ends the take first); and the state **starts afresh with another project** (it is
+keyed on the app's project epoch).
 
 ### 3. The metronome's voice and accent (schema 26)
 
@@ -119,14 +148,28 @@ engine readout, the MIDI count and the audio chip **left** the status bar.
 
 ### 7. The master's loudness, fed from the engine
 
-`Meters::master_loudness` (`momentary`, `short_term`, `integrated` since play started, the
-block's `true_peak`), from a `LoudnessMeter` (`cantus_dsp::terminus::loudness`: BS.1770
+`Meters::master_loudness` (`momentary`, `short_term`, `integrated` of the pass, the
+callback's `true_peak`), from a `LoudnessMeter` (`cantus_dsp::terminus::loudness`: BS.1770
 K-weighting, 10 ms columns, 4× true peak) fed with the mix as it leaves the master strip,
-before the click. It only reads `out`: the goldens (`null_tests.rs` `GOLDEN_V5`) are
-unchanged. Built with the processor; no allocation (`rt_memory.rs`). **Cost measured:
-121 ns per stereo frame, 0.58 % of one core at 48 kHz** (`loud_cost`, release). A 1 kHz
-sine at −20 dBFS on both channels reads −20.0 LUFS within 0.1 LU on all three windows.
-The meter group's PEAK/LUFS switch is kept in the settings; LUFS mode marks −14 LUFS.
+before the click. It only reads a scratch copy of `out`: the goldens (`null_tests.rs`
+`GOLDEN_V5`) are unchanged. Review 1 tightened it:
+
+- a **mono** output is weighed as one channel (`process_mono`), not counted twice;
+- a sample that is **not finite** is metered as silence, so a NaN never poisons the filters
+  (the readings come back with the music);
+- the **integrated** reading is worked out only when a 100 ms gating block was added while
+  playing (not every callback: two scans of 8 000 bins), starts again on Play and holds
+  after Stop — it is the pass's;
+- the **true peak** the interface reads is the highest of every callback drained since the
+  last frame (`EngineHandle::poll`, as the compressor's peak), and the meter holds the
+  highest since Play until the readout is clicked;
+- the histograms are **pre-faulted** with the processor (ADR 0031 R11).
+
+Built with the processor; no allocation (`rt_memory.rs`). **Cost measured: 2.5 µs a
+32-frame callback, 5.1 µs at 64, 20.4 µs at 256 — 80 ns per stereo frame at every size,
+0.38 % of one core at 48 kHz** (`loud_cost`, release). A 1 kHz sine at −20 dBFS on both
+channels reads −20.0 LUFS within 0.1 LU on all three windows (−23.0 on a mono output). The
+meter group's PEAK/LUFS switch is kept in the settings; LUFS mode marks −14 LUFS.
 
 ### 8. The project's name and the window title
 
@@ -156,7 +199,10 @@ switch is always there), `TapTempo` = `Shift+T`; older files get them where free
 - The bar's look is judged in `examples/shoot_topbar.rs` (widths 800–2560, zooms 75–200 %,
   EN/ES, Night/Paper, the overflow open, the metronome options, the metre editor, the
   customise panel, LUFS and pattern mode).
-- At 1920 px some groups fold by default (in Spanish, the windows keys too); everything is
-  one click away in ⋯ and the owner can reorder or hide groups to choose what stays.
-- A future group needs: a `Group` variant with id, name, rank; its width and drawing; a
-  string pair. The property test covers it automatically.
+- At 1920 px and 100 % the default bar shows every group in both languages. Below that,
+  groups fold by rank (at 1280 px: the inputs, CPU/RAM, the meter, the snap, undo and the
+  tools) and work from ⋯; the owner can reorder or hide groups to choose what stays. A
+  real device's name can make the chip wider than the no-device text — it is capped at
+  200 pt, so it never pushes another group off.
+- A future group needs: a `Group` variant with id, name, rank and height (tall or a row);
+  its width and drawing; a string pair. The property test covers it automatically.

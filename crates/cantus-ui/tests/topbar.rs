@@ -521,9 +521,10 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
     let item = r
         .texts
         .iter()
+        .rev()
         .filter(|(t, rr)| *t == eighth && rr.left() > snap.left() - 300.0)
         .map(|(_, rr)| *rr)
-        .last()
+        .next()
         .expect("the grid list is open");
     r.click(item.center());
     assert_eq!(

@@ -287,6 +287,10 @@ fn widths() {
                 "{locale:?}: {w:?}\nroom {r:?}\ngroups {total} + left {}",
                 r.left_min
             );
+            for px in [800.0f32, 1280.0, 1600.0] {
+                let l = transport::layout::layout(&transport::room(ui.ctx(), px), &w);
+                eprintln!("{locale:?} folded at {px}: {:?}", l.folded());
+            }
         });
         o.textures_delta.clear();
     }

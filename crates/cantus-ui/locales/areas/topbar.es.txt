@@ -55,8 +55,8 @@ topbar.metre_common = Habituales
 # Metrónomo
 topbar.metronome = Metrónomo
 topbar.metronome_options = Opciones del metrónomo: sonido, acento, cuándo suena
-topbar.count_in = Precuenta
-topbar.count_in_tip = Cuenta previa antes de grabar
+topbar.count_in = Claqueta
+topbar.count_in_tip = Claqueta antes de grabar: compases de clic antes de la toma
 topbar.level = Nivel
 topbar.click_sound = Sonido
 topbar.sound.classic = Clásico

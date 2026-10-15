@@ -118,7 +118,7 @@ Cantus abre con una canción — la segunda subida de la demo *Neon Tide*, en bu
 que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla.
 
 - **La barra superior** (ver [más abajo](#la-barra-superior)): los menús sobre el nombre
-  del proyecto y el panel de pistas, y luego el transporte, el tempo, el metrónomo, la
+  del proyecto y el panel de ayuda, y luego el transporte, el tempo, el metrónomo, la
   posición, los medidores y más: un grupo por función.
 - **El arreglo** (centro): las pistas y sus clips sobre una línea de tiempo.
 - **El navegador de clips** (`Alt+F5`, *Ver ▸ Navegador de clips*): todos los clips de la
@@ -153,29 +153,36 @@ lo-fi), Aurora (cinemática) y Midnight Static (trap). Abre una, escúchala, des
 
 ### La barra superior
 
-La barra superior es la de FL Studio, un grupo por función y una línea fina entre ellos:
+La barra superior es la de FL Studio, en dos filas: un grupo por función y una línea fina
+entre las columnas. Los grupos que tienen dos líneas propias —PATRÓN / CANCIÓN, el
+metrónomo, el reloj, CPU/RAM y el medidor— ocupan toda la altura; los demás ocupan una
+fila y se apilan de dos en dos (el transporte sobre el tempo, la rejilla sobre deshacer,
+las ventanas sobre las entradas, el chip de audio sobre las herramientas). A 1920 píxeles y
+al 100 % todos los grupos están en la barra, en inglés y en español.
 
-- **Los menús y el panel de pistas**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
-  del proyecto y la pista de lo que hay bajo el puntero. **Haz clic en el nombre** para
+- **Los menús y el panel de ayuda**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
+  del proyecto y la ayuda de lo que hay bajo el puntero. **Haz clic en el nombre** para
   cambiarlo ahí mismo (`Intro` lo guarda, `Esc` lo deja); el título de la ventana lo
   sigue, con `•` mientras haya cambios sin guardar.
 - **PATRÓN / CANCIÓN** (`L`): el *modo canción* reproduce el arreglo; el *modo patrón*
   reproduce el clip que editas en el piano roll o en el rack de canales —con lo que el
   rack muestra de las otras pistas en ese tramo— solo y en bucle, y el reloj cuenta desde
-  el inicio del patrón. Elegir otro clip cambia lo que suena. Al salir del modo patrón el
-  cursor vuelve a donde estaba la canción. El modo patrón no graba (una toma pertenece a
-  la canción: pasa antes al modo canción) y la exportación siempre renderiza la canción.
-  Se guarda con el proyecto.
+  el inicio del patrón; el cursor no sale del patrón (Inicio o un clic fuera de él lo
+  llevan a su comienzo). Elegir otro clip de notas cambia lo que suena; seleccionar una
+  pista, un clip de audio o nada conserva el patrón. Al salir del modo patrón el cursor
+  vuelve a donde estaba la canción. El modo patrón no graba, y no se puede activar en
+  mitad de una toma (una toma pertenece a la canción: pasa antes al modo canción); la
+  exportación siempre renderiza la canción. Se guarda con el proyecto.
 - **Transporte**: ir al inicio, reproducir, detener, grabar y sus opciones ▾, bucle.
 - **Tempo**: los BPM (arrastra, usa la rueda, doble clic para 120); **TAP** (`Shift+T`):
-  pulsa al menos dos veces —el tempo es la media de tus últimas pulsaciones, una pausa
-  empieza de nuevo y cada tanda es un solo paso de deshacer—; el **compás**: haz clic
-  para los tiempos (‹ ›), la figura y los compases habituales.
-- **Metrónomo** (`Ctrl+M`): su interruptor, la **cuenta** previa (no, 1, 2, 4 compases) y
-  el **nivel** del clic (arrastra, rueda, doble clic para 0 dB). Su ▾ guarda el
-  **sonido** (*Clásico*, *Caja china*, *Pitido*), el **acento** en el primer tiempo de
-  cada compás y **cuándo** suena (siempre, al grabar, durante la cuenta). El sonido y el
-  acento se guardan con la canción.
+  pulsa al menos dos veces —el tempo es la media de tus últimas pulsaciones; tras una
+  pausa, vuelve a empezar, y cada tanda es un solo paso de deshacer—; el **compás**: haz
+  clic para los tiempos (‹ ›), la figura y los compases habituales.
+- **Metrónomo** (`Ctrl+M`): su interruptor, la **claqueta** (no, 1, 2, 4 compases) y el
+  **nivel** del clic (arrastra, rueda, doble clic para 0 dB). Su ▾ guarda el **sonido**
+  (*Clásico*, *Caja china*, *Pitido*), el **acento** en el primer tiempo de cada compás y
+  **cuándo** suena (siempre, al grabar, durante la claqueta). El sonido y el acento se
+  guardan con la canción.
 - **Posición**: compases.tiempos.ticks y el tiempo, con el compás al lado; al grabar, el
   tiempo de la toma.
 - **Rejilla y ajuste**: la rejilla y la luz IMÁN del editor en el que trabajas —el arreglo,
@@ -188,10 +195,11 @@ La barra superior es la de FL Studio, un grupo por función y una línea fina en
   causa del último en la información emergente, y dicha en la barra de estado cuando
   ocurre).
 - **Medidor maestro**: *Pico* muestra los picos izquierdo y derecho y retiene el más alto
-  de los dos últimos segundos (clic en el número para soltarlo); *LUFS* muestra la
+  de los dos últimos segundos (clic en el número para reiniciarlo); *LUFS* muestra la
   sonoridad del maestro —la momentánea arriba, la de corto plazo debajo, con una marca en
   −14 LUFS (el nivel de los servicios de streaming)— y debajo la de corto plazo, la
-  integrada desde que pulsaste reproducir y el pico real.
+  integrada de la pasada (desde Reproducir; se mantiene tras Detener) y el pico real más
+  alto desde que pulsaste reproducir (clic en el número para reiniciarlo).
 - **Entradas**: el teclado del ordenador (`Ctrl+T`), la luz **MIDI** (se enciende cuando
   llegan notas; el número son las entradas abiertas) y **Armadas** (cuántas pistas
   grabarán; clic para armar la seleccionada).
@@ -199,8 +207,9 @@ La barra superior es la de FL Studio, un grupo por función y una línea fina en
   el selector de elementos, la página de apariencia y el zoom de la interfaz.
 
 **Con la ventana estrecha** los grupos menos importantes se pliegan —enteros— en el menú
-**⋯** del extremo derecho, donde funcionan igual que en la barra; los menús se pliegan en
-una sola tecla antes de que lo haga el transporte. Un punto en ⋯ avisa de que hay algo
+**⋯** del extremo derecho, donde funcionan igual que en la barra, con sus propios menús y
+ventanas emergentes; un grupo plegado vuelve en cuanto cabe. Los menús nunca se pliegan:
+están sobre el panel de ayuda, en su mismo ancho. Un punto en ⋯ avisa de que hay algo
 plegado (rojo si es el chip de audio y el audio necesita atención). **Personalizar la
 barra superior…** (en ⋯, en *Ver* o con clic derecho en la barra): marca un grupo para
 mostrarlo u ocultarlo, arrástralo por su asa para moverlo, *Restablecer* para volver al
@@ -261,8 +270,9 @@ nuevas* y *Ocultar tomas*.
 ### MIDI
 
 Arma una **pista de instrumento** (una sin entrada de audio) y pulsa `R`: se graban en un
-clip las notas de todos los teclados MIDI que Cantus encontró (la barra de estado dice
-*Entradas MIDI: n*). Sin nada armado, `R` graba en la pista seleccionada. ¿Sin teclado?
+clip las notas de todos los teclados MIDI que Cantus encontró (la luz MIDI de la barra
+superior se enciende cuando llegan notas). Sin nada armado, `R` graba en la pista
+seleccionada. ¿Sin teclado?
 `Ctrl+T` activa el **teclado del ordenador**: `A`–`L` tocan notas, `Z`/`X` cambian de
 octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan — usa
 `Espacio` o la tecla de grabar.
@@ -676,7 +686,7 @@ Esto es una beta. Lo que ya sabemos:
   controladores ASIO fijan el búfer en su propio panel; conecta la interfaz *antes* de
   abrir Cantus. No se ofrece WASAPI exclusivo.
 - **Rendimiento**: en equipos modestos, un proyecto denso con búfer pequeño puede cortarse;
-  sube el búfer si la barra de estado cuenta cortes.
+  sube el búfer si la barra superior cuenta cortes.
 - No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
 - **Fuera de esta beta**: macOS y Linux, warping, MIDI learn y superficies de control,
