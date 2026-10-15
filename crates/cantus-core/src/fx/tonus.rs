@@ -74,7 +74,7 @@ pub const PARAMS: &[EffectParamInfo] = &[
     p("flex", "fx.tonus.flex", 0.0, 100.0, 0.0, "ct", false, false),
     p("vib", "fx.tonus.vib", -1.0, 1.0, 0.0, "%", false, false),
     p("vdepth", "fx.tonus.vdepth", 0.0, 100.0, 0.0, "ct", false, false),
-    p("vrate", "fx.tonus.vrate", 2.0, 10.0, 5.5, "Hz", false, false),
+    p("vrate", "fx.tonus.vrate", 2.0, 10.0, 5.0, "Hz", false, false),
     p("formant", "fx.tonus.formant", 0.0, 1.0, 1.0, "", false, true),
     p("throat", "fx.tonus.throat", -12.0, 12.0, 0.0, "st", false, false),
     p("trans", "fx.tonus.trans", -24.0, 24.0, 0.0, "st", false, true),

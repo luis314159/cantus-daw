@@ -20,7 +20,7 @@
 use crate::desc::{self, Descriptor};
 use crate::params::{self, Table};
 use cantus_core::{EffectId, EffectSlot, EffectSpec};
-use cantus_engine::{EffectUnit, Telemetry, TELEMETRY_LEN};
+use cantus_engine::{EffectUnit, FxNote, Telemetry, TELEMETRY_LEN};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -54,6 +54,30 @@ pub struct ParamEvent {
     pub value: f32,
     /// A CLAP modulation: an offset on top of the automated value, not a new value.
     pub modulation: bool,
+}
+
+/// A note from the host for a kind that hears notes (`EffectKind::takes_notes`: Tonus's
+/// targets, Porta's MIDI trigger — ADR 0022), at a sample offset in the block: CLAP's note
+/// port, VST3's event bus.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct NoteIn {
+    pub offset: u32,
+    pub note: FxNote,
+}
+
+/// Notes one block can carry; beyond, the rest are dropped but an all-notes-off is kept.
+pub const NOTE_CAPACITY: usize = 1024;
+
+/// Keep a note in a buffer reserved for [`NOTE_CAPACITY`]: never allocates; when full,
+/// only an all-notes-off still gets in (over the last note), so nothing stays stuck.
+pub fn push_note(out: &mut Vec<NoteIn>, n: NoteIn) {
+    if out.len() < out.capacity() {
+        out.push(n);
+    } else if n.note == FxNote::AllOff {
+        if let Some(last) = out.last_mut() {
+            *last = n;
+        }
+    }
 }
 
 /// One thing a plug-in's own editor did, in the plug-in's parameter indices, for the
@@ -520,7 +544,21 @@ impl Processor {
         key: Option<(&[f32], &[f32])>,
         events: &[ParamEvent],
     ) {
+        self.process_with_notes(left, right, key, events, &[]);
+    }
+
+    /// [`Self::process`] with the host's notes (sorted by offset), each handed to the unit
+    /// at its own sample — as the engine hands a slot its track's notes (ADR 0022).
+    pub fn process_with_notes(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<(&[f32], &[f32])>,
+        events: &[ParamEvent],
+        notes: &[NoteIn],
+    ) {
         let n = left.len().min(right.len());
+        let mut next_note = 0usize;
         let key = key.filter(|(a, b)| a.len() >= n && b.len() >= n);
         self.pull_main();
         let block_start = self.pos;
@@ -551,6 +589,16 @@ impl Processor {
                 n
             };
             let end = end.min(n).min(s + MAX_CHUNK);
+            // The notes in this piece, at their offsets in it (a note past the block's
+            // end, which a host should not send, plays at its last sample).
+            while let Some(nt) = notes.get(next_note) {
+                let at = (nt.offset as usize).min(n - 1);
+                if at >= end {
+                    break;
+                }
+                self.unit.note(at.saturating_sub(s), nt.note);
+                next_note += 1;
+            }
             let k = key.map(|(a, b)| (&a[s..end], &b[s..end]));
             self.run(&mut left[s..end], &mut right[s..end], k);
             self.pos += (end - s) as u64;
@@ -559,6 +607,10 @@ impl Processor {
         // Changes later than the block's last grid point: in force at the next one.
         for ev in &events[next..] {
             self.apply(ev);
+        }
+        // Notes of a call with no audio: at the start of the next block.
+        for nt in &notes[next_note..] {
+            self.unit.note(0, nt.note);
         }
         if self.shared.editor_open.load(Ordering::Relaxed) {
             self.publish_telemetry();

@@ -565,7 +565,14 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         EffectKind::Transient => vec![("out", -6.0)],
         EffectKind::TransientSplit => vec![("out", -6.0)],
         EffectKind::Analyzer => vec![("out", -6.0)],
-        EffectKind::AutoTune => vec![("out", -6.0)],
+        EffectKind::AutoTune => vec![
+            ("speed", 0.0),
+            ("key", 2.0),
+            ("scale", 1.0),
+            ("throat", 2.0),
+            ("vdepth", 25.0),
+            ("n4", 3.0),
+        ],
         _ => vec![],
     }
 }
@@ -619,6 +626,7 @@ pub enum Direct {
     Stereo(Box<cantus_dsp::latitudo::Latitudo>),
     Max(Box<cantus_dsp::culmen::Culmen>),
     Sat(Box<cantus_dsp::fervor::Fervor>),
+    Tonus(Box<cantus_dsp::tonus::Tonus>),
     /// Round 28's stubs, until each builder names its DSP here: the engine's unit.
     Stub(Box<dyn cantus_engine::FxUnit>),
 }
@@ -674,9 +682,7 @@ impl Direct {
             EffectKind::Analyzer => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Analyzer, SR).unwrap())
             }
-            EffectKind::AutoTune => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::AutoTune, SR).unwrap())
-            }
+            EffectKind::AutoTune => Direct::Tonus(Box::new(cantus_dsp::tonus::Tonus::new(SR))),
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -709,6 +715,7 @@ impl Direct {
             Direct::Stereo(x) => x.set(&fx::stereo::settings(spec)),
             Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
             Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
+            Direct::Tonus(x) => x.set(&fx::tonus::settings(spec)),
             Direct::Stub(x) => x.configure(spec),
         }
     }
@@ -725,6 +732,7 @@ impl Direct {
             Direct::Stereo(x) => x.reset(),
             Direct::Max(x) => x.reset(),
             Direct::Sat(x) => x.reset(),
+            Direct::Tonus(x) => x.reset(),
             Direct::Stub(x) => x.reset(),
         }
     }
@@ -741,6 +749,7 @@ impl Direct {
             Direct::Stereo(x) => x.latency(),
             Direct::Max(x) => x.latency(),
             Direct::Sat(x) => x.latency(),
+            Direct::Tonus(x) => x.latency(),
             Direct::Stub(x) => x.latency(),
         }
     }
@@ -757,6 +766,7 @@ impl Direct {
             Direct::Stereo(x) => x.process(l, r),
             Direct::Max(x) => x.process(l, r),
             Direct::Sat(x) => x.process(l, r),
+            Direct::Tonus(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key),
         }
     }

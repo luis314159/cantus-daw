@@ -1,5 +1,5 @@
 //! The CLAP extensions an instance offers: parameters, state, latency, audio ports and
-//! tail (and the GUI, `gui.rs`).
+//! tail (and the GUI, `gui.rs`; the note port of a kind that hears notes, `notes.rs`).
 
 use super::{read_events, Instance};
 use crate::params::{Param, Role};
@@ -35,6 +35,11 @@ pub(crate) unsafe extern "C" fn get_extension(
         &AUDIO_PORTS as *const clap_plugin_audio_ports as *const c_void
     } else if id == CLAP_EXT_TAIL {
         &TAIL as *const clap_plugin_tail as *const c_void
+    } else if id == clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS
+        && super::notes::hears_notes(plugin)
+    {
+        &super::notes::NOTE_PORTS as *const clap_sys::ext::note_ports::clap_plugin_note_ports
+            as *const c_void
     } else {
         super::gui::extension(plugin, id)
     }

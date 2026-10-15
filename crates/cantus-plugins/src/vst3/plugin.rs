@@ -7,7 +7,8 @@
 use super::{copy_wstr, read_wstr, timer};
 use crate::desc::Descriptor;
 use crate::ftz::DenormalGuard;
-use crate::instance::{ParamEvent, Processor, Shared};
+use crate::instance::{push_note, NoteIn, ParamEvent, Processor, Shared, NOTE_CAPACITY};
+use cantus_engine::FxNote;
 use crate::params::{Param, Role};
 use ::vst3::Steinberg::Vst::*;
 use ::vst3::Steinberg::*;
@@ -26,6 +27,8 @@ pub struct Plugin {
     /// The block's parameter points, and their arrival order (ties at one offset keep it).
     events: UnsafeCell<Vec<(u32, u32, ParamEvent)>>,
     flat: UnsafeCell<Vec<ParamEvent>>,
+    /// The block's notes, for a kind that hears them (its event bus).
+    notes: UnsafeCell<Vec<NoteIn>>,
     scratch: UnsafeCell<Vec<f32>>,
     sample_rate: Cell<f64>,
     max_block: Cell<i32>,
@@ -72,6 +75,7 @@ impl Plugin {
             audio: UnsafeCell::new(None),
             events: UnsafeCell::new(Vec::new()),
             flat: UnsafeCell::new(Vec::new()),
+            notes: UnsafeCell::new(Vec::with_capacity(NOTE_CAPACITY)),
             scratch: UnsafeCell::new(Vec::new()),
             sample_rate: Cell::new(48_000.0),
             max_block: Cell::new(4096),
@@ -136,6 +140,51 @@ impl Plugin {
         }
         flat
     }
+
+    /// The host's notes on the event bus, in the order it sent them (by offset, as the
+    /// standard asks). Allocation-free: the buffer was made with its capacity.
+    unsafe fn read_notes(&self, list: *mut IEventList) -> &[NoteIn] {
+        let out = &mut *self.notes.get();
+        out.clear();
+        if !self.shared.desc.kind.takes_notes() {
+            return out;
+        }
+        let Some(list) = ComRef::from_raw(list) else {
+            return out;
+        };
+        for i in 0..list.getEventCount() {
+            let mut e: Event = std::mem::zeroed();
+            if list.getEvent(i, &mut e) != kResultOk {
+                continue;
+            }
+            let note = match e.r#type as u32 {
+                t if t == Event_::EventTypes_::kNoteOnEvent as u32 => {
+                    let n = e.__field0.noteOn;
+                    (0..128).contains(&n.pitch).then(|| FxNote::On {
+                        pitch: n.pitch as u8,
+                        velocity: (n.velocity * 127.0).round().clamp(1.0, 127.0) as u8,
+                    })
+                }
+                t if t == Event_::EventTypes_::kNoteOffEvent as u32 => {
+                    let n = e.__field0.noteOff;
+                    (0..128)
+                        .contains(&n.pitch)
+                        .then_some(FxNote::Off { pitch: n.pitch as u8 })
+                }
+                _ => None,
+            };
+            if let Some(note) = note {
+                push_note(
+                    out,
+                    NoteIn {
+                        offset: e.sampleOffset.max(0) as u32,
+                        note,
+                    },
+                );
+            }
+        }
+        out
+    }
 }
 
 unsafe fn read_stream(stream: *mut IBStream) -> Option<Vec<u8>> {
@@ -191,6 +240,7 @@ impl IPluginBaseTrait for Plugin {
 }
 
 const AUDIO: MediaType = MediaTypes_::kAudio as MediaType;
+const EVENT: MediaType = MediaTypes_::kEvent as MediaType;
 const INPUT: BusDirection = BusDirections_::kInput as BusDirection;
 const OUTPUT: BusDirection = BusDirections_::kOutput as BusDirection;
 
@@ -208,6 +258,8 @@ impl IComponentTrait for Plugin {
         match (media, dir) {
             (AUDIO, INPUT) => 2,
             (AUDIO, OUTPUT) => 1,
+            // A kind that hears notes has a note input (Tonus, Porta).
+            (EVENT, INPUT) => i32::from(self.shared.desc.kind.takes_notes()),
             _ => 0,
         }
     }
@@ -219,7 +271,23 @@ impl IComponentTrait for Plugin {
         index: int32,
         bus: *mut BusInfo,
     ) -> tresult {
-        if bus.is_null() || media != AUDIO {
+        if bus.is_null() {
+            return kInvalidArgument;
+        }
+        if media == EVENT {
+            if dir != INPUT || index != 0 || !self.shared.desc.kind.takes_notes() {
+                return kInvalidArgument;
+            }
+            let bus = &mut *bus;
+            bus.mediaType = EVENT;
+            bus.direction = INPUT;
+            bus.channelCount = 16;
+            copy_wstr(&mut bus.name, &crate::text::t("export.bus.notes"));
+            bus.busType = BusTypes_::kMain as BusType;
+            bus.flags = BusInfo_::BusFlags_::kDefaultActive as uint32;
+            return kResultOk;
+        }
+        if media != AUDIO {
             return kInvalidArgument;
         }
         let (name, main) = match (dir, index) {
@@ -384,10 +452,11 @@ impl IAudioProcessorTrait for Plugin {
         let _denormals = DenormalGuard::new();
         let data = &*data;
         let events = self.read_changes(data.inputParameterChanges);
+        let notes = self.read_notes(data.inputEvents);
         let n = data.numSamples.max(0) as usize;
         if n == 0 || data.numOutputs < 1 || data.outputs.is_null() {
             // A parameter-only call: the values still land.
-            proc_.process(&mut [], &mut [], None, events);
+            proc_.process_with_notes(&mut [], &mut [], None, events, notes);
             return kResultOk;
         }
         if data.symbolicSampleSize != SymbolicSampleSizes_::kSample32 as int32 {
@@ -451,11 +520,12 @@ impl IAudioProcessorTrait for Plugin {
                 std::slice::from_raw_parts(r, n),
             )
         });
-        proc_.process(
+        proc_.process_with_notes(
             std::slice::from_raw_parts_mut(out_l, n),
             std::slice::from_raw_parts_mut(out_r, n),
             key,
             events,
+            notes,
         );
         kResultOk
     }

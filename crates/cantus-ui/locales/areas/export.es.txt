@@ -16,3 +16,4 @@ export.group.post_band = Banda {n} del EQ posterior
 export.bus.input = Entrada
 export.bus.output = Salida
 export.bus.sidechain = Sidechain
+export.bus.notes = Notas

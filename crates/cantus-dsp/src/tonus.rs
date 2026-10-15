@@ -103,7 +103,7 @@ impl Default for TonusSettings {
             flex_cents: 0.0,
             vibrato: 0.0,
             vib_depth: 0.0,
-            vib_rate: 5.5,
+            vib_rate: 5.0,
             formants: true,
             throat: 0.0,
             transpose: 0.0,

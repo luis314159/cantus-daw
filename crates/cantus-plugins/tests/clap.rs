@@ -197,7 +197,8 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Transient => "out",
             EffectKind::TransientSplit => "out",
             EffectKind::Analyzer => "out",
-            EffectKind::AutoTune => "out",
+            // The test signal is not a voice: the throat works on it all the same.
+            EffectKind::AutoTune => "throat",
             _ => "thr",
         };
         let table = params::table(kind);

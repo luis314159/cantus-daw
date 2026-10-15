@@ -335,7 +335,7 @@ pub static ALL: [Descriptor; 23] = [
         vst3_cid: [0x5844B71E, 0xB6558FB8, 0xC2F9E7F2, 0x6DD70EC0],
         clap_features: &[FX, "pitch-correction", STEREO],
         vst3_categories: "Fx|Pitch Shift",
-        description: "Pitch correction in real time, to a scale or to the notes you play.",
+        description: "Real-time pitch correction to a key and scale, a set of notes or the notes you play, from natural to hard-tuned, formants kept.",
         compiled: cfg!(feature = "tonus"),
     },
 ];

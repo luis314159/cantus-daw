@@ -14,7 +14,7 @@
 
 use crate::desc::{self, Descriptor, VENDOR};
 use crate::ftz::DenormalGuard;
-use crate::instance::{ParamEvent, Processor, Shared};
+use crate::instance::{NoteIn, ParamEvent, Processor, Shared, NOTE_CAPACITY};
 use clap_sys::entry::clap_plugin_entry;
 use clap_sys::events::*;
 use clap_sys::ext::latency::{clap_host_latency, CLAP_EXT_LATENCY};
@@ -31,6 +31,7 @@ use std::sync::{Arc, OnceLock};
 
 mod ext;
 mod gui;
+pub mod notes;
 
 /// How many parameter events one block can carry before the rest are taken at the
 /// block's start. Far above what any host sends (a change per parameter per block).
@@ -165,6 +166,8 @@ pub(crate) struct Instance {
     audio: UnsafeCell<Option<Processor>>,
     /// The block's parameter events, read from the host's list.
     events: UnsafeCell<Vec<ParamEvent>>,
+    /// The block's notes, for a kind that hears them (`notes.rs`).
+    notes: UnsafeCell<Vec<NoteIn>>,
     /// A right channel for a host that hands a mono output.
     scratch: UnsafeCell<Vec<f32>>,
     host_latency: AtomicPtr<clap_host_latency>,
@@ -205,6 +208,7 @@ impl Instance {
             shared: Shared::new(d),
             audio: UnsafeCell::new(None),
             events: UnsafeCell::new(Vec::new()),
+            notes: UnsafeCell::new(Vec::new()),
             scratch: UnsafeCell::new(Vec::new()),
             host_latency: AtomicPtr::new(ptr::null_mut()),
             reported_latency: AtomicU32::new(0),
@@ -296,6 +300,9 @@ unsafe extern "C" fn plugin_activate(
     let events = &mut *inst.events.get();
     events.clear();
     events.reserve(EVENT_CAPACITY);
+    let notes = &mut *inst.notes.get();
+    notes.clear();
+    notes.reserve(NOTE_CAPACITY);
     let scratch = &mut *inst.scratch.get();
     *scratch = vec![0.0; (max_frames as usize).max(1)];
     inst.restart_asked.store(false, Ordering::Release);
@@ -414,6 +421,10 @@ unsafe extern "C" fn plugin_process(
     let n = p.frames_count as usize;
     let events = &mut *inst.events.get();
     read_events(&inst.shared, p.in_events, events);
+    let notes = &mut *inst.notes.get();
+    if inst.shared.desc.kind.takes_notes() {
+        notes::read(p.in_events, notes);
+    }
     // What the editor did since the last block, first.
     gui::drain_edits(inst, Some(&mut *proc_), p.out_events);
 
@@ -471,10 +482,10 @@ unsafe extern "C" fn plugin_process(
         });
         let l = std::slice::from_raw_parts_mut(out_l, n);
         let r = std::slice::from_raw_parts_mut(out_r, n);
-        proc_.process(l, r, key, events);
+        proc_.process_with_notes(l, r, key, events, notes);
     } else {
         // No audio (a parameter-only call): the values still land.
-        proc_.process(&mut [], &mut [], None, events);
+        proc_.process_with_notes(&mut [], &mut [], None, events, notes);
     }
 
     if inst.shared.take_latency_change() && !inst.restart_asked.swap(true, Ordering::AcqRel) {
