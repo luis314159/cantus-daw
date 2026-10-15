@@ -185,7 +185,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Stereo => "width",
             EffectKind::Maximizer => "gain",
             EffectKind::Saturator => "drive",
-            EffectKind::Chorus => "out",
+            EffectKind::Chorus => "mix",
             EffectKind::Flanger => "out",
             EffectKind::Phaser => "out",
             EffectKind::Tremolo => "depth",

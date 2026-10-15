@@ -559,7 +559,7 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("p2.y", 0.8),
         ],
         // Round 28: each builder writes its own settings line.
-        EffectKind::Chorus => vec![("out", -6.0)],
+        EffectKind::Chorus => vec![("mode", 7.0), ("mix", 0.5), ("voices", 3.0), ("rate", 1.3), ("tone", 6_000.0)],
         EffectKind::Flanger => vec![("out", -6.0)],
         EffectKind::Phaser => vec![("out", -6.0)],
         EffectKind::Tremolo => vec![("depth", 0.8), ("sync", 0.0), ("rate", 7.0), ("mode", 2.0), ("shape", 2.0), ("spread", 90.0)],
@@ -626,6 +626,7 @@ pub enum Direct {
     Max(Box<cantus_dsp::culmen::Culmen>),
     Sat(Box<cantus_dsp::fervor::Fervor>),
     Tremor(Box<cantus_dsp::tremor::Tremor>),
+    Concentus(Box<cantus_dsp::concentus::Concentus>),
     Vibrans(Box<cantus_dsp::vibrans::Vibrans>),
     /// Round 28's stubs, until each builder names its DSP here: the engine's unit.
     Stub(Box<dyn cantus_engine::FxUnit>),
@@ -646,9 +647,7 @@ impl Direct {
             EffectKind::Stereo => Direct::Stereo(Box::new(cantus_dsp::latitudo::Latitudo::new(SR))),
             EffectKind::Maximizer => Direct::Max(Box::new(cantus_dsp::culmen::Culmen::new(SR))),
             EffectKind::Saturator => Direct::Sat(Box::new(cantus_dsp::fervor::Fervor::new(SR))),
-            EffectKind::Chorus => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Chorus, SR).unwrap())
-            }
+            EffectKind::Chorus => Direct::Concentus(Box::new(cantus_dsp::concentus::Concentus::new(SR))),
             EffectKind::Flanger => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Flanger, SR).unwrap())
             }
@@ -714,6 +713,7 @@ impl Direct {
             Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
             Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
             Direct::Tremor(x) => x.set(&fx::tremor::settings(spec)),
+            Direct::Concentus(x) => x.set(&fx::concentus::settings(spec)),
             Direct::Vibrans(x) => x.set(&fx::vibrans::settings(spec)),
             Direct::Stub(x) => x.configure(spec),
         }
@@ -732,6 +732,7 @@ impl Direct {
             Direct::Max(x) => x.reset(),
             Direct::Sat(x) => x.reset(),
             Direct::Tremor(x) => x.reset(),
+            Direct::Concentus(x) => x.reset(),
             Direct::Vibrans(x) => x.reset(),
             Direct::Stub(x) => x.reset(),
         }
@@ -750,6 +751,7 @@ impl Direct {
             Direct::Max(x) => x.latency(),
             Direct::Sat(x) => x.latency(),
             Direct::Tremor(x) => x.latency(),
+            Direct::Concentus(x) => x.latency(),
             Direct::Vibrans(x) => x.latency(),
             Direct::Stub(x) => x.latency(),
         }
@@ -768,6 +770,7 @@ impl Direct {
             Direct::Max(x) => x.process(l, r),
             Direct::Sat(x) => x.process(l, r),
             Direct::Tremor(x) => x.process(l, r),
+            Direct::Concentus(x) => x.process(l, r),
             Direct::Vibrans(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key),
         }

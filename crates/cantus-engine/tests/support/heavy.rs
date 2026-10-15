@@ -53,7 +53,7 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Reverb => set(&mut s, &[("size", 1.0)]),
         EffectKind::External => {}
         // Round 28: each builder sets its own heavy line.
-        EffectKind::Chorus => {}
+        EffectKind::Chorus => set(&mut s, &[("mode", 7.0), ("mix", 0.5), ("voices", 4.0), ("delay", 30.0), ("depth", 8.0), ("tone", 4_000.0)]),
         EffectKind::Flanger => {}
         EffectKind::Phaser => {}
         EffectKind::Tremolo => set(&mut s, &[("mode", 2.0), ("depth", 1.0), ("shape", 5.0), ("swing", 0.5), ("spread", 90.0)]),
