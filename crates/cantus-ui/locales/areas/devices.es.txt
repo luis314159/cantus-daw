@@ -47,10 +47,9 @@ devices.auto = Auto
 devices.scanning = Buscando interfaces…
 devices.busy_recording = Detén la grabación antes de cambiar el dispositivo de audio.
 devices.switched = Ahora suena por {name}.
-devices.status.engine = CPU {load}% · cortes {overruns} · voces {voices}
 
 devices.chip.text = {name} · {driver} · {rate} · {buffer} · {latency}
-devices.chip.none = Sin audio — haz clic para configurarlo
+devices.chip.none = Sin audio — configurar
 devices.chip.lost = {name} · desconectada
 devices.chip.tip = Dispositivo de audio — clic: interfaz, controlador, frecuencia y búfer
 
@@ -106,7 +105,7 @@ devices.notice.reconnected = {name} volvió
 devices.notice.ok = Aceptar
 
 devices.first.title = Configura tu audio
-devices.first.intro = Elige por dónde tocas. Cantus escoge el mejor controlador y búfer para ello; puedes cambiarlos cuando quieras desde el chip de audio, abajo a la derecha.
+devices.first.intro = Elige por dónde tocas. Cantus escoge el mejor controlador y búfer para ello; puedes cambiarlos cuando quieras desde el chip de audio de la barra superior (o su menú Más, a la derecha, si la ventana es estrecha).
 devices.first.choose = Elige tu interfaz
 devices.first.listen = Escucha
 devices.first.play = Toca o habla — el medidor debe moverse

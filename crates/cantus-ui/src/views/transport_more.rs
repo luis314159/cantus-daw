@@ -27,17 +27,20 @@ pub const KEY_W: f32 = 22.0;
 #[derive(Debug, Default)]
 pub struct Customise {
     pub open: bool,
+    /// The overflow menu is open (its own state: see [`key`]).
+    pub overflow: bool,
     /// The row being dragged, and where it would land.
     drag: Option<(usize, usize)>,
 }
 
-fn popup_id() -> Id {
-    Id::new("toolbar-overflow")
+/// Open the overflow menu (screenshots and tests).
+pub fn open_overflow(app: &mut CantusApp) {
+    app.topbar.customise.overflow = true;
 }
 
-/// Open the overflow menu (screenshots and tests).
-pub fn open_overflow(ctx: &egui::Context) {
-    egui::Popup::open_id(ctx, popup_id());
+/// Whether the overflow menu is open.
+pub fn overflow_open(app: &CantusApp) -> bool {
+    app.topbar.customise.overflow
 }
 
 /// Open the customise panel.
@@ -45,11 +48,16 @@ pub fn open_customise(app: &mut CantusApp) {
     app.topbar.customise.open = true;
 }
 
-/// The ⋯ key, `folded` the groups it holds.
+/// The ⋯ key, `folded` the groups it holds, and the overflow menu while it is open.
+///
+/// The menu's open state is the bar's own, not egui's one popup slot: the folded groups'
+/// own menus and popovers (the grid list, the metronome's options, the metre's editor, the
+/// zoom steps…) are popups of their own, and opening one must not close the menu that
+/// holds the group (review 1).
 pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Style) {
     let k = s.k;
     let kr = Rect::from_center_size(r.center(), Vec2::new(r.width(), super::KEY * k));
-    let open = egui::Popup::is_id_open(ui.ctx(), popup_id());
+    let open = app.topbar.customise.overflow;
     let n = folded.len();
     let resp = key_in(
         ui,
@@ -76,53 +84,54 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
                 h if folded.contains(&Group::Device) => s.t.get(h.tok()),
                 _ => s.t.highlight,
             };
-            b.circle(
-                c,
-                (if ink == s.t.highlight { 2.5 } else { 3.5 }) * k,
-                Fill::Solid(ink),
-            );
+            let radius = if ink == s.t.highlight { 2.5 } else { 3.5 };
+            b.circle(c, radius * k, Fill::Solid(ink));
         });
     }
-    let toggle = resp.clicked();
-    if !open && !toggle {
+    if resp.clicked() {
+        app.topbar.customise.overflow = !open;
+    }
+    if !app.topbar.customise.overflow {
         return;
     }
     let ctx = ui.ctx().clone();
-    // Closed by a click on the window itself — not inside the menu, nor inside a popover
-    // it opened (those are foreground layers too), nor on the ⋯ key.
+    // Closed by Esc (when no popover of its own is open), or by a click on the window
+    // itself — not inside the menu, nor inside a popover it opened (a foreground layer),
+    // nor on the ⋯ key.
+    let id = Id::new("toolbar-overflow");
+    let last = ctx.data(|d| d.get_temp::<Rect>(id.with("rect")));
     let (click, at) = ctx.input(|i| (i.pointer.any_click(), i.pointer.interact_pos()));
-    let last = ctx.data(|d| d.get_temp::<Rect>(Id::new("toolbar-overflow-rect")));
     let outside = click
-        && at.is_some_and(|p| !last.is_some_and(|r| r.contains(p)))
+        && !resp.hovered()
         && at.is_some_and(|p| {
-            ctx.layer_id_at(p)
-                .is_none_or(|l| !matches!(l.order, Order::Foreground | Order::Tooltip))
+            !last.is_some_and(|r| r.contains(p))
+                && ctx
+                    .layer_id_at(p)
+                    .is_none_or(|l| !matches!(l.order, Order::Foreground | Order::Tooltip))
         });
-    if open && outside && !resp.hovered() {
-        egui::Popup::close_id(&ctx, popup_id());
+    let esc = ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(&ctx);
+    if (outside || esc) && !resp.clicked() {
+        app.topbar.customise.overflow = false;
         return;
     }
-    let shown = egui::Popup::from_response(&resp)
-        .id(popup_id())
-        .open_memory(toggle.then_some(egui::SetOpenCommand::Toggle))
-        .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-        .align(egui::RectAlign::BOTTOM_END)
-        .frame(crate::views::record_options::frame_for(s))
-        .gap(4.0)
-        .show(|ui| {
-            // Taller than the window below the bar: it scrolls (never cut off).
-            let room = (ctx.content_rect().bottom() - kr.bottom() - 24.0 * k).max(80.0 * k);
-            egui::ScrollArea::vertical()
-                .max_height(room)
-                // An area keeps last frame's size: ask for the room, or it stays at egui's
-                // default 400 pt.
-                .min_scrolled_height(room)
-                .auto_shrink([true, true])
-                .show(ui, |ui| overflow(app, ui, folded));
+    // Hanging from the key, its right edge on the key's, scrolling when taller than the
+    // room below the bar.
+    let room = (ctx.content_rect().bottom() - r.bottom() - 24.0 * k).max(80.0 * k);
+    let area = egui::Area::new(id)
+        // Under the popovers it opens (they are foreground layers), over the workspace.
+        .order(Order::Middle)
+        .pivot(egui::Align2::RIGHT_TOP)
+        .fixed_pos(Pos2::new(kr.right(), r.bottom() + 2.0 * k))
+        .show(&ctx, |ui| {
+            crate::views::record_options::frame_for(s).show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(room)
+                    .min_scrolled_height(room.min(320.0 * k))
+                    .auto_shrink([true, true])
+                    .show(ui, |ui| overflow(app, ui, folded));
+            });
         });
-    if let Some(r) = shown {
-        ctx.data_mut(|d| d.insert_temp(Id::new("toolbar-overflow-rect"), r.response.rect));
-    }
+    ctx.data_mut(|d| d.insert_temp(id.with("rect"), area.response.rect));
 }
 
 /// The folded groups, each under its name, and *Customise top bar…*.
@@ -136,7 +145,9 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         .filter_map(|g| wants[..n].iter().find(|w| w.group == *g))
         .map(|w| w.min)
         .fold(220.0 * k, f32::max);
-    let h = (HEIGHT * s.t.density).round();
+    // A tall group takes the bar's height, a short one a row's.
+    let tall_h = (HEIGHT * s.t.density).round();
+    let row_h = (tall_h * 0.5).round();
     // Where each folded group went (tests click into them).
     let mut drawn: Vec<(Group, Rect)> = Vec::with_capacity(folded.len());
     for g in folded {
@@ -156,6 +167,7 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
             .iter()
             .find(|w| w.group == *g)
             .map_or(width, |w| w.min);
+        let h = if g.tall() { tall_h } else { row_h };
         let (row, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
         let r = Rect::from_min_size(row.min, vec2(w, h));
         draw(*g, app, ui, r, &s);
@@ -170,7 +182,7 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
     let (_, c) = crate::kit::widgets::menu_list(ui, &items, width / k);
     if c.clicked.is_some() {
         open_customise(app);
-        ui.close();
+        app.topbar.customise.overflow = false;
     }
 }
 
@@ -273,7 +285,8 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
         app.store_settings();
     }
     if close {
-        app.topbar.customise = Customise::default();
+        app.topbar.customise.open = false;
+        app.topbar.customise.drag = None;
     }
 }
 
@@ -357,6 +370,7 @@ fn rows(
         }
         let dragging = drag.is_some_and(|(from, _)| from == i);
         let target = drag.is_some_and(|(from, to)| from != to && to == i);
+        let below = drag.is_some_and(|(from, to)| from < to);
         with_brush(ui.painter(), |b| {
             if lresp.hovered() || dragging {
                 b.rrect(
@@ -369,7 +383,9 @@ fn rows(
                 b.hline(
                     r.left(),
                     r.right(),
-                    b.snap_mid(r.top()),
+                    // Where the row lands: under the target when it moves down (it goes
+                    // after it), over it when it moves up.
+                    b.snap_mid(if below { r.bottom() } else { r.top() }),
                     2.0 * b.px(),
                     s.t.focus,
                 );

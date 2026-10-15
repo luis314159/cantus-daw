@@ -16,14 +16,18 @@
 use crate::app::CantusApp;
 use crate::i18n::t;
 use cantus_core::pattern::{audition, PatternRegion};
-use cantus_core::{Command, Project, Ticks};
+use cantus_core::{ClipId, Command, Project, Ticks, TrackId};
 
 /// What pattern mode is playing, and where the song was.
 #[derive(Debug, Default)]
 pub struct State {
+    /// The project this state belongs to (`CantusApp::epoch`): another one starts afresh.
+    epoch: u64,
     /// The mode as last seen (a change — by the key, a click, an undo — is acted on once).
     active: bool,
     region: Option<PatternRegion>,
+    /// The note clip the pattern was taken from.
+    clip: Option<(TrackId, ClipId)>,
     /// The song's position when pattern mode began.
     song_at: Option<Ticks>,
 }
@@ -35,15 +39,28 @@ impl State {
     }
 }
 
-/// The current pattern of `app`: the clip being edited.
-pub fn current(app: &CantusApp) -> Option<PatternRegion> {
-    let (track, clip) = app.selected_track.zip(app.selected_clip)?;
-    PatternRegion::of(app.project(), track, clip)
+/// The current pattern of `app`: the note clip being edited — or, when the selection is
+/// something else (a track, an audio clip, nothing), the pattern already playing, as long
+/// as its clip is still there (FL keeps its pattern until another is chosen).
+pub fn current(app: &CantusApp) -> Option<(PatternRegion, (TrackId, ClipId))> {
+    let chosen = app
+        .selected_track
+        .zip(app.selected_clip)
+        .and_then(|(t, c)| PatternRegion::of(app.project(), t, c).map(|r| (r, (t, c))));
+    chosen.or_else(|| {
+        let (t, c) = app.topbar.pattern.clip?;
+        PatternRegion::of(app.project(), t, c).map(|r| (r, (t, c)))
+    })
 }
 
-/// PAT / SONG (L): switch the mode — one undo step, as the metronome's switch is.
+/// PAT / SONG (L): switch the mode — one undo step, as the metronome's switch is. Not in
+/// the middle of a take: it belongs to the song.
 pub fn toggle(app: &mut CantusApp) {
     let on = !app.project().pattern_mode;
+    if on && app.is_recording() {
+        app.set_error(t("topbar.mode.not_while_recording"));
+        return;
+    }
     if app.exec(Command::SetPatternMode { on }) {
         follow(app);
         app.set_status(t(if on {
@@ -55,15 +72,31 @@ pub fn toggle(app: &mut CantusApp) {
 }
 
 /// Once a frame (and after the switch): follow the mode and the current pattern — move
-/// the playhead in and out, and send the engine a new snapshot when what plays changed.
+/// the playhead in and out, keep it inside the pattern, and send the engine a new snapshot
+/// when what plays changed.
 pub fn follow(app: &mut CantusApp) {
     let on = app.project().pattern_mode;
+    // Another project (new, opened, a demo, recovered): its own state, from nothing.
+    if app.topbar.pattern.epoch != app.epoch {
+        app.topbar.pattern = State {
+            epoch: app.epoch,
+            ..State::default()
+        };
+    }
+    let mut entered = false;
     if on != app.topbar.pattern.active {
         app.topbar.pattern.active = on;
         if on {
+            // An undo or a redo can bring pattern mode back during a take: the take ends
+            // first, in the song it was recorded into.
+            if app.is_recording() {
+                app.stop_recording();
+            }
             app.topbar.pattern.song_at = Some(app.engine.position());
+            entered = true;
         } else {
             app.topbar.pattern.region = None;
+            app.topbar.pattern.clip = None;
             if let Some(at) = app.topbar.pattern.song_at.take() {
                 app.seek(at);
             }
@@ -75,20 +108,25 @@ pub fn follow(app: &mut CantusApp) {
         return;
     }
     let now = current(app);
-    if now != app.topbar.pattern.region {
-        let entered = app.topbar.pattern.region.is_none();
-        app.topbar.pattern.region = now;
+    let (region, clip) = match now {
+        Some((r, c)) => (Some(r), Some(c)),
+        None => (None, None),
+    };
+    if region != app.topbar.pattern.region {
+        app.topbar.pattern.region = region;
+        app.topbar.pattern.clip = clip;
         app.force_resync();
-        // Into the pattern: from its top on entering or when the pattern changes and the
-        // playhead is outside it.
-        let pos = app.engine.position();
-        let (start, end) = match &app.topbar.pattern.region {
-            Some(r) => (r.start, r.end()),
-            None => (Ticks::ZERO, app.project().time_signature.ticks_per_bar()),
-        };
-        if entered || pos < start || pos >= end {
-            app.seek(start);
-        }
+    }
+    // FL starts the pattern from its top; then the playhead stays in it: Home, a second
+    // Stop, a click on the ruler —
+    // any place outside it is the pattern's top (the engine wraps only inside the loop).
+    let (start, end) = match &app.topbar.pattern.region {
+        Some(r) => (r.start, r.end()),
+        None => (Ticks::ZERO, app.project().time_signature.ticks_per_bar()),
+    };
+    let pos = app.engine.engine_position();
+    if entered || pos < start || pos >= end {
+        app.seek(start);
     }
 }
 

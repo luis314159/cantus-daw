@@ -39,6 +39,7 @@ topbar.mode.song_tip = Song mode: the arrangement plays. Click for pattern mode
 topbar.mode.now_pattern = Pattern mode: the clip being edited plays alone, looped
 topbar.mode.now_song = Song mode: the arrangement plays
 topbar.mode.no_record = Recording goes into the song: switch to song mode ({key}) to record
+topbar.mode.not_while_recording = Stop recording first: the take belongs to the song
 
 # Tempo and metre
 topbar.tap = Tap
@@ -85,7 +86,7 @@ topbar.meter.peak = Peak
 topbar.meter.lufs = LUFS
 topbar.meter.mode_tip = Master meter: sample peaks or loudness (LUFS)
 topbar.meter.peak_tip = Highest peak of the last two seconds — click to reset
-topbar.meter.lufs_tip = Momentary loudness. Below: short-term, integrated since play, true peak
+topbar.meter.lufs_tip = Momentary loudness. Below: short-term, integrated since play, highest true peak since play — click to reset
 
 # Inputs
 topbar.midi = MIDI

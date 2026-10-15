@@ -145,7 +145,12 @@ Midnight Static (trap). Open one, play it, take it apart.
 
 ### The top bar
 
-The top bar is FL Studio's strip, one group per function, a thin divider between them:
+The top bar is FL Studio's strip in two rows: one group per function, a thin divider
+between the columns. The groups with two lines of their own — PAT / SONG, the metronome,
+the clock, CPU/RAM and the meter — take the bar's height; the others are one row high and
+stack two to a column (the transport over the tempo, the snap over undo, the windows over
+the inputs, the audio chip over the tools). At 1920 pixels and 100 % every group is on the
+bar, in English and in Spanish.
 
 - **The menus and the hint panel**: *File, Edit, Clip, View, Help* over the project's name
   and the hint for whatever is under the pointer. **Click the name** to rename the
@@ -154,8 +159,11 @@ The top bar is FL Studio's strip, one group per function, a thin divider between
 - **PAT / SONG** (`L`): *song mode* plays the arrangement; *pattern mode* plays the clip
   you are editing in the piano roll or the channel rack — with whatever the rack shows
   on the other tracks in that stretch — alone and looped, and the clock counts from the
-  pattern's start. Choosing another clip changes what plays. Leaving pattern mode puts
-  the playhead back where the song was. Pattern mode does not record (a take belongs to
+  pattern's start; the playhead stays in the pattern (Home or a click outside it goes to
+  its top). Choosing another note clip changes what plays; selecting a track, an audio
+  clip or nothing keeps the pattern. Leaving pattern mode puts
+  the playhead back where the song was. Pattern mode does not record, and cannot be
+  switched on in the middle of a take (a take belongs to
   the song: switch to song mode first) and export always renders the song. It is saved
   with the project.
 - **Transport**: go to start, play, stop, record and its ▾ options, loop.
@@ -179,10 +187,11 @@ The top bar is FL Studio's strip, one group per function, a thin divider between
   the memory Cantus uses, the voices sounding and the dropouts counted (the latest one's
   cause in the tooltip, and said on the status line when it happens).
 - **Master meter**: *Peak* shows the left and right peaks and holds the highest of the
-  last two seconds (click the number to let it go); *LUFS* shows the master's loudness —
+  last two seconds (click the number to reset it); *LUFS* shows the master's loudness —
   momentary in the top lane, short-term below, with a mark at −14 LUFS (the streaming
-  services' level), and underneath the short-term, the integrated loudness since you
-  pressed play and the true peak.
+  services' level), and underneath the short-term, the integrated loudness of the pass
+  (from Play; it holds after Stop) and the highest true peak since you
+  pressed play (click the number to reset it).
 - **Inputs**: the typing keyboard (`Ctrl+T`), the **MIDI** lamp (it lights as notes come
   in; the number is the inputs open) and **Armed** (how many tracks will record; click to
   arm the selected one).
@@ -190,11 +199,13 @@ The top bar is FL Studio's strip, one group per function, a thin divider between
   element picker, the appearance page, and the interface's zoom.
 
 **A narrow window** folds the least important groups — whole — into the **⋯** menu at the
-right end, where they work as on the bar; the menus fold into one key before the
-transport would. A dot on ⋯ says something is folded there (red when it is the audio chip
-and the audio needs a look). **Customise top bar…** (in ⋯, in *View*, or right-click the
-bar): tick a group to show or hide it, drag it by its grip to move it, *Reset* for the
-default. Your arrangement is kept.
+right end, where they work as on the bar — their own menus and popovers included; a
+group folded earlier comes back as soon as it fits. The menus never fold: they sit above
+the hint panel, in its width. A dot on ⋯ says something is folded there (red when it is
+the audio chip and the audio needs a look). **Customise top bar…** (in ⋯, in *View*, or
+right-click the bar): tick a group to show or hide it, drag it by its grip to move it,
+*Reset* for the default. Your arrangement is kept.
+
 ## 4. Record audio and MIDI
 
 ### An audio track
@@ -245,7 +256,8 @@ nothing plays any more), *Explode takes to new tracks* and *Hide takes*.
 ### MIDI
 
 Arm an **instrument track** (one with no audio input) and press `R`: notes from every MIDI
-keyboard Cantus found (the status bar says *MIDI inputs: n*) are recorded into a clip.
+keyboard Cantus found (the top bar's MIDI lamp lights as notes come in; its tooltip names
+the inputs) are recorded into a clip.
 With nothing armed, `R` records into the selected track. No keyboard? `Ctrl+T` turns the
 **typing keyboard** on: `A`–`L` play notes, `Z`/`X` change octave. While it is on, letter
 shortcuts (including `R`) are off — use `Space` or the record key.
@@ -722,7 +734,7 @@ This is a beta. What we know about:
   the buffer in their own control panel; plug an interface in *before* starting Cantus.
   Exclusive-mode WASAPI is not offered.
 - **Performance**: dense projects at small buffers can drop out on modest computers; raise
-  the buffer if the status bar counts dropouts.
+  the buffer if the top bar counts dropouts.
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
 - **Not in this beta**: macOS and Linux, warping, MIDI learn and control surfaces, AI

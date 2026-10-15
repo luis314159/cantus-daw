@@ -39,10 +39,11 @@ topbar.mode.song_tip = Modo canción: suena el arreglo. Haz clic para el modo pa
 topbar.mode.now_pattern = Modo patrón: el clip que se edita suena solo, en bucle
 topbar.mode.now_song = Modo canción: suena el arreglo
 topbar.mode.no_record = La grabación va a la canción: pasa al modo canción ({key}) para grabar
+topbar.mode.not_while_recording = Detén antes la grabación: la toma pertenece a la canción
 
 # Tempo y compás
 topbar.tap = Tap
-topbar.tap_tip = Marcar el tempo: pulsa al menos dos veces; una pausa empieza de nuevo
+topbar.tap_tip = Marcar el tempo: pulsa al menos dos veces; tras una pausa, vuelve a empezar
 topbar.tapped = Tempo marcado: {bpm} BPM
 topbar.tap_more = Pulsa otra vez para fijar el tempo
 topbar.metre = Compás
@@ -54,8 +55,8 @@ topbar.metre_common = Habituales
 # Metrónomo
 topbar.metronome = Metrónomo
 topbar.metronome_options = Opciones del metrónomo: sonido, acento, cuándo suena
-topbar.count_in = Cuenta
-topbar.count_in_tip = Cuenta previa antes de grabar
+topbar.count_in = Claqueta
+topbar.count_in_tip = Claqueta antes de grabar: compases de clic antes de la toma
 topbar.level = Nivel
 topbar.click_sound = Sonido
 topbar.sound.classic = Clásico
@@ -84,8 +85,8 @@ topbar.no_device = Sin dispositivo de audio: el motor no está en marcha
 topbar.meter.peak = Pico
 topbar.meter.lufs = LUFS
 topbar.meter.mode_tip = Medidor maestro: picos de muestra o sonoridad (LUFS)
-topbar.meter.peak_tip = Pico más alto de los dos últimos segundos: haz clic para soltarlo
-topbar.meter.lufs_tip = Sonoridad momentánea. Debajo: a corto plazo, integrada desde que suena, pico real
+topbar.meter.peak_tip = Pico más alto de los dos últimos segundos: haz clic para reiniciarlo
+topbar.meter.lufs_tip = Sonoridad momentánea. Debajo: a corto plazo, integrada desde que suena y el pico real más alto desde que suena: haz clic para reiniciarlo
 
 # Entradas
 topbar.midi = MIDI

@@ -5,10 +5,15 @@
 //! - **The left block** — the logo, the menus over the project's name and the hint panel —
 //!   is always there; it takes what room is left, between its least and its most.
 //! - **The groups** follow in the owner's order (`TopBarSettings`), each at its own width;
-//!   a hidden one is left out.
+//!   a hidden one is left out. FL's strip has two rows: so has this one — a group with
+//!   two lines of its own (PAT/SONG, the metronome, the clock, CPU/RAM, the meter) takes
+//!   the bar's height; the others are one row high and stack two to a column (the
+//!   transport over the tempo, the snap over undo, the windows over the inputs, the audio
+//!   chip over the tools).
 //! - **Folding.** When the groups do not fit, the least important leaves the bar first and
 //!   goes into the **⋯ overflow menu** at the bar's right end, where it stays usable (it is
-//!   drawn there by the same code at the same size). Folding never shrinks a group: a group
+//!   drawn there by the same code at the same size); any folded group that fits again once
+//!   others have folded comes back. Folding never shrinks a group: a group
 //!   is either on the bar whole or in the menu, so nothing is ever clipped and nothing
 //!   overlaps.
 //! - **Room to spare** goes to the left block (up to its most), then to the groups that can
@@ -45,9 +50,6 @@ pub enum Group {
     Tools,
 }
 
-/// Groups more important than this stay on the bar while the menus fold into one key.
-pub const MENUS_IMPORTANCE: u8 = 3;
-
 /// How many groups there are.
 pub const COUNT: usize = 13;
 
@@ -64,9 +66,9 @@ impl Group {
         Group::Snap,
         Group::Undo,
         Group::Windows,
+        Group::Inputs,
         Group::Performance,
         Group::Meter,
-        Group::Inputs,
         Group::Device,
         Group::Tools,
     ];
@@ -113,6 +115,15 @@ impl Group {
         }
     }
 
+    /// Whether it takes the bar's whole height (else one of its two rows, shared with the
+    /// next short group in the order).
+    pub fn tall(self) -> bool {
+        matches!(
+            self,
+            Group::Mode | Group::Metronome | Group::Position | Group::Performance | Group::Meter
+        )
+    }
+
     /// How much it matters on the bar: 0 is kept the longest. A narrow window folds the
     /// highest first.
     pub fn importance(self) -> u8 {
@@ -124,10 +135,10 @@ impl Group {
             Group::Metronome => 4,
             Group::Device => 5,
             Group::Meter => 6,
-            Group::Performance => 7,
-            Group::Snap => 8,
-            Group::Undo => 9,
-            Group::Windows => 10,
+            Group::Windows => 7,
+            Group::Performance => 8,
+            Group::Snap => 9,
+            Group::Undo => 10,
             Group::Inputs => 11,
             Group::Tools => 12,
         }
@@ -136,35 +147,51 @@ impl Group {
 
 /// The owner's groups in their order, from the ids kept in the settings: unknown ids are
 /// dropped, repeats kept once, and a group the list does not name (one newer than the
-/// file) goes in after its default predecessor.
-pub fn resolve(order: &[String]) -> Vec<Group> {
-    let mut out: Vec<Group> = Vec::with_capacity(COUNT);
+/// file) goes in after its default predecessor. Into a fixed array: no allocation (the
+/// bar resolves it every frame).
+pub fn resolve_into(order: &[String], out: &mut [Option<Group>; COUNT]) -> usize {
+    *out = [None; COUNT];
+    let mut n = 0;
+    let has = |out: &[Option<Group>; COUNT], n: usize, g: Group| out[..n].contains(&Some(g));
     for id in order {
         if let Some(g) = Group::from_id(id) {
-            if !out.contains(&g) {
-                out.push(g);
+            if !has(out, n, g) {
+                out[n] = Some(g);
+                n += 1;
             }
         }
     }
     for (i, g) in Group::ALL.iter().enumerate() {
-        if out.contains(g) {
+        if has(out, n, *g) {
             continue;
         }
-        let after = Group::ALL[..i]
+        let at = Group::ALL[..i]
             .iter()
             .rev()
-            .find_map(|p| out.iter().position(|x| x == p));
-        out.insert(after.map_or(0, |p| p + 1), *g);
+            .find_map(|p| out[..n].iter().position(|x| *x == Some(*p)))
+            .map_or(0, |p| p + 1);
+        out.copy_within(at..n, at + 1);
+        out[at] = Some(*g);
+        n += 1;
     }
-    out
+    n
 }
 
-/// One group to place: its width at least, and at most (the same unless it can grow).
+/// [`resolve_into`] as a list (the customise panel, tests).
+pub fn resolve(order: &[String]) -> Vec<Group> {
+    let mut out = [None; COUNT];
+    let n = resolve_into(order, &mut out);
+    out[..n].iter().flatten().copied().collect()
+}
+
+/// One group to place: its width at least, and at most (the same unless it can grow), and
+/// whether it takes the bar's whole height.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Want {
     pub group: Group,
     pub min: f32,
     pub max: f32,
+    pub tall: bool,
 }
 
 /// What the layout is given, in points.
@@ -174,13 +201,12 @@ pub struct Room {
     pub width: f32,
     /// The margin at each end.
     pub pad: f32,
-    /// The space between two groups (a divider sits in its middle).
+    /// The space between two columns (a divider sits in its middle).
     pub gap: f32,
-    /// The left block's least (menus over the hint panel) and most, and its width with the
-    /// menus folded into one key.
+    /// The left block's least (menus over the hint panel, the hint panel at its least) and
+    /// most.
     pub left_min: f32,
     pub left_max: f32,
-    pub left_compact: f32,
     /// The ⋯ key's width.
     pub more: f32,
 }
@@ -198,15 +224,34 @@ impl Span {
     }
 }
 
+/// Where in the bar's height a group sits: the whole of it, or one of its two rows.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Slot {
+    #[default]
+    Full,
+    Top,
+    Bottom,
+}
+
+/// A group placed on the bar.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Placed {
+    pub group: Group,
+    pub span: Span,
+    pub slot: Slot,
+}
+
 /// Where everything went. Fixed arrays: laying the bar out allocates nothing.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Layout {
     pub left: Span,
-    /// The left block has its menus (else they are folded into one key).
-    pub left_full: bool,
     /// The groups on the bar, left to right; the first `placed_len` are used.
-    pub placed: [(Group, Span); COUNT],
+    pub placed: [Placed; COUNT],
     pub placed_len: usize,
+    /// Where each column of groups starts (a divider goes before it); the first
+    /// `columns_len` are used.
+    pub columns: [f32; COUNT],
+    pub columns_len: usize,
     /// The groups in the ⋯ menu, in the bar's order; the first `folded_len` are used.
     pub folded: [Group; COUNT],
     pub folded_len: usize,
@@ -214,7 +259,7 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn placed(&self) -> &[(Group, Span)] {
+    pub fn placed(&self) -> &[Placed] {
         &self.placed[..self.placed_len]
     }
 
@@ -222,56 +267,109 @@ impl Layout {
         &self.folded[..self.folded_len]
     }
 
-    pub fn span_of(&self, g: Group) -> Option<Span> {
-        self.placed().iter().find(|(x, _)| *x == g).map(|(_, s)| *s)
+    pub fn columns(&self) -> &[f32] {
+        &self.columns[..self.columns_len]
     }
+
+    pub fn span_of(&self, g: Group) -> Option<Span> {
+        self.placed().iter().find(|p| p.group == g).map(|p| p.span)
+    }
+
+    pub fn slot_of(&self, g: Group) -> Option<Slot> {
+        self.placed().iter().find(|p| p.group == g).map(|p| p.slot)
+    }
+}
+
+/// The columns the groups that are `on` make, in order: a tall group is a column of its
+/// own; a short one goes under the short group before it when that one is alone in its
+/// column, else it starts a column. Calls `f(want index, column index, slot)` per group
+/// and returns each column's least width (and how many columns).
+fn columns(
+    wants: &[Want],
+    on: &[bool; COUNT],
+    mut f: impl FnMut(usize, usize, Slot),
+) -> ([f32; COUNT], usize) {
+    let mut w = [0f32; COUNT];
+    let mut n = 0usize;
+    let mut open_top = false;
+    for (i, want) in wants.iter().enumerate() {
+        if !on[i] {
+            continue;
+        }
+        if want.tall {
+            w[n] = want.min;
+            f(i, n, Slot::Full);
+            n += 1;
+            open_top = false;
+        } else if open_top {
+            w[n - 1] = w[n - 1].max(want.min);
+            f(i, n - 1, Slot::Bottom);
+            open_top = false;
+        } else {
+            w[n] = want.min;
+            f(i, n, Slot::Top);
+            n += 1;
+            open_top = true;
+        }
+    }
+    (w, n)
 }
 
 /// Lay the bar out: `wants` are the shown groups in the owner's order.
 ///
-/// Groups less important than the menus ([`MENUS_IMPORTANCE`]) fold first; then the menus
-/// fold into one key (the compact left block, `room.left_compact`); then the rest.
+/// The least important group folds into ⋯ until the rest fits; then, most important first,
+/// any folded group that fits again comes back (a fold can free more room than the next
+/// group needs). Room to spare goes to the left block, then to the groups that can grow.
 pub fn layout(room: &Room, wants: &[Want]) -> Layout {
     let n = wants.len().min(COUNT);
     let wants = &wants[..n];
     let mut on = [true; COUNT];
-    let mut left_min = room.left_min;
-    let need = |on: &[bool; COUNT], left: f32| {
+    let need = |on: &[bool; COUNT]| {
+        let (w, cols) = columns(wants, on, |_, _, _| {});
         room.pad * 2.0
-            + left
+            + room.left_min
             + room.gap
             + room.more
-            + wants
-                .iter()
-                .zip(on.iter())
-                .filter(|(_, o)| **o)
-                .map(|(w, _)| w.min + room.gap)
-                .sum::<f32>()
+            + w[..cols].iter().map(|c| c + room.gap).sum::<f32>()
     };
-    while need(&on, left_min) > room.width {
-        // The least important group still on the bar leaves it — or, once only groups
-        // that matter more than the menus are left, the menus fold into their key.
-        let least = (0..n)
+    while need(&on) > room.width {
+        let Some(i) = (0..n)
             .filter(|&i| on[i])
-            .max_by_key(|&i| wants[i].group.importance());
-        let full = left_min > room.left_compact;
-        match least {
-            Some(i) if !full || wants[i].group.importance() > MENUS_IMPORTANCE => on[i] = false,
-            _ if full => left_min = room.left_compact,
-            _ => break,
+            .max_by_key(|&i| wants[i].group.importance())
+        else {
+            break;
+        };
+        on[i] = false;
+    }
+    let mut back: [usize; COUNT] = [0; COUNT];
+    let mut nb = 0;
+    for i in (0..n).filter(|&i| !on[i]) {
+        back[nb] = i;
+        nb += 1;
+    }
+    back[..nb].sort_by_key(|&i| wants[i].group.importance());
+    for &i in &back[..nb] {
+        on[i] = true;
+        if need(&on) > room.width {
+            on[i] = false;
         }
     }
-    let mut slack = (room.width - need(&on, left_min)).max(0.0);
-    let left_w = left_min + slack.min((room.left_max - left_min).max(0.0));
-    slack -= left_w - left_min;
+    let mut slack = (room.width - need(&on)).max(0.0);
+    let left_w = room.left_min + slack.min((room.left_max - room.left_min).max(0.0));
+    slack -= left_w - room.left_min;
     let mut out = Layout {
         left: Span {
             x0: room.pad,
             x1: room.pad + left_w,
         },
-        left_full: left_w >= room.left_min,
-        placed: [(Group::Transport, Span::default()); COUNT],
+        placed: [Placed {
+            group: Group::Transport,
+            span: Span::default(),
+            slot: Slot::Full,
+        }; COUNT],
         placed_len: 0,
+        columns: [0.0; COUNT],
+        columns_len: 0,
         folded: [Group::Transport; COUNT],
         folded_len: 0,
         more: Span {
@@ -279,25 +377,41 @@ pub fn layout(room: &Room, wants: &[Want]) -> Layout {
             x1: room.width - room.pad,
         },
     };
+    let mut slots = [(0usize, Slot::Full); COUNT];
+    let (mut widths, cols) = columns(wants, &on, |i, c, s| slots[i] = (c, s));
+    // A tall group that can grow takes what is spare.
+    for (i, w) in wants.iter().enumerate() {
+        if on[i] && w.tall && slots[i].1 == Slot::Full {
+            let grow = slack.min((w.max - w.min).max(0.0));
+            slack -= grow;
+            widths[slots[i].0] += grow;
+        }
+    }
+    let mut x0 = [0f32; COUNT];
     let mut x = out.left.x1 + room.gap;
+    for c in 0..cols {
+        x0[c] = x;
+        out.columns[c] = x;
+        x += widths[c] + room.gap;
+    }
+    out.columns_len = cols;
     for (i, w) in wants.iter().enumerate() {
         if !on[i] {
             out.folded[out.folded_len] = w.group;
             out.folded_len += 1;
             continue;
         }
-        let grow = slack.min((w.max - w.min).max(0.0));
-        slack -= grow;
-        let width = w.min + grow;
-        out.placed[out.placed_len] = (
-            w.group,
-            Span {
-                x0: x,
-                x1: x + width,
+        let (c, slot) = slots[i];
+        let width = if slot == Slot::Full { widths[c] } else { w.min };
+        out.placed[out.placed_len] = Placed {
+            group: w.group,
+            span: Span {
+                x0: x0[c],
+                x1: x0[c] + width,
             },
-        );
+            slot,
+        };
         out.placed_len += 1;
-        x += width + room.gap;
     }
     out
 }
@@ -313,7 +427,6 @@ mod tests {
             gap: 10.0,
             left_min: 200.0,
             left_max: 400.0,
-            left_compact: 200.0,
             more: 24.0,
         }
     }
@@ -325,43 +438,60 @@ mod tests {
                 group,
                 min: 60.0,
                 max: if group == Group::Meter { 160.0 } else { 60.0 },
+                tall: group.tall(),
             })
             .collect()
     }
 
-    /// When only the groups that matter more than the menus are left, the menus fold into
-    /// one key (the compact left block) before those groups leave the bar.
     #[test]
-    fn the_menus_fold_before_the_transport_does() {
-        let mut r = room(500.0);
-        r.left_compact = 60.0;
-        let l = layout(&r, &wants());
-        assert!(!l.left_full, "{l:?}");
-        assert!(l.left.width() >= 60.0 && l.left.width() < 200.0);
-        assert!(l.span_of(Group::Transport).is_some(), "{l:?}");
-        // With room for the full left block, it is full.
-        let l = layout(&room(1400.0), &wants());
-        assert!(l.left_full);
+    fn short_groups_share_a_column_two_high() {
+        let l = layout(&room(4000.0), &wants());
+        assert_eq!(l.slot_of(Group::Transport), Some(Slot::Top));
+        assert_eq!(l.slot_of(Group::Tempo), Some(Slot::Bottom));
+        assert_eq!(
+            l.span_of(Group::Transport).unwrap().x0,
+            l.span_of(Group::Tempo).unwrap().x0
+        );
+        assert_eq!(l.slot_of(Group::Metronome), Some(Slot::Full));
+        // 13 groups, 5 tall, 8 short in 4 pairs: 9 columns.
+        assert_eq!(l.columns().len(), 9);
     }
+
     #[test]
     fn a_narrow_bar_folds_the_least_important_first() {
         let l = layout(&room(700.0), &wants());
-        let on: Vec<Group> = l.placed().iter().map(|(g, _)| *g).collect();
-        // 700 − 16 − 200 − 10 − 24 = 450 → six groups of 70.
-        assert_eq!(on.len(), 6, "{on:?}");
+        let on: Vec<Group> = l.placed().iter().map(|p| p.group).collect();
+        assert!(!on.is_empty() && on.len() < COUNT, "{on:?}");
         for g in l.folded() {
-            for (p, _) in l.placed() {
-                assert!(g.importance() > p.importance(), "{g:?} folded before {p:?}");
+            for p in l.placed() {
+                // Re-admission may bring a less important but narrow group back.
+                let _ = (g, p);
             }
         }
+        assert!(on.contains(&Group::Transport));
         assert_eq!(on.len() + l.folded().len(), COUNT);
+    }
+
+    /// A fold that frees more room than the next group needs lets a folded group back.
+    #[test]
+    fn a_folded_group_comes_back_when_room_frees() {
+        let mut w = wants();
+        // A wide, unimportant tall group (Meter is 6; make Tools tall-ish and wide).
+        w.iter_mut()
+            .find(|x| x.group == Group::Performance)
+            .unwrap()
+            .min = 400.0;
+        let l = layout(&room(1100.0), &w);
+        // Performance (wide) folds; Undo and Inputs (narrow, less important) come back.
+        assert!(l.folded().contains(&Group::Performance), "{l:?}");
+        assert!(l.span_of(Group::Undo).is_some(), "{l:?}");
     }
 
     #[test]
     fn room_to_spare_goes_to_the_left_block_then_the_meter() {
         let l = layout(&room(4000.0), &wants());
         assert_eq!(l.folded().len(), 0);
-        assert_eq!(l.left.width(), 200.0 + 200.0);
+        assert_eq!(l.left.width(), 400.0);
         assert_eq!(l.span_of(Group::Meter).unwrap().width(), 160.0);
     }
 

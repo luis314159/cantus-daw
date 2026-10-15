@@ -182,11 +182,47 @@ fn the_metre_editor_sets_the_time_signature() {
     assert_eq!(r.app.project().time_signature, TimeSignature::new(4, 4));
 }
 
+/// A note clip far from the edited one, in a pitch nothing else plays: pattern mode must
+/// leave it out.
+fn far_clip(a: &mut CantusApp) -> cantus_core::ClipId {
+    let track = a.project().tracks[0].id;
+    let mut p = a.project().clone();
+    let mut c = p.make_clip("Far", Ticks::beats(64), Ticks::beats(4));
+    let n = p.make_note(Ticks::ZERO, Ticks::QUARTER, 101, 100);
+    c.notes.push(n);
+    let id = c.id;
+    a.exec(Command::InsertClip {
+        track,
+        clip: Box::new(c),
+    });
+    id
+}
+
+/// The pitches the engine was sent, on every track.
+fn sent_pitches(r: &Rig) -> Vec<u8> {
+    let snap = r
+        .app
+        .engine
+        .sent_snapshot()
+        .expect("a snapshot sent")
+        .clone();
+    snap.tracks
+        .iter()
+        .flat_map(|t| t.events.iter().filter(|e| e.is_on()).map(|e| e.pitch))
+        .collect()
+}
+
 /// L switches to pattern mode: the engine gets the edited clip alone, looped, the playhead
 /// goes to it; back in song mode the song plays from where it was.
 #[test]
 fn pattern_mode_plays_the_edited_clip_alone() {
     let mut r = Rig::new();
+    far_clip(&mut r.app);
+    r.idle(2);
+    assert!(
+        sent_pitches(&r).contains(&101),
+        "the song plays the far clip"
+    );
     let a = &mut r.app;
     let track = a.project().tracks[0].id;
     let clip = a.project().tracks[0].clips[0].id;
@@ -197,22 +233,23 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     assert!(a.project().pattern_mode);
     r.idle(2);
     let region = cantus_core::pattern::PatternRegion::of(r.app.project(), track, clip).unwrap();
-    let snap = r
-        .app
-        .engine
-        .sent_snapshot()
-        .expect("a snapshot sent")
-        .clone();
+    let snap = r.app.engine.sent_snapshot().unwrap().clone();
     let lr = snap.loop_region.clone().expect("the pattern loops");
     assert_eq!((lr.start, lr.end), (region.start, region.end()));
-    let clips_heard: usize = r
-        .app
-        .project()
-        .tracks
+    let pitches = sent_pitches(&r);
+    assert!(
+        !pitches.contains(&101),
+        "the far clip is left out: {pitches:?}"
+    );
+    let edited: Vec<u8> = r.app.project().tracks[0].clips[0]
+        .notes
         .iter()
-        .filter(|t| region.clip_of(t.id).is_some())
-        .count();
-    assert!(clips_heard >= 1);
+        .map(|n| n.pitch)
+        .collect();
+    assert!(
+        edited.iter().all(|p| pitches.contains(p)),
+        "the edited clip plays"
+    );
     assert_eq!(
         r.app.engine.position(),
         region.start,
@@ -230,6 +267,104 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     assert_eq!(r.app.engine.position(), Ticks::beats(30));
     let snap = r.app.engine.sent_snapshot().unwrap().clone();
     assert_eq!(snap.loop_enabled, r.app.project().loop_enabled);
+    assert!(sent_pitches(&r).contains(&101), "the song again");
+}
+
+/// In pattern mode the playhead stays in the pattern: Home, a second Stop or a seek
+/// outside it go to the pattern's top (review 1: they played silence).
+#[test]
+fn pattern_mode_keeps_the_playhead_in_the_pattern() {
+    let mut r = Rig::new();
+    let far = far_clip(&mut r.app);
+    let track = r.app.project().tracks[0].id;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(far);
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    assert_eq!(r.app.engine.position(), Ticks::beats(64));
+    for go in [Action::ToStart, Action::Stop] {
+        r.app.run_action(go);
+        r.idle(2);
+        assert_eq!(r.app.engine.position(), Ticks::beats(64), "{go:?}");
+    }
+    r.app.seek(Ticks::beats(90));
+    r.idle(2);
+    assert_eq!(r.app.engine.position(), Ticks::beats(64), "past its end");
+    r.app.seek(Ticks::beats(66));
+    r.idle(2);
+    assert_eq!(
+        r.app.engine.position(),
+        Ticks::beats(66),
+        "inside it, left alone"
+    );
+}
+
+/// Selecting a track, or nothing, does not take the pattern away (review 1): only another
+/// note clip chosen does.
+#[test]
+fn selecting_something_else_keeps_the_pattern() {
+    let mut r = Rig::new();
+    let far = far_clip(&mut r.app);
+    let track = r.app.project().tracks[0].id;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(far);
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    r.app.seek(Ticks::beats(65));
+    r.app.selected_clip = None;
+    r.app.selected_track = Some(r.app.project().tracks[1].id);
+    r.idle(2);
+    let region = r
+        .app
+        .topbar
+        .pattern
+        .region()
+        .cloned()
+        .expect("still a pattern");
+    assert_eq!(region.start, Ticks::beats(64));
+    assert_eq!(r.app.engine.position(), Ticks::beats(65));
+    assert!(sent_pitches(&r).contains(&101));
+}
+
+/// Pattern mode is not switched on in the middle of a take (review 1): the take belongs to
+/// the song; the status line says to stop first.
+#[test]
+fn pattern_mode_waits_for_the_take_to_end() {
+    let mut r = Rig::new();
+    let keys = r.app.project().tracks[0].id;
+    r.app.toggle_arm(keys, false);
+    r.app.seek(Ticks::beats(12));
+    r.app.start_recording();
+    assert!(r.app.is_recording());
+    let at = r.app.engine.position();
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(1);
+    assert!(!r.app.project().pattern_mode);
+    assert!(r.app.is_recording());
+    assert_eq!(r.app.engine.position(), at);
+    assert!(
+        r.app.status.text.contains("Stop recording"),
+        "{}",
+        r.app.status.text
+    );
+}
+
+/// Opening another song forgets the last one's pattern state (review 1: the new song
+/// jumped to the old one's place).
+#[test]
+fn another_song_starts_without_the_last_ones_pattern_state() {
+    let mut r = Rig::new();
+    let a = &mut r.app;
+    a.selected_track = Some(a.project().tracks[0].id);
+    a.selected_clip = Some(a.project().tracks[0].clips[0].id);
+    a.seek(Ticks::beats(30));
+    a.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    r.app.replace_project(welcome_project());
+    r.idle(3);
+    assert!(!r.app.project().pattern_mode);
+    assert_eq!(r.app.engine.position(), Ticks::ZERO);
+    assert!(r.app.topbar.pattern.region().is_none());
 }
 
 /// The window's title is the project's from the first frame of the main window (the boot
@@ -335,24 +470,31 @@ fn the_metronome_voice_and_accent_are_set_and_undone() {
     assert!(r.app.project().recording.click_accent);
 }
 
-/// At 900 px the least important groups fold into ⋯ — and work there.
+/// At 900 px the least important groups fold into ⋯ — and work there, their own menus
+/// and popovers included (review 1: opening one closed the overflow and itself).
 #[test]
 fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
     let mut r = Rig::new();
     r.size = vec2(900.0, 700.0);
     r.idle(3);
     let (_, l) = transport::last_layout(&r.ctx).unwrap();
-    assert!(l.folded().contains(&Group::Windows), "{l:?}");
+    for g in [Group::Windows, Group::Snap, Group::Metronome] {
+        assert!(l.folded().contains(&g), "{g:?}: {l:?}");
+    }
     assert!(l.span_of(Group::Transport).is_some());
-    transport::open_overflow(&r.ctx);
+    transport::open_overflow(&mut r.app);
     r.idle(2);
     let drawn = transport::last_overflow(&r.ctx);
-    let (_, windows) = *drawn
-        .iter()
-        .find(|(g, _)| *g == Group::Windows)
-        .expect("the windows in the overflow");
-    // The fifth key: the mixer.
-    let mixer = pos2(windows.left() + 4.0 * 30.0 + 14.0, windows.center().y);
+    let at = |g: Group| {
+        drawn
+            .iter()
+            .find(|(x, _)| *x == g)
+            .map(|(_, r)| *r)
+            .unwrap()
+    };
+    // The fifth key: the mixer (one strip of 22-pt keys).
+    let windows = at(Group::Windows);
+    let mixer = pos2(windows.left() + 4.0 * 22.0 + 11.0, windows.center().y);
     let shown = r
         .app
         .workspace
@@ -364,6 +506,44 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
             .is_visible(cantus_ui::views::workspace::Pane::Mixer),
         shown
     );
+    assert!(
+        transport::overflow_open(&r.app),
+        "a click inside keeps it open"
+    );
+    // The folded snap's grid list opens from the overflow and sets the grid.
+    let snap = at(Group::Snap);
+    r.click(pos2(snap.left() + 30.0, snap.center().y));
+    assert!(
+        transport::overflow_open(&r.app),
+        "the grid list did not close ⋯"
+    );
+    let eighth = cantus_ui::i18n::t("grid.eighth");
+    let item = r
+        .texts
+        .iter()
+        .rev()
+        .filter(|(t, rr)| *t == eighth && rr.left() > snap.left() - 300.0)
+        .map(|(_, rr)| *rr)
+        .next()
+        .expect("the grid list is open");
+    r.click(item.center());
+    assert_eq!(
+        transport::snap_editor(&r.app).1,
+        Ticks::EIGHTH,
+        "the focused editor's grid"
+    );
+    // The folded metronome's options open from it too.
+    let metro = at(Group::Metronome);
+    let down = pos2(metro.right() - 7.0, metro.center().y);
+    r.click(down);
+    assert!(transport::overflow_open(&r.app));
+    assert!(
+        r.text("Woodblock").is_some(),
+        "the metronome's options are open"
+    );
+    // A click on the window itself closes it.
+    r.click(pos2(450.0, 400.0));
+    assert!(!transport::overflow_open(&r.app));
 }
 
 #[test]
@@ -431,8 +611,9 @@ fn the_midi_lamp_lights_when_events_come_in() {
     assert!(r.app.topbar.midi_lamp(n));
 }
 
-/// CPU, RAM, voices and drops are on the top bar; the engine's numbers, the MIDI count
-/// and the audio chip are no longer on the status bar.
+/// CPU, RAM, voices and drops are on the top bar; the MIDI count and the audio chip —
+/// drawn on the status bar before round 28 whatever the device — are no longer there (the
+/// engine readout was drawn only with a live device, which no test has).
 #[test]
 fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
     let r = Rig::new();
@@ -467,6 +648,15 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
             .any(|t| t.contains("MIDI") || t.contains("voices")),
         "{status:?}"
     );
+    // The chip's words (no device here: "No audio — click to set up") are the top bar's.
+    let chip = cantus_ui::i18n::t("devices.chip.none");
+    assert!(!status.iter().any(|t| *t == chip), "{status:?}");
+    assert!(
+        r.texts
+            .iter()
+            .any(|(t, rr)| *t == chip && rr.bottom() < 60.0),
+        "the chip is on the top bar"
+    );
 }
 
 #[test]
@@ -481,5 +671,47 @@ fn the_pattern_switch_is_one_command() {
     assert_ne!(
         cantus_ui::i18n::t("cmd.set_pattern_mode"),
         "cmd.set_pattern_mode"
+    );
+}
+
+/// A fine (Shift) drag of the click's level moves it, however slowly the hand goes
+/// (review 1: each frame's small move was rounded away).
+#[test]
+fn a_slow_fine_drag_moves_the_click_level() {
+    let mut r = Rig::new();
+    let well = r
+        .texts
+        .iter()
+        .find(|(t, _)| t.starts_with('+') && t.ends_with("dB"))
+        .map(|(_, rr)| *rr)
+        .expect("the click's level on the bar");
+    let at = well.center();
+    let button = |pos: Pos2, pressed: bool| Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::SHIFT,
+    };
+    r.pointer = Some(at);
+    r.idle(2);
+    r.frame(vec![
+        Event::ModifiersChanged(Modifiers::SHIFT),
+        button(at, true),
+    ]);
+    // One point a frame for 40 frames: 0.03 dB a point with Shift.
+    for i in 1..=40 {
+        r.pointer = Some(at + vec2(i as f32, 0.0));
+        r.idle(1);
+    }
+    let end = at + vec2(40.0, 0.0);
+    r.frame(vec![
+        button(end, false),
+        Event::ModifiersChanged(Modifiers::NONE),
+    ]);
+    r.idle(2);
+    let db = r.app.project().recording.click_db;
+    assert!(
+        (0.9..=1.5).contains(&db),
+        "{db} dB after a slow fine drag of 40 pt"
     );
 }

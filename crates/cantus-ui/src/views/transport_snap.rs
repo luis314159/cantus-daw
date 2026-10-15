@@ -1,6 +1,6 @@
 //! The snap group (ADR 0052): the grid and the snap of the editor being worked in — the
 //! arrangement, the piano roll or the channel rack (FL's global snap, ours following the
-//! focus). The editor's name over its grid (a menu) and its SNAP lamp; the same values the
+//! focus). The editor's glyph, its grid (a menu) and its SNAP lamp in one row; the same values the
 //! editor's own toolbar shows, so the two never disagree. The rack is always on its grid:
 //! its lamp is lit and does not switch off.
 
@@ -8,12 +8,12 @@ use super::{Style, STEP};
 use crate::app::{CantusApp, CentralView, EditFocus};
 use crate::i18n::t;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
+use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{self, led, with_brush, State};
 use crate::views::workspace::Pane;
 use crate::views::GRIDS;
 use cantus_core::Ticks;
-use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Id, Pos2, Rect, Sense, Ui, Vec2};
 
 /// The editor the bar's snap speaks for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -24,8 +24,6 @@ pub enum Editor {
 }
 
 impl Editor {
-    pub const ALL: [Editor; 3] = [Editor::Arrangement, Editor::PianoRoll, Editor::Rack];
-
     fn pane(self) -> Pane {
         match self {
             Editor::Arrangement => Pane::Arrangement,
@@ -61,7 +59,12 @@ pub fn set_grid(app: &mut CantusApp, e: Editor, grid: Ticks) {
     match e {
         Editor::Arrangement => app.arrangement.grid = grid,
         Editor::PianoRoll => app.piano_roll.grid = grid,
-        Editor::Rack => app.rack.grid = grid,
+        // As the rack's own grid menu does: from the pattern's start, fitted to the width.
+        Editor::Rack => {
+            app.rack.grid = grid;
+            app.rack.scroll_steps = 0.0;
+            app.rack.fit = true;
+        }
     }
 }
 
@@ -82,15 +85,8 @@ fn grid_key(grid: Ticks) -> &'static str {
         .unwrap_or("grid.custom")
 }
 
-fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32, f32) {
+fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32) {
     let tk = s.tk();
-    let name = Editor::ALL
-        .iter()
-        .map(|e| {
-            let key = e.pane().title_key();
-            text::measure(ctx, &Text::key(key, Role::Micro, s.t.text).caps(true), tk).x
-        })
-        .fold(0.0, f32::max);
     let grid = GRIDS
         .iter()
         .map(|(k, _)| k)
@@ -104,37 +100,33 @@ fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32, f32) {
         tk,
     )
     .x + 30.0 * s.k;
-    (name, grid, snap)
+    (grid, snap)
 }
 
+/// The editor's glyph's place at 100 %.
+const GLYPH_W: f32 = 18.0;
+
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
-    let (name, grid, snap) = parts(ctx, s);
-    name.max(grid + STEP * s.k + snap)
+    let (grid, snap) = parts(ctx, s);
+    GLYPH_W * s.k + grid + STEP * s.k + snap
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let e = focused(app);
     let (grid, snap) = grid_of(app, e);
-    let (_, grid_w, snap_w) = parts(ui.ctx(), s);
-    let row_h = s.d(22.0);
-    let label = Rect::from_min_size(
-        Pos2::new(r.left(), r.center().y - row_h - 3.0 * k),
-        Vec2::new(r.width(), row_h * 0.7),
+    let (grid_w, snap_w) = parts(ui.ctx(), s);
+    let row_h = super::key_side(r, s);
+    // The editor it speaks for, by its glyph (its name in the hint).
+    let g = Rect::from_center_size(
+        Pos2::new(r.left() + 8.0 * k, r.center().y),
+        Vec2::splat(13.0 * k),
     );
     with_brush(ui.painter(), |b| {
-        let _ = text::paint(
-            b,
-            label,
-            &Text::key(e.pane().title_key(), Role::Micro, s.t.text_dim)
-                .caps(true)
-                .align(Align2::LEFT_BOTTOM)
-                .policy(Policy::Elide(Elide::End)),
-            s.tk(),
-        );
+        crate::kit::glyph::paint(b, g, e.pane().glyph(), s.t.text_dim)
     });
     let field = Rect::from_min_size(
-        Pos2::new(r.left(), r.center().y - row_h * 0.5 + 6.0 * k),
+        Pos2::new(r.left() + GLYPH_W * k, r.center().y - row_h * 0.5),
         Vec2::new(grid_w, row_h),
     );
     let resp = ui.interact(field, Id::new("toolbar-grid"), Sense::click());

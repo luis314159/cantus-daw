@@ -3,7 +3,7 @@
 //! run, `tap`), and the **time signature**, a well that opens its editor: the beats, the
 //! note value, the usual metres in one click (`Command::SetTimeSignature`).
 
-use super::{key_in, key_rect, tip, Style, KEY, STEP};
+use super::{key_in, key_rect, tip, Style, ROW_KEY, STEP};
 use crate::app::CantusApp;
 use crate::i18n::t;
 use crate::keymap::Action;
@@ -29,7 +29,7 @@ fn bpm_w(ctx: &egui::Context, s: &Style) -> f32 {
             s.tk(),
         )
         .x
-        + 22.0 * s.k
+        + 18.0 * s.k
 }
 
 fn tap_w(ctx: &egui::Context, s: &Style) -> f32 {
@@ -39,11 +39,11 @@ fn tap_w(ctx: &egui::Context, s: &Style) -> f32 {
         s.tk(),
     )
     .x + 12.0 * s.k;
-    w.max(KEY * s.k)
+    w.max(ROW_KEY * s.k)
 }
 
 fn metre_w(ctx: &egui::Context, s: &Style) -> f32 {
-    text::measure(ctx, &Text::new("32/32", Role::Value, s.t.text), s.tk()).x + 16.0 * s.k
+    text::measure(ctx, &Text::new("32/32", Role::Value, s.t.text), s.tk()).x + 12.0 * s.k
 }
 
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
@@ -53,7 +53,8 @@ pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let ctx = ui.ctx().clone();
-    let well_h = 30.0 * k;
+    // As tall as a key of the row it sits in.
+    let well_h = super::key_side(r, s);
     let bpm_r = Rect::from_min_size(
         Pos2::new(r.left(), r.center().y - well_h * 0.5),
         Vec2::new(bpm_w(&ctx, s), well_h),

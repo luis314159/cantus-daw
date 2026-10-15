@@ -826,6 +826,9 @@ impl EngineHandle {
     pub fn poll(&mut self) -> usize {
         self.sync_devices();
         let mut n = 0;
+        // The master's true peak is the highest of every block drained, not the last's
+        // (ADR 0052, review 1).
+        let mut true_peak: Option<f32> = None;
         while let Ok(ev) = self.rx.pop() {
             n += 1;
             match ev {
@@ -843,6 +846,8 @@ impl EngineHandle {
                         *p = p.max(v);
                     }
                     self.rec.meter(&m);
+                    let tp = m.master_loudness.true_peak;
+                    true_peak = Some(true_peak.map_or(tp, |p| p.max(tp)));
                     self.meters = m;
                 }
                 EngineEvent::Stats(s) => {
@@ -890,6 +895,9 @@ impl EngineHandle {
                 EngineEvent::GarbageAutomation(rt) => drop(rt),
                 EngineEvent::GarbagePlan(plan) => drop(plan),
             }
+        }
+        if let Some(tp) = true_peak {
+            self.meters.master_loudness.true_peak = tp;
         }
         n
     }

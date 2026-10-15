@@ -29,6 +29,10 @@ const TARGET_LUFS: f32 = -14.0;
 pub struct Hold {
     peak: f32,
     at: Option<Instant>,
+    /// The highest true peak since playback started (the LUFS footer's TP), and whether
+    /// the transport was playing at the last look.
+    true_peak: f32,
+    playing: bool,
 }
 
 impl Hold {
@@ -42,9 +46,21 @@ impl Hold {
         self.peak
     }
 
+    /// Take the true peak the engine read since the last frame: the readout holds the
+    /// highest since playback started (an over is never missed), until clicked.
+    fn feed_true_peak(&mut self, true_peak: f32, playing: bool) -> f32 {
+        if playing && !self.playing {
+            self.true_peak = 0.0;
+        }
+        self.playing = playing;
+        self.true_peak = self.true_peak.max(true_peak);
+        self.true_peak
+    }
+
     fn clear(&mut self) {
         self.peak = 0.0;
         self.at = None;
+        self.true_peak = 0.0;
     }
 }
 
@@ -87,6 +103,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let loud = m.master_loudness;
     let lufs = app.settings.topbar.meter_lufs;
     let held = app.topbar.hold.feed(peaks[0].max(peaks[1]));
+    let playing = app.engine.is_playing();
+    let true_peak = app.topbar.hold.feed_true_peak(loud.true_peak, playing);
     let row_h = 17.0 * k;
     let top = Rect::from_min_size(
         Pos2::new(r.left(), r.center().y - 23.0 * k),
@@ -166,8 +184,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             footer.push_str("  I ");
             num(footer, loud.integrated);
             footer.push_str("  TP ");
-            let tp = if loud.true_peak > 0.0 {
-                db(loud.true_peak)
+            let tp = if true_peak > 0.0 {
+                db(true_peak)
             } else {
                 f32::NEG_INFINITY
             };
@@ -238,4 +256,23 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             );
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Hold;
+
+    /// The TP readout holds the highest true peak since play (review 1: it showed the last
+    /// block's), starts again on Play, and lets go when clicked.
+    #[test]
+    fn the_true_peak_is_held_from_play_until_clicked() {
+        let mut h = Hold::default();
+        assert_eq!(h.feed_true_peak(0.5, true), 0.5);
+        assert_eq!(h.feed_true_peak(1.2, true), 1.2);
+        assert_eq!(h.feed_true_peak(0.1, true), 1.2, "held");
+        assert_eq!(h.feed_true_peak(0.0, false), 1.2, "held after Stop");
+        assert_eq!(h.feed_true_peak(0.3, true), 0.3, "Play starts it again");
+        h.clear();
+        assert_eq!(h.feed_true_peak(0.2, true), 0.2, "a click lets it go");
+    }
 }

@@ -89,10 +89,12 @@ impl Processor {
             let (l, r) = (&mut self.edge_l[..n], &mut self.edge_r[..n]);
             for (i, frame) in out.chunks_exact(channels).enumerate() {
                 l[i] = frame[0];
-                r[i] = if channels > 1 { frame[1] } else { frame[0] };
+                r[i] = if channels > 1 { frame[1] } else { 0.0 };
             }
             let playing = self.transport.is_playing();
-            self.master_loud.feed(l, r, playing);
+            // A mono output is one channel to BS.1770.
+            self.master_loud
+                .feed(l, (channels > 1).then_some(r), playing);
         }
         // The recorder, on the master: the mix as it leaves the master strip.
         if self.capture_target == CaptureTarget::Master {
@@ -325,13 +327,24 @@ impl Processor {
 /// The master's loudness meter (ADR 0052): BS.1770 K-weighting, 10 ms columns, momentary,
 /// short-term and integrated LUFS and a 4× true peak (`cantus_dsp::terminus::loudness`),
 /// fed with the mix as it leaves the master strip — after the recorder's tap point, before
-/// the click. It only reads: no sample of the output depends on it (the goldens hold it).
-/// Built with the processor; feeding it never allocates; the integrated reading starts
-/// again each time playback starts.
+/// the click. It only reads (its lanes are a scratch copy): no sample of the output depends
+/// on it (the goldens hold it).
+///
+/// - Built with the processor, pre-faulted with it ([`Self::prefault`]); feeding it never
+///   allocates.
+/// - A mono output is weighed as one channel.
+/// - A sample that is not finite is metered as silence, so the filters never hold a NaN.
+/// - The integrated reading is the pass's: it starts again when playback starts, is worked
+///   out only when a 100 ms gating block was added while playing, and holds after Stop.
 #[derive(Clone, Debug)]
 pub(crate) struct MasterLoud {
     meter: cantus_dsp::terminus::loudness::LoudnessMeter,
     playing: bool,
+    /// The gating blocks the integrated reading was worked out from, and the reading.
+    blocks_seen: u64,
+    integrated: f32,
+    /// How many times the integrated reading was worked out (tests).
+    pub(crate) scans: u64,
 }
 
 impl MasterLoud {
@@ -339,17 +352,62 @@ impl MasterLoud {
         MasterLoud {
             meter: cantus_dsp::terminus::loudness::LoudnessMeter::new(sample_rate),
             playing: false,
+            blocks_seen: 0,
+            integrated: f32::NEG_INFINITY,
+            scans: 0,
         }
     }
 
-    /// One stretch of the master's output: `l` and `r` (equal for a mono output).
-    pub(crate) fn feed(&mut self, l: &[f32], r: &[f32], playing: bool) {
+    /// Touch the meter's histograms on the building thread, so their pages are never first
+    /// written by the audio thread (ADR 0031 R11).
+    pub(crate) fn prefault(&mut self) {
+        let c = &mut self.meter.columns;
+        c.blocks.clear();
+        c.shorts.clear();
+        std::hint::black_box(&c.blocks);
+        std::hint::black_box(&c.shorts);
+    }
+
+    /// One stretch of the master's output, in scratch lanes: `l`, and `r` — `None` for a
+    /// mono output.
+    pub(crate) fn feed(&mut self, l: &mut [f32], r: Option<&mut [f32]>, playing: bool) {
         if playing && !self.playing {
-            self.meter.columns.blocks.clear();
-            self.meter.columns.shorts.clear();
+            let c = &mut self.meter.columns;
+            // Only what was written needs clearing: a histogram never filled stays clear.
+            if !c.blocks.is_empty() {
+                c.blocks.clear();
+            }
+            if !c.shorts.is_empty() {
+                c.shorts.clear();
+            }
+            self.blocks_seen = 0;
+            self.integrated = f32::NEG_INFINITY;
         }
         self.playing = playing;
-        self.meter.process(l, r);
+        let finite = |x: &mut f32| {
+            if !x.is_finite() {
+                *x = 0.0;
+            }
+        };
+        l.iter_mut().for_each(finite);
+        match r {
+            Some(r) => {
+                r.iter_mut().for_each(finite);
+                self.meter.process(l, r);
+            }
+            None => self.meter.process_mono(l),
+        }
+        // The pass's integrated loudness: worked out when a gating block was added while
+        // playing; after Stop it holds.
+        let blocks = self.meter.columns.blocks.len();
+        if playing && blocks != self.blocks_seen {
+            self.blocks_seen = blocks;
+            self.scans += 1;
+            self.integrated = self
+                .meter
+                .integrated()
+                .map_or(f32::NEG_INFINITY, |v| v as f32);
+        }
     }
 
     /// The readings, and the block's true peak cleared for the next block.
@@ -358,7 +416,7 @@ impl MasterLoud {
         let out = crate::messages::MasterLoudness {
             momentary: m.momentary() as f32,
             short_term: m.short_term() as f32,
-            integrated: m.integrated().map_or(f32::NEG_INFINITY, |v| v as f32),
+            integrated: self.integrated,
             true_peak: m.max_true_peak,
         };
         m.max_true_peak = 0.0;
@@ -370,29 +428,64 @@ impl MasterLoud {
 mod loud_tests {
     use super::MasterLoud;
 
-    /// What the meter costs the audio thread, measured:
+    const SR: f32 = 48_000.0;
+
+    /// `blocks` blocks of `n` frames of a 1 kHz sine at `db` dBFS peak, fed stereo (or mono);
+    /// the last reading.
+    fn sine(
+        m: &mut MasterLoud,
+        db: f32,
+        blocks: usize,
+        n: usize,
+        mono: bool,
+        playing: bool,
+        t: &mut usize,
+    ) -> crate::messages::MasterLoudness {
+        let a = cantus_dsp::math::powf(10f32, db / 20.0);
+        let mut buf = vec![0f32; n];
+        let mut r = m.take();
+        for _ in 0..blocks {
+            for x in buf.iter_mut() {
+                let ph = (*t as f64 * 1_000.0 / SR as f64).fract() as f32;
+                *x = a * cantus_dsp::math::sin(ph * std::f32::consts::TAU);
+                *t += 1;
+            }
+            let mut r2 = buf.clone();
+            m.feed(&mut buf.clone(), (!mono).then_some(&mut r2[..]), playing);
+            r = m.take();
+        }
+        r
+    }
+
+    /// What the meter costs the audio thread at 32, 64 and 256-frame callbacks, measured:
     /// `cargo test --release -p cantus-engine --lib loud_cost -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn loud_cost() {
-        let sr = 48_000.0f32;
-        let mut m = MasterLoud::new(sr);
-        let buf: Vec<f32> = (0..256)
-            .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
-            .collect();
-        let blocks = 48_000 * 20 / 256;
-        let t = std::time::Instant::now();
-        for _ in 0..blocks {
-            m.feed(&buf, &buf, true);
-            std::hint::black_box(m.take());
+        for n in [32usize, 64, 256] {
+            let mut m = MasterLoud::new(SR);
+            let buf: Vec<f32> = (0..n)
+                .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
+                .collect();
+            let blocks = 48_000 * 20 / n;
+            let (mut l, mut r) = (buf.clone(), buf.clone());
+            let t = std::time::Instant::now();
+            for _ in 0..blocks {
+                l.copy_from_slice(&buf);
+                r.copy_from_slice(&buf);
+                m.feed(&mut l, Some(&mut r), true);
+                std::hint::black_box(m.take());
+            }
+            let secs = t.elapsed().as_secs_f64();
+            let audio = (blocks * n) as f64 / SR as f64;
+            eprintln!(
+                "master loudness at {n}-frame callbacks: {:.0} ns a callback, {:.1} ns a \
+                 stereo frame, {:.3} % of one core at 48 kHz",
+                secs * 1e9 / blocks as f64,
+                secs * 1e9 / (blocks * n) as f64,
+                100.0 * secs / audio
+            );
         }
-        let secs = t.elapsed().as_secs_f64();
-        let audio = (blocks * 256) as f64 / sr as f64;
-        eprintln!(
-            "master loudness: {:.1} ns per stereo frame, {:.3} % of one core at 48 kHz",
-            secs * 1e9 / (blocks * 256) as f64,
-            100.0 * secs / audio
-        );
     }
 
     /// A 1 kHz sine at −20 dBFS peak on both channels reads −20 LUFS (BS.1770's
@@ -400,30 +493,70 @@ mod loud_tests {
     /// short-term and integrated; its true peak is its peak.
     #[test]
     fn a_stereo_sine_reads_as_bs1770_says() {
-        let sr = 48_000.0f32;
         let a = cantus_dsp::math::powf(10f32, -20.0 / 20.0);
-        let mut m = MasterLoud::new(sr);
-        let mut buf = vec![0f32; 480];
-        let mut t = 0usize;
-        let mut r = m.take();
-        for _ in 0..400 {
-            for x in buf.iter_mut() {
-                let ph = (t as f64 * 1_000.0 / sr as f64).fract() as f32;
-                *x = a * cantus_dsp::math::sin(ph * std::f32::consts::TAU);
-                t += 1;
-            }
-            m.feed(&buf, &buf, true);
-            r = m.take();
-        }
+        let mut m = MasterLoud::new(SR);
+        let r = sine(&mut m, -20.0, 400, 480, false, true, &mut 0);
         for v in [r.momentary, r.short_term, r.integrated] {
             assert!((v + 20.0).abs() < 0.1, "{r:?}");
         }
         assert!((r.true_peak - a).abs() < 0.01 * a, "{r:?}");
         // The block's true peak is the block's: once the oversampler's short history has
         // passed, a silent block reads 0.
-        m.feed(&[0.0; 480], &[0.0; 480], true);
+        for _ in 0..2 {
+            m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
+        }
         let _ = m.take();
-        m.feed(&[0.0; 480], &[0.0; 480], true);
+        m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
         assert_eq!(m.take().true_peak, 0.0);
+    }
+
+    /// A mono output is one channel: the same sine reads 3 dB less than on two (review 1).
+    #[test]
+    fn a_mono_output_is_weighed_as_one_channel() {
+        let mut m = MasterLoud::new(SR);
+        let r = sine(&mut m, -20.0, 400, 480, true, true, &mut 0);
+        assert!((r.momentary + 23.01).abs() < 0.1, "{r:?}");
+    }
+
+    /// A sample that is not a number reaches the meter as silence: the readings come back
+    /// with the music (review 1: one NaN left them at −∞ for good).
+    #[test]
+    fn a_nan_does_not_poison_the_meter() {
+        let mut m = MasterLoud::new(SR);
+        let mut t = 0;
+        let _ = sine(&mut m, -20.0, 100, 480, false, true, &mut t);
+        m.feed(&mut [f32::NAN; 480], Some(&mut [f32::INFINITY; 480]), true);
+        let r = sine(&mut m, -20.0, 400, 480, false, true, &mut t);
+        assert!((r.momentary + 20.0).abs() < 0.1, "{r:?}");
+        assert!((r.short_term + 20.0).abs() < 0.1, "{r:?}");
+    }
+
+    /// The integrated reading is the played pass's: what sounds after Stop leaves it as it
+    /// was; Play starts it again (review 1).
+    #[test]
+    fn the_integrated_reading_holds_while_stopped() {
+        let mut m = MasterLoud::new(SR);
+        let mut t = 0;
+        let played = sine(&mut m, -20.0, 400, 480, false, true, &mut t).integrated;
+        let after = sine(&mut m, -8.0, 400, 480, false, false, &mut t);
+        assert_eq!(after.integrated, played);
+        assert!(after.momentary > -9.0, "momentary stays live: {after:?}");
+        let again = sine(&mut m, -8.0, 400, 480, false, true, &mut t);
+        assert!((again.integrated + 8.0).abs() < 0.2, "{again:?}");
+    }
+
+    /// The integrated reading is worked out when a gating block is added (every 100 ms),
+    /// not on every callback (review 1).
+    #[test]
+    fn the_integrated_reading_is_worked_out_only_when_it_can_change() {
+        let mut m = MasterLoud::new(SR);
+        let _ = sine(&mut m, -20.0, 200, 32, false, true, &mut 0);
+        let scans = m.scans;
+        // 200 callbacks of 32 frames = 133 ms: at most two gating blocks were added.
+        assert!(scans <= 2, "{scans} scans");
+        for _ in 0..50 {
+            let _ = m.take();
+        }
+        assert_eq!(m.scans, scans, "no new block, no scan");
     }
 }
