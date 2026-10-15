@@ -202,3 +202,10 @@ Files touched outside my area this review: `cantus-host` `session.rs`,
 organ_parts,wavetable_parts,sampler_parts,sampler_cards,sampler_map}.rs`,
 `inspector_mini.rs`, `inspector.rs`, `mixer_parts.rs`, `kit/widgets.rs` (`Param::plain`, the
 probe note).
+
+Found by the full run and fixed: egui's drop release takes whatever is carried, so the new
+handle drop on instrument knobs and desk faders swallowed the instruments' source chips
+and the desk's track drops (5 tests); a control now takes a drop only while a modulator's
+handle is in flight. Full run after review 1: core, project, dsp, engine, host, plugins and
+ui — 2 894 passed, 0 failed (the UI's 1 194 re-run after the last fix); clippy `-D warnings`
+clean on the touched crates.
