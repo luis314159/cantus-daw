@@ -294,28 +294,96 @@ pub fn body_ui(
     let labels = VIEW_KEYS.map(Src::Key);
     controls::segmented_param(&mut child, &so, host, "view", &labels, tabs_w);
     let which = cantus_engine::fx::speculum::view_of(host.spec());
-    let settings_h = if which == 4 {
-        0.0
-    } else {
-        controls::card_height(Size::M) * k
-    };
+    // The settings in as many rows as the width needs (inside the card's padding).
+    let layout = settings_layout(which, area.width() / k - 24.0);
+    let settings_h = settings_height(layout.len(), k);
     let display = Rect::from_min_max(
         pos2(area.left(), tabs.bottom() + gap),
         pos2(
             area.right(),
-            area.bottom() - settings_h - if settings_h > 0.0 { gap } else { 0.0 },
+            (area.bottom() - settings_h - if settings_h > 0.0 { gap } else { 0.0 })
+                .max(tabs.bottom() + gap + 40.0 * k),
         ),
     );
     let ink = Ink::of(&so);
     draw::view(ui, &so, &ink, display, view, set, which);
     if settings_h > 0.0 {
         let settings = Rect::from_min_max(pos2(area.left(), area.bottom() - settings_h), area.max);
-        settings_card(host, view, ui, &so, settings, which);
+        settings_card(host, view, ui, &so, settings, which, &layout);
     }
     (tabs, display)
 }
 
-/// The settings the view reads: the spectrum's, the scope's, or the loudness's.
+/// The scope's settings and their widths at 100 %.
+const SCOPE_ITEMS: [(Item, f32); 3] = [(Item::Sync, 210.0), (Item::Beats, 330.0), (Item::Ms, 64.0)];
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Item {
+    Fft,
+    Avg,
+    Slope,
+    Chan,
+    Floor,
+    Hold,
+    Sync,
+    Beats,
+    Ms,
+    Target,
+    Reset,
+}
+
+/// One setting of a view (a narrow tab breaks their row instead of cutting it — review 1).
+/// The settings' items of a view, in order.
+fn items_of(which: usize) -> &'static [(Item, f32)] {
+    const SPECTRUM: [(Item, f32); 6] = [
+        (Item::Fft, 200.0),
+        (Item::Avg, 64.0),
+        (Item::Slope, 64.0),
+        (Item::Chan, 200.0),
+        (Item::Floor, 170.0),
+        (Item::Hold, 96.0),
+    ];
+    const LOUDNESS: [(Item, f32); 2] = [(Item::Target, 64.0), (Item::Reset, 120.0)];
+    match which {
+        0..=2 => &SPECTRUM,
+        3 => &SCOPE_ITEMS,
+        5 => &LOUDNESS,
+        _ => &[],
+    }
+}
+
+/// The settings' items laid in rows no wider than `width` points (at 100 %): what a
+/// docked tab of any width shows whole.
+pub fn settings_layout(which: usize, width: f32) -> Vec<Vec<usize>> {
+    let items = items_of(which);
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    let mut used = 0.0;
+    for (i, (_, w)) in items.iter().enumerate() {
+        let need = w + 4.0;
+        match rows.last_mut() {
+            Some(row) if used + need <= width => {
+                row.push(i);
+                used += need;
+            }
+            _ => {
+                rows.push(vec![i]);
+                used = need;
+            }
+        }
+    }
+    rows
+}
+
+/// The height of the settings card with `rows` rows, at the device's scale.
+fn settings_height(rows: usize, k: f32) -> f32 {
+    if rows == 0 {
+        return 0.0;
+    }
+    let cell = crate::kit::cell::size(Size::M).y;
+    (controls::card_height(Size::M) + (rows - 1) as f32 * (cell + 4.0)) * k
+}
+
+/// The settings the view reads, in the rows `layout` gave.
 fn settings_card(
     host: &mut dyn FxHost,
     view: &mut View,
@@ -323,113 +391,113 @@ fn settings_card(
     s: &Style,
     rect: Rect,
     which: usize,
+    layout: &[Vec<usize>],
 ) {
+    let items = items_of(which);
     controls::card(
         ui,
         s,
         rect,
         Src::Key("speculum.card.settings"),
         None,
-        |ui, _| {
-            let pill_ms = Some(&super::modfx::ms_pill as controls::Pill<'_>);
-            let seg = |ui: &mut egui::Ui,
-                       host: &mut dyn FxHost,
-                       key: &'static str,
-                       caption: &'static str,
-                       labels: &[Src<'_>],
-                       w: f32| {
-                controls::column(ui, s, w, |ui| {
-                    controls::caption(ui, s, Src::Key(caption), w);
-                    controls::segmented_param(ui, s, host, key, labels, w);
-                });
-            };
-            if matches!(which, 0..=2) {
-                seg(
-                    ui,
-                    host,
-                    "fft",
-                    "speculum.k.fft",
-                    &FFT_KEYS.map(Src::Key),
-                    200.0,
+        |ui, cr| {
+            let body = cr.body;
+            let n = layout.len().max(1) as f32;
+            let h = body.height() / n;
+            for (r, row) in layout.iter().enumerate() {
+                let rr = Rect::from_min_size(
+                    pos2(body.left(), body.top() + r as f32 * h),
+                    vec2(body.width(), h),
                 );
-                dynfx::param_labelled(ui, s, host, "avg", Size::M, pill_ms, "speculum.k.avg");
-                let slope = Some(&slope_pill as controls::Pill<'_>);
-                dynfx::param_labelled(ui, s, host, "slope", Size::M, slope, "speculum.k.slope");
-                seg(
-                    ui,
-                    host,
-                    "chan",
-                    "speculum.k.chan",
-                    &CHAN_KEYS.map(Src::Key),
-                    200.0,
+                let mut row_ui = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(rr)
+                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
                 );
-                seg(
-                    ui,
-                    host,
-                    "floor",
-                    "speculum.k.floor",
-                    &FLOOR_KEYS.map(Src::Key),
-                    170.0,
-                );
-                controls::column(ui, s, 96.0, |ui| {
-                    controls::caption(ui, s, Src::Key("fx.speculum.hold"), 96.0);
-                    controls::led_param(
-                        ui,
-                        s,
-                        host,
-                        "hold",
-                        Src::Key("speculum.legend.held"),
-                        96.0,
-                    );
-                });
-            }
-            if which == 3 {
-                seg(
-                    ui,
-                    host,
-                    "sync",
-                    "speculum.k.sync",
-                    &SYNC_KEYS.map(Src::Key),
-                    210.0,
-                );
-                // The length counts on the beat; the window counts free or triggered.
-                let beat = host.spec().get("sync") >= 1.5;
-                ui.add_enabled_ui(beat, |ui| {
-                    seg(
-                        ui,
-                        host,
-                        "beats",
-                        "speculum.k.length",
-                        &BEATS_KEYS.map(Src::Key),
-                        330.0,
-                    );
-                });
-                ui.add_enabled_ui(!beat, |ui| {
-                    dynfx::param_labelled(ui, s, host, "ms", Size::M, pill_ms, "speculum.k.window");
-                });
-            }
-            if which == 5 {
-                let lufs = Some(&lufs_pill as controls::Pill<'_>);
-                dynfx::param_labelled(ui, s, host, "target", Size::M, lufs, "speculum.k.target");
-                controls::column(ui, s, 120.0, |ui| {
-                    controls::caption(ui, s, Src::Key("speculum.m.integrated"), 120.0);
-                    let r = controls::key(
-                        ui,
-                        s,
-                        Src::Key("speculum.reset"),
-                        frame::tr("speculum.reset_tip"),
-                        120.0,
-                        false,
-                    );
-                    if r.clicked() {
-                        view.analysis.reset_loudness();
-                        view.lost = 0;
-                        view.history.clear();
-                    }
-                });
+                let gap = vec2(s.d(4.0), s.d(4.0));
+                row_ui.spacing_mut().item_spacing = gap;
+                for &i in row {
+                    let (item, w) = items[i];
+                    settings_item(host, view, &mut row_ui, s, item, w);
+                }
             }
         },
     );
+}
+
+/// One of the settings.
+fn settings_item(
+    host: &mut dyn FxHost,
+    view: &mut View,
+    ui: &mut egui::Ui,
+    s: &Style,
+    item: Item,
+    w: f32,
+) {
+    let pill_ms = Some(&super::modfx::ms_pill as controls::Pill<'_>);
+    let seg = |ui: &mut egui::Ui,
+               host: &mut dyn FxHost,
+               key: &'static str,
+               caption: &'static str,
+               labels: &[Src<'_>]| {
+        controls::column(ui, s, w, |ui| {
+            controls::caption(ui, s, Src::Key(caption), w);
+            controls::segmented_param(ui, s, host, key, labels, w);
+        });
+    };
+    // The length counts on the beat; the window counts free or triggered.
+    let beat = host.spec().get("sync") >= 1.5;
+    match item {
+        Item::Fft => seg(ui, host, "fft", "speculum.k.fft", &FFT_KEYS.map(Src::Key)),
+        Item::Avg => {
+            dynfx::param_labelled(ui, s, host, "avg", Size::M, pill_ms, "speculum.k.avg");
+        }
+        Item::Slope => {
+            let slope = Some(&slope_pill as controls::Pill<'_>);
+            dynfx::param_labelled(ui, s, host, "slope", Size::M, slope, "speculum.k.slope");
+        }
+        Item::Chan => seg(ui, host, "chan", "speculum.k.chan", &CHAN_KEYS.map(Src::Key)),
+        Item::Floor => seg(ui, host, "floor", "speculum.k.floor", &FLOOR_KEYS.map(Src::Key)),
+        Item::Hold => {
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("fx.speculum.hold"), w);
+                controls::led_param(ui, s, host, "hold", Src::Key("speculum.legend.held"), w);
+            });
+        }
+        Item::Sync => seg(ui, host, "sync", "speculum.k.sync", &SYNC_KEYS.map(Src::Key)),
+        Item::Beats => {
+            ui.add_enabled_ui(beat, |ui| {
+                seg(ui, host, "beats", "speculum.k.length", &BEATS_KEYS.map(Src::Key));
+            });
+        }
+        Item::Ms => {
+            ui.add_enabled_ui(!beat, |ui| {
+                dynfx::param_labelled(ui, s, host, "ms", Size::M, pill_ms, "speculum.k.window");
+            });
+        }
+        Item::Target => {
+            let lufs = Some(&lufs_pill as controls::Pill<'_>);
+            dynfx::param_labelled(ui, s, host, "target", Size::M, lufs, "speculum.k.target");
+        }
+        Item::Reset => {
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("speculum.m.integrated"), w);
+                let r = controls::key(
+                    ui,
+                    s,
+                    Src::Key("speculum.reset"),
+                    frame::tr("speculum.reset_tip"),
+                    w,
+                    false,
+                );
+                if r.clicked() {
+                    view.analysis.reset_loudness();
+                    view.lost = 0;
+                    view.history.clear();
+                }
+            });
+        }
+    }
 }
 
 const FFT_KEYS: [&str; 5] = [
@@ -515,7 +583,7 @@ pub fn docked(app: &mut CantusApp, ctx: &egui::Context) {
             .id(egui::Id::new(("speculum-dock", effect.0)))
             .open(&mut open)
             .default_size([760.0, 460.0])
-            .min_size([360.0, 240.0])
+            .min_size([560.0, 420.0])
             .hue(Function::Output)
             .show(ctx, |ui| {
                 let s = Style::current().function(Function::Output);

@@ -231,3 +231,37 @@ fn another_project_closes_the_docked_speculums() {
     frame(&mut a, &ctx, vec![]);
     assert!(!speculum::is_docked(&a, fx));
 }
+
+/// Review 1: in a docked tab of any width the settings break into rows that fit — never a
+/// row wider than the tab — and at the docked tab's smallest and default sizes every
+/// setting is painted whole, in both languages.
+#[test]
+fn a_docked_tabs_settings_fit_its_width() {
+    for which in [0usize, 3, 5] {
+        for width in (300..=1_000).step_by(25) {
+            let rows = speculum::settings_layout(which, width as f32);
+            assert!(rows.len() <= 3, "view {which} at {width}: {} rows", rows.len());
+        }
+    }
+    for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(lang);
+        for size in [egui::vec2(560.0, 420.0), egui::vec2(760.0, 460.0)] {
+            let (mut a, s0, fx) = with_speculum();
+            cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Analyzer);
+            let mut view = speculum::View::new(48_000.0);
+            let ctx = ctx();
+            let text = paint(&ctx, size, 2, |ui| {
+                let mut host = cantus_ui::views::fx::host::DawHost::new(&mut a, s0, fx, "speculum");
+                let set = cantus_engine::fx::speculum::settings(
+                    cantus_ui::views::fx::host::FxHost::spec(&host),
+                );
+                let s = cantus_ui::kit::Style::current();
+                speculum::body_ui(&mut host, &mut view, ui, &s, ui.max_rect(), &set);
+            });
+            assert!(!text.contains('\u{2026}'), "{lang:?} {size:?}: {text}");
+            let held = if lang == cantus_ui::i18n::Locale::En { "HELD" } else { "RETENIDO" };
+            assert!(text.contains(held), "{lang:?} {size:?}: the last setting, in {text}");
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
