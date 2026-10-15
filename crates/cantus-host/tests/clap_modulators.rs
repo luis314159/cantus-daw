@@ -170,3 +170,79 @@ fn modulation_offsets_the_projects_value_and_stops_with_its_modulator() {
     let want = gain_at(base);
     assert!(r.iter().flatten().all(|g| (g / want - 1.0).abs() < 1e-4));
 }
+
+#[test]
+fn a_live_note_opens_an_envelope_on_a_hosted_parameter_while_playing() {
+    // Review 1: a modulator driving only hosted parameters got no control point while
+    // playing, so an envelope opened by a key played now never moved.
+    let mut project = demo_project();
+    let mut keys = project.make_track("Keys");
+    keys.muted = true;
+    let keys_id = keys.id;
+    project.tracks.push(keys);
+    let frames = 4 * STEP;
+    let plain = render_plain(&project, frames);
+    let strip = strip_of(&project, 0);
+    let lead = project.tracks[0].id;
+    let mut rig = Rig::new(project, host_with_plugin(shared_folder()));
+    let effect = rig.insert_plugin(strip);
+    let mut m = Modulator::new(
+        ModulatorId(rig.bus.project().next_id + 500),
+        ModKind::Envelope,
+    );
+    if let ModSource::Envelope(e) = &mut m.source {
+        e.attack_ms = 200.0;
+        e.decay_ms = 0.0;
+        e.sustain = 1.0;
+        e.release_ms = 200.0;
+        e.trigger = EnvTrigger::Notes {
+            track: Some(keys_id),
+        };
+    }
+    let id = m.id;
+    m.routes.push(ModRoute {
+        target: AutoTarget::Plugin { effect, id: P_GAIN },
+        depth: 0.2,
+    });
+    rig.exec(Command::InsertModulator {
+        host: ModHost::Track(lead),
+        index: 0,
+        modulator: Box::new(m),
+    });
+    rig.settle();
+    rig.engine.seek(Ticks::ZERO);
+    rig.engine.play();
+    let on = 4096;
+    let mut out = Vec::with_capacity(frames * 2);
+    let mut told = Vec::new();
+    while out.len() / 2 < frames {
+        if out.len() / 2 == on {
+            rig.engine.note_on(keys_id, 60, 100);
+        }
+        out.extend(rig.block(256));
+        told.push(rig.engine.modulation().value(id).unwrap_or(0.0));
+    }
+    rig.engine.stop();
+    let r = ratios(&out, &plain);
+    let base = 60.0 / 72.0;
+    // Before the key: the project's value.
+    for f in [1000, on - 1] {
+        if let Some(g) = r[f] {
+            assert!((g - 1.0).abs() < 1e-4, "frame {f}: {g}");
+        }
+    }
+    // A quarter of the attack in, then held at the top.
+    let early = r[on + 2400].expect("signal");
+    assert!(
+        early > 1.2 && early < gain_at(base + 0.2),
+        "50 ms in: {early}"
+    );
+    for f in [on + 12_000, on + 15_000] {
+        let g = r[f].expect("signal");
+        let want = gain_at(base + 0.2);
+        assert!((g / want - 1.0).abs() < 1e-3, "frame {f}: {g} wants {want}");
+    }
+    // The interface hears it rise too.
+    let late = told[(on + 12_000) / 256];
+    assert!(late > 0.99, "the panel's live value: {late}");
+}

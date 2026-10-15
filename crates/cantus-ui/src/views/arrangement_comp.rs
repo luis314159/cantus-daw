@@ -345,14 +345,33 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
         ));
     }
     rows.push((Row::Nothing, Item::Separator));
-    rows.push((Row::New, Item::action(Src::Key("comping.new"))));
+    rows.push((
+        Row::New,
+        Item::Action {
+            label: Src::Key("comping.new"),
+            check: Check::None,
+            shortcut: None,
+            submenu: false,
+            // At the most a track holds, nothing to make (review 1).
+            enabled: names.len() < cantus_core::comp::MAX_COMPS,
+        },
+    ));
     rows.push((Row::Rename, Item::action(Src::Key("comping.rename"))));
     for (i, w) in &deletes {
         rows.push((Row::Delete(*i), Item::action(Src::Str(w))));
     }
     rows.push((Row::Nothing, Item::Separator));
     rows.push((Row::Flatten, Item::action(Src::Key("comping.flatten"))));
-    rows.push((Row::Merge, Item::action(Src::Key("comping.merge"))));
+    rows.push((
+        Row::Merge,
+        Item::Action {
+            label: Src::Key("comping.merge"),
+            check: Check::None,
+            shortcut: None,
+            submenu: false,
+            enabled: !app.merging(),
+        },
+    ));
     rows.push((Row::Nothing, Item::Separator));
     for (row, key, on) in [
         (Row::QuickSwipe, "comping.quick_swipe", rs.quick_swipe),
@@ -383,7 +402,13 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
         ));
     }
     let items: Vec<Item<'_>> = rows.iter().map(|r| r.1).collect();
-    let clicks = kit::widgets::menu_list(ui, &items, 240.0).1;
+    // Many comps make a long menu: it scrolls rather than leave the screen (review 1).
+    let room = (ui.ctx().content_rect().height() - ui.spacing().interact_size.y * 4.0).max(160.0);
+    let clicks = egui::ScrollArea::vertical()
+        .id_salt(("comp-menu", tid.0))
+        .max_height(room)
+        .show(ui, |ui| kit::widgets::menu_list(ui, &items, 240.0).1)
+        .inner;
     let Some(row) = clicks
         .clicked
         .or(clicks.toggled)
@@ -407,12 +432,7 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
         }
         Row::QuickSwipe => app.toggle_quick_swipe(),
         Row::Grouped => app.toggle_comp_grouped(),
-        Row::Xfade(ms) => {
-            let mut rs = app.project().recording.clone();
-            rs.comp_xfade_ms = ms;
-            app.set_record_settings(rs);
-            app.set_seam_xfade(tid, None, ticks_of_ms(app, ms));
-        }
+        Row::Xfade(ms) => app.set_comp_xfade_default(tid, ms),
         Row::Nothing => return,
     }
     ui.close();

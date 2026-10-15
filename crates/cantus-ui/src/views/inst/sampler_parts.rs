@@ -152,6 +152,32 @@ pub fn num_cell(
     rings: &[(f32, Color32)],
     fmt: impl Fn(f32, &mut String),
 ) -> (Response, f32) {
+    let (r, v, _) = num_cell_offered(
+        ui, rect, s, id, value, range, default, log, stepped, label, name, size, rings, None, fmt,
+    );
+    (r, v)
+}
+
+/// [`num_cell`] on a parameter: its automation mark and menu and its modulation
+/// (`offer`: automated, the modulators' offer), and what its menu asked.
+#[allow(clippy::too_many_arguments)]
+pub fn num_cell_offered(
+    ui: &mut Ui,
+    rect: Rect,
+    s: &Style,
+    id: egui::Id,
+    value: f32,
+    range: std::ops::RangeInclusive<f32>,
+    default: f32,
+    log: bool,
+    stepped: bool,
+    label: Option<Src<'_>>,
+    name: &str,
+    size: KnobSize,
+    rings: &[(f32, Color32)],
+    offer: Option<(bool, crate::kit::automate::ModOffer)>,
+    fmt: impl Fn(f32, &mut String),
+) -> (Response, f32, Option<crate::kit::automate::Choice>) {
     let held = if stepped {
         ui.data(|d| d.get_temp::<f32>(id))
     } else {
@@ -168,7 +194,11 @@ pub fn num_cell(
     if let Some(l) = label {
         p = p.cell(l);
     }
-    let r = p.format(&fmt).show(&mut child);
+    match offer {
+        Some((automated, m)) => p = p.automation(automated).modulation(m),
+        None => p = p.plain(),
+    }
+    let (r, choice) = p.format(&fmt).show_full(&mut child);
     if stepped {
         if r.dragged() {
             ui.data_mut(|d| d.insert_temp(id, v));
@@ -176,7 +206,7 @@ pub fn num_cell(
             ui.data_mut(|d| d.remove::<f32>(id));
         }
     }
-    (r, if stepped { v.round() } else { v })
+    (r, if stepped { v.round() } else { v }, choice)
 }
 
 /// An on/off as an LED button in `rect`. Toggle on click (check `clicked()`).

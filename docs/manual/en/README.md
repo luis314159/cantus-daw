@@ -269,8 +269,9 @@ included), *New comp* (a copy of this one, to try another idea), *Rename*, *Dele
 into one recording beside the takes — their files stay on disk). The same menu turns
 **Quick swipe** off (then dragging on a lane selects time and a click selects a take) and
 **grouped comping** on or off: tracks whose strips are in one mixer group — a drum kit's
-microphones recorded together — comp together, the same stretch of the same take on each.
-Every change is one undo step.
+microphones recorded together — comp together, the same stretch of the same take on each;
+their seams move together, take the same crossfades, and their comps switch and are made
+together. Every change is one undo step.
 
 ### MIDI
 
@@ -459,6 +460,10 @@ several, and they add up on top of its automation.
 - **Depth on the knob**: hold `Alt` and drag a modulated knob to change the depth of its
   modulation. Modulated knobs wear coloured rings (the depth, in the modulator's colour), a
   moving dot where the parameter is now, and a violet mark.
+- **Everywhere**: every knob of Cantus's instruments and effects, the mixer's faders, pans
+  and widths (the master's too) and a hosted plug-in's parameters take a modulator the
+  same way. So does a modulator's own **amount**: let a random source move how deep an LFO
+  goes (one level of nesting).
 - **Bake to automation**: a route's bake key (or *Modulate… ▸ Bake to automation*) turns
   that modulator's effect into an automation clip over the time selection (else the loop,
   else the song) and removes the route, in one undo step.

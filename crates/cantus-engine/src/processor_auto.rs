@@ -429,12 +429,15 @@ impl Processor {
                 Some((usize::MAX, i)) => {
                     if let Some(u) = self.master.effects.get_mut(i) {
                         u.automation.clear();
+                        // What found no room on the way to the plug-in is never silent.
+                        self.stats.dropped_events += u.take_dropped();
                     }
                 }
                 Some((s, i)) => {
                     if let Some(mut st) = nodes.strip(s) {
                         if let Some(u) = st.effects.get_mut(i) {
                             u.automation.clear();
+                            self.stats.dropped_events += u.take_dropped();
                         }
                     }
                 }
@@ -446,6 +449,8 @@ impl Processor {
                 if let Some(mut s) = self.track_to_slot.get(ti).and_then(|&sl| nodes.track(sl)) {
                     if let Some(u) = s.native.as_mut() {
                         u.automation.clear();
+                        self.stats.dropped_events +=
+                            u.automation.take_dropped() + u.unit.take_dropped();
                     }
                 }
             }
@@ -509,7 +514,9 @@ impl Processor {
                     continue;
                 }
                 let tick = self.transport.position_at(g);
-                let t = self.auto_time(g, self.clock + done as u64 + (g - now));
+                let clock = self.clock + done as u64 + (g - now);
+                self.auto_step_live(&mut rt, &snap, clock);
+                let t = self.auto_time(g, clock);
                 let offset = (g - now) as u32;
                 rt.hosted_at(&snap, tick, &t, |dest, at, v| {
                     self.auto_push_hosted(dest, at, offset, v)
@@ -517,6 +524,27 @@ impl Processor {
             }
         }
         self.auto.rt = Some(rt);
+    }
+
+    /// Step the envelopes live notes open to engine clock `clock`, at a hosted inner grid
+    /// point: a key played now is heard on a plug-in's parameter at the grid's pace. (What
+    /// hears audio makes every grid point a control point: no inner points then.)
+    fn auto_step_live(&mut self, rt: &mut Runtime, snap: &Snapshot, clock: u64) {
+        if rt.audio_mods {
+            return;
+        }
+        let dt = clock.saturating_sub(self.auto.mods_clock) as f64 / self.sample_rate;
+        if dt <= 0.0 {
+            return;
+        }
+        self.auto.mods_clock = clock;
+        for (m, plan) in rt.mods.iter_mut().zip(&snap.modulators) {
+            if let cantus_core::ModSource::Envelope(e) = &plan.source {
+                if matches!(e.trigger, cantus_core::modulator::EnvTrigger::Notes { .. }) {
+                    m.env.step(e, dt);
+                }
+            }
+        }
     }
 
     /// Step the stateful modulators to engine clock `clock`, with what their ears heard
@@ -700,6 +728,7 @@ impl Processor {
                         modulation: lane.mod_now,
                     };
                     self.auto_push_hosted(&dest, at, 0, v);
+                    rt.lanes[li].sent = Some(crate::automation::hosted_bits(v));
                 }
                 Dest::Effect(..)
                 | Dest::Native(..)
@@ -754,7 +783,7 @@ impl Processor {
         // native moves (or a modulator must hear every window); otherwise at the grid
         // point just before the next piece of any lane begins (nothing changes until
         // then); stopped, the next pass decides.
-        self.auto.next = if !playing {
+        let next = if !playing {
             u64::MAX
         } else if moving || rt.every_grid_point() || rt.moving(&snap, tick) {
             grid
@@ -766,6 +795,14 @@ impl Processor {
                 }
                 None => u64::MAX,
             }
+        };
+        // While modulators play, a control point at least once a pass (on the grid, so
+        // the same at every block size): what they carry is stepped there and the
+        // interface hears where they are, even when they drive only hosted parameters.
+        self.auto.next = if playing && !rt.mods.is_empty() {
+            next.min(grid.max((now + crate::graph::PASS_FRAMES as u64) / GRID * GRID))
+        } else {
+            next
         };
         self.auto.rt = Some(rt);
     }

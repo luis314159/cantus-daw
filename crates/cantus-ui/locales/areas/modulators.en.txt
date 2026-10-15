@@ -49,6 +49,7 @@ mods.trigger.audio = Audio level
 mods.threshold = Threshold
 mods.listen = Listens to
 mods.listen.host = Its own channel
+mods.listen.missing = A channel that is gone (silence)
 mods.notes = Notes from
 mods.notes.host = Its own track
 mods.gain = Gain

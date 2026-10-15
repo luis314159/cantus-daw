@@ -49,6 +49,7 @@ mods.trigger.audio = Nivel de audio
 mods.threshold = Umbral
 mods.listen = Escucha a
 mods.listen.host = Su propio canal
+mods.listen.missing = Un canal que ya no existe (silencio)
 mods.notes = Notas de
 mods.notes.host = Su propia pista
 mods.gain = Ganancia

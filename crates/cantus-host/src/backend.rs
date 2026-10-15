@@ -291,6 +291,9 @@ pub struct ParamOut {
     events: [ParamEvent; Self::CAPACITY],
     len: usize,
     pub dropped: usize,
+    /// The host's changes the plug-in's input lists had no room for (ADR 0057): the unit
+    /// takes them into its count, which the engine reports; [`Self::clear`] keeps it.
+    pub lost_in: u64,
 }
 
 impl ParamOut {
@@ -301,6 +304,7 @@ impl ParamOut {
             events: [ParamEvent::End(0); Self::CAPACITY],
             len: 0,
             dropped: 0,
+            lost_in: 0,
         }
     }
 

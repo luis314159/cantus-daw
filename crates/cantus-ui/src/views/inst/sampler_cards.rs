@@ -41,20 +41,32 @@ pub fn cell(
     let Some(info) = spec.kind.param(key) else {
         return ui.allocate_rect(rect, Sense::hover());
     };
-    let rings: Vec<(f32, egui::Color32)> = connections(spec)
+    let mut rings: Vec<(f32, egui::Color32)> = connections(spec)
         .filter(|c| c.dst == key && c.on)
         .map(|c| (c.amount, s.t.hue(crate::views::inst::source_family(c.src))))
         .collect();
+    let mut value = spec.get(key);
+    let mut mod_rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let w = crate::views::inst::frame::wire(
+        app,
+        track,
+        key,
+        &mut value,
+        (info.min, info.max, info.logarithmic),
+        s,
+        &mut mod_rings,
+    );
+    rings.extend_from_slice(&mod_rings[..w.n]);
     let name = t(info.label_key);
     let (unit, stepped) = (info.unit, info.stepped);
     let pan = key.ends_with("pan");
     let note = key.starts_with("sw.");
-    let (r, v) = parts::num_cell(
+    let (r, v, choice) = parts::num_cell_offered(
         ui,
         rect,
         s,
         egui::Id::new(("smp-cell", track.0, key)),
-        spec.get(key),
+        value,
         info.min..=info.max,
         info.default,
         info.logarithmic,
@@ -63,6 +75,7 @@ pub fn cell(
         &name,
         size,
         &rings,
+        Some((w.automated, w.offer)),
         move |v, b| {
             if pan {
                 write_pan(v, b);
@@ -77,6 +90,7 @@ pub fn cell(
             }
         },
     );
+    crate::views::inst::frame::wired(app, &w, choice, r.rect);
     if r.changed() {
         app.set_inst_value(track, key, v, true);
     }

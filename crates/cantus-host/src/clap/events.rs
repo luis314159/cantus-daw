@@ -31,6 +31,8 @@ pub(crate) struct InEvents {
     events: Vec<InEvent>,
     len: usize,
     list: clap_input_events,
+    /// Events that found the list full, since the owner last took them.
+    pub lost: u64,
 }
 
 // `list.ctx` points at the struct itself (boxed, never moved), and the events hold no
@@ -41,7 +43,7 @@ unsafe impl Send for InEvents {}
 /// host sends at most one per parameter and a few notes, far below this).
 /// Room for a full pass of automation (ADR 0057: a value per 16 samples, for several
 /// parameters) and the notes beside it.
-pub(crate) const IN_CAPACITY: usize = 4096;
+pub(crate) const IN_CAPACITY: usize = cantus_engine::modulator::HOSTED_QUEUE + 1024;
 
 fn header(size: usize, time: u32, type_: u16) -> clap_event_header {
     clap_event_header {
@@ -66,6 +68,7 @@ impl InEvents {
                 size: Some(in_size),
                 get: Some(in_get),
             },
+            lost: 0,
         });
         let ptr: *mut InEvents = &mut *list;
         list.list.ctx = ptr.cast();
@@ -84,6 +87,8 @@ impl InEvents {
         if self.len < self.events.len() {
             self.events[self.len] = e;
             self.len += 1;
+        } else {
+            self.lost += 1;
         }
     }
 

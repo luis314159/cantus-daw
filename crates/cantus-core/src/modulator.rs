@@ -380,10 +380,16 @@ fn is_one(x: &f32) -> bool {
 
 impl Modulator {
     pub fn new(id: ModulatorId, kind: ModKind) -> Self {
+        let mut source = kind.source();
+        if let ModSource::Random(r) = &mut source {
+            // Its own seed from its id (1…999, the seed field's range): two random
+            // sources made apart do not move together, and a render still repeats.
+            r.seed = (id.0.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 33) as u32 % 999 + 1;
+        }
         Modulator {
             id,
             name: String::new(),
-            source: kind.source(),
+            source,
             routes: Vec::new(),
             amount: 1.0,
             muted: false,

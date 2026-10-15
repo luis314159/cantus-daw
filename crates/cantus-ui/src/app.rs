@@ -265,6 +265,8 @@ pub struct CantusApp {
     pub automation: crate::automation::AutoUi,
     /// Modulators in the interface (ADR 0057): mapping, the open lists, folded panels.
     pub modulators: views::modulator::ModUi,
+    /// A comp being flattened and merged (ADR 0058, review 1).
+    pub merge_job: Option<crate::record_session::MergeJob>,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
 }
@@ -583,6 +585,7 @@ impl CantusApp {
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
             modulators: Default::default(),
+            merge_job: None,
             pitch: Default::default(),
         };
         app.select_first();
@@ -2152,8 +2155,8 @@ impl CantusApp {
                 _ => None,
             }
             .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
-            if let Some(cmd) = seam {
-                return (vec![cmd], Vec::new());
+            if let Some(cmds) = seam.filter(|c| !c.is_empty()) {
+                return (cmds, Vec::new());
             }
             match result {
                 ClipDragResult::Move { delta, rows, copy } => {
@@ -3548,10 +3551,9 @@ impl CantusApp {
         self.poll_samples(ctx);
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
-        let rev = self.bus.revision();
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         // What their windows moved: last tweaked, and recorded automation (ADR 0057).
-        self.host_tweaks(rev);
+        self.host_tweaks();
         self.host_notices(notices);
         self.pump_capture();
         self.pump_analyser();
@@ -3663,6 +3665,13 @@ impl CantusApp {
         // A snapshot waiting for its zones' starts (at most 250 ms): look again soon.
         if self.engine.snapshot_pending() {
             ticker::wake_after(ctx, Duration::from_millis(5));
+        }
+        // A bake waiting for its trace (ADR 0057), a comp being merged (ADR 0058): carry
+        // them on, and collect them when their worker is done, even with nothing else
+        // moving.
+        self.poll_merge();
+        if self.modulators.pending_bake.is_some() || self.merge_job.is_some() {
+            ticker::wake_after(ctx, Duration::from_millis(50));
         }
         // A save or an autosave being written: look again shortly to collect it.
         if self.autosave_job.is_some() || self.save_in_flight() {

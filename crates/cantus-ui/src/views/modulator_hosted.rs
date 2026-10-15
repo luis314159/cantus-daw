@@ -14,17 +14,32 @@ use egui::Id;
 /// Rows laid out at most: the filter finds the rest.
 pub const SHOWN: usize = 48;
 
+/// The plug-in's words for each value shown, by parameter, with the value's bits they
+/// were asked for: the plug-in is asked again only when the value moves (review 1), and a
+/// frame clones a reference, never a string.
+type Texts = std::collections::HashMap<u32, (u64, std::sync::Arc<str>)>;
+
+/// Whether `hay` holds `needle` (already lower case), ignoring case, without allocating
+/// for an ASCII name.
+fn contains_ci(hay: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if !hay.is_ascii() || !needle.is_ascii() {
+        return hay.to_lowercase().contains(needle);
+    }
+    let (h, n) = (hay.as_bytes(), needle.as_bytes());
+    h.windows(n.len())
+        .any(|w| w.iter().zip(n).all(|(a, b)| a.to_ascii_lowercase() == *b))
+}
+
 /// The parameters of track `t`'s hosted instrument.
 pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
     let Some(h) = app.plugins.hosted_instrument(t) else {
         return;
     };
-    let shown: Vec<_> = h
-        .params
-        .iter()
-        .filter(|p| !p.hidden && p.automatable && p.max != p.min)
-        .collect();
-    if shown.is_empty() {
+    let listed = |p: &&cantus_host::ParamInfo| !p.hidden && p.automatable && p.max != p.min;
+    if !h.params.iter().any(|p| listed(&p)) {
         return;
     }
     sh.band("mods.hosted.params", Function::Source, None, false, None);
@@ -48,11 +63,16 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
         );
         sh.label(row.label, "mods.hosted.filter_label", false);
     }
-    sh.ui.data_mut(|d| d.insert_temp(fid, filter.clone()));
     let needle = filter.to_lowercase();
-    let mut matching = shown
+    if sh.ui.data(|d| d.get_temp::<String>(fid)).as_deref() != Some(filter.as_str()) {
+        sh.ui.data_mut(|d| d.insert_temp(fid, filter));
+    }
+    let tid = Id::new(("mod-hosted-text", t));
+    let mut matching = h
+        .params
         .iter()
-        .filter(|p| needle.is_empty() || p.name.to_lowercase().contains(&needle));
+        .filter(listed)
+        .filter(|p| contains_ci(&p.name, &needle));
     let spec = app.project().track(t).and_then(|x| x.instrument.external());
     for p in matching.by_ref().take(SHOWN) {
         let value = spec
@@ -65,24 +85,35 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
             .automated_value(&target)
             .filter(|x| x.is_finite())
             .map_or(value, |pos| lo + f64::from(pos) * (hi - lo));
-        let text = h
-            .param_text(p.id, shown_v)
-            .unwrap_or_else(|| format!("{shown_v:.2}"));
+        let bits = shown_v.to_bits();
+        let text = sh.ui.data_mut(|d| {
+            let texts = d.get_temp_mut_or_default::<Texts>(tid);
+            match texts.get(&p.id) {
+                Some((b, s)) if *b == bits => s.clone(),
+                _ => {
+                    let s: std::sync::Arc<str> = h
+                        .param_text(p.id, shown_v)
+                        .unwrap_or_else(|| format!("{shown_v:.2}"))
+                        .into();
+                    texts.insert(p.id, (bits, s.clone()));
+                    s
+                }
+            }
+        });
         let range = Range {
             stepped: p.stepped,
             ..Range::lin(lo as f32, hi as f32, p.default as f32)
         };
         let id = p.id;
         let row_id = Id::new(("mod-hosted-param", t, id));
-        let name = p.name.clone();
         param_row(
             sh,
             app,
-            &name,
+            &p.name,
             row_id,
             shown_v as f32,
             &range,
-            &text,
+            text,
             target,
             move |v| {
                 Act::Merge(
@@ -112,7 +143,7 @@ fn param_row(
     id: Id,
     v: f32,
     range: &Range,
-    text: &str,
+    text: std::sync::Arc<str>,
     target: AutoTarget,
     act: impl FnOnce(f32) -> Act,
 ) {
@@ -131,7 +162,6 @@ fn param_row(
         modulation: Some(m),
     };
     let depth_drag = crate::kit::automate::depth_drag(sh.ui, Some(offer));
-    let owned = text.to_string();
     let d = sh.value(
         row.value,
         id,
@@ -139,7 +169,7 @@ fn param_row(
         range,
         false,
         name,
-        move |_, b| b.push_str(&owned),
+        move |_, b| b.push_str(&text),
         Function::Source,
         false,
     );
@@ -162,5 +192,16 @@ fn param_row(
     if let Some(c) = choice {
         sh.acts
             .push(Act::Mod(super::modulators::ModAct::Param(target, c, rect)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_filter_ignores_case_without_allocating_for_ascii_names() {
+        assert!(super::contains_ci("Filter Cutoff", "cutoff"));
+        assert!(super::contains_ci("Filter Cutoff", ""));
+        assert!(!super::contains_ci("Resonance", "cutoff"));
+        assert!(super::contains_ci("Frecuencia ÁGUDA", "águda"));
     }
 }

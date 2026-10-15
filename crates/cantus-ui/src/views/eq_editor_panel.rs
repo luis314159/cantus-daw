@@ -364,7 +364,7 @@ fn band_cell(
     if field == "slope" {
         c = c.stepped(false);
     }
-    let out = c.show(ui, s);
+    let out = c.show_in(ui, s, host, info.key);
     if let Some(mut v) = out.changed {
         if field == "slope" {
             v = ((v / 6.0).round() * 6.0).clamp(6.0, 96.0);
@@ -943,7 +943,7 @@ pub(super) fn output_card(
                 let out = Cell::param(info, host.spec().get("out"))
                     .size(size)
                     .label(Src::Key("eq.out_gain"))
-                    .show(ui, &so);
+                    .show_in(ui, &so, host, "out");
                 if let Some(v) = out.changed {
                     host.set("out", v, Some("out"));
                 }

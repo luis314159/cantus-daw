@@ -278,18 +278,12 @@ pub fn param_labelled(
     if let Some(f) = format {
         c = c.format(f);
     }
-    if host.can_automate() {
-        c = c.automation(host.automated(key));
-    }
-    let out = c.show(ui, s);
+    let out = c.show_in(ui, s, host, key);
     if let Some(v) = out.changed {
         host.set(key, v, Some(key));
     }
     if out.done {
         host.end_gesture();
-    }
-    if out.automate {
-        host.automate(key);
     }
     out.resp
 }

@@ -164,7 +164,9 @@ fn a_seam_moves_as_a_unit_from_its_handle_and_from_a_windows_edge() {
     // A window's edge trimmed in the arrangement at a seam moves the seam too.
     let clip = a.project().track(t).unwrap().clip(r).unwrap().clone();
     let cmd = comping::seam_trim(a.project(), t, &clip, true, Ticks(-120)).unwrap();
-    assert!(matches!(cmd, Command::SetCompSeam { at: x, .. } if x == at - Ticks(120)));
+    assert!(
+        matches!(cmd.as_slice(), [Command::SetCompSeam { at: x, .. }] if *x == at - Ticks(120))
+    );
     a.commit_clip_drag(
         (t, r),
         cantus_ui::views::arrangement::ClipDragResult::TrimStart { delta: Ticks(-120) },
@@ -268,17 +270,78 @@ fn flatten_keeps_the_comp_and_lets_the_takes_go() {
     assert_eq!(a.project(), &before);
 }
 
+/// A stereo file of `frames` frames holding (l, r) in every one.
+fn constant_wav(path: &std::path::Path, frames: usize, l: f32, r: f32) {
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(path, spec).unwrap();
+    for _ in 0..frames {
+        w.write_sample(l).unwrap();
+        w.write_sample(r).unwrap();
+    }
+    w.finalize().unwrap();
+}
+
+/// Run the merge's frames until it is done (it waits for loading, then renders on a
+/// worker).
+fn finish_merge(a: &mut CantusApp) {
+    for _ in 0..2_000 {
+        a.poll_merge();
+        if !a.merging() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("the merge never finished");
+}
+
+/// Review 1: the bounce is what the comp plays — take A (all left) to the seam, take B
+/// (all right) after, the seam's crossfade equal-power between — not merely a file.
 #[test]
 fn flatten_and_merge_bounces_the_comp_into_one_clip() {
     let dir = tempfile::tempdir().unwrap();
-    let mut p = Project::default();
-    let (t, _, _) = takes(&mut p, "Vox");
+    let mut p = Project {
+        tempo_bpm: 120.0,
+        ..Default::default()
+    };
+    let t = p.make_track("Vox");
+    let tid = t.id;
+    p.tracks.push(t);
+    let frames = 8 * 24_000;
+    let mut srcs = Vec::new();
+    for (name, l, r) in [("A", 1.0, 0.0), ("B", 0.0, 1.0)] {
+        let path = dir.path().join(format!("Vox {name}.wav"));
+        constant_wav(&path, frames, l, r);
+        let id = AudioSourceId(p.alloc_id());
+        p.audio_pool.push(AudioSource {
+            id,
+            name: format!("Vox {name}"),
+            path: path.to_string_lossy().into_owned(),
+            sample_rate: 48_000,
+            channels: 2,
+            frames: frames as u64,
+            sha256: None,
+            recorded: true,
+        });
+        srcs.push(id);
+    }
+    for (src, lane) in [(srcs[0], 1u8), (srcs[1], 2), (srcs[1], 0)] {
+        let mut c = p.make_audio_clip("take", src, Ticks::ZERO, beats(8));
+        c.lane = lane;
+        p.track_mut(tid).unwrap().clips.push(c);
+    }
+    p.track_mut(tid).unwrap().takes_open = true;
     let mut a = app(p);
     a.path = Some(dir.path().join("song.cantus"));
-    a.comp_swipe(t, 1, beats(2), beats(4));
+    a.comp_swipe(tid, 1, Ticks::ZERO, beats(4));
     let before = a.project().clone();
-    assert!(a.merge_comp(t));
-    let tr = a.project().track(t).unwrap();
+    assert!(a.merge_comp(tid));
+    finish_merge(&mut a);
+    let tr = a.project().track(tid).unwrap();
     assert_eq!(tr.clips.len(), 1, "one clip, no takes");
     let c = &tr.clips[0];
     assert_eq!((c.start, c.end()), (Ticks::ZERO, beats(8)));
@@ -286,10 +349,30 @@ fn flatten_and_merge_bounces_the_comp_into_one_clip() {
         .project()
         .audio_source(c.audio.as_ref().unwrap().source)
         .unwrap();
-    assert!(
-        std::path::Path::new(&src.path).exists(),
-        "the bounce is on disk"
-    );
+    assert_eq!(src.name, "Vox comp");
+    let mut reader = hound::WavReader::open(&src.path).expect("the bounce is on disk");
+    let samples: Vec<f32> = reader.samples::<f32>().map(|x| x.unwrap()).collect();
+    let rate = a.engine.sample_rate;
+    let n = samples.len() / 2;
+    assert_eq!(n as f64, (4.0 * rate).round(), "8 beats at 120 BPM");
+    let at = |f: usize| (samples[2 * f], samples[2 * f + 1]);
+    let seam = n / 2;
+    let (l0, r0) = at(100);
+    assert!(l0 > 0.5 && r0 == 0.0, "take A before the seam: {l0} {r0}");
+    let (l1, r1) = at(n - 100);
+    assert!(r1 > 0.5 && l1 == 0.0, "take B after it: {l1} {r1}");
+    assert!((l0 - r1).abs() < 1e-6);
+    let x = (0.010 * rate) as usize;
+    let mut crossed = 0;
+    for f in seam - x..seam + x {
+        let (l, r) = at(f);
+        assert!(
+            (l * l + r * r - l0 * l0).abs() < 1e-4,
+            "frame {f}: equal power, {l} {r}"
+        );
+        crossed += usize::from(l > 0.0 && r > 0.0);
+    }
+    assert!(crossed > x / 2, "the seam crossfades ({crossed} frames)");
     a.undo();
     assert_eq!(a.project().tracks, before.tracks);
 }
@@ -420,4 +503,213 @@ fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
     );
     let (_, _, moved, _) = comping::seams(a.project().track(t).unwrap())[0];
     assert!(moved > at + Ticks(PPQ / 2), "{at:?} → {moved:?}");
+}
+
+/// The lane-0 window on take lane `lane`'s source starting at `at`.
+fn window_at(a: &CantusApp, t: TrackId, at: Ticks) -> ClipId {
+    a.project()
+        .track(t)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.lane == 0 && c.start == at)
+        .unwrap()
+        .id
+}
+
+/// Review 1: exploding the takes does not copy the track's alternate comps (their kept
+/// windows' ids would be twice in the project): comps still switch on the track after.
+#[test]
+fn explode_leaves_the_comps_with_their_track() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    a.duplicate_comp(t);
+    a.promote_take_lane(t, 2);
+    let tracks = a.project().tracks.len();
+    a.explode_takes(t);
+    assert_eq!(a.project().tracks.len(), tracks + 2, "the takes exploded");
+    assert!(a
+        .project()
+        .tracks
+        .iter()
+        .filter(|x| x.id != t)
+        .all(|x| x.comps.is_empty()));
+    let steps = a.bus.history().len();
+    a.switch_comp(t, 0);
+    assert_eq!(a.bus.history().len(), steps + 1, "the switch still applies");
+}
+
+/// Review 1: a comp window slipped (or moved) is still the comp's: switching away and
+/// back brings it back whole.
+#[test]
+fn a_slipped_window_stays_in_its_comp() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    let w = window_at(&a, t, beats(2));
+    let offset = a.project().track(t).unwrap().clip(w).unwrap().offset;
+    a.exec(Command::SetClipOffset {
+        track: t,
+        clip: w,
+        offset: offset + Ticks(12),
+    });
+    let comp_a: Vec<_> = {
+        let mut v: Vec<_> = a
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0)
+            .map(|c| (c.start, c.length, c.offset))
+            .collect();
+        v.sort();
+        v
+    };
+    a.duplicate_comp(t);
+    a.comp_swipe(t, 2, beats(2), beats(4));
+    a.switch_comp(t, 0);
+    let mut back: Vec<_> = a
+        .project()
+        .track(t)
+        .unwrap()
+        .clips
+        .iter()
+        .filter(|c| c.lane == 0)
+        .map(|c| (c.start, c.length, c.offset))
+        .collect();
+    back.sort();
+    assert_eq!(
+        back, comp_a,
+        "comp A comes back whole, the slipped window in it"
+    );
+}
+
+/// Review 1: grouped comping covers the seams too — a seam moved, a seam's crossfade, the
+/// comps switched and made — on every track of the group, each one undo step.
+#[test]
+fn a_group_moves_its_seams_and_switches_its_comps_together() {
+    let mut p = Project::default();
+    let (kick, _, _) = takes(&mut p, "Kick");
+    let (snare, _, _) = takes(&mut p, "Snare");
+    let g = p.make_strip_group("Drums", Color::PALETTE[1]);
+    let gid = g.id;
+    p.strip_groups.push(g);
+    for t in [kick, snare] {
+        let s = p.track(t).unwrap().strip.unwrap();
+        p.strip_mut(s).unwrap().group = Some(gid);
+    }
+    let mut a = app(p);
+    a.comp_swipe(kick, 1, beats(2), beats(4));
+    let seam = |a: &CantusApp, t: TrackId| {
+        comping::seams(a.project().track(t).unwrap())
+            .into_iter()
+            .map(|s| (s.2, s.3))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(seam(&a, kick), seam(&a, snare));
+    // The kick's seam at beat 2 dragged to 2.5: the snare's goes with it, one step.
+    let (l, r, _, _) = comping::seams(a.project().track(kick).unwrap())[0];
+    let steps = a.bus.history().len();
+    let to = beats(2) + Ticks(PPQ / 2);
+    assert!(a.move_comp_seam(kick, l, r, to, false));
+    assert_eq!(a.bus.history().len(), steps + 1);
+    assert_eq!(seam(&a, kick)[0].0, to);
+    assert_eq!(seam(&a, snare), seam(&a, kick));
+    // Its crossfade: both.
+    let r = comping::seams(a.project().track(kick).unwrap())[0].1;
+    a.set_seam_xfade(kick, Some(r), Ticks(40));
+    assert_eq!(seam(&a, snare), seam(&a, kick));
+    // A new comp and a switch: both tracks.
+    a.duplicate_comp(kick);
+    assert_eq!(a.project().track(snare).unwrap().comps.len(), 2);
+    a.switch_comp(kick, 0);
+    assert_eq!(a.project().track(snare).unwrap().active_comp, 0);
+}
+
+/// Review 1: a swipe that grows a window over several windows of the same take, each with
+/// its own pitch edits, keeps them all — each over its own stretch.
+#[test]
+fn a_swipe_over_several_edited_windows_keeps_every_ones_edits() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(0), beats(2));
+    a.comp_swipe(t, 1, beats(4), beats(6));
+    let first = edit();
+    let mut second = edit();
+    second.notes = vec![PitchNote::sung(0, 100_000, 130_000, 62.2, -10.0)];
+    for (at, e) in [(beats(0), first), (beats(4), second)] {
+        let w = window_at(&a, t, at);
+        a.exec(Command::SetClipPitch {
+            track: t,
+            clip: w,
+            pitch: Some(Box::new(e)),
+            op: cantus_core::pitch::PitchOp::Notes,
+        });
+    }
+    a.comp_swipe(t, 1, beats(0), beats(6));
+    let grown = a
+        .project()
+        .track(t)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.lane == 0 && c.start == beats(0))
+        .unwrap();
+    assert_eq!(grown.end(), beats(6));
+    let notes = &grown.audio.as_ref().unwrap().pitch.as_ref().unwrap().notes;
+    let spans: Vec<_> = notes.iter().map(|n| (n.src_start, n.src_end)).collect();
+    assert_eq!(
+        spans,
+        vec![(1_000, 40_000), (100_000, 130_000)],
+        "both edits"
+    );
+}
+
+/// Review 1: *crossfade for every seam* is one undo step (the default and the seams).
+#[test]
+fn every_seams_crossfade_is_one_undo_step() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    let before = a.project().clone();
+    let steps = a.bus.history().len();
+    a.set_comp_xfade_default(t, 20.0);
+    assert_eq!(a.bus.history().len(), steps + 1);
+    assert_eq!(a.project().recording.comp_xfade_ms, 20.0);
+    assert!(lane0(&a, t)
+        .iter()
+        .filter(|w| w.3 > 0)
+        .all(|w| w.3 == comping::xfade_ticks(a.project()).0));
+    a.undo();
+    assert_eq!(a.project(), &before);
+}
+
+/// Review 1: at the most comps a track holds, *New comp* says so and does nothing.
+#[test]
+fn new_comp_at_the_limit_says_so() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    for _ in 0..cantus_core::comp::MAX_COMPS {
+        a.duplicate_comp(t);
+    }
+    assert_eq!(
+        a.project().track(t).unwrap().comps.len(),
+        cantus_core::comp::MAX_COMPS
+    );
+    let steps = a.bus.history().len();
+    a.duplicate_comp(t);
+    assert_eq!(a.bus.history().len(), steps);
+    assert!(
+        a.status.error && a.status.text.contains("26"),
+        "{}",
+        a.status.text
+    );
 }

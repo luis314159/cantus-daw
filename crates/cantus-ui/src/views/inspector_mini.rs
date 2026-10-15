@@ -116,7 +116,11 @@ pub fn show(
                 };
                 let unit = info.unit;
                 let key = info.key;
-                sh.param_row(
+                // The effect's own parameter: automated and modulated from here too (an
+                // effect with no editor of its own is edited only here, ADR 0057).
+                super::modulators::param_row(
+                    sh,
+                    app,
                     info.label_key,
                     Id::new(("insp-fxp", e, key)),
                     slot.spec.get(key),
@@ -124,7 +128,10 @@ pub fn show(
                     false,
                     |v, b| sheet::unit(v, unit, b),
                     f,
-                    false,
+                    cantus_core::AutoTarget::Effect {
+                        effect: e,
+                        key: key.to_string(),
+                    },
                     |v| {
                         Act::Merge(
                             Command::SetEffectParam {

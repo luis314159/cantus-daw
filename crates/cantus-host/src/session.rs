@@ -152,7 +152,15 @@ pub struct PluginHost {
     inst_parked: HashMap<(cantus_core::TrackId, u64), PluginState>,
     /// Tracks whose hosted instrument could not be loaded: the plug-in's key, and why.
     inst_missing: HashMap<cantus_core::TrackId, (u64, String)>,
+    /// Every parameter command a plug-in's own window ran since the application last took
+    /// them ([`PluginHost::take_tweaks`]): what it records as automation and calls *last
+    /// tweaked* (ADR 0057) — all of them, not only a frame's last (review 1).
+    tweaks: Vec<Command>,
 }
+
+/// The most window tweaks kept between two takes (an application that never takes them
+/// does not grow them for ever).
+const TWEAKS: usize = 4096;
 
 impl std::fmt::Debug for PluginHost {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -246,6 +254,7 @@ impl PluginHost {
             instruments: HashMap::new(),
             inst_parked: HashMap::new(),
             inst_missing: HashMap::new(),
+            tweaks: Vec::new(),
         }
     }
 
@@ -672,6 +681,17 @@ impl PluginHost {
 
     /// One thing a plug-in's window did, as a command: a value inside a gesture merges
     /// into one undo step with the rest of the gesture.
+    /// The parameter commands plug-in windows ran since the last take, oldest first.
+    pub fn take_tweaks(&mut self) -> Vec<Command> {
+        std::mem::take(&mut self.tweaks)
+    }
+
+    pub(crate) fn tweaked(&mut self, cmd: Command) {
+        if self.tweaks.len() < TWEAKS {
+            self.tweaks.push(cmd);
+        }
+    }
+
     pub fn record(&mut self, bus: &mut CommandBus, effect: EffectId, event: FxParamEvent) {
         let Some(h) = self.slots.get_mut(&effect) else {
             return;
@@ -700,12 +720,17 @@ impl PluginHost {
                     value: Some(v),
                 };
                 let result = if in_gesture {
-                    bus.execute_merging(cmd, Origin::User, MergeKey::of(&("plugin", effect.0, id)))
+                    bus.execute_merging(
+                        cmd.clone(),
+                        Origin::User,
+                        MergeKey::of(&("plugin", effect.0, id)),
+                    )
                 } else {
-                    bus.execute(cmd, Origin::User)
+                    bus.execute(cmd.clone(), Origin::User)
                 };
-                if let Err(e) = result {
-                    log::warn!("plug-in parameter {id}: {e}");
+                match result {
+                    Ok(_) => self.tweaked(cmd),
+                    Err(e) => log::warn!("plug-in parameter {id}: {e}"),
                 }
             }
             FxParamEvent::End(id) => {

@@ -116,12 +116,19 @@ pub fn swipe_in(sim: &mut Sim, tid: TrackId, lane: u8, from: Ticks, to: Ticks, i
         }
         // What the windows it absorbs carried — pitch edits, gain — stays with the grown
         // window (the pitch review of round 28): the comp's own edits are not the take's.
-        let carried = track
+        // Several absorbed windows' pitch edits are merged, each over its own stretch of
+        // the take (review 1).
+        let mut absorbed: Vec<&Clip> = track
             .clips
             .iter()
             .filter(|c| c.lane == 0 && key.is_some() && content_key(c) == key)
             .filter(|c| c.start < b && c.end() > a)
-            .find_map(|c| c.audio.clone());
+            .collect();
+        absorbed.sort_by_key(|c| c.start);
+        let carried = absorbed.iter().find_map(|c| c.audio.clone()).map(|mut au| {
+            au.pitch = merged_pitch(&sim.project, &absorbed);
+            au
+        });
         let mut cmds = clear_range(track, a, b, None, ids);
         let mut w = piece(&take, a, b, 0, ids);
         w.muted = false;
@@ -147,6 +154,63 @@ pub fn swipe_in(sim: &mut Sim, tid: TrackId, lane: u8, from: Ticks, to: Ticks, i
     changed
 }
 
+/// The pitch edits of several windows on one take as one edit (review 1): the first's,
+/// with each later window's notes over its own stretch of the source in place of what was
+/// there; renumbered so every id stays unique. The first window's edit alone when the
+/// notes cannot make one valid edit (their output times would overlap).
+fn merged_pitch(
+    project: &Project,
+    windows: &[&Clip],
+) -> Option<Box<cantus_core::pitch::PitchEdit>> {
+    let mut edits = windows.iter().filter_map(|c| {
+        c.audio
+            .as_ref()
+            .and_then(|a| a.pitch.as_ref())
+            .map(|e| (*c, e))
+    });
+    let (_, first) = edits.next()?;
+    let mut out = (**first).clone();
+    let bpm = project.tempo_bpm.max(1e-9);
+    for (c, e) in edits {
+        let rate = f64::from(e.rate.max(1));
+        let slip = c.audio.as_ref().map_or(0.0, |a| f64::from(a.slip_frames));
+        let frame = |t: Ticks| (t.to_seconds(bpm) * rate + slip).max(0.0) as u64;
+        let (s0, s1) = (frame(c.offset), frame(c.offset + c.length));
+        let incoming: Vec<_> = e
+            .notes
+            .iter()
+            .filter(|n| n.src_start < s1 && n.src_end > s0)
+            .cloned()
+            .collect();
+        if incoming.is_empty() {
+            continue;
+        }
+        let lo = incoming
+            .iter()
+            .map(|n| n.src_start.min(n.start))
+            .min()
+            .unwrap_or(s0);
+        let hi = incoming
+            .iter()
+            .map(|n| n.src_end.max(n.end))
+            .max()
+            .unwrap_or(s1);
+        out.notes
+            .retain(|n| n.src_end <= lo.min(s0) || n.src_start >= hi.max(s1));
+        let next = out.notes.iter().map(|n| n.id).max().map_or(0, |m| m + 1);
+        for (id, mut n) in (next..).zip(incoming) {
+            n.id = id;
+            out.notes.push(n);
+        }
+        out.notes.sort_by_key(|n| n.src_start);
+    }
+    if out.is_valid() {
+        Some(Box::new(out))
+    } else {
+        Some(first.clone())
+    }
+}
+
 /// The project's seam crossfade, in ticks at its tempo (ADR 0058).
 pub fn xfade_ticks(project: &Project) -> Ticks {
     let ms = f64::from(project.recording.comp_xfade_ms.max(0.0));
@@ -156,7 +220,7 @@ pub fn xfade_ticks(project: &Project) -> Ticks {
 
 /// Every seam of a track's playing lane: (left window, right window, where, crossfade).
 pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
-    let audio = |c: &&Clip| c.lane == 0 && !c.muted && c.audio.as_ref().is_some_and(|a| !a.reverse);
+    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c);
     let mut out = Vec::new();
     for r in track.clips.iter().filter(audio) {
         if let Some(l) = track
@@ -198,7 +262,8 @@ fn seam_defaults(project: &Project, tid: TrackId, at: &[Ticks]) -> Vec<Command> 
         .collect()
 }
 
-/// Set the crossfade of the seam into window `right` (`None`: every seam of the track).
+/// Set the crossfade of the seam into window `right` (`None`: every seam of the track) —
+/// and of the seam at the same place on every track that comps with it (review 1).
 pub fn set_seam_xfade(
     project: &Project,
     tid: TrackId,
@@ -208,20 +273,77 @@ pub fn set_seam_xfade(
     let Some(track) = project.track(tid) else {
         return Vec::new();
     };
+    let at = right.and_then(|r| track.clip(r)).map(|c| c.start);
+    if right.is_some() && at.is_none() {
+        return Vec::new();
+    }
     let x = x.max(Ticks::ZERO).min(cantus_core::audio::MAX_XFADE);
-    seams(track)
-        .into_iter()
-        .filter(|(_, r, _, xf)| right.is_none_or(|w| w == *r) && *xf != x)
-        .filter_map(|(_, r, _, _)| {
-            let mut a = track.clip(r)?.audio.clone()?;
-            a.xfade = x;
-            Some(Command::SetClipAudio {
-                track: tid,
-                clip: r,
-                audio: Some(a),
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    for g in comp_group(project, tid) {
+        let Some(track) = project.track(g) else {
+            continue;
+        };
+        out.extend(
+            seams(track)
+                .into_iter()
+                .filter(|(_, _, s, xf)| at.is_none_or(|a| a == *s) && *xf != x)
+                .filter_map(|(_, r, _, _)| {
+                    let mut a = track.clip(r)?.audio.clone()?;
+                    a.xfade = x;
+                    Some(Command::SetClipAudio {
+                        track: g,
+                        clip: r,
+                        audio: Some(a),
+                    })
+                }),
+        );
+    }
+    out
+}
+
+/// Move the seam between `left` and `right` to `at` — and the seam at the same place on
+/// every track that comps with it, so a drum kit's microphones change takes together
+/// (review 1). One `SetCompSeam` per track.
+pub fn move_seam(
+    project: &Project,
+    tid: TrackId,
+    left: ClipId,
+    right: ClipId,
+    at: Ticks,
+) -> Vec<Command> {
+    let Some(was) = project
+        .track(tid)
+        .and_then(|t| t.clip(right))
+        .map(|c| c.start)
+    else {
+        return Vec::new();
+    };
+    let mut out = vec![Command::SetCompSeam {
+        track: tid,
+        left,
+        right,
+        at,
+    }];
+    for g in comp_group(project, tid).into_iter().filter(|g| *g != tid) {
+        let Some(track) = project.track(g) else {
+            continue;
+        };
+        if let Some((l, r, _, _)) = seams(track).into_iter().find(|s| s.2 == was) {
+            let fits = match (track.clip(l), track.clip(r)) {
+                (Some(lc), Some(rc)) => at > lc.start && at < rc.end(),
+                _ => false,
+            };
+            if fits {
+                out.push(Command::SetCompSeam {
+                    track: g,
+                    left: l,
+                    right: r,
+                    at,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// The tracks that comp with `tid`: its own, then those whose strips share its strip's
@@ -390,8 +512,11 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
         nt.armed = false;
         nt.takes_open = false;
         nt.soloed = false;
-        // A modulator lives once: the copy takes none (ADR 0057).
+        // A modulator lives once: the copy takes none (ADR 0057); nor does it take the
+        // track's alternate comps, whose kept windows are this track's (review 1).
         nt.modulators = Vec::new();
+        nt.comps = Vec::new();
+        nt.active_comp = 0;
         let mut cmds = vec![Command::InsertTrack {
             index: index + 1 + k,
             track: Box::new(nt.clone()),
@@ -431,18 +556,21 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
 
 // ---- alternate comps (ADR 0058) ---------------------------------------------------------
 
-/// The windows of the comp playing: the playing lane's clips that show a take.
+/// The windows of the comp playing: the playing lane's clips that show a take — by what
+/// they show, wherever it is: a window slipped or moved is still the comp's (review 1).
 pub fn comp_windows(track: &Track) -> Vec<&Clip> {
-    let keys: Vec<ContentKey> = track
+    let of = |k: ContentKey| (k.content, k.audio);
+    let keys: Vec<(u64, bool)> = track
         .clips
         .iter()
         .filter(|c| c.lane > 0)
         .filter_map(content_key)
+        .map(of)
         .collect();
     track
         .clips
         .iter()
-        .filter(|c| c.lane == 0 && content_key(c).is_some_and(|k| keys.contains(&k)))
+        .filter(|c| c.lane == 0 && content_key(c).is_some_and(|k| keys.contains(&of(k))))
         .collect()
 }
 
@@ -634,7 +762,7 @@ pub fn seam_trim(
     clip: &Clip,
     start_edge: bool,
     delta: Ticks,
-) -> Option<Command> {
+) -> Option<Vec<Command>> {
     let track = project.track(tid)?;
     if clip.lane != 0 || !track.clips.iter().any(|c| c.lane > 0) {
         return None;
@@ -649,10 +777,5 @@ pub fn seam_trim(
     let left = track.clip(l)?;
     let right = track.clip(r)?;
     let to = at + delta;
-    (to > left.start && to < right.end()).then_some(Command::SetCompSeam {
-        track: tid,
-        left: l,
-        right: r,
-        at: to,
-    })
+    (to > left.start && to < right.end()).then(|| move_seam(project, tid, l, r, to))
 }

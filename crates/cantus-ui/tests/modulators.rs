@@ -290,13 +290,17 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
     let _ = ModHandle(1);
 }
 
-/// The Modulators section draws every kind, folded and unfolded, without a fault, in both
-/// languages; the inspector shows the track's, its channel's and the master's.
+/// The Modulators section draws every kind, folded and unfolded, in both languages: the
+/// track's and its channel's bands for a track, the master's for the master — each
+/// modulator's name in its title, its amount a parameter row that offers modulation
+/// (nesting, ADR 0057), a folded one its title alone.
 #[test]
 fn the_modulators_section_draws_every_kind() {
+    use cantus_ui::kit::automate::probe;
     let mut p = starter_project();
     let t = p.tracks[0].id;
     let s = p.tracks[0].strip.unwrap();
+    let mut ids = Vec::new();
     for (host, k) in [
         (ModHost::Track(t), ModKind::Lfo),
         (ModHost::Track(t), ModKind::Envelope),
@@ -305,35 +309,106 @@ fn the_modulators_section_draws_every_kind() {
         (ModHost::Master, ModKind::Random),
     ] {
         let mut m = Modulator::new(ModulatorId(p.alloc_id()), k);
+        m.name = format!("Mod {}", ids.len() + 1);
         m.routes.push(ModRoute {
             target: AutoTarget::StripPan(s),
             depth: 0.3,
         });
+        ids.push(m.id);
         p.modulators_mut(host).unwrap().push(m);
     }
     let mut a = app(p);
-    a.select_track(t);
     let ctx = ctx();
-    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+    let draw = |a: &mut CantusApp| -> (String, usize) {
+        probe::start();
+        let mut text = String::new();
         for _ in 0..2 {
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(360.0, 1800.0),
+                    egui::vec2(360.0, 2400.0),
                 )),
                 ..Default::default()
             };
-            ctx.run_ui(input, |ui| {
+            let mut out = ctx.run_ui(input, |ui| {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
-                    .show(ui, |ui| cantus_ui::views::inspector::show(&mut a, ui));
-            })
-            .textures_delta
-            .clear();
+                    .show(ui, |ui| cantus_ui::views::inspector::show(a, ui));
+            });
+            out.textures_delta.clear();
+            text = String::new();
+            for c in &out.shapes {
+                if let egui::Shape::Text(t) = &c.shape {
+                    text.push_str(t.galley.text());
+                    text.push('|');
+                }
+            }
         }
+        let amounts = probe::take()
+            .iter()
+            .filter(|(n, m)| n == "mods.amount" && *m)
+            .count();
+        (text, amounts / 2)
+    };
+    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(locale);
+        a.select_track(t);
+        let (text, amounts) = draw(&mut a);
+        for n in ["Mod 1", "Mod 2", "Mod 3", "Mod 4"] {
+            assert!(text.contains(n), "{locale:?}: {n} is drawn: {text}");
+        }
+        assert!(!text.contains("Mod 5"), "the master's is not the track's");
+        assert_eq!(amounts, 4, "each one's amount row offers modulation");
+        // Folded: its title stays, its rows go.
+        a.modulators.folded.insert(ids[1]);
+        let (text, amounts) = draw(&mut a);
+        assert!(text.contains("Mod 2"));
+        assert_eq!(amounts, 3);
+        a.modulators.folded.clear();
+        // The master: its own band, the random source's rows.
+        a.select_master();
+        let (text, amounts) = draw(&mut a);
+        assert!(
+            text.contains("Mod 5"),
+            "{locale:?}: the master's band: {text}"
+        );
+        assert_eq!(amounts, 1);
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// Nesting from the interface (ADR 0057, review 1): another modulator's handle dropped on
+/// a modulator's amount connects it there — one undo step — and a modulator is never
+/// offered its own amount.
+#[test]
+fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
+    let mut a = app(starter_project());
+    let (t, s, _) = pan(&a);
+    let lfo = a
+        .add_modulator(
+            ModHost::Track(t),
+            ModKind::Lfo,
+            Some(AutoTarget::StripPan(s)),
+        )
+        .unwrap();
+    let rnd = a
+        .add_modulator(ModHost::Track(t), ModKind::Random, None)
+        .unwrap();
+    let steps = a.bus.history().len();
+    let amount = AutoTarget::ModAmount(lfo);
+    a.modulation_choice(&amount, Choice::Connect(rnd.0), egui::Rect::NOTHING);
+    assert_eq!(a.bus.history().len(), steps + 1);
+    let route = |a: &CantusApp| {
+        a.project()
+            .modulator(rnd)
+            .and_then(|(_, _, m)| m.route(&amount).map(|r| r.depth))
+    };
+    assert!(route(&a).is_some(), "nested");
+    // Its own handle on its own amount: nothing.
+    a.modulation_choice(&amount, Choice::Connect(lfo.0), egui::Rect::NOTHING);
+    assert_eq!(a.bus.history().len(), steps + 1);
+    a.undo();
+    assert!(route(&a).is_none());
 }
 
 /// Reach: the shipped window's frame (`boot::Shell`, whose frames are `CantusApp`'s own)
@@ -366,4 +441,174 @@ fn the_shipped_frame_runs_the_modulators_popup() {
         panic!("still running");
     };
     assert_eq!(a.modulators.mapping, None);
+}
+
+/// Review 1: the desk's controls take a modulator too — its handle dropped on a strip's
+/// fader connects it there; an Alt-drag on a modulated fader edits the depth, never the
+/// gain. (The strip's pan and width, and the master's three, go through the same code.)
+#[test]
+fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
+    use cantus_ui::views::mixer::{self, Control};
+    use egui::{pos2, Event, Modifiers, PointerButton, Pos2};
+    let mut a = app(starter_project());
+    let (_, s, _) = pan(&a);
+    let fader = AutoTarget::StripGain(s);
+    a.add_modulator(ModHost::Strip(s), ModKind::Lfo, None);
+    let id = a.project().modulators(ModHost::Strip(s)).unwrap()[0].id;
+    let ctx = ctx();
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let size = egui::vec2(1400.0, 800.0);
+    let frame = |a: &mut CantusApp, events: Vec<Event>, mods: Modifiers| {
+        let mut ev = vec![Event::ModifiersChanged(mods)];
+        ev.extend(events);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, size)),
+            events: ev,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| cantus_ui::views::mixer::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    frame(&mut a, vec![], Modifiers::NONE);
+    frame(&mut a, vec![], Modifiers::NONE);
+    let fr = mixer::control_rect(&ctx, Some(s), Control::Fader).expect("the strip's fader");
+    let button = |p, pressed, modifiers| Event::PointerButton {
+        pos: p,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers,
+    };
+    // The handle picked up away from any control, carried to the fader, let go there.
+    let away = pos2(fr.center().x, size.y - 4.0);
+    frame(
+        &mut a,
+        vec![
+            Event::PointerMoved(away),
+            button(away, true, Modifiers::NONE),
+        ],
+        Modifiers::NONE,
+    );
+    egui::DragAndDrop::set_payload(&ctx, ModHandle(id.0));
+    frame(
+        &mut a,
+        vec![Event::PointerMoved(fr.center())],
+        Modifiers::NONE,
+    );
+    let gain = a.project().strip(s).unwrap().gain_db;
+    frame(
+        &mut a,
+        vec![button(fr.center(), false, Modifiers::NONE)],
+        Modifiers::NONE,
+    );
+    let route = |a: &CantusApp| {
+        a.project()
+            .modulator(id)
+            .and_then(|(_, _, m)| m.route(&fader).map(|r| r.depth))
+    };
+    let depth = route(&a).expect("the drop connected the fader");
+    assert_eq!(
+        a.project().strip(s).unwrap().gain_db,
+        gain,
+        "the gain stayed"
+    );
+    // Alt-drag up on the fader: the depth moves, the gain does not.
+    let alt = Modifiers {
+        alt: true,
+        ..Modifiers::NONE
+    };
+    let c = fr.center();
+    frame(
+        &mut a,
+        vec![Event::PointerMoved(c), button(c, true, alt)],
+        alt,
+    );
+    for k in 1..=6 {
+        frame(
+            &mut a,
+            vec![Event::PointerMoved(pos2(c.x, c.y - 8.0 * k as f32))],
+            alt,
+        );
+    }
+    frame(&mut a, vec![button(pos2(c.x, c.y - 48.0), false, alt)], alt);
+    assert_eq!(
+        a.project().strip(s).unwrap().gain_db,
+        gain,
+        "the gain stayed"
+    );
+    let now = route(&a).unwrap();
+    assert!(now > depth, "the depth rose: {depth} → {now}");
+}
+
+/// The test CLAP plug-in, built from source where the host's tests build it.
+fn test_plugin() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+    let target = root.join("target").join("test-plugins");
+    let status =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+            .args(["build", "-p", "cantus-test-clap", "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .status()
+            .expect("cargo");
+    assert!(status.success());
+    target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap.dylib"
+    } else {
+        "libcantus_test_clap.so"
+    })
+}
+
+/// Review 1: a plug-in window that moves two parameters in one frame (an XY pad, a macro)
+/// records both while a pass records — not only the last one the frame ran.
+#[test]
+fn two_parameters_a_plugin_window_moves_in_one_frame_are_both_recorded() {
+    use cantus_engine::fx::FxParamEvent;
+    let mut a = app(starter_project());
+    cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
+    let effect = a
+        .project()
+        .strips
+        .iter()
+        .flat_map(|s| s.effects.iter())
+        .find(|e| e.spec.external.is_some())
+        .map(|e| e.id)
+        .expect("the hosted slot");
+    // The test plug-in's gain and its (stepped) gesture parameter.
+    let (gain, key) = (0u32, 3u32);
+    a.engine.seek(Ticks::beats(1));
+    a.start_recording();
+    for (beat, g, k) in [(1, -6.0, 20.0), (3, -12.0, 70.0)] {
+        a.engine.seek(Ticks::beats(beat));
+        // One frame of the plug-in's window: both parameters in one gesture each.
+        for (id, v) in [(gain, g), (key, k)] {
+            a.plugins
+                .record(&mut a.bus, effect, FxParamEvent::Begin(id));
+            a.plugins
+                .record(&mut a.bus, effect, FxParamEvent::Value(id, v));
+        }
+        a.host_tweaks();
+        for id in [gain, key] {
+            a.plugins.record(&mut a.bus, effect, FxParamEvent::End(id));
+        }
+    }
+    a.engine.seek(Ticks::beats(5));
+    a.stop_recording();
+    for id in [gain, key] {
+        let target = AutoTarget::Plugin { effect, id };
+        assert!(
+            a.project()
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter())
+                .any(|c| c.automation.as_ref().is_some_and(|x| x.target == target)),
+            "parameter {id} was recorded"
+        );
+    }
 }

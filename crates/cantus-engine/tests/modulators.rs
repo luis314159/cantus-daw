@@ -560,3 +560,45 @@ fn a_baked_route_renders_what_the_modulator_did() {
         assert!(worst < 0.01 * peak, "{kind:?}: {worst} of {peak}");
     }
 }
+
+/// Review 1: *Bake* of a modulator whose amount another modulator moves (nesting) bakes
+/// what played — the amount's movement in — not a constant-depth curve.
+#[test]
+fn a_baked_route_keeps_the_modulation_of_its_amount() {
+    use cantus_core::modulator::bake::bake;
+    let mut p = base_project();
+    let organ = p.tracks[1].id;
+    let organ_strip = p.tracks[1].strip.unwrap();
+    let target = AutoTarget::StripPan(organ_strip);
+    let lfo = add(
+        &mut p,
+        ModHost::Strip(organ_strip),
+        ModKind::Lfo,
+        vec![(target.clone(), 0.6)],
+    );
+    let nest = add(
+        &mut p,
+        ModHost::Track(organ),
+        ModKind::Random,
+        vec![(AutoTarget::ModAmount(lfo), -0.7)],
+    );
+    edit(&mut p, nest, |m| {
+        if let ModSource::Random(r) = &mut m.source {
+            r.rate = ModRate::Sync { division: 12 };
+        }
+    });
+    let (from, to) = (Ticks::ZERO, Ticks::beats(16));
+    let modulated = render(snap(&p), &opts(512)).unwrap().samples;
+    let pts = bake(&p, lfo, &target, from, to, Ticks::ZERO, None, None).unwrap();
+    let mut baked = p.clone();
+    edit(&mut baked, lfo, |m| m.routes.clear());
+    let c = baked.make_automation_clip("baked", target.clone(), from, to - from, pts);
+    baked.tracks[1].clips.push(c);
+    let out = render(snap(&baked), &opts(512)).unwrap().samples;
+    let peak = modulated.iter().fold(0f32, |m, x| m.max(x.abs()));
+    let worst = modulated
+        .iter()
+        .zip(&out)
+        .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
+    assert!(worst < 0.01 * peak, "{worst} of {peak}");
+}

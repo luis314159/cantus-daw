@@ -207,6 +207,11 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     fn automate(&mut self, _offset: usize, _id: u32, _value: crate::fx::HostedValue) {}
     /// [`crate::fx::FxUnit::automation_replanned`]'s twin.
     fn automation_replanned(&mut self) {}
+    /// Changes for a hosted plug-in that found no room on the way since the last time
+    /// this was asked (counted in `EngineStats::dropped_events`). Default: none.
+    fn take_dropped(&mut self) -> u64 {
+        0
+    }
     /// What the instrument's own editor did during the last `process` (a hosted plug-in's
     /// window): gestures and values for the host to record as commands.
     fn param_events(&self) -> &[crate::fx::FxParamEvent] {

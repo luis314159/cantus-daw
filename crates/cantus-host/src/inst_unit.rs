@@ -284,6 +284,10 @@ impl InstrumentUnit for HostedInstrument {
     fn automation_replanned(&mut self) {
         self.sync.replanned();
     }
+
+    fn take_dropped(&mut self) -> u64 {
+        std::mem::take(&mut self.sync.dropped)
+    }
 }
 
 /// What stands in for a hosted instrument while it restarts (its latency changed): it plays

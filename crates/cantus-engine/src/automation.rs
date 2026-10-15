@@ -124,6 +124,15 @@ pub(crate) struct Lane {
     pub routes_in: Vec<(usize, f32)>,
     /// The project's value as a position (where no clip plays), for modulation.
     pub base_pos: f32,
+    /// A hosted lane: the value last queued for its unit (bits of `pos`, `modulation`):
+    /// an inner grid point queues only a change, so a still lane costs no room.
+    pub sent: Option<(u32, u32)>,
+}
+
+/// The bits a hosted value is compared by.
+#[inline]
+pub(crate) fn hosted_bits(v: HostedValue) -> (u32, u32) {
+    (v.pos.to_bits(), v.modulation.to_bits())
 }
 
 /// When a control point is.
@@ -189,6 +198,7 @@ impl Runtime {
                 next: lane.base,
                 mod_now: 0.0,
                 fresh: true,
+                sent: None,
                 routes_in: Vec::new(),
                 base_pos: if lane.base.is_finite() {
                     lane.range.pos(lane.base)
@@ -463,7 +473,8 @@ impl Runtime {
             }
             self.mods[i].inner_amount = a.clamp(0.0, 1.0);
         }
-        for (li, l) in self.lanes.iter().enumerate() {
+        for li in 0..self.lanes.len() {
+            let l = &self.lanes[li];
             if !l.dest.is_hosted() {
                 continue;
             }
@@ -476,7 +487,13 @@ impl Runtime {
                 Dest::Hosted(h, _) => self.hosted.get(h).and_then(|x| x.at),
                 _ => None,
             };
-            f(&l.dest, at, HostedValue { pos, modulation: m });
+            let v = HostedValue { pos, modulation: m };
+            // Only a change takes room in the unit's queue (ADR 0057).
+            if l.sent == Some(hosted_bits(v)) {
+                continue;
+            }
+            f(&l.dest, at, v);
+            self.lanes[li].sent = Some(hosted_bits(v));
         }
     }
 

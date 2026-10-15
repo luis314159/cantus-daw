@@ -119,15 +119,16 @@ impl PluginHost {
                 };
                 let result = if in_gesture {
                     bus.execute_merging(
-                        cmd,
+                        cmd.clone(),
                         Origin::User,
                         MergeKey::of(&("instrument-plugin", track.0, id)),
                     )
                 } else {
-                    bus.execute(cmd, Origin::User)
+                    bus.execute(cmd.clone(), Origin::User)
                 };
-                if let Err(e) = result {
-                    log::warn!("instrument parameter {id}: {e}");
+                match result {
+                    Ok(_) => self.tweaked(cmd),
+                    Err(e) => log::warn!("instrument parameter {id}: {e}"),
                 }
             }
             FxParamEvent::End(id) => {

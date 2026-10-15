@@ -25,6 +25,8 @@ pub enum ListenAt {
     /// A strip, by its index in the snapshot's strips.
     Strip(usize),
     Master,
+    /// What it listened to is gone (a removed strip, a track with no strip): silence.
+    Silent,
 }
 
 /// One modulator as the engine plays it.
@@ -132,9 +134,17 @@ pub fn compile(
         .flatten()
         .and_then(track_index);
         let gates = notes_track.map(|ti| {
-            gates_of[ti]
+            let shared = gates_of[ti]
                 .get_or_insert_with(|| Arc::new(Gates::of_events(&tracks[ti].events)))
-                .clone()
+                .clone();
+            // An envelope reads the level each gate starts from, computed here, off the
+            // audio thread, for its own settings at the project's tempo.
+            match &m.source {
+                ModSource::Envelope(e) => {
+                    Arc::new(shared.with_levels(e, 60.0 / project.tempo_bpm.max(1e-9)))
+                }
+                _ => shared,
+            }
         });
         let listen = match &m.source {
             ModSource::Follower(f) => Some(f.listen),
@@ -161,15 +171,16 @@ pub fn compile(
     out
 }
 
-/// Where `listen` points, for a modulator on `host`.
+/// Where `listen` points, for a modulator on `host`: a strip that is gone is silence,
+/// never the whole mix.
 fn listen_at(project: &Project, host: ModHost, listen: Listen) -> ListenAt {
     let strip = match listen {
+        Listen::Master => return ListenAt::Master,
+        Listen::Host if host == ModHost::Master => return ListenAt::Master,
         Listen::Host => project.host_listen_strip(host),
         Listen::Strip(s) => Some(s),
-        Listen::Master => None,
     };
-    match strip.and_then(|s| project.strip_index(s)) {
-        Some(i) => ListenAt::Strip(i),
-        None => ListenAt::Master,
-    }
+    strip
+        .and_then(|s| project.strip_index(s))
+        .map_or(ListenAt::Silent, ListenAt::Strip)
 }

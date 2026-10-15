@@ -34,3 +34,7 @@ comping.lane_tip_off = La composición rápida está apagada: arrastrar seleccio
 rec.merge_nothing = Nada que fusionar: la composición no tiene ventanas de audio
 rec.merge_failed = No se pudo fusionar la composición: {error}
 rec.merged = Composición fusionada en un solo clip
+rec.merging = Fusionando la composición: esperando lo que suena y renderizándola
+rec.merge_moved = La composición no se fusionó: el proyecto cambió mientras se renderizaba
+comping.merged_name = {name} (composición)
+comping.status.full = Una pista guarda como mucho 26 composiciones

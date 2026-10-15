@@ -150,6 +150,19 @@ fn list(sh: &mut Sheet<'_>, m: &Modulator, key: &'static str, value: &str, kind:
         ..State::of(&r, false)
     };
     well::menu_field(sh.b, row.value, &sh.s, st, value, false);
+    // Named on the status line like every other row (review 1).
+    if r.hovered() {
+        let name = sheet::name(sh.fmt.tr(key));
+        crate::kit::hint::set_text(
+            sh.ui.ctx(),
+            &name,
+            value,
+            crate::kit::hint::Caps {
+                menu: true,
+                ..crate::kit::hint::Caps::NONE
+            },
+        );
+    }
     if r.clicked() {
         sh.acts.push(Act::Mod(ModAct::List(m.id, kind, row.value)));
     }
@@ -552,20 +565,6 @@ fn polarity(sh: &mut Sheet<'_>, m: &Modulator, unipolar: bool) {
     );
 }
 
-/// The amount row: every route at once, 0…100 %.
-pub fn amount(sh: &mut Sheet<'_>, m: &Modulator) {
-    num(
-        sh,
-        m,
-        "mods.amount",
-        "amount",
-        m.amount,
-        Range::lin(0.0, 1.0, 1.0),
-        sheet::percent,
-        |e, v| e.amount = v,
-    );
-}
-
 /// Whose audio it hears, in words.
 fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) -> sheet::NameBuf {
     let text = sh.fmt.get(
@@ -574,6 +573,10 @@ fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) ->
         |b| match l {
             Listen::Host => b.push_str(&crate::i18n::t("mods.listen.host")),
             Listen::Master => b.push_str(&crate::i18n::t("kit.mixer.master")),
+            // A removed strip: it hears silence (never the whole mix), and says so.
+            Listen::Strip(s) if app.project().strip(s).is_none() => {
+                b.push_str(&crate::i18n::t("mods.listen.missing"))
+            }
             Listen::Strip(s) => b.push_str(
                 &crate::automation::target_parts(
                     app.project(),

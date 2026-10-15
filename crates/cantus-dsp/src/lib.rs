@@ -95,7 +95,8 @@ pub mod voices;
 /// | 2 | [`math`]: every transcendental from the pinned pure-Rust `libm` (ADR 0031 R9) |
 /// | 3 | round 22: [`math::powf`] in `f32` our own (correctly rounded, ~4× faster) and [`math::db_to_gain`] at the per-sample gains; counter-based TPDF dither (R10), so Terminus and Culmen rest with it on; Aequalis's dynamic release lands on 0 dB |
 /// | 4 | round 25: the 0 dB pan law and the balance are exactly unity at centre and on the near side (`cos(π/4)·√2` was 0.99999994 in `f32`): a centred strip under that law is one rounding step louder (≤ 6e-8 of the signal); no golden hash moved |
-pub const DSP_VERSION: u32 = 4;
+/// | 5 | round 28: an Aequalis band raised (by its knob, automation or a modulator) from exactly 0 dB while no other band was active glides to its gain instead of staying flat for good (`is_active` sees a gain still gliding); that case moves by the whole of the gain asked, every other render is unchanged — no golden hash moved |
+pub const DSP_VERSION: u32 = 5;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

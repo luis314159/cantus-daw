@@ -359,7 +359,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             _ => out.push(piece(c.start, c.end(), true, true)),
         }
     }
-    seams(track, &mut out);
+    seams(project, track, &mut out);
     out.sort_by_key(|c| c.start);
     out
 }
@@ -368,14 +368,8 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
 /// exactly where another ends, the two overlap by the crossfade, centred on the seam — the
 /// left reads on past it, the right starts before it (each into its own source) — and are
 /// told the stretch they cross over. A looped or reversed window takes no seam.
-fn seams(track: &Track, out: &mut [AudioClipSnapshot]) {
-    let plays = |c: &&Clip| {
-        !c.muted
-            && c.lane == 0
-            && c.length > Ticks::ZERO
-            && c.period().is_none_or(|p| p >= c.length)
-            && c.audio.as_ref().is_some_and(|a| !a.reverse)
-    };
+fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
+    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c);
     for right in track.clips.iter().filter(plays) {
         let x = right
             .audio
@@ -393,10 +387,20 @@ fn seams(track: &Track, out: &mut [AudioClipSnapshot]) {
             continue;
         };
         let s = right.start;
-        let h = Ticks(x.0 / 2);
-        let stretch = Some((s - h, s + (x - h)));
+        // Centred on the seam where both sides have audio to read past it; a window at
+        // its file's first (or last) frame has none, and the stretch moves over to the
+        // side that has (review 1): a crossfade never cuts in.
+        let before = audio_room(project, right).0;
+        let after = audio_room(project, left).1;
+        let mut h = Ticks(x.0 / 2).min(before);
+        let tail = (x - h).min(after);
+        h = (x - tail).min(before);
+        if h <= Ticks::ZERO && tail <= Ticks::ZERO {
+            continue;
+        }
+        let stretch = Some((s - h, s + tail));
         if let Some(l) = out.iter_mut().find(|p| p.clip == left.id) {
-            l.end = s + (x - h);
+            l.end = s + tail;
             l.xout = stretch;
             l.fade_out = Ticks::ZERO;
         }
@@ -407,6 +411,28 @@ fn seams(track: &Track, out: &mut [AudioClipSnapshot]) {
             r.fade_in = Ticks::ZERO;
         }
     }
+}
+
+/// The audio a window's source holds before its content starts and after it ends, in
+/// whole ticks (rounded down): how far a seam's crossfade can read past each edge.
+fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
+    let Some((a, src)) = c
+        .audio
+        .as_ref()
+        .and_then(|a| project.audio_source(a.source).map(|s| (a, s)))
+    else {
+        return (Ticks::ZERO, Ticks::ZERO);
+    };
+    let rate = f64::from(src.sample_rate.max(1));
+    let bpm = project.tempo_bpm.max(1e-9);
+    let frame = |t: Ticks| t.to_seconds(bpm) * rate + f64::from(a.slip_frames);
+    let ticks = |frames: f64| {
+        Ticks(((frames.max(0.0) / rate) * bpm / 60.0 * crate::time::PPQ as f64).floor() as i64)
+    };
+    (
+        ticks(frame(c.offset)),
+        ticks(src.frames as f64 - frame(c.offset + c.length)),
+    )
 }
 
 fn compile_events(track: &Track) -> Vec<NoteEvent> {

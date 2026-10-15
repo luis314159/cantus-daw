@@ -51,6 +51,9 @@ struct Known {
     auto: Option<f64>,
     /// Driven since the engine last planned its automation.
     auto_seen: bool,
+    /// What modulation swings around where no clip plays and the project stores no value
+    /// (review 1): what the plug-in held when it was first driven, never what was sent.
+    auto_base: f64,
 }
 
 impl Known {
@@ -119,6 +122,7 @@ impl ParamSync {
                 wanted: f64::NAN,
                 auto: None,
                 auto_seen: false,
+                auto_base: f64::NAN,
             })
             .collect();
         known.sort_by_key(|k| k.id);
@@ -205,10 +209,13 @@ impl ParamSync {
             }
         } else {
             let span = k.max - k.min;
+            if k.auto.is_none() {
+                k.auto_base = k.value;
+            }
             let base = if v.pos.is_finite() {
                 Some(f64::from(v.pos))
             } else {
-                [k.wanted, k.value]
+                [k.wanted, k.auto_base]
                     .into_iter()
                     .find(|x| x.is_finite())
                     .map(|w| if span > 0.0 { (w - k.min) / span } else { 0.0 })
@@ -253,13 +260,15 @@ impl ParamSync {
         self.merged.clear();
         self.merged.extend_from_slice(&self.pending);
         let room = self.merged.capacity() - self.merged.len();
-        self.merged
-            .extend_from_slice(&self.timed[..self.timed.len().min(room)]);
+        let fit = self.timed.len().min(room);
+        self.dropped += (self.timed.len() - fit) as u64;
+        self.merged.extend_from_slice(&self.timed[..fit]);
     }
 
     /// After a block of `frames`: the plug-in's own changes into the table and out to the
     /// host, and the settle timers run down.
     pub(crate) fn after_process(&mut self, frames: usize) {
+        self.dropped += std::mem::take(&mut self.out.lost_in);
         self.pending.clear();
         self.timed.clear();
         self.merged.clear();
@@ -418,6 +427,10 @@ impl FxUnit for HostedUnit {
         self.latency
     }
 
+    fn take_dropped(&mut self) -> u64 {
+        std::mem::take(&mut self.sync.dropped)
+    }
+
     fn set_position(&mut self, p: &SongPosition) {
         self.transport = Some(transport_of(p));
     }
@@ -440,5 +453,50 @@ impl FxUnit for HostedUnit {
 
     fn automation_replanned(&mut self) {
         self.sync.replanned();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(id: u32) -> ParamInfo {
+        ParamInfo {
+            id,
+            name: "p".into(),
+            group: String::new(),
+            min: 0.0,
+            max: 10.0,
+            default: 5.0,
+            stepped: false,
+            automatable: true,
+            hidden: false,
+            read_only: false,
+        }
+    }
+
+    #[test]
+    fn modulation_of_a_parameter_the_project_never_stored_swings_around_its_value() {
+        // Review 1: with no project value the base was the last modulated value, so a
+        // constant modulation climbed at every grid point.
+        let mut sync = ParamSync::new(&[info(3)], |_| Some(4.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::new());
+        let v = HostedValue {
+            pos: f32::NAN,
+            modulation: 0.1,
+        };
+        let mut sent = Vec::new();
+        for k in 0..5 {
+            sync.automate(k * 16, 3, v);
+            sync.merge();
+            sent.extend(sync.merged.iter().map(|c| c.value));
+            sync.after_process(64);
+        }
+        assert_eq!(sent.len(), 1, "one change, then still: {sent:?}");
+        assert!(
+            (sent[0] - 5.0).abs() < 1e-6,
+            "4 + 0.1 of the range: {}",
+            sent[0]
+        );
     }
 }

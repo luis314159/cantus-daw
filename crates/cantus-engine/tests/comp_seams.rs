@@ -165,3 +165,38 @@ fn seams_render_the_same_at_every_block_size_and_live() {
     }
     assert_null(&reference, &out, 0.0, "live vs offline");
 }
+
+/// Review 1: a window starting on its file's first frame (or one ending on its last) has
+/// nothing to read past the seam — the crossfade moves to where both have audio, so it
+/// never cuts in: equal power at every sample, no dip, no step.
+#[test]
+fn a_seam_at_a_files_edge_crossfades_where_both_sides_have_audio() {
+    let dir = tempfile::tempdir().unwrap();
+    let x = Ticks(20);
+    let seam = 4 * 960 * FPT;
+    for case in ["right starts its file", "left ends its file"] {
+        let mut p = comped(dir.path(), x);
+        if case == "right starts its file" {
+            p.tracks[0].clips[1].offset = Ticks::ZERO;
+        } else {
+            p.tracks[0].clips[0].offset = Ticks::beats(4);
+        }
+        let out = render_with(&p, 512);
+        let at = |f: i64| (out[2 * f as usize], out[2 * f as usize + 1]);
+        let mut last = (1.0f32, 0.0f32);
+        for f in seam - 30 * FPT..seam + 30 * FPT {
+            let (l, r) = at(f);
+            assert!(
+                (l * l + r * r - 1.0).abs() < 1e-5,
+                "{case}, frame {f}: {l} {r}"
+            );
+            assert!(l <= last.0 && r >= last.1, "{case}, frame {f}: monotone");
+            last = (l, r);
+        }
+        // Still a crossfade, the whole length of it, not a butt join.
+        let crossing = (seam - 30 * FPT..seam + 30 * FPT)
+            .filter(|&f| at(f).0 > 0.0 && at(f).1 > 0.0)
+            .count() as i64;
+        assert!(crossing >= 20 * FPT - 2, "{case}: {crossing} samples cross");
+    }
+}
