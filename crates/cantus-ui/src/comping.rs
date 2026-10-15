@@ -197,10 +197,9 @@ fn merged_pitch(
             .unwrap_or(s1);
         out.notes
             .retain(|n| n.src_end <= lo.min(s0) || n.src_start >= hi.max(s1));
-        let mut next = out.notes.iter().map(|n| n.id).max().map_or(0, |m| m + 1);
-        for mut n in incoming {
-            n.id = next;
-            next += 1;
+        let next = out.notes.iter().map(|n| n.id).max().map_or(0, |m| m + 1);
+        for (id, mut n) in (next..).zip(incoming) {
+            n.id = id;
             out.notes.push(n);
         }
         out.notes.sort_by_key(|n| n.src_start);

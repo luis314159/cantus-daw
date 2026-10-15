@@ -304,8 +304,10 @@ fn finish_merge(a: &mut CantusApp) {
 #[test]
 fn flatten_and_merge_bounces_the_comp_into_one_clip() {
     let dir = tempfile::tempdir().unwrap();
-    let mut p = Project::default();
-    p.tempo_bpm = 120.0;
+    let mut p = Project {
+        tempo_bpm: 120.0,
+        ..Default::default()
+    };
     let t = p.make_track("Vox");
     let tid = t.id;
     p.tracks.push(t);
