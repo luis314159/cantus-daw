@@ -207,3 +207,15 @@ fn the_key_is_chosen_in_the_editor() {
         "one undo step"
     );
 }
+
+/// The key field names the choice as its list does (review 2: closed it read the host's
+/// "Su propia entrada", its checked row "Su propia señal").
+#[test]
+fn the_key_field_reads_as_its_list() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (mut a, _, _) = with_impetus();
+    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(text.contains("Su propia señal"), "{text}");
+    assert!(!text.contains("Su propia entrada"), "{text}");
+}

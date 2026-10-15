@@ -66,6 +66,22 @@ impl Processor {
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
                 EngineMessage::WatchScopes(ids) => {
+                    // A ring whose watch changed (released, or given to another — or the
+                    // same Speculum watched again) starts afresh: nothing of an earlier
+                    // watch's chunk or losses goes into the new one (review 2).
+                    for (i, (old, new)) in self.scoped.iter().zip(ids.iter()).enumerate() {
+                        if old == new {
+                            continue;
+                        }
+                        match self.nodes.scopes[i].try_borrow_mut() {
+                            Some(mut tap) => {
+                                tap.owner = None;
+                                tap.pending = crate::fx::speculum::ScopeChunk::EMPTY;
+                                tap.lost = 0;
+                            }
+                            None => self.nodes.conflict(),
+                        }
+                    }
                     self.scoped = ids;
                     self.scope_delays();
                 }

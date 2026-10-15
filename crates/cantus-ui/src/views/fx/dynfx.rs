@@ -325,7 +325,14 @@ pub fn key_source(
         }) => {
             let current = *current;
             let id = ui.id().with("dynfx-key");
-            let open = super::controls::field(ui, s, id, label, super::frame::tr(tip), w);
+            // The closed field names the choice as its list does: the effect's own words
+            // for its own signal (review 2: the host's "own input" beside "own signal").
+            let shown = if current.is_none() {
+                super::frame::tr(own)
+            } else {
+                label.as_str()
+            };
+            let open = super::controls::field(ui, s, id, shown, super::frame::tr(tip), w);
             if let Some(anchor) = open {
                 let mut items = vec![super::frame::radio(Src::Key(own), current.is_none())];
                 items.extend(

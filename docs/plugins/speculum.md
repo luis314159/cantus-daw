@@ -44,7 +44,7 @@ None touches a sample: they are how Speculum is looked at, kept with the project
 | `avg` | 0 … 3 000 ms | 250 ms | the spectrum's averaging time constant (0: none) |
 | `slope` | 0 … 6 dB/oct | 4.5 | tilt around 1 kHz |
 | `hold` | Off / On | On | the spectrum's peak hold (falling 6 dB a second) |
-| `chan` | Mid, Side, Left, Right, L+R | Mid | what the spectrum reads |
+| `chan` | Mid, Side, Left, Right, L/R | Mid | what the spectrum reads (L/R: left and right as two curves, not their sum) |
 | `floor` | −72, −96, −120 dB | −96 | the display's floor |
 | `sync` | Free, Trigger, Beat | Beat | the oscilloscope's window |
 | `beats` | 1/4 … 8 beats | 1 beat | the synced window |
