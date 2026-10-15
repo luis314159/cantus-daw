@@ -22,8 +22,10 @@ pub struct NoteEvent {
     /// are told apart. It never depends on whether a clip is linked.
     pub note: NoteId,
     /// For a note-on, how many note-ons of this pitch come before it on the track, from
-    /// the top of the piece. An instrument that cycles (a drum's round robin) reads this
-    /// instead of counting hits, so a render that starts mid-song cycles the same way.
+    /// the top of the piece — for an Exemplar playing its round robins in order, of its
+    /// round-robin lane (`sampler::RrLanes`: the notes reaching the same samples). An
+    /// instrument that cycles (a drum's round robin) reads this instead of counting hits,
+    /// so a render that starts mid-song cycles the same way.
     pub ordinal: u32,
 }
 
@@ -421,11 +423,34 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
     }
     // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
     events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
-    let mut count = [0u32; 128];
-    for e in events.iter_mut().filter(|e| e.is_on()) {
-        let c = &mut count[e.pitch.min(127) as usize];
-        e.ordinal = *c;
-        *c += 1;
+    // An Exemplar playing its round robins in order counts turns per lane (the notes
+    // reaching the same samples), everything else per pitch.
+    match track
+        .instrument
+        .native()
+        .and_then(crate::inst::sampler::RrLanes::of)
+    {
+        Some(lanes) => {
+            let mut lane_of = std::collections::HashMap::new();
+            let mut count: std::collections::HashMap<u64, u32> = std::collections::HashMap::new();
+            for e in events.iter_mut().filter(|e| e.is_on()) {
+                let key = (e.pitch.min(127), e.velocity.min(127));
+                let lane = *lane_of
+                    .entry(key)
+                    .or_insert_with(|| lanes.lane(key.0, key.1));
+                let c = count.entry(lane).or_insert(0);
+                e.ordinal = *c;
+                *c += 1;
+            }
+        }
+        None => {
+            let mut count = [0u32; 128];
+            for e in events.iter_mut().filter(|e| e.is_on()) {
+                let c = &mut count[e.pitch.min(127) as usize];
+                e.ordinal = *c;
+                *c += 1;
+            }
+        }
     }
     events
 }

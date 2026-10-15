@@ -1198,7 +1198,7 @@ fn zoom_to_notes(app: &mut CantusApp, track: TrackId, clip: ClipId) {
     let chromatic = app
         .project()
         .track(track)
-        .is_some_and(|t| t.instrument.lanes().is_chromatic());
+        .is_some_and(|t| t.instrument.is_chromatic());
     let (w, h) = app.piano_roll.last_grid;
     if w <= 0.0 || h <= 0.0 {
         return;

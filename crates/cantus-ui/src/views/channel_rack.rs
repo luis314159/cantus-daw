@@ -346,7 +346,7 @@ fn layout_rows(rows: &mut Vec<RackRow>, app: &CantusApp, axes: &[Axis], top: f32
     rows.clear();
     let mut y = top;
     for (i, (track, axis)) in app.project().tracks.iter().zip(axes).enumerate() {
-        let pads = !track.instrument.lanes().is_chromatic();
+        let pads = !track.instrument.is_chromatic();
         let single = !pads || axis.len() == 1;
         rows.push(RackRow {
             top: y,
@@ -655,7 +655,7 @@ fn count_rows(app: &CantusApp, axes: &[Axis]) -> usize {
         .iter()
         .zip(axes)
         .map(|(t, axis)| {
-            if t.instrument.lanes().is_chromatic() || axis.len() == 1 {
+            if t.instrument.is_chromatic() || axis.len() == 1 {
                 1
             } else {
                 1 + axis.len()
