@@ -64,31 +64,62 @@ fn busy(mode: Mode, tz: bool) -> FlexusSettings {
 }
 
 #[test]
-fn at_mix_zero_it_is_a_wire_and_through_zero_a_delay() {
+fn at_mix_zero_it_is_the_input_delayed_by_its_constant_latency() {
     let x = noise(20_000, 1);
+    let delayed = |l: &[f32], lat: usize| {
+        l[..lat].iter().all(|v| *v == 0.0) && same(&l[lat..], &x[..x.len() - lat])
+    };
     for mode in [Mode::Lfo, Mode::Envelope, Mode::Manual] {
-        let mut s = busy(mode, false);
-        s.mix = 0.0;
-        s.out_db = 0.0;
-        let (mut l, mut r) = (x.clone(), x.clone());
-        drive(&mut unit(&s), &mut l, &mut r, || 333);
-        assert!(same(&l, &x) && same(&r, &x), "{mode:?}");
-        s.through_zero = true;
-        let u = unit(&s);
-        let lat = u.latency();
-        assert_eq!(lat, 240);
-        let (mut l, mut r) = (x.clone(), x.clone());
-        let mut u = u;
-        drive(&mut u, &mut l, &mut r, || 333);
-        assert!(l[..lat].iter().all(|v| *v == 0.0));
-        assert!(
-            same(&l[lat..], &x[..x.len() - lat]),
-            "{mode:?}: through zero"
-        );
+        for tz in [false, true] {
+            let mut s = busy(mode, tz);
+            s.mix = 0.0;
+            s.out_db = 0.0;
+            let mut u = unit(&s);
+            assert_eq!(u.latency(), 240, "the same latency in both paths");
+            let (mut l, mut r) = (x.clone(), x.clone());
+            drive(&mut u, &mut l, &mut r, || 333);
+            assert!(delayed(&l, 240) && delayed(&r, 240), "{mode:?} tz {tz}");
+        }
     }
+    let mut u = unit(&FlexusSettings::default());
     let (mut l, mut r) = (x.clone(), x.clone());
-    unit(&FlexusSettings::default()).process(&mut l, &mut r);
-    assert!(same(&l, &x) && same(&r, &x), "the defaults");
+    u.process(&mut l, &mut r);
+    assert!(delayed(&l, 240) && delayed(&r, 240), "the defaults");
+}
+
+/// The through-zero switch is a parameter a lane may automate: the latency delay
+/// compensation planned for must not move when it flips.
+#[test]
+fn the_latency_does_not_depend_on_the_through_zero_switch() {
+    let mut s = busy(Mode::Lfo, false);
+    let mut u = unit(&s);
+    let before = u.latency();
+    s.through_zero = true;
+    u.set(&s);
+    assert_eq!(u.latency(), before);
+}
+
+/// The plain flanger is the same comb as before, only later: its feedback loop is not
+/// lengthened by the constant latency.
+#[test]
+fn the_plain_flanger_is_its_comb_delayed() {
+    let s = FlexusSettings {
+        mode: Mode::Manual,
+        mix: 1.0,
+        manual: 0.0,
+        delay_ms: 1.0,
+        depth_ms: 0.0,
+        feedback: 0.0,
+        ..FlexusSettings::default()
+    };
+    let x = noise(4_000, 3);
+    let (mut l, mut r) = (x.clone(), x.clone());
+    unit(&s).process(&mut l, &mut r);
+    // The wet alone at 1 ms (48 samples, a hair more in f32), then the 240 of the constant
+    // latency.
+    let d = 48 + 240;
+    assert!(l[d..].iter().zip(&x).all(|(a, b)| (a - b).abs() < 1e-4));
+    assert!(l[..d].iter().all(|v| v.abs() < 1e-4));
 }
 
 /// Through zero, the sweep held at its centre, the wet inverted at 50 %: the wet is the
