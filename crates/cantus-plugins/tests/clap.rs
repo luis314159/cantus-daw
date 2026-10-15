@@ -193,7 +193,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::RingMod => "freq",
             EffectKind::FreqShift => "shift",
             EffectKind::VolumeShaper => "depth",
-            EffectKind::Clipper => "out",
+            EffectKind::Clipper => "drive",
             EffectKind::Transient => "out",
             EffectKind::TransientSplit => "out",
             EffectKind::Analyzer => "out",

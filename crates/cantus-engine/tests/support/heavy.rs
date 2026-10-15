@@ -144,7 +144,19 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("p3.s", 1.0),
             ],
         ),
-        EffectKind::Clipper => {}
+        // Tonsor: 16x with the true-peak guard, driven hard into the analog shoulder.
+        EffectKind::Clipper => set(
+            &mut s,
+            &[
+                ("drive", 12.0),
+                ("ceil", -1.0),
+                ("knee", 3.0),
+                ("curve", 2.0),
+                ("os", 4.0),
+                ("tp", 1.0),
+                ("match", 1.0),
+            ],
+        ),
         EffectKind::Transient => {}
         EffectKind::TransientSplit => {}
         EffectKind::Analyzer => {}

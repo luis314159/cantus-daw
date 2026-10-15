@@ -148,6 +148,8 @@ impl Processor {
         master: MasterStrip,
         peaks: &mut [f32; 2],
     ) {
+        // A latency the pass's automation moved is compensated before the pass runs.
+        self.replan_if_latency_moved();
         // Armed tracks' input into their recording rings (ADR 0025).
         self.record_segment(p0, n);
         // Where the song is at the pass's first sample, for the strips' and the master's
