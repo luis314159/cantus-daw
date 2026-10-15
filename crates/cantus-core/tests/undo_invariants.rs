@@ -1718,6 +1718,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut routed = [0usize; 14];
     // Pitch edits applied (ADR 0054): set, and cleared.
     let mut pitched = [0usize; 2];
+    // Modulators (ADR 0057): inserted, removed, set; comping (ADR 0058): a seam moved, a
+    // comps list keeping windows.
+    let mut modded = [0usize; 3];
+    let mut comped = [0usize; 2];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1740,6 +1744,25 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::SetClipPitch { pitch, .. } => Some(usize::from(pitch.is_none())),
                 _ => None,
             };
+            let modulator = match &cmd {
+                Command::InsertModulator { .. } => Some(0),
+                Command::RemoveModulator { .. } => Some(1),
+                Command::SetModulator { .. } => Some(2),
+                _ => None,
+            };
+            let comp = match &cmd {
+                Command::Batch { commands, .. }
+                    if matches!(commands.last(), Some(Command::SetCompSeam { .. })) =>
+                {
+                    Some(0)
+                }
+                Command::SetTrackComps { comps, .. }
+                    if comps.iter().any(|c| !c.windows.is_empty()) =>
+                {
+                    Some(1)
+                }
+                _ => None,
+            };
             let ok = bus.execute(cmd, origin).is_ok();
             // Every group's members share their content, whatever was applied or refused.
             links::check(bus.project())
@@ -1754,6 +1777,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = pitch {
                     pitched[k] += 1;
+                }
+                if let Some(k) = modulator {
+                    modded[k] += 1;
+                }
+                if let Some(k) = comp {
+                    comped[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1812,6 +1841,14 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         pitched.iter().all(|n| *n > 0),
         "pitch edits never applied: {pitched:?}"
+    );
+    assert!(
+        modded.iter().all(|n| *n > 0),
+        "modulator commands never applied: {modded:?}"
+    );
+    assert!(
+        comped.iter().all(|n| *n > 0),
+        "comp commands never applied: {comped:?}"
     );
 }
 
@@ -2233,32 +2270,101 @@ fn modulator_command(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
-/// One comping command: a seam between two lane-0 clips of a track moved (or, one time in
-/// four, two clips that do not meet: refused), a window's seam crossfade set (now and then
-/// beyond the most: refused), or the track's comps replaced — a copy of a lane-0 clip kept
-/// under a fresh id in a second comp, or an empty list.
+/// One comping command: a real seam made and moved — two playing-lane audio windows made
+/// to meet (bounds set, or two new windows on a source) and their seam moved, one batch —
+/// or, one time in four, a seam asked of two clips that do not meet (refused); a window's
+/// seam crossfade set (a ninth of them beyond the most: refused); or the track's comps
+/// replaced — a copy of a lane-0 clip kept under a fresh id in a second comp, or an empty
+/// list.
 fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
-    use cantus_core::comp::{letter, Comp};
+    use cantus_core::comp::{letter, seam_window, Comp};
     let ti = rng.below(project.tracks.len() as u64) as usize;
     let track = project.tracks[ti].clone();
     let lane0: Vec<&Clip> = track.clips.iter().filter(|c| c.lane == 0).collect();
     match rng.below(3) {
-        0 if lane0.len() >= 2 => {
-            let i = rng.below(lane0.len() as u64 - 1) as usize;
-            let (l, r) = (lane0[i], lane0[i + 1]);
+        0 if rng.below(4) == 0 => {
+            // Two clips that do not meet (or one with itself): refused.
+            let c = lane0.first().map_or(ClipId(8_888_887), |c| c.id);
+            Command::SetCompSeam {
+                track: track.id,
+                left: c,
+                right: c,
+                at: Ticks::beats(1),
+            }
+        }
+        0 => {
+            let windows: Vec<&Clip> = lane0.iter().copied().filter(|c| seam_window(c)).collect();
+            let pair = windows
+                .windows(2)
+                .find(|w| w[0].start < w[1].start)
+                .map(|w| (w[0].clone(), w[1].clone()));
+            let mut commands = Vec::new();
+            let (l, r) = match pair {
+                Some((mut l, r)) => {
+                    commands.push(Command::SetClipBounds {
+                        track: track.id,
+                        clip: l.id,
+                        start: l.start,
+                        length: r.start - l.start,
+                    });
+                    l.length = r.start - l.start;
+                    (l, r)
+                }
+                None => {
+                    let src = match project.audio_pool.first() {
+                        Some(s) => s.id,
+                        None => {
+                            let id = AudioSourceId(project.alloc_id());
+                            commands.push(Command::InsertAudioSource {
+                                source: AudioSource {
+                                    id,
+                                    name: "take".into(),
+                                    path: "take.wav".into(),
+                                    sample_rate: 48_000,
+                                    channels: 1,
+                                    frames: 48_000 * 60,
+                                    sha256: None,
+                                    recorded: true,
+                                },
+                            });
+                            id
+                        }
+                    };
+                    let at = Ticks::beats(rng.below(16) as i64);
+                    let l = project.make_audio_clip("a", src, at, Ticks::beats(2));
+                    let mut r =
+                        project.make_audio_clip("b", src, at + Ticks::beats(2), Ticks::beats(2));
+                    r.offset = Ticks::beats(2);
+                    for c in [&l, &r] {
+                        commands.push(Command::InsertClip {
+                            track: track.id,
+                            clip: Box::new(c.clone()),
+                        });
+                    }
+                    (l, r)
+                }
+            };
             let lo = l.start.0 + 1;
             let hi = r.end().0.max(lo + 1);
-            Command::SetCompSeam {
+            commands.push(Command::SetCompSeam {
                 track: track.id,
                 left: l.id,
                 right: r.id,
                 at: Ticks(lo + rng.below((hi - lo) as u64) as i64),
+            });
+            Command::Batch {
+                label_key: "cmd.set_comp_seam".into(),
+                commands,
             }
         }
         1 => match lane0.iter().find(|c| c.audio.is_some()) {
             Some(c) => {
                 let mut a = c.audio.clone().unwrap();
-                a.xfade = Ticks(rng.below(1200) as i64);
+                a.xfade = if rng.below(9) == 0 {
+                    cantus_core::audio::MAX_XFADE + Ticks(1)
+                } else {
+                    Ticks(rng.below(cantus_core::audio::MAX_XFADE.0 as u64 + 1) as i64)
+                };
                 Command::SetClipAudio {
                     track: track.id,
                     clip: c.id,
