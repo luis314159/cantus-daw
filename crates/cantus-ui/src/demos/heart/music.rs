@@ -110,7 +110,7 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
             swell(&a, beats, 0.85, 1.1)
         }
         "verse" => {
-            let mut rhythm = vec![(0.0, 1.9, 70u8), (2.5, 1.4, 58)];
+            let mut rhythm = vec![(0.0, 1.9, 64u8), (2.5, 1.4, 52)];
             let mut v = Vec::new();
             for half in 0..2 {
                 if half == 1 {
@@ -121,7 +121,7 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
                     &rh,
                     36,
                     4.0,
-                    &[(0.0, 1.9, 74, B::R), (0.0, 1.9, 62, B::O), (2.0, 1.9, 62, B::O)],
+                    &[(0.0, 1.9, 68, B::R), (0.0, 1.9, 56, B::O), (2.0, 1.9, 56, B::O)],
                 ));
                 v.extend(shift(&repeat(&h, rh.beats, 2), half as f64 * 32.0));
             }
@@ -196,15 +196,14 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
     let low = lay(chart, 3, 50, 65, 57);
     let line: Vec<Ev> = match key {
         "verse" => {
-            let mut v = over(&bass(&low, 29, 2.0, &[(0.0, 1.9, 92, B::R)]), &low, 8.0);
+            // In under the verse's second half only: the first is piano, pad and voice.
             let walk = bass(
                 &low,
                 29,
                 4.0,
                 &[(0.0, 1.9, 96, B::R), (2.0, 1.4, 86, B::R), (3.5, 0.45, 84, B::A)],
             );
-            v.extend(shift(&over(&walk, &low, 8.0), 32.0));
-            v
+            shift(&over(&walk, &low, 8.0), 32.0)
         }
         "prechorus" => {
             let eighths: Vec<(f64, f64, u8, B)> = (0..8)
@@ -290,7 +289,7 @@ fn keys_and_pads(
     let pad = lay(chart, 4, 53, 72, 62);
     let vel = match key {
         "intro" => 58,
-        "verse" => 64,
+        "verse" => 58,
         "prechorus" => 70,
         "chorus" => 78,
         "break" => 72,
@@ -401,14 +400,20 @@ fn toplines(s: &mut Song, b: &Band, key: &str, name: &str, at: f64, len: f64, la
         let v = repeat(&melody(answer, 80, 0.9), 16.0, 2);
         s.clip(b.bells, name, at, len, &v);
     }
-    // The riser into each chorus: the last four bars before it.
-    if key == "prechorus" || key == "break" {
+    // The riser into each chorus (the last four bars before it), and a short swell out of
+    // the intro into the first verse.
+    let rise = match key {
+        "prechorus" | "break" => Some((4.0, 100)),
+        "intro" => Some((1.0, 76)),
+        _ => None,
+    };
+    if let Some((bars, vel)) = rise {
         s.clip(
             b.rise,
             &name_of("rise"),
-            at + len - 4.0,
-            4.0,
-            &[Ev::new(0.0, 16.0, 69, 100)],
+            at + len - bars,
+            bars,
+            &[Ev::new(0.0, bars * 4.0, 69, vel)],
         );
     }
     // The sub drop under each new section's first bar.

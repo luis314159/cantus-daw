@@ -83,18 +83,23 @@ fn reference(id: &str) -> (i64, i64) {
 }
 
 /// The numbers to mix by: `cargo test -p cantus-ui --test demos -- --ignored --nocapture
-/// levels`, with `DEMO=<id>` to pick one, `FULL=1` to render the whole song too and
-/// `NOPARTS=1` to leave out the parts soloed.
+/// levels`, with `DEMO=<id>` to pick one, `FULL=1` to render the whole song too,
+/// `NOPARTS=1` to leave out the parts soloed and `DRY=1` to measure with the master chain
+/// out (the balance before mastering).
 #[test]
 #[ignore]
 fn levels() {
     let only = std::env::var("DEMO").ok();
     let full = std::env::var("FULL").is_ok();
     let parts = std::env::var("NOPARTS").is_err();
+    let dry = std::env::var("DRY").is_ok();
     each_demo(|d, p| {
         if only.as_deref().is_some_and(|o| o != d.id) {
             return;
         }
+        let mut q = p.clone();
+        q.master.fx_enabled = !dry;
+        let p = &q;
         use std::fmt::Write as _;
         let mut out = String::new();
         let bar = p.time_signature.ticks_per_bar();
@@ -604,4 +609,39 @@ fn the_showcase_renders_the_same_offline_and_in_real_time() {
         "live differs from offline at frame {:?}",
         first.map(|i| i / 2)
     );
+}
+
+/// Tonus is heard on the topline: against the same render with its amount at 0 (the voice
+/// delayed by its latency and nothing else), the hard tune that snaps the voice's glides
+/// onto F minor's notes changes it by far more than a whisper.
+#[test]
+fn the_topline_is_hard_tuned() {
+    let p = heart();
+    let vox = p
+        .tracks
+        .iter()
+        .position(|t| t.name == cantus_ui::i18n::t("demos.track.vox"))
+        .expect("the vox track");
+    let bar = p.time_signature.ticks_per_bar();
+    let window = |q: &Project| render_range(&solo(q, vox), bar * 32, Some(bar * 34), 0.0);
+    let tuned = window(&p);
+    let mut untuned = p.clone();
+    for s in &mut untuned.strips {
+        for e in &mut s.effects {
+            if e.spec.kind == cantus_core::EffectKind::AutoTune {
+                e.spec.set("amount", 0.0).unwrap();
+            }
+        }
+    }
+    let plain = window(&untuned);
+    let energy = |x: &[f32]| x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>();
+    let diff: Vec<f32> = tuned
+        .samples
+        .iter()
+        .zip(&plain.samples)
+        .map(|(a, b)| a - b)
+        .collect();
+    let rel = 10.0 * (energy(&diff) / energy(&plain.samples).max(1e-12)).log10();
+    eprintln!("Tonus's change to the topline: {rel:.1} dB");
+    assert!(rel > -20.0, "Tonus barely touches the topline: {rel:.1} dB");
 }

@@ -190,6 +190,22 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
         20.0 * math::log10(r.peak.max(1e-9) as f64)
     );
 
+    // Each section's own loudness: the song's dynamics, intro to outro.
+    let spb = 60.0 / p.tempo_bpm * 4.0;
+    let mut edges = vec![0.0];
+    edges.extend(section_starts(p));
+    edges.push(p.content_end().as_beats_f64() / 4.0);
+    print!("  sections (bar: integrated LUFS):");
+    for w in edges.windows(2) {
+        let (i0, i1) = ((w[0] * spb * sr as f64) as usize, ((w[1] * spb * sr as f64) as usize).min(n));
+        let mut a = cantus_dsp::speculum::Analysis::new(sr);
+        for (x, y) in l[i0..i1].chunks(4_800).zip(rr[i0..i1].chunks(4_800)) {
+            a.push(x, y, None);
+        }
+        print!(" {:.0}: {:.1}", w[0], a.loudness().integrated.unwrap_or(f64::NAN));
+    }
+    println!();
+
     // The long-term average spectrum per octave (Welch: 8192-point Hann frames, half
     // overlapped, the mid signal).
     const N: usize = 8_192;
@@ -213,7 +229,7 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
         at += N / 2;
     }
     let band = |c: f32| {
-        let (lo, hi) = (c / math::sqrt(2.0f32), c * math::sqrt(2.0f32));
+        let (lo, hi) = (c / std::f32::consts::SQRT_2, c * std::f32::consts::SQRT_2);
         let (k0, k1) = ((lo / sr * N as f32) as usize, (hi / sr * N as f32) as usize);
         let e: f64 = power[k0.max(1)..k1.min(N / 2)].iter().sum();
         10.0 * math::log10((e / frames.max(1) as f64).max(1e-30))
@@ -241,8 +257,17 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
             rr2 += (*b as f64) * (*b as f64);
         }
         if ll > 1e-6 && rr2 > 1e-6 {
-            cors.push(lr / math::sqrt(ll * rr2));
+            cors.push(lr / (ll * rr2).sqrt());
         }
+    }
+    let negative: Vec<String> = cors
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| **c < 0.0)
+        .map(|(i, c)| format!("{:.1}s:{c:.2}", i as f64 * 0.4))
+        .collect();
+    if !negative.is_empty() {
+        println!("  stereo: windows below 0 at {}", negative.join(" "));
     }
     let mean = cors.iter().sum::<f64>() / cors.len().max(1) as f64;
     let low = cors.iter().copied().fold(1.0f64, f64::min);
@@ -254,7 +279,6 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
 
     // Clicks: the largest second difference within 30 ms of each section change, against
     // the median of the same on the other bars' downbeats.
-    let spb = 60.0 / p.tempo_bpm * 4.0;
     let sharp = |bar: f64| {
         let c = (bar * spb * sr as f64) as usize;
         let (i0, i1) = (c.saturating_sub((0.03 * sr) as usize).max(2), (c + (0.03 * sr) as usize).min(n));

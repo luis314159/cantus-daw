@@ -80,7 +80,7 @@ fn drums_desk(s: &mut Song, b: &Band, d: &Desk) {
         d.drums,
         K::TransientSplit,
         Some("preset.discrimen.snappy"),
-        &[("b.gain", -2.0), ("t.gain", 3.0)],
+        &[("b.gain", -2.0), ("t.gain", 3.0), ("t.tilt", 0.5)],
     );
     s.insert(
         d.drums,
@@ -112,7 +112,8 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         b.piano.strip,
         K::Vibrato,
         Some("preset.vibrans.tape_wow"),
-        &[("depth", 0.0)],
+        // Both sides wow together, as one tape does: the image stays where it is.
+        &[("depth", 0.0), ("spread", 0.0)],
     );
     // Keys: Juno chorus, Tremor's wide auto-pan, Fluctus pumping in the choruses.
     s.insert(b.keys.strip, K::Chorus, Some("preset.concentus.juno_two"), &[]);
@@ -268,10 +269,22 @@ fn master(s: &mut Song) {
             ("b0.shape", 3.0),
             ("b0.freq", 24.0),
             ("b0.slope", 18.0),
+            // Warmth where the long-term spectrum sat under a pop master's (125–250 Hz),
+            // and the top eased back towards it.
             ("b1.used", 1.0),
-            ("b1.shape", 2.0),
-            ("b1.freq", 11_000.0),
-            ("b1.gain", 1.0),
+            ("b1.shape", 0.0),
+            ("b1.freq", 140.0),
+            ("b1.q", 0.8),
+            ("b1.gain", 2.5),
+            ("b2.used", 1.0),
+            ("b2.shape", 2.0),
+            ("b2.freq", 8_000.0),
+            ("b2.gain", -1.5),
+            ("b3.used", 1.0),
+            ("b3.shape", 0.0),
+            ("b3.freq", 3_500.0),
+            ("b3.q", 0.8),
+            ("b3.gain", -1.0),
         ],
     );
     s.master(K::Multiband, Some("mb.preset.glue"), &[]);
@@ -283,7 +296,7 @@ fn master(s: &mut Song) {
         Some("preset.tonsor.soft_master"),
         &[("drive", 1.5)],
     );
-    s.master(K::Maximizer, Some("preset.max.streaming"), &[("gain", 8.0)]);
+    s.master(K::Maximizer, Some("preset.max.streaming"), &[("gain", 8.8)]);
     // Speculum at the end of the chain: a pass-through, there to look at (loudness against
     // the song's target).
     s.master(
@@ -294,24 +307,28 @@ fn master(s: &mut Song) {
 }
 
 fn levels(s: &mut Song, b: &Band, d: &Desk) {
+    // Measured soloed in the first chorus with the master chain out (`levels`, `DRY=1`),
+    // against a pop single's balance: kick and bass −21 LUFS, the topline −22, the piano
+    // −23, the snare −24, pad and choir −27…−28, keys and arpeggio −29, guitar −31, hats
+    // −31, percussion −34.
     for (p, trim, fader, pan) in [
-        (b.kick, 6.0, 0.0, 0.0),
-        (b.snare, 12.0, 0.0, 0.0),
-        (b.hats, 12.0, 0.0, 0.15),
-        (b.perc, 12.0, 0.0, -0.2),
-        (b.fills, 10.0, 0.0, 0.0),
-        (b.bass, 0.0, -2.0, 0.0),
-        (b.piano, 6.0, 0.0, 0.0),
-        (b.keys, 0.0, -3.0, 0.0),
+        (b.kick, 2.5, 0.0, 0.0),
+        (b.snare, 8.0, 0.0, 0.0),
+        (b.hats, 15.5, 0.0, 0.15),
+        (b.perc, 15.0, 0.0, -0.2),
+        (b.fills, 8.0, 0.0, 0.0),
+        (b.bass, 0.0, -3.0, 0.0),
+        (b.piano, 4.5, 0.0, 0.0),
+        (b.keys, 0.0, -1.2, 0.0),
         (b.pad, -2.0, -4.0, 0.0),
-        (b.arp, 0.0, -4.0, 0.0),
-        (b.guitar, 0.0, -4.0, 0.25),
-        (b.vox, 6.0, 0.0, 0.0),
-        (b.lead, 6.0, -6.0, 0.0),
+        (b.arp, 0.0, -0.6, 0.0),
+        (b.guitar, 9.0, -4.0, 0.25),
+        (b.vox, 7.5, 0.0, 0.0),
+        (b.lead, 0.0, -5.5, 0.0),
         (b.choir, -4.0, -4.0, 0.0),
-        (b.bells, 0.0, -6.0, 0.0),
-        (b.rise, 8.0, -6.0, 0.0),
-        (b.drop, 0.0, -3.0, 0.0),
+        (b.bells, 0.0, -4.0, 0.0),
+        (b.rise, 8.0, -3.5, 0.0),
+        (b.drop, 5.0, -3.0, 0.0),
     ] {
         s.trim(p, trim);
         s.mix(p.strip, fader, pan);

@@ -84,7 +84,7 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
     clip(s, b.snare, &name, at, len, &snare);
 
     let hats: Vec<Ev> = bars(n, 4.0, |i| match key {
-        "verse" if i < 8 => drums(&[("x.o.x.o.x.o.x.o.", HAT)], Q),
+        "verse" if i < 8 => drums(&[("o.g.o.g.o.g.o.g.", HAT)], Q),
         "verse" => drums(&[("x.o.x.oox.o.x.og", HAT)], Q),
         "prechorus" if i < 4 => drums(&[("x.o.x.o.x.o.x.o.", HAT)], Q),
         "prechorus" if i == n - 1 => drums(&[("xoooxoooxooo....", HAT)], Q),
