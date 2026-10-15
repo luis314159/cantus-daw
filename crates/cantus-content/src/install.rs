@@ -104,6 +104,8 @@ pub enum InstallError {
     Io(String),
     #[error("another Cantus is installing this pack; try again when it has finished")]
     Busy,
+    #[error("not enough free space: the install needs {need} bytes and the disk has {free}")]
+    NoSpace { need: u64, free: u64 },
 }
 
 impl From<std::io::Error> for InstallError {
@@ -147,6 +149,8 @@ pub struct Job<'a> {
     pub patience: Patience,
     /// For a zip pack, an archive the user already has (`file://…`): the offline install.
     pub archive: Option<String>,
+    /// The free space on the volume a folder is on (`None`: the system cannot say).
+    pub free_space: &'a dyn Fn(&Path) -> Option<u64>,
 }
 
 /// Run `f` until it succeeds, cannot succeed, or patience runs out, sleeping in small
@@ -292,6 +296,20 @@ pub fn install(
     pack: &Pack,
     report: &mut dyn FnMut(Phase),
 ) -> Result<Receipt, InstallError> {
+    // Before anything is fetched: room for the whole install at its peak (a download
+    // already complete takes no more).
+    let have_archive = archive_path(job, pack).is_some_and(|a| a.is_file());
+    let need = pack.space_needed()
+        - if have_archive {
+            pack.download_size()
+        } else {
+            0
+        };
+    if let Some(free) = (job.free_space)(&job.layout.root) {
+        if free < need {
+            return Err(InstallError::NoSpace { need, free });
+        }
+    }
     let guard = Staging::begin(job.layout, &pack.id)?;
     let staging = guard.dir().to_path_buf();
     // A pack built at install unpacks to more than it weighs once built.
@@ -382,7 +400,22 @@ pub fn install(
     }
     std::fs::rename(&staging, &dest)?;
     guard.commit();
+    // The download goes only now: a build that failed, was cancelled or was cut short by a
+    // crash finds it again next time instead of fetching it once more.
+    if let Some(a) = archive_path(job, pack) {
+        let _ = std::fs::remove_file(a);
+    }
     Ok(receipt)
+}
+
+/// Where an archive pack's download is kept until the pack is in place.
+fn archive_path(job: &Job, pack: &Pack) -> Option<PathBuf> {
+    let (z, ext) = match &pack.source {
+        Source::Zip(z) => (z, "zip"),
+        Source::TarGz(z) => (z, "tar.gz"),
+        Source::Files(_) => return None,
+    };
+    Some(job.layout.downloads().join(format!("{}.{ext}", z.sha256)))
 }
 
 fn install_files(
@@ -546,9 +579,7 @@ fn install_archive(
         // A failed or cancelled unpack (the download is done and kept): no half pack stays.
         let _ = std::fs::remove_dir_all(staging);
     }
-    if r.is_ok() {
-        let _ = std::fs::remove_file(&archive);
-    }
+    // The download stays until the pack is in place (`install`).
     r
 }
 

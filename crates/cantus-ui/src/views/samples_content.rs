@@ -60,7 +60,7 @@ pub fn phase_text(phase: Option<&Phase>) -> String {
     }
 }
 
-fn size(bytes: u64) -> String {
+pub fn size(bytes: u64) -> String {
     if bytes >= 1_000_000_000 {
         format!("{:.1} GB", bytes as f64 / 1e9)
     } else {
@@ -457,6 +457,12 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         (
             t("samples.detail.on_disk"),
             size(pack.installed_size),
+            Role::Value,
+        ),
+        // A pack built at install needs much more while it installs (round 28).
+        (
+            t("samples.detail.space"),
+            size(pack.space_needed()),
             Role::Value,
         ),
         (t("samples.detail.files"), files, Role::Value),

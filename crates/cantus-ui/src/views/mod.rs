@@ -29,6 +29,8 @@ pub mod clips_chrome;
 pub mod comp_editor;
 pub mod demos;
 pub mod device_chrome;
+/// A drum kit's row names in the interface's language (round 28).
+pub mod drum_names;
 pub mod eq_editor;
 pub mod export;
 pub mod export_dialog;

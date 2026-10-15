@@ -233,6 +233,7 @@ fn a_cancelled_unpack_leaves_no_staging_and_a_crashed_one_is_cleared_at_start() 
         cancel: &cancel,
         patience: Patience::none(),
         archive: None,
+        free_space: &|_| None,
     };
     // Cancelled as the unpack begins (the download is done).
     let r = install::install(&job, &p, &mut |phase| {

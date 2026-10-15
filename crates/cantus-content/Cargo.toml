@@ -28,6 +28,8 @@ flate2 = "1"
 roxmltree = "0.20"
 # Mixing a multi-microphone kit at install with the same bits on every machine.
 cantus-dsp.workspace = true
+# The free space on the content folder's volume, checked before an install (round 28).
+cantus-rt.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

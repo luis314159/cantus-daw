@@ -193,6 +193,11 @@ impl Axis {
         let names = pitches
             .iter()
             .map(|p| match lanes.lane_of(*p) {
+                // An Exemplar kit's names in the interface's language (round 28); a
+                // Pulsus pad keeps the name it was given.
+                Some(lane) if matches!(lanes, cantus_core::Lanes::Keys(_)) => {
+                    crate::views::drum_names::row_name(&lanes.name(lane), *p)
+                }
                 Some(lane) => lanes.name(lane),
                 None => pitch_name(*p),
             })

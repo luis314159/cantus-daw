@@ -80,6 +80,15 @@ pub struct Manager {
     /// Bumped by every install that finishes and every removal, even of the same version:
     /// what a view that depends on the files watches.
     generation: u64,
+    /// The free space on a folder's volume (the system's, or a test's).
+    free_space: FreeSpace,
+}
+
+/// How a manager asks for the free space on a folder's volume.
+pub type FreeSpace = Arc<dyn Fn(&Path) -> Option<u64> + Send + Sync>;
+
+fn system_free_space() -> FreeSpace {
+    Arc::new(|p: &Path| cantus_rt::disk::space(p).map(|s| s.free))
 }
 
 impl Manager {
@@ -110,7 +119,13 @@ impl Manager {
             installed,
             errors: HashMap::new(),
             generation: 0,
+            free_space: system_free_space(),
         }
+    }
+
+    /// Ask `probe` for the free space instead of the system (tests).
+    pub fn set_free_space(&mut self, probe: FreeSpace) {
+        self.free_space = probe;
     }
 
     /// Changes whenever an install finishes or a pack is removed.
@@ -216,15 +231,16 @@ impl Manager {
                 phase: None,
             },
         );
-        let (layout, transport, patience, tx) = (
+        let (layout, transport, patience, tx, free) = (
             self.layout.clone(),
             self.transport.clone(),
             self.patience,
             self.tx.clone(),
+            self.free_space.clone(),
         );
         let spawned = std::thread::Builder::new()
             .name(format!("cantus-content-{id}"))
-            .spawn(move || run(pack, layout, transport, patience, archive, cancel, tx));
+            .spawn(move || run(pack, layout, transport, patience, archive, cancel, tx, free));
         if spawned.is_err() {
             self.running.remove(id);
             return false;
@@ -300,6 +316,7 @@ impl Manager {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run(
     pack: Pack,
     layout: Layout,
@@ -308,6 +325,7 @@ fn run(
     archive: Option<String>,
     cancel: Arc<AtomicBool>,
     tx: Sender<Msg>,
+    free: FreeSpace,
 ) {
     let job = Job {
         layout: &layout,
@@ -315,6 +333,7 @@ fn run(
         cancel: &cancel,
         patience,
         archive,
+        free_space: free.as_ref(),
     };
     // Report at most every 1/20 s, so a fast local copy does not flood the channel.
     let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);

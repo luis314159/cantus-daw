@@ -293,7 +293,7 @@ fn group_card(
         .unwrap_or(0);
     let title = spec
         .text(&format!("g{m}.name"))
-        .map(str::to_string)
+        .map(crate::views::drum_names::group_name)
         .unwrap_or_else(|| tf("smp.group_n", &[("n", &m.to_string())]));
     let muted = spec.get(&format!("g{m}.mute")) >= 0.5;
     let look = CardLook {

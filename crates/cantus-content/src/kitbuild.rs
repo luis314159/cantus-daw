@@ -184,7 +184,10 @@ pub fn layers(hits: &[Hit], round_robin: u8, range_db: f32) -> (Vec<Region>, usi
     let Some(top) = hits.iter().map(|h| h.level).reduce(f32::max) else {
         return (Vec::new(), 0);
     };
-    let mut kept: Vec<&Hit> = hits.iter().filter(|h| h.level >= top - range_db).collect();
+    // A hit further down than a zone's gain can make up would play under the curve: out,
+    // as one beyond the range is.
+    let floor = top - range_db.min(MAX_VOLUME);
+    let mut kept: Vec<&Hit> = hits.iter().filter(|h| h.level >= floor).collect();
     let dropped = hits.len() - kept.len();
     kept.sort_by(|a, b| a.level.total_cmp(&b.level).then(a.file.cmp(&b.file)));
     let n = kept.len();

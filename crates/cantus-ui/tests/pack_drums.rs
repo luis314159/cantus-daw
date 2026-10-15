@@ -147,7 +147,7 @@ fn installed() -> Fixture {
             release_ms: 30.0,
         }],
         round_robin: 2,
-        range_db: 30.0,
+        range_db: 24.0,
         keep: vec![],
     };
     let content = dir.path().join("Content");
@@ -582,4 +582,36 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
         cantus_ui::views::samples_content::sounds::spec_of(&imp).get("rr.order"),
         1.0
     );
+}
+
+#[test]
+fn a_kits_rows_read_in_the_interfaces_language() {
+    let f = installed();
+    let inst = kit_spec(&f);
+    // A drum with no name of its own takes General MIDI's, in the interface's language.
+    let mut unnamed = NativeSpec::new(cantus_core::InstrumentKind::Sampler);
+    let z = cantus_core::inst::sampler::Zone::new(Some("C:/kit/s.wav".into()), 38, 38, 38);
+    for (k, v) in z.values_for(0) {
+        unnamed.set(&k, v).unwrap();
+    }
+    for (k, t) in z.texts_for(0) {
+        unnamed.set_text(&k, Some(t)).unwrap();
+    }
+    unnamed.set("kit", 1.0).unwrap();
+    let unnamed = InstrumentSpec::Native(unnamed);
+    let clip = cantus_core::Project::new("k").make_clip(
+        "c",
+        cantus_core::Ticks::ZERO,
+        cantus_core::Ticks::beats(4),
+    );
+    let names = |i: &InstrumentSpec| {
+        let axis = cantus_ui::views::piano_roll::Axis::build(i, &clip);
+        (0..axis.len()).map(|r| axis.name(r)).collect::<Vec<_>>()
+    };
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (kit, gm) = (names(&inst), names(&unnamed));
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert_eq!(kit[0], "Caja \u{b7} D2", "{kit:?}");
+    assert_eq!(gm, ["Caja acústica"]);
+    assert_eq!(names(&unnamed), ["Acoustic Snare"]);
 }
