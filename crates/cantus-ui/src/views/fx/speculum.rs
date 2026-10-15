@@ -194,6 +194,16 @@ pub fn framed(
     strip: StripId,
     effect: EffectId,
 ) -> frame::Out {
+    // Docked already: opening it brings its tab forward — one Speculum, one view of it
+    // (two would share one stream).
+    if is_docked(app, effect) {
+        let key = egui::Id::new(("speculum-dock", effect.0)).value();
+        crate::views::workspace_device::present(ui.ctx(), key);
+        return frame::Out {
+            close: true,
+            ..frame::Out::default()
+        };
+    }
     let mut st = std::mem::take(&mut app.fx.speculum);
     if st.effect != Some(effect) {
         let docked = std::mem::take(&mut st.docked);

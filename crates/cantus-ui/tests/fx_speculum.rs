@@ -149,3 +149,15 @@ fn no_word_is_cut_in_spanish() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Opening a Speculum that is docked brings its tab forward instead of a second view of
+/// the same stream.
+#[test]
+fn opening_a_docked_speculum_brings_its_tab_forward() {
+    let (mut a, s0, fx) = with_speculum();
+    speculum::dock(&mut a, s0, fx);
+    let ctx = ctx();
+    frame(&mut a, &ctx, vec![]);
+    assert!(a.fx.open.is_none(), "the floating editor closed");
+    assert!(speculum::is_docked(&a, fx));
+}
