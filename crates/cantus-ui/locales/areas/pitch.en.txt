@@ -27,6 +27,8 @@ pitch.inspector.edit_tip = Open the pitch editor on this clip: its notes, to mov
 pitch.inspector.edited = Pitch edited
 pitch.inspector.edited_tip = This clip plays its pitch edits. Open the pitch editor to change or compare them
 pitch.inspector.badge = Edits
+pitch.badge = Tuned
+pitch.badge.original = Original
 
 # The take.
 pitch.analysing = Analysing the take: finding its notes and its key…

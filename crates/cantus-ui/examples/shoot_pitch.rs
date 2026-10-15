@@ -107,4 +107,20 @@ fn main() {
             }
         }
     }
+    // The arrangement: the corrected clip's badge, the others as they are.
+    for dark in [true, false] {
+        cantus_ui::i18n::set_locale(Locale::En);
+        let ctx = context(dark);
+        let mut app = app_on(&project, &wav, 0);
+        let out = dir.join(format!(
+            "pitch-arrangement-{}.png",
+            if dark { "night" } else { "paper" }
+        ));
+        shoot(&ctx, egui::vec2(1200.0, 420.0), 1.0, 6, Some(&out), |root| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(root, |ui| views::arrangement::show(&mut app, ui));
+        });
+        println!("{}", out.display());
+    }
 }

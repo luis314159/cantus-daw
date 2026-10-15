@@ -27,6 +27,8 @@ pitch.inspector.edit_tip = Abrir el editor de afinación en este clip: sus notas
 pitch.inspector.edited = Afinación editada
 pitch.inspector.edited_tip = Este clip suena con sus ediciones de afinación. Abre el editor de afinación para cambiarlas o compararlas
 pitch.inspector.badge = Ediciones
+pitch.badge = Afinado
+pitch.badge.original = Original
 
 # La toma.
 pitch.analysing = Analizando la toma: buscando sus notas y su tonalidad…
