@@ -482,3 +482,22 @@ fn the_midi_chip_dragged_onto_a_track_leaves_the_melody_there() {
     assert_eq!(pitches, vec![57, 60, 64, 62]);
     assert_eq!(r.app.bus.undo_label_key(), Some("cmd.pitch.midi"));
 }
+
+/// A clip played backwards: MIDI out reads it as it sounds, last note first.
+#[test]
+fn a_reversed_clip_gives_its_notes_as_they_sound() {
+    let mut r = Rig::new();
+    r.open();
+    let (t, c) = r.voice();
+    let mut a = r.app.project().track(t).unwrap().clip(c).unwrap().audio.clone().unwrap();
+    a.reverse = true;
+    assert!(r.app.exec(Command::SetClipAudio {
+        track: t,
+        clip: c,
+        audio: Some(a),
+    }));
+    let (mt, mc) = r.app.pitch_to_midi(t, c, None).unwrap();
+    let clip = r.app.project().track(mt).unwrap().clip(mc).unwrap();
+    let pitches: Vec<u8> = clip.notes.iter().map(|n| n.pitch).collect();
+    assert_eq!(pitches, vec![62, 64, 60, 57]);
+}

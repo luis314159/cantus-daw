@@ -262,6 +262,12 @@ pub fn correct_drift(edit: &mut PitchEdit, ids: &[u32], amount: f32) -> bool {
 /// *Quantise timing*: each of the notes `ids` moved (its length kept, its neighbours
 /// respected) so it starts where `snap` puts its start (output frames → output frames).
 pub fn quantise(edit: &mut PitchEdit, ids: &[u32], snap: impl Fn(u64) -> u64) -> bool {
+    quantise_by(edit, ids, |n| snap(n.start) as i64 - n.start as i64)
+}
+
+/// [`quantise`] with the move of each note given whole (`delta`, output frames): a clip
+/// played backwards quantises the edge it starts with on the timeline, its source end.
+pub fn quantise_by(edit: &mut PitchEdit, ids: &[u32], delta: impl Fn(&PitchNote) -> i64) -> bool {
     let mut changed = false;
     // Where each note wants to go, decided before any moves: then the notes moving earlier
     // move first to last, and those moving later last to first, so none is blocked by a
@@ -270,7 +276,7 @@ pub fn quantise(edit: &mut PitchEdit, ids: &[u32], snap: impl Fn(u64) -> u64) ->
         .notes
         .iter()
         .filter(|n| ids.contains(&n.id))
-        .map(|n| (n.id, snap(n.start) as i64 - n.start as i64))
+        .map(|n| (n.id, delta(n)))
         .collect();
     for (id, delta) in moves.iter().filter(|m| m.1 < 0) {
         changed |= shift_timing(edit, *id, *delta);

@@ -37,7 +37,8 @@ pub struct PitchUi {
 }
 
 /// Where a clip's source frames sit on the timeline: content tick `c` reads source frame
-/// `seconds(c) · rate + slip` (ADR 0025 §7), at the project's tempo.
+/// `seconds(c) · rate + slip` (ADR 0025 §7), at the project's tempo — mirrored inside the
+/// window when the clip plays backwards, as the engine reads it.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ClipTime {
     pub start: Ticks,
@@ -45,6 +46,9 @@ pub struct ClipTime {
     pub slip: i32,
     pub rate: u32,
     pub bpm: f64,
+    /// Played backwards over the window that ends at `end`.
+    pub reverse: bool,
+    pub end: Ticks,
 }
 
 impl ClipTime {
@@ -55,19 +59,39 @@ impl ClipTime {
             slip: clip.audio.as_ref().map_or(0, |a| a.slip_frames),
             rate: source.sample_rate.max(1),
             bpm: project.tempo_bpm,
+            reverse: clip.audio.as_ref().is_some_and(|a| a.reverse),
+            end: clip.end(),
         }
     }
 
-    /// The source frame under timeline tick `t`.
-    pub fn frame(&self, t: Ticks) -> f64 {
+    fn forward_frame(&self, t: Ticks) -> f64 {
         let content = t - self.start + self.offset;
         content.to_seconds(self.bpm) * self.rate as f64 + self.slip as f64
     }
 
-    /// The timeline tick at source frame `f`.
-    pub fn tick(&self, f: f64) -> Ticks {
+    fn forward_tick(&self, f: f64) -> Ticks {
         let content = Ticks::from_seconds((f - self.slip as f64) / self.rate as f64, self.bpm);
         content + self.start - self.offset
+    }
+
+    /// The source frame under timeline tick `t`.
+    pub fn frame(&self, t: Ticks) -> f64 {
+        if self.reverse {
+            let (a, b) = (self.forward_frame(self.start), self.forward_frame(self.end));
+            a + b - self.forward_frame(t)
+        } else {
+            self.forward_frame(t)
+        }
+    }
+
+    /// The timeline tick at source frame `f`.
+    pub fn tick(&self, f: f64) -> Ticks {
+        if self.reverse {
+            let (a, b) = (self.forward_frame(self.start), self.forward_frame(self.end));
+            self.forward_tick(a + b - f)
+        } else {
+            self.forward_tick(f)
+        }
     }
 }
 
@@ -172,14 +196,20 @@ impl CantusApp {
         let take = self.pitch_take(track, clip);
         let edit = self.pitch_edit(track, clip, &take)?;
         let time = self.clip_time(track, clip)?;
-        let notes = midi::notes(&edit);
-        if notes.is_empty() {
+        // Each note's edges on the timeline (a clip played backwards turns them round).
+        let notes: Vec<(Ticks, Ticks, u8, u8)> = midi::notes(&edit)
+            .iter()
+            .map(|n| {
+                let (a, b) = (time.tick(n.start as f64), time.tick(n.end as f64));
+                (a.min(b), a.max(b), n.pitch, n.velocity)
+            })
+            .collect();
+        let (Some(first), Some(last)) = (
+            notes.iter().map(|n| n.0).min(),
+            notes.iter().map(|n| n.1).max(),
+        ) else {
             return None;
-        }
-        let (first, last) = (
-            time.tick(notes[0].start as f64),
-            time.tick(notes.last().map_or(0, |n| n.end) as f64),
-        );
+        };
         let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
         let start = first.snap_floor(bar).max(Ticks::ZERO);
         let length = Ticks(((last - start).0 + bar.0 - 1) / bar.0 * bar.0).max(bar);
@@ -190,11 +220,10 @@ impl CantusApp {
             .map(|c| c.name.clone())
             .unwrap_or_default();
         let mut c = self.bus.new_clip(format!("{name} · MIDI"), start, length);
-        for n in &notes {
-            let a = (time.tick(n.start as f64) - start).max(Ticks::ZERO);
-            let b = (time.tick(n.end as f64) - start).max(a + Ticks(1));
-            c.notes
-                .push(self.bus.new_note(a, b - a, n.pitch, n.velocity));
+        for &(a, b, pitch, velocity) in &notes {
+            let a = (a - start).max(Ticks::ZERO);
+            let b = (b - start).max(a + Ticks(1));
+            c.notes.push(self.bus.new_note(a, b - a, pitch, velocity));
         }
         c.notes.sort_by_key(|n| (n.start, n.pitch));
         let clip_id = c.id;

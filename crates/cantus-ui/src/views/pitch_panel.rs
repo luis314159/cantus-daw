@@ -195,13 +195,21 @@ pub(super) fn quantise(
         return;
     };
     let grid = app.pitch.view.grid.0.max(1);
-    let snap = |f: u64| -> u64 {
+    let snap = |f: u64| -> i64 {
         let t = tm.tick(f as f64).0;
         let q = (t as f64 / grid as f64).round() as i64 * grid;
-        tm.frame(cantus_core::Ticks(q)).round().max(0.0) as u64
+        tm.frame(cantus_core::Ticks(q)).round().max(0.0) as i64
     };
+    // The edge a note starts with on the timeline: its source end when played backwards.
     let mut e = current.clone();
-    if edit::quantise(&mut e, ids, snap) {
+    let moved = edit::quantise_by(&mut e, ids, |n| {
+        if tm.reverse {
+            snap(n.end) - n.end as i64
+        } else {
+            snap(n.start) - n.start as i64
+        }
+    });
+    if moved {
         app.commit_pitch(track, clip, Some(e), PitchOp::Quantise, false);
     }
 }

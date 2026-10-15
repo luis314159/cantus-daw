@@ -48,6 +48,8 @@ fn time() -> ClipTime {
         slip: 0,
         rate: SR,
         bpm: BPM,
+        reverse: false,
+        end: Ticks::beats(1 << 20),
     }
 }
 
