@@ -328,3 +328,80 @@ fn quick_swipe_is_a_project_switch_one_step_each_way() {
     a.undo();
     assert!(a.project().recording.quick_swipe);
 }
+
+/// The real view: a frame of the arrangement with these events.
+fn show(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1400.0, 700.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| cantus_ui::views::arrangement::show(a, ui));
+    })
+    .textures_delta
+    .clear();
+}
+
+/// Press at `from`, travel to `to`, let go — in the arrangement.
+fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2) {
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    show(a, ctx, vec![egui::Event::PointerMoved(from)]);
+    show(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true)]);
+    for i in 1..=4 {
+        let at = from + (to - from) * (i as f32 / 4.0);
+        show(a, ctx, vec![egui::Event::PointerMoved(at)]);
+    }
+    show(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false)]);
+    show(a, ctx, vec![]);
+}
+
+/// From the real arrangement: a swipe across a take lane comps it in, and the seam's
+/// handle at the foot of the playing lane moves the seam, both sides.
+#[test]
+fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
+    let mut p = Project::default();
+    let (t, a_src, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.arrangement.snap = false;
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    show(&mut a, &ctx, vec![]);
+    let geo = a.arrangement.geometry().expect("drawn");
+    let row = geo.rows[0].clone();
+    // Take lane 1 sits under the playing lane.
+    let lane1 = row.top + row.height + 6.0;
+    drag(
+        &mut a,
+        &ctx,
+        egui::pos2(geo.x(2.0), lane1),
+        egui::pos2(geo.x(4.0), lane1),
+    );
+    let windows = lane0(&a, t);
+    assert!(
+        windows.iter().any(|w| w.2 == a_src && w.0 >= 1900 && w.0 <= 1940),
+        "{windows:?}"
+    );
+    let (_, _, at, _) = comping::seams(a.project().track(t).unwrap())[0];
+    let x = geo.x(at.0 as f32 / PPQ as f32);
+    let foot = row.top + row.height - 6.0;
+    drag(
+        &mut a,
+        &ctx,
+        egui::pos2(x, foot),
+        egui::pos2(x + geo.px_per_beat, foot),
+    );
+    let (_, _, moved, _) = comping::seams(a.project().track(t).unwrap())[0];
+    assert!(moved > at + Ticks(PPQ / 2), "{at:?} → {moved:?}");
+}

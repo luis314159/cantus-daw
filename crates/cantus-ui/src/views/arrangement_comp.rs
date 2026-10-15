@@ -61,7 +61,15 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             if x1 - x0 < 22.0 * k {
                 continue;
             }
-            let chip = Rect::from_min_size(pos2(x0 + 3.0 * k, row.top + 3.0 * k), vec2(18.0 * k, 13.0 * k));
+            // At the body's foot, clear of the title, the clip's words and the seams'
+            // handles.
+            let chip = Rect::from_min_size(
+                pos2(x0 + 11.0 * k, row.top + row.height - 16.0 * k),
+                vec2(16.0 * k, 12.0 * k),
+            );
+            if chip.top() < row.top + 18.0 * k {
+                continue;
+            }
             b.rrect(chip, s.r(2.0), Fill::Solid(with_alpha(t.selection, 0.85)));
             let n = lane.to_string();
             let tx = Text::new(&n, Role::Micro, crate::kit::color::on_fill(t.selection)).align(Align2::CENTER_CENTER);
@@ -259,7 +267,7 @@ enum Row {
 }
 
 /// The comp menu (the chip's, and the take lanes' menus' *Comp* part).
-pub(super) fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
+pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
     let Some(track) = app.project().track(tid) else {
         return;
     };
