@@ -584,10 +584,7 @@ pub fn open_spec(app: &crate::app::CantusApp) -> Option<cantus_core::EffectSpec>
 
 /// Something to modulate, for screenshots: a chord of saws, 128 BPM, `seconds` long, run
 /// through `f` in blocks of 480 with the transport playing from the top.
-pub fn demo_run(
-    f: &mut dyn FnMut(&mut [f32], &mut [f32], cantus_dsp::modfx_clock::Transport),
-    seconds: f32,
-) {
+pub fn demo_run(f: &mut DemoRun<'_>, seconds: f32) {
     let sr = 48_000.0f32;
     let n = (seconds * sr) as usize;
     let mut at = 0usize;
@@ -651,3 +648,6 @@ pub fn region<R>(
     }
     f(&mut child)
 }
+
+/// What [`demo_run`] hands the signal to: a block, and the transport at its start.
+pub type DemoRun<'a> = dyn FnMut(&mut [f32], &mut [f32], cantus_dsp::modfx_clock::Transport) + 'a;

@@ -11,7 +11,7 @@ use crate::kit::text::{Role, Src, Text};
 use crate::kit::{with_brush, Style};
 use cantus_core::fx::fluctus::{point_keys, POINTS};
 use cantus_dsp::fluctus::{Curve, CurvePoint, FluctusSettings};
-use egui::{pos2, vec2, Align2, Pos2, Rect, Sense};
+use egui::{pos2, Align2, Pos2, Rect, Sense};
 
 /// A drag on the curve.
 #[derive(Copy, Clone, Debug, PartialEq)]

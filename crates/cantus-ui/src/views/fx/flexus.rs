@@ -305,7 +305,7 @@ fn sweep_card(
     let depth = fs.depth_ms.clamp(0.0, 10.0);
     // The display's span: ± the half sweep through zero, 0 … the longest delay otherwise.
     let (lo, hi) = if fs.through_zero {
-        let h = (depth * 0.5).min(TZ_CENTRE_MS).max(0.5);
+        let h = (depth * 0.5).clamp(0.5, TZ_CENTRE_MS);
         (-h, h)
     } else {
         (0.0, (fs.delay_ms + depth).max(0.5))
