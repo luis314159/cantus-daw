@@ -244,7 +244,7 @@ mod tests {
         let mut s = String::new();
         ram_text(Some(690 << 20), &mut s);
         assert_eq!(s, "690 MB");
-        ram_text(Some((1 << 30) + (1 << 28)), &mut s);
+        ram_text(Some((13u64 << 30) / 10), &mut s);
         assert_eq!(s, "1.3 GB");
         ram_text(Some(999 << 20), &mut s);
         assert_eq!(s, "999 MB");
