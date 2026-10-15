@@ -40,6 +40,10 @@ pub enum Action {
     ToStart,
     ToggleLoop,
     ToggleMetronome,
+    /// Tap tempo (round 28, ADR 0052).
+    TapTempo,
+    /// FL's PAT / SONG switch (round 28, ADR 0052).
+    TogglePatternMode,
     Panic,
     // File
     NewProject,
@@ -192,13 +196,15 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 80] = [
+    pub const ALL: [Action; 82] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
         Action::ToStart,
         Action::ToggleLoop,
         Action::ToggleMetronome,
+        Action::TapTempo,
+        Action::TogglePatternMode,
         Action::Panic,
         Action::NewProject,
         Action::Open,
@@ -284,6 +290,8 @@ impl Action {
             Action::ToStart => "to-start",
             Action::ToggleLoop => "toggle-loop",
             Action::ToggleMetronome => "toggle-metronome",
+            Action::TapTempo => "tap-tempo",
+            Action::TogglePatternMode => "toggle-pattern-mode",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
             Action::DemoSongs => "demo-songs",
@@ -373,9 +381,8 @@ impl Action {
     pub fn category(self) -> Category {
         use Action::*;
         match self {
-            PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | Panic => {
-                Category::Transport
-            }
+            PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
+            | TogglePatternMode | Panic => Category::Transport,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
@@ -641,6 +648,11 @@ fn common() -> Vec<(Action, Binding)> {
         (ClearSelection, Binding::key(Key::Escape)),
         (ToggleLoop, Binding::cmd(Key::L)),
         (ToggleMetronome, Binding::cmd(Key::M)),
+        // The top bar (round 28, ADR 0052): FL's L for PAT / SONG (a bare letter: the typing
+        // piano takes it while it plays — the bar's switch is always there); Shift+T taps
+        // the tempo (FL has no key for it; Shift keeps it clear of the tools' T).
+        (TogglePatternMode, Binding::key(Key::L)),
+        (TapTempo, Binding::shift(Key::T)),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
         // FL's function keys for the three central views. They are the most widely known
         // — every preset gets them, because arriving from anywhere else they are simply
@@ -1003,6 +1015,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 7 {
             map.fill_in(&NEW_IN_V7);
         }
+        if file.version.unwrap_or(1) < 8 {
+            map.fill_in(&NEW_IN_V8);
+        }
         Ok(map)
     }
 
@@ -1075,8 +1090,13 @@ struct KeymapFile {
 /// The file format. Version 2 added the workspace's actions (round 18); version 3 the
 /// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
-/// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26).
-pub const FILE_VERSION: u32 = 7;
+/// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26);
+/// version 8 tap tempo and PAT / SONG (round 28).
+pub const FILE_VERSION: u32 = 8;
+
+/// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round
+/// 28, ADR 0052.
+const NEW_IN_V8: [Action; 2] = [Action::TapTempo, Action::TogglePatternMode];
 
 /// Actions added in version 7: the *Link to…* picker (Alt+N) and the clip browser (Alt+F5),
 /// ADR 0037.

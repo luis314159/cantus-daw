@@ -187,6 +187,32 @@ pub struct Meters {
     pub inputs: [f32; crate::recorder::MAX_INPUTS],
     /// The master chain's gain reduction, dB (positive), the deepest of its dynamics.
     pub master_gr: f32,
+    /// The master's loudness as it leaves the master strip (ADR 0052): what the top bar's
+    /// meter shows in its LUFS mode. Metering reads the mix and never writes it.
+    pub master_loudness: MasterLoudness,
+}
+
+/// The master's loudness (BS.1770-4 / EBU R128, `cantus_dsp::terminus::loudness`): LUFS
+/// momentary (400 ms), short-term (3 s) and integrated since playback started — minus
+/// infinity until each has a window to measure — and the true peak of the last block,
+/// linear (0 in silence).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MasterLoudness {
+    pub momentary: f32,
+    pub short_term: f32,
+    pub integrated: f32,
+    pub true_peak: f32,
+}
+
+impl Default for MasterLoudness {
+    fn default() -> Self {
+        MasterLoudness {
+            momentary: f32::NEG_INFINITY,
+            short_term: f32::NEG_INFINITY,
+            integrated: f32::NEG_INFINITY,
+            true_peak: 0.0,
+        }
+    }
 }
 
 impl Default for Meters {
@@ -205,6 +231,7 @@ impl Default for Meters {
             input_count: 0,
             inputs: [0.0; crate::recorder::MAX_INPUTS],
             master_gr: 0.0,
+            master_loudness: MasterLoudness::default(),
         }
     }
 }

@@ -15,6 +15,8 @@ cantus-dsp.workspace = true
 # itself uses: the same crate and version as epaint's, nothing new in the program.
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 cantus-engine.workspace = true
+# The top bar's RAM readout: the process's memory in use, read safely (ADR 0052).
+cantus-rt.workspace = true
 cantus-project.workspace = true
 cantus-ai.workspace = true
 cantus-host.workspace = true

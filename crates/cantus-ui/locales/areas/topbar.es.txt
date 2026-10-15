@@ -1,1 +1,104 @@
 # topbar — ronda 28: la barra superior. Cada clave de topbar.en.txt tiene aquí su gemela.
+
+cmd.set_pattern_mode = cambio de patrón / canción
+action.tap-tempo = Marcar el tempo
+action.toggle-pattern-mode = Modo patrón / canción
+
+# Los grupos (el panel de personalizar y el menú de desborde)
+topbar.group.mode = Patrón / canción
+topbar.group.transport = Transporte
+topbar.group.tempo = Tempo y compás
+topbar.group.metronome = Metrónomo
+topbar.group.position = Posición
+topbar.group.snap = Rejilla y ajuste
+topbar.group.undo = Deshacer y rehacer
+topbar.group.windows = Ventanas
+topbar.group.performance = CPU, RAM, voces, cortes
+topbar.group.meter = Medidor maestro
+topbar.group.inputs = Entradas
+topbar.group.device = Dispositivo de audio
+topbar.group.tools = Herramientas y zoom
+
+# Los menús plegados en una tecla, el desborde y personalizar
+topbar.menus = Menús
+topbar.customise = Personalizar la barra superior…
+topbar.customise_title = Personalizar la barra superior
+topbar.customise_drag = Arrastra para mover este grupo por la barra
+topbar.customise_show = Mostrar u ocultar este grupo en la barra
+topbar.reset = Restablecer
+topbar.done = Listo
+topbar.more_none = Más: personalizar la barra superior
+topbar.more_tip_one = Un grupo está plegado aquí: la ventana es demasiado estrecha para él
+topbar.more_tip = {n} grupos están plegados aquí: la ventana es demasiado estrecha para ellos
+
+# Patrón / canción
+topbar.mode.pattern = Patrón
+topbar.mode.song = Canción
+topbar.mode.pattern_tip = Modo patrón: el clip que se edita suena solo, en bucle. Haz clic para el modo canción
+topbar.mode.song_tip = Modo canción: suena el arreglo. Haz clic para el modo patrón
+topbar.mode.now_pattern = Modo patrón: el clip que se edita suena solo, en bucle
+topbar.mode.now_song = Modo canción: suena el arreglo
+topbar.mode.no_record = La grabación va a la canción: pasa al modo canción ({key}) para grabar
+
+# Tempo y compás
+topbar.tap = Tap
+topbar.tap_tip = Marcar el tempo: pulsa al menos dos veces; una pausa empieza de nuevo
+topbar.tapped = Tempo marcado: {bpm} BPM
+topbar.tap_more = Pulsa otra vez para fijar el tempo
+topbar.metre = Compás
+topbar.metre_tip = Compás: haz clic para cambiarlo
+topbar.metre_beats = Tiempos
+topbar.metre_note = Figura
+topbar.metre_common = Habituales
+
+# Metrónomo
+topbar.metronome = Metrónomo
+topbar.metronome_options = Opciones del metrónomo: sonido, acento, cuándo suena
+topbar.count_in = Cuenta
+topbar.count_in_tip = Cuenta previa antes de grabar
+topbar.level = Nivel
+topbar.click_sound = Sonido
+topbar.sound.classic = Clásico
+topbar.sound.wood = Caja china
+topbar.sound.beep = Pitido
+topbar.accent = Acento
+topbar.accent_on = Primer tiempo
+topbar.accent_tip = Acentuar el primer tiempo de cada compás
+
+# Rejilla y ajuste
+topbar.grid = Rejilla
+topbar.snap_tip = Ajustar a la rejilla en el editor en el que se trabaja
+topbar.snap_rack = El rack de canales siempre va sobre su rejilla
+
+# CPU, RAM, voces, cortes
+topbar.cpu = CPU
+topbar.ram = RAM
+topbar.voices = Voces
+topbar.dropouts = Cortes
+topbar.ram_tip = Memoria que usa Cantus (su conjunto de trabajo)
+topbar.voices_tip = Voces que suenan ahora
+topbar.dropouts_tip = Bloques de audio que no estuvieron a tiempo: ninguno desde que empezó el audio
+topbar.no_device = Sin dispositivo de audio: el motor no está en marcha
+
+# Medidor maestro
+topbar.meter.peak = Pico
+topbar.meter.lufs = LUFS
+topbar.meter.mode_tip = Medidor maestro: picos de muestra o sonoridad (LUFS)
+topbar.meter.peak_tip = Pico más alto de los dos últimos segundos: haz clic para soltarlo
+topbar.meter.lufs_tip = Sonoridad momentánea. Debajo: a corto plazo, integrada desde que suena, pico real
+
+# Entradas
+topbar.midi = MIDI
+topbar.armed = Armadas
+topbar.midi_none = No hay ninguna entrada MIDI abierta: haz clic para los ajustes
+topbar.midi_tip_one = Entrada MIDI: {ports}. La luz se enciende cuando llegan notas
+topbar.midi_tip = {n} entradas MIDI: {ports}. La luz se enciende cuando llegan notas
+topbar.armed_tip_one = Una pista está armada para grabar: haz clic para armar la pista seleccionada
+topbar.armed_tip = {n} pistas armadas para grabar: haz clic para armar la pista seleccionada
+
+# Herramientas
+topbar.zoom = Zoom de la interfaz
+
+# El nombre del proyecto
+topbar.name = Nombre del proyecto
+topbar.name_tip = Nombre del proyecto: haz clic para cambiarlo

@@ -348,6 +348,14 @@ impl Processor {
             }
         }
         self.live.click = snapshot.recording.click;
+        // The click's voice and accent (schema 26, ADR 0052); the classic accented one is
+        // what every older project played.
+        self.click.set_voice(match snapshot.recording.click_sound {
+            cantus_core::ClickSound::Classic => cantus_dsp::click::ClickVoice::Classic,
+            cantus_core::ClickSound::Wood => cantus_dsp::click::ClickVoice::Wood,
+            cantus_core::ClickSound::Beep => cantus_dsp::click::ClickVoice::Beep,
+        });
+        self.click.set_accent(snapshot.recording.click_accent);
         // The click's built-in level is 0.5; 0 dB keeps it exactly (10^0 is 1).
         let db = snapshot.recording.click_db;
         self.click.set_gain(

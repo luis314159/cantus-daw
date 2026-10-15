@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct MidiSender {
     inner: Arc<Mutex<Producer<MidiEvent>>>,
+    /// Events sent since the sender was made: the top bar's MIDI-input lamp (ADR 0052).
+    sent: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl std::fmt::Debug for MidiSender {
@@ -23,11 +25,19 @@ impl MidiSender {
     pub fn new(producer: Producer<MidiEvent>) -> Self {
         MidiSender {
             inner: Arc::new(Mutex::new(producer)),
+            sent: Arc::default(),
         }
+    }
+
+    /// How many events have come in through this sender and its clones, ever: what the top
+    /// bar's MIDI lamp watches. Off the audio thread; never reset.
+    pub fn received(&self) -> u64 {
+        self.sent.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Returns `false` if the queue was full (the event is dropped).
     pub fn send(&self, ev: MidiEvent) -> bool {
+        self.sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         match self.inner.lock() {
             Ok(mut p) => p.push(ev).is_ok(),
             Err(_) => false,
@@ -131,6 +141,19 @@ impl MidiInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The top bar's MIDI lamp counts what comes in, through any clone of the sender.
+    #[test]
+    fn the_sender_counts_what_comes_in() {
+        let (p, mut c) = rtrb::RingBuffer::<MidiEvent>::new(4);
+        let a = MidiSender::new(p);
+        let b = a.clone();
+        assert_eq!(a.received(), 0);
+        a.send(MidiEvent::note_off(60));
+        b.send(MidiEvent::note_off(61));
+        assert_eq!((a.received(), b.received()), (2, 2));
+        assert!(c.pop().is_ok());
+    }
 
     #[test]
     fn parses_channel_messages_and_ignores_system() {

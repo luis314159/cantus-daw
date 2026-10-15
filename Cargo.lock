@@ -1037,6 +1037,7 @@ dependencies = [
  "cantus-host",
  "cantus-launch",
  "cantus-project",
+ "cantus-rt",
  "cantus-update",
  "eframe",
  "egui",

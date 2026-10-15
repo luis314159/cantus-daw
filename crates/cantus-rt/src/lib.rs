@@ -37,6 +37,7 @@ pub mod memory;
 pub mod pad;
 pub mod thread;
 pub mod topology;
+pub mod usage;
 
 pub use cell::{NodeCell, ShareCell};
 pub use denormal::DenormalGuard;

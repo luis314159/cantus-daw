@@ -222,6 +222,9 @@ pub struct CantusApp {
     pub last_selection: crate::clipboard::SelKind,
     pub status: Status,
     pub show_stats: bool,
+    /// The top bar's own state: tap tempo, pattern mode's place, the RAM reading, the
+    /// customise panel (round 28, `views::transport`).
+    pub topbar: views::transport::TopBar,
     pub show_about: bool,
     /// The verse at start, while it shows (BACKLOG §6c; `views::verse`).
     pub verse: Option<views::verse::Card>,
@@ -545,6 +548,7 @@ impl CantusApp {
                 at: Instant::now(),
             },
             show_stats: stress,
+            topbar: Default::default(),
             show_about: false,
             verse: None,
             show_shortcuts: false,
@@ -2895,6 +2899,9 @@ impl CantusApp {
                 p.metronome = true;
                 p.recording.click = cantus_core::ClickMode::CountInOnly;
                 self.engine.compile(&p, rev)
+            } else if let Some(p) = views::transport::pattern::project_to_play(self) {
+                // Pattern mode (ADR 0052): the current pattern alone, looped.
+                self.engine.compile(&p, rev)
             } else {
                 self.engine.compile(self.bus.project(), rev)
             };
@@ -3088,7 +3095,14 @@ impl CantusApp {
         match action {
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
-            Record => self.toggle_record(),
+            Record => {
+                // Pattern mode records nothing: the take belongs to the song (ADR 0052).
+                if !views::transport::pattern::refuse_record(self) {
+                    self.toggle_record();
+                }
+            }
+            TapTempo => views::transport::tap(self),
+            TogglePatternMode => views::transport::pattern::toggle(self),
             ArmTrack => self.arm_selected(),
             AddAudioTrack => self.add_audio_track(),
             ToggleCountIn => self.toggle_count_in(),
@@ -3505,6 +3519,7 @@ impl CantusApp {
         self.poll_recording();
         self.poll_appearance(ctx);
         self.global_shortcuts(ctx);
+        views::transport::title::sync(self, ctx);
         self.sync_live_track();
 
         // Release auditions after 250 ms.

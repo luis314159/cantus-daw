@@ -153,6 +153,24 @@ pub struct Settings {
     /// GB, or `None` — automatic: the smaller of 16 GB, a tenth of the disk and what leaves
     /// 5 GB free (second review #10). The least recently used go first.
     pub sample_cache_gb: Option<f32>,
+    /// The top bar's groups: their order, which are hidden, and what the master meter
+    /// shows (round 28, ADR 0052).
+    pub topbar: TopBarSettings,
+}
+
+/// The top bar as the owner arranged it (ADR 0052): *Customise top bar…* ticks groups on
+/// and off and drags them into an order; *Reset* empties both lists (the FL-like default).
+/// Ids are `views::transport_layout::Group::id`; unknown ones are ignored, so a file from a
+/// newer version opens.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TopBarSettings {
+    /// The groups in the owner's order; empty = the default order.
+    pub order: Vec<String>,
+    /// The groups the owner hid.
+    pub hidden: Vec<String>,
+    /// The master meter shows loudness (LUFS) rather than peaks.
+    pub meter_lufs: bool,
 }
 
 /// The sample cache's size limit, GB: default and range.
@@ -216,6 +234,7 @@ impl Default for Settings {
             export: cantus_export::ExportSettings::default(),
             link_copies: true,
             sample_cache_gb: None,
+            topbar: TopBarSettings::default(),
         }
     }
 }
@@ -398,6 +417,26 @@ mod tests {
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), settings);
+    }
+
+    /// The top bar as the owner arranged it is kept (ADR 0052), and a file from before it
+    /// opens with the default bar.
+    #[test]
+    fn the_top_bar_choices_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = settings_path(dir.path());
+        let settings = Settings {
+            topbar: TopBarSettings {
+                order: vec!["meter".into(), "transport".into()],
+                hidden: vec!["tools".into()],
+                meter_lufs: true,
+            },
+            ..Default::default()
+        };
+        settings.save(&path).unwrap();
+        assert_eq!(Settings::load(&path), settings);
+        std::fs::write(&path, r#"{"autosave_seconds": 30}"#).unwrap();
+        assert_eq!(Settings::load(&path).topbar, TopBarSettings::default());
     }
 
     #[test]

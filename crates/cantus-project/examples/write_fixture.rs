@@ -444,6 +444,11 @@ fn main() {
     let mut piano = p.make_track("Chorda");
     piano.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
     p.tracks.push(piano);
+    // Schema 26 (round 28, ADR 0052): the woodblock click without its accent, and the song
+    // saved in pattern mode.
+    p.recording.click_sound = cantus_core::ClickSound::Wood;
+    p.recording.click_accent = false;
+    p.pattern_mode = true;
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

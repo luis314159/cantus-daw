@@ -22,13 +22,14 @@ pub mod instrument;
 pub mod links;
 pub mod model;
 pub mod pads;
+pub mod pattern;
 pub mod routing;
 pub mod snapshot;
 pub mod time;
 
 pub use audio::{
-    AudioRegion, AudioSource, ClickMode, FadeCurve, MonitorMode, RecordSettings, TakeMode,
-    TrackInput,
+    AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,
+    TakeMode, TrackInput,
 };
 pub use automation::{AutoLane, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};

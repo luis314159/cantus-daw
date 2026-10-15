@@ -8,7 +8,8 @@
 //!   ruler.
 //! - **Loop takes**: each pass of the loop becomes a take.
 //! - **Take mode**: Stack, Replace, Overdub (notes).
-//! - **Click**: always, while recording, during the count-in only; and its level.
+//! - The click — when it sounds, its level, its voice and accent — is the metronome's, in the
+//!   top bar's metronome group (round 28, ADR 0052).
 //!
 //! While recording, the clock shows the take's elapsed time beside a pulsing lamp
 //! ([`paint_elapsed`]).
@@ -21,7 +22,7 @@ use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{self, well, with_brush, Brush, Fill, State, Style};
-use cantus_core::audio::{ClickMode, TakeMode};
+use cantus_core::audio::TakeMode;
 use cantus_core::Ticks;
 use egui::{pos2, vec2, Align2, Id, Rect, Sense, Ui};
 use std::cell::RefCell;
@@ -36,7 +37,7 @@ pub const KEY_W: f32 = 14.0;
 /// The label column of the popover.
 const LABEL_W: f32 = 92.0;
 /// The control column.
-const CONTROL_W: f32 = 240.0;
+pub(crate) const CONTROL_W: f32 = 240.0;
 
 fn popup_id() -> Id {
     Id::new("transport-record-options")
@@ -83,7 +84,7 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, rect: Rect, record: &egui::Response
         .id(popup_id())
         .open_memory(toggle.then_some(egui::SetOpenCommand::Toggle))
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .frame(frame(s))
+        .frame(frame_for(s))
         .gap(4.0)
         .show(|ui| body(app, ui));
 }
@@ -92,7 +93,8 @@ fn kit_word(key: &'static str) -> &'static str {
     crate::views::clips_chrome::word(key)
 }
 
-fn frame(s: &Style) -> egui::Frame {
+/// The popovers' frame: the record options, the metronome's and the metre's (ADR 0052).
+pub(crate) fn frame_for(s: &Style) -> egui::Frame {
     egui::Frame::NONE
         .fill(s.t.panel)
         .stroke(egui::Stroke::new(1.0, shade(s.t.panel, -0.28)))
@@ -102,7 +104,7 @@ fn frame(s: &Style) -> egui::Frame {
 }
 
 /// A row's label, right-aligned in the label column.
-fn label(ui: &mut Ui, key: &'static str, s: &Style) {
+pub(crate) fn label(ui: &mut Ui, key: &'static str, s: &Style) {
     let (r, _) = ui.allocate_exact_size(vec2(LABEL_W * s.k, s.d(24.0)), Sense::hover());
     with_brush(ui.painter(), |b| {
         let t = Text::key(key, Role::Body, s.t.text_dim)
@@ -112,7 +114,7 @@ fn label(ui: &mut Ui, key: &'static str, s: &Style) {
     });
 }
 
-fn band_row(ui: &mut Ui, key: &'static str, s: &Style) {
+pub(crate) fn band_row(ui: &mut Ui, key: &'static str, s: &Style) {
     let w = (LABEL_W + CONTROL_W + 8.0) * s.k;
     let (r, _) = ui.allocate_exact_size(vec2(w, s.s(band::BAND)), Sense::hover());
     with_brush(ui.painter(), |b| {
@@ -209,44 +211,17 @@ fn body(app: &mut CantusApp, ui: &mut Ui) {
             rs.take_mode = modes[i];
         }
     });
-    band_row(ui, "rec.click", &s);
-    ui.horizontal(|ui| {
-        label(ui, "rec.click_when", &s);
-        let modes = [
-            ClickMode::Always,
-            ClickMode::Recording,
-            ClickMode::CountInOnly,
-        ];
-        let mut i = modes.iter().position(|m| *m == rs.click).unwrap_or(0);
-        let labels = [
-            Src::Key("rec.click.always"),
-            Src::Key("rec.click.recording"),
-            Src::Key("rec.click.count_in"),
-        ];
-        if kit::widgets::segmented(ui, &mut i, &labels, kit_word("rec.click_when"), CONTROL_W)
-            .changed()
-        {
-            rs.click = modes[i];
-        }
-    });
-    let mut level_done = false;
-    ui.horizontal(|ui| {
-        label(ui, "rec.click_level", &s);
-        let (v, ended) = level(ui, rs.click_db, &s);
-        rs.click_db = v;
-        level_done = ended;
-    });
     if rs != before {
         app.set_record_settings(rs);
     }
-    if level_done || ui.input(|i| i.pointer.any_released()) {
+    if ui.input(|i| i.pointer.any_released()) {
         app.end_gesture();
     }
 }
 
 /// The click's level: a value in a well, dragged (200 pt for −24…+6 dB, Shift for fine),
 /// double-click for 0 dB.
-fn level(ui: &mut Ui, db: f32, s: &Style) -> (f32, bool) {
+pub(crate) fn level(ui: &mut Ui, db: f32, s: &Style) -> (f32, bool) {
     let (r, resp) = ui.allocate_exact_size(vec2(90.0 * s.k, s.d(22.0)), Sense::click_and_drag());
     let mut v = db;
     if resp.dragged() {

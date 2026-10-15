@@ -83,6 +83,17 @@ impl Processor {
                 }
             }
         }
+        // The master's loudness (ADR 0052): the mix as it leaves the master strip, read into
+        // the scratch lanes the click uses next (it writes them before it reads them).
+        {
+            let (l, r) = (&mut self.edge_l[..n], &mut self.edge_r[..n]);
+            for (i, frame) in out.chunks_exact(channels).enumerate() {
+                l[i] = frame[0];
+                r[i] = if channels > 1 { frame[1] } else { frame[0] };
+            }
+            let playing = self.transport.is_playing();
+            self.master_loud.feed(l, r, playing);
+        }
         // The recorder, on the master: the mix as it leaves the master strip.
         if self.capture_target == CaptureTarget::Master {
             match self.nodes.capture.try_borrow_mut() {
@@ -308,5 +319,111 @@ impl Processor {
                 frame[0] = l[i] + r[i];
             }
         }
+    }
+}
+
+/// The master's loudness meter (ADR 0052): BS.1770 K-weighting, 10 ms columns, momentary,
+/// short-term and integrated LUFS and a 4× true peak (`cantus_dsp::terminus::loudness`),
+/// fed with the mix as it leaves the master strip — after the recorder's tap point, before
+/// the click. It only reads: no sample of the output depends on it (the goldens hold it).
+/// Built with the processor; feeding it never allocates; the integrated reading starts
+/// again each time playback starts.
+#[derive(Clone, Debug)]
+pub(crate) struct MasterLoud {
+    meter: cantus_dsp::terminus::loudness::LoudnessMeter,
+    playing: bool,
+}
+
+impl MasterLoud {
+    pub(crate) fn new(sample_rate: f32) -> Self {
+        MasterLoud {
+            meter: cantus_dsp::terminus::loudness::LoudnessMeter::new(sample_rate),
+            playing: false,
+        }
+    }
+
+    /// One stretch of the master's output: `l` and `r` (equal for a mono output).
+    pub(crate) fn feed(&mut self, l: &[f32], r: &[f32], playing: bool) {
+        if playing && !self.playing {
+            self.meter.columns.blocks.clear();
+            self.meter.columns.shorts.clear();
+        }
+        self.playing = playing;
+        self.meter.process(l, r);
+    }
+
+    /// The readings, and the block's true peak cleared for the next block.
+    pub(crate) fn take(&mut self) -> crate::messages::MasterLoudness {
+        let m = &mut self.meter;
+        let out = crate::messages::MasterLoudness {
+            momentary: m.momentary() as f32,
+            short_term: m.short_term() as f32,
+            integrated: m.integrated().map_or(f32::NEG_INFINITY, |v| v as f32),
+            true_peak: m.max_true_peak,
+        };
+        m.max_true_peak = 0.0;
+        out
+    }
+}
+
+#[cfg(test)]
+mod loud_tests {
+    use super::MasterLoud;
+
+    /// What the meter costs the audio thread, measured:
+    /// `cargo test --release -p cantus-engine --lib loud_cost -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn loud_cost() {
+        let sr = 48_000.0f32;
+        let mut m = MasterLoud::new(sr);
+        let buf: Vec<f32> = (0..256)
+            .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
+            .collect();
+        let blocks = 48_000 * 20 / 256;
+        let t = std::time::Instant::now();
+        for _ in 0..blocks {
+            m.feed(&buf, &buf, true);
+            std::hint::black_box(m.take());
+        }
+        let secs = t.elapsed().as_secs_f64();
+        let audio = (blocks * 256) as f64 / sr as f64;
+        eprintln!(
+            "master loudness: {:.1} ns per stereo frame, {:.3} % of one core at 48 kHz",
+            secs * 1e9 / (blocks * 256) as f64,
+            100.0 * secs / audio
+        );
+    }
+
+    /// A 1 kHz sine at −20 dBFS peak on both channels reads −20 LUFS (BS.1770's
+    /// calibration: a full-scale stereo 1 kHz sine is 0 LUFS) within 0.1 LU, momentary,
+    /// short-term and integrated; its true peak is its peak.
+    #[test]
+    fn a_stereo_sine_reads_as_bs1770_says() {
+        let sr = 48_000.0f32;
+        let a = cantus_dsp::math::powf(10f32, -20.0 / 20.0);
+        let mut m = MasterLoud::new(sr);
+        let mut buf = vec![0f32; 480];
+        let mut t = 0usize;
+        let mut r = m.take();
+        for _ in 0..400 {
+            for x in buf.iter_mut() {
+                let ph = (t as f64 * 1_000.0 / sr as f64).fract() as f32;
+                *x = a * cantus_dsp::math::sin(ph * std::f32::consts::TAU);
+                t += 1;
+            }
+            m.feed(&buf, &buf, true);
+            r = m.take();
+        }
+        for v in [r.momentary, r.short_term, r.integrated] {
+            assert!((v + 20.0).abs() < 0.1, "{r:?}");
+        }
+        assert!((r.true_peak - a).abs() < 0.01 * a, "{r:?}");
+        // The block's true peak is the block's: once the oversampler's short history has
+        // passed, a silent block reads 0.
+        m.feed(&[0.0; 480], &[0.0; 480], true);
+        let _ = m.take();
+        m.feed(&[0.0; 480], &[0.0; 480], true);
+        assert_eq!(m.take().true_peak, 0.0);
     }
 }
