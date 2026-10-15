@@ -294,6 +294,73 @@ pub fn param_labelled(
     out.resp
 }
 
+/// The detector's key, as every keyed editor of the house offers it (Porta's way): any
+/// strip of the desk in Cantus, or the plug-in's sidechain input switched on in another DAW.
+/// `cache` keeps the host's answer until its revision moves. Returns where the field was
+/// drawn (tests point at it). Words: `{prefix}.key_own`, `.key_tip`, `.key.own`,
+/// `.key.sidechain` in the effect's locale.
+#[allow(clippy::too_many_arguments)]
+pub fn key_source(
+    host: &mut dyn super::host::FxHost,
+    cache: &mut Option<(u64, Option<super::host::KeySource>)>,
+    ui: &mut egui::Ui,
+    s: &crate::kit::Style,
+    w: f32,
+    own: &'static str,
+    tip: &'static str,
+    switch: [&'static str; 2],
+) -> Option<Rect> {
+    use super::host::{KeySource, KeyTarget};
+    use crate::kit::text::Src;
+    let rev = host.revision();
+    if cache.as_ref().is_none_or(|(r, _)| *r != rev) {
+        *cache = Some((rev, host.key_source()));
+    }
+    let at = ui.cursor().min;
+    match cache.as_ref().and_then(|(_, k)| k.as_ref()) {
+        Some(KeySource::Strips {
+            current,
+            label,
+            options,
+        }) => {
+            let current = *current;
+            let id = ui.id().with("dynfx-key");
+            let open = super::controls::field(ui, s, id, label, super::frame::tr(tip), w);
+            if let Some(anchor) = open {
+                let mut items = vec![super::frame::radio(Src::Key(own), current.is_none())];
+                items.extend(
+                    options
+                        .iter()
+                        .map(|(sid, text)| super::frame::radio(Src::Str(text), current == Some(*sid))),
+                );
+                if let Some(i) = super::controls::list(ui, s, id, anchor, w.max(180.0), &items) {
+                    let target = if i == 0 {
+                        None
+                    } else {
+                        options.get(i - 1).map(|o| o.0)
+                    };
+                    drop(items);
+                    host.set_key_source(KeyTarget::Strip(target));
+                }
+            }
+        }
+        Some(KeySource::Switch(on)) => {
+            let on = *on;
+            let labels = [Src::Key(switch[0]), Src::Key(switch[1])];
+            if let Some(i) =
+                super::controls::segmented(ui, s, on as usize, &labels, super::frame::tr(tip), w)
+            {
+                host.set_key_source(KeyTarget::Switch(i == 1));
+            }
+        }
+        None => return None,
+    }
+    Some(Rect::from_min_size(
+        at,
+        egui::vec2(w * s.k, s.d(super::controls::ROW)),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

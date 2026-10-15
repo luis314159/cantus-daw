@@ -7,7 +7,9 @@ Impetus makes the onsets of a sound louder or softer (**attack**) and its tails 
 shorter (**sustain**), **from level differences, not a threshold**: it compares a fast
 envelope with a slow one, so a quiet hit and a loud one are shaped alike and there is no
 level to set. A **split band** shapes only the highs (snap and air, the low end left alone)
-or only the lows (a kick's thump), and a **sidechain** lets another strip's hits drive it.
+or only the lows (a kick's thump), and a **sidechain** lets another strip's hits drive it —
+chosen in the editor's *Detect from* field (any strip of the desk; in another DAW, its
+sidechain input).
 
 | Layer | File |
 |---|---|
