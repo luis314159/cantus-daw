@@ -2,12 +2,12 @@
 effect.vibrans = Vibrans vibrato
 fx.vibrans.about = Una afinación que ondula como una voz, una cuerda o una cinta.
 fx.vibrans.depth = Profundidad
-fx.vibrans.rise = Entrada
+fx.vibrans.rise = Subida
 fx.vibrans.mix = Mezcla
 fx.vibrans.out = Salida
 
 vibrans.card.pitch = Afinación en dos ciclos
-vibrans.card.rise = Entrada
+vibrans.card.rise = Subida
 vibrans.card.depth = Profundidad
 vibrans.card.output = Salida
 vibrans.idle = Profundidad en 0 ct: el sonido pasa intacto

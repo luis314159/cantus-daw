@@ -321,10 +321,11 @@ fn paint(
         b.area(&heard, plot.bottom(), ink.fill(0.7));
         b.polyline(&raw, 2.0 * k, ink.hue);
         let (pts, n) = curve_points(fs);
+        let marked = marked_point(st, fs);
         for (i, p) in &pts[..n] {
             let at = pos2(map.x(p.x), map.y(p.y));
             b.dot(at, 4.0 * k, ink.hue);
-            if st.selected == Some(*i) {
+            if marked == Some(*i) {
                 b.circle_stroke(at, 7.0 * k, 1.5 * k, ink.text);
             }
         }
@@ -363,6 +364,14 @@ fn paint(
     });
 }
 
+/// The point the Point card edits and the curve rings: the selected one, or the first
+/// point while none is (a fresh editor, after a preset, after the selected one went).
+pub fn marked_point(st: &State, fs: &FluctusSettings) -> Option<usize> {
+    st.selected
+        .filter(|n| fs.points[*n].is_some())
+        .or_else(|| fs.points.iter().position(Option::is_some))
+}
+
 /// The selected point's segment: its shape (the automation editor's six) and tension.
 pub fn point_card(
     host: &mut dyn FxHost,
@@ -373,10 +382,9 @@ pub fn point_card(
     fs: &FluctusSettings,
     width: f32,
 ) {
-    let chosen = st
-        .selected
-        .filter(|n| fs.points[*n].is_some())
-        .or_else(|| fs.points.iter().position(Option::is_some));
+    let chosen = marked_point(st, fs);
+    // Kept, so a drag or a click elsewhere goes on from the point the card shows.
+    st.selected = chosen;
     controls::card(
         ui,
         s,
