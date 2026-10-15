@@ -122,7 +122,9 @@ pub fn compile(
                 Some(l.notes.or_else(|| project.host_notes_track(host)))
             }
             ModSource::Envelope(e) => match e.trigger {
-                EnvTrigger::Notes { track } => Some(track.or_else(|| project.host_notes_track(host))),
+                EnvTrigger::Notes { track } => {
+                    Some(track.or_else(|| project.host_notes_track(host)))
+                }
                 EnvTrigger::Audio { .. } => None,
             },
             _ => None,

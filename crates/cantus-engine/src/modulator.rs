@@ -16,6 +16,39 @@ use cantus_core::modulator::eval::{output, Follower, LiveEnv, ModTime};
 use cantus_core::modulator::{EnvTrigger, ModSource};
 use cantus_core::ModulatorId;
 
+/// Modulators whose live value the interface is told, per block.
+pub const MOD_TELEMETRY: usize = 64;
+
+/// What the modulators are doing (ADR 0057), once a block: each one's output times its
+/// amount at the block's first control point — what a knob's ring and the Modulators
+/// panel draw. A snapshot's first [`MOD_TELEMETRY`] modulators; `count` of them are live.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ModTelemetry {
+    pub count: usize,
+    pub ids: [u64; MOD_TELEMETRY],
+    pub values: [f32; MOD_TELEMETRY],
+}
+
+impl Default for ModTelemetry {
+    fn default() -> Self {
+        ModTelemetry {
+            count: 0,
+            ids: [0; MOD_TELEMETRY],
+            values: [0.0; MOD_TELEMETRY],
+        }
+    }
+}
+
+impl ModTelemetry {
+    /// The live value of modulator `id`, if it is reported.
+    pub fn value(&self, id: ModulatorId) -> Option<f32> {
+        self.ids[..self.count.min(MOD_TELEMETRY)]
+            .iter()
+            .position(|x| *x == id.0)
+            .map(|i| self.values[i])
+    }
+}
+
 /// Timed changes one hosted unit holds at most for a pass: 64 grid points of a full pass
 /// for 32 parameters. More in one pass are dropped and counted.
 pub const HOSTED_QUEUE: usize = 2048;
@@ -254,4 +287,89 @@ impl Ear {
             ListenAt::Master => Some(Ear::Master),
         }
     }
+}
+
+/// Render `snapshot` offline over `opts`' range (no audio kept) and trace modulator `id`'s
+/// output × amount at every control point (ADR 0057): what *Bake to automation* reads for a
+/// source that follows audio. `units` and `hosted` as [`crate::render::render_with_instruments`].
+pub fn trace(
+    snapshot: std::sync::Arc<cantus_core::Snapshot>,
+    opts: &crate::render::RenderOptions,
+    mut units: Vec<crate::effects::EffectUnit>,
+    hosted: Vec<crate::inst::NativeUnit>,
+    id: ModulatorId,
+) -> Vec<(f64, f32)> {
+    use crate::messages::{EngineEvent, EngineMessage};
+    let end = opts.end.unwrap_or(snapshot.content_end);
+    let sr = f64::from(opts.sample_rate);
+    let mut snap = (*snapshot).clone();
+    snap.loop_region = None;
+    snap.metronome = false;
+    crate::samples::conform_audio(&mut snap, opts.sample_rate);
+    let snap = std::sync::Arc::new(snap);
+    let mut instruments = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    for u in &mut instruments {
+        u.unit.set_offline(true);
+    }
+    instruments.extend(hosted.into_iter().map(Box::new));
+    let n_fx = snap.effect_slots().count();
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(16 + n_fx + instruments.len());
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(64 + n_fx + instruments.len());
+    let mut p = crate::processor::Processor::without_midi(sr, rx_engine, tx_engine);
+    p.set_profiling(false);
+    for slot in snap.effect_slots() {
+        let unit = match units.iter().position(|u| u.id == slot.id) {
+            Some(i) => units.swap_remove(i),
+            None => crate::effects::EffectUnit::new(slot, sr as f32),
+        };
+        tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
+    }
+    for unit in instruments {
+        tx.push(EngineMessage::AddInstrument(unit)).ok();
+    }
+    tx.push(EngineMessage::Automation(
+        crate::automation::Runtime::build(&snap),
+    ))
+    .ok();
+    let plan = crate::graph::compile(&snap);
+    tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan))
+        .ok();
+    p.settle();
+    while let Ok(ev) = rx.pop() {
+        match ev {
+            EngineEvent::PdcNeed { count, delay } => {
+                tx.push(EngineMessage::PdcLines(crate::pdc::lines_for(count, delay)))
+                    .ok();
+                p.settle();
+            }
+            EngineEvent::EffectNeed { effect, need } => {
+                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                p.settle();
+            }
+            _ => {}
+        }
+    }
+    let frames = ((end - opts.start)
+        .max(cantus_core::Ticks::ZERO)
+        .to_seconds(snap.tempo_bpm)
+        * sr)
+        .ceil() as usize;
+    // A control point every 16 samples at most, and the jumps.
+    p.trace_modulator(Some(id), frames / 16 + 64);
+    tx.push(EngineMessage::Seek(opts.start)).ok();
+    tx.push(EngineMessage::Play).ok();
+    let channels = opts.channels.max(1) as usize;
+    let block = opts
+        .block_frames
+        .clamp(1, crate::messages::MAX_BLOCK_FRAMES);
+    let mut buf = vec![0f32; block * channels];
+    let mut done = 0;
+    while done < frames {
+        let n = block.min(frames - done);
+        p.process(&mut buf[..n * channels], channels);
+        done += n;
+        while rx.pop().is_ok() {}
+    }
+    p.take_modulator_trace()
 }

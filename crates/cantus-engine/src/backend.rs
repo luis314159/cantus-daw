@@ -77,6 +77,8 @@ pub struct EngineHandle {
     engine_position: Ticks,
     playing: bool,
     meters: Meters,
+    /// The modulators' live values (ADR 0057).
+    modulation: crate::modulator::ModTelemetry,
     stats: EngineStats,
     send_failures: u64,
     /// Effect ids whose unit currently lives in the engine.
@@ -286,6 +288,7 @@ impl EngineHandle {
             engine_position: Ticks::ZERO,
             playing: false,
             meters: Meters::default(),
+            modulation: Default::default(),
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
@@ -354,6 +357,7 @@ impl EngineHandle {
             engine_position: Ticks::ZERO,
             playing: false,
             meters: Meters::default(),
+            modulation: Default::default(),
             stats: EngineStats::default(),
             send_failures: 0,
             known_effects: HashSet::new(),
@@ -893,6 +897,7 @@ impl EngineHandle {
                 EngineEvent::GarbageRecorder(rings) => self.rec.rings_back(rings),
                 EngineEvent::GarbagePreview(sample) => drop(sample),
                 EngineEvent::GarbageAutomation(rt) => drop(rt),
+                EngineEvent::Modulation(t) => self.modulation = t,
                 EngineEvent::GarbagePlan(plan) => drop(plan),
             }
         }
@@ -925,6 +930,11 @@ impl EngineHandle {
 
     pub fn meters(&self) -> &Meters {
         &self.meters
+    }
+
+    /// The modulators' live values, as the engine last reported them (ADR 0057).
+    pub fn modulation(&self) -> &crate::modulator::ModTelemetry {
+        &self.modulation
     }
 
     pub fn stats(&self) -> &EngineStats {

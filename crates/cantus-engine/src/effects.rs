@@ -290,9 +290,7 @@ impl EffectUnit {
             dsp: Dsp::Fx(unit),
             replaced: false,
             asked: None,
-            automation: crate::modulator::AutoQueue::with_capacity(
-                crate::modulator::HOSTED_QUEUE,
-            ),
+            automation: crate::modulator::AutoQueue::with_capacity(crate::modulator::HOSTED_QUEUE),
         }
     }
 

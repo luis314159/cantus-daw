@@ -2102,9 +2102,9 @@ fn mod_target(rng: &mut Lcg, project: &Project) -> AutoTarget {
     match rng.below(10) {
         0 => AutoTarget::MasterGain,
         1 => AutoTarget::MasterWidth,
-        2 if !project.tracks.is_empty() => AutoTarget::TrackPan(
-            project.tracks[rng.below(project.tracks.len() as u64) as usize].id,
-        ),
+        2 if !project.tracks.is_empty() => {
+            AutoTarget::TrackPan(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+        }
         3 if !project.strips.is_empty() => AutoTarget::StripGain(strip_at(rng, project)),
         4 if !project.strips.is_empty() => AutoTarget::StripPan(strip_at(rng, project)),
         5 => match project.all_modulators().nth(rng.below(4) as usize) {
@@ -2137,9 +2137,9 @@ fn modulator_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let pick = rng.below(4);
     if pick == 0 || existing.is_empty() {
         let host = match rng.below(3) {
-            0 if !project.tracks.is_empty() => ModHost::Track(
-                project.tracks[rng.below(project.tracks.len() as u64) as usize].id,
-            ),
+            0 if !project.tracks.is_empty() => {
+                ModHost::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+            }
             1 if !project.strips.is_empty() => ModHost::Strip(strip_at(rng, project)),
             _ => ModHost::Master,
         };

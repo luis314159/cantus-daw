@@ -20,6 +20,7 @@ use crate::fx::HostedValue;
 use crate::modulator::{Ear, ModRt};
 use cantus_core::db_to_linear;
 use cantus_core::modulator::eval::ModTime;
+use cantus_core::ModulatorId;
 
 /// The processor's automation state. Fixed size; the runtime arrives built.
 pub(super) struct AutoState {
@@ -54,6 +55,11 @@ pub(super) struct AutoState {
     pub(super) follow_master: f32,
     /// Each modulator's listened peak at a control point (scratch, fixed size).
     peaks: Vec<f32>,
+    /// The block the modulators' live values were last reported in.
+    told: u64,
+    /// An offline trace of one modulator's output × amount at every control point, for
+    /// *Bake to automation* (ADR 0057): room made before the render, never grown.
+    pub(super) trace: Option<(ModulatorId, Vec<(f64, f32)>)>,
 }
 
 /// Modulators a snapshot may play at once with their audio heard (more are heard as
@@ -80,6 +86,8 @@ impl AutoState {
             mods_clock: 0,
             follow_master: 0.0,
             peaks: vec![0.0; MAX_EARS],
+            told: u64::MAX,
+            trace: None,
         }
     }
 
@@ -193,8 +201,7 @@ impl Processor {
             }
             None => None,
         };
-        if rt.is_none() && !(snapshot.automation.is_empty() && snapshot.modulators.is_empty())
-        {
+        if rt.is_none() && !(snapshot.automation.is_empty() && snapshot.modulators.is_empty()) {
             // Sent without its runtime: it plays, unautomated.
             self.stats.dropped_events += 1;
         }
@@ -269,12 +276,28 @@ impl Processor {
                 h.at = find(h.effect);
             }
             for (m, plan) in rt.mods.iter_mut().zip(&snapshot.modulators) {
-                m.notes_slot = plan.notes.and_then(|ti| self.track_to_slot.get(ti).copied());
-                m.ear = plan
-                    .listen
-                    .and_then(|l| Ear::of(l, &self.strip_to_slot));
+                m.notes_slot = plan
+                    .notes
+                    .and_then(|ti| self.track_to_slot.get(ti).copied());
+                m.ear = plan.listen.and_then(|l| Ear::of(l, &self.strip_to_slot));
             }
         }
+    }
+
+    /// Trace modulator `id`'s output × amount at every control point of the coming
+    /// (offline) render, room for `capacity` points; `None` stops. Allocates: call it before
+    /// the render, never on the audio thread.
+    pub fn trace_modulator(&mut self, id: Option<ModulatorId>, capacity: usize) {
+        self.auto.trace = id.map(|id| (id, Vec::with_capacity(capacity)));
+    }
+
+    /// The trace so far, taken.
+    pub fn take_modulator_trace(&mut self) -> Vec<(f64, f32)> {
+        self.auto
+            .trace
+            .as_mut()
+            .map(|(_, t)| std::mem::take(t))
+            .unwrap_or_default()
     }
 
     /// The playhead jumped (a start, seek, loop wrap, a new snapshot): a control point is
@@ -366,8 +389,7 @@ impl Processor {
                 }
             } else {
                 self.auto.stop_clock = clock;
-                self.auto.stop_beats =
-                    self.transport.position_f64() / cantus_core::PPQ as f64;
+                self.auto.stop_beats = self.transport.position_f64() / cantus_core::PPQ as f64;
             }
             self.auto.mods_clock = clock;
             self.auto.next = self.transport.samples();
@@ -563,6 +585,33 @@ impl Processor {
         };
         rt.evaluate(&snap, &at);
         self.auto.at = now;
+        // The trace (an offline bake) and the live values (once a block).
+        if let Some((id, trace)) = self.auto.trace.as_mut() {
+            if let Some(m) = rt.mods.iter().find(|m| m.id == *id) {
+                if trace.len() < trace.capacity() {
+                    trace.push((tick, m.now * m.amount_now));
+                }
+            }
+        }
+        if self.auto.told != self.block && !rt.mods.is_empty() {
+            self.auto.told = self.block;
+            let mut t = crate::modulator::ModTelemetry {
+                count: rt.mods.len().min(crate::modulator::MOD_TELEMETRY),
+                ..Default::default()
+            };
+            for (k, m) in rt
+                .mods
+                .iter()
+                .take(crate::modulator::MOD_TELEMETRY)
+                .enumerate()
+            {
+                t.ids[k] = m.id.0;
+                t.values[k] = m.now * m.amount_now;
+            }
+            if self.tx.push(EngineEvent::Modulation(t)).is_err() {
+                self.stats.dropped_events += 1;
+            }
+        }
         let nodes = self.nodes.clone();
         let mut moving = false;
         for li in 0..rt.lanes.len() {

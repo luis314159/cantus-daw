@@ -24,6 +24,8 @@ use crate::command::{Command, CommandError};
 use crate::model::{ModulatorId, Project, StripId, TrackId};
 use serde::{Deserialize, Serialize};
 
+#[path = "modulator_bake.rs"]
+pub mod bake;
 #[path = "modulator_compile.rs"]
 pub mod compile;
 #[path = "modulator_eval.rs"]
@@ -314,7 +316,9 @@ impl ModSource {
     fn is_valid(&self) -> bool {
         let ms = |x: f32, lo: f32| x.is_finite() && (lo..=10_000.0).contains(&x);
         match self {
-            ModSource::Lfo(l) => l.rate.is_valid() && l.phase.is_finite() && (0.0..=1.0).contains(&l.phase),
+            ModSource::Lfo(l) => {
+                l.rate.is_valid() && l.phase.is_finite() && (0.0..=1.0).contains(&l.phase)
+            }
             ModSource::Envelope(e) => {
                 ms(e.attack_ms, 0.0)
                     && ms(e.decay_ms, 0.0)
@@ -336,7 +340,9 @@ impl ModSource {
             }
             ModSource::Step(s) => {
                 (1..=MAX_STEPS).contains(&s.steps.len())
-                    && s.steps.iter().all(|v| v.is_finite() && (-1.0..=1.0).contains(v))
+                    && s.steps
+                        .iter()
+                        .all(|v| v.is_finite() && (-1.0..=1.0).contains(v))
                     && (s.division as usize) < cantus_dsp::modfx_clock::DIVISIONS.len()
                     && s.glide.is_finite()
                     && (0.0..=1.0).contains(&s.glide)
@@ -523,10 +529,15 @@ pub(crate) fn apply_insert(
     Ok(Command::RemoveModulator { id })
 }
 
-pub(crate) fn apply_remove(project: &mut Project, id: ModulatorId) -> Result<Command, CommandError> {
+pub(crate) fn apply_remove(
+    project: &mut Project,
+    id: ModulatorId,
+) -> Result<Command, CommandError> {
     let (host, index, _) = project
         .modulator(id)
-        .ok_or(CommandError::InvalidValue(format!("modulator {id} not found")))?;
+        .ok_or(CommandError::InvalidValue(format!(
+            "modulator {id} not found"
+        )))?;
     let list = project.modulators_mut(host).ok_or(host_error(host))?;
     let m = list.remove(index);
     Ok(Command::InsertModulator {
@@ -546,7 +557,9 @@ pub(crate) fn apply_set(
     let id = modulator.id;
     let (host, index, _) = project
         .modulator(id)
-        .ok_or(CommandError::InvalidValue(format!("modulator {id} not found")))?;
+        .ok_or(CommandError::InvalidValue(format!(
+            "modulator {id} not found"
+        )))?;
     let list = project.modulators_mut(host).ok_or(host_error(host))?;
     let old = std::mem::replace(&mut list[index], *modulator);
     Ok(Command::SetModulator {

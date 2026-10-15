@@ -121,11 +121,15 @@ fn insert_remove_and_set_have_exact_inverses() {
     assert_eq!(p.modulator(m.id).unwrap().2, &edited);
     undo_set.apply(&mut p).unwrap();
     assert_eq!(p, mid);
-    let undo_remove = Command::RemoveModulator { id: env.id }.apply(&mut p).unwrap();
+    let undo_remove = Command::RemoveModulator { id: env.id }
+        .apply(&mut p)
+        .unwrap();
     assert!(p.modulator(env.id).is_none());
     undo_remove.apply(&mut p).unwrap();
     assert_eq!(p, mid);
-    Command::RemoveModulator { id: env.id }.apply(&mut p).unwrap();
+    Command::RemoveModulator { id: env.id }
+        .apply(&mut p)
+        .unwrap();
     undo_insert.apply(&mut p).unwrap();
     // Only the ids allocated remain different.
     let mut back = p.clone();
@@ -380,7 +384,11 @@ fn a_follower_rises_with_its_attack_falls_with_its_release_and_shrugs_off_nan() 
     for _ in 0..300 {
         f.step(0.0, 5.0, 100.0, dt);
     }
-    assert!((f.level - before * (-1f32).exp()).abs() < 2e-3, "{}", f.level);
+    assert!(
+        (f.level - before * (-1f32).exp()).abs() < 2e-3,
+        "{}",
+        f.level
+    );
 }
 
 #[test]
@@ -457,7 +465,11 @@ fn a_modulated_target_gets_a_lane_and_routes_find_it() {
         .collect();
     assert_eq!(
         targets,
-        vec![&drive(fid), &AutoTarget::StripPan(sid), &AutoTarget::MasterGain]
+        vec![
+            &drive(fid),
+            &AutoTarget::StripPan(sid),
+            &AutoTarget::MasterGain
+        ]
     );
     assert_eq!(plan.routes[1].1, -0.5);
     // The pan lane keeps its clip; the drive lane has no pieces and the project's value.

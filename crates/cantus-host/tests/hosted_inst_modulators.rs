@@ -50,7 +50,12 @@ fn a_step_sequence_on_a_hosted_instruments_gain_lands_on_its_samples() {
     let base = 60.0 / 72.0;
     let gain = |s: f64| 10f64.powf((-60.0 + 72.0 * (base + 0.25 * s)) / 20.0);
     let ratio = |f: usize| f64::from(reference[2 * f]) / f64::from(plain[2 * f]);
-    for (f, s) in [(24_010usize, -1.0), (29_999, -1.0), (30_000, 0.5), (35_000, 0.5)] {
+    for (f, s) in [
+        (24_010usize, -1.0),
+        (29_999, -1.0),
+        (30_000, 0.5),
+        (35_000, 0.5),
+    ] {
         assert!(plain[2 * f].abs() > 1e-4, "frame {f} sounds");
         assert!(
             (ratio(f) / gain(s) - 1.0).abs() < 1e-4,

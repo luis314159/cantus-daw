@@ -112,7 +112,10 @@ fn an_automation_clip_drives_a_hosted_parameter_and_lets_go_of_it() {
     pts[0].shape = Shape::Hold;
     let mut clip = rig.bus.new_clip("gain", Ticks::beats(1), Ticks::beats(2));
     clip.automation = Some(Automation::new(
-        AutoTarget::Plugin { effect: id, id: P_GAIN },
+        AutoTarget::Plugin {
+            effect: id,
+            id: P_GAIN,
+        },
         pts,
     ));
     let clip_id = clip.id;
@@ -131,7 +134,10 @@ fn an_automation_clip_drives_a_hosted_parameter_and_lets_go_of_it() {
         }
     }
     // Before the clip the project's own value (0 dB): exactly the plain output.
-    assert_eq!(differing(&out[..2 * (beat - 1)], &plain[..2 * (beat - 1)]), 0);
+    assert_eq!(
+        differing(&out[..2 * (beat - 1)], &plain[..2 * (beat - 1)]),
+        0
+    );
     // The clip removed: the parameter is the project's again everywhere.
     rig.exec(Command::RemoveClip {
         track,
@@ -162,8 +168,5 @@ fn modulation_offsets_the_projects_value_and_stops_with_its_modulator() {
     rig.settle();
     let r = ratios(&rig.play(frames, 256), &plain);
     let want = gain_at(base);
-    assert!(r
-        .iter()
-        .flatten()
-        .all(|g| (g / want - 1.0).abs() < 1e-4));
+    assert!(r.iter().flatten().all(|g| (g / want - 1.0).abs() < 1e-4));
 }

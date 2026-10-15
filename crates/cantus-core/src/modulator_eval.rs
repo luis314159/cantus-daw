@@ -207,9 +207,7 @@ pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Opti
             let since = match l.retrigger {
                 Retrigger::Song => None,
                 Retrigger::Note => {
-                    let seq = gates
-                        .filter(|_| t.playing)
-                        .and_then(|g| g.last_on(t.beats));
+                    let seq = gates.filter(|_| t.playing).and_then(|g| g.last_on(t.beats));
                     match (seq, live_on) {
                         (Some(a), Some(b)) => Some(a.max(b)),
                         (a, b) => a.or(b),
@@ -251,9 +249,7 @@ pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Opti
             polar(v, r.unipolar)
         }
         ModSource::Envelope(e) => match (&e.trigger, gates) {
-            (super::EnvTrigger::Notes { .. }, Some(g)) if t.playing => {
-                g.level(e, t.beats, t.spb)
-            }
+            (super::EnvTrigger::Notes { .. }, Some(g)) if t.playing => g.level(e, t.beats, t.spb),
             _ => 0.0,
         },
         ModSource::Follower(_) => 0.0,

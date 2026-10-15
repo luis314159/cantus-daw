@@ -59,7 +59,12 @@ fn eq_of(p: &Project) -> EffectId {
     p.strip(s).unwrap().effects[0].id
 }
 
-fn add(p: &mut Project, host: ModHost, kind: ModKind, routes: Vec<(AutoTarget, f32)>) -> ModulatorId {
+fn add(
+    p: &mut Project,
+    host: ModHost,
+    kind: ModKind,
+    routes: Vec<(AutoTarget, f32)>,
+) -> ModulatorId {
     let mut m = Modulator::new(ModulatorId(p.alloc_id()), kind);
     m.routes = routes
         .into_iter()
@@ -476,10 +481,69 @@ fn a_follower_ducks_a_strip() {
         let t = beat * 0.5;
         let under = organ_gain(t + 0.02, t + 0.1);
         let between = organ_gain(t + 0.45, t + 0.5);
-        assert!(under < 0.5, "beat {beat}: the organ under the lead at {under:.3}");
+        assert!(
+            under < 0.5,
+            "beat {beat}: the organ under the lead at {under:.3}"
+        );
         assert!(
             between > under * 1.5,
             "beat {beat}: it comes back ({between:.3} after {under:.3})"
         );
+    }
+}
+
+/// *Bake to automation*: a modulator's route turned into a clip (the route gone) renders
+/// what the modulator rendered — an LFO computed ahead, a follower from the engine's trace
+/// of an offline render — within the curve's thinning (1/500 of the travel).
+#[test]
+fn a_baked_route_renders_what_the_modulator_did() {
+    use cantus_core::modulator::bake::bake;
+    for kind in [ModKind::Lfo, ModKind::Step, ModKind::Follower] {
+        let mut p = base_project();
+        let lead_strip = p.tracks[0].strip.unwrap();
+        let organ_strip = p.tracks[1].strip.unwrap();
+        let target = AutoTarget::StripPan(organ_strip);
+        let id = add(
+            &mut p,
+            ModHost::Strip(organ_strip),
+            kind,
+            vec![(target.clone(), 0.6)],
+        );
+        if kind == ModKind::Follower {
+            edit(&mut p, id, |m| {
+                if let ModSource::Follower(f) = &mut m.source {
+                    f.listen = Listen::Strip(lead_strip);
+                    f.gain_db = 6.0;
+                }
+            });
+        }
+        let (from, to) = (Ticks::ZERO, Ticks::beats(16));
+        let s = snap(&p);
+        let modulated = render(s.clone(), &opts(512)).unwrap().samples;
+        let trace = (kind == ModKind::Follower)
+            .then(|| cantus_engine::modulator::trace(s, &opts(512), Vec::new(), Vec::new(), id));
+        let pts = bake(
+            &p,
+            id,
+            &target,
+            from,
+            to,
+            Ticks::ZERO,
+            None,
+            trace.as_deref(),
+        )
+        .unwrap();
+        let mut baked = p.clone();
+        edit(&mut baked, id, |m| m.routes.clear());
+        let c = baked.make_automation_clip("baked", target.clone(), from, to - from, pts);
+        baked.tracks[1].clips.push(c);
+        let out = render(snap(&baked), &opts(512)).unwrap().samples;
+        let peak = modulated.iter().fold(0f32, |m, x| m.max(x.abs()));
+        let worst = modulated
+            .iter()
+            .zip(&out)
+            .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
+        // Pan within 0.002 of the travel moves a channel's gain by well under 1 %.
+        assert!(worst < 0.01 * peak, "{kind:?}: {worst} of {peak}");
     }
 }

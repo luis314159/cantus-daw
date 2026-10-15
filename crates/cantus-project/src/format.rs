@@ -837,9 +837,15 @@ mod tests {
             assert!(kinds.contains(&k), "{k:?} in the fixture");
         }
         assert!(mods.iter().all(|m| m.is_valid()));
-        let lfo = mods.iter().find(|m| m.source.kind() == ModKind::Lfo).unwrap();
+        let lfo = mods
+            .iter()
+            .find(|m| m.source.kind() == ModKind::Lfo)
+            .unwrap();
         assert_eq!(lfo.routes.len(), 2);
-        assert!(lfo.routes.iter().any(|r| r.target.is_plugin() && r.depth == -0.4));
+        assert!(lfo
+            .routes
+            .iter()
+            .any(|r| r.target.is_plugin() && r.depth == -0.4));
         assert!(mods.iter().any(|m| m
             .routes
             .iter()

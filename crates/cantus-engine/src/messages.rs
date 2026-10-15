@@ -393,4 +393,6 @@ pub enum EngineEvent {
     GarbageAutomation(Box<crate::automation::Runtime>),
     /// A graph plan the engine no longer uses; the UI drops it.
     GarbagePlan(Box<crate::graph::GraphPlan>),
+    /// The modulators' live values, once a block while there are any (ADR 0057).
+    Modulation(crate::modulator::ModTelemetry),
 }

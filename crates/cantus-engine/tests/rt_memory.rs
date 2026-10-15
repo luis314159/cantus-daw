@@ -628,16 +628,22 @@ fn modulators_never_allocate() {
     p.strip_mut(s0).unwrap().effects.push(eq);
     let lead = p.tracks[0].id;
     let routes = [
-        (ModKind::Lfo, AutoTarget::Effect {
-            effect: eq_id,
-            key: "b0.gain".into(),
-        }),
+        (
+            ModKind::Lfo,
+            AutoTarget::Effect {
+                effect: eq_id,
+                key: "b0.gain".into(),
+            },
+        ),
         (ModKind::Step, AutoTarget::StripGain(s0)),
         (ModKind::Random, AutoTarget::StripPan(s0)),
-        (ModKind::Envelope, AutoTarget::Firmus {
-            track: lead,
-            param: FirmusParam::Cutoff,
-        }),
+        (
+            ModKind::Envelope,
+            AutoTarget::Firmus {
+                track: lead,
+                param: FirmusParam::Cutoff,
+            },
+        ),
         (ModKind::Follower, AutoTarget::MasterWidth),
     ];
     let mut first = None;

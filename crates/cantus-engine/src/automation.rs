@@ -176,10 +176,7 @@ impl Runtime {
             firmus: Vec::new(),
             hosted: Vec::new(),
             mods: snapshot.modulators.iter().map(ModRt::new).collect(),
-            audio_mods: snapshot
-                .modulators
-                .iter()
-                .any(|m| m.source.follows_audio()),
+            audio_mods: snapshot.modulators.iter().any(|m| m.source.follows_audio()),
             native_modulated: false,
             any_hosted: false,
         };
