@@ -475,10 +475,24 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
     }
 }
 
+/// The rate the inspector's line names: a Juno or Dimension model's own, the LFO's in
+/// the free modes.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    match cantus_engine::fx::concentus::settings(spec).mode.voicing() {
+        Some(v) => modfx::PreviewRate::Hz(v.rate as f32),
+        None => modfx::PreviewRate::Spec(spec),
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let cs = cantus_engine::fx::concentus::settings(spec);
     let mode = frame::tr(MODE_KEYS[cs.mode.index()]);
-    modfx::preview_strip(ui, spec, mode, &modfx::Pct(cs.mix), &|c| {
+    let words = modfx::PreviewWords {
+        mode,
+        rate: preview_rate(spec),
+        amount: &modfx::Pct(cs.mix),
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         let d = delays_at(&cs, c)[0];
         let (centre, sweep) = match cs.mode.voicing() {
             Some(v) => (v.centre_ms, v.sweep_ms),

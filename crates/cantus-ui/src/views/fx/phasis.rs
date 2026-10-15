@@ -391,13 +391,14 @@ fn response_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], ps: 
 
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ps = cantus_engine::fx::phasis::settings(spec);
-    modfx::preview_strip(
-        ui,
-        spec,
-        frame::tr("phasis.preview"),
-        &modfx::Pct(ps.mix),
-        &|c| modfx::lfo_at(&ps.lfo, ps.spread, c).0,
-    )
+    let words = modfx::PreviewWords {
+        mode: frame::tr("phasis.preview"),
+        rate: modfx::PreviewRate::Spec(spec),
+        amount: &modfx::Pct(ps.mix),
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
+        modfx::lfo_at(&ps.lfo, ps.spread, c).0
+    })
 }
 
 /// The settings `--editor phasis` and the screenshot tool open it with: a Small Stone with

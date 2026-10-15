@@ -397,10 +397,24 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
     );
 }
 
+/// The rate the inspector's line names: the LFO's, only while it swings the carrier.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    if cantus_engine::fx::anulus::settings(spec).lfo_st > 0.0 {
+        modfx::PreviewRate::Spec(spec)
+    } else {
+        modfx::PreviewRate::Off
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let a = cantus_engine::fx::anulus::settings(spec);
     let freq = modfx::Unit(a.freq_hz, "Hz");
-    modfx::preview_strip(ui, spec, frame::tr("anulus.preview"), &freq, &|c| {
+    let words = modfx::PreviewWords {
+        mode: frame::tr("anulus.preview"),
+        rate: preview_rate(spec),
+        amount: &freq,
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         cantus_dsp::anulus::carrier(a.wave, c * 2.0 - (c * 2.0).floor(), 1e-4)
     })
 }

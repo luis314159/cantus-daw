@@ -14,7 +14,7 @@
 //! | `rate` | the free rate | 0.05 … 20 Hz | 4 Hz |
 //! | `shape` | sine, triangle, square, saw up, saw down, random | 0 … 5 | sine |
 //! | `edge` | the soft edge of the square, the saws and the random steps | 0 … 100 % | 30 % |
-//! | `swing` | every second synced cycle late (MPC's 50 … 75 %) | 0 … 100 % | 0 |
+//! | `swing` | every second synced cycle late: 0 straight, 100 % half a cycle late (an MPC's 75 %) | 0 … 100 % | 0 |
 //! | `spread` | the right channel's LFO ahead of the left | 0 … 180° | 0 |
 //! | `offset` | where in its cycle the LFO starts | 0 … 360° | 0 |
 //! | `xover` | the harmonic mode's crossover | 100 … 4 000 Hz | 700 Hz |

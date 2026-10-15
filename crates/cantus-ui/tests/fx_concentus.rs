@@ -120,3 +120,27 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// The inspector's line names the rate the unit plays: a Juno or Dimension model's own
+/// (not the free LFO's knob, which it does not use), the LFO's in the free modes.
+#[test]
+fn the_preview_names_the_rate_the_model_plays() {
+    use cantus_ui::views::fx::modfx::{PreviewRate, RateWords};
+    let mut models = 0;
+    for mode in 0..=7 {
+        let mut spec = EffectSpec::new(EffectKind::Chorus);
+        spec.set("mode", mode as f32);
+        spec.set("rate", 0.8);
+        let words = concentus::preview_rate(&spec).to_string();
+        match cantus_engine::fx::concentus::settings(&spec).mode.voicing() {
+            Some(v) => {
+                models += 1;
+                assert_eq!(words, format!("{:.2} Hz", v.rate), "mode {mode}");
+                assert_ne!(words, "0.80 Hz", "mode {mode}: not the free LFO's rate");
+            }
+            None => assert_eq!(words, RateWords(&spec).to_string(), "mode {mode}"),
+        }
+        let _ = PreviewRate::Off;
+    }
+    assert!(models > 0);
+}

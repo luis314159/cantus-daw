@@ -51,7 +51,7 @@ everything else is set to a musical value, waiting for the depth.
 | `rate` | 0.05 … 20 Hz | 4 Hz | the free rate, from the start of playback |
 | `shape` | 0 … 5 | Sine | Sine, Triangle, Square, Saw up, Saw down, Random |
 | `edge` | 0 … 100 % | 30 % | the soft edge of the square, the saws and the random steps |
-| `swing` | 50 … 75 % | 50 % (straight) | every second synced cycle starts late, as the drum machines swing |
+| `swing` | 0 … 100 % | 0 % (straight) | every second synced cycle starts late, as the drum machines swing: 0 … 100 % here is an MPC's 50 … 75 % (67 % here is the triplet feel, an MPC's 66 %) |
 | `spread` | 0 … 180° | 0 | the right channel's LFO ahead of the left |
 | `offset` | 0 … 360° | 0 | where in its cycle the LFO starts |
 | `xover` | 100 … 4 000 Hz | 700 Hz | the harmonic mode's crossover |

@@ -118,3 +118,27 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// The inspector's line names the LFO's rate only in the LFO mode: the envelope and the
+/// hand move the sweep without it, and the line then reads "mode · mix".
+#[test]
+fn the_preview_names_a_rate_only_when_the_lfo_moves_the_sweep() {
+    use cantus_ui::views::fx::modfx::PreviewWords;
+    for (mode, rated) in [(0.0f32, true), (1.0, false), (2.0, false)] {
+        let mut spec = EffectSpec::new(EffectKind::Flanger);
+        spec.set("mode", mode);
+        let rate = flexus::preview_rate(&spec);
+        let line = PreviewWords {
+            mode: "M",
+            rate,
+            amount: &"50%",
+        }
+        .to_string();
+        assert_eq!(!rate.to_string().is_empty(), rated, "mode {mode}");
+        assert_eq!(
+            line.matches('\u{b7}').count(),
+            if rated { 2 } else { 1 },
+            "{line}"
+        );
+    }
+}

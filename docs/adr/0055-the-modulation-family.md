@@ -38,7 +38,7 @@ cycles per sample + offset — a pure function of the song position, so bar 5 is
 offline is live. Free: phase from the start of playback; a rate change re-anchors where the
 wave is, so it never jumps. Six shapes, all starting at their middle rising; the stepped ones
 (square, saws, random) have a **soft edge** so a tremolo never clicks; random steps are a
-hash of a seed and the cycle's number; swing (MPC's 50–75 %) on synced rates. Seventeen note
+hash of a seed and the cycle's number; swing (0 … 100 %, an MPC's 50–75 %) on synced rates. Seventeen note
 values (8/1 … 1/32, dotted and triplet) in one shared table.
 
 **Rest is exact because the LFO is not state.** A unit's audio state (lines, filters,

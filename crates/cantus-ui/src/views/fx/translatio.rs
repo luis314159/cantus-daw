@@ -427,10 +427,24 @@ fn legend(b: &mut Brush, r: Rect, ink: &Ink, right: Color32, k: f32) {
     }
 }
 
+/// The rate the inspector's line names: the LFO's, only while it swings the shift.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    if cantus_engine::fx::translatio::settings(spec).lfo_hz > 0.0 {
+        modfx::PreviewRate::Spec(spec)
+    } else {
+        modfx::PreviewRate::Off
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ts = cantus_engine::fx::translatio::settings(spec);
     let shift = modfx::Unit(ts.shift_hz, "Hz");
-    modfx::preview_strip(ui, spec, frame::tr("translatio.preview"), &shift, &|c| {
+    let words = modfx::PreviewWords {
+        mode: frame::tr("translatio.preview"),
+        rate: preview_rate(spec),
+        amount: &shift,
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         modfx::lfo_at(&ts.lfo, 0.0, c).0 * if ts.lfo_hz > 0.0 { 0.8 } else { 0.0 }
     })
 }

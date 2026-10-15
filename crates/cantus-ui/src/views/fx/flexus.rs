@@ -534,10 +534,24 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
     b.polyline(&pts, 1.4 * k, ink);
 }
 
+/// The rate the inspector's line names: the LFO's in the LFO mode, none when the
+/// envelope or the hand moves the sweep.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    match cantus_engine::fx::flexus::settings(spec).mode {
+        Mode::Lfo => modfx::PreviewRate::Spec(spec),
+        _ => modfx::PreviewRate::Off,
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let fs = cantus_engine::fx::flexus::settings(spec);
     let mode = frame::tr(MODE_KEYS[fs.mode as usize]);
-    modfx::preview_strip(ui, spec, mode, &modfx::Pct(fs.mix), &|c| {
+    let words = modfx::PreviewWords {
+        mode,
+        rate: preview_rate(spec),
+        amount: &modfx::Pct(fs.mix),
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         let (ml, _) = match fs.mode {
             Mode::Lfo => modfx::lfo_at(&fs.lfo, fs.spread, c),
             _ => (2.0 * fs.manual - 1.0, 0.0),
