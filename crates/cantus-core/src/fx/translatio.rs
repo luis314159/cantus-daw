@@ -47,13 +47,31 @@ pub const PARAMS: &[EffectParamInfo] = &[
     ),
     p("side", "fx.translatio.side", 0.0, 2.0, 0.0, "", false, true),
     p("fb", "fx.translatio.fb", 0.0, 0.95, 0.0, "%", false, false),
-    p("lfo", "fx.translatio.lfo", 0.0, 1_000.0, 0.0, "Hz", false, false),
+    p(
+        "lfo",
+        "fx.translatio.lfo",
+        0.0,
+        1_000.0,
+        0.0,
+        "Hz",
+        false,
+        false,
+    ),
     p("sync", "modfx.p.sync", 0.0, 1.0, 0.0, "", false, true),
     p("div", "modfx.p.div", 0.0, 16.0, 3.0, "", false, true),
     p("rate", "modfx.p.rate", 0.02, 10.0, 0.2, "Hz", true, false),
     p("shape", "modfx.p.shape", 0.0, 5.0, 0.0, "", false, true),
     p("mix", "fx.translatio.mix", 0.0, 1.0, 0.0, "%", false, false),
-    p("out", "fx.translatio.out", -24.0, 24.0, 0.0, "dB", false, false),
+    p(
+        "out",
+        "fx.translatio.out",
+        -24.0,
+        24.0,
+        0.0,
+        "dB",
+        false,
+        false,
+    ),
 ];
 
 pub fn params() -> &'static [EffectParamInfo] {

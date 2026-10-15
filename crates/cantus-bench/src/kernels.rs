@@ -66,14 +66,97 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Reverb => set(&mut s, &[("size", 1.0)]),
         EffectKind::External => {}
         // Round 28: each builder sets its own heavy line.
-        EffectKind::Chorus => set(&mut s, &[("mode", 7.0), ("mix", 0.5), ("voices", 4.0), ("delay", 30.0), ("depth", 8.0), ("tone", 4_000.0)]),
-        EffectKind::Flanger => set(&mut s, &[("mode", 1.0), ("tz", 1.0), ("mix", 0.5), ("fb", 0.95), ("depth", 10.0), ("spread", 90.0)]),
-        EffectKind::Phaser => set(&mut s, &[("stages", 12.0), ("mix", 0.5), ("fb", 0.95), ("shape", 5.0), ("spread", 90.0), ("lo", 20.0), ("hi", 16_000.0)]),
-        EffectKind::Tremolo => set(&mut s, &[("mode", 2.0), ("depth", 1.0), ("shape", 5.0), ("swing", 0.5), ("spread", 90.0)]),
-        EffectKind::Vibrato => set(&mut s, &[("depth", 100.0), ("rate", 0.2), ("rise", 500.0), ("spread", 90.0), ("mix", 0.5)]),
-        EffectKind::RingMod => set(&mut s, &[("wave", 2.0), ("lfo", 24.0), ("rate", 20.0), ("mix", 0.5), ("spread", 90.0), ("freq", 5_000.0)]),
-        EffectKind::FreqShift => set(&mut s, &[("shift", -2_000.0), ("side", 2.0), ("fb", 0.95), ("lfo", 1_000.0), ("rate", 10.0), ("mix", 0.5)]),
-        EffectKind::VolumeShaper => set(&mut s, &[("depth", 1.0), ("div", 14.0), ("smooth", 0.0), ("p2.on", 1.0), ("p2.x", 0.7), ("p2.s", 4.0), ("p2.t", 1.0), ("p3.on", 1.0), ("p3.x", 0.9), ("p3.s", 1.0)]),
+        EffectKind::Chorus => set(
+            &mut s,
+            &[
+                ("mode", 7.0),
+                ("mix", 0.5),
+                ("voices", 4.0),
+                ("delay", 30.0),
+                ("depth", 8.0),
+                ("tone", 4_000.0),
+            ],
+        ),
+        EffectKind::Flanger => set(
+            &mut s,
+            &[
+                ("mode", 1.0),
+                ("tz", 1.0),
+                ("mix", 0.5),
+                ("fb", 0.95),
+                ("depth", 10.0),
+                ("spread", 90.0),
+            ],
+        ),
+        EffectKind::Phaser => set(
+            &mut s,
+            &[
+                ("stages", 12.0),
+                ("mix", 0.5),
+                ("fb", 0.95),
+                ("shape", 5.0),
+                ("spread", 90.0),
+                ("lo", 20.0),
+                ("hi", 16_000.0),
+            ],
+        ),
+        EffectKind::Tremolo => set(
+            &mut s,
+            &[
+                ("mode", 2.0),
+                ("depth", 1.0),
+                ("shape", 5.0),
+                ("swing", 0.5),
+                ("spread", 90.0),
+            ],
+        ),
+        EffectKind::Vibrato => set(
+            &mut s,
+            &[
+                ("depth", 100.0),
+                ("rate", 0.2),
+                ("rise", 500.0),
+                ("spread", 90.0),
+                ("mix", 0.5),
+            ],
+        ),
+        EffectKind::RingMod => set(
+            &mut s,
+            &[
+                ("wave", 2.0),
+                ("lfo", 24.0),
+                ("rate", 20.0),
+                ("mix", 0.5),
+                ("spread", 90.0),
+                ("freq", 5_000.0),
+            ],
+        ),
+        EffectKind::FreqShift => set(
+            &mut s,
+            &[
+                ("shift", -2_000.0),
+                ("side", 2.0),
+                ("fb", 0.95),
+                ("lfo", 1_000.0),
+                ("rate", 10.0),
+                ("mix", 0.5),
+            ],
+        ),
+        EffectKind::VolumeShaper => set(
+            &mut s,
+            &[
+                ("depth", 1.0),
+                ("div", 14.0),
+                ("smooth", 0.0),
+                ("p2.on", 1.0),
+                ("p2.x", 0.7),
+                ("p2.s", 4.0),
+                ("p2.t", 1.0),
+                ("p3.on", 1.0),
+                ("p3.x", 0.9),
+                ("p3.s", 1.0),
+            ],
+        ),
         EffectKind::Clipper => {}
         EffectKind::Transient => {}
         EffectKind::TransientSplit => {}

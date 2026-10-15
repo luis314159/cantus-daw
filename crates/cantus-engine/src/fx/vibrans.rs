@@ -121,6 +121,10 @@ mod tests {
         let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
         let (mut l, mut r) = (x.clone(), x.clone());
         u.process(&mut l, &mut r, None);
-        assert!(l.iter().chain(&r).zip(x.iter().chain(&x)).all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(l
+            .iter()
+            .chain(&r)
+            .zip(x.iter().chain(&x))
+            .all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 }

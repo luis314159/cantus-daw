@@ -259,7 +259,12 @@ impl Flexus {
         {
             return Some("a glide is moving");
         }
-        if !self.lines.iter().chain(self.dry.iter()).all(ModLine::is_silent) {
+        if !self
+            .lines
+            .iter()
+            .chain(self.dry.iter())
+            .all(ModLine::is_silent)
+        {
             return Some("a line holds sound");
         }
         if self.back.iter().any(|v| v.to_bits() != 0) || self.env.to_bits() != 0 {

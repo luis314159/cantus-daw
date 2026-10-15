@@ -368,7 +368,8 @@ impl Concentus {
                         let m2 = if spread == 0.0 {
                             m
                         } else {
-                            self.lfo.value_offset(&self.clock, i, 0.5 * f64::from(spread))
+                            self.lfo
+                                .value_offset(&self.clock, i, 0.5 * f64::from(spread))
                         };
                         mr = m2;
                         wl = self.lines[0].read(d);
@@ -386,7 +387,8 @@ impl Concentus {
                 mr = if spread == 0.0 {
                     ml
                 } else {
-                    self.lfo.value_offset(&self.clock, i, 0.5 * f64::from(spread))
+                    self.lfo
+                        .value_offset(&self.clock, i, 0.5 * f64::from(spread))
                 };
                 d_now = centre + sweep * ml;
                 let w1 = self.lines[0].read(d_now);
@@ -437,7 +439,9 @@ impl Concentus {
         self.blocks = (self.blocks + 1) % (1 << 24);
         let cycles = self.lfo.cycles(&self.clock, 0);
         let (pl, _) = self.lfo.phase_at(cycles);
-        let (pr, _) = self.lfo.phase_at(cycles + 0.5 * f64::from(self.spread.value));
+        let (pr, _) = self
+            .lfo
+            .phase_at(cycles + 0.5 * f64::from(self.spread.value));
         self.tel[tel::SAMPLE_RATE] = self.sr;
         self.tel[tel::TEMPO] = self.clock.tempo() as f32;
         self.tel[tel::PLAYING] = if self.clock.playing() { 1.0 } else { 0.0 };

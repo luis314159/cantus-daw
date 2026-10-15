@@ -226,7 +226,9 @@ fn the_harmonic_tremolo_moves_the_lows_against_the_highs() {
             .unzip();
         drive(&mut unit(&s), &mut l, &mut r, 0, || 512);
         // The envelope around `at`.
-        l[at - 600..at + 600].iter().fold(0.0f32, |m, x| m.max(x.abs()))
+        l[at - 600..at + 600]
+            .iter()
+            .fold(0.0f32, |m, x| m.max(x.abs()))
     };
     // A quarter of a 2 Hz cycle in (the LFO's top): the lows open, the highs shut; three
     // quarters in, the other way round.

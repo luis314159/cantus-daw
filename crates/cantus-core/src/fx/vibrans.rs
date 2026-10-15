@@ -33,15 +33,51 @@ pub const CHOICES: &[(&str, &str)] = &[
 ];
 
 pub const PARAMS: &[EffectParamInfo] = &[
-    p("depth", "fx.vibrans.depth", 0.0, 100.0, 0.0, "ct", false, false),
+    p(
+        "depth",
+        "fx.vibrans.depth",
+        0.0,
+        100.0,
+        0.0,
+        "ct",
+        false,
+        false,
+    ),
     p("sync", "modfx.p.sync", 0.0, 1.0, 0.0, "", false, true),
     p("div", "modfx.p.div", 0.0, 16.0, 14.0, "", false, true),
     p("rate", "modfx.p.rate", 0.2, 15.0, 5.5, "Hz", true, false),
     p("shape", "modfx.p.shape", 0.0, 1.0, 0.0, "", false, true),
-    p("rise", "fx.vibrans.rise", 0.0, 2_000.0, 0.0, "ms", false, false),
-    p("spread", "modfx.p.spread", 0.0, 180.0, 0.0, "\u{b0}", false, false),
+    p(
+        "rise",
+        "fx.vibrans.rise",
+        0.0,
+        2_000.0,
+        0.0,
+        "ms",
+        false,
+        false,
+    ),
+    p(
+        "spread",
+        "modfx.p.spread",
+        0.0,
+        180.0,
+        0.0,
+        "\u{b0}",
+        false,
+        false,
+    ),
     p("mix", "fx.vibrans.mix", 0.0, 1.0, 1.0, "%", false, false),
-    p("out", "fx.vibrans.out", -24.0, 24.0, 0.0, "dB", false, false),
+    p(
+        "out",
+        "fx.vibrans.out",
+        -24.0,
+        24.0,
+        0.0,
+        "dB",
+        false,
+        false,
+    ),
 ];
 
 pub fn params() -> &'static [EffectParamInfo] {

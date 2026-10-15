@@ -27,18 +27,12 @@ const KIND: EffectKind = EffectKind::RingMod;
 
 /// Factory presets: a label key and the parameters it sets.
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.anulus.bell",
-        &[("freq", 587.0), ("mix", 0.6)],
-    ),
+    ("preset.anulus.bell", &[("freq", 587.0), ("mix", 0.6)]),
     (
         "preset.anulus.robot",
         &[("freq", 55.0), ("wave", 2.0), ("mix", 1.0)],
     ),
-    (
-        "preset.anulus.dalek",
-        &[("freq", 30.0), ("mix", 1.0)],
-    ),
+    ("preset.anulus.dalek", &[("freq", 30.0), ("mix", 1.0)]),
     (
         "preset.anulus.through_zero_tremolo",
         &[("freq", 4.0), ("wave", 1.0), ("mix", 1.0)],
@@ -169,29 +163,54 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, &sm, r2[0], Src::Key("anulus.card.carrier"), None, |ui, _| {
-        controls::param_with(ui, &sm, host, "freq", Size::XL, Some(&freq_pill));
-        controls::param_with(ui, &sm, host, "lfo", Size::M, Some(&st_pill));
-        controls::column(ui, &sm, WAVE_W, |ui| {
-            controls::caption(ui, &sm, Src::Key("anulus.wave_caption"), WAVE_W);
-            let labels = WAVE_KEYS.map(Src::Key);
-            controls::segmented_param(ui, &sm, host, "wave", &labels, WAVE_W);
-        });
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[0],
+        Src::Key("anulus.card.carrier"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &sm, host, "freq", Size::XL, Some(&freq_pill));
+            controls::param_with(ui, &sm, host, "lfo", Size::M, Some(&st_pill));
+            controls::column(ui, &sm, WAVE_W, |ui| {
+                controls::caption(ui, &sm, Src::Key("anulus.wave_caption"), WAVE_W);
+                let labels = WAVE_KEYS.map(Src::Key);
+                controls::segmented_param(ui, &sm, host, "wave", &labels, WAVE_W);
+            });
+        },
+    );
     modfx::region(ui, r2[1], a.lfo_st > 0.0, |ui| {
         modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
     });
     let so = s.function(Function::Output);
-    controls::card(ui, &so, r2[2], Src::Key("anulus.card.output"), None, |ui, _| {
-        controls::param_with(ui, &so, host, "spread", Size::M, Some(&modfx::deg_pill));
-        controls::param_with(ui, &so, host, "mix", Size::M, Some(&modfx::pct_pill));
-        controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &so,
+        r2[2],
+        Src::Key("anulus.card.output"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &so, host, "spread", Size::M, Some(&modfx::deg_pill));
+            controls::param_with(ui, &so, host, "mix", Size::M, Some(&modfx::pct_pill));
+            controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
 }
 
 /// The note names, from C.
 const NOTES: [&str; 12] = [
-    "C", "C\u{266f}", "D", "D\u{266f}", "E", "F", "F\u{266f}", "G", "G\u{266f}", "A", "A\u{266f}", "B",
+    "C",
+    "C\u{266f}",
+    "D",
+    "D\u{266f}",
+    "E",
+    "F",
+    "F\u{266f}",
+    "G",
+    "G\u{266f}",
+    "A",
+    "A\u{266f}",
+    "B",
 ];
 
 /// A frequency as the nearest note and its cents: `A4 +0`.
@@ -283,7 +302,10 @@ pub fn partials(a: &AnulusSettings, out: &mut [(f32, f32); 32]) -> usize {
     let mut n = 1;
     while n <= top && count + 2 <= out.len() {
         let amp = scale / cantus_dsp::math::powi(n as f32, falloff) * 0.5;
-        for f in [tone + n as f32 * a.freq_hz, (tone - n as f32 * a.freq_hz).abs()] {
+        for f in [
+            tone + n as f32 * a.freq_hz,
+            (tone - n as f32 * a.freq_hz).abs(),
+        ] {
             out[count] = (f, amp);
             count += 1;
         }
@@ -293,47 +315,83 @@ pub fn partials(a: &AnulusSettings, out: &mut [(f32, f32); 32]) -> usize {
 }
 
 fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
-    controls::card(ui, s, rect, Src::Key("anulus.card.partials"), None, |ui, cr| {
-        let r = cr.body;
-        let ink = Ink::of(s);
-        let k = s.k;
-        let plot = r.shrink2(vec2(8.0 * k, 16.0 * k));
-        let x_of = |f: f32| {
-            plot.left() + plot.width() * (cantus_dsp::math::log10(f.clamp(20.0, 20_000.0) / 20.0) / 3.0)
-        };
-        let (top, bottom) = (0.0f32, -48.0f32);
-        let y_of = |amp: f32| {
-            let db = (20.0 * cantus_dsp::math::log10(amp.max(1e-6))).clamp(bottom, top);
-            plot.top() + plot.height() * (top - db) / (top - bottom)
-        };
-        let mut parts = [(0.0f32, 0.0f32); 32];
-        let n = partials(a, &mut parts);
-        with_brush(&ui.painter_at(r), |b| {
-            canvas::ground_b(b, r, &ink, s.hue_tok);
-            for db in [-12.0f32, -24.0, -36.0] {
-                let y = plot.top() + plot.height() * (top - db) / (top - bottom);
-                b.hline(plot.left(), plot.right(), y, b.px(), ink.grid);
-            }
-            // The input: a faint line at 1 kHz, at full level.
-            let x_in = x_of(1_000.0);
-            canvas::dashed(b, pos2(x_in, plot.top()), pos2(x_in, plot.bottom()), 1.2 * k, ink.faint, 4.0 * k, 3.0 * k);
-            for &(f, amp) in &parts[..n] {
-                if !(20.0..=20_000.0).contains(&f) {
-                    continue;
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("anulus.card.partials"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            let ink = Ink::of(s);
+            let k = s.k;
+            let plot = r.shrink2(vec2(8.0 * k, 16.0 * k));
+            let x_of = |f: f32| {
+                plot.left()
+                    + plot.width() * (cantus_dsp::math::log10(f.clamp(20.0, 20_000.0) / 20.0) / 3.0)
+            };
+            let (top, bottom) = (0.0f32, -48.0f32);
+            let y_of = |amp: f32| {
+                let db = (20.0 * cantus_dsp::math::log10(amp.max(1e-6))).clamp(bottom, top);
+                plot.top() + plot.height() * (top - db) / (top - bottom)
+            };
+            let mut parts = [(0.0f32, 0.0f32); 32];
+            let n = partials(a, &mut parts);
+            with_brush(&ui.painter_at(r), |b| {
+                canvas::ground_b(b, r, &ink, s.hue_tok);
+                for db in [-12.0f32, -24.0, -36.0] {
+                    let y = plot.top() + plot.height() * (top - db) / (top - bottom);
+                    b.hline(plot.left(), plot.right(), y, b.px(), ink.grid);
                 }
-                let x = x_of(f);
-                b.segment(pos2(x, plot.bottom()), pos2(x, y_of(amp)), 2.0 * k, ink.hue, false);
-                b.dot(pos2(x, y_of(amp)), 2.5 * k, ink.hue);
-            }
-            for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
-                let t = Text::new(word, Role::Micro, ink.dim);
-                canvas::put(b, pos2(x_of(at), r.bottom() - 2.0 * k), Align2::CENTER_BOTTOM, &t, k, None);
-            }
-            let t = Text::key("anulus.input", Role::Micro, ink.dim).caps(true);
-            canvas::put(b, pos2(x_in + 4.0 * k, plot.top()), Align2::LEFT_TOP, &t, k, Some(ink.plate));
-            canvas::edge_b(b, r, &ink);
-        });
-    });
+                // The input: a faint line at 1 kHz, at full level.
+                let x_in = x_of(1_000.0);
+                canvas::dashed(
+                    b,
+                    pos2(x_in, plot.top()),
+                    pos2(x_in, plot.bottom()),
+                    1.2 * k,
+                    ink.faint,
+                    4.0 * k,
+                    3.0 * k,
+                );
+                for &(f, amp) in &parts[..n] {
+                    if !(20.0..=20_000.0).contains(&f) {
+                        continue;
+                    }
+                    let x = x_of(f);
+                    b.segment(
+                        pos2(x, plot.bottom()),
+                        pos2(x, y_of(amp)),
+                        2.0 * k,
+                        ink.hue,
+                        false,
+                    );
+                    b.dot(pos2(x, y_of(amp)), 2.5 * k, ink.hue);
+                }
+                for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
+                    let t = Text::new(word, Role::Micro, ink.dim);
+                    canvas::put(
+                        b,
+                        pos2(x_of(at), r.bottom() - 2.0 * k),
+                        Align2::CENTER_BOTTOM,
+                        &t,
+                        k,
+                        None,
+                    );
+                }
+                let t = Text::key("anulus.input", Role::Micro, ink.dim).caps(true);
+                canvas::put(
+                    b,
+                    pos2(x_in + 4.0 * k, plot.top()),
+                    Align2::LEFT_TOP,
+                    &t,
+                    k,
+                    Some(ink.plate),
+                );
+                canvas::edge_b(b, r, &ink);
+            });
+        },
+    );
 }
 
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {

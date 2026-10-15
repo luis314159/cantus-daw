@@ -36,14 +36,32 @@ pub const CHOICES: &[(&str, &str)] = &[
 ];
 
 pub const PARAMS: &[EffectParamInfo] = &[
-    p("freq", "fx.anulus.freq", 1.0, 5_000.0, 440.0, "Hz", true, false),
+    p(
+        "freq",
+        "fx.anulus.freq",
+        1.0,
+        5_000.0,
+        440.0,
+        "Hz",
+        true,
+        false,
+    ),
     p("wave", "fx.anulus.wave", 0.0, 2.0, 0.0, "", false, true),
     p("lfo", "fx.anulus.lfo", 0.0, 24.0, 0.0, "st", false, false),
     p("sync", "modfx.p.sync", 0.0, 1.0, 0.0, "", false, true),
     p("div", "modfx.p.div", 0.0, 16.0, 3.0, "", false, true),
     p("rate", "modfx.p.rate", 0.02, 20.0, 0.5, "Hz", true, false),
     p("shape", "modfx.p.shape", 0.0, 5.0, 0.0, "", false, true),
-    p("spread", "modfx.p.spread", 0.0, 180.0, 0.0, "\u{b0}", false, false),
+    p(
+        "spread",
+        "modfx.p.spread",
+        0.0,
+        180.0,
+        0.0,
+        "\u{b0}",
+        false,
+        false,
+    ),
     p("mix", "fx.anulus.mix", 0.0, 1.0, 0.0, "%", false, false),
     p("out", "fx.anulus.out", -24.0, 24.0, 0.0, "dB", false, false),
 ];

@@ -305,7 +305,11 @@ mod tests {
         c.set(&t(false, 0));
         c.advance(100);
         c.set(&t(false, 0));
-        assert_eq!(c.song(0), 100, "a stopped transport does not freeze the song time");
+        assert_eq!(
+            c.song(0),
+            100,
+            "a stopped transport does not freeze the song time"
+        );
         assert_eq!(c.free(0), 100);
         let e = c.epoch();
         c.set(&t(true, 48_000));

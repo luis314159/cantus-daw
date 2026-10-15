@@ -2,9 +2,9 @@
 //! every mode, the same render at every block size while it works, and live equal to
 //! offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;

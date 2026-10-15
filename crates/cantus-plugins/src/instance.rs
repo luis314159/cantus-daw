@@ -244,9 +244,7 @@ impl Shared {
     /// The audio thread's view of the host's transport (no allocation, no lock).
     fn publish_transport(&self, t: &HostTransport) {
         let h = &self.host;
-        let tempo = t
-            .tempo
-            .unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
+        let tempo = t.tempo.unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
         let (num, den) = t.time_sig.unwrap_or((4, 4));
         h.playing.store(t.playing, Ordering::Relaxed);
         h.tempo.store(tempo.to_bits(), Ordering::Relaxed);

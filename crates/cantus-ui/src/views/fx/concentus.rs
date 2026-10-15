@@ -29,10 +29,7 @@ const KIND: EffectKind = EffectKind::Chorus;
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ("preset.concentus.juno_one", &[("mode", 0.0), ("mix", 0.5)]),
     ("preset.concentus.juno_two", &[("mode", 1.0), ("mix", 0.5)]),
-    (
-        "preset.concentus.juno_both",
-        &[("mode", 2.0), ("mix", 0.5)],
-    ),
+    ("preset.concentus.juno_both", &[("mode", 2.0), ("mix", 0.5)]),
     (
         "preset.concentus.dim_subtle",
         &[("mode", 3.0), ("mix", 0.5), ("tone", 12_000.0)],
@@ -90,7 +87,12 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ),
     (
         "preset.concentus.mono_bass",
-        &[("mode", 1.0), ("mix", 0.4), ("spread", 0.0), ("tone", 6_000.0)],
+        &[
+            ("mode", 1.0),
+            ("mix", 0.4),
+            ("spread", 0.0),
+            ("tone", 6_000.0),
+        ],
     ),
 ];
 
@@ -229,26 +231,47 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, &sm, r2[0], Src::Key("concentus.card.mix"), None, |ui, _| {
-        controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[0],
+        Src::Key("concentus.card.mix"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
+        },
+    );
     let smod = s.function(Function::Mod);
     modfx::region(ui, r2[1], free, |ui| {
         modfx::lfo_card(host, ui, &smod, r2[1], &LFO);
     });
     modfx::region(ui, r2[2], free, |ui| {
-        controls::card(ui, &smod, r2[2], Src::Key("concentus.card.voices"), None, |ui, _| {
-            controls::param_with(ui, &smod, host, "voices", Size::M, Some(&count_pill));
-            controls::param_with(ui, &smod, host, "delay", Size::M, Some(&modfx::ms_pill));
-            controls::param_with(ui, &smod, host, "depth", Size::M, Some(&modfx::ms_pill));
-        });
+        controls::card(
+            ui,
+            &smod,
+            r2[2],
+            Src::Key("concentus.card.voices"),
+            None,
+            |ui, _| {
+                controls::param_with(ui, &smod, host, "voices", Size::M, Some(&count_pill));
+                controls::param_with(ui, &smod, host, "delay", Size::M, Some(&modfx::ms_pill));
+                controls::param_with(ui, &smod, host, "depth", Size::M, Some(&modfx::ms_pill));
+            },
+        );
     });
     let so = s.function(Function::Output);
-    controls::card(ui, &so, r2[3], Src::Key("concentus.card.output"), None, |ui, _| {
-        controls::param_with(ui, &so, host, "spread", Size::M, Some(&modfx::pct_pill));
-        controls::param_with(ui, &so, host, "tone", Size::M, Some(&tone_pill));
-        controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &so,
+        r2[3],
+        Src::Key("concentus.card.output"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &so, host, "spread", Size::M, Some(&modfx::pct_pill));
+            controls::param_with(ui, &so, host, "tone", Size::M, Some(&tone_pill));
+            controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
 }
 
 fn tone_pill(v: f32, b: &mut String) {
@@ -321,19 +344,26 @@ fn voices_card(
     let all: [&dyn Fn(f64) -> f32; 2] = [&v3, &v4];
     let more = &all[..n.saturating_sub(2)];
     let hz = cs.mode.voicing().map(|v| v.rate);
-    controls::card(ui, s, rect, Src::Key("concentus.card.delays"), None, |ui, cr| {
-        let r = cr.body;
-        st.display = Some(r);
-        let curve = |c: f64| {
-            let d = delays_at(cs, c);
-            (norm(d[0]), norm(d[1]))
-        };
-        let extras = modfx::Extras { more, hz };
-        modfx::movement_with(ui, s, r, host, tel, &curve, &st.top.1, "0 ms", &extras);
-        if cs.mix == 0.0 {
-            modfx::idle_note(ui, s, r, "concentus.idle");
-        }
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("concentus.card.delays"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            st.display = Some(r);
+            let curve = |c: f64| {
+                let d = delays_at(cs, c);
+                (norm(d[0]), norm(d[1]))
+            };
+            let extras = modfx::Extras { more, hz };
+            modfx::movement_with(ui, s, r, host, tel, &curve, &st.top.1, "0 ms", &extras);
+            if cs.mix == 0.0 {
+                modfx::idle_note(ui, s, r, "concentus.idle");
+            }
+        },
+    );
 }
 
 /// The mono check: the correlation on a bar from −1 to +1, the mono sum's loss, a verdict.
@@ -348,54 +378,68 @@ fn mono_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], cs: &Con
     } else {
         "concentus.mono.mostly"
     };
-    controls::card(ui, s, rect, Src::Key("concentus.card.mono"), None, |ui, cr| {
-        let ink = Ink::of(s);
-        let k = s.k;
-        let inner = cr.body;
-        let bar = Rect::from_min_size(
-            pos2(inner.left() + 6.0 * k, inner.top() + 22.0 * k),
-            vec2(inner.width() - 12.0 * k, 12.0 * k),
-        );
-        with_brush(&ui.painter_at(inner.expand(2.0)), |b| {
-            let t = Text::key("concentus.mono.corr", Role::Micro, ink.dim).caps(true);
-            canvas::put(b, pos2(bar.left(), inner.top() + 4.0 * k), Align2::LEFT_TOP, &t, k, None);
-            b.rrect(bar, 3.0 * k, Fill::Solid(ink.ground));
-            let mid = bar.center().x;
-            b.vline(mid, bar.top(), bar.bottom(), b.px(), ink.grid_strong);
-            let x = mid + corr.clamp(-1.0, 1.0) * bar.width() * 0.5;
-            let fill = Rect::from_x_y_ranges(mid.min(x)..=mid.max(x), bar.y_range());
-            let color = if corr < 0.0 { ink.danger } else { ink.ok };
-            b.rect(fill, Fill::Solid(Ink::a(color, 0.8)));
-            b.rrect_stroke(bar, 3.0 * k, b.px(), ink.edge);
-            for (word, at, align) in [
-                ("\u{2212}1", bar.left(), Align2::LEFT_TOP),
-                ("0", mid, Align2::CENTER_TOP),
-                ("+1", bar.right(), Align2::RIGHT_TOP),
-            ] {
-                let t = Text::new(word, Role::Micro, ink.dim);
-                canvas::put(b, pos2(at, bar.bottom() + 2.0 * k), align, &t, k, None);
-            }
-            canvas::tag(
-                b,
-                pos2(bar.left(), bar.bottom() + 24.0 * k),
-                Align2::LEFT_TOP,
-                frame::tr("concentus.mono.sum"),
-                ink.text,
-                k,
-                None,
-                format_args!("{loss:+.1} dB"),
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("concentus.card.mono"),
+        None,
+        |ui, cr| {
+            let ink = Ink::of(s);
+            let k = s.k;
+            let inner = cr.body;
+            let bar = Rect::from_min_size(
+                pos2(inner.left() + 6.0 * k, inner.top() + 22.0 * k),
+                vec2(inner.width() - 12.0 * k, 12.0 * k),
             );
-            let words = Text::key(verdict, Role::Body, ink.text).caps(false);
-            canvas::put(
-                b,
-                pos2(bar.left(), bar.bottom() + 46.0 * k),
-                Align2::LEFT_TOP,
-                &words,
-                k,
-                None,
-            );
-        });
-    });
+            with_brush(&ui.painter_at(inner.expand(2.0)), |b| {
+                let t = Text::key("concentus.mono.corr", Role::Micro, ink.dim).caps(true);
+                canvas::put(
+                    b,
+                    pos2(bar.left(), inner.top() + 4.0 * k),
+                    Align2::LEFT_TOP,
+                    &t,
+                    k,
+                    None,
+                );
+                b.rrect(bar, 3.0 * k, Fill::Solid(ink.ground));
+                let mid = bar.center().x;
+                b.vline(mid, bar.top(), bar.bottom(), b.px(), ink.grid_strong);
+                let x = mid + corr.clamp(-1.0, 1.0) * bar.width() * 0.5;
+                let fill = Rect::from_x_y_ranges(mid.min(x)..=mid.max(x), bar.y_range());
+                let color = if corr < 0.0 { ink.danger } else { ink.ok };
+                b.rect(fill, Fill::Solid(Ink::a(color, 0.8)));
+                b.rrect_stroke(bar, 3.0 * k, b.px(), ink.edge);
+                for (word, at, align) in [
+                    ("\u{2212}1", bar.left(), Align2::LEFT_TOP),
+                    ("0", mid, Align2::CENTER_TOP),
+                    ("+1", bar.right(), Align2::RIGHT_TOP),
+                ] {
+                    let t = Text::new(word, Role::Micro, ink.dim);
+                    canvas::put(b, pos2(at, bar.bottom() + 2.0 * k), align, &t, k, None);
+                }
+                canvas::tag(
+                    b,
+                    pos2(bar.left(), bar.bottom() + 24.0 * k),
+                    Align2::LEFT_TOP,
+                    frame::tr("concentus.mono.sum"),
+                    ink.text,
+                    k,
+                    None,
+                    format_args!("{loss:+.1} dB"),
+                );
+                let words = Text::key(verdict, Role::Body, ink.text).caps(false);
+                canvas::put(
+                    b,
+                    pos2(bar.left(), bar.bottom() + 46.0 * k),
+                    Align2::LEFT_TOP,
+                    &words,
+                    k,
+                    None,
+                );
+            });
+        },
+    );
 }
 
 /// A model's picture: one sweep (Juno), two crossed (Dimension), several (Free).
@@ -417,9 +461,16 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
             let x = j as f32 / (N - 1) as f32;
             let ph = x * rate + v as f32 / lines as f32;
             let tri = 1.0 - 4.0 * ((ph + 0.25).fract() - 0.5).abs();
-            *p = pos2(r.left() + r.width() * x, r.center().y - tri * r.height() * 0.4);
+            *p = pos2(
+                r.left() + r.width() * x,
+                r.center().y - tri * r.height() * 0.4,
+            );
         }
-        let c = if v == 0 { ink } else { crate::kit::color::with_alpha(ink, 0.5) };
+        let c = if v == 0 {
+            ink
+        } else {
+            crate::kit::color::with_alpha(ink, 0.5)
+        };
         b.polyline(&pts, 1.4 * k, c);
     }
 }
@@ -440,10 +491,8 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 /// The settings `--editor concentus` and the screenshot tool open it with: the Juno's
 /// second button, at the instrument's own mix.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
-    DawHost::new(app, strip, effect, "concentus").set_many(
-        &[("mode", 1.0), ("mix", 0.5)],
-        "cmd.fx_preset",
-    );
+    DawHost::new(app, strip, effect, "concentus")
+        .set_many(&[("mode", 1.0), ("mix", 0.5)], "cmd.fx_preset");
 }
 
 /// What a playing engine would feed the editor, for screenshots with no engine.

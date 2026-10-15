@@ -86,14 +86,11 @@ mod tests {
 
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
-        assert_eq!(
-            settings(&EffectSpec::new(EffectKind::FreqShift)),
-            {
-                let mut d = TranslatioSettings::default();
-                d.lfo.seed = SEED;
-                d
-            }
-        );
+        assert_eq!(settings(&EffectSpec::new(EffectKind::FreqShift)), {
+            let mut d = TranslatioSettings::default();
+            d.lfo.seed = SEED;
+            d
+        });
     }
 
     #[test]
@@ -110,7 +107,10 @@ mod tests {
             spec.set(k, v);
         }
         let s = settings(&spec);
-        assert_eq!((s.shift_hz, s.side, s.feedback, s.lfo_hz), (-120.0, Side::Both, 0.5, 40.0));
+        assert_eq!(
+            (s.shift_hz, s.side, s.feedback, s.lfo_hz),
+            (-120.0, Side::Both, 0.5, 40.0)
+        );
         assert_eq!((s.mix, s.out_db), (1.0, -2.0));
     }
 }

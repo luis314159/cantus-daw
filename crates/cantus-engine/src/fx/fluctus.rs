@@ -128,7 +128,10 @@ mod tests {
             spec.set(k, v);
         }
         let s = settings(&spec);
-        assert_eq!((s.depth, s.beats, s.offset, s.smooth_ms, s.out_db), (0.7, 0.25, 0.25, 5.0, -1.0));
+        assert_eq!(
+            (s.depth, s.beats, s.offset, s.smooth_ms, s.out_db),
+            (0.7, 0.25, 0.25, 5.0, -1.0)
+        );
         assert!(s.points[1].is_none());
         assert_eq!(
             s.points[7],

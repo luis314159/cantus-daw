@@ -94,7 +94,10 @@ fn the_partials_drawn_are_the_partials_played() {
         for &(f, amp) in parts[..count].iter().take(6) {
             let measured = level(&l[48_000..], f64::from(f));
             let db = 20.0 * cantus_dsp::math::log10(measured / f64::from(amp));
-            assert!(db.abs() < 1.0, "wave {wave} at {f} Hz: {measured:.4} against {amp:.4}");
+            assert!(
+                db.abs() < 1.0,
+                "wave {wave} at {f} Hz: {measured:.4} against {amp:.4}"
+            );
         }
     }
 }

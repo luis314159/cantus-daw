@@ -11,7 +11,13 @@ fn playing(samples: i64) -> Transport {
     }
 }
 
-fn drive(v: &mut Vibrans, l: &mut [f32], r: &mut [f32], start: i64, mut split: impl FnMut() -> usize) {
+fn drive(
+    v: &mut Vibrans,
+    l: &mut [f32],
+    r: &mut [f32],
+    start: i64,
+    mut split: impl FnMut() -> usize,
+) {
     let n = l.len();
     let mut at = 0;
     while at < n {
@@ -117,7 +123,11 @@ fn it_is_the_same_at_every_split() {
 
 #[test]
 fn the_pitch_swings_by_the_cents_asked_for() {
-    for (shape, cents, hz) in [(Shape::Sine, 50.0f32, 5.0f64), (Shape::Triangle, 25.0, 3.0), (Shape::Sine, 100.0, 0.5)] {
+    for (shape, cents, hz) in [
+        (Shape::Sine, 50.0f32, 5.0f64),
+        (Shape::Triangle, 25.0, 3.0),
+        (Shape::Sine, 100.0, 0.5),
+    ] {
         let s = VibransSettings {
             depth_cents: cents,
             lfo: LfoSettings {
@@ -134,8 +144,14 @@ fn the_pitch_swings_by_the_cents_asked_for() {
         let hi = track.iter().cloned().fold(f64::MIN, f64::max);
         let lo = track.iter().cloned().fold(f64::MAX, f64::min);
         let c = f64::from(cents);
-        assert!((hi - c).abs() < 0.08 * c + 1.0, "{shape:?} {cents} ct at {hz} Hz: up {hi:.1}");
-        assert!((lo + c).abs() < 0.08 * c + 1.0, "{shape:?} {cents} ct at {hz} Hz: down {lo:.1}");
+        assert!(
+            (hi - c).abs() < 0.08 * c + 1.0,
+            "{shape:?} {cents} ct at {hz} Hz: up {hi:.1}"
+        );
+        assert!(
+            (lo + c).abs() < 0.08 * c + 1.0,
+            "{shape:?} {cents} ct at {hz} Hz: down {lo:.1}"
+        );
     }
 }
 
@@ -158,7 +174,11 @@ fn the_depth_rises_after_a_silence() {
     let early = cents_track(&l[9_600..9_600 + 4_800], 1_000.0, 100);
     let late = cents_track(&l[9_600 + 30_000..], 1_000.0, 0);
     let swing = |t: &[f64]| t.iter().cloned().fold(0.0f64, |m, c| m.max(c.abs()));
-    assert!(swing(&early) < 12.0, "the first 100 ms swing {}", swing(&early));
+    assert!(
+        swing(&early) < 12.0,
+        "the first 100 ms swing {}",
+        swing(&early)
+    );
     assert!(swing(&late) > 50.0, "after the rise {}", swing(&late));
 }
 

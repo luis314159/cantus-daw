@@ -87,8 +87,14 @@ mod tests {
     fn the_tables_defaults_are_the_dsps_defaults() {
         let s = settings(&EffectSpec::new(EffectKind::Phaser));
         let d = PhasisSettings::default();
-        assert_eq!((s.stages, s.mix, s.lo_hz, s.hi_hz), (d.stages, d.mix, d.lo_hz, d.hi_hz));
-        assert_eq!((s.feedback, s.spread, s.out_db), (d.feedback, d.spread, d.out_db));
+        assert_eq!(
+            (s.stages, s.mix, s.lo_hz, s.hi_hz),
+            (d.stages, d.mix, d.lo_hz, d.hi_hz)
+        );
+        assert_eq!(
+            (s.feedback, s.spread, s.out_db),
+            (d.feedback, d.spread, d.out_db)
+        );
         assert_eq!(s.lfo.rate, d.lfo.rate);
     }
 
@@ -111,7 +117,10 @@ mod tests {
             spec.set(k, v);
         }
         let s = settings(&spec);
-        assert_eq!((s.stages, s.mix, s.lo_hz, s.hi_hz, s.feedback), (8, 0.5, 100.0, 5_000.0, 0.4));
+        assert_eq!(
+            (s.stages, s.mix, s.lo_hz, s.hi_hz, s.feedback),
+            (8, 0.5, 100.0, 5_000.0, 0.4)
+        );
         assert_eq!(s.lfo.rate, Rate::Beats(1.0));
         assert_eq!(s.lfo.shape, Shape::Random);
         assert_eq!((s.lfo.edge, s.spread, s.out_db), (0.6, 0.5, -3.0));

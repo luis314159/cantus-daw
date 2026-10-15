@@ -119,9 +119,15 @@ mod tests {
         let s = settings(&spec);
         assert_eq!(s.mode, Mode::Envelope);
         assert!(s.through_zero && s.invert);
-        assert_eq!((s.mix, s.delay_ms, s.depth_ms, s.feedback), (0.5, 1.0, 6.0, -0.5));
+        assert_eq!(
+            (s.mix, s.delay_ms, s.depth_ms, s.feedback),
+            (0.5, 1.0, 6.0, -0.5)
+        );
         assert_eq!((s.spread, s.manual), (0.25, 0.2));
-        assert_eq!((s.attack_ms, s.release_ms, s.sens_db, s.out_db), (3.0, 300.0, 12.0, 1.0));
+        assert_eq!(
+            (s.attack_ms, s.release_ms, s.sens_db, s.out_db),
+            (3.0, 300.0, 12.0, 1.0)
+        );
         let u = {
             let mut u = Unit::new(48_000.0);
             u.configure(&spec);

@@ -185,7 +185,12 @@ impl Translatio {
         self.back = [0.0; 2];
         self.fb_hp = [OnePole::default(); 2];
         self.fb_lp = [OnePole::default(); 2];
-        for g in [&mut self.shift, &mut self.feedback, &mut self.mix, &mut self.out] {
+        for g in [
+            &mut self.shift,
+            &mut self.feedback,
+            &mut self.mix,
+            &mut self.out,
+        ] {
             g.jump(g.target);
         }
         self.zrun = 0;

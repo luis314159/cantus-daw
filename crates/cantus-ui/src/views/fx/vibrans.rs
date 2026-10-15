@@ -53,7 +53,12 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ),
     (
         "preset.vibrans.chorus_one",
-        &[("depth", 12.0), ("rate", 0.9), ("mix", 0.5), ("spread", 90.0)],
+        &[
+            ("depth", 12.0),
+            ("rate", 0.9),
+            ("mix", 0.5),
+            ("spread", 90.0),
+        ],
     ),
 ];
 
@@ -83,7 +88,11 @@ pub fn framed(
         };
     }
     st.chrome.reset_for(effect.0);
-    let out = editor(&mut DawHost::new(app, strip, effect, "vibrans"), &mut st, ui);
+    let out = editor(
+        &mut DawHost::new(app, strip, effect, "vibrans"),
+        &mut st,
+        ui,
+    );
     app.fx.vibrans = st;
     out
 }
@@ -136,25 +145,39 @@ fn body_ui(
     let row1 = (area.height() - row2 - gap).max(160.0 * k);
     let r1: Vec<Rect> = g.row(row1, &[0.72, 0.28]).collect();
     let sm = s.function(Function::Mod);
-    controls::card(ui, &sm, r1[0], Src::Key("vibrans.card.pitch"), None, |ui, cr| {
-        let r = cr.body;
-        st.display = Some(r);
-        if st.ends.0 != vs.depth_cents || st.ends.1.is_empty() {
-            st.ends.0 = vs.depth_cents;
-            st.ends.1.clear();
-            st.ends.2.clear();
-            let _ = write!(st.ends.1, "+{:.0} ct", vs.depth_cents);
-            let _ = write!(st.ends.2, "\u{2212}{:.0} ct", vs.depth_cents);
-        }
-        let curve = |c: f64| pitch_at(vs, c);
-        modfx::movement(ui, &sm, r, host, tel, &curve, &st.ends.1, &st.ends.2);
-        if vs.depth_cents == 0.0 {
-            modfx::idle_note(ui, &sm, r, "vibrans.idle");
-        }
-    });
-    controls::card(ui, &sm, r1[1], Src::Key("vibrans.card.rise"), None, |ui, cr| {
-        rise_picture(ui, &sm, cr.body, vs, tel);
-    });
+    controls::card(
+        ui,
+        &sm,
+        r1[0],
+        Src::Key("vibrans.card.pitch"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            st.display = Some(r);
+            if st.ends.0 != vs.depth_cents || st.ends.1.is_empty() {
+                st.ends.0 = vs.depth_cents;
+                st.ends.1.clear();
+                st.ends.2.clear();
+                let _ = write!(st.ends.1, "+{:.0} ct", vs.depth_cents);
+                let _ = write!(st.ends.2, "\u{2212}{:.0} ct", vs.depth_cents);
+            }
+            let curve = |c: f64| pitch_at(vs, c);
+            modfx::movement(ui, &sm, r, host, tel, &curve, &st.ends.1, &st.ends.2);
+            if vs.depth_cents == 0.0 {
+                modfx::idle_note(ui, &sm, r, "vibrans.idle");
+            }
+        },
+    );
+    controls::card(
+        ui,
+        &sm,
+        r1[1],
+        Src::Key("vibrans.card.rise"),
+        None,
+        |ui, cr| {
+            rise_picture(ui, &sm, cr.body, vs, tel);
+        },
+    );
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M]) + 16.0,
@@ -163,16 +186,30 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, s, r2[0], Src::Key("vibrans.card.depth"), None, |ui, _| {
-        controls::param_with(ui, s, host, "depth", Size::XL, Some(&cents_pill));
-        controls::param_with(ui, s, host, "rise", Size::M, Some(&modfx::ms_pill));
-    });
+    controls::card(
+        ui,
+        s,
+        r2[0],
+        Src::Key("vibrans.card.depth"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, s, host, "depth", Size::XL, Some(&cents_pill));
+            controls::param_with(ui, s, host, "rise", Size::M, Some(&modfx::ms_pill));
+        },
+    );
     modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
     let so = s.function(Function::Output);
-    controls::card(ui, &so, r2[2], Src::Key("vibrans.card.output"), None, |ui, _| {
-        controls::param_with(ui, &so, host, "mix", Size::M, Some(&modfx::pct_pill));
-        controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &so,
+        r2[2],
+        Src::Key("vibrans.card.output"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &so, host, "mix", Size::M, Some(&modfx::pct_pill));
+            controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
 }
 
 fn cents_pill(v: f32, b: &mut String) {
@@ -210,7 +247,13 @@ fn rise_picture(ui: &mut egui::Ui, s: &Style, rect: Rect, vs: &VibransSettings, 
     ];
     with_brush(&ui.painter_at(rect), |b| {
         canvas::ground_b(b, rect, &ink, s.hue_tok);
-        b.hline(plot.left(), plot.right(), plot.bottom(), b.px(), ink.grid_strong);
+        b.hline(
+            plot.left(),
+            plot.right(),
+            plot.bottom(),
+            b.px(),
+            ink.grid_strong,
+        );
         b.hline(plot.left(), plot.right(), plot.top(), b.px(), ink.grid);
         b.area(&pts, plot.bottom(), ink.fill(0.5));
         b.polyline(&pts, 2.0 * k, ink.hue);
@@ -255,7 +298,12 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 /// vibrato that arrives after the note.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
     DawHost::new(app, strip, effect, "vibrans").set_many(
-        &[("depth", 35.0), ("rate", 5.5), ("rise", 400.0), ("spread", 30.0)],
+        &[
+            ("depth", 35.0),
+            ("rate", 5.5),
+            ("rise", 400.0),
+            ("spread", 30.0),
+        ],
         "cmd.fx_preset",
     );
 }

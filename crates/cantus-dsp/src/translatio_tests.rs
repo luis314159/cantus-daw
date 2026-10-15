@@ -110,7 +110,10 @@ fn up_and_down_move_a_tone_by_the_shift() {
         unit(&shifted(100.0, side), sr).process(&mut l, &mut r);
         let tail = &l[12_000..];
         assert!((level(tail, want, sr) - 0.5).abs() < 0.01, "{side:?}");
-        assert!(level(tail, gone, sr) < 0.5e-3, "{side:?}: the other sideband");
+        assert!(
+            level(tail, gone, sr) < 0.5e-3,
+            "{side:?}: the other sideband"
+        );
         assert!(level(tail, 1_000.0, sr) < 0.5e-3, "{side:?}: the input");
     }
     // Both: up on the left, down on the right; a negative shift swaps them.
@@ -126,7 +129,9 @@ fn the_other_sideband_is_60_db_down_across_the_band() {
     let mut worst = f64::INFINITY;
     for sr in [44_100.0f32, 48_000.0] {
         let shift = 40.0f64;
-        for f in [20.0f64, 31.5, 63.0, 125.0, 250.0, 1_000.0, 4_000.0, 10_000.0, 16_000.0, 19_900.0] {
+        for f in [
+            20.0f64, 31.5, 63.0, 125.0, 250.0, 1_000.0, 4_000.0, 10_000.0, 16_000.0, 19_900.0,
+        ] {
             let n = sr as usize * 2;
             let x = sine(f, n, sr);
             let (mut l, mut r) = (x.clone(), x.clone());
@@ -151,9 +156,16 @@ fn feedback_shifts_again_on_every_pass() {
     let (mut l, mut r) = (x.clone(), x);
     unit(&s, sr).process(&mut l, &mut r);
     let tail = &l[24_000..];
-    let (a, b, c) = (level(tail, 1_150.0, sr), level(tail, 1_300.0, sr), level(tail, 1_450.0, sr));
+    let (a, b, c) = (
+        level(tail, 1_150.0, sr),
+        level(tail, 1_300.0, sr),
+        level(tail, 1_450.0, sr),
+    );
     assert!(a > b && b > c && c > 0.02, "{a} {b} {c}");
-    assert!((b / a - 0.5).abs() < 0.02, "each pass at the feedback's level");
+    assert!(
+        (b / a - 0.5).abs() < 0.02,
+        "each pass at the feedback's level"
+    );
 }
 
 #[test]
@@ -216,6 +228,9 @@ fn the_heaviest_feedback_stays_bounded_whatever_the_shift() {
         let (mut l, mut r) = (x.clone(), x.clone());
         drive(&mut unit(&s, 48_000.0), &mut l, &mut r, || 512);
         let peak = l.iter().chain(&r).fold(0.0f32, |m, v| m.max(v.abs()));
-        assert!(peak.is_finite() && peak < 10.0, "shift {shift}: peak {peak}");
+        assert!(
+            peak.is_finite() && peak < 10.0,
+            "shift {shift}: peak {peak}"
+        );
     }
 }

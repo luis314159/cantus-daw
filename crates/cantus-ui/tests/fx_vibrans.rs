@@ -59,8 +59,7 @@ fn the_pitch_drawn_is_the_pitch_played() {
     let n = 96_000;
     let x: Vec<f32> = (0..n)
         .map(|i| {
-            let a = (std::f64::consts::TAU * 1_000.0 * i as f64 / 48_000.0)
-                % std::f64::consts::TAU;
+            let a = (std::f64::consts::TAU * 1_000.0 * i as f64 / 48_000.0) % std::f64::consts::TAU;
             cantus_dsp::math::sin(a) as f32 * 0.5
         })
         .collect();
@@ -76,7 +75,10 @@ fn the_pitch_drawn_is_the_pitch_played() {
                 // The middle of the period, in cycles of the 2 Hz LFO.
                 let c = (t + p) * 0.5 / 48_000.0 * 2.0;
                 let drawn = f64::from(vibrans::pitch_at(&vs, c).0) * 50.0;
-                assert!((cents - drawn).abs() < 4.0, "at {c:.3}: {cents:.1} vs {drawn:.1}");
+                assert!(
+                    (cents - drawn).abs() < 4.0,
+                    "at {c:.3}: {cents:.1} vs {drawn:.1}"
+                );
                 checked += 1;
             }
             last = Some(t);

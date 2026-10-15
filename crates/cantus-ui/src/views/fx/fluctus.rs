@@ -138,7 +138,11 @@ pub fn framed(
         };
     }
     st.chrome.reset_for(effect.0);
-    let out = editor(&mut DawHost::new(app, strip, effect, "fluctus"), &mut st, ui);
+    let out = editor(
+        &mut DawHost::new(app, strip, effect, "fluctus"),
+        &mut st,
+        ui,
+    );
     app.fx.fluctus = st;
     out
 }
@@ -193,20 +197,41 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, &sm, r2[0], Src::Key("fluctus.card.depth"), None, |ui, _| {
-        controls::param_with(ui, &sm, host, "depth", Size::XL, Some(&modfx::pct_pill));
-        controls::param_with(ui, &sm, host, "smooth", Size::M, Some(&modfx::ms_pill));
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[0],
+        Src::Key("fluctus.card.depth"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &sm, host, "depth", Size::XL, Some(&modfx::pct_pill));
+            controls::param_with(ui, &sm, host, "smooth", Size::M, Some(&modfx::ms_pill));
+        },
+    );
     let smod = s.function(Function::Mod);
-    controls::card(ui, &smod, r2[1], Src::Key("fluctus.card.cycle"), None, |ui, _| {
-        controls::param_with(ui, &smod, host, "div", Size::M, Some(&modfx::div_pill));
-        controls::param_with(ui, &smod, host, "offset", Size::M, Some(&modfx::pct_pill));
-    });
+    controls::card(
+        ui,
+        &smod,
+        r2[1],
+        Src::Key("fluctus.card.cycle"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &smod, host, "div", Size::M, Some(&modfx::div_pill));
+            controls::param_with(ui, &smod, host, "offset", Size::M, Some(&modfx::pct_pill));
+        },
+    );
     curve::point_card(host, st, ui, &sm, r2[2], fs, SHAPE_W);
     let so = s.function(Function::Output);
-    controls::card(ui, &so, r2[3], Src::Key("fluctus.card.output"), None, |ui, _| {
-        controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &so,
+        r2[3],
+        Src::Key("fluctus.card.output"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
 }
 
 /// The level the curve gives at `phase`, with the depth in it: what the editor draws.
@@ -253,8 +278,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some(spec) = modfx::open_spec(app) else {
         return;
     };
-    let mut d =
-        cantus_dsp::fluctus::Fluctus::new(48_000.0, cantus_engine::fx::fluctus::shape_at);
+    let mut d = cantus_dsp::fluctus::Fluctus::new(48_000.0, cantus_engine::fx::fluctus::shape_at);
     d.set(&cantus_engine::fx::fluctus::settings(&spec));
     d.reset();
     modfx::demo_run(

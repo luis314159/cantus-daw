@@ -2,9 +2,9 @@
 //! pump on the song's beats (from the start and from a later beat), the same render at
 //! every block size while it works, and live equal to offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -66,7 +66,11 @@ fn the_pump_follows_the_songs_beats_from_the_start_and_from_a_later_beat() {
     let mut p = base.clone();
     let fx = add_effect(&mut p, EffectKind::VolumeShaper);
     set_all(&mut p, fx, &[("depth", 1.0), ("smooth", 0.0)]);
-    check_pump(&render_with(&p, 256), &render_with(&base, 256), "from the start");
+    check_pump(
+        &render_with(&p, 256),
+        &render_with(&base, 256),
+        "from the start",
+    );
     let start = Ticks::beats(3);
     check_pump(
         &render_from(&p, start, 300),
@@ -97,7 +101,12 @@ fn the_render_does_not_depend_on_the_block_size_while_it_works() {
     let reference = render_with(&p, 512);
     assert!(reference != render_with(&demo_project(), 512), "it works");
     for block in [1usize, 7, 64, 1000, 4096] {
-        assert_null(&reference, &render_with(&p, block), 0.0, &format!("block {block}"));
+        assert_null(
+            &reference,
+            &render_with(&p, block),
+            0.0,
+            &format!("block {block}"),
+        );
     }
 }
 
@@ -105,7 +114,11 @@ fn the_render_does_not_depend_on_the_block_size_while_it_works() {
 fn live_playback_renders_what_the_offline_render_does() {
     let mut p = demo_project();
     let fx = add_effect(&mut p, EffectKind::VolumeShaper);
-    set_all(&mut p, fx, &[("depth", 0.9), ("div", 11.0), ("smooth", 2.0)]);
+    set_all(
+        &mut p,
+        fx,
+        &[("depth", 0.9), ("div", 11.0), ("smooth", 2.0)],
+    );
     let offline = render_of(&p);
     assert_null(&offline, &realtime(&p, offline.len()), 0.0, "live");
 }

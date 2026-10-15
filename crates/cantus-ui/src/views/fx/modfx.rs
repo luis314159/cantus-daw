@@ -21,8 +21,23 @@ use std::fmt::Write as _;
 /// The note values of the synced rates, as [`cantus_dsp::modfx_clock::DIVISIONS`] holds
 /// them: the same words in every language.
 pub const DIV_NAMES: [&str; 17] = [
-    "8/1", "4/1", "2/1", "1/1", "1/2\u{b7}", "1/2", "1/4\u{b7}", "1/2T", "1/4", "1/8\u{b7}", "1/4T",
-    "1/8", "1/16\u{b7}", "1/8T", "1/16", "1/16T", "1/32",
+    "8/1",
+    "4/1",
+    "2/1",
+    "1/1",
+    "1/2\u{b7}",
+    "1/2",
+    "1/4\u{b7}",
+    "1/2T",
+    "1/4",
+    "1/8\u{b7}",
+    "1/4T",
+    "1/8",
+    "1/16\u{b7}",
+    "1/8T",
+    "1/16",
+    "1/16T",
+    "1/32",
 ];
 
 /// The shapes' names, by index (`modfx.shape.{i}`).
@@ -189,13 +204,7 @@ pub fn shape_keys(
 }
 
 /// One cycle of a shape in a small box.
-pub fn shape_glyph(
-    b: &mut crate::kit::Brush,
-    r: Rect,
-    shape: Shape,
-    ink: egui::Color32,
-    k: f32,
-) {
+pub fn shape_glyph(b: &mut crate::kit::Brush, r: Rect, shape: Shape, ink: egui::Color32, k: f32) {
     const N: usize = 25;
     let mut pts = [Pos2::ZERO; N];
     for (j, p) in pts.iter_mut().enumerate() {
@@ -229,7 +238,17 @@ pub fn movement(
     top: &str,
     bottom: &str,
 ) {
-    movement_with(ui, s, rect, host, tel, curve, top, bottom, &Extras::default());
+    movement_with(
+        ui,
+        s,
+        rect,
+        host,
+        tel,
+        curve,
+        top,
+        bottom,
+        &Extras::default(),
+    );
 }
 
 /// What a display may draw beyond its left and right curves.
@@ -276,7 +295,13 @@ pub fn movement_with(
     with_brush(&ui.painter_at(rect), |b| {
         canvas::ground_b(b, rect, &ink, s.hue_tok);
         // The middle line and the cycle lines.
-        b.hline(plot.left(), plot.right(), plot.center().y, b.px(), ink.grid_strong);
+        b.hline(
+            plot.left(),
+            plot.right(),
+            plot.center().y,
+            b.px(),
+            ink.grid_strong,
+        );
         for q in [0.25f32, 0.75] {
             let y = plot.top() + plot.height() * q;
             b.hline(plot.left(), plot.right(), y, b.px(), ink.grid);
@@ -416,10 +441,14 @@ pub fn mode_card(
                 let ink = if i == now { s.t.text } else { s.hue };
                 glyph(b, g, i, ink);
                 let at = Rect::from_min_max(pos2(g.right() + 7.0 * k, r.top()), r.max);
-                let t = Text::key(name, Role::Control, if i == now { s.t.text } else { s.t.label })
-                    .caps(false)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End));
+                let t = Text::key(
+                    name,
+                    Role::Control,
+                    if i == now { s.t.text } else { s.t.label },
+                )
+                .caps(false)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
                 let _ = ktext::paint(b, at, &t, s.tk());
             });
             if resp.clicked() && i != now {
@@ -431,7 +460,10 @@ pub fn mode_card(
         }
         // What the chosen one does, in words.
         y += gap;
-        let text = Rect::from_min_size(pos2(inner.left() + 2.0 * k, y), vec2(inner.width() - 2.0 * k, 16.0 * k));
+        let text = Rect::from_min_size(
+            pos2(inner.left() + 2.0 * k, y),
+            vec2(inner.width() - 2.0 * k, 16.0 * k),
+        );
         if text.bottom() <= inner.bottom() + 1.0 {
             with_brush(ui.painter(), |b| {
                 let t = Text::key(words[now], Role::Body, s.t.text_dim)
@@ -459,7 +491,14 @@ pub fn idle_note(ui: &mut egui::Ui, s: &Style, rect: Rect, key: &'static str) {
     let ink = Ink::of(s);
     with_brush(&ui.painter_at(rect), |b| {
         let t = Text::key(key, Role::Body, ink.dim).caps(false);
-        canvas::put(b, rect.center(), Align2::CENTER_CENTER, &t, s.k, Some(ink.plate));
+        canvas::put(
+            b,
+            rect.center(),
+            Align2::CENTER_CENTER,
+            &t,
+            s.k,
+            Some(ink.plate),
+        );
     });
 }
 
@@ -508,7 +547,13 @@ pub fn preview_strip(
     }
     with_brush(&ui.painter_at(rect), |b| {
         canvas::ground_b(b, rect, &ink, st.hue_tok);
-        b.hline(pic.left(), pic.right(), pic.center().y, b.px(), ink.grid_strong);
+        b.hline(
+            pic.left(),
+            pic.right(),
+            pic.center().y,
+            b.px(),
+            ink.grid_strong,
+        );
         b.polyline(&pts, 1.5, ink.hue);
         let words = Rect::from_min_max(pos2(pic.right() + space::S2, rect.top()), rect.max);
         canvas::line_in(
@@ -517,10 +562,7 @@ pub fn preview_strip(
             Role::Body,
             ink.text,
             st.tk(),
-            format_args!(
-                "{mode} \u{b7} {} \u{b7} {amount}",
-                RateWords(spec),
-            ),
+            format_args!("{mode} \u{b7} {} \u{b7} {amount}", RateWords(spec),),
         );
         let edge = if resp.hovered() { ink.hue } else { ink.edge };
         canvas::edge_b(b, rect, &Ink { edge, ..ink });

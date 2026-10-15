@@ -90,34 +90,45 @@ pub fn card(
         st.title.2.clear();
         super::title_words(div, tempo, &mut st.title.2);
     }
-    controls::card(ui, s, rect, Src::Key("fluctus.card.curve"), None, |ui, cr| {
-        let r = cr.body;
-        let k = s.k;
-        let map = Map {
-            // Room above the plot for its words, so none sits on the curve.
-            plot: Rect::from_min_max(
-                pos2(r.left() + 12.0 * k, r.top() + 22.0 * k),
-                pos2(r.right() - 12.0 * k, r.bottom() - 16.0 * k),
-            ),
-        };
-        st.plot = Some(map.plot);
-        let resp = ui.interact(map.plot, ui.id().with("fluctus-curve"), Sense::click_and_drag());
-        edit(host, st, ui, &resp, map, fs, k);
-        // What is drawn is what is now set (the edit above may have moved it).
-        let fs = cantus_engine::fx::fluctus::settings(host.spec());
-        paint(ui, s, r, map, st, tel, &fs);
-        if resp.hovered() {
-            hint::set_text(
-                ui.ctx(),
-                frame::tr("fluctus.curve_tip"),
-                frame::tr("fluctus.curve_how"),
-                Caps::NONE,
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("fluctus.card.curve"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            let k = s.k;
+            let map = Map {
+                // Room above the plot for its words, so none sits on the curve.
+                plot: Rect::from_min_max(
+                    pos2(r.left() + 12.0 * k, r.top() + 22.0 * k),
+                    pos2(r.right() - 12.0 * k, r.bottom() - 16.0 * k),
+                ),
+            };
+            st.plot = Some(map.plot);
+            let resp = ui.interact(
+                map.plot,
+                ui.id().with("fluctus-curve"),
+                Sense::click_and_drag(),
             );
-        }
-        if fs.depth == 0.0 {
-            super::modfx::idle_note(ui, s, r, "fluctus.idle");
-        }
-    });
+            edit(host, st, ui, &resp, map, fs, k);
+            // What is drawn is what is now set (the edit above may have moved it).
+            let fs = cantus_engine::fx::fluctus::settings(host.spec());
+            paint(ui, s, r, map, st, tel, &fs);
+            if resp.hovered() {
+                hint::set_text(
+                    ui.ctx(),
+                    frame::tr("fluctus.curve_tip"),
+                    frame::tr("fluctus.curve_how"),
+                    Caps::NONE,
+                );
+            }
+            if fs.depth == 0.0 {
+                super::modfx::idle_note(ui, s, r, "fluctus.idle");
+            }
+        },
+    );
 }
 
 /// The nearest point within reach of `p`, by number.
@@ -282,14 +293,30 @@ fn paint(
         canvas::ground_b(b, r, &ink, s.hue_tok);
         for q in 1..16 {
             let x = map.x(q as f32 / 16.0);
-            let c = if q % 4 == 0 { ink.grid_strong } else { ink.grid };
+            let c = if q % 4 == 0 {
+                ink.grid_strong
+            } else {
+                ink.grid
+            };
             b.vline(x, plot.top(), plot.bottom(), b.px(), c);
         }
         for q in [0.25f32, 0.5, 0.75] {
             b.hline(plot.left(), plot.right(), map.y(q), b.px(), ink.grid);
         }
-        b.hline(plot.left(), plot.right(), plot.top(), b.px(), ink.grid_strong);
-        b.hline(plot.left(), plot.right(), plot.bottom(), b.px(), ink.grid_strong);
+        b.hline(
+            plot.left(),
+            plot.right(),
+            plot.top(),
+            b.px(),
+            ink.grid_strong,
+        );
+        b.hline(
+            plot.left(),
+            plot.right(),
+            plot.bottom(),
+            b.px(),
+            ink.grid_strong,
+        );
         // What is heard (with the depth), filled; the curve itself, the line you edit.
         b.area(&heard, plot.bottom(), ink.fill(0.7));
         b.polyline(&raw, 2.0 * k, ink.hue);
@@ -317,10 +344,18 @@ fn paint(
         );
         for (word, v) in [("100%", 1.0f32), ("0%", 0.0)] {
             let t = Text::new(word, Role::Micro, ink.dim);
-            let align = if v > 0.5 { Align2::LEFT_TOP } else { Align2::LEFT_BOTTOM };
+            let align = if v > 0.5 {
+                Align2::LEFT_TOP
+            } else {
+                Align2::LEFT_BOTTOM
+            };
             let at = pos2(
                 plot.left(),
-                if v > 0.5 { r.top() + 4.0 * k } else { r.bottom() - 2.0 * k },
+                if v > 0.5 {
+                    r.top() + 4.0 * k
+                } else {
+                    r.bottom() - 2.0 * k
+                },
             );
             canvas::put(b, at, align, &t, k, None);
         }
@@ -342,23 +377,30 @@ pub fn point_card(
         .selected
         .filter(|n| fs.points[*n].is_some())
         .or_else(|| fs.points.iter().position(Option::is_some));
-    controls::card(ui, s, rect, Src::Key("fluctus.card.point"), None, |ui, _| {
-        let Some(n) = chosen else {
-            controls::caption(ui, s, Src::Key("fluctus.no_point"), width);
-            return;
-        };
-        let keys = point_keys()[n];
-        controls::column(ui, s, width, |ui| {
-            controls::caption(ui, s, Src::Key("fluctus.segment"), width);
-            let labels = SHAPE_KEYS.map(Src::Key);
-            let now = host.spec().get(keys[4]).round().max(0.0) as usize;
-            let name = frame::tr("fx.fluctus.p.s");
-            if let Some(i) = controls::segmented(ui, s, now, &labels, name, width) {
-                host.set(keys[4], i as f32, None);
-            }
-        });
-        controls::param(ui, s, host, keys[3], Size::M);
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("fluctus.card.point"),
+        None,
+        |ui, _| {
+            let Some(n) = chosen else {
+                controls::caption(ui, s, Src::Key("fluctus.no_point"), width);
+                return;
+            };
+            let keys = point_keys()[n];
+            controls::column(ui, s, width, |ui| {
+                controls::caption(ui, s, Src::Key("fluctus.segment"), width);
+                let labels = SHAPE_KEYS.map(Src::Key);
+                let now = host.spec().get(keys[4]).round().max(0.0) as usize;
+                let name = frame::tr("fx.fluctus.p.s");
+                if let Some(i) = controls::segmented(ui, s, now, &labels, name, width) {
+                    host.set(keys[4], i as f32, None);
+                }
+            });
+            controls::param(ui, s, host, keys[3], Size::M);
+        },
+    );
 }
 
 /// The segment shapes' short names, by index (`fluctus.shape.{i}`).

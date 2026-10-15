@@ -2,9 +2,9 @@
 //! every wave, the same render at every block size while it works, and live equal to
 //! offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -27,7 +27,11 @@ fn at_mix_zero_every_mode_is_a_wire() {
         set_all(
             &mut p,
             fx,
-            &[("wave", (mode % 3) as f32), ("lfo", 12.0), ("shape", (mode % 6) as f32)],
+            &[
+                ("wave", (mode % 3) as f32),
+                ("lfo", 12.0),
+                ("shape", (mode % 6) as f32),
+            ],
         );
         assert_null(&reference, &render_of(&p), 0.0, &format!("mode {mode}"));
     }
@@ -67,7 +71,11 @@ fn live_playback_renders_what_the_offline_render_does() {
     for mode in [1.0, 2.0] {
         let mut p = demo_project();
         let fx = add_effect(&mut p, EffectKind::RingMod);
-        set_all(&mut p, fx, &[("wave", mode), ("mix", 0.6), ("sync", 1.0), ("lfo", 5.0)]);
+        set_all(
+            &mut p,
+            fx,
+            &[("wave", mode), ("mix", 0.6), ("sync", 1.0), ("lfo", 5.0)],
+        );
         let offline = render_of(&p);
         assert_null(
             &offline,

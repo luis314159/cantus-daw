@@ -247,9 +247,7 @@ impl Lfo {
     pub fn cycles(&self, clock: &Clock, i: usize) -> f64 {
         match self.set.rate {
             Rate::Hz(_) => self.free_cycles(clock.free(i)),
-            Rate::Beats(b) => {
-                clock.song(i) as f64 * synced_inc(b, clock.tempo(), self.sample_rate)
-            }
+            Rate::Beats(b) => clock.song(i) as f64 * synced_inc(b, clock.tempo(), self.sample_rate),
         }
     }
 

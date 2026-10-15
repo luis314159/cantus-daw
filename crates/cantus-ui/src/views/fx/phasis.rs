@@ -198,17 +198,31 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, &sm, r2[0], Src::Key("phasis.card.mix"), None, |ui, _| {
-        controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
-        controls::param_with(ui, &sm, host, "fb", Size::M, Some(&fb_pill));
-        controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[0],
+        Src::Key("phasis.card.mix"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
+            controls::param_with(ui, &sm, host, "fb", Size::M, Some(&fb_pill));
+            controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
     let st_ = s.function(Function::Tone);
-    controls::card(ui, &st_, r2[1], Src::Key("phasis.card.stages"), None, |ui, _| {
-        controls::param_with(ui, &st_, host, "stages", Size::M, Some(&stages_pill));
-        controls::param(ui, &st_, host, "lo", Size::M);
-        controls::param(ui, &st_, host, "hi", Size::M);
-    });
+    controls::card(
+        ui,
+        &st_,
+        r2[1],
+        Src::Key("phasis.card.stages"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &st_, host, "stages", Size::M, Some(&stages_pill));
+            controls::param(ui, &st_, host, "lo", Size::M);
+            controls::param(ui, &st_, host, "hi", Size::M);
+        },
+    );
     modfx::lfo_card(host, ui, &sm, r2[2], &LFO);
 }
 
@@ -238,16 +252,23 @@ fn sweep_card(
         controls::write_readout(hi, "Hz", &mut st.ends.2);
         controls::write_readout(lo, "Hz", &mut st.ends.3);
     }
-    controls::card(ui, s, rect, Src::Key("phasis.card.sweep"), None, |ui, cr| {
-        let r = cr.body;
-        st.display = Some(r);
-        // The LFO's value is the sweep's place on the log scale between the bounds.
-        let curve = |c: f64| modfx::lfo_at(&ps.lfo, ps.spread, c);
-        modfx::movement(ui, s, r, host, tel, &curve, &st.ends.2, &st.ends.3);
-        if ps.mix == 0.0 {
-            modfx::idle_note(ui, s, r, "phasis.idle");
-        }
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("phasis.card.sweep"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            st.display = Some(r);
+            // The LFO's value is the sweep's place on the log scale between the bounds.
+            let curve = |c: f64| modfx::lfo_at(&ps.lfo, ps.spread, c);
+            modfx::movement(ui, s, r, host, tel, &curve, &st.ends.2, &st.ends.3);
+            if ps.mix == 0.0 {
+                modfx::idle_note(ui, s, r, "phasis.idle");
+            }
+        },
+    );
 }
 
 /// The response of the phaser at the stages' frequency `fc`, dB at `f` Hz, as the unit
@@ -277,10 +298,7 @@ pub fn response_db(ps: &PhasisSettings, fc: f32, f: f32) -> f32 {
         (1.0 - fb * za.0, -fb * za.1)
     };
     let wet = div(a, loop_);
-    let y = (
-        f64::from(gd) + f64::from(gw) * wet.0,
-        f64::from(gw) * wet.1,
-    );
+    let y = (f64::from(gd) + f64::from(gw) * wet.0, f64::from(gw) * wet.1);
     (10.0 * cantus_dsp::math::log10((y.0 * y.0 + y.1 * y.1).max(1e-12))) as f32
 }
 
@@ -291,59 +309,95 @@ fn response_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], ps: 
     } else {
         sweep_hz(ps.lo_hz, ps.hi_hz, 0.0)
     };
-    controls::card(ui, s, rect, Src::Key("phasis.card.response"), None, |ui, cr| {
-        let r = cr.body;
-        let ink = Ink::of(s);
-        let k = s.k;
-        let plot = r.shrink2(vec2(8.0 * k, 16.0 * k));
-        const N: usize = 240;
-        let mut pts = [Pos2::ZERO; N];
-        let (top, bottom) = (12.0f32, -36.0f32);
-        let x_of = |f: f32| plot.left() + plot.width() * cantus_dsp::math::log10(f / 20.0) / 3.0;
-        for (i, p) in pts.iter_mut().enumerate() {
-            let f = 20.0 * cantus_dsp::math::powf(1000.0f32, i as f32 / (N - 1) as f32);
-            let db = response_db(ps, fc, f).clamp(bottom, top);
-            *p = pos2(x_of(f), plot.top() + plot.height() * (top - db) / (top - bottom));
-        }
-        with_brush(&ui.painter_at(r), |b| {
-            canvas::ground_b(b, r, &ink, s.hue_tok);
-            for db in [0.0f32, -12.0, -24.0] {
-                let y = plot.top() + plot.height() * (top - db) / (top - bottom);
-                let c = if db == 0.0 { ink.grid_strong } else { ink.grid };
-                b.hline(plot.left(), plot.right(), y, b.px(), c);
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("phasis.card.response"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            let ink = Ink::of(s);
+            let k = s.k;
+            let plot = r.shrink2(vec2(8.0 * k, 16.0 * k));
+            const N: usize = 240;
+            let mut pts = [Pos2::ZERO; N];
+            let (top, bottom) = (12.0f32, -36.0f32);
+            let x_of =
+                |f: f32| plot.left() + plot.width() * cantus_dsp::math::log10(f / 20.0) / 3.0;
+            for (i, p) in pts.iter_mut().enumerate() {
+                let f = 20.0 * cantus_dsp::math::powf(1000.0f32, i as f32 / (N - 1) as f32);
+                let db = response_db(ps, fc, f).clamp(bottom, top);
+                *p = pos2(
+                    x_of(f),
+                    plot.top() + plot.height() * (top - db) / (top - bottom),
+                );
             }
-            // The sweep's bounds and where the stages sit now.
-            for f in [ps.lo_hz, ps.hi_hz] {
-                let x = x_of(f.clamp(20.0, 20_000.0));
-                canvas::dashed(b, pos2(x, plot.top()), pos2(x, plot.bottom()), b.px(), ink.faint, 4.0 * k, 3.0 * k);
-            }
-            b.vline(x_of(fc.clamp(20.0, 20_000.0)), plot.top(), plot.bottom(), 1.0 * k, ink.text);
-            b.area(&pts, plot.bottom(), ink.fill(0.5));
-            b.polyline(&pts, 1.6 * k, ink.hue);
-            for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
-                let t = Text::new(word, Role::Micro, ink.dim);
-                canvas::put(b, pos2(x_of(at), r.bottom() - 2.0 * k), Align2::CENTER_BOTTOM, &t, k, None);
-            }
-            canvas::putf(
-                b,
-                pos2(r.right() - 6.0 * k, r.top() + 3.0 * k),
-                Align2::RIGHT_TOP,
-                Role::Value,
-                ink.text,
-                k,
-                Some(ink.plate),
-                format_args!("{:.0} Hz", fc),
-            );
-            canvas::edge_b(b, r, &ink);
-        });
-    });
+            with_brush(&ui.painter_at(r), |b| {
+                canvas::ground_b(b, r, &ink, s.hue_tok);
+                for db in [0.0f32, -12.0, -24.0] {
+                    let y = plot.top() + plot.height() * (top - db) / (top - bottom);
+                    let c = if db == 0.0 { ink.grid_strong } else { ink.grid };
+                    b.hline(plot.left(), plot.right(), y, b.px(), c);
+                }
+                // The sweep's bounds and where the stages sit now.
+                for f in [ps.lo_hz, ps.hi_hz] {
+                    let x = x_of(f.clamp(20.0, 20_000.0));
+                    canvas::dashed(
+                        b,
+                        pos2(x, plot.top()),
+                        pos2(x, plot.bottom()),
+                        b.px(),
+                        ink.faint,
+                        4.0 * k,
+                        3.0 * k,
+                    );
+                }
+                b.vline(
+                    x_of(fc.clamp(20.0, 20_000.0)),
+                    plot.top(),
+                    plot.bottom(),
+                    1.0 * k,
+                    ink.text,
+                );
+                b.area(&pts, plot.bottom(), ink.fill(0.5));
+                b.polyline(&pts, 1.6 * k, ink.hue);
+                for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
+                    let t = Text::new(word, Role::Micro, ink.dim);
+                    canvas::put(
+                        b,
+                        pos2(x_of(at), r.bottom() - 2.0 * k),
+                        Align2::CENTER_BOTTOM,
+                        &t,
+                        k,
+                        None,
+                    );
+                }
+                canvas::putf(
+                    b,
+                    pos2(r.right() - 6.0 * k, r.top() + 3.0 * k),
+                    Align2::RIGHT_TOP,
+                    Role::Value,
+                    ink.text,
+                    k,
+                    Some(ink.plate),
+                    format_args!("{:.0} Hz", fc),
+                );
+                canvas::edge_b(b, r, &ink);
+            });
+        },
+    );
 }
 
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ps = cantus_engine::fx::phasis::settings(spec);
-    modfx::preview_strip(ui, spec, frame::tr("phasis.preview"), &modfx::Pct(ps.mix), &|c| {
-        modfx::lfo_at(&ps.lfo, ps.spread, c).0
-    })
+    modfx::preview_strip(
+        ui,
+        spec,
+        frame::tr("phasis.preview"),
+        &modfx::Pct(ps.mix),
+        &|c| modfx::lfo_at(&ps.lfo, ps.spread, c).0,
+    )
 }
 
 /// The settings `--editor phasis` and the screenshot tool open it with: a Small Stone with

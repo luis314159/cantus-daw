@@ -205,7 +205,10 @@ impl Tremor {
                 } else {
                     self.zrun = 0;
                 }
-                (self.lp[0].run(x, &self.xover), self.lp[1].run(y, &self.xover))
+                (
+                    self.lp[0].run(x, &self.xover),
+                    self.lp[1].run(y, &self.xover),
+                )
             } else {
                 (0.0, 0.0)
             };

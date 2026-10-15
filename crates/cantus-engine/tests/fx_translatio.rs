@@ -2,9 +2,9 @@
 //! every side, the same render at every block size while it works, and live equal to
 //! offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -15,7 +15,12 @@ fn translatio_at_its_defaults_renders_exactly_as_no_translatio() {
     let reference = render_of(&demo_project());
     let mut p = demo_project();
     add_effect(&mut p, EffectKind::FreqShift);
-    assert_null(&reference, &render_of(&p), 0.0, "Translatio at its defaults");
+    assert_null(
+        &reference,
+        &render_of(&p),
+        0.0,
+        "Translatio at its defaults",
+    );
 }
 
 #[test]
@@ -67,7 +72,17 @@ fn live_playback_renders_what_the_offline_render_does() {
     for mode in [1.0, 2.0] {
         let mut p = demo_project();
         let fx = add_effect(&mut p, EffectKind::FreqShift);
-        set_all(&mut p, fx, &[("side", mode), ("mix", 0.6), ("sync", 1.0), ("lfo", 25.0), ("fb", 0.5)]);
+        set_all(
+            &mut p,
+            fx,
+            &[
+                ("side", mode),
+                ("mix", 0.6),
+                ("sync", 1.0),
+                ("lfo", 25.0),
+                ("fb", 0.5),
+            ],
+        );
         let offline = render_of(&p);
         assert_null(
             &offline,

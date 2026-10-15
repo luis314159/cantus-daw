@@ -1,9 +1,9 @@
 //! Vibrans through the whole engine (ADR 0055): a wire at its defaults and at depth 0, the
 //! same render at every block size while it works, and live equal to offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -25,7 +25,12 @@ fn at_depth_zero_it_is_a_wire_whatever_else_is_set() {
     set_all(
         &mut p,
         fx,
-        &[("sync", 1.0), ("shape", 1.0), ("rise", 300.0), ("spread", 90.0)],
+        &[
+            ("sync", 1.0),
+            ("shape", 1.0),
+            ("rise", 300.0),
+            ("spread", 90.0),
+        ],
     );
     assert_null(&reference, &render_of(&p), 0.0, "depth 0");
 }
@@ -73,6 +78,11 @@ fn live_playback_renders_what_the_offline_render_does() {
         busy(&mut p, fx);
         set(&mut p, fx, "sync", sync);
         let offline = render_of(&p);
-        assert_null(&offline, &realtime(&p, offline.len()), 0.0, &format!("sync {sync}"));
+        assert_null(
+            &offline,
+            &realtime(&p, offline.len()),
+            0.0,
+            &format!("sync {sync}"),
+        );
     }
 }

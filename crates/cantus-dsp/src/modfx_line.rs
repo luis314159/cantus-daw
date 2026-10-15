@@ -330,7 +330,9 @@ mod tests {
     #[test]
     fn a_whole_delay_returns_the_sample_to_the_bit() {
         let mut l = ModLine::new(64);
-        let x: Vec<f32> = (0..100).map(|i| ((i * 37) % 11) as f32 * 0.1 - 0.4).collect();
+        let x: Vec<f32> = (0..100)
+            .map(|i| ((i * 37) % 11) as f32 * 0.1 - 0.4)
+            .collect();
         for v in &x {
             l.push(*v);
         }

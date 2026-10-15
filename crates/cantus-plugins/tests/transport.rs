@@ -43,7 +43,11 @@ fn transport(beats: f64, tempo: f64, playing: bool) -> clap_event_transport {
         flags: CLAP_TRANSPORT_HAS_TEMPO
             | CLAP_TRANSPORT_HAS_BEATS_TIMELINE
             | CLAP_TRANSPORT_HAS_TIME_SIGNATURE
-            | if playing { CLAP_TRANSPORT_IS_PLAYING } else { 0 },
+            | if playing {
+                CLAP_TRANSPORT_IS_PLAYING
+            } else {
+                0
+            },
         song_pos_beats: (beats * CLAP_BEATTIME_FACTOR as f64).round() as i64,
         song_pos_seconds: 0,
         tempo,
@@ -155,7 +159,12 @@ fn without_a_transport_it_keeps_its_own_time_and_a_host_changes_it() {
     let n = 48_000;
     let own = run_clap(&new_gate(), n, &[512], None, 0.0, None);
     // Its own time: 120 BPM from the first sample.
-    check_beats(&own, 120.0, |i| i as f64 * 2.0 / SR as f64, "its own 120 BPM");
+    check_beats(
+        &own,
+        120.0,
+        |i| i as f64 * 2.0 / SR as f64,
+        "its own 120 BPM",
+    );
     let hosted = run_clap(&new_gate(), n, &[512], Some(90.0), 0.0, None);
     assert!(diff(&own, &hosted).is_some(), "the host's 90 BPM is heard");
 }
@@ -180,8 +189,12 @@ fn a_jump_in_the_hosts_song_puts_the_gate_where_the_song_is() {
 #[test]
 fn the_editor_sees_the_hosts_transport() {
     use cantus_plugins::instance::{shared_for, HostTransport, Processor};
-    let shared =
-        shared_for(cantus_plugins::desc::of(EffectKind::Tremolo).unwrap().clap_id).unwrap();
+    let shared = shared_for(
+        cantus_plugins::desc::of(EffectKind::Tremolo)
+            .unwrap()
+            .clap_id,
+    )
+    .unwrap();
     assert!(shared.host_transport().is_none(), "nothing before a block");
     let mut p = Processor::new(shared.clone(), SR);
     let (mut l, mut r) = (vec![0.5f32; 256], vec![0.5f32; 256]);
@@ -227,9 +240,6 @@ fn a_host_position_is_the_engines_song_position() {
         ..t
     };
     assert_eq!(s.position(100, 48_000.0, 0).samples, 360_000);
-    let free = HostTransport {
-        beats: None,
-        ..t
-    };
+    let free = HostTransport { beats: None, ..t };
     assert_eq!(free.position(10, 48_000.0, 5_000).samples, 5_010);
 }

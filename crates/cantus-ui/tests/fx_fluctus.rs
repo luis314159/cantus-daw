@@ -66,12 +66,20 @@ fn double_click(a: &mut CantusApp, ctx: &egui::Context, at: egui::Pos2) {
 
 fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2) {
     frame(a, ctx, vec![egui::Event::PointerMoved(from)]);
-    frame(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true)]);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true)],
+    );
     for i in 1..=4 {
         let at = from + (to - from) * (i as f32 / 4.0);
         frame(a, ctx, vec![egui::Event::PointerMoved(at)]);
     }
-    frame(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false)]);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+    );
     frame(a, ctx, vec![]);
 }
 
@@ -145,7 +153,11 @@ fn dragging_a_point_moves_it_on_the_grid_in_one_step() {
     assert!((sp.get("p1.y") - 0.6).abs() < 0.01);
     a.undo();
     let sp = spec(&a, s0);
-    assert_eq!((sp.get("p1.x"), sp.get("p1.y")), (0.5, 1.0), "one undo step");
+    assert_eq!(
+        (sp.get("p1.x"), sp.get("p1.y")),
+        (0.5, 1.0),
+        "one undo step"
+    );
 }
 
 /// The level drawn is the level played: the DSP's gain on a constant 1, unsmoothed, at
@@ -176,7 +188,11 @@ fn the_level_drawn_is_the_level_played() {
     for i in (0..n).step_by(311) {
         let phase = (i as f64 / beat) as f32;
         let drawn = fluctus::level_at(&fs, &curve, phase);
-        assert!((l[i] - drawn).abs() < 1e-4, "at {phase:.3}: {} played, {drawn} drawn", l[i]);
+        assert!(
+            (l[i] - drawn).abs() < 1e-4,
+            "at {phase:.3}: {} played, {drawn} drawn",
+            l[i]
+        );
     }
 }
 

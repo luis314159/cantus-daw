@@ -116,25 +116,41 @@ fn the_juno_modes_sweep_as_the_circuit_does() {
             let d = t[T_DELAY_MS];
             min = min.min(d);
             max = max.max(d);
-            assert!((t[tel::MOD_L] + t[tel::MOD_R]).abs() < 1e-5, "{mode:?}: the right sweeps opposite");
+            assert!(
+                (t[tel::MOD_L] + t[tel::MOD_R]).abs() < 1e-5,
+                "{mode:?}: the right sweeps opposite"
+            );
             let gap = (SR / (4.0 * hz)) as usize;
             if d < last && tops.last().is_none_or(|p: &usize| i - p > gap) && d > hi - 0.01 {
                 tops.push(i);
             }
             last = d;
         }
-        assert!((min - lo).abs() < 0.01 && (max - hi).abs() < 0.01, "{mode:?}: {min} … {max} ms");
+        assert!(
+            (min - lo).abs() < 0.01 && (max - hi).abs() < 0.01,
+            "{mode:?}: {min} … {max} ms"
+        );
         let period = (tops[tops.len() - 1] - tops[0]) as f32 / (tops.len() - 1) as f32 / SR;
-        assert!((1.0 / period - hz).abs() < 0.01 * hz, "{mode:?}: {} Hz", 1.0 / period);
+        assert!(
+            (1.0 / period - hz).abs() < 0.01 * hz,
+            "{mode:?}: {} Hz",
+            1.0 / period
+        );
     }
 }
 
 #[test]
 fn the_mono_check_reads_what_the_mono_sum_keeps() {
     let (c, l) = mono_check(1.0, 1.0, 1.0);
-    assert!((c - 1.0).abs() < 1e-6 && l.abs() < 1e-6, "identical: {c} {l}");
+    assert!(
+        (c - 1.0).abs() < 1e-6 && l.abs() < 1e-6,
+        "identical: {c} {l}"
+    );
     let (c, l) = mono_check(1.0, 1.0, 0.0);
-    assert!(c.abs() < 1e-6 && (l + 3.0103).abs() < 1e-3, "uncorrelated: {c} {l}");
+    assert!(
+        c.abs() < 1e-6 && (l + 3.0103).abs() < 1e-3,
+        "uncorrelated: {c} {l}"
+    );
     let (c, l) = mono_check(1.0, 1.0, -1.0);
     assert!((c + 1.0).abs() < 1e-6 && l <= -59.9, "opposite: {c} {l}");
     assert_eq!(mono_check(0.0, 0.0, 0.0), (1.0, 0.0));
@@ -157,7 +173,10 @@ fn the_dimension_modes_are_wider_than_the_juno_yet_keep_the_mono_sum() {
     let (cj, mj) = check(Mode::JunoI);
     let (cd, md) = check(Mode::Dim4);
     assert!(cd < cj, "Dimension 4 is wider: {cd} against {cj}");
-    assert!(md > -3.0 && mj > -3.0, "neither loses half its level in mono: {md} {mj}");
+    assert!(
+        md > -3.0 && mj > -3.0,
+        "neither loses half its level in mono: {md} {mj}"
+    );
 }
 
 #[test]

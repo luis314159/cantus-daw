@@ -187,7 +187,10 @@ fn body_ui(
     let sm = s.function(Function::Mod);
     // The modes, and the two switches under them.
     let switches = crate::kit::band::TITLE + 8.0 + controls::ROW * 2.0 + 5.0 + 10.0;
-    let modes = Rect::from_min_max(r1[0].min, pos2(r1[0].right(), r1[0].bottom() - switches * k));
+    let modes = Rect::from_min_max(
+        r1[0].min,
+        pos2(r1[0].right(), r1[0].bottom() - switches * k),
+    );
     modfx::mode_card(
         host,
         ui,
@@ -218,23 +221,37 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, &sm, r2[0], Src::Key("flexus.card.mix"), None, |ui, _| {
-        controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
-        controls::param_with(ui, &sm, host, "fb", Size::M, Some(&fb_pill));
-        controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[0],
+        Src::Key("flexus.card.mix"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
+            controls::param_with(ui, &sm, host, "fb", Size::M, Some(&fb_pill));
+            controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
     modfx::region(ui, r2[1], fs.mode == Mode::Lfo, |ui| {
         modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
     });
-    controls::card(ui, &sm, r2[2], Src::Key("flexus.card.sweep"), None, |ui, _| {
-        ui.add_enabled_ui(!fs.through_zero, |ui| {
-            controls::param_with(ui, &sm, host, "delay", Size::M, Some(&modfx::ms_pill));
-        });
-        controls::param_with(ui, &sm, host, "depth", Size::M, Some(&modfx::ms_pill));
-        ui.add_enabled_ui(fs.mode == Mode::Lfo, |ui| {
-            controls::param_with(ui, &sm, host, "spread", Size::M, Some(&modfx::deg_pill));
-        });
-    });
+    controls::card(
+        ui,
+        &sm,
+        r2[2],
+        Src::Key("flexus.card.sweep"),
+        None,
+        |ui, _| {
+            ui.add_enabled_ui(!fs.through_zero, |ui| {
+                controls::param_with(ui, &sm, host, "delay", Size::M, Some(&modfx::ms_pill));
+            });
+            controls::param_with(ui, &sm, host, "depth", Size::M, Some(&modfx::ms_pill));
+            ui.add_enabled_ui(fs.mode == Mode::Lfo, |ui| {
+                controls::param_with(ui, &sm, host, "spread", Size::M, Some(&modfx::deg_pill));
+            });
+        },
+    );
     let title = if fs.mode == Mode::Manual {
         "flexus.card.manual"
     } else {
@@ -329,9 +346,24 @@ fn sweep_card(
             let plot = r.shrink2(vec2(10.0 * k, 14.0 * k));
             let y = plot.center().y - norm(0.0) * plot.height() * 0.5;
             with_brush(&ui.painter_at(r), |b| {
-                canvas::dashed(b, pos2(plot.left(), y), pos2(plot.right(), y), 1.2 * k, ink.text, 5.0 * k, 4.0 * k);
+                canvas::dashed(
+                    b,
+                    pos2(plot.left(), y),
+                    pos2(plot.right(), y),
+                    1.2 * k,
+                    ink.text,
+                    5.0 * k,
+                    4.0 * k,
+                );
                 let t = Text::key("flexus.dry", Role::Micro, ink.text).caps(true);
-                canvas::put(b, pos2(plot.right() - 4.0 * k, y - 3.0 * k), Align2::RIGHT_BOTTOM, &t, k, Some(ink.plate));
+                canvas::put(
+                    b,
+                    pos2(plot.right() - 4.0 * k, y - 3.0 * k),
+                    Align2::RIGHT_BOTTOM,
+                    &t,
+                    k,
+                    Some(ink.plate),
+                );
             });
         }
         if fs.mix == 0.0 {
@@ -413,7 +445,11 @@ pub fn comb_db(fs: &FlexusSettings, delay_ms: f32, f: f32) -> f32 {
 
 fn comb_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], fs: &FlexusSettings) {
     let now = tel[T_SWEEP].clamp(0.0, 1.0);
-    let (d, _) = delay_at(fs, f64::from(tel[cantus_dsp::modfx_clock::tel::PHASE_L]), now);
+    let (d, _) = delay_at(
+        fs,
+        f64::from(tel[cantus_dsp::modfx_clock::tel::PHASE_L]),
+        now,
+    );
     controls::card(ui, s, rect, Src::Key("flexus.card.comb"), None, |ui, cr| {
         let r = cr.body;
         let ink = Ink::of(s);
@@ -437,7 +473,13 @@ fn comb_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], fs: &Fle
             canvas::ground_b(b, r, &ink, s.hue_tok);
             for db in [0.0f32, -12.0, -24.0] {
                 let y = plot.top() + plot.height() * (top - db) / (top - bottom);
-                b.hline(plot.left(), plot.right(), y, b.px(), if db == 0.0 { ink.grid_strong } else { ink.grid });
+                b.hline(
+                    plot.left(),
+                    plot.right(),
+                    y,
+                    b.px(),
+                    if db == 0.0 { ink.grid_strong } else { ink.grid },
+                );
             }
             b.area(&pts, plot.bottom(), ink.fill(0.5));
             b.polyline(&pts, 1.6 * k, ink.hue);
@@ -445,7 +487,14 @@ fn comb_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], fs: &Fle
                 let x = plot.left() + plot.width() * at / SPAN;
                 b.vline(x, plot.top(), plot.bottom(), b.px(), ink.grid);
                 let t = Text::new(word, Role::Micro, ink.dim);
-                canvas::put(b, pos2(x, r.bottom() - 2.0 * k), Align2::CENTER_BOTTOM, &t, k, None);
+                canvas::put(
+                    b,
+                    pos2(x, r.bottom() - 2.0 * k),
+                    Align2::CENTER_BOTTOM,
+                    &t,
+                    k,
+                    None,
+                );
             }
             canvas::putf(
                 b,
@@ -471,12 +520,19 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
         let y = match i {
             0 => cantus_dsp::math::sin(std::f32::consts::TAU * x),
             1 => {
-                let e = if x < 0.2 { x / 0.2 } else { cantus_dsp::math::exp(-(x - 0.2) * 4.0) };
+                let e = if x < 0.2 {
+                    x / 0.2
+                } else {
+                    cantus_dsp::math::exp(-(x - 0.2) * 4.0)
+                };
                 2.0 * e - 1.0
             }
             _ => 0.3,
         };
-        *p = pos2(r.left() + r.width() * x, r.center().y - y * r.height() * 0.4);
+        *p = pos2(
+            r.left() + r.width() * x,
+            r.center().y - y * r.height() * 0.4,
+        );
     }
     b.polyline(&pts, 1.4 * k, ink);
 }

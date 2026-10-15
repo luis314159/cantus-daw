@@ -188,11 +188,7 @@ impl Phasis {
             return Some("a glide is moving");
         }
         if self.back.iter().any(|v| v.to_bits() != 0)
-            || self
-                .ap
-                .iter()
-                .flatten()
-                .any(|a| a.state().to_bits() != 0)
+            || self.ap.iter().flatten().any(|a| a.state().to_bits() != 0)
         {
             return Some("a stage rings");
         }

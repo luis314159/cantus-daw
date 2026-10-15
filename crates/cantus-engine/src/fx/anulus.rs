@@ -87,7 +87,10 @@ mod tests {
     fn the_tables_defaults_are_the_dsps_defaults() {
         let s = settings(&EffectSpec::new(EffectKind::RingMod));
         let d = AnulusSettings::default();
-        assert_eq!((s.freq_hz, s.wave, s.lfo_st, s.mix), (d.freq_hz, d.wave, d.lfo_st, d.mix));
+        assert_eq!(
+            (s.freq_hz, s.wave, s.lfo_st, s.mix),
+            (d.freq_hz, d.wave, d.lfo_st, d.mix)
+        );
         assert_eq!((s.spread, s.out_db), (d.spread, d.out_db));
         assert_eq!(s.lfo.rate, d.lfo.rate);
     }

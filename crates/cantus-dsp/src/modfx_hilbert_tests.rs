@@ -6,7 +6,10 @@ fn the_design_rejects_the_other_sideband_by_60_db_over_the_band() {
         let d = design(sr);
         let hi = HIGH_EDGE.min(0.45 * f64::from(sr));
         let r = worst_rejection(&d.coefs[..d.n], f64::from(sr), 20.0, hi);
-        eprintln!("{sr} Hz: {} sections, worst {r:.1} dB over 20 Hz … {hi:.0} Hz", d.n);
+        eprintln!(
+            "{sr} Hz: {} sections, worst {r:.1} dB over 20 Hz … {hi:.0} Hz",
+            d.n
+        );
         if sr <= 48_000.0 {
             assert!(r >= 60.0, "{sr}: {r:.1} dB");
         }

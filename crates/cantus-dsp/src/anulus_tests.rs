@@ -103,9 +103,19 @@ fn a_tone_becomes_its_sum_and_difference_and_nothing_else() {
     let (mut l, mut r) = (x.clone(), x.clone());
     unit(&s).process(&mut l, &mut r);
     let tail = &l[24_000..];
-    let (sum, diff, orig) = (level(tail, 1_300.0), level(tail, 700.0), level(tail, 1_000.0));
-    assert!((sum - 0.25).abs() < 0.01 && (diff - 0.25).abs() < 0.01, "{sum} {diff}");
-    assert!(20.0 * crate::math::log10(orig / 0.5) < -80.0, "the input is gone: {orig}");
+    let (sum, diff, orig) = (
+        level(tail, 1_300.0),
+        level(tail, 700.0),
+        level(tail, 1_000.0),
+    );
+    assert!(
+        (sum - 0.25).abs() < 0.01 && (diff - 0.25).abs() < 0.01,
+        "{sum} {diff}"
+    );
+    assert!(
+        20.0 * crate::math::log10(orig / 0.5) < -80.0,
+        "the input is gone: {orig}"
+    );
 }
 
 #[test]
@@ -167,7 +177,10 @@ fn the_lfo_swings_the_carrier_by_its_semitones() {
     }
     let want_lo = 330.0 * crate::math::exp2(-7.0f32 / 12.0);
     let want_hi = 330.0 * crate::math::exp2(7.0f32 / 12.0);
-    assert!((lo - want_lo).abs() < 1.0 && (hi - want_hi).abs() < 1.5, "{lo} … {hi}");
+    assert!(
+        (lo - want_lo).abs() < 1.0 && (hi - want_hi).abs() < 1.5,
+        "{lo} … {hi}"
+    );
 }
 
 #[test]

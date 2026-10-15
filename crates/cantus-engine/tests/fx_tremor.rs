@@ -3,9 +3,9 @@
 //! and a synced LFO that follows the song position — from the start of the song and from
 //! a later bar.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -28,7 +28,12 @@ fn at_depth_zero_every_mode_is_a_wire() {
         set_all(
             &mut p,
             fx,
-            &[("mode", mode), ("shape", 2.0), ("spread", 90.0), ("swing", 0.5)],
+            &[
+                ("mode", mode),
+                ("shape", 2.0),
+                ("spread", 90.0),
+                ("swing", 0.5),
+            ],
         );
         assert_null(&reference, &render_of(&p), 0.0, &format!("mode {mode}"));
     }
@@ -143,5 +148,8 @@ fn the_unit_hears_the_projects_tempo() {
     // BPM it would be open, in the second beat's first half).
     let f = (0.75 * 32_000.0) as usize;
     assert_eq!(out[2 * f], 0.0);
-    assert!(render_with(&base, 256)[2 * f] != 0.0, "the lead plays there");
+    assert!(
+        render_with(&base, 256)[2 * f] != 0.0,
+        "the lead plays there"
+    );
 }

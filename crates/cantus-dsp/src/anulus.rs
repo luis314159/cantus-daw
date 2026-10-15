@@ -236,7 +236,12 @@ impl Anulus {
         self.lfo.reset();
         self.phase = 0.0;
         self.dc = [DcBlock::default(); 2];
-        for g in [&mut self.freq, &mut self.spread, &mut self.mix, &mut self.out] {
+        for g in [
+            &mut self.freq,
+            &mut self.spread,
+            &mut self.mix,
+            &mut self.out,
+        ] {
             g.jump(g.target);
         }
         self.zrun = 0;

@@ -136,7 +136,9 @@ impl Vibrans {
     fn hz(&self) -> f64 {
         match self.set.lfo.rate {
             Rate::Hz(h) => h,
-            Rate::Beats(b) => synced_inc(b, self.clock.tempo(), f64::from(self.sr)) * f64::from(self.sr),
+            Rate::Beats(b) => {
+                synced_inc(b, self.clock.tempo(), f64::from(self.sr)) * f64::from(self.sr)
+            }
         }
     }
 
@@ -169,7 +171,13 @@ impl Vibrans {
             l.reset();
         }
         self.retarget();
-        for g in [&mut self.amp, &mut self.base, &mut self.mix, &mut self.out, &mut self.spread] {
+        for g in [
+            &mut self.amp,
+            &mut self.base,
+            &mut self.mix,
+            &mut self.out,
+            &mut self.spread,
+        ] {
             g.jump(g.target);
         }
         self.quiet = u32::MAX;

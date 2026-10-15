@@ -61,7 +61,11 @@ fn level(x: &[f32], f: f64) -> f64 {
 /// at its level (the feedback's passes included).
 #[test]
 fn the_partials_drawn_are_the_partials_played() {
-    for (shift, side, fb) in [(37.0f32, 0.0f32, 0.0f32), (61.0, 1.0, 0.0), (29.0, 0.0, 0.5)] {
+    for (shift, side, fb) in [
+        (37.0f32, 0.0f32, 0.0f32),
+        (61.0, 1.0, 0.0),
+        (29.0, 0.0, 0.5),
+    ] {
         let mut spec = EffectSpec::new(EffectKind::FreqShift);
         for (k, v) in [("shift", shift), ("side", side), ("fb", fb), ("mix", 1.0)] {
             spec.set(k, v);

@@ -245,15 +245,21 @@ impl Hilbert {
     pub fn is_zero(&self) -> bool {
         self.late.to_bits() == 0
             && self.s[..self.n].iter().all(|s| {
-                s.x1.to_bits() == 0 && s.x2.to_bits() == 0 && s.y1.to_bits() == 0 && s.y2.to_bits() == 0
+                s.x1.to_bits() == 0
+                    && s.x2.to_bits() == 0
+                    && s.y1.to_bits() == 0
+                    && s.y2.to_bits() == 0
             })
     }
 
     /// The largest state, in magnitude.
     pub fn level(&self) -> f32 {
-        self.s[..self.n]
-            .iter()
-            .fold(self.late.abs(), |m, s| m.max(s.y1.abs()).max(s.y2.abs()).max(s.x1.abs()).max(s.x2.abs()))
+        self.s[..self.n].iter().fold(self.late.abs(), |m, s| {
+            m.max(s.y1.abs())
+                .max(s.y2.abs())
+                .max(s.x1.abs())
+                .max(s.x2.abs())
+        })
     }
 }
 

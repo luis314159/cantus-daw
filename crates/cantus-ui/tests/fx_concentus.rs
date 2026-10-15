@@ -59,9 +59,15 @@ fn a_model_chosen_is_one_undo_step() {
         let mut host = cantus_ui::views::fx::host::DawHost::new(&mut a, s0, fx, "concentus");
         cantus_ui::views::fx::host::FxHost::set(&mut host, "mode", 5.0, None);
     }
-    assert_eq!(a.project().strip(s0).unwrap().effects[0].spec.get("mode"), 5.0);
+    assert_eq!(
+        a.project().strip(s0).unwrap().effects[0].spec.get("mode"),
+        5.0
+    );
     a.undo();
-    assert_eq!(a.project().strip(s0).unwrap().effects[0].spec.get("mode"), 0.0);
+    assert_eq!(
+        a.project().strip(s0).unwrap().effects[0].spec.get("mode"),
+        0.0
+    );
 }
 
 /// The delays drawn are the delays played: the running unit's voice-1 delay against the

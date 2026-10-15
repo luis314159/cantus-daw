@@ -119,7 +119,12 @@ fn the_movement_drawn_is_the_movement_played() {
         let (a, b) = modfx::lfo_at(&ts.lfo, ts.spread, c);
         let g = |m: f32| 1.0 - 0.8 * (0.5 - 0.5 * m);
         assert!((l[i] - g(a)).abs() < 1e-4, "left {i}: {} vs {}", l[i], g(a));
-        assert!((r[i] - g(b)).abs() < 1e-4, "right {i}: {} vs {}", r[i], g(b));
+        assert!(
+            (r[i] - g(b)).abs() < 1e-4,
+            "right {i}: {} vs {}",
+            r[i],
+            g(b)
+        );
     }
 }
 

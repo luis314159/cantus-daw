@@ -2,9 +2,9 @@
 //! every stage count, the same render at every block size while it works, and live equal to
 //! offline.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;
@@ -27,7 +27,11 @@ fn at_mix_zero_every_mode_is_a_wire() {
         set_all(
             &mut p,
             fx,
-            &[("stages", (2 + 2 * (mode % 6)) as f32), ("fb", 0.5), ("shape", (mode % 6) as f32)],
+            &[
+                ("stages", (2 + 2 * (mode % 6)) as f32),
+                ("fb", 0.5),
+                ("shape", (mode % 6) as f32),
+            ],
         );
         assert_null(&reference, &render_of(&p), 0.0, &format!("mode {mode}"));
     }

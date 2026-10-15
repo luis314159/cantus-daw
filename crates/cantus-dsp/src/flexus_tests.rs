@@ -81,7 +81,10 @@ fn at_mix_zero_it_is_a_wire_and_through_zero_a_delay() {
         let mut u = u;
         drive(&mut u, &mut l, &mut r, || 333);
         assert!(l[..lat].iter().all(|v| *v == 0.0));
-        assert!(same(&l[lat..], &x[..x.len() - lat]), "{mode:?}: through zero");
+        assert!(
+            same(&l[lat..], &x[..x.len() - lat]),
+            "{mode:?}: through zero"
+        );
     }
     let (mut l, mut r) = (x.clone(), x.clone());
     unit(&FlexusSettings::default()).process(&mut l, &mut r);
@@ -104,7 +107,10 @@ fn the_centre_point_cancels_to_the_bit() {
     let x = noise(30_000, 2);
     let (mut l, mut r) = (x.clone(), x.clone());
     drive(&mut unit(&s), &mut l, &mut r, || 777);
-    assert!(l.iter().chain(&r).all(|v| v.to_bits() == 0), "exact silence");
+    assert!(
+        l.iter().chain(&r).all(|v| v.to_bits() == 0),
+        "exact silence"
+    );
     // A hair off the centre, it does not cancel.
     let mut off = s;
     off.manual = 0.52;
@@ -127,7 +133,10 @@ fn through_zero_the_wet_passes_the_dry() {
         before |= t[T_DELAY_MS] < -1.0;
         after |= t[T_DELAY_MS] > 1.0;
     }
-    assert!(before && after, "the wet goes ahead of the dry and behind it");
+    assert!(
+        before && after,
+        "the wet goes ahead of the dry and behind it"
+    );
     assert_eq!(t[T_LATENCY], 240.0);
 }
 
@@ -143,7 +152,10 @@ fn feedback_either_way_stays_bounded_and_sounds_different() {
         l
     };
     let (up, down) = (run(0.95), run(-0.95));
-    assert!(up.iter().chain(&down).all(|v| v.is_finite() && v.abs() < 20.0));
+    assert!(up
+        .iter()
+        .chain(&down)
+        .all(|v| v.is_finite() && v.abs() < 20.0));
     assert!(!same(&up, &down));
 }
 

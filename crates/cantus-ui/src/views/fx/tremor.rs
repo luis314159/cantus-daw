@@ -28,7 +28,12 @@ const KIND: EffectKind = EffectKind::Tremolo;
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     (
         "preset.tremor.surf",
-        &[("depth", 0.65), ("sync", 0.0), ("rate", 6.2), ("shape", 1.0)],
+        &[
+            ("depth", 0.65),
+            ("sync", 0.0),
+            ("rate", 6.2),
+            ("shape", 1.0),
+        ],
     ),
     (
         "preset.tremor.slow_swell",
@@ -191,17 +196,31 @@ fn body_ui(
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
-    controls::card(ui, s, r2[0], Src::Key("tremor.card.depth"), None, |ui, _| {
-        controls::param_with(ui, s, host, "depth", Size::XL, Some(&modfx::pct_pill));
-    });
+    controls::card(
+        ui,
+        s,
+        r2[0],
+        Src::Key("tremor.card.depth"),
+        None,
+        |ui, _| {
+            controls::param_with(ui, s, host, "depth", Size::XL, Some(&modfx::pct_pill));
+        },
+    );
     modfx::lfo_card(host, ui, &s.function(Function::Mod), r2[1], &LFO);
     let so = s.function(Function::Output);
-    controls::card(ui, &so, r2[2], Src::Key("tremor.card.output"), None, |ui, _| {
-        ui.add_enabled_ui(ts.mode == Mode::Harmonic, |ui| {
-            controls::param(ui, &so, host, "xover", Size::M);
-        });
-        controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
-    });
+    controls::card(
+        ui,
+        &so,
+        r2[2],
+        Src::Key("tremor.card.output"),
+        None,
+        |ui, _| {
+            ui.add_enabled_ui(ts.mode == Mode::Harmonic, |ui| {
+                controls::param(ui, &so, host, "xover", Size::M);
+            });
+            controls::param_with(ui, &so, host, "out", Size::M, Some(&modfx::db_pill));
+        },
+    );
 }
 
 /// The movement display in a card: the level (or the pan, or the two halves) over two
@@ -216,9 +235,17 @@ fn display_card(
     ts: &TremorSettings,
 ) {
     let (top, bottom, title) = match ts.mode {
-        Mode::Tremolo => ("tremor.top.level", "tremor.bottom.level", "tremor.card.level"),
+        Mode::Tremolo => (
+            "tremor.top.level",
+            "tremor.bottom.level",
+            "tremor.card.level",
+        ),
         Mode::Pan => ("tremor.top.pan", "tremor.bottom.pan", "tremor.card.pan"),
-        Mode::Harmonic => ("tremor.top.level", "tremor.bottom.level", "tremor.card.halves"),
+        Mode::Harmonic => (
+            "tremor.top.level",
+            "tremor.bottom.level",
+            "tremor.card.halves",
+        ),
     };
     let s = s.function(Function::Mod);
     controls::card(ui, &s, rect, Src::Key(title), None, |ui, cr| {
@@ -241,7 +268,16 @@ fn display_card(
                 }
             }
         };
-        modfx::movement(ui, &s, r, host, tel, &curve, frame::tr(top), frame::tr(bottom));
+        modfx::movement(
+            ui,
+            &s,
+            r,
+            host,
+            tel,
+            &curve,
+            frame::tr(top),
+            frame::tr(bottom),
+        );
         if depth == 0.0 {
             modfx::idle_note(ui, &s, r, "tremor.idle");
         }

@@ -33,7 +33,13 @@ fn playing(samples: i64) -> Transport {
     }
 }
 
-fn drive(f: &mut Fluctus, l: &mut [f32], r: &mut [f32], start: i64, mut split: impl FnMut() -> usize) {
+fn drive(
+    f: &mut Fluctus,
+    l: &mut [f32],
+    r: &mut [f32],
+    start: i64,
+    mut split: impl FnMut() -> usize,
+) {
     let n = l.len();
     let mut at = 0;
     while at < n {
@@ -85,7 +91,11 @@ fn the_curve_is_read_between_its_points_and_wraps() {
     // From 0.75 the curve runs to 0.25 a cycle on: 0 → 1 over half a cycle.
     assert!((c.at(0.0) - 0.5).abs() < 1e-6);
     assert!((c.at(0.875) - 0.25).abs() < 1e-6);
-    assert_eq!(Curve::new(&[None; POINTS], linear).at(0.3), 1.0, "no point: full");
+    assert_eq!(
+        Curve::new(&[None; POINTS], linear).at(0.3),
+        1.0,
+        "no point: full"
+    );
 }
 
 /// The pump at full depth, no smoothing: the level is nothing on each beat and full from
@@ -98,8 +108,15 @@ fn the_pump_ducks_on_every_beat_of_the_song() {
     let mut r = l.clone();
     drive(&mut unit(&s), &mut l, &mut r, 0, || 512);
     for b in 0..4 {
-        assert!(l[b * beat + 1] < 0.01, "beat {b} starts ducked: {}", l[b * beat + 1]);
-        assert!((l[b * beat + beat * 3 / 4] - 1.0).abs() < 1e-6, "beat {b} recovers");
+        assert!(
+            l[b * beat + 1] < 0.01,
+            "beat {b} starts ducked: {}",
+            l[b * beat + 1]
+        );
+        assert!(
+            (l[b * beat + beat * 3 / 4] - 1.0).abs() < 1e-6,
+            "beat {b} recovers"
+        );
     }
 }
 
@@ -110,7 +127,9 @@ fn smoothing_takes_the_click_out_of_the_wrap() {
         let mut l = vec![1.0f32; 2 * beat];
         let mut r = l.clone();
         drive(&mut unit(&pump(1.0, smooth)), &mut l, &mut r, 0, || 512);
-        l.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0f32, f32::max)
+        l.windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .fold(0.0f32, f32::max)
     };
     assert!(jump(0.0) > 0.9, "without smoothing the wrap is a step");
     assert!(jump(2.0) < 0.02, "2 ms takes it out");

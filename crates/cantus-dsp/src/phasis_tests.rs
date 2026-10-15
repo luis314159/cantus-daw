@@ -115,7 +115,10 @@ fn every_two_stages_make_a_notch_where_the_phase_says() {
                 continue;
             }
             let db = level_db(&s, f);
-            assert!(db < -30.0, "{stages} stages, notch {k} at {f:.0} Hz: {db:.1} dB");
+            assert!(
+                db < -30.0,
+                "{stages} stages, notch {k} at {f:.0} Hz: {db:.1} dB"
+            );
         }
         // Where the cascade turns a whole circle the two add: +6 dB (two stages turn a
         // whole circle only at DC and Nyquist).
@@ -160,7 +163,10 @@ fn the_sweep_moves_between_its_bounds() {
         lo = lo.min(t[T_FC_L]);
         hi = hi.max(t[T_FC_L]);
     }
-    assert!((lo - 150.0).abs() < 2.0 && (hi - 4_000.0).abs() < 40.0, "{lo} … {hi}");
+    assert!(
+        (lo - 150.0).abs() < 2.0 && (hi - 4_000.0).abs() < 40.0,
+        "{lo} … {hi}"
+    );
     assert!((sweep_hz(150.0, 4_000.0, 0.0) - (150.0f32 * 4_000.0).sqrt()).abs() < 0.5);
 }
 

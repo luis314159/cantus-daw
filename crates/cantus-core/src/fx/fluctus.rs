@@ -64,11 +64,47 @@ const DEFAULT_POINTS: [(usize, [f32; 5]); 2] = [
 
 /// The parameters that are not a point's.
 pub const GLOBALS: &[EffectParamInfo] = &[
-    p("depth", "fx.fluctus.depth", 0.0, 1.0, 0.0, "%", false, false),
+    p(
+        "depth",
+        "fx.fluctus.depth",
+        0.0,
+        1.0,
+        0.0,
+        "%",
+        false,
+        false,
+    ),
     p("div", "fx.fluctus.div", 1.0, 14.0, 8.0, "", false, true),
-    p("offset", "fx.fluctus.offset", 0.0, 1.0, 0.0, "%", false, false),
-    p("smooth", "fx.fluctus.smooth", 0.0, 50.0, 2.0, "ms", false, false),
-    p("out", "fx.fluctus.out", -24.0, 24.0, 0.0, "dB", false, false),
+    p(
+        "offset",
+        "fx.fluctus.offset",
+        0.0,
+        1.0,
+        0.0,
+        "%",
+        false,
+        false,
+    ),
+    p(
+        "smooth",
+        "fx.fluctus.smooth",
+        0.0,
+        50.0,
+        2.0,
+        "ms",
+        false,
+        false,
+    ),
+    p(
+        "out",
+        "fx.fluctus.out",
+        -24.0,
+        24.0,
+        0.0,
+        "dB",
+        false,
+        false,
+    ),
 ];
 
 /// The key of one field of one point: `p3.y`.
