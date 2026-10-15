@@ -385,7 +385,7 @@ fn a_follower_rises_with_its_attack_falls_with_its_release_and_shrugs_off_nan() 
         f.step(0.0, 5.0, 100.0, dt);
     }
     assert!(
-        (f.level - before * (-1f32).exp()).abs() < 2e-3,
+        (f.level - before * cantus_dsp::math::exp(-1.0)).abs() < 2e-3,
         "{}",
         f.level
     );

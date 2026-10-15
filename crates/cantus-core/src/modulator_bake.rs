@@ -34,6 +34,7 @@ pub type Trace = [(f64, f32)];
 /// clip automates it, when the caller knows it better than the project (a hosted plug-in's
 /// value, which only its unit can normalise); `play_from` is where playback is taken to
 /// start (a free LFO runs from there); `trace`, the outputs of a source that follows audio.
+#[allow(clippy::too_many_arguments)]
 pub fn bake(
     project: &Project,
     id: ModulatorId,

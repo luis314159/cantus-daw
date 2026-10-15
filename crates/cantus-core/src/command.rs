@@ -2222,9 +2222,9 @@ impl Command {
                 host,
                 index,
                 modulator,
-            } => crate::modulator::apply_insert(project, host, index, modulator),
+            } => crate::modulator::apply_insert(project, host, index, *modulator),
             RemoveModulator { id } => crate::modulator::apply_remove(project, id),
-            SetModulator { modulator } => crate::modulator::apply_set(project, modulator),
+            SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,
                 left,

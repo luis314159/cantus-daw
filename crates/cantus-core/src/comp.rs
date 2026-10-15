@@ -153,7 +153,7 @@ pub(crate) fn apply_seam(
         let end = c.end();
         c.start = at;
         c.length = end - at;
-        c.offset = c.offset + d;
+        c.offset += d;
     }
     // By start, then by id, as every clip edit keeps them.
     t.clips.sort_by_key(|c| (c.start, c.id));

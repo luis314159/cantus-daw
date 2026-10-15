@@ -402,7 +402,7 @@ fn seams(track: &Track, out: &mut [AudioClipSnapshot]) {
         }
         if let Some(r) = out.iter_mut().find(|p| p.clip == right.id) {
             r.start = s - h;
-            r.offset = r.offset - h;
+            r.offset -= h;
             r.xin = stretch;
             r.fade_in = Ticks::ZERO;
         }

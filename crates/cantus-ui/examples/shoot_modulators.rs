@@ -182,11 +182,14 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
             _ => {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE.fill(cantus_ui::kit::Style::current().t.panel))
-                    .show(root, |ui| knobs(ui));
+                    .show(root, knobs);
             }
         }
     });
 }
+
+/// A knob of the picture: its value, its rings, its modulation.
+type Knob<'a> = (f32, &'a [(f32, egui::Color32)], ModOffer);
 
 /// Controls as a modulated parameter draws them.
 fn knobs(ui: &mut egui::Ui) {
@@ -194,7 +197,7 @@ fn knobs(ui: &mut egui::Ui) {
     let s = cantus_ui::kit::Style::current();
     let hue = |f| s.t.hue(f);
     use cantus_ui::kit::Function as F;
-    let sets: [(f32, &[(f32, egui::Color32)], ModOffer); 4] = [
+    let sets: [Knob; 4] = [
         (
             0.5,
             &[(0.3, hue(F::Mod))],

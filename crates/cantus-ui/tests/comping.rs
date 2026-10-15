@@ -393,7 +393,7 @@ fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
     cantus_ui::design::install_style(&ctx);
     show(&mut a, &ctx, vec![]);
     let geo = a.arrangement.geometry().expect("drawn");
-    let row = geo.rows[0].clone();
+    let row = geo.rows[0];
     // Take lane 1 sits under the playing lane.
     let lane1 = row.top + row.height + 6.0;
     drag(

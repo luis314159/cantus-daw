@@ -344,7 +344,12 @@ fn a_render_from_bar_5_hears_what_a_full_render_hears_there() {
 /// RMS of the left channel over `[a, b)` seconds.
 fn rms(samples: &[f32], a: f64, b: f64) -> f32 {
     let (i, j) = ((a * SR) as usize, (b * SR) as usize);
-    let s: f64 = (i..j).map(|f| f64::from(samples[2 * f]).powi(2)).sum();
+    let s: f64 = (i..j)
+        .map(|f| {
+            let x = f64::from(samples[2 * f]);
+            x * x
+        })
+        .sum();
     ((s / (j - i) as f64).sqrt()) as f32
 }
 
@@ -381,7 +386,7 @@ fn an_lfo_moves_a_native_effect_parameter() {
         let c = f64::from(cycle) * 2.0;
         let high = rms(&out, c + 0.3, c + 0.9);
         let low = rms(&out, c + 1.3, c + 1.9);
-        let db = 20.0 * (high / low).log10();
+        let db = 20.0 * cantus_dsp::math::log10(high / low);
         assert!(db > 20.0, "cycle {cycle}: {db:.1} dB between the halves");
         checked += 1;
     }
@@ -426,9 +431,17 @@ fn an_envelope_opens_a_filter_with_each_note() {
     let bright = |s: &[f32], a: f64, b: f64| {
         let (i, j) = ((a * SR) as usize, (b * SR) as usize);
         let d: f64 = (i + 1..j)
-            .map(|f| f64::from(s[2 * f] - s[2 * f - 2]).powi(2))
+            .map(|f| {
+                let d = f64::from(s[2 * f] - s[2 * f - 2]);
+                d * d
+            })
             .sum();
-        let e: f64 = (i..j).map(|f| f64::from(s[2 * f]).powi(2)).sum();
+        let e: f64 = (i..j)
+            .map(|f| {
+                let x = f64::from(s[2 * f]);
+                x * x
+            })
+            .sum();
         (d / e.max(1e-12)).sqrt()
     };
     for beat in [2.0f64, 5.0, 9.0] {

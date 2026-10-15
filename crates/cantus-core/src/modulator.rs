@@ -513,9 +513,9 @@ pub(crate) fn apply_insert(
     project: &mut Project,
     host: ModHost,
     index: usize,
-    modulator: Box<Modulator>,
+    modulator: Modulator,
 ) -> Result<Command, CommandError> {
-    check_new(project, std::slice::from_ref(&*modulator))?;
+    check_new(project, std::slice::from_ref(&modulator))?;
     let list = project.modulators_mut(host).ok_or(host_error(host))?;
     let len = list.len();
     if index > len {
@@ -525,7 +525,7 @@ pub(crate) fn apply_insert(
         return Err(CommandError::InvalidValue("too many modulators".into()));
     }
     let id = modulator.id;
-    list.insert(index, *modulator);
+    list.insert(index, modulator);
     Ok(Command::RemoveModulator { id })
 }
 
@@ -549,7 +549,7 @@ pub(crate) fn apply_remove(
 
 pub(crate) fn apply_set(
     project: &mut Project,
-    modulator: Box<Modulator>,
+    modulator: Modulator,
 ) -> Result<Command, CommandError> {
     if !modulator.is_valid() {
         return Err(CommandError::InvalidValue("modulator".into()));
@@ -561,7 +561,7 @@ pub(crate) fn apply_set(
             "modulator {id} not found"
         )))?;
     let list = project.modulators_mut(host).ok_or(host_error(host))?;
-    let old = std::mem::replace(&mut list[index], *modulator);
+    let old = std::mem::replace(&mut list[index], modulator);
     Ok(Command::SetModulator {
         modulator: Box::new(old),
     })
