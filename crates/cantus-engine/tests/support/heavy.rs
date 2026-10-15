@@ -58,7 +58,7 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Phaser => set(&mut s, &[("stages", 12.0), ("mix", 0.5), ("fb", 0.95), ("shape", 5.0), ("spread", 90.0), ("lo", 20.0), ("hi", 16_000.0)]),
         EffectKind::Tremolo => set(&mut s, &[("mode", 2.0), ("depth", 1.0), ("shape", 5.0), ("swing", 0.5), ("spread", 90.0)]),
         EffectKind::Vibrato => set(&mut s, &[("depth", 100.0), ("rate", 0.2), ("rise", 500.0), ("spread", 90.0), ("mix", 0.5)]),
-        EffectKind::RingMod => {}
+        EffectKind::RingMod => set(&mut s, &[("wave", 2.0), ("lfo", 24.0), ("rate", 20.0), ("mix", 0.5), ("spread", 90.0), ("freq", 5_000.0)]),
         EffectKind::FreqShift => {}
         EffectKind::VolumeShaper => {}
         EffectKind::Clipper => {}
