@@ -359,3 +359,76 @@ fn the_clock_reads_whole_in_every_metre() {
         );
     }
 }
+
+// ---- allocations ---------------------------------------------------------------------
+
+struct Counting;
+
+thread_local! {
+    static COUNTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static ALLOCS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+unsafe impl std::alloc::GlobalAlloc for Counting {
+    unsafe fn alloc(&self, l: std::alloc::Layout) -> *mut u8 {
+        if COUNTING.try_with(|c| c.get()).unwrap_or_default() {
+            let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+        }
+        unsafe { std::alloc::System.alloc(l) }
+    }
+    unsafe fn dealloc(&self, p: *mut u8, l: std::alloc::Layout) {
+        unsafe { std::alloc::System.dealloc(p, l) }
+    }
+    unsafe fn realloc(&self, p: *mut u8, l: std::alloc::Layout, n: usize) -> *mut u8 {
+        if COUNTING.try_with(|c| c.get()).unwrap_or_default() {
+            let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+        }
+        unsafe { std::alloc::System.realloc(p, l, n) }
+    }
+}
+
+#[global_allocator]
+static A: Counting = Counting;
+
+/// The bar's quietest warm frame, in allocations.
+fn warm_allocs(a: &mut CantusApp, ctx: &egui::Context) -> usize {
+    let input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 300.0))),
+        ..Default::default()
+    };
+    let mut least = usize::MAX;
+    for pass in 0..12 {
+        let mut n = 0;
+        let mut o = ctx.run_ui(input.clone(), |ui| {
+            let r = ui.max_rect();
+            let top = Rect::from_min_size(r.min, Vec2::new(r.width(), transport::HEIGHT));
+            let mut t = ui.new_child(egui::UiBuilder::new().max_rect(top));
+            ALLOCS.with(|c| c.set(0));
+            COUNTING.with(|c| c.set(true));
+            transport::show(a, &mut t);
+            COUNTING.with(|c| c.set(false));
+            n = ALLOCS.with(|c| c.get());
+        });
+        o.textures_delta.clear();
+        if pass >= 4 {
+            least = least.min(n);
+        }
+    }
+    least
+}
+
+/// An order of the owner's own costs the bar nothing more a frame than the default one
+/// (review 1: it was resolved into a new list every frame).
+#[test]
+fn the_owners_order_allocates_nothing_more() {
+    set_locale(Locale::En);
+    let (mut a, _dir) = app();
+    let ctx = ctx();
+    let default = warm_allocs(&mut a, &ctx);
+    let mut order: Vec<String> = Group::ALL.iter().map(|g| g.id().to_string()).collect();
+    order.reverse();
+    a.settings.topbar.order = order;
+    let custom = warm_allocs(&mut a, &ctx);
+    eprintln!("bar allocations a warm frame: default order {default}, the owner's {custom}");
+    assert!(custom <= default, "default {default}, custom {custom}");
+}

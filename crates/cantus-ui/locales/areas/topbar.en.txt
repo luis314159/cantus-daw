@@ -86,7 +86,7 @@ topbar.meter.peak = Peak
 topbar.meter.lufs = LUFS
 topbar.meter.mode_tip = Master meter: sample peaks or loudness (LUFS)
 topbar.meter.peak_tip = Highest peak of the last two seconds — click to reset
-topbar.meter.lufs_tip = Momentary loudness. Below: short-term, integrated since play, true peak
+topbar.meter.lufs_tip = Momentary loudness. Below: short-term, integrated since play, highest true peak since play — click to reset
 
 # Inputs
 topbar.midi = MIDI

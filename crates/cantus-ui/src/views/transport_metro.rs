@@ -171,6 +171,12 @@ fn set_count_in(app: &mut CantusApp, bars: u8) {
 fn level(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
     let resp = ui.interact(r, Id::new("toolbar-click-level"), Sense::click_and_drag());
     let db = app.project().recording.click_db;
+    // The drag is summed unrounded while it lasts (in the bar's memory): a slow fine drag
+    // adds up instead of being rounded away each frame.
+    let raw_id = Id::new("toolbar-click-level-raw");
+    if resp.drag_started() {
+        ui.data_mut(|d| d.insert_temp(raw_id, db));
+    }
     let mut v = db;
     if resp.dragged() {
         let fine = if ui.input(|i| i.modifiers.shift) {
@@ -179,7 +185,11 @@ fn level(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
             1.0
         };
         let d = resp.drag_delta();
-        v += (d.x - d.y) * fine * 30.0 / 200.0;
+        let raw = ui.data(|d| d.get_temp::<f32>(raw_id)).unwrap_or(db)
+            + (d.x - d.y) * fine * 30.0 / 200.0;
+        let raw = raw.clamp(-24.0, 6.0);
+        ui.data_mut(|d| d.insert_temp(raw_id, raw));
+        v = raw;
     }
     if resp.hovered() {
         let dy = ui.input(|i| i.smooth_scroll_delta.y);

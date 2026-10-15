@@ -1501,6 +1501,53 @@ mod tests {
         assert!(map.conflicts().is_empty());
     }
 
+    /// Round 28 (review 1): a map saved at version 7 has no line for tap tempo or
+    /// PAT / SONG; it gets `Shift+T` and `L` where they are free, and a user's own `L`
+    /// stays theirs.
+    #[test]
+    fn a_version_7_file_gets_tap_and_pattern_keys() {
+        let v7 = |drop: &[&str], extra: &str| -> String {
+            let mut lines: Vec<String> = Keymap::default()
+                .to_toml()
+                .lines()
+                .filter(|l| !drop.iter().any(|d| l.trim_start().starts_with(d)))
+                .map(|l| {
+                    if l.starts_with("version") {
+                        "version = 7".to_string()
+                    } else {
+                        l.to_string()
+                    }
+                })
+                .collect();
+            lines.push(extra.to_string());
+            lines.join("\n")
+        };
+        let text = v7(&["tap-tempo", "toggle-pattern-mode"], "");
+        assert!(!text.contains("tap-tempo") && !text.contains("toggle-pattern-mode"));
+        let map = Keymap::from_toml(&text).unwrap();
+        assert_eq!(
+            map.bindings_for(Action::TapTempo),
+            &[Binding::shift(Key::T)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::TogglePatternMode),
+            &[Binding::key(Key::L)]
+        );
+        assert!(map.conflicts().is_empty());
+        for preset in Preset::ALL {
+            assert!(preset.keymap().conflicts().is_empty(), "{preset:?}");
+        }
+        // A user who gave bare L to something else keeps it; PAT / SONG stays unbound.
+        let text = v7(
+            &["tap-tempo", "toggle-pattern-mode", "panic"],
+            "panic = [\"L\"]",
+        );
+        let map = Keymap::from_toml(&text).unwrap();
+        assert_eq!(map.bindings_for(Action::Panic), &[Binding::key(Key::L)]);
+        assert!(map.bindings_for(Action::TogglePatternMode).is_empty());
+        assert!(map.conflicts().is_empty());
+    }
+
     #[test]
     fn a_version_5_file_gets_the_route_menu_key() {
         // A map saved by round 25's builders: version 5, no line for the route menu.

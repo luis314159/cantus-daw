@@ -45,10 +45,16 @@ impl Ram {
 }
 
 /// "690 MB", "1.3 GB", or a dash — never wider than "999 MB".
+/// The memory rounded to megabytes: what the readout shows, and what it is rebuilt on.
+pub fn ram_mb(bytes: u64) -> u64 {
+    (bytes + (1 << 19)) >> 20
+}
+
 pub fn ram_text(bytes: Option<u64>, out: &mut String) {
     out.clear();
     match bytes {
-        Some(b) if b >= 1000 << 20 => {
+        // Decided on the rounded value: 999.5 MB and up reads in gigabytes.
+        Some(b) if ram_mb(b) >= 1000 => {
             let gb = b as f64 / (1u64 << 30) as f64;
             if gb < 99.95 {
                 let _ = write!(out, "{gb:.1} GB");
@@ -57,7 +63,7 @@ pub fn ram_text(bytes: Option<u64>, out: &mut String) {
             }
         }
         Some(b) => {
-            let _ = write!(out, "{} MB", (b + (1 << 19)) >> 20);
+            let _ = write!(out, "{} MB", ram_mb(b));
         }
         None => out.push('\u{2014}'),
     }
@@ -125,7 +131,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let key = Key {
         live,
         load: (stats.load * 100.0).round() as u32,
-        ram: app.topbar.ram.bytes().map(|b| b >> 20),
+        ram: app.topbar.ram.bytes().map(ram_mb),
         voices: stats.active_voices,
         overruns: stats.overruns,
     };
@@ -247,6 +253,11 @@ mod tests {
         ram_text(Some((13u64 << 30) / 10), &mut s);
         assert_eq!(s, "1.3 GB");
         ram_text(Some(999 << 20), &mut s);
+        assert_eq!(s, "999 MB");
+        // Rounded to 1 000 MB: in gigabytes, never "1000 MB" (review 1).
+        ram_text(Some((1000 << 20) - 1), &mut s);
+        assert_eq!(s, "1.0 GB");
+        ram_text(Some((999 << 20) + (1 << 18)), &mut s);
         assert_eq!(s, "999 MB");
         ram_text(Some(150 << 30), &mut s);
         assert_eq!(s, "150 GB");

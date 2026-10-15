@@ -610,8 +610,9 @@ fn the_midi_lamp_lights_when_events_come_in() {
     assert!(r.app.topbar.midi_lamp(n));
 }
 
-/// CPU, RAM, voices and drops are on the top bar; the engine's numbers, the MIDI count
-/// and the audio chip are no longer on the status bar.
+/// CPU, RAM, voices and drops are on the top bar; the MIDI count and the audio chip —
+/// drawn on the status bar before round 28 whatever the device — are no longer there (the
+/// engine readout was drawn only with a live device, which no test has).
 #[test]
 fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
     let r = Rig::new();
@@ -646,6 +647,15 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
             .any(|t| t.contains("MIDI") || t.contains("voices")),
         "{status:?}"
     );
+    // The chip's words (no device here: "No audio — click to set up") are the top bar's.
+    let chip = cantus_ui::i18n::t("devices.chip.none");
+    assert!(!status.iter().any(|t| *t == chip), "{status:?}");
+    assert!(
+        r.texts
+            .iter()
+            .any(|(t, rr)| *t == chip && rr.bottom() < 60.0),
+        "the chip is on the top bar"
+    );
 }
 
 #[test]
@@ -660,5 +670,47 @@ fn the_pattern_switch_is_one_command() {
     assert_ne!(
         cantus_ui::i18n::t("cmd.set_pattern_mode"),
         "cmd.set_pattern_mode"
+    );
+}
+
+/// A fine (Shift) drag of the click's level moves it, however slowly the hand goes
+/// (review 1: each frame's small move was rounded away).
+#[test]
+fn a_slow_fine_drag_moves_the_click_level() {
+    let mut r = Rig::new();
+    let well = r
+        .texts
+        .iter()
+        .find(|(t, _)| t.starts_with('+') && t.ends_with("dB"))
+        .map(|(_, rr)| *rr)
+        .expect("the click's level on the bar");
+    let at = well.center();
+    let button = |pos: Pos2, pressed: bool| Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::SHIFT,
+    };
+    r.pointer = Some(at);
+    r.idle(2);
+    r.frame(vec![
+        Event::ModifiersChanged(Modifiers::SHIFT),
+        button(at, true),
+    ]);
+    // One point a frame for 40 frames: 0.03 dB a point with Shift.
+    for i in 1..=40 {
+        r.pointer = Some(at + vec2(i as f32, 0.0));
+        r.idle(1);
+    }
+    let end = at + vec2(40.0, 0.0);
+    r.frame(vec![
+        button(end, false),
+        Event::ModifiersChanged(Modifiers::NONE),
+    ]);
+    r.idle(2);
+    let db = r.app.project().recording.click_db;
+    assert!(
+        (0.9..=1.5).contains(&db),
+        "{db} dB after a slow fine drag of 40 pt"
     );
 }

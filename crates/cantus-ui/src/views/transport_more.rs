@@ -116,12 +116,12 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
     }
     // Hanging from the key, its right edge on the key's, scrolling when taller than the
     // room below the bar.
-    let room = (ctx.content_rect().bottom() - kr.bottom() - 24.0 * k).max(80.0 * k);
+    let room = (ctx.content_rect().bottom() - r.bottom() - 24.0 * k).max(80.0 * k);
     let area = egui::Area::new(id)
         // Under the popovers it opens (they are foreground layers), over the workspace.
         .order(Order::Middle)
         .pivot(egui::Align2::RIGHT_TOP)
-        .fixed_pos(Pos2::new(kr.right(), kr.bottom() + 4.0 * k))
+        .fixed_pos(Pos2::new(kr.right(), r.bottom() + 2.0 * k))
         .show(&ctx, |ui| {
             crate::views::record_options::frame_for(s).show(ui, |ui| {
                 egui::ScrollArea::vertical()
