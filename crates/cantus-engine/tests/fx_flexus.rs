@@ -1,7 +1,8 @@
-//! Flexus through the whole engine (ADR 0055): a wire at its defaults and at mix 0; through
-//! zero, the same render later by exactly the latency it reports (delay compensation); the
-//! centre-point null across the whole engine; the same render at every block size while it
-//! works; and live equal to offline.
+//! Flexus through the whole engine (ADR 0055): a wire at its defaults and at mix 0, with no
+//! latency; through zero, the same render later by exactly the latency it reports (delay
+//! compensation), and an automated switch re-planned in line; the centre-point null across
+//! the whole engine; the same render at every block size while it works; and live equal
+//! to offline.
 
 #[path = "support/modfx.rs"]
 mod modfx;
@@ -12,35 +13,78 @@ use modfx::*;
 use support::*;
 
 #[test]
-fn flexus_at_its_defaults_is_the_render_later_by_its_latency() {
-    // Its constant latency (the through-zero centre, in both paths) is reported, so the
-    // strip comes out exactly that much later and otherwise untouched.
-    let base = lead_only();
+fn flexus_at_its_defaults_renders_exactly_as_no_flexus() {
+    // Mix 0, through zero off: a wire with no latency, to the bit.
+    let base = demo_project();
     let reference = render_of(&base);
     let mut p = base.clone();
-    add_effect(&mut p, EffectKind::Flanger);
-    let out = render_of(&p);
-    let shift = 2 * 240;
-    assert!(out[..shift].iter().all(|x| *x == 0.0));
-    assert_null(
-        &reference[..reference.len() - shift],
-        &out[shift..],
-        0.0,
-        "Flexus at its defaults",
-    );
+    let fx = add_effect(&mut p, EffectKind::Flanger);
+    let slot = strip_of(&mut p, 0).effects[0].clone();
+    assert_eq!(cantus_engine::EffectUnit::new(&slot, 48_000.0).latency(), 0);
+    assert_null(&reference, &render_of(&p), 0.0, "Flexus at its defaults");
+    // Mix 0 with everything else busy: still a wire.
+    set_all(&mut p, fx, &[("depth", 8.0), ("fb", 0.5), ("sync", 1.0)]);
+    assert_null(&reference, &render_of(&p), 0.0, "Flexus at mix 0");
 }
 
-/// The switch moves nothing delay compensation planned: both settings report the same.
+/// Through zero the unit reports its centre; plain, nothing.
 #[test]
-fn the_through_zero_switch_keeps_the_latency() {
+fn the_through_zero_switch_sets_the_latency() {
     let mut p = demo_project();
     let fx = add_effect(&mut p, EffectKind::Flanger);
-    for tz in [0.0, 1.0] {
+    for (tz, lat) in [(0.0, 0), (1.0, 240)] {
         set(&mut p, fx, "tz", tz);
         let slot = strip_of(&mut p, 0).effects[0].clone();
         assert_eq!(
             cantus_engine::EffectUnit::new(&slot, 48_000.0).latency(),
-            240
+            lat
+        );
+    }
+}
+
+/// The switch automated — through zero on at beat 4, off at beat 6, at mix 0 — re-plans
+/// compensation as an edit would: inside the stretch the whole mix is the reference later
+/// by the centre (the other strips wait too), and in line again after it.
+#[test]
+fn an_automated_through_zero_switch_keeps_the_mix_in_line() {
+    let base = demo_project();
+    let reference = render_of(&base);
+    let mut p = base.clone();
+    let fx = add_effect(&mut p, EffectKind::Flanger);
+    let point = |beat: i64, v: f32| {
+        let mut a = AutoPoint::new(Ticks::beats(beat), v);
+        a.shape = Shape::Hold;
+        a
+    };
+    let clip = p.make_automation_clip(
+        "tz",
+        AutoTarget::Effect {
+            effect: fx,
+            key: "tz".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![point(0, 0.0), point(4, 1.0), point(6, 0.0)],
+    );
+    p.tracks[0].clips.push(clip);
+    let out = render_of(&p);
+    let lat = 240;
+    let beat = BEAT as usize;
+    // The compensation lines of the other strips fill once the switch lands.
+    for f in (4 * beat + 4 * lat)..(6 * beat - 16) {
+        for c in 0..2 {
+            assert_eq!(
+                out[2 * f + c].to_bits(),
+                reference[2 * (f - lat) + c].to_bits(),
+                "frame {f} (channel {c}) through zero"
+            );
+        }
+    }
+    for f in (6 * beat + 4 * lat + 16)..(8 * beat) {
+        assert_eq!(
+            out[2 * f].to_bits(),
+            reference[2 * f].to_bits(),
+            "frame {f} after"
         );
     }
 }

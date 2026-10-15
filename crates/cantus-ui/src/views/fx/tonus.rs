@@ -149,6 +149,8 @@ pub struct Geometry {
     pub keys: [Rect; 12],
     /// The graph's note lanes: the lowest (a MIDI note) and how many.
     pub lanes: (i32, i32),
+    /// Every how many lanes a note name is drawn (1: each; 0: none).
+    pub label_every: i32,
     /// The Speed and Amount knobs, and *Reset notes*.
     pub speed: Rect,
     pub amount: Rect,
@@ -282,6 +284,7 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         readout: Rect::NOTHING,
         keys: [Rect::NOTHING; 12],
         lanes: (0, 0),
+        label_every: 0,
         speed: Rect::NOTHING,
         amount: Rect::NOTHING,
         reset: Rect::NOTHING,
@@ -295,10 +298,11 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         Some(disp),
         |ui, cr| {
             if let Some(d) = cr.display {
-                let (gr, rr, lanes) = graph::show(st, ui, &pitch_s, &ss, d);
+                let (gr, rr, lanes, every) = graph::show(st, ui, &pitch_s, &ss, d);
                 geo.graph = gr;
                 geo.readout = rr;
                 geo.lanes = lanes;
+                geo.label_every = every;
             }
         },
     );
@@ -589,20 +593,25 @@ fn explain(ui: &egui::Ui, r: &egui::Response, tip: &'static str, value: impl FnO
 struct SpeedWords(f32);
 
 impl std::fmt::Display for SpeedWords {
+    /// Straight into the formatter: a preview painted every frame allocates nothing.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut b = String::new();
-        speed_pill(self.0, &mut b);
-        f.write_str(&b)
+        speed_words(self.0, f);
+        Ok(())
     }
 }
 
-/// `Hard` at 0 ms, else the time.
-fn speed_pill(v: f32, b: &mut String) {
+/// `Hard` at 0 ms, else the time — the knob's pill and the preview's line alike.
+fn speed_words(v: f32, out: &mut impl std::fmt::Write) {
     if v <= 0.0 {
-        b.push_str(frame::tr("tonus.hard"));
+        let _ = out.write_str(frame::tr("tonus.hard"));
     } else {
-        controls::write_readout(v, "ms", b);
+        controls::write_readout(v, "ms", out);
     }
+}
+
+/// The Speed knob's pill.
+fn speed_pill(v: f32, b: &mut String) {
+    speed_words(v, b);
 }
 
 /// `15 ct`: a size in cents, unsigned.

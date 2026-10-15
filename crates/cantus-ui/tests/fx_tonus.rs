@@ -310,6 +310,8 @@ fn the_display_keeps_a_transposed_output_in_view() {
             value: trans,
         });
         cantus_ui::views::fx::demo_feed(&mut a, EffectKind::AutoTune);
+        // *More* open (where the transposition knob is): the display at its shortest.
+        a.fx.tonus.more = true;
         let g = geometry(&mut a);
         let (lo, lanes) = g.lanes;
         let (bottom, top) = (lo as f32 - 0.5, (lo + lanes) as f32 - 0.5);
@@ -333,6 +335,12 @@ fn the_display_keeps_a_transposed_output_in_view() {
             }
         }
         assert!(ins > 20 && outs > 20, "{trans}: {ins} sung, {outs} out");
+        // Review 2: the widened lanes keep names — every few lanes, the Cs among them.
+        assert!(
+            (1..=12).contains(&g.label_every) && 12 % g.label_every == 0,
+            "{trans}: {lanes} lanes named every {}",
+            g.label_every
+        );
     }
 }
 

@@ -40,7 +40,7 @@ pub(super) fn show(
     s: &Style,
     ss: &TonusSettings,
     d: Rect,
-) -> (Rect, Rect, (i32, i32)) {
+) -> (Rect, Rect, (i32, i32), i32) {
     let k = s.k;
     let ink = Ink::of(s);
     let panel_w = (172.0 * k).min(d.width() * 0.32);
@@ -90,6 +90,9 @@ pub(super) fn show(
     let lanes = fit.max(apart.ceil() as i32 + 9).min(MAX_LANES) | 1;
     let lo = st.centre.round() as i32 - lanes / 2;
     let lane_h = graph.height() / lanes as f32;
+    // Lanes too thin for a name each (a wide transposition) are named every few — the Cs
+    // always among them — never left unlabelled.
+    let every = label_stride(lane_h, k);
     let gutter = 36.0 * k;
     let plot = Rect::from_min_max(pos2(graph.left() + gutter, graph.top()), graph.max);
     // A pitch's height; above or below the lanes, none: never drawn flat along an edge.
@@ -137,7 +140,7 @@ pub(super) fn show(
                 b.px(),
                 ink.grid,
             );
-            if lane_h >= 11.0 * k {
+            if every > 0 && m.rem_euclid(every) == 0 {
                 let color = if target || bypass { ink.text } else { ink.dim };
                 let name = frame::tr(KEY_NAMES[pc as usize]);
                 let oct = m.div_euclid(12) - 1;
@@ -207,7 +210,18 @@ pub(super) fn show(
         canvas::edge_b(b, d, &ink);
     });
     st.pts = pts;
-    (graph, panel, (lo, lanes))
+    (graph, panel, (lo, lanes), every)
+}
+
+/// Which lanes carry a note name at a lane height (points at scale `k`): every lane when a
+/// name fits, else every 2nd, 3rd, 4th, 6th or 12th — a divisor of the octave, so the Cs
+/// are always named; 0 when not even one an octave fits.
+pub(super) fn label_stride(lane_h: f32, k: f32) -> i32 {
+    let need = 11.0 * k;
+    [1, 2, 3, 4, 6, 12]
+        .into_iter()
+        .find(|n| *n as f32 * lane_h >= need)
+        .unwrap_or(0)
 }
 
 /// The most lanes the graph divides into: two octaves and their margins.
@@ -343,5 +357,19 @@ fn readout(b: &mut Brush, s: &Style, ink: &Ink, st: &State, r: Rect) {
         let tx = b.snap_mid(cx + f * half);
         let t = if f == 0.0 { 4.0 } else { 2.0 } * k;
         b.vline(tx, bar.top() - t, bar.bottom() + t, b.px(), ink.text);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::label_stride;
+
+    #[test]
+    fn thin_lanes_are_named_every_few_never_none() {
+        assert_eq!(label_stride(16.0, 1.0), 1);
+        assert_eq!(label_stride(8.0, 1.0), 2, "33 lanes in 260 pt");
+        assert_eq!(label_stride(4.8, 1.0), 3, "33 lanes in 160 pt");
+        assert_eq!(label_stride(16.0, 2.0), 2, "the same at 200 %");
+        assert_eq!(label_stride(0.5, 1.0), 0, "not one an octave fits");
     }
 }

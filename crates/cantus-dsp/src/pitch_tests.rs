@@ -349,6 +349,10 @@ fn a_legato_octave_leap_up_is_followed() {
         .collect();
     let s = score(&frames, &truth, 0.0, 0.0, x.len());
     assert_eq!(s.gross, 0, "{s:?}");
+    // Followed, not dropped: the frames after the leap are voiced and on the new pitch
+    // (a tracker that unvoiced them would score no gross error at all).
+    let followed = |s: &Score, n: usize| s.voiced_frames * 10 >= n * 9 && s.fine_max < 10.0;
+    assert!(followed(&s, frames.len()), "up: {} frames, {s:?}", frames.len());
     // And a leap down.
     let y = testkit::voice(
         sr,
@@ -364,6 +368,7 @@ fn a_legato_octave_leap_up_is_followed() {
         .collect();
     let s = score(&frames, &truth, 0.0, 0.0, y.len());
     assert_eq!(s.gross, 0, "down: {s:?}");
+    assert!(followed(&s, frames.len()), "down: {} frames, {s:?}", frames.len());
 }
 
 /// Review 1: the Viterbi pass renormalises each frame, so a long take keeps the precision

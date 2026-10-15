@@ -137,7 +137,9 @@ duplicates; every one is fixed, each with a test seen failing first where it can
 - Flexus (6): the latency is the 5 ms centre in both modes (the plain flanger's output
   through a line of that length), so automating the switch never re-plans PDC; the engine
   default test is now "the render later by its latency", plus
-  `the_through_zero_switch_keeps_the_latency`.
+  `the_through_zero_switch_keeps_the_latency`. *(Superseded in review 2 by fix2: the
+  engine now re-plans compensation when a latency moves, so the plain flanger is back to
+  no latency and the defaults to a wire to the bit — `docs/round28/fix2.md`.)*
 - Tremor auto-pan (32): a balance (`balance_gains`) — unity at the centre and on the near
   side, the equal-power gain on the far side; no channel is raised.
 

@@ -3,7 +3,9 @@
 //!
 //! [`settings`] reads the table (`cantus_core::fx::flexus`) into the DSP's settings
 //! (`cantus_dsp::flexus`); the editor draws from the same reading. Through zero, the unit
-//! reports the dry path's 5 ms as its latency (`FxUnit::latency`). The telemetry is the
+//! reports the dry path's 5 ms as its latency (`FxUnit::latency`); plain, none — an
+//! automated switch is re-planned by the engine (`replan_if_latency_moved`, ADR 0056). The
+//! telemetry is the
 //! family's header and the sweep (`cantus_dsp::flexus::{T_SWEEP, T_DELAY_MS, T_ENV_DB,
 //! T_LATENCY}`).
 
@@ -134,5 +136,9 @@ mod tests {
             u
         };
         assert_eq!(u.latency(), 240, "through zero: 5 ms at 48 kHz");
+        spec.set("tz", 0.0);
+        let mut u = u;
+        u.configure(&spec);
+        assert_eq!(u.latency(), 0, "plain: none");
     }
 }

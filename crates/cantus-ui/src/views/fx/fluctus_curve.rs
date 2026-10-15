@@ -100,10 +100,11 @@ pub fn card(
             let r = cr.body;
             let k = s.k;
             let map = Map {
-                // Room above the plot for its words, so none sits on the curve.
+                // Room above and below the plot for its words, so none sits on the curve
+                // nor under a point's ring (7 pt) at the plot's corners.
                 plot: Rect::from_min_max(
-                    pos2(r.left() + 12.0 * k, r.top() + 22.0 * k),
-                    pos2(r.right() - 12.0 * k, r.bottom() - 16.0 * k),
+                    pos2(r.left() + 12.0 * k, r.top() + 24.0 * k),
+                    pos2(r.right() - 12.0 * k, r.bottom() - 22.0 * k),
                 ),
             };
             st.plot = Some(map.plot);

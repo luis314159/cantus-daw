@@ -61,7 +61,9 @@ long before 1e-4): without that a unit would never say it is at rest.
 
 **Every default is a null, the amount control at 0.** Following the contract's rule and
 Fervor's precedent, each unit is inserted doing nothing: Concentus, Flexus, Phasis, Anulus,
-Translatio at *mix 0*; Tremor, Vibrans, Fluctus at *depth 0*. Everything else defaults to a
+Translatio at *mix 0* (Flexus with through zero off, also its default: switched on at mix
+0 it is the input 5 ms later, which delay compensation takes back); Tremor, Vibrans,
+Fluctus at *depth 0*. Everything else defaults to a
 musical value (Juno I, a slow triangle sweep, the classic pump), so one control — or a
 factory preset — brings it in. Each editor says so on its display ("Mix is 0 %: the sound
 passes untouched"). Secondary controls at their defaults add nothing (feedback 0, output
@@ -73,7 +75,7 @@ passes untouched"). Secondary controls at their defaults add nothing (feedback 0
 | Unit | Kind | The first-rank part |
 |---|---|---|
 | Concentus | Chorus | Juno I / II / I+II from the circuit's published sweeps (0.513 / 0.863 Hz over 1.66–5.35 ms; 9.75 Hz over 3.3–3.7 ms, the right channel's sweep inverted); Dimension 1–4 (our voicing: crossed, out-of-phase lines); 1–4 free voices; a BBD-dark wet path; a mono check (L/R correlation, the mono sum's loss) in the telemetry |
-| Flexus | Flanger | through zero: the dry from a fixed 5 ms line, the wet sweeping either side; the plain flanger's output through the same 5 ms, so the reported latency never changes with the switch; at the centre the wet is read at a whole sample, the same sample, so inverted at 50 % the output is exact zeros; LFO / envelope / manual sweeps; feedback ±95 % |
+| Flexus | Flanger | through zero: the dry from a fixed 5 ms line, the wet sweeping either side; the plain flanger has no latency, so the reported latency moves with the switch — the engine re-plans delay compensation when an automated switch moves it (ADR 0056's `replan_if_latency_moved`; an exported plug-in asks its host to restart), and the defaults stay a wire to the bit; at the centre the wet is read at a whole sample, the same sample, so inverted at 50 % the output is exact zeros; LFO / envelope / manual sweeps; feedback ±95 % |
 | Phasis | Phaser | 2–12 TPT first-order allpasses on one log-swept frequency, feedback ±95 %, the pedals as presets |
 | Tremor | Tremolo | tremolo, auto-pan as a balance (unity at the centre and on the near side, the equal-power gain on the far side: no channel raised), harmonic tremolo (lows against highs) |
 | Vibrans | Vibrato | depth in cents (the sweep follows rate and shape), a rise after each silence, delay up to 100 ms |

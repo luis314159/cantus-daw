@@ -346,18 +346,10 @@ fn partials_card(
                     );
                     b.dot(pos2(x, y_of(amp)), 2.5 * k, c);
                 }
-                // The tone's fundamental named on its line, in its own case (a title in
+                // The tone's fundamental named under its line, on the axis beside 100 and
+                // 1k, where no partial's peak can be hidden; in its own case (a title in
                 // capitals would print "HZ").
-                let t = Text::new("220 Hz", Role::Micro, ink.dim).caps(false);
-                canvas::put(
-                    b,
-                    pos2(x_of(220.0) + 4.0 * k, plot.top()),
-                    Align2::LEFT_TOP,
-                    &t,
-                    k,
-                    Some(ink.plate),
-                );
-                for (word, at) in [("100", 100.0f32), ("1k", 1_000.0)] {
+                for (word, at) in [("100", 100.0f32), ("220 Hz", 220.0), ("1k", 1_000.0)] {
                     let t = Text::new(word, Role::Micro, ink.dim).caps(false);
                     canvas::put(
                         b,

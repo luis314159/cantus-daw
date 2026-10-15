@@ -9,13 +9,16 @@
 //! **Through zero**: as two tape machines did, the dry path is delayed by a fixed centre
 //! ([`TZ_CENTRE_MS`]) and the wet sweeps either side of it, so the moving copy passes
 //! *through* the dry one — the deep cancellation at the crossing that a plain flanger never
-//! reaches. The centre is the unit's latency, reported for delay compensation. At the
-//! centre point the wet is read at a whole number of samples, the same sample the dry path
+//! reaches. The centre is then the unit's latency, reported for delay compensation; the
+//! plain flanger has none. The switch may be automated: the engine plans compensation
+//! again when a latency moves (ADR 0056), an exported plug-in asks its host to restart. At
+//! the centre point the wet is read at a whole number of samples, the same sample the dry path
 //! holds, so with the polarity inverted at 50 % the output is **exact silence** — the test
 //! holds that to the bit.
 //!
-//! **Nulls**: at mix 0 (the default) the dry passes untouched (delayed by the centre in
-//! through-zero mode, which delay compensation takes back).
+//! **Nulls**: at its defaults (mix 0, through zero off) the input passes untouched, to the
+//! bit, with no latency; through zero at mix 0 it is the input delayed by the centre, which
+//! delay compensation takes back.
 
 use crate::modfx_clock::{peak_db, peak_of, tel, Clock, Transport};
 use crate::modfx_lfo::{Lfo, LfoSettings, Rate, Shape};
@@ -121,10 +124,8 @@ pub struct Flexus {
     clock: Clock,
     lfo: Lfo,
     lines: [ModLine; 2],
-    /// The dry path's line, through-zero.
+    /// The dry path's line, through-zero (it runs in every mode, so a switch finds it full).
     dry: [ModLine; 2],
-    /// The plain path's output, delayed by the centre so both paths share one latency.
-    late: [ModLine; 2],
     centre: usize,
     /// The last wet sample, for the feedback.
     back: [f32; 2],
@@ -155,7 +156,6 @@ impl Flexus {
             lfo: Lfo::new(sample_rate),
             lines: [ModLine::new(max), ModLine::new(max)],
             dry: [ModLine::new(centre + 4), ModLine::new(centre + 4)],
-            late: [ModLine::new(centre + 4), ModLine::new(centre + 4)],
             centre,
             back: [0.0; 2],
             env: 0.0,
@@ -216,7 +216,6 @@ impl Flexus {
             .lines
             .iter_mut()
             .chain(self.dry.iter_mut())
-            .chain(self.late.iter_mut())
         {
             l.reset();
         }
@@ -239,11 +238,14 @@ impl Flexus {
         self.blocks = 0;
     }
 
-    /// The through-zero centre, **in both paths**: through zero it is the dry path's delay;
-    /// plain, the flanger's output is delayed by as much. So the switch — a parameter a lane
-    /// may automate — never moves the latency delay compensation planned for.
+    /// Through zero, the centre (the dry path's delay); plain, none. The switch may move it
+    /// while the song plays: the engine re-plans delay compensation when it does.
     pub fn latency(&self) -> usize {
-        self.centre
+        if self.set.through_zero {
+            self.centre
+        } else {
+            0
+        }
     }
 
     pub fn at_rest(&self) -> bool {
@@ -270,7 +272,6 @@ impl Flexus {
             .lines
             .iter()
             .chain(self.dry.iter())
-            .chain(self.late.iter())
             .all(ModLine::is_silent)
         {
             return Some("a line holds sound");
@@ -287,7 +288,6 @@ impl Flexus {
             .lines
             .iter_mut()
             .chain(self.dry.iter_mut())
-            .chain(self.late.iter_mut())
         {
             l.skip(frames);
         }
@@ -384,18 +384,6 @@ impl Flexus {
             } else {
                 (dry_x * gd + wl * gw, dry_y * gd + wr * gw)
             };
-            // The plain path leaves through its own line, as late as the through-zero path,
-            // so the latency never depends on the switch. (Through zero, the line keeps the
-            // input, so a switch back to plain is never a gap.)
-            if tz {
-                self.late[0].push(x);
-                self.late[1].push(y);
-            } else {
-                self.late[0].push(ox);
-                self.late[1].push(oy);
-                ox = self.late[0].tap(self.centre);
-                oy = self.late[1].tap(self.centre);
-            }
             if out != 1.0 {
                 ox *= out;
                 oy *= out;

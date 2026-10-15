@@ -2,13 +2,14 @@
 //! Owned by Flexus; nothing else edits this file.
 //!
 //! Keys are forever once shipped (automation, saved projects and the exported plug-ins' ids
-//! hold them). **Every default leaves the signal untouched, to the bit**: the mix starts at
-//! 0; the rest waits, set to a slow classic sweep, for the mix to be turned up.
+//! hold them). **Every default leaves the signal untouched, to the bit**, with no latency:
+//! the mix starts at 0 and through zero off; the rest waits, set to a slow classic sweep,
+//! for the mix to be turned up.
 //!
 //! | Key | What | Range | Default |
 //! |---|---|---|---|
 //! | `mode` | what moves the sweep: LFO, envelope, manual (`cantus_dsp::flexus::Mode`) | 0 … 2 | LFO |
-//! | `tz` | through zero: the dry delayed by 5 ms (the latency), the wet crossing it | 0 / 1 | off |
+//! | `tz` | through zero: the dry delayed by 5 ms (the latency, only while on), the wet crossing it | 0 / 1 | off |
 //! | `mix` | equal-gain crossfade, both full at 50 % | 0 … 100 % | 0 |
 //! | `delay` | the sweep's shortest delay (plain mode) | 0.05 … 5 ms | 0.5 ms |
 //! | `depth` | how far the sweep reaches | 0 … 10 ms | 4 ms |

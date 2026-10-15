@@ -4,8 +4,8 @@
 //! cargo run -p cantus-ui --example shoot_tonus -- [out-dir]
 //! ```
 //!
-//! Four states — the front row (A minor, E bypassed, G removed), the folded settings
-//! open, the MIDI source, an octave down — in Cantus Night and Paper, English and Spanish, at window
+//! Five states — the front row (A minor, E bypassed, G removed), the folded settings
+//! open, the MIDI source, an octave down, two octaves down with the settings open — in Cantus Night and Paper, English and Spanish, at window
 //! scales 75 %, 100 % and 200 %; plus the inspector's preview. Each editor is fed what a
 //! playing engine would: the demo line through the real DSP (`tonus::demo_feed`).
 
@@ -26,6 +26,12 @@ fn app_with(state: &str) -> CantusApp {
             .set_many(&[("src", 1.0), ("speed", 0.0)], "cmd.fx_preset"),
         "octave" => views::fx::host::DawHost::new(&mut app, strip, effect, "tonus")
             .set_many(&[("trans", -12.0), ("speed", 30.0)], "cmd.fx_preset"),
+        // Two octaves down with *More* open: the most lanes in the shortest display.
+        "wide" => {
+            app.fx.tonus.more = true;
+            views::fx::host::DawHost::new(&mut app, strip, effect, "tonus")
+                .set_many(&[("trans", -24.0), ("speed", 30.0)], "cmd.fx_preset")
+        }
         _ => {}
     }
     views::fx::demo_feed(&mut app, cantus_core::EffectKind::AutoTune);
@@ -55,7 +61,7 @@ fn main() {
     std::fs::create_dir_all(&dir).expect("output dir");
     use cantus_ui::i18n::Locale;
     let kind = cantus_core::EffectKind::AutoTune;
-    for state in ["front", "more", "midi", "octave"] {
+    for state in ["front", "more", "midi", "octave", "wide"] {
         for dark in [true, false] {
             for lang in [Locale::En, Locale::Es] {
                 for k in [0.75f32, 1.0, 2.0] {

@@ -93,7 +93,8 @@ the quarters · Slow wide pan · Harmonic, brown amp.
   halves follow 90 BPM.
 - The DSP: split invariance with the transport given per call; a synced render from bar 5
   equal to bars 5… of a full render; a free LFO deterministic from the start of playback;
-  auto-pan keeps a mono source's power (`L² + R²` within 1e-5); the harmonic mode moves the
+  auto-pan is a balance — no channel is ever raised, the near one stays whole and the far
+  one follows the equal-power taper, unity at the centre (`balance_gains`); the harmonic mode moves the
   lows against the highs; rest and `skip` exact.
 - The family's contract (`fx_contract.rs`): split invariance at defaults, heavy and random
   settings; the at-rest twins.

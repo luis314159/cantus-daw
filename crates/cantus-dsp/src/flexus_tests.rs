@@ -63,8 +63,10 @@ fn busy(mode: Mode, tz: bool) -> FlexusSettings {
     }
 }
 
+/// At mix 0 the plain flanger is a wire, to the bit, with no latency; through zero it is
+/// the input delayed by the centre, exactly the latency it reports. The defaults are a wire.
 #[test]
-fn at_mix_zero_it_is_the_input_delayed_by_its_constant_latency() {
+fn at_mix_zero_it_is_the_input_delayed_by_its_latency() {
     let x = noise(20_000, 1);
     let delayed = |l: &[f32], lat: usize| {
         l[..lat].iter().all(|v| *v == 0.0) && same(&l[lat..], &x[..x.len() - lat])
@@ -75,51 +77,73 @@ fn at_mix_zero_it_is_the_input_delayed_by_its_constant_latency() {
             s.mix = 0.0;
             s.out_db = 0.0;
             let mut u = unit(&s);
-            assert_eq!(u.latency(), 240, "the same latency in both paths");
+            let lat = if tz { 240 } else { 0 };
+            assert_eq!(u.latency(), lat, "{mode:?} tz {tz}");
             let (mut l, mut r) = (x.clone(), x.clone());
             drive(&mut u, &mut l, &mut r, || 333);
-            assert!(delayed(&l, 240) && delayed(&r, 240), "{mode:?} tz {tz}");
+            assert!(delayed(&l, lat) && delayed(&r, lat), "{mode:?} tz {tz}");
         }
     }
     let mut u = unit(&FlexusSettings::default());
+    assert_eq!(u.latency(), 0, "the defaults");
     let (mut l, mut r) = (x.clone(), x.clone());
     u.process(&mut l, &mut r);
-    assert!(delayed(&l, 240) && delayed(&r, 240), "the defaults");
+    assert!(same(&l, &x) && same(&r, &x), "the defaults are a wire");
 }
 
-/// The through-zero switch is a parameter a lane may automate: the latency delay
-/// compensation planned for must not move when it flips.
+/// The through-zero switch (a parameter a lane may automate) moves the latency, and the
+/// engine re-plans compensation when it does. The dry line runs in every mode, so a switch
+/// on mid-stream is at once the input delayed by the centre — no gap of silence.
 #[test]
-fn the_latency_does_not_depend_on_the_through_zero_switch() {
-    let mut s = busy(Mode::Lfo, false);
+fn the_latency_follows_the_through_zero_switch() {
+    let mut s = FlexusSettings::default();
     let mut u = unit(&s);
-    let before = u.latency();
+    assert_eq!(u.latency(), 0);
+    let x = noise(8_000, 5);
+    let (mut l, mut r) = (x.clone(), x.clone());
+    let k = 3_000;
+    u.process(&mut l[..k], &mut r[..k]);
     s.through_zero = true;
     u.set(&s);
-    assert_eq!(u.latency(), before);
+    assert_eq!(u.latency(), 240);
+    u.process(&mut l[k..], &mut r[k..]);
+    assert!(same(&l[..k], &x[..k]), "a wire before");
+    assert!(same(&l[k..], &x[k - 240..x.len() - 240]), "the centre after");
+    s.through_zero = false;
+    u.set(&s);
+    assert_eq!(u.latency(), 0);
 }
 
-/// The plain flanger is the same comb as before, only later: its feedback loop is not
-/// lengthened by the constant latency.
+/// The plain flanger is a comb, with no latency: an impulse comes back at the sweep's
+/// delay (1 ms, 48 samples), then again every 49 (the delay and the one sample the last
+/// wet waits to go back in), each scaled by the feedback, and nothing between.
 #[test]
-fn the_plain_flanger_is_its_comb_delayed() {
+fn the_plain_flanger_is_its_comb() {
+    let fb = 0.5f32;
     let s = FlexusSettings {
         mode: Mode::Manual,
         mix: 1.0,
         manual: 0.0,
         delay_ms: 1.0,
         depth_ms: 0.0,
-        feedback: 0.0,
+        feedback: fb,
         ..FlexusSettings::default()
     };
-    let x = noise(4_000, 3);
+    let n = 600;
+    let mut x = vec![0.0f32; n];
+    x[0] = 1.0;
     let (mut l, mut r) = (x.clone(), x.clone());
-    unit(&s).process(&mut l, &mut r);
-    // The wet alone at 1 ms (48 samples, a hair more in f32), then the 240 of the constant
-    // latency.
-    let d = 48 + 240;
-    assert!(l[d..].iter().zip(&x).all(|(a, b)| (a - b).abs() < 1e-4));
-    assert!(l[..d].iter().all(|v| v.abs() < 1e-4));
+    let mut u = unit(&s);
+    assert_eq!(u.latency(), 0);
+    u.process(&mut l, &mut r);
+    for (i, v) in l.iter().enumerate() {
+        let want = if i >= 48 && (i - 48) % 49 == 0 {
+            crate::math::powi(fb, ((i - 48) / 49) as i32)
+        } else {
+            0.0
+        };
+        assert!((v - want).abs() < 1e-3, "sample {i}: {v} against {want}");
+    }
 }
 
 /// Through zero, the sweep held at its centre, the wet inverted at 50 %: the wet is the

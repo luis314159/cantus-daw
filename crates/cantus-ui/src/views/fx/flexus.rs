@@ -129,8 +129,12 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let tel = host.telemetry();
     let sr = host.sample_rate();
     let fs = cantus_engine::fx::flexus::settings(host.spec());
-    // The same in both paths (the through-zero centre), so the switch never moves it.
-    let latency = cantus_dsp::flexus::tz_centre(sr) as f32;
+    // Through zero, the centre; the plain flanger has none.
+    let latency = if fs.through_zero {
+        cantus_dsp::flexus::tz_centre(sr) as f32
+    } else {
+        0.0
+    };
     let mut chips = std::mem::take(&mut st.chips);
     let chip = [chips.latency(latency, sr)];
     let look = frame::Look {

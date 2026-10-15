@@ -27,7 +27,6 @@ use crate::kit::{focus_ring, well, with_brush, State, Style};
 use crate::widgets::knob::{pos_of, value_at, Taper};
 use egui::{Align2, EventFilter, Key, Pos2, Rect, Response, Sense, Ui, Vec2};
 use std::cell::RefCell;
-use std::fmt::Write as _;
 
 pub use crate::kit::knob::KnobSize as Size;
 
@@ -56,8 +55,9 @@ fn with_text<R>(fmt: impl FnOnce(&mut String), f: impl FnOnce(&str) -> R) -> R {
 }
 
 /// A value as `cantus_core::fx::readout::readout` prints it, written into `out` (no
-/// allocation once `out` has grown): `1.2 kHz`, `350 Hz`, `-3.5 dB`, `12.0 ms`, `25%`.
-pub fn write_readout(v: f32, unit: &str, out: &mut String) {
+/// allocation once `out` has grown; a formatter takes it straight, allocating nothing):
+/// `1.2 kHz`, `350 Hz`, `-3.5 dB`, `12.0 ms`, `25%`.
+pub fn write_readout(v: f32, unit: &str, out: &mut impl std::fmt::Write) {
     let _ = match unit {
         "Hz" if v.abs() >= 1_000.0 => write!(out, "{:.1} kHz", v / 1_000.0),
         "Hz" if v.abs() < 10.0 => write!(out, "{v:.2} Hz"),
