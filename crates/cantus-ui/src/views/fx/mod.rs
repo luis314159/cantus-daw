@@ -35,6 +35,8 @@ pub mod controls;
 pub mod deesser;
 /// Discrimen, the transient splitter (round 28).
 pub mod discrimen;
+/// What the dynamics family's editors share: rates from counters, histories (round 28).
+pub mod dynfx;
 /// Flexus, the through-zero flanger (round 28).
 pub mod flexus;
 /// Fluctus, the LFO Tool-style volume shaper (round 28).
