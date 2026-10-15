@@ -457,3 +457,28 @@ fn the_demo_project_opens_and_plays_its_edits() {
     let sung = snap.tracks[1].audio[0].data.clone().unwrap();
     assert!(!differs(&sung), "the take as sung plays the file");
 }
+
+/// MIDI out by hand: the chip dragged from the editor's bar onto the Keys track in the
+/// arrangement leaves the melody there, at the voice's place.
+#[test]
+fn the_midi_chip_dragged_onto_a_track_leaves_the_melody_there() {
+    let mut r = Rig::new();
+    r.open();
+    let keys = r.app.project().tracks[0].id;
+    let before = r.app.project().track(keys).unwrap().clips.len();
+    let chip = r.word("MIDI");
+    let geo = r.app.arrangement.geometry().expect("the arrangement drawn");
+    let onto = pos2(geo.x(6.0), geo.row_y(0));
+    r.drag(chip, onto);
+    let clips = &r.app.project().track(keys).unwrap().clips;
+    assert_eq!(clips.len(), before + 1, "a clip on Keys");
+    let pitches: Vec<u8> = clips
+        .last()
+        .unwrap()
+        .notes
+        .iter()
+        .map(|n| n.pitch)
+        .collect();
+    assert_eq!(pitches, vec![57, 60, 64, 62]);
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.pitch.midi"));
+}

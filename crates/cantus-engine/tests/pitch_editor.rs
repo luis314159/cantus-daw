@@ -461,3 +461,35 @@ fn a_three_minute_take_analyses_and_renders_in_seconds() {
     assert!(a.notes.len() > 200);
     assert!(analysis < 20.0 && render < 20.0, "{analysis} s, {render} s");
 }
+
+/// A moved note never clicks: two notes sung legato (no gap), the second moved up a major
+/// third — around the joint the output's second difference stays within what the steady
+/// voice has.
+#[test]
+fn a_moved_legato_note_does_not_click() {
+    let x = testkit::voice(SR as f32, 1.6, Vowel::A, 0.5, |t| {
+        if !(0.1..1.5).contains(&t) {
+            0.0
+        } else if t < 0.8 {
+            196.0
+        } else {
+            220.0
+        }
+    });
+    let a = analyse_take(&[&x], SR);
+    assert_eq!(a.notes.len(), 2, "{:#?}", a.notes);
+    let mut e = a.edit();
+    let second = e.notes[1].id;
+    edit::move_pitch(&mut e, &[second], 4.0);
+    let y = &render_edit(&[&x], &a, &e)[0];
+    let d2 = |v: &[f32], from: f64, to: f64| {
+        let (i, j) = ((from * SR as f64) as usize, (to * SR as f64) as usize);
+        (i + 1..j - 1)
+            .map(|k| (v[k + 1] - 2.0 * v[k] + v[k - 1]).abs())
+            .fold(0.0f32, f32::max)
+    };
+    let steady = d2(y, 1.0, 1.4).max(d2(y, 0.3, 0.7));
+    let joint = d2(y, 0.72, 0.88);
+    eprintln!("second difference: steady {steady:.4}, at the joint {joint:.4}");
+    assert!(joint <= steady * 1.5, "joint {joint} vs steady {steady}");
+}
