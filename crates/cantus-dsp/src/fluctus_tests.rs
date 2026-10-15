@@ -135,23 +135,6 @@ fn smoothing_takes_the_click_out_of_the_wrap() {
     assert!(jump(2.0) < 0.02, "2 ms takes it out");
 }
 
-#[test]
-fn from_bar_five_it_is_the_full_render_from_bar_five() {
-    let bar5 = (16.0 * 60.0 / 128.0 * f64::from(SR)).round() as usize;
-    let s = pump(0.8, 3.0);
-    let x = noise(bar5 + 20_000, 6);
-    let (mut lf, mut rf) = (x.clone(), x.clone());
-    drive(&mut unit(&s), &mut lf, &mut rf, 0, || 480);
-    // The glide's memory reaches back a little: give the late render a beat before.
-    let pre = 24_000;
-    let (mut lp, mut rp) = (x[bar5 - pre..].to_vec(), x[bar5 - pre..].to_vec());
-    drive(&mut unit(&s), &mut lp, &mut rp, (bar5 - pre) as i64, || 256);
-    let close = lf[bar5..]
-        .iter()
-        .zip(&lp[pre..])
-        .all(|(a, b)| (a - b).abs() <= 1e-6 * a.abs().max(1e-3));
-    assert!(close && same(&rf[bar5 + 1000..], &rp[pre + 1000..]));
-}
 
 #[test]
 fn it_is_the_same_at_every_split() {
@@ -200,4 +183,66 @@ fn holds(shape: u8, _tension: f32, u: f32) -> f32 {
     } else {
         u
     }
+}
+
+/// A render that starts at bar 5 — mid-cycle for a dotted quarter — with smoothing on and a
+/// held curve: once the full render's glide has landed, the two are the same bits from the
+/// first sample (the level starts on the curve, not gliding from phase 0).
+#[test]
+fn a_render_from_bar_five_mid_cycle_is_the_full_render_to_the_bit() {
+    let bar5 = (16.0 * 60.0 / 128.0 * f64::from(SR)).round() as usize;
+    let mut pts = [None; POINTS];
+    pts[0] = Some(CurvePoint {
+        x: 0.0,
+        y: 0.2,
+        tension: 0.0,
+        shape: 2,
+    });
+    pts[1] = Some(CurvePoint {
+        x: 0.4,
+        y: 1.0,
+        tension: 0.0,
+        shape: 2,
+    });
+    let s = FluctusSettings {
+        depth: 1.0,
+        beats: 1.5,
+        smooth_ms: 2.0,
+        points: pts,
+        ..FluctusSettings::default()
+    };
+    let x = noise(bar5 + 20_000, 7);
+    let (mut lf, mut rf) = (x.clone(), x.clone());
+    drive(&mut unit(&s), &mut lf, &mut rf, 0, || 480);
+    let (mut lp, mut rp) = (x[bar5..].to_vec(), x[bar5..].to_vec());
+    drive(&mut unit(&s), &mut lp, &mut rp, bar5 as i64, || 256);
+    if let Some(i) = (0..lp.len()).find(|&i| lf[bar5 + i].to_bits() != lp[i].to_bits()) {
+        panic!("first difference at {i}: {} vs {}", lf[bar5 + i], lp[i]);
+    }
+    assert!(same(&rf[bar5..], &rp));
+}
+
+#[test]
+fn playback_from_mid_cycle_starts_on_the_curve() {
+    let s = pump(1.0, 2.0);
+    let mut live = unit(&s);
+    // Two beats in (mid-cycle of a 1/1 length) after a while stopped.
+    let mut s1 = s;
+    s1.beats = 4.0;
+    live.set(&s1);
+    for _ in 0..20 {
+        let (mut l, mut r) = (vec![0.0f32; 480], vec![0.0f32; 480]);
+        live.set_transport(&Transport {
+            playing: false,
+            tempo_bpm: 128.0,
+            samples: 0,
+        });
+        live.process(&mut l, &mut r);
+    }
+    let beat = (60.0 / 128.0 * f64::from(SR)).round() as i64;
+    let mut l = vec![1.0f32; 64];
+    let mut r = l.clone();
+    drive(&mut live, &mut l, &mut r, 2 * beat, || 64);
+    // At half the cycle the pump is held open: full at once, no glide up from the duck.
+    assert_eq!(l[0], 1.0);
 }

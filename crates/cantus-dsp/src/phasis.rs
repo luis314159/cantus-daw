@@ -138,6 +138,12 @@ impl Phasis {
         self.lfo.set(&s.lfo, &self.clock);
         self.set = *s;
         self.set.stages = s.stages.clamp(2, MAX_STAGES);
+        // Stages out of the cascade are silent: nothing may stay in them.
+        for ch in &mut self.ap {
+            for a in &mut ch[self.set.stages..] {
+                a.reset();
+            }
+        }
     }
 
     pub fn set_transport(&mut self, t: &Transport) {

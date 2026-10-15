@@ -234,3 +234,29 @@ fn the_heaviest_feedback_stays_bounded_whatever_the_shift() {
         );
     }
 }
+
+/// Live, a unit runs (stopped) long before Play; offline, it starts with Play. The carrier
+/// starts again at playback, so both play the same.
+#[test]
+fn the_carrier_starts_again_at_playback() {
+    let sr = 48_000.0f32;
+    let s = busy();
+    let stopped = Transport {
+        playing: false,
+        tempo_bpm: 128.0,
+        samples: 0,
+    };
+    let mut live = unit(&s, 48_000.0);
+    for _ in 0..37 {
+        let (mut l, mut r) = (vec![0.0f32; 333], vec![0.0f32; 333]);
+        live.set_transport(&stopped);
+        live.process(&mut l, &mut r);
+    }
+    let x = noise(20_000, 31);
+    let (mut la, mut ra) = (x.clone(), x.clone());
+    drive(&mut live, &mut la, &mut ra, || 512);
+    let (mut lb, mut rb) = (x.clone(), x);
+    drive(&mut unit(&s, 48_000.0), &mut lb, &mut rb, || 512);
+    assert!(same(&la, &lb) && same(&ra, &rb));
+    let _ = sr;
+}

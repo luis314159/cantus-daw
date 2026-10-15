@@ -2,9 +2,9 @@
 //!
 //! - **Tremolo**: the level follows the LFO between full and `1 − depth` (linear gain), each
 //!   channel at its own phase when the stereo spread is opened.
-//! - **Auto-pan**: the LFO is a pan position, `depth` wide, under the **equal-power law**
-//!   (ADR 0012), normalised to unity at the centre — a centred moment is the input itself,
-//!   and the power of a mono source stays constant as it moves.
+//! - **Auto-pan**: the LFO is a pan position, `depth` wide, under the **balance** form of
+//!   ADR 0012 (unity at the centre, the far channel on the equal-power taper, the near one
+//!   whole): a stereo signal is moved and never raised; a centred moment is the input.
 //! - **Harmonic** (the 1959 brown amps' "vibrato"): the signal split at a crossover, the low
 //!   and the high halves modulated in opposite phase — a moving tone more than a moving
 //!   level.
@@ -79,6 +79,22 @@ pub fn pan_gains(p: f32) -> (f32, f32) {
     (c * std::f32::consts::SQRT_2, s * std::f32::consts::SQRT_2)
 }
 
+
+/// The balance of ADR 0012 at position `p` (−1 … 1): unity at the centre, the near channel
+/// whole, the far one on the equal-power taper — a stereo signal is moved, never raised.
+#[inline]
+pub fn balance_gains(p: f32) -> (f32, f32) {
+    let p = p.clamp(-1.0, 1.0);
+    if p == 0.0 {
+        return (1.0, 1.0);
+    }
+    let (l, r) = pan_gains(p);
+    if p > 0.0 {
+        (l.min(1.0), 1.0)
+    } else {
+        (1.0, r.min(1.0))
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Tremor {
     sr: f32,
@@ -133,6 +149,10 @@ impl Tremor {
             crate::math::db_to_gain(s.out_db)
         };
         self.spread.target = s.spread.clamp(0.0, 0.5);
+        if s.mode != Mode::Harmonic {
+            // The crossover is only heard in Harmonic: out of it, nothing may stay in it.
+            self.lp = [Lp2::default(); 2];
+        }
         self.set = *s;
     }
 
@@ -225,8 +245,8 @@ impl Tremor {
                         y *= 1.0 - depth * (0.5 - 0.5 * mr);
                     }
                     Mode::Pan => {
-                        let (gl, _) = pan_gains(depth * ml);
-                        let (_, gr) = pan_gains(depth * mr);
+                        let (gl, _) = balance_gains(depth * ml);
+                        let (_, gr) = balance_gains(depth * mr);
                         x *= gl;
                         y *= gr;
                     }

@@ -262,6 +262,10 @@ impl Concentus {
         if s.tone_hz != self.set.tone_hz || self.tone.is_none() {
             self.tone = (s.tone_hz < TONE_OPEN)
                 .then(|| Lp2Coef::new(s.tone_hz.clamp(500.0, 0.45 * self.sr), self.sr));
+            if self.tone.is_none() {
+                // An open tone runs no filter: nothing may stay in it.
+                self.lp = [Lp2::default(); 2];
+            }
         }
         self.lfo.set(&Self::lfo_of(s), &self.clock);
         self.set = *s;

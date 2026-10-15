@@ -219,3 +219,22 @@ fn warped(fc: f64, angle: f64) -> f64 {
     let g = crate::math::tan(std::f64::consts::PI * fc / fs);
     fs / std::f64::consts::PI * crate::math::atan(g * crate::math::tan(angle))
 }
+
+#[test]
+fn fewer_stages_strand_nothing_and_the_unit_comes_to_rest() {
+    let x = noise(10_000, 21);
+    let mut s = busy();
+    s.stages = 12;
+    let mut a = unit(&s);
+    let (mut l, mut r) = (x.clone(), x);
+    drive(&mut a, &mut l, &mut r, || 512);
+    s.stages = 4;
+    a.set(&s);
+    let mut silent = 0;
+    while !a.at_rest() && silent < 480_000 {
+        let (mut zl, mut zr) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+        a.process(&mut zl, &mut zr);
+        silent += 64;
+    }
+    assert!(a.at_rest(), "{:?}", a.rest_blocker());
+}

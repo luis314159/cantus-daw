@@ -224,8 +224,20 @@ impl Fluctus {
     }
 
     pub fn set_transport(&mut self, t: &Transport) {
+        let epoch = self.clock.epoch();
         self.clock.set(t);
         self.lfo.follow(&self.clock);
+        if self.clock.epoch() != epoch {
+            // Playback starts on the curve where the song is, as the full render is there:
+            // no glide from wherever the level was while stopped. (A seek or a loop's wrap
+            // while playing glides, so it never clicks.)
+            let d = self.depth.value;
+            self.level = if d == 0.0 {
+                1.0
+            } else {
+                1.0 - d * (1.0 - self.curve.at(self.phase(0)))
+            };
+        }
     }
 
     pub fn reset(&mut self) {
@@ -268,10 +280,14 @@ impl Fluctus {
         } else {
             1.0 - depth * (1.0 - self.curve.at(self.phase(i)))
         };
-        self.level += (target - self.level) * self.k;
-        if (self.level - target).abs() < 1e-7 {
-            self.level = target;
-        }
+        let next = self.level + (target - self.level) * self.k;
+        // Landed, or stalled (the step rounds away in f32, a few millionths short of the
+        // target): on the target, so a held level is exactly the curve's.
+        self.level = if next == self.level || (next - target).abs() < 1e-7 {
+            target
+        } else {
+            next
+        };
         self.level * out
     }
 
