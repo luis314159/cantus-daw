@@ -41,7 +41,7 @@ every older Exemplar so old songs keep their sound (v28 fixture). **Drum rows** 
 `Lanes::Keys` named by the SFZ groups' `group_label` or General MIDI's names. SFZ
 `group_label` names Exemplar's groups.
 
-**The mixdown, measured** (ADR 0042's table): a stereo mix at install (490 MB, 123 MiB of
+**The mixdown, measured** (ADR 0042's table): a stereo mix at install (490 MB before review 1, 471 MB after; 123 MiB of
 heads, one voice a hit, 591 zones) against a stem per bus (1.47 GB, 1 773 zones) and every
 microphone a zone (3.2 GB, 7 683 zones). Faders per microphone need an instrument with
 several outputs (BACKLOG §3e item 11): left there.

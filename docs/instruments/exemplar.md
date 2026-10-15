@@ -320,7 +320,7 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
 ## Round 28 (sound): round robin in order, drum rows, a kit built at install
 
 - **Round robin in order** (`rr.order`: 1 *In order*, the default; 0 *By note*, every
-  Exemplar saved before — schema 28's migration). A clip's note arrives with its ordinal
+  Exemplar saved before — schema 30's migration, `migrate_29_to_30`). A clip's note arrives with its ordinal
   (`InstrumentUnit::note_on_seq`); the zone whose `seq` is `ordinal mod seqlen + 1` plays.
   The ordinal is counted per **round-robin lane** (`inst::sampler::RrLanes`, review 1): the
   notes that reach the same set of samples, whatever their key or velocity — a tom on
@@ -332,7 +332,8 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
   *Edit* view's tools row. Tests: `exemplar_tests4.rs` (cycles by ordinal, a render from the
   middle, a 64-stroke roll never repeats, *By note* unchanged, live notes),
   `inst_sampler.rs` (engine: a clip's notes and a render from beat 5), `format.rs`
-  (schema 28), `cantus-ui/tests/inst_sampler.rs` (an import plays in order).
+  (`schema_30_keeps_an_old_exemplars_round_robin_seeded`), `cantus-ui/tests/inst_sampler.rs`
+  (an import plays in order).
 - **Drum rows** (`kit`: 0 a keyboard, the default; 1 a kit). The piano roll and the channel
   rack show a row per key the zones play, named by the zone's group (SFZ `group_label`),
   else by General MIDI, as Pulsus shows its pads. A pack instrument on the *Drums* shelf
@@ -340,5 +341,5 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
   Test: `cantus-core/tests/sampler_kit_lanes.rs`.
 - **DRSKit**, DrumGizmo's acoustic kit (CC BY 4.0), is a pack built at install: its 13
   microphones are mixed to one stereo file per hit and an SFZ is written for Exemplar
-  (ADR 0042's round-28 amendment). 591 zones over 35 drums, 186 velocity layers each with
+  (ADR 0042's round-28 amendment). 548 zones, 170 velocity layers (after the review's 24 dB range) each with
   at least two hits taking turns, the hi-hat's choke, General MIDI keys, 64 voices.

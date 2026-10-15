@@ -924,12 +924,13 @@ Esto es una beta. Lo que ya sabemos:
   programa; aislarlos viene después). Guarda seguido.
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
 - **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
-  tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por
+  tempo y un compás por proyecto. Sin fundidos cruzados entre clips distintos (las
+  costuras de una composición de tomas sí los hacen, §4) ni envolventes de ganancia por
   clip.
-- Los parámetros de los plug-ins de terceros aún no se pueden automatizar; la
-  automatización se dibuja, no se graba (sin latch ni touch). En los stems exportados *a
-  través de la cadena del máster*, un efecto de terceros en el máster no entra en los
-  stems (la mezcla completa sí lo lleva).
+- La automatización grabada escribe cada movimiento hecho mientras graba una pasada
+  (todavía sin modos latch ni touch). En los stems exportados *a través de la cadena del
+  máster*, un efecto de terceros en el máster no entra en los stems (la mezcla completa sí
+  lo lleva).
 - Cortar un clip **en bucle** silencia su mitad derecha: en su lugar, selecciona el rango
   de tiempo que necesitas, cópialo y pégalo (la parte pegada conserva el bucle).
 - Los clips de automatización solo se pegan dentro del proyecto del que vienen, mientras

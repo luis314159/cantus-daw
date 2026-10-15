@@ -857,10 +857,11 @@ This is a beta. What we know about:
   program; isolating them comes later). Save often.
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
-  one time signature per project. No crossfades or clip gain envelopes.
-- The parameters of hosted plug-ins cannot be automated yet; automation is drawn, not
-  recorded (no latch or touch). In stems exported *through the master chain*, a hosted
-  effect on the master is left out of the stems (the full mix has it).
+  one time signature per project. No crossfades between separate clips (comp seams do
+  crossfade, §4) and no clip gain envelopes.
+- Recorded automation writes every move made while a pass records (no latch or touch
+  modes yet). In stems exported *through the master chain*, a hosted effect on the master
+  is left out of the stems (the full mix has it).
 - Splitting a **looping** clip silences its right half: select the time range you need,
   copy it and paste it instead (the pasted part keeps the loop).
 - Automation clips are pasted only within the project they came from, while Cantus stays

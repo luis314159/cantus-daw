@@ -196,7 +196,7 @@ name (as format 2 did).
 
 | | Stereo mix at install (chosen) | A stereo stem per bus (close, overheads, room) | Every microphone a zone |
 |---|---|---|---|
-| Disk (24-bit) | **490 MB** | 1.47 GB | 3.2 GB |
+| Disk (24-bit) | **490 MB** (471 MB after review 1's 24 dB range) | 1.47 GB | 3.2 GB |
 | Heads in memory (streaming) | **123 MiB** | ≈ 370 MiB | ≈ 800 MiB |
 | Voices per hit | **1** | 3 | 13 |
 | Zones | **591** | 1 773 (> 1 024) | 7 683 (> 1 024) |

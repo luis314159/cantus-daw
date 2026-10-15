@@ -1,6 +1,6 @@
 # ADR 0051 — Quick gestures in the arrangement and the inspector
 
-**Status:** Accepted · **Date:** 2026-10-14 · **Round:** 27 (builder *gestures*) ·
+**Status:** Accepted, §4's audio row amended by ADR 0054 · **Date:** 2026-10-14 · **Round:** 27 (builder *gestures*) ·
 **Extends:** ADR 0024 (the kit; §5 device windows, §9 the hint, §15 the one text field),
 ADR 0027 (automation clips), ADR 0028 (hosted instruments), ADR 0044 (desk gestures) ·
 **Schema:** none (24) · **Commands:** none new
@@ -179,7 +179,7 @@ nothing stored:
 | The clip | Opens |
 |---|---|
 | automation | the automation editor (ADR 0027) |
-| audio | the inspector, on the clip (there is no audio clip editor; the inspector holds its gain, fades and reverse) |
+| audio | the inspector, on the clip (there is no audio clip editor; the inspector holds its gain, fades and reverse) — *(amended by ADR 0054, 2026-10-15: an audio clip opens the pitch editor, `ClipEditor::Pitch`; its gain, fades and file stay in the inspector)* |
 | notes the rack shows **with nothing lost** | the **channel rack** on its pattern, at the clip's own grid |
 | notes otherwise, or empty | the **piano roll** on the clip |
 
@@ -264,7 +264,7 @@ and *Click: rename*, the rest of the header the double-click hint; a double-clic
 melody opens the piano roll from behind the mixer — central, focused, on the clip, its
 eight beats across the grid and every note's row on screen; on a step pattern the channel
 rack (fitted); an automation clip still opens its editor, an audio clip shows the
-inspector, an empty lane still makes a clip; the rack-or-roll rule (steps, long notes,
+inspector *(since ADR 0054: the pitch editor)*, an empty lane still makes a clip; the rack-or-roll rule (steps, long notes,
 empty, automation, audio, a note off the grid, a held note, a coarser grid); *Open editor*
 on a minimised native instrument restores it, focused, its tab in front, and brings a
 docked tab from behind the arrangement (and the kit's editor likewise); on two overlapping

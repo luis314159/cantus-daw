@@ -202,15 +202,14 @@ knob carries the macro's name with an `M1…M8` handle above it.
 
 ## Amendment, 2026-10-15 (round 28, sound): round robin in order, and a kit's rows
 
-- **Round robin in order** (`rr.order`, default 1; schema 28 — numbered 30 in the round's
-  table). A clip's note-on reaches the instrument with its **ordinal** — how many note-ons
+- **Round robin in order** (`rr.order`, default 1; schema 30). A clip's note-on reaches the instrument with its **ordinal** — how many note-ons
   of its pitch come before it on the track (`NoteEvent::ordinal`, already Pulsus's) —
   through `InstrumentUnit::note_on_seq` (a default that calls `note_on`, so other kinds are
   untouched). Exemplar takes the ordinal as the note's turn: a roll cycles 1, 2, 3… and
   never plays a sample twice in a row, and a render from any point chooses what the whole
   song chooses there (the seek-safety the id hash gave, now with SFZ's strict cycle). Live
   input keeps its per-key counter. `0` (*By note*) is the old rule, a turn drawn from the
-  note's id; schema 28's migration writes it into every Exemplar saved before, so old songs
+  note's id; schema 30's migration (`migrate_29_to_30`) writes it into every Exemplar saved before, so old songs
   render to the same bits. An import (SFZ, Decent Sampler, a folder) sets the order back to
   *In order*: their round robins mean a cycle. The choice is in Exemplar's *Edit* tools row.
   **Review 1:** for an Exemplar in order the snapshot counts the ordinal per round-robin
