@@ -85,6 +85,11 @@ pub enum Phase {
         done: u64,
         total: u64,
     },
+    /// A pack built at install (round 28): hits mixed of `total`.
+    Building {
+        done: u64,
+        total: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -246,6 +251,25 @@ impl Drop for Staging {
     }
 }
 
+/// How many files are under `dir`, at any depth, and their bytes.
+fn size_of(dir: &Path) -> (u64, u64) {
+    let (mut n, mut bytes) = (0, 0);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push(e.path()),
+                Ok(_) => {
+                    n += 1;
+                    bytes += e.metadata().map(|m| m.len()).unwrap_or(0);
+                }
+                Err(_) => {}
+            }
+        }
+    }
+    (n, bytes)
+}
+
 /// How many files are under `dir`, at any depth.
 fn count_files(dir: &Path) -> u64 {
     let mut n = 0;
@@ -270,7 +294,12 @@ pub fn install(
 ) -> Result<Receipt, InstallError> {
     let guard = Staging::begin(job.layout, &pack.id)?;
     let staging = guard.dir().to_path_buf();
-    let budget = budget(pack.installed_size);
+    // A pack built at install unpacks to more than it weighs once built.
+    let budget = budget(
+        pack.build
+            .as_ref()
+            .map_or(pack.installed_size, |b| b.unpacked_size),
+    );
     let (files, bytes) = match &pack.source {
         Source::Files(list) => install_files(job, list, &staging, report)?,
         Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, report)?,
@@ -286,6 +315,28 @@ pub fn install(
             "{files} files were unpacked but {on_disk} are in the folder; it was not installed"
         )));
     }
+    let (files, bytes) = match &pack.build {
+        Some(b) => {
+            let credit = pack.credit_full().unwrap_or_else(|| pack.name.en.clone());
+            let total = b.keys.len() as u64;
+            report(Phase::Building { done: 0, total });
+            crate::kitbuild::build(b, &staging, &credit, job.cancel, &mut |done, total| {
+                report(Phase::Building { done, total })
+            })
+            .map_err(|e| {
+                if job.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    InstallError::Fetch(FetchError::Cancelled)
+                } else {
+                    InstallError::Archive(format!("the kit cannot be built: {e}"))
+                }
+            })?;
+            if !staging.join(&pack.licence_file).is_file() {
+                return Err(InstallError::NoLicence(pack.licence_file.clone()));
+            }
+            size_of(&staging)
+        }
+        None => (files, bytes),
+    };
     let receipt = Receipt {
         id: pack.id.clone(),
         version: pack.version,

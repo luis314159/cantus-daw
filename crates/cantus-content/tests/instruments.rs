@@ -24,6 +24,7 @@ fn piano() -> PackInstrument {
         shelf: Shelf::Keys,
         layers: Some(8),
         gain_db: 3.0,
+        voices: None,
     }
 }
 

@@ -50,6 +50,7 @@ pub fn pack(id: &str, licence_file: &str, source: Source) -> Pack {
         source,
         attribution: None,
         instruments: vec![],
+        build: None,
     }
 }
 

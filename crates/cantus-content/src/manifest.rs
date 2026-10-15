@@ -11,10 +11,16 @@ use serde::{Deserialize, Serialize};
 /// - 2: a CC BY pack's credit line, [`Pack::attribution`] (round 26, ADR 0042). A
 ///   manifest that carries one must say format 2, so a format-1 build refuses it by name
 ///   instead of failing on a field it does not know.
-pub const FORMAT: u32 = 2;
+/// - 3: a pack built at install ([`Pack::build`]: a multi-microphone DrumGizmo kit mixed
+///   into the stereo instrument Exemplar plays — round 28), and a pack instrument's
+///   `voices`.
+pub const FORMAT: u32 = 3;
 
 /// The first format that may carry a credit line.
 pub const FORMAT_ATTRIBUTION: u32 = 2;
+
+/// The first format that may carry a build step.
+pub const FORMAT_BUILD: u32 = 3;
 
 /// The licences content may be under (ADR 0042 §1): CC0 1.0 and CC BY 3.0 / 4.0.
 /// Everything else — NC, ND, SA, retired Creative Commons licences, any other id — is
@@ -270,6 +276,76 @@ pub struct Pack {
     /// (round 26). Format 2.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub instruments: Vec<PackInstrument>,
+    /// What the install makes of the archive before the pack is in place (round 28):
+    /// a multi-microphone kit mixed down to the stereo instrument its `instruments` name.
+    /// Format 3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<Build>,
+}
+
+/// A build step: the archive holds a DrumGizmo kit (one file per hit, every microphone a
+/// channel), and the install mixes each hit the kit plays down to a stereo file, writes an
+/// SFZ instrument over them — velocity layers from each hit's measured level, round robins
+/// in order, the keys and chokes below — and keeps only that, the files in `keep` and the
+/// receipt (ADR 0042's amendment, round 28).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Build {
+    /// The kit file, relative to the pack's folder (after the source's `strip`).
+    pub kit: String,
+    /// What the archive's kept entries weigh unpacked: the unpack's budget (the pack
+    /// itself weighs `installed_size` once built).
+    pub unpacked_size: u64,
+    /// The instrument written (`.sfz`), relative to the pack's folder.
+    pub sfz: String,
+    /// The folder the stereo files go into, relative to the pack's folder.
+    pub folder: String,
+    /// Gain of the whole mix, dB (headroom: the loudest hit's peak stays under 0 dBFS).
+    pub gain_db: f32,
+    /// How each microphone is heard in the stereo mix.
+    pub mics: Vec<Mic>,
+    /// Which instruments of the kit are built, and the keys each plays on (General MIDI
+    /// where it has a name for them).
+    pub keys: Vec<KeyMap>,
+    /// Instruments that silence each other (a hi-hat's closed, pedal and open sounds).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chokes: Vec<Choke>,
+    /// Hits per velocity layer, which take their turns in order (2…16).
+    pub round_robin: u8,
+    /// How far under the loudest hit of an instrument its softest hit may sit, dB; hits
+    /// softer still are left out (6…48).
+    pub range_db: f32,
+    /// Files of the archive kept beside the instrument (the licence among them); every
+    /// other unpacked file goes once the mix is written.
+    pub keep: Vec<String>,
+}
+
+/// One microphone (a channel of the kit) in the stereo mix.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mic {
+    pub channel: String,
+    pub gain_db: f32,
+    /// −100 (left) … 100 (right), equal power.
+    pub pan: f32,
+    /// Polarity reversed (a snare's bottom microphone).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub invert: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyMap {
+    pub instrument: String,
+    pub keys: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Choke {
+    pub instruments: Vec<String>,
+    /// How long a silenced hit takes to fade, ms.
+    pub release_ms: f32,
 }
 
 /// The picker's shelf a pack instrument goes on.
@@ -306,6 +382,10 @@ pub struct PackInstrument {
     /// calibrated to (ADR 0039).
     #[serde(default)]
     pub gain_db: f32,
+    /// Voices the instrument may sound at once (Exemplar's `voices`, 1…64); absent keeps
+    /// Exemplar's default. Format 3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voices: Option<u8>,
 }
 
 /// Whether `id` is a pack's or an instrument's id: lowercase letters, digits and `-`.
@@ -354,6 +434,94 @@ pub struct ZipSource {
     /// Patterns of entries to leave out even when included (`"Samples/wet/**"`).
     #[serde(default)]
     pub exclude: Vec<String>,
+}
+
+impl Build {
+    /// What a build step must hold (the manifest's validation calls it).
+    pub fn validate(&self, p: &Pack) -> Result<(), String> {
+        for (what, path) in [
+            ("kit", &self.kit),
+            ("sfz", &self.sfz),
+            ("folder", &self.folder),
+        ] {
+            check_path(path).map_err(|e| format!("{what}: {e}"))?;
+        }
+        for k in &self.keep {
+            check_path(k).map_err(|e| format!("keep {k}: {e}"))?;
+        }
+        if !self.sfz.to_ascii_lowercase().ends_with(".sfz") {
+            return Err("the instrument it writes must be an .sfz".into());
+        }
+        if !p.instruments.iter().any(|i| i.file == self.sfz) {
+            return Err("no pack instrument plays the instrument it writes".into());
+        }
+        if !self.keep.iter().any(|k| *k == p.licence_file) {
+            return Err("the licence file must be kept".into());
+        }
+        if self.unpacked_size == 0 {
+            return Err("the unpacked size is 0".into());
+        }
+        if !self.gain_db.is_finite() || self.gain_db.abs() > 48.0 {
+            return Err("the mix's gain must be within ±48 dB".into());
+        }
+        if !(1..=16).contains(&self.round_robin) {
+            return Err("round robin must be 1…16".into());
+        }
+        if !(6.0..=48.0).contains(&self.range_db) {
+            return Err("the range must be 6…48 dB".into());
+        }
+        if self.mics.is_empty() {
+            return Err("no microphones".into());
+        }
+        let mut seen = std::collections::HashSet::new();
+        for m in &self.mics {
+            if !seen.insert(m.channel.as_str()) {
+                return Err(format!("microphone {} named twice", m.channel));
+            }
+            if !m.gain_db.is_finite() || m.gain_db.abs() > 48.0 {
+                return Err(format!("microphone {}: gain within ±48 dB", m.channel));
+            }
+            if !m.pan.is_finite() || m.pan.abs() > 100.0 {
+                return Err(format!("microphone {}: pan within ±100", m.channel));
+            }
+        }
+        if self.keys.is_empty() {
+            return Err("no instrument is built".into());
+        }
+        let mut names = std::collections::HashSet::new();
+        let mut keys = std::collections::HashSet::new();
+        for k in &self.keys {
+            if !names.insert(k.instrument.as_str()) {
+                return Err(format!("{} mapped twice", k.instrument));
+            }
+            if k.keys.is_empty() {
+                return Err(format!("{} has no key", k.instrument));
+            }
+            for &n in &k.keys {
+                if n > 127 || !keys.insert(n) {
+                    return Err(format!("key {n} is not a free MIDI note"));
+                }
+            }
+        }
+        let mut choked = std::collections::HashSet::new();
+        if self.chokes.len() > 63 {
+            return Err("at most 63 choke groups".into());
+        }
+        for c in &self.chokes {
+            if !(1.0..=5_000.0).contains(&c.release_ms) {
+                return Err("a choke's release must be 1…5 000 ms".into());
+            }
+            for i in &c.instruments {
+                if !names.contains(i.as_str()) {
+                    return Err(format!("choke: {i} is not built"));
+                }
+                if !choked.insert(i.as_str()) {
+                    return Err(format!("choke: {i} is in two groups"));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Pack {
@@ -527,6 +695,27 @@ impl Manifest {
                         return Err(bad_inst("its file is not among the pack's files"));
                     }
                 }
+                if let Some(v) = i.voices {
+                    if self.format < FORMAT_BUILD {
+                        return Err(bad_inst(&format!(
+                            "voices need manifest format {FORMAT_BUILD}"
+                        )));
+                    }
+                    if !(1..=64).contains(&v) {
+                        return Err(bad_inst("voices must be 1…64"));
+                    }
+                }
+            }
+            if let Some(b) = &p.build {
+                if self.format < FORMAT_BUILD {
+                    return Err(bad(format!(
+                        "a build step needs manifest format {FORMAT_BUILD}"
+                    )));
+                }
+                if matches!(p.source, Source::Files(_)) {
+                    return Err(bad("a build step needs an archive source".into()));
+                }
+                b.validate(p).map_err(|e| bad(format!("build: {e}")))?;
             }
             match &p.source {
                 Source::Files(files) => {

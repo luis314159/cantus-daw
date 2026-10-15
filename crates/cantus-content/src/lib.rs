@@ -14,13 +14,16 @@
 //! recognised and never written into the library, and nothing is ever bypassed.
 
 pub mod credits;
+pub mod drumgizmo;
 pub mod fetch;
 pub mod install;
+pub mod kitbuild;
 pub mod library;
 pub mod manager;
 pub mod manifest;
 pub mod tar;
+pub mod wav;
 
 pub use install::{Layout, Phase, Receipt};
 pub use manager::{Finished, InstalledInstrument, Manager, Status};
-pub use manifest::{Attribution, Category, Licence, Manifest, Pack, Source};
+pub use manifest::{Attribution, Build, Category, Licence, Manifest, Pack, Source};
