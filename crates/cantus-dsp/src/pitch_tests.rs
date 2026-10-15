@@ -45,7 +45,10 @@ fn score(
 ) -> Score {
     let mut s = Score::default();
     let end = len as f64 - settle;
-    for f in frames.iter().filter(|f| f.centre >= settle && f.centre <= end) {
+    for f in frames
+        .iter()
+        .filter(|f| f.centre >= settle && f.centre <= end)
+    {
         let t = truth(f.centre);
         let near_change = [-guard, guard]
             .iter()
@@ -91,7 +94,13 @@ fn steady_vowels_are_tracked_to_a_cent_streaming_and_offline() {
             let x = testkit::voice(sr, 0.6, vowel, 0.5, |_| f0);
             let truth = |_: f64| f0;
             let st = score(&stream(&x, sr), &truth, 0.0, 0.06 * sr as f64, x.len());
-            let off = score(&analyse(&x, sr).frames, &truth, 0.0, 0.06 * sr as f64, x.len());
+            let off = score(
+                &analyse(&x, sr).frames,
+                &truth,
+                0.0,
+                0.06 * sr as f64,
+                x.len(),
+            );
             for (name, s) in [("streaming", &st), ("offline", &off)] {
                 assert_eq!(s.gross, 0, "{name} {f0} Hz at {sr}: {s:?}");
                 assert!(s.voicing() > 0.97, "{name} {f0} Hz at {sr}: {s:?}");
@@ -109,7 +118,13 @@ fn vibrato_and_glides_are_followed() {
     let x = testkit::voice(sr, 2.0, Vowel::A, 0.5, &vib);
     let truth = |t: f64| vib(t / sr as f64);
     let st = score(&stream(&x, sr), &truth, 0.0, 0.06 * sr as f64, x.len());
-    let off = score(&analyse(&x, sr).frames, &truth, 0.0, 0.06 * sr as f64, x.len());
+    let off = score(
+        &analyse(&x, sr).frames,
+        &truth,
+        0.0,
+        0.06 * sr as f64,
+        x.len(),
+    );
     eprintln!("vibrato: streaming {st:?}\n         offline {off:?}");
     assert!(st.gross_rate() < 0.01 && st.fine_mean() < 6.0, "{st:?}");
     assert!(off.gross_rate() < 0.01 && off.fine_mean() < 3.0, "{off:?}");
@@ -118,7 +133,13 @@ fn vibrato_and_glides_are_followed() {
     let x = testkit::voice(sr, 1.5, Vowel::A, 0.5, &g);
     let truth = |t: f64| g(t / sr as f64);
     let st = score(&stream(&x, sr), &truth, 0.0, 0.06 * sr as f64, x.len());
-    let off = score(&analyse(&x, sr).frames, &truth, 0.0, 0.06 * sr as f64, x.len());
+    let off = score(
+        &analyse(&x, sr).frames,
+        &truth,
+        0.0,
+        0.06 * sr as f64,
+        x.len(),
+    );
     eprintln!("glide: streaming {st:?}\n       offline {off:?}");
     assert!(st.gross_rate() < 0.01 && st.fine_mean() < 10.0, "{st:?}");
     assert!(off.gross_rate() < 0.01 && off.fine_mean() < 5.0, "{off:?}");
@@ -132,7 +153,13 @@ fn an_octave_ambiguous_tone_is_not_tracked_an_octave_up() {
         let x = testkit::octave_ambiguous(sr, 0.5, f0, 0.5);
         let truth = |_: f64| f0;
         let st = score(&stream(&x, sr), &truth, 0.0, 0.05 * sr as f64, x.len());
-        let off = score(&analyse(&x, sr).frames, &truth, 0.0, 0.05 * sr as f64, x.len());
+        let off = score(
+            &analyse(&x, sr).frames,
+            &truth,
+            0.0,
+            0.05 * sr as f64,
+            x.len(),
+        );
         assert_eq!(st.gross, 0, "streaming {f0}: {st:?}");
         assert_eq!(off.gross, 0, "offline {f0}: {off:?}");
     }
@@ -185,7 +212,13 @@ fn breaths_and_sibilants_are_unvoiced_and_the_notes_are_in_tune() {
     };
     // The streaming decision is one window late at a change: score away from them.
     let st = score(&stream(&x, sr), &truth, 0.04 * sr as f64, 0.0, x.len());
-    let off = score(&analyse(&x, sr).frames, &truth, 0.02 * sr as f64, 0.0, x.len());
+    let off = score(
+        &analyse(&x, sr).frames,
+        &truth,
+        0.02 * sr as f64,
+        0.0,
+        x.len(),
+    );
     eprintln!("phrase: streaming {st:?}\n        offline {off:?}");
     assert!(st.voicing() > 0.97, "streaming voicing {st:?}");
     assert!(off.voicing() > 0.97, "offline voicing {off:?}");
@@ -266,18 +299,31 @@ fn epochs_are_one_period_apart_and_phase_locked() {
         }
         worst = worst.min(xy / (xx * yy).sqrt().max(1e-20));
     }
-    assert!(worst > 0.95, "consecutive periods correlate at only {worst}");
+    assert!(
+        worst > 0.95,
+        "consecutive periods correlate at only {worst}"
+    );
 }
 
 /// The lowest f0 the design reaches is F_MIN at every sample rate.
 #[test]
 fn the_design_reaches_f_min_and_f_max() {
-    for sr in [22_050.0f32, 44_100.0, 48_000.0, 88_200.0, 96_000.0, 192_000.0] {
+    for sr in [
+        22_050.0f32,
+        44_100.0,
+        48_000.0,
+        88_200.0,
+        96_000.0,
+        192_000.0,
+    ] {
         let d = Design::new(sr);
         let fs = d.coarse_rate();
         assert!(fs / d.tau_max as f32 <= F_MIN, "{sr}");
         assert!(fs / d.tau_min as f32 >= F_MAX, "{sr}");
-        assert!(d.window >= (fs / F_MIN) as usize, "{sr}: the window holds a period of F_MIN");
+        assert!(
+            d.window >= (fs / F_MIN) as usize,
+            "{sr}: the window holds a period of F_MIN"
+        );
         let sum: f32 = d.fir.iter().sum();
         assert!((sum - 1.0).abs() < 1e-4);
     }

@@ -329,7 +329,13 @@ fn fine_vertex(scratch: &[f32], n: usize, lo: usize, coarse: f32) -> f32 {
 /// The fine stage, causal: the plain difference function of the full-rate `x` (oldest
 /// first, newest `w` samples) at the lags within `span` of `coarse` (full-rate samples),
 /// and the vertex of a parabola through its minimum. `scratch` holds the lags.
-pub(crate) fn fine_period(x: &[f32], w: usize, coarse: f32, span: usize, scratch: &mut [f32]) -> f32 {
+pub(crate) fn fine_period(
+    x: &[f32],
+    w: usize,
+    coarse: f32,
+    span: usize,
+    scratch: &mut [f32],
+) -> f32 {
     let c = coarse.round() as usize;
     let lo = c.saturating_sub(span).max(1);
     let hi = c + span;
@@ -368,7 +374,12 @@ pub(crate) fn fine_period_centred(
 
 /// The voicing cues of a window: the RMS level (dBFS) and the sibilance share, from the
 /// energy of the raw window and of its decimated low band (scaled back to the full rate).
-pub(crate) fn level_and_sibilance(raw_energy: f32, raw_len: usize, low_energy: f32, d: usize) -> (f32, f32) {
+pub(crate) fn level_and_sibilance(
+    raw_energy: f32,
+    raw_len: usize,
+    low_energy: f32,
+    d: usize,
+) -> (f32, f32) {
     if raw_energy <= 1e-20 || raw_len == 0 {
         return (-120.0, 0.0);
     }

@@ -102,7 +102,20 @@ pub(super) fn show(
                     Allowed::Removed => "fx.tonus.note.2",
                     Allowed::Bypass => "fx.tonus.note.3",
                 };
-                let label = ["fx.tonus.n0", "fx.tonus.n1", "fx.tonus.n2", "fx.tonus.n3", "fx.tonus.n4", "fx.tonus.n5", "fx.tonus.n6", "fx.tonus.n7", "fx.tonus.n8", "fx.tonus.n9", "fx.tonus.n10", "fx.tonus.n11"][pc];
+                let label = [
+                    "fx.tonus.n0",
+                    "fx.tonus.n1",
+                    "fx.tonus.n2",
+                    "fx.tonus.n3",
+                    "fx.tonus.n4",
+                    "fx.tonus.n5",
+                    "fx.tonus.n6",
+                    "fx.tonus.n7",
+                    "fx.tonus.n8",
+                    "fx.tonus.n9",
+                    "fx.tonus.n10",
+                    "fx.tonus.n11",
+                ][pc];
                 hint::set_text(ui.ctx(), frame::tr(label), frame::tr(state), Caps::NONE);
             }
             _ if editable => hint::set_text(ui.ctx(), frame::tr("tonus.keys_tip"), "", Caps::NONE),
@@ -115,7 +128,12 @@ pub(super) fn show(
     let ink = Ink::of(s);
     let target_pc = h.target.map(|t| t.rem_euclid(12) as usize);
     with_brush(ui.painter(), |b| {
-        b.register(kb, "keyboard", crate::kit::shell::KEYBOARD_TOKENS, &[s.hue_tok]);
+        b.register(
+            kb,
+            "keyboard",
+            crate::kit::shell::KEYBOARD_TOKENS,
+            &[s.hue_tok],
+        );
         let state = |pc: usize| -> Allowed {
             if editable {
                 allowed[pc]
@@ -126,10 +144,28 @@ pub(super) fn show(
             }
         };
         for pc in WHITES {
-            key(b, s, &ink, keys[pc], false, state(pc), target_pc == Some(pc), editable);
+            key(
+                b,
+                s,
+                &ink,
+                keys[pc],
+                false,
+                state(pc),
+                target_pc == Some(pc),
+                editable,
+            );
         }
         for (pc, _) in BLACKS {
-            key(b, s, &ink, keys[pc], true, state(pc), target_pc == Some(pc), editable);
+            key(
+                b,
+                s,
+                &ink,
+                keys[pc],
+                true,
+                state(pc),
+                target_pc == Some(pc),
+                editable,
+            );
         }
         let y = rect.bottom() - legend_h * 0.5;
         if !editable {
@@ -190,13 +226,20 @@ fn key(
     let r = b.snap_rect(r.shrink2(vec2(0.5 * k, 0.0)));
     b.rect(r, Fill::Solid(shade(face, -0.30)));
     let inner = Rect::from_min_max(r.min, pos2(r.right() - b.px(), r.bottom() - b.px()));
-    b.rrect(inner, 2.0 * k, Fill::V(shade(face, -0.05), shade(face, 0.04)));
+    b.rrect(
+        inner,
+        2.0 * k,
+        Fill::V(shade(face, -0.05), shade(face, 0.04)),
+    );
     if !editable {
         return;
     }
     let on_dark = black || current;
     let c = if on_dark { t.key_white } else { t.key_black };
-    let at = pos2(r.center().x, r.bottom() - (if black { 10.0 } else { 12.0 }) * k);
+    let at = pos2(
+        r.center().x,
+        r.bottom() - (if black { 10.0 } else { 12.0 }) * k,
+    );
     let i = match state {
         Allowed::Target => 0,
         Allowed::Removed => 1,

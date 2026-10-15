@@ -134,11 +134,11 @@ impl PitchTracker {
         self.raw_zero.push(x);
         self.n += 1;
         let d = self.design.decimation as u64;
-        if self.n % d != 0 {
+        if !self.n.is_multiple_of(d) {
             return None;
         }
         self.decimate();
-        if self.n % self.design.hop as u64 != 0 {
+        if !self.n.is_multiple_of(self.design.hop as u64) {
             return None;
         }
         let f = self.frame();
@@ -204,7 +204,13 @@ impl PitchTracker {
         let period = if silent {
             0.0
         } else {
-            fine_period(&self.lin_fine, wf, tau_c * d as f32, d + 1, &mut self.scratch)
+            fine_period(
+                &self.lin_fine,
+                wf,
+                tau_c * d as f32,
+                d + 1,
+                &mut self.scratch,
+            )
         };
 
         let candidate = !silent
@@ -241,7 +247,11 @@ impl PitchTracker {
         let span = (w * d) as f64 + period as f64;
         PitchFrame {
             centre: newest - span * 0.5,
-            f0: if period > 0.0 { dz.sample_rate / period } else { 0.0 },
+            f0: if period > 0.0 {
+                dz.sample_rate / period
+            } else {
+                0.0
+            },
             period,
             voiced: self.voiced,
             aperiodicity,

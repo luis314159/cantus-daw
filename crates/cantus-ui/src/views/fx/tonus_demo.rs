@@ -12,10 +12,11 @@
 //! 5. **Your voice** — an audio track with input 1 and Tonus (natural) on its strip: arm
 //!    it, monitor, sing, record; or drop a recorded vocal on it.
 
-use cantus_core::{
-    AudioSource, AudioSourceId, EffectKind, Project, Ticks, TrackId, TrackInput,
-};
+use cantus_core::{AudioSource, AudioSourceId, EffectKind, Project, Ticks, TrackId, TrackInput};
 use std::path::{Path, PathBuf};
+
+/// A voice track of the demo: its name, Tonus's values, its MIDI source, muted.
+type Voice<'a> = (&'a str, &'a [(&'a str, f32)], Option<TrackId>, bool);
 
 const SR: u32 = 48_000;
 const BPM: f64 = 90.0;
@@ -37,7 +38,16 @@ pub fn voice_line() -> Vec<f32> {
         (220.00, 15.0, 0.95, 35.0),
         (196.00, -30.0, 1.0, 40.0),
     ];
-    let vowels = [Vowel::A, Vowel::I, Vowel::A, Vowel::U, Vowel::A, Vowel::I, Vowel::A, Vowel::U];
+    let vowels = [
+        Vowel::A,
+        Vowel::I,
+        Vowel::A,
+        Vowel::U,
+        Vowel::A,
+        Vowel::I,
+        Vowel::A,
+        Vowel::U,
+    ];
     let mut x = vec![0.0f32; (0.33 * sr) as usize];
     for (i, ((hz, c, secs, vib), v)) in notes.into_iter().zip(vowels).enumerate() {
         let f = off(hz, c);
@@ -112,8 +122,13 @@ pub fn project(wav: &Path, frames: u64) -> Project {
         fx.midi_from = midi;
         fx
     };
-    let natural: &[(&str, f32)] = &[("key", 9.0), ("scale", 2.0), ("speed", 50.0), ("human", 0.3)];
-    let voices: [(&str, &[(&str, f32)], Option<TrackId>, bool); 3] = [
+    let natural: &[(&str, f32)] = &[
+        ("key", 9.0),
+        ("scale", 2.0),
+        ("speed", 50.0),
+        ("human", 0.3),
+    ];
+    let voices: [Voice<'_>; 3] = [
         ("Voice \u{b7} natural", natural, None, false),
         (
             "Voice \u{b7} hard tune",

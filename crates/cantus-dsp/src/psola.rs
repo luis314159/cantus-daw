@@ -275,8 +275,8 @@ impl Shifter {
         let sr = sample_rate.max(8_000.0);
         let latency = ((LATENCY_48K as f32 * sr / 48_000.0).round() as usize).max(1);
         let p_max = sr / F_MIN;
-        let len = ((p_max * (MAX_RATIO + 2.0) * MAX_FORMANT) as usize + latency + 16)
-            .next_power_of_two();
+        let len =
+            ((p_max * (MAX_RATIO + 2.0) * MAX_FORMANT) as usize + latency + 16).next_power_of_two();
         Shifter {
             sample_rate: sr,
             latency,
@@ -318,7 +318,10 @@ impl Shifter {
     /// Nothing but zeros in the line, no grain alive, fully dry: a new shifter, exactly.
     pub fn at_rest(&self) -> bool {
         let len = self.ring[0].len();
-        self.zero[0].covers(len) && self.zero[1].covers(len) && self.mix == 0.0 && self.ola.is_empty()
+        self.zero[0].covers(len)
+            && self.zero[1].covers(len)
+            && self.mix == 0.0
+            && self.ola.is_empty()
     }
 
     /// `frames` samples of silence went by unprocessed, at rest.
@@ -411,13 +414,11 @@ impl Shifter {
         };
         // Voiced, the mark is refined within ±p/8 (`align`) by the period before it, which
         // must have arrived: leave it room on both sides, behind the newest sample.
-        let (room, limit) = if voiced {
-            let room = (p_a / 8.0).ceil() as f64 + 1.0;
-            (room, bound.min(newest + 1.0) - room)
+        let limit = if voiced {
+            bound.min(newest + 1.0) - ((p_a / 8.0).ceil() as f64 + 1.0)
         } else {
-            (0.0, bound)
+            bound
         };
-        let _ = room;
         let mut a = lattice(last.a, p_a as f64, s, limit);
         if voiced && a > last.a + 0.5 * p_a as f64 {
             a = self.align(last.a, a, p_a, bound.min(newest + 1.0));

@@ -144,7 +144,10 @@ mod tests {
                 velocity: 1
             })
         );
-        assert_eq!(from_clap(CLAP_EVENT_NOTE_CHOKE, -1, 0.0), Some(FxNote::AllOff));
+        assert_eq!(
+            from_clap(CLAP_EVENT_NOTE_CHOKE, -1, 0.0),
+            Some(FxNote::AllOff)
+        );
         assert_eq!(from_clap(CLAP_EVENT_NOTE_ON, -1, 1.0), None);
     }
 }

@@ -16,19 +16,39 @@ pub struct Vowel {
 impl Vowel {
     /// /a/ as in "father" (Peterson and Barney's adult male averages).
     pub const A: Vowel = Vowel {
-        formants: [(730.0, 90.0), (1_090.0, 110.0), (2_440.0, 170.0), (3_400.0, 250.0)],
+        formants: [
+            (730.0, 90.0),
+            (1_090.0, 110.0),
+            (2_440.0, 170.0),
+            (3_400.0, 250.0),
+        ],
     };
     /// /i/ as in "beet".
     pub const I: Vowel = Vowel {
-        formants: [(270.0, 60.0), (2_290.0, 100.0), (3_010.0, 170.0), (3_500.0, 250.0)],
+        formants: [
+            (270.0, 60.0),
+            (2_290.0, 100.0),
+            (3_010.0, 170.0),
+            (3_500.0, 250.0),
+        ],
     };
     /// /u/ as in "boot".
     pub const U: Vowel = Vowel {
-        formants: [(300.0, 60.0), (870.0, 90.0), (2_240.0, 170.0), (3_400.0, 250.0)],
+        formants: [
+            (300.0, 60.0),
+            (870.0, 90.0),
+            (2_240.0, 170.0),
+            (3_400.0, 250.0),
+        ],
     };
     /// /a/ with the formants of a female voice (about 17 % higher).
     pub const A_FEMALE: Vowel = Vowel {
-        formants: [(850.0, 100.0), (1_220.0, 120.0), (2_810.0, 180.0), (3_900.0, 260.0)],
+        formants: [
+            (850.0, 100.0),
+            (1_220.0, 120.0),
+            (2_810.0, 180.0),
+            (3_900.0, 260.0),
+        ],
     };
 }
 
@@ -182,7 +202,10 @@ pub fn octave_ambiguous(sr: f32, seconds: f32, f0: f32, peak: f32) -> Vec<f32> {
 
 /// A vibrato: `centre` Hz moved by `cents` (peak) at `rate` Hz.
 pub fn vibrato(centre: f32, cents: f32, rate: f32) -> impl Fn(f64) -> f32 {
-    move |t| centre * math::exp2(cents / 1200.0 * math::sin(2.0 * core::f32::consts::PI * rate * t as f32))
+    move |t| {
+        centre
+            * math::exp2(cents / 1200.0 * math::sin(2.0 * core::f32::consts::PI * rate * t as f32))
+    }
 }
 
 /// A glide from `a` to `b` Hz over `seconds`, then `b`, exponential in frequency.
@@ -257,7 +280,15 @@ pub fn amplitude_db(x: &[f32], sr: f32, hz: f32) -> f32 {
 /// and a shifted one at `f0_out`: the output's harmonics between `lo` and `hi` Hz compared
 /// with the reference's envelope there (interpolated between its harmonics, in dB), both
 /// normalised to their mean level. 0: the same envelope.
-pub fn envelope_distance(reference: &[f32], f0_ref: f32, out: &[f32], f0_out: f32, sr: f32, lo: f32, hi: f32) -> f32 {
+pub fn envelope_distance(
+    reference: &[f32],
+    f0_ref: f32,
+    out: &[f32],
+    f0_out: f32,
+    sr: f32,
+    lo: f32,
+    hi: f32,
+) -> f32 {
     let harmonics = |x: &[f32], f0: f32| -> Vec<(f32, f32)> {
         (1..)
             .map(|k| k as f32 * f0)

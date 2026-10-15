@@ -462,7 +462,8 @@ impl Tonus {
         if s.vib_depth > 0.0 {
             let age = self.note_age as f32 / self.sample_rate;
             let onset = (age / VIB_ONSET_S).min(1.0);
-            created = s.vib_depth * 0.01 * onset * math::sin(2.0 * core::f32::consts::PI * self.lfo);
+            created =
+                s.vib_depth * 0.01 * onset * math::sin(2.0 * core::f32::consts::PI * self.lfo);
             self.lfo += s.vib_rate / self.sample_rate;
             if self.lfo >= 1.0 {
                 self.lfo -= 1.0;

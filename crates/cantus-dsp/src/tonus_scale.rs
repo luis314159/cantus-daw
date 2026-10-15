@@ -153,19 +153,10 @@ pub fn choose(p: f32, allowed: &[Allowed; 12], current: Option<i32>) -> Option<(
 }
 
 /// The notes held on the slot's MIDI source, in the order they were pressed.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Held {
     notes: [u8; 32],
     len: usize,
-}
-
-impl Default for Held {
-    fn default() -> Self {
-        Held {
-            notes: [0; 32],
-            len: 0,
-        }
-    }
 }
 
 impl Held {

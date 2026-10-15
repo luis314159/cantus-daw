@@ -21,7 +21,9 @@ impl TimeMap {
 
     /// A map through `points`; `None` unless both coordinates are non-decreasing.
     pub fn new(points: Vec<(f64, f64)>) -> Option<Self> {
-        let ok = points.windows(2).all(|w| w[1].0 > w[0].0 && w[1].1 >= w[0].1);
+        let ok = points
+            .windows(2)
+            .all(|w| w[1].0 > w[0].0 && w[1].1 >= w[0].1);
         ok.then_some(TimeMap { points })
     }
 

@@ -276,7 +276,13 @@ mod tests {
             |_| 215.0,
         );
         let (mut l, mut r) = (x.clone(), x);
-        u.note(0, FxNote::On { pitch: 60, velocity: 100 });
+        u.note(
+            0,
+            FxNote::On {
+                pitch: 60,
+                velocity: 100,
+            },
+        );
         u.process(&mut l, &mut r, None);
         let t = u.telemetry();
         let h = header(&t);

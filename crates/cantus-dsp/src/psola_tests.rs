@@ -46,7 +46,11 @@ fn released_it_is_the_input_delayed_bit_for_bit() {
     };
     for i in 0..l.len() {
         let (a, b) = s.tick(l[i], r[i], &c);
-        let (wl, wr) = if i >= lat { (l[i - lat], r[i - lat]) } else { (0.0, 0.0) };
+        let (wl, wr) = if i >= lat {
+            (l[i - lat], r[i - lat])
+        } else {
+            (0.0, 0.0)
+        };
         assert_eq!(a.to_bits(), wl.to_bits(), "left at {i}");
         assert_eq!(b.to_bits(), wr.to_bits(), "right at {i}");
     }
@@ -81,7 +85,13 @@ fn engaged_at_unity_it_reproduces_the_voice() {
 #[test]
 fn the_output_pitch_is_the_ratio() {
     let sr = 48_000.0;
-    for (f0, semis) in [(200.0f32, 3.0f32), (200.0, -5.0), (110.0, 7.0), (330.0, -12.0), (440.0, 1.0)] {
+    for (f0, semis) in [
+        (200.0f32, 3.0f32),
+        (200.0, -5.0),
+        (110.0, 7.0),
+        (330.0, -12.0),
+        (440.0, 1.0),
+    ] {
         let x = testkit::voice(sr, 0.8, Vowel::A, 0.5, |_| f0);
         let c = Control {
             period: sr / f0,
@@ -92,7 +102,10 @@ fn the_output_pitch_is_the_ratio() {
         let y = run(&x, sr, &c);
         let want = f0 * st(semis);
         let got = measured_f0(&y, sr, want);
-        assert!(cents(got, want).abs() < 2.0, "{f0} Hz {semis:+} st: {got} Hz, want {want}");
+        assert!(
+            cents(got, want).abs() < 2.0,
+            "{f0} Hz {semis:+} st: {got} Hz, want {want}"
+        );
     }
 }
 
@@ -127,10 +140,14 @@ fn the_formants_are_preserved_and_the_throat_moves_them() {
         );
         let tail = |v: &[f32]| v[v.len() / 4..].to_vec();
         let d_kept = envelope_distance(&tail(&x), f0, &tail(&kept), f0 * ratio, sr, 300.0, 4_000.0);
-        let d_moved = envelope_distance(&tail(&x), f0, &tail(&moved), f0 * ratio, sr, 300.0, 4_000.0);
+        let d_moved =
+            envelope_distance(&tail(&x), f0, &tail(&moved), f0 * ratio, sr, 300.0, 4_000.0);
         eprintln!("{semis:+} st: envelope distance kept {d_kept:.2} dB, moved {d_moved:.2} dB");
         assert!(d_kept < 3.0, "{semis:+} st: kept {d_kept} dB");
-        assert!(d_moved > d_kept + 2.0, "{semis:+} st: moved {d_moved} vs kept {d_kept}");
+        assert!(
+            d_moved > d_kept + 2.0,
+            "{semis:+} st: moved {d_moved} vs kept {d_kept}"
+        );
     }
 }
 
@@ -155,8 +172,13 @@ fn a_ratio_jump_makes_no_click() {
     }
     let d2 = |v: &[f32], i: usize| (v[i + 1] - 2.0 * v[i] + v[i - 1]).abs();
     let steady = (1_000..4_000).map(|i| d2(&x, i)).fold(0.0f32, f32::max);
-    let worst = (2_400..y.len() - 1).map(|i| d2(&y, i)).fold(0.0f32, f32::max);
-    assert!(worst < steady * 1.6, "click: {worst} against a steady {steady}");
+    let worst = (2_400..y.len() - 1)
+        .map(|i| d2(&y, i))
+        .fold(0.0f32, f32::max);
+    assert!(
+        worst < steady * 1.6,
+        "click: {worst} against a steady {steady}"
+    );
 }
 
 /// Engaging and releasing fade; after silence it comes to rest, exactly as new.
@@ -192,7 +214,10 @@ fn it_rests_exactly_after_silence() {
     b.skip(x.len() + n);
     for &v in &x {
         let (p, q) = (a.tick(v, v * 0.5, &on), b.tick(v, v * 0.5, &on));
-        assert_eq!((p.0.to_bits(), p.1.to_bits()), (q.0.to_bits(), q.1.to_bits()));
+        assert_eq!(
+            (p.0.to_bits(), p.1.to_bits()),
+            (q.0.to_bits(), q.1.to_bits())
+        );
     }
 }
 
@@ -263,8 +288,19 @@ fn offline_shifts_pitch_keeps_formants_and_stretches_time() {
     // Before the change (and the fade), the take itself.
     let fade = (FADE_S * sr) as usize + 2;
     let before = (cut as usize) - fade;
-    assert!(y[0][..before].iter().zip(&x).all(|(p, q)| p.to_bits() == q.to_bits()));
-    let d = envelope_distance(&x[(0.5 * sr) as usize..], f0, late, f0 * st(4.0), sr, 300.0, 4_000.0);
+    assert!(y[0][..before]
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
+    let d = envelope_distance(
+        &x[(0.5 * sr) as usize..],
+        f0,
+        late,
+        f0 * st(4.0),
+        sr,
+        300.0,
+        4_000.0,
+    );
     assert!(d < 3.0, "formants moved by {d} dB");
 
     // Half again as long, the pitch unchanged.
@@ -282,4 +318,3 @@ fn offline_shifts_pitch_keeps_formants_and_stretches_time() {
     // Deterministic.
     assert_eq!(render(&[&x], &a, &plan), y);
 }
-

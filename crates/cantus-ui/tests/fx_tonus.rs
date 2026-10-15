@@ -90,7 +90,11 @@ fn the_editor_paints_the_detected_note_its_target_and_its_cards() {
         "the display was fed: {}",
         a.fx.tonus.history.len()
     );
-    assert_eq!(a.fx.tonus.header.target, Some(59), "the held B3 is the target");
+    assert_eq!(
+        a.fx.tonus.header.target,
+        Some(59),
+        "the held B3 is the target"
+    );
 }
 
 /// The telemetry's columns are taken once each, through the counter's wrap, and the
@@ -172,7 +176,14 @@ fn more_shows_the_folded_settings() {
     assert!(!text.contains("humanise"), "folded at first");
     a.fx.tonus.more = true;
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0)).to_lowercase();
-    for want in ["humanise", "flex", "created vibrato", "throat", "a4", "keep"] {
+    for want in [
+        "humanise",
+        "flex",
+        "created vibrato",
+        "throat",
+        "a4",
+        "keep",
+    ] {
         assert!(text.contains(want), "missing {want:?} in {text}");
     }
 }
@@ -188,10 +199,7 @@ fn the_factory_presets_are_in_range_and_named() {
         "preset.tonus.throat_down",
         "preset.tonus.midi_lead",
     ] {
-        assert!(
-            tonus::FACTORY_PRESETS.iter().any(|p| p.0 == want),
-            "{want}"
-        );
+        assert!(tonus::FACTORY_PRESETS.iter().any(|p| p.0 == want), "{want}");
     }
     for (name, values) in tonus::FACTORY_PRESETS {
         assert!(cantus_ui::i18n::t(name) != *name, "{name} has no words");
@@ -235,7 +243,11 @@ fn the_demo_project_opens_and_plays_corrected() {
         p.strip(s).unwrap().effects[0].clone()
     };
     assert_eq!(tonus_on(0).spec.kind, EffectKind::AutoTune);
-    assert_eq!(tonus_on(2).midi_from, Some(p.tracks[3].id), "the MIDI voice hears the melody");
+    assert_eq!(
+        tonus_on(2).midi_from,
+        Some(p.tracks[3].id),
+        "the MIDI voice hears the melody"
+    );
     assert!(p.tracks[4].input.is_some(), "your voice has an input");
     assert_eq!(tonus_on(4).spec.kind, EffectKind::AutoTune);
     // Render the first voice alone, with and without Tonus.

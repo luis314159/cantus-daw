@@ -86,7 +86,8 @@ pub(super) fn show(
             let m = lo + i;
             let pc = m.rem_euclid(12);
             let top = graph.bottom() - (i + 1) as f32 * lane_h;
-            let band = Rect::from_min_max(pos2(graph.left(), top), pos2(graph.right(), top + lane_h));
+            let band =
+                Rect::from_min_max(pos2(graph.left(), top), pos2(graph.right(), top + lane_h));
             let target = on & (1 << pc) != 0;
             let bypass = by & (1 << pc) != 0;
             if is_black(pc) {
@@ -99,9 +100,23 @@ pub(super) fn show(
             }
             if bypass {
                 let y = band.center().y;
-                canvas::dashed(b, pos2(plot.left(), y), pos2(plot.right(), y), b.px(), ink.dim, 4.0 * k, 4.0 * k);
+                canvas::dashed(
+                    b,
+                    pos2(plot.left(), y),
+                    pos2(plot.right(), y),
+                    b.px(),
+                    ink.dim,
+                    4.0 * k,
+                    4.0 * k,
+                );
             }
-            b.hline(graph.left(), graph.right(), b.snap_mid(band.bottom()), b.px(), ink.grid);
+            b.hline(
+                graph.left(),
+                graph.right(),
+                b.snap_mid(band.bottom()),
+                b.px(),
+                ink.grid,
+            );
             if lane_h >= 11.0 * k {
                 let color = if target || bypass { ink.text } else { ink.dim };
                 let name = frame::tr(KEY_NAMES[pc as usize]);
@@ -118,7 +133,13 @@ pub(super) fn show(
                 );
             }
         }
-        b.vline(b.snap_mid(plot.left()), graph.top(), graph.bottom(), b.px(), ink.grid_strong);
+        b.vline(
+            b.snap_mid(plot.left()),
+            graph.top(),
+            graph.bottom(),
+            b.px(),
+            ink.grid_strong,
+        );
         // What was sung (dim) and what comes out (the hue).
         let len = st.history.len();
         let dx = plot.width() / HISTORY as f32;
@@ -137,7 +158,13 @@ pub(super) fn show(
             stroke(b, &mut pts, w, color);
         }
         // The panel.
-        b.vline(b.snap_mid(panel.left()), panel.top(), panel.bottom(), b.px(), ink.edge);
+        b.vline(
+            b.snap_mid(panel.left()),
+            panel.top(),
+            panel.bottom(),
+            b.px(),
+            ink.edge,
+        );
         readout(b, s, &ink, st, panel);
         canvas::edge_b(b, d, &ink);
     });
@@ -176,7 +203,11 @@ fn readout(b: &mut Brush, s: &Style, ink: &Ink, st: &State, r: Rect) {
                 None,
                 format_args!("{name}{oct}"),
             );
-            let warm = if dev.abs() > 15.0 { ink.danger } else { ink.text };
+            let warm = if dev.abs() > 15.0 {
+                ink.danger
+            } else {
+                ink.text
+            };
             canvas::tag(
                 b,
                 pos2(cx, row(0.38)),
@@ -188,7 +219,15 @@ fn readout(b: &mut Brush, s: &Style, ink: &Ink, st: &State, r: Rect) {
                 format_args!("{dev:+.0} ct"),
             );
             if h.on_bypass {
-                canvas::put_key(b, pos2(cx, row(0.52)), Align2::CENTER_CENTER, "tonus.bypassed", Role::Label, ink.dim, tk);
+                canvas::put_key(
+                    b,
+                    pos2(cx, row(0.52)),
+                    Align2::CENTER_CENTER,
+                    "tonus.bypassed",
+                    Role::Label,
+                    ink.dim,
+                    tk,
+                );
             } else if let Some(t) = h.target {
                 let tn = frame::tr(KEY_NAMES[t.rem_euclid(12) as usize]);
                 let to = t.div_euclid(12) - 1;
@@ -203,12 +242,37 @@ fn readout(b: &mut Brush, s: &Style, ink: &Ink, st: &State, r: Rect) {
                     format_args!("{tn}{to}"),
                 );
             } else {
-                canvas::put_key(b, pos2(cx, row(0.52)), Align2::CENTER_CENTER, "tonus.no_target", Role::Label, ink.dim, tk);
+                canvas::put_key(
+                    b,
+                    pos2(cx, row(0.52)),
+                    Align2::CENTER_CENTER,
+                    "tonus.no_target",
+                    Role::Label,
+                    ink.dim,
+                    tk,
+                );
             }
         }
         None => {
-            canvas::putf(b, pos2(cx, row(0.2)), Align2::CENTER_CENTER, Role::Hero, ink.dim, tk, None, format_args!("\u{2014}"));
-            canvas::put_key(b, pos2(cx, row(0.38)), Align2::CENTER_CENTER, "tonus.no_voice", Role::Label, ink.dim, tk);
+            canvas::putf(
+                b,
+                pos2(cx, row(0.2)),
+                Align2::CENTER_CENTER,
+                Role::Hero,
+                ink.dim,
+                tk,
+                None,
+                format_args!("\u{2014}"),
+            );
+            canvas::put_key(
+                b,
+                pos2(cx, row(0.38)),
+                Align2::CENTER_CENTER,
+                "tonus.no_voice",
+                Role::Label,
+                ink.dim,
+                tk,
+            );
         }
     }
     // The shift and its meter: ±100 cents, centred.

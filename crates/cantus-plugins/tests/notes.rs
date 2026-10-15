@@ -65,8 +65,13 @@ fn through_dsp() -> Vec<f32> {
 /// A host's event list holding notes, in either dialect.
 struct Notes {
     clap: clap_input_events,
+    // Boxed: `clap.ctx` points at the list, and the list at each event, none of which may
+    // move while the plug-in reads them.
+    #[allow(clippy::box_collection)]
     _heads: Box<Vec<*const clap_event_header>>,
+    #[allow(clippy::vec_box)]
     _notes: Vec<Box<clap_event_note>>,
+    #[allow(clippy::vec_box)]
     _midi: Vec<Box<clap_event_midi>>,
 }
 
@@ -80,7 +85,11 @@ impl Notes {
                 let e = Box::new(clap_event_midi {
                     header: header::<clap_event_midi>(t, CLAP_EVENT_MIDI),
                     port_index: 0,
-                    data: [if on { 0x90 } else { 0x80 }, pitch, if on { 100 } else { 0 }],
+                    data: [
+                        if on { 0x90 } else { 0x80 },
+                        pitch,
+                        if on { 100 } else { 0 },
+                    ],
                 });
                 heads.push(&e.header);
                 cm.push(e);

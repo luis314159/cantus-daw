@@ -83,7 +83,12 @@ const SCALE_NAMES: [&str; 13] = [
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     (
         "preset.tonus.natural",
-        &[("speed", 80.0), ("human", 0.5), ("amount", 0.85), ("flex", 15.0)],
+        &[
+            ("speed", 80.0),
+            ("human", 0.5),
+            ("amount", 0.85),
+            ("flex", 15.0),
+        ],
     ),
     ("preset.tonus.tight", &[("speed", 15.0), ("human", 0.2)]),
     ("preset.tonus.hard", &[("speed", 0.0)]),
@@ -91,7 +96,10 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         "preset.tonus.hard_vibrato",
         &[("speed", 0.0), ("vdepth", 30.0)],
     ),
-    ("preset.tonus.throat_up", &[("speed", 40.0), ("throat", 3.0)]),
+    (
+        "preset.tonus.throat_up",
+        &[("speed", 40.0), ("throat", 3.0)],
+    ),
     (
         "preset.tonus.throat_down",
         &[("speed", 40.0), ("throat", -3.0)],
@@ -101,7 +109,10 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         "preset.tonus.major_soft",
         &[("scale", 1.0), ("speed", 50.0), ("human", 0.4)],
     ),
-    ("preset.tonus.octave_down", &[("trans", -12.0), ("speed", 30.0)]),
+    (
+        "preset.tonus.octave_down",
+        &[("trans", -12.0), ("speed", 30.0)],
+    ),
 ];
 
 /// What the editor remembers between frames.
@@ -254,8 +265,8 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         0.0
     };
     let area = g.rest();
-    let row_a = (area.height() - row_b - row_c - if st.more { 2.0 } else { 1.0 } * gap)
-        .max(160.0 * k);
+    let row_a =
+        (area.height() - row_b - row_c - if st.more { 2.0 } else { 1.0 } * gap).max(160.0 * k);
 
     // Row A: the pitch display and the detected note.
     let ra: Vec<Rect> = g.row(row_a, &[1.0]).collect();
@@ -288,14 +299,21 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
     );
     let rb: Vec<Rect> = g.row(row_b, &fracs(&wb)).collect();
     correction_card(host, ui, &pitch_s, rb[0], &ss);
-    let _ = controls::card(ui, &pitch_s, rb[1], Src::Key("tonus.card.notes"), None, |ui, cr| {
-        let size = vec2(
-            (cr.body.width() - (NOTES_COLUMN + 4.0) * k).max(120.0 * k),
-            cr.body.height(),
-        );
-        geo.keys = keys::show(host, ui, &pitch_s, size, &ss, &st.header);
-        notes_column(host, st, ui, &pitch_s, &ss);
-    });
+    let _ = controls::card(
+        ui,
+        &pitch_s,
+        rb[1],
+        Src::Key("tonus.card.notes"),
+        None,
+        |ui, cr| {
+            let size = vec2(
+                (cr.body.width() - (NOTES_COLUMN + 4.0) * k).max(120.0 * k),
+                cr.body.height(),
+            );
+            geo.keys = keys::show(host, ui, &pitch_s, size, &ss, &st.header);
+            notes_column(host, st, ui, &pitch_s, &ss);
+        },
+    );
     st.geometry = Some(geo);
 
     // Row C, folded away until asked for.
@@ -680,7 +698,9 @@ pub fn demo_signal(seconds: f32, sr: f32) -> Vec<f32> {
     let off = |hz: f32, c: f32| hz * cantus_dsp::math::exp2(c / 1200.0);
     let mut x = Vec::new();
     let gap = |x: &mut Vec<f32>, s: f32| x.extend(std::iter::repeat_n(0.0, (s * sr) as usize));
-    x.extend(testkit::voice(sr, 0.45, Vowel::A, 0.4, |_| off(220.0, 30.0)));
+    x.extend(testkit::voice(sr, 0.45, Vowel::A, 0.4, |_| {
+        off(220.0, 30.0)
+    }));
     gap(&mut x, 0.05);
     let vib = testkit::vibrato(off(261.63, -35.0), 45.0, 5.5);
     x.extend(testkit::voice(sr, 0.55, Vowel::I, 0.4, &vib));
@@ -715,7 +735,13 @@ pub fn demo_feed(app: &mut CantusApp) {
     // With a MIDI source, an A minor chord held through the line.
     if cantus_engine::fx::tonus::settings(&spec).source != Source::Scale {
         for pitch in [57u8, 60, 64] {
-            unit.note(0, cantus_engine::FxNote::On { pitch, velocity: 100 });
+            unit.note(
+                0,
+                cantus_engine::FxNote::On {
+                    pitch,
+                    velocity: 100,
+                },
+            );
         }
     }
     let x = demo_signal(2.35, sr);

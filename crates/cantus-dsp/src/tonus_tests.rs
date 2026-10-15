@@ -31,7 +31,9 @@ fn line() -> Vec<f32> {
     let off = |hz: f32, cents: f32| hz * math::exp2(cents / 1200.0);
     x.extend(testkit::voice(SR, 0.5, Vowel::A, 0.4, |_| off(220.0, 35.0)));
     x.extend(testkit::sibilant(SR, 0.08, 0.2, 4));
-    x.extend(testkit::voice(SR, 0.5, Vowel::I, 0.4, |_| off(246.94, -30.0)));
+    x.extend(testkit::voice(SR, 0.5, Vowel::I, 0.4, |_| {
+        off(246.94, -30.0)
+    }));
     x.extend(std::iter::repeat_n(0.0, 2_400));
     let vib = testkit::vibrato(off(196.0, 5.0), 40.0, 5.5);
     x.extend(testkit::voice(SR, 0.6, Vowel::A, 0.4, &vib));
@@ -113,7 +115,11 @@ fn speed_zero_is_the_hard_effect_with_no_warble() {
         ..TonusSettings::default()
     });
     let (y, _) = run(&mut t, &x, &x, 256);
-    let notes = [(0.1f32, 0.45f32, 57.0f32), (0.7, 1.03, 59.0), (1.25, 1.7, 55.0)];
+    let notes = [
+        (0.1f32, 0.45f32, 57.0f32),
+        (0.7, 1.03, 59.0),
+        (1.25, 1.7, 55.0),
+    ];
     let c = contour(&y);
     for (a, b, want) in notes {
         let errs: Vec<f32> = c
@@ -129,7 +135,10 @@ fn speed_zero_is_the_hard_effect_with_no_warble() {
             errs.len()
         );
         // Below what an ear hears as out of tune or wobbling (5 cents) everywhere.
-        assert!(worst < 5.0 && mean < 3.0, "note {want}: {mean} / {worst} cents off");
+        assert!(
+            worst < 5.0 && mean < 3.0,
+            "note {want}: {mean} / {worst} cents off"
+        );
     }
 }
 
@@ -161,7 +170,11 @@ fn a_natural_speed_corrects_with_no_click() {
     let (lo, hi) = vib
         .iter()
         .fold((f32::MAX, f32::MIN), |(a, b), m| (a.min(*m), b.max(*m)));
-    assert!((hi - lo) * 100.0 > 40.0, "vibrato flattened to {} cents", (hi - lo) * 100.0);
+    assert!(
+        (hi - lo) * 100.0 > 40.0,
+        "vibrato flattened to {} cents",
+        (hi - lo) * 100.0
+    );
     // No click: the second difference stays within the input's own.
     let d2 = |v: &[f32], i: usize| (v[i + 1] - 2.0 * v[i] + v[i - 1]).abs();
     let own = (1..x.len() - 1).map(|i| d2(&x, i)).fold(0.0f32, f32::max);
@@ -184,7 +197,10 @@ fn a_scale_pulls_to_its_notes() {
     });
     let (y, _) = run(&mut t, &x, &x, 512);
     let got = measured_f0(&y[y.len() / 2..], SR, 196.0);
-    assert!((1200.0 * math::log2(got / 196.0)).abs() < 3.0, "{got} Hz, want G3");
+    assert!(
+        (1200.0 * math::log2(got / 196.0)).abs() < 3.0,
+        "{got} Hz, want G3"
+    );
     // Remove G: it goes to F.
     let mut notes = [NoteState::Scale; 12];
     notes[7] = NoteState::Remove;
@@ -196,7 +212,10 @@ fn a_scale_pulls_to_its_notes() {
     });
     let (y, _) = run(&mut t, &x, &x, 512);
     let got = measured_f0(&y[y.len() / 2..], SR, 174.61);
-    assert!((1200.0 * math::log2(got / 174.61)).abs() < 3.0, "{got} Hz, want F3");
+    assert!(
+        (1200.0 * math::log2(got / 174.61)).abs() < 3.0,
+        "{got} Hz, want F3"
+    );
 }
 
 #[test]
@@ -207,7 +226,7 @@ fn choose_skips_removed_notes_keeps_its_note_and_flags_bypass() {
     let a = resolve(Scale::Major, 0, &notes);
     assert_eq!(choose(61.4, &a, None), Some((62, false))); // C#+40 → D
     assert_eq!(choose(64.2, &a, None), Some((64, true))); // E is on bypass
-    // Hysteresis: at 61.04, D (62) is 0.96 away and C (60) 1.04: keep C if current.
+                                                          // Hysteresis: at 61.04, D (62) is 0.96 away and C (60) 1.04: keep C if current.
     assert_eq!(choose(61.04, &a, Some(60)), Some((60, false)));
     assert_eq!(choose(61.04, &a, None), Some((62, false)));
     let none = resolve(Scale::Major, 0, &[NoteState::Remove; 12]);
@@ -225,7 +244,7 @@ fn midi_targets_follow_notes_to_the_sample() {
         ..TonusSettings::default()
     };
     let on_at = 19_211usize; // inside a voiced stretch, not on a hop
-    // Sample by sample: no target before, a target from that sample on.
+                             // Sample by sample: no target before, a target from that sample on.
     let mut t = tonus(s);
     let (mut l, mut r) = (x.clone(), x.clone());
     for i in 0..on_at + 10 {
@@ -258,7 +277,9 @@ fn midi_targets_follow_notes_to_the_sample() {
     for b in [1usize, 37, 64, 4_096] {
         let y = render(b);
         assert!(
-            y.iter().zip(&reference).all(|(p, q)| p.to_bits() == q.to_bits()),
+            y.iter()
+                .zip(&reference)
+                .all(|(p, q)| p.to_bits() == q.to_bits()),
             "block {b}"
         );
     }
@@ -339,7 +360,10 @@ fn the_throat_moves_formants_not_pitch() {
     let (y, _) = run(&mut t, &x, &x, 256);
     let half = y.len() / 2;
     let got = measured_f0(&y[half..], SR, f0);
-    assert!((1200.0 * math::log2(got / f0)).abs() < 3.0, "pitch moved: {got}");
+    assert!(
+        (1200.0 * math::log2(got / f0)).abs() < 3.0,
+        "pitch moved: {got}"
+    );
     let d = testkit::envelope_distance(&x[half..], f0, &y[half..], f0, SR, 300.0, 4_000.0);
     assert!(d > 2.0, "the throat did not move the formants ({d} dB)");
 }

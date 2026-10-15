@@ -8,11 +8,11 @@ use super::{copy_wstr, read_wstr, timer};
 use crate::desc::Descriptor;
 use crate::ftz::DenormalGuard;
 use crate::instance::{push_note, NoteIn, ParamEvent, Processor, Shared, NOTE_CAPACITY};
-use cantus_engine::FxNote;
 use crate::params::{Param, Role};
 use ::vst3::Steinberg::Vst::*;
 use ::vst3::Steinberg::*;
 use ::vst3::{Class, ComRef};
+use cantus_engine::FxNote;
 use std::cell::{Cell, UnsafeCell};
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -167,9 +167,9 @@ impl Plugin {
                 }
                 t if t == Event_::EventTypes_::kNoteOffEvent as u32 => {
                     let n = e.__field0.noteOff;
-                    (0..128)
-                        .contains(&n.pitch)
-                        .then_some(FxNote::Off { pitch: n.pitch as u8 })
+                    (0..128).contains(&n.pitch).then_some(FxNote::Off {
+                        pitch: n.pitch as u8,
+                    })
                 }
                 _ => None,
             };

@@ -117,8 +117,16 @@ fn without_tonus(p: &Project) -> Project {
 /// `out` is `reference` exactly `LATENCY` frames later (interleaved stereo).
 fn assert_delayed(reference: &[f32], out: &[f32], what: &str) {
     let shift = 2 * LATENCY;
-    assert!(out[..shift].iter().all(|x| *x == 0.0), "{what}: sound before the latency");
-    assert_null(&reference[..reference.len() - shift], &out[shift..], 0.0, what);
+    assert!(
+        out[..shift].iter().all(|x| *x == 0.0),
+        "{what}: sound before the latency"
+    );
+    assert_null(
+        &reference[..reference.len() - shift],
+        &out[shift..],
+        0.0,
+        what,
+    );
 }
 
 #[test]
@@ -127,7 +135,8 @@ fn the_unit_reports_its_latency() {
     let (mut p, _, _) = project(dir.path());
     let slot = support::strip_of(&mut p, 1).effects[0].clone();
     assert_eq!(EffectUnit::new(&slot, SR as f32).latency(), LATENCY);
-    assert!(LATENCY <= 144, "the owner's target: under 3 ms at 48 kHz");
+    // The owner's target: under 3 ms at 48 kHz.
+    const _: () = assert!(LATENCY <= 144);
 }
 
 /// The nulls through the whole engine: the dry mix (voice and synth), later by exactly
@@ -172,7 +181,12 @@ fn the_render_does_not_depend_on_the_block_size_while_it_corrects() {
         "the voice is corrected"
     );
     for block in [1usize, 37, 64, 4_096] {
-        assert_null(&reference, &render_with(&p, block), 0.0, &format!("block {block}"));
+        assert_null(
+            &reference,
+            &render_with(&p, block),
+            0.0,
+            &format!("block {block}"),
+        );
     }
 }
 
@@ -238,14 +252,22 @@ fn midi_targets_come_from_another_tracks_notes() {
     let pitch_at = |from: f32, to: f32| -> Vec<f32> {
         a.frames
             .iter()
-            .filter(|f| f.voiced && f.centre >= (from * SR as f32) as f64 && f.centre < (to * SR as f32) as f64)
+            .filter(|f| {
+                f.voiced
+                    && f.centre >= (from * SR as f32) as f64
+                    && f.centre < (to * SR as f32) as f64
+            })
             .map(|f| hz_to_midi(f.f0))
             .collect()
     };
     let mean = |v: &[f32]| v.iter().sum::<f32>() / v.len().max(1) as f32;
     // Beat 0 to 1 (0.0–0.5 s): no note held, the voice as sung (G3 + 30 cents).
     let before = pitch_at(0.1, 0.45);
-    assert!((mean(&before) - 55.30).abs() < 0.05, "before: {}", mean(&before));
+    assert!(
+        (mean(&before) - 55.30).abs() < 0.05,
+        "before: {}",
+        mean(&before)
+    );
     // Beat 1 to 2 (0.5–1.0 s): G held: G3.
     let on_g = pitch_at(0.56, 0.88);
     assert!((mean(&on_g) - 55.0).abs() < 0.03, "on G: {}", mean(&on_g));
@@ -299,10 +321,17 @@ fn monitoring_through_it_is_late_by_its_latency_only() {
     });
     let g = (num / den) as f32;
     assert!(g > 0.3 && g <= 1.0, "gain {g}");
-    assert!(out[..LATENCY].iter().all(|v| *v == 0.0), "heard before the latency");
+    assert!(
+        out[..LATENCY].iter().all(|v| *v == 0.0),
+        "heard before the latency"
+    );
     for i in LATENCY..out.len() {
         let want = x[i - LATENCY] * g;
-        assert!((out[i] - want).abs() < 1e-6, "sample {i}: {} against {want}", out[i]);
+        assert!(
+            (out[i] - want).abs() < 1e-6,
+            "sample {i}: {} against {want}",
+            out[i]
+        );
     }
 }
 

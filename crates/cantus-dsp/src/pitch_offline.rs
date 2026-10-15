@@ -1,7 +1,9 @@
 //! The offline tracker: a whole take in, f0 per hop smoothed by a Viterbi pass (pYIN-style),
 //! voicing, level, sibilance, and the epochs.
 
-use super::{fine_period_centred, level_and_sibilance, Design, PitchFrame, Yin, F_MAX, F_MIN, GATE_DB};
+use super::{
+    fine_period_centred, level_and_sibilance, Design, PitchFrame, Yin, F_MAX, F_MIN, GATE_DB,
+};
 use crate::math;
 
 /// The offline hop, in streaming hops (256 samples at 48 kHz: 5.3 ms).
@@ -145,16 +147,29 @@ pub fn analyse(x: &[f32], sample_rate: f32) -> Analysis {
         }
         let best = (0..cs.n).max_by(|&a, &b| cs.prob[a].total_cmp(&cs.prob[b]).then(b.cmp(&a)));
         let global = yin.global_min(tau_min, tau_max);
-        let tau = best.map(|k| cs.tau[k]).unwrap_or(yin.refine(global, tau_max));
+        let tau = best
+            .map(|k| cs.tau[k])
+            .unwrap_or(yin.refine(global, tau_max));
         let silent = level_db <= -120.0;
         let period = if silent {
             0.0
         } else {
-            fine_period_centred(&lin_fine, fine_half, wf, tau * d as f32, d + 1, &mut scratch)
+            fine_period_centred(
+                &lin_fine,
+                fine_half,
+                wf,
+                tau * d as f32,
+                d + 1,
+                &mut scratch,
+            )
         };
         frames.push(PitchFrame {
             centre: c as f64,
-            f0: if period > 0.0 { design.sample_rate / period } else { 0.0 },
+            f0: if period > 0.0 {
+                design.sample_rate / period
+            } else {
+                0.0
+            },
             period,
             voiced: false,
             aperiodicity: yin.cmnd[(tau.round() as usize).clamp(1, tau_max)],
@@ -180,8 +195,14 @@ pub fn analyse(x: &[f32], sample_rate: f32) -> Analysis {
         let tau = near.map(|k| cs.tau[k]).unwrap_or(fs / target);
         let c = (i * hop) as i64;
         fill(&mut lin_fine, x, c + fine_half as i64);
-        let period =
-            fine_period_centred(&lin_fine, fine_half, wf, tau * d as f32, d + 1, &mut scratch);
+        let period = fine_period_centred(
+            &lin_fine,
+            fine_half,
+            wf,
+            tau * d as f32,
+            d + 1,
+            &mut scratch,
+        );
         let f = &mut frames[i];
         f.voiced = true;
         f.period = period;
@@ -312,7 +333,7 @@ fn bin_hz(b: usize) -> f32 {
 }
 
 fn hz_bin(hz: f32) -> Option<usize> {
-    if !(hz > 0.0) {
+    if hz.is_nan() || hz <= 0.0 {
         return None;
     }
     let b = (1200.0 * math::log2(hz / F_MIN) / BIN_CENTS).round();
@@ -441,7 +462,7 @@ fn epochs(x: &[f32], dec: &[f32], design: &Design, a: &Analysis) -> Vec<Epoch> {
             p + (q - p) * frac
         };
         let p0 = period_at(start);
-        if !(p0 > 1.0) {
+        if p0.is_nan() || p0 <= 1.0 {
             continue;
         }
         // The anchor: the largest sample in the first period.
@@ -456,7 +477,10 @@ fn epochs(x: &[f32], dec: &[f32], design: &Design, a: &Analysis) -> Vec<Epoch> {
         let mut mark = m as f64;
         while mark <= end {
             let p = period_at(mark);
-            out.push(Epoch { at: mark, period: p });
+            out.push(Epoch {
+                at: mark,
+                period: p,
+            });
             let pred = mark + p as f64;
             if pred > end {
                 break;
