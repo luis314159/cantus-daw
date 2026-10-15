@@ -4,6 +4,10 @@
 //! thread, and — as the standard promises — never `setActive`/`setupProcessing` while
 //! `process` runs. The processor half lives in an `UnsafeCell` touched only there.
 
+// The SDK's untyped enums are `int` on Windows and `unsigned int` elsewhere, so the casts
+// between them and the event and context fields are no-ops here and needed there.
+#![allow(clippy::unnecessary_cast)]
+
 use super::{copy_wstr, read_wstr, timer};
 use crate::desc::Descriptor;
 use crate::ftz::DenormalGuard;
