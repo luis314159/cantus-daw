@@ -401,6 +401,7 @@ pub fn param_row(
 ) {
     let row = sh.row();
     sh.label(row.label, key, false);
+    crate::kit::automate::probe::note(key, true);
     let name = sheet::name(sh.fmt.tr(key));
     let base = if gain {
         sheet::gain_pos(v)

@@ -579,15 +579,21 @@ fn macro_band(
             .map(str::to_string)
             .unwrap_or_else(|| tf("inst.macro_n", &[("n", &(m + 1).to_string())]));
         let mut v = spec.get(key);
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let w = wire(app, track, key, &mut v, (0.0, 1.0, false), s, &mut rings);
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(knob_rect));
-        let r = Param::new(&mut v, 0.0..=1.0, 0.0)
+        let (r, choice) = Param::new(&mut v, 0.0..=1.0, 0.0)
             .size(KnobSize::L)
             .name(&name)
             .style(*s)
+            .rings(&rings[..w.n])
+            .automation(w.automated)
+            .modulation(w.offer)
             .format(|v, b| {
                 let _ = write!(b, "{:.0} %", v * 100.0);
             })
-            .show(&mut child);
+            .show_full(&mut child);
+        wired(app, &w, choice, r.rect);
         if r.changed() {
             app.set_inst_value(track, key, v, true);
         }
@@ -838,6 +844,72 @@ pub fn knob(
     param(app, ui, track, spec, key, s, size, false)
 }
 
+/// What Cantus adds to an instrument's knob on parameter `key` (ADR 0027, 0057): read by
+/// [`wire`] before the knob is drawn, answered by [`wired`] after. Every instrument
+/// editor's knobs go through the pair (review 1), so none misses *Modulate…*, the dropped
+/// handle, the Alt-drag depth or the automation menu.
+pub struct Wire {
+    pub target: cantus_core::AutoTarget,
+    /// A clip drives it.
+    pub automated: bool,
+    pub offer: crate::kit::automate::ModOffer,
+    /// How many of the rings are the modulators'.
+    pub n: usize,
+}
+
+/// The knob's automation and modulation before it is drawn: `v` becomes what a clip gives
+/// it where the song is, `rings` the modulators' rings (`Wire::n` of them).
+pub fn wire(
+    app: &CantusApp,
+    track: TrackId,
+    key: &str,
+    v: &mut f32,
+    (min, max, log): (f32, f32, bool),
+    s: &Style,
+    rings: &mut [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
+) -> Wire {
+    let automated = app.automated_value_where(|x| {
+        matches!(x, cantus_core::AutoTarget::Instrument { track: t, key: k } if *t == track && k == key)
+    });
+    if let Some(Some(av)) = automated {
+        *v = av;
+    }
+    let target = cantus_core::AutoTarget::Instrument {
+        track,
+        key: key.to_string(),
+    };
+    let taper = if log {
+        crate::widgets::knob::Taper::Log
+    } else {
+        crate::widgets::knob::Taper::Linear
+    };
+    let base = crate::widgets::knob::pos_of(*v, min, max, taper);
+    let (offer, n) = app.mod_offer(&target, base, s, rings);
+    Wire {
+        target,
+        automated: automated.is_some(),
+        offer,
+        n,
+    }
+}
+
+/// What the knob's menu or modulation asked, answered.
+pub fn wired(
+    app: &mut CantusApp,
+    w: &Wire,
+    choice: Option<crate::kit::automate::Choice>,
+    rect: egui::Rect,
+) {
+    use crate::kit::automate::Choice;
+    match choice {
+        Some(Choice::Automate) => app.automate(w.target.clone()),
+        Some(
+            c @ (Choice::Modulate | Choice::Depth(_) | Choice::DepthDone | Choice::Connect(_)),
+        ) => app.modulation_choice(&w.target, c, rect),
+        _ => {}
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn param(
     app: &mut CantusApp,
@@ -864,56 +936,34 @@ fn param(
     let mut rings = rings_for(spec, key, s);
     let name = t(info.label_key);
     let unit = info.unit;
-    // Automated (ADR 0027): the knob shows what the clip gives it where the song is, and
-    // wears the mark; its menu creates or opens the clip.
-    let automated = app.automated_value_where(|x| {
-        matches!(x, cantus_core::AutoTarget::Instrument { track: t, key: k } if *t == track && k == key)
-    });
-    if let Some(Some(av)) = automated {
-        v = av;
-    }
-    // Modulators on it (ADR 0057): their rings after the instrument's own, the live dot.
-    let target = cantus_core::AutoTarget::Instrument {
-        track,
-        key: key.to_string(),
-    };
+    // Automated (ADR 0027) and modulated (ADR 0057): the clip's value where the song is,
+    // the modulators' rings after the instrument's own, the menu.
     let mut mod_rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
-    let base = crate::widgets::knob::pos_of(
-        v,
-        info.min,
-        info.max,
-        if info.logarithmic {
-            crate::widgets::knob::Taper::Log
-        } else {
-            crate::widgets::knob::Taper::Linear
-        },
+    let w = wire(
+        app,
+        track,
+        key,
+        &mut v,
+        (info.min, info.max, info.logarithmic),
+        s,
+        &mut mod_rings,
     );
-    let (offer, n) = app.mod_offer(&target, base, s, &mut mod_rings);
-    rings.extend_from_slice(&mod_rings[..n]);
+    rings.extend_from_slice(&mod_rings[..w.n]);
     let mut p = Param::new(&mut v, info.min..=info.max, info.default)
         .size(size)
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
         .rings(&rings)
-        .automation(automated.is_some())
-        .modulation(offer);
+        .automation(w.automated)
+        .modulation(w.offer);
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
     let (r, choice) = p
         .format(move |v, b| write_readout(v, unit, b))
         .show_full(ui);
-    match choice {
-        Some(crate::kit::automate::Choice::Automate) => app.automate(target),
-        Some(
-            c @ (crate::kit::automate::Choice::Modulate
-            | crate::kit::automate::Choice::Depth(_)
-            | crate::kit::automate::Choice::DepthDone
-            | crate::kit::automate::Choice::Connect(_)),
-        ) => app.modulation_choice(&target, c, r.rect),
-        _ => {}
-    }
+    wired(app, &w, choice, r.rect);
     if info.stepped {
         if r.dragged() {
             ui.data_mut(|d| d.insert_temp(pending, v));
@@ -1121,14 +1171,29 @@ pub fn matrix(
             }
             let mut depth = amount;
             let name = t("mod.amount");
-            let r = Param::new(&mut depth, -1.0..=1.0, 0.0)
+            // A slot's depth is a parameter too: automated and modulated (ADR 0057).
+            let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+            let w = wire(
+                app,
+                track,
+                k.amt,
+                &mut depth,
+                (-1.0, 1.0, false),
+                s,
+                &mut rings,
+            );
+            let (r, choice) = Param::new(&mut depth, -1.0..=1.0, 0.0)
                 .size(KnobSize::S)
                 .name(&name)
                 .style(*s)
+                .rings(&rings[..w.n])
+                .automation(w.automated)
+                .modulation(w.offer)
                 .format(|v, b| {
                     let _ = write!(b, "{:+.0} %", v * 100.0);
                 })
-                .show(ui);
+                .show_full(ui);
+            wired(app, &w, choice, r.rect);
             if r.changed() {
                 app.set_inst_value(track, k.amt, depth, true);
             }

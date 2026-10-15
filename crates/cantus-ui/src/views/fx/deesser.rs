@@ -2015,7 +2015,7 @@ fn ds_cell(
     if let Some(f) = format {
         c = c.format(f);
     }
-    let out = c.show(ui, s);
+    let out = c.show_in(ui, s, host, key);
     if let Some(mut v) = out.changed {
         if matches!(key, "lo" | "hi") {
             let other = host.spec().get(if key == "lo" { "hi" } else { "lo" });

@@ -18,6 +18,36 @@ use super::text::Src;
 use super::{Brush, Fill, Style};
 use egui::{Pos2, Rect, Response, Ui};
 
+/// Every parameter control drawn on this thread while a probe runs (review 1): its name and
+/// whether it offered modulation. A test opens each editor with the probe on and finds any
+/// control that does not offer *Modulate…*; off (the app), it costs a flag read.
+pub mod probe {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static SEEN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
+    }
+
+    /// Start recording (what was recorded before is dropped).
+    pub fn start() {
+        SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// Stop recording and hand back what was drawn.
+    pub fn take() -> Vec<(String, bool)> {
+        SEEN.with(|s| s.borrow_mut().take()).unwrap_or_default()
+    }
+
+    /// A parameter control was drawn, `modulated` when it offered modulation.
+    pub fn note(name: &str, modulated: bool) {
+        SEEN.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push((name.to_string(), modulated));
+            }
+        });
+    }
+}
+
 /// What a parameter's menu offers.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Offer {

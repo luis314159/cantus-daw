@@ -815,7 +815,7 @@ fn room_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, vi
             let out = controls::Cell::param(info, spec.get("space"))
                 .size(Size::L)
                 .format(&room_pill)
-                .show(ui, s);
+                .show_in(ui, s, host, "space");
             if let Some(v) = out.changed {
                 let ratio = view.s.decay_s / natural_decay(view.s.space);
                 let decay = (natural_decay(v) * ratio).clamp(0.1, 30.0);
@@ -876,7 +876,7 @@ fn predelay_card(
             let out = controls::Cell::param(info, spec.get("predelay"))
                 .size(Size::M)
                 .format(&ms_pill)
-                .show(ui, s);
+                .show_in(ui, s, host, "predelay");
             if let Some(v) = out.changed {
                 host.apply(
                     &[("predelay", Some(v)), ("sync", Some(0.0))],

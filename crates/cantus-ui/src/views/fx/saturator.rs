@@ -594,7 +594,7 @@ fn drive_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, s
                     .label(Src::Key(CHAR_KEYS[model]))
                     .name(frame::tr(CHAR_KEYS[model]))
                     .format(&pct_pill)
-                    .show(ui, s);
+                    .show_in(ui, s, host, "char");
                 if let Some(v) = out.changed {
                     host.set("char", v, Some("char"));
                 }

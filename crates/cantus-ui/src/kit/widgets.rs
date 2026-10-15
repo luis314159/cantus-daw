@@ -65,6 +65,9 @@ pub struct Param<'a, F = fn(f32, &mut String)> {
     rings: &'a [(f32, egui::Color32)],
     /// The parameter's own menu on a right-click (ADR 0027), and whether a clip drives it.
     offer: Option<super::automate::Offer>,
+    /// A number that is no parameter of anything (a drum pad's field): nothing can automate
+    /// or modulate it, and the probe passes it by.
+    plain: bool,
 }
 
 impl<'a> Param<'a> {
@@ -84,6 +87,7 @@ impl<'a> Param<'a> {
             style: None,
             rings: &[],
             offer: None,
+            plain: false,
         }
     }
 
@@ -103,6 +107,7 @@ impl<'a> Param<'a> {
             style: self.style,
             rings: self.rings,
             offer: self.offer,
+            plain: self.plain,
         }
     }
 }
@@ -151,6 +156,12 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
     /// It can be modulated (ADR 0057): *Modulate…* in its menu, a modulator's handle
     /// dropped on it, Alt+drag (or a mapping modulator's drag) for the depth, the live dot.
     /// Call after [`Self::automation`] or alone.
+    /// A number that is no parameter (see the field): the modulation probe passes it by.
+    pub fn plain(mut self) -> Self {
+        self.plain = true;
+        self
+    }
+
     pub fn modulation(mut self, m: super::automate::ModOffer) -> Self {
         let mut o = self.offer.unwrap_or_default();
         o.modulation = Some(m);
@@ -165,6 +176,20 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
     /// [`Param::show`], with what was chosen in the parameter's menu. A reset is done
     /// here (the value goes to its default and the response says it changed).
     pub fn show_full(self, ui: &mut Ui) -> (Response, Option<super::automate::Choice>) {
+        if !self.plain {
+            super::automate::probe::note(
+                if self.name.is_empty() {
+                    match self.label {
+                        Some(Src::Key(k)) => k,
+                        Some(Src::Str(t)) => t,
+                        None => "",
+                    }
+                } else {
+                    self.name
+                },
+                self.offer.is_some_and(|o| o.modulation.is_some()),
+            );
+        }
         let s = self.style.unwrap_or_else(Style::current);
         let size = if self.label.is_some() {
             cell::size(self.size) * s.k

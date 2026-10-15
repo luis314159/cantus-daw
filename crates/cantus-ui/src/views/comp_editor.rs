@@ -1477,7 +1477,7 @@ fn engine_card(
             if let Some(f) = fmt {
                 c = c.format(f);
             }
-            let out = c.show(ui, s);
+            let out = c.show_in(ui, s, host, key);
             if let Some(v) = out.changed {
                 set_engine(host, key, v, true);
             }
@@ -1641,7 +1641,7 @@ fn ratio_cell(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Styl
     let out = controls::Cell::param(info, shown)
         .size(Size::M)
         .format(&ratio_pill)
-        .show(ui, s);
+        .show_in(ui, s, host, "ratio");
     if let Some(v) = out.changed {
         let free = ui.input(|i| i.modifiers.shift);
         st.ratio_drag = out.resp.dragged().then_some(v);

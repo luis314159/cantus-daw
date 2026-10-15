@@ -220,10 +220,21 @@ fn bound(
         return ui.allocate_rect(rect, Sense::hover());
     };
     let mut v = spec.get(key);
-    let rings: Vec<(f32, Color32)> = connections(spec)
+    let mut rings: Vec<(f32, Color32)> = connections(spec)
         .filter(|c| c.dst == key && c.on)
         .map(|c| (c.amount, s.t.hue(source_family(c.src))))
         .collect();
+    let mut mod_rings = [(0.0, Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let w = crate::views::inst::frame::wire(
+        app,
+        track,
+        key,
+        &mut v,
+        (info.min, info.max, info.logarithmic),
+        s,
+        &mut mod_rings,
+    );
+    rings.extend_from_slice(&mod_rings[..w.n]);
     let name = t(info.label_key);
     let unit = info.unit;
     let mut child = ui.new_child(
@@ -236,11 +247,16 @@ fn bound(
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
-        .rings(&rings);
+        .rings(&rings)
+        .automation(w.automated)
+        .modulation(w.offer);
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
-    let r = p.format(move |v, b| fmt.write(v, unit, b)).show(&mut child);
+    let (r, choice) = p
+        .format(move |v, b| fmt.write(v, unit, b))
+        .show_full(&mut child);
+    crate::views::inst::frame::wired(app, &w, choice, r.rect);
     if r.changed() {
         let v = if info.stepped { v.round() } else { v };
         app.set_inst_value(track, key, v, true);

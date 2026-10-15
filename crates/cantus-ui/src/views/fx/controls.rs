@@ -219,7 +219,55 @@ impl<'a> Cell<'a> {
         }
     }
 
+    /// [`Cell::show`] with what Cantus adds to every parameter (ADR 0027, 0057): its
+    /// automation menu and mark, its modulation — *Modulate…* in the menu, a modulator's
+    /// handle dropped on it, the Alt-drag depth, the rings and the live dot — each answered
+    /// through `host`. Every editor's cell on a parameter goes through here (review 1), so
+    /// none can miss it; the caller applies `changed` and `done`.
+    pub fn show_in(mut self, ui: &mut Ui, s: &Style, host: &mut dyn FxHost, key: &str) -> CellOut {
+        use crate::views::modulator::MAX_RINGS;
+        if host.can_automate() {
+            self = self.automation(host.automated(key));
+        }
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); MAX_RINGS];
+        let base = pos_of(
+            self.value.clamp(self.min, self.max),
+            self.min,
+            self.max,
+            self.taper,
+        );
+        let modulation = host.modulation(key, base, s, &mut rings);
+        let n = modulation.map_or(0, |(_, n)| n);
+        if let Some((m, _)) = modulation {
+            self = self.modulation(m);
+        }
+        // The cell's own rings first, then its modulators'.
+        let own = self.rings.len().min(MAX_RINGS);
+        let mut all = [(0.0, egui::Color32::TRANSPARENT); 2 * MAX_RINGS];
+        all[..own].copy_from_slice(&self.rings[..own]);
+        all[own..own + n].copy_from_slice(&rings[..n]);
+        let out = self.rings(&all[..own + n]).show(ui, s);
+        if let Some(choice) = out.modulation {
+            host.modulate(key, choice, out.resp.rect);
+        }
+        if out.automate {
+            host.automate(key);
+        }
+        out
+    }
+
     pub fn show(self, ui: &mut Ui, s: &Style) -> CellOut {
+        crate::kit::automate::probe::note(
+            if self.name.is_empty() {
+                match self.label {
+                    Src::Key(k) => k,
+                    Src::Str(t) => t,
+                }
+            } else {
+                self.name
+            },
+            self.offer.is_some_and(|o| o.modulation.is_some()),
+        );
         let size = cell::size(self.size) * s.k;
         let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
         let (min, max, taper) = (self.min, self.max, self.taper);
@@ -482,37 +530,12 @@ pub fn param_with(
     }
     // In Cantus, the parameter's menu and its automated mark (ADR 0027), and its
     // modulation (ADR 0057).
-    if host.can_automate() {
-        c = c.automation(host.automated(key));
-    }
-    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
-    let base = crate::widgets::knob::pos_of(
-        spec.get(key),
-        info.min,
-        info.max,
-        if info.logarithmic {
-            Taper::Log
-        } else {
-            Taper::Linear
-        },
-    );
-    let modulation = host.modulation(key, base, s, &mut rings);
-    if let Some((m, _)) = modulation {
-        c = c.modulation(m);
-    }
-    let n = modulation.map_or(0, |(_, n)| n);
-    let out = c.rings(&rings[..n]).show(ui, s);
-    if let Some(choice) = out.modulation {
-        host.modulate(key, choice, out.resp.rect);
-    }
+    let out = c.show_in(ui, s, host, key);
     if let Some(v) = out.changed {
         host.set(key, v, Some(key));
     }
     if out.done {
         host.end_gesture();
-    }
-    if out.automate {
-        host.automate(key);
     }
     out.resp
 }

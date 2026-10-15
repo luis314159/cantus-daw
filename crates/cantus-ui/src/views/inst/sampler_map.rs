@@ -848,12 +848,26 @@ fn zone_cell(
 ) {
     let info = &ZONE_PARAMS[f];
     let name = t(info.label_key);
-    let (r, v) = parts::num_cell(
+    // A zone's field is a parameter of the instrument (`z{n}.{field}`): automated and
+    // modulated like any other (ADR 0057).
+    let key = format!("z{n}.{}", model::zone_field_name(f));
+    let mut value = z.get(f);
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let w = crate::views::inst::frame::wire(
+        app,
+        track,
+        &key,
+        &mut value,
+        (info.min, info.max, false),
+        s,
+        &mut rings,
+    );
+    let (r, v, choice) = parts::num_cell_offered(
         ui,
         rect,
         s,
         egui::Id::new(("smp-zone-cell", track.0, n, f)),
-        z.get(f),
+        value,
         info.min..=info.max,
         info.default,
         false,
@@ -861,9 +875,11 @@ fn zone_cell(
         Some(Src::Key(info.label_key)),
         &name,
         KnobSize::M,
-        &[],
+        &rings[..w.n],
+        Some((w.automated, w.offer)),
         move |v, b| write_zone(f, v, b),
     );
+    crate::views::inst::frame::wired(app, &w, choice, r.rect);
     if r.changed() {
         set_fields(app, track, spec, n, &[(f, v)], true);
     }

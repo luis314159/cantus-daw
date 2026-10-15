@@ -805,3 +805,12 @@ pub fn eq_curve(ui: &mut egui::Ui, eq: &cantus_core::StripEq) {
         eq::eq_display(b, rect, &s, eq, &mut curve, None, None)
     });
 }
+
+impl Inspector {
+    /// Show an insert's values under its tile in the channel's band, as a click on it does.
+    pub fn show_insert_values(&mut self, effect: cantus_core::EffectId) {
+        if !self.chan.open.contains(&effect) {
+            self.chan.open.push(effect);
+        }
+    }
+}
