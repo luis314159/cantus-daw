@@ -1,4 +1,31 @@
 # Anulus — owned by Anulus. Every key here needs its twin in anulus.es.txt.
 effect.anulus = Anulus ring modulator
 fx.anulus.about = Multiplies the sound by a tone: bells, metal and robot voices.
+fx.anulus.freq = Frequency
+fx.anulus.freq.short = Freq
+fx.anulus.wave = Carrier
+fx.anulus.lfo = LFO swing
+fx.anulus.lfo.short = Swing
+fx.anulus.mix = Mix
 fx.anulus.out = Output
+
+anulus.wave.0 = Sine
+anulus.wave.1 = Tri
+anulus.wave.2 = Square
+anulus.card.carrier = Carrier
+anulus.card.output = Output
+anulus.card.frequency = The carrier over two LFO cycles
+anulus.card.partials = What a 1 kHz tone becomes
+anulus.input = Input
+anulus.idle = Mix is 0 %: the sound passes untouched
+anulus.preview = Ring
+
+preset.anulus.bell = Bell
+preset.anulus.robot = Robot
+preset.anulus.dalek = Metal voice
+preset.anulus.through_zero_tremolo = Tremolo through zero
+preset.anulus.siren = Siren
+preset.anulus.metal_drums = Metal drums
+preset.anulus.stereo_shimmer = Stereo shimmer
+preset.anulus.random_steps = Random steps
+anulus.wave_caption = Wave

@@ -1153,3 +1153,12 @@ phasis rate 780377191
 phasis shape 499374374
 phasis edge 1459017788
 phasis spread 1229586638
+anulus freq 229891063
+anulus wave 703600596
+anulus lfo 1466486888
+anulus sync 159043482
+anulus div 1700965192
+anulus rate 780377191
+anulus shape 499374374
+anulus spread 1229586638
+anulus mix 1469012833

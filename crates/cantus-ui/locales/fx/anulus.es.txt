@@ -1,4 +1,31 @@
 # Anulus — de Anulus. Cada clave necesita su gemela en anulus.en.txt.
 effect.anulus = Anulus modulador en anillo
 fx.anulus.about = Multiplica el sonido por un tono: campanas, metal y voces de robot.
+fx.anulus.freq = Frecuencia
+fx.anulus.freq.short = Frec.
+fx.anulus.wave = Portadora
+fx.anulus.lfo = Vaivén del LFO
+fx.anulus.lfo.short = Vaivén
+fx.anulus.mix = Mezcla
 fx.anulus.out = Salida
+
+anulus.wave.0 = Seno
+anulus.wave.1 = Triáng.
+anulus.wave.2 = Cuadrada
+anulus.card.carrier = Portadora
+anulus.card.output = Salida
+anulus.card.frequency = La portadora en dos ciclos del LFO
+anulus.card.partials = En qué se convierte un tono de 1 kHz
+anulus.input = Entrada
+anulus.idle = Mezcla en 0 %: el sonido pasa intacto
+anulus.preview = Anillo
+
+preset.anulus.bell = Campana
+preset.anulus.robot = Robot
+preset.anulus.dalek = Voz metálica
+preset.anulus.through_zero_tremolo = Trémolo por cero
+preset.anulus.siren = Sirena
+preset.anulus.metal_drums = Batería metálica
+preset.anulus.stereo_shimmer = Brillo estéreo
+preset.anulus.random_steps = Pasos al azar
+anulus.wave_caption = Onda
