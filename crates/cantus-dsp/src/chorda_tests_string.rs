@@ -74,7 +74,8 @@ fn check_tuned(m: u8, fs: f64, tuning: Tuning, tol: f64, n: usize) -> f64 {
         let c = cents(got, want);
         assert!(
             c.abs() < tol,
-            "key {m} at {fs} Hz, {tuning:?}, partial {i}: {got:.4} Hz against {want:.4}              ({c:+.3} cents)"
+            "key {m} at {fs} Hz, {tuning:?}, partial {i}: {got:.4} Hz against {want:.4} \
+             ({c:+.3} cents)"
         );
         worst = worst.max(c.abs());
     }

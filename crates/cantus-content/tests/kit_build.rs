@@ -727,8 +727,10 @@ fn the_real_drskit_installs_mixed_from_its_archive() {
     assert!(peak < 0.89, "1 dB of headroom at least: {peak}");
     let text = std::fs::read_to_string(dir.join("DRSKit.sfz")).unwrap();
     assert!(text.contains("DrumGizmo"), "credited at the top");
+    // General MIDI's keys for the drums the kit has; 55 (splash) and the Latin
+    // percussion stay silent.
     for key in [
-        35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 55, 57, 59,
+        35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 57, 59,
     ] {
         assert!(
             text.contains(&format!("lokey={key} ")) || text.contains(&format!("hikey={key} ")),
@@ -738,6 +740,11 @@ fn the_real_drskit_installs_mixed_from_its_archive() {
     assert!(r.credit_line().unwrap().contains("DrumGizmo"));
     assert_eq!(m.instruments().len(), 1);
     assert_eq!(m.instruments()[0].key(), "pack:drskit/kit");
+    // Kept for `pack_drums`' real-kit test (`CANTUS_DRSKIT`), when asked.
+    if let Ok(keep) = std::env::var("CANTUS_DRSKIT_KEEP") {
+        let _ = std::fs::remove_dir_all(&keep);
+        std::fs::rename(&dir, &keep).unwrap();
+    }
 }
 
 #[test]
