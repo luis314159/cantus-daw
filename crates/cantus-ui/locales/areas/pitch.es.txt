@@ -22,6 +22,9 @@ cmd.pitch.double = Doblar la voz
 
 # Abrirlo.
 pitch.menu.edit = Editar afinación
+pitch.menu.double_third = Doblar una tercera por encima
+pitch.menu.double_fifth = Doblar una quinta por encima
+pitch.not_ready = La toma aún se está analizando (o no se puede leer su archivo): inténtalo de nuevo en un momento
 pitch.inspector.edit = Editar afinación
 pitch.inspector.edit_tip = Abrir el editor de afinación en este clip: sus notas, para moverlas, corregirlas, estirarlas y doblarlas (el archivo nunca cambia)
 pitch.inspector.edited = Afinación editada
@@ -38,6 +41,20 @@ pitch.no_source = Este clip no tiene archivo de audio
 pitch.status = {n} notas · {key}
 pitch.status_one = Una nota · {key}
 pitch.key.value = {tonic} {scale}
+# El modo de la tonalidad, como lo lee una frase («A menor»).
+pitch.key.scale.0 = cromática
+pitch.key.scale.1 = mayor
+pitch.key.scale.2 = menor
+pitch.key.scale.3 = menor armónica
+pitch.key.scale.4 = menor melódica
+pitch.key.scale.5 = dórico
+pitch.key.scale.6 = frigio
+pitch.key.scale.7 = lidio
+pitch.key.scale.8 = mixolidio
+pitch.key.scale.9 = locrio
+pitch.key.scale.10 = pentatónica mayor
+pitch.key.scale.11 = pentatónica menor
+pitch.key.scale.12 = blues
 
 # La barra.
 pitch.tool.edit = Editar
@@ -71,7 +88,12 @@ pitch.double.third = Una tercera por encima
 pitch.double.fifth = Una quinta por encima
 pitch.doubled = La segunda voz está en «{name}»
 pitch.grid = Rejilla
-pitch.grid_tip = La rejilla a la que Cuantizar mueve las notas
+pitch.grid_tip = A qué mueve Cuantizar el inicio de cada nota: una rejilla, o la nota más cercana de otra pista (a una corchea como mucho)
+pitch.quantise_to = Cuantizar a
+pitch.quantise.tracks = Las notas de otra pista
+pitch.more_tip = Lo que no cabe en la barra: unir, restablecer, reproducir, MIDI, doblar, el destino de cuantizar
+pitch.play = Reproducir desde la selección
+pitch.midi_new = Melodía a una pista MIDI nueva
 
 # El lienzo.
 pitch.ruler_tip = Haz clic o arrastra para mover el cursor de reproducción
@@ -99,7 +121,7 @@ pitch.field.gain_tip = El nivel de la nota
 # Las macros.
 pitch.card.macros = Corregir la selección
 pitch.card.macros_all = Corregir todas las notas
-pitch.macro.pitch = Tono
+pitch.macro.pitch = Afinación
 pitch.macro.pitch_tip = Cuánto lleva Corregir afinación el centro de cada nota a su nota
 pitch.macro.drift = Deriva
 pitch.macro.drift_tip = Cuánto aplana Corregir deriva el vaivén lento dentro de cada nota
@@ -108,4 +130,11 @@ pitch.macro.apply_pitch_tip = Lleva las notas a la tonalidad según la cantidad:
 pitch.macro.apply_drift = Corregir deriva
 pitch.macro.apply_drift_tip = Aplana el vaivén lento dentro de las notas según la cantidad (el vibrato se queda)
 pitch.macro.quantise = Cuantizar
-pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla (conserva su duración, sin tocar a sus vecinas)
+pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla, o a las notas de otra pista (Cuantizar a, en la barra): conserva su duración, sin tocar a sus vecinas
+
+# El carril de afinación del arreglo (revisión 1, §3c).
+cmd.pitch.lane = Mostrar el carril de afinación
+pitch.lane.band = Afinación
+pitch.lane.menu = Carril de afinación
+pitch.lane.header = Afinación
+pitch.lane.tip = El carril de afinación: arrastra una nota arriba o abajo para moverla, doble clic para llevarla a su nota; doble clic en el clip para el editor completo

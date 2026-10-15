@@ -7,6 +7,7 @@
 
 use cantus_core::pitch::curves::Frames;
 use cantus_core::pitch::{edit, PitchEdit};
+use cantus_core::SampleData;
 use cantus_core::*;
 use cantus_dsp::math;
 use cantus_dsp::nulltest::assert_null;
@@ -492,4 +493,209 @@ fn a_moved_legato_note_does_not_click() {
     let joint = d2(y, 0.72, 0.88);
     eprintln!("second difference: steady {steady:.4}, at the joint {joint:.4}");
     assert!(joint <= steady * 1.5, "joint {joint} vs steady {steady}");
+}
+
+// ---- review 1 ------------------------------------------------------------------------
+
+/// Poll a background cache until nothing is on its way.
+fn settle(cache: &mut SampleCache) {
+    let t = std::time::Instant::now();
+    while cache.loading() && t.elapsed() < std::time::Duration::from_secs(60) {
+        cache.poll_loaded();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(!cache.loading());
+}
+
+fn attach_now(
+    cache: &mut SampleCache,
+    p: &Project,
+    rev: u64,
+    rate: u32,
+) -> Option<Arc<SampleData>> {
+    let mut s = Snapshot::compile(p, rev);
+    cache.attach_audio(&mut s, rate);
+    s.tracks[0].audio[0].data.clone()
+}
+
+fn attached(cache: &mut SampleCache, p: &Project, rev: u64, rate: u32) -> Arc<SampleData> {
+    attach_now(cache, p, rev, rate).expect("attached")
+}
+
+/// Load the source, then the render, in a background cache.
+fn warm(cache: &mut SampleCache, p: &Project, rev: u64, rate: u32) {
+    attach_now(cache, p, rev, rate);
+    settle(cache);
+    attach_now(cache, p, rev + 100, rate);
+    settle(cache);
+}
+
+fn with_edit(path: &Path, x: &[f32], e: PitchEdit) -> Project {
+    project_with(path, x, Some(e))
+}
+
+/// A/B: switching *Original* off plays the edits at once — their render was kept while
+/// the original played — and nothing is rendered again.
+#[test]
+fn switching_back_from_the_original_plays_the_edits_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let e = corrected(&a);
+    let mut cache = SampleCache::new();
+    cache.set_background(true);
+    cache.set_pitch_background(true);
+    let p = with_edit(&path, &x, e.clone());
+    warm(&mut cache, &p, 1, SR);
+    let edited = attached(&mut cache, &p, 2, SR);
+    let mut b = e.clone();
+    b.bypass = true;
+    let original = attached(&mut cache, &with_edit(&path, &x, b), 3, SR);
+    assert!(original
+        .frames
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
+    cache.poll_loaded();
+    let back = attached(&mut cache, &p, 4, SR);
+    assert!(Arc::ptr_eq(&back, &edited), "the edits' render, kept");
+    assert_eq!(cache.pitch_pending(), 0, "nothing rendered again");
+}
+
+/// Undo and redo: the edit before (and after) is played at once from the render kept for
+/// it, never the render of the edit just undone.
+#[test]
+fn undo_and_redo_play_their_own_render_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let one = corrected(&a);
+    let mut two = one.clone();
+    let first = two.notes[0].id;
+    edit::move_pitch(&mut two, &[first], 2.0);
+    let mut cache = SampleCache::new();
+    cache.set_background(true);
+    cache.set_pitch_background(true);
+    let (p1, p2) = (with_edit(&path, &x, one), with_edit(&path, &x, two));
+    warm(&mut cache, &p1, 1, SR);
+    let r1 = attached(&mut cache, &p1, 2, SR);
+    warm(&mut cache, &p2, 3, SR);
+    let r2 = attached(&mut cache, &p2, 4, SR);
+    assert!(!Arc::ptr_eq(&r1, &r2));
+    let undo = attached(&mut cache, &p1, 5, SR);
+    assert!(Arc::ptr_eq(&undo, &r1), "undo plays the edit before");
+    let redo = attached(&mut cache, &p2, 6, SR);
+    assert!(Arc::ptr_eq(&redo, &r2), "redo plays the edit after");
+    assert_eq!(cache.pitch_pending(), 0);
+}
+
+/// While a render for a new device rate is on its way, a render made at the old rate is
+/// never played (it would run at the wrong speed): the source at the new rate plays.
+#[test]
+fn a_render_at_another_rate_is_never_the_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let p = with_edit(&path, &x, corrected(&a));
+    let mut cache = SampleCache::new();
+    let at44 = attached(&mut cache, &p, 1, 44_100);
+    assert_eq!(at44.rate, 44_100);
+    cache.set_background(true);
+    cache.set_pitch_background(true);
+    // The 48 kHz source loads first; then the render at 48 kHz is on its way.
+    attach_now(&mut cache, &p, 2, SR);
+    let t = std::time::Instant::now();
+    while !matches!(
+        cache.audio_status(&path.to_string_lossy()),
+        SampleStatus::Loaded { .. }
+    ) {
+        cache.poll_loaded();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        if t.elapsed().as_secs() > 30 {
+            break;
+        }
+    }
+    let now = attached(&mut cache, &p, 3, SR);
+    assert_eq!(now.rate, SR, "never the 44.1 kHz render");
+}
+
+/// With no audio device the engine's handle is a dummy, and still a pitch render never
+/// runs on the caller's thread: `compile` queues it (the source plays), and
+/// `compile_for_render` (export, stems) waits for it.
+#[test]
+fn without_a_device_renders_go_to_the_worker_and_export_waits() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let e = corrected(&a);
+    let p = with_edit(&path, &x, e.clone());
+    let mut engine = EngineHandle::dummy();
+    let snap = engine.compile(&p, 1);
+    let data = snap.tracks[0].audio[0].data.clone().unwrap();
+    assert!(data
+        .frames
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
+    assert!(engine.samples.pitch_pending() > 0, "queued, not made here");
+    let snap = engine.compile_for_render(&p, 2);
+    let want = render_edit(&[&x], &a, &e);
+    let data = snap.tracks[0].audio[0].data.clone().unwrap();
+    assert_eq!(&data.frames[..], &want[0][..], "the export plays the edits");
+}
+
+/// A take whose file could not be read is analysed again once it is back.
+#[test]
+fn a_failed_analysis_is_tried_again_when_the_file_is_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("late.wav");
+    let svc = cantus_engine::pitch::PitchService::new();
+    let t = std::time::Instant::now();
+    loop {
+        if let cantus_engine::pitch::Lookup::Failed(_) = svc.lookup(&path, SR) {
+            break;
+        }
+        assert!(t.elapsed().as_secs() < 10);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let (x, _) = take();
+    write_f32(&path, &x);
+    svc.forget(&path);
+    let t = std::time::Instant::now();
+    loop {
+        match svc.lookup(&path, SR) {
+            cantus_engine::pitch::Lookup::Ready(a) => {
+                assert_eq!(a.notes.len(), 4);
+                break;
+            }
+            _ => std::thread::sleep(std::time::Duration::from_millis(5)),
+        }
+        assert!(t.elapsed().as_secs() < 30);
+    }
+}
+
+/// The sample cache's retry (the missing-files flow) forgets a failed analysis too.
+#[test]
+fn the_sample_caches_retry_forgets_a_failed_analysis() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("late.wav");
+    let mut cache = SampleCache::new();
+    let svc = cache.pitch().clone();
+    let t = std::time::Instant::now();
+    while !matches!(
+        svc.lookup(&path, SR),
+        cantus_engine::pitch::Lookup::Failed(_)
+    ) {
+        assert!(t.elapsed().as_secs() < 10);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    cache.retry_audio(&path.to_string_lossy());
+    assert!(matches!(
+        svc.lookup(&path, SR),
+        cantus_engine::pitch::Lookup::Pending
+    ));
 }

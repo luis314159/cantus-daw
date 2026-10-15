@@ -69,6 +69,9 @@ pub struct SampleCache {
     streaming: bool,
     /// Audio clips' pitch renders (ADR 0054): attached in place of their sources.
     pitch: crate::pitch::attach::Renders,
+    /// Pitch renders go to the pitch service's worker even without the source loader
+    /// (`EngineHandle::compile` sets it: no render on the caller's thread, device or not).
+    pitch_background: bool,
     /// Instruments' files loaded in the background (with [`Self::set_background`]).
     assets: Option<AssetLoader>,
     /// The zones' starts past their heads in the last snapshot attached, the board that
@@ -180,12 +183,15 @@ impl SampleCache {
     /// has just put it back.
     pub fn retry(&mut self, path: &Path) {
         self.failed.remove(path);
+        // Its pitch analysis and renders too (ADR 0054, review 1).
+        self.pitch.forget(path);
     }
 
     /// [`Self::retry`] for an audio source's stored path.
     pub fn retry_audio(&mut self, path: &str) {
         let p = self.resolve(path);
         self.failed.remove(&p);
+        self.pitch.forget(&p);
     }
 
     pub fn status(&self, path: &Path) -> SampleStatus {
@@ -702,7 +708,7 @@ impl SampleCache {
         }
         // Clips with pitch edits play their render (ADR 0054): made here, or queued and
         // the source (or the last render) played until it arrives.
-        let background = self.loader.is_some();
+        let background = self.pitch_background || self.loader.is_some();
         let dir = self.project_dir.clone();
         let resolve = |p: &str| {
             let p = Path::new(p);
@@ -718,6 +724,26 @@ impl SampleCache {
     /// The pitch editor's service (ADR 0054): analyses and renders, off this thread.
     pub fn pitch(&self) -> &std::sync::Arc<crate::pitch::PitchService> {
         &self.pitch.service
+    }
+
+    /// Make pitch renders on the pitch service's worker (on), or here at once (off: a
+    /// manual cache's default, for tests and one-off renders).
+    pub fn set_pitch_background(&mut self, on: bool) {
+        self.pitch_background = on;
+    }
+
+    /// Wait (at most `patience`) until no pitch render is on its way, taking in each one
+    /// as it arrives — for an offline render (export, stems) to play what the editor plays.
+    /// Returns whether none is left.
+    pub fn wait_pitch(&mut self, patience: std::time::Duration) -> bool {
+        let t = std::time::Instant::now();
+        while self.pitch.pending() > 0 && t.elapsed() < patience {
+            self.pitch.poll();
+            if self.pitch.pending() > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+        self.pitch.pending() == 0
     }
 
     /// Pitch renders waiting or being made (an export waits for them).

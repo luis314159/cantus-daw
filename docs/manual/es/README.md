@@ -406,16 +406,26 @@ hecho junto a la ventana, y mientras un render está en camino se oye la toma ta
   (0–200 %), **formante** (el color de la voz, arriba o abajo, sin mover la afinación) y
   **ganancia**.
 - **Las macros** actúan sobre la selección, o sobre todas las notas si no hay ninguna
-  seleccionada: **Corregir afinación** según una cantidad (una nota fuera de la tonalidad va
-  a su nota más cercana), **Corregir deriva** según una cantidad, y **Cuantizar** el inicio
-  de cada nota a la rejilla de la barra.
+  seleccionada: **Corregir afinación** según una cantidad (cada nota esa proporción hacia su
+  nota — una nota fuera de la tonalidad, hacia su nota más cercana; al 0 % no se mueve),
+  **Corregir deriva** según una cantidad, y **Cuantizar** el inicio de cada nota a lo que
+  diga *Cuantizar a* en la barra: una rejilla, o **las notas de otra pista** (cada nota a la
+  más cercana, a una corchea como mucho).
 - **Tonalidad**: hallada a partir de las notas; cámbiala en la barra (las escalas de
   Tonus). **Original** compara con la toma tal como se cantó (A/B) — el inspector tiene el
   mismo interruptor. **Restablecer** deshace todas las ediciones de la selección. **▶**
   reproduce desde la primera nota seleccionada. Cada edición es un paso de deshacer.
 - **MIDI**: arrástralo a una pista de instrumento del arreglo y la melodía cae allí, en el
   lugar de la voz; haz clic para una pista nueva. **Doblar**: una segunda voz una tercera o
-  una quinta por encima en la tonalidad, de la misma toma, en su propia pista.
+  una quinta por encima en la tonalidad, de la misma toma, en su propia pista. MIDI y
+  Doblar están también en el menú del clic derecho del clip de audio.
+- Cuando el editor es estrecho, lo que no cabe en la barra está en su menú **…**, y el
+  panel bajo las notas se desplaza a los lados.
+
+**El carril de afinación**: clic derecho en la cabecera de una pista de audio ▸ **Carril de
+afinación** muestra sus notas en un carril bajo ella, en el arreglo — arrastra una arriba o
+abajo para moverla, doble clic para llevarla a su nota — para arreglos pequeños sin abrir
+el editor.
 
 Los formantes se conservan al mover una nota (medido: dentro de 3 dB a ±3 semitonos).
 Trabaja sobre una voz o una línea de instrumento a la vez; los acordes no se separan en

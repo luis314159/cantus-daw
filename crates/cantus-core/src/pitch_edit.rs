@@ -234,19 +234,32 @@ pub fn join(edit: &mut PitchEdit, ids: &[u32]) -> bool {
     true
 }
 
-/// *Correct pitch* on the notes `ids` by `amount` (0 … 1): a note off the key goes to
-/// the nearest note of the key (unless it was moved by hand), and every note's centre is
-/// pulled onto its note by the amount.
+/// *Correct pitch* on the notes `ids` by `amount` (0 … 1): each note pulled that far from
+/// where it was sung toward its target — the nearest note of the key (its own semitone
+/// when that is in the key), or the note it was moved to by hand. At 0 nothing moves; at
+/// 1 it sounds on its target; applied again at another amount, as if applied once.
 pub fn correct_pitch(edit: &mut PitchEdit, ids: &[u32], amount: f32) -> bool {
     let amount = amount.clamp(0.0, 1.0);
     let key = edit.key;
     let mut changed = false;
     for n in edit.notes.iter_mut().filter(|n| ids.contains(&n.id)) {
-        if n.pitch == n.home() && !key.contains(n.home() as i32) {
-            n.pitch = key.nearest(n.sung);
-            changed = true;
-        }
-        if n.centre != amount {
+        let home = n.home();
+        let auto = if key.contains(home as i32) {
+            home
+        } else {
+            key.nearest(n.sung)
+        };
+        // A pitch between home and the key's note is the macro's own (an earlier run);
+        // anything else was moved by hand and stays the target.
+        let (lo, hi) = (home.min(auto), home.max(auto));
+        let by_macro = n.pitch >= lo && n.pitch <= hi;
+        let pitch = if by_macro {
+            home + amount * (auto - home)
+        } else {
+            n.pitch
+        };
+        if n.pitch != pitch || n.centre != amount {
+            n.pitch = pitch;
             n.centre = amount;
             changed = true;
         }
@@ -285,6 +298,20 @@ pub fn quantise_by(edit: &mut PitchEdit, ids: &[u32], delta: impl Fn(&PitchNote)
         changed |= shift_timing(edit, *id, *delta);
     }
     changed
+}
+
+/// *Quantise timing to another track*: each of the notes `ids` moved so it starts on the
+/// nearest of `onsets` (output frames, sorted or not) within `reach` frames — its length
+/// kept, its neighbours respected; a note with no onset in reach stays.
+pub fn quantise_to(edit: &mut PitchEdit, ids: &[u32], onsets: &[u64], reach: u64) -> bool {
+    quantise_by(edit, ids, |n| {
+        onsets
+            .iter()
+            .map(|o| *o as i64 - n.start as i64)
+            .filter(|d| d.unsigned_abs() <= reach)
+            .min_by_key(|d| d.unsigned_abs())
+            .unwrap_or(0)
+    })
 }
 
 /// Every edit on the notes `ids` undone (their segmentation kept).

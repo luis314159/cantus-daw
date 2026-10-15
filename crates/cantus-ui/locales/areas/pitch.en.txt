@@ -22,6 +22,9 @@ cmd.pitch.double = Double the voice
 
 # Opening it.
 pitch.menu.edit = Edit pitch
+pitch.menu.double_third = Double a third above
+pitch.menu.double_fifth = Double a fifth above
+pitch.not_ready = The take is still being analysed (or its file cannot be read): try again in a moment
 pitch.inspector.edit = Edit pitch
 pitch.inspector.edit_tip = Open the pitch editor on this clip: its notes, to move, correct, stretch and double (the file is never changed)
 pitch.inspector.edited = Pitch edited
@@ -38,6 +41,20 @@ pitch.no_source = This clip has no audio file
 pitch.status = {n} notes · {key}
 pitch.status_one = One note · {key}
 pitch.key.value = {tonic} {scale}
+# The key's mode, as a phrase reads it ("A minor").
+pitch.key.scale.0 = chromatic
+pitch.key.scale.1 = major
+pitch.key.scale.2 = minor
+pitch.key.scale.3 = harmonic minor
+pitch.key.scale.4 = melodic minor
+pitch.key.scale.5 = Dorian
+pitch.key.scale.6 = Phrygian
+pitch.key.scale.7 = Lydian
+pitch.key.scale.8 = Mixolydian
+pitch.key.scale.9 = Locrian
+pitch.key.scale.10 = major pentatonic
+pitch.key.scale.11 = minor pentatonic
+pitch.key.scale.12 = blues
 
 # The bar.
 pitch.tool.edit = Edit
@@ -71,7 +88,12 @@ pitch.double.third = A third above
 pitch.double.fifth = A fifth above
 pitch.doubled = The double is in “{name}”
 pitch.grid = Grid
-pitch.grid_tip = The grid Quantise timing moves notes to
+pitch.grid_tip = What Quantise moves each note's start to: a grid, or the nearest note of another track (within an eighth)
+pitch.quantise_to = Quantise to
+pitch.quantise.tracks = Another track's notes
+pitch.more_tip = What the bar has no room for: join, reset, play, MIDI, Double, the quantise target
+pitch.play = Play from the selection
+pitch.midi_new = Melody to a new MIDI track
 
 # The canvas.
 pitch.ruler_tip = Click or drag to move the playhead
@@ -108,4 +130,11 @@ pitch.macro.apply_pitch_tip = Pull the notes onto the key by the amount: a note 
 pitch.macro.apply_drift = Correct drift
 pitch.macro.apply_drift_tip = Flatten the slow wander inside the notes by the amount (the vibrato stays)
 pitch.macro.quantise = Quantise
-pitch.macro.quantise_tip = Move each note's start to the nearest line of the grid (its length kept, its neighbours untouched)
+pitch.macro.quantise_tip = Move each note's start to the nearest line of the grid, or onto another track's notes (Quantise to, on the bar): its length kept, its neighbours untouched
+
+# The arrangement's pitch lane (review 1, §3c).
+cmd.pitch.lane = Show the pitch lane
+pitch.lane.band = Pitch
+pitch.lane.menu = Pitch lane
+pitch.lane.header = Pitch
+pitch.lane.tip = The pitch lane: drag a note up or down to move it, double-click it to pull it onto its note; double-click the clip for the whole editor

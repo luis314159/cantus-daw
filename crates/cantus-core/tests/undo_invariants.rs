@@ -2002,7 +2002,13 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let mut e = current.map(|b| *b).unwrap_or_else(fresh);
     let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
     let id = ids.first().copied().unwrap_or(0);
-    let op = match rng.below(12) {
+    let op = match rng.below(13) {
+        12 => {
+            return Command::SetTrackPitchOpen {
+                id: track,
+                open: rng.below(2) == 0,
+            };
+        }
         0 => PitchOp::Notes,
         1 => {
             edit::move_pitch(&mut e, &ids, rng.f32(-5.0, 5.0));
@@ -2060,27 +2066,29 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
             };
         }
         _ => {
-            // Refused: an overlap, or a note clip.
-            if let Some(n) = e.notes.get_mut(0) {
-                n.end = e.frames + 1;
-            } else {
-                e.rate = 0;
-            }
-            let target = if rng.below(2) == 0 {
-                project
-                    .tracks
-                    .iter()
-                    .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
-                    .find(|(_, c)| c.audio.is_none())
-                    .map(|(t, c)| (t, c.id))
-                    .unwrap_or((track, clip.id))
-            } else {
-                (track, clip.id)
+            // Refused: a valid edit sent to a clip that is not audio (the guard that
+            // refuses it is the one under test), or an invalid edit on the audio clip.
+            let other = project
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
+                .find(|(_, c)| c.audio.is_none())
+                .map(|(t, c)| (t, c.id));
+            let (target, edit) = match other.filter(|_| rng.below(2) == 0) {
+                Some(t) => (t, e),
+                None => {
+                    if let Some(n) = e.notes.get_mut(0) {
+                        n.end = e.frames + 1;
+                    } else {
+                        e.rate = 0;
+                    }
+                    ((track, clip.id), e)
+                }
             };
             return Command::SetClipPitch {
                 track: target.0,
                 clip: target.1,
-                pitch: Some(Box::new(e)),
+                pitch: Some(Box::new(edit)),
                 op: PitchOp::Notes,
             };
         }

@@ -201,13 +201,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     // The pitch editor (round 28, ADR 0054): open it, and — when the clip plays edits —
     // hear them or the original (A/B).
     if let Some(p) = a.pitch.as_deref().filter(|p| p.edited()) {
-        if sh.led_row(
-            "pitch.inspector.edited",
-            "pitch.inspector.badge",
-            !p.bypass,
-            Function::Source,
-            false,
-        ) {
+        if pitch_row(sh, !p.bypass) {
             let mut x = p.clone();
             x.bypass = !x.bypass;
             sh.acts.push(Act::Exec(cantus_core::Command::SetClipPitch {
@@ -218,11 +212,41 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             }));
         }
     }
-    if button(sh, ("insp-audio-pitch", c), "pitch.inspector.edit", false) && !missing {
+    if button_with(
+        sh,
+        ("insp-audio-pitch", c),
+        "pitch.inspector.edit",
+        false,
+        Some("pitch.inspector.edit_tip"),
+        !missing,
+    ) {
         sh.acts.push(Act::Audio(AudioAct::EditPitch(t, c)));
     }
 }
 
+/// The A/B row of a clip that plays pitch edits: an LED (lit while the edits are heard)
+/// with its explanation on the help line. Returns a click.
+fn pitch_row(sh: &mut Sheet<'_>, on: bool) -> bool {
+    let row = sh.row();
+    sh.label(row.label, "pitch.inspector.edited", false);
+    let w = row.value.width().min(sh.s.s(110.0));
+    let br = egui::Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
+    let r = sh.ui.interact(br, Id::new("insp-pitch-ab"), Sense::click());
+    if r.hovered() {
+        let name = sh.fmt.tr("pitch.inspector.edited").to_string();
+        let tip = sh.fmt.tr("pitch.inspector.edited_tip").to_string();
+        hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
+    }
+    crate::kit::led::button(
+        sh.b,
+        br,
+        &sh.s.function(Function::Source),
+        State::of(&r, on),
+        crate::kit::text::Src::Key("pitch.inspector.badge"),
+    );
+    r.clicked()
+}
+
 #[path = "inspector_audio_parts.rs"]
 mod parts;
-use parts::{button, curves, overview};
+use parts::{button, button_with, curves, overview};

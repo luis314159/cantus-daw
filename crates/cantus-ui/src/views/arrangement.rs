@@ -722,7 +722,11 @@ fn content_height(app: &CantusApp) -> f32 {
     app.project()
         .tracks
         .iter()
-        .map(|t| (base * t.height()).round() + takes::height(t, base))
+        .map(|t| {
+            (base * t.height()).round()
+                + takes::height(t, base)
+                + super::pitch_lane::height(t, base)
+        })
         .sum()
 }
 
@@ -924,7 +928,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         .input(|i| i.pointer.hover_pos())
         .filter(|_| ui.rect_contains_pointer(clip));
     let visible = |row: &TrackRow| {
-        row.top + row.height + row.takes + row.auto > clip.top() && row.top < clip.bottom()
+        row.top + row.height + row.takes + row.auto + row.pitch > clip.top()
+            && row.top < clip.bottom()
     };
     let row_rect = |row: &TrackRow| {
         Rect::from_min_size(pos2(clip.left(), row.top), vec2(clip.width(), row.height))
@@ -985,6 +990,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 rec::paint_header(b, a, track, &rr, tint, pointer, s);
                 takes::paint_headers(b, a, track, row, clip, tint, s);
                 autolanes::paint_headers(b, a, i, track, row, clip, tint, s);
+                super::pitch_lane::paint_header(b, row, clip, tint.large, s);
             }
             // Below the last track, FL's empty rows: "Track 5" in a placeholder's faint
             // text on a flat well, so the column reads as a list with room in it.
@@ -1312,6 +1318,11 @@ fn track_menu(
         ui.close();
         return;
     }
+    // The pitch lane (round 28, ADR 0054).
+    if super::pitch_lane::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
     let current = app.project().track(id).map(|t| t.height()).unwrap_or(1.0);
     let width = 220.0;
     let heights: [Item<'_>; 6] = [
@@ -1451,6 +1462,8 @@ pub struct TrackRow {
     pub takes: f32,
     /// The automation lanes' height below those (ADR 0027), while shown.
     pub auto: f32,
+    /// The pitch lane's height below those (round 28, ADR 0054), while shown.
+    pub pitch: f32,
 }
 
 impl TimelineGeometry {
@@ -1483,7 +1496,7 @@ impl TimelineGeometry {
     pub fn bottom(&self) -> f32 {
         self.rows
             .last()
-            .map(|r| r.top + r.height + r.takes + r.auto)
+            .map(|r| r.top + r.height + r.takes + r.auto + r.pitch)
             .unwrap_or(self.body_top)
     }
 }
@@ -1505,13 +1518,15 @@ fn rows_into(rows: &mut Vec<TrackRow>, project: &cantus_core::Project, top: f32,
         let height = (base * t.height()).round();
         let takes = takes::height(t, base);
         let auto = autolanes::height(t, base);
+        let pitch = super::pitch_lane::height(t, base);
         rows.push(TrackRow {
             top: y,
             height,
             takes,
             auto,
+            pitch,
         });
-        y += height + takes + auto;
+        y += height + takes + auto + pitch;
     }
 }
 
@@ -1833,6 +1848,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             paint::lanes(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
             autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
+            super::pitch_lane::paint(b, a, view, f.lanes, s);
             clips(
                 b,
                 a,
@@ -2226,6 +2242,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     rec::punch_input(app, ui, view, f.ruler, s);
     takes::input(app, ui, view, f.lanes, s);
     autolanes::input(app, ui, f.lanes, s);
+    super::pitch_lane::input(app, ui, view, f.lanes, s);
 }
 
 /// What a finished clip drag asks the application to do.

@@ -253,7 +253,10 @@ pub fn glue(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
         let same = na.source == a.source
             && na.gain_db == a.gain_db
             && na.reverse == a.reverse
-            && na.slip_frames == a.slip_frames;
+            && na.slip_frames == a.slip_frames
+            // Round 28 (ADR 0054): one clip, one pitch edit; halves edited apart are not
+            // glued (one half's corrections would be lost).
+            && na.pitch == a.pitch;
         if !same || n.start != p.end() || n.lane != p.lane {
             return None;
         }

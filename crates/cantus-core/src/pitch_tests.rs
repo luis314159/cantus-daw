@@ -189,11 +189,104 @@ fn formant_and_gain_stay_inside_their_note() {
     for t in (0..36_000 + m).chain(84_000 - m..e.frames) {
         assert_eq!(c.formant_at(t as f64), 0.0, "{t}");
     }
-    for t in (0..48_000).chain(72_000..e.frames) {
+    // The neighbours and the margins beside them: untouched.
+    for t in (0..36_000 + m).chain(84_000 - m..e.frames) {
         assert_eq!(c.gain_db_at(t as f64), 0.0, "{t}");
     }
-    // The gain ramps in inside the note, no step.
-    assert!(c.gain_db_at(48_000.0).abs() < 0.1);
+}
+
+/// The largest step of the gain (dB) from one output sample to the next over `range`.
+fn gain_step(c: &Curves, range: std::ops::Range<u64>) -> f32 {
+    let mut last = c.gain_db_at(range.start as f64);
+    let mut most = 0.0f32;
+    for t in range {
+        let g = c.gain_db_at(t as f64);
+        most = most.max((g - last).abs());
+        last = g;
+    }
+    most
+}
+
+/// Review 1: a gain at a legato joint, or across a short gap, never steps (a click).
+#[test]
+fn a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap() {
+    let (mut e, midi) = take();
+    // Legato: the middle note split; its second half at −12 dB.
+    assert!(edit::split(&mut e, 1, 60_000, None));
+    let right = e.notes[2].id;
+    edit::set_field(&mut e, &[right], Field::Gain, -12.0);
+    let c = Curves::new(&e, &frames(&midi));
+    let step = gain_step(&c, 40_000..80_000);
+    assert!(step < 0.05, "a {step} dB step at the legato joint");
+    // A short gap: both halves at −12 dB, the second moved 100 frames later.
+    let left = e.notes[1].id;
+    edit::set_field(&mut e, &[left], Field::Gain, -12.0);
+    let (s, en) = (e.notes[2].start, e.notes[2].end);
+    assert!(edit::set_timing(&mut e, right, s + 100, en));
+    let c = Curves::new(&e, &frames(&midi));
+    let step = gain_step(&c, 40_000..80_000);
+    assert!(step < 0.05, "a {step} dB step across the short gap");
+    assert_eq!(
+        c.gain_db_at(60_050.0),
+        -12.0,
+        "the gap keeps the notes' gain"
+    );
+}
+
+/// Review 1: correct pitch below 100 % pulls toward the key's note, never past it, and at
+/// 0 % leaves the note alone; applied again at another amount, it is as if applied once.
+#[test]
+fn correct_pitch_below_full_never_overshoots() {
+    let (mut e, _) = take();
+    // C major; a C# sung 40 cents sharp (61.4): its target is D (62).
+    e.notes
+        .push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
+    let at = |e: &PitchEdit| e.note(9).unwrap().out_centre();
+    let mut z = e.clone();
+    edit::correct_pitch(&mut z, &[9], 0.0);
+    assert!((at(&z) - 61.4).abs() < 1e-4, "0 %: untouched, {}", at(&z));
+    let mut h = e.clone();
+    edit::correct_pitch(&mut h, &[9], 0.5);
+    assert!(
+        (at(&h) - 61.7).abs() < 1e-4,
+        "50 %: half way to D, {}",
+        at(&h)
+    );
+    let mut f = e.clone();
+    edit::correct_pitch(&mut f, &[9], 1.0);
+    assert!((at(&f) - 62.0).abs() < 1e-4);
+    edit::correct_pitch(&mut f, &[9], 0.5);
+    assert!((at(&f) - 61.7).abs() < 1e-4, "100 % then 50 %: {}", at(&f));
+    assert!(f.is_valid());
+}
+
+/// Review 1: a step of the key from a note sung off it lands on the key's next note.
+#[test]
+fn a_scale_step_from_an_off_key_note_lands_on_the_key() {
+    let c_major = PitchKey { tonic: 0, scale: 1 };
+    assert_eq!(c_major.step(61.0, 1), 62.0, "C# up: D");
+    assert_eq!(c_major.step(61.0, -1), 60.0, "C# down: C");
+    assert_eq!(c_major.step(60.0, 1), 62.0, "C up: D");
+    assert_eq!(c_major.step(64.0, 1), 65.0, "E up: F");
+    assert!((c_major.step(60.3, 1) - 62.3).abs() < 1e-5, "cents kept");
+    assert_eq!(c_major.steps_to(61.0, 62.0), 1);
+    assert_eq!(c_major.steps_to(61.0, 60.0), -1);
+    assert_eq!(c_major.steps_to(60.0, 64.0), 2);
+}
+
+/// Review 1 (§3c): quantise timing to another track's notes — each note's start to the
+/// nearest onset within reach, its length kept.
+#[test]
+fn quantise_to_onsets_moves_notes_onto_another_tracks_notes() {
+    let (mut e, _) = take();
+    let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
+    // Onsets near the first two notes; none near the third (out of reach).
+    let onsets = [11_000u64, 49_500, 200_000];
+    assert!(edit::quantise_to(&mut e, &ids, &onsets, 4_800));
+    let starts: Vec<u64> = e.notes.iter().map(|n| n.start).collect();
+    assert_eq!(starts, vec![11_000, 49_500, 84_000]);
+    assert_eq!(e.notes[0].end - e.notes[0].start, 24_000);
+    assert!(e.is_valid());
 }
 
 #[test]
@@ -443,4 +536,38 @@ fn every_edit_keeps_the_edit_valid() {
             assert!(cantus_dsp::psola::TimeMap::new(time_points(&e)).is_some());
         }
     }
+}
+
+/// Review 1: a valid edit sent to a clip that is not audio is refused, and nothing moves.
+#[test]
+fn a_pitch_edit_on_a_note_clip_is_refused() {
+    use crate::{Command, CommandBus, Origin, Ticks};
+    let mut bus = CommandBus::default();
+    let mut p = bus.project().clone();
+    let mut t = p.make_track("Keys");
+    let c = p.make_clip("notes", Ticks::ZERO, Ticks::beats(4));
+    let (tid, cid) = (t.id, c.id);
+    t.clips.push(c);
+    bus.execute(
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(t),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let before = bus.project().clone();
+    let (e, _) = take();
+    assert!(e.is_valid());
+    let r = bus.execute(
+        Command::SetClipPitch {
+            track: tid,
+            clip: cid,
+            pitch: Some(Box::new(e)),
+            op: PitchOp::Notes,
+        },
+        Origin::User,
+    );
+    assert!(r.is_err(), "not an audio clip");
+    assert_eq!(bus.project(), &before);
 }

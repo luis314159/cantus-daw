@@ -8,7 +8,7 @@ use crate::kit::color::{mix, on_fill, shade, with_alpha, Hsl};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{self, Brush, Fill, Style, Tok};
 use crate::pitch::{ClipTime, Take};
-use cantus_core::pitch::curves::{time_points, Curves};
+use cantus_core::pitch::curves::Curves;
 use cantus_core::pitch::PitchEdit;
 use cantus_core::{pitch_name, ClipId, TrackId};
 use cantus_dsp::psola::TimeMap;
@@ -91,6 +91,8 @@ pub(super) fn canvas(
     clip: ClipId,
     edit: &PitchEdit,
     analysis: Option<&TakeAnalysis>,
+    curves: Option<&Curves>,
+    map: &TimeMap,
     geo: &Geo,
     s: &Style,
 ) -> Vec<(u32, Rect)> {
@@ -105,8 +107,6 @@ pub(super) fn canvas(
         .track(track)
         .and_then(|t| t.clip(clip))
         .and_then(|c| time.map(|tm| (tm.frame(c.start), tm.frame(c.end()))));
-    let map = TimeMap::new(time_points(edit)).unwrap_or_default();
-    let curves = analysis.map(|a| Curves::new(edit, &a.frames_view()));
     let g = geo.grid;
     let blobs = kit::with_brush(&ui.painter().with_clip_rect(g), |b| {
         rows(b, geo, s);
@@ -116,22 +116,22 @@ pub(super) fn canvas(
         if let Some(tm) = time {
             ladder(b, app, geo, &tm, s);
         }
-        waveform(b, app, track, clip, geo, &map, color, s);
+        waveform(b, app, track, clip, geo, map, color, s);
         if let Some(a) = analysis {
-            marks(b, geo, a, &map, s);
+            marks(b, geo, a, map, s);
         }
         let blobs = blobs(
             b,
             geo,
             edit,
             analysis,
-            &map,
+            map,
             &app.pitch.view.selected,
             color,
             s,
         );
-        if let (Some(a), Some(c)) = (analysis, curves.as_ref()) {
-            pitch_curves(b, geo, edit, a, c, &map, s);
+        if let (Some(a), Some(c)) = (analysis, curves) {
+            pitch_curves(b, geo, edit, a, c, map, s);
         }
         if let Some(super::Gesture::Marquee { from, to }) = &app.pitch.view.gesture {
             let r = Rect::from_two_pos(*from, *to);
@@ -210,10 +210,12 @@ fn ladder(b: &mut Brush, app: &CantusApp, geo: &Geo, tm: &ClipTime, s: &Style) {
     let g = geo.grid;
     let ts = app.project().time_signature;
     let (bar, beat) = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
-    let (t0, t1) = (
+    // Ordered: a clip played backwards runs its bars right to left.
+    let (x0, x1) = (
         tm.tick(geo.frame(g.left())).0,
         tm.tick(geo.frame(g.right())).0,
     );
+    let (t0, t1) = (x0.min(x1), x0.max(x1));
     let px_beat =
         (geo.x(tm.frame(cantus_core::Ticks(beat))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
     let step = if px_beat >= 8.0 { beat } else { bar };
@@ -524,10 +526,12 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
     while px_bar * (every as f32) < 44.0 * s.k && every < 1024 {
         every *= 2;
     }
-    let (t0, t1) = (
+    // Ordered: a clip played backwards runs its bars right to left.
+    let (x0, x1) = (
         tm.tick(geo.frame(r.left())).0,
         tm.tick(geo.frame(r.right())).0,
     );
+    let (t0, t1) = (x0.min(x1), x0.max(x1));
     let mut k = t0.div_euclid(bar);
     while k * bar <= t1 {
         let x = geo.x(tm.frame(cantus_core::Ticks(k * bar)));

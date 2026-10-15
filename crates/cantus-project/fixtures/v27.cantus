@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 27,
   "app_version": "fixture",
-  "saved_at": 1792046753,
+  "saved_at": 1792083728,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -902,7 +902,7 @@
                     "src_end": 60000,
                     "sung": 68.7,
                     "level_db": -14.0,
-                    "pitch": 69.0,
+                    "pitch": 67.0,
                     "centre": 1.0,
                     "start": 24000,
                     "end": 60000
@@ -928,7 +928,8 @@
                     "start": 132000,
                     "end": 180000
                   }
-                ]
+                ],
+                "bypass": true
               }
             },
             "link": 54
@@ -988,7 +989,8 @@
           "trim_db": 0.0
         },
         "armed": true,
-        "takes_open": true
+        "takes_open": true,
+        "pitch_open": true
       },
       {
         "id": 48,
@@ -1985,7 +1987,14 @@
             "spec": {
               "kind": "Clipper",
               "params": {
-                "out": 0.0
+                "ceil": 0.0,
+                "curve": 1.0,
+                "drive": 0.0,
+                "knee": 0.0,
+                "match": 0.0,
+                "os": 0.0,
+                "out": 0.0,
+                "tp": 0.0
               }
             },
             "mix": 1.0,
@@ -1997,7 +2006,13 @@
             "spec": {
               "kind": "Transient",
               "params": {
-                "out": 0.0
+                "attack": 0.0,
+                "band": 0.0,
+                "length": 250.0,
+                "out": 0.0,
+                "speed": 15.0,
+                "sustain": 0.0,
+                "xover": 200.0
               }
             },
             "mix": 1.0,
@@ -2009,7 +2024,17 @@
             "spec": {
               "kind": "TransientSplit",
               "params": {
-                "out": 0.0
+                "b.comp": 0.0,
+                "b.gain": 0.0,
+                "b.tilt": 0.0,
+                "listen": 0.0,
+                "mode": 0.0,
+                "out": 0.0,
+                "sens": 0.5,
+                "speed": 10.0,
+                "t.comp": 0.0,
+                "t.gain": 0.0,
+                "t.tilt": 0.0
               }
             },
             "mix": 1.0,
@@ -2021,7 +2046,17 @@
             "spec": {
               "kind": "Analyzer",
               "params": {
-                "out": 0.0
+                "avg": 250.0,
+                "beats": 2.0,
+                "chan": 0.0,
+                "fft": 3.0,
+                "floor": 1.0,
+                "hold": 1.0,
+                "ms": 20.0,
+                "slope": 4.5,
+                "sync": 2.0,
+                "target": -14.0,
+                "view": 0.0
               }
             },
             "mix": 1.0,
@@ -2324,5 +2359,5 @@
     "pattern_mode": true,
     "next_id": 75
   },
-  "integrity": "538dd7d43dc3cdee824b9aa115cd31cc0c6e004c53fdf63749175fa4e2dd1f60"
+  "integrity": "6a4c51915be6ef2ac3e0aca422ab1f576df8769504d6f607b5ebfcff1c6983da"
 }

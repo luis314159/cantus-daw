@@ -451,8 +451,9 @@ fn main() {
     p.recording.click_accent = false;
     p.pattern_mode = true;
     // Schema 27 (round 28, ADR 0054): the vocal take's pitch edits — three notes in
-    // A minor, the first moved onto A4 and pulled onto its centre, the second sung late
-    // and stretched, the third's formants a little down.
+    // A minor, the first (sung near A4) moved down to G4 and pulled onto its centre, the
+    // second sung late and stretched, the third's formants a little down — compared with
+    // the original (A/B on).
     if let Some(a) = p.tracks[vocal_index]
         .clips
         .iter_mut()
@@ -472,12 +473,15 @@ fn main() {
             ],
             bypass: false,
         };
-        edit::set_pitch(&mut e, 0, 69.0);
+        edit::set_pitch(&mut e, 0, 67.0);
         edit::set_field(&mut e, &[0], edit::Field::Centre, 1.0);
         edit::set_timing(&mut e, 1, 74_400, 124_800);
         edit::set_field(&mut e, &[2], edit::Field::Formant, -2.0);
+        e.bypass = true;
         a.pitch = Some(Box::new(e));
     }
+    // And its pitch lane shown under it.
+    p.tracks[vocal_index].pitch_open = true;
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

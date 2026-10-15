@@ -107,11 +107,29 @@ fn main() {
             }
         }
     }
+    // Narrow: the bar folds into ⋯ and the panel scrolls (review 1).
+    for lang in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_locale(lang);
+        let ctx = context(true);
+        let mut app = app_on(&project, &wav, 0);
+        let out = dir.join(format!("pitch-narrow-night-{}.png", lang.code()));
+        shoot(&ctx, egui::vec2(780.0, 600.0), 1.0, 6, Some(&out), |root| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(root, |ui| views::piano_roll::show(&mut app, ui));
+        });
+        println!("{}", out.display());
+    }
     // The arrangement: the corrected clip's badge, the others as they are.
     for dark in [true, false] {
         cantus_ui::i18n::set_locale(Locale::En);
         let ctx = context(dark);
         let mut app = app_on(&project, &wav, 0);
+        // The pitch lanes of the corrected voice and of the take as sung (§3c).
+        for i in [0usize, 1] {
+            let id = app.project().tracks[i].id;
+            app.toggle_pitch_lane(id);
+        }
         let out = dir.join(format!(
             "pitch-arrangement-{}.png",
             if dark { "night" } else { "paper" }

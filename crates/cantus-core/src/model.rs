@@ -494,6 +494,10 @@ pub struct Track {
     /// The automation lanes are shown under the track (ADR 0027). Shown unless hidden.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub automation_open: bool,
+    /// The pitch lane is shown under the track (schema 27, ADR 0054): its audio clips'
+    /// notes, editable in place.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pitch_open: bool,
 }
 
 fn is_true(x: &bool) -> bool {
@@ -1385,6 +1389,7 @@ impl Project {
             armed: false,
             takes_open: false,
             automation_open: true,
+            pitch_open: false,
         }
     }
 
