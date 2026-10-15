@@ -323,14 +323,20 @@ mod tests {
         );
         let old: RecordSettings = serde_json::from_str(r#"{"count_in_bars": 1}"#).unwrap();
         assert_eq!(old.click_sound, ClickSound::Classic);
-        assert!(old.click_accent, "an older file keeps its accented downbeat");
+        assert!(
+            old.click_accent,
+            "an older file keeps its accented downbeat"
+        );
         let chosen = RecordSettings {
             click_sound: ClickSound::Wood,
             click_accent: false,
             ..RecordSettings::default()
         };
         let json = serde_json::to_string(&chosen).unwrap();
-        assert_eq!(serde_json::from_str::<RecordSettings>(&json).unwrap(), chosen);
+        assert_eq!(
+            serde_json::from_str::<RecordSettings>(&json).unwrap(),
+            chosen
+        );
     }
 
     #[test]

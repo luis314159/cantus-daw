@@ -59,9 +59,7 @@ fn toggle_w(ctx: &egui::Context, s: &Style) -> f32 {
     MODES
         .iter()
         .map(|m| match m {
-            Src::Key(k) => {
-                text::measure(ctx, &Text::key(k, Role::Control, s.t.text), s.tk()).x
-            }
+            Src::Key(k) => text::measure(ctx, &Text::key(k, Role::Control, s.t.text), s.tk()).x,
             Src::Str(_) => 0.0,
         })
         .fold(0.0, f32::max)
@@ -72,8 +70,12 @@ fn toggle_w(ctx: &egui::Context, s: &Style) -> f32 {
 
 /// The meter's least and most width.
 pub fn widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
-    let readout =
-        text::measure(ctx, &Text::new("\u{2212}88.8 LUFS", Role::Value, s.t.text), s.tk()).x;
+    let readout = text::measure(
+        ctx,
+        &Text::new("\u{2212}88.8 LUFS", Role::Value, s.t.text),
+        s.tk(),
+    )
+    .x;
     let min = toggle_w(ctx, s) + readout + 12.0 * s.k;
     (min.max(150.0 * s.k), min.max(280.0 * s.k))
 }
@@ -171,7 +173,14 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             };
             num(footer, tp);
         } else {
-            num(readout, if held > 0.0 { db(held) } else { f32::NEG_INFINITY });
+            num(
+                readout,
+                if held > 0.0 {
+                    db(held)
+                } else {
+                    f32::NEG_INFINITY
+                },
+            );
             readout.push_str(" dB");
         }
         if rresp.hovered() {

@@ -47,13 +47,13 @@ fn arrangement(seed: u64) -> TopBarSettings {
     }
     let hidden = order
         .iter()
-        .filter(|_| next() % 3 == 0)
+        .filter(|_| next().is_multiple_of(3))
         .map(|g| g.id().to_string())
         .collect();
     TopBarSettings {
         order: order.iter().map(|g| g.id().to_string()).collect(),
         hidden,
-        meter_lufs: seed % 2 == 0,
+        meter_lufs: seed.is_multiple_of(2),
     }
 }
 
@@ -110,8 +110,11 @@ fn no_width_zoom_language_or_group_set_overlaps_or_clips() {
                         all.sort();
                         assert_eq!(seen, all, "{what}");
                         let order: Vec<Group> = l.placed().iter().map(|(g, _)| *g).collect();
-                        let kept: Vec<Group> =
-                            shown.iter().copied().filter(|g| order.contains(g)).collect();
+                        let kept: Vec<Group> = shown
+                            .iter()
+                            .copied()
+                            .filter(|g| order.contains(g))
+                            .collect();
                         assert_eq!(order, kept, "the owner's order: {what}");
                         // A bar of 800 px at 100 % keeps the transport.
                         if zoom <= 1.0 && shown.contains(&Group::Transport) {
@@ -216,9 +219,12 @@ fn every_group_keeps_to_its_own_width() {
                         .into_iter()
                         .find(|w| w.group == g)
                         .expect("the default bar shows every group");
-                    let rect =
-                        Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(w.min, transport::HEIGHT));
-                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("group-rect"), rect));
+                    let rect = Rect::from_min_size(
+                        Pos2::new(100.0, 100.0),
+                        Vec2::new(w.min, transport::HEIGHT),
+                    );
+                    ui.ctx()
+                        .data_mut(|d| d.insert_temp(egui::Id::new("group-rect"), rect));
                     transport::draw_group(g, &mut a, ui, rect);
                 });
                 out.textures_delta.clear();
@@ -265,7 +271,10 @@ fn widths() {
             let w = transport::wants(&a, ui.ctx());
             let r = transport::room(ui.ctx(), 1920.0);
             let total: f32 = w.iter().map(|w| w.min + r.gap).sum();
-            eprintln!("{locale:?}: {w:?}\nroom {r:?}\ngroups {total} + left {}", r.left_min);
+            eprintln!(
+                "{locale:?}: {w:?}\nroom {r:?}\ngroups {total} + left {}",
+                r.left_min
+            );
         });
         o.textures_delta.clear();
     }

@@ -76,7 +76,11 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
                 h if folded.contains(&Group::Device) => s.t.get(h.tok()),
                 _ => s.t.highlight,
             };
-            b.circle(c, (if ink == s.t.highlight { 2.5 } else { 3.5 }) * k, Fill::Solid(ink));
+            b.circle(
+                c,
+                (if ink == s.t.highlight { 2.5 } else { 3.5 }) * k,
+                Fill::Solid(ink),
+            );
         });
     }
     let toggle = resp.clicked();
@@ -138,7 +142,15 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
     for g in folded {
         let (band_r, _) = ui.allocate_exact_size(vec2(width, s.s(band::BAND)), Sense::hover());
         with_brush(ui.painter(), |b| {
-            band::section(b, band_r, &s, State::REST, Src::Key(g.name_key()), None, false);
+            band::section(
+                b,
+                band_r,
+                &s,
+                State::REST,
+                Src::Key(g.name_key()),
+                None,
+                false,
+            );
         });
         let w = wants[..n]
             .iter()
@@ -177,7 +189,10 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
     let order = layout::resolve(&app.settings.topbar.order);
     let head_h = 32.0 * k;
     let foot_h = 40.0 * k;
-    let size = vec2(PANEL_W * k, head_h + order.len() as f32 * ROW * k + foot_h + 8.0 * k);
+    let size = vec2(
+        PANEL_W * k,
+        head_h + order.len() as f32 * ROW * k + foot_h + 8.0 * k,
+    );
     let screen = ctx.content_rect();
     let size = size.min(screen.size() - vec2(16.0, 16.0));
     let pos = Pos2::new(
@@ -219,22 +234,33 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
                     let (rows_r, _) = ui.allocate_exact_size(vec2(body.width(), h), Sense::hover());
                     changed |= rows(app, ui, rows_r, &order, &mut topbar, &s);
                 });
-            let foot = Rect::from_min_max(Pos2::new(body.left(), body.bottom() + 6.0 * k), rect.max);
+            let foot =
+                Rect::from_min_max(Pos2::new(body.left(), body.bottom() + 6.0 * k), rect.max);
             let mut child = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(foot)
                     .layout(egui::Layout::left_to_right(egui::Align::Min)),
             );
-            if crate::views::workspace_widgets::button(&mut child, Src::Key("topbar.reset"), 0.0, true)
-                .clicked()
+            if crate::views::workspace_widgets::button(
+                &mut child,
+                Src::Key("topbar.reset"),
+                0.0,
+                true,
+            )
+            .clicked()
             {
                 topbar.order.clear();
                 topbar.hidden.clear();
                 changed = true;
             }
             child.add_space(6.0 * k);
-            if crate::views::workspace_widgets::button(&mut child, Src::Key("topbar.done"), 0.0, true)
-                .clicked()
+            if crate::views::workspace_widgets::button(
+                &mut child,
+                Src::Key("topbar.done"),
+                0.0,
+                true,
+            )
+            .clicked()
             {
                 close = true;
             }
@@ -293,9 +319,12 @@ fn rows(
         if gresp.drag_started() {
             app.topbar.customise.drag = Some((i, i));
         }
-        if let (Some((from, _)), Some(p)) = (app.topbar.customise.drag, gresp.interact_pointer_pos()) {
+        if let (Some((from, _)), Some(p)) =
+            (app.topbar.customise.drag, gresp.interact_pointer_pos())
+        {
             if from == i {
-                let to = (((p.y - body.top()) / row_h).floor().max(0.0) as usize).min(order.len() - 1);
+                let to =
+                    (((p.y - body.top()) / row_h).floor().max(0.0) as usize).min(order.len() - 1);
                 app.topbar.customise.drag = Some((from, to));
             }
         }
@@ -337,11 +366,26 @@ fn rows(
                 );
             }
             if target {
-                b.hline(r.left(), r.right(), b.snap_mid(r.top()), 2.0 * b.px(), s.t.focus);
+                b.hline(
+                    r.left(),
+                    r.right(),
+                    b.snap_mid(r.top()),
+                    2.0 * b.px(),
+                    s.t.focus,
+                );
             }
             let gr = Rect::from_center_size(grip.center(), vec2(12.0 * k, 12.0 * k));
             glyph::paint(b, gr, Glyph::Grip, s.t.text_dim);
-            led::paint(b, lamp.center(), 9.0 * k, shown, s, Tok::Led, Tok::Panel, 1.0);
+            led::paint(
+                b,
+                lamp.center(),
+                9.0 * k,
+                shown,
+                s,
+                Tok::Led,
+                Tok::Panel,
+                1.0,
+            );
             let nr = Rect::from_min_max(Pos2::new(lamp.right() + 4.0 * k, r.top()), r.max);
             let ink = if shown { s.t.text } else { s.t.text_dim };
             let _ = text::paint(

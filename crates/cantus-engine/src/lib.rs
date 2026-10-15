@@ -43,9 +43,8 @@ pub use inst::{
 pub use loopback::{LoopbackError, LoopbackResult};
 pub use messages::{
     CaptureTarget, EngineEvent, EngineMessage, EngineStats, MasterLoudness, Meters, MidiEvent,
-    NoteInput,
-    ANALYSER_SAMPLES, CAPTURE_SAMPLES, MAX_BLOCK_FRAMES, MAX_EFFECTS_PER_TRACK, MAX_LIVE_ECHO,
-    MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
+    NoteInput, ANALYSER_SAMPLES, CAPTURE_SAMPLES, MAX_BLOCK_FRAMES, MAX_EFFECTS_PER_TRACK,
+    MAX_LIVE_ECHO, MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
 pub use midi::{list_ports, MidiInputs, MidiSender};
 pub use processor::{Processor, Workers};

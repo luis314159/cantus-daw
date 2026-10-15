@@ -139,9 +139,15 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     let looping = app.project().loop_enabled;
     let kr = key_rect(r, x, s);
-    if key_in(ui, kr, s, KeyFace::Glyph(Glyph::Loop), looping, "loop", || {
-        tip(app, "transport.loop", Some(Action::ToggleLoop))
-    })
+    if key_in(
+        ui,
+        kr,
+        s,
+        KeyFace::Glyph(Glyph::Loop),
+        looping,
+        "loop",
+        || tip(app, "transport.loop", Some(Action::ToggleLoop)),
+    )
     .clicked()
     {
         app.run_action(Action::ToggleLoop);
@@ -162,7 +168,15 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             .unwrap_or_else(|| tip(app, "menu.undo", Some(Action::Undo)))
     };
     let kr = key_rect(r, r.left(), s);
-    let u = key_in(ui, kr, s, KeyFace::Glyph(Glyph::Undo), false, "undo", undo_tip);
+    let u = key_in(
+        ui,
+        kr,
+        s,
+        KeyFace::Glyph(Glyph::Undo),
+        false,
+        "undo",
+        undo_tip,
+    );
     if u.clicked() && app.bus.can_undo() {
         app.undo();
     }
@@ -174,7 +188,15 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     };
     let can_redo = app.bus.can_redo();
     let kr = key_rect(r, r.left() + (KEY + STEP) * s.k, s);
-    let rr = key_in(ui, kr, s, KeyFace::Glyph(Glyph::Redo), false, "redo", redo_tip);
+    let rr = key_in(
+        ui,
+        kr,
+        s,
+        KeyFace::Glyph(Glyph::Redo),
+        false,
+        "redo",
+        redo_tip,
+    );
     if rr.clicked() && can_redo {
         app.redo();
     }
@@ -283,7 +305,13 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         KeyFace::Glyph(Glyph::Keyboard),
         typing,
         "typing",
-        || format!("{} \u{2014} {}", t("transport.typing"), t("transport.typing_tip")),
+        || {
+            format!(
+                "{} \u{2014} {}",
+                t("transport.typing"),
+                t("transport.typing_tip")
+            )
+        },
     )
     .clicked()
     {
@@ -380,9 +408,15 @@ pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     let open = app.show_theme_editor;
     let kr = key_rect(r, r.left() + (KEY + STEP) * k, s);
-    if key_in(ui, kr, s, KeyFace::Glyph(Glyph::Gear), open, "appearance", || {
-        t("settings.appearance")
-    })
+    if key_in(
+        ui,
+        kr,
+        s,
+        KeyFace::Glyph(Glyph::Gear),
+        open,
+        "appearance",
+        || t("settings.appearance"),
+    )
     .clicked()
     {
         app.show_theme_editor = !open;

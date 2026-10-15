@@ -51,7 +51,9 @@ fn click_bar(set: impl FnOnce(&mut RecordSettings)) -> Vec<f32> {
 /// The left channel of the beat starting at `beat` (0-based), 40 ms of it.
 fn beat(out: &[f32], beat: usize) -> Vec<f32> {
     let at = beat * (SR / 2.0) as usize;
-    (at..at + (SR * 0.04) as usize).map(|i| out[i * 2]).collect()
+    (at..at + (SR * 0.04) as usize)
+        .map(|i| out[i * 2])
+        .collect()
 }
 
 #[test]
@@ -60,7 +62,11 @@ fn the_click_plays_the_chosen_voice_and_accent() {
     let wood = click_bar(|r| r.click_sound = ClickSound::Wood);
     let beep = click_bar(|r| r.click_sound = ClickSound::Beep);
     assert!(beat(&classic, 0).iter().any(|x| x.abs() > 0.1), "a click");
-    assert_ne!(beat(&classic, 0), beat(&wood, 0), "wood is not the classic click");
+    assert_ne!(
+        beat(&classic, 0),
+        beat(&wood, 0),
+        "wood is not the classic click"
+    );
     assert_ne!(beat(&wood, 0), beat(&beep, 0), "beep is its own");
     // Accented: the downbeat differs from the second beat; without the accent, it is the
     // second beat to the bit — for every voice.
@@ -84,11 +90,18 @@ fn the_master_loudness_is_metered() {
     snap.loop_region = None;
     let (out, m) = play(snap, Ticks::ZERO, (SR * 3.5) as usize);
     let l = m.master_loudness;
-    assert!(l.momentary.is_finite() && l.momentary > -40.0 && l.momentary < 0.0, "{l:?}");
+    assert!(
+        l.momentary.is_finite() && l.momentary > -40.0 && l.momentary < 0.0,
+        "{l:?}"
+    );
     assert!(l.short_term.is_finite() && l.short_term < 0.0, "{l:?}");
     assert!(l.integrated.is_finite() && l.integrated < 0.0, "{l:?}");
     let block_peak = m.master[0].max(m.master[1]);
-    assert!(l.true_peak >= block_peak, "true {} < sample {block_peak}", l.true_peak);
+    assert!(
+        l.true_peak >= block_peak,
+        "true {} < sample {block_peak}",
+        l.true_peak
+    );
     assert!(out.iter().any(|x| x.abs() > 0.01));
     // Silence: nothing measured yet reads as minus infinity, not as a number.
     let quiet = Project::new("Quiet");
@@ -142,6 +155,9 @@ fn pattern_mode_plays_the_pattern_looped_to_the_sample() {
         .iter()
         .zip(&laid)
         .position(|(a, b)| a.to_bits() != b.to_bits());
-    assert_eq!(first_diff, None, "pattern mode differs from the pattern laid out");
+    assert_eq!(
+        first_diff, None,
+        "pattern mode differs from the pattern laid out"
+    );
     assert!(looped.iter().any(|x| x.abs() > 0.01), "the pattern sounds");
 }

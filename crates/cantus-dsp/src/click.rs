@@ -180,8 +180,8 @@ impl Click {
         }
         // A soft-edged square: tanh of a driven sine, normalised to ±1.
         let drive = 3.0f32;
-        let tone = math::tanh(drive * math::sin(self.phase * std::f32::consts::TAU))
-            / math::tanh(drive);
+        let tone =
+            math::tanh(drive * math::sin(self.phase * std::f32::consts::TAU)) / math::tanh(drive);
         let rise = (self.age as f32 / self.attack as f32).min(1.0);
         let s = tone * self.env * rise * self.gain;
         self.phase = (self.phase + self.inc).rem_euclid(1.0);

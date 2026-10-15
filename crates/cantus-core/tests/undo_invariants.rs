@@ -754,8 +754,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     // Round 28 (schema 26): the click's voice and its accent, from the
                     // draws already made (a new draw would move the fixed seeds' cases).
                     let d = settings.click_db;
-                    settings.click_sound =
-                        cantus_core::ClickSound::ALL[(d.abs() as usize) % 3];
+                    settings.click_sound = cantus_core::ClickSound::ALL[(d.abs() as usize) % 3];
                     settings.click_accent = d > -9.0;
                 }
                 _ => settings.click_db = f32::INFINITY,

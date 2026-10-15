@@ -289,7 +289,13 @@ pub fn layout(room: &Room, wants: &[Want]) -> Layout {
         let grow = slack.min((w.max - w.min).max(0.0));
         slack -= grow;
         let width = w.min + grow;
-        out.placed[out.placed_len] = (w.group, Span { x0: x, x1: x + width });
+        out.placed[out.placed_len] = (
+            w.group,
+            Span {
+                x0: x,
+                x1: x + width,
+            },
+        );
         out.placed_len += 1;
         x += width + room.gap;
     }
@@ -322,7 +328,6 @@ mod tests {
             })
             .collect()
     }
-
 
     /// When only the groups that matter more than the menus are left, the menus fold into
     /// one key (the compact left block) before those groups leave the bar.
@@ -371,7 +376,10 @@ mod tests {
         sorted.dedup();
         assert_eq!(sorted.len(), COUNT, "each group once: {r:?}");
         let at = |g: Group| r.iter().position(|x| *x == g).unwrap();
-        assert!(at(Group::Meter) < at(Group::Transport), "the owner's order kept");
+        assert!(
+            at(Group::Meter) < at(Group::Transport),
+            "the owner's order kept"
+        );
         // A group the file does not name goes after its default predecessor: Tempo after
         // Transport, Mode (which has none) first.
         assert_eq!(at(Group::Tempo), at(Group::Transport) + 1);

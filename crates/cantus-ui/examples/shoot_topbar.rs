@@ -42,8 +42,7 @@ fn main() {
                             lang.code(),
                             (scale * 100.0) as u32
                         );
-                        if !filters.is_empty()
-                            && !filters.iter().any(|f| name.contains(f.as_str()))
+                        if !filters.is_empty() && !filters.iter().any(|f| name.contains(f.as_str()))
                         {
                             continue;
                         }
@@ -105,7 +104,14 @@ fn shoot(path: &std::path::Path, what: &str, width: f32, theme: &str, scale: f32
         app.toggle_arm(t, false);
     }
     // The bar is 54 points tall at every zoom; the image is that many points times the zoom.
-    let size = vec2(width / scale, if tall { (560.0 / scale).max(360.0) } else { 54.0 });
+    let size = vec2(
+        width / scale,
+        if tall {
+            (560.0 / scale).max(360.0)
+        } else {
+            54.0
+        },
+    );
     let mut frame = 0;
     cantus_ui::raster::shoot(&ctx, size, scale, 6, Some(path), |root| {
         frame += 1;

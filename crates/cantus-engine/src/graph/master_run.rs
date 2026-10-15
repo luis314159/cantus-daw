@@ -377,7 +377,9 @@ mod loud_tests {
     fn loud_cost() {
         let sr = 48_000.0f32;
         let mut m = MasterLoud::new(sr);
-        let buf: Vec<f32> = (0..256).map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5).collect();
+        let buf: Vec<f32> = (0..256)
+            .map(|i| ((i * 37 % 101) as f32 / 101.0) - 0.5)
+            .collect();
         let blocks = 48_000 * 20 / 256;
         let t = std::time::Instant::now();
         for _ in 0..blocks {

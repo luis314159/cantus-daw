@@ -74,7 +74,10 @@ impl PatternRegion {
 
     /// The clip `track` plays in the pattern, if any.
     pub fn clip_of(&self, track: TrackId) -> Option<ClipId> {
-        self.clips.iter().find(|(t, _)| *t == track).map(|(_, c)| *c)
+        self.clips
+            .iter()
+            .find(|(t, _)| *t == track)
+            .map(|(_, c)| *c)
     }
 }
 
@@ -185,7 +188,11 @@ mod tests {
     fn audio_and_automation_clips_are_not_patterns() {
         let (mut p, [drums, _], [a, _, _]) = song();
         p.track_mut(drums).unwrap().clip_mut(a).unwrap().lane = 1;
-        assert_eq!(PatternRegion::of(&p, drums, a), None, "a take is not a pattern");
+        assert_eq!(
+            PatternRegion::of(&p, drums, a),
+            None,
+            "a take is not a pattern"
+        );
         assert_eq!(PatternRegion::of(&p, drums, ClipId(999)), None);
     }
 
@@ -213,7 +220,11 @@ mod tests {
         };
         let d: Vec<_> = (0..4).map(|i| (Ticks::beats(8 + i), 36)).collect();
         assert_eq!(on(drums), d, "pattern A's four kicks and nothing of clip B");
-        assert_eq!(on(bass), vec![(Ticks::beats(8), 40)], "the bass line in the window");
+        assert_eq!(
+            on(bass),
+            vec![(Ticks::beats(8), 40)],
+            "the bass line in the window"
+        );
         // No pattern: nothing plays, the first bar loops.
         let empty = Snapshot::compile(&audition(&p, None), 1);
         assert!(empty.tracks.iter().all(|t| t.events.is_empty()));

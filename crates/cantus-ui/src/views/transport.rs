@@ -262,9 +262,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     );
     let ground = ui.allocate_rect(rect, Sense::click());
     let layer = ui.layer_id();
-    let first = ui
-        .ctx()
-        .graphics_mut(|g| g.entry(layer).next_idx());
+    let first = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx());
     let ctx = ui.ctx().clone();
     // The things the bar keeps up to date whatever it shows: the pattern being played,
     // a run of taps that ended, the RAM reading.

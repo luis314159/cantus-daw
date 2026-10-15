@@ -23,7 +23,12 @@ thread_local! {
 
 fn bpm_w(ctx: &egui::Context, s: &Style) -> f32 {
     text::measure(ctx, &Text::new("888.8", Role::Hero, s.t.text), s.tk()).x
-        + text::measure(ctx, &Text::key("transport.bpm", Role::Micro, s.t.text), s.tk()).x
+        + text::measure(
+            ctx,
+            &Text::key("transport.bpm", Role::Micro, s.t.text),
+            s.tk(),
+        )
+        .x
         + 22.0 * s.k
 }
 
@@ -269,14 +274,8 @@ fn metre_editor(app: &mut CantusApp, ui: &mut Ui) {
         crate::views::record_options::label(ui, "topbar.metre_beats", &s);
         let mut beats = String::new();
         let _ = write!(beats, "{}", ts.numerator);
-        let (_, c) = kit::widgets::menu_field(
-            ui,
-            &beats,
-            true,
-            false,
-            &t("topbar.metre_beats"),
-            120.0,
-        );
+        let (_, c) =
+            kit::widgets::menu_field(ui, &beats, true, false, &t("topbar.metre_beats"), 120.0);
         if c.prev {
             next.numerator = ts.numerator.saturating_sub(1).max(1);
         }

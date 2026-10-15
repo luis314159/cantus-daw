@@ -29,8 +29,7 @@ pub mod time;
 
 pub use audio::{
     AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,
-    TakeMode,
-    TrackInput,
+    TakeMode, TrackInput,
 };
 pub use automation::{AutoLane, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};

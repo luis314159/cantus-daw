@@ -43,7 +43,12 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
         .iter()
         .map(|(_, k)| text::measure(ctx, &Text::key(k, Role::Value, s.t.text), tk).x)
         .chain(std::iter::once(
-            text::measure(ctx, &Text::new("\u{2212}24.0 dB", Role::Value, s.t.text), tk).x,
+            text::measure(
+                ctx,
+                &Text::new("\u{2212}24.0 dB", Role::Value, s.t.text),
+                tk,
+            )
+            .x,
         ))
         .fold(0.0, f32::max);
     (label + 8.0 * s.k, value + 10.0 * s.k)
@@ -58,9 +63,15 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let on = app.project().metronome;
     let kr = key_rect(r, r.left(), s);
-    if key_in(ui, kr, s, KeyFace::Glyph(Glyph::Metronome), on, "metronome", || {
-        tip(app, "transport.metronome", Some(Action::ToggleMetronome))
-    })
+    if key_in(
+        ui,
+        kr,
+        s,
+        KeyFace::Glyph(Glyph::Metronome),
+        on,
+        "metronome",
+        || tip(app, "transport.metronome", Some(Action::ToggleMetronome)),
+    )
     .clicked()
     {
         app.run_action(Action::ToggleMetronome);

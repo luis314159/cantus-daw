@@ -29,7 +29,10 @@ pub struct Ram {
 impl Ram {
     /// Read again when a second has passed (or never was).
     pub fn tick(&mut self) {
-        if self.at.is_none_or(|t| t.elapsed() >= Duration::from_secs(1)) {
+        if self
+            .at
+            .is_none_or(|t| t.elapsed() >= Duration::from_secs(1))
+        {
             self.at = Some(Instant::now());
             self.bytes = cantus_rt::usage::working_set_bytes();
         }
@@ -203,7 +206,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         });
     });
     // Each number's tooltip, made only while hovered.
-    for i in 0..4 {
+    for (i, word) in WORDS.iter().enumerate() {
         let resp = ui.interact(cell(i), Id::new(("toolbar-perf", i)), Sense::hover());
         if !resp.hovered() {
             continue;
@@ -218,7 +221,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             },
             _ => t("topbar.no_device"),
         };
-        hint::set_text(ui.ctx(), &t(WORDS[i]), "", Caps::NONE);
+        hint::set_text(ui.ctx(), &t(word), "", Caps::NONE);
         let _ = resp.on_hover_text(tip);
     }
 }

@@ -382,9 +382,7 @@ impl Action {
         use Action::*;
         match self {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
-            | TogglePatternMode | Panic => {
-                Category::Transport
-            }
+            | TogglePatternMode | Panic => Category::Transport,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,

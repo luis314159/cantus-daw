@@ -37,8 +37,7 @@ impl MidiSender {
 
     /// Returns `false` if the queue was full (the event is dropped).
     pub fn send(&self, ev: MidiEvent) -> bool {
-        self.sent
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         match self.inner.lock() {
             Ok(mut p) => p.push(ev).is_ok(),
             Err(_) => false,

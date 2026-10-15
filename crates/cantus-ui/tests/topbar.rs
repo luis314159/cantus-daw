@@ -163,7 +163,11 @@ fn the_tap_key_and_its_shortcut_tap() {
     let tap = r.text("TAP").expect("the TAP key is on the bar");
     r.click(tap.center());
     assert_eq!(r.app.topbar.tap.taps(), 1);
-    assert!(r.app.status.text.contains("Tap again"), "{}", r.app.status.text);
+    assert!(
+        r.app.status.text.contains("Tap again"),
+        "{}",
+        r.app.status.text
+    );
 }
 
 #[test]
@@ -193,7 +197,12 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     assert!(a.project().pattern_mode);
     r.idle(2);
     let region = cantus_core::pattern::PatternRegion::of(r.app.project(), track, clip).unwrap();
-    let snap = r.app.engine.sent_snapshot().expect("a snapshot sent").clone();
+    let snap = r
+        .app
+        .engine
+        .sent_snapshot()
+        .expect("a snapshot sent")
+        .clone();
     let lr = snap.loop_region.clone().expect("the pattern loops");
     assert_eq!((lr.start, lr.end), (region.start, region.end()));
     let clips_heard: usize = r
@@ -204,7 +213,11 @@ fn pattern_mode_plays_the_edited_clip_alone() {
         .filter(|t| region.clip_of(t.id).is_some())
         .count();
     assert!(clips_heard >= 1);
-    assert_eq!(r.app.engine.position(), region.start, "from the pattern's top");
+    assert_eq!(
+        r.app.engine.position(),
+        region.start,
+        "from the pattern's top"
+    );
     assert!(r.painted().contains("PAT"), "{}", r.painted());
     // Recording is refused, with the way out.
     r.app.run_action(Action::Record);
@@ -224,7 +237,9 @@ fn pattern_mode_plays_the_edited_clip_alone() {
 #[test]
 fn the_window_title_follows_the_project_through_the_boot_path() {
     let boot = include_str!("../src/boot.rs");
-    let assemble = &boot[boot.find("if let Some(app) = boot.step(&ctx) {").expect("assemble")..];
+    let assemble = &boot[boot
+        .find("if let Some(app) = boot.step(&ctx) {")
+        .expect("assemble")..];
     let assemble = &assemble[..assemble.find("*self = Shell::Running").unwrap()];
     assert!(
         assemble.contains("transport::title::title_of(&app)")
@@ -232,7 +247,9 @@ fn the_window_title_follows_the_project_through_the_boot_path() {
         "boot titles the main window with the project:\n{assemble}"
     );
     let app = include_str!("../src/app.rs");
-    let frame = &app[app.find("pub fn frame(&mut self, root: &mut egui::Ui) {").unwrap()..];
+    let frame = &app[app
+        .find("pub fn frame(&mut self, root: &mut egui::Ui) {")
+        .unwrap()..];
     assert!(frame[..2000].contains("views::transport::title::sync(self, ctx);"));
     let mut r = Rig::new();
     let name = r.app.project().name.clone();
@@ -241,7 +258,11 @@ fn the_window_title_follows_the_project_through_the_boot_path() {
             .iter()
             .any(|c| matches!(c, egui::ViewportCommand::Title(t) if t == want))
     };
-    assert!(titled(&r, &format!("{name} \u{2014} Cantus")), "{:?}", r.commands);
+    assert!(
+        titled(&r, &format!("{name} \u{2014} Cantus")),
+        "{:?}",
+        r.commands
+    );
     // A click on the name opens the field; typing and Enter rename, one undo step.
     transport::title::start_naming(&mut r.app);
     r.idle(2);
@@ -264,7 +285,11 @@ fn the_window_title_follows_the_project_through_the_boot_path() {
     }]);
     r.idle(2);
     assert_eq!(r.app.project().name, "Psalm 23");
-    assert!(titled(&r, "Psalm 23 \u{2022} \u{2014} Cantus"), "{:?}", r.commands);
+    assert!(
+        titled(&r, "Psalm 23 \u{2022} \u{2014} Cantus"),
+        "{:?}",
+        r.commands
+    );
     r.app.undo();
     assert_eq!(r.app.project().name, name);
 }
@@ -290,7 +315,7 @@ fn the_snap_follows_the_editor_being_worked_in() {
         .expect("the SNAP lamp");
     r.click(snap.center());
     assert_ne!(r.app.piano_roll.snap, before);
-    assert_eq!(r.app.arrangement.snap, true, "the arrangement's is its own");
+    assert!(r.app.arrangement.snap, "the arrangement's is its own");
 }
 
 #[test]
@@ -328,10 +353,15 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
         .expect("the windows in the overflow");
     // The fifth key: the mixer.
     let mixer = pos2(windows.left() + 4.0 * 30.0 + 14.0, windows.center().y);
-    let shown = r.app.workspace.is_visible(cantus_ui::views::workspace::Pane::Mixer);
+    let shown = r
+        .app
+        .workspace
+        .is_visible(cantus_ui::views::workspace::Pane::Mixer);
     r.click(mixer);
     assert_ne!(
-        r.app.workspace.is_visible(cantus_ui::views::workspace::Pane::Mixer),
+        r.app
+            .workspace
+            .is_visible(cantus_ui::views::workspace::Pane::Mixer),
         shown
     );
 }
@@ -341,7 +371,9 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
     let mut r = Rig::new();
     transport::open_customise(&mut r.app);
     r.idle(2);
-    let tools = r.text("Tools and zoom").expect("the customise panel lists the groups");
+    let tools = r
+        .text("Tools and zoom")
+        .expect("the customise panel lists the groups");
     r.click(tools.center());
     assert!(r.app.settings.topbar.hidden.iter().any(|h| h == "tools"));
     assert!(transport::last_layout(&r.ctx)
@@ -415,7 +447,12 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
         assert!(inside.contains(&w), "{inside:?}");
     }
     if cfg!(any(windows, target_os = "linux")) {
-        assert!(inside.iter().any(|t| t.ends_with("MB") || t.ends_with("GB")), "{inside:?}");
+        assert!(
+            inside
+                .iter()
+                .any(|t| t.ends_with("MB") || t.ends_with("GB")),
+            "{inside:?}"
+        );
     }
     let status_top = r.size.y - 30.0;
     let status: Vec<&str> = r
@@ -425,7 +462,9 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
         .map(|(t, _)| t.as_str())
         .collect();
     assert!(
-        !status.iter().any(|t| t.contains("MIDI") || t.contains("voices")),
+        !status
+            .iter()
+            .any(|t| t.contains("MIDI") || t.contains("voices")),
         "{status:?}"
     );
 }

@@ -113,9 +113,6 @@ pub fn refuse_record(app: &mut CantusApp) -> bool {
         .first()
         .map(|b| b.display())
         .unwrap_or_default();
-    app.set_error(crate::i18n::tf(
-        "topbar.mode.no_record",
-        &[("key", &key)],
-    ));
+    app.set_error(crate::i18n::tf("topbar.mode.no_record", &[("key", &key)]));
     true
 }
