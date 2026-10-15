@@ -861,7 +861,7 @@ fn param(
             v = f;
         }
     }
-    let rings = rings_for(spec, key, s);
+    let mut rings = rings_for(spec, key, s);
     let name = t(info.label_key);
     let unit = info.unit;
     // Automated (ADR 0027): the knob shows what the clip gives it where the song is, and
@@ -872,24 +872,45 @@ fn param(
     if let Some(Some(av)) = automated {
         v = av;
     }
+    // Modulators on it (ADR 0057): their rings after the instrument's own, the live dot.
+    let target = cantus_core::AutoTarget::Instrument {
+        track,
+        key: key.to_string(),
+    };
+    let mut mod_rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let base = crate::widgets::knob::pos_of(
+        v,
+        info.min,
+        info.max,
+        if info.logarithmic {
+            crate::widgets::knob::Taper::Log
+        } else {
+            crate::widgets::knob::Taper::Linear
+        },
+    );
+    let (offer, n) = app.mod_offer(&target, base, s, &mut mod_rings);
+    rings.extend_from_slice(&mod_rings[..n]);
     let mut p = Param::new(&mut v, info.min..=info.max, info.default)
         .size(size)
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
         .rings(&rings)
-        .automation(automated.is_some());
+        .automation(automated.is_some())
+        .modulation(offer);
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
     let (r, choice) = p
         .format(move |v, b| write_readout(v, unit, b))
         .show_full(ui);
-    if choice == Some(crate::kit::automate::Choice::Automate) {
-        app.automate(cantus_core::AutoTarget::Instrument {
-            track,
-            key: key.to_string(),
-        });
+    match choice {
+        Some(crate::kit::automate::Choice::Automate) => app.automate(target),
+        Some(c @ (crate::kit::automate::Choice::Modulate
+        | crate::kit::automate::Choice::Depth(_)
+        | crate::kit::automate::Choice::DepthDone
+        | crate::kit::automate::Choice::Connect(_))) => app.modulation_choice(&target, c, r.rect),
+        _ => {}
     }
     if info.stepped {
         if r.dragged() {

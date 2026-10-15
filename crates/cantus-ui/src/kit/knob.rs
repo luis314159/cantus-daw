@@ -109,6 +109,8 @@ pub struct KnobLook<'a> {
     pub default: f32,
     /// Modulation arriving: (depth −1…1 of the travel, source colour), stacked outwards.
     pub rings: &'a [(f32, Color32)],
+    /// Where modulation has the parameter now (0…1, ADR 0057): a dot on the track.
+    pub live: Option<f32>,
 }
 
 impl KnobLook<'_> {
@@ -118,6 +120,7 @@ impl KnobLook<'_> {
             value,
             default,
             rings: &[],
+            live: None,
         }
     }
 }
@@ -179,6 +182,10 @@ pub fn paint(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>) 
             f(s.t.text),
             true,
         );
+        if let Some(l) = look.live.filter(|_| !st.disabled) {
+            let dir = Vec2::angled(angle(l));
+            b.circle(c + dir * (r + s.s(2.0)), s.s(1.8), Fill::Solid(f(s.t.hue_mod)));
+        }
         if st.focused {
             b.circle_stroke(c, r + s.s(3.5), s.s(1.5), s.t.focus);
         }
@@ -231,6 +238,13 @@ pub fn paint(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>) 
         f(s.t.knob_pointer),
         true,
     );
+    // Where modulation has it now (ADR 0057): a dot riding the track.
+    if let Some(l) = look.live.filter(|_| !st.disabled) {
+        let dir = Vec2::angled(angle(l));
+        let dot = c + dir * tr;
+        b.circle(dot, tw * 0.75 + b.px(), Fill::Solid(f(s.t.panel)));
+        b.circle(dot, tw * 0.75, Fill::Solid(f(s.t.hue_mod)));
+    }
     if st.focused {
         b.circle_stroke(c, r + s.s(3.0), s.s(1.5), s.t.focus);
     }

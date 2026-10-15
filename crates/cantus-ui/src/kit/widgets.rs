@@ -144,7 +144,17 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         self.offer = Some(super::automate::Offer {
             automated,
             typing: false,
+            modulation: self.offer.and_then(|o| o.modulation),
         });
+        self
+    }
+    /// It can be modulated (ADR 0057): *Modulate…* in its menu, a modulator's handle
+    /// dropped on it, Alt+drag (or a mapping modulator's drag) for the depth, the live dot.
+    /// Call after [`Self::automation`] or alone.
+    pub fn modulation(mut self, m: super::automate::ModOffer) -> Self {
+        let mut o = self.offer.unwrap_or_default();
+        o.modulation = Some(m);
+        self.offer = Some(o);
         self
     }
 
@@ -170,7 +180,10 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         } else {
             1.0
         };
-        if resp.dragged() {
+        // A depth drag (ADR 0057) moves the modulation, not the value.
+        let depth_drag = super::automate::depth_drag(ui, self.offer);
+        let mod_choice = super::automate::modulation_choice(ui, &resp, self.offer);
+        if resp.dragged() && !depth_drag {
             let d = resp.drag_delta();
             p += (d.x - d.y) * fine / TRAVEL_PX;
         }
@@ -224,6 +237,7 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
             value: pos_of(*self.value, min, max, taper),
             default: pos_of(self.default, min, max, taper),
             rings: self.rings,
+            live: self.offer.and_then(|o| o.modulation).and_then(|m| m.live),
         };
         let fmt = &self.format;
         if st.hovered {
@@ -248,10 +262,25 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
             if self.offer.is_some_and(|o| o.automated) {
                 with_brush(&painter, |b| super::automate::mark(b, rect, &s));
             }
+            let modulated = self
+                .offer
+                .and_then(|o| o.modulation)
+                .is_some_and(|m| m.depth.is_some() && !m.mapping);
+            if modulated {
+                with_brush(&painter, |b| super::automate::mod_mark(b, rect, &s));
+            }
+            if self.offer.is_some_and(|o| o.modulation.is_some())
+                && super::automate::handle_in_flight(ui.ctx())
+                && resp.contains_pointer()
+            {
+                with_brush(&painter, |b| super::automate::drop_target(b, rect, &s));
+            }
         });
-        let mut choice = None;
+        let mut choice = mod_choice;
         if let Some(offer) = self.offer {
-            choice = super::automate::menu(ui, &resp, offer);
+            if let Some(c) = super::automate::menu(ui, &resp, offer) {
+                choice = Some(c);
+            }
             if choice == Some(super::automate::Choice::Reset) {
                 *self.value = self.default;
                 resp.mark_changed();

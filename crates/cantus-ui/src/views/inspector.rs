@@ -33,6 +33,9 @@ mod hosted;
 mod menus;
 #[path = "inspector_mini.rs"]
 mod mini;
+/// The Modulators section (ADR 0057).
+#[path = "modulator_section.rs"]
+mod modulators;
 #[path = "inspector_pads.rs"]
 mod pads;
 #[path = "inspector_pinned.rs"]
@@ -117,6 +120,8 @@ pub enum Act {
     Audio(audio::AudioAct),
     /// The clip section's link row (round 26): select the copies, make unique, link to….
     Link(TrackId, ClipId, track::LinkAct),
+    /// The Modulators section's rows (ADR 0057).
+    Mod(modulators::ModAct),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -460,6 +465,10 @@ impl Inspector {
         {
             let mut sh = self.sheet(ui, s, col);
             channel::show(&mut sh, &mut chan, app, subject, strip);
+            // The Modulators of the track, its channel, the master (ADR 0057).
+            for (host, key) in modulators::hosts(app, subject) {
+                modulators::show(&mut sh, app, host, key);
+            }
             sh.ui.add_space(s.d(10.0));
         }
         self.chan = chan;
@@ -736,6 +745,7 @@ pub(crate) fn strip_label(app: &CantusApp, id: StripId, b: &mut String) {
 /// Run what the rows asked for.
 fn apply(app: &mut CantusApp, a: Act) {
     match a {
+        Act::Mod(m) => modulators::apply(app, m),
         Act::Exec(c) => {
             app.exec(c);
         }

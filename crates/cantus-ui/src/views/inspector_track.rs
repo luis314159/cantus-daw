@@ -50,7 +50,10 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
             row.value,
         );
     }
-    sh.param_row(
+    // Automatable and modulatable (ADR 0027, 0057): right-click for the menu.
+    super::modulators::param_row(
+        sh,
+        app,
         "inspector.track_level",
         Id::new(("insp-track-gain", id)),
         track.gain_db,
@@ -58,7 +61,7 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
         true,
         sheet::db,
         Function::Source,
-        false,
+        cantus_core::AutoTarget::TrackGain(id),
         |gain_db| {
             Act::Merge(
                 Command::SetTrackGain { id, gain_db },
@@ -66,7 +69,9 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
             )
         },
     );
-    sh.param_row(
+    super::modulators::param_row(
+        sh,
+        app,
         "inspector.track_pan",
         Id::new(("insp-track-pan", id)),
         track.pan,
@@ -74,7 +79,7 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
         false,
         sheet::pan,
         Function::Source,
-        false,
+        cantus_core::AutoTarget::TrackPan(id),
         |pan| {
             Act::Merge(
                 Command::SetTrackPan { id, pan },
@@ -191,7 +196,7 @@ pub fn instrument(
         if let Some(kit) = track.instrument.pulsus() {
             super::pads::show(&mut sh, app, t, &kit.pads);
         } else if let Some(params) = track.instrument.firmus() {
-            firmus(&mut sh, t, params);
+            firmus(&mut sh, app, t, params);
         } else if let Some(plugin) = track.instrument.external() {
             super::hosted::show(&mut sh, app, t, plugin);
         }
@@ -200,7 +205,7 @@ pub fn instrument(
 }
 
 /// Firmus: its sections as label | value rows — no wall of knobs.
-fn firmus(sh: &mut Sheet<'_>, id: TrackId, params: &cantus_core::FirmusParams) {
+fn firmus(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId, params: &cantus_core::FirmusParams) {
     sh.band("inspector.oscillators", Function::Source, None, false, None);
     for p in [FirmusParam::Osc1Wave, FirmusParam::Osc2Wave] {
         let w = cantus_core::Waveform::ALL
@@ -271,7 +276,9 @@ fn firmus(sh: &mut Sheet<'_>, id: TrackId, params: &cantus_core::FirmusParams) {
                 bipolar: info.min < 0.0 && info.max > 0.0,
             };
             let unit = info.unit;
-            sh.param_row(
+            super::modulators::param_row(
+                sh,
+                app,
                 info.label_key,
                 Id::new(("insp-firmus", id, p as u8)),
                 p.get(params),
@@ -279,7 +286,7 @@ fn firmus(sh: &mut Sheet<'_>, id: TrackId, params: &cantus_core::FirmusParams) {
                 false,
                 |v, b| sheet::unit(v, unit, b),
                 f,
-                false,
+                cantus_core::AutoTarget::Firmus { track: id, param: p },
                 |value| {
                     Act::Merge(
                         Command::SetInstrumentParam {

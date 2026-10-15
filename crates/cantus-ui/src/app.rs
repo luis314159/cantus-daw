@@ -263,6 +263,8 @@ pub struct CantusApp {
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
     /// them, the large editor's state.
     pub automation: crate::automation::AutoUi,
+    /// Modulators in the interface (ADR 0057): mapping, the open lists, folded panels.
+    pub modulators: views::modulator::ModUi,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
 }
@@ -577,6 +579,7 @@ impl CantusApp {
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
+            modulators: Default::default(),
             pitch: Default::default(),
         };
         app.select_first();
@@ -3573,6 +3576,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
+        views::modulator::popup::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
         views::update::frame(self, ctx);

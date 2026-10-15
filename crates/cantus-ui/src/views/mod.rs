@@ -40,6 +40,7 @@ pub mod inst;
 pub mod interop;
 pub mod link_picker;
 pub mod mixer;
+pub mod modulator;
 pub mod piano_roll;
 pub mod picker;
 pub mod picker_cover;
