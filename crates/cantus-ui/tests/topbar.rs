@@ -492,9 +492,9 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
             .map(|(_, r)| *r)
             .unwrap()
     };
-    // The fifth key: the mixer (row keys: 22 + 2).
+    // The fifth key: the mixer (one strip of 22-pt keys).
     let windows = at(Group::Windows);
-    let mixer = pos2(windows.left() + 4.0 * 24.0 + 11.0, windows.center().y);
+    let mixer = pos2(windows.left() + 4.0 * 22.0 + 11.0, windows.center().y);
     let shown = r
         .app
         .workspace

@@ -2,7 +2,7 @@
 //! the inputs (typing keyboard, MIDI, armed tracks) and the tools (picker, appearance,
 //! zoom).
 
-use super::{key_in, key_rect, key_side, tip, Style, ROW_KEY, STEP};
+use super::{key_in, key_rect, key_side, key_strip, strip_tip, tip, Style, ROW_KEY, STEP};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::keymap::Action;
@@ -83,65 +83,57 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the transport -------------------------------------------------------------------
 
 pub fn transport_width(s: &Style) -> f32 {
-    (4.0 * (ROW_KEY + STEP) + views::record_options::KEY_W + STEP + ROW_KEY) * s.k
+    (4.0 * ROW_KEY + STEP + views::record_options::KEY_W + STEP + ROW_KEY) * s.k
 }
 
+/// To start, play, stop and record on one strip, the record options' ▾ beside it, loop.
 pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let step = key_side(r, s) + STEP * s.k;
-    let mut x = r.left();
+    let k = s.k;
     let playing = app.engine.is_playing();
     let recording = app.is_recording();
-    let keys: [(Glyph, bool, &str, &str, Action); 4] = [
-        (
-            Glyph::ToStart,
-            false,
-            "to-start",
-            "transport.to_start",
-            Action::ToStart,
-        ),
-        (
-            if playing { Glyph::Pause } else { Glyph::Play },
-            playing,
-            "play",
-            "transport.play",
-            Action::PlayPause,
-        ),
-        (Glyph::Stop, false, "stop", "transport.stop", Action::Stop),
-        (
-            Glyph::Record,
-            recording,
-            "record",
-            "transport.record",
-            Action::Record,
-        ),
+    let play = if playing { Glyph::Pause } else { Glyph::Play };
+    let [to_start, play_r, stop, record] = key_strip(
+        ui,
+        r.left(),
+        r,
+        s,
+        [
+            (KeyFace::Glyph(Glyph::ToStart), false, "to-start"),
+            (KeyFace::Glyph(play), playing, "play"),
+            (KeyFace::Glyph(Glyph::Stop), false, "stop"),
+            (KeyFace::Glyph(Glyph::Record), recording, "record"),
+        ],
+    );
+    let keys = [
+        (to_start, "transport.to_start", Action::ToStart),
+        (play_r, "transport.play", Action::PlayPause),
+        (stop, "transport.stop", Action::Stop),
     ];
-    let mut record = None;
-    for (g, lit, id, key, action) in keys {
-        let kr = key_rect(r, x, s);
-        let resp = key_in(ui, kr, s, KeyFace::Glyph(g), lit, id, || {
-            tip(app, key, Some(action))
-        });
+    for (resp, key, action) in keys {
+        let resp = strip_tip(ui, resp, || tip(app, key, Some(action)));
         if resp.clicked() {
             app.run_action(action);
         }
-        if id == "record" {
-            record = Some(resp);
-        }
-        x += step;
     }
-    // The record options hang from a narrow ▾ beside the record key (ADR 0025).
-    if let Some(record) = record {
-        let w = views::record_options::KEY_W * s.k;
-        let kr = key_rect(r, x - STEP * s.k, s);
-        let kr = Rect::from_min_size(kr.min, Vec2::new(w, kr.height()));
-        views::record_options::key(app, ui, kr, &record, s);
-        x += w;
+    let record = strip_tip(ui, record, || {
+        tip(app, "transport.record", Some(Action::Record))
+    });
+    if record.clicked() {
+        app.run_action(Action::Record);
     }
-    let looping = app.project().loop_enabled;
+    let side = key_side(r, s);
+    // The record options hang from a narrow ▾ beside the strip (ADR 0025); a right-click
+    // on the record key opens them too.
+    let x = r.left() + 4.0 * side + STEP * k;
+    let w = views::record_options::KEY_W * k;
     let kr = key_rect(r, x, s);
+    let kr = Rect::from_min_size(kr.min, Vec2::new(w, kr.height()));
+    views::record_options::key(app, ui, kr, &record, s);
+    let looping = app.project().loop_enabled;
+    let lr = key_rect(r, kr.right() + STEP * k, s);
     if key_in(
         ui,
-        kr,
+        lr,
         s,
         KeyFace::Glyph(Glyph::Loop),
         looping,
@@ -157,47 +149,36 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- undo ----------------------------------------------------------------------------
 
 pub fn undo_width(s: &Style) -> f32 {
-    (2.0 * ROW_KEY + STEP) * s.k
+    2.0 * ROW_KEY * s.k
 }
 
 pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let undo_tip = || {
+    let [u, rr] = key_strip(
+        ui,
+        r.left(),
+        r,
+        s,
+        [
+            (KeyFace::Glyph(Glyph::Undo), false, "undo"),
+            (KeyFace::Glyph(Glyph::Redo), false, "redo"),
+        ],
+    );
+    let u = strip_tip(ui, u, || {
         app.bus
             .undo_label_key()
             .map(|k| tf("menu.undo_named", &[("what", &t(k))]))
             .unwrap_or_else(|| tip(app, "menu.undo", Some(Action::Undo)))
-    };
-    let kr = key_rect(r, r.left(), s);
-    let u = key_in(
-        ui,
-        kr,
-        s,
-        KeyFace::Glyph(Glyph::Undo),
-        false,
-        "undo",
-        undo_tip,
-    );
+    });
     if u.clicked() && app.bus.can_undo() {
         app.undo();
     }
-    let redo_tip = || {
+    let rr = strip_tip(ui, rr, || {
         app.bus
             .redo_label_key()
             .map(|k| tf("menu.redo_named", &[("what", &t(k))]))
             .unwrap_or_else(|| tip(app, "menu.redo", Some(Action::Redo)))
-    };
-    let can_redo = app.bus.can_redo();
-    let kr = key_rect(r, r.left() + key_side(r, s) + STEP * s.k, s);
-    let rr = key_in(
-        ui,
-        kr,
-        s,
-        KeyFace::Glyph(Glyph::Redo),
-        false,
-        "redo",
-        redo_tip,
-    );
-    if rr.clicked() && can_redo {
+    });
+    if rr.clicked() && app.bus.can_redo() {
         app.redo();
     }
 }
@@ -205,13 +186,29 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the windows ---------------------------------------------------------------------
 
 pub fn windows_width(s: &Style) -> f32 {
-    (6.0 * ROW_KEY + 5.0 * STEP) * s.k
+    6.0 * ROW_KEY * s.k
 }
 
+/// The areas' keys on one strip, the browser first as in FL's toolbar.
 pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let mut x = r.left();
-    // The browser first, as in FL's toolbar.
-    for pane in std::iter::once(Pane::Browser).chain(Pane::ZONES) {
+    const PANES: [Pane; 6] = [
+        Pane::Browser,
+        Pane::Arrangement,
+        Pane::ChannelRack,
+        Pane::PianoRoll,
+        Pane::Mixer,
+        Pane::Inspector,
+    ];
+    let keys: [(KeyFace<'_>, bool, &str); 6] = std::array::from_fn(|i| {
+        let pane = PANES[i];
+        (
+            KeyFace::Glyph(pane.glyph()),
+            app.workspace.is_visible(pane),
+            pane.title_key(),
+        )
+    });
+    let resps = key_strip(ui, r.left(), r, s, keys);
+    for (pane, resp) in PANES.into_iter().zip(resps) {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
             Pane::ChannelRack => Action::ViewChannelRack,
@@ -220,23 +217,10 @@ pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             Pane::Browser => Action::ToggleBrowser,
             _ => Action::ToggleInspector,
         };
-        let lit = app.workspace.is_visible(pane);
-        let kr = key_rect(r, x, s);
-        let tip = || tip(app, pane.toggle_key(), Some(action));
-        if key_in(
-            ui,
-            kr,
-            s,
-            KeyFace::Glyph(pane.glyph()),
-            lit,
-            pane.title_key(),
-            tip,
-        )
-        .clicked()
-        {
+        let resp = strip_tip(ui, resp, || tip(app, pane.toggle_key(), Some(action)));
+        if resp.clicked() {
             app.toggle_pane(pane);
         }
-        x += key_side(r, s) + STEP * s.k;
     }
 }
 
@@ -407,35 +391,34 @@ fn zoom_w(ctx: &egui::Context, s: &Style) -> f32 {
 }
 
 pub fn tools_width(ctx: &egui::Context, s: &Style) -> f32 {
-    (2.0 * ROW_KEY + 2.0 * STEP) * s.k + zoom_w(ctx, s)
+    (2.0 * ROW_KEY + STEP) * s.k + zoom_w(ctx, s)
 }
 
 pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let pick = app.appearance_page.picking;
-    let kr = key_rect(r, r.left(), s);
-    if key_in(ui, kr, s, KeyFace::Glyph(Glyph::Pick), pick, "pick", || {
+    let open = app.show_theme_editor;
+    let [p, g] = key_strip(
+        ui,
+        r.left(),
+        r,
+        s,
+        [
+            (KeyFace::Glyph(Glyph::Pick), pick, "pick"),
+            (KeyFace::Glyph(Glyph::Gear), open, "appearance"),
+        ],
+    );
+    if strip_tip(ui, p, || {
         tip(app, "theme.inspect", Some(Action::PickElement))
     })
     .clicked()
     {
         app.toggle_pick();
     }
-    let open = app.show_theme_editor;
-    let kr = key_rect(r, r.left() + key_side(r, s) + STEP * k, s);
-    if key_in(
-        ui,
-        kr,
-        s,
-        KeyFace::Glyph(Glyph::Gear),
-        open,
-        "appearance",
-        || t("settings.appearance"),
-    )
-    .clicked()
-    {
+    if strip_tip(ui, g, || t("settings.appearance")).clicked() {
         app.show_theme_editor = !open;
     }
+    let kr = key_rect(r, r.left() + key_side(r, s), s);
     // The interface's zoom: the value, a click for the steps (Ctrl + / Ctrl −).
     let zr = Rect::from_min_size(
         Pos2::new(kr.right() + STEP * k, kr.top()),

@@ -531,3 +531,106 @@ fn texts_last(ctx: &egui::Context, layer: egui::LayerId, first: egui::layers::Sh
 pub fn open_metre_editor(ctx: &egui::Context) {
     tempo::open_metre(ctx);
 }
+
+/// A row of keys on one cap — FL's button strips: one raised face, a hairline between the
+/// keys, a lit key in the highlight, a hovered one brightened. Cheaper than a cap per key
+/// (review 1: the two-row bar shows every group at 1920 px within the window's triangle
+/// budget) and FL's own look. `x` is the strip's left edge; each key is a key's side wide.
+fn key_strip<const N: usize>(
+    ui: &mut Ui,
+    x: f32,
+    r: Rect,
+    s: &Style,
+    keys: [(KeyFace<'_>, bool, &str); N],
+) -> [Response; N] {
+    use crate::kit::color::with_alpha;
+    use crate::kit::light::{self, RaisedOpts};
+    let k = s.k;
+    let side = key_side(r, s);
+    let top = r.center().y - side * 0.5;
+    let cells: [Rect; N] = std::array::from_fn(|i| {
+        Rect::from_min_size(Pos2::new(x + i as f32 * side, top), Vec2::splat(side))
+    });
+    let resps: [Response; N] = std::array::from_fn(|i| {
+        ui.interact(
+            cells[i],
+            Id::new(("toolbar-key", keys[i].2)),
+            Sense::click(),
+        )
+    });
+    let strip = Rect::from_min_max(cells[0].min, cells[N - 1].max);
+    with_brush(ui.painter(), |b| {
+        b.register(strip, "toolbar_key", cap::KEY_TOKENS, &[]);
+        let rad = s.s(s.t.radius);
+        let base = if s.t.dark {
+            shade(s.t.toolbar, -0.05)
+        } else {
+            shade(s.t.toolbar, 0.06)
+        };
+        light::raised(
+            b,
+            strip,
+            rad,
+            base,
+            RaisedOpts {
+                drop: true,
+                k,
+                alpha: 1.0,
+                depth: s.t.depth,
+                ..Default::default()
+            },
+        );
+        for (i, c) in cells.iter().enumerate() {
+            let st = State::of(&resps[i], keys[i].1);
+            let face = b.snap_rect(*c).shrink(b.px());
+            let ink = if st.lit {
+                let stops = cap::highlight_stops(s);
+                b.rrect(face, (rad - b.px()).max(0.0), Fill::Stops(&stops));
+                s.t.highlight_glyph
+            } else if st.hovered {
+                let a = if st.active { 0.14 } else { 0.08 };
+                b.rrect(
+                    face,
+                    (rad - b.px()).max(0.0),
+                    Fill::Solid(with_alpha(s.t.text, a)),
+                );
+                s.t.text
+            } else {
+                s.t.text_dim
+            };
+            if i > 0 {
+                b.vline(
+                    b.snap_mid(c.left()),
+                    c.top() + 3.0 * k,
+                    c.bottom() - 3.0 * k,
+                    b.px(),
+                    shade(base, -0.22),
+                );
+            }
+            match keys[i].0 {
+                KeyFace::Glyph(g) => {
+                    crate::kit::glyph::paint(b, c.shrink(5.5 * k), g, ink);
+                }
+                KeyFace::Text(t) => {
+                    let _ = crate::kit::text::paint(
+                        b,
+                        c.shrink(2.0 * k),
+                        &crate::kit::text::Text::new(t, crate::kit::text::Role::Micro, ink),
+                        s.tk(),
+                    );
+                }
+            }
+        }
+    });
+    resps
+}
+
+/// A strip key's tip, set while it is hovered (the tip is made only then).
+fn strip_tip(ui: &Ui, resp: Response, tip: impl FnOnce() -> String) -> Response {
+    if resp.hovered() {
+        let tip = tip();
+        hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
+        return resp.on_hover_text(tip);
+    }
+    resp
+}

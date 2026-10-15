@@ -105,7 +105,7 @@ devices.notice.reconnected = {name} volvió
 devices.notice.ok = Aceptar
 
 devices.first.title = Configura tu audio
-devices.first.intro = Elige por dónde tocas. Cantus escoge el mejor controlador y búfer para ello; puedes cambiarlos cuando quieras desde el chip de audio de la barra superior (o su menú ⋯ si la ventana es estrecha).
+devices.first.intro = Elige por dónde tocas. Cantus escoge el mejor controlador y búfer para ello; puedes cambiarlos cuando quieras desde el chip de audio de la barra superior (o su menú Más, a la derecha, si la ventana es estrecha).
 devices.first.choose = Elige tu interfaz
 devices.first.listen = Escucha
 devices.first.play = Toca o habla — el medidor debe moverse

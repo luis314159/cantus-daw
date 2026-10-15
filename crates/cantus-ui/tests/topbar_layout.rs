@@ -436,3 +436,69 @@ fn the_owners_order_allocates_nothing_more() {
     eprintln!("bar allocations a warm frame: default order {default}, the owner's {custom}");
     assert!(custom <= default, "default {default}, custom {custom}");
 }
+
+/// The bar's triangles at 1920 px (a record for the frame budget):
+/// `cargo test -p cantus-ui --test topbar_layout bar_triangles -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn bar_triangles() {
+    set_locale(Locale::En);
+    let (mut a, _dir) = app();
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 300.0))),
+        ..Default::default()
+    };
+    for _ in 0..3 {
+        let mut out = ctx.run_ui(input.clone(), |ui| {
+            let r = ui.max_rect();
+            let top = Rect::from_min_size(r.min, Vec2::new(r.width(), transport::HEIGHT));
+            let mut t = ui.new_child(egui::UiBuilder::new().max_rect(top));
+            transport::show(&mut a, &mut t);
+        });
+        let ppp = out.pixels_per_point;
+        let prims = ctx.tessellate(std::mem::take(&mut out.shapes), ppp);
+        let tris: usize = prims
+            .iter()
+            .map(|p| match &p.primitive {
+                egui::epaint::Primitive::Mesh(m) => m.indices.len() / 3,
+                _ => 0,
+            })
+            .sum();
+        out.textures_delta.clear();
+        eprintln!("bar at 1920 px: {tris} triangles");
+    }
+}
+
+#[test]
+#[ignore]
+fn group_triangles() {
+    set_locale(Locale::En);
+    let (mut a, _dir) = app();
+    let ctx = ctx();
+    for g in Group::ALL {
+        let mut tris = 0;
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(Default::default(), |ui| {
+                let w = transport::wants(&a, ui.ctx())
+                    .into_iter()
+                    .find(|w| w.group == g)
+                    .unwrap();
+                let h = if w.tall { transport::HEIGHT } else { 24.0 };
+                let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(w.min, h));
+                transport::draw_group(g, &mut a, ui, rect);
+            });
+            let ppp = out.pixels_per_point;
+            let prims = ctx.tessellate(std::mem::take(&mut out.shapes), ppp);
+            tris = prims
+                .iter()
+                .map(|p| match &p.primitive {
+                    egui::epaint::Primitive::Mesh(m) => m.indices.len() / 3,
+                    _ => 0,
+                })
+                .sum::<usize>();
+            out.textures_delta.clear();
+        }
+        eprintln!("{g:?}: {tris}");
+    }
+}

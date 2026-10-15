@@ -4,7 +4,8 @@
 //! - `bar`: the bar alone at 800, 1280, 1920 and 2560 pixels wide;
 //! - `overflow`: the same with the ⋯ menu open (what folded, usable there);
 //! - at 1920 only: `metronome` (its options open), `metre` (the time signature's editor),
-//!   `customise` (the panel), `lufs` (the meter in loudness, the song in pattern mode, a
+//!   `customise` (the panel), `rename` (the project's name being typed), `lufs` (the meter
+//!   in loudness, the song in pattern mode, a
 //!   track armed, the typing keyboard on).
 //!
 //! Each at 75, 100 and 200 %, in English and Spanish, in Cantus Night and Paper.
@@ -20,7 +21,7 @@ use egui::vec2;
 use std::path::PathBuf;
 
 const WIDTHS: [f32; 4] = [800.0, 1280.0, 1920.0, 2560.0];
-const ONLY_1920: [&str; 4] = ["metronome", "metre", "customise", "lufs"];
+const ONLY_1920: [&str; 5] = ["metronome", "metre", "customise", "lufs", "rename"];
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -121,6 +122,7 @@ fn shoot(path: &std::path::Path, what: &str, width: f32, theme: &str, scale: f32
                 "metronome" => transport::open_metronome_options(root.ctx()),
                 "metre" => transport::open_metre_editor(root.ctx()),
                 "customise" => transport::open_customise(&mut app),
+                "rename" => transport::title::start_naming(&mut app),
                 _ => {}
             }
         }

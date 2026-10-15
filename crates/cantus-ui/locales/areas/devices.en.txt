@@ -105,7 +105,7 @@ devices.notice.reconnected = {name} is back
 devices.notice.ok = OK
 
 devices.first.title = Set up your audio
-devices.first.intro = Choose what you play through. Cantus picks the best driver and buffer for it — you can change them any time from the audio chip in the top bar (or its ⋯ menu when the window is narrow).
+devices.first.intro = Choose what you play through. Cantus picks the best driver and buffer for it — you can change them any time from the audio chip in the top bar (or its More menu at the right end, when the window is narrow).
 devices.first.choose = Choose your interface
 devices.first.listen = Listen
 devices.first.play = Play or speak — the meter should move
