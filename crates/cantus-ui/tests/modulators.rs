@@ -367,3 +367,83 @@ fn the_shipped_frame_runs_the_modulators_popup() {
     };
     assert_eq!(a.modulators.mapping, None);
 }
+
+/// Review 1: the desk's controls take a modulator too — its handle dropped on a strip's
+/// fader connects it there; an Alt-drag on a modulated fader edits the depth, never the
+/// gain. (The strip's pan and width, and the master's three, go through the same code.)
+#[test]
+fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
+    use cantus_ui::views::mixer::{self, Control};
+    use egui::{pos2, Event, Modifiers, PointerButton, Pos2};
+    let mut a = app(starter_project());
+    let (_, s, _) = pan(&a);
+    let fader = AutoTarget::StripGain(s);
+    a.add_modulator(ModHost::Strip(s), ModKind::Lfo, None);
+    let id = a.project().modulators(ModHost::Strip(s)).unwrap()[0].id;
+    let ctx = ctx();
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let size = egui::vec2(1400.0, 800.0);
+    let frame = |a: &mut CantusApp, events: Vec<Event>, mods: Modifiers| {
+        let mut ev = vec![Event::ModifiersChanged(mods)];
+        ev.extend(events);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, size)),
+            events: ev,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| cantus_ui::views::mixer::show(a, ui));
+        })
+        .textures_delta
+        .clear();
+    };
+    frame(&mut a, vec![], Modifiers::NONE);
+    frame(&mut a, vec![], Modifiers::NONE);
+    let fr = mixer::control_rect(&ctx, Some(s), Control::Fader).expect("the strip's fader");
+    let button = |p, pressed, modifiers| Event::PointerButton {
+        pos: p,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers,
+    };
+    // The handle picked up away from any control, carried to the fader, let go there.
+    let away = pos2(fr.center().x, size.y - 4.0);
+    frame(
+        &mut a,
+        vec![Event::PointerMoved(away), button(away, true, Modifiers::NONE)],
+        Modifiers::NONE,
+    );
+    egui::DragAndDrop::set_payload(&ctx, ModHandle(id.0));
+    frame(&mut a, vec![Event::PointerMoved(fr.center())], Modifiers::NONE);
+    let gain = a.project().strip(s).unwrap().gain_db;
+    frame(
+        &mut a,
+        vec![button(fr.center(), false, Modifiers::NONE)],
+        Modifiers::NONE,
+    );
+    let route = |a: &CantusApp| {
+        a.project()
+            .modulator(id)
+            .and_then(|(_, _, m)| m.route(&fader).map(|r| r.depth))
+    };
+    let depth = route(&a).expect("the drop connected the fader");
+    assert_eq!(a.project().strip(s).unwrap().gain_db, gain, "the gain stayed");
+    // Alt-drag up on the fader: the depth moves, the gain does not.
+    let alt = Modifiers {
+        alt: true,
+        ..Modifiers::NONE
+    };
+    let c = fr.center();
+    frame(&mut a, vec![Event::PointerMoved(c), button(c, true, alt)], alt);
+    for k in 1..=6 {
+        frame(
+            &mut a,
+            vec![Event::PointerMoved(pos2(c.x, c.y - 8.0 * k as f32))],
+            alt,
+        );
+    }
+    frame(&mut a, vec![button(pos2(c.x, c.y - 48.0), false, alt)], alt);
+    assert_eq!(a.project().strip(s).unwrap().gain_db, gain, "the gain stayed");
+    let now = route(&a).unwrap();
+    assert!(now > depth, "the depth rose: {depth} → {now}");
+}

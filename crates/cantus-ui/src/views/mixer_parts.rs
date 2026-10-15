@@ -854,15 +854,18 @@ pub(super) fn master(
             Sense::click_and_drag(),
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
+        let ks = knob_style(pass);
+        let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterPan, pos, &ks);
         if let Some(resp) = &resp {
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetMasterPan { pan: p * 2.0 - 1.0 },
                     MergeKey::of(&"master-pan"),
                 );
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -875,9 +878,20 @@ pub(super) fn master(
         knob::paint(
             b,
             c,
-            &knob_style(pass),
+            &ks,
             st,
-            &KnobLook::new(KnobSize::Mini, pos, 0.5),
+            &KnobLook {
+                live: dm.live,
+                rings: dm.rings(),
+                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
+            },
+        );
+        dm.paint_drop(
+            b,
+            ui,
+            resp.as_ref(),
+            Rect::from_center_size(c, vec2(22.0, 22.0)),
+            s,
         );
     }
     // The fader, and its value.
@@ -897,15 +911,18 @@ pub(super) fn master(
             Sense::click_and_drag(),
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
+        let dm =
+            super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterGain, pos_of(gain), s);
         if let Some(resp) = &resp {
-            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain).filter(|_| !depth) {
                 gain = g;
                 app.exec_merging(
                     Command::SetMasterGain { gain_db: g },
                     MergeKey::of(&"master"),
                 );
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -926,6 +943,8 @@ pub(super) fn master(
                 unity: Some(UNITY_POS),
             },
         );
+        dm.fader_mark(b, fr, s);
+        dm.paint_drop(b, ui, resp.as_ref(), fr, s);
         if let Some((ra, rz)) = pass.row(Row::Readout) {
             let rr = Rect::from_min_max(pos2(x + 3.0, ra), pos2(x + bw - 3.0, rz));
             v.buf.clear();
@@ -975,15 +994,18 @@ pub(super) fn master(
             Sense::click_and_drag(),
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
+        let ks = knob_style(pass);
+        let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterWidth, pos, &ks);
         if let Some(resp) = &resp {
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetMasterWidth { width: p * 2.0 },
                     MergeKey::of(&"master-width"),
                 );
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -995,9 +1017,20 @@ pub(super) fn master(
         knob::paint(
             b,
             c,
-            &knob_style(pass).function(crate::kit::Function::Space),
+            &ks.function(crate::kit::Function::Space),
             st,
-            &KnobLook::new(KnobSize::Mini, pos, 0.5),
+            &KnobLook {
+                live: dm.live,
+                rings: dm.rings(),
+                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
+            },
+        );
+        dm.paint_drop(
+            b,
+            ui,
+            resp.as_ref(),
+            Rect::from_center_size(c, vec2(22.0, 22.0)),
+            s,
         );
     }
     let sn = Snap::master(&m);

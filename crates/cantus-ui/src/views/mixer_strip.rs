@@ -930,9 +930,11 @@ fn controls(
             Sense::click_and_drag(),
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
+        let dm = DeskMod::new(app, cantus_core::AutoTarget::StripPan(id), pos, &ks);
         if let Some(resp) = &resp {
             touch(app, id, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetStripPan {
@@ -942,7 +944,7 @@ fn controls(
                     MergeKey::of(&("spans", id.0)),
                 );
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -953,16 +955,23 @@ fn controls(
             }
         }
         // Where a modulator has it now (ADR 0057).
-        let live = mod_live(app, cantus_core::AutoTarget::StripPan(id), pos, &ks);
         knob::paint(
             b,
             c,
             &ks,
             st,
             &KnobLook {
-                live,
+                live: dm.live,
+                rings: dm.rings(),
                 ..KnobLook::new(KnobSize::Mini, pos, 0.5)
             },
+        );
+        dm.paint_drop(
+            b,
+            ui,
+            resp.as_ref(),
+            Rect::from_center_size(c, vec2(22.0, 22.0)),
+            s,
         );
     }
 
@@ -982,13 +991,15 @@ fn controls(
             .as_ref()
             .map_or(State::REST, |r| State::of(r, chosen))
             .lit(chosen);
+        let dm = DeskMod::new(app, cantus_core::AutoTarget::StripGain(id), pos_of(gain), s);
         if let Some(resp) = &resp {
             touch(app, id, resp);
-            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain).filter(|_| !depth) {
                 gain = g;
                 app.set_strip_gain(id, g);
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -1010,15 +1021,8 @@ fn controls(
             },
         );
         // Where a modulator has the fader now (ADR 0057): a mark beside the track.
-        if let Some(live) = mod_live(app, cantus_core::AutoTarget::StripGain(id), pos_of(gain), s) {
-            let c = crate::kit::fader::cap_rect(fr, s, live).center();
-            let x = fr.right() - 1.0 * s.k;
-            let d = 4.0 * s.k;
-            b.polygon(
-                &[pos2(x, c.y), pos2(x + d, c.y - d), pos2(x + d, c.y + d)],
-                s.t.hue_mod,
-            );
-        }
+        dm.fader_mark(b, fr, s);
+        dm.paint_drop(b, ui, resp.as_ref(), fr, s);
         // The value, from Wide up.
         if let Some((ra, rz)) = pass.row(Row::Readout) {
             let rr = Rect::from_min_max(pos2(x + 3.0, ra), pos2(x + bw - 3.0, rz));
@@ -1097,16 +1101,18 @@ fn controls(
             Sense::click_and_drag(),
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
+        let dm = DeskMod::new(app, cantus_core::AutoTarget::StripWidth(id), pos, &ks);
         if let Some(resp) = &resp {
             touch(app, id, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetStripWidth { id, width: p * 2.0 },
                     MergeKey::of(&("swidth", id.0)),
                 );
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if st.hovered {
@@ -1115,16 +1121,23 @@ fn controls(
                 });
             }
         }
-        let live = mod_live(app, cantus_core::AutoTarget::StripWidth(id), pos, &ks);
         knob::paint(
             b,
             c,
             &ks.function(crate::kit::Function::Space),
             st,
             &KnobLook {
-                live,
+                live: dm.live,
+                rings: dm.rings(),
                 ..KnobLook::new(KnobSize::Mini, pos, 0.5)
             },
+        );
+        dm.paint_drop(
+            b,
+            ui,
+            resp.as_ref(),
+            Rect::from_center_size(c, vec2(22.0, 22.0)),
+            s,
         );
     }
 
@@ -1360,16 +1373,83 @@ pub(super) fn fx_rec(
     }
 }
 
-/// Where modulation has a strip's knob now (ADR 0057), when a modulator drives it.
-fn mod_live(
-    app: &CantusApp,
+/// The rings a desk knob wears at most: a mini knob grows 3 pt per ring.
+const DESK_RINGS: usize = 2;
+
+/// A desk control's modulation (ADR 0057, review 1): its rings and where modulation has it
+/// now, and what it does with a modulator's handle dropped on it or an Alt-drag (or any
+/// drag while a modulator maps) — the depth of its route, not its value. The strip's and
+/// the master's pan, fader and width all go through here.
+pub(super) struct DeskMod {
     target: cantus_core::AutoTarget,
-    pos: f32,
-    s: &crate::kit::Style,
-) -> Option<f32> {
-    if !app.is_modulated(&target) {
-        return None;
+    offer: Option<crate::kit::automate::Offer>,
+    rings: [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
+    n: usize,
+    pub live: Option<f32>,
+}
+
+impl DeskMod {
+    pub(super) fn new(
+        app: &CantusApp,
+        target: cantus_core::AutoTarget,
+        pos: f32,
+        s: &crate::kit::Style,
+    ) -> Self {
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let (m, n) = app.mod_offer(&target, pos, s, &mut rings);
+        DeskMod {
+            target,
+            offer: Some(crate::kit::automate::Offer {
+                automated: false,
+                typing: false,
+                modulation: Some(m),
+            }),
+            rings,
+            n,
+            live: m.live,
+        }
     }
-    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
-    app.mod_offer(&target, pos, s, &mut rings).0.live
+
+    /// The modulators' rings, as many as a desk knob wears.
+    pub(super) fn rings(&self) -> &[(f32, egui::Color32)] {
+        &self.rings[..self.n.min(DESK_RINGS)]
+    }
+
+    /// What the control's response did of its modulation, answered; `true` while its
+    /// drags are the depth's (the value must not move).
+    pub(super) fn input(&self, app: &mut CantusApp, ui: &Ui, resp: &Response) -> bool {
+        if let Some(c) = crate::kit::automate::modulation_choice(ui, resp, self.offer) {
+            app.modulation_choice(&self.target, c, resp.rect);
+        }
+        crate::kit::automate::depth_drag(ui, self.offer)
+    }
+
+    /// While a modulator's handle is dragged over it, the outline that says it takes it.
+    pub(super) fn paint_drop(
+        &self,
+        b: &mut Brush,
+        ui: &Ui,
+        resp: Option<&Response>,
+        rect: Rect,
+        s: &crate::kit::Style,
+    ) {
+        if crate::kit::automate::handle_in_flight(ui.ctx())
+            && resp.is_some_and(|r| r.contains_pointer())
+        {
+            crate::kit::automate::drop_target(b, rect, s);
+        }
+    }
+
+    /// The modulated mark beside the fader where modulation has it now.
+    pub(super) fn fader_mark(&self, b: &mut Brush, fr: Rect, s: &crate::kit::Style) {
+        if let Some(live) = self.live {
+            let c = crate::kit::fader::cap_rect(fr, s, live).center();
+            let x = fr.right() - 1.0 * s.k;
+            let d = 4.0 * s.k;
+            b.polygon(
+                &[pos2(x, c.y), pos2(x + d, c.y - d), pos2(x + d, c.y + d)],
+                s.t.hue_mod,
+            );
+        }
+    }
 }
