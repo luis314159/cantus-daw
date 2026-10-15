@@ -1107,3 +1107,11 @@ tremor swing 876997961
 tremor spread 1229586638
 tremor offset 348705738
 tremor xover 891963805
+vibrans depth 2121637610
+vibrans sync 159043482
+vibrans div 1700965192
+vibrans rate 780377191
+vibrans shape 499374374
+vibrans rise 1697349856
+vibrans spread 1229586638
+vibrans mix 1469012833

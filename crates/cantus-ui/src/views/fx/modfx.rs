@@ -76,8 +76,8 @@ pub fn swing_pill(v: f32, b: &mut String) {
 /// What an editor's LFO card holds besides the rate and the shape.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct LfoCard {
-    /// Its shapes are offered (a chorus's LFO is a triangle or a sine: its own list).
-    pub shapes: bool,
+    /// The shapes it offers, in the table's order (empty: none; a vibrato offers two).
+    pub shapes: &'static [Shape],
     pub edge: bool,
     pub swing: bool,
     pub spread: bool,
@@ -110,14 +110,14 @@ pub fn lfo_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect,
         controls::column(ui, s, SWITCH_W, |ui| {
             let labels = [Src::Key("modfx.sync.0"), Src::Key("modfx.sync.1")];
             controls::segmented_param(ui, s, host, "sync", &labels, SWITCH_W);
-            if c.shapes {
-                shape_keys(host, ui, s, SWITCH_W);
+            if !c.shapes.is_empty() {
+                shape_keys(host, ui, s, SWITCH_W, c.shapes);
             }
         });
         rate_cell(host, ui, s, Size::M);
         if c.edge {
             let stepped = Shape::from_index(host.spec().get("shape")).has_edge();
-            ui.add_enabled_ui(stepped || !c.shapes, |ui| {
+            ui.add_enabled_ui(stepped || c.shapes.is_empty(), |ui| {
                 controls::param_with(ui, s, host, "edge", Size::M, Some(&pct_pill));
             });
         }
@@ -146,14 +146,21 @@ pub fn rate_cell(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, size: Size
     }
 }
 
-/// The six shapes as keys with their waves drawn on them; the lit one is the LFO's.
-pub fn shape_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, width: f32) {
+/// The shapes as keys with their waves drawn on them; the lit one is the LFO's. A
+/// shape's value is its index in the list.
+pub fn shape_keys(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    width: f32,
+    shapes: &[Shape],
+) {
     let now = host.spec().get("shape").round().max(0.0) as usize;
     let (rect, _) = ui.allocate_exact_size(vec2(width * s.k, s.d(controls::ROW)), Sense::hover());
-    let n = Shape::ALL.len();
+    let n = shapes.len().max(1);
     let gap = s.d(2.0);
     let w = (rect.width() - gap * (n - 1) as f32) / n as f32;
-    for (i, shape) in Shape::ALL.into_iter().enumerate() {
+    for (i, &shape) in shapes.iter().enumerate() {
         let r = Rect::from_min_size(
             pos2(rect.left() + i as f32 * (w + gap), rect.top()),
             vec2(w, rect.height()),
@@ -219,8 +226,8 @@ pub fn movement(
     host: &dyn FxHost,
     tel: &[f32; 64],
     curve: Curve<'_>,
-    top: &'static str,
-    bottom: &'static str,
+    top: &str,
+    bottom: &str,
 ) {
     let ink = Ink::of(s);
     let k = s.k;
@@ -266,24 +273,13 @@ pub fn movement(
             b.dot(pos2(x, y_of(a)), 3.5 * k, ink.text);
         }
         // The ends' names, and the rate in words.
-        canvas::put_key(
-            b,
-            pos2(rect.left() + 6.0 * k, rect.top() + 3.0 * k),
-            Align2::LEFT_TOP,
-            top,
-            Role::Micro,
-            ink.dim,
-            k,
-        );
-        canvas::put_key(
-            b,
-            pos2(rect.left() + 6.0 * k, rect.bottom() - 3.0 * k),
-            Align2::LEFT_BOTTOM,
-            bottom,
-            Role::Micro,
-            ink.dim,
-            k,
-        );
+        for (word, at, align) in [
+            (top, rect.top() + 3.0 * k, Align2::LEFT_TOP),
+            (bottom, rect.bottom() - 3.0 * k, Align2::LEFT_BOTTOM),
+        ] {
+            let t = Text::new(word, Role::Micro, ink.dim).caps(true);
+            canvas::put(b, pos2(rect.left() + 6.0 * k, at), align, &t, k, None);
+        }
         let tempo = tel[tel::TEMPO];
         if spec.get("sync") >= 0.5 {
             let i = (spec.get("div").round().max(0.0) as usize).min(DIV_NAMES.len() - 1);
@@ -442,7 +438,7 @@ pub fn preview_strip(
     ui: &mut egui::Ui,
     spec: &cantus_core::EffectSpec,
     mode: &str,
-    amount: f32,
+    amount: &dyn std::fmt::Display,
     curve: &dyn Fn(f64) -> f32,
 ) -> egui::Response {
     use crate::design::space;
@@ -473,9 +469,8 @@ pub fn preview_strip(
             ink.text,
             st.tk(),
             format_args!(
-                "{mode} \u{b7} {} \u{b7} {:.0}%",
+                "{mode} \u{b7} {} \u{b7} {amount}",
                 RateWords(spec),
-                amount * 100.0
             ),
         );
         let edge = if resp.hovered() { ink.hue } else { ink.edge };
@@ -526,5 +521,27 @@ pub fn demo_run(
             },
         );
         at += m;
+    }
+}
+
+/// A share as a percentage, for a line formatted without allocating.
+pub struct Pct(pub f32);
+
+impl std::fmt::Display for Pct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.0}%", self.0 * 100.0)
+    }
+}
+
+/// A value with its unit, for a line formatted without allocating: `35 ct`, `120 Hz`.
+pub struct Unit(pub f32, pub &'static str);
+
+impl std::fmt::Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.abs() < 10.0 && self.0.fract() != 0.0 {
+            write!(f, "{:.1} {}", self.0, self.1)
+        } else {
+            write!(f, "{:.0} {}", self.0, self.1)
+        }
     }
 }

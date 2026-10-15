@@ -264,10 +264,13 @@ impl Glide {
     #[inline]
     pub fn next(&mut self) -> f32 {
         if self.value != self.target {
-            self.value += (self.target - self.value) * self.k;
-            if (self.value - self.target).abs() < self.snap {
-                self.value = self.target;
-            }
+            let v = self.value + (self.target - self.value) * self.k;
+            // Landed within `snap`, or stalled (the step rounds away in f32): on target.
+            self.value = if v == self.value || (v - self.target).abs() < self.snap {
+                self.target
+            } else {
+                v
+            };
         }
         self.value
     }

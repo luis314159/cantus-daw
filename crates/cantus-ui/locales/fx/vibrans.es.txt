@@ -1,4 +1,24 @@
 # Vibrans — de Vibrans. Cada clave necesita su gemela en vibrans.en.txt.
 effect.vibrans = Vibrans vibrato
-fx.vibrans.about = Una afinación que ondula como una voz, una cinta o un altavoz rotatorio.
+fx.vibrans.about = Una afinación que ondula como una voz, una cuerda o una cinta.
+fx.vibrans.depth = Profundidad
+fx.vibrans.rise = Entrada
+fx.vibrans.mix = Mezcla
 fx.vibrans.out = Salida
+
+vibrans.card.pitch = Afinación en dos ciclos
+vibrans.card.rise = Entrada
+vibrans.card.depth = Profundidad
+vibrans.card.output = Salida
+vibrans.idle = Profundidad en 0 ct: el sonido pasa intacto
+vibrans.after_silence = Tras un silencio
+vibrans.preview = Vibrato
+
+preset.vibrans.singer = Cantante
+preset.vibrans.violin = Violín
+preset.vibrans.organ = Vibrato de órgano
+preset.vibrans.tape_wow = Ondulación de cinta
+preset.vibrans.seasick = Mareo
+preset.vibrans.trill = Trino de dos notas
+preset.vibrans.sync_wobble = Vaivén en corcheas
+preset.vibrans.chorus_one = Coro de una voz

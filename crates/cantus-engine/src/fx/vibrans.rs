@@ -1,62 +1,75 @@
-//! Vibrans, the vibrato, behind the engine's plug-in contract.
-//! Owned by Vibrans.
+//! Vibrans, the vibrato, behind the engine's plug-in contract (ADR 0055). Owned by Vibrans.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::vibrans`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::vibrans`.
+//! [`settings`] reads the table (`cantus_core::fx::vibrans`) into the DSP's settings
+//! (`cantus_dsp::vibrans`); the editor draws from the same reading. The telemetry is the
+//! family's header (`cantus_dsp::modfx_clock::tel`) and the rise and sweep
+//! (`cantus_dsp::vibrans::{T_RISE, T_SWEEP_MS}`).
 
-use super::FxUnit;
+use super::modfx::{lfo_settings, spread_cycles, telemetry_of, transport_of};
+use super::{FxUnit, SongPosition, Telemetry};
 use cantus_core::EffectSpec;
+use cantus_dsp::vibrans::{Vibrans, VibransSettings};
 
 /// Vibrans's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Vibrans's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> VibransSettings {
+    VibransSettings {
+        depth_cents: spec.get("depth"),
+        lfo: lfo_settings(spec, 0),
+        rise_ms: spec.get("rise"),
+        spread: spread_cycles(spec.get("spread")),
+        mix: spec.get("mix"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Vibrans,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Vibrans::new(sample_rate),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        telemetry_of(|t| self.dsp.telemetry(t))
+    }
+
+    fn set_position(&mut self, position: &SongPosition) {
+        self.dsp.set_transport(&transport_of(position));
     }
 }
 
@@ -64,16 +77,43 @@ impl FxUnit for Unit {
 mod tests {
     use super::*;
     use cantus_core::EffectKind;
+    use cantus_dsp::modfx_lfo::{Rate, Shape};
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
-        let spec = EffectSpec::new(EffectKind::Vibrato);
-        assert_eq!(settings(&spec), Settings::default());
+        let s = settings(&EffectSpec::new(EffectKind::Vibrato));
+        let d = VibransSettings::default();
+        assert_eq!(s.depth_cents, d.depth_cents);
+        assert_eq!(s.lfo.rate, d.lfo.rate);
+        assert_eq!(s.mix, d.mix);
+        assert_eq!(s.out_db, d.out_db);
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    #[test]
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::Vibrato);
+        for (k, v) in [
+            ("depth", 35.0),
+            ("sync", 1.0),
+            ("div", 11.0),
+            ("shape", 1.0),
+            ("rise", 400.0),
+            ("spread", 45.0),
+            ("mix", 0.5),
+            ("out", 2.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!(s.depth_cents, 35.0);
+        assert_eq!(s.lfo.rate, Rate::Beats(0.5));
+        assert_eq!(s.lfo.shape, Shape::Triangle);
+        assert_eq!(s.rise_ms, 400.0);
+        assert_eq!(s.spread, 0.125);
+        assert_eq!(s.mix, 0.5);
+        assert_eq!(s.out_db, 2.0);
+    }
+
     #[test]
     fn the_defaults_touch_no_sample() {
         let mut u = Unit::new(48_000.0);
@@ -81,11 +121,6 @@ mod tests {
         let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
         let (mut l, mut r) = (x.clone(), x.clone());
         u.process(&mut l, &mut r, None);
-        assert!(l
-            .iter()
-            .chain(&r)
-            .zip(x.iter().chain(&x))
-            .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
+        assert!(l.iter().chain(&r).zip(x.iter().chain(&x)).all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 }

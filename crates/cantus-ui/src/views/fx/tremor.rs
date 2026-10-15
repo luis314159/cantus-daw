@@ -141,7 +141,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
 }
 
 const LFO: LfoCard = LfoCard {
-    shapes: true,
+    shapes: &cantus_dsp::modfx_lfo::Shape::ALL,
     edge: true,
     swing: true,
     spread: true,
@@ -241,7 +241,7 @@ fn display_card(
                 }
             }
         };
-        modfx::movement(ui, &s, r, host, tel, &curve, top, bottom);
+        modfx::movement(ui, &s, r, host, tel, &curve, frame::tr(top), frame::tr(bottom));
         if depth == 0.0 {
             modfx::idle_note(ui, &s, r, "tremor.idle");
         }
@@ -278,7 +278,7 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ts = cantus_engine::fx::tremor::settings(spec);
     let mode = frame::tr(MODE_KEYS[ts.mode as usize]);
-    modfx::preview_strip(ui, spec, mode, ts.depth, &|c| {
+    modfx::preview_strip(ui, spec, mode, &modfx::Pct(ts.depth), &|c| {
         let (l, _) = modfx::lfo_at(&ts.lfo, ts.spread, c);
         match ts.mode {
             Mode::Pan => ts.depth * l,
