@@ -70,16 +70,19 @@ pub(super) fn show(
         return;
     };
     // What fits (review 1): the groups are measured, and those the bar has no room for —
-    // the status first, then the grid, play and MIDI and Double, join and reset — fold into
-    // a ⋯ menu at the end; nothing is cut off.
+    // the status first, then the grid, play and MIDI and Double, join and reset, and on a
+    // very narrow bar Original, the key and the snap (review 2) — fold into a ⋯ menu at
+    // the end; nothing is cut off. The widths are the ones the drawing below takes: the
+    // tools' divider and two keys, a divider, each field.
     let snap = app.pitch.view.snap;
     let target_name = quantise_target_name(app, track);
-    let need_core = KEY
-        + KEY
-        + DIV
-        + field_w(ui, &t("pitch.snap"), &t(snap.label_key()), 84.0)
-        + field_w(ui, &t("pitch.key"), &key_words(e.key), 110.0)
-        + 100.0;
+    let need_tools = DIV + KEY + KEY + DIV;
+    let core = [
+        field_w(ui, &t("pitch.snap"), &t(snap.label_key()), 84.0),
+        field_w(ui, &t("pitch.key"), &key_words(e.key), 110.0),
+        ORIGINAL_W,
+    ];
+    let need_core = need_tools + core.iter().sum::<f32>();
     let need_edit =
         DIV + wide(ui, &t("pitch.join"), 50.0) + 4.0 + wide(ui, &t("pitch.reset"), 54.0) + 4.0;
     let need_play = DIV
@@ -95,24 +98,32 @@ pub(super) fn show(
         status_need(ui, &status)
     };
     let room = bar.room() / bar.s.k;
-    let more = 34.0;
+    let more = MORE_W;
     let total = need_core + need_edit + need_play + need_grid;
     let mut show = [true; 3]; // edit, play, grid
+    let mut show_core = [true; 3]; // snap, key, original
     let mut with_status = !status.is_empty();
-    if total + status_w > room {
+    if total + status_w > room && total > room {
         with_status = false;
+        // Original, then the key, then the snap, while even they and ⋯ do not fit.
         let mut used = need_core + more;
+        for i in (0..3).rev() {
+            if used > room {
+                show_core[i] = false;
+                used -= core[i];
+            }
+        }
         for (i, w) in [need_edit, need_play, need_grid].into_iter().enumerate() {
             show[i] = used + w <= room && show[..i].iter().all(|s| *s);
             if show[i] {
                 used += w;
             }
         }
-        if show.iter().all(|s| *s) && total <= room {
-            // Everything fits once the status gives way: no ⋯.
-        }
+    } else if total + status_w > room {
+        // Everything fits once the status gives way: no ⋯.
+        with_status = false;
     }
-    let folded = show.iter().any(|s| !*s);
+    let folded = show.iter().chain(&show_core).any(|s| !*s);
     if with_status {
         bar.readout_right(ui, &status, 120.0, false);
     }
@@ -120,7 +131,9 @@ pub(super) fn show(
     bar.divider(ui);
     // The snap of a pitch drag.
     let cap = t("pitch.snap");
-    if let Some(resp) = bar.field(
+    if !show_core[0] {
+        // Folded into ⋯.
+    } else if let Some(resp) = bar.field(
         ui,
         id.with("snap"),
         Some(&cap),
@@ -147,7 +160,9 @@ pub(super) fn show(
     }
     // The key: detected, editable.
     let cap = t("pitch.key");
-    if let Some(resp) = bar.field(
+    if !show_core[1] {
+        // Folded into ⋯.
+    } else if let Some(resp) = bar.field(
         ui,
         id.with("key"),
         Some(&cap),
@@ -160,11 +175,12 @@ pub(super) fn show(
         });
     }
     // A/B: the original, as it was sung.
-    if bar
-        .led(ui, id.with("ab"), e.bypass, "pitch.original", 96.0, || {
-            t("pitch.original_tip")
-        })
-        .is_some_and(|r| r.clicked())
+    if show_core[2]
+        && bar
+            .led(ui, id.with("ab"), e.bypass, "pitch.original", 96.0, || {
+                t("pitch.original_tip")
+            })
+            .is_some_and(|r| r.clicked())
     {
         compare(app, track, clip, e);
     }
@@ -239,16 +255,28 @@ pub(super) fn show(
             t("pitch.more_tip")
         }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
-                more_menu(app, ui, track, clip, e, show);
+                more_menu(app, ui, track, clip, e, show, show_core);
             });
         }
     }
-    app.pitch.view.bar_folded = [!show[0], !show[1], !show[2]];
+    app.pitch.view.bar_folded = [
+        !show[0],
+        !show[1],
+        !show[2],
+        !show_core[0],
+        !show_core[1],
+        !show_core[2],
+    ];
 }
 
 /// A divider and a toolbar key, at 100 %, with their gaps.
 const DIV: f32 = 10.0;
 const KEY: f32 = crate::views::clips_chrome::KEY + 4.0;
+/// The Original LED with its gap (`Toolbar::led` at 96).
+const ORIGINAL_W: f32 = 100.0;
+/// The ⋯ key: its divider, the word's 30 and its gap (review 2: counted as 34, it could
+/// be left out).
+const MORE_W: f32 = DIV + 30.0 + 4.0;
 
 /// The width a caption | value field takes (as `Toolbar::field` lays it out).
 fn field_w(ui: &egui::Ui, caption: &str, value: &str, w: f32) -> f32 {
@@ -342,13 +370,13 @@ fn midi_new_track(app: &mut CantusApp, track: TrackId, clip: ClipId) {
 
 /// The quantise target in words: the grid's name, or the other track's.
 fn quantise_target_name(app: &CantusApp, track: TrackId) -> String {
-    match app.pitch.view.quantise_to {
-        Some(other) if other != track => app
+    match app.quantise_target(track) {
+        Some(other) => app
             .project()
             .track(other)
             .map(|t| t.name.clone())
-            .unwrap_or_else(|| t("grid.sixteenth")),
-        _ => {
+            .unwrap_or_default(),
+        None => {
             let grid = app.pitch.view.grid;
             crate::views::GRIDS
                 .iter()
@@ -361,7 +389,7 @@ fn quantise_target_name(app: &CantusApp, track: TrackId) -> String {
 /// What *Quantise* moves notes to: a grid, or another track's notes (§3c).
 fn quantise_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId) {
     let grid = app.pitch.view.grid;
-    let to = app.pitch.view.quantise_to;
+    let to = app.quantise_target(track);
     let others = app.pitch_onset_tracks(track);
     let mut items: Vec<Item<'_>> = vec![Item::Band(Src::Key("pitch.grid"))];
     for (k, g) in crate::views::GRIDS.iter() {
@@ -405,17 +433,41 @@ fn more_menu(
     clip: ClipId,
     e: &PitchEdit,
     show: [bool; 3],
+    show_core: [bool; 3],
 ) {
     #[derive(Clone, Copy)]
     enum Do {
+        Original,
         Join,
         Reset,
         Play,
         Midi,
+        MidiOnto(TrackId),
         Double(Interval),
     }
+    // The tracks the melody can go onto (the MIDI chip's drag, on a wide bar).
+    let onto: Vec<(TrackId, String)> = if show[1] {
+        Vec::new()
+    } else {
+        app.project()
+            .tracks
+            .iter()
+            .filter(|t| t.id != track && !crate::record_session::is_audio_track(t))
+            .map(|t| (t.id, t.name.clone()))
+            .collect()
+    };
     let mut items: Vec<Item<'_>> = Vec::new();
     let mut acts: Vec<Option<Do>> = Vec::new();
+    if !show_core[2] {
+        items.push(Item::Action {
+            label: Src::Key("pitch.original"),
+            check: if e.bypass { Check::On } else { Check::Off },
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+        acts.push(Some(Do::Original));
+    }
     let mut push = |items: &mut Vec<Item<'_>>, key: &'static str, d: Option<Do>| {
         items.push(match d {
             Some(_) => Item::action(Src::Key(key)),
@@ -441,12 +493,41 @@ fn more_menu(
             "pitch.double.fifth",
             Some(Do::Double(Interval::Fifth)),
         );
+        if !onto.is_empty() {
+            push(&mut items, "pitch.midi_onto", None);
+            for (t2, name) in &onto {
+                items.push(Item::action(Src::Str(name)));
+                acts.push(Some(Do::MidiOnto(*t2)));
+            }
+        }
     }
     let picked = if items.is_empty() {
         None
     } else {
         kit::widgets::menu_list(ui, &items, 220.0).1.clicked
     };
+    if !show_core[0] {
+        // The snap's own list.
+        let snap = app.pitch.view.snap;
+        let mut list: Vec<Item<'_>> = vec![Item::Band(Src::Key("pitch.snap"))];
+        list.extend(Snap::ALL.iter().map(|s| Item::Action {
+            label: Src::Key(s.label_key()),
+            check: Check::Radio(*s == snap),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        }));
+        if let Some(i) = kit::widgets::menu_list(ui, &list, 220.0).1.clicked {
+            if i > 0 {
+                app.pitch.view.snap = Snap::ALL[i - 1];
+                ui.close();
+            }
+        }
+    }
+    if !show_core[1] {
+        // The key's own list.
+        key_menu(app, ui, track, clip, e);
+    }
     if !show[2] {
         // The quantise target's own list, under the rest.
         quantise_menu(app, ui, track);
@@ -455,6 +536,12 @@ fn more_menu(
         return;
     };
     match d {
+        Do::Original => compare(app, track, clip, e),
+        Do::MidiOnto(t2) => {
+            if let Some((t3, c3)) = app.pitch_to_midi(track, clip, Some(t2)) {
+                app.set_status(tf("pitch.midi_made", &[("name", &clip_name(app, t3, c3))]));
+            }
+        }
         Do::Join => join_selection(app, track, clip, e),
         Do::Reset => reset_selection(app, track, clip, e),
         Do::Play => play(app, track, clip),

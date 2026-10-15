@@ -270,7 +270,7 @@ pub fn quantise(
     };
     let edge = |n: &cantus_core::pitch::PitchNote| if tm.reverse { n.end } else { n.start };
     let mut e = current.clone();
-    let moved = match app.pitch.view.quantise_to.filter(|o| *o != track) {
+    let moved = match app.quantise_target(track) {
         Some(other) => {
             let onsets: Vec<f64> = app
                 .pitch_onsets(other)
@@ -280,15 +280,7 @@ pub fn quantise(
             let reach = cantus_core::Ticks::QUARTER.to_seconds(app.project().tempo_bpm)
                 * 0.5
                 * tm.rate as f64;
-            edit::quantise_by(&mut e, ids, |n| {
-                let at = edge(n) as f64;
-                onsets
-                    .iter()
-                    .map(|o| o - at)
-                    .filter(|d| d.abs() <= reach)
-                    .min_by(|a, b| a.abs().total_cmp(&b.abs()))
-                    .map_or(0, |d| d.round() as i64)
-            })
+            edit::quantise_to(&mut e, ids, &onsets, reach, tm.reverse)
         }
         None => {
             let grid = app.pitch.view.grid.0.max(1);

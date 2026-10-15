@@ -63,7 +63,11 @@ A note's shift (semitones), with `home = round(sung)`:
 0 at the defaults. Moving a note keeps its deviation; *centre* 1 puts it on its note.
 *Correct pitch* by an amount `a` sets `pitch = home + a·(target − home)` and `centre = a`,
 so the note sounds at `sung + a·(target − sung)`: nothing at 0, its target at 1, never past
-it, and run again at another amount it is as if run once (review 1). A step of the key
+it, and run again at another amount it is as if run once (review 1). Which pitch is the
+macro's is **stored on the note** (`PitchNote::corrected`, schema 30, review 2): set by
+*Correct pitch*, cleared by a hand move — so a run after a key change re-targets the
+macro's notes (they were left between semitones) and a hand move onto the key's note is
+kept (it was taken back); an older file's notes are all the hand's. A step of the key
 (↑/↓, a scale-snapped drag) from a note off the key lands on the key's next note, its cents
 kept (`PitchKey::step`, `steps_to`).
 
@@ -131,9 +135,12 @@ bars that zoom. Tools: *Edit* (select, pitch drag snapped to the scale, semitone
 Alt for cents —, time drag, stretch at the ends, double-click centre) and *Split*. The note
 card and the macro card under it; the bar: snap, key, *Original*, join, reset, play from
 the selection, MIDI (drag onto an arrangement track, or click for a new one), *Double*, the
-quantise target (a grid, or another track's notes), the take's status. The bar is measured:
-what it has no room for (the status, then the quantise target, play/MIDI/Double, join and
-reset) folds into a … menu that offers it. The note panel keeps its knobs whole and
+quantise target (a grid, or another track's notes), the take's status. The bar is measured
+with the widths it draws (review 2: two dividers and the … key were under-counted, so …
+or the quantise field could vanish): what it has no room for (the status, then the
+quantise target, play/MIDI/Double, join and reset, and on a very narrow bar *Original*, the
+key and the snap) folds into a … menu that offers it — the melody onto an existing track
+too, the MIDI chip's drag. The note panel keeps its knobs whole and
 scrolls sideways when narrower than its cards. The editor builds its curves and time map
 once per edit, not per frame. The key reads in the notes' letters, its mode in the
 language's own words ("A minor", "A menor"). The clip's menu also makes MIDI and a double
@@ -146,14 +153,22 @@ edit, or the analysed notes) as bars where they play, at the pitch they sound, t
 range fitted to the lane. Drag one up or down (the editor's snap; Alt for cents), or
 double-click it to pull its centre onto its note — the editor's `SetClipPitch`, one undo
 step a gesture — for small fixes without opening the editor. `TrackRow::pitch` is the
-lane's height in the arrangement's layout, after the take and automation lanes.
+lane's height in the arrangement's layout, after the take and automation lanes. Review 2:
+the lane takes presses only where it is seen (its part under the ruler, the scroll bar or a
+panel takes nothing) and only through its own response (a window or menu above keeps its
+presses); a gesture moves the pitch only once it goes up or down (a sideways slip changes
+nothing, and a drag never commits an edit equal to the one it started from); the range of
+the press holds through the drag, so the note stays under the pointer; the lanes are laid
+out once per edit and view, not twice a frame.
 
 ### 8. Quantise to another track (review 1; BACKLOG §3c item 2)
 
 *Quantise to* on the bar is a grid or a track: with a track, each note's first edge on the
 timeline moves onto the nearest onset of that track within an eighth note — a note clip's
 notes as they play (loops repeated), or an audio clip's pitch notes — its length kept, its
-neighbours untouched (`edit::quantise_by`, `edit::quantise_to`).
+neighbours untouched (`edit::quantise_to`, which the editor runs; review 2). Any audio track
+whose take is analysed is offered, edited or not (the lead a double is lined up with); a
+target whose track is gone is no target — the bar names the grid, and the grid is used.
 
 ## Consequences
 

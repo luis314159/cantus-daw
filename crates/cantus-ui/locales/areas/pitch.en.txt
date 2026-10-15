@@ -28,7 +28,8 @@ pitch.not_ready = The take is still being analysed (or its file cannot be read):
 pitch.inspector.edit = Edit pitch
 pitch.inspector.edit_tip = Open the pitch editor on this clip: its notes, to move, correct, stretch and double (the file is never changed)
 pitch.inspector.edited = Pitch edited
-pitch.inspector.edited_tip = This clip plays its pitch edits. Open the pitch editor to change or compare them
+pitch.inspector.edited_tip = This clip plays its pitch edits — click to hear the original (A/B)
+pitch.inspector.original_tip = This clip plays the original as it was sung — click to hear its pitch edits again (A/B)
 pitch.inspector.badge = Edits
 pitch.badge = Tuned
 pitch.badge.original = Original
@@ -91,9 +92,10 @@ pitch.grid = Grid
 pitch.grid_tip = What Quantise moves each note's start to: a grid, or the nearest note of another track (within an eighth)
 pitch.quantise_to = Quantise to
 pitch.quantise.tracks = Another track's notes
-pitch.more_tip = What the bar has no room for: join, reset, play, MIDI, Double, the quantise target
+pitch.more_tip = What the bar has no room for: join, reset, play, MIDI, Double, the quantise target — and on a very narrow bar Original, the key and the snap
 pitch.play = Play from the selection
 pitch.midi_new = Melody to a new MIDI track
+pitch.midi_onto = Melody onto a track
 
 # The canvas.
 pitch.ruler_tip = Click or drag to move the playhead

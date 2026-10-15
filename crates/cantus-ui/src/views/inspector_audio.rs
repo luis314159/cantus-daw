@@ -234,7 +234,13 @@ fn pitch_row(sh: &mut Sheet<'_>, on: bool) -> bool {
     let r = sh.ui.interact(br, Id::new("insp-pitch-ab"), Sense::click());
     if r.hovered() {
         let name = sh.fmt.tr("pitch.inspector.edited").to_string();
-        let tip = sh.fmt.tr("pitch.inspector.edited_tip").to_string();
+        // What it plays now, and what a click does (review 2: the same words either way).
+        let key = if on {
+            "pitch.inspector.edited_tip"
+        } else {
+            "pitch.inspector.original_tip"
+        };
+        let tip = sh.fmt.tr(key).to_string();
         hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
     }
     crate::kit::led::button(

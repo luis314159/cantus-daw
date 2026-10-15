@@ -519,11 +519,29 @@ impl CantusApp {
             .filter(|t| t.id != track)
             .filter(|t| {
                 t.clips.iter().any(|c| {
-                    !c.notes.is_empty() || c.audio.as_ref().is_some_and(|a| a.pitch.is_some())
+                    // Notes; or a take on lane 0 with pitch notes — edited, or analysed and
+                    // untouched (review 2: the lead vocal no one had edited was missing).
+                    !c.notes.is_empty()
+                        || c.audio.as_ref().is_some_and(|a| {
+                            a.pitch.is_some()
+                                || (c.lane == 0
+                                    && !c.muted
+                                    && matches!(self.pitch_take(t.id, c.id), Take::Ready(_)))
+                        })
                 })
             })
             .map(|t| (t.id, t.name.clone()))
             .collect()
+    }
+
+    /// The track *Quantise* moves the notes of `track`'s editor onto, when it still exists
+    /// (deleted, or its creation undone, the grid is the target again — review 2: the bar
+    /// said 1/16 and Quantise did nothing).
+    pub fn quantise_target(&self, track: TrackId) -> Option<TrackId> {
+        self.pitch
+            .view
+            .quantise_to
+            .filter(|o| *o != track && self.project().track(*o).is_some())
     }
 
     /// A take landed (a recording, an import): analyse it now, on the worker, so the

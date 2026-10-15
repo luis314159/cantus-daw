@@ -18,6 +18,7 @@ use crate::pitch::Take;
 use cantus_core::pitch::{edit, PitchEdit, PitchOp};
 use cantus_core::{ClipId, Command, Track, TrackId};
 use egui::{pos2, Align2, Color32, Id, Pos2, Rect, Sense};
+use std::sync::Arc;
 
 /// The lane's height, in track heights.
 const HEIGHT: f32 = 1.5;
@@ -31,7 +32,16 @@ pub struct LaneDrag {
     at_press: PitchEdit,
     from: Pos2,
     px_per_st: f32,
+    /// The lane's pitch range at the press, kept through the drag (review 2: re-fitted
+    /// each frame, the scale shrank under the pointer and the note drifted from it).
+    range: (f32, f32),
+    /// Which way the gesture went once past the threshold: up and down moves the pitch;
+    /// sideways does nothing (review 2: a click's slip re-pitched an off-key note).
+    vertical: Option<bool>,
 }
+
+/// What the lanes were laid out for: the project's revision, the timeline, its rect.
+type LaneKey = (u64, TimelineGeometry, Rect);
 
 /// The lanes' state, kept on the app (`app.pitch.lane`).
 #[derive(Debug, Default)]
@@ -39,6 +49,12 @@ pub struct LaneState {
     pub(crate) drag: Option<LaneDrag>,
     /// The note last pressed in a lane: (track, clip, note).
     pub selected: Option<(TrackId, ClipId, u32)>,
+    /// The lanes as last laid out, and for what (review 2: every frame, twice, each clip's
+    /// edit was cloned and its take looked up).
+    cache: Option<(LaneKey, Arc<Vec<Lane>>)>,
+    /// How many times they were laid out (the tests check an idle arrangement lays out
+    /// nothing).
+    pub builds: usize,
 }
 
 /// The height the lane adds under a track: shown, and the track has audio clips.
@@ -70,6 +86,8 @@ pub struct LaneNote {
     pub rect: Rect,
     /// Points per semitone in its lane.
     pub px_per_st: f32,
+    /// Where it sounds (MIDI), for the hover's words.
+    pub centre: f32,
 }
 
 /// A lane laid out: its rect, its notes, its pitch range, the spans still analysed.
@@ -143,6 +161,19 @@ pub fn layout(app: &CantusApp, geo: &TimelineGeometry, lanes: Rect) -> Vec<Lane>
         } else {
             (57.0, 69.0)
         };
+        // While a note of this lane is dragged, the range of the press holds — grown only
+        // when the note would leave it.
+        let (lo, hi) = match &app.pitch.lane.drag {
+            Some(d) if d.track == track.id => {
+                let inside = found.iter().all(|f| f.4 > d.range.0 && f.4 < d.range.1);
+                if inside {
+                    d.range
+                } else {
+                    (d.range.0.min(lo), d.range.1.max(hi))
+                }
+            }
+            _ => (lo, hi),
+        };
         let px_per_st = rect.height() / (hi - lo);
         let bar = (px_per_st * 0.8).clamp(3.0, 9.0);
         let notes = found
@@ -158,6 +189,7 @@ pub fn layout(app: &CantusApp, geo: &TimelineGeometry, lanes: Rect) -> Vec<Lane>
                         pos2(xb.max(xa + 2.0), y + bar * 0.5),
                     ),
                     px_per_st,
+                    centre: m,
                 }
             })
             .collect();
@@ -172,10 +204,31 @@ pub fn layout(app: &CantusApp, geo: &TimelineGeometry, lanes: Rect) -> Vec<Lane>
     out
 }
 
+/// The lanes laid out for this timeline: the cached ones while nothing they show changed
+/// (and no take is still being analysed), else laid out afresh.
+fn cached(app: &CantusApp, geo: &TimelineGeometry, lanes: Rect) -> Option<Arc<Vec<Lane>>> {
+    let (key, laid) = app.pitch.lane.cache.as_ref()?;
+    let fresh = key.0 == app.bus.revision() && key.2 == lanes && key.1 == *geo;
+    (fresh && app.pitch.lane.drag.is_none() && laid.iter().all(|l| l.pending.is_empty()))
+        .then(|| laid.clone())
+}
+
+/// [`cached`], laid out and kept when it is not.
+fn laid(app: &mut CantusApp, geo: &TimelineGeometry, lanes: Rect) -> Arc<Vec<Lane>> {
+    if let Some(l) = cached(app, geo, lanes) {
+        return l;
+    }
+    let l = Arc::new(layout(app, geo, lanes));
+    app.pitch.lane.builds += 1;
+    app.pitch.lane.cache = Some(((app.bus.revision(), geo.clone(), lanes), l.clone()));
+    l
+}
+
 /// Paint every open lane: its ground, a line at each C, the notes in the track's colour.
 pub fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lanes: Rect, s: &Style) {
     let t = &s.t;
-    for lane in layout(app, geo, lanes) {
+    let laid = cached(app, geo, lanes).unwrap_or_else(|| Arc::new(layout(app, geo, lanes)));
+    for lane in laid.iter() {
         let r = lane.rect;
         b.register(
             r,
@@ -237,9 +290,11 @@ pub fn paint_header(b: &mut Brush, row: &TrackRow, headers: Rect, tint: Color32,
 }
 
 /// The lanes' pointer: a press on a note selects it and drags its pitch, a double-click
-/// pulls its centre onto its note.
+/// pulls its centre onto its note. Only on what is in view: a lane's part under the ruler,
+/// the scroll bar or a panel takes nothing (review 2), and a window or menu above the lane
+/// keeps its own presses (the lane's response decides, as egui's layers say).
 pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: Rect, _s: &Style) {
-    let laid = layout(app, geo, lanes);
+    let laid = laid(app, geo, lanes);
     let pointer = ui.input(|i| i.pointer.hover_pos());
     let (pressed, down, alt) = ui.input(|i| {
         (
@@ -248,16 +303,21 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
             i.modifiers.alt,
         )
     });
-    for lane in &laid {
+    for lane in laid.iter() {
         let Some(track) = lane.track else {
             continue;
         };
+        let shown = lane.rect.intersect(lanes);
+        if shown.height() <= 1.0 || shown.width() <= 1.0 {
+            continue;
+        }
         let resp = ui.interact(
-            lane.rect,
+            shown,
             Id::new(("pitch-lane", track.0)),
             Sense::click_and_drag(),
         );
         let hit = |p: Pos2| {
+            shown.contains(p).then_some(())?;
             lane.notes
                 .iter()
                 .rev()
@@ -266,18 +326,7 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
         };
         if resp.hovered() {
             let txt = match pointer.and_then(hit) {
-                Some(n) => app
-                    .project()
-                    .track(n.track)
-                    .and_then(|_| {
-                        let take = app.pitch_take(n.track, n.clip);
-                        app.pitch_edit(n.track, n.clip, &take)
-                    })
-                    .and_then(|e| {
-                        e.note(n.id)
-                            .map(|x| super::pitch::note_words(x.out_centre()))
-                    })
-                    .unwrap_or_default(),
+                Some(n) => super::pitch::note_words(n.centre),
                 None => String::new(),
             };
             hint::set_text(
@@ -291,7 +340,7 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
             }
         }
         let press = ui.input(|i| i.pointer.press_origin());
-        if pressed && press.is_some_and(|p| lane.rect.contains(p)) {
+        if pressed && resp.hovered() && press.is_some_and(|p| shown.contains(p)) {
             if let Some(n) = press.and_then(hit) {
                 let take = app.pitch_take(n.track, n.clip);
                 if let Some(e) = app.pitch_edit(n.track, n.clip, &take) {
@@ -303,6 +352,8 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
                         at_press: e,
                         from: press.expect("checked"),
                         px_per_st: n.px_per_st,
+                        range: lane.range,
+                        vertical: None,
                     });
                 }
             }
@@ -323,9 +374,14 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
             }
         }
     }
-    if let (true, Some(p), Some(d)) = (down, pointer, app.pitch.lane.drag.clone()) {
+    if let (true, Some(p), Some(mut d)) = (down, pointer, app.pitch.lane.drag.clone()) {
         let delta = (d.from.y - p.y) / d.px_per_st.max(1e-3);
-        if (d.from - p).length() > 3.0 {
+        let v = p - d.from;
+        if d.vertical.is_none() && v.length() > 3.0 {
+            d.vertical = Some(v.y.abs() >= v.x.abs());
+            app.pitch.lane.drag = Some(d.clone());
+        }
+        if d.vertical == Some(true) {
             let mut e = d.at_press.clone();
             if let Some(n) = d.at_press.note(d.note) {
                 let to = match (alt, app.pitch.view.snap) {
@@ -345,8 +401,9 @@ pub fn input(app: &mut CantusApp, ui: &egui::Ui, geo: &TimelineGeometry, lanes: 
                 };
                 edit::set_pitch(&mut e, d.note, to);
             }
+            // Never a step that changes nothing (the analysed edit, when none is stored).
             let now = app.stored_pitch(d.track, d.clip).cloned();
-            if now.as_ref() != Some(&e) {
+            if now.as_ref().unwrap_or(&d.at_press) != &e {
                 app.commit_pitch(d.track, d.clip, Some(e), PitchOp::Pitch, true);
             }
         }

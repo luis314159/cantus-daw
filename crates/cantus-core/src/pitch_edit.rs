@@ -307,17 +307,26 @@ pub fn quantise_by(edit: &mut PitchEdit, ids: &[u32], delta: impl Fn(&PitchNote)
     changed
 }
 
-/// *Quantise timing to another track*: each of the notes `ids` moved so it starts on the
-/// nearest of `onsets` (output frames, sorted or not) within `reach` frames — its length
-/// kept, its neighbours respected; a note with no onset in reach stays.
-pub fn quantise_to(edit: &mut PitchEdit, ids: &[u32], onsets: &[u64], reach: u64) -> bool {
+/// *Quantise timing to another track*: each of the notes `ids` moved so its first edge on
+/// the timeline — its start, or for a clip played backwards (`reverse`) its end — lands on
+/// the nearest of `onsets` (output frames, fractional, sorted or not) within `reach`
+/// frames: its length kept, its neighbours respected; a note with no onset in reach stays.
+/// The editor's *Quantise* to a track runs this.
+pub fn quantise_to(
+    edit: &mut PitchEdit,
+    ids: &[u32],
+    onsets: &[f64],
+    reach: f64,
+    reverse: bool,
+) -> bool {
     quantise_by(edit, ids, |n| {
+        let at = if reverse { n.end } else { n.start } as f64;
         onsets
             .iter()
-            .map(|o| *o as i64 - n.start as i64)
-            .filter(|d| d.unsigned_abs() <= reach)
-            .min_by_key(|d| d.unsigned_abs())
-            .unwrap_or(0)
+            .map(|o| o - at)
+            .filter(|d| d.abs() <= reach)
+            .min_by(|a, b| a.abs().total_cmp(&b.abs()))
+            .map_or(0, |d| d.round() as i64)
     })
 }
 

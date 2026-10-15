@@ -231,6 +231,14 @@ fn a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap() {
         -12.0,
         "the gap keeps the notes' gain"
     );
+    // Review 2: a short gap between different gains (0 dB, then −12): no step on either
+    // side, the way through the gap shared.
+    edit::set_field(&mut e, &[left], Field::Gain, 0.0);
+    let c = Curves::new(&e, &frames(&midi));
+    let step = gain_step(&c, 40_000..80_000);
+    assert!(step < 0.05, "a {step} dB step across the short gap, 0 to −12");
+    let mid = c.gain_db_at(60_050.0);
+    assert!(mid < -0.5 && mid > -11.5, "half way through the gap: {mid}");
 }
 
 /// Review 1: correct pitch below 100 % pulls toward the key's note, never past it, and at
@@ -311,12 +319,21 @@ fn quantise_to_onsets_moves_notes_onto_another_tracks_notes() {
     let (mut e, _) = take();
     let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
     // Onsets near the first two notes; none near the third (out of reach).
-    let onsets = [11_000u64, 49_500, 200_000];
-    assert!(edit::quantise_to(&mut e, &ids, &onsets, 4_800));
+    let onsets = [11_000.0, 49_500.0, 200_000.0];
+    let mut r = e.clone();
+    assert!(edit::quantise_to(&mut e, &ids, &onsets, 4_800.0, false));
     let starts: Vec<u64> = e.notes.iter().map(|n| n.start).collect();
     assert_eq!(starts, vec![11_000, 49_500, 84_000]);
     assert_eq!(e.notes[0].end - e.notes[0].start, 24_000);
     assert!(e.is_valid());
+    // Review 2: a clip played backwards meets the onsets with each note's end (its first
+    // edge on the timeline).
+    let ends: Vec<u64> = r.notes.iter().map(|n| n.end).collect();
+    let near: Vec<f64> = ends.iter().map(|e| *e as f64 + 1_000.4).collect();
+    assert!(edit::quantise_to(&mut r, &ids, &near, 4_800.0, true));
+    let moved: Vec<u64> = r.notes.iter().map(|n| n.end).collect();
+    assert_eq!(moved, ends.iter().map(|e| e + 1_000).collect::<Vec<_>>());
+    assert!(r.is_valid());
 }
 
 #[test]

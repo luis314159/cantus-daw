@@ -236,6 +236,8 @@ pub struct Curves {
     vibrato: Vec<f32>,
     formants: Vec<f32>,
     gains: Vec<f32>,
+    /// Any note has a gain: worked out once (the render asks per sample).
+    any_gain: bool,
     src: Spans,
     out: Spans,
 }
@@ -277,6 +279,7 @@ impl Curves {
             vibrato: edit.notes.iter().map(|n| n.vibrato - 1.0).collect(),
             formants: edit.notes.iter().map(|n| n.formant).collect(),
             gains: edit.notes.iter().map(|n| n.gain_db).collect(),
+            any_gain: edit.notes.iter().any(|n| n.gain_db != 0.0),
             src: spans(&|n| (n.src_start, n.src_end)),
             out: spans(&|n| (n.start, n.end)),
         }
@@ -324,9 +327,9 @@ impl Curves {
         self.out.eval(t, &|i, _| self.gains[i])
     }
 
-    /// Whether any note has a gain.
+    /// Whether any note has a gain (worked out once, in [`Self::new`]).
     pub fn has_gain(&self) -> bool {
-        self.gains.iter().any(|g| *g != 0.0)
+        self.any_gain
     }
 }
 

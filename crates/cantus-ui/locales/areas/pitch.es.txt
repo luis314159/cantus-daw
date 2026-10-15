@@ -28,7 +28,8 @@ pitch.not_ready = La toma aún se está analizando (o no se puede leer su archiv
 pitch.inspector.edit = Editar afinación
 pitch.inspector.edit_tip = Abrir el editor de afinación en este clip: sus notas, para moverlas, corregirlas, estirarlas y doblarlas (el archivo nunca cambia)
 pitch.inspector.edited = Afinación editada
-pitch.inspector.edited_tip = Este clip suena con sus ediciones de afinación. Abre el editor de afinación para cambiarlas o compararlas
+pitch.inspector.edited_tip = Este clip suena con sus ediciones de afinación: haz clic para oír el original (A/B)
+pitch.inspector.original_tip = Este clip suena con el original, tal como se cantó: haz clic para volver a oír sus ediciones de afinación (A/B)
 pitch.inspector.badge = Ediciones
 pitch.badge = Afinado
 pitch.badge.original = Original
@@ -91,9 +92,10 @@ pitch.grid = Rejilla
 pitch.grid_tip = A qué mueve Cuantizar el inicio de cada nota: una rejilla, o la nota más cercana de otra pista (a una corchea como mucho)
 pitch.quantise_to = Cuantizar a
 pitch.quantise.tracks = Las notas de otra pista
-pitch.more_tip = Lo que no cabe en la barra: unir, restablecer, reproducir, MIDI, doblar, el destino de cuantizar
+pitch.more_tip = Lo que no cabe en la barra: unir, restablecer, reproducir, MIDI, doblar, el destino de cuantizar — y en una barra muy estrecha Original, la tonalidad y el ajuste
 pitch.play = Reproducir desde la selección
 pitch.midi_new = Melodía a una pista MIDI nueva
+pitch.midi_onto = Melodía a una pista
 
 # El lienzo.
 pitch.ruler_tip = Haz clic o arrastra para mover el cursor de reproducción
