@@ -211,3 +211,63 @@ fn print_the_keys_levels() {
         eprintln!("key {k:3}{row}");
     }
 }
+
+/// The project played through the processor as the audio callback plays it (units sent
+/// before the snapshot, blocks of changing size).
+fn real_time(p: &Project, frames: usize) -> Vec<f32> {
+    let snap = Arc::new(Snapshot::compile(p, 1));
+    let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(256);
+    let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc_ = Processor::without_midi(SR as f64, rx, etx);
+    for unit in cantus_engine::inst::units_for(&snap, SR, |_, _| false) {
+        tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    proc_.settle();
+    while let Ok(ev) = erx.pop() {
+        if let EngineEvent::PdcNeed { count, delay } = ev {
+            tx.push(EngineMessage::PdcLines(pdc::lines_for(count, delay)))
+                .unwrap();
+            proc_.settle();
+        }
+    }
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut out = Vec::with_capacity(frames * 2);
+    let mut i = 0;
+    while out.len() / 2 < frames {
+        let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        proc_.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while erx.pop().is_ok() {}
+    }
+    out
+}
+
+#[test]
+fn offline_render_equals_real_time() {
+    // The reference tuning, and one designed before playing (in real time a tuning still
+    // being designed plays the reference one until it is ready; offline waits for it).
+    cantus_engine::inst::chorda::ensure(
+        cantus_dsp::chorda::design::Tuning {
+            a4: 442.0,
+            stretch: 1.0,
+            stiffness: 1.0,
+        },
+        SR,
+    );
+    for values in [vec![], vec![("a4", 442.0), ("hardness", 0.4)]] {
+        let p = piano_project(&values, &PHRASE);
+        let offline = render_of(&p, 0.5);
+        let live = real_time(&p, offline.len() / 2);
+        assert_null(
+            &offline,
+            &live,
+            0.0,
+            &format!("real time against offline {values:?}"),
+        );
+    }
+}
