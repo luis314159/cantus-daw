@@ -50,8 +50,10 @@ impl ModTelemetry {
 }
 
 /// Timed changes one hosted unit holds at most for a pass: 64 grid points of a full pass
-/// for 32 parameters. More in one pass are dropped and counted.
-pub const HOSTED_QUEUE: usize = 2048;
+/// for 128 parameters all moving (a still parameter queues nothing after its first value;
+/// 128 is also how many parameters a VST3 block carries). More in one pass are dropped and
+/// counted in `EngineStats::dropped_events`.
+pub const HOSTED_QUEUE: usize = 8192;
 
 /// One timed change for a hosted unit.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -99,6 +101,12 @@ impl AutoQueue {
         } else {
             self.dropped += 1;
         }
+    }
+
+    /// What did not fit since the last time this was asked.
+    #[inline]
+    pub fn take_dropped(&mut self) -> u64 {
+        std::mem::take(&mut self.dropped)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -414,7 +422,12 @@ mod tests {
             None,
             Some(15.0),
         );
-        let none = output(&plan.source, &ModTime::at_beats(0.3, 0.0, 120.0), None, None);
+        let none = output(
+            &plan.source,
+            &ModTime::at_beats(0.3, 0.0, 120.0),
+            None,
+            None,
+        );
         assert_eq!(ahead, none);
     }
 }

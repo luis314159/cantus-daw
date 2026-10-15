@@ -145,6 +145,13 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// point on, a parameter this unit is not sent [`Self::automate`] for is the project's
     /// own again. Default: ignored.
     fn automation_replanned(&mut self) {}
+
+    /// Changes for the plug-in that found no room on the way (its event lists full) since
+    /// the last time this was asked: the engine counts them in
+    /// `EngineStats::dropped_events`. Default: none.
+    fn take_dropped(&mut self) -> u64 {
+        0
+    }
 }
 
 /// What automation and modulation ask of a hosted parameter (ADR 0057), in the plug-in's

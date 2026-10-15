@@ -207,8 +207,13 @@ impl AudioHalf {
         }
         for c in params {
             let norm = self.map.to_normalized(c.id, c.value);
-            self.in_changes
-                .add(c.id, c.offset.min(last as u32) as i32, norm);
+            if !self
+                .in_changes
+                .add(c.id, c.offset.min(last as u32) as i32, norm)
+            {
+                // No queue left for it this block: counted, never silent (ADR 0057).
+                out.lost_in += 1;
+            }
         }
     }
 

@@ -243,6 +243,7 @@ impl ClapAudio {
         }
         self.events
             .fill(params, notes, n as u32, self.ports.note_dialects, self.base);
+        out.lost_in += std::mem::take(&mut self.events.lost);
         self.out_events.bind(out);
         let process = clap_process {
             steady_time: self.steady_time,

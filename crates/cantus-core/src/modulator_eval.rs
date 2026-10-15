@@ -105,7 +105,7 @@ impl Gates {
     pub fn with_levels(&self, env: &EnvSource, spb: f64) -> Gates {
         let mut from = Vec::with_capacity(self.gates.len());
         let mut level = 0f32;
-        for (i, g) in self.gates.iter().enumerate() {
+        for i in 0..self.gates.len() {
             from.push(level);
             if let Some(next) = self.gates.get(i + 1) {
                 level = self.level_from(env, level, i, next.on, spb);
