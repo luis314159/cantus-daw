@@ -198,6 +198,41 @@ impl Processor {
             self.master.gr = 0.0;
         }
         if !self.master.runs() {
+            // The chain is a wire: a watched Speculum on it still hears every frame — the
+            // mix itself (ADR 0056, review 1).
+            if self
+                .master
+                .effects
+                .iter()
+                .any(|e| self.scoped.contains(&Some(e.id)))
+            {
+                let nodes = self.nodes.clone();
+                let m = &mut self.master;
+                let l = &mut m.buf_l[..n];
+                let r = &mut m.buf_r[..n];
+                for i in 0..n {
+                    let frame = &out[i * channels..(i + 1) * channels];
+                    if channels > 1 {
+                        l[i] = frame[0];
+                        r[i] = frame[1];
+                    } else {
+                        l[i] = frame[0] * 0.5;
+                        r[i] = frame[0] * 0.5;
+                    }
+                }
+                for e in &m.effects {
+                    scope(
+                        &nodes,
+                        &self.scoped,
+                        &self.scoped_delay,
+                        position,
+                        self.sample_rate,
+                        e.id,
+                        l,
+                        r,
+                    );
+                }
+            }
             return;
         }
         let start = self.clock + p0 as u64;
@@ -253,7 +288,16 @@ impl Processor {
                 if let Some(a) = ana.as_mut() {
                     analyse(a, l, r);
                 }
-                scope(&nodes, &self.scoped, position, self.sample_rate, e.id, l, r);
+                scope(
+                    &nodes,
+                    &self.scoped,
+                    &self.scoped_delay,
+                    position,
+                    self.sample_rate,
+                    e.id,
+                    l,
+                    r,
+                );
                 continue;
             }
             let mix = m.mix[i];
@@ -300,7 +344,16 @@ impl Processor {
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
-            scope(&nodes, &self.scoped, position, self.sample_rate, e.id, l, r);
+            scope(
+                    &nodes,
+                    &self.scoped,
+                    &self.scoped_delay,
+                    position,
+                    self.sample_rate,
+                    e.id,
+                    l,
+                    r,
+                );
             if off {
                 continue;
             }

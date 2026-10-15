@@ -27,14 +27,19 @@ pub(crate) fn analyse(a: &mut Analysis, l: &[f32], r: &[f32]) {
     }
 }
 
-/// A watched Speculum's signal into its scope ring (ADR 0056): chunks of up to
-/// [`CHUNK`](crate::fx::speculum::CHUNK) frames, each with the song's position at its first
-/// frame. Nothing for an effect nobody watches (eight comparisons); a full ring counts what
-/// it lost. Allocation-free.
+/// A watched Speculum's signal into its scope ring (ADR 0056). Frames fill a chunk of
+/// [`CHUNK`](crate::fx::speculum::CHUNK) across passes — so the ring's capacity is in
+/// frames, however short the passes — and a chunk goes in when it is full or when the song
+/// jumps (a seek, a loop, a tempo change). Each chunk carries its owner, the song's
+/// position at its first frame **as heard at this slot** (the transport's, less the
+/// compensation the slot's signal waits: `delay`), and the frames a full ring lost before
+/// it. Nothing for an effect nobody watches (eight comparisons). Allocation-free.
 #[inline]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn scope(
     nodes: &Nodes,
     scoped: &[Option<EffectId>],
+    delays: &[usize],
     position: &crate::fx::SongPosition,
     sample_rate: f64,
     id: EffectId,
@@ -49,30 +54,69 @@ pub(crate) fn scope(
         nodes.conflict();
         return;
     };
-    let beats_per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
-    let n = l.len().min(r.len());
-    let mut at = 0;
-    while at < n {
-        let k = (n - at).min(CHUNK);
-        let tap = &mut *tap;
-        let Some(ring) = tap.ring.as_mut() else {
-            return;
-        };
-        if ring.slots() == 0 {
-            tap.lost += 1;
-            return;
-        }
-        let mut c = ScopeChunk::EMPTY;
-        c.frames = k as u16;
-        c.beat = position
-            .playing
-            .then_some(position.beats + at as f64 * beats_per_frame);
-        c.tempo_bpm = position.tempo_bpm;
-        c.l[..k].copy_from_slice(&l[at..at + k]);
-        c.r[..k].copy_from_slice(&r[at..at + k]);
-        let _ = ring.push(c);
-        at += k;
+    let tap = &mut *tap;
+    if tap.owner != Some(id) {
+        // A ring given to another Speculum: nothing of the last one's goes on.
+        tap.owner = Some(id);
+        tap.pending = ScopeChunk::EMPTY;
+        tap.lost = 0;
     }
+    let per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
+    let late = delays.get(i).copied().unwrap_or(0) as f64;
+    let first = position
+        .playing
+        .then_some(position.beats - late * per_frame);
+    // Does this pass carry on from the chunk being filled?
+    let p = &tap.pending;
+    if p.frames > 0 {
+        let on = match (p.beat, first) {
+            (Some(b), Some(f)) => {
+                p.tempo_bpm == position.tempo_bpm
+                    && (b + f64::from(p.frames) * per_frame - f).abs() < 1e-6
+            }
+            (None, None) => true,
+            _ => false,
+        };
+        if !on {
+            flush(tap);
+        }
+    }
+    let n = l.len().min(r.len());
+    for k in 0..n {
+        let p = &mut tap.pending;
+        if p.frames == 0 {
+            p.owner = id;
+            p.beat = first.map(|b| b + k as f64 * per_frame);
+            p.tempo_bpm = position.tempo_bpm;
+        }
+        let at = p.frames as usize;
+        p.l[at] = l[k];
+        p.r[at] = r[k];
+        p.frames += 1;
+        if p.frames as usize == CHUNK {
+            flush(tap);
+        }
+    }
+}
+
+/// The chunk being filled into the ring, or its frames counted lost when the ring is full.
+#[inline]
+fn flush(tap: &mut super::exec::ScopeTap) {
+    let frames = u64::from(tap.pending.frames);
+    if frames == 0 {
+        return;
+    }
+    match tap.ring.as_mut() {
+        Some(ring) if ring.slots() > 0 => {
+            tap.pending.lost = tap.lost.min(u64::from(u32::MAX)) as u32;
+            let _ = ring.push(tap.pending);
+            tap.lost = 0;
+        }
+        Some(_) => tap.lost += frames,
+        None => {}
+    }
+    tap.pending.frames = 0;
+    tap.pending.lost = 0;
 }
 
 /// The analysed unit's readings, for the meters.
@@ -196,6 +240,7 @@ pub(crate) fn strip_chain(
             scope(
                 nodes,
                 &ctx.scoped,
+                &ctx.scoped_delay,
                 &ctx.position,
                 ctx.sample_rate,
                 e.id,
@@ -261,6 +306,7 @@ pub(crate) fn strip_chain(
         scope(
             nodes,
             &ctx.scoped,
+            &ctx.scoped_delay,
             &ctx.position,
             ctx.sample_rate,
             e.id,

@@ -204,6 +204,9 @@ pub struct Shared {
     /// consumer to the editor — and given back when they go; the lock is only ever taken
     /// on the main thread, when one of them is made or dropped.
     pairs: Mutex<TapEnds>,
+    /// Speculum's frames its tap could not take (the editor drained too late), since the
+    /// editor last asked (ADR 0056, review 1).
+    pub scope_lost: AtomicU64,
 }
 
 /// The analyser tap's two ends, each here while nobody has it.
@@ -236,6 +239,7 @@ impl Shared {
                 let (tx, rx) = RingBuffer::new(PAIRS);
                 Mutex::new((Some(tx), Some(rx)))
             },
+            scope_lost: AtomicU64::new(0),
         })
     }
 
@@ -266,14 +270,20 @@ impl Shared {
     }
 
     /// The audio thread's view of the host's transport (no allocation, no lock).
-    fn publish_transport(&self, t: &HostTransport) {
+    /// The transport at the start of a block of `frames`; what an editor reads is the
+    /// position of the block's **last** frame (the newest it has drained — review 1).
+    fn publish_transport(&self, t: &HostTransport, frames: usize) {
         let h = &self.host;
         let tempo = t.tempo.unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
+        let sr = f64::from(self.sample_rate()).max(1.0);
+        let last = frames.saturating_sub(1) as f64 * tempo / 60.0 / sr;
         let (num, den) = t.time_sig.unwrap_or((4, 4));
         h.playing.store(t.playing, Ordering::Relaxed);
         h.tempo.store(tempo.to_bits(), Ordering::Relaxed);
-        h.beats
-            .store(t.beats.unwrap_or(0.0).to_bits(), Ordering::Relaxed);
+        h.beats.store(
+            t.beats.map_or(0.0, |b| b + if t.playing { last } else { 0.0 }).to_bits(),
+            Ordering::Relaxed,
+        );
         h.sig
             .store((u32::from(num) << 16) | u32::from(den), Ordering::Relaxed);
         h.known.store(true, Ordering::Release);
@@ -741,7 +751,7 @@ impl Processor {
             self.unit.note(0, nt.note);
         }
         if let Some(t) = &self.transport {
-            self.shared.publish_transport(t);
+            self.shared.publish_transport(t, n);
         }
         if self.shared.editor_open.load(Ordering::Relaxed) {
             self.publish_telemetry();
@@ -777,6 +787,9 @@ impl Processor {
         if self.shared.desc.kind == cantus_core::EffectKind::Analyzer {
             for i in 0..n {
                 if tx.slots() == 0 {
+                    self.shared
+                        .scope_lost
+                        .fetch_add((n - i) as u64, Ordering::Relaxed);
                     break;
                 }
                 let _ = tx.push((l[i], r[i]));

@@ -540,23 +540,37 @@ impl EngineHandle {
         self.scope_ids.iter().flatten().copied()
     }
 
-    /// The chunks of `effect`'s signal that came since the last call, oldest first.
+    /// The chunks of `effect`'s signal that came since the last call, oldest first; returns
+    /// the frames a full ring lost among them (the editor says its measurements have a gap).
+    /// Chunks a ring still held from a Speculum it served before are dropped.
     pub fn drain_scope(
         &mut self,
         effect: EffectId,
         mut f: impl FnMut(&crate::fx::speculum::ScopeChunk),
-    ) {
+    ) -> u64 {
         let Some(i) = self.scope_ids.iter().position(|s| *s == Some(effect)) else {
-            return;
+            return 0;
         };
         let ring = &mut self.scopes[i];
         let n = ring.slots();
+        let mut lost = 0u64;
         for _ in 0..n {
             match ring.pop() {
-                Ok(c) => f(&c),
+                Ok(c) if c.owner == effect => {
+                    lost += u64::from(c.lost);
+                    f(&c);
+                }
+                Ok(_) => {}
                 Err(_) => break,
             }
         }
+        lost
+    }
+
+    /// Chunks waiting in scope ring `i` (tests: a ring nobody watches stays empty).
+    #[doc(hidden)]
+    pub fn scope_ring_len(&self, i: usize) -> usize {
+        self.scopes.get(i).map_or(0, |r| r.slots())
     }
 
     /// Move the analyser's (input, output) pairs into `out`. Called once a frame.

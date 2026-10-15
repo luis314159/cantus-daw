@@ -286,6 +286,7 @@ impl FxHost for PluginHost {
         StereoTake {
             stream: true,
             clock,
+            lost: self.shared.scope_lost.swap(0, Ordering::Relaxed),
         }
     }
 }

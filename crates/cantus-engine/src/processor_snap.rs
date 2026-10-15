@@ -531,6 +531,7 @@ impl Processor {
         // A send that gained or lost a line is gathered another way.
         self.map_dirty = true;
         self.latency_sig = self.latency_signature();
+        self.scope_delays();
     }
 
     /// The latencies compensation is planned from — every live strip's inserts, every
@@ -565,6 +566,42 @@ impl Processor {
             mix(e.latency());
         }
         h
+    }
+
+    /// How late each watched Speculum's signal is against the transport — the compensation
+    /// its slot waits: a strip's arrival and the latency of the inserts before it, or on the
+    /// master the mix's arrival and the master inserts before it (ADR 0056, review 1). Its
+    /// beat stamps are moved back by as much, so the beat-synced scope is on the beat it
+    /// hears. Worked out with each plan and each change of what is watched.
+    pub(super) fn scope_delays(&mut self) {
+        let mut out = [0usize; crate::fx::speculum::MAX_SCOPES];
+        if self.scoped.iter().any(Option::is_some) {
+            let at = |id: EffectId| self.scoped.iter().position(|s| *s == Some(id));
+            let nodes = &self.nodes;
+            for slot in 0..MAX_STRIPS {
+                if self.strip_ids[slot].is_none() {
+                    continue;
+                }
+                if let Some(st) = nodes.strip(slot) {
+                    let own: usize = st.effects.iter().map(|e| e.latency()).sum();
+                    let mut ahead = self.strip_post[slot].saturating_sub(own);
+                    for e in &st.effects {
+                        if let Some(k) = at(e.id) {
+                            out[k] = ahead;
+                        }
+                        ahead += e.latency();
+                    }
+                }
+            }
+            let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
+            for e in &self.master.effects {
+                if let Some(k) = at(e.id) {
+                    out[k] = ahead;
+                }
+                ahead += e.latency();
+            }
+        }
+        self.scoped_delay = out;
     }
 
     /// Plan compensation again when a latency moved without an edit — automation or a
