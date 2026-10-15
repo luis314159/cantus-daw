@@ -82,6 +82,10 @@ pub enum Command {
     SetMetronome {
         enabled: bool,
     },
+    /// FL's PAT / SONG switch (ADR 0052): `on` plays the current pattern alone, looped.
+    SetPatternMode {
+        on: bool,
+    },
     SetMasterGain {
         gain_db: f32,
     },
@@ -610,6 +614,7 @@ impl Command {
             SetLoopRegion { .. } => "cmd.set_loop_region",
             SetLoopEnabled { .. } => "cmd.set_loop_enabled",
             SetMetronome { .. } => "cmd.set_metronome",
+            SetPatternMode { .. } => "cmd.set_pattern_mode",
             SetMasterGain { .. } => "cmd.set_master_gain",
             SetMasterPan { .. } => "cmd.set_master_pan",
             SetMasterWidth { .. } => "cmd.set_master_width",
@@ -719,6 +724,7 @@ impl Command {
             | (SetLoopRegion { .. }, SetLoopRegion { .. })
             | (SetLoopEnabled { .. }, SetLoopEnabled { .. })
             | (SetMetronome { .. }, SetMetronome { .. })
+            | (SetPatternMode { .. }, SetPatternMode { .. })
             | (SetMasterGain { .. }, SetMasterGain { .. })
             | (SetMasterPan { .. }, SetMasterPan { .. })
             | (SetMasterWidth { .. }, SetMasterWidth { .. })
@@ -992,6 +998,10 @@ impl Command {
             SetMetronome { enabled } => {
                 let old = std::mem::replace(&mut project.metronome, enabled);
                 Ok(SetMetronome { enabled: old })
+            }
+            SetPatternMode { on } => {
+                let old = std::mem::replace(&mut project.pattern_mode, on);
+                Ok(SetPatternMode { on: old })
             }
             SetMasterGain { gain_db } => {
                 let old = project.master.gain_db;

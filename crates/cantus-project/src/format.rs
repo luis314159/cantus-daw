@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 25;
+pub const SCHEMA_VERSION: u32 = 26;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -208,6 +208,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_22_to_23,
     migrate_23_to_24,
     migrate_24_to_25,
+    migrate_25_to_26,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -646,6 +647,15 @@ fn migrate_24_to_25(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 26 (round 28, ADR 0052): the metronome's voice and accent
+/// (`RecordSettings::click_sound`, `click_accent`) and FL's PAT / SONG switch
+/// (`Project::pattern_mode`). A file without them has the classic accented click and plays
+/// the song — what every older version did — so the step writes nothing; the number is what
+/// makes an older build refuse a project whose woodblock or pattern mode it would ignore.
+fn migrate_25_to_26(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -737,6 +747,25 @@ mod tests {
             .iter()
             .flat_map(|s| s.effects.iter())
             .all(|e| !new_kinds.contains(&e.spec.kind)));
+    }
+
+    /// Schema 26 (round 28, ADR 0052): the fixture's metronome has the woodblock voice and
+    /// no accent, and the song is saved in pattern mode; an older file (25) opens with the
+    /// classic accented click in song mode — what it always played.
+    #[test]
+    fn schema_26_keeps_the_metronome_voice_and_the_pattern_mode() {
+        use cantus_core::ClickSound;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v26.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        assert_eq!(p.recording.click_sound, ClickSound::Wood);
+        assert!(!p.recording.click_accent);
+        assert!(p.pattern_mode);
+        let old = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert_eq!(p.recording.click_sound, ClickSound::Classic);
+        assert!(p.recording.click_accent);
+        assert!(!p.pattern_mode);
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

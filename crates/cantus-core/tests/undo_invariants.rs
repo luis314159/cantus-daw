@@ -144,17 +144,22 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 end: Ticks::beats(8 + rng.below(8) as i64),
             }),
         },
-        12 => Command::Batch {
-            label_key: "batch".into(),
-            commands: vec![
-                Command::SetMetronome {
-                    enabled: rng.below(2) == 1,
-                },
-                Command::SetMasterGain {
-                    gain_db: rng.f32(-20.0, 6.0),
-                },
-            ],
-        },
+        12 => {
+            let metronome = rng.below(2) == 1;
+            let gain_db = rng.f32(-20.0, 6.0);
+            Command::Batch {
+                label_key: "batch".into(),
+                commands: vec![
+                    Command::SetMetronome { enabled: metronome },
+                    // Round 28 (ADR 0052): FL's PAT / SONG switch, from draws already made
+                    // (a new draw would move every later case of the fixed seeds).
+                    Command::SetPatternMode {
+                        on: metronome != (gain_db > 0.0),
+                    },
+                    Command::SetMasterGain { gain_db },
+                ],
+            }
+        }
         // Inserts live on mixer strips. The strip is picked at random from all of them,
         // fed or not: an insert on an empty strip has to be as reversible as any other.
         13 => {
@@ -746,6 +751,12 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                         ClickMode::CountInOnly,
                     ][rng.below(3) as usize];
                     settings.click_db = rng.f32(-24.0, 6.0);
+                    // Round 28 (schema 26): the click's voice and its accent, from the
+                    // draws already made (a new draw would move the fixed seeds' cases).
+                    let d = settings.click_db;
+                    settings.click_sound =
+                        cantus_core::ClickSound::ALL[(d.abs() as usize) % 3];
+                    settings.click_accent = d > -9.0;
                 }
                 _ => settings.click_db = f32::INFINITY,
             }

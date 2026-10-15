@@ -981,6 +981,11 @@ pub struct Project {
     /// How recording behaves: count-in, punch, takes, the click (ADR 0025).
     #[serde(default)]
     pub recording: crate::audio::RecordSettings,
+    /// FL's PAT / SONG switch (schema 26, ADR 0052): on, the transport plays the current
+    /// pattern alone, looped (`crate::pattern`). Saved with the song as FL saves it; not
+    /// written while it says *song*.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pattern_mode: bool,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1020,6 +1025,7 @@ impl Project {
             pan_law: PanLaw::default(),
             audio_pool: Vec::new(),
             recording: crate::audio::RecordSettings::default(),
+            pattern_mode: false,
             next_id: 1,
         }
     }

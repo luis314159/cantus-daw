@@ -248,6 +248,35 @@ pub struct RecordSettings {
     /// Loop recording: each pass of the loop becomes a take (one file, a clip per pass).
     #[serde(default = "yes")]
     pub loop_takes: bool,
+    /// The click's voice (schema 26, ADR 0052). Not written while it is the classic one,
+    /// so a project that never chose another saves as it did.
+    #[serde(default, skip_serializing_if = "ClickSound::is_classic")]
+    pub click_sound: ClickSound,
+    /// Whether the first beat of a bar is accented (schema 26): on, as every earlier
+    /// version played it; off, every beat sounds as an ordinary one.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub click_accent: bool,
+}
+
+/// The metronome's voice (schema 26, ADR 0052). `Classic` is the sine burst every earlier
+/// version played, so an older project renders unchanged.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClickSound {
+    /// A short sine burst: 1 760 Hz on the downbeat, 1 174.7 Hz on the other beats.
+    #[default]
+    Classic,
+    /// A woodblock: two damped modes struck hard — drier and shorter.
+    Wood,
+    /// A digital beep: a soft-edged square tone with a flat top and a short release.
+    Beep,
+}
+
+impl ClickSound {
+    pub const ALL: [ClickSound; 3] = [ClickSound::Classic, ClickSound::Wood, ClickSound::Beep];
+
+    pub fn is_classic(&self) -> bool {
+        *self == ClickSound::Classic
+    }
 }
 
 fn click_level() -> f32 {
@@ -256,6 +285,10 @@ fn click_level() -> f32 {
 
 fn yes() -> bool {
     true
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 impl Default for RecordSettings {
@@ -268,6 +301,8 @@ impl Default for RecordSettings {
             click: ClickMode::Always,
             click_db: click_level(),
             loop_takes: true,
+            click_sound: ClickSound::Classic,
+            click_accent: true,
         }
     }
 }
@@ -275,6 +310,28 @@ impl Default for RecordSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Schema 26: a project that never chose a click voice or turned the accent off saves
+    /// exactly as before (no new keys), and one that did reads back what it chose.
+    #[test]
+    fn the_metronome_choices_are_written_only_when_chosen() {
+        let plain = RecordSettings::default();
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(
+            !json.contains("click_sound") && !json.contains("click_accent"),
+            "{json}"
+        );
+        let old: RecordSettings = serde_json::from_str(r#"{"count_in_bars": 1}"#).unwrap();
+        assert_eq!(old.click_sound, ClickSound::Classic);
+        assert!(old.click_accent, "an older file keeps its accented downbeat");
+        let chosen = RecordSettings {
+            click_sound: ClickSound::Wood,
+            click_accent: false,
+            ..RecordSettings::default()
+        };
+        let json = serde_json::to_string(&chosen).unwrap();
+        assert_eq!(serde_json::from_str::<RecordSettings>(&json).unwrap(), chosen);
+    }
 
     #[test]
     fn the_fine_offset_defaults_to_zero_and_round_trips() {
