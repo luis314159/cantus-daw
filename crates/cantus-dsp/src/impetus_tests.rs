@@ -300,7 +300,10 @@ fn a_non_finite_sample_locks_nothing() {
     x[200] = f32::INFINITY;
     let mut u = with(s);
     let y = run(&mut u, &x, None, 256);
-    assert!(y[1_000..].iter().all(|v| v.is_finite()), "finite after the NaN");
+    assert!(
+        y[1_000..].iter().all(|v| v.is_finite()),
+        "finite after the NaN"
+    );
     let reference = run(&mut with(s), &hits(24_000, 0.6, 300.0), None, 256);
     // Once the detector has forgotten the hit before, the same as without the NaN.
     for i in 12_000..14_000 {

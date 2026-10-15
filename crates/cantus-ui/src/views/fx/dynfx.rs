@@ -329,9 +329,9 @@ pub fn key_source(
             if let Some(anchor) = open {
                 let mut items = vec![super::frame::radio(Src::Key(own), current.is_none())];
                 items.extend(
-                    options
-                        .iter()
-                        .map(|(sid, text)| super::frame::radio(Src::Str(text), current == Some(*sid))),
+                    options.iter().map(|(sid, text)| {
+                        super::frame::radio(Src::Str(text), current == Some(*sid))
+                    }),
                 );
                 if let Some(i) = super::controls::list(ui, s, id, anchor, w.max(180.0), &items) {
                     let target = if i == 0 {

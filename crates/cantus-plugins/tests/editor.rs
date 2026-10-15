@@ -236,8 +236,12 @@ fn the_exported_speculum_reads_its_own_stereo_frames_and_the_newest_frames_beat(
     let mut proc_ = Processor::new(shared.clone(), 48_000.0);
     let mut ph = PluginHost::new(shared.clone(), Box::new(Collect(Default::default())));
     let n = 480;
-    let l: Vec<f32> = (0..n).map(|i| cantus_dsp::math::sin(i as f32 * 0.05) * 0.5).collect();
-    let r: Vec<f32> = (0..n).map(|i| cantus_dsp::math::cos(i as f32 * 0.11) * 0.3).collect();
+    let l: Vec<f32> = (0..n)
+        .map(|i| cantus_dsp::math::sin(i as f32 * 0.05) * 0.5)
+        .collect();
+    let r: Vec<f32> = (0..n)
+        .map(|i| cantus_dsp::math::cos(i as f32 * 0.11) * 0.3)
+        .collect();
     proc_.set_transport(Some(HostTransport {
         playing: true,
         tempo: Some(120.0),
@@ -254,7 +258,11 @@ fn the_exported_speculum_reads_its_own_stereo_frames_and_the_newest_frames_beat(
     assert!(take.stream);
     assert_eq!(out.len(), n);
     for (i, (x, y)) in out.iter().enumerate() {
-        assert_eq!((x.to_bits(), y.to_bits()), (l[i].to_bits(), r[i].to_bits()), "frame {i}");
+        assert_eq!(
+            (x.to_bits(), y.to_bits()),
+            (l[i].to_bits(), r[i].to_bits()),
+            "frame {i}"
+        );
     }
     let (beat, tempo) = take.clock.expect("playing");
     assert_eq!(tempo, 120.0);

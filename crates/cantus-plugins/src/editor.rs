@@ -287,7 +287,7 @@ impl FxHost for PluginHost {
             .shared
             .host_transport()
             .filter(|h| h.playing && h.tempo > 0.0)
-            .map(|h| (h.beats, h.tempo));
+            .map(|h| (h.last_beats, h.tempo));
         StereoTake {
             stream: true,
             clock,

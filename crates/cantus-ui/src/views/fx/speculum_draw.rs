@@ -628,7 +628,14 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     // second; solid: the RMS over 300 ms) on a scale.
     let has = v.analysis.frames() > 0;
     let title = Text::key("speculum.card.levels", Role::Micro, ink.dim).caps(true);
-    canvas::put(b, pos2(inside.left(), y + 7.0 * k), Align2::LEFT_CENTER, &title, k, None);
+    canvas::put(
+        b,
+        pos2(inside.left(), y + 7.0 * k),
+        Align2::LEFT_CENTER,
+        &title,
+        k,
+        None,
+    );
     let mut x = inside.left() + cols_w;
     for (key, c) in [
         ("speculum.m.rms", ink.hue),
@@ -637,7 +644,10 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
         let at = canvas::put(b, pos2(x, y + 7.0 * k), Align2::RIGHT_CENTER, &t, k, None);
         b.rect(
-            Rect::from_center_size(pos2(at.left() - 8.0 * k, at.center().y), vec2(10.0 * k, 6.0 * k)),
+            Rect::from_center_size(
+                pos2(at.left() - 8.0 * k, at.center().y),
+                vec2(10.0 * k, 6.0 * k),
+            ),
             Fill::Solid(c),
         );
         x = at.left() - 20.0 * k;
@@ -652,13 +662,27 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     ] {
         let lr = Rect::from_min_size(pos2(inside.left(), y), vec2(cols_w, 14.0 * k));
         let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-        canvas::put(b, pos2(lr.left(), lr.center().y), Align2::LEFT_CENTER, &t, k, None);
+        canvas::put(
+            b,
+            pos2(lr.left(), lr.center().y),
+            Align2::LEFT_CENTER,
+            &t,
+            k,
+            None,
+        );
         let bar = Rect::from_min_max(
             pos2(lr.left() + 70.0 * k, lr.top() + 2.0 * k),
             pos2(lr.right() - value_w, lr.bottom() - 2.0 * k),
         );
         bar_span = (bar.left(), bar.right());
-        dynfx::bar(b, bar, if has { frac(lv.peak_db[c]) } else { 0.0 }, Ink::a(ink.hue, 0.45), ink, k);
+        dynfx::bar(
+            b,
+            bar,
+            if has { frac(lv.peak_db[c]) } else { 0.0 },
+            Ink::a(ink.hue, 0.45),
+            ink,
+            k,
+        );
         let rms = Rect::from_min_max(
             bar.min,
             pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()),
@@ -668,9 +692,31 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         }
         let at = pos2(lr.right(), lr.center().y);
         if has && lv.peak_db[c] > -150.0 {
-            canvas::putf(b, at, Align2::RIGHT_CENTER, Role::Value, ink.text, k, None, format_args!("{:.1} \u{b7} {:.1} dBFS", lv.peak_db[c], lv.rms_db[c].max(-99.9)));
+            canvas::putf(
+                b,
+                at,
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.text,
+                k,
+                None,
+                format_args!(
+                    "{:.1} \u{b7} {:.1} dBFS",
+                    lv.peak_db[c],
+                    lv.rms_db[c].max(-99.9)
+                ),
+            );
         } else {
-            canvas::putf(b, at, Align2::RIGHT_CENTER, Role::Value, ink.dim, k, None, format_args!("{dash}"));
+            canvas::putf(
+                b,
+                at,
+                Align2::RIGHT_CENTER,
+                Role::Value,
+                ink.dim,
+                k,
+                None,
+                format_args!("{dash}"),
+            );
         }
         y += 15.0 * k;
     }
@@ -678,7 +724,16 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     if bar_span.1 > bar_span.0 && y + 12.0 * k <= inside.bottom() {
         for db in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
             let x = bar_span.0 + (bar_span.1 - bar_span.0) * frac(db);
-            canvas::putf(b, pos2(x, y), Align2::CENTER_TOP, Role::Micro, ink.dim, k, None, format_args!("{db:.0}"));
+            canvas::putf(
+                b,
+                pos2(x, y),
+                Align2::CENTER_TOP,
+                Role::Micro,
+                ink.dim,
+                k,
+                None,
+                format_args!("{db:.0}"),
+            );
         }
         y += 12.0 * k;
     }
@@ -686,7 +741,15 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     if v.lost > 0 {
         let ms = v.lost as f64 * 1000.0 / f64::from(v.analysis.sample_rate());
         let lr = Rect::from_min_size(pos2(inside.left(), y + 2.0 * k), vec2(cols_w, row));
-        dynfx::stat(b, lr, frame::tr("speculum.m.gaps"), ink.danger, ink, k, format_args!("{ms:.0} ms"));
+        dynfx::stat(
+            b,
+            lr,
+            frame::tr("speculum.m.gaps"),
+            ink.danger,
+            ink,
+            k,
+            format_args!("{ms:.0} ms"),
+        );
         y += row;
     }
     // Thirty seconds of short-term against the target.

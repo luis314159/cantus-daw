@@ -214,6 +214,8 @@ fn the_editor_sees_the_hosts_transport() {
     assert!(t.playing);
     assert_eq!(t.time_sig, (3, 4));
     assert_eq!(t.beats, 4.25);
+    // And where the block's last frame is (what Speculum's clock reads): 255 frames on.
+    assert!((t.last_beats - (4.25 + 255.0 * 97.0 / 60.0 / f64::from(SR))).abs() < 1e-9);
 }
 
 #[test]

@@ -303,7 +303,10 @@ fn a_non_finite_sample_locks_nothing() {
     x[200] = f32::INFINITY;
     let mut u = with(s);
     let (y, _) = run(&mut u, &x, &x, 256);
-    assert!(y[1_000..].iter().all(|v| v.is_finite()), "finite after the NaN");
+    assert!(
+        y[1_000..].iter().all(|v| v.is_finite()),
+        "finite after the NaN"
+    );
     let (reference, _) = run(&mut with(s), &hits(24_000, 0.8), &hits(24_000, 0.8), 256);
     for i in 12_000..14_000 {
         assert!((y[i] - reference[i]).abs() < 1e-3, "sample {i}");

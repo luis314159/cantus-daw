@@ -207,7 +207,10 @@ fn an_automated_latency_switch_costs_at_most_the_change() {
                 run = 0;
             }
         }
-        assert!(longest <= 40, "{longest} silent frames at the switch at frame {at}");
+        assert!(
+            longest <= 40,
+            "{longest} silent frames at the switch at frame {at}"
+        );
     }
 }
 

@@ -150,6 +150,7 @@ struct HostView {
     /// `f64` bits.
     tempo: AtomicU64,
     beats: AtomicU64,
+    last_beats: AtomicU64,
     /// Numerator in the high half, denominator in the low.
     sig: AtomicU32,
 }
@@ -159,7 +160,11 @@ struct HostView {
 pub struct HostSeen {
     pub playing: bool,
     pub tempo: f64,
+    /// At the start of the last block.
     pub beats: f64,
+    /// At the last block's last frame: the newest frame an editor has drained (Speculum's
+    /// clock, review 1).
+    pub last_beats: f64,
     pub time_sig: (u16, u16),
 }
 
@@ -264,14 +269,15 @@ impl Shared {
                 playing: h.playing.load(Ordering::Relaxed),
                 tempo: f64::from_bits(h.tempo.load(Ordering::Relaxed)),
                 beats: f64::from_bits(h.beats.load(Ordering::Relaxed)),
+                last_beats: f64::from_bits(h.last_beats.load(Ordering::Relaxed)),
                 time_sig: ((sig >> 16) as u16, (sig & 0xFFFF) as u16),
             }
         })
     }
 
-    /// The audio thread's view of the host's transport (no allocation, no lock).
-    /// The transport at the start of a block of `frames`; what an editor reads is the
-    /// position of the block's **last** frame (the newest it has drained — review 1).
+    /// The audio thread's view of the host's transport (no allocation, no lock): at the
+    /// start of a block of `frames`, and at its last frame (the newest an editor has drained
+    /// — review 1).
     fn publish_transport(&self, t: &HostTransport, frames: usize) {
         let h = &self.host;
         let tempo = t.tempo.unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
@@ -280,8 +286,12 @@ impl Shared {
         let (num, den) = t.time_sig.unwrap_or((4, 4));
         h.playing.store(t.playing, Ordering::Relaxed);
         h.tempo.store(tempo.to_bits(), Ordering::Relaxed);
-        h.beats.store(
-            t.beats.map_or(0.0, |b| b + if t.playing { last } else { 0.0 }).to_bits(),
+        h.beats
+            .store(t.beats.unwrap_or(0.0).to_bits(), Ordering::Relaxed);
+        h.last_beats.store(
+            t.beats
+                .map_or(0.0, |b| b + if t.playing { last } else { 0.0 })
+                .to_bits(),
             Ordering::Relaxed,
         );
         h.sig

@@ -203,7 +203,10 @@ fn the_oversampling_keys_explain_themselves() {
     let ctx = ctx();
     frame(&mut a, &ctx, vec![]);
     frame(&mut a, &ctx, vec![]);
-    let keys = a.fx.tonsor.os_keys.expect("the oversampling keys were drawn");
+    let keys =
+        a.fx.tonsor
+            .os_keys
+            .expect("the oversampling keys were drawn");
     frame(&mut a, &ctx, vec![egui::Event::PointerMoved(keys.center())]);
     frame(&mut a, &ctx, vec![]);
     let hint = cantus_ui::kit::hint::current(&ctx)

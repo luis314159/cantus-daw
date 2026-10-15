@@ -335,7 +335,8 @@ fn body_ui(
         |ui, _| {
             controls::column(ui, &sd, seg_w, |ui| {
                 let labels = OS_KEYS.map(Src::Key);
-                let keys = Rect::from_min_size(ui.cursor().min, vec2(seg_w * k, sd.d(controls::ROW)));
+                let keys =
+                    Rect::from_min_size(ui.cursor().min, vec2(seg_w * k, sd.d(controls::ROW)));
                 st.os_keys = Some(keys);
                 controls::segmented_param(ui, &sd, host, "os", &labels, seg_w);
                 // What a step of oversampling buys and costs, on the keys.
@@ -489,7 +490,8 @@ fn transfer_card(
                     // Under its line, but never on the axis label above or the numbers below.
                     pos2(
                         plot.left() + 6.0 * k,
-                        (y_of(ceil_out) + 3.0 * k).clamp(plot.top() + 18.0 * k, plot.bottom() - 20.0 * k),
+                        (y_of(ceil_out) + 3.0 * k)
+                            .clamp(plot.top() + 18.0 * k, plot.bottom() - 20.0 * k),
                     ),
                     Align2::LEFT_TOP,
                     frame::tr("tonsor.tag.ceiling"),

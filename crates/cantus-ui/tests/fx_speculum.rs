@@ -240,7 +240,11 @@ fn a_docked_tabs_settings_fit_its_width() {
     for which in [0usize, 3, 5] {
         for width in (300..=1_000).step_by(25) {
             let rows = speculum::settings_layout(which, width as f32);
-            assert!(rows.len() <= 3, "view {which} at {width}: {} rows", rows.len());
+            assert!(
+                rows.len() <= 3,
+                "view {which} at {width}: {} rows",
+                rows.len()
+            );
         }
     }
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
@@ -259,8 +263,15 @@ fn a_docked_tabs_settings_fit_its_width() {
                 speculum::body_ui(&mut host, &mut view, ui, &s, ui.max_rect(), &set);
             });
             assert!(!text.contains('\u{2026}'), "{lang:?} {size:?}: {text}");
-            let held = if lang == cantus_ui::i18n::Locale::En { "HELD" } else { "RETENIDO" };
-            assert!(text.contains(held), "{lang:?} {size:?}: the last setting, in {text}");
+            let held = if lang == cantus_ui::i18n::Locale::En {
+                "HELD"
+            } else {
+                "RETENIDO"
+            };
+            assert!(
+                text.contains(held),
+                "{lang:?} {size:?}: the last setting, in {text}"
+            );
         }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);

@@ -456,18 +456,42 @@ fn settings_item(
             let slope = Some(&slope_pill as controls::Pill<'_>);
             dynfx::param_labelled(ui, s, host, "slope", Size::M, slope, "speculum.k.slope");
         }
-        Item::Chan => seg(ui, host, "chan", "speculum.k.chan", &CHAN_KEYS.map(Src::Key)),
-        Item::Floor => seg(ui, host, "floor", "speculum.k.floor", &FLOOR_KEYS.map(Src::Key)),
+        Item::Chan => seg(
+            ui,
+            host,
+            "chan",
+            "speculum.k.chan",
+            &CHAN_KEYS.map(Src::Key),
+        ),
+        Item::Floor => seg(
+            ui,
+            host,
+            "floor",
+            "speculum.k.floor",
+            &FLOOR_KEYS.map(Src::Key),
+        ),
         Item::Hold => {
             controls::column(ui, s, w, |ui| {
                 controls::caption(ui, s, Src::Key("fx.speculum.hold"), w);
                 controls::led_param(ui, s, host, "hold", Src::Key("speculum.legend.held"), w);
             });
         }
-        Item::Sync => seg(ui, host, "sync", "speculum.k.sync", &SYNC_KEYS.map(Src::Key)),
+        Item::Sync => seg(
+            ui,
+            host,
+            "sync",
+            "speculum.k.sync",
+            &SYNC_KEYS.map(Src::Key),
+        ),
         Item::Beats => {
             ui.add_enabled_ui(beat, |ui| {
-                seg(ui, host, "beats", "speculum.k.length", &BEATS_KEYS.map(Src::Key));
+                seg(
+                    ui,
+                    host,
+                    "beats",
+                    "speculum.k.length",
+                    &BEATS_KEYS.map(Src::Key),
+                );
             });
         }
         Item::Ms => {

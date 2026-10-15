@@ -201,5 +201,9 @@ fn the_key_is_chosen_in_the_editor() {
     let key = chosen.expect("a strip chosen from the list");
     assert_ne!(key, s0);
     a.undo();
-    assert_eq!(a.project().effect(s0, fx).unwrap().sidechain, None, "one undo step");
+    assert_eq!(
+        a.project().effect(s0, fx).unwrap().sidechain,
+        None,
+        "one undo step"
+    );
 }

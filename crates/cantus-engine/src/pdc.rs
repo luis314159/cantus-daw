@@ -406,13 +406,13 @@ impl Default for Compensation {
 mod tests {
     use super::*;
 
-
     /// Review 1 (ADR 0056): a line whose delay changes while it runs keeps what it holds —
     /// shorter, it skips ahead; longer, it waits only the difference — instead of starting
     /// empty (a dropout of its whole delay at every automated latency switch).
     #[test]
     fn a_new_delay_keeps_what_the_line_holds() {
-        let ramp = |a: usize, n: usize| -> Vec<f32> { (a..a + n).map(|v| (v + 1) as f32).collect() };
+        let ramp =
+            |a: usize, n: usize| -> Vec<f32> { (a..a + n).map(|v| (v + 1) as f32).collect() };
         let mut c = Compensation::new();
         let mut kept = c.begin();
         c.want(&mut kept, Edge::Track(0), 100);
@@ -439,7 +439,11 @@ mod tests {
         c.finish(&kept);
         let y = run(&c, 700, 200);
         for (k, v) in y.iter().enumerate() {
-            let want = if k < 40 { 0.0 } else { (700 + k + 1 - 100) as f32 };
+            let want = if k < 40 {
+                0.0
+            } else {
+                (700 + k + 1 - 100) as f32
+            };
             assert_eq!(*v, want, "longer, sample {k}");
         }
     }

@@ -108,7 +108,11 @@ fn a_master_speculum_measures_with_the_chain_off_or_bypassed() {
             h.drain_scope(id, |c: &ScopeChunk| {
                 if k > 0 {
                     seen += c.frames as usize;
-                    loud = loud.max(c.l[..c.frames as usize].iter().fold(0f32, |m, v| m.max(v.abs())));
+                    loud = loud.max(
+                        c.l[..c.frames as usize]
+                            .iter()
+                            .fold(0f32, |m, v| m.max(v.abs())),
+                    );
                 }
             });
         }
@@ -169,14 +173,20 @@ fn play(
 /// What came out of a ring is every frame in order — all but the chunk still being filled
 /// (fewer than 64 frames) — and `scale` times the reference.
 fn every_frame(what: &str, seen: &[f32], reference: &[f32], scale: f32) {
-    assert!(seen.len() <= reference.len(), "{what}: more than was played");
+    assert!(
+        seen.len() <= reference.len(),
+        "{what}: more than was played"
+    );
     assert!(
         reference.len() - seen.len() < 2 * 64,
         "{what}: {} frames missing",
         (reference.len() - seen.len()) / 2
     );
     for (i, (a, b)) in seen.iter().zip(reference).enumerate() {
-        assert!((a * scale - b).abs() <= 1e-6, "{what}: sample {i}: {a} vs {b}");
+        assert!(
+            (a * scale - b).abs() <= 1e-6,
+            "{what}: sample {i}: {a} vs {b}"
+        );
     }
 }
 
@@ -232,12 +242,14 @@ fn every_frame_of_a_watched_speculum_reaches_its_ring() {
             assert_eq!(d.lost, 0);
             for w in d.beats.windows(2) {
                 let ((b0, n0), (b1, _)) = (w[0], w[1]);
-                assert!((b1 - b0 - n0 as f64 * per_frame).abs() < 1e-9, "{b0} + {n0} → {b1}");
+                assert!(
+                    (b1 - b0 - n0 as f64 * per_frame).abs() < 1e-9,
+                    "{b0} + {n0} → {b1}"
+                );
             }
         }
     }
 }
-
 
 /// What nobody watches is let go — its ring receives nothing more, looked at in the ring
 /// itself — and a ninth Speculum is refused while eight are watched.
@@ -326,7 +338,11 @@ fn a_full_ring_says_what_it_lost() {
     }
     let mut first = Drained::default();
     first.take(&mut h, master);
-    assert_eq!(first.frames.len() / 2, 65_536, "the ring's capacity, in frames");
+    assert_eq!(
+        first.frames.len() / 2,
+        65_536,
+        "the ring's capacity, in frames"
+    );
     for _ in 0..2 {
         proc.process(&mut buf, 2);
     }

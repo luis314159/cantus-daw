@@ -345,15 +345,15 @@ impl Processor {
                 analyse(a, l, r);
             }
             scope(
-                    &nodes,
-                    &self.scoped,
-                    &self.scoped_delay,
-                    position,
-                    self.sample_rate,
-                    e.id,
-                    l,
-                    r,
-                );
+                &nodes,
+                &self.scoped,
+                &self.scoped_delay,
+                position,
+                self.sample_rate,
+                e.id,
+                l,
+                r,
+            );
             if off {
                 continue;
             }
