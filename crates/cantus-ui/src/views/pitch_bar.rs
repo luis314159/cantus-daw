@@ -62,7 +62,7 @@ pub(super) fn show(
         (Take::Pending, None) => t("pitch.analysing_short"),
         _ => String::new(),
     };
-    let Some(e) = current.cloned() else {
+    let Some(e) = current else {
         if !status.is_empty() {
             bar.readout_right(ui, &status, 120.0, false);
         }

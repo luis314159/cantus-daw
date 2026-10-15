@@ -23,8 +23,11 @@
 use crate::app::CantusApp;
 use crate::kit::Style;
 use crate::pitch::Take;
+use cantus_core::pitch::curves::{time_points, Curves};
 use cantus_core::pitch::PitchEdit;
 use cantus_core::{ClipId, Ticks, TrackId};
+use cantus_dsp::psola::TimeMap;
+use std::sync::Arc;
 use egui::{pos2, Pos2, Rect, Sense};
 
 #[path = "pitch_bar.rs"]
@@ -173,6 +176,40 @@ pub struct PitchView {
     pub midi_drag: bool,
     /// Where the note panel's cards were laid out last frame.
     pub panel: Option<panel::PanelLayout>,
+    /// What the editor draws from, built once per edit (review 1): the take, the edit, its
+    /// curves and time map — keyed by the clip and the project's revision.
+    pub(crate) cache: Option<((ClipId, u64), Drawn)>,
+    /// How many times it was built (the tests check an idle editor builds nothing).
+    pub builds: usize,
+}
+
+/// What the editor draws from (see [`PitchView::cache`]).
+#[derive(Clone, Debug)]
+pub(crate) struct Drawn {
+    pub take: Take,
+    pub edit: Option<Arc<PitchEdit>>,
+    pub curves: Option<Arc<Curves>>,
+    pub map: Arc<TimeMap>,
+}
+
+impl Drawn {
+    fn build(app: &CantusApp, track: TrackId, clip: ClipId, take: Take) -> Drawn {
+        let edit = app.pitch_edit(track, clip, &take).map(Arc::new);
+        let map = edit
+            .as_deref()
+            .and_then(|e| TimeMap::new(time_points(e)))
+            .unwrap_or_default();
+        let curves = match (&take, edit.as_deref()) {
+            (Take::Ready(a), Some(e)) => Some(Arc::new(Curves::new(e, &a.frames_view()))),
+            _ => None,
+        };
+        Drawn {
+            take,
+            edit,
+            curves,
+            map: Arc::new(map),
+        }
+    }
 }
 
 impl Default for PitchView {
@@ -197,6 +234,8 @@ impl Default for PitchView {
             blobs: Vec::new(),
             midi_drag: false,
             panel: None,
+            cache: None,
+            builds: 0,
         }
     }
 }
@@ -204,9 +243,29 @@ impl Default for PitchView {
 /// Show the editor for an audio clip (the piano roll calls this).
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId) {
     let s = Style::current();
-    let take = app.pitch_take(track, clip);
-    let edit = app.pitch_edit(track, clip, &take);
-    bar::show(app, ui, track, clip, &take, edit.as_ref());
+    // Built once per edit and analysis, not every frame (review 1).
+    let key = (clip, app.bus.revision());
+    let cached = app.pitch.view.cache.clone();
+    let drawn = match &cached {
+        Some((k, d)) if *k == key && matches!(d.take, Take::Ready(_)) => d.clone(),
+        cached => {
+            let take = app.pitch_take(track, clip);
+            let same = cached.as_ref().is_some_and(|(k, d)| {
+                *k == key && std::mem::discriminant(&d.take) == std::mem::discriminant(&take)
+            });
+            if same {
+                cached.as_ref().expect("checked").1.clone()
+            } else {
+                let d = Drawn::build(app, track, clip, take);
+                app.pitch.view.builds += 1;
+                app.pitch.view.cache = Some((key, d.clone()));
+                d
+            }
+        }
+    };
+    let take = drawn.take.clone();
+    let edit = drawn.edit.clone();
+    bar::show(app, ui, track, clip, &take, edit.as_deref());
     let full = ui.available_rect_before_wrap();
     if full.height() < 120.0 || full.width() < 200.0 {
         return;
@@ -271,7 +330,18 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         Take::Ready(a) => Some(a.clone()),
         _ => None,
     };
-    let blobs = paint::canvas(app, ui, track, clip, &edit, analysis.as_deref(), &geo, &s);
+    let blobs = paint::canvas(
+        app,
+        ui,
+        track,
+        clip,
+        &edit,
+        analysis.as_deref(),
+        drawn.curves.as_deref(),
+        &drawn.map,
+        &geo,
+        &s,
+    );
     app.pitch.view.blobs = blobs;
     input::canvas(app, ui, track, clip, &edit, analysis.as_deref(), &geo);
     panel::show(app, ui, track, clip, &edit, panel, &s);

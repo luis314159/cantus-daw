@@ -169,7 +169,8 @@ pub(super) fn canvas(
     if ruler.hovered() {
         hint::set_text(ui.ctx(), &crate::i18n::t("pitch.ruler_tip"), "", Caps::NONE);
     }
-    let blobs = app.pitch.view.blobs.clone();
+    // Taken for the frame and put back at its end (no copy each frame).
+    let blobs = std::mem::take(&mut app.pitch.view.blobs);
     let pointer = ui.input(|i| i.pointer.hover_pos());
     let hover = pointer
         .filter(|p| geo.grid.contains(*p))
@@ -295,6 +296,7 @@ pub(super) fn canvas(
     if app.focus == crate::app::EditFocus::PianoRoll && !crate::kit::field::active(ui.ctx()) {
         keys(app, ui, track, clip, current);
     }
+    app.pitch.view.blobs = blobs;
 }
 
 /// The selection, or `id` when it is not in it.

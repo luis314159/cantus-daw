@@ -842,3 +842,26 @@ fn the_inspectors_pitch_button_explains_itself() {
     let tip = cantus_ui::i18n::t("pitch.inspector.edit_tip");
     assert!(r.texts.iter().any(|(w, _)| w.contains(&tip[..20])), "{:?}", r.texts);
 }
+
+/// An idle editor rebuilds nothing: the edit, its curves and its time map are built once
+/// per edit, not once per frame.
+#[test]
+fn an_idle_editor_builds_its_curves_once() {
+    let mut r = Rig::new();
+    r.open();
+    let (t, c) = r.voice();
+    let take = r.app.pitch_take(t, c);
+    let mut e = r.app.pitch_edit(t, c, &take).unwrap();
+    let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
+    cantus_core::pitch::edit::correct_drift(&mut e, &ids, 0.5);
+    store(&mut r, e);
+    r.idle(2);
+    let before = r.app.pitch.view.builds;
+    r.idle(12);
+    assert_eq!(r.app.pitch.view.builds, before, "nothing rebuilt while idle");
+    let mut e = r.stored().unwrap();
+    cantus_core::pitch::edit::move_pitch(&mut e, &[ids[0]], 1.0);
+    store(&mut r, e);
+    r.idle(3);
+    assert_eq!(r.app.pitch.view.builds, before + 1, "once for the edit");
+}

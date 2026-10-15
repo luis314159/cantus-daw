@@ -8,7 +8,7 @@ use crate::kit::color::{mix, on_fill, shade, with_alpha, Hsl};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{self, Brush, Fill, Style, Tok};
 use crate::pitch::{ClipTime, Take};
-use cantus_core::pitch::curves::{time_points, Curves};
+use cantus_core::pitch::curves::Curves;
 use cantus_core::pitch::PitchEdit;
 use cantus_core::{pitch_name, ClipId, TrackId};
 use cantus_dsp::psola::TimeMap;
@@ -91,6 +91,8 @@ pub(super) fn canvas(
     clip: ClipId,
     edit: &PitchEdit,
     analysis: Option<&TakeAnalysis>,
+    curves: Option<&Curves>,
+    map: &TimeMap,
     geo: &Geo,
     s: &Style,
 ) -> Vec<(u32, Rect)> {
@@ -105,8 +107,6 @@ pub(super) fn canvas(
         .track(track)
         .and_then(|t| t.clip(clip))
         .and_then(|c| time.map(|tm| (tm.frame(c.start), tm.frame(c.end()))));
-    let map = TimeMap::new(time_points(edit)).unwrap_or_default();
-    let curves = analysis.map(|a| Curves::new(edit, &a.frames_view()));
     let g = geo.grid;
     let blobs = kit::with_brush(&ui.painter().with_clip_rect(g), |b| {
         rows(b, geo, s);
@@ -116,9 +116,9 @@ pub(super) fn canvas(
         if let Some(tm) = time {
             ladder(b, app, geo, &tm, s);
         }
-        waveform(b, app, track, clip, geo, &map, color, s);
+        waveform(b, app, track, clip, geo, map, color, s);
         if let Some(a) = analysis {
-            marks(b, geo, a, &map, s);
+            marks(b, geo, a, map, s);
         }
         let blobs = blobs(
             b,
@@ -130,8 +130,8 @@ pub(super) fn canvas(
             color,
             s,
         );
-        if let (Some(a), Some(c)) = (analysis, curves.as_ref()) {
-            pitch_curves(b, geo, edit, a, c, &map, s);
+        if let (Some(a), Some(c)) = (analysis, curves) {
+            pitch_curves(b, geo, edit, a, c, map, s);
         }
         if let Some(super::Gesture::Marquee { from, to }) = &app.pitch.view.gesture {
             let r = Rect::from_two_pos(*from, *to);
