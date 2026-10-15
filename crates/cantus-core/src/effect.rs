@@ -39,6 +39,32 @@ pub enum EffectKind {
     /// A plug-in made to a market standard (CLAP, VST3), hosted (ADR 0019). What it is and
     /// its parameters are in [`EffectSpec::external`]; `params` stays empty.
     External,
+    /// Concentus, the chorus (Juno, Dimension) (`fx::concentus`, round 28).
+    Chorus,
+    /// Flexus, the through-zero flanger (`fx::flexus`, round 28).
+    Flanger,
+    /// Phasis, the phaser (`fx::phasis`, round 28).
+    Phaser,
+    /// Tremor, tremolo and auto-pan (`fx::tremor`, round 28).
+    Tremolo,
+    /// Vibrans, the vibrato (`fx::vibrans`, round 28).
+    Vibrato,
+    /// Anulus, the ring modulator (`fx::anulus`, round 28).
+    RingMod,
+    /// Translatio, the frequency shifter (`fx::translatio`, round 28).
+    FreqShift,
+    /// Fluctus, the LFO Tool-style volume shaper (`fx::fluctus`, round 28).
+    VolumeShaper,
+    /// Tonsor, the clipper, with true peak (`fx::tonsor`, round 28).
+    Clipper,
+    /// Impetus, the transient processor (`fx::impetus`, round 28).
+    Transient,
+    /// Discrimen, the transient splitter (`fx::discrimen`, round 28).
+    TransientSplit,
+    /// Speculum, the analyser (Wave Candy / SPAN class) (`fx::speculum`, round 28).
+    Analyzer,
+    /// Tonus, the real-time auto-tuner (`fx::tonus`, round 28).
+    AutoTune,
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -151,7 +177,7 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 12] = [
+    pub const ALL: [EffectKind; 25] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -164,6 +190,19 @@ impl EffectKind {
         EffectKind::Maximizer,
         EffectKind::Delay,
         EffectKind::Reverb,
+        EffectKind::Chorus,
+        EffectKind::Flanger,
+        EffectKind::Phaser,
+        EffectKind::Tremolo,
+        EffectKind::Vibrato,
+        EffectKind::RingMod,
+        EffectKind::FreqShift,
+        EffectKind::VolumeShaper,
+        EffectKind::Clipper,
+        EffectKind::Transient,
+        EffectKind::TransientSplit,
+        EffectKind::Analyzer,
+        EffectKind::AutoTune,
     ];
 
     pub fn name_key(self) -> &'static str {
@@ -181,6 +220,19 @@ impl EffectKind {
             EffectKind::Stereo => fx::stereo::NAME_KEY,
             EffectKind::Maximizer => fx::maximizer::NAME_KEY,
             EffectKind::External => crate::external::NAME_KEY,
+            EffectKind::Chorus => fx::concentus::NAME_KEY,
+            EffectKind::Flanger => fx::flexus::NAME_KEY,
+            EffectKind::Phaser => fx::phasis::NAME_KEY,
+            EffectKind::Tremolo => fx::tremor::NAME_KEY,
+            EffectKind::Vibrato => fx::vibrans::NAME_KEY,
+            EffectKind::RingMod => fx::anulus::NAME_KEY,
+            EffectKind::FreqShift => fx::translatio::NAME_KEY,
+            EffectKind::VolumeShaper => fx::fluctus::NAME_KEY,
+            EffectKind::Clipper => fx::tonsor::NAME_KEY,
+            EffectKind::Transient => fx::impetus::NAME_KEY,
+            EffectKind::TransientSplit => fx::discrimen::NAME_KEY,
+            EffectKind::Analyzer => fx::speculum::NAME_KEY,
+            EffectKind::AutoTune => fx::tonus::NAME_KEY,
         }
     }
 
@@ -200,6 +252,19 @@ impl EffectKind {
             EffectKind::Maximizer => fx::maximizer::params(),
             // The plug-in's own, by its ids, in `EffectSpec::external`.
             EffectKind::External => &[],
+            EffectKind::Chorus => fx::concentus::params(),
+            EffectKind::Flanger => fx::flexus::params(),
+            EffectKind::Phaser => fx::phasis::params(),
+            EffectKind::Tremolo => fx::tremor::params(),
+            EffectKind::Vibrato => fx::vibrans::params(),
+            EffectKind::RingMod => fx::anulus::params(),
+            EffectKind::FreqShift => fx::translatio::params(),
+            EffectKind::VolumeShaper => fx::fluctus::params(),
+            EffectKind::Clipper => fx::tonsor::params(),
+            EffectKind::Transient => fx::impetus::params(),
+            EffectKind::TransientSplit => fx::discrimen::params(),
+            EffectKind::Analyzer => fx::speculum::params(),
+            EffectKind::AutoTune => fx::tonus::params(),
         }
     }
 
@@ -219,6 +284,19 @@ impl EffectKind {
             EffectKind::Stereo => fx::stereo::SPARSE,
             EffectKind::Maximizer => fx::maximizer::SPARSE,
             EffectKind::External => true,
+            EffectKind::Chorus => fx::concentus::SPARSE,
+            EffectKind::Flanger => fx::flexus::SPARSE,
+            EffectKind::Phaser => fx::phasis::SPARSE,
+            EffectKind::Tremolo => fx::tremor::SPARSE,
+            EffectKind::Vibrato => fx::vibrans::SPARSE,
+            EffectKind::RingMod => fx::anulus::SPARSE,
+            EffectKind::FreqShift => fx::translatio::SPARSE,
+            EffectKind::VolumeShaper => fx::fluctus::SPARSE,
+            EffectKind::Clipper => fx::tonsor::SPARSE,
+            EffectKind::Transient => fx::impetus::SPARSE,
+            EffectKind::TransientSplit => fx::discrimen::SPARSE,
+            EffectKind::Analyzer => fx::speculum::SPARSE,
+            EffectKind::AutoTune => fx::tonus::SPARSE,
         }
     }
 
@@ -243,6 +321,19 @@ impl EffectKind {
             EffectKind::Maximizer => fx::maximizer::TAKES_SIDECHAIN,
             // Per plug-in, not per kind: `EffectSpec::takes_sidechain`.
             EffectKind::External => false,
+            EffectKind::Chorus => fx::concentus::TAKES_SIDECHAIN,
+            EffectKind::Flanger => fx::flexus::TAKES_SIDECHAIN,
+            EffectKind::Phaser => fx::phasis::TAKES_SIDECHAIN,
+            EffectKind::Tremolo => fx::tremor::TAKES_SIDECHAIN,
+            EffectKind::Vibrato => fx::vibrans::TAKES_SIDECHAIN,
+            EffectKind::RingMod => fx::anulus::TAKES_SIDECHAIN,
+            EffectKind::FreqShift => fx::translatio::TAKES_SIDECHAIN,
+            EffectKind::VolumeShaper => fx::fluctus::TAKES_SIDECHAIN,
+            EffectKind::Clipper => fx::tonsor::TAKES_SIDECHAIN,
+            EffectKind::Transient => fx::impetus::TAKES_SIDECHAIN,
+            EffectKind::TransientSplit => fx::discrimen::TAKES_SIDECHAIN,
+            EffectKind::Analyzer => fx::speculum::TAKES_SIDECHAIN,
+            EffectKind::AutoTune => fx::tonus::TAKES_SIDECHAIN,
         }
     }
 
@@ -250,7 +341,43 @@ impl EffectKind {
     pub fn takes_notes(self) -> bool {
         match self {
             EffectKind::Gate => fx::gate::TAKES_NOTES,
+            EffectKind::Chorus => fx::concentus::TAKES_NOTES,
+            EffectKind::Flanger => fx::flexus::TAKES_NOTES,
+            EffectKind::Phaser => fx::phasis::TAKES_NOTES,
+            EffectKind::Tremolo => fx::tremor::TAKES_NOTES,
+            EffectKind::Vibrato => fx::vibrans::TAKES_NOTES,
+            EffectKind::RingMod => fx::anulus::TAKES_NOTES,
+            EffectKind::FreqShift => fx::translatio::TAKES_NOTES,
+            EffectKind::VolumeShaper => fx::fluctus::TAKES_NOTES,
+            EffectKind::Clipper => fx::tonsor::TAKES_NOTES,
+            EffectKind::Transient => fx::impetus::TAKES_NOTES,
+            EffectKind::TransientSplit => fx::discrimen::TAKES_NOTES,
+            EffectKind::Analyzer => fx::speculum::TAKES_NOTES,
+            EffectKind::AutoTune => fx::tonus::TAKES_NOTES,
             _ => false,
+        }
+    }
+
+    /// The locale prefix of a stepped parameter's choices (`{prefix}.{i}`), by key, for
+    /// the kinds that keep that table in their own module (round 28 on): what the
+    /// exported plug-in shows a host (`cantus_plugins::params`). Empty for the older
+    /// kinds, whose prefixes `cantus_plugins::params` lists itself.
+    pub fn choices(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            EffectKind::Chorus => fx::concentus::CHOICES,
+            EffectKind::Flanger => fx::flexus::CHOICES,
+            EffectKind::Phaser => fx::phasis::CHOICES,
+            EffectKind::Tremolo => fx::tremor::CHOICES,
+            EffectKind::Vibrato => fx::vibrans::CHOICES,
+            EffectKind::RingMod => fx::anulus::CHOICES,
+            EffectKind::FreqShift => fx::translatio::CHOICES,
+            EffectKind::VolumeShaper => fx::fluctus::CHOICES,
+            EffectKind::Clipper => fx::tonsor::CHOICES,
+            EffectKind::Transient => fx::impetus::CHOICES,
+            EffectKind::TransientSplit => fx::discrimen::CHOICES,
+            EffectKind::Analyzer => fx::speculum::CHOICES,
+            EffectKind::AutoTune => fx::tonus::CHOICES,
+            _ => &[],
         }
     }
 

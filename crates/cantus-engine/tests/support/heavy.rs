@@ -52,6 +52,20 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Delay => set(&mut s, &[("time_ms", 1500.0), ("feedback", 0.9)]),
         EffectKind::Reverb => set(&mut s, &[("size", 1.0)]),
         EffectKind::External => {}
+        // Round 28: each builder sets its own heavy line.
+        EffectKind::Chorus => {}
+        EffectKind::Flanger => {}
+        EffectKind::Phaser => {}
+        EffectKind::Tremolo => {}
+        EffectKind::Vibrato => {}
+        EffectKind::RingMod => {}
+        EffectKind::FreqShift => {}
+        EffectKind::VolumeShaper => {}
+        EffectKind::Clipper => {}
+        EffectKind::Transient => {}
+        EffectKind::TransientSplit => {}
+        EffectKind::Analyzer => {}
+        EffectKind::AutoTune => {}
     }
     s
 }

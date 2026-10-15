@@ -1,0 +1,4 @@
+# Phasis — owned by Phasis. Every key here needs its twin in phasis.es.txt.
+effect.phasis = Phasis phaser
+fx.phasis.about = Sweeping notches from a chain of all-pass stages, from subtle to deep.
+fx.phasis.out = Output

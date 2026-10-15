@@ -1,0 +1,4 @@
+# Tremor — de Tremor. Cada clave necesita su gemela en tremor.en.txt.
+effect.tremor = Tremor trémolo
+fx.tremor.about = Nivel y panorama que se mueven al tempo de la canción.
+fx.tremor.out = Salida

@@ -24,23 +24,49 @@ use crate::i18n::t;
 use cantus_core::{Command, EffectId, EffectKind, EffectSpec, MergeKey, StripId};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 
+/// Anulus, the ring modulator (round 28).
+pub mod anulus;
 /// What the displays paint with: tokens, and measured words on plates.
 pub mod canvas;
+/// Concentus, the chorus (Juno, Dimension) (round 28).
+pub mod concentus;
 /// The kit's controls at the device's scale and hue, bound to the host's parameters.
 pub mod controls;
 pub mod deesser;
+/// Discrimen, the transient splitter (round 28).
+pub mod discrimen;
+/// Flexus, the through-zero flanger (round 28).
+pub mod flexus;
+/// Fluctus, the LFO Tool-style volume shaper (round 28).
+pub mod fluctus;
 /// The device frame: the kit's shell wired to the host, and where editors go on screen.
 pub mod frame;
 pub mod gate;
 /// What an editor needs from whatever runs it: Cantus, or a plug-in host (ADR 0020).
 pub mod host;
+/// Impetus, the transient processor (round 28).
+pub mod impetus;
 pub mod limiter;
 pub mod maximizer;
 pub mod multiband;
+/// Phasis, the phaser (round 28).
+pub mod phasis;
 /// Fervor, the saturator (ADR 0026).
 pub mod saturator;
 pub mod space;
+/// Speculum, the analyser (Wave Candy / SPAN class) (round 28).
+pub mod speculum;
 pub mod stereo;
+/// Tonsor, the clipper, with true peak (round 28).
+pub mod tonsor;
+/// Tonus, the real-time auto-tuner (round 28).
+pub mod tonus;
+/// Translatio, the frequency shifter (round 28).
+pub mod translatio;
+/// Tremor, tremolo and auto-pan (round 28).
+pub mod tremor;
+/// Vibrans, the vibrato (round 28).
+pub mod vibrans;
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
 pub const PAIRS: usize = 16_384;
@@ -69,6 +95,19 @@ pub struct FxEditors {
     pub stereo: stereo::State,
     pub maximizer: maximizer::State,
     pub saturator: saturator::State,
+    pub concentus: concentus::State,
+    pub flexus: flexus::State,
+    pub phasis: phasis::State,
+    pub tremor: tremor::State,
+    pub vibrans: vibrans::State,
+    pub anulus: anulus::State,
+    pub translatio: translatio::State,
+    pub fluctus: fluctus::State,
+    pub tonsor: tonsor::State,
+    pub impetus: impetus::State,
+    pub discrimen: discrimen::State,
+    pub speculum: speculum::State,
+    pub tonus: tonus::State,
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -293,6 +332,19 @@ pub fn factory_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::Stereo => stereo::FACTORY_PRESETS,
         EffectKind::Maximizer => maximizer::FACTORY_PRESETS,
         EffectKind::Saturator => saturator::FACTORY_PRESETS,
+        EffectKind::Chorus => concentus::FACTORY_PRESETS,
+        EffectKind::Flanger => flexus::FACTORY_PRESETS,
+        EffectKind::Phaser => phasis::FACTORY_PRESETS,
+        EffectKind::Tremolo => tremor::FACTORY_PRESETS,
+        EffectKind::Vibrato => vibrans::FACTORY_PRESETS,
+        EffectKind::RingMod => anulus::FACTORY_PRESETS,
+        EffectKind::FreqShift => translatio::FACTORY_PRESETS,
+        EffectKind::VolumeShaper => fluctus::FACTORY_PRESETS,
+        EffectKind::Clipper => tonsor::FACTORY_PRESETS,
+        EffectKind::Transient => impetus::FACTORY_PRESETS,
+        EffectKind::TransientSplit => discrimen::FACTORY_PRESETS,
+        EffectKind::Analyzer => speculum::FACTORY_PRESETS,
+        EffectKind::AutoTune => tonus::FACTORY_PRESETS,
         _ => &[],
     }
 }
@@ -379,6 +431,19 @@ pub enum Editor {
     Eq(Box<crate::views::eq_editor::EqEditor>),
     Maximizer(Box<maximizer::State>),
     Saturator(Box<saturator::State>),
+    Concentus(Box<concentus::State>),
+    Flexus(Box<flexus::State>),
+    Phasis(Box<phasis::State>),
+    Tremor(Box<tremor::State>),
+    Vibrans(Box<vibrans::State>),
+    Anulus(Box<anulus::State>),
+    Translatio(Box<translatio::State>),
+    Fluctus(Box<fluctus::State>),
+    Tonsor(Box<tonsor::State>),
+    Impetus(Box<impetus::State>),
+    Discrimen(Box<discrimen::State>),
+    Speculum(Box<speculum::State>),
+    Tonus(Box<tonus::State>),
 }
 
 impl Editor {
@@ -395,6 +460,19 @@ impl Editor {
             EffectKind::Eq => Some(Editor::Eq(Box::default())),
             EffectKind::Maximizer => Some(Editor::Maximizer(Box::default())),
             EffectKind::Saturator => Some(Editor::Saturator(Box::default())),
+            EffectKind::Chorus => Some(Editor::Concentus(Box::default())),
+            EffectKind::Flanger => Some(Editor::Flexus(Box::default())),
+            EffectKind::Phaser => Some(Editor::Phasis(Box::default())),
+            EffectKind::Tremolo => Some(Editor::Tremor(Box::default())),
+            EffectKind::Vibrato => Some(Editor::Vibrans(Box::default())),
+            EffectKind::RingMod => Some(Editor::Anulus(Box::default())),
+            EffectKind::FreqShift => Some(Editor::Translatio(Box::default())),
+            EffectKind::VolumeShaper => Some(Editor::Fluctus(Box::default())),
+            EffectKind::Clipper => Some(Editor::Tonsor(Box::default())),
+            EffectKind::Transient => Some(Editor::Impetus(Box::default())),
+            EffectKind::TransientSplit => Some(Editor::Discrimen(Box::default())),
+            EffectKind::Analyzer => Some(Editor::Speculum(Box::default())),
+            EffectKind::AutoTune => Some(Editor::Tonus(Box::default())),
             _ => None,
         }
     }
@@ -412,6 +490,19 @@ impl Editor {
             Editor::Eq(st) => crate::views::eq_editor::editor(host, st, ui),
             Editor::Maximizer(st) => maximizer::editor(host, st, ui),
             Editor::Saturator(st) => saturator::editor(host, st, ui),
+            Editor::Concentus(st) => concentus::editor(host, st, ui),
+            Editor::Flexus(st) => flexus::editor(host, st, ui),
+            Editor::Phasis(st) => phasis::editor(host, st, ui),
+            Editor::Tremor(st) => tremor::editor(host, st, ui),
+            Editor::Vibrans(st) => vibrans::editor(host, st, ui),
+            Editor::Anulus(st) => anulus::editor(host, st, ui),
+            Editor::Translatio(st) => translatio::editor(host, st, ui),
+            Editor::Fluctus(st) => fluctus::editor(host, st, ui),
+            Editor::Tonsor(st) => tonsor::editor(host, st, ui),
+            Editor::Impetus(st) => impetus::editor(host, st, ui),
+            Editor::Discrimen(st) => discrimen::editor(host, st, ui),
+            Editor::Speculum(st) => speculum::editor(host, st, ui),
+            Editor::Tonus(st) => tonus::editor(host, st, ui),
         }
     }
 }
@@ -435,6 +526,19 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Stereo
         | EffectKind::Maximizer
         | EffectKind::Saturator
+        | EffectKind::Chorus
+        | EffectKind::Flanger
+        | EffectKind::Phaser
+        | EffectKind::Tremolo
+        | EffectKind::Vibrato
+        | EffectKind::RingMod
+        | EffectKind::FreqShift
+        | EffectKind::VolumeShaper
+        | EffectKind::Clipper
+        | EffectKind::Transient
+        | EffectKind::TransientSplit
+        | EffectKind::Analyzer
+        | EffectKind::AutoTune
         | EffectKind::External => {
             let mut pos = app.fx.pos;
             let mut designed = frame::designed_size(kind);
@@ -462,6 +566,19 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::Stereo => stereo::framed(app, ui, strip, effect),
                     EffectKind::Maximizer => maximizer::framed(app, ui, strip, effect),
                     EffectKind::Saturator => saturator::framed(app, ui, strip, effect),
+                    EffectKind::Chorus => concentus::framed(app, ui, strip, effect),
+                    EffectKind::Flanger => flexus::framed(app, ui, strip, effect),
+                    EffectKind::Phaser => phasis::framed(app, ui, strip, effect),
+                    EffectKind::Tremolo => tremor::framed(app, ui, strip, effect),
+                    EffectKind::Vibrato => vibrans::framed(app, ui, strip, effect),
+                    EffectKind::RingMod => anulus::framed(app, ui, strip, effect),
+                    EffectKind::FreqShift => translatio::framed(app, ui, strip, effect),
+                    EffectKind::VolumeShaper => fluctus::framed(app, ui, strip, effect),
+                    EffectKind::Clipper => tonsor::framed(app, ui, strip, effect),
+                    EffectKind::Transient => impetus::framed(app, ui, strip, effect),
+                    EffectKind::TransientSplit => discrimen::framed(app, ui, strip, effect),
+                    EffectKind::Analyzer => speculum::framed(app, ui, strip, effect),
+                    EffectKind::AutoTune => tonus::framed(app, ui, strip, effect),
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
             );
@@ -488,6 +605,19 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Stereo => stereo::preview(ui, spec),
         EffectKind::Maximizer => maximizer::preview(ui, spec),
         EffectKind::Saturator => saturator::preview(ui, spec),
+        EffectKind::Chorus => concentus::preview(ui, spec),
+        EffectKind::Flanger => flexus::preview(ui, spec),
+        EffectKind::Phaser => phasis::preview(ui, spec),
+        EffectKind::Tremolo => tremor::preview(ui, spec),
+        EffectKind::Vibrato => vibrans::preview(ui, spec),
+        EffectKind::RingMod => anulus::preview(ui, spec),
+        EffectKind::FreqShift => translatio::preview(ui, spec),
+        EffectKind::VolumeShaper => fluctus::preview(ui, spec),
+        EffectKind::Clipper => tonsor::preview(ui, spec),
+        EffectKind::Transient => impetus::preview(ui, spec),
+        EffectKind::TransientSplit => discrimen::preview(ui, spec),
+        EffectKind::Analyzer => speculum::preview(ui, spec),
+        EffectKind::AutoTune => tonus::preview(ui, spec),
         _ => {
             let s = crate::kit::Style::current();
             let name = frame::tr(spec.kind.name_key());
@@ -508,6 +638,19 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::Stereo => stereo::demo_setup(app, strip, effect),
         EffectKind::Maximizer => maximizer::demo_setup(app, strip, effect),
         EffectKind::Saturator => saturator::demo_setup(app, strip, effect),
+        EffectKind::Chorus => concentus::demo_setup(app, strip, effect),
+        EffectKind::Flanger => flexus::demo_setup(app, strip, effect),
+        EffectKind::Phaser => phasis::demo_setup(app, strip, effect),
+        EffectKind::Tremolo => tremor::demo_setup(app, strip, effect),
+        EffectKind::Vibrato => vibrans::demo_setup(app, strip, effect),
+        EffectKind::RingMod => anulus::demo_setup(app, strip, effect),
+        EffectKind::FreqShift => translatio::demo_setup(app, strip, effect),
+        EffectKind::VolumeShaper => fluctus::demo_setup(app, strip, effect),
+        EffectKind::Clipper => tonsor::demo_setup(app, strip, effect),
+        EffectKind::Transient => impetus::demo_setup(app, strip, effect),
+        EffectKind::TransientSplit => discrimen::demo_setup(app, strip, effect),
+        EffectKind::Analyzer => speculum::demo_setup(app, strip, effect),
+        EffectKind::AutoTune => tonus::demo_setup(app, strip, effect),
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
     }
@@ -526,6 +669,19 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Stereo => stereo::demo_feed(app),
         EffectKind::Maximizer => maximizer::demo_feed(app),
         EffectKind::Saturator => saturator::demo_feed(app),
+        EffectKind::Chorus => concentus::demo_feed(app),
+        EffectKind::Flanger => flexus::demo_feed(app),
+        EffectKind::Phaser => phasis::demo_feed(app),
+        EffectKind::Tremolo => tremor::demo_feed(app),
+        EffectKind::Vibrato => vibrans::demo_feed(app),
+        EffectKind::RingMod => anulus::demo_feed(app),
+        EffectKind::FreqShift => translatio::demo_feed(app),
+        EffectKind::VolumeShaper => fluctus::demo_feed(app),
+        EffectKind::Clipper => tonsor::demo_feed(app),
+        EffectKind::Transient => impetus::demo_feed(app),
+        EffectKind::TransientSplit => discrimen::demo_feed(app),
+        EffectKind::Analyzer => speculum::demo_feed(app),
+        EffectKind::AutoTune => tonus::demo_feed(app),
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}
     }

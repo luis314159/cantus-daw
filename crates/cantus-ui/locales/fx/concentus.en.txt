@@ -1,0 +1,4 @@
+# Concentus — owned by Concentus. Every key here needs its twin in concentus.es.txt.
+effect.concentus = Concentus chorus
+fx.concentus.about = Thickens and widens: the classic ensemble choruses and voices of its own.
+fx.concentus.out = Output

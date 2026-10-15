@@ -31,6 +31,8 @@ pub use frame::*;
 
 pub mod analog;
 pub mod bass;
+/// Chorda, the modelled grand piano (round 28).
+pub mod chorda;
 pub mod epiano;
 pub mod fm;
 pub mod organ;
@@ -128,6 +130,7 @@ pub fn kind_from_name(name: &str) -> Option<InstrumentKind> {
         "bass" | "gravis" => InstrumentKind::Bass,
         "epiano" | "lamina" => InstrumentKind::ElectricPiano,
         "organ" | "organum" => InstrumentKind::Organ,
+        "chorda" | "piano" => InstrumentKind::Chorda,
         _ => return None,
     })
 }

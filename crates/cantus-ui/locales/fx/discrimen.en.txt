@@ -1,0 +1,4 @@
+# Discrimen — owned by Discrimen. Every key here needs its twin in discrimen.es.txt.
+effect.discrimen = Discrimen transient splitter
+fx.discrimen.about = Splits the attack from the body, so each can be treated on its own.
+fx.discrimen.out = Output

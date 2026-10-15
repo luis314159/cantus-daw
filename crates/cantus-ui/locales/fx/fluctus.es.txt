@@ -1,0 +1,4 @@
+# Fluctus — de Fluctus. Cada clave necesita su gemela en fluctus.en.txt.
+effect.fluctus = Fluctus modelador de volumen
+fx.fluctus.about = Dibuja el volumen a lo largo de un tiempo: bombeo, cortes y crescendos al tempo de la canción.
+fx.fluctus.out = Salida

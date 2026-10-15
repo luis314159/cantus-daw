@@ -1,0 +1,4 @@
+# Concentus — de Concentus. Cada clave necesita su gemela en concentus.en.txt.
+effect.concentus = Concentus chorus
+fx.concentus.about = Engorda y ensancha: los chorus de ensemble clásicos y voces propias.
+fx.concentus.out = Salida

@@ -166,7 +166,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
             } else {
                 id
             };
-            let kind = EffectKind::ALL[rng.below(EffectKind::ALL.len() as u64) as usize];
+            let kind = fuzz_kind(rng, project);
             let mut slot = project.make_effect(kind);
             if rng.below(4) == 0 {
                 // A hosted plug-in (ADR 0019): a record with a state and a value.
@@ -201,8 +201,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     // takes them or not (a refusal must leave nothing behind), now and
                     // then with an id already in the chain.
                     4 => {
-                        let kind =
-                            EffectKind::ALL[rng.below(EffectKind::ALL.len() as u64) as usize];
+                        let kind = fuzz_kind(rng, project);
                         let (effect, mix, bypass, sidechain, midi_from) =
                             (e.id, e.mix, e.bypass, e.sidechain, e.midi_from);
                         let taken = (rng.below(8) == 0)
@@ -1111,6 +1110,23 @@ fn linked_track(rng: &mut Lcg, project: &mut Project) -> Command {
             index: rng.below(project.tracks.len() as u64 + 1) as usize,
             track: Box::new(t),
         }],
+    }
+}
+
+/// The kinds the fuzz knew before round 28: the generator draws among these, so every arm
+/// draws the same numbers as before (the coverage check counts on the seeds).
+const KINDS_BEFORE_ROUND_28: usize = 12;
+
+/// An effect kind for an insert or a swap: one of the older kinds by the generator, and
+/// where it names the delay or the reverb (which take neither a key nor notes), every
+/// other time a kind of round 28's, chosen by the next id rather than the generator.
+fn fuzz_kind(rng: &mut Lcg, project: &Project) -> EffectKind {
+    let kind = EffectKind::ALL[rng.below(KINDS_BEFORE_ROUND_28 as u64) as usize];
+    if matches!(kind, EffectKind::Delay | EffectKind::Reverb) && project.next_id.is_multiple_of(2) {
+        let new = &EffectKind::ALL[KINDS_BEFORE_ROUND_28..];
+        new[(project.next_id / 2) as usize % new.len()]
+    } else {
+        kind
     }
 }
 

@@ -1,0 +1,4 @@
+# Speculum — de Speculum. Cada clave necesita su gemela en speculum.en.txt.
+effect.speculum = Speculum analizador
+fx.speculum.about = Espectro, forma de onda, fase y sonoridad en una ventana, medidos según las normas.
+fx.speculum.out = Salida

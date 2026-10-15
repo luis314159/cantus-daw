@@ -1,0 +1,4 @@
+# Phasis — de Phasis. Cada clave necesita su gemela en phasis.en.txt.
+effect.phasis = Phasis phaser
+fx.phasis.about = Muescas que barren desde una cadena de etapas pasa-todo, de lo sutil a lo profundo.
+fx.phasis.out = Salida

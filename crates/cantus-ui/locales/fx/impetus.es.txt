@@ -1,0 +1,4 @@
+# Impetus — de Impetus. Cada clave necesita su gemela en impetus.en.txt.
+effect.impetus = Impetus modelador de transitorios
+fx.impetus.about = Más o menos ataque y sostenido a cualquier nivel y, si quieres, con la señal de control de otro canal.
+fx.impetus.out = Salida

@@ -1,0 +1,1 @@
+# pitch — ronda 28: la edición de afinación. Cada clave de pitch.en.txt tiene aquí su gemela.

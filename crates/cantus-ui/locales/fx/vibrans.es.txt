@@ -1,0 +1,4 @@
+# Vibrans — de Vibrans. Cada clave necesita su gemela en vibrans.en.txt.
+effect.vibrans = Vibrans vibrato
+fx.vibrans.about = Una afinación que ondula como una voz, una cinta o un altavoz rotatorio.
+fx.vibrans.out = Salida

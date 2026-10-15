@@ -1,0 +1,4 @@
+# Translatio — owned by Translatio. Every key here needs its twin in translatio.es.txt.
+effect.translatio = Translatio frequency shifter
+fx.translatio.about = Moves every partial by the same number of hertz: from a gentle detune to the inharmonic.
+fx.translatio.out = Output

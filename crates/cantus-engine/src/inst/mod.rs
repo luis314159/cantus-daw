@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 pub mod analog;
 pub mod bass;
+pub mod chorda;
 pub mod epiano;
 pub mod fm;
 pub mod organ;
@@ -325,6 +326,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::Bass => Box::new(bass::Unit::new(sample_rate)),
         InstrumentKind::ElectricPiano => Box::new(epiano::Unit::new(sample_rate)),
         InstrumentKind::Organ => Box::new(organ::Unit::new(sample_rate)),
+        InstrumentKind::Chorda => Box::new(chorda::Unit::new(sample_rate)),
     }
 }
 

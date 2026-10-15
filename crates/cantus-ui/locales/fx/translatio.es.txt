@@ -1,0 +1,4 @@
+# Translatio — de Translatio. Cada clave necesita su gemela en translatio.en.txt.
+effect.translatio = Translatio desplazador de frecuencia
+fx.translatio.about = Mueve cada parcial el mismo número de hercios: de una leve desafinación a lo inarmónico.
+fx.translatio.out = Salida

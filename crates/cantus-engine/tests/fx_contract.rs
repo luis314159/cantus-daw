@@ -428,6 +428,20 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         // Heavy has two dynamic bands: their release lands on 0 since round 22.
         EffectKind::Eq => (true, true),
         EffectKind::Gate => (false, false), // keyed, a reset gate starts open
+        // Round 28's stubs hold no state; each builder sets its own line.
+        EffectKind::Chorus => (true, true),
+        EffectKind::Flanger => (true, true),
+        EffectKind::Phaser => (true, true),
+        EffectKind::Tremolo => (true, true),
+        EffectKind::Vibrato => (true, true),
+        EffectKind::RingMod => (true, true),
+        EffectKind::FreqShift => (true, true),
+        EffectKind::VolumeShaper => (true, true),
+        EffectKind::Clipper => (true, true),
+        EffectKind::Transient => (true, true),
+        EffectKind::TransientSplit => (true, true),
+        EffectKind::Analyzer => (true, true),
+        EffectKind::AutoTune => (true, true),
         _ => (false, false),
     }
 }
@@ -507,10 +521,23 @@ per_kind! {
     maximizer => EffectKind::Maximizer,
     delay => EffectKind::Delay,
     reverb => EffectKind::Reverb,
+    concentus => EffectKind::Chorus,
+    flexus => EffectKind::Flanger,
+    phasis => EffectKind::Phaser,
+    tremor => EffectKind::Tremolo,
+    vibrans => EffectKind::Vibrato,
+    anulus => EffectKind::RingMod,
+    translatio => EffectKind::FreqShift,
+    fluctus => EffectKind::VolumeShaper,
+    tonsor => EffectKind::Clipper,
+    impetus => EffectKind::Transient,
+    discrimen => EffectKind::TransientSplit,
+    speculum => EffectKind::Analyzer,
+    tonus => EffectKind::AutoTune,
 }
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists twelve: a new kind must be added there.
-    assert_eq!(EffectKind::ALL.len(), 12);
+    // `per_kind!` lists twenty-five: a new kind must be added there.
+    assert_eq!(EffectKind::ALL.len(), 25);
 }

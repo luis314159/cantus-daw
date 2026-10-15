@@ -65,6 +65,20 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Delay => set(&mut s, &[("time_ms", 1500.0), ("feedback", 0.9)]),
         EffectKind::Reverb => set(&mut s, &[("size", 1.0)]),
         EffectKind::External => {}
+        // Round 28: each builder sets its own heavy line.
+        EffectKind::Chorus => {}
+        EffectKind::Flanger => {}
+        EffectKind::Phaser => {}
+        EffectKind::Tremolo => {}
+        EffectKind::Vibrato => {}
+        EffectKind::RingMod => {}
+        EffectKind::FreqShift => {}
+        EffectKind::VolumeShaper => {}
+        EffectKind::Clipper => {}
+        EffectKind::Transient => {}
+        EffectKind::TransientSplit => {}
+        EffectKind::Analyzer => {}
+        EffectKind::AutoTune => {}
     }
     s
 }
@@ -179,6 +193,19 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::Delay => "delay",
         EffectKind::Reverb => "reverb",
         EffectKind::External => "external",
+        EffectKind::Chorus => "concentus",
+        EffectKind::Flanger => "flexus",
+        EffectKind::Phaser => "phasis",
+        EffectKind::Tremolo => "tremor",
+        EffectKind::Vibrato => "vibrans",
+        EffectKind::RingMod => "anulus",
+        EffectKind::FreqShift => "translatio",
+        EffectKind::VolumeShaper => "fluctus",
+        EffectKind::Clipper => "tonsor",
+        EffectKind::Transient => "impetus",
+        EffectKind::TransientSplit => "discrimen",
+        EffectKind::Analyzer => "speculum",
+        EffectKind::AutoTune => "tonus",
     }
 }
 
@@ -200,6 +227,7 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::Bass => "gravis",
             InstrumentKind::ElectricPiano => "lamina",
             InstrumentKind::Organ => "organum",
+            InstrumentKind::Chorda => "chorda",
         };
         v.push((
             name,

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 24;
+pub const SCHEMA_VERSION: u32 = 25;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -207,6 +207,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_21_to_22,
     migrate_22_to_23,
     migrate_23_to_24,
+    migrate_24_to_25,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -638,6 +639,13 @@ fn migrate_23_to_24(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 25 (round 28): thirteen effect kinds and the Chorda instrument arrived; an
+/// older build must refuse them, not misread them. No older project holds one, so the
+/// step writes nothing.
+fn migrate_24_to_25(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,6 +702,41 @@ mod tests {
         let old = std::fs::read_to_string(dir.join("v23.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.name != "Exemplar pedal"));
+    }
+
+    /// Schema 25 (round 28): the fixture holds one insert of each of the thirteen new
+    /// kinds — the transient shaper keyed, the tuner hearing notes — and a Chorda track;
+    /// an older file (24) opens with none of them.
+    #[test]
+    fn schema_25_keeps_the_round_28_kinds() {
+        use cantus_core::{EffectKind as K, InstrumentKind};
+        let new_kinds = &K::ALL[12..];
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let slots: Vec<_> = p
+            .strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        let of = |k: K| slots.iter().find(|e| e.spec.kind == k).unwrap();
+        assert!(of(K::Transient).sidechain.is_some());
+        assert!(of(K::AutoTune).midi_from.is_some());
+        assert_eq!(of(K::Chorus).spec.get("out"), -3.0);
+        assert!(p
+            .tracks
+            .iter()
+            .any(|t| t.instrument.native().map(|n| n.kind) == Some(InstrumentKind::Chorda)));
+        let old = std::fs::read_to_string(dir.join("v24.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .all(|e| !new_kinds.contains(&e.spec.kind)));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

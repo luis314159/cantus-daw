@@ -1,0 +1,4 @@
+# Tonsor — owned by Tonsor. Every key here needs its twin in tonsor.es.txt.
+effect.tonsor = Tonsor clipper
+fx.tonsor.about = Cuts peaks off cleanly, soft or hard, oversampled, under a true-peak ceiling.
+fx.tonsor.out = Output

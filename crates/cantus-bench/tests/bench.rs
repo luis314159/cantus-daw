@@ -172,7 +172,7 @@ fn the_null_corpus_is_repeatable_named_once_and_audible() {
     assert_eq!(math.len(), 39);
     assert_eq!(math, math_items());
     let fx = effect_items();
-    assert_eq!(fx.len(), 24);
+    assert_eq!(fx.len(), 50);
     assert!(fx.iter().all(|i| i.peak > 1e-4 && i.samples == 2 * 96_000));
     let mut items = math;
     items.extend(fx);

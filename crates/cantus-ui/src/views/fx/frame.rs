@@ -110,6 +110,21 @@ pub fn hue_of(kind: EffectKind) -> Function {
         // Width is space (the kit's own words: delay, reverb, chorus, width).
         EffectKind::Stereo => Function::Space,
         EffectKind::External => Function::Output,
+        // Round 28: the modulation units are modulation; the clipper and the transient
+        // tools are dynamics; the analyser reads the output; the tuner works on the source.
+        EffectKind::Chorus
+        | EffectKind::Flanger
+        | EffectKind::Phaser
+        | EffectKind::Tremolo
+        | EffectKind::Vibrato
+        | EffectKind::RingMod
+        | EffectKind::FreqShift
+        | EffectKind::VolumeShaper => Function::Mod,
+        EffectKind::Clipper | EffectKind::Transient | EffectKind::TransientSplit => {
+            Function::Dynamics
+        }
+        EffectKind::Analyzer => Function::Output,
+        EffectKind::AutoTune => Function::Source,
     }
 }
 

@@ -1,0 +1,4 @@
+# Flexus — owned by Flexus. Every key here needs its twin in flexus.es.txt.
+effect.flexus = Flexus flanger
+fx.flexus.about = A flanger that sweeps through zero, as two tape machines did.
+fx.flexus.out = Output

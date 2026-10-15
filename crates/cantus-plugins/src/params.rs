@@ -308,7 +308,14 @@ fn choice_prefix(kind: EffectKind, field: &str) -> Option<&'static str> {
         (Saturator, "os") => "sat.os",
         (Saturator, "phase") => "sat.phase",
         (Saturator, "chan") => "sat.chan",
-        _ => return None,
+        // Round 28 on: the kind's own table (`cantus_core::fx::<kind>::CHOICES`).
+        _ => {
+            return kind
+                .choices()
+                .iter()
+                .find(|(k, _)| *k == field)
+                .map(|(_, prefix)| *prefix)
+        }
     })
 }
 

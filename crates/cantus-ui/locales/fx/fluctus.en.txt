@@ -1,0 +1,4 @@
+# Fluctus — owned by Fluctus. Every key here needs its twin in fluctus.es.txt.
+effect.fluctus = Fluctus volume shaper
+fx.fluctus.about = Draw the volume over a beat: pumping, gating and swells in time with the song.
+fx.fluctus.out = Output

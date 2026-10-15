@@ -7,14 +7,27 @@
 
 use cantus_core::{EffectKind, EffectSpec};
 
+pub mod anulus;
+pub mod concentus;
 pub mod deesser;
+pub mod discrimen;
+pub mod flexus;
+pub mod fluctus;
 pub mod gate;
+pub mod impetus;
 pub mod limiter;
 pub mod maximizer;
 pub mod multiband;
+pub mod phasis;
 pub mod saturator;
 pub mod space;
+pub mod speculum;
 pub mod stereo;
+pub mod tonsor;
+pub mod tonus;
+pub mod translatio;
+pub mod tremor;
+pub mod vibrans;
 
 /// Numbers a plug-in reports to its editor each block: meters, gain reduction per band,
 /// loudness — whatever its display needs. Their meaning is the plug-in's own; they travel
@@ -172,6 +185,19 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Maximizer => Box::new(maximizer::Unit::new(sample_rate)),
         // Hosted: the host delivers the real unit (`EngineHandle::add_unit`); without one
         // the slot is a wire.
+        EffectKind::Chorus => Box::new(concentus::Unit::new(sample_rate)),
+        EffectKind::Flanger => Box::new(flexus::Unit::new(sample_rate)),
+        EffectKind::Phaser => Box::new(phasis::Unit::new(sample_rate)),
+        EffectKind::Tremolo => Box::new(tremor::Unit::new(sample_rate)),
+        EffectKind::Vibrato => Box::new(vibrans::Unit::new(sample_rate)),
+        EffectKind::RingMod => Box::new(anulus::Unit::new(sample_rate)),
+        EffectKind::FreqShift => Box::new(translatio::Unit::new(sample_rate)),
+        EffectKind::VolumeShaper => Box::new(fluctus::Unit::new(sample_rate)),
+        EffectKind::Clipper => Box::new(tonsor::Unit::new(sample_rate)),
+        EffectKind::Transient => Box::new(impetus::Unit::new(sample_rate)),
+        EffectKind::TransientSplit => Box::new(discrimen::Unit::new(sample_rate)),
+        EffectKind::Analyzer => Box::new(speculum::Unit::new(sample_rate)),
+        EffectKind::AutoTune => Box::new(tonus::Unit::new(sample_rate)),
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

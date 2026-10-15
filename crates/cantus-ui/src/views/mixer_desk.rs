@@ -381,6 +381,19 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::Maximizer => "mixer.chain.maximizer",
         K::Delay => "mixer.chain.delay",
         K::Reverb => "mixer.chain.reverb",
+        K::Chorus => "mixer.chain.concentus",
+        K::Flanger => "mixer.chain.flexus",
+        K::Phaser => "mixer.chain.phasis",
+        K::Tremolo => "mixer.chain.tremor",
+        K::Vibrato => "mixer.chain.vibrans",
+        K::RingMod => "mixer.chain.anulus",
+        K::FreqShift => "mixer.chain.translatio",
+        K::VolumeShaper => "mixer.chain.fluctus",
+        K::Clipper => "mixer.chain.tonsor",
+        K::Transient => "mixer.chain.impetus",
+        K::TransientSplit => "mixer.chain.discrimen",
+        K::Analyzer => "mixer.chain.speculum",
+        K::AutoTune => "mixer.chain.tonus",
     };
     crate::i18n::t(key)
 }

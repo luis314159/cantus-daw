@@ -1,0 +1,4 @@
+# Flexus — de Flexus. Cada clave necesita su gemela en flexus.en.txt.
+effect.flexus = Flexus flanger
+fx.flexus.about = Un flanger que barre pasando por cero, como lo hacían dos magnetófonos.
+fx.flexus.out = Salida

@@ -1,0 +1,4 @@
+# Tremor — owned by Tremor. Every key here needs its twin in tremor.es.txt.
+effect.tremor = Tremor tremolo
+fx.tremor.about = Level and pan that move in time with the song.
+fx.tremor.out = Output

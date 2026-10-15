@@ -24,18 +24,25 @@
 #![allow(clippy::should_implement_trait)]
 
 pub mod aequalis;
+pub mod anulus;
 pub mod calor;
+pub mod chorda;
 pub mod click;
 pub mod comprimo;
+pub mod concentus;
 pub mod culmen;
 pub mod delay;
+pub mod discrimen;
 pub mod env;
 pub mod eq;
 pub mod exemplar;
 pub mod fervor;
 pub mod filter;
 pub mod firmus;
+pub mod flexus;
+pub mod fluctus;
 pub mod gravis;
+pub mod impetus;
 pub mod lamina;
 pub mod latitudo;
 pub mod math;
@@ -46,6 +53,7 @@ pub mod nulltest;
 pub mod organum;
 pub mod osc;
 pub mod par;
+pub mod phasis;
 pub mod porta;
 pub mod pulsus;
 pub mod rest;
@@ -54,9 +62,15 @@ pub mod sibilus;
 pub mod smoother;
 pub mod spatium;
 pub mod spectrum;
+pub mod speculum;
 pub mod terminus;
+pub mod tonsor;
+pub mod tonus;
+pub mod translatio;
+pub mod tremor;
 pub mod unda;
 pub mod va;
+pub mod vibrans;
 pub mod voices;
 
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`

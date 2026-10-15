@@ -1,0 +1,4 @@
+# Chorda — the modelled grand piano. Owned by this instrument's builder (ADR 0023).
+# Every key here needs its twin in chorda.es.txt.
+instrument.chorda = Chorda
+chorda.about = A grand piano played from a physical model: strings, hammers, soundboard and pedals.

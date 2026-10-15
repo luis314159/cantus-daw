@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 
 pub mod analog;
 pub mod bass;
+pub mod chorda;
 pub mod epiano;
 pub mod fm;
 pub mod modulation;
@@ -48,6 +49,8 @@ pub enum InstrumentKind {
     ElectricPiano,
     /// Organum: the tonewheel organ and its rotary speaker.
     Organ,
+    /// Chorda: the modelled grand piano (round 28).
+    Chorda,
 }
 
 macro_rules! dispatch {
@@ -60,12 +63,13 @@ macro_rules! dispatch {
             InstrumentKind::Bass => bass::$item $( ( $($arg),* ) )?,
             InstrumentKind::ElectricPiano => epiano::$item $( ( $($arg),* ) )?,
             InstrumentKind::Organ => organ::$item $( ( $($arg),* ) )?,
+            InstrumentKind::Chorda => chorda::$item $( ( $($arg),* ) )?,
         }
     };
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 7] = [
+    pub const ALL: [InstrumentKind; 8] = [
         InstrumentKind::Wavetable,
         InstrumentKind::Analog,
         InstrumentKind::Fm,
@@ -73,6 +77,7 @@ impl InstrumentKind {
         InstrumentKind::Bass,
         InstrumentKind::ElectricPiano,
         InstrumentKind::Organ,
+        InstrumentKind::Chorda,
     ];
 
     pub fn name_key(self) -> &'static str {

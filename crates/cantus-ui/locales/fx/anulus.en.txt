@@ -1,0 +1,4 @@
+# Anulus — owned by Anulus. Every key here needs its twin in anulus.es.txt.
+effect.anulus = Anulus ring modulator
+fx.anulus.about = Multiplies the sound by a tone: bells, metal and robot voices.
+fx.anulus.out = Output

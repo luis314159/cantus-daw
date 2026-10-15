@@ -32,6 +32,7 @@ pub fn factory_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::Bass => bass::FACTORY_PRESETS,
         InstrumentKind::ElectricPiano => epiano::FACTORY_PRESETS,
         InstrumentKind::Organ => organ::FACTORY_PRESETS,
+        InstrumentKind::Chorda => chorda::FACTORY_PRESETS,
     }
 }
 
@@ -44,6 +45,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Bass => bass::body(app, ui, track, spec, s),
         InstrumentKind::ElectricPiano => epiano::body(app, ui, track, spec, s),
         InstrumentKind::Organ => organ::body(app, ui, track, spec, s),
+        InstrumentKind::Chorda => chorda::body(app, ui, track, spec, s),
     }
 }
 
@@ -56,6 +58,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Bass => bass::play(app, ui, track, spec, s),
         InstrumentKind::ElectricPiano => epiano::play(app, ui, track, spec, s),
         InstrumentKind::Organ => organ::play(app, ui, track, spec, s),
+        InstrumentKind::Chorda => chorda::play(app, ui, track, spec, s),
     }
 }
 
@@ -69,6 +72,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::Bass => bass::preview(ui, spec),
         InstrumentKind::ElectricPiano => epiano::preview(ui, spec),
         InstrumentKind::Organ => organ::preview(ui, spec),
+        InstrumentKind::Chorda => chorda::preview(ui, spec),
     }
 }
 
@@ -82,6 +86,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::Bass => bass::demo_setup(app, track),
         InstrumentKind::ElectricPiano => epiano::demo_setup(app, track),
         InstrumentKind::Organ => organ::demo_setup(app, track),
+        InstrumentKind::Chorda => chorda::demo_setup(app, track),
     }
 }
 
@@ -95,13 +100,14 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::Bass => bass::demo_feed(app),
         InstrumentKind::ElectricPiano => epiano::demo_feed(app),
         InstrumentKind::Organ => organ::demo_feed(app),
+        InstrumentKind::Chorda => chorda::demo_feed(app),
     }
 }
 
 /// The device hue: the function of each instrument's main section (ADR 0024 §8).
 pub fn hue(kind: InstrumentKind) -> Function {
     match kind {
-        InstrumentKind::Analog | InstrumentKind::Organ => Function::Tone,
+        InstrumentKind::Analog | InstrumentKind::Organ | InstrumentKind::Chorda => Function::Tone,
         _ => Function::Source,
     }
 }

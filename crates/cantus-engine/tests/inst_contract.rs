@@ -973,10 +973,11 @@ per_kind! {
     bass => InstrumentKind::Bass,
     epiano => InstrumentKind::ElectricPiano,
     organ => InstrumentKind::Organ,
+    chorda => InstrumentKind::Chorda,
 }
 
 #[test]
 fn every_native_instrument_is_checked() {
-    // `per_kind!` lists seven: a new kind must be added there.
-    assert_eq!(InstrumentKind::ALL.len(), 7);
+    // `per_kind!` lists eight: a new kind must be added there.
+    assert_eq!(InstrumentKind::ALL.len(), 8);
 }

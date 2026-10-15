@@ -1,0 +1,4 @@
+# Anulus — de Anulus. Cada clave necesita su gemela en anulus.en.txt.
+effect.anulus = Anulus modulador en anillo
+fx.anulus.about = Multiplica el sonido por un tono: campanas, metal y voces de robot.
+fx.anulus.out = Salida

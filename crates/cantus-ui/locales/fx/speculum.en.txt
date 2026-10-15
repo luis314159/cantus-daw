@@ -1,0 +1,4 @@
+# Speculum — owned by Speculum. Every key here needs its twin in speculum.es.txt.
+effect.speculum = Speculum analyser
+fx.speculum.about = Spectrum, waveform, phase and loudness in one window, measured to the standards.
+fx.speculum.out = Output

@@ -401,6 +401,49 @@ fn main() {
     }
     pedal.instrument = InstrumentSpec::Native(s);
     p.tracks.push(pedal);
+    // Schema 25 (round 28): one insert of each of the thirteen new kinds, on two strips of
+    // their own (a strip holds ten), the transient shaper keyed from the drums and the
+    // tuner hearing the Keys track's notes; and a Chorda track.
+    let round_28 = [
+        EffectKind::Chorus,
+        EffectKind::Flanger,
+        EffectKind::Phaser,
+        EffectKind::Tremolo,
+        EffectKind::Vibrato,
+        EffectKind::RingMod,
+        EffectKind::FreqShift,
+        EffectKind::VolumeShaper,
+        EffectKind::Clipper,
+        EffectKind::Transient,
+        EffectKind::TransientSplit,
+        EffectKind::Analyzer,
+        EffectKind::AutoTune,
+    ];
+    let keys = p.tracks[0].id;
+    for (name, kinds) in [
+        ("Modulation", &round_28[..8]),
+        ("Dynamics and pitch", &round_28[8..]),
+    ] {
+        let t = p.make_track(name);
+        let strip = t.strip.expect("a strip");
+        p.tracks.push(t);
+        for kind in kinds {
+            let mut slot = p.make_effect(*kind);
+            if *kind == EffectKind::Transient {
+                slot.sidechain = Some(drums_strip);
+            }
+            if *kind == EffectKind::AutoTune {
+                slot.midi_from = Some(keys);
+            }
+            if *kind == EffectKind::Chorus {
+                slot.spec.set("out", -3.0).unwrap();
+            }
+            p.strip_mut(strip).unwrap().effects.push(slot);
+        }
+    }
+    let mut piano = p.make_track("Chorda");
+    piano.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+    p.tracks.push(piano);
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

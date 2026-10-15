@@ -1,0 +1,4 @@
+# Tonus — de Tonus. Cada clave necesita su gemela en tonus.en.txt.
+effect.tonus = Tonus corrección de afinación
+fx.tonus.about = Corrección de afinación en tiempo real a una escala o a las notas que tocas, de natural a robótica.
+fx.tonus.out = Salida

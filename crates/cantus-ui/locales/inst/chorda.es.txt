@@ -1,0 +1,4 @@
+# Chorda — el piano de cola modelado. Lo mantiene quien construye este instrumento (ADR 0023).
+# Cada clave de chorda.en.txt tiene aquí su gemela.
+instrument.chorda = Chorda
+chorda.about = Un piano de cola tocado desde un modelo físico: cuerdas, martillos, tabla armónica y pedales.

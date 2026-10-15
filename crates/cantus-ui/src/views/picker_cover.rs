@@ -239,6 +239,15 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
         Category::Modulation => {
             wave(b, &|u| (u * TAU * 2.0).sin() * (0.35 + 0.65 * u), 0.4);
         }
+        Category::Pitch => {
+            // A voice's wavering pitch, and the steps of the scale it is tuned to.
+            wave(b, &|u| (u * TAU * 2.5).sin() * 0.25 + (u - 0.5) * 1.1, 0.4);
+            for i in 0..4 {
+                let u = i as f32 / 4.0;
+                let v = 0.5 - ((u + 0.125) - 0.5) * 1.1 * 0.4;
+                b.segment(at(u, v), at(u + 0.25, v), w, with_alpha(c, 0.55), true);
+            }
+        }
         Category::Stereo => {
             b.circle_stroke(at(0.36, 0.5), ww * 0.27, w, c);
             b.circle_stroke(at(0.64, 0.5), ww * 0.27, w, with_alpha(c, 0.7));

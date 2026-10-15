@@ -1,0 +1,4 @@
+# Discrimen — de Discrimen. Cada clave necesita su gemela en discrimen.en.txt.
+effect.discrimen = Discrimen separador de transitorios
+fx.discrimen.about = Separa el ataque del cuerpo para tratar cada uno por su cuenta.
+fx.discrimen.out = Salida

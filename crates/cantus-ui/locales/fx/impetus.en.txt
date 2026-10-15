@@ -1,0 +1,4 @@
+# Impetus — owned by Impetus. Every key here needs its twin in impetus.es.txt.
+effect.impetus = Impetus transient shaper
+fx.impetus.about = More or less attack and sustain at any level, keyed from another channel if you like.
+fx.impetus.out = Output

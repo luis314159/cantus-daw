@@ -74,6 +74,8 @@ pub enum Category {
     Space,
     Distortion,
     Modulation,
+    /// Pitch and vocal tools: the tuner (round 28).
+    Pitch,
     Stereo,
     Mastering,
     Utility,
@@ -88,12 +90,13 @@ impl Category {
         Category::Samplers,
         Category::OtherInstruments,
     ];
-    pub const EFFECTS: [Category; 8] = [
+    pub const EFFECTS: [Category; 9] = [
         Category::Eq,
         Category::Dynamics,
         Category::Space,
         Category::Distortion,
         Category::Modulation,
+        Category::Pitch,
         Category::Stereo,
         Category::Mastering,
         Category::Utility,
@@ -121,6 +124,7 @@ impl Category {
             Category::Space => "picker.cat.space",
             Category::Distortion => "picker.cat.distortion",
             Category::Modulation => "picker.cat.modulation",
+            Category::Pitch => "picker.cat.pitch",
             Category::Stereo => "picker.cat.stereo",
             Category::Mastering => "picker.cat.mastering",
             Category::Utility => "picker.cat.utility",
@@ -143,6 +147,7 @@ impl Category {
             Category::Space => "space espacio",
             Category::Distortion => "distortion saturation distorsion saturacion",
             Category::Modulation => "modulation modulacion",
+            Category::Pitch => "pitch tuning tuner vocal afinacion afinador voz",
             Category::Stereo => "stereo estereo",
             Category::Mastering => "mastering masterizacion",
             Category::Utility => "utility utilidad utilidades",
@@ -156,6 +161,7 @@ impl Category {
             Category::Keys | Category::Bass | Category::Eq | Category::Distortion => Function::Tone,
             Category::Drums | Category::Dynamics | Category::Mastering => Function::Dynamics,
             Category::Modulation => Function::Mod,
+            Category::Pitch => Function::Source,
             Category::Space | Category::Stereo => Function::Space,
             Category::Utility => Function::Output,
         }
@@ -245,6 +251,7 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             vec![C::Keys],
         ),
         ("organum", PickChoice::Instrument(I::Organ), vec![C::Keys]),
+        ("chorda", PickChoice::Instrument(I::Chorda), vec![C::Keys]),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
         (
@@ -292,6 +299,59 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             PickChoice::Effect(E::Stereo),
             vec![C::Stereo, C::Mastering],
         ),
+        (
+            "concentus",
+            PickChoice::Effect(E::Chorus),
+            vec![C::Modulation],
+        ),
+        (
+            "flexus",
+            PickChoice::Effect(E::Flanger),
+            vec![C::Modulation],
+        ),
+        ("phasis", PickChoice::Effect(E::Phaser), vec![C::Modulation]),
+        (
+            "tremor",
+            PickChoice::Effect(E::Tremolo),
+            vec![C::Modulation],
+        ),
+        (
+            "vibrans",
+            PickChoice::Effect(E::Vibrato),
+            vec![C::Modulation],
+        ),
+        (
+            "anulus",
+            PickChoice::Effect(E::RingMod),
+            vec![C::Modulation],
+        ),
+        (
+            "translatio",
+            PickChoice::Effect(E::FreqShift),
+            vec![C::Modulation],
+        ),
+        (
+            "fluctus",
+            PickChoice::Effect(E::VolumeShaper),
+            vec![C::Modulation],
+        ),
+        ("tonsor", PickChoice::Effect(E::Clipper), vec![C::Dynamics]),
+        (
+            "impetus",
+            PickChoice::Effect(E::Transient),
+            vec![C::Dynamics],
+        ),
+        (
+            "discrimen",
+            PickChoice::Effect(E::TransientSplit),
+            vec![C::Dynamics],
+        ),
+        (
+            "speculum",
+            PickChoice::Effect(E::Analyzer),
+            vec![C::Utility],
+        ),
+        ("tonus", PickChoice::Effect(E::AutoTune), vec![C::Pitch]),
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {
@@ -437,6 +497,15 @@ pub fn hosted_categories(info: &PluginInfo) -> Vec<Category> {
                 "vibrato",
             ]) {
                 push(&mut out, C::Modulation);
+            }
+            if has(&[
+                "pitch",
+                "pitch correction",
+                "pitch shifter",
+                "tuner",
+                "autotune",
+            ]) {
+                push(&mut out, C::Pitch);
             }
             if has(&["stereo", "surround", "imager", "panner", "width"]) {
                 push(&mut out, C::Stereo);

@@ -40,6 +40,19 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::Maximizer => Function::Dynamics,
         EffectKind::Stereo => Function::Space,
         EffectKind::External => Function::Source,
+        EffectKind::Chorus
+        | EffectKind::Flanger
+        | EffectKind::Phaser
+        | EffectKind::Tremolo
+        | EffectKind::Vibrato
+        | EffectKind::RingMod
+        | EffectKind::FreqShift
+        | EffectKind::VolumeShaper => Function::Mod,
+        EffectKind::Clipper | EffectKind::Transient | EffectKind::TransientSplit => {
+            Function::Dynamics
+        }
+        EffectKind::Analyzer => Function::Output,
+        EffectKind::AutoTune => Function::Source,
     }
 }
 

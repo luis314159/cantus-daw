@@ -1,0 +1,4 @@
+# Tonsor — de Tonsor. Cada clave necesita su gemela en tonsor.en.txt.
+effect.tonsor = Tonsor clipper
+fx.tonsor.about = Recorta los picos con limpieza, suave o duro, con sobremuestreo y bajo un techo true-peak.
+fx.tonsor.out = Salida

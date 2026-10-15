@@ -1,0 +1,4 @@
+# Tonus — owned by Tonus. Every key here needs its twin in tonus.es.txt.
+effect.tonus = Tonus pitch correction
+fx.tonus.about = Real-time pitch correction to a scale or to the notes you play, from natural to hard-tuned.
+fx.tonus.out = Output

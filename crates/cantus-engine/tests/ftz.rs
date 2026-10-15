@@ -206,7 +206,17 @@ fn flushing_denormals_changes_no_sample_of_the_corpus() {
             ));
         }
         t.clips.push(clip);
-        let strip = t.strip.expect("a strip");
+        // More kinds than a new project has strips (round 28): a strip of its own each.
+        let strip = match t.strip {
+            Some(s) => s,
+            None => {
+                let s = p.make_strip(format!("S{i}"));
+                let id = s.id;
+                p.strips.push(s);
+                t.strip = Some(id);
+                id
+            }
+        };
         p.tracks.push(t);
         let fx = p.make_effect(*kind);
         p.strip_mut(strip).unwrap().effects.push(fx);

@@ -1,0 +1,4 @@
+# Vibrans — owned by Vibrans. Every key here needs its twin in vibrans.es.txt.
+effect.vibrans = Vibrans vibrato
+fx.vibrans.about = Pitch that wavers like a voice, a tape or a rotary speaker.
+fx.vibrans.out = Output
