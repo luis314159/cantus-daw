@@ -50,11 +50,11 @@ impl CantusApp {
     /// Bake modulator `id`'s route into `target` (one undo step); a source that follows
     /// audio is traced first, on a worker.
     pub fn bake_route(&mut self, id: ModulatorId, target: &AutoTarget) -> bool {
-        let Some((_, _, m)) = self.project().modulator(id) else {
+        if self.project().modulator(id).is_none() {
             return false;
-        };
+        }
         let span = self.bake_span();
-        if !m.source.follows_audio() {
+        if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
             return self.finish_bake(id, target, span, None);
         }
         // Rendered offline over the stretch, the engine tracing this modulator.

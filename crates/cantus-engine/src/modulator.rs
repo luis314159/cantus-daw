@@ -296,6 +296,7 @@ impl Ear {
         match at {
             ListenAt::Strip(i) => strip_to_slot.get(i).copied().map(Ear::Strip),
             ListenAt::Master => Some(Ear::Master),
+            ListenAt::Silent => None,
         }
     }
 }

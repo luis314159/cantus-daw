@@ -574,6 +574,10 @@ fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) ->
         |b| match l {
             Listen::Host => b.push_str(&crate::i18n::t("mods.listen.host")),
             Listen::Master => b.push_str(&crate::i18n::t("kit.mixer.master")),
+            // A removed strip: it hears silence (never the whole mix), and says so.
+            Listen::Strip(s) if app.project().strip(s).is_none() => {
+                b.push_str(&crate::i18n::t("mods.listen.missing"))
+            }
             Listen::Strip(s) => b.push_str(
                 &crate::automation::target_parts(
                     app.project(),

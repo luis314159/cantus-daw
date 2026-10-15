@@ -573,3 +573,61 @@ fn a_slow_attack_under_dense_notes_climbs_whole_to_the_top() {
         assert!((g.level(&env, 6.0, spb) - 1.0).abs() < 1e-6);
     }
 }
+
+#[test]
+fn a_follower_whose_strip_is_gone_hears_silence_not_the_master() {
+    // Review 1: a removed listened strip fell back to the whole mix.
+    use super::compile::ListenAt;
+    let (mut p, tid, sid, fid) = project_with_strip_fx();
+    let other = p.make_strip("Kick");
+    let kick = other.id;
+    p.strips.push(other);
+    let mut m = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(f) = &mut m.source {
+        f.listen = Listen::Strip(kick);
+    }
+    m.routes.push(ModRoute {
+        target: drive(fid),
+        depth: -0.5,
+    });
+    p.track_mut(tid).unwrap().modulators.push(m);
+    let listen = |p: &Project| Snapshot::compile(p, 1).modulators[0].listen;
+    assert!(matches!(listen(&p), Some(ListenAt::Strip(_))));
+    p.strips.retain(|s| s.id != kick);
+    assert_eq!(listen(&p), Some(ListenAt::Silent));
+    // Listening to its own host's strip still hears that strip.
+    let (host, _, _) = p
+        .all_modulators()
+        .next()
+        .map(|(h, m)| (h, 0, m.id))
+        .unwrap();
+    p.modulators_mut(host).unwrap()[0].source = ModKind::Follower.source();
+    assert_eq!(
+        listen(&p),
+        Some(ListenAt::Strip(p.strip_index(sid).unwrap()))
+    );
+}
+
+#[test]
+fn new_random_sources_do_not_move_in_step() {
+    // Review 1: every new Random started with seed 1, so two moved identically.
+    let a = Modulator::new(ModulatorId(41), ModKind::Random);
+    let b = Modulator::new(ModulatorId(42), ModKind::Random);
+    let seq = |m: &Modulator| {
+        (0..16)
+            .map(|k| output(&m.source, &t(f64::from(k) * 0.5), None, None))
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(seq(&a), seq(&b));
+    // Still a repeatable function of the saved seed, inside the seed field's range.
+    for m in [&a, &b] {
+        let ModSource::Random(r) = &m.source else {
+            unreachable!()
+        };
+        assert!((1..=999).contains(&r.seed), "seed {}", r.seed);
+    }
+    assert_eq!(
+        seq(&a),
+        seq(&Modulator::new(ModulatorId(41), ModKind::Random))
+    );
+}

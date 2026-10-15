@@ -25,6 +25,8 @@ pub enum ListenAt {
     /// A strip, by its index in the snapshot's strips.
     Strip(usize),
     Master,
+    /// What it listened to is gone (a removed strip, a track with no strip): silence.
+    Silent,
 }
 
 /// One modulator as the engine plays it.
@@ -169,15 +171,16 @@ pub fn compile(
     out
 }
 
-/// Where `listen` points, for a modulator on `host`.
+/// Where `listen` points, for a modulator on `host`: a strip that is gone is silence,
+/// never the whole mix.
 fn listen_at(project: &Project, host: ModHost, listen: Listen) -> ListenAt {
     let strip = match listen {
+        Listen::Master => return ListenAt::Master,
+        Listen::Host if host == ModHost::Master => return ListenAt::Master,
         Listen::Host => project.host_listen_strip(host),
         Listen::Strip(s) => Some(s),
-        Listen::Master => None,
     };
-    match strip.and_then(|s| project.strip_index(s)) {
-        Some(i) => ListenAt::Strip(i),
-        None => ListenAt::Master,
-    }
+    strip
+        .and_then(|s| project.strip_index(s))
+        .map_or(ListenAt::Silent, ListenAt::Strip)
 }
