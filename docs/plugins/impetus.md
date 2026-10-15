@@ -70,7 +70,7 @@ editor misses none however its frames fall.
 - Null at 0 % in every band, with and without a key, through the engine; block sizes 1 …
   4 096 identical; live = offline.
 - Attack +100 %: the first 5 ms of each hit **+14.0 dB** over the body; −100 %: **−12.4 dB**.
-  Sustain +100 %: the tail **+15.5 dB**; −100 %: **−13.4 dB**.
+  Sustain +100 %: the tail **+12.0 dB**; −100 %: **−9.8 dB**.
 - Split band at 800 Hz, attack +100 % over hats and a 55 Hz bass: the bass moves **−22.5 dB**
   in full band, **−43.4 dB** with highs only.
 
