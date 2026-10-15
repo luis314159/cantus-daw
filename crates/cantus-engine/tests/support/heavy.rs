@@ -169,7 +169,21 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("xover", 600.0),
             ],
         ),
-        EffectKind::TransientSplit => {}
+        // Discrimen: the look-ahead, both parts compressed and tilted.
+        EffectKind::TransientSplit => set(
+            &mut s,
+            &[
+                ("mode", 1.0),
+                ("sens", 0.8),
+                ("speed", 3.0),
+                ("t.gain", 6.0),
+                ("t.comp", 0.8),
+                ("t.tilt", 4.0),
+                ("b.gain", -4.0),
+                ("b.comp", 0.8),
+                ("b.tilt", -4.0),
+            ],
+        ),
         EffectKind::Analyzer => {}
         // Tonus: the hard effect an octave up with the throat down, humanised, a created
         // vibrato — every grain path working at once.

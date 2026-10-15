@@ -627,7 +627,12 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("speed", 6.0),
             ("band", 1.0),
         ],
-        EffectKind::TransientSplit => vec![("out", -6.0)],
+        EffectKind::TransientSplit => vec![
+            ("mode", 1.0),
+            ("t.gain", 5.0),
+            ("b.comp", 0.5),
+            ("b.tilt", -2.0),
+        ],
         EffectKind::Analyzer => vec![("out", -6.0)],
         EffectKind::AutoTune => vec![
             ("speed", 0.0),
@@ -701,6 +706,7 @@ pub enum Direct {
     Vibrans(Box<cantus_dsp::vibrans::Vibrans>),
     Tonsor(Box<cantus_dsp::tonsor::Tonsor>),
     Impetus(Box<cantus_dsp::impetus::Impetus>),
+    Discrimen(Box<cantus_dsp::discrimen::Discrimen>),
     /// Round 28's stubs, until each builder names its DSP here: the engine's unit.
     Stub(Box<dyn cantus_engine::FxUnit>),
 }
@@ -739,7 +745,7 @@ impl Direct {
                 Direct::Impetus(Box::new(cantus_dsp::impetus::Impetus::new(SR)))
             }
             EffectKind::TransientSplit => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::TransientSplit, SR).unwrap())
+                Direct::Discrimen(Box::new(cantus_dsp::discrimen::Discrimen::new(SR)))
             }
             EffectKind::Analyzer => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Analyzer, SR).unwrap())
@@ -788,6 +794,7 @@ impl Direct {
             Direct::Vibrans(x) => x.set(&fx::vibrans::settings(spec)),
             Direct::Tonsor(x) => x.set(&fx::tonsor::settings(spec)),
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
+            Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
             Direct::Stub(x) => x.configure(spec),
         }
     }
@@ -815,6 +822,7 @@ impl Direct {
             Direct::Vibrans(x) => x.reset(),
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
+            Direct::Discrimen(x) => x.reset(),
             Direct::Stub(x) => x.reset(),
         }
     }
@@ -842,6 +850,7 @@ impl Direct {
             Direct::Vibrans(x) => x.latency(),
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
+            Direct::Discrimen(x) => x.latency(),
             Direct::Stub(x) => x.latency(),
         }
     }
@@ -869,6 +878,7 @@ impl Direct {
             Direct::Vibrans(x) => x.process(l, r),
             Direct::Tonsor(x) => x.process(l, r),
             Direct::Impetus(x) => x.process(l, r, key),
+            Direct::Discrimen(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key),
         }
     }

@@ -1293,3 +1293,13 @@ impetus speed 2072037248
 impetus length 63976981
 impetus band 815078726
 impetus xover 891963805
+discrimen mode 1819205650
+discrimen sens 1600236230
+discrimen speed 2072037248
+discrimen t.gain 760132112
+discrimen t.comp 1504291700
+discrimen t.tilt 1547555488
+discrimen b.gain 482596762
+discrimen b.comp 956362998
+discrimen b.tilt 1052331418
+discrimen listen 993752742
