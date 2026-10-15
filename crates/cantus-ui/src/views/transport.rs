@@ -19,7 +19,7 @@
 //! at rest measures nothing and allocates nothing of its own.
 
 #[path = "transport_clock.rs"]
-mod clock;
+pub(crate) mod clock;
 #[path = "transport_keys.rs"]
 mod keys;
 #[path = "transport_layout.rs"]
@@ -430,12 +430,39 @@ fn key_rect(r: Rect, x: f32, s: &Style) -> Rect {
     Rect::from_min_size(Pos2::new(x, r.center().y - side * 0.5), Vec2::splat(side))
 }
 
-/// A key's side in `r`: the bar's key, or a row's when `r` is one row high.
+/// A key's side in `r`: the bar's key, or a row's when `r` is one row high — never taller
+/// than the row (review 2: in the compact density the rows are 20 pt, and 22-pt keys stuck
+/// out of them and touched).
 fn key_side(r: Rect, s: &Style) -> f32 {
     if r.height() < KEY * s.k + 4.0 * s.k {
-        ROW_KEY * s.k
+        (ROW_KEY * s.k).min(r.height())
     } else {
         KEY * s.k
+    }
+}
+
+#[cfg(test)]
+mod row_tests {
+    use super::*;
+
+    /// At every density the two rows' keys stay inside their rows, and apart.
+    #[test]
+    fn row_keys_fit_their_rows_at_every_density() {
+        for density in [0.85f32, 1.0, 1.15] {
+            let mut s = Style::current();
+            s.k = 1.0;
+            s.t.density = density;
+            let bar = Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, (HEIGHT * density).round()));
+            let mut keys = Vec::new();
+            for slot in [layout::Slot::Top, layout::Slot::Bottom] {
+                let (top, bottom) = slot_y(bar, slot, s.k);
+                let row = Rect::from_min_max(Pos2::new(0.0, top), Pos2::new(400.0, bottom));
+                let key = key_rect(row, 10.0, &s);
+                assert!(row.contains_rect(key), "{density}: {key:?} out of {row:?}");
+                keys.push(key);
+            }
+            assert!(keys[0].bottom() < keys[1].top(), "{density}: {keys:?} touch");
+        }
     }
 }
 

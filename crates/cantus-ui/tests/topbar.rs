@@ -797,3 +797,20 @@ fn choosing_a_channel_keeps_the_pattern() {
     assert_eq!(r.app.engine.position(), Ticks::beats(65));
     assert_eq!(r.app.selected_clip, region.clip_of(other));
 }
+
+/// The audio popover opened from the bar's chip hangs under the bar (review 2: it was
+/// pinned to the window's top, over the bar and the chip), and a second click on the chip
+/// closes it.
+#[test]
+fn the_audio_popover_hangs_under_the_bar_and_the_chip_closes_it() {
+    let mut r = Rig::new();
+    let chip = r.group(Group::Device).expect("the chip on the bar");
+    let (bar, _) = transport::last_layout(&r.ctx).unwrap();
+    r.click(pos2(chip.center().x, chip.top() + 8.0));
+    assert!(r.app.audio_setup.popover, "opened");
+    let pop = cantus_ui::views::audio_popover::last_rect(&r.ctx).expect("drawn");
+    assert!(pop.top() >= bar.bottom(), "{pop:?} under {bar:?}");
+    assert!(!pop.intersects(chip), "{pop:?} clear of {chip:?}");
+    r.click(pos2(chip.center().x, chip.top() + 8.0));
+    assert!(!r.app.audio_setup.popover, "the chip closed it");
+}

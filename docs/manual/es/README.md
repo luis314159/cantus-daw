@@ -158,7 +158,9 @@ entre las columnas. Los grupos que tienen dos líneas propias —PATRÓN / CANCI
 metrónomo, el reloj, CPU/RAM y el medidor— ocupan toda la altura; los demás ocupan una
 fila y se apilan de dos en dos (el transporte sobre el tempo, la rejilla sobre deshacer,
 las ventanas sobre las entradas, el chip de audio sobre las herramientas). A 1920 píxeles y
-al 100 % todos los grupos están en la barra, en inglés y en español.
+al 100 % todos los grupos están en la barra, en inglés y en español, con el chip de tu
+interfaz: en una barra llena el chip acorta por el medio una línea de dispositivo larga
+(apunta a él para leerla entera) y se ensancha cuando hay sitio.
 
 - **Los menús y el panel de ayuda**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
   del proyecto y la ayuda de lo que hay bajo el puntero. **Haz clic en el nombre** para

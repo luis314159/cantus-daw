@@ -65,6 +65,24 @@ pub fn width(ctx: &egui::Context, s: &Style, metre: TimeSignature) -> f32 {
     digits_width(ctx, s, metre) + SIDE * s.k
 }
 
+/// The role a reading is painted in: `role` when `text` fits `width`, else `smaller` — a
+/// reading longer than the clock was sized for (bar 1 000 on, 100 minutes on) steps down a
+/// size and is never cut.
+pub(crate) fn fitting(
+    ctx: &egui::Context,
+    s: &Style,
+    text: &str,
+    width: f32,
+    role: Role,
+    smaller: Role,
+) -> Role {
+    if text::measure(ctx, &Text::new(text, role, s.t.text), s.tk()).x <= width {
+        role
+    } else {
+        smaller
+    }
+}
+
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let t = &s.t;
@@ -102,10 +120,18 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             b.register(lcd, "clock", views::hint::PANEL_TOKENS, &[]);
             light::sunken(b, lcd, s.r(4.0), t.ink, 1.0, t.depth);
             let dr = Rect::from_min_size(lcd.min, Vec2::new(digits_w, lcd.height()));
+            let digits = dr.shrink2(Vec2::new(12.0 * k, 0.0));
+            // The clock is sized for three bar digits in this metre (the template, in the
+            // same monospaced face): a longer position steps down a size.
+            let role = if bbt.len() <= template(app.project().time_signature).len() {
+                Role::Display
+            } else {
+                Role::Hero
+            };
             let _ = text::paint(
                 b,
-                dr.shrink2(Vec2::new(12.0 * k, 0.0)),
-                &Text::new(bbt, Role::Display, t.text)
+                digits,
+                &Text::new(bbt, role, t.text)
                     .align(Align2::RIGHT_CENTER)
                     .policy(Policy::Elide(Elide::End)),
                 s.tk(),
@@ -124,10 +150,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             let half = side.height() * 0.5;
             let top = Rect::from_min_size(side.min, Vec2::new(side.width(), half));
             let bottom = Rect::from_min_max(Pos2::new(side.left(), side.top() + half), side.max);
+            let role = fitting(b.ctx(), s, clock, top.width(), Role::Value, Role::Label);
             let _ = text::paint(
                 b,
                 top,
-                &Text::new(clock, Role::Value, t.text_dim)
+                &Text::new(clock, role, t.text_dim)
                     .align(Align2::RIGHT_CENTER)
                     .policy(Policy::Elide(Elide::End)),
                 s.tk(),

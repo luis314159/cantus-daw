@@ -34,7 +34,8 @@ The whole top bar of §6e, reachable from `cantus_ui::run` → `boot` → `assem
 Groups are shown/hidden/reordered in **Customise top bar…** (⋯, View, right-click on the
 bar), kept in `Settings::topbar`. The bar has FL's two rows (since review 1): tall groups
 take its height, one-row groups stack two to a column; at 1920 px / 100 % every group is on
-the bar in EN and ES. Narrow windows **fold groups whole into ⋯** by importance, and bring
+the bar in EN and ES (*review 2, fix2: with a running device's chip too — the chip now
+takes 150 pt at least and grows into spare room; see `docs/round28/fix2.md`*). Narrow windows **fold groups whole into ⋯** by importance, and bring
 back any that fits again; the menus never fold (they share the hint panel's width). ⋯
 keeps its own open state, so the folded groups' menus and popovers work inside it; it
 scrolls inside the window; its dot turns the chip's colour when the device is folded and

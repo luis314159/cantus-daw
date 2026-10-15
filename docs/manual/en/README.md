@@ -150,7 +150,9 @@ between the columns. The groups with two lines of their own — PAT / SONG, the 
 the clock, CPU/RAM and the meter — take the bar's height; the others are one row high and
 stack two to a column (the transport over the tempo, the snap over undo, the windows over
 the inputs, the audio chip over the tools). At 1920 pixels and 100 % every group is on the
-bar, in English and in Spanish.
+bar, in English and in Spanish, with your interface's chip on it: on a full bar the chip
+shortens a long device line in the middle (point at it for the whole line), and widens
+when there is room.
 
 - **The menus and the hint panel**: *File, Edit, Clip, View, Help* over the project's name
   and the hint for whatever is under the pointer. **Click the name** to rename the

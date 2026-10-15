@@ -289,20 +289,17 @@ pub fn paint_elapsed(b: &mut Brush, app: &CantusApp, rect: Rect, s: &Style) {
         }
         return;
     };
-    // Frames lost while recording: the warning stays at the right, the time beside it.
-    let mut rect = rect;
-    if app.rec.dropped > 0 {
-        let g = Rect::from_center_size(
-            pos2(rect.right() - 6.0 * k, rect.center().y),
-            vec2(11.0 * k, 11.0 * k),
-        );
-        glyph::paint(b, g, Glyph::Warning, t.danger);
-        rect.max.x -= 14.0 * k;
-    }
-    let now = b.ctx().input(|i| i.time) as f32;
-    let pulse = 0.55 + 0.45 * (now * 4.0).sin().abs();
+    // The pulsing lamp at the left — or, once frames were lost, the warning in its place,
+    // so the time keeps its room (review 2: beside it, the warning cut the time).
     let c = pos2(rect.left() + 6.0 * k, rect.center().y);
-    b.circle(c, 4.0 * k, Fill::Solid(with_alpha(t.danger, pulse)));
+    if app.rec.dropped > 0 {
+        let g = Rect::from_center_size(c, vec2(11.0 * k, 11.0 * k));
+        glyph::paint(b, g, Glyph::Warning, t.danger);
+    } else {
+        let now = b.ctx().input(|i| i.time) as f32;
+        let pulse = 0.55 + 0.45 * (now * 4.0).sin().abs();
+        b.circle(c, 4.0 * k, Fill::Solid(with_alpha(t.danger, pulse)));
+    }
     let pos = app.engine.position();
     let bpm = app.project().tempo_bpm;
     let start = live.plan.record_start;
@@ -320,7 +317,16 @@ pub fn paint_elapsed(b: &mut Brush, app: &CantusApp, rect: Rect, s: &Style) {
             let _ = write!(w, "{}:{:04.1}", (secs / 60.0) as i64, secs % 60.0);
         }
         let tr = Rect::from_min_max(pos2(c.x + 7.0 * k, rect.top()), rect.max);
-        let tx = Text::new(&w, Role::Value, t.danger)
+        // From ten minutes on the time steps down a size rather than be cut.
+        let role = super::transport::clock::fitting(
+            b.ctx(),
+            s,
+            &w,
+            tr.width(),
+            Role::Value,
+            Role::Label,
+        );
+        let tx = Text::new(&w, role, t.danger)
             .align(Align2::RIGHT_CENTER)
             .policy(Policy::Elide(Elide::End));
         let _ = text::paint(b, tr, &tx, s.tk());

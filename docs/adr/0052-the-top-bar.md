@@ -32,9 +32,12 @@ allocation):
   the whole window under its triangle budget) and stack two to a column in the owner's order —
   by default the transport over the tempo, the snap over undo, the windows over the
   inputs, the audio chip over the tools. At **1920 px, 100 %, every group is on the
-  bar, in English and in Spanish** (`the_default_bar_shows_every_group_at_1920`); the
-  audio chip is capped at 200 pt there (a long device name is shortened in the chip, its
-  whole text in the hint);
+  bar, in English and in Spanish, with a running interface's chip**
+  (`the_default_bar_shows_every_group_at_1920`, measured with "Focusrite USB ASIO";
+  review 2: only the "no audio" chip had been); the audio chip takes at least 150 pt
+  while it reads a device (its line shortened in the middle, the whole of it in the hint;
+  a sentence — no audio, lost — up to 200 pt, whole) and grows to 320 pt with room the
+  left block and the meter leave (the layout's one short group that grows);
 - groups keep the owner's order; a hidden one is left out;
 - when they do not fit, the **least important** (a fixed rank: transport 0, position 1,
   tempo 2, mode 3, metronome 4, device 5, meter 6, windows 7, performance 8, snap 9,
@@ -160,10 +163,15 @@ before the click. It only reads a scratch copy of `out`: the goldens (`null_test
   (the readings come back with the music);
 - the **integrated** reading is worked out only when a 100 ms gating block was added while
   playing (not every callback: two scans of 8 000 bins), starts again on Play and holds
-  after Stop — it is the pass's;
+  after Stop — it is the pass's: review 2 restarts the measurement at Play
+  (`LoudnessMeter::restart_measurement`), so no gating block holds a column from before
+  it, while the momentary reading runs on;
 - the **true peak** the interface reads is the highest of every callback drained since the
-  last frame (`EngineHandle::poll`, as the compressor's peak), and the meter holds the
-  highest since Play until the readout is clicked;
+  last frame (`EngineHandle::poll`, as the compressor's peak); on the audio thread it
+  starts again only once a report was delivered (review 2: a report the full queue
+  dropped lost its over), and the meter's hold — fed once a frame whatever the bar shows
+  (`meter::watch`; review 2: only while drawn) — keeps the highest since Play until the
+  readout or the footer's figures are clicked;
 - the histograms are **pre-faulted** with the processor (ADR 0031 R11).
 
 Built with the processor; no allocation (`rt_memory.rs`). **Cost measured: 2.5 µs a
@@ -203,7 +211,8 @@ switch is always there), `TapTempo` = `Shift+T`; older files get them where free
 - At 1920 px and 100 % the default bar shows every group in both languages. Below that,
   groups fold by rank (at 1280 px: the inputs, CPU/RAM, the meter, the snap, undo and the
   tools) and work from ⋯; the owner can reorder or hide groups to choose what stays. A
-  real device's name can make the chip wider than the no-device text — it is capped at
-  200 pt, so it never pushes another group off.
+  real device's line is wider than the no-device text — on a full bar the chip keeps to
+  its least (150 pt), so it never pushes another group off; in the ⋯ menu a folded group
+  is drawn at its most.
 - A future group needs: a `Group` variant with id, name, rank and height (tall or a row);
   its width and drawing; a string pair. The property test covers it automatically.

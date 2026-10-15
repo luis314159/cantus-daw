@@ -343,8 +343,29 @@ fn the_default_bar_shows_every_group_at_1920() {
     set_locale(Locale::En);
 }
 
+/// The painted texts of the clock drawn alone at its width.
+fn clock_texts(a: &mut CantusApp, ctx: &egui::Context) -> Vec<String> {
+    let mut out = ctx.run_ui(Default::default(), |ui| {
+        let w = transport::wants(a, ui.ctx())
+            .into_iter()
+            .find(|w| w.group == Group::Position)
+            .unwrap();
+        let rect = Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(w.min, transport::HEIGHT));
+        transport::draw_group(Group::Position, a, ui, rect);
+    });
+    out.textures_delta.clear();
+    out.shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The clock is as wide as its widest position in the metre (review 1: 3/2 and 12/8
-/// shortened it with "…" from bar 10).
+/// shortened it with "…" from bar 10), and reads whole past bar 999 and past 99 minutes
+/// (review 2: "1000.1.0…"): the digits step down a size rather than be cut.
 #[test]
 fn the_clock_reads_whole_in_every_metre() {
     let (mut a, _dir) = app();
@@ -353,38 +374,53 @@ fn the_clock_reads_whole_in_every_metre() {
         a.exec(cantus_core::Command::SetTimeSignature {
             time_signature: cantus_core::TimeSignature::new(n, d),
         });
-        // Bar 123, the last beat, the last tick.
-        let ts = a.project().time_signature;
-        let at = ts.ticks_per_bar() * 122
-            + ts.ticks_per_beat() * (n as i64 - 1)
-            + cantus_core::Ticks(ts.ticks_per_beat().0 - 1);
+        for bar in [123i64, 1_000, 9_999] {
+            // The bar, its last beat, its last tick.
+            let ts = a.project().time_signature;
+            let at = ts.ticks_per_bar() * (bar - 1)
+                + ts.ticks_per_beat() * (n as i64 - 1)
+                + cantus_core::Ticks(ts.ticks_per_beat().0 - 1);
+            a.seek(at);
+            let texts = clock_texts(&mut a, &ctx);
+            assert!(
+                texts.iter().all(|t| !t.contains('\u{2026}')),
+                "{n}/{d} bar {bar}: {texts:?}"
+            );
+            assert!(
+                texts.iter().any(|t| t.trim_start().starts_with(&format!("{bar}."))),
+                "{n}/{d} bar {bar}: {texts:?}"
+            );
+        }
+    }
+}
+
+/// While recording, the take's time reads whole past ten minutes, and with frames lost
+/// (review 2: "10:0…", and "0:1…" once a dropout's warning took its room).
+#[test]
+fn the_takes_time_reads_whole_while_recording() {
+    let (mut a, _dir) = app();
+    let ctx = ctx();
+    let keys = a.project().tracks[0].id;
+    a.toggle_arm(keys, false);
+    a.start_recording();
+    assert!(a.is_recording());
+    // Eleven minutes and a half into the take (and a hundred and five).
+    for minutes in [11.5f64, 105.0] {
+        let at = cantus_core::Ticks::from_seconds(minutes * 60.0, a.project().tempo_bpm);
         a.seek(at);
-        let mut out = ctx.run_ui(Default::default(), |ui| {
-            let w = transport::wants(&a, ui.ctx())
-                .into_iter()
-                .find(|w| w.group == Group::Position)
-                .unwrap();
-            let rect =
-                Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(w.min, transport::HEIGHT));
-            transport::draw_group(Group::Position, &mut a, ui, rect);
-        });
-        out.textures_delta.clear();
-        let texts: Vec<String> = out
-            .shapes
-            .iter()
-            .filter_map(|c| match &c.shape {
-                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
-                _ => None,
-            })
-            .collect();
-        assert!(
-            texts.iter().all(|t| !t.contains('\u{2026}')),
-            "{n}/{d}: {texts:?}"
-        );
-        assert!(
-            texts.iter().any(|t| t.starts_with("123.")),
-            "{n}/{d}: {texts:?}"
-        );
+        for dropped in [0u64, 3] {
+            a.rec.dropped = dropped;
+            let texts = clock_texts(&mut a, &ctx);
+            assert!(
+                texts.iter().all(|t| !t.contains('\u{2026}')),
+                "{minutes} min, {dropped} lost: {texts:?}"
+            );
+            let whole = format!("{}:", minutes as i64);
+            assert!(
+                texts.iter().filter(|t| t.starts_with(&whole)).count() >= 1,
+                "{minutes} min, {dropped} lost: {texts:?}"
+            );
+        }
     }
 }
 

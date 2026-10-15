@@ -83,7 +83,45 @@ fn set_driver(app: &mut CantusApp, key: Option<&str>, name: &str) {
     setup::apply(app, a);
 }
 
-/// The popover, when open: anchored above the chip, right-aligned with it.
+/// Where the popover was drawn last frame (tests).
+pub fn last_rect(ctx: &egui::Context) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Rect>(Id::new("cantus-audio-popover").with("rect")))
+}
+
+/// Where the popover goes, `h` tall: hanging under the top bar (`bar`) right-aligned with
+/// the chip when the chip is on it — never over the bar or the chip, so a second click on
+/// the chip closes it; beside the ⋯ menu when the chip is folded in it; under the chip
+/// when it is high elsewhere, above it when low. Kept on the screen.
+fn place(
+    screen: Rect,
+    chip: Option<Rect>,
+    bar: Option<Rect>,
+    menu: Option<Rect>,
+    w: f32,
+    h: f32,
+    k: f32,
+) -> Pos2 {
+    let Some(c) = chip else {
+        return Pos2::new(
+            (screen.right() - 12.0 - w).max(screen.left() + 4.0),
+            (screen.bottom() - 30.0 - h).max(screen.top() + 4.0),
+        );
+    };
+    let (right, top) = match menu.filter(|m| m.contains(c.center())) {
+        Some(m) => (m.left() - 6.0 * k, c.top()),
+        None => match bar.filter(|b| b.contains(c.center())) {
+            Some(b) => (c.right(), b.bottom() + 4.0 * k),
+            None if c.center().y < screen.center().y => (c.right(), c.bottom() + 6.0 * k),
+            None => (c.right(), c.top() - 6.0 * k - h),
+        },
+    };
+    Pos2::new(
+        (right - w).max(screen.left() + 4.0),
+        top.min(screen.bottom() - h - 4.0).max(screen.top() + 4.0),
+    )
+}
+
+/// The popover, when open: hanging from the chip (see [`place`]).
 pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     if !app.audio_setup.popover {
         return;
@@ -92,10 +130,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     let k = s.k;
     let screen = ctx.content_rect();
     let chip = app.audio_setup.geo.rect(&Hit::Chip);
-    let anchor = chip.map_or(
-        Pos2::new(screen.right() - 12.0, screen.bottom() - 30.0),
-        |c| Pos2::new(c.right(), c.top() - 6.0 * k),
-    );
+    // The ⋯ menu, while open: the chip may be folded in it.
+    let menu = super::transport::overflow_open(app)
+        .then(|| ctx.data(|d| d.get_temp::<Rect>(Id::new("toolbar-overflow").with("rect"))))
+        .flatten();
     let live = setup::live(app, false);
     let key = setup::current_key(app);
     let own = setup::own_input(app);
@@ -111,10 +149,8 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     );
     // Placed from its own height (last frame's), so its rows stay where they were drawn.
     let h = app.audio_setup.pop_h.max(200.0 * k);
-    let top_left = Pos2::new(
-        (anchor.x - WIDTH * k).max(screen.left() + 4.0),
-        (anchor.y - h).max(screen.top() + 4.0),
-    );
+    let bar = super::transport::last_layout(ctx).map(|(r, _)| r);
+    let top_left = place(screen, chip, bar, menu, WIDTH * k, h, k);
     let area = egui::Area::new(Id::new("cantus-audio-popover"))
         .order(egui::Order::Foreground)
         .fixed_pos(top_left)
@@ -141,6 +177,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     super::audio_popover_lists::show(app, ctx, key.as_deref());
     // A click outside (not on the chip, not in a list) closes it, as Escape does.
     let pop = area.response.rect;
+    ctx.data_mut(|d| d.insert_temp(Id::new("cantus-audio-popover").with("rect"), pop));
     let list = app.audio_setup.geo.rect(&Hit::List);
     let pressed = ctx.input(|i| i.pointer.any_pressed());
     let at = ctx.input(|i| i.pointer.interact_pos());
