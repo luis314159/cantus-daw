@@ -260,6 +260,36 @@ fn correct_pitch_below_full_never_overshoots() {
     assert!(f.is_valid());
 }
 
+/// Review 2: which pitch is the macro's is stored on the note, so a key change between two
+/// runs re-targets it (it was left a quarter tone off the key), and a hand move onto the
+/// key's note is kept (it was taken back).
+#[test]
+fn correct_pitch_follows_a_key_change_and_keeps_a_hand_move() {
+    let (mut e, _) = take();
+    e.notes
+        .push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
+    let at = |e: &PitchEdit| e.note(9).unwrap().out_centre();
+    let mut k = e.clone();
+    // C major at 50 %: half way to D; then D major, where C# is the key's note.
+    edit::correct_pitch(&mut k, &[9], 0.5);
+    k.key.tonic = 2;
+    edit::correct_pitch(&mut k, &[9], 1.0);
+    assert!((at(&k) - 61.0).abs() < 1e-4, "on C#: {}", at(&k));
+    assert!(k.note(9).unwrap().corrected);
+    // Moved by hand onto D: a later run keeps D as its target.
+    let mut h = e.clone();
+    edit::set_pitch(&mut h, 9, 62.0);
+    assert!(!h.note(9).unwrap().corrected);
+    edit::correct_pitch(&mut h, &[9], 0.5);
+    assert_eq!(h.note(9).unwrap().pitch, 62.0, "the hand's move kept");
+    assert!(!h.note(9).unwrap().corrected);
+    // A macro note moved by hand afterwards is the hand's from then on.
+    edit::correct_pitch(&mut k, &[9], 0.5);
+    edit::set_pitch(&mut k, 9, 63.0);
+    edit::correct_pitch(&mut k, &[9], 1.0);
+    assert_eq!(k.note(9).unwrap().pitch, 63.0);
+}
+
 /// Review 1: a step of the key from a note sung off it lands on the key's next note.
 #[test]
 fn a_scale_step_from_an_off_key_note_lands_on_the_key() {

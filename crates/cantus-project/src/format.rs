@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 29;
+pub const SCHEMA_VERSION: u32 = 30;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -212,6 +212,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_26_to_27,
     migrate_27_to_28,
     migrate_28_to_29,
+    migrate_29_to_30,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -684,6 +685,16 @@ fn migrate_28_to_29(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 30 (round 28, review 2 of ADR 0054): a pitch note says whether its pitch is
+/// *Correct pitch*'s (`PitchNote::corrected`), so the macro re-targets it after a key change
+/// and never takes back a hand move. A file without it has every pitch as the hand's — an
+/// older build would have guessed from the key — and no project with pitch edits has
+/// shipped, so the step writes nothing; the number makes an older build refuse a file
+/// whose macro notes it would misread.
+fn migrate_29_to_30(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -921,6 +932,29 @@ mod tests {
         assert!(p.tracks.iter().all(|t| t.comps.is_empty()));
         assert_eq!(p.recording.comp_xfade_ms, 10.0);
         assert!(p.recording.record_automation);
+    }
+
+    /// Schema 30 (round 28, review 2): the vocal's second note was set by *Correct pitch*
+    /// and says so; an older file's notes do not.
+    #[test]
+    fn schema_30_keeps_which_pitch_is_the_macros() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let notes = |name: &str| {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            let vocal = p.tracks.iter().find(|t| t.name == "Vocal").unwrap().clone();
+            vocal
+                .clips
+                .iter()
+                .filter(|c| c.lane == 0)
+                .find_map(|c| c.audio.as_ref().and_then(|a| a.pitch.clone()))
+                .unwrap()
+                .notes
+        };
+        let now = notes("v30.cantus");
+        assert!(now.iter().any(|n| n.id == 1 && n.corrected), "{now:?}");
+        assert!(now.iter().any(|n| !n.corrected));
+        assert!(notes("v29.cantus").iter().all(|n| !n.corrected));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

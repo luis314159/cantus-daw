@@ -104,6 +104,10 @@ pub fn set_pitch(edit: &mut PitchEdit, id: u32, pitch: f32) -> bool {
     let p = pitch.clamp(n.home() - MAX_MOVE, n.home() + MAX_MOVE);
     let changed = n.pitch != p;
     n.pitch = p;
+    // Moved by hand: the hand's, no longer the macro's.
+    if changed {
+        n.corrected = false;
+    }
     changed
 }
 
@@ -237,7 +241,10 @@ pub fn join(edit: &mut PitchEdit, ids: &[u32]) -> bool {
 /// *Correct pitch* on the notes `ids` by `amount` (0 … 1): each note pulled that far from
 /// where it was sung toward its target — the nearest note of the key (its own semitone
 /// when that is in the key), or the note it was moved to by hand. At 0 nothing moves; at
-/// 1 it sounds on its target; applied again at another amount, as if applied once.
+/// 1 it sounds on its target; applied again at another amount, as if applied once — in
+/// the key the edit has now (review 2: which pitch is the macro's is stored on the note,
+/// `PitchNote::corrected`, not guessed from the key, so a key change re-targets it and a
+/// hand move onto the key's note is kept).
 pub fn correct_pitch(edit: &mut PitchEdit, ids: &[u32], amount: f32) -> bool {
     let amount = amount.clamp(0.0, 1.0);
     let key = edit.key;
@@ -249,18 +256,18 @@ pub fn correct_pitch(edit: &mut PitchEdit, ids: &[u32], amount: f32) -> bool {
         } else {
             key.nearest(n.sung)
         };
-        // A pitch between home and the key's note is the macro's own (an earlier run);
-        // anything else was moved by hand and stays the target.
-        let (lo, hi) = (home.min(auto), home.max(auto));
-        let by_macro = n.pitch >= lo && n.pitch <= hi;
+        // The macro's own pitch (an earlier run), or one never moved: set toward the key's
+        // note; anything moved by hand stays the target.
+        let by_macro = n.corrected || n.pitch == home;
         let pitch = if by_macro {
             home + amount * (auto - home)
         } else {
             n.pitch
         };
-        if n.pitch != pitch || n.centre != amount {
+        if n.pitch != pitch || n.centre != amount || n.corrected != by_macro {
             n.pitch = pitch;
             n.centre = amount;
+            n.corrected = by_macro;
             changed = true;
         }
     }

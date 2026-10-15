@@ -174,6 +174,11 @@ pub struct PitchNote {
     /// The note's gain, dB.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub gain_db: f32,
+    /// Its `pitch` is *Correct pitch*'s (schema 30): the macro set it toward the key's note,
+    /// so a later run — after a key change too — sets it afresh; a hand move clears it, and
+    /// the macro then keeps the note where the hand put it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub corrected: bool,
     /// **The timing**: where the note plays, in output frames (the edited take is as long
     /// as the source). Default: where it was sung.
     pub start: u64,
@@ -208,6 +213,7 @@ impl PitchNote {
             vibrato: 1.0,
             formant: 0.0,
             gain_db: 0.0,
+            corrected: false,
             start: src_start,
             end: src_end,
         }

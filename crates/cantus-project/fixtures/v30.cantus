@@ -1,0 +1,2634 @@
+{
+  "format": "cantus-project",
+  "schema_version": 30,
+  "app_version": "fixture",
+  "saved_at": 1792089757,
+  "project": {
+    "name": "Fixture",
+    "tempo_bpm": 96.0,
+    "time_signature": {
+      "numerator": 4,
+      "denominator": 4
+    },
+    "tracks": [
+      {
+        "id": 17,
+        "name": "Keys",
+        "color": {
+          "r": 224,
+          "g": 142,
+          "b": 58
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Square",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 900.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "clips": [
+          {
+            "id": 19,
+            "name": "Intro",
+            "start": 3840,
+            "length": 7680,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 20,
+                "start": 0,
+                "length": 960,
+                "pitch": 60,
+                "velocity": 80,
+                "muted": false
+              },
+              {
+                "id": 21,
+                "start": 1920,
+                "length": 960,
+                "pitch": 64,
+                "velocity": 81,
+                "muted": false
+              },
+              {
+                "id": 22,
+                "start": 3840,
+                "length": 960,
+                "pitch": 67,
+                "velocity": 82,
+                "muted": false
+              },
+              {
+                "id": 23,
+                "start": 5760,
+                "length": 960,
+                "pitch": 71,
+                "velocity": 83,
+                "muted": false
+              }
+            ]
+          },
+          {
+            "id": 24,
+            "name": "Loop",
+            "start": 15360,
+            "length": 15360,
+            "offset": 1920,
+            "content_length": 3840,
+            "muted": true,
+            "color": {
+              "r": 179,
+              "g": 107,
+              "b": 214
+            },
+            "notes": [
+              {
+                "id": 25,
+                "start": 1920,
+                "length": 960,
+                "pitch": 55,
+                "velocity": 90,
+                "muted": false
+              }
+            ]
+          },
+          {
+            "id": 45,
+            "name": "Fade in",
+            "start": 0,
+            "length": 7680,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": {
+              "r": 216,
+              "g": 192,
+              "b": 74
+            },
+            "notes": [],
+            "automation": {
+              "target": {
+                "StripGain": 1
+              },
+              "points": [
+                {
+                  "tick": 0,
+                  "value": 0.0,
+                  "tension": 0.4
+                },
+                {
+                  "tick": 7680,
+                  "value": 0.8
+                }
+              ]
+            }
+          },
+          {
+            "id": 46,
+            "name": "Delay mix",
+            "start": 7680,
+            "length": 15360,
+            "offset": 0,
+            "content_length": 3840,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "automation": {
+              "target": {
+                "Effect": {
+                  "effect": 18,
+                  "key": "mix"
+                }
+              },
+              "points": [
+                {
+                  "tick": 0,
+                  "value": 0.1,
+                  "shape": "Hold"
+                },
+                {
+                  "tick": 1920,
+                  "value": 0.6
+                }
+              ]
+            }
+          },
+          {
+            "id": 47,
+            "name": "Width",
+            "start": 15360,
+            "length": 7680,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "automation": {
+              "target": "MasterWidth",
+              "points": [
+                {
+                  "tick": 0,
+                  "value": 0.3,
+                  "shape": "SCurve"
+                },
+                {
+                  "tick": 1920,
+                  "value": 0.7,
+                  "shape": "SCurve"
+                },
+                {
+                  "tick": 3840,
+                  "value": 0.3,
+                  "shape": "SCurve"
+                },
+                {
+                  "tick": 5760,
+                  "value": 0.7,
+                  "shape": "SCurve"
+                },
+                {
+                  "tick": 7680,
+                  "value": 0.3,
+                  "shape": "Hold"
+                }
+              ]
+            }
+          },
+          {
+            "id": 80,
+            "name": "Hosted 0",
+            "start": 3840,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "automation": {
+              "target": {
+                "Plugin": {
+                  "effect": 37,
+                  "id": 1024
+                }
+              },
+              "points": [
+                {
+                  "tick": 0,
+                  "value": 0.2
+                },
+                {
+                  "tick": 3840,
+                  "value": 0.9
+                }
+              ]
+            }
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 1,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false,
+        "modulators": [
+          {
+            "id": 75,
+            "name": "Wobble",
+            "source": {
+              "Lfo": {
+                "shape": "Triangle",
+                "rate": {
+                  "Sync": {
+                    "division": 9
+                  }
+                },
+                "phase": 0.25,
+                "retrigger": "Song",
+                "unipolar": false
+              }
+            },
+            "routes": [
+              {
+                "target": {
+                  "Effect": {
+                    "effect": 18,
+                    "key": "mix"
+                  }
+                },
+                "depth": 0.3
+              },
+              {
+                "target": {
+                  "Plugin": {
+                    "effect": 37,
+                    "id": 1024
+                  }
+                },
+                "depth": -0.4
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 26,
+        "name": "Drums",
+        "color": {
+          "r": 79,
+          "g": 163,
+          "b": 199
+        },
+        "height": 1.75,
+        "icon": "Drums",
+        "instrument": {
+          "type": "Pulsus",
+          "version": 2,
+          "pads": [
+            {
+              "id": 1,
+              "pitch": 36,
+              "name": "Bombo",
+              "voice": "Kick",
+              "tune": 0.0,
+              "decay": 0.36,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.2,
+              "noise_decay": 0.2,
+              "tone": 2400.0,
+              "mix": 0.5,
+              "hp_cutoff": 7000.0,
+              "level_db": -1.5,
+              "pan": 0.0,
+              "choke": 0,
+              "muted": false,
+              "sample": null,
+              "model": 0,
+              "layers": [
+                {
+                  "sample": "samples/kick-a.wav",
+                  "vel_lo": 1,
+                  "vel_hi": 127,
+                  "xfade": 0,
+                  "tune": 0.0,
+                  "level_db": 0.0,
+                  "pan": 0.0,
+                  "start_ms": 0.0,
+                  "reverse": false
+                },
+                {
+                  "sample": "samples/kick-b.wav",
+                  "vel_lo": 1,
+                  "vel_hi": 127,
+                  "xfade": 0,
+                  "tune": 0.0,
+                  "level_db": 0.0,
+                  "pan": 0.0,
+                  "start_ms": 0.0,
+                  "reverse": false
+                }
+              ],
+              "round_robin": "Cycle",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 2,
+              "pitch": 37,
+              "name": "Rim",
+              "voice": "Sample",
+              "tune": 14.0,
+              "decay": 0.035,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.03,
+              "tone": 3200.0,
+              "mix": 0.25,
+              "hp_cutoff": 7000.0,
+              "level_db": -5.0,
+              "pan": 0.0,
+              "choke": 0,
+              "muted": false,
+              "sample": "samples/rim.wav",
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 3,
+              "pitch": 38,
+              "name": "Snare",
+              "voice": "Snare",
+              "tune": 0.0,
+              "decay": 0.13,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.19,
+              "tone": 1900.0,
+              "mix": 0.55,
+              "hp_cutoff": 7000.0,
+              "level_db": 0.0,
+              "pan": -0.3,
+              "choke": 0,
+              "muted": false,
+              "sample": null,
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 4,
+              "pitch": 42,
+              "name": "Closed hat",
+              "voice": "HiHat",
+              "tune": 0.0,
+              "decay": 0.055,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.2,
+              "tone": 9500.0,
+              "mix": 0.5,
+              "hp_cutoff": 7000.0,
+              "level_db": -3.0,
+              "pan": 0.0,
+              "choke": 1,
+              "muted": true,
+              "sample": null,
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 5,
+              "pitch": 45,
+              "name": "Low tom",
+              "voice": "Snare",
+              "tune": -9.0,
+              "decay": 0.42,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.2,
+              "tone": 1800.0,
+              "mix": 0.06,
+              "hp_cutoff": 7000.0,
+              "level_db": -2.0,
+              "pan": 0.0,
+              "choke": 0,
+              "muted": false,
+              "sample": null,
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 6,
+              "pitch": 46,
+              "name": "Open hat",
+              "voice": "HiHat",
+              "tune": 0.0,
+              "decay": 0.42,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.2,
+              "tone": 9500.0,
+              "mix": 0.5,
+              "hp_cutoff": 7000.0,
+              "level_db": -4.0,
+              "pan": 0.0,
+              "choke": 1,
+              "muted": false,
+              "sample": null,
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            },
+            {
+              "id": 7,
+              "pitch": 50,
+              "name": "High tom",
+              "voice": "Snare",
+              "tune": -1.0,
+              "decay": 0.32,
+              "pitch_drop": 15.5,
+              "pitch_decay": 0.04,
+              "click": 0.35,
+              "drive": 0.0,
+              "noise_decay": 0.2,
+              "tone": 1800.0,
+              "mix": 0.06,
+              "hp_cutoff": 7000.0,
+              "level_db": -2.0,
+              "pan": 0.0,
+              "choke": 0,
+              "muted": false,
+              "sample": null,
+              "model": 0,
+              "round_robin": "Off",
+              "attack_ms": 0.0,
+              "hold_ms": 0.0,
+              "curve": 0.0,
+              "pitch_env": 0.0,
+              "pitch_env_ms": 50.0,
+              "filter": 0,
+              "cutoff": 1000.0,
+              "resonance": 0.1,
+              "filter_env": 0.0,
+              "trans_attack": 0.0,
+              "trans_sustain": 0.0,
+              "drive_mode": 0,
+              "phase": 0.0,
+              "vel_level": 100.0,
+              "vel_tone": 50.0,
+              "vel_pitch": 0.0,
+              "vel_decay": 0.0,
+              "choke_fade_ms": 4.0,
+              "choke_on_off": false,
+              "polyphony": 0,
+              "pedal": false,
+              "openness": 0.0,
+              "open_decay": 1.2,
+              "sigh": 0.3,
+              "wires": 0.5,
+              "material": 0,
+              "modes": 12,
+              "damping": 0.5,
+              "position": 0.3,
+              "hardness": 0.5,
+              "glide": 1.0,
+              "shell": 0.5,
+              "band_mix": 0.5,
+              "swell_ms": 40.0,
+              "bursts": 4,
+              "spacing_ms": 10.0,
+              "q": 2.0
+            }
+          ],
+          "kit": {
+            "seed": 17,
+            "hat_cc": 4,
+            "hat_invert": false
+          }
+        },
+        "clips": [
+          {
+            "id": 27,
+            "name": "Beat",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": 1920,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 28,
+                "start": 0,
+                "length": 240,
+                "pitch": 36,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 29,
+                "start": 960,
+                "length": 240,
+                "pitch": 42,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 30,
+                "start": 1920,
+                "length": 240,
+                "pitch": 38,
+                "velocity": 100,
+                "muted": false
+              },
+              {
+                "id": 31,
+                "start": 2880,
+                "length": 240,
+                "pitch": 42,
+                "velocity": 100,
+                "muted": false
+              }
+            ]
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 2,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false,
+        "automation_open": false
+      },
+      {
+        "id": 32,
+        "name": "Bass",
+        "color": {
+          "r": 179,
+          "g": 107,
+          "b": 214
+        },
+        "height": 0.5,
+        "icon": "Strings",
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Saw",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 2200.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 3,
+        "muted": true,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 39,
+        "name": "Organ",
+        "color": {
+          "r": 92,
+          "g": 184,
+          "b": 110
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "Organ",
+          "params": {
+            "gain": -3.0,
+            "macro1": 0.5,
+            "mod1.amt": 0.25
+          },
+          "text": {
+            "macro1.name": "Drive",
+            "mod1.dst": "gain",
+            "mod1.src": "macro1"
+          }
+        },
+        "clips": [
+          {
+            "id": 53,
+            "name": "Riff",
+            "start": 7680,
+            "length": 1920,
+            "offset": 960,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 50,
+                "start": 0,
+                "length": 960,
+                "pitch": 48,
+                "velocity": 100,
+                "muted": false
+              }
+            ],
+            "link": 51
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 4,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 41,
+        "name": "Vocal",
+        "color": {
+          "r": 217,
+          "g": 93,
+          "b": 93
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Saw",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 2200.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "clips": [
+          {
+            "id": 42,
+            "name": "Vocal take 1",
+            "start": 3840,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "audio": {
+              "source": 40,
+              "gain_db": -2.5,
+              "fade_in": 240,
+              "fade_out": 0,
+              "fade_in_curve": "Linear",
+              "fade_out_curve": "EqualPower",
+              "reverse": false,
+              "pitch": {
+                "rate": 48000,
+                "frames": 384000,
+                "analyser": 1,
+                "key": {
+                  "tonic": 9,
+                  "scale": 2
+                },
+                "notes": [
+                  {
+                    "id": 0,
+                    "src_start": 24000,
+                    "src_end": 60000,
+                    "sung": 68.7,
+                    "level_db": -14.0,
+                    "pitch": 67.0,
+                    "centre": 1.0,
+                    "start": 24000,
+                    "end": 60000
+                  },
+                  {
+                    "id": 1,
+                    "src_start": 72000,
+                    "src_end": 120000,
+                    "sung": 72.1,
+                    "level_db": -12.5,
+                    "pitch": 72.0,
+                    "centre": 0.5,
+                    "corrected": true,
+                    "start": 74400,
+                    "end": 124800
+                  },
+                  {
+                    "id": 2,
+                    "src_start": 132000,
+                    "src_end": 180000,
+                    "sung": 76.0,
+                    "level_db": -16.0,
+                    "pitch": 76.0,
+                    "formant": -2.0,
+                    "start": 132000,
+                    "end": 180000
+                  }
+                ],
+                "bypass": true
+              }
+            },
+            "link": 54
+          },
+          {
+            "id": 43,
+            "name": "Vocal take 0",
+            "start": 3840,
+            "length": 7680,
+            "offset": 7680,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "audio": {
+              "source": 40,
+              "gain_db": 0.0,
+              "fade_in": 0,
+              "fade_out": 0,
+              "fade_in_curve": "Linear",
+              "fade_out_curve": "Linear",
+              "reverse": false
+            },
+            "lane": 1
+          },
+          {
+            "id": 81,
+            "name": "Vocal take 0",
+            "start": 7680,
+            "length": 3840,
+            "offset": 11520,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "audio": {
+              "source": 40,
+              "gain_db": 0.0,
+              "fade_in": 0,
+              "fade_out": 0,
+              "fade_in_curve": "Linear",
+              "fade_out_curve": "Linear",
+              "reverse": false,
+              "xfade": 19
+            }
+          },
+          {
+            "id": 55,
+            "name": "Vocal take 1",
+            "start": 15360,
+            "length": 7680,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [],
+            "audio": {
+              "source": 40,
+              "gain_db": -2.5,
+              "fade_in": 240,
+              "fade_out": 960,
+              "fade_in_curve": "Linear",
+              "fade_out_curve": "EqualPower",
+              "reverse": false
+            },
+            "link": 54
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 5,
+        "muted": false,
+        "soloed": false,
+        "input": {
+          "first": 0,
+          "stereo": true,
+          "monitor": "Auto",
+          "trim_db": 0.0
+        },
+        "armed": true,
+        "takes_open": true,
+        "pitch_open": true,
+        "comps": [
+          {
+            "name": "A"
+          },
+          {
+            "name": "B",
+            "windows": [
+              {
+                "id": 82,
+                "name": "Vocal take 0",
+                "start": 7680,
+                "length": 3840,
+                "offset": 11520,
+                "content_length": null,
+                "muted": false,
+                "color": null,
+                "notes": [],
+                "audio": {
+                  "source": 40,
+                  "gain_db": 0.0,
+                  "fade_in": 0,
+                  "fade_out": 0,
+                  "fade_in_curve": "Linear",
+                  "fade_out_curve": "Linear",
+                  "reverse": false,
+                  "pitch": {
+                    "rate": 48000,
+                    "frames": 384000,
+                    "analyser": 1,
+                    "key": {
+                      "tonic": 9,
+                      "scale": 2
+                    },
+                    "notes": [
+                      {
+                        "id": 0,
+                        "src_start": 24000,
+                        "src_end": 60000,
+                        "sung": 68.7,
+                        "level_db": -14.0,
+                        "pitch": 67.0,
+                        "centre": 1.0,
+                        "start": 24000,
+                        "end": 60000
+                      },
+                      {
+                        "id": 1,
+                        "src_start": 72000,
+                        "src_end": 120000,
+                        "sung": 72.1,
+                        "level_db": -12.5,
+                        "pitch": 72.0,
+                        "start": 74400,
+                        "end": 124800
+                      },
+                      {
+                        "id": 2,
+                        "src_start": 132000,
+                        "src_end": 180000,
+                        "sung": 76.0,
+                        "level_db": -16.0,
+                        "pitch": 76.0,
+                        "formant": -2.0,
+                        "start": 132000,
+                        "end": 180000
+                      }
+                    ],
+                    "bypass": true
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 48,
+        "name": "Synth",
+        "color": {
+          "r": 216,
+          "g": 192,
+          "b": 74
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "External",
+          "format": "Clap",
+          "id": "org.cantus.test.synth",
+          "name": "Cantus Test Synth",
+          "vendor": "Cantus Tests",
+          "sidechain": false,
+          "state": "Q1RTMSBvcGFxdWUgaW5zdHJ1bWVudCBzdGF0ZQ==",
+          "params": {
+            "0": -4.5,
+            "7": 0.30000000000000004
+          }
+        },
+        "clips": [
+          {
+            "id": 49,
+            "name": "Riff",
+            "start": 0,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 50,
+                "start": 0,
+                "length": 960,
+                "pitch": 48,
+                "velocity": 100,
+                "muted": false
+              }
+            ],
+            "link": 51
+          },
+          {
+            "id": 52,
+            "name": "Riff",
+            "start": 3840,
+            "length": 3840,
+            "offset": 0,
+            "content_length": null,
+            "muted": false,
+            "color": null,
+            "notes": [
+              {
+                "id": 50,
+                "start": 0,
+                "length": 960,
+                "pitch": 48,
+                "velocity": 100,
+                "muted": false
+              }
+            ],
+            "link": 51
+          }
+        ],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 7,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false,
+        "modulators": [
+          {
+            "id": 78,
+            "source": {
+              "Step": {
+                "steps": [
+                  1.0,
+                  -0.5,
+                  0.25,
+                  -1.0,
+                  0.75,
+                  0.0,
+                  -0.25,
+                  0.5
+                ],
+                "division": 14,
+                "glide": 0.25,
+                "unipolar": false
+              }
+            },
+            "routes": [
+              {
+                "target": {
+                  "PluginInstrument": {
+                    "track": 48,
+                    "id": 7
+                  }
+                },
+                "depth": 0.5
+              }
+            ]
+          },
+          {
+            "id": 79,
+            "source": {
+              "Random": {
+                "rate": {
+                  "Sync": {
+                    "division": 11
+                  }
+                },
+                "smooth": true,
+                "seed": 28,
+                "unipolar": false
+              }
+            },
+            "routes": [
+              {
+                "target": {
+                  "ModAmount": 75
+                },
+                "depth": -0.5
+              }
+            ],
+            "amount": 0.8
+          }
+        ]
+      },
+      {
+        "id": 56,
+        "name": "Lamina",
+        "color": {
+          "r": 74,
+          "g": 143,
+          "b": 216
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "ElectricPiano"
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 8,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 57,
+        "name": "Exemplar",
+        "color": {
+          "r": 201,
+          "g": 111,
+          "b": 158
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "Sampler",
+          "params": {
+            "trim": 0.0
+          }
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 9,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 58,
+        "name": "Exemplar pedal",
+        "color": {
+          "r": 224,
+          "g": 142,
+          "b": 58
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "Sampler",
+          "params": {
+            "z0.gen": 1.0,
+            "z1.cc": 64.0,
+            "z1.cclo": 126.0,
+            "z1.gain": -20.0,
+            "z1.gen": 5.0,
+            "z1.trig": 5.0
+          }
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 10,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 59,
+        "name": "Modulation",
+        "color": {
+          "r": 79,
+          "g": 163,
+          "b": 199
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Saw",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 2200.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 11,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 68,
+        "name": "Dynamics and pitch",
+        "color": {
+          "r": 179,
+          "g": 107,
+          "b": 214
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Firmus",
+          "osc1_wave": "Saw",
+          "osc2_wave": "Saw",
+          "osc2_semitones": 0.0,
+          "osc2_detune_cents": 8.0,
+          "osc_mix": 0.5,
+          "cutoff_hz": 2200.0,
+          "resonance": 0.25,
+          "filter_env_octaves": 2.0,
+          "key_track": 0.5,
+          "amp_attack_s": 0.005,
+          "amp_decay_s": 0.15,
+          "amp_sustain": 0.8,
+          "amp_release_s": 0.25,
+          "filter_attack_s": 0.01,
+          "filter_decay_s": 0.3,
+          "filter_sustain": 0.3,
+          "filter_release_s": 0.3,
+          "gain_db": -6.0
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 12,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      },
+      {
+        "id": 74,
+        "name": "Chorda",
+        "color": {
+          "r": 92,
+          "g": 184,
+          "b": 110
+        },
+        "height": 1.0,
+        "icon": null,
+        "instrument": {
+          "type": "Native",
+          "kind": "Chorda"
+        },
+        "clips": [],
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "strip": 13,
+        "muted": false,
+        "soloed": false,
+        "armed": false,
+        "takes_open": false
+      }
+    ],
+    "strips": [
+      {
+        "id": 1,
+        "name": "Keys bus",
+        "gain_db": -4.5,
+        "pan": 0.25,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [
+          {
+            "id": 18,
+            "bypass": false,
+            "spec": {
+              "kind": "Delay",
+              "params": {
+                "feedback": 0.4,
+                "mix": 0.2,
+                "ping_pong": 1.0,
+                "time_ms": 375.0,
+                "tone_hz": 6000.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 35,
+            "bypass": false,
+            "spec": {
+              "kind": "Eq",
+              "params": {
+                "b0.freq": 2500.0,
+                "b0.gain": 3.0,
+                "b0.used": 1.0,
+                "b1.freq": 90.0,
+                "b1.shape": 3.0,
+                "b1.slope": 24.0,
+                "b1.used": 1.0,
+                "b4.dyn": 1.0,
+                "b4.freq": 6000.0,
+                "b4.gain": 0.5,
+                "b4.place": 3.0,
+                "b4.used": 1.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 36,
+            "bypass": false,
+            "spec": {
+              "kind": "Compressor",
+              "params": {
+                "style": 2.0,
+                "thr": -30.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": 2
+          }
+        ],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [
+          {
+            "to": 6,
+            "level": 0.4,
+            "enabled": true
+          },
+          {
+            "to": 2,
+            "level": 1.0,
+            "enabled": false
+          }
+        ],
+        "color": null,
+        "dock": "Middle",
+        "group": 34,
+        "modulators": [
+          {
+            "id": 76,
+            "source": {
+              "Envelope": {
+                "attack_ms": 10.0,
+                "decay_ms": 300.0,
+                "sustain": 0.5,
+                "release_ms": 300.0,
+                "trigger": {
+                  "Notes": {
+                    "track": null
+                  }
+                }
+              }
+            },
+            "routes": [
+              {
+                "target": {
+                  "StripGain": 1
+                },
+                "depth": -0.25
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": true,
+        "swap_channels": true,
+        "fx_enabled": false,
+        "effects": [
+          {
+            "id": 38,
+            "bypass": false,
+            "spec": {
+              "kind": "Gate",
+              "params": {
+                "att": 1.0,
+                "hold": 20.0,
+                "hpf": 20.0,
+                "hyst": 4.0,
+                "key_slope": 24.0,
+                "knee": 0.0,
+                "listen": 0.0,
+                "look": 0.0,
+                "lpf": 20000.0,
+                "range": 40.0,
+                "ratio": 100.0,
+                "rel": 150.0,
+                "style": 0.0,
+                "thr": -40.0,
+                "trig": 1.0,
+                "vel": 12.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null,
+            "midi_from": 17
+          }
+        ],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": 34
+      },
+      {
+        "id": 3,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 0.0,
+        "phase_invert": true,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": 2,
+        "sends": [
+          {
+            "to": 6,
+            "level": 0.5,
+            "enabled": true,
+            "tap": "Pre"
+          }
+        ],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 4,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 5,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 6,
+        "name": "Return",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [
+          {
+            "id": 33,
+            "bypass": false,
+            "spec": {
+              "kind": "Reverb",
+              "params": {
+                "damping": 0.4,
+                "mix": 0.25,
+                "predelay_ms": 10.0,
+                "size": 0.7,
+                "width": 1.0
+              }
+            },
+            "mix": 0.5,
+            "sidechain": null
+          },
+          {
+            "id": 37,
+            "bypass": false,
+            "spec": {
+              "kind": "External",
+              "params": {},
+              "external": {
+                "format": "Clap",
+                "id": "org.cantus.fixture.absent",
+                "name": "Absent",
+                "vendor": "Cantus Fixtures",
+                "sidechain": true,
+                "state": "Q1RHMSBvcGFxdWUgc3RhdGUgAAH+/w==",
+                "params": {
+                  "0": -6.25,
+                  "1": 128.0,
+                  "1024": 0.30000000000000004
+                }
+              }
+            },
+            "mix": 0.75,
+            "sidechain": 2
+          }
+        ],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": -3.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 6000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Left",
+        "group": null
+      },
+      {
+        "id": 7,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 8,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 9,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 10,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 11,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [
+          {
+            "id": 60,
+            "bypass": false,
+            "spec": {
+              "kind": "Chorus",
+              "params": {
+                "delay": 7.0,
+                "depth": 2.0,
+                "div": 3.0,
+                "mix": 0.0,
+                "mode": 0.0,
+                "out": -3.0,
+                "rate": 0.8,
+                "shape": 1.0,
+                "spread": 1.0,
+                "sync": 0.0,
+                "tone": 9000.0,
+                "voices": 3.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 61,
+            "bypass": false,
+            "spec": {
+              "kind": "Flanger",
+              "params": {
+                "att": 5.0,
+                "delay": 0.5,
+                "depth": 4.0,
+                "div": 2.0,
+                "fb": 0.0,
+                "invert": 0.0,
+                "manual": 0.5,
+                "mix": 0.0,
+                "mode": 0.0,
+                "out": 0.0,
+                "rate": 0.25,
+                "rel": 200.0,
+                "sens": 24.0,
+                "shape": 1.0,
+                "spread": 0.0,
+                "sync": 0.0,
+                "tz": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 62,
+            "bypass": false,
+            "spec": {
+              "kind": "Phaser",
+              "params": {
+                "div": 5.0,
+                "edge": 0.3,
+                "fb": 0.0,
+                "hi": 2000.0,
+                "lo": 200.0,
+                "mix": 0.0,
+                "out": 0.0,
+                "rate": 0.5,
+                "shape": 0.0,
+                "spread": 0.0,
+                "stages": 4.0,
+                "sync": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 63,
+            "bypass": false,
+            "spec": {
+              "kind": "Tremolo",
+              "params": {
+                "depth": 0.0,
+                "div": 11.0,
+                "edge": 0.3,
+                "mode": 0.0,
+                "offset": 0.0,
+                "out": 0.0,
+                "rate": 4.0,
+                "shape": 0.0,
+                "spread": 0.0,
+                "swing": 0.0,
+                "sync": 1.0,
+                "xover": 700.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 64,
+            "bypass": false,
+            "spec": {
+              "kind": "Vibrato",
+              "params": {
+                "depth": 0.0,
+                "div": 14.0,
+                "mix": 1.0,
+                "out": 0.0,
+                "rate": 5.5,
+                "rise": 0.0,
+                "shape": 0.0,
+                "spread": 0.0,
+                "sync": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 65,
+            "bypass": false,
+            "spec": {
+              "kind": "RingMod",
+              "params": {
+                "div": 3.0,
+                "freq": 440.0,
+                "lfo": 0.0,
+                "mix": 0.0,
+                "out": 0.0,
+                "rate": 0.5,
+                "shape": 0.0,
+                "spread": 0.0,
+                "sync": 0.0,
+                "wave": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 66,
+            "bypass": false,
+            "spec": {
+              "kind": "FreqShift",
+              "params": {
+                "div": 3.0,
+                "fb": 0.0,
+                "lfo": 0.0,
+                "mix": 0.0,
+                "out": 0.0,
+                "rate": 0.2,
+                "shape": 0.0,
+                "shift": 10.0,
+                "side": 0.0,
+                "sync": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 67,
+            "bypass": false,
+            "spec": {
+              "kind": "VolumeShaper",
+              "params": {}
+            },
+            "mix": 1.0,
+            "sidechain": null
+          }
+        ],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 12,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [
+          {
+            "id": 69,
+            "bypass": false,
+            "spec": {
+              "kind": "Clipper",
+              "params": {
+                "ceil": 0.0,
+                "curve": 1.0,
+                "drive": 0.0,
+                "knee": 0.0,
+                "match": 0.0,
+                "os": 0.0,
+                "out": 0.0,
+                "tp": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 70,
+            "bypass": false,
+            "spec": {
+              "kind": "Transient",
+              "params": {
+                "attack": 0.0,
+                "band": 0.0,
+                "length": 250.0,
+                "out": 0.0,
+                "speed": 15.0,
+                "sustain": 0.0,
+                "xover": 200.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": 2
+          },
+          {
+            "id": 71,
+            "bypass": false,
+            "spec": {
+              "kind": "TransientSplit",
+              "params": {
+                "b.comp": 0.0,
+                "b.gain": 0.0,
+                "b.tilt": 0.0,
+                "listen": 0.0,
+                "mode": 0.0,
+                "out": 0.0,
+                "sens": 0.5,
+                "speed": 10.0,
+                "t.comp": 0.0,
+                "t.gain": 0.0,
+                "t.tilt": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 72,
+            "bypass": false,
+            "spec": {
+              "kind": "Analyzer",
+              "params": {
+                "avg": 250.0,
+                "beats": 2.0,
+                "chan": 0.0,
+                "fft": 3.0,
+                "floor": 1.0,
+                "hold": 1.0,
+                "ms": 20.0,
+                "slope": 4.5,
+                "sync": 2.0,
+                "target": -14.0,
+                "view": 0.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null
+          },
+          {
+            "id": 73,
+            "bypass": false,
+            "spec": {
+              "kind": "AutoTune",
+              "params": {
+                "a4": 440.0,
+                "amount": 1.0,
+                "flex": 0.0,
+                "formant": 1.0,
+                "human": 0.0,
+                "key": 0.0,
+                "n0": 0.0,
+                "n1": 0.0,
+                "n10": 0.0,
+                "n11": 0.0,
+                "n2": 0.0,
+                "n3": 0.0,
+                "n4": 0.0,
+                "n5": 0.0,
+                "n6": 0.0,
+                "n7": 0.0,
+                "n8": 0.0,
+                "n9": 0.0,
+                "scale": 0.0,
+                "speed": 20.0,
+                "src": 0.0,
+                "throat": 0.0,
+                "trans": 0.0,
+                "vdepth": 0.0,
+                "vib": 0.0,
+                "vrate": 5.0
+              }
+            },
+            "mix": 1.0,
+            "sidechain": null,
+            "midi_from": 17
+          }
+        ],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 13,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Middle",
+        "group": null
+      },
+      {
+        "id": 14,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      },
+      {
+        "id": 15,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      },
+      {
+        "id": 16,
+        "name": "",
+        "gain_db": 0.0,
+        "pan": 0.0,
+        "width": 1.0,
+        "phase_invert": false,
+        "muted": false,
+        "soloed": false,
+        "swap_channels": false,
+        "fx_enabled": true,
+        "effects": [],
+        "eq": {
+          "bands": [
+            {
+              "freq_hz": 100.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 1000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            },
+            {
+              "freq_hz": 8000.0,
+              "gain_db": 0.0,
+              "q": 0.71
+            }
+          ]
+        },
+        "output": null,
+        "sends": [],
+        "color": null,
+        "dock": "Right",
+        "group": null
+      }
+    ],
+    "strip_groups": [
+      {
+        "id": 34,
+        "name": "Rhythm",
+        "color": {
+          "r": 92,
+          "g": 184,
+          "b": 110
+        },
+        "collapsed": true
+      }
+    ],
+    "master": {
+      "gain_db": 0.0,
+      "pan": -0.25,
+      "width": 1.5,
+      "phase_invert": false,
+      "effects": [
+        {
+          "id": 44,
+          "bypass": false,
+          "spec": {
+            "kind": "Limiter",
+            "params": {
+              "att": 10.0,
+              "ceiling": -0.3,
+              "clip": 0.0,
+              "dc": 0.0,
+              "delta": 0.0,
+              "dither": 0.0,
+              "gain": 0.0,
+              "knee": 0.0,
+              "link_r": 1.0,
+              "link_t": 0.75,
+              "look": 2.0,
+              "monitor": 0.0,
+              "rel": 200.0,
+              "shape": 0.0,
+              "style": 0.0,
+              "target": -14.0,
+              "tp": 1.0
+            }
+          },
+          "mix": 1.0,
+          "sidechain": null
+        }
+      ],
+      "fx_enabled": true,
+      "modulators": [
+        {
+          "id": 77,
+          "source": {
+            "Follower": {
+              "listen": {
+                "Strip": 2
+              },
+              "attack_ms": 5.0,
+              "release_ms": 150.0,
+              "gain_db": 6.0
+            }
+          },
+          "routes": [
+            {
+              "target": "MasterWidth",
+              "depth": -0.5
+            }
+          ]
+        }
+      ]
+    },
+    "loop_region": {
+      "start": 0,
+      "end": 15360
+    },
+    "loop_enabled": true,
+    "metronome": false,
+    "pan_law": "-3",
+    "audio_pool": [
+      {
+        "id": 40,
+        "name": "Vocal take 1",
+        "path": "Audio/Vocal take 1.wav",
+        "sample_rate": 48000,
+        "channels": 2,
+        "frames": 384000,
+        "recorded": true
+      }
+    ],
+    "recording": {
+      "count_in_bars": 1,
+      "punch": {
+        "start": 3840,
+        "end": 11520
+      },
+      "punch_enabled": false,
+      "take_mode": "Stack",
+      "click": "Recording",
+      "click_db": 0.0,
+      "loop_takes": true,
+      "click_sound": "Wood",
+      "click_accent": false,
+      "record_automation": false,
+      "comp_xfade_ms": 15.0
+    },
+    "pattern_mode": true,
+    "next_id": 83
+  },
+  "integrity": "453e6c754f47b97c9e66aa1ac183c5b90bd687212abbbc3697576cebef20129a"
+}

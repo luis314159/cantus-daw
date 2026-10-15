@@ -8,3 +8,6 @@
 Thumbs.db
 
 /.playwright-mcp/
+
+# A regenerated fixture's atomic-save backup (round 28 review)
+crates/cantus-project/fixtures/*.bak

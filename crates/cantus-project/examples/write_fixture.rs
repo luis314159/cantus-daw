@@ -628,6 +628,16 @@ fn main() {
         p.recording.comp_xfade_ms = 15.0;
         p.recording.record_automation = false;
     }
+    // Schema 30 (round 28, review 2): the vocal's second note set by *Correct pitch* at
+    // 50 %, which the note now records.
+    if let Some(e) = p.tracks[vocal_index]
+        .clips
+        .iter_mut()
+        .filter(|c| c.lane == 0)
+        .find_map(|c| c.audio.as_mut().and_then(|a| a.pitch.as_mut()))
+    {
+        cantus_core::pitch::edit::correct_pitch(e, &[1], 0.5);
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
