@@ -348,7 +348,7 @@ fn partials_card(
                 }
                 // The tone's fundamental named on its line, in its own case (a title in
                 // capitals would print "HZ").
-                let t = Text::new("220 Hz", Role::Micro, ink.dim);
+                let t = Text::new("220 Hz", Role::Micro, ink.dim).caps(false);
                 canvas::put(
                     b,
                     pos2(x_of(220.0) + 4.0 * k, plot.top()),
@@ -358,7 +358,7 @@ fn partials_card(
                     Some(ink.plate),
                 );
                 for (word, at) in [("100", 100.0f32), ("1k", 1_000.0)] {
-                    let t = Text::new(word, Role::Micro, ink.dim);
+                    let t = Text::new(word, Role::Micro, ink.dim).caps(false);
                     canvas::put(
                         b,
                         pos2(x_of(at), r.bottom() - 2.0 * k),

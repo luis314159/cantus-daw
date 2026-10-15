@@ -361,7 +361,7 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
                     b.dot(pos2(x, y_of(amp)), 2.5 * k, ink.hue);
                 }
                 for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
-                    let t = Text::new(word, Role::Micro, ink.dim);
+                    let t = Text::new(word, Role::Micro, ink.dim).caps(false);
                     canvas::put(
                         b,
                         pos2(x_of(at), r.bottom() - 2.0 * k),
@@ -382,7 +382,7 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
                 );
                 // The tone's frequency under its name, in its own case (a title in capitals
                 // would print "KHZ").
-                let t = Text::new("1 kHz", Role::Micro, ink.text);
+                let t = Text::new("1 kHz", Role::Micro, ink.text).caps(false);
                 canvas::put(
                     b,
                     pos2(word.left(), word.bottom() + 2.0 * k),
