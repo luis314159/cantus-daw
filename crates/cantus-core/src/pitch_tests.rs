@@ -10,7 +10,11 @@ const HOP: usize = 256;
 /// with the first and last out of tune), each 0.5 s, gaps of 0.25 s.
 fn take() -> (PitchEdit, Vec<f32>) {
     let len = SR as u64 * 3;
-    let spans = [(12_000u64, 36_000u64, 60.3f32), (48_000, 72_000, 64.0), (84_000, 108_000, 67.2)];
+    let spans = [
+        (12_000u64, 36_000u64, 60.3f32),
+        (48_000, 72_000, 64.0),
+        (84_000, 108_000, 67.2),
+    ];
     let mut midi = vec![f32::NAN; (len as usize).div_ceil(HOP) + 1];
     for (a, b, m) in spans {
         for (i, v) in midi.iter_mut().enumerate() {
@@ -94,7 +98,10 @@ fn the_centre_pulls_onto_the_note_and_a_move_keeps_the_deviation() {
     assert!((e.note(0).unwrap().out_centre() - 60.15).abs() < 1e-5);
     edit::set_field(&mut e, &[0], Field::Centre, 0.0);
     edit::set_pitch(&mut e, 0, 62.0);
-    assert!((e.note(0).unwrap().out_centre() - 62.3).abs() < 1e-5, "moved, as sung");
+    assert!(
+        (e.note(0).unwrap().out_centre() - 62.3).abs() < 1e-5,
+        "moved, as sung"
+    );
     // Clamped: a move is at most two octaves; a centre 0 … 1.
     edit::set_pitch(&mut e, 0, 200.0);
     assert_eq!(e.note(0).unwrap().pitch, 60.0 + MAX_MOVE);
@@ -110,7 +117,7 @@ fn drifting(len_s: f64) -> (PitchNote, Vec<f32>, Vec<f32>, Vec<f32>) {
     for i in 0..n_frames {
         let t = (i * HOP) as f64 / SR as f64;
         let drift = 0.6 * (t / len_s) - 0.3;
-        let vib = 0.5 * (2.0 * std::f64::consts::PI * 5.5 * t).sin();
+        let vib = 0.5 * cantus_dsp::math::sin(2.0 * std::f64::consts::PI * 5.5 * t);
         midi.push((62.0 + drift + vib) as f32);
         d.push(drift as f32);
         v.push(vib as f32);
@@ -159,8 +166,14 @@ fn drift_and_vibrato_scale_their_own_part() {
     let still = Curves::new(&mk(1.0, 0.0), &f);
     for i in (40..midi.len() - 40).step_by(5) {
         let t = (i * HOP) as f64;
-        assert!((flat.shift_at(t) + p.drift[i]).abs() < 1e-5, "drift removed");
-        assert!((still.shift_at(t) + p.vibrato[i]).abs() < 1e-5, "vibrato removed");
+        assert!(
+            (flat.shift_at(t) + p.drift[i]).abs() < 1e-5,
+            "drift removed"
+        );
+        assert!(
+            (still.shift_at(t) + p.vibrato[i]).abs() < 1e-5,
+            "vibrato removed"
+        );
     }
 }
 
@@ -209,7 +222,11 @@ fn timing_stops_at_the_neighbours_and_at_the_shortest_note() {
     let (mut e, _) = take();
     edit::set_timing(&mut e, 1, 0, 200_000);
     let n = e.note(1).unwrap();
-    assert_eq!((n.start, n.end), (36_001, 83_999), "strictly between, gaps kept");
+    assert_eq!(
+        (n.start, n.end),
+        (36_001, 83_999),
+        "strictly between, gaps kept"
+    );
     edit::set_timing(&mut e, 1, 60_000, 60_000);
     let n = e.note(1).unwrap();
     assert_eq!(n.end - n.start, e.min_len());
@@ -230,7 +247,11 @@ fn split_and_join_give_the_note_back() {
     assert_eq!(e.notes.len(), 4);
     let (l, r) = (&e.notes[1], &e.notes[2]);
     assert_eq!((l.id, l.src_end, r.src_start, r.id), (1, 60_000, 60_000, 3));
-    assert_eq!((l.pitch, r.pitch), (65.0, 65.0), "the move kept on both halves");
+    assert_eq!(
+        (l.pitch, r.pitch),
+        (65.0, 65.0),
+        "the move kept on both halves"
+    );
     assert!(e.is_valid());
     // Too near an end: refused.
     assert!(!edit::split(&mut e, 1, 48_100, None));
@@ -238,7 +259,10 @@ fn split_and_join_give_the_note_back() {
     assert_eq!(e.notes.len(), 3);
     let j = &e.notes[1];
     let b = &before.notes[1];
-    assert_eq!((j.src_start, j.src_end, j.start, j.end), (b.src_start, b.src_end, b.start, b.end));
+    assert_eq!(
+        (j.src_start, j.src_end, j.start, j.end),
+        (b.src_start, b.src_end, b.start, b.end)
+    );
     assert!((j.sung - b.sung).abs() < 1e-5);
     assert_eq!(j.pitch, b.pitch);
     // Notes that are not neighbours do not join.
@@ -249,7 +273,8 @@ fn split_and_join_give_the_note_back() {
 fn correct_pitch_puts_the_take_in_its_key() {
     let (mut e, _) = take();
     // C major: 60.3 → C, 64.0 → E, 67.2 → G; and a C# sung 61.4 goes to D.
-    e.notes.push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
+    e.notes
+        .push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
     let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
     assert!(edit::correct_pitch(&mut e, &ids, 1.0));
     let got: Vec<f32> = e.notes.iter().map(|n| n.out_centre()).collect();
@@ -273,7 +298,10 @@ fn quantise_moves_whole_notes_to_the_grid() {
     let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
     assert!(edit::quantise(&mut e, &ids, snap));
     let starts: Vec<(u64, u64)> = e.notes.iter().map(|n| (n.start, n.end - n.start)).collect();
-    assert_eq!(starts, vec![(10_000, 24_000), (50_000, 24_000), (80_000, 24_000)]);
+    assert_eq!(
+        starts,
+        vec![(10_000, 24_000), (50_000, 24_000), (80_000, 24_000)]
+    );
     assert!(e.is_valid());
 }
 
@@ -312,7 +340,11 @@ fn midi_out_and_the_double() {
     assert!(m.iter().all(|n| n.velocity > 64 && n.velocity < 127));
     let third = midi::double(&e, Interval::Third);
     let outs: Vec<f32> = third.notes.iter().map(|n| n.out_centre().round()).collect();
-    assert_eq!(outs, vec![64.0, 67.0, 71.0], "a diatonic third above in C major");
+    assert_eq!(
+        outs,
+        vec![64.0, 67.0, 71.0],
+        "a diatonic third above in C major"
+    );
     let fifth = midi::double(&e, Interval::Fifth);
     let outs: Vec<f32> = fifth.notes.iter().map(|n| n.out_centre().round()).collect();
     assert_eq!(outs, vec![67.0, 71.0, 74.0]);
@@ -347,7 +379,10 @@ fn invalid_edits_are_told_apart() {
     assert!(bad(&|x| x.notes[0].drift = f32::NAN));
     assert!(bad(&|x| x.notes[0].gain_db = 40.0));
     assert!(bad(&|x| x.notes[2].id = 0), "a duplicate id");
-    assert!(bad(&|x| x.notes[1].start = 36_000), "a source gap closed to nothing");
+    assert!(
+        bad(&|x| x.notes[1].start = 36_000),
+        "a source gap closed to nothing"
+    );
     assert!(bad(&|x| x.rate = 0));
 }
 

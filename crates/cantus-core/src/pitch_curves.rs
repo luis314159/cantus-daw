@@ -84,7 +84,13 @@ pub fn decompose(note: &PitchNote, f: &Frames, rate: u32) -> Parts {
     let (a, b) = f.range(note.src_start, note.src_end);
     let dev: Vec<f32> = f.midi[a..b]
         .iter()
-        .map(|m| if m.is_finite() { m - note.sung } else { f32::NAN })
+        .map(|m| {
+            if m.is_finite() {
+                m - note.sung
+            } else {
+                f32::NAN
+            }
+        })
         .collect();
     let hop_s = f.hop.max(1) as f64 / rate.max(1) as f64;
     let mut drift = dev.clone();
@@ -190,7 +196,11 @@ impl Spans {
             return 0.0;
         }
         if self.short_gap(a, b) {
-            return if k > 0 && k < n { 0.5 * (sa + sb) } else { sa + sb };
+            return if k > 0 && k < n {
+                0.5 * (sa + sb)
+            } else {
+                sa + sb
+            };
         }
         let (lo, hi) = (a + self.margin, b - self.margin);
         let lerp = |x: f64, x0: f64, x1: f64, y0: f32, y1: f32| -> f32 {
@@ -320,12 +330,18 @@ impl Curves {
         let r = self.out.margin.min((b - a) / 4.0).max(1.0);
         let edge = |gap_short: bool, other: f32| if gap_short { 0.5 * (g + other) } else { 0.0 };
         let left = if i > 0 {
-            edge(self.out.short_gap(self.out.ends[i - 1], a), self.gains[i - 1])
+            edge(
+                self.out.short_gap(self.out.ends[i - 1], a),
+                self.gains[i - 1],
+            )
         } else {
             0.0
         };
         let right = if i + 1 < self.gains.len() {
-            edge(self.out.short_gap(b, self.out.starts[i + 1]), self.gains[i + 1])
+            edge(
+                self.out.short_gap(b, self.out.starts[i + 1]),
+                self.gains[i + 1],
+            )
         } else {
             0.0
         };

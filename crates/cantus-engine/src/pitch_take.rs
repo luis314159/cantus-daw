@@ -228,8 +228,12 @@ fn dips(a: &Analysis, s: usize, e: usize, min: usize, hop: usize, rate: u32) -> 
     while i + min <= e {
         let local_min = lv(i) <= lv(i - 1) && lv(i) <= lv(i + 1);
         if local_min {
-            let left = (i.saturating_sub(span).max(s)..i).map(lv).fold(f32::MIN, f32::max);
-            let right = (i + 1..(i + 1 + span).min(e)).map(lv).fold(f32::MIN, f32::max);
+            let left = (i.saturating_sub(span).max(s)..i)
+                .map(lv)
+                .fold(f32::MIN, f32::max);
+            let right = (i + 1..(i + 1 + span).min(e))
+                .map(lv)
+                .fold(f32::MIN, f32::max);
             if lv(i) < left - DIP_DB && lv(i) < right - DIP_DB {
                 out.push(i);
                 i += min;
@@ -321,8 +325,7 @@ fn steps(
         };
         let me = mean(bounds[k], bounds[k + 1]);
         let left = (k > 0).then(|| (mean(bounds[k - 1], bounds[k]) - me).abs());
-        let right =
-            (k + 2 < bounds.len()).then(|| (mean(bounds[k + 1], bounds[k + 2]) - me).abs());
+        let right = (k + 2 < bounds.len()).then(|| (mean(bounds[k + 1], bounds[k + 2]) - me).abs());
         // Remove the boundary toward the nearer neighbour.
         match (left, right) {
             (Some(l), Some(r)) if r < l => bounds.remove(k + 1),
@@ -334,7 +337,9 @@ fn steps(
     let reach = frames_of(SMOOTH_S / 2.0, hop, rate);
     for k in 1..bounds.len() - 1 {
         let (lo, hi) = (
-            bounds[k].saturating_sub(reach).max(bounds[k - 1] + min / 2 + 1),
+            bounds[k]
+                .saturating_sub(reach)
+                .max(bounds[k - 1] + min / 2 + 1),
             (bounds[k] + reach).min(bounds[k + 1].saturating_sub(min / 2 + 1)),
         );
         let mut at = bounds[k];

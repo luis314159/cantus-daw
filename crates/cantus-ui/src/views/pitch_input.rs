@@ -81,7 +81,14 @@ pub(super) fn bars(
         (grid.width() as f64 / ZOOM_MAX / rate) as f32,
         (grid.width() as f64 / ZOOM_MIN / rate) as f32,
     ));
-    if let Some(n) = chrome::bar(ui, hbar, ui.id().with("pitch-hbar"), span, zoom, "views.nav.hbar") {
+    if let Some(n) = chrome::bar(
+        ui,
+        hbar,
+        ui.id().with("pitch-hbar"),
+        span,
+        zoom,
+        "views.nav.hbar",
+    ) {
         v.scroll = n.start as f64 * rate;
         v.px_per_frame = (grid.width() as f64 / (n.len as f64 * rate)).clamp(ZOOM_MIN, ZOOM_MAX);
     }
@@ -90,8 +97,18 @@ pub(super) fn bars(
     let rows = HIGHEST - 12.0;
     let shown = grid.height() / v.row_h;
     let span = Span::new((HIGHEST - v.top).max(0.0), shown.min(rows), rows);
-    let zoom = Some((grid.height() / super::ROW_MAX, grid.height() / super::ROW_MIN));
-    if let Some(n) = chrome::bar(ui, vbar, ui.id().with("pitch-vbar"), span, zoom, "views.nav.vbar") {
+    let zoom = Some((
+        grid.height() / super::ROW_MAX,
+        grid.height() / super::ROW_MIN,
+    ));
+    if let Some(n) = chrome::bar(
+        ui,
+        vbar,
+        ui.id().with("pitch-vbar"),
+        span,
+        zoom,
+        "views.nav.vbar",
+    ) {
         v.row_h = (grid.height() / n.len).clamp(super::ROW_MIN, super::ROW_MAX);
         v.top = (HIGHEST - n.start).clamp(12.0, HIGHEST);
     }
@@ -106,7 +123,10 @@ enum Part {
 }
 
 fn hit(blobs: &[(u32, Rect)], p: Pos2, k: f32) -> Option<(u32, Part)> {
-    let (id, r) = blobs.iter().rev().find(|(_, r)| r.expand2(egui::vec2(1.0, 2.0)).contains(p))?;
+    let (id, r) = blobs
+        .iter()
+        .rev()
+        .find(|(_, r)| r.expand2(egui::vec2(1.0, 2.0)).contains(p))?;
     let e = (EDGE * k).min(r.width() / 4.0);
     let part = if p.x - r.left() <= e {
         Part::Left
@@ -130,8 +150,16 @@ pub(super) fn canvas(
     geo: &Geo,
 ) {
     let k = crate::kit::Style::current().k;
-    let resp = ui.interact(geo.grid, Id::new(("pitch-canvas", clip.0)), Sense::click_and_drag());
-    let ruler = ui.interact(geo.ruler, Id::new(("pitch-ruler", clip.0)), Sense::click_and_drag());
+    let resp = ui.interact(
+        geo.grid,
+        Id::new(("pitch-canvas", clip.0)),
+        Sense::click_and_drag(),
+    );
+    let ruler = ui.interact(
+        geo.ruler,
+        Id::new(("pitch-ruler", clip.0)),
+        Sense::click_and_drag(),
+    );
     // The ruler: the playhead goes where it is clicked or dragged.
     if ruler.clicked() || ruler.dragged() {
         if let (Some(p), Some(tm)) = (ruler.interact_pointer_pos(), app.clip_time(track, clip)) {
@@ -143,7 +171,9 @@ pub(super) fn canvas(
     }
     let blobs = app.pitch.view.blobs.clone();
     let pointer = ui.input(|i| i.pointer.hover_pos());
-    let hover = pointer.filter(|p| geo.grid.contains(*p)).and_then(|p| hit(&blobs, p, k));
+    let hover = pointer
+        .filter(|p| geo.grid.contains(*p))
+        .and_then(|p| hit(&blobs, p, k));
     let tool = app.pitch.view.tool;
     if resp.hovered() {
         let icon = match (tool, hover.map(|h| h.1), &app.pitch.view.gesture) {
@@ -162,7 +192,12 @@ pub(super) fn canvas(
                 let txt = describe(n, current.rate);
                 hint::set_text(ui.ctx(), &txt, "", Caps::NONE);
             }
-            None => hint::set_text(ui.ctx(), &crate::i18n::t("pitch.canvas_tip"), "", Caps::NONE),
+            None => hint::set_text(
+                ui.ctx(),
+                &crate::i18n::t("pitch.canvas_tip"),
+                "",
+                Caps::NONE,
+            ),
         }
     }
     let (pressed, down, released, shift, alt) = ui.input(|i| {
@@ -201,7 +236,11 @@ pub(super) fn canvas(
                 }
                 let at_press = current.clone();
                 v.gesture = Some(match part {
-                    Part::Body => Gesture::Press { id, at_press, from: p },
+                    Part::Body => Gesture::Press {
+                        id,
+                        at_press,
+                        from: p,
+                    },
                     Part::Left | Part::Right => Gesture::Stretch {
                         id,
                         left: part == Part::Left,
@@ -238,12 +277,22 @@ pub(super) fn canvas(
         if let Some((id, _)) = resp.interact_pointer_pos().and_then(|p| hit(&blobs, p, k)) {
             let mut e = current.clone();
             let ids = selection_or(app, id);
-            let all = ids.iter().all(|i| e.note(*i).is_some_and(|n| n.centre == 1.0));
-            edit::set_field(&mut e, &ids, edit::Field::Centre, if all { 0.0 } else { 1.0 });
+            let all = ids
+                .iter()
+                .all(|i| e.note(*i).is_some_and(|n| n.centre == 1.0));
+            edit::set_field(
+                &mut e,
+                &ids,
+                edit::Field::Centre,
+                if all { 0.0 } else { 1.0 },
+            );
             app.commit_pitch(track, clip, Some(e), PitchOp::Centre, false);
         }
     }
-    if resp.hovered() || resp.has_focus() || app.pitch.view.geo.is_some() && pointer.is_some_and(|p| geo.panel.contains(p)) {
+    if resp.hovered()
+        || resp.has_focus()
+        || app.pitch.view.geo.is_some() && pointer.is_some_and(|p| geo.panel.contains(p))
+    {
         keys(app, ui, track, clip, current);
     }
 }
@@ -267,7 +316,10 @@ fn describe(n: &cantus_core::pitch::PitchNote, rate: u32) -> String {
     crate::i18n::tf(
         "pitch.note_tip",
         &[
-            ("note", &cantus_core::pitch_name(near.clamp(0.0, 127.0) as u8)),
+            (
+                "note",
+                &cantus_core::pitch_name(near.clamp(0.0, 127.0) as u8),
+            ),
             ("cents", &format!("{cents:+}")),
             ("secs", &format!("{secs:.2}")),
         ],
@@ -354,7 +406,11 @@ fn drag(
             let mut e = at_press.clone();
             if let Some(n) = at_press.note(id) {
                 let (s, en) = (n.start as i64, n.end as i64);
-                let (s, en) = if left { (s + delta, en) } else { (s, en + delta) };
+                let (s, en) = if left {
+                    (s + delta, en)
+                } else {
+                    (s, en + delta)
+                };
                 edit::set_timing(&mut e, id, s.max(0) as u64, en.max(0) as u64);
             }
             if e != *current_of(app, track, clip).as_ref().unwrap_or(&at_press) {

@@ -268,7 +268,11 @@ fn a_double_click_on_an_audio_clip_opens_its_notes() {
         assert!(g.grid.intersects(*b), "every note in view after the fit");
     }
     // The bar says what the take is.
-    assert!(r.texts.iter().any(|(t, _)| t.starts_with("4 notes")), "{:?}", r.texts);
+    assert!(
+        r.texts.iter().any(|(t, _)| t.starts_with("4 notes")),
+        "{:?}",
+        r.texts
+    );
     assert!(r.stored().is_none(), "looking stores nothing");
 }
 
@@ -285,7 +289,11 @@ fn a_drag_moves_a_notes_pitch_in_one_step_and_undo_gives_it_back() {
     let n = &e.notes[1];
     assert_eq!(n.pitch - n.home(), 2.0, "two semitones up");
     assert_eq!(r.app.bus.undo_label_key(), Some(PitchOp::Pitch.label_key()));
-    assert_eq!(r.app.bus.history().len(), 1, "one undo step for the whole drag");
+    assert_eq!(
+        r.app.bus.history().len(),
+        1,
+        "one undo step for the whole drag"
+    );
     r.app.undo();
     assert_eq!(r.app.project(), &before, "undone exactly");
     r.app.redo();
@@ -323,7 +331,10 @@ fn split_join_macros_and_the_original() {
     let at = r.word_starting("ORIGINAL");
     r.click(at);
     assert!(r.stored().unwrap().bypass);
-    assert_eq!(r.app.bus.undo_label_key(), Some(PitchOp::Compare.label_key()));
+    assert_eq!(
+        r.app.bus.undo_label_key(),
+        Some(PitchOp::Compare.label_key())
+    );
 }
 
 #[test]
@@ -335,7 +346,11 @@ fn midi_out_and_the_double_make_their_clips() {
     let (mt, mc) = r.app.pitch_to_midi(t, c, None).expect("a MIDI clip");
     let clip = r.app.project().track(mt).unwrap().clip(mc).unwrap().clone();
     let pitches: Vec<u8> = clip.notes.iter().map(|n| n.pitch).collect();
-    assert_eq!(pitches, vec![57, 60, 64, 62], "the notes as they sound, nearest");
+    assert_eq!(
+        pitches,
+        vec![57, 60, 64, 62],
+        "the notes as they sound, nearest"
+    );
     assert_eq!(r.app.project().tracks.len(), tracks + 1);
     // Onto the Keys track instead.
     let keys = r.app.project().tracks[0].id;
@@ -348,7 +363,11 @@ fn midi_out_and_the_double_make_their_clips() {
         .unwrap();
     let d = r.app.stored_pitch(dt, dc).unwrap().clone();
     let outs: Vec<f32> = d.notes.iter().map(|n| n.out_centre().round()).collect();
-    assert_eq!(outs, vec![60.0, 64.0, 67.0, 65.0], "a diatonic third above each");
+    assert_eq!(
+        outs,
+        vec![60.0, 64.0, 67.0, 65.0],
+        "a diatonic third above each"
+    );
     assert_eq!(r.app.bus.undo_label_key(), Some("cmd.pitch.double"));
     r.app.undo();
     assert!(r.app.project().track(dt).is_none(), "one step");
@@ -407,7 +426,13 @@ fn the_demo_project_opens_and_plays_its_edits() {
     let p = cantus_project::load(&path, true).unwrap().project;
     let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
     assert_eq!(names.len(), 5, "{names:?}");
-    let e = p.tracks[0].clips[0].audio.as_ref().unwrap().pitch.as_deref().unwrap();
+    let e = p.tracks[0].clips[0]
+        .audio
+        .as_ref()
+        .unwrap()
+        .pitch
+        .as_deref()
+        .unwrap();
     assert!(e.audible() && e.notes.len() >= 7, "{} notes", e.notes.len());
     assert!(!p.tracks[3].clips[0].notes.is_empty(), "the melody");
     let mut app = CantusApp::from_parts(Some(p), EngineHandle::dummy(), false);
@@ -416,7 +441,10 @@ fn the_demo_project_opens_and_plays_its_edits() {
     let file: Vec<f32> = cantus_ui::views::fx::tonus::demo::voice_line();
     let data = |i: usize| snap.tracks[i].audio[0].data.clone().expect("attached");
     let differs = |d: &cantus_core::SampleData| {
-        d.frames.iter().zip(&file).any(|(a, b)| a.to_bits() != b.to_bits())
+        d.frames
+            .iter()
+            .zip(&file)
+            .any(|(a, b)| a.to_bits() != b.to_bits())
     };
     // Muted tracks are not compiled: unmute to look at the double and the take as sung.
     assert!(differs(&data(0)), "the corrected voice plays its render");

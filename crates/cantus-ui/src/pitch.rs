@@ -180,11 +180,7 @@ impl CantusApp {
             time.tick(notes[0].start as f64),
             time.tick(notes.last().map_or(0, |n| n.end) as f64),
         );
-        let bar = self
-            .project()
-            .time_signature
-            .ticks_per_bar()
-            .max(Ticks(1));
+        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
         let start = first.snap_floor(bar).max(Ticks::ZERO);
         let length = Ticks(((last - start).0 + bar.0 - 1) / bar.0 * bar.0).max(bar);
         let name = self
@@ -215,7 +211,9 @@ impl CantusApp {
                     .track_index(track)
                     .map_or(self.project().tracks.len(), |i| i + 1);
                 let mut t = self.bus.new_track(format!("{name} · MIDI"));
-                t.strip = crate::audio_files::free_strips(self.project()).first().copied();
+                t.strip = crate::audio_files::free_strips(self.project())
+                    .first()
+                    .copied();
                 let id = t.id;
                 commands.push(Command::InsertTrack {
                     index,
@@ -254,7 +252,9 @@ impl CantusApp {
         let label = crate::i18n::t(interval.label_key());
         let mut t = self.bus.new_track(format!("{} · {label}", src_track.name));
         t.color = src_track.color;
-        t.strip = crate::audio_files::free_strips(self.project()).first().copied();
+        t.strip = crate::audio_files::free_strips(self.project())
+            .first()
+            .copied();
         let tid = t.id;
         let mut c = self.bus.new_clip(
             format!("{} · {label}", src_clip.name),

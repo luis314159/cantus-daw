@@ -50,8 +50,8 @@ fn voice_of(notes: &[Sung], seconds: f32) -> Vec<f32> {
     let f0 = |t: f64| -> f32 {
         for n in notes {
             if t >= n.from && t < n.to {
-                let vib = n.vibrato
-                    * math::sin(2.0 * std::f64::consts::PI * 5.5 * (t - n.from)) as f32;
+                let vib =
+                    n.vibrato * math::sin(2.0 * std::f64::consts::PI * 5.5 * (t - n.from)) as f32;
                 return midi_to_hz(n.meant + (n.off + vib) / 100.0);
             }
         }
@@ -92,7 +92,10 @@ fn the_analysis_finds_the_sung_notes_and_the_key() {
     assert_eq!(a.notes.len(), truth.len(), "{:#?}", a.notes);
     for (n, s) in a.notes.iter().zip(&truth) {
         let (from, to) = (n.src_start as f64 / SR as f64, n.src_end as f64 / SR as f64);
-        assert!((from - s.from).abs() < 0.03 && (to - s.to).abs() < 0.03, "{from}–{to}");
+        assert!(
+            (from - s.from).abs() < 0.03 && (to - s.to).abs() < 0.03,
+            "{from}–{to}"
+        );
         let err = (n.sung - (s.meant + s.off / 100.0)) * 100.0;
         assert!(err.abs() < 3.0, "centre {} off by {err} cents", n.sung);
         assert!(n.level_db < -3.0 && n.level_db > -30.0);
@@ -158,13 +161,17 @@ fn formants_are_kept_three_semitones_up_and_down() {
             let k = render_edit(&[&x], &a, &kept);
             let m = render_edit(&[&x], &a, &moved);
             let to = f0 * math::exp2(semis / 12.0);
-            let d = |y: &[f32]| envelope_distance(&mid(&x), f0, &mid(y), to, SR as f32, 300.0, 4_000.0);
+            let d =
+                |y: &[f32]| envelope_distance(&mid(&x), f0, &mid(y), to, SR as f32, 300.0, 4_000.0);
             let (d_kept, d_moved) = (d(&k[0]), d(&m[0]));
             eprintln!(
                 "{f0} Hz {semis:+} st: envelope distance kept {d_kept:.2} dB, moved {d_moved:.2} dB"
             );
             assert!(d_kept < 3.0, "{f0} Hz {semis:+} st: kept {d_kept} dB");
-            assert!(d_moved > d_kept + 3.0, "{f0} Hz {semis:+}: moved {d_moved}, kept {d_kept}");
+            assert!(
+                d_moved > d_kept + 3.0,
+                "{f0} Hz {semis:+}: moved {d_moved}, kept {d_kept}"
+            );
         }
     }
 }
@@ -179,7 +186,11 @@ fn a_timing_edit_leaves_its_neighbours_bit_for_bit() {
     let start = s + 1_200;
     let end = start + ((en - s) as f64 * 1.10) as u64;
     assert!(edit::set_timing(&mut e, id, start, end));
-    assert_eq!((e.notes[1].start, e.notes[1].end), (start, end), "not clamped");
+    assert_eq!(
+        (e.notes[1].start, e.notes[1].end),
+        (start, end),
+        "not clamped"
+    );
     let out = render_edit(&[&x], &a, &e);
     for n in [&e.notes[0], &e.notes[2], &e.notes[3]] {
         let (a, b) = (n.start as usize, n.end as usize);
@@ -213,7 +224,10 @@ fn nothing_asked_is_the_take_bit_for_bit_and_a_render_is_deterministic() {
     let n = &moved.notes;
     for k in [0usize, 1, 3] {
         let (s, e) = (n[k].start as usize, n[k].end as usize);
-        assert!(one[0][s..e].iter().zip(&x[s..e]).all(|(p, q)| p.to_bits() == q.to_bits()));
+        assert!(one[0][s..e]
+            .iter()
+            .zip(&x[s..e])
+            .all(|(p, q)| p.to_bits() == q.to_bits()));
     }
 }
 
@@ -230,11 +244,17 @@ fn a_notes_gain_is_its_own() {
         .iter()
         .map(|v| v * v)
         .sum::<f32>()
-        / x[mid - 2_000..mid + 2_000].iter().map(|v| v * v).sum::<f32>();
+        / x[mid - 2_000..mid + 2_000]
+            .iter()
+            .map(|v| v * v)
+            .sum::<f32>();
     let db = 10.0 * math::log10(ratio);
     assert!((db + 6.0).abs() < 0.01, "{db} dB");
     let (s, e2) = (e.notes[1].start as usize, e.notes[1].end as usize);
-    assert!(out[0][s..e2].iter().zip(&x[s..e2]).all(|(p, q)| p.to_bits() == q.to_bits()));
+    assert!(out[0][s..e2]
+        .iter()
+        .zip(&x[s..e2])
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
 }
 
 // ---- in the engine ---------------------------------------------------------------------
@@ -346,7 +366,11 @@ fn compared_with_the_original_or_untouched_the_clip_plays_its_source() {
         let mut cache = SampleCache::new();
         cache.attach_audio(&mut s, SR);
         let data = s.tracks[0].audio[0].data.clone().unwrap();
-        assert!(data.frames.iter().zip(&x).all(|(p, q)| p.to_bits() == q.to_bits()));
+        assert!(data
+            .frames
+            .iter()
+            .zip(&x)
+            .all(|(p, q)| p.to_bits() == q.to_bits()));
     }
 }
 
@@ -375,8 +399,15 @@ fn while_a_render_is_on_its_way_the_original_plays_never_silence() {
     let mut s = Snapshot::compile(&p, 2);
     cache.attach_audio(&mut s, SR);
     let now = s.tracks[0].audio[0].data.clone().expect("never silence");
-    assert!(now.frames.iter().zip(&x).all(|(p, q)| p.to_bits() == q.to_bits()));
-    assert!(cache.loading(), "a render is pending: an export waits for it");
+    assert!(now
+        .frames
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
+    assert!(
+        cache.loading(),
+        "a render is pending: an export waits for it"
+    );
     wait(&mut cache);
     let mut s = Snapshot::compile(&p, 3);
     cache.attach_audio(&mut s, SR);
@@ -405,7 +436,6 @@ fn the_analysis_is_cached_on_disk_and_read_back_the_same() {
     assert_eq!(a.notes, b.notes);
     assert_eq!(a.key, b.key);
 }
-
 
 /// How fast: a three-minute take analysed and rendered with every note corrected — the
 /// cost of opening a take and of each edit's render (stated in docs/round28/pitch.md).

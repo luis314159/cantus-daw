@@ -61,7 +61,9 @@ fn main() {
     std::fs::create_dir_all(&dir).expect("output dir");
     let demo_dir = dir.join("demo");
     let path = cantus_ui::pitch::demo::write_demo(&demo_dir).expect("the demo");
-    let project = cantus_project::load(&path, true).expect("the demo opens").project;
+    let project = cantus_project::load(&path, true)
+        .expect("the demo opens")
+        .project;
     let wav = demo_dir.join("voice-take.wav");
     use cantus_ui::i18n::Locale;
     for state in ["corrected", "sung", "split"] {
@@ -88,11 +90,13 @@ fn main() {
                             let ids: Vec<u32> = app.pitch.view.blobs.iter().map(|b| b.0).collect();
                             match state {
                                 "corrected" => {
-                                    app.pitch.view.selected = ids.get(2).copied().into_iter().collect()
+                                    app.pitch.view.selected =
+                                        ids.get(2).copied().into_iter().collect()
                                 }
                                 "split" => {
                                     app.pitch.view.tool = views::pitch::Tool::Split;
-                                    app.pitch.view.selected = ids.iter().skip(3).take(3).copied().collect();
+                                    app.pitch.view.selected =
+                                        ids.iter().skip(3).take(3).copied().collect();
                                 }
                                 _ => {}
                             }

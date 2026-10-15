@@ -42,7 +42,10 @@ pub(super) fn show(
     {
         let a: &CantusApp = app;
         let tr = a.project().track(track);
-        let clip_name = tr.and_then(|t| t.clip(clip)).map(|c| c.name.clone()).unwrap_or_default();
+        let clip_name = tr
+            .and_then(|t| t.clip(clip))
+            .map(|c| c.name.clone())
+            .unwrap_or_default();
         let track_name = tr.map(|t| t.name.clone());
         bar.title(ui, Src::Str(&clip_name), track_name.as_deref());
     }
@@ -66,7 +69,9 @@ pub(super) fn show(
     ] {
         let lit = app.pitch.view.tool == tool;
         if bar
-            .key(ui, id.with(key), icon, lit, true, || t(&format!("{key}_tip")))
+            .key(ui, id.with(key), icon, lit, true, || {
+                t(&format!("{key}_tip"))
+            })
             .is_some_and(|r| r.clicked())
         {
             app.pitch.view.tool = tool;
@@ -79,9 +84,14 @@ pub(super) fn show(
     // The snap of a pitch drag.
     let snap = app.pitch.view.snap;
     let cap = t("pitch.snap");
-    if let Some(resp) = bar.field(ui, id.with("snap"), Some(&cap), &t(snap.label_key()), 84.0, || {
-        t("pitch.snap_tip")
-    }) {
+    if let Some(resp) = bar.field(
+        ui,
+        id.with("snap"),
+        Some(&cap),
+        &t(snap.label_key()),
+        84.0,
+        || t("pitch.snap_tip"),
+    ) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
             let items: Vec<Item<'_>> = Snap::ALL
                 .iter()
@@ -101,16 +111,23 @@ pub(super) fn show(
     }
     // The key: detected, editable.
     let cap = t("pitch.key");
-    if let Some(resp) = bar.field(ui, id.with("key"), Some(&cap), &key_words(e.key), 110.0, || {
-        t("pitch.key_tip")
-    }) {
+    if let Some(resp) = bar.field(
+        ui,
+        id.with("key"),
+        Some(&cap),
+        &key_words(e.key),
+        110.0,
+        || t("pitch.key_tip"),
+    ) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
             key_menu(app, ui, track, clip, &e);
         });
     }
     // A/B: the original, as it was sung.
     if bar
-        .led(ui, id.with("ab"), e.bypass, "pitch.original", 96.0, || t("pitch.original_tip"))
+        .led(ui, id.with("ab"), e.bypass, "pitch.original", 96.0, || {
+            t("pitch.original_tip")
+        })
         .is_some_and(|r| r.clicked())
     {
         let mut x = e.clone();
@@ -120,7 +137,9 @@ pub(super) fn show(
     bar.divider(ui);
     let sel = app.pitch.view.selected.clone();
     let join = t("pitch.join");
-    if let Some(r) = bar.word(ui, id.with("join"), &join, wide(ui, &join, 50.0), || t("pitch.join_tip")) {
+    if let Some(r) = bar.word(ui, id.with("join"), &join, wide(ui, &join, 50.0), || {
+        t("pitch.join_tip")
+    }) {
         if r.clicked() {
             let mut x = e.clone();
             if edit::join(&mut x, &sel) {
@@ -132,7 +151,9 @@ pub(super) fn show(
         }
     }
     let reset = t("pitch.reset");
-    if let Some(r) = bar.word(ui, id.with("reset"), &reset, wide(ui, &reset, 54.0), || t("pitch.reset_tip")) {
+    if let Some(r) = bar.word(ui, id.with("reset"), &reset, wide(ui, &reset, 54.0), || {
+        t("pitch.reset_tip")
+    }) {
         if r.clicked() {
             let ids: Vec<u32> = if sel.is_empty() {
                 e.notes.iter().map(|n| n.id).collect()
@@ -149,9 +170,14 @@ pub(super) fn show(
     // Play from the selection (or the clip's start).
     let playing = app.engine.is_playing();
     if bar
-        .key(ui, id.with("play"), if playing { Icon::Stop } else { Icon::Play }, playing, true, || {
-            t("pitch.play_tip")
-        })
+        .key(
+            ui,
+            id.with("play"),
+            if playing { Icon::Stop } else { Icon::Play },
+            playing,
+            true,
+            || t("pitch.play_tip"),
+        )
         .is_some_and(|r| r.clicked())
     {
         if playing {
@@ -163,7 +189,13 @@ pub(super) fn show(
     // MIDI out: drag onto an instrument track, or click for a new one.
     midi_chip(app, ui, &mut bar, id, track, clip);
     let double = t("pitch.double");
-    if let Some(resp) = bar.word(ui, id.with("double"), &double, wide(ui, &double, 62.0), || t("pitch.double_tip")) {
+    if let Some(resp) = bar.word(
+        ui,
+        id.with("double"),
+        &double,
+        wide(ui, &double, 62.0),
+        || t("pitch.double_tip"),
+    ) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
             let items: Vec<Item<'_>> = Interval::ALL
                 .iter()
@@ -185,7 +217,9 @@ pub(super) fn show(
         .find(|(_, g)| Ticks(*g) == grid)
         .map_or_else(|| t("grid.sixteenth"), |(k, _)| t(k));
     let cap = t("pitch.grid");
-    if let Some(resp) = bar.field(ui, id.with("grid"), Some(&cap), &gname, 70.0, || t("pitch.grid_tip")) {
+    if let Some(resp) = bar.field(ui, id.with("grid"), Some(&cap), &gname, 70.0, || {
+        t("pitch.grid_tip")
+    }) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
             let items: Vec<Item<'_>> = crate::views::GRIDS
                 .iter()
@@ -260,7 +294,11 @@ fn key_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
 /// Play from the first selected note (or the clip's start), a beat early.
 fn play_from_selection(app: &mut CantusApp, track: TrackId, clip: ClipId, e: &PitchEdit) {
     let sel = &app.pitch.view.selected;
-    let first = e.notes.iter().find(|n| sel.contains(&n.id)).map(|n| n.start);
+    let first = e
+        .notes
+        .iter()
+        .find(|n| sel.contains(&n.id))
+        .map(|n| n.start);
     let at = match (first, app.clip_time(track, clip)) {
         (Some(f), Some(tm)) => {
             let beat = app.project().time_signature.ticks_per_beat();
@@ -287,7 +325,9 @@ fn midi_chip(
     clip: ClipId,
 ) {
     let word = t("pitch.midi");
-    let Some(r) = bar.word(ui, id.with("midi"), &word, wide(ui, &word, 50.0), || t("pitch.midi_tip")) else {
+    let Some(r) = bar.word(ui, id.with("midi"), &word, wide(ui, &word, 50.0), || {
+        t("pitch.midi_tip")
+    }) else {
         return;
     };
     let drag = ui.interact(r.rect, id.with("midi-drag"), egui::Sense::drag());

@@ -219,8 +219,14 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         pos2(keys.right(), ruler.bottom()),
         pos2(body.right() - bar_w, body.bottom() - bar_w),
     );
-    let hbar = Rect::from_min_max(pos2(grid.left(), grid.bottom()), pos2(grid.right(), body.bottom()));
-    let vbar = Rect::from_min_max(pos2(grid.right(), grid.top()), pos2(body.right(), grid.bottom()));
+    let hbar = Rect::from_min_max(
+        pos2(grid.left(), grid.bottom()),
+        pos2(grid.right(), body.bottom()),
+    );
+    let vbar = Rect::from_min_max(
+        pos2(grid.right(), grid.top()),
+        pos2(body.right(), grid.bottom()),
+    );
     let keys = Rect::from_min_max(keys.min, pos2(keys.right(), grid.bottom()));
     let Some(edit) = edit else {
         paint::waiting(ui, body, &take, &s);
@@ -268,19 +274,30 @@ fn fit(app: &mut CantusApp, track: TrackId, clip: ClipId, edit: &PitchEdit, grid
     if !(v.fit_pending || v.fitted != Some(clip) || v.px_per_frame <= 0.0) {
         return;
     }
-    let (a, b) = match (app.clip_time(track, clip), app.project().track(track).and_then(|t| t.clip(clip))) {
+    let (a, b) = match (
+        app.clip_time(track, clip),
+        app.project().track(track).and_then(|t| t.clip(clip)),
+    ) {
         (Some(time), Some(c)) => (
             time.frame(c.start).max(0.0),
             time.frame(c.end()).min(edit.frames as f64),
         ),
         _ => (0.0, edit.frames as f64),
     };
-    let (a, b) = if b > a { (a, b) } else { (0.0, edit.frames.max(1) as f64) };
+    let (a, b) = if b > a {
+        (a, b)
+    } else {
+        (0.0, edit.frames.max(1) as f64)
+    };
     let span = (b - a) * 1.04;
     let (lo, hi) = edit.notes.iter().fold((f32::MAX, f32::MIN), |(lo, hi), n| {
         (lo.min(n.out_centre()), hi.max(n.out_centre()))
     });
-    let (lo, hi) = if lo <= hi { (lo - 3.0, hi + 3.0) } else { (48.0, 72.0) };
+    let (lo, hi) = if lo <= hi {
+        (lo - 3.0, hi + 3.0)
+    } else {
+        (48.0, 72.0)
+    };
     let v = &mut app.pitch.view;
     v.fit_pending = false;
     v.fitted = Some(clip);

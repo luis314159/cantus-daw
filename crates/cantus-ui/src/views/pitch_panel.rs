@@ -26,10 +26,7 @@ const FIELDS: [(Field, &str, &str); 5] = [
 pub fn note_words(m: f32) -> String {
     let near = m.round();
     let cents = ((m - near) * 100.0).round() as i32;
-    format!(
-        "{} {cents:+} ct",
-        pitch_name(near.clamp(0.0, 127.0) as u8)
-    )
+    format!("{} {cents:+} ct", pitch_name(near.clamp(0.0, 127.0) as u8))
 }
 
 pub(super) fn show(
@@ -70,13 +67,27 @@ fn note_card(
                 .as_ref()
                 .map(|n| note_words(n.out_centre()))
                 .unwrap_or_else(|| crate::i18n::t("pitch.note.none"));
-            controls::readout(ui, &hs, &sounds, false, &crate::i18n::t("pitch.note.sounds_tip"), 140.0);
+            controls::readout(
+                ui,
+                &hs,
+                &sounds,
+                false,
+                &crate::i18n::t("pitch.note.sounds_tip"),
+                140.0,
+            );
             controls::caption(ui, &hs, Src::Key("pitch.note.sung"), 140.0);
             let sung = first
                 .as_ref()
                 .map(|n| note_words(n.sung))
                 .unwrap_or_default();
-            controls::readout(ui, &hs, &sung, false, &crate::i18n::t("pitch.note.sung_tip"), 140.0);
+            controls::readout(
+                ui,
+                &hs,
+                &sung,
+                false,
+                &crate::i18n::t("pitch.note.sung_tip"),
+                140.0,
+            );
         });
         ui.scope(|ui| {
             if first.is_none() {
@@ -84,7 +95,9 @@ fn note_card(
             }
             for (field, label, unit) in FIELDS {
                 let (lo, hi) = field.range();
-                let value = first.as_ref().map_or(field.default_value(), |n| field.get(n));
+                let value = first
+                    .as_ref()
+                    .map_or(field.default_value(), |n| field.get(n));
                 let name = crate::i18n::t(&format!("{label}_tip"));
                 let out = Cell::new(value, lo..=hi, field.default_value())
                     .size(KnobSize::M)
@@ -148,8 +161,7 @@ fn macro_card(
         }
         controls::column(ui, &hs, 112.0, |ui| {
             let apply = |ui: &mut egui::Ui, key: &'static str, tip: &'static str| {
-                controls::key(ui, &hs, Src::Key(key), &crate::i18n::t(tip), 112.0, false)
-                    .clicked()
+                controls::key(ui, &hs, Src::Key(key), &crate::i18n::t(tip), 112.0, false).clicked()
             };
             if apply(ui, "pitch.macro.apply_pitch", "pitch.macro.apply_pitch_tip") {
                 let mut e = current.clone();

@@ -1936,8 +1936,8 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
         .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.clone())))
         .filter(|(_, c)| c.audio.is_some())
         .collect();
-    let Some((track, clip)) = (!audio.is_empty())
-        .then(|| audio[rng.below(audio.len() as u64) as usize].clone())
+    let Some((track, clip)) =
+        (!audio.is_empty()).then(|| audio[rng.below(audio.len() as u64) as usize].clone())
     else {
         // No audio clip yet: a source and a clip over it, in one step.
         let tid = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
@@ -2005,7 +2005,12 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
         }
         3 => {
             if let Some(n) = e.note(id).cloned() {
-                edit::set_timing(&mut e, id, n.start + rng.below(4_000), n.end + rng.below(9_000));
+                edit::set_timing(
+                    &mut e,
+                    id,
+                    n.start + rng.below(4_000),
+                    n.end + rng.below(9_000),
+                );
             }
             PitchOp::Timing
         }

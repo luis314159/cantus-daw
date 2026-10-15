@@ -30,7 +30,10 @@ pub fn file_for(dir: &Path, path: &Path, rate: u32) -> Option<PathBuf> {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let mut h = 0xcbf2_9ce4_8422_2325u64;
-    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy())
+        .unwrap_or_default();
     fnv(&mut h, name.as_bytes());
     fnv(&mut h, &meta.len().to_le_bytes());
     fnv(&mut h, &mtime.to_le_bytes());

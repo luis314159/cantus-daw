@@ -16,14 +16,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
+#[path = "pitch_attach.rs"]
+pub(crate) mod attach;
 #[path = "pitch_disk.rs"]
 pub mod disk;
 #[path = "pitch_render.rs"]
 mod render;
 #[path = "pitch_take.rs"]
 mod take;
-#[path = "pitch_attach.rs"]
-pub(crate) mod attach;
 
 pub use render::{key as render_key, render_edit};
 pub use take::{
@@ -158,7 +158,12 @@ impl PitchService {
     }
 
     /// Render `edit` over the file at `path`, played at `rate`, here and now.
-    pub fn render_now(&self, path: &Path, edit: &PitchEdit, rate: u32) -> Result<SampleData, String> {
+    pub fn render_now(
+        &self,
+        path: &Path,
+        edit: &PitchEdit,
+        rate: u32,
+    ) -> Result<SampleData, String> {
         render_on(&self.shared, path, edit, rate)
     }
 
@@ -175,7 +180,9 @@ impl PitchService {
         let mut g = self.shared.lock();
         let mut replaced = None;
         g.queue.retain(|j| match j {
-            Job::Render { clip: c, key: k, .. } if *c == clip => {
+            Job::Render {
+                clip: c, key: k, ..
+            } if *c == clip => {
                 replaced = Some(*k);
                 false
             }
@@ -296,7 +303,12 @@ fn analyse_on(shared: &Shared, path: &Path, rate: u32) -> Result<Arc<TakeAnalysi
     result
 }
 
-fn render_on(shared: &Shared, path: &Path, edit: &PitchEdit, rate: u32) -> Result<SampleData, String> {
+fn render_on(
+    shared: &Shared,
+    path: &Path,
+    edit: &PitchEdit,
+    rate: u32,
+) -> Result<SampleData, String> {
     let take = analyse_on(shared, path, edit.rate)?;
     let chs = channels_of(path, edit.rate)?;
     let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();

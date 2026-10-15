@@ -15,7 +15,13 @@ use cantus_dsp::psola::TimeMap;
 use cantus_engine::pitch::{FrameKind, TakeAnalysis};
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect};
 
-const GRID_TOKENS: &[Tok] = &[Tok::RowWhite, Tok::RowBlack, Tok::Grid, Tok::GridStrong, Tok::GridBar];
+const GRID_TOKENS: &[Tok] = &[
+    Tok::RowWhite,
+    Tok::RowBlack,
+    Tok::Grid,
+    Tok::GridStrong,
+    Tok::GridBar,
+];
 const KEY_TOKENS: &[Tok] = &[Tok::KeyWhite, Tok::KeyBlack, Tok::Text];
 const BLOB_TOKENS: &[Tok] = &[Tok::Selection, Tok::Text, Tok::TextDim];
 
@@ -114,7 +120,16 @@ pub(super) fn canvas(
         if let Some(a) = analysis {
             marks(b, geo, a, &map, s);
         }
-        let blobs = blobs(b, geo, edit, analysis, &map, &app.pitch.view.selected, color, s);
+        let blobs = blobs(
+            b,
+            geo,
+            edit,
+            analysis,
+            &map,
+            &app.pitch.view.selected,
+            color,
+            s,
+        );
         if let (Some(a), Some(c)) = (analysis, curves.as_ref()) {
             pitch_curves(b, geo, edit, a, c, &map, s);
         }
@@ -155,7 +170,13 @@ fn rows(b: &mut Brush, geo: &Geo, s: &Style) {
             );
         }
         if p.rem_euclid(12) == 0 {
-            b.hline(g.left(), g.right(), y1 - 0.5 * b.px(), b.px(), t.grid_strong);
+            b.hline(
+                g.left(),
+                g.right(),
+                y1 - 0.5 * b.px(),
+                b.px(),
+                t.grid_strong,
+            );
         }
     }
     kit::light::ambient(b, g, t);
@@ -168,7 +189,10 @@ fn outside(b: &mut Brush, geo: &Geo, (a, z): (f64, f64), s: &Style) {
     let (xa, xz) = (geo.x(a), geo.x(z));
     if xa > g.left() {
         b.rect(
-            b.snap_rect(Rect::from_min_max(g.min, pos2(xa.min(g.right()), g.bottom()))),
+            b.snap_rect(Rect::from_min_max(
+                g.min,
+                pos2(xa.min(g.right()), g.bottom()),
+            )),
             Fill::Solid(veil),
         );
     }
@@ -186,8 +210,12 @@ fn ladder(b: &mut Brush, app: &CantusApp, geo: &Geo, tm: &ClipTime, s: &Style) {
     let g = geo.grid;
     let ts = app.project().time_signature;
     let (bar, beat) = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
-    let (t0, t1) = (tm.tick(geo.frame(g.left())).0, tm.tick(geo.frame(g.right())).0);
-    let px_beat = (geo.x(tm.frame(cantus_core::Ticks(beat))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
+    let (t0, t1) = (
+        tm.tick(geo.frame(g.left())).0,
+        tm.tick(geo.frame(g.right())).0,
+    );
+    let px_beat =
+        (geo.x(tm.frame(cantus_core::Ticks(beat))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
     let step = if px_beat >= 8.0 { beat } else { bar };
     let side = mix(t.grid_bar, t.row_black, 0.55);
     let mut k = t0.div_euclid(step) * step;
@@ -240,7 +268,10 @@ fn waveform(
         pos2(g.left() + n as f32 * col, g.center().y + g.height() * 0.32),
     );
     b.register(band, "pitch_wave", &[Tok::TextDim], &[]);
-    let ink = with_alpha(mix(color, s.t.text_dim, 0.4), if s.t.dark { 0.16 } else { 0.20 });
+    let ink = with_alpha(
+        mix(color, s.t.text_dim, 0.4),
+        if s.t.dark { 0.16 } else { 0.20 },
+    );
     crate::waveform::fill_peaks(b, band, &pairs, |_| 1.0, ink);
 }
 
@@ -263,7 +294,10 @@ fn marks(b: &mut Brush, geo: &Geo, a: &TakeAnalysis, map: &TimeMap, s: &Style) {
             _ => continue,
         };
         b.rect(
-            Rect::from_min_max(pos2(x, g.bottom() - h), pos2(x + col * 0.6, g.bottom() - s.s(1.0))),
+            Rect::from_min_max(
+                pos2(x, g.bottom() - h),
+                pos2(x + col * 0.6, g.bottom() - s.s(1.0)),
+            ),
             Fill::Solid(with_alpha(ink, 0.7)),
         );
     }
@@ -339,7 +373,10 @@ fn blobs(
             let tx = Text::new(&name, Role::Micro, k.label)
                 .align(Align2::LEFT_CENTER)
                 .policy(Policy::Elide(Elide::End));
-            let lr = Rect::from_min_max(pos2(x0 + 4.0 * s.k, y - full), pos2(x1 - 2.0 * s.k, y + full));
+            let lr = Rect::from_min_max(
+                pos2(x0 + 4.0 * s.k, y - full),
+                pos2(x1 - 2.0 * s.k, y + full),
+            );
             let _ = text::paint(b, lr, &tx, s.tk());
         }
     }
@@ -421,39 +458,76 @@ fn keys(b: &mut Brush, geo: &Geo, s: &Style) {
         if is_black(p) {
             let k = Rect::from_min_max(row.min, pos2(r.left() + r.width() * 0.6, row.bottom()));
             b.rect(row, Fill::Solid(t.key_white));
-            b.rrect(k.shrink2(vec2(0.0, 0.5)), s.r(1.5), Fill::V(shade(t.key_black, 0.10), t.key_black));
+            b.rrect(
+                k.shrink2(vec2(0.0, 0.5)),
+                s.r(1.5),
+                Fill::V(shade(t.key_black, 0.10), t.key_black),
+            );
         } else {
-            b.rect(row, Fill::V(shade(t.key_white, 0.02), shade(t.key_white, -0.03)));
-            b.hline(row.left(), row.right(), row.bottom() - 0.5 * b.px(), b.px(), edge);
+            b.rect(
+                row,
+                Fill::V(shade(t.key_white, 0.02), shade(t.key_white, -0.03)),
+            );
+            b.hline(
+                row.left(),
+                row.right(),
+                row.bottom() - 0.5 * b.px(),
+                b.px(),
+                edge,
+            );
         }
         if p.rem_euclid(12) == 0 && geo.row_h >= 8.0 {
             let name = pitch_name(p.clamp(0, 127) as u8);
             let tx = Text::new(&name, Role::Label, ink).align(Align2::RIGHT_CENTER);
-            let lr = Rect::from_min_max(pos2(r.left(), row.top()), pos2(r.right() - 4.0 * s.k, row.bottom()));
+            let lr = Rect::from_min_max(
+                pos2(r.left(), row.top()),
+                pos2(r.right() - 4.0 * s.k, row.bottom()),
+            );
             let _ = text::paint(b, lr, &tx, s.tk());
         }
     }
-    b.vline(r.right() - 0.5 * b.px(), r.top(), r.bottom(), b.px(), shade(t.key_white, -0.45));
+    b.vline(
+        r.right() - 0.5 * b.px(),
+        r.top(),
+        r.bottom(),
+        b.px(),
+        shade(t.key_white, -0.45),
+    );
 }
 
 /// The ruler: bar numbers in the arrangement's count over the clip's frames, the playhead.
 fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: &Style) {
     let t = &s.t;
     let r = b.snap_rect(geo.ruler);
-    b.register(r, "pitch_ruler", &[Tok::Panel, Tok::TextDim, Tok::Grid], &[]);
+    b.register(
+        r,
+        "pitch_ruler",
+        &[Tok::Panel, Tok::TextDim, Tok::Grid],
+        &[],
+    );
     b.rect(r, Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.03)));
-    b.hline(r.left(), r.right(), r.bottom() - 0.5 * b.px(), b.px(), t.grid_strong);
+    b.hline(
+        r.left(),
+        r.right(),
+        r.bottom() - 0.5 * b.px(),
+        b.px(),
+        t.grid_strong,
+    );
     let Some(tm) = time else {
         return;
     };
     let ts = app.project().time_signature;
     let bar = ts.ticks_per_bar().0.max(1);
-    let px_bar = (geo.x(tm.frame(cantus_core::Ticks(bar))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
+    let px_bar =
+        (geo.x(tm.frame(cantus_core::Ticks(bar))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
     let mut every = 1i64;
     while px_bar * (every as f32) < 44.0 * s.k && every < 1024 {
         every *= 2;
     }
-    let (t0, t1) = (tm.tick(geo.frame(r.left())).0, tm.tick(geo.frame(r.right())).0);
+    let (t0, t1) = (
+        tm.tick(geo.frame(r.left())).0,
+        tm.tick(geo.frame(r.right())).0,
+    );
     let mut k = t0.div_euclid(bar);
     while k * bar <= t1 {
         let x = geo.x(tm.frame(cantus_core::Ticks(k * bar)));
@@ -461,7 +535,10 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
             b.vline(x, r.center().y, r.bottom(), b.px(), t.text_dim);
             let label = (k + 1).to_string();
             let tx = Text::new(&label, Role::Label, t.text_dim).align(Align2::LEFT_CENTER);
-            let lr = Rect::from_min_max(pos2(x + 3.0 * s.k, r.top()), pos2(x + 60.0 * s.k, r.bottom()));
+            let lr = Rect::from_min_max(
+                pos2(x + 3.0 * s.k, r.top()),
+                pos2(x + 60.0 * s.k, r.bottom()),
+            );
             let _ = text::paint(b, lr, &tx, s.tk());
         }
         k += 1;
@@ -470,7 +547,11 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
     if x >= r.left() && x <= r.right() {
         let h = r.height() * 0.45;
         b.polygon(
-            &[pos2(x - h * 0.6, r.bottom() - h), pos2(x + h * 0.6, r.bottom() - h), pos2(x, r.bottom())],
+            &[
+                pos2(x - h * 0.6, r.bottom() - h),
+                pos2(x + h * 0.6, r.bottom() - h),
+                pos2(x, r.bottom()),
+            ],
             t.playhead,
         );
     }
