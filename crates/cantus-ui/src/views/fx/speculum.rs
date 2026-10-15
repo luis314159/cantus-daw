@@ -79,6 +79,8 @@ pub struct View {
     /// The short-term loudness every 100 ms of audio, oldest first.
     history: VecDeque<f32>,
     since: usize,
+    /// Frames the stream lost (a full ring): the measurements have gaps that long.
+    pub lost: u64,
     /// The host gives this Speculum's frames.
     pub stream: bool,
 }
@@ -106,6 +108,7 @@ impl View {
             history: VecDeque::with_capacity(HISTORY),
             since: 0,
             stream: false,
+            lost: 0,
         }
     }
 
@@ -120,6 +123,7 @@ impl View {
         pairs.clear();
         let take = host.take_stereo(&mut pairs);
         self.stream = take.stream;
+        self.lost += take.lost;
         self.l.clear();
         self.r.clear();
         for (a, b) in &pairs {
@@ -175,6 +179,9 @@ pub struct State {
     view: Option<View>,
     /// The Speculums docked in the workspace, each with its own.
     pub docked: Vec<Docked>,
+    /// The project the docked tabs belong to (`CantusApp::epoch`): another project opened
+    /// closes them (review 1).
+    docked_epoch: Option<u64>,
     /// Where the views' tabs and the display were drawn last frame (tests point at them).
     pub tabs: Option<Rect>,
     pub display: Option<Rect>,
@@ -416,6 +423,7 @@ fn settings_card(
                     );
                     if r.clicked() {
                         view.analysis.reset_loudness();
+                        view.lost = 0;
                         view.history.clear();
                     }
                 });
@@ -464,8 +472,22 @@ fn lufs_pill(v: f32, b: &mut String) {
 /// one asked for during the last frame are let go.
 pub fn docked(app: &mut CantusApp, ctx: &egui::Context) {
     app.engine.release_unwatched_scopes();
+    let epoch = app.epoch;
+    let st = &mut app.fx.speculum;
+    if st.docked_epoch != Some(epoch) {
+        if st.docked_epoch.is_some() {
+            st.docked.clear();
+        }
+        st.docked_epoch = Some(epoch);
+    }
     let mut docked = std::mem::take(&mut app.fx.speculum.docked);
-    docked.retain(|d| app.project().effect(d.strip, d.effect).is_some());
+    // Only while the effect is there and is a Speculum: another project may hold other
+    // effects under the same ids (review 1).
+    docked.retain(|d| {
+        app.project()
+            .effect(d.strip, d.effect)
+            .is_some_and(|e| e.spec.kind == KIND)
+    });
     for d in &mut docked {
         let mut open = true;
         let name = crate::i18n::t(KIND.name_key());

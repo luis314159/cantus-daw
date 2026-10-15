@@ -40,8 +40,8 @@ discrimen.m.comp_t = Transient comp
 discrimen.m.comp_b = Body comp
 discrimen.m.mask = Transient share
 discrimen.m.latency = Latency
-discrimen.words.0 = Zero latency: the first fraction of a millisecond of a hit reaches the body.
-discrimen.words.1 = Look-ahead: every hit is in the transient part from its first sample.
+discrimen.words.0 = Zero latency: the first instant of a hit goes to the body.
+discrimen.words.1 = Look-ahead: each hit is in the transient part from its first sample.
 discrimen.idle = Nothing is processed: the two parts add up to the input, bit for bit
 
 preset.discrimen.more_attack = More attack

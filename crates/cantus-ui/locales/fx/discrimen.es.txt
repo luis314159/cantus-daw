@@ -39,7 +39,7 @@ discrimen.m.comp_t = Comp. transitorio
 discrimen.m.comp_b = Comp. cuerpo
 discrimen.m.mask = Parte transitoria
 discrimen.m.latency = Latencia
-discrimen.words.0 = Sin latencia: la primera fracción de milisegundo de un golpe llega al cuerpo.
+discrimen.words.0 = Sin latencia: el primer instante de un golpe va al cuerpo.
 discrimen.words.1 = Anticipación: cada golpe está en el transitorio desde su primera muestra.
 discrimen.idle = Nada se procesa: las dos partes suman la entrada, bit a bit
 

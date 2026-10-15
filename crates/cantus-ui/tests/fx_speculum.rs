@@ -73,7 +73,7 @@ fn every_view_paints_what_it_measures_and_its_settings() {
         (
             1.0,
             &["spectrum", "100", "10k", "average", "held"],
-            &["fft", "channel", "floor", "16k", "l+r"],
+            &["fft", "channel", "floor", "16k", "l/r"],
         ),
         (2.0, &["spectrogram", "1k"], &["fft"]),
         (
@@ -135,10 +135,22 @@ fn a_click_on_a_tab_chooses_the_view_as_one_step() {
     assert_eq!(view, 0.0, "one undo step");
 }
 
-/// Without a stream the editor says how to get one; with the demo's, it measures.
+/// With a stream but nothing in it yet, the editor says to play; with no stream at all (no
+/// audio device, or eight Speculums watched already), it says that instead (review 1).
 #[test]
-fn with_nothing_measured_it_says_to_play() {
+fn with_nothing_measured_it_says_why() {
+    // No device: the dummy engine has no rings.
     let (mut a, _, _) = with_speculum();
+    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    assert!(text.contains("No stream"), "{text}");
+    assert!(!text.contains("Play the song"), "{text}");
+    // A device, nothing played yet.
+    let (engine, _proc) = cantus_engine::EngineHandle::manual(48_000.0);
+    let mut a = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let s0 = a.project().tracks[0].strip.unwrap();
+    a.add_effect(s0, EffectKind::Analyzer);
+    let fx = a.project().strip(s0).unwrap().effects[0].id;
+    a.open_effect_editor(s0, fx);
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
     assert!(text.contains("Play the song"), "{text}");
 }
@@ -205,4 +217,17 @@ fn opening_a_docked_speculum_brings_its_tab_forward() {
     frame(&mut a, &ctx, vec![]);
     assert!(a.fx.open.is_none(), "the floating editor closed");
     assert!(speculum::is_docked(&a, fx));
+}
+
+/// Review 1: docked Speculums belong to their project: opening another closes them.
+#[test]
+fn another_project_closes_the_docked_speculums() {
+    let (mut a, s0, fx) = with_speculum();
+    speculum::dock(&mut a, s0, fx);
+    let ctx = ctx();
+    frame(&mut a, &ctx, vec![]);
+    assert!(speculum::is_docked(&a, fx));
+    a.replace_project(cantus_ui::starter_project());
+    frame(&mut a, &ctx, vec![]);
+    assert!(!speculum::is_docked(&a, fx));
 }
