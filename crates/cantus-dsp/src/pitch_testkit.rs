@@ -233,3 +233,66 @@ pub fn measured_f0(x: &[f32], sr: f32, near: f32) -> f32 {
         _ => 0.0,
     }
 }
+
+/// The amplitude (dB) of `x` at `hz`, by Goertzel over the whole slice with a Hann window.
+pub fn amplitude_db(x: &[f32], sr: f32, hz: f32) -> f32 {
+    let n = x.len();
+    let w = 2.0 * PI * hz as f64 / sr as f64;
+    let c = 2.0 * math::cos(w);
+    let (mut s1, mut s2) = (0.0f64, 0.0f64);
+    let mut wsum = 0.0f64;
+    for (i, &v) in x.iter().enumerate() {
+        let win = 0.5 - 0.5 * math::cos(2.0 * PI * i as f64 / n as f64);
+        wsum += win;
+        let s0 = v as f64 * win + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    let power = s1 * s1 + s2 * s2 - c * s1 * s2;
+    let amp = 2.0 * power.max(0.0).sqrt() / wsum.max(1e-30);
+    (20.0 * math::log10(amp.max(1e-12))) as f32
+}
+
+/// The spectral envelope distance (dB RMS) between a reference harmonic voice at `f0_ref`
+/// and a shifted one at `f0_out`: the output's harmonics between `lo` and `hi` Hz compared
+/// with the reference's envelope there (interpolated between its harmonics, in dB), both
+/// normalised to their mean level. 0: the same envelope.
+pub fn envelope_distance(reference: &[f32], f0_ref: f32, out: &[f32], f0_out: f32, sr: f32, lo: f32, hi: f32) -> f32 {
+    let harmonics = |x: &[f32], f0: f32| -> Vec<(f32, f32)> {
+        (1..)
+            .map(|k| k as f32 * f0)
+            .take_while(|&f| f < hi * 1.2)
+            .map(|f| (f, amplitude_db(x, sr, f)))
+            .collect()
+    };
+    let r = harmonics(reference, f0_ref);
+    let o = harmonics(out, f0_out);
+    let env = |f: f32| -> f32 {
+        let i = r.partition_point(|h| h.0 < f);
+        if i == 0 {
+            return r[0].1;
+        }
+        if i >= r.len() {
+            return r[r.len() - 1].1;
+        }
+        let (a, b) = (r[i - 1], r[i]);
+        a.1 + (b.1 - a.1) * (f - a.0) / (b.0 - a.0)
+    };
+    let pairs: Vec<(f32, f32)> = o
+        .iter()
+        .filter(|h| h.0 >= lo && h.0 <= hi)
+        .map(|h| (h.1, env(h.0)))
+        .collect();
+    let n = pairs.len().max(1) as f32;
+    let mo = pairs.iter().map(|p| p.0).sum::<f32>() / n;
+    let mr = pairs.iter().map(|p| p.1).sum::<f32>() / n;
+    let ms = pairs
+        .iter()
+        .map(|p| {
+            let d = (p.0 - mo) - (p.1 - mr);
+            d * d
+        })
+        .sum::<f32>()
+        / n;
+    ms.sqrt()
+}
