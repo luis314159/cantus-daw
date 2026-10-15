@@ -324,11 +324,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         }
         ModSource::Envelope(env) => {
             preview(sh, app, m);
-            for (key, field, v) in [
-                ("mods.attack", "a", env.attack_ms),
-                ("mods.decay", "d", env.decay_ms),
-                ("mods.release", "r", env.release_ms),
-            ] {
+            let time = |sh: &mut Sheet<'_>, key: &'static str, field: &'static str, v: f32| {
                 num(
                     sh,
                     m,
@@ -346,8 +342,11 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
                             }
                         }
                     },
-                );
-            }
+                )
+            };
+            // Attack, decay, sustain, release: the order every synth reads them in.
+            time(sh, "mods.attack", "a", env.attack_ms);
+            time(sh, "mods.decay", "d", env.decay_ms);
             num(
                 sh,
                 m,
@@ -362,6 +361,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
                     }
                 },
             );
+            time(sh, "mods.release", "r", env.release_ms);
             let audio = matches!(env.trigger, EnvTrigger::Audio { .. });
             let word = sheet::name(sh.fmt.tr(if audio {
                 "mods.trigger.audio"

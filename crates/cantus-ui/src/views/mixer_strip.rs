@@ -952,7 +952,18 @@ fn controls(
                 });
             }
         }
-        knob::paint(b, c, &ks, st, &KnobLook::new(KnobSize::Mini, pos, 0.5));
+        // Where a modulator has it now (ADR 0057).
+        let live = mod_live(app, cantus_core::AutoTarget::StripPan(id), pos, &ks);
+        knob::paint(
+            b,
+            c,
+            &ks,
+            st,
+            &KnobLook {
+                live,
+                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
+            },
+        );
     }
 
     // The fader: lime while its strip is in the selection.
@@ -1094,12 +1105,16 @@ fn controls(
                 });
             }
         }
+        let live = mod_live(app, cantus_core::AutoTarget::StripWidth(id), pos, &ks);
         knob::paint(
             b,
             c,
             &ks.function(crate::kit::Function::Space),
             st,
-            &KnobLook::new(KnobSize::Mini, pos, 0.5),
+            &KnobLook {
+                live,
+                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
+            },
         );
     }
 
@@ -1333,4 +1348,18 @@ pub(super) fn fx_rec(
             app.toggle_capture(target);
         }
     }
+}
+
+/// Where modulation has a strip's knob now (ADR 0057), when a modulator drives it.
+fn mod_live(
+    app: &CantusApp,
+    target: cantus_core::AutoTarget,
+    pos: f32,
+    s: &crate::kit::Style,
+) -> Option<f32> {
+    if !app.is_modulated(&target) {
+        return None;
+    }
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    app.mod_offer(&target, pos, s, &mut rings).0.live
 }

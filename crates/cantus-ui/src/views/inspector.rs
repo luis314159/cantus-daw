@@ -467,11 +467,12 @@ impl Inspector {
         let mut chan = std::mem::take(&mut self.chan);
         {
             let mut sh = self.sheet(ui, s, col);
-            channel::show(&mut sh, &mut chan, app, subject, strip);
-            // The Modulators of the track, its channel, the master (ADR 0057).
+            // The Modulators of the track, its channel, the master (ADR 0057): after what
+            // the subject is, before the channel's signal flow.
             for (host, key) in modulators::hosts(app, subject) {
                 modulators::show(&mut sh, app, host, key);
             }
+            channel::show(&mut sh, &mut chan, app, subject, strip);
             sh.ui.add_space(s.d(10.0));
         }
         self.chan = chan;
