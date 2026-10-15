@@ -111,3 +111,6 @@ the owner's references, the presets' musical judgement, and how the editors feel
   their `out` lines.
 - The shoot example `examples/shoot_modfx.rs` is mine (the generic `shoot_effects` maps
   unknown kinds to *External*'s size).
+- In one full `cantus-ui` run, `hosted_instruments::opening_its_editor_from_the_track_opens_the_plugin_window`
+  failed once and passed on its own rerun (a hosted plug-in's window timing; none of my code is on
+  its path) — worth watching in the integration run.
