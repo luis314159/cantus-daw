@@ -156,7 +156,7 @@ pub fn xfade_ticks(project: &Project) -> Ticks {
 
 /// Every seam of a track's playing lane: (left window, right window, where, crossfade).
 pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
-    let audio = |c: &&Clip| c.lane == 0 && !c.muted && c.audio.as_ref().is_some_and(|a| !a.reverse);
+    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c);
     let mut out = Vec::new();
     for r in track.clips.iter().filter(audio) {
         if let Some(l) = track

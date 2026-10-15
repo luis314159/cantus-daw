@@ -114,6 +114,17 @@ pub(crate) fn apply_set_comps(
 
 /// Move the seam between `left` and `right` (two playing-lane windows of `track` that
 /// meet) to `at`, both sides at once; the inverse moves it back.
+/// Whether a clip can be one side of a comp seam (ADR 0058): a playing-lane audio window
+/// with a length, neither reversed nor looping — the windows the engine crossfades. One
+/// test for the snapshot, the seam command and the arrangement, so none of them shows or
+/// moves a seam another does not play.
+pub fn seam_window(c: &Clip) -> bool {
+    c.lane == 0
+        && c.length > Ticks::ZERO
+        && c.period().is_none_or(|p| p >= c.length)
+        && c.audio.as_ref().is_some_and(|a| !a.reverse)
+}
+
 pub(crate) fn apply_seam(
     project: &mut Project,
     track: TrackId,
@@ -129,14 +140,7 @@ pub(crate) fn apply_seam(
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    let reversed = |c: &Clip| c.audio.as_ref().is_some_and(|a| a.reverse);
-    if left == right
-        || l.lane != 0
-        || r.lane != 0
-        || l.end() != r.start
-        || reversed(&l)
-        || reversed(&r)
-    {
+    if left == right || l.end() != r.start || !seam_window(&l) || !seam_window(&r) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
@@ -226,6 +230,28 @@ mod tests {
         assert_eq!(rc.start - rc.offset, Ticks::ZERO);
         undo.apply(&mut p).unwrap();
         assert_eq!(p, before);
+    }
+
+    #[test]
+    fn a_looping_window_has_no_seam_anywhere() {
+        // Review 1: the arrangement showed (and moved) seams the engine never plays.
+        let (mut p, t, l, r) = comped();
+        let tr = p.track_mut(t).unwrap();
+        let c = tr.clip_mut(r).unwrap();
+        c.content_length = Some(Ticks::beats(1));
+        c.audio.as_mut().unwrap().xfade = Ticks(20);
+        assert!(!seam_window(p.track(t).unwrap().clip(r).unwrap()));
+        let moved = Command::SetCompSeam {
+            track: t,
+            left: l,
+            right: r,
+            at: Ticks::beats(3),
+        }
+        .apply(&mut p);
+        assert!(moved.is_err());
+        let s = crate::Snapshot::compile(&p, 1);
+        let tr = &s.tracks[0];
+        assert!(tr.audio.iter().all(|a| a.xin.is_none() && a.xout.is_none()));
     }
 
     #[test]
