@@ -28,7 +28,8 @@ allocation):
 
 - **two rows, as FL's strip.** A group with two lines of its own (PAT/SONG, the
   metronome, the clock, CPU/RAM, the meter) is *tall*: a column of the bar's height. The
-  others are one row high (22-pt keys) and stack two to a column in the owner's order —
+  others are one row high (22-pt keys on FL's button strips: one cap a strip, which keeps
+  the whole window under its triangle budget) and stack two to a column in the owner's order —
   by default the transport over the tempo, the snap over undo, the windows over the
   inputs, the audio chip over the tools. At **1920 px, 100 %, every group is on the
   bar, in English and in Spanish** (`the_default_bar_shows_every_group_at_1920`); the

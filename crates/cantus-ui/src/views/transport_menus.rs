@@ -75,7 +75,12 @@ pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, s: &Style) -> Op
             }
         }
         with_brush(ui.painter(), |b| {
-            let idle = views::workspace_status::tool_hint_key(app);
+            // While renaming, the panel is the field's: no name and no idle hint under it.
+            let idle = if naming {
+                None
+            } else {
+                views::workspace_status::tool_hint_key(app)
+            };
             views::hint::paint_panel(b, hint_r, s, &name, idle);
         });
     });

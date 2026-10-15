@@ -44,7 +44,8 @@ unwell.
 
 - Layout property test: 800–3 840 px × 7 zooms × 6 group sets × EN/ES (two-row overlap
   check), no overlap, no clipping, owner's order kept; every group at 1920 px in EN and ES.
-- Whole-window draw calls in the 64-strip scenario: **87** (ceiling 96) — the bar's words
+- Whole-window 64-strip scenario: **87 draw calls** (ceiling 96) and **119 346 triangles**
+  (ceiling 120 000; the bar alone 5 424 at 1920 px, its row keys on one cap a strip) — the bar's words
   are drawn after its shapes. A custom group order allocates nothing more than the default.
 - Master loudness cost (review 1): **2.5 µs a 32-frame callback, 5.1 µs at 64, 20.4 µs at
   256 — 80 ns per stereo frame, 0.38 % of one core at 48 kHz** (release, `loud_cost`).
@@ -123,7 +124,7 @@ a test that failed first (or a mutation that makes it fail) wherever one can be 
 | Finding | Fix | Test |
 |---|---|---|
 | **High**: a folded group's own menus and popovers closed ⋯ and themselves (egui keeps one popup) | ⋯ keeps its open state on the bar and is an area under its popovers; closes on Esc (when none of them is open), a click outside, or ⋯ | `a_narrow_window_folds_groups_that_still_work_in_the_overflow` (the grid list sets the grid, the metronome's options open, ⋯ stays open, a click outside closes it) |
-| **High**: at 1920 px five groups folded | FL's two rows: one-row groups (22-pt keys) stack two to a column; tighter gaps; the clock's side 70 pt; per-lamp widths; the chip capped at 200 pt (ES "Sin audio — configurar"); folded groups come back when room frees; Windows outranks Snap and Undo | `the_default_bar_shows_every_group_at_1920` (EN and ES), `short_groups_share_a_column_two_high`, `a_folded_group_comes_back_when_room_frees`, the property test's two-row overlap check |
+| **High**: at 1920 px five groups folded | FL's two rows: one-row groups (22-pt keys, FL's button strips: one cap a strip) stack two to a column; tighter gaps; the clock's side 70 pt; per-lamp widths; the chip capped at 200 pt (ES "Sin audio — configurar"); folded groups come back when room frees; Windows outranks Snap and Undo | `the_default_bar_shows_every_group_at_1920` (EN and ES), `short_groups_share_a_column_two_high`, `a_folded_group_comes_back_when_room_frees`, the property test's two-row overlap check |
 | Pattern mode: playhead before or outside the pattern played silence | `follow` keeps the playhead in the pattern every frame | `pattern_mode_keeps_the_playhead_in_the_pattern` |
 | Pattern mode switched on mid-take | `toggle` refuses with a hint; an undo or redo that brings it back ends the take first | `pattern_mode_waits_for_the_take_to_end` |
 | Pattern state survived another project | keyed on the app's project epoch | `another_song_starts_without_the_last_ones_pattern_state` |
@@ -136,7 +137,7 @@ a test that failed first (or a mutation that makes it fail) wherever one can be 
 | Histograms first touched on the audio thread | `MasterLoud::prefault` from `Processor::prefault`; cleared at Play only when written | — (ADR 0031 R11; by inspection) |
 | Mono output read 3 dB high | `process_mono` | `a_mono_output_is_weighed_as_one_channel` |
 | The menus never folded into ≡ | the ≡ key is gone: it saved no width while the hint panel needs its 300 pt (final review rule); docs say the menus never fold | the property test (no compact block) |
-| Text over the rename field | the field is drawn after the words are reordered; the panel leaves the name out while renaming | — (shot) |
+| Text over the rename field | the field is drawn after the words are reordered; the panel leaves the name and the idle hint out while renaming | — (shot `topbar-rename-*`) |
 | Clock elided digits in X/2 and ≥ 10 beats | its width follows the metre (cache keyed on it); tick digits from the beat's length | `the_clock_reads_whole_in_every_metre` |
 | Drop line one row off downwards | drawn under the target when moving down | — (by inspection) |
 | A custom order allocated every frame | resolved into a fixed array | `the_owners_order_allocates_nothing_more` |
