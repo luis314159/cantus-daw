@@ -287,3 +287,44 @@ fn the_demo_project_opens_and_plays_corrected() {
         "A3 came out at {mean}"
     );
 }
+
+/// Review 1: with a transposition (the octave-down preset's −12, the knob's −24), what
+/// comes out is drawn where it is — the lanes span both curves — not pinned flat along the
+/// graph's edge.
+#[test]
+fn the_display_keeps_a_transposed_output_in_view() {
+    for trans in [-12.0, -24.0, 24.0] {
+        let (mut a, s0, fx) = with_tonus();
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, EffectKind::AutoTune);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "trans".into(),
+            value: trans,
+        });
+        cantus_ui::views::fx::demo_feed(&mut a, EffectKind::AutoTune);
+        let g = geometry(&mut a);
+        let (lo, lanes) = g.lanes;
+        let (bottom, top) = (lo as f32 - 0.5, (lo + lanes) as f32 - 0.5);
+        let (mut ins, mut outs) = (0, 0);
+        for c in a.fx.tonus.history.iter().rev().take(120) {
+            if c.input > 0.0 {
+                ins += 1;
+                let p = c.input;
+                assert!(
+                    p > bottom && p < top,
+                    "{trans}: sung {p} out of {lo}+{lanes}"
+                );
+            }
+            if c.output > 0.0 {
+                outs += 1;
+                let p = c.output;
+                assert!(
+                    p > bottom && p < top,
+                    "{trans}: out {p} out of {lo}+{lanes}"
+                );
+            }
+        }
+        assert!(ins > 20 && outs > 20, "{trans}: {ins} sung, {outs} out");
+    }
+}

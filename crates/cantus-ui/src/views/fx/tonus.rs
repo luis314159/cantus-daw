@@ -147,6 +147,8 @@ pub struct Geometry {
     pub readout: Rect,
     /// The keys, C … B.
     pub keys: [Rect; 12],
+    /// The graph's note lanes: the lowest (a MIDI note) and how many.
+    pub lanes: (i32, i32),
 }
 
 impl State {
@@ -275,6 +277,7 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         graph: Rect::NOTHING,
         readout: Rect::NOTHING,
         keys: [Rect::NOTHING; 12],
+        lanes: (0, 0),
     });
     let _ = controls::card_with(
         ui,
@@ -285,9 +288,10 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         Some(disp),
         |ui, cr| {
             if let Some(d) = cr.display {
-                let (gr, rr) = graph::show(st, ui, &pitch_s, &ss, d);
+                let (gr, rr, lanes) = graph::show(st, ui, &pitch_s, &ss, d);
                 geo.graph = gr;
                 geo.readout = rr;
+                geo.lanes = lanes;
             }
         },
     );
