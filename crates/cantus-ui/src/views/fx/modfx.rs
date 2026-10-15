@@ -229,6 +229,32 @@ pub fn movement(
     top: &str,
     bottom: &str,
 ) {
+    movement_with(ui, s, rect, host, tel, curve, top, bottom, &Extras::default());
+}
+
+/// What a display may draw beyond its left and right curves.
+#[derive(Default)]
+pub struct Extras<'a> {
+    /// More curves, faint (a chorus's other voices).
+    pub more: &'a [&'a dyn Fn(f64) -> f32],
+    /// The rate in Hz when the unit's own table does not say it (a chorus model's fixed
+    /// rate).
+    pub hz: Option<f64>,
+}
+
+/// [`movement`] with [`Extras`].
+#[allow(clippy::too_many_arguments)]
+pub fn movement_with(
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    host: &dyn FxHost,
+    tel: &[f32; 64],
+    curve: Curve<'_>,
+    top: &str,
+    bottom: &str,
+    extras: &Extras<'_>,
+) {
     let ink = Ink::of(s);
     let k = s.k;
     const N: usize = 241;
@@ -260,6 +286,15 @@ pub fn movement(
             b.vline(x, plot.top(), plot.bottom(), b.px(), ink.grid_strong);
         }
         b.area(&left, plot.bottom(), ink.fill(0.6));
+        for more in extras.more {
+            let mut pts = [Pos2::ZERO; N];
+            for (j, p) in pts.iter_mut().enumerate() {
+                let c = cycles * j as f64 / (N - 1) as f64;
+                let x = plot.left() + plot.width() * j as f32 / (N - 1) as f32;
+                *p = pos2(x, y_of(more(c)));
+            }
+            b.polyline(&pts, 1.2 * k, ink.faint);
+        }
         if differ {
             b.polyline(&right, 1.4 * k, ink.faint);
         }
@@ -277,11 +312,25 @@ pub fn movement(
             (top, rect.top() + 3.0 * k, Align2::LEFT_TOP),
             (bottom, rect.bottom() - 3.0 * k, Align2::LEFT_BOTTOM),
         ] {
-            let t = Text::new(word, Role::Micro, ink.dim).caps(true);
+            // Words in capitals; a number keeps its unit as written ("6.4 ms").
+            let numeric =
+                word.starts_with(|c: char| c.is_ascii_digit() || "+-\u{2212}".contains(c));
+            let t = Text::new(word, Role::Micro, ink.dim).caps(!numeric);
             canvas::put(b, pos2(rect.left() + 6.0 * k, at), align, &t, k, None);
         }
         let tempo = tel[tel::TEMPO];
-        if spec.get("sync") >= 0.5 {
+        if let Some(hz) = extras.hz {
+            canvas::putf(
+                b,
+                pos2(rect.right() - 6.0 * k, rect.top() + 3.0 * k),
+                Align2::RIGHT_TOP,
+                Role::Value,
+                ink.text,
+                k,
+                Some(ink.plate),
+                format_args!("{hz:.2} Hz"),
+            );
+        } else if spec.get("sync") >= 0.5 {
             let i = (spec.get("div").round().max(0.0) as usize).min(DIV_NAMES.len() - 1);
             canvas::putf(
                 b,
@@ -544,4 +593,19 @@ impl std::fmt::Display for Unit {
             write!(f, "{:.0} {}", self.0, self.1)
         }
     }
+}
+
+/// A child area at `rect`, disabled unless `enabled`: a card whose controls only matter in
+/// one mode is drawn greyed rather than hidden, so the layout never jumps.
+pub fn region<R>(
+    ui: &mut egui::Ui,
+    rect: Rect,
+    enabled: bool,
+    f: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.expand(4.0)));
+    if !enabled {
+        child.disable();
+    }
+    f(&mut child)
 }

@@ -1115,3 +1115,14 @@ vibrans shape 499374374
 vibrans rise 1697349856
 vibrans spread 1229586638
 vibrans mix 1469012833
+concentus mode 1819205650
+concentus mix 1469012833
+concentus voices 1816020030
+concentus sync 159043482
+concentus div 1700965192
+concentus rate 780377191
+concentus shape 499374374
+concentus delay 1322381784
+concentus depth 2121637610
+concentus spread 1229586638
+concentus tone 1550929537

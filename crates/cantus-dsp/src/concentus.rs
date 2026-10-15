@@ -124,7 +124,8 @@ impl Default for ConcentusSettings {
             mix: 0.0,
             voices: 3,
             lfo: LfoSettings {
-                rate: Rate::Hz(0.8),
+                // The table's 0.8 Hz, as the f32 it is stored in.
+                rate: Rate::Hz(f64::from(0.8f32)),
                 shape: Shape::Triangle,
                 ..LfoSettings::default()
             },
@@ -228,7 +229,7 @@ impl Concentus {
     }
 
     /// The LFO a model runs: its fixed triangle, or Free's.
-    fn lfo_of(s: &ConcentusSettings) -> LfoSettings {
+    pub fn lfo_of(s: &ConcentusSettings) -> LfoSettings {
         match s.mode.voicing() {
             Some(v) => LfoSettings {
                 rate: Rate::Hz(v.rate),
