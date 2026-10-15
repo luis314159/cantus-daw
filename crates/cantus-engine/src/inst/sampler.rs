@@ -153,6 +153,7 @@ fn global(g: &mut Globals, key: &str, v: f32) {
         "sw.lo" => g.sw_lo = v as i16,
         "sw.hi" => g.sw_hi = v as i16,
         "sw.default" => g.sw_default = v as i16,
+        "rr.order" => g.rr_in_order = v >= 0.5,
         _ => {
             if let Some(m) = MACRO_KEYS.iter().position(|k| *k == key) {
                 g.macros[m] = v;
@@ -411,6 +412,11 @@ impl InstrumentUnit for Unit {
 
     fn note_on(&mut self, note: NoteOn) {
         self.ex.note_on(note.key, note.velocity, note.id);
+    }
+
+    fn note_on_seq(&mut self, note: NoteOn, ordinal: u32) {
+        self.ex
+            .note_on_seq(note.key, note.velocity, note.id, ordinal);
     }
 
     fn note_off(&mut self, key: u8, id: u64, velocity: f32) {

@@ -306,6 +306,34 @@ fn credits_name_every_sound_pack_cc_by_in_full_beside_the_bible_translations() {
     }
 }
 
+/// The pack list Cantus ships credits DRSKit as its licence asks (round 28, ADR 0042): the
+/// credit in full, and the authors' own words about crediting it in music, as they wrote
+/// them — in every language.
+#[test]
+fn the_drum_kit_is_credited_with_its_authors_words() {
+    for locale in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_locale(locale);
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = support::app(cantus_core::Project::new("About"));
+        app.samples.content_root = Some(dir.path().to_path_buf());
+        app.samples.manifest = Some(cantus_content::Manifest::bundled());
+        let ctx = support::ctx();
+        app.show_about = true;
+        let mut painted = String::new();
+        for i in 0..3 {
+            painted = joined(&frame(&mut app, &ctx, i as f64 * 0.1, vec![]).0);
+        }
+        for w in [
+            "DRSKit",
+            "the DrumGizmo team and Jes Eiler (DRSDrums)",
+            "When the samples are used in a composition",
+        ] {
+            assert!(painted.contains(w), "{locale:?}: {w:?} not in {painted}");
+        }
+    }
+    cantus_ui::i18n::set_locale(Locale::En);
+}
+
 /// *Credits* beside the documents scrolls the window to its credits, wherever the list's
 /// length has put them.
 #[test]

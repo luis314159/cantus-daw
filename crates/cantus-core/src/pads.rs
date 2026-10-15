@@ -676,12 +676,15 @@ impl Default for PulsusParams {
 /// The plan for this asked for `lanes() -> Option<&[Pitch]>`. It is this instead, because
 /// an editor needs three things and a slice of pitches is only one of them: lane → pitch,
 /// pitch → lane, and lane → name.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Lanes<'a> {
     /// A keyboard: 128 lanes, one per pitch, named `C4`, `F#2` and so on.
     Chromatic,
     /// One lane per pad, ascending by pitch.
     Pads(&'a [DrumPad]),
+    /// One lane per key a sampler kit plays, ascending, with the drum's name (round 28:
+    /// an Exemplar that is a kit, `inst::sampler::kit_lanes`).
+    Keys(Vec<(Pitch, String)>),
 }
 
 impl Lanes<'_> {
@@ -694,6 +697,7 @@ impl Lanes<'_> {
         match self {
             Lanes::Chromatic => 128,
             Lanes::Pads(p) => p.len(),
+            Lanes::Keys(k) => k.len(),
         }
     }
 
@@ -702,6 +706,7 @@ impl Lanes<'_> {
         match self {
             Lanes::Chromatic => (lane < 128).then_some(lane as Pitch),
             Lanes::Pads(p) => p.get(lane).map(|p| p.pitch),
+            Lanes::Keys(k) => k.get(lane).map(|k| k.0),
         }
     }
 
@@ -709,7 +714,7 @@ impl Lanes<'_> {
     /// through an insert below it.
     pub fn pad_id(&self, lane: usize) -> Option<PadId> {
         match self {
-            Lanes::Chromatic => None,
+            Lanes::Chromatic | Lanes::Keys(_) => None,
             Lanes::Pads(p) => p.get(lane).map(|p| p.id),
         }
     }
@@ -719,13 +724,14 @@ impl Lanes<'_> {
         match self {
             Lanes::Chromatic => Some(pitch as usize),
             Lanes::Pads(p) => p.iter().position(|p| p.pitch == pitch),
+            Lanes::Keys(k) => k.iter().position(|k| k.0 == pitch),
         }
     }
 
     /// Which lane a pad is on, by identity.
     pub fn lane_of_pad(&self, id: PadId) -> Option<usize> {
         match self {
-            Lanes::Chromatic => None,
+            Lanes::Chromatic | Lanes::Keys(_) => None,
             Lanes::Pads(p) => p.iter().position(|p| p.id == id),
         }
     }
@@ -738,6 +744,7 @@ impl Lanes<'_> {
                 .get(lane)
                 .map(|p| p.name.clone())
                 .unwrap_or_else(String::new),
+            Lanes::Keys(k) => k.get(lane).map(|k| k.1.clone()).unwrap_or_default(),
         }
     }
 }

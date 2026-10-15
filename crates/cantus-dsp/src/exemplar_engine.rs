@@ -297,6 +297,17 @@ impl Exemplar {
     }
 
     pub fn note_on(&mut self, key: u8, vel: f32, id: u64) {
+        self.start_note(key, vel, id, None);
+    }
+
+    /// A sequenced note-on with its ordinal: how many note-ons of its pitch come before it
+    /// on the track (`NoteEvent::ordinal`). With round robin in order
+    /// ([`Globals::rr_in_order`]) the ordinal is the note's turn; otherwise it is ignored.
+    pub fn note_on_seq(&mut self, key: u8, vel: f32, id: u64, ordinal: u32) {
+        self.start_note(key, vel, id, Some(ordinal));
+    }
+
+    fn start_note(&mut self, key: u8, vel: f32, id: u64, ordinal: Option<u32>) {
         let key = key.min(127);
         if self.in_switch_range(key) {
             self.keyswitch = key as i16;
@@ -315,7 +326,10 @@ impl Exemplar {
                     self.live_rr[key as usize] = c.wrapping_add(1);
                     c
                 } else {
-                    (mix(id) >> 33) as u32
+                    match ordinal {
+                        Some(o) if self.globals.rr_in_order => o,
+                        _ => (mix(id) >> 33) as u32,
+                    }
                 };
                 self.slots[voice] = Slot {
                     key,

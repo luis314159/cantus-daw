@@ -1,6 +1,6 @@
 {
- "format": 2,
- "updated": "2026-10-13",
+ "format": 3,
+ "updated": "2026-10-15",
  "packs": [
   {
    "id": "cantus-starter-drums",
@@ -1261,6 +1261,471 @@
     "gain_db": -5.5
    }
   ]
- }
+ },
+  {
+   "id": "drskit",
+   "version": 1,
+   "name": {
+    "en": "DRSKit acoustic drums",
+    "es": "Batería acústica DRSKit"
+   },
+   "description": {
+    "en": "A handcrafted DRSDrums kit recorded by the DrumGizmo team with 13 microphones: two kick sounds, snare, three toms, hi-hat, two crashes and a ride, with sticks and with brushes, up to 30 strengths per drum. Cantus mixes the microphones into a stereo kit as it installs it: a 2.8 GB download, about 490 MB once installed; its first load writes Cantus's sample cache. Plays in Exemplar on the General MIDI drum keys.",
+    "es": "Una batería artesanal de DRSDrums grabada por el equipo de DrumGizmo con 13 micrófonos: dos sonidos de bombo, caja, tres toms, charles, dos crash y un ride, con baquetas y con escobillas, hasta 30 intensidades por tambor. Cantus mezcla los micrófonos en una batería estéreo al instalarla: una descarga de 2,8 GB, unos 490 MB instalada; su primera carga escribe la caché de muestras de Cantus. Suena en Exemplar en las teclas de batería de General MIDI."
+   },
+   "category": "drums",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README.md",
+   "credits": [
+    {
+     "name": "DRSKit 2.1 — the DrumGizmo team (Deva and Lars Muldjord) and Jes Eiler of DRSDrums",
+     "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-10-15",
+   "installed_size": 489577116,
+   "source": {
+    "zip": {
+     "url": "https://drumgizmo.org/kits/DRSKit/DRSKit2_1.zip",
+     "size": 2803397710,
+     "sha256": "529f2dcad836593167d0cab218f125f591cd71199748fa681e05e3866667f090",
+     "strip": "DRSKit/"
+    }
+   },
+   "attribution": {
+    "title": "DRSKit",
+    "author": "the DrumGizmo team and Jes Eiler (DRSDrums)",
+    "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+    "note": "When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution."
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "DRSKit acoustic drums",
+      "es": "Batería acústica DRSKit"
+     },
+     "file": "DRSKit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "voices": 64
+    }
+   ],
+   "build": {
+    "kit": "DRSKit_full.xml",
+    "unpacked_size": 4302568083,
+    "sfz": "DRSKit.sfz",
+    "folder": "Samples",
+    "gain_db": -1.0,
+    "mics": [
+     {
+      "channel": "Kdrum_front",
+      "gain_db": -4.0,
+      "pan": 0.0,
+      "own": [
+       "Kdrum"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Kdrum_back",
+      "gain_db": -4.0,
+      "pan": 0.0,
+      "own": [
+       "Kdrum"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Snare_top",
+      "gain_db": -2.0,
+      "pan": -5.0,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Snare_bottom",
+      "gain_db": -10.0,
+      "pan": -5.0,
+      "invert": true,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Tom1",
+      "gain_db": -3.0,
+      "pan": -15.0,
+      "own": [
+       "Tom1"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Tom2",
+      "gain_db": -3.0,
+      "pan": 25.0,
+      "own": [
+       "Tom2"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Tom3",
+      "gain_db": -3.0,
+      "pan": 45.0,
+      "own": [
+       "Tom3"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Hihat",
+      "gain_db": -10.0,
+      "pan": -50.0,
+      "own": [
+       "Hihat"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Ride",
+      "gain_db": -10.0,
+      "pan": 45.0,
+      "own": [
+       "Ride"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "OHL",
+      "gain_db": 0.0,
+      "pan": -75.0
+     },
+     {
+      "channel": "OHR",
+      "gain_db": 0.0,
+      "pan": 75.0
+     },
+     {
+      "channel": "AmbL",
+      "gain_db": -8.0,
+      "pan": -100.0
+     },
+     {
+      "channel": "AmbR",
+      "gain_db": -8.0,
+      "pan": 100.0
+     }
+    ],
+    "keys": [
+     {
+      "instrument": "Kdrum_without_contact",
+      "keys": [
+       35
+      ],
+      "gain_db": 2.0,
+      "label": "Kick, open"
+     },
+     {
+      "instrument": "Kdrum_with_contact",
+      "keys": [
+       36
+      ],
+      "label": "Kick"
+     },
+     {
+      "instrument": "Snare_rim",
+      "keys": [
+       37
+      ],
+      "gain_db": 6.0,
+      "label": "Side stick"
+     },
+     {
+      "instrument": "Snare",
+      "keys": [
+       38
+      ],
+      "gain_db": 1.0,
+      "label": "Snare"
+     },
+     {
+      "instrument": "Snare_rest",
+      "keys": [
+       40
+      ],
+      "gain_db": 6.0,
+      "label": "Snare (rest)"
+     },
+     {
+      "instrument": "Tom3",
+      "keys": [
+       41
+      ],
+      "gain_db": -2.0,
+      "label": "Tom 3 (low floor)"
+     },
+     {
+      "instrument": "Tom2",
+      "keys": [
+       43,
+       45
+      ],
+      "gain_db": -3.0,
+      "label": "Tom 2 (floor)"
+     },
+     {
+      "instrument": "Tom1",
+      "keys": [
+       47,
+       48,
+       50
+      ],
+      "gain_db": -1.0,
+      "label": "Tom 1 (rack)"
+     },
+     {
+      "instrument": "Hihat_closed_shank",
+      "keys": [
+       42
+      ],
+      "label": "Hi-hat closed"
+     },
+     {
+      "instrument": "Hihat_foot",
+      "keys": [
+       44
+      ],
+      "gain_db": 8.0,
+      "label": "Hi-hat pedal"
+     },
+     {
+      "instrument": "Hihat_semi_open",
+      "keys": [
+       46
+      ],
+      "label": "Hi-hat half open"
+     },
+     {
+      "instrument": "Crash_left_shank",
+      "keys": [
+       49
+      ],
+      "gain_db": 3.0,
+      "label": "Crash left"
+     },
+     {
+      "instrument": "Ride_tip",
+      "keys": [
+       51
+      ],
+      "gain_db": 6.0,
+      "label": "Ride"
+     },
+     {
+      "instrument": "Ride_shank_bell",
+      "keys": [
+       53
+      ],
+      "gain_db": 2.0,
+      "label": "Ride bell"
+     },
+     {
+      "instrument": "Crash_left_tip",
+      "keys": [
+       54
+      ],
+      "gain_db": 5.0,
+      "label": "Crash left, tip"
+     },
+     {
+      "instrument": "Crash_right_tip",
+      "keys": [
+       55
+      ],
+      "gain_db": 5.0,
+      "label": "Crash right, tip"
+     },
+     {
+      "instrument": "Hihat_closed",
+      "keys": [
+       56
+      ],
+      "gain_db": 5.0,
+      "label": "Hi-hat closed, tip"
+     },
+     {
+      "instrument": "Crash_right_shank",
+      "keys": [
+       57
+      ],
+      "gain_db": 3.0,
+      "label": "Crash right"
+     },
+     {
+      "instrument": "Hihat_open",
+      "keys": [
+       58
+      ],
+      "gain_db": 3.0,
+      "label": "Hi-hat open"
+     },
+     {
+      "instrument": "Ride_shank",
+      "keys": [
+       59,
+       66
+      ],
+      "gain_db": 3.0,
+      "label": "Ride, shank"
+     },
+     {
+      "instrument": "Crash_left_whisker",
+      "keys": [
+       60
+      ],
+      "gain_db": 18.0,
+      "label": "Crash left, brush"
+     },
+     {
+      "instrument": "Hihat_open_tip",
+      "keys": [
+       61
+      ],
+      "gain_db": 6.0,
+      "label": "Hi-hat open, tip"
+     },
+     {
+      "instrument": "Crash_right_whisker",
+      "keys": [
+       62
+      ],
+      "gain_db": 12.0,
+      "label": "Crash right, brush"
+     },
+     {
+      "instrument": "Ride_rest",
+      "keys": [
+       63
+      ],
+      "label": "Ride (rest)"
+     },
+     {
+      "instrument": "Hihat_closed_whisker",
+      "keys": [
+       64
+      ],
+      "gain_db": 16.0,
+      "label": "Hi-hat closed, brush"
+     },
+     {
+      "instrument": "Hihat_open_whisker",
+      "keys": [
+       65
+      ],
+      "gain_db": 10.0,
+      "label": "Hi-hat open, brush"
+     },
+     {
+      "instrument": "Ride_whisker",
+      "keys": [
+       67
+      ],
+      "gain_db": 20.0,
+      "label": "Ride, brush"
+     },
+     {
+      "instrument": "Ride_tip_bell",
+      "keys": [
+       68
+      ],
+      "gain_db": 2.0,
+      "label": "Ride bell, tip"
+     },
+     {
+      "instrument": "Snare_circle_whisker",
+      "keys": [
+       69
+      ],
+      "gain_db": 30.0,
+      "label": "Snare, brush circle"
+     },
+     {
+      "instrument": "Ride_tip_bell_chain",
+      "keys": [
+       70
+      ],
+      "gain_db": 4.0,
+      "label": "Ride bell with chain"
+     },
+     {
+      "instrument": "Snare_whisker",
+      "keys": [
+       71
+      ],
+      "gain_db": 6.0,
+      "label": "Snare, brush"
+     },
+     {
+      "instrument": "Tom1_whisker",
+      "keys": [
+       72
+      ],
+      "gain_db": 4.0,
+      "label": "Tom 1, brush"
+     },
+     {
+      "instrument": "Ride_tip_chain",
+      "keys": [
+       73
+      ],
+      "gain_db": 6.0,
+      "label": "Ride with chain"
+     },
+     {
+      "instrument": "Tom2_whisker",
+      "keys": [
+       74
+      ],
+      "gain_db": 4.0,
+      "label": "Tom 2, brush"
+     },
+     {
+      "instrument": "Tom3_whisker",
+      "keys": [
+       76
+      ],
+      "gain_db": 4.0,
+      "label": "Tom 3, brush"
+     }
+    ],
+    "chokes": [
+     {
+      "instruments": [
+       "Hihat_closed_shank",
+       "Hihat_foot",
+       "Hihat_semi_open",
+       "Hihat_closed",
+       "Hihat_open",
+       "Hihat_open_tip",
+       "Hihat_closed_whisker",
+       "Hihat_open_whisker"
+      ],
+      "release_ms": 60.0
+     }
+    ],
+    "round_robin": 3,
+    "range_db": 30.0,
+    "keep": [
+     "README.md"
+    ]
+   }
+  }
  ]
 }

@@ -846,7 +846,10 @@ dependencies = [
 name = "cantus-content"
 version = "0.1.0-beta.1"
 dependencies = [
+ "cantus-dsp",
  "flate2",
+ "hound",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "sha2",

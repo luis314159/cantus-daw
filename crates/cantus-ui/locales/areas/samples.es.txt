@@ -36,6 +36,7 @@ samples.phase.downloading = Descargando {done} de {total} MB
 samples.phase.retrying = Esperando a la red ({why}); se reintenta en {s} s
 samples.phase.verifying = Comprobando cada byte…
 samples.phase.unpacking = Desempaquetando…
+samples.phase.building = Mezclando los micrófonos: {done} de {total} golpes
 samples.state.installed = Instalado
 samples.state.update = Actualizar
 samples.state.busy = Instalando

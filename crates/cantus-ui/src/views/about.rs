@@ -296,6 +296,12 @@ fn credits(app: &mut CantusApp, ui: &mut Ui, s: &Style) {
         ui.add_space(2.0 * s.k);
         para(ui, &head, Role::Label, s.t.text);
         para(ui, &line, Role::Label, s.t.text_dim);
+        // The authors' own words about crediting the samples in music, as they wrote them
+        // (round 28: DRSKit's).
+        if !e.note.trim().is_empty() {
+            let note = tf("samples.ccby.author_says", &[("note", &e.note.trim())]);
+            para(ui, &note, Role::Label, s.t.text_dim);
+        }
     }
 }
 

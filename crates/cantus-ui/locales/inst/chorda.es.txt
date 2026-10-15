@@ -2,3 +2,73 @@
 # Cada clave de chorda.en.txt tiene aquí su gemela.
 instrument.chorda = Chorda
 chorda.about = Un piano de cola tocado desde un modelo físico: cuerdas, martillos, tabla armónica y pedales.
+
+# Parámetros
+chorda.model = Modelo
+chorda.a4 = La4
+chorda.stretch = Estiramiento
+chorda.stiffness = Rigidez
+chorda.hardness = Dureza
+chorda.hysteresis = Memoria del fieltro
+chorda.dynamics = Dinámica
+chorda.vel_curve = Curva de velocidad
+chorda.decay = Extinción
+chorda.unison = Unísono
+chorda.coupling = Acople al puente
+chorda.sympathy = Simpatía
+chorda.phantom = Parciales fantasma
+chorda.damper = Apagadores
+chorda.una = Pedal suave
+chorda.body = Tabla armónica
+chorda.tilt = Inclinación
+chorda.width = Anchura
+
+# Tarjetas del editor (ADR 0024)
+chorda.strings = CUERDAS Y MARTILLOS
+chorda.pedals = PEDALES
+chorda.hammer = MARTILLO
+chorda.resonance = RESONANCIA
+chorda.output = SALIDA
+chorda.tuning = AFINACIÓN
+chorda.ring = LO QUE SUENAN LAS CUERDAS
+chorda.legend = {key} · {hz} Hz · {n} cuerdas de {cm} cm, golpeadas al {pct} %
+chorda.legend_one = {key} · {hz} Hz · una cuerda de {cm} cm, golpeada al {pct} %
+chorda.sustain_line = Pedal derecho {p} % · apagadores {down} % abajo
+chorda.soft_line = Pedal suave {p} %
+chorda.tuning_line = La4 {a4} Hz · La0 {a0} ct · Do8 {c8} ct
+chorda.designing = diseñando las cuerdas
+chorda.felt_line = Martillo de {key}: {g} g, exponente del fieltro {p}
+chorda.ring_line = {key} suena {s} s (primer parcial) · a trazos: con apagador
+
+# Presets
+chorda.preset.concert = Cola de concierto
+chorda.preset.studio = Estudio brillante
+chorda.preset.ballad = Balada cálida
+chorda.preset.jazz = Club de jazz
+chorda.preset.felt = Piano de fieltro
+chorda.preset.honky = Honky-tonk
+chorda.preset.baroque = Diapasón barroco (La 415)
+chorda.preset.wash = Baño de pedal
+chorda.preset.pop = Pop al frente
+chorda.preset.old = Piano de cola antiguo
+chorda.tag.grand = De cola
+chorda.tag.soft = Suave
+chorda.tag.character = Carácter
+
+# Abreviaturas para etiquetas que no caben en una celda (la política Abbreviate del kit)
+chorda.stretch.short = ESTIRAM
+chorda.stiffness.short = RIGIDEZ
+chorda.hardness.short = DUREZA
+chorda.hysteresis.short = MEMORIA
+chorda.dynamics.short = DIN
+chorda.vel_curve.short = CURVA VEL
+chorda.decay.short = EXTINC
+chorda.unison.short = UNÍSONO
+chorda.coupling.short = ACOPLE
+chorda.sympathy.short = SIMPATÍA
+chorda.phantom.short = FANTASMA
+chorda.damper.short = APAGAD
+chorda.una.short = SUAVE
+chorda.body.short = TABLA
+chorda.tilt.short = INCLIN
+chorda.width.short = ANCHURA

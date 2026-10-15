@@ -40,6 +40,16 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
   - [ ] la tarjeta de paquete que falta (abrir un proyecto con un paquete sin instalar);
   - [ ] *Nivel ▸ Escribir un nivel…* en el menú de ruta de un cable;
   - [ ] un nombre en japonés o coreano en una pista (las letras del sistema llegan solas).
+- [ ] Probar a mano lo de la ronda 28 (sonido):
+  - [ ] instalar **DRSKit** en *Paquetes de sonidos* (2,8 GB de descarga, se mezcla a estéreo
+        al instalar) y tocar un ritmo: las filas de la batería en el piano roll, el charles
+        abierto que se corta al cerrarlo, ningún golpe repetido idéntico en un redoble;
+  - [ ] **Chorda**: tocarlo con un teclado de 88 teclas y pedal **continuo** (medio pedal),
+        y el pedal suave si tu teclado lo tiene (CC 67); los presets, por oído (tienen la
+        última palabra).
+- [ ] **Chorda — prueba a ciegas** (ADR 0059): ≥ 20 oyentes, frases iguales en Chorda,
+      Pianoteq 9 y un piano de muestras (p. ej. Salamander); que no sepan cuál es cuál.
+      Anotar preferencias y comentarios en `docs/round28/sound.md`.
 
 ## 2. Decisiones y trámites tuyos
 
@@ -65,6 +75,11 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       y registrar (IMPI en México primero; luego Protocolo de Madrid si conviene).
 - [ ] **Revisión legal del CLA** (`CLA.md`) antes de aceptar el primer aporte de otra
       persona.
+- [ ] **Revisión legal de Chorda** frente a las patentes de modelado de piano que nombra el
+      ADR 0059 (Modartt US 7,915,515; Casio US 8,178,772; Yamaha US 10,818,278 y US
+      8,729,376; Kawai US 9,330,648; Casio US 10,109,268 y 11,881,196; Yamaha US
+      12,039,960): la estructura está pensada para evitarlas, pero la opinión es de un
+      abogado, antes de publicar.
 - [ ] **Hacer público el repositorio** (descargas, auto-actualización y SignPath lo
       necesitan): antes, sacar del historial las capturas de otros productos
       (`research/*/screenshots/`) y revisar que no haya secretos. Si para entonces no ha

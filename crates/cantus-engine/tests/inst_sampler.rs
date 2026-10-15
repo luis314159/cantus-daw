@@ -405,3 +405,76 @@ fn the_sustain_pedal_and_any_controller_start_the_zones_they_cross_into() {
     play(u.as_mut(), 1);
     assert_eq!(u.active_voices(), 2, "CC 20 crossed into 100…127");
 }
+
+/// Round 28 (sound): with round robin in order (`rr.order` = 1), a clip's notes take
+/// their turns by their ordinal on the track — 1, 2, 3, 4, 1… — so a roll never plays a
+/// sample twice in a row, and a render that starts at beat 5 takes the turns the whole
+/// render takes there.
+#[test]
+fn a_clips_notes_take_their_round_robin_turns_in_order_from_any_start() {
+    let dir = tempfile::tempdir().unwrap();
+    let zones: Vec<Zone> = (0..4)
+        .map(|n| {
+            let path = dir.path().join(format!("rr{n}.wav"));
+            write_wav(&path, 1, 48_000, &vec![0.1 * (n + 1) as f32; 4_800]);
+            let mut z = Zone::new(Some(path.to_string_lossy().into()), 0, 127, 60);
+            z.set(zf::SEQ, (n + 1) as f32)
+                .set(zf::SEQLEN, 4.0)
+                .set(zf::MODE, 1.0);
+            z
+        })
+        .collect();
+    let mut spec = spec_of(&zones);
+    spec.set("rr.order", 1.0).unwrap();
+    spec.set("vel.amp", 0.0).unwrap();
+    let notes: Vec<(u32, u32, u8, u8)> = (0..10).map(|b| (b, 1, 60, 127)).collect();
+    let p = project(&spec, &notes);
+    // 120 bpm: a beat is 24 000 frames; read each note 100 frames in (left channel). The
+    // zones' levels are 1, 2, 3, 4 times the first's, whatever the instrument's trim.
+    let one = std::cell::Cell::new(0.0f32);
+    let turn = |out: &[f32], beat: usize, from: usize| {
+        let x = out[2 * ((beat - from) * 24_000 + 100)];
+        if one.get() == 0.0 {
+            one.set(x);
+        }
+        (x / one.get()).round() as usize
+    };
+    let mut cache = SampleCache::new();
+    let full = render(
+        snapshot(&p, &mut cache),
+        &RenderOptions {
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .samples;
+    let turns: Vec<usize> = (0..10).map(|b| turn(&full, b, 0)).collect();
+    assert_eq!(turns, [1, 2, 3, 4, 1, 2, 3, 4, 1, 2]);
+    let late = render(
+        snapshot(&p, &mut cache),
+        &RenderOptions {
+            start: Ticks::beats(5),
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .samples;
+    let from5: Vec<usize> = (5..10).map(|b| turn(&late, b, 5)).collect();
+    assert_eq!(
+        from5,
+        turns[5..],
+        "a render from beat 5 cycles as the whole one does"
+    );
+}
+
+/// A new Exemplar plays round robin in order; every Exemplar saved before round 28 gets
+/// `rr.order` = 0 written by the schema migration and keeps its seeded turns.
+#[test]
+fn a_new_exemplar_plays_round_robin_in_order() {
+    let spec = NativeSpec::new(InstrumentKind::Sampler);
+    assert_eq!(spec.get("rr.order"), 1.0, "a new Exemplar plays in order");
+    let info = cantus_core::inst::sampler::param("rr.order").unwrap();
+    assert_eq!(info.default, 1.0);
+}

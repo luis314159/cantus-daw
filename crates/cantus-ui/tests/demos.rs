@@ -345,7 +345,8 @@ fn every_native_instrument_plays_in_some_demo() {
             }
         }
     }
-    // A scaffold (round 28's Chorda until it plays) is not in the picker, nor in a demo.
+    // A scaffold is not in the picker, nor in a demo (round 28's Chorda was, until it
+    // played).
     for kind in InstrumentKind::ready_kinds() {
         assert!(seen.contains(&kind), "no demo plays {kind:?}");
     }

@@ -64,9 +64,12 @@ note starts one *layer* per matching zone (up to 256 layers in all). A stolen no
 fade over 5 ms. Zone choice: key, velocity, keyswitch, round-robin position, random range,
 trigger (attack, first, legato; release and key-up at note-off). **Randomness is seeded
 from the note**: the random number is a hash of the note's id and key (shared by every
-zone, like SFZ's `lorand`), and the round-robin position of a sequenced note is drawn from
-its id — so a bounce, a freeze and a playback from any point choose the same samples. Live
-input (one id per key) cycles strictly with a per-key counter. Release samples lose
+zone, like SFZ's `lorand`), and the round-robin turn of a clip's note is its **ordinal** —
+how many notes of its pitch come before it on the track — so turns cycle strictly
+(1, 2, 3…, never a sample twice in a row) and a bounce, a freeze and a playback from any
+point choose the same samples (round 28, `rr.order` *In order*; *By note*, a turn drawn
+from the note's id, is how Exemplars saved before keep playing). Live input (one id per
+key) cycles strictly with a per-key counter. Release samples lose
 `rt_decay` dB per second held and can start at the level the note had reached. Exclusive
 classes silence with a 5 ms fade (or a release). Everything steps on a 32-sample control
 grid counted from each layer's own start, never from a block boundary.
@@ -307,12 +310,29 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
   loop that is not a multiple of 2^k frames long is off by up to 2^(k−1) frames per lap
   (a few cents on a 600-frame single cycle two octaves up). Built-in cycles are powers of
   two and exact.
-- **Round robin for sequenced notes** is drawn from the note's id: repeatable from any
-  start point, varied, but not a strict 1-2-3-4 cycle (live input is). A strict cycle that
-  also survives seeking needs the note's position in its clip from the host.
 - SFZ tier 2 beyond the filter (CC modulation, `<curve>`, v2 `egN`/`lfoN`), `amp_velcurve_N`
   and ARIA shapes are logged, not mapped; Decent Sampler's `<modulators>`, `<effects>` and
   `<ui>` are logged; SF2 modulators other than velocity are logged; `.dslibrary` zips and
   merged SF2 stereo pairs are not read yet.
 - Slicing (Sectio), pitch detection for unnamed files, per-note MPE, the voice inspector,
   record-into-a-zone and auto-sampling are P1/P2.
+
+## Round 28 (sound): round robin in order, drum rows, a kit built at install
+
+- **Round robin in order** (`rr.order`: 1 *In order*, the default; 0 *By note*, every
+  Exemplar saved before — schema 28's migration). A clip's note arrives with its ordinal
+  (`InstrumentUnit::note_on_seq`); the zone whose `seq` is `ordinal mod seqlen + 1` plays.
+  An import (SFZ, Decent Sampler, a folder) sets it to *In order*. The choice sits in the
+  *Edit* view's tools row. Tests: `exemplar_tests4.rs` (cycles by ordinal, a render from the
+  middle, a 64-stroke roll never repeats, *By note* unchanged, live notes),
+  `inst_sampler.rs` (engine: a clip's notes and a render from beat 5), `format.rs`
+  (schema 28), `cantus-ui/tests/inst_sampler.rs` (an import plays in order).
+- **Drum rows** (`kit`: 0 a keyboard, the default; 1 a kit). The piano roll and the channel
+  rack show a row per key the zones play, named by the zone's group (SFZ `group_label`),
+  else by General MIDI, as Pulsus shows its pads. A pack instrument on the *Drums* shelf
+  turns it on; the *Drum rows* switch in the tools row toggles it.
+  Test: `cantus-core/tests/sampler_kit_lanes.rs`.
+- **DRSKit**, DrumGizmo's acoustic kit (CC BY 4.0), is a pack built at install: its 13
+  microphones are mixed to one stereo file per hit and an SFZ is written for Exemplar
+  (ADR 0042's round-28 amendment). 591 zones over 35 drums, 186 velocity layers each with
+  at least two hits taking turns, the hi-hat's choke, General MIDI keys, 64 voices.

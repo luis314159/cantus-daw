@@ -169,6 +169,9 @@ fn record(app: &mut CantusApp, spec: &NativeSpec, key: &str, r: Rect) {
         InstrumentKind::ElectricPiano => {
             app.inst.epiano.placed.insert(info.key, r);
         }
+        InstrumentKind::Chorda => {
+            app.inst.chorda.placed.insert(info.key, r);
+        }
         _ => {}
     }
 }
