@@ -272,4 +272,15 @@ fn the_demo_project_opens_and_plays_corrected() {
     let peak = corrected.iter().fold(0.0f32, |m, v| m.max(v.abs()));
     assert!(peak > 0.05, "it sounds: {peak}");
     assert!(corrected != plain, "Tonus changed the voice");
+    // And it tuned it: the first note, sung 28 cents sharp of A3, comes out on A3.
+    let left: Vec<f32> = corrected.chunks_exact(2).map(|f| f[0]).collect();
+    let a = cantus_dsp::pitch::analyse(&left, 48_000.0);
+    let sung: Vec<f32> = a
+        .frames
+        .iter()
+        .filter(|f| f.voiced && f.centre > 0.6 * 48_000.0 && f.centre < 0.9 * 48_000.0)
+        .map(|f| cantus_dsp::pitch::hz_to_midi(f.f0))
+        .collect();
+    let mean = sung.iter().sum::<f32>() / sung.len().max(1) as f32;
+    assert!(sung.len() > 20 && (mean - 57.0).abs() < 0.08, "A3 came out at {mean}");
 }
