@@ -29,6 +29,7 @@ discrimen.k.gain = Gain
 discrimen.k.comp = Comp
 discrimen.k.tilt = Tilt
 discrimen.k.sens = Sensitivity
+discrimen.k.sens.short = Sens.
 discrimen.k.speed = Length
 discrimen.legend.transient = Transient
 discrimen.legend.body = Body
