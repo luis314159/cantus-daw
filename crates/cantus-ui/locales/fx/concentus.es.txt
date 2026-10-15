@@ -49,3 +49,4 @@ preset.concentus.vocal_double = Doblaje de voz
 preset.concentus.lush_four = Cuatro voces densas
 preset.concentus.synced_swirl = Remolino al compás
 preset.concentus.mono_bass = Bajo, seguro en mono
+fx.concentus.depth.short = Barrido

@@ -49,3 +49,4 @@ preset.concentus.vocal_double = Vocal double
 preset.concentus.lush_four = Lush four voices
 preset.concentus.synced_swirl = Swirl on the bar
 preset.concentus.mono_bass = Bass, mono-safe
+fx.concentus.depth.short = Sweep

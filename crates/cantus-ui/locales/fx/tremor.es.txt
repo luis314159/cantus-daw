@@ -76,3 +76,4 @@ modfx.p.div.short = Figura
 modfx.p.spread.short = Estéreo
 modfx.p.offset.short = Fase
 fx.tremor.xover.short = Cruce
+modfx.p.rate.short = Ritmo

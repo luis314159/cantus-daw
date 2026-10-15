@@ -76,3 +76,4 @@ modfx.p.div.short = Note
 modfx.p.spread.short = Stereo
 modfx.p.offset.short = Phase
 fx.tremor.xover.short = X-over
+modfx.p.rate.short = Rate
