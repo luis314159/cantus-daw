@@ -82,7 +82,8 @@ botón *Asistente…* del chip de audio la trae de vuelta).
 
 ### El chip de audio
 
-El chip de abajo a la derecha muestra siempre el dispositivo, el controlador, la
+El chip de la barra superior (o de su menú ⋯ cuando la ventana es estrecha) muestra el
+dispositivo, el controlador, la
 frecuencia, el búfer y la latencia — por ejemplo `UMC204HD · ASIO · 48 k · 128 · 6.1 ms`.
 Su luz es verde cuando el audio funciona, ámbar tras un corte y roja cuando el dispositivo
 se perdió o el controlador se detuvo. **Haz clic en él** para cambiar cualquier cosa; cada
@@ -93,8 +94,8 @@ cambio se aplica al instante y se recuerda para esa interfaz:
 - **Interfaz**, **Controlador** (WASAPI o ASIO, con la lista *Controlador ASIO*),
   **Dispositivo de entrada**, **Frecuencia**;
 - **Búfer · ida y vuelta**: de 64 a 2048 muestras, cada una con su latencia. Más pequeño
-  es más justo para tocar; más grande es más seguro para mezclas grandes. Si la barra de
-  estado cuenta cortes, sube al siguiente tamaño;
+  es más justo para tocar; más grande es más seguro para mezclas grandes. Si la barra
+  superior cuenta cortes, sube al siguiente tamaño;
 - los problemas aparecen arriba con un botón que los arregla (*Reiniciar audio*, *Usar el
   audio de este equipo*, *Usar 48 kHz*…);
 - *Tono de prueba*, *Canales y ruteo…* (nombra tus entradas y salidas, elige un par para
@@ -116,19 +117,16 @@ reinicia el audio una vez por sí solo. No se puede cambiar el dispositivo mient
 Cantus abre con una canción — la segunda subida de la demo *Neon Tide*, en bucle — para
 que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla.
 
-- **La barra de herramientas** (arriba): el logo y los menús (*Archivo, Edición, Clip, Ver,
-  Ayuda*), el nombre del proyecto (con `•` si tiene cambios sin guardar), el transporte
-  (*Ir al inicio*, *Reproducir*, *Detener*, *Grabar* y sus opciones ▾), *Bucle*,
-  *Metrónomo*, *Teclas* (el teclado del ordenador), el tempo (arrástralo, usa la rueda o
-  doble clic para 120), el reloj, deshacer y rehacer, y seis **teclas de ventana**:
-  Explorador, Arreglo, Rack de canales, Piano roll, Mezclador, Inspector.
+- **La barra superior** (ver [más abajo](#la-barra-superior)): los menús sobre el nombre
+  del proyecto y el panel de pistas, y luego el transporte, el tempo, el metrónomo, la
+  posición, los medidores y más: un grupo por función.
 - **El arreglo** (centro): las pistas y sus clips sobre una línea de tiempo.
 - **El navegador de clips** (`Alt+F5`, *Ver ▸ Navegador de clips*): todos los clips de la
   canción como mosaicos, junto al arreglo (ver el [capítulo 5](#los-clips-en-el-arreglo)).
 - **La zona inferior**: el Mezclador, el Piano roll y el Rack de canales en pestañas.
 - **El inspector** (derecha, `I`): todo sobre la pista, el canal o el clip seleccionado.
-- **La barra de estado** (abajo): lo que hay bajo el puntero, CPU y cortes, latencia,
-  entradas MIDI, dispositivos minimizados y el chip de audio.
+- **La barra de estado** (abajo): lo que hay bajo el puntero, la latencia de los plug-ins,
+  las muestras que se cargan, la octava del teclado y los dispositivos minimizados.
 
 Cada área se muestra u oculta con su tecla de ventana o su tecla de función (`F5` arreglo,
 `Alt+F5` navegador de clips, `F6` rack de canales, `F7` piano roll, `F9` mezclador,
@@ -152,6 +150,61 @@ derecha a izquierda).
 abre seis canciones hechas solo con los instrumentos y efectos de Cantus: Neon Tide
 (house), Morning Light (balada pop), Sunday Strut (funk y soul), Paper Lanterns (hip-hop
 lo-fi), Aurora (cinemática) y Midnight Static (trap). Abre una, escúchala, desármala.
+
+### La barra superior
+
+La barra superior es la de FL Studio, un grupo por función y una línea fina entre ellos:
+
+- **Los menús y el panel de pistas**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
+  del proyecto y la pista de lo que hay bajo el puntero. **Haz clic en el nombre** para
+  cambiarlo ahí mismo (`Intro` lo guarda, `Esc` lo deja); el título de la ventana lo
+  sigue, con `•` mientras haya cambios sin guardar.
+- **PATRÓN / CANCIÓN** (`L`): el *modo canción* reproduce el arreglo; el *modo patrón*
+  reproduce el clip que editas en el piano roll o en el rack de canales —con lo que el
+  rack muestra de las otras pistas en ese tramo— solo y en bucle, y el reloj cuenta desde
+  el inicio del patrón. Elegir otro clip cambia lo que suena. Al salir del modo patrón el
+  cursor vuelve a donde estaba la canción. El modo patrón no graba (una toma pertenece a
+  la canción: pasa antes al modo canción) y la exportación siempre renderiza la canción.
+  Se guarda con el proyecto.
+- **Transporte**: ir al inicio, reproducir, detener, grabar y sus opciones ▾, bucle.
+- **Tempo**: los BPM (arrastra, usa la rueda, doble clic para 120); **TAP** (`Shift+T`):
+  pulsa al menos dos veces —el tempo es la media de tus últimas pulsaciones, una pausa
+  empieza de nuevo y cada tanda es un solo paso de deshacer—; el **compás**: haz clic
+  para los tiempos (‹ ›), la figura y los compases habituales.
+- **Metrónomo** (`Ctrl+M`): su interruptor, la **cuenta** previa (no, 1, 2, 4 compases) y
+  el **nivel** del clic (arrastra, rueda, doble clic para 0 dB). Su ▾ guarda el
+  **sonido** (*Clásico*, *Caja china*, *Pitido*), el **acento** en el primer tiempo de
+  cada compás y **cuándo** suena (siempre, al grabar, durante la cuenta). El sonido y el
+  acento se guardan con la canción.
+- **Posición**: compases.tiempos.ticks y el tiempo, con el compás al lado; al grabar, el
+  tiempo de la toma.
+- **Rejilla y ajuste**: la rejilla y la luz IMÁN del editor en el que trabajas —el arreglo,
+  el piano roll o el rack de canales (siempre sobre su rejilla)—. Los mismos valores que
+  la barra del propio editor.
+- **Deshacer** y **rehacer**, y las **teclas de ventana** (explorador, arreglo, rack, piano
+  roll, mezclador, inspector).
+- **CPU, RAM, voces, cortes**: la carga del audio (su histograma en la información
+  emergente), la memoria que usa Cantus, las voces que suenan y los cortes contados (la
+  causa del último en la información emergente, y dicha en la barra de estado cuando
+  ocurre).
+- **Medidor maestro**: *Pico* muestra los picos izquierdo y derecho y retiene el más alto
+  de los dos últimos segundos (clic en el número para soltarlo); *LUFS* muestra la
+  sonoridad del maestro —la momentánea arriba, la de corto plazo debajo, con una marca en
+  −14 LUFS (el nivel de los servicios de streaming)— y debajo la de corto plazo, la
+  integrada desde que pulsaste reproducir y el pico real.
+- **Entradas**: el teclado del ordenador (`Ctrl+T`), la luz **MIDI** (se enciende cuando
+  llegan notas; el número son las entradas abiertas) y **Armadas** (cuántas pistas
+  grabarán; clic para armar la seleccionada).
+- **El chip de audio** (ver [el chip de audio](#el-chip-de-audio)) y las **herramientas**:
+  el selector de elementos, la página de apariencia y el zoom de la interfaz.
+
+**Con la ventana estrecha** los grupos menos importantes se pliegan —enteros— en el menú
+**⋯** del extremo derecho, donde funcionan igual que en la barra; los menús se pliegan en
+una sola tecla antes de que lo haga el transporte. Un punto en ⋯ avisa de que hay algo
+plegado (rojo si es el chip de audio y el audio necesita atención). **Personalizar la
+barra superior…** (en ⋯, en *Ver* o con clic derecho en la barra): marca un grupo para
+mostrarlo u ocultarlo, arrástralo por su asa para moverlo, *Restablecer* para volver al
+orden por defecto. Tu disposición se recuerda.
 
 ## 4. Grabar audio y MIDI
 
@@ -193,7 +246,8 @@ grabación**:
 - **Modo de toma**: *Apilar* (los clips anteriores pasan a carriles de tomas — lo
   predeterminado), *Reemplazar* (corta lo que cubre la toma) o *Sobregrabar* (MIDI: añade
   notas al clip).
-- **Clic**: cuándo suena (*Siempre*, *Al grabar*, *Claqueta*) y su nivel.
+- El clic —su nivel, su sonido, su acento y cuándo suena— es del metrónomo, en la
+  [barra superior](#la-barra-superior).
 
 ### Tomas y comping
 
@@ -551,6 +605,7 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `R` | Grabar |
 | `Inicio` | Ir al principio |
 | `Ctrl+L` · `Ctrl+M` | Bucle sí/no · metrónomo sí/no |
+| `L` · `Shift+T` | Modo patrón / canción · marcar el tempo |
 | `Alt+R` · `Alt+C` · `Alt+P` · `Alt+T` | Armar la pista seleccionada · claqueta · pinchazo · mostrar tomas |
 | `Ctrl+Shift+A` | Añadir una pista de audio |
 | `Ctrl+N` · `Ctrl+O` · `Ctrl+S` · `Ctrl+Shift+S` | Nuevo · abrir · guardar · guardar como |

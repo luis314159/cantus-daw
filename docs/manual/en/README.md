@@ -77,7 +77,8 @@ press `R` to record. *Skip* closes the window; it does not open by itself again 
 
 ### The audio chip
 
-The chip at the bottom right always shows the device, driver, rate, buffer and latency —
+The chip in the top bar (or in its ⋯ menu when the window is narrow) shows the device,
+driver, rate, buffer and latency —
 for example `UMC204HD · ASIO · 48 k · 128 · 6.1 ms`. Its lamp is green when the audio
 runs, amber after a dropout, red when the device is lost or the driver stopped. **Click
 it** to change anything; every change applies at once and is remembered for that
@@ -88,7 +89,7 @@ interface:
 - **Interface**, **Driver** (WASAPI or ASIO, with the *ASIO driver* list), **Input
   device**, **Rate**;
 - **Buffer · round trip**: 64 to 2048 samples, each with its latency. Smaller is tighter
-  for playing; larger is safer for big mixes. If the status bar counts dropouts, take the
+  for playing; larger is safer for big mixes. If the top bar counts dropouts, take the
   next size up;
 - problems appear on top with a button that fixes them (*Restart audio*, *Use this
   computer's audio*, *Run at 48 kHz*…);
@@ -110,19 +111,16 @@ restarts the audio once by itself. You cannot change the device while recording.
 Cantus opens on a song — the second drop of the demo *Neon Tide*, looping — so the first
 thing you hear is music. Press `Space` to play it.
 
-- **The toolbar** (top): the logo and the menus (*File, Edit, Clip, View, Help*), the
-  project's name (with `•` when it has unsaved changes), the transport (*Go to start*,
-  *Play*, *Stop*, *Record* and its ▾ options), *Loop*, *Metronome*, *Keys* (the typing
-  keyboard), the tempo (drag it, wheel it, double-click for 120), the clock, undo and
-  redo, and six **window keys**: Browser, Arrangement, Channel rack, Piano roll, Mixer,
-  Inspector.
+- **The top bar** (see [below](#the-top-bar)): the menus over the project's name and the
+  hint panel, then the transport, the tempo, the metronome, the position, the meters and
+  more — one group per function.
 - **The arrangement** (centre): tracks and their clips on a timeline.
 - **The clip browser** (`Alt+F5`, *View ▸ Clip browser*): every clip of the song as a
   tile, beside the arrangement (see [chapter 5](#clips-in-the-arrangement)).
 - **The lower zone**: the Mixer, the Piano roll and the Channel rack as tabs.
 - **The inspector** (right, `I`): everything about the selected track, strip or clip.
-- **The status bar** (bottom): what is under the pointer, CPU and dropouts, latency, MIDI
-  inputs, minimised devices, and the audio chip.
+- **The status bar** (bottom): what is under the pointer, plug-in latency, samples loading,
+  the typing keyboard's octave and minimised devices.
 
 Every area can be shown or hidden with its window key or its function key (`F5`
 arrangement, `Alt+F5` clip browser, `F6` channel rack, `F7` piano roll, `F9` mixer,
@@ -145,6 +143,58 @@ Cantus's own instruments and effects: Neon Tide (house), Morning Light (pop ball
 Sunday Strut (funk and soul), Paper Lanterns (lo-fi hip-hop), Aurora (cinematic) and
 Midnight Static (trap). Open one, play it, take it apart.
 
+### The top bar
+
+The top bar is FL Studio's strip, one group per function, a thin divider between them:
+
+- **The menus and the hint panel**: *File, Edit, Clip, View, Help* over the project's name
+  and the hint for whatever is under the pointer. **Click the name** to rename the
+  project in place (`Enter` keeps it, `Esc` leaves); the window's title follows it, with
+  `•` while there are unsaved changes.
+- **PAT / SONG** (`L`): *song mode* plays the arrangement; *pattern mode* plays the clip
+  you are editing in the piano roll or the channel rack — with whatever the rack shows
+  on the other tracks in that stretch — alone and looped, and the clock counts from the
+  pattern's start. Choosing another clip changes what plays. Leaving pattern mode puts
+  the playhead back where the song was. Pattern mode does not record (a take belongs to
+  the song: switch to song mode first) and export always renders the song. It is saved
+  with the project.
+- **Transport**: go to start, play, stop, record and its ▾ options, loop.
+- **Tempo**: the BPM (drag, wheel, double-click for 120); **TAP** (`Shift+T`): tap at least
+  twice — the tempo is the average of your last taps, a pause starts again, and each run
+  of taps is one undo step; the **time signature**: click it for the beats (‹ ›), the
+  note value and the usual metres.
+- **Metronome** (`Ctrl+M`): its switch, the **count-in** (off, 1, 2, 4 bars) and the
+  click's **level** (drag, wheel, double-click for 0 dB). Its ▾ holds the **sound**
+  (*Classic*, *Woodblock*, *Beep*), the **accent** on the first beat of each bar, and
+  **when** it plays (always, while recording, during the count-in). The sound and the
+  accent are saved with the song.
+- **Position**: bars.beats.ticks and the time, the metre beside them; while recording, the
+  take's time.
+- **Grid and snap**: the grid and the SNAP lamp of the editor you are working in — the
+  arrangement, the piano roll or the channel rack (always on its grid). The same values
+  as the editor's own toolbar.
+- **Undo** and **redo**, and the **window keys** (browser, arrangement, rack, piano roll,
+  mixer, inspector).
+- **CPU, RAM, voices, drops**: the audio callback's load (its histogram in the tooltip),
+  the memory Cantus uses, the voices sounding and the dropouts counted (the latest one's
+  cause in the tooltip, and said on the status line when it happens).
+- **Master meter**: *Peak* shows the left and right peaks and holds the highest of the
+  last two seconds (click the number to let it go); *LUFS* shows the master's loudness —
+  momentary in the top lane, short-term below, with a mark at −14 LUFS (the streaming
+  services' level), and underneath the short-term, the integrated loudness since you
+  pressed play and the true peak.
+- **Inputs**: the typing keyboard (`Ctrl+T`), the **MIDI** lamp (it lights as notes come
+  in; the number is the inputs open) and **Armed** (how many tracks will record; click to
+  arm the selected one).
+- **The audio chip** (see [the audio chip](#the-audio-chip)) and the **tools**: the
+  element picker, the appearance page, and the interface's zoom.
+
+**A narrow window** folds the least important groups — whole — into the **⋯** menu at the
+right end, where they work as on the bar; the menus fold into one key before the
+transport would. A dot on ⋯ says something is folded there (red when it is the audio chip
+and the audio needs a look). **Customise top bar…** (in ⋯, in *View*, or right-click the
+bar): tick a group to show or hide it, drag it by its grip to move it, *Reset* for the
+default. Your arrangement is kept.
 ## 4. Record audio and MIDI
 
 ### An audio track
@@ -181,7 +231,8 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 - **Loop takes**: with the loop on, each pass becomes a take.
 - **Take mode**: *Stack* (old clips move to take lanes — the default), *Replace* (cut what
   the take covers) or *Overdub* (MIDI: add notes to the clip).
-- **Click**: when the click plays (*Always*, *Recording*, *Count-in*) and its level.
+- The click — its level, sound, accent and when it plays — is the metronome's, in the
+  [top bar](#the-top-bar).
 
 ### Takes and comping
 
@@ -514,6 +565,7 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `R` | Record |
 | `Home` | Go to start |
 | `Ctrl+L` · `Ctrl+M` | Loop on/off · metronome on/off |
+| `L` · `Shift+T` | Pattern / song mode · tap the tempo |
 | `Alt+R` · `Alt+C` · `Alt+P` · `Alt+T` | Arm the selected track · count-in · punch · show takes |
 | `Ctrl+Shift+A` | Add an audio track |
 | `Ctrl+N` · `Ctrl+O` · `Ctrl+S` · `Ctrl+Shift+S` | New · open · save · save as |
