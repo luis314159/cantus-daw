@@ -1009,6 +1009,16 @@ fn controls(
                 unity: Some(UNITY_POS),
             },
         );
+        // Where a modulator has the fader now (ADR 0057): a mark beside the track.
+        if let Some(live) = mod_live(app, cantus_core::AutoTarget::StripGain(id), pos_of(gain), s) {
+            let c = crate::kit::fader::cap_rect(fr, s, live).center();
+            let x = fr.right() - 1.0 * s.k;
+            let d = 4.0 * s.k;
+            b.polygon(
+                &[pos2(x, c.y), pos2(x + d, c.y - d), pos2(x + d, c.y + d)],
+                s.t.hue_mod,
+            );
+        }
         // The value, from Wide up.
         if let Some((ra, rz)) = pass.row(Row::Readout) {
             let rr = Rect::from_min_max(pos2(x + 3.0, ra), pos2(x + bw - 3.0, rz));

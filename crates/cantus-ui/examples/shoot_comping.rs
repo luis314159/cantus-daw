@@ -3,7 +3,7 @@
 //! - `lanes`: a lead vocal with three takes, comped from all three — the seams' crossfades
 //!   drawn as an X over the stretch they cross, each seam's handle, each window's take
 //!   number, the comped ranges lit on the take lanes, the comp's chip (*Comp B*: a second
-//!   comp was made) in the first lane's header; and a drum pair comped as a group;
+//!   comp was made) in the first lane's header;
 //! - `menu`: the comp's menu open (the comps, new, rename, delete, flatten, merge, quick
 //!   swipe, grouped comping, every seam's crossfade).
 //!
