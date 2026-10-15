@@ -779,6 +779,10 @@ mod tests {
         assert!(e.notes[1].moved());
         assert_eq!(e.notes[2].formant, -2.0);
         assert!(e.bypass, "the A/B switch, written and read");
+        assert!(
+            p.tracks.iter().any(|t| t.pitch_open),
+            "a track's pitch lane shown"
+        );
         let old = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

@@ -57,6 +57,7 @@ pub(super) fn lane_row(r: &TrackRow, lane: usize, base: f32) -> Option<TrackRow>
         height: h,
         takes: 0.0,
         auto: 0.0,
+        pitch: 0.0,
     })
 }
 

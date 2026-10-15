@@ -446,7 +446,11 @@ fn the_demo_project_opens_and_plays_its_edits() {
     let corrected = snap.tracks[0].audio[0].data.clone().unwrap();
     assert!(
         !std::sync::Arc::ptr_eq(&double, &corrected)
-            && double.frames.iter().zip(corrected.frames.iter()).any(|(a, b)| a != b),
+            && double
+                .frames
+                .iter()
+                .zip(corrected.frames.iter())
+                .any(|(a, b)| a != b),
         "a render of its own"
     );
     let sung = snap.tracks[1].audio[0].data.clone().unwrap();
@@ -740,7 +744,10 @@ fn the_note_panel_fits_its_width() {
         r.idle(3);
         let p = r.app.pitch.view.panel.expect("drawn");
         assert!(p.note_used.right() <= p.note.right() + 1.0, "{w}: {p:?}");
-        assert!(p.macros_used.right() <= p.macros.right() + 1.0, "{w}: {p:?}");
+        assert!(
+            p.macros_used.right() <= p.macros.right() + 1.0,
+            "{w}: {p:?}"
+        );
         assert!(p.note.right() < p.macros.left(), "{w}: {p:?}");
         assert_eq!(p.scrolled, scrolled, "{w}: {p:?}");
     }
@@ -763,7 +770,13 @@ fn a_narrow_bar_folds_into_its_more_menu() {
     r.click(more);
     for (i, words) in [
         (0usize, &["Unir", "Restablecer"][..]),
-        (1, &["Reproducir desde la selección", "Melodía a una pista MIDI nueva"][..]),
+        (
+            1,
+            &[
+                "Reproducir desde la selección",
+                "Melodía a una pista MIDI nueva",
+            ][..],
+        ),
         (2, &["1/16", "1/8T"][..]),
     ] {
         if folded[i] {
@@ -775,7 +788,10 @@ fn a_narrow_bar_folds_into_its_more_menu() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let mut wide = Rig::new();
     wide.open();
-    assert_eq!(wide.app.pitch.view.bar_folded, [false; 3], "room for all at 1 600");
+    assert_eq!(
+        wide.app.pitch.view.bar_folded, [false; 3],
+        "room for all at 1 600"
+    );
 }
 
 /// Quantise to another track: each note's start onto the nearest of the Keys track's
@@ -784,9 +800,15 @@ fn a_narrow_bar_folds_into_its_more_menu() {
 fn quantise_onto_another_tracks_notes() {
     let mut r = Rig::new();
     let keys = r.app.project().tracks[0].id;
-    let mut c = r.app.bus.new_clip("hits".to_string(), Ticks::ZERO, Ticks::beats(8));
+    let mut c = r
+        .app
+        .bus
+        .new_clip("hits".to_string(), Ticks::ZERO, Ticks::beats(8));
     for b in [0.25f64, 1.75, 3.0] {
-        let n = r.app.bus.new_note(Ticks((b * 960.0) as i64), Ticks(120), 60, 100);
+        let n = r
+            .app
+            .bus
+            .new_note(Ticks((b * 960.0) as i64), Ticks(120), 60, 100);
         c.notes.push(n);
     }
     assert!(r.app.exec(Command::InsertClip {
@@ -804,7 +826,11 @@ fn quantise_onto_another_tracks_notes() {
     let q = r.stored().expect("quantised");
     let want = [0.125f64, 0.875, 1.5];
     for (n, w) in q.notes.iter().zip(want) {
-        assert!((n.start as f64 - w * SR as f64).abs() <= 1.0, "{} vs {w}", n.start);
+        assert!(
+            (n.start as f64 - w * SR as f64).abs() <= 1.0,
+            "{} vs {w}",
+            n.start
+        );
     }
     assert_eq!(q.notes[3].start, e.notes[3].start, "no note near: it stays");
 }
@@ -819,12 +845,17 @@ fn the_clip_menu_makes_midi_and_a_double() {
     r.app.pitch_make(t, c, None);
     let analysed = r.app.project().tracks.len() > tracks;
     if !analysed {
-        assert!(r.app.status.text.contains("analys"), "{}", r.app.status.text);
+        assert!(
+            r.app.status.text.contains("analys"),
+            "{}",
+            r.app.status.text
+        );
     }
     r.open();
     let n = r.app.project().tracks.len();
     r.app.pitch_make(t, c, None);
-    r.app.pitch_make(t, c, Some(cantus_core::pitch::midi::Interval::Fifth));
+    r.app
+        .pitch_make(t, c, Some(cantus_core::pitch::midi::Interval::Fifth));
     assert_eq!(r.app.project().tracks.len(), n + 2);
 }
 
@@ -840,7 +871,11 @@ fn the_inspectors_pitch_button_explains_itself() {
     r.pointer = Some(at);
     r.idle(3);
     let tip = cantus_ui::i18n::t("pitch.inspector.edit_tip");
-    assert!(r.texts.iter().any(|(w, _)| w.contains(&tip[..20])), "{:?}", r.texts);
+    assert!(
+        r.texts.iter().any(|(w, _)| w.contains(&tip[..20])),
+        "{:?}",
+        r.texts
+    );
 }
 
 /// An idle editor rebuilds nothing: the edit, its curves and its time map are built once
@@ -858,10 +893,72 @@ fn an_idle_editor_builds_its_curves_once() {
     r.idle(2);
     let before = r.app.pitch.view.builds;
     r.idle(12);
-    assert_eq!(r.app.pitch.view.builds, before, "nothing rebuilt while idle");
+    assert_eq!(
+        r.app.pitch.view.builds, before,
+        "nothing rebuilt while idle"
+    );
     let mut e = r.stored().unwrap();
     cantus_core::pitch::edit::move_pitch(&mut e, &[ids[0]], 1.0);
     store(&mut r, e);
     r.idle(3);
     assert_eq!(r.app.pitch.view.builds, before + 1, "once for the edit");
+}
+
+/// The pitch lane under an audio track (§3c): shown from the track (one undo step), its
+/// notes laid out where they play; a drag moves a note's pitch (one step, the editor's
+/// command), a double-click pulls its centre onto its note.
+#[test]
+fn the_pitch_lane_edits_notes_in_the_arrangement() {
+    let mut r = Rig::new();
+    let (t, c) = r.voice();
+    let _ = r.app.pitch_take(t, c);
+    let t0 = Instant::now();
+    while r.app.engine.samples.pitch().busy() && t0.elapsed() < Duration::from_secs(30) {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    r.app.toggle_pitch_lane(t);
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.pitch.lane"));
+    r.idle(4);
+    let geo = r.app.arrangement.geometry().expect("drawn");
+    let row = geo.rows[1];
+    assert!(row.pitch > 0.0, "the lane takes its height");
+    let lanes = Rect::from_min_max(
+        pos2(geo.left, geo.body_top),
+        pos2(geo.left + geo.width, 2000.0),
+    );
+    let laid = cantus_ui::views::pitch_lane::layout(&r.app, &geo, lanes);
+    let lane = laid
+        .iter()
+        .find(|l| l.track == Some(t))
+        .expect("the voice's lane");
+    assert_eq!(lane.notes.len(), 4, "{:?}", lane.notes);
+    r.app.pitch.view.snap = cantus_ui::views::pitch::Snap::Semitone;
+    let n = lane.notes[1].clone();
+    let steps = r.app.bus.history().len();
+    r.drag(
+        n.rect.center(),
+        n.rect.center() - vec2(0.0, 2.0 * n.px_per_st),
+    );
+    let e = r.stored().expect("edited from the lane");
+    let moved = e.note(n.id).unwrap();
+    assert_eq!(moved.pitch - moved.home(), 2.0, "two semitones up");
+    assert_eq!(r.app.bus.history().len(), steps + 1, "one step");
+    assert_eq!(r.app.bus.undo_label_key(), Some(PitchOp::Pitch.label_key()));
+    // A double-click on it: its centre onto its note.
+    let geo = r.app.arrangement.geometry().unwrap();
+    let laid = cantus_ui::views::pitch_lane::layout(&r.app, &geo, lanes);
+    let n = laid.iter().find(|l| l.track == Some(t)).unwrap().notes[1].clone();
+    r.idle(30);
+    r.pointer = Some(n.rect.center());
+    r.idle(2);
+    for _ in 0..2 {
+        r.frame(vec![Rig::button(n.rect.center(), true, Modifiers::NONE)]);
+        r.frame(vec![Rig::button(n.rect.center(), false, Modifiers::NONE)]);
+    }
+    r.idle(2);
+    assert_eq!(r.stored().unwrap().note(n.id).unwrap().centre, 1.0);
+    r.app.undo();
+    r.app.undo();
+    r.app.undo();
+    assert!(!r.app.project().track(t).unwrap().pitch_open, "undone");
 }

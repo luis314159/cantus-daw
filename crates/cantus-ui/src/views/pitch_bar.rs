@@ -74,15 +74,14 @@ pub(super) fn show(
     // a ⋯ menu at the end; nothing is cut off.
     let snap = app.pitch.view.snap;
     let target_name = quantise_target_name(app, track);
-    let need_core = KEY + KEY + DIV
+    let need_core = KEY
+        + KEY
+        + DIV
         + field_w(ui, &t("pitch.snap"), &t(snap.label_key()), 84.0)
         + field_w(ui, &t("pitch.key"), &key_words(e.key), 110.0)
         + 100.0;
-    let need_edit = DIV
-        + wide(ui, &t("pitch.join"), 50.0)
-        + 4.0
-        + wide(ui, &t("pitch.reset"), 54.0)
-        + 4.0;
+    let need_edit =
+        DIV + wide(ui, &t("pitch.join"), 50.0) + 4.0 + wide(ui, &t("pitch.reset"), 54.0) + 4.0;
     let need_play = DIV
         + KEY
         + wide(ui, &t("pitch.midi"), 50.0)
@@ -208,13 +207,9 @@ pub(super) fn show(
         // MIDI out: drag onto an instrument track, or click for a new one.
         midi_chip(app, ui, &mut bar, id, track, clip);
         let word = t("pitch.double");
-        if let Some(resp) = bar.word(
-            ui,
-            id.with("double"),
-            &word,
-            wide(ui, &word, 62.0),
-            || t("pitch.double_tip"),
-        ) {
+        if let Some(resp) = bar.word(ui, id.with("double"), &word, wide(ui, &word, 62.0), || {
+            t("pitch.double_tip")
+        }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
                 let items: Vec<Item<'_>> = Interval::ALL
                     .iter()
@@ -230,14 +225,9 @@ pub(super) fn show(
     if show[2] {
         bar.divider(ui);
         let cap = t("pitch.quantise_to");
-        if let Some(resp) = bar.field(
-            ui,
-            id.with("grid"),
-            Some(&cap),
-            &target_name,
-            70.0,
-            || t("pitch.grid_tip"),
-        ) {
+        if let Some(resp) = bar.field(ui, id.with("grid"), Some(&cap), &target_name, 70.0, || {
+            t("pitch.grid_tip")
+        }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
                 quantise_menu(app, ui, track);
             });
@@ -245,7 +235,9 @@ pub(super) fn show(
     }
     if folded {
         bar.divider(ui);
-        if let Some(resp) = bar.word(ui, id.with("more"), "\u{22ef}", 30.0, || t("pitch.more_tip")) {
+        if let Some(resp) = bar.word(ui, id.with("more"), "\u{22ef}", 30.0, || {
+            t("pitch.more_tip")
+        }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
                 more_menu(app, ui, track, clip, &e, show);
             });
@@ -262,7 +254,12 @@ const KEY: f32 = crate::views::clips_chrome::KEY + 4.0;
 fn field_w(ui: &egui::Ui, caption: &str, value: &str, w: f32) -> f32 {
     use crate::kit::text::{measure, Role, Text};
     let s = crate::kit::Style::current();
-    let cap = measure(ui.ctx(), &Text::new(caption, Role::Label, s.t.text_dim), s.tk()).x / s.k;
+    let cap = measure(
+        ui.ctx(),
+        &Text::new(caption, Role::Label, s.t.text_dim),
+        s.tk(),
+    )
+    .x / s.k;
     let val = measure(ui.ctx(), &Text::new(value, Role::Control, s.t.text), s.tk()).x / s.k;
     cap + 2.0 + 4.0 + w.max(val + 30.0) + 4.0
 }
@@ -434,8 +431,16 @@ fn more_menu(
         push(&mut items, "pitch.play", Some(Do::Play));
         push(&mut items, "pitch.midi_new", Some(Do::Midi));
         push(&mut items, "pitch.double", None);
-        push(&mut items, "pitch.double.third", Some(Do::Double(Interval::Third)));
-        push(&mut items, "pitch.double.fifth", Some(Do::Double(Interval::Fifth)));
+        push(
+            &mut items,
+            "pitch.double.third",
+            Some(Do::Double(Interval::Third)),
+        );
+        push(
+            &mut items,
+            "pitch.double.fifth",
+            Some(Do::Double(Interval::Fifth)),
+        );
     }
     let picked = if items.is_empty() {
         None

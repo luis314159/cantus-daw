@@ -46,7 +46,11 @@ pub struct PanelLayout {
 /// readout column and five cells, the macro card's two cells (a size up, so their
 /// words fit) and its key column, each with the card's padding.
 fn widths(z: KnobSize) -> (f32, f32) {
-    let up = if z == KnobSize::M { KnobSize::L } else { KnobSize::M };
+    let up = if z == KnobSize::M {
+        KnobSize::L
+    } else {
+        KnobSize::M
+    };
     let note = 140.0 + 6.0 + controls::cells_width(&[z; 5]) + 24.0;
     let macros = controls::cells_width(&[up; 2]) + 6.0 + 112.0 + 24.0;
     (note, macros)
@@ -272,8 +276,7 @@ pub fn quantise(
                 .into_iter()
                 .map(|t| tm.frame(t))
                 .collect();
-            let reach = cantus_core::Ticks::QUARTER
-                .to_seconds(app.project().tempo_bpm)
+            let reach = cantus_core::Ticks::QUARTER.to_seconds(app.project().tempo_bpm)
                 * 0.5
                 * tm.rate as f64;
             edit::quantise_by(&mut e, ids, |n| {

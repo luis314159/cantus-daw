@@ -1992,7 +1992,13 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let mut e = current.map(|b| *b).unwrap_or_else(fresh);
     let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
     let id = ids.first().copied().unwrap_or(0);
-    let op = match rng.below(12) {
+    let op = match rng.below(13) {
+        12 => {
+            return Command::SetTrackPitchOpen {
+                id: track,
+                open: rng.below(2) == 0,
+            };
+        }
         0 => PitchOp::Notes,
         1 => {
             edit::move_pitch(&mut e, &ids, rng.f32(-5.0, 5.0));

@@ -638,6 +638,7 @@ pub fn import_commands(
             armed: false,
             takes_open: false,
             automation_open: true,
+            pitch_open: false,
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

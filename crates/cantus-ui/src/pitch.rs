@@ -34,6 +34,8 @@ pub enum Take {
 #[derive(Debug, Default)]
 pub struct PitchUi {
     pub view: crate::views::pitch::PitchView,
+    /// The arrangement's pitch lanes (review 1, §3c).
+    pub lane: crate::views::pitch_lane::LaneState,
 }
 
 /// Where a clip's source frames sit on the timeline: content tick `c` reads source frame
@@ -483,10 +485,16 @@ impl CantusApp {
             out.extend(t.events.iter().filter(|e| e.velocity > 0).map(|e| e.tick));
         }
         if let Some(t) = self.project().track(other) {
-            for c in t.clips.iter().filter(|c| c.audio.is_some() && c.lane == 0 && !c.muted) {
+            for c in t
+                .clips
+                .iter()
+                .filter(|c| c.audio.is_some() && c.lane == 0 && !c.muted)
+            {
                 let take = self.pitch_take(other, c.id);
-                let (Some(e), Some(tm)) = (self.pitch_edit(other, c.id, &take), self.clip_time(other, c.id))
-                else {
+                let (Some(e), Some(tm)) = (
+                    self.pitch_edit(other, c.id, &take),
+                    self.clip_time(other, c.id),
+                ) else {
                     continue;
                 };
                 for n in &e.notes {
@@ -510,9 +518,9 @@ impl CantusApp {
             .iter()
             .filter(|t| t.id != track)
             .filter(|t| {
-                t.clips
-                    .iter()
-                    .any(|c| !c.notes.is_empty() || c.audio.as_ref().is_some_and(|a| a.pitch.is_some()))
+                t.clips.iter().any(|c| {
+                    !c.notes.is_empty() || c.audio.as_ref().is_some_and(|a| a.pitch.is_some())
+                })
             })
             .map(|t| (t.id, t.name.clone()))
             .collect()

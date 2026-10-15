@@ -580,6 +580,11 @@ pub enum Command {
         id: TrackId,
         open: bool,
     },
+    /// Show or hide a track's pitch lane (ADR 0054).
+    SetTrackPitchOpen {
+        id: TrackId,
+        open: bool,
+    },
     SetRecordSettings {
         settings: crate::audio::RecordSettings,
     },
@@ -713,6 +718,7 @@ impl Command {
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
+            SetTrackPitchOpen { .. } => "cmd.pitch.lane",
             SetRecordSettings { .. } => "cmd.set_record_settings",
             Batch { label_key, .. } => label_key,
         }
@@ -2225,6 +2231,13 @@ impl Command {
                     .ok_or(CommandError::TrackNotFound(id))?;
                 let old = std::mem::replace(&mut t.takes_open, open);
                 Ok(SetTrackTakesOpen { id, open: old })
+            }
+            SetTrackPitchOpen { id, open } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.pitch_open, open);
+                Ok(SetTrackPitchOpen { id, open: old })
             }
             SetRecordSettings { settings } => {
                 if !settings.click_db.is_finite() {

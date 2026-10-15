@@ -475,6 +475,8 @@ fn main() {
         e.bypass = true;
         a.pitch = Some(Box::new(e));
     }
+    // And its pitch lane shown under it.
+    p.tracks[vocal_index].pitch_open = true;
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

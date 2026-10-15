@@ -131,3 +131,10 @@ pitch.macro.apply_drift = Corregir deriva
 pitch.macro.apply_drift_tip = Aplana el vaivén lento dentro de las notas según la cantidad (el vibrato se queda)
 pitch.macro.quantise = Cuantizar
 pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla, o a las notas de otra pista (Cuantizar a, en la barra): conserva su duración, sin tocar a sus vecinas
+
+# El carril de afinación del arreglo (revisión 1, §3c).
+cmd.pitch.lane = Mostrar el carril de afinación
+pitch.lane.band = Afinación
+pitch.lane.menu = Carril de afinación
+pitch.lane.header = Afinación
+pitch.lane.tip = El carril de afinación: arrastra una nota arriba o abajo para moverla, doble clic para llevarla a su nota; doble clic en el clip para el editor completo

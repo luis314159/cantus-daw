@@ -27,8 +27,8 @@ use cantus_core::pitch::curves::{time_points, Curves};
 use cantus_core::pitch::PitchEdit;
 use cantus_core::{ClipId, Ticks, TrackId};
 use cantus_dsp::psola::TimeMap;
-use std::sync::Arc;
 use egui::{pos2, Pos2, Rect, Sense};
+use std::sync::Arc;
 
 #[path = "pitch_bar.rs"]
 mod bar;
@@ -40,7 +40,14 @@ mod paint;
 pub mod panel;
 
 pub use bar::key_words;
-pub use panel::{quantise, PanelLayout};
+pub use panel::{note_words, quantise, PanelLayout};
+
+/// A blob's fill and edge, from the track's colour (the arrangement's pitch lane draws
+/// its notes the editor's way).
+pub fn paint_ink(c: egui::Color32, selected: bool, s: &Style) -> (egui::Color32, egui::Color32) {
+    let k = paint::ink(c, selected, s);
+    (k.fill, k.edge)
+}
 
 /// The key strip's width, the ruler's height, the note panel's height (at 100 %).
 const KEYS_W: f32 = 56.0;

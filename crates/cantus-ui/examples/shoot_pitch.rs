@@ -112,6 +112,11 @@ fn main() {
         cantus_ui::i18n::set_locale(Locale::En);
         let ctx = context(dark);
         let mut app = app_on(&project, &wav, 0);
+        // The pitch lanes of the corrected voice and of the take as sung (§3c).
+        for i in [0usize, 1] {
+            let id = app.project().tracks[i].id;
+            app.toggle_pitch_lane(id);
+        }
         let out = dir.join(format!(
             "pitch-arrangement-{}.png",
             if dark { "night" } else { "paper" }

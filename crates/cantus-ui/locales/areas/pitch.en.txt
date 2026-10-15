@@ -131,3 +131,10 @@ pitch.macro.apply_drift = Correct drift
 pitch.macro.apply_drift_tip = Flatten the slow wander inside the notes by the amount (the vibrato stays)
 pitch.macro.quantise = Quantise
 pitch.macro.quantise_tip = Move each note's start to the nearest line of the grid, or onto another track's notes (Quantise to, on the bar): its length kept, its neighbours untouched
+
+# The arrangement's pitch lane (review 1, §3c).
+cmd.pitch.lane = Show the pitch lane
+pitch.lane.band = Pitch
+pitch.lane.menu = Pitch lane
+pitch.lane.header = Pitch
+pitch.lane.tip = The pitch lane: drag a note up or down to move it, double-click it to pull it onto its note; double-click the clip for the whole editor
