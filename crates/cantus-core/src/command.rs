@@ -522,6 +522,16 @@ pub enum Command {
         clip: ClipId,
         audio: Option<crate::audio::AudioRegion>,
     },
+    /// Set or clear an audio clip's pitch edits (ADR 0054): the notes and every edit on
+    /// them, whole — a drag merges into one step (when `op` merges) and the inverse is the
+    /// edit as it was. `op` names the edit for the undo menu. Refused on a clip that is
+    /// not audio, and for an edit that is not valid (`PitchEdit::is_valid`).
+    SetClipPitch {
+        track: TrackId,
+        clip: ClipId,
+        pitch: Option<Box<crate::pitch::PitchEdit>>,
+        op: crate::pitch::PitchOp,
+    },
     /// Set or clear what makes a clip an automation clip (ADR 0027): its target and its
     /// curve. Every edit of a curve — a point added, moved, bent, an articulator — is this
     /// one command with the whole new curve, so a drag merges into one step and its
@@ -698,6 +708,7 @@ impl Command {
             SetClipLink { .. } => "cmd.link_clip",
             SetClipContent { .. } => "cmd.set_clip_content",
             SetClipAutomation { .. } => "cmd.set_clip_automation",
+            SetClipPitch { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
@@ -751,6 +762,20 @@ impl Command {
                     ..
                 },
             ) => ta == tb && ca == cb,
+            (
+                SetClipPitch {
+                    track: ta,
+                    clip: ca,
+                    op: oa,
+                    ..
+                },
+                SetClipPitch {
+                    track: tb,
+                    clip: cb,
+                    op: ob,
+                    ..
+                },
+            ) => ta == tb && ca == cb && oa == ob && oa.merges(),
             (SetTrackName { id: a, .. }, SetTrackName { id: b, .. })
             | (SetTrackColor { id: a, .. }, SetTrackColor { id: b, .. })
             | (SetTrackGain { id: a, .. }, SetTrackGain { id: b, .. })
@@ -2070,6 +2095,29 @@ impl Command {
                     track,
                     clip,
                     audio: old,
+                })
+            }
+            SetClipPitch {
+                track,
+                clip,
+                pitch,
+                op,
+            } => {
+                if pitch.as_ref().is_some_and(|p| !p.is_valid()) {
+                    return Err(CommandError::InvalidValue("pitch edit".into()));
+                }
+                let old = edit_shared(project, track, clip, |c| {
+                    let a = c
+                        .audio
+                        .as_mut()
+                        .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    Ok(std::mem::replace(&mut a.pitch, pitch.clone()))
+                })?;
+                Ok(SetClipPitch {
+                    track,
+                    clip,
+                    pitch: old,
+                    op,
                 })
             }
             SetClipAutomation {

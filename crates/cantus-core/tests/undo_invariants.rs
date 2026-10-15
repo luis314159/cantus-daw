@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(40) {
+    match rng.below(41) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -809,6 +809,10 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // switched — and strips and groups moved along the desk.
         37 | 38 => routing_batch(rng, project),
         39 => order_batch(rng, project),
+        // Round 28 (ADR 0054): the pitch editor's edits on an audio clip — notes stored,
+        // moved, split, joined, stretched, corrected, the key, A/B, cleared — and the
+        // refused ones (an edit that is not valid, a clip that is not audio).
+        40 if tracks > 0 => pitch_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -1696,6 +1700,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     ];
     let mut exercised = [0usize; 14];
     let mut routed = [0usize; 14];
+    // Pitch edits applied (ADR 0054): set, and cleared.
+    let mut pitched = [0usize; 2];
     for seed in 1..=40u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1714,6 +1720,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             let origin = origins[rng.below(5) as usize];
             let kind = clipboard_kind(&cmd);
             let route = routing_kind(&cmd);
+            let pitch = match &cmd {
+                Command::SetClipPitch { pitch, .. } => Some(usize::from(pitch.is_none())),
+                _ => None,
+            };
             let ok = bus.execute(cmd, origin).is_ok();
             // Every group's members share their content, whatever was applied or refused.
             links::check(bus.project())
@@ -1725,6 +1735,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = route {
                     routed[k] += 1;
+                }
+                if let Some(k) = pitch {
+                    pitched[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1780,6 +1793,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     for (k, n) in routed.iter().enumerate() {
         assert!(*n > 0, "routing batch {k} never applied: {routed:?}");
     }
+    assert!(
+        pitched.iter().all(|n| *n > 0),
+        "pitch edits never applied: {pitched:?}"
+    );
 }
 
 /// Whether `commands` change the window or loop of a clip other than `clip`.
@@ -1906,4 +1923,157 @@ fn commands_serialize_roundtrip() {
     let json = serde_json::to_string(&cmd).unwrap();
     let back: Command = serde_json::from_str(&json).unwrap();
     assert_eq!(back, cmd);
+}
+
+/// One pitch edit (ADR 0054) on an audio clip, made the way the editor makes it: the
+/// current edit (or the notes of a pretend analysis), one of the edit functions, one
+/// `SetClipPitch`. One time in eight it is refused: not valid, or not an audio clip.
+fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::pitch::{edit, PitchEdit, PitchKey, PitchNote, PitchOp};
+    let audio: Vec<(TrackId, Clip)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.clone())))
+        .filter(|(_, c)| c.audio.is_some())
+        .collect();
+    let Some((track, clip)) = (!audio.is_empty())
+        .then(|| audio[rng.below(audio.len() as u64) as usize].clone())
+    else {
+        // No audio clip yet: a source and a clip over it, in one step.
+        let tid = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+        let s = AudioSource {
+            id: AudioSourceId(project.alloc_id()),
+            name: "voice".into(),
+            path: "C:/rec/voice.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 48_000 * 8,
+            sha256: None,
+            recorded: true,
+        };
+        let c = project.make_audio_clip("voice", s.id, Ticks::ZERO, Ticks::beats(16));
+        return Command::Batch {
+            label_key: "fuzz.voice".into(),
+            commands: vec![
+                Command::InsertAudioSource { source: s },
+                Command::InsertClip {
+                    track: tid,
+                    clip: Box::new(c),
+                },
+            ],
+        };
+    };
+    let fresh = || {
+        let mut notes = Vec::new();
+        let mut at = 2_000 + rng.below(20_000);
+        for id in 0..1 + rng.below(6) as u32 {
+            let len = 4_800 + rng.below(40_000);
+            let end = (at + len).min(48_000 * 8);
+            if end <= at + 1_000 {
+                break;
+            }
+            let sung = 48.0 + rng.f32(0.0, 24.0);
+            notes.push(PitchNote::sung(id, at, end, sung, rng.f32(-40.0, -6.0)));
+            at = end + rng.below(12_000);
+        }
+        PitchEdit {
+            rate: 48_000,
+            frames: 48_000 * 8,
+            analyser: 1,
+            key: PitchKey {
+                tonic: rng.below(12) as u8,
+                scale: rng.below(13) as u8,
+            },
+            notes,
+            bypass: false,
+        }
+    };
+    let current = clip.audio.as_ref().and_then(|a| a.pitch.clone());
+    let mut e = current.map(|b| *b).unwrap_or_else(fresh);
+    let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
+    let id = ids.first().copied().unwrap_or(0);
+    let op = match rng.below(12) {
+        0 => PitchOp::Notes,
+        1 => {
+            edit::move_pitch(&mut e, &ids, rng.f32(-5.0, 5.0));
+            PitchOp::Pitch
+        }
+        2 => {
+            let f = edit::Field::ALL[rng.below(5) as usize];
+            edit::set_field(&mut e, &ids, f, rng.f32(-12.0, 12.0));
+            f.op()
+        }
+        3 => {
+            if let Some(n) = e.note(id).cloned() {
+                edit::set_timing(&mut e, id, n.start + rng.below(4_000), n.end + rng.below(9_000));
+            }
+            PitchOp::Timing
+        }
+        4 => {
+            if let Some(n) = e.note(id).cloned() {
+                let at = n.src_start + rng.below((n.src_end - n.src_start).max(1));
+                edit::split(&mut e, id, at, None);
+            }
+            PitchOp::Split
+        }
+        5 => {
+            edit::join(&mut e, &ids[..ids.len().min(2)]);
+            PitchOp::Join
+        }
+        6 => {
+            edit::correct_pitch(&mut e, &ids, rng.f32(0.0, 1.0));
+            PitchOp::CorrectPitch
+        }
+        7 => {
+            edit::quantise(&mut e, &ids, |f| f / 6_000 * 6_000);
+            PitchOp::Quantise
+        }
+        8 => {
+            e.key.tonic = rng.below(12) as u8;
+            PitchOp::Key
+        }
+        9 => {
+            e.bypass = !e.bypass;
+            PitchOp::Compare
+        }
+        10 => {
+            return Command::SetClipPitch {
+                track,
+                clip: clip.id,
+                pitch: None,
+                op: PitchOp::Reset,
+            };
+        }
+        _ => {
+            // Refused: an overlap, or a note clip.
+            if let Some(n) = e.notes.get_mut(0) {
+                n.end = e.frames + 1;
+            } else {
+                e.rate = 0;
+            }
+            let target = if rng.below(2) == 0 {
+                project
+                    .tracks
+                    .iter()
+                    .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
+                    .find(|(_, c)| c.audio.is_none())
+                    .map(|(t, c)| (t, c.id))
+                    .unwrap_or((track, clip.id))
+            } else {
+                (track, clip.id)
+            };
+            return Command::SetClipPitch {
+                track: target.0,
+                clip: target.1,
+                pitch: Some(Box::new(e)),
+                op: PitchOp::Notes,
+            };
+        }
+    };
+    Command::SetClipPitch {
+        track,
+        clip: clip.id,
+        pitch: Some(Box::new(e)),
+        op,
+    }
 }

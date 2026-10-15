@@ -129,6 +129,11 @@ pub struct AudioRegion {
     /// and glue keep it: it moves the content, not the window.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub slip_frames: i32,
+    /// The pitch editor's notes and edits (schema 27, ADR 0054): the clip plays a render of
+    /// them, the source untouched. `None` — every clip before, and every clip never edited
+    /// — plays the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pitch: Option<Box<crate::pitch::PitchEdit>>,
 }
 
 fn is_zero(v: &i32) -> bool {
@@ -146,6 +151,7 @@ impl AudioRegion {
             fade_out_curve: FadeCurve::Linear,
             reverse: false,
             slip_frames: 0,
+            pitch: None,
         }
     }
 }

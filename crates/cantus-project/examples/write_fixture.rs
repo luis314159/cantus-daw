@@ -237,6 +237,7 @@ fn main() {
     older.offset = Ticks::beats(8);
     vocal.clips.push(take);
     vocal.clips.push(older);
+    let vocal_index = p.tracks.len();
     p.tracks.push(vocal);
     p.audio_pool.push(source);
     p.recording.count_in_bars = 1;
@@ -444,6 +445,34 @@ fn main() {
     let mut piano = p.make_track("Chorda");
     piano.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
     p.tracks.push(piano);
+    // Schema 27 (round 28, ADR 0054): the vocal take's pitch edits — three notes in
+    // A minor, the first moved onto A4 and pulled onto its centre, the second sung late
+    // and stretched, the third's formants a little down.
+    if let Some(a) = p.tracks[vocal_index]
+        .clips
+        .iter_mut()
+        .find(|c| c.lane == 0)
+        .and_then(|c| c.audio.as_mut())
+    {
+        use cantus_core::pitch::{edit, PitchEdit, PitchKey, PitchNote};
+        let mut e = PitchEdit {
+            rate: 48_000,
+            frames: 48_000 * 8,
+            analyser: 1,
+            key: PitchKey { tonic: 9, scale: 2 },
+            notes: vec![
+                PitchNote::sung(0, 24_000, 60_000, 68.7, -14.0),
+                PitchNote::sung(1, 72_000, 120_000, 72.1, -12.5),
+                PitchNote::sung(2, 132_000, 180_000, 76.0, -16.0),
+            ],
+            bypass: false,
+        };
+        edit::set_pitch(&mut e, 0, 69.0);
+        edit::set_field(&mut e, &[0], edit::Field::Centre, 1.0);
+        edit::set_timing(&mut e, 1, 74_400, 124_800);
+        edit::set_field(&mut e, &[2], edit::Field::Formant, -2.0);
+        a.pitch = Some(Box::new(e));
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 25;
+pub const SCHEMA_VERSION: u32 = 27;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -208,6 +208,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_22_to_23,
     migrate_23_to_24,
     migrate_24_to_25,
+    migrate_25_to_26,
+    migrate_26_to_27,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -646,6 +648,19 @@ fn migrate_24_to_25(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 26 is round 28's top bar (the *topbar* builder's step). In the *pitch* builder's
+/// branch it writes nothing; the integrator keeps topbar's step here and chains 27 after it.
+fn migrate_25_to_26(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 27 (round 28, ADR 0054): an audio clip may carry the pitch editor's notes and
+/// edits (`AudioRegion::pitch`). An older build must refuse such a file, not play the
+/// clip unedited; no older project holds one, so the step writes nothing.
+fn migrate_26_to_27(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -737,6 +752,38 @@ mod tests {
             .iter()
             .flat_map(|s| s.effects.iter())
             .all(|e| !new_kinds.contains(&e.spec.kind)));
+    }
+
+    /// Schema 27 (round 28, ADR 0054): the fixture's vocal take carries pitch edits — a
+    /// note moved and pulled onto its centre, one stretched, the key, the A/B switch — and
+    /// they come back as they were; an older file (25) opens with none.
+    #[test]
+    fn schema_27_keeps_a_takes_pitch_edits() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v27.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let edits: Vec<_> = p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .filter_map(|c| c.audio.as_ref()?.pitch.as_deref())
+            .collect();
+        assert_eq!(edits.len(), 1);
+        let e = edits[0];
+        assert!(e.is_valid() && e.edited());
+        assert_eq!((e.rate, e.key.tonic, e.key.scale), (48_000, 9, 2));
+        assert_eq!(e.notes.len(), 3);
+        assert_eq!((e.notes[0].pitch, e.notes[0].centre), (69.0, 1.0));
+        assert!(e.notes[1].moved());
+        assert_eq!(e.notes[2].formant, -2.0);
+        assert!(!e.bypass);
+        let old = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .all(|c| c.audio.as_ref().is_none_or(|a| a.pitch.is_none())));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.
