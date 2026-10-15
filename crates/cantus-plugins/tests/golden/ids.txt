@@ -1162,3 +1162,12 @@ anulus rate 780377191
 anulus shape 499374374
 anulus spread 1229586638
 anulus mix 1469012833
+translatio shift 1409389383
+translatio side 398089822
+translatio fb 1730342945
+translatio lfo 1466486888
+translatio sync 159043482
+translatio div 1700965192
+translatio rate 780377191
+translatio shape 499374374
+translatio mix 1469012833

@@ -1,4 +1,34 @@
 # Translatio — owned by Translatio. Every key here needs its twin in translatio.es.txt.
 effect.translatio = Translatio frequency shifter
 fx.translatio.about = Moves every partial by the same number of hertz: from a gentle detune to the inharmonic.
+fx.translatio.shift = Shift
+fx.translatio.side = Sideband
+fx.translatio.fb = Feedback
+fx.translatio.fb.short = Fdbk
+fx.translatio.lfo = LFO swing
+fx.translatio.lfo.short = Swing
+fx.translatio.mix = Mix
 fx.translatio.out = Output
+
+translatio.side.0 = Up
+translatio.side.1 = Down
+translatio.side.2 = Both
+translatio.side_caption = Sideband
+translatio.card.shift = Shift
+translatio.card.output = Output
+translatio.card.movement = The shift over two LFO cycles
+translatio.card.partials = What a 220 Hz tone becomes
+translatio.both_legend = Left up · right down
+translatio.rejection = Sideband rejection
+translatio.idle = Mix is 0 %: the sound passes untouched
+translatio.preview = Shift
+
+preset.translatio.slow_phase = Slow phase
+preset.translatio.barber_up = Barber pole, rising
+preset.translatio.barber_down = Barber pole, falling
+preset.translatio.detune = Stereo detune
+preset.translatio.bell = Bell
+preset.translatio.robot = Robot
+preset.translatio.wobble = Wobble on the quarters
+preset.translatio.stereo_spin = Stereo spin
+fx.translatio.shift.short = Shift
