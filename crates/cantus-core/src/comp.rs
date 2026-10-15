@@ -53,7 +53,11 @@ pub(crate) fn check(
         return bad("too many");
     }
     if comps.is_empty() {
-        return if active == 0 { Ok(()) } else { bad("no comp to play") };
+        return if active == 0 {
+            Ok(())
+        } else {
+            bad("no comp to play")
+        };
     }
     let Some(playing) = comps.get(active as usize) else {
         return bad("the playing comp is not there");
@@ -136,7 +140,9 @@ pub(crate) fn apply_seam(
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
-        return Err(CommandError::InvalidValue("the seam leaves its windows".into()));
+        return Err(CommandError::InvalidValue(
+            "the seam leaves its windows".into(),
+        ));
     }
     let was = r.start;
     let d = at - was;
@@ -231,11 +237,32 @@ mod tests {
             right,
             at,
         };
-        let take = p.track(t).unwrap().clips.iter().find(|c| c.lane == 1).unwrap().id;
-        assert!(seam(r, l, Ticks::beats(3)).apply(&mut p.clone()).is_err(), "order");
-        assert!(seam(take, r, Ticks::beats(3)).apply(&mut p.clone()).is_err(), "lane");
-        assert!(seam(l, r, Ticks::ZERO).apply(&mut p.clone()).is_err(), "outside");
-        assert!(seam(l, r, Ticks::beats(8)).apply(&mut p.clone()).is_err(), "outside");
+        let take = p
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .find(|c| c.lane == 1)
+            .unwrap()
+            .id;
+        assert!(
+            seam(r, l, Ticks::beats(3)).apply(&mut p.clone()).is_err(),
+            "order"
+        );
+        assert!(
+            seam(take, r, Ticks::beats(3))
+                .apply(&mut p.clone())
+                .is_err(),
+            "lane"
+        );
+        assert!(
+            seam(l, r, Ticks::ZERO).apply(&mut p.clone()).is_err(),
+            "outside"
+        );
+        assert!(
+            seam(l, r, Ticks::beats(8)).apply(&mut p.clone()).is_err(),
+            "outside"
+        );
         // Two windows that no longer meet.
         p.track_mut(t).unwrap().clip_mut(l).unwrap().length = Ticks::beats(2);
         assert!(seam(l, r, Ticks::beats(3)).apply(&mut p).is_err());
@@ -280,6 +307,9 @@ mod tests {
         assert_eq!(p.track(t).unwrap().comps, comps);
         undo.apply(&mut p).unwrap();
         assert_eq!(p, before);
-        assert_eq!((letter(0), letter(2), letter(40)), ("A".into(), "C".into(), "Z".into()));
+        assert_eq!(
+            (letter(0), letter(2), letter(40)),
+            ("A".into(), "C".into(), "Z".into())
+        );
     }
 }

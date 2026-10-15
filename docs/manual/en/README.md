@@ -253,6 +253,23 @@ at the bottom of the track's colour cell, `Alt+T`, or the track menu's *Show tak
 Right-click a lane for *Use this take*, *Delete unused takes* (which also drops recordings
 nothing plays any more), *Explode takes to new tracks* and *Hide takes*.
 
+**Seams.** Where two takes meet in the comp they **crossfade**: equal-power, 10 ms by
+default, centred on the seam, each take reading on into its own recording. A seam has a
+small diamond at the foot of the track; **drag it** (or the edge of either take there) and
+both sides move together. Right-click it for its crossfade — *Off*, 5, 10, 20 or 50 ms —
+or to use that one for every seam of the track. Each piece of the comp shows the number of
+its take, and the take lanes light what is in the comp.
+
+**Alternate comps.** The first take lane's header has the comp's chip, *Comp A*. Click it
+for the comps: switch between them (each comes back exactly as you left it, pitch edits
+included), *New comp* (a copy of this one, to try another idea), *Rename*, *Delete*,
+**Flatten** (keep the comp, drop the takes) and **Flatten and merge** (the comp bounced
+into one recording beside the takes — their files stay on disk). The same menu turns
+**Quick swipe** off (then dragging on a lane selects time and a click selects a take) and
+**grouped comping** on or off: tracks whose strips are in one mixer group — a drum kit's
+microphones recorded together — comp together, the same stretch of the same take on each.
+Every change is one undo step.
+
 ### MIDI
 
 Arm an **instrument track** (one with no audio input) and press `R`: notes from every MIDI
@@ -400,6 +417,43 @@ point, double-click a point to delete it, right-click it for its shape (single o
 curve, hold, stairs, pulse, wave). Double-click the clip for the large editor, with a
 drawing tool and articulators (flip, smooth, random, scale, LFO). An automated control
 shows a dot.
+
+**Hosted plug-ins** are automated like Cantus's own: right-click a parameter in a plug-in's
+generic editor (or in a hosted instrument's *Parameters* list in the inspector), or move it
+in the plug-in's own window and press `Alt+A`. Their changes reach the plug-in at their
+exact sample inside the audio block.
+
+**Recording automation.** While you record, every control you move — in Cantus or in a
+plug-in's own window — is written into an automation clip over the stretch you moved it
+in (one undo step when the pass ends). Switch it off in the record options (*Automation*).
+
+### Modulators
+
+A **modulator** moves parameters for you: an **LFO** (five shapes, synced to the song or
+free in Hz, restarted by notes if you like), an **envelope** (attack, decay, sustain,
+release — opened by the track's notes or by an audio level), a **follower** (the level of
+any strip: duck a pad under a kick), **steps** (up to 32, synced, with glide) and a
+**random** source (held or smooth, repeatable from its seed). Each modulator drives **any
+number of parameters**, each with its own depth, plus or minus; a parameter may take
+several, and they add up on top of its automation.
+
+- **Where they live**: the inspector's *Modulators* section for the selected track, its
+  channel, or the master (click the band's **+**). Each modulator shows its movement as a
+  picture, its settings, its amount, and one row per parameter it drives: drag the depth,
+  *bake* it, or disconnect it.
+- **Connect**: right-click any knob, fader or plug-in parameter ▸ **Modulate…** and pick a
+  modulator or make a new one already connected; or **drag a modulator's handle** (the grip
+  at the left of its title) onto any knob; or press its **map** key and drag any knob — the
+  drag sets that modulator's depth there.
+- **Depth on the knob**: hold `Alt` and drag a modulated knob to change the depth of its
+  modulation. Modulated knobs wear coloured rings (the depth, in the modulator's colour), a
+  moving dot where the parameter is now, and a violet mark.
+- **Bake to automation**: a route's bake key (or *Modulate… ▸ Bake to automation*) turns
+  that modulator's effect into an automation clip over the time selection (else the loop,
+  else the song) and removes the route, in one undo step.
+
+Synced modulators follow the song position, so playing from bar 5 hears what a full play
+hears there; free ones start with playback. Exports sound exactly as playback.
 
 ## 6. Mix: the mixer, inserts and sends
 

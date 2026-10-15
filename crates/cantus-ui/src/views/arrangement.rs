@@ -31,15 +31,15 @@ pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
 /// Automation lanes and the curves in their clips (ADR 0027).
 #[path = "arrangement_auto.rs"]
 pub mod autolanes;
+/// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
+#[path = "arrangement_comp.rs"]
+pub mod comp;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
-/// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
-#[path = "arrangement_comp.rs"]
-pub mod comp;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.

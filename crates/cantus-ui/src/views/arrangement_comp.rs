@@ -11,6 +11,7 @@
 //!   menu: the comps (switch), *New comp* (a copy, played), *Rename…*, delete one, flatten,
 //!   flatten and merge, quick swipe, grouped comping, every seam's crossfade.
 
+use super::chrome;
 use super::{beats_to_ticks, ticks_to_beats, TimelineGeometry, TrackRow};
 use crate::app::CantusApp;
 use crate::comping;
@@ -19,7 +20,6 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::{self, Policy, Role, Src, Text};
 use crate::kit::{self, Brush, Fill, Style};
-use super::chrome;
 use cantus_core::{ClipId, Ticks, Track, TrackId};
 use egui::{pos2, vec2, Align2, Id, Rect, Sense};
 
@@ -48,7 +48,10 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     let k = s.k;
     for (i, track) in app.project().tracks.iter().enumerate() {
         let Some(row) = geo.rows.get(i) else { continue };
-        if super::takes::shown_lanes(track) == 0 || row.top > rect.bottom() || row.top + row.height < rect.top() {
+        if super::takes::shown_lanes(track) == 0
+            || row.top > rect.bottom()
+            || row.top + row.height < rect.top()
+        {
             continue;
         }
         // Each window's take, by its lane's number.
@@ -72,7 +75,8 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             }
             b.rrect(chip, s.r(2.0), Fill::Solid(with_alpha(t.selection, 0.85)));
             let n = lane.to_string();
-            let tx = Text::new(&n, Role::Micro, crate::kit::color::on_fill(t.selection)).align(Align2::CENTER_CENTER);
+            let tx = Text::new(&n, Role::Micro, crate::kit::color::on_fill(t.selection))
+                .align(Align2::CENTER_CENTER);
             let _ = text::paint(b, chip, &tx, s.tk());
         }
         for (_, _, at, x) in comping::seams(track) {
@@ -93,7 +97,12 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             let c = h.center();
             let d = 4.5 * k;
             b.polygon(
-                &[pos2(c.x, c.y - d), pos2(c.x + d, c.y), pos2(c.x, c.y + d), pos2(c.x - d, c.y)],
+                &[
+                    pos2(c.x, c.y - d),
+                    pos2(c.x + d, c.y),
+                    pos2(c.x, c.y + d),
+                    pos2(c.x - d, c.y),
+                ],
                 t.selection,
             );
         }
@@ -120,7 +129,13 @@ struct SeamDrag {
 }
 
 /// The seams' handles: drag to move a seam (both sides), right-click for its crossfade.
-pub(super) fn input(app: &mut CantusApp, ui: &mut egui::Ui, geo: &TimelineGeometry, rect: Rect, s: &Style) {
+pub(super) fn input(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    geo: &TimelineGeometry,
+    rect: Rect,
+    s: &Style,
+) {
     let k = s.k;
     let mut handles: Vec<(TrackId, ClipId, ClipId, Rect)> = Vec::new();
     for (i, track) in app.project().tracks.iter().enumerate() {
@@ -138,14 +153,21 @@ pub(super) fn input(app: &mut CantusApp, ui: &mut egui::Ui, geo: &TimelineGeomet
     let snap = app.arrangement.snap;
     let grid = app.arrangement.grid;
     for (tid, l, r, h) in handles {
-        let resp = ui.interact(h, ui.id().with(("comp-seam", tid.0, l.0, r.0)), Sense::click_and_drag());
+        let resp = ui.interact(
+            h,
+            ui.id().with(("comp-seam", tid.0, l.0, r.0)),
+            Sense::click_and_drag(),
+        );
         if resp.hovered() || resp.dragged() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
             hint::set_text(
                 ui.ctx(),
                 chrome::word("comping.seam"),
                 chrome::word("comping.seam_tip"),
-                Caps { menu: true, ..Caps::NONE },
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
             );
         }
         if resp.dragged() {
@@ -155,12 +177,22 @@ pub(super) fn input(app: &mut CantusApp, ui: &mut egui::Ui, geo: &TimelineGeomet
                 if snap && !free {
                     at = at.snap(grid);
                 }
-                ui.ctx().data_mut(|d| d.insert_temp(Id::new("comp-seam-drag"), SeamDrag { track: tid, left: l, right: r }));
+                ui.ctx().data_mut(|d| {
+                    d.insert_temp(
+                        Id::new("comp-seam-drag"),
+                        SeamDrag {
+                            track: tid,
+                            left: l,
+                            right: r,
+                        },
+                    )
+                });
                 app.move_comp_seam(tid, l, r, at, true);
             }
         }
         if resp.drag_stopped() {
-            ui.ctx().data_mut(|d| d.remove::<SeamDrag>(Id::new("comp-seam-drag")));
+            ui.ctx()
+                .data_mut(|d| d.remove::<SeamDrag>(Id::new("comp-seam-drag")));
             app.end_gesture();
         }
         egui::Popup::context_menu(&resp)
@@ -232,7 +264,12 @@ pub(super) fn paint_chip(b: &mut Brush, track: &Track, r: Rect, s: &Style) {
         .map_or_else(|| cantus_core::comp::letter(0), |c| c.name.clone());
     let word = crate::i18n::tf("comping.chip", &[("name", &name)]);
     b.rrect(r, s.r(2.0), Fill::Solid(with_alpha(t.selection, 0.18)));
-    b.rrect_stroke(r.shrink(b.px() * 0.5), s.r(2.0), b.px(), with_alpha(t.selection, 0.7));
+    b.rrect_stroke(
+        r.shrink(b.px() * 0.5),
+        s.r(2.0),
+        b.px(),
+        with_alpha(t.selection, 0.7),
+    );
     let tx = Text::new(&word, Role::Label, t.text)
         .align(Align2::CENTER_CENTER)
         .policy(Policy::Abbreviate);
@@ -243,7 +280,15 @@ pub(super) fn paint_chip(b: &mut Brush, track: &Track, r: Rect, s: &Style) {
 pub(super) fn chip_input(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, r: Rect) {
     let resp = ui.interact(r, ui.id().with(("comp-chip", tid.0)), Sense::click());
     if resp.hovered() {
-        hint::set_text(ui.ctx(), chrome::word("comping.chip_tip"), "", Caps { menu: true, ..Caps::NONE });
+        hint::set_text(
+            ui.ctx(),
+            chrome::word("comping.chip_tip"),
+            "",
+            Caps {
+                menu: true,
+                ..Caps::NONE
+            },
+        );
     }
     egui::Popup::menu(&resp)
         .frame(chrome::menu_frame())
@@ -285,7 +330,8 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
         .map(|(i, n)| (i as u8, crate::i18n::tf("comping.delete", &[("name", n)])))
         .collect();
     let xf: Vec<String> = XFADES_MS.iter().map(|ms| xfade_word(*ms)).collect();
-    let mut rows: Vec<(Row, Item<'_>)> = vec![(Row::Nothing, Item::Band(Src::Key("comping.menu.comps")))];
+    let mut rows: Vec<(Row, Item<'_>)> =
+        vec![(Row::Nothing, Item::Band(Src::Key("comping.menu.comps")))];
     for (i, n) in names.iter().enumerate() {
         rows.push((
             Row::Switch(i as u8),
@@ -338,7 +384,12 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
     }
     let items: Vec<Item<'_>> = rows.iter().map(|r| r.1).collect();
     let clicks = kit::widgets::menu_list(ui, &items, 240.0).1;
-    let Some(row) = clicks.clicked.or(clicks.toggled).and_then(|i| rows.get(i)).map(|r| r.0.clone()) else {
+    let Some(row) = clicks
+        .clicked
+        .or(clicks.toggled)
+        .and_then(|i| rows.get(i))
+        .map(|r| r.0.clone())
+    else {
         return;
     };
     match row {
@@ -346,7 +397,8 @@ pub fn comp_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId) {
         Row::New => app.duplicate_comp(tid),
         Row::Rename => {
             let name = names.get(active as usize).cloned().unwrap_or_default();
-            ui.ctx().data_mut(|d| d.insert_temp(rename_id(tid), (active, name)));
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(rename_id(tid), (active, name)));
         }
         Row::Delete(i) => app.delete_comp(tid, i),
         Row::Flatten => app.flatten_comp(tid),
@@ -372,7 +424,10 @@ fn rename_id(tid: TrackId) -> Id {
 
 /// While a comp is being renamed: the kit's field over the chip; Enter renames, Esc leaves.
 fn rename_field(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, r: Rect) {
-    let Some((which, mut words)) = ui.ctx().data(|d| d.get_temp::<(u8, String)>(rename_id(tid))) else {
+    let Some((which, mut words)) = ui
+        .ctx()
+        .data(|d| d.get_temp::<(u8, String)>(rename_id(tid)))
+    else {
         return;
     };
     let k = Style::current().k;
@@ -381,7 +436,8 @@ fn rename_field(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, r: Rect) {
         .order(egui::Order::Foreground)
         .fixed_pos(r.min)
         .show(ui.ctx(), |ui| {
-            let (line, _) = ui.allocate_exact_size(vec2(r.width().max(96.0 * k), r.height()), Sense::hover());
+            let (line, _) =
+                ui.allocate_exact_size(vec2(r.width().max(96.0 * k), r.height()), Sense::hover());
             let out = crate::kit::field::Field::new(rename_id(tid).with("field"))
                 .scale(k)
                 .opens_when_shown()
@@ -390,11 +446,13 @@ fn rename_field(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, r: Rect) {
         });
     match event {
         Some(crate::kit::field::Event::Commit) => {
-            ui.ctx().data_mut(|d| d.remove::<(u8, String)>(rename_id(tid)));
+            ui.ctx()
+                .data_mut(|d| d.remove::<(u8, String)>(rename_id(tid)));
             app.rename_comp(tid, which, &words);
         }
         Some(crate::kit::field::Event::Cancel) => {
-            ui.ctx().data_mut(|d| d.remove::<(u8, String)>(rename_id(tid)));
+            ui.ctx()
+                .data_mut(|d| d.remove::<(u8, String)>(rename_id(tid)));
         }
         None => {
             ui.ctx()

@@ -267,6 +267,26 @@ para usarla entera. Clic derecho en un carril: *Usar esta toma*, *Borrar tomas s
 (que también quita las grabaciones que ya nada reproduce), *Separar tomas en pistas
 nuevas* y *Ocultar tomas*.
 
+**Costuras.** Donde dos tomas se encuentran en la composición, se **funden**: a igual
+potencia, 10 ms por defecto, centrado en la costura, y cada toma sigue leyendo su propia
+grabación. Cada costura tiene un pequeño rombo al pie de la pista; **arrástralo** (o el
+borde de cualquiera de las dos tomas ahí) y los dos lados se mueven juntos. Clic derecho
+para su fundido —*Sin fundido*, 5, 10, 20 o 50 ms— o para usarlo en todas las costuras de
+la pista. Cada trozo de la composición muestra el número de su toma, y los carriles de
+tomas iluminan lo que está en la composición.
+
+**Composiciones alternativas.** La cabecera del primer carril tiene la ficha de la
+composición, *Comp. A*. Haz clic para las composiciones: cambia entre ellas (cada una
+vuelve exactamente como la dejaste, con sus ediciones de afinación), *Composición nueva*
+(una copia de esta, para probar otra idea), *Renombrar*, *Borrar*, **Consolidar** (queda la
+composición, se van las tomas) y **Consolidar y fusionar** (la composición renderizada en
+una sola grabación junto a las tomas; sus archivos se quedan en el disco). El mismo menú
+apaga la **composición rápida** (entonces arrastrar en un carril selecciona tiempo y un
+clic selecciona una toma) y enciende o apaga la **composición agrupada**: las pistas cuyos
+canales están en un mismo grupo del mezclador —los micrófonos de una batería grabados
+juntos— se componen juntas, el mismo tramo de la misma toma en cada una. Cada cambio es un
+paso de deshacer.
+
 ### MIDI
 
 Arma una **pista de instrumento** (una sin entrada de audio) y pulsa `R`: se graban en un
@@ -431,6 +451,49 @@ dos puntos para curvar, clic en la línea añade un punto, doble clic en un punt
 clic derecho para su forma (curva simple o doble, mantener, escalera, pulso, onda). Doble
 clic en el clip abre el editor grande, con herramienta de dibujo y articuladores
 (invertir, suavizar, azar, escala, LFO). Un control automatizado muestra un punto.
+
+**Los plug-ins alojados** se automatizan como los de Cantus: clic derecho en un parámetro
+del editor genérico de un plug-in (o en la lista *Parámetros* de un instrumento alojado, en
+el inspector), o muévelo en la ventana del propio plug-in y pulsa `Alt+A`. Sus cambios le
+llegan al plug-in en su muestra exacta dentro del bloque de audio.
+
+**Grabar automatización.** Mientras grabas, cada control que muevas —en Cantus o en la
+ventana de un plug-in— se escribe en un clip de automatización sobre el tramo en que lo
+moviste (un paso de deshacer al terminar la pasada). Se apaga en las opciones de grabación
+(*Automatización*).
+
+### Moduladores
+
+Un **modulador** mueve parámetros por ti: un **LFO** (cinco formas, sincronizado con la
+canción o libre en Hz, reiniciado por las notas si quieres), una **envolvente** (ataque,
+caída, sostén, liberación; la abren las notas de la pista o un nivel de audio), un
+**seguidor** (el nivel de cualquier canal: hunde un pad bajo el bombo), **pasos** (hasta
+32, sincronizados, con deslizamiento) y una fuente **aleatoria** (sostenida o suave,
+repetible desde su semilla). Cada modulador mueve **cuantos parámetros quieras**, cada uno
+con su profundidad, positiva o negativa; un parámetro puede recibir varios, que se suman
+sobre su automatización.
+
+- **Dónde viven**: la sección *Moduladores* del inspector para la pista seleccionada, su
+  canal o el máster (el **+** de la banda). Cada modulador muestra su movimiento en un
+  dibujo, sus ajustes, su cantidad y una fila por parámetro que mueve: arrastra la
+  profundidad, *conviértela* en automatización o desconéctala.
+- **Conectar**: clic derecho en cualquier perilla, fader o parámetro de un plug-in ▸
+  **Modular…** y elige un modulador o crea uno nuevo ya conectado; o **arrastra el asa de
+  un modulador** (el agarre a la izquierda de su título) sobre cualquier perilla; o pulsa su
+  tecla de **asignar** y arrastra cualquier perilla: el arrastre fija ahí la profundidad de
+  ese modulador.
+- **La profundidad en la perilla**: mantén `Alt` y arrastra una perilla modulada para
+  cambiar la profundidad de su modulación. Las perillas moduladas llevan anillos de color
+  (la profundidad, en el color del modulador), un punto que se mueve donde está ahora el
+  parámetro y una marca violeta.
+- **Convertir en automatización**: la tecla de convertir de una ruta (o *Modular… ▸
+  Convertir en automatización*) hace del efecto de ese modulador un clip de automatización
+  sobre la selección de tiempo (si no, el bucle; si no, la canción) y quita la ruta, en un
+  paso de deshacer.
+
+Los moduladores sincronizados siguen la posición de la canción: tocar desde el compás 5
+suena como suena ahí la canción entera; los libres empiezan con la reproducción. Las
+exportaciones suenan exactamente como la reproducción.
 
 ## 6. Mezclar: el mezclador, inserciones y envíos
 

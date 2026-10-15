@@ -135,7 +135,10 @@ fn a_swipe_that_grows_a_window_keeps_its_pitch_edits() {
         .find(|c| c.lane == 0 && c.start == beats(2))
         .unwrap();
     assert_eq!(grown.end(), beats(5));
-    assert_eq!(grown.audio.as_ref().unwrap().pitch.as_deref(), Some(&edit()));
+    assert_eq!(
+        grown.audio.as_ref().unwrap().pitch.as_deref(),
+        Some(&edit())
+    );
 }
 
 #[test]
@@ -283,7 +286,10 @@ fn flatten_and_merge_bounces_the_comp_into_one_clip() {
         .project()
         .audio_source(c.audio.as_ref().unwrap().source)
         .unwrap();
-    assert!(std::path::Path::new(&src.path).exists(), "the bounce is on disk");
+    assert!(
+        std::path::Path::new(&src.path).exists(),
+        "the bounce is on disk"
+    );
     a.undo();
     assert_eq!(a.project().tracks, before.tracks);
 }
@@ -357,12 +363,20 @@ fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2
         modifiers: egui::Modifiers::NONE,
     };
     show(a, ctx, vec![egui::Event::PointerMoved(from)]);
-    show(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true)]);
+    show(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true)],
+    );
     for i in 1..=4 {
         let at = from + (to - from) * (i as f32 / 4.0);
         show(a, ctx, vec![egui::Event::PointerMoved(at)]);
     }
-    show(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false)]);
+    show(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+    );
     show(a, ctx, vec![]);
 }
 
@@ -390,7 +404,9 @@ fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
     );
     let windows = lane0(&a, t);
     assert!(
-        windows.iter().any(|w| w.2 == a_src && w.0 >= 1900 && w.0 <= 1940),
+        windows
+            .iter()
+            .any(|w| w.2 == a_src && w.0 >= 1900 && w.0 <= 1940),
         "{windows:?}"
     );
     let (_, _, at, _) = comping::seams(a.project().track(t).unwrap())[0];

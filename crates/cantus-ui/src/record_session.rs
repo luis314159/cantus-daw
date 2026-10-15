@@ -1009,11 +1009,18 @@ impl CantusApp {
                 return false;
             }
         };
-        let name = self.project().track(track).map(|t| t.name.clone()).unwrap_or_default();
+        let name = self
+            .project()
+            .track(track)
+            .map(|t| t.name.clone())
+            .unwrap_or_default();
         let dir = self.audio_record_dir();
         let _ = std::fs::create_dir_all(&dir);
         let stamp = crate::takes::stamp_now();
-        let path = dir.join(crate::takes::take_file_name(&format!("{name} comp"), &stamp));
+        let path = dir.join(crate::takes::take_file_name(
+            &format!("{name} comp"),
+            &stamp,
+        ));
         if let Err(e) = cantus_engine::write_wav(&rendered, &path) {
             self.set_error(tf("rec.merge_failed", &[("error", &e.to_string())]));
             return false;
@@ -1034,10 +1041,11 @@ impl CantusApp {
             c
         };
         let mut commands = vec![Command::InsertAudioSource { source }];
-        commands.extend(windows.iter().map(|c| Command::RemoveClip {
-            track,
-            clip: c.id,
-        }));
+        commands.extend(
+            windows
+                .iter()
+                .map(|c| Command::RemoveClip { track, clip: c.id }),
+        );
         commands.push(Command::InsertClip {
             track,
             clip: Box::new(clip),

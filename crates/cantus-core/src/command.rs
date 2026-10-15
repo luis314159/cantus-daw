@@ -2653,8 +2653,7 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
         return Err(CommandError::InvalidValue("automation curve".into()));
     }
     // A comp seam's crossfade (ADR 0058): never negative, never longer than the most.
-    if c
-        .audio
+    if c.audio
         .as_ref()
         .is_some_and(|a| a.xfade < Ticks::ZERO || a.xfade > crate::audio::MAX_XFADE)
     {

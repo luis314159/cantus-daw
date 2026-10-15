@@ -71,7 +71,9 @@ fn setup(app: &mut CantusApp) -> TrackId {
     app.comp_swipe(vocal, 3, bars(2) + Ticks::beats(2), bars(4));
     app.comp_swipe(vocal, 2, bars(4), bars(5));
     // A wider crossfade on the second seam, and a second comp playing.
-    if let Some((_, r, _, _)) = cantus_ui::comping::seams(app.project().track(vocal).unwrap()).get(1) {
+    if let Some((_, r, _, _)) =
+        cantus_ui::comping::seams(app.project().track(vocal).unwrap()).get(1)
+    {
         let r = *r;
         app.set_seam_xfade(vocal, Some(r), Ticks(240));
     }
@@ -109,8 +111,11 @@ fn main() {
                     };
                     cantus_ui::theme::apply(&t, &ctx);
                     let tmp = std::env::temp_dir().join("cantus-shoot-comp");
-                    let mut app =
-                        CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                    let mut app = CantusApp::from_parts(
+                        Some(welcome_project()),
+                        EngineHandle::dummy(),
+                        false,
+                    );
                     app.settings_path = tmp.join("settings.json");
                     app.layouts_path = tmp.join("layouts.json");
                     app.keymap_path = tmp.join("keymap.toml");

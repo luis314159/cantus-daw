@@ -588,9 +588,7 @@ fn main() {
             .find(|c| c.lane == 0)
             .and_then(|c| c.audio.as_ref())
             .and_then(|a| a.pitch.clone());
-        if let (Some(left), Some(older)) =
-            (vocal.clips.iter_mut().find(|c| c.lane == 0), older)
-        {
+        if let (Some(left), Some(older)) = (vocal.clips.iter_mut().find(|c| c.lane == 0), older) {
             left.length = Ticks::beats(4);
             if let Some(a) = left.audio.as_mut() {
                 a.fade_out = Ticks::ZERO;

@@ -60,12 +60,7 @@ fn in_comp(track: &Track, take: &Clip) -> bool {
     let shows = |c: &Clip| {
         c.lane == 0 && c.start < take.end() && c.end() > take.start && content_key(c) == Some(key)
     };
-    track.clips.iter().any(shows)
-        || track
-            .comps
-            .iter()
-            .flat_map(|c| c.windows.iter())
-            .any(shows)
+    track.clips.iter().any(shows) || track.comps.iter().flat_map(|c| c.windows.iter()).any(shows)
 }
 
 /// Call `f` with every range of `take` that the comp plays (for lighting the take lanes).

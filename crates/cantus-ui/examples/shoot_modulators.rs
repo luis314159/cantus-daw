@@ -81,7 +81,10 @@ fn project() -> Project {
         &mut p,
         ModHost::Track(t),
         ModKind::Lfo,
-        vec![(AutoTarget::StripPan(s), 0.35), (AutoTarget::TrackGain(t), -0.2)],
+        vec![
+            (AutoTarget::StripPan(s), 0.35),
+            (AutoTarget::TrackGain(t), -0.2),
+        ],
     );
     let env = add(
         &mut p,
