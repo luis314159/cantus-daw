@@ -85,31 +85,41 @@ fn no_width_zoom_language_or_group_set_overlaps_or_clips() {
                         let room = transport::room(ui.ctx(), width);
                         let l = transport::layout::layout(&room, &wants);
                         let what = format!("{locale:?} {zoom} seed {seed} {px}px: {l:?}");
-                        // The left block, the groups and the ⋯ key, left to right, apart.
-                        let mut spans = vec![l.left];
-                        spans.extend(l.placed().iter().map(|(_, s)| *s));
-                        spans.push(l.more);
-                        assert!(spans[0].x0 >= 0.0, "{what}");
-                        for w in spans.windows(2) {
-                            assert!(w[0].x1 <= w[1].x0 + 1e-3, "overlap: {what}");
+                        // The left block, the groups (each in its slot: the bar's height,
+                        // or one of its two rows) and the ⋯ key: no two overlap.
+                        use transport::layout::{Slot, Span};
+                        let rows = |s: Slot| match s {
+                            Slot::Full => (0u8, 2u8),
+                            Slot::Top => (0, 1),
+                            Slot::Bottom => (1, 2),
+                        };
+                        let mut parts: Vec<(Span, Slot)> = vec![(l.left, Slot::Full)];
+                        parts.extend(l.placed().iter().map(|p| (p.span, p.slot)));
+                        parts.push((l.more, Slot::Full));
+                        for (i, (a, sa)) in parts.iter().enumerate() {
+                            assert!(a.x0 >= 0.0 && a.x1 <= width + 1e-3, "leaves: {what}");
+                            for (b, sb) in &parts[i + 1..] {
+                                let x = a.x1.min(b.x1) - a.x0.max(b.x0);
+                                let (ya, yb) = (rows(*sa), rows(*sb));
+                                let y = ya.0 < yb.1 && yb.0 < ya.1;
+                                assert!(x <= 1e-3 || !y, "overlap: {what}");
+                            }
                         }
-                        assert!(l.more.x1 <= width + 1e-3, "leaves the bar: {what}");
-                        assert!(
-                            l.left.width() + 1e-3 >= room.left_compact.min(room.left_min),
-                            "{what}"
-                        );
-                        for (g, s) in l.placed() {
-                            let want = wants.iter().find(|w| w.group == *g).unwrap();
-                            assert!(s.width() + 1e-3 >= want.min, "{g:?} clipped: {what}");
-                            assert!(s.width() <= want.max + 1e-3, "{g:?} too wide: {what}");
+                        assert!(l.left.width() + 1e-3 >= room.left_min, "{what}");
+                        for p in l.placed() {
+                            let want = wants.iter().find(|w| w.group == p.group).unwrap();
+                            let g = p.group;
+                            assert!(p.span.width() + 1e-3 >= want.min, "{g:?} clipped: {what}");
+                            assert!(p.span.width() <= want.max + 1e-3, "{g:?} too wide: {what}");
+                            assert_eq!(p.slot == Slot::Full, want.tall, "{g:?}: {what}");
                         }
-                        let mut seen: Vec<Group> = l.placed().iter().map(|(g, _)| *g).collect();
+                        let mut seen: Vec<Group> = l.placed().iter().map(|p| p.group).collect();
                         seen.extend_from_slice(l.folded());
                         seen.sort();
                         let mut all = shown.clone();
                         all.sort();
                         assert_eq!(seen, all, "{what}");
-                        let order: Vec<Group> = l.placed().iter().map(|(g, _)| *g).collect();
+                        let order: Vec<Group> = l.placed().iter().map(|p| p.group).collect();
                         let kept: Vec<Group> = shown
                             .iter()
                             .copied()
@@ -165,7 +175,8 @@ fn the_drawn_bar_keeps_every_part_and_word_inside_it() {
                 let (bar, l) = transport::last_layout(&ctx).expect("the bar laid itself out");
                 let what = format!("{locale:?} {zoom} {px}px");
                 assert!((bar.width() - size.x).abs() < 1.0, "{what}: {bar:?}");
-                for (g, s) in l.placed() {
+                for p in l.placed() {
+                    let (g, s) = (p.group, p.span);
                     assert!(
                         bar.left() + s.x0 >= bar.left() - 1e-3 && s.x1 <= bar.width() + 1e-3,
                         "{g:?} leaves the bar: {what}"
@@ -221,7 +232,8 @@ fn every_group_keeps_to_its_own_width() {
                         .expect("the default bar shows every group");
                     let rect = Rect::from_min_size(
                         Pos2::new(100.0, 100.0),
-                        Vec2::new(w.min, transport::HEIGHT),
+                        // A short group in one of the bar's two rows (as `slot_y` gives it).
+                        Vec2::new(w.min, if w.tall { transport::HEIGHT } else { 24.0 }),
                     );
                     ui.ctx()
                         .data_mut(|d| d.insert_temp(egui::Id::new("group-rect"), rect));
@@ -277,5 +289,73 @@ fn widths() {
             );
         });
         o.textures_delta.clear();
+    }
+}
+
+/// At 1920 px and 100 %, the default bar shows every group — in English and in Spanish
+/// (review 1: five folded) — and at 1280 px the most important ones stay.
+#[test]
+fn the_default_bar_shows_every_group_at_1920() {
+    let (a, _dir) = app();
+    let ctx = ctx();
+    ctx.set_zoom_factor(1.0);
+    for locale in [Locale::En, Locale::Es] {
+        set_locale(locale);
+        let mut o = ctx.run_ui(Default::default(), |ui| {
+            let wants = transport::wants(&a, ui.ctx());
+            let l = transport::layout::layout(&transport::room(ui.ctx(), 1920.0), &wants);
+            assert!(l.folded().is_empty(), "{locale:?} folds {:?}", l.folded());
+            let l = transport::layout::layout(&transport::room(ui.ctx(), 1280.0), &wants);
+            for g in [Group::Transport, Group::Tempo, Group::Position, Group::Mode] {
+                assert!(l.span_of(g).is_some(), "{locale:?} 1280: {g:?} folded");
+            }
+        });
+        o.textures_delta.clear();
+    }
+    set_locale(Locale::En);
+}
+
+/// The clock is as wide as its widest position in the metre (review 1: 3/2 and 12/8
+/// shortened it with "…" from bar 10).
+#[test]
+fn the_clock_reads_whole_in_every_metre() {
+    let (mut a, _dir) = app();
+    let ctx = ctx();
+    for (n, d) in [(4u8, 4u8), (3, 2), (12, 8), (32, 2), (7, 16)] {
+        a.exec(cantus_core::Command::SetTimeSignature {
+            time_signature: cantus_core::TimeSignature::new(n, d),
+        });
+        // Bar 123, the last beat, the last tick.
+        let ts = a.project().time_signature;
+        let at = ts.ticks_per_bar() * 122
+            + ts.ticks_per_beat() * (n as i64 - 1)
+            + cantus_core::Ticks(ts.ticks_per_beat().0 - 1);
+        a.seek(at);
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            let w = transport::wants(&a, ui.ctx())
+                .into_iter()
+                .find(|w| w.group == Group::Position)
+                .unwrap();
+            let rect =
+                Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(w.min, transport::HEIGHT));
+            transport::draw_group(Group::Position, &mut a, ui, rect);
+        });
+        out.textures_delta.clear();
+        let texts: Vec<String> = out
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            texts.iter().all(|t| !t.contains('\u{2026}')),
+            "{n}/{d}: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t.starts_with("123.")),
+            "{n}/{d}: {texts:?}"
+        );
     }
 }

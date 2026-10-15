@@ -1,13 +1,11 @@
 //! The top bar's left block (ADR 0052): the logo, the menus over the project's name and the
-//! hint panel — or, when the window is narrow, the menus folded into one key (FL's ≡) with
-//! the hint panel in what is left. The project's name is renamed in place: a click on it
-//! opens the kit's field there (`title`).
+//! hint panel. The project's name is renamed in place: a click on it opens the kit's field
+//! there (`title`), drawn after the bar's words so none shows under it.
 
-use super::{key_in, title, Style};
+use super::{title, Style};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::kit::color::{shade, with_alpha};
-use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Role, Text};
 use crate::kit::{with_brush, Fill};
 use crate::views;
@@ -40,14 +38,14 @@ fn menu_word_width(ctx: &egui::Context, s: &Style, key: &str) -> f32 {
     .x + 14.0 * s.k
 }
 
-/// The menus' width in a row, and the compact block's (the menu key and a little hint).
-pub fn left_widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
-    let menus = MENUS.iter().map(|k| menu_word_width(ctx, s, k)).sum();
-    (menus, (super::KEY + 6.0) * s.k)
+/// The menus' width in a row.
+pub fn left_widths(ctx: &egui::Context, s: &Style) -> f32 {
+    MENUS.iter().map(|k| menu_word_width(ctx, s, k)).sum()
 }
 
-/// The left block in `rect`: full (menus over the name and hint) or compact.
-pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, full: bool, s: &Style) {
+/// The left block in `rect`: the logo, the menus over the project's name and the hint
+/// panel. Returns the panel's rect (the name's field goes there, drawn last).
+pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, s: &Style) -> Option<Rect> {
     let k = s.k;
     let logo_r = Rect::from_center_size(
         Pos2::new(rect.left() + 14.0 * k, rect.center().y),
@@ -58,24 +56,23 @@ pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, full: bool, s: &
         Pos2::new(rect.left() + LOGO_W * k, rect.top() + 3.0 * k),
         Pos2::new(rect.right(), rect.bottom() - 3.0 * k),
     );
-    let hint_r = if full {
-        let menu_r = Rect::from_min_size(body.min, Vec2::new(body.width(), 17.0 * k));
-        menus(app, ui, menu_r, s);
-        Rect::from_min_max(Pos2::new(body.left(), menu_r.bottom() + 1.0 * k), body.max)
-    } else {
-        let key = super::key_rect(body, body.left(), s);
-        compact_key(app, ui, key, s);
-        Rect::from_min_max(Pos2::new(key.right() + 6.0 * k, body.top()), body.max)
-    };
+    let menu_r = Rect::from_min_size(body.min, Vec2::new(body.width(), 17.0 * k));
+    menus(app, ui, menu_r, s);
+    let hint_r = Rect::from_min_max(Pos2::new(body.left(), menu_r.bottom() + 1.0 * k), body.max);
     if hint_r.width() < 60.0 * k {
-        return;
+        return None;
     }
+    // While the project is renamed, its field stands where the name is: the panel leaves
+    // the name out, so no word shows under the field.
+    let naming = title::naming(app);
     NAME.with(|n| {
         let mut name = n.borrow_mut();
         name.clear();
-        name.push_str(&app.project().name);
-        if app.bus.is_dirty() {
-            name.push_str(" \u{2022}");
+        if !naming {
+            name.push_str(&app.project().name);
+            if app.bus.is_dirty() {
+                name.push_str(" \u{2022}");
+            }
         }
         with_brush(ui.painter(), |b| {
             let idle = views::workspace_status::tool_hint_key(app);
@@ -89,28 +86,7 @@ pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, full: bool, s: &
             let _ = resp.on_hover_text(t(key));
         }
     }
-    title::name_field(app, ui, hint_r, s);
-}
-
-/// The menus folded into one key: each menu a submenu of it.
-fn compact_key(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let resp = key_in(
-        ui,
-        r,
-        s,
-        crate::kit::cap::KeyFace::Glyph(Glyph::Menu),
-        false,
-        "menus",
-        || t("topbar.menus"),
-    );
-    let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
-    if open || resp.clicked() {
-        egui::Popup::menu(&resp).style(menu_look).show(|ui| {
-            for (i, key) in MENUS.iter().enumerate() {
-                ui.menu_button(t(key), |ui| menu_body(app, ui, i));
-            }
-        });
-    }
+    Some(hint_r)
 }
 
 /// The menu words: kit text in a box, each opening its menu.

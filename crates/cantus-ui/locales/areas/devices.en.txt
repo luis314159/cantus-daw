@@ -47,7 +47,6 @@ devices.auto = Auto
 devices.scanning = Looking for interfaces…
 devices.busy_recording = Stop recording before changing the audio device.
 devices.switched = Now playing through {name}.
-devices.status.engine = CPU {load}% · dropouts {overruns} · voices {voices}
 
 devices.chip.text = {name} · {driver} · {rate} · {buffer} · {latency}
 devices.chip.none = No audio — click to set up
@@ -106,7 +105,7 @@ devices.notice.reconnected = {name} is back
 devices.notice.ok = OK
 
 devices.first.title = Set up your audio
-devices.first.intro = Choose what you play through. Cantus picks the best driver and buffer for it — you can change them any time from the audio chip at the bottom right.
+devices.first.intro = Choose what you play through. Cantus picks the best driver and buffer for it — you can change them any time from the audio chip in the top bar (or its ⋯ menu when the window is narrow).
 devices.first.choose = Choose your interface
 devices.first.listen = Listen
 devices.first.play = Play or speak — the meter should move

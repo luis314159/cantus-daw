@@ -117,7 +117,7 @@ fn shoot(path: &std::path::Path, what: &str, width: f32, theme: &str, scale: f32
         frame += 1;
         if frame == 2 {
             match what {
-                "overflow" => transport::open_overflow(root.ctx()),
+                "overflow" => transport::open_overflow(&mut app),
                 "metronome" => transport::open_metronome_options(root.ctx()),
                 "metre" => transport::open_metre_editor(root.ctx()),
                 "customise" => transport::open_customise(&mut app),

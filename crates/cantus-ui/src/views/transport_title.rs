@@ -65,6 +65,11 @@ pub fn sent(app: &CantusApp) -> &str {
     &app.topbar.title.sent
 }
 
+/// Whether the project is being renamed.
+pub fn naming(app: &CantusApp) -> bool {
+    app.topbar.title.naming.is_some()
+}
+
 /// Start renaming the project (a click on its name; tests).
 pub fn start_naming(app: &mut CantusApp) {
     app.topbar.title.naming = Some(app.project().name.clone());

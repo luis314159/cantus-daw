@@ -11,7 +11,7 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{light, with_brush};
 use crate::views;
-use cantus_core::Ticks;
+use cantus_core::{Ticks, TimeSignature};
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -27,26 +27,50 @@ thread_local! {
 }
 
 /// The side panel's width at 100 %.
-const SIDE: f32 = 84.0;
+const SIDE: f32 = 70.0;
 
-/// The widest the clock's digits get, in the `display` role.
-fn digits_width(ctx: &egui::Context, s: &Style) -> f32 {
+/// The digits of the beat and of the tick in `metre`: 10 beats or more take two, a beat of
+/// 1 000 ticks or more (a half note) takes four.
+fn digits(metre: TimeSignature) -> (usize, usize) {
+    let beat = if metre.numerator >= 10 { 2 } else { 1 };
+    let tick = if metre.ticks_per_beat().0 > 1_000 {
+        4
+    } else {
+        3
+    };
+    (beat, tick)
+}
+
+/// The widest position `metre` can show, as a template of eights.
+fn template(metre: TimeSignature) -> &'static str {
+    match digits(metre) {
+        (1, 3) => "888.8.888",
+        (1, _) => "888.8.8888",
+        (_, 3) => "888.88.888",
+        _ => "888.88.8888",
+    }
+}
+
+/// The widest the clock's digits get in `metre`, in the `display` role.
+fn digits_width(ctx: &egui::Context, s: &Style, metre: TimeSignature) -> f32 {
     text::measure(
         ctx,
-        &Text::new("888.8.888", Role::Display, s.t.text),
+        &Text::new(template(metre), Role::Display, s.t.text),
         s.tk(),
     )
     .x + 24.0 * s.k
 }
 
-pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
-    digits_width(ctx, s) + SIDE * s.k
+pub fn width(ctx: &egui::Context, s: &Style, metre: TimeSignature) -> f32 {
+    digits_width(ctx, s, metre) + SIDE * s.k
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
     let t = &s.t;
-    let digits_w = digits_width(ui.ctx(), s);
+    let metre = app.project().time_signature;
+    let digits_w = digits_width(ui.ctx(), s, metre);
+    let (_, tick_digits) = digits(metre);
     let lcd = Rect::from_center_size(r.center(), Vec2::new(r.width(), 40.0 * k));
     let mut pos = app.engine.position();
     // Pattern mode counts from the pattern's start.
@@ -64,7 +88,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         let mut c = c.borrow_mut();
         let (bbt, clock, metre, hint_name) = &mut *c;
         bbt.clear();
-        let _ = write!(bbt, "{bar:>3}.{beat}.{tick:03}");
+        let _ = write!(bbt, "{bar:>3}.{beat}.{tick:0tick_digits$}");
         clock.clear();
         let _ = write!(clock, "{:02}:{:05.2}", (secs / 60.0) as i64, secs % 60.0);
         metre.clear();

@@ -2,7 +2,7 @@
 //! the inputs (typing keyboard, MIDI, armed tracks) and the tools (picker, appearance,
 //! zoom).
 
-use super::{key_in, key_rect, tip, Style, KEY, STEP};
+use super::{key_in, key_rect, key_side, tip, Style, ROW_KEY, STEP};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::keymap::Action;
@@ -83,11 +83,11 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the transport -------------------------------------------------------------------
 
 pub fn transport_width(s: &Style) -> f32 {
-    (4.0 * (KEY + STEP) + views::record_options::KEY_W + STEP + KEY) * s.k
+    (4.0 * (ROW_KEY + STEP) + views::record_options::KEY_W + STEP + ROW_KEY) * s.k
 }
 
 pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let step = (KEY + STEP) * s.k;
+    let step = key_side(r, s) + STEP * s.k;
     let mut x = r.left();
     let playing = app.engine.is_playing();
     let recording = app.is_recording();
@@ -157,7 +157,7 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- undo ----------------------------------------------------------------------------
 
 pub fn undo_width(s: &Style) -> f32 {
-    (2.0 * KEY + STEP) * s.k
+    (2.0 * ROW_KEY + STEP) * s.k
 }
 
 pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -187,7 +187,7 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             .unwrap_or_else(|| tip(app, "menu.redo", Some(Action::Redo)))
     };
     let can_redo = app.bus.can_redo();
-    let kr = key_rect(r, r.left() + (KEY + STEP) * s.k, s);
+    let kr = key_rect(r, r.left() + key_side(r, s) + STEP * s.k, s);
     let rr = key_in(
         ui,
         kr,
@@ -205,7 +205,7 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the windows ---------------------------------------------------------------------
 
 pub fn windows_width(s: &Style) -> f32 {
-    (6.0 * KEY + 5.0 * STEP) * s.k
+    (6.0 * ROW_KEY + 5.0 * STEP) * s.k
 }
 
 pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -236,7 +236,7 @@ pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         {
             app.toggle_pane(pane);
         }
-        x += (KEY + STEP) * s.k;
+        x += key_side(r, s) + STEP * s.k;
     }
 }
 
@@ -244,44 +244,61 @@ pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 
 const LAMP_WORDS: [&str; 2] = ["topbar.midi", "topbar.armed"];
 
-fn lamp_w(ctx: &egui::Context, s: &Style) -> f32 {
-    let words = LAMP_WORDS
-        .iter()
-        .map(|k| word_w(ctx, s, k, Role::Micro))
-        .fold(0.0, f32::max);
+/// The words' and the number's widths in a lamp cell.
+/// A lamp cell's word's width, and the number's.
+fn lamp_parts(ctx: &egui::Context, s: &Style, i: usize) -> (f32, f32) {
+    let word = word_w(ctx, s, LAMP_WORDS[i], Role::Micro);
     let digits = text::measure(ctx, &Text::new("88", Role::Value, s.t.text), s.tk()).x;
-    words.max(digits) + 24.0 * s.k
+    (word, digits)
+}
+
+/// A lamp cell's width: the lamp, its word, its number.
+fn lamp_w(ctx: &egui::Context, s: &Style, i: usize) -> f32 {
+    let (word, digits) = lamp_parts(ctx, s, i);
+    word + digits + 26.0 * s.k
 }
 
 pub fn inputs_width(ctx: &egui::Context, s: &Style) -> f32 {
-    KEY * s.k + 2.0 * (STEP * s.k + lamp_w(ctx, s))
+    ROW_KEY * s.k + 2.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
 }
 
-/// A lamp and a word over a number, in a well: the MIDI input and the armed tracks.
-fn lamp_cell(ui: &Ui, r: Rect, s: &Style, lit: bool, color: Tok, word: &str, value: &str) {
+/// A lamp, a word and a number in a well, one row: the MIDI input, the armed tracks.
+#[allow(clippy::too_many_arguments)]
+fn lamp_cell(
+    ui: &Ui,
+    r: Rect,
+    s: &Style,
+    lit: bool,
+    color: Tok,
+    word: &str,
+    value: &str,
+    words_w: f32,
+) {
     let k = s.k;
     with_brush(ui.painter(), |b| {
         light::sunken(b, r, s.r(3.0), s.t.well, 1.0, s.t.depth);
-        let top = Rect::from_min_size(r.min, Vec2::new(r.width(), r.height() * 0.5));
-        let c = Pos2::new(r.left() + 9.0 * k, top.center().y + 1.0 * k);
+        let c = Pos2::new(r.left() + 9.0 * k, r.center().y);
         led::paint(b, c, 7.0 * k, lit, s, color, Tok::Well, 1.0);
-        let wr = Rect::from_min_max(Pos2::new(c.x + 6.0 * k, top.top()), top.max);
+        let wr = Rect::from_min_size(
+            Pos2::new(c.x + 7.0 * k, r.top()),
+            Vec2::new(words_w + 2.0 * k, r.height()),
+        );
         let _ = text::paint(
             b,
-            wr.shrink2(Vec2::new(2.0 * k, 0.0)),
+            wr,
             &Text::key(word, Role::Micro, s.t.text_dim)
                 .caps(true)
                 .align(Align2::LEFT_CENTER)
                 .policy(Policy::Elide(Elide::End)),
             s.tk(),
         );
-        let vr = Rect::from_min_max(Pos2::new(r.left(), top.bottom()), r.max);
+        let vr = Rect::from_min_max(Pos2::new(wr.right(), r.top()), r.max);
         let ink = if lit { s.t.text } else { s.t.text_dim };
         let _ = text::paint(
             b,
-            vr.shrink2(Vec2::new(6.0 * k, 0.0)),
+            vr.shrink2(Vec2::new(5.0 * k, 0.0)),
             &Text::new(value, Role::Value, ink)
-                .align(Align2::CENTER_CENTER)
+                .align(Align2::RIGHT_CENTER)
                 .policy(Policy::Elide(Elide::End)),
             s.tk(),
         );
@@ -317,15 +334,11 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     {
         app.run_action(Action::ToggleTypingPiano);
     }
-    let w = lamp_w(ui.ctx(), s);
+    let (w0, w1) = (lamp_w(ui.ctx(), s, 0), lamp_w(ui.ctx(), s, 1));
     let cell = |i: usize| {
-        Rect::from_min_size(
-            Pos2::new(
-                kr.right() + STEP * k + i as f32 * (w + STEP * k),
-                r.center().y - 17.0 * k,
-            ),
-            Vec2::new(w, 34.0 * k),
-        )
+        let x = kr.right() + STEP * k + if i == 0 { 0.0 } else { w0 + STEP * k };
+        let w = if i == 0 { w0 } else { w1 };
+        Rect::from_min_size(Pos2::new(x, kr.top()), Vec2::new(w, kr.height()))
     };
     // MIDI in: lit for a moment whenever an event comes in; the ports open.
     let received = app.engine.midi_sender().received();
@@ -347,8 +360,10 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         av.clear();
         let _ = write!(mv, "{ports}");
         let _ = write!(av, "{armed}");
-        lamp_cell(ui, mr, s, midi_lit, Tok::Led, LAMP_WORDS[0], mv);
-        lamp_cell(ui, ar, s, armed > 0, Tok::Danger, LAMP_WORDS[1], av);
+        let (word0, _) = lamp_parts(ui.ctx(), s, 0);
+        let (word1, _) = lamp_parts(ui.ctx(), s, 1);
+        lamp_cell(ui, mr, s, midi_lit, Tok::Led, LAMP_WORDS[0], mv, word0);
+        lamp_cell(ui, ar, s, armed > 0, Tok::Danger, LAMP_WORDS[1], av, word1);
     });
     if m.hovered() {
         let tip = if ports == 0 {
@@ -392,7 +407,7 @@ fn zoom_w(ctx: &egui::Context, s: &Style) -> f32 {
 }
 
 pub fn tools_width(ctx: &egui::Context, s: &Style) -> f32 {
-    (2.0 * KEY + 2.0 * STEP) * s.k + zoom_w(ctx, s)
+    (2.0 * ROW_KEY + 2.0 * STEP) * s.k + zoom_w(ctx, s)
 }
 
 pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -407,7 +422,7 @@ pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         app.toggle_pick();
     }
     let open = app.show_theme_editor;
-    let kr = key_rect(r, r.left() + (KEY + STEP) * k, s);
+    let kr = key_rect(r, r.left() + key_side(r, s) + STEP * k, s);
     if key_in(
         ui,
         kr,
@@ -423,8 +438,8 @@ pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     // The interface's zoom: the value, a click for the steps (Ctrl + / Ctrl −).
     let zr = Rect::from_min_size(
-        Pos2::new(kr.right() + STEP * k, r.center().y - s.d(11.0)),
-        Vec2::new(zoom_w(ui.ctx(), s), s.d(22.0)),
+        Pos2::new(kr.right() + STEP * k, kr.top()),
+        Vec2::new(zoom_w(ui.ctx(), s), kr.height()),
     );
     let resp = ui.interact(zr, Id::new("toolbar-zoom"), Sense::click());
     let popup = egui::Popup::default_response_id(&resp);

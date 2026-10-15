@@ -200,7 +200,12 @@ fn far_clip(a: &mut CantusApp) -> cantus_core::ClipId {
 
 /// The pitches the engine was sent, on every track.
 fn sent_pitches(r: &Rig) -> Vec<u8> {
-    let snap = r.app.engine.sent_snapshot().expect("a snapshot sent").clone();
+    let snap = r
+        .app
+        .engine
+        .sent_snapshot()
+        .expect("a snapshot sent")
+        .clone();
     snap.tracks
         .iter()
         .flat_map(|t| t.events.iter().filter(|e| e.is_on()).map(|e| e.pitch))
@@ -214,7 +219,10 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     let mut r = Rig::new();
     far_clip(&mut r.app);
     r.idle(2);
-    assert!(sent_pitches(&r).contains(&101), "the song plays the far clip");
+    assert!(
+        sent_pitches(&r).contains(&101),
+        "the song plays the far clip"
+    );
     let a = &mut r.app;
     let track = a.project().tracks[0].id;
     let clip = a.project().tracks[0].clips[0].id;
@@ -229,13 +237,19 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     let lr = snap.loop_region.clone().expect("the pattern loops");
     assert_eq!((lr.start, lr.end), (region.start, region.end()));
     let pitches = sent_pitches(&r);
-    assert!(!pitches.contains(&101), "the far clip is left out: {pitches:?}");
+    assert!(
+        !pitches.contains(&101),
+        "the far clip is left out: {pitches:?}"
+    );
     let edited: Vec<u8> = r.app.project().tracks[0].clips[0]
         .notes
         .iter()
         .map(|n| n.pitch)
         .collect();
-    assert!(edited.iter().all(|p| pitches.contains(p)), "the edited clip plays");
+    assert!(
+        edited.iter().all(|p| pitches.contains(p)),
+        "the edited clip plays"
+    );
     assert_eq!(
         r.app.engine.position(),
         region.start,
@@ -278,7 +292,11 @@ fn pattern_mode_keeps_the_playhead_in_the_pattern() {
     assert_eq!(r.app.engine.position(), Ticks::beats(64), "past its end");
     r.app.seek(Ticks::beats(66));
     r.idle(2);
-    assert_eq!(r.app.engine.position(), Ticks::beats(66), "inside it, left alone");
+    assert_eq!(
+        r.app.engine.position(),
+        Ticks::beats(66),
+        "inside it, left alone"
+    );
 }
 
 /// Selecting a track, or nothing, does not take the pattern away (review 1): only another
@@ -296,7 +314,13 @@ fn selecting_something_else_keeps_the_pattern() {
     r.app.selected_clip = None;
     r.app.selected_track = Some(r.app.project().tracks[1].id);
     r.idle(2);
-    let region = r.app.topbar.pattern.region().cloned().expect("still a pattern");
+    let region = r
+        .app
+        .topbar
+        .pattern
+        .region()
+        .cloned()
+        .expect("still a pattern");
     assert_eq!(region.start, Ticks::beats(64));
     assert_eq!(r.app.engine.position(), Ticks::beats(65));
     assert!(sent_pitches(&r).contains(&101));
@@ -318,7 +342,11 @@ fn pattern_mode_waits_for_the_take_to_end() {
     assert!(!r.app.project().pattern_mode);
     assert!(r.app.is_recording());
     assert_eq!(r.app.engine.position(), at);
-    assert!(r.app.status.text.contains("Stop recording"), "{}", r.app.status.text);
+    assert!(
+        r.app.status.text.contains("Stop recording"),
+        "{}",
+        r.app.status.text
+    );
 }
 
 /// Opening another song forgets the last one's pattern state (review 1: the new song
@@ -442,24 +470,31 @@ fn the_metronome_voice_and_accent_are_set_and_undone() {
     assert!(r.app.project().recording.click_accent);
 }
 
-/// At 900 px the least important groups fold into ⋯ — and work there.
+/// At 900 px the least important groups fold into ⋯ — and work there, their own menus
+/// and popovers included (review 1: opening one closed the overflow and itself).
 #[test]
 fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
     let mut r = Rig::new();
     r.size = vec2(900.0, 700.0);
     r.idle(3);
     let (_, l) = transport::last_layout(&r.ctx).unwrap();
-    assert!(l.folded().contains(&Group::Windows), "{l:?}");
+    for g in [Group::Windows, Group::Snap, Group::Metronome] {
+        assert!(l.folded().contains(&g), "{g:?}: {l:?}");
+    }
     assert!(l.span_of(Group::Transport).is_some());
-    transport::open_overflow(&r.ctx);
+    transport::open_overflow(&mut r.app);
     r.idle(2);
     let drawn = transport::last_overflow(&r.ctx);
-    let (_, windows) = *drawn
-        .iter()
-        .find(|(g, _)| *g == Group::Windows)
-        .expect("the windows in the overflow");
-    // The fifth key: the mixer.
-    let mixer = pos2(windows.left() + 4.0 * 30.0 + 14.0, windows.center().y);
+    let at = |g: Group| {
+        drawn
+            .iter()
+            .find(|(x, _)| *x == g)
+            .map(|(_, r)| *r)
+            .unwrap()
+    };
+    // The fifth key: the mixer (row keys: 22 + 2).
+    let windows = at(Group::Windows);
+    let mixer = pos2(windows.left() + 4.0 * 24.0 + 11.0, windows.center().y);
     let shown = r
         .app
         .workspace
@@ -471,6 +506,43 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
             .is_visible(cantus_ui::views::workspace::Pane::Mixer),
         shown
     );
+    assert!(
+        transport::overflow_open(&r.app),
+        "a click inside keeps it open"
+    );
+    // The folded snap's grid list opens from the overflow and sets the grid.
+    let snap = at(Group::Snap);
+    r.click(pos2(snap.left() + 30.0, snap.center().y));
+    assert!(
+        transport::overflow_open(&r.app),
+        "the grid list did not close ⋯"
+    );
+    let eighth = cantus_ui::i18n::t("grid.eighth");
+    let item = r
+        .texts
+        .iter()
+        .filter(|(t, rr)| *t == eighth && rr.left() > snap.left() - 300.0)
+        .map(|(_, rr)| *rr)
+        .last()
+        .expect("the grid list is open");
+    r.click(item.center());
+    assert_eq!(
+        transport::snap_editor(&r.app).1,
+        Ticks::EIGHTH,
+        "the focused editor's grid"
+    );
+    // The folded metronome's options open from it too.
+    let metro = at(Group::Metronome);
+    let down = pos2(metro.right() - 7.0, metro.center().y);
+    r.click(down);
+    assert!(transport::overflow_open(&r.app));
+    assert!(
+        r.text("Woodblock").is_some(),
+        "the metronome's options are open"
+    );
+    // A click on the window itself closes it.
+    r.click(pos2(450.0, 400.0));
+    assert!(!transport::overflow_open(&r.app));
 }
 
 #[test]
