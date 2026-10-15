@@ -78,9 +78,13 @@ impl Renders {
                     && !self.pending.contains_key(&key)
                 {
                     if background {
-                        let replaced =
-                            self.service
-                                .queue_render(clip.clip, key, path.clone(), edit.clone(), rate);
+                        let replaced = self.service.queue_render(
+                            clip.clip,
+                            key,
+                            path.clone(),
+                            edit.clone(),
+                            rate,
+                        );
                         if let Some(old) = replaced {
                             self.pending.remove(&old);
                         }

@@ -226,7 +226,11 @@ fn a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap() {
     let c = Curves::new(&e, &frames(&midi));
     let step = gain_step(&c, 40_000..80_000);
     assert!(step < 0.05, "a {step} dB step across the short gap");
-    assert_eq!(c.gain_db_at(60_050.0), -12.0, "the gap keeps the notes' gain");
+    assert_eq!(
+        c.gain_db_at(60_050.0),
+        -12.0,
+        "the gap keeps the notes' gain"
+    );
 }
 
 /// Review 1: correct pitch below 100 % pulls toward the key's note, never past it, and at
@@ -235,14 +239,19 @@ fn a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap() {
 fn correct_pitch_below_full_never_overshoots() {
     let (mut e, _) = take();
     // C major; a C# sung 40 cents sharp (61.4): its target is D (62).
-    e.notes.push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
+    e.notes
+        .push(PitchNote::sung(9, 120_000, 130_000, 61.4, -12.0));
     let at = |e: &PitchEdit| e.note(9).unwrap().out_centre();
     let mut z = e.clone();
     edit::correct_pitch(&mut z, &[9], 0.0);
     assert!((at(&z) - 61.4).abs() < 1e-4, "0 %: untouched, {}", at(&z));
     let mut h = e.clone();
     edit::correct_pitch(&mut h, &[9], 0.5);
-    assert!((at(&h) - 61.7).abs() < 1e-4, "50 %: half way to D, {}", at(&h));
+    assert!(
+        (at(&h) - 61.7).abs() < 1e-4,
+        "50 %: half way to D, {}",
+        at(&h)
+    );
     let mut f = e.clone();
     edit::correct_pitch(&mut f, &[9], 1.0);
     assert!((at(&f) - 62.0).abs() < 1e-4);

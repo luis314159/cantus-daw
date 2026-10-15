@@ -507,7 +507,12 @@ fn settle(cache: &mut SampleCache) {
     assert!(!cache.loading());
 }
 
-fn attach_now(cache: &mut SampleCache, p: &Project, rev: u64, rate: u32) -> Option<Arc<SampleData>> {
+fn attach_now(
+    cache: &mut SampleCache,
+    p: &Project,
+    rev: u64,
+    rate: u32,
+) -> Option<Arc<SampleData>> {
     let mut s = Snapshot::compile(p, rev);
     cache.attach_audio(&mut s, rate);
     s.tracks[0].audio[0].data.clone()
@@ -547,7 +552,11 @@ fn switching_back_from_the_original_plays_the_edits_at_once() {
     let mut b = e.clone();
     b.bypass = true;
     let original = attached(&mut cache, &with_edit(&path, &x, b), 3, SR);
-    assert!(original.frames.iter().zip(&x).all(|(p, q)| p.to_bits() == q.to_bits()));
+    assert!(original
+        .frames
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
     cache.poll_loaded();
     let back = attached(&mut cache, &p, 4, SR);
     assert!(Arc::ptr_eq(&back, &edited), "the edits' render, kept");
@@ -627,7 +636,11 @@ fn without_a_device_renders_go_to_the_worker_and_export_waits() {
     let mut engine = EngineHandle::dummy();
     let snap = engine.compile(&p, 1);
     let data = snap.tracks[0].audio[0].data.clone().unwrap();
-    assert!(data.frames.iter().zip(&x).all(|(p, q)| p.to_bits() == q.to_bits()));
+    assert!(data
+        .frames
+        .iter()
+        .zip(&x)
+        .all(|(p, q)| p.to_bits() == q.to_bits()));
     assert!(engine.samples.pitch_pending() > 0, "queued, not made here");
     let snap = engine.compile_for_render(&p, 2);
     let want = render_edit(&[&x], &a, &e);
@@ -673,10 +686,16 @@ fn the_sample_caches_retry_forgets_a_failed_analysis() {
     let mut cache = SampleCache::new();
     let svc = cache.pitch().clone();
     let t = std::time::Instant::now();
-    while !matches!(svc.lookup(&path, SR), cantus_engine::pitch::Lookup::Failed(_)) {
+    while !matches!(
+        svc.lookup(&path, SR),
+        cantus_engine::pitch::Lookup::Failed(_)
+    ) {
         assert!(t.elapsed().as_secs() < 10);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     cache.retry_audio(&path.to_string_lossy());
-    assert!(matches!(svc.lookup(&path, SR), cantus_engine::pitch::Lookup::Pending));
+    assert!(matches!(
+        svc.lookup(&path, SR),
+        cantus_engine::pitch::Lookup::Pending
+    ));
 }

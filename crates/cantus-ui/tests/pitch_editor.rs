@@ -324,8 +324,13 @@ fn split_join_macros_and_the_original() {
     r.click(at);
     let e = r.stored().unwrap();
     assert!(e.notes.iter().all(|n| n.centre == 1.0), "{e:#?}");
-    // The clip now plays a render (the window's engine makes it here, at once).
+    // The clip now plays a render, made on the pitch service's worker.
+    let t0 = Instant::now();
     r.app.sync_engine();
+    while r.app.engine.samples.pitch_pending() > 0 && t0.elapsed() < Duration::from_secs(30) {
+        std::thread::sleep(Duration::from_millis(5));
+        r.app.sync_engine();
+    }
     assert!(r.app.engine.samples.pitch_held() > 0);
     // Original: A/B.
     let at = r.word_starting("ORIGINAL");
@@ -437,7 +442,7 @@ fn the_demo_project_opens_and_plays_its_edits() {
     assert!(!p.tracks[3].clips[0].notes.is_empty(), "the melody");
     let mut app = CantusApp::from_parts(Some(p), EngineHandle::dummy(), false);
     let proj = app.project().clone();
-    let snap = app.engine.compile(&proj, 1);
+    let snap = app.engine.compile_for_render(&proj, 1);
     let file: Vec<f32> = cantus_ui::views::fx::tonus::demo::voice_line();
     let data = |i: usize| snap.tracks[i].audio[0].data.clone().expect("attached");
     let differs = |d: &cantus_core::SampleData| {
@@ -453,7 +458,7 @@ fn the_demo_project_opens_and_plays_its_edits() {
         muted: false,
     });
     let proj = app.project().clone();
-    let snap = app.engine.compile(&proj, 2);
+    let snap = app.engine.compile_for_render(&proj, 2);
     let sung = snap.tracks[1].audio[0].data.clone().unwrap();
     assert!(!differs(&sung), "the take as sung plays the file");
 }
@@ -536,4 +541,180 @@ fn the_edit_keys_act_on_the_notes() {
     r.key(Key::Escape, Modifiers::NONE);
     assert!(r.app.pitch.view.selected.is_empty());
     assert_eq!(r.app.selected_clip, clip, "the clip stays in the editor");
+}
+
+// ---- review 1 ------------------------------------------------------------------------
+
+/// Store `e` on the voice clip (as a commit would).
+fn store(r: &mut Rig, e: cantus_core::pitch::PitchEdit) {
+    let (t, c) = r.voice();
+    assert!(r.app.commit_pitch(t, c, Some(e), PitchOp::Notes, false));
+    r.idle(2);
+}
+
+/// ↑/↓ from a note moved off the key land on the key's next note (scale snap).
+#[test]
+fn a_key_step_from_an_off_key_note_lands_on_the_key() {
+    let mut r = Rig::new();
+    r.open();
+    let (t, c) = r.voice();
+    let take = r.app.pitch_take(t, c);
+    let mut e = r.app.pitch_edit(t, c, &take).unwrap();
+    // The take's key has no C# (A minor or C major): the first note moved onto C#4.
+    let id = e.notes[0].id;
+    cantus_core::pitch::edit::set_pitch(&mut e, id, 61.0);
+    store(&mut r, e);
+    r.app.pitch.view.selected = vec![id];
+    r.pointer = Some(r.blob(0).center());
+    r.key(Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(r.stored().unwrap().notes[0].pitch, 62.0, "C# up: D");
+    let mut e = r.stored().unwrap();
+    cantus_core::pitch::edit::set_pitch(&mut e, id, 61.0);
+    store(&mut r, e);
+    r.key(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(r.stored().unwrap().notes[0].pitch, 60.0, "C# down: C");
+}
+
+/// Alt+↑/↓ (10 cents) works whenever the editor has the focus, the pointer anywhere.
+#[test]
+fn ten_cents_with_the_pointer_away_from_the_notes() {
+    let mut r = Rig::new();
+    r.open();
+    r.app.pitch.view.selected = vec![r.app.pitch.view.blobs[0].0];
+    let before = r.stored().map(|e| e.notes[0].pitch);
+    r.pointer = Some(pos2(800.0, 20.0));
+    r.key(Key::ArrowDown, Modifiers::ALT);
+    let after = r.stored().expect("moved").notes[0].pitch;
+    assert!(
+        (after - (before.unwrap_or(57.0) - 0.1)).abs() < 1e-4,
+        "{after}"
+    );
+}
+
+/// A reversed clip over a slice of the take opens fitted to its slice, its ruler counts
+/// bars, and play from the selection starts a beat before the note's first edge.
+#[test]
+fn a_reversed_slice_opens_on_its_slice_with_its_bars() {
+    let mut r = Rig::new();
+    let (t, c) = r.voice();
+    // The window: one second from 0.8 s (beats 1.6 … 3.6), played backwards.
+    let mut a = r
+        .app
+        .project()
+        .track(t)
+        .unwrap()
+        .clip(c)
+        .unwrap()
+        .audio
+        .clone()
+        .unwrap();
+    a.reverse = true;
+    assert!(r.app.exec(Command::SetClipAudio {
+        track: t,
+        clip: c,
+        audio: Some(a),
+    }));
+    assert!(r.app.exec(Command::SetClipBounds {
+        track: t,
+        clip: c,
+        start: Ticks::beats(4),
+        length: Ticks::beats(2),
+    }));
+    assert!(r.app.exec(Command::SetClipOffset {
+        track: t,
+        clip: c,
+        offset: Ticks::beats(1) + Ticks::beats(1) / 2 + Ticks(48),
+    }));
+    r.open();
+    let g = r.app.pitch.view.geo.unwrap();
+    let shown = g.grid.width() as f64 / g.px_per_frame / SR as f64;
+    assert!(shown < 1.5, "fitted to its second, not the take: {shown} s");
+    let ruler: Vec<&String> = r
+        .texts
+        .iter()
+        .filter(|(_, rc)| g.ruler.intersects(*rc))
+        .map(|(t, _)| t)
+        .collect();
+    assert!(
+        ruler.iter().any(|t| t.parse::<u32>().is_ok()),
+        "bar numbers: {ruler:?}"
+    );
+    let e = r.app.pitch_edit(t, c, &r.app.pitch_take(t, c)).unwrap();
+    let tm = r.app.clip_time(t, c).unwrap();
+    let n = e
+        .notes
+        .iter()
+        .find(|n| {
+            let (x, y) = (tm.tick(n.start as f64), tm.tick(n.end as f64));
+            x.min(y) >= Ticks::beats(4) && x.max(y) <= Ticks::beats(6)
+        })
+        .expect("a note inside the window")
+        .clone();
+    r.app.pitch.view.selected = vec![n.id];
+    r.app.pitch_play_from_selection(t, c);
+    let first = tm.tick(n.start as f64).min(tm.tick(n.end as f64));
+    let want = (first - Ticks::beats(1)).max(Ticks::ZERO);
+    assert_eq!(r.app.engine.position(), want);
+}
+
+/// MIDI out gives the notes the clip plays: a window over the middle of the take gives
+/// its two notes, at their places.
+#[test]
+fn midi_out_gives_the_notes_the_clip_plays() {
+    let mut r = Rig::new();
+    let (t, c) = r.voice();
+    // The take's second and third notes are sung 0.85 … 2.30 s: beats 1.7 … 4.6.
+    assert!(r.app.exec(Command::SetClipBounds {
+        track: t,
+        clip: c,
+        start: Ticks::beats(8),
+        length: Ticks::beats(3),
+    }));
+    assert!(r.app.exec(Command::SetClipOffset {
+        track: t,
+        clip: c,
+        offset: Ticks::beats(1) + Ticks::beats(1) / 2,
+    }));
+    r.open();
+    let (mt, mc) = r.app.pitch_to_midi(t, c, None).unwrap();
+    let clip = r.app.project().track(mt).unwrap().clip(mc).unwrap().clone();
+    let pitches: Vec<u8> = clip.notes.iter().map(|n| n.pitch).collect();
+    assert_eq!(pitches, vec![60, 64], "only the notes in the window");
+    assert!(clip.start >= Ticks::beats(8) - Ticks::beats(4));
+    for n in &clip.notes {
+        let at = clip.start + n.start;
+        assert!(
+            at >= Ticks::beats(8) && at + n.length <= Ticks::beats(11),
+            "{at:?}"
+        );
+    }
+}
+
+/// Glue refuses two halves of a take whose pitch edits differ (one half's corrections
+/// would be lost); halves with the same edit still glue.
+#[test]
+fn glue_keeps_pitch_edits_or_refuses() {
+    let mut r = Rig::new();
+    r.open();
+    let (t, c) = r.voice();
+    let whole = r.app.project().track(t).unwrap().clip(c).unwrap().clone();
+    let (mut left, mut right) = (whole.clone(), whole.clone());
+    left.length = Ticks::beats(4);
+    right.id = ClipId(9_999);
+    right.start = Ticks::beats(4);
+    right.offset = Ticks::beats(4);
+    right.length = Ticks::beats(4);
+    assert!(
+        cantus_ui::audio_clips::glue(t, &[&left, &right]).is_some(),
+        "the same edit"
+    );
+    let take = r.app.pitch_take(t, c);
+    let mut e = r.app.pitch_edit(t, c, &take).unwrap();
+    let id = e.notes[3].id;
+    cantus_core::pitch::edit::move_pitch(&mut e, &[id], 2.0);
+    right.audio.as_mut().unwrap().pitch = Some(Box::new(e));
+    assert!(
+        cantus_ui::audio_clips::glue(t, &[&left, &right]).is_none(),
+        "edits differ"
+    );
 }

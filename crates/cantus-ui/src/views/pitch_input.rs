@@ -289,7 +289,10 @@ pub(super) fn canvas(
             app.commit_pitch(track, clip, Some(e), PitchOp::Centre, false);
         }
     }
-    if pointer.is_some_and(|p| geo.grid.union(geo.panel).union(geo.keys).contains(p)) {
+    // Alt+Up/Down whenever the editor has the edit focus, as the keymap's keys (review 1).
+    // (Drawn here, the editor is showing: the dock is checked out while tabs draw, so the
+    // focus is what says it is the one being edited.)
+    if app.focus == crate::app::EditFocus::PianoRoll && !crate::kit::field::active(ui.ctx()) {
         keys(app, ui, track, clip, current);
     }
 }
@@ -363,9 +366,14 @@ fn drag(
                     Snap::Scale => {
                         // The anchor lands on the key's note nearest the pointer; the
                         // others follow by as many scale steps.
-                        let target = at_press.key.nearest(anchor + delta);
-                        let steps = scale_steps(&at_press, anchor, target);
-                        step_scale(&at_press, n.pitch, steps)
+                        let key = at_press.key;
+                        let target = key.nearest(anchor + delta);
+                        let steps = key.steps_to(anchor, target);
+                        let mut p = n.pitch;
+                        for _ in 0..steps.abs() {
+                            p = key.step(p, steps.signum());
+                        }
+                        p
                     }
                 };
                 edit::set_pitch(&mut e, n.id, to);
@@ -431,26 +439,6 @@ fn drag(
 
 fn current_of(app: &CantusApp, track: TrackId, clip: ClipId) -> Option<PitchEdit> {
     app.stored_pitch(track, clip).cloned()
-}
-
-/// How many scale steps lie from `a` to `b` (both on the scale), signed.
-fn scale_steps(e: &PitchEdit, a: f32, b: f32) -> i32 {
-    let (lo, hi) = (a.min(b).round() as i32, a.max(b).round() as i32);
-    let n = (lo + 1..=hi).filter(|m| e.key.contains(*m)).count() as i32;
-    if b >= a {
-        n
-    } else {
-        -n
-    }
-}
-
-/// `p` moved `steps` steps of the key's scale (a fractional offset kept).
-fn step_scale(e: &PitchEdit, p: f32, steps: i32) -> f32 {
-    if steps == 0 {
-        return p;
-    }
-    let base = e.key.nearest(p);
-    e.key.degrees_from(base, steps) + (p - base)
 }
 
 /// The keys the keymap does not have: Alt+↑/↓ move the selection 10 cents. (Ctrl+A, Esc,

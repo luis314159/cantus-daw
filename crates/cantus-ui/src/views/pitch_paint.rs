@@ -210,10 +210,12 @@ fn ladder(b: &mut Brush, app: &CantusApp, geo: &Geo, tm: &ClipTime, s: &Style) {
     let g = geo.grid;
     let ts = app.project().time_signature;
     let (bar, beat) = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
-    let (t0, t1) = (
+    // Ordered: a clip played backwards runs its bars right to left.
+    let (x0, x1) = (
         tm.tick(geo.frame(g.left())).0,
         tm.tick(geo.frame(g.right())).0,
     );
+    let (t0, t1) = (x0.min(x1), x0.max(x1));
     let px_beat =
         (geo.x(tm.frame(cantus_core::Ticks(beat))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
     let step = if px_beat >= 8.0 { beat } else { bar };
@@ -524,10 +526,12 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
     while px_bar * (every as f32) < 44.0 * s.k && every < 1024 {
         every *= 2;
     }
-    let (t0, t1) = (
+    // Ordered: a clip played backwards runs its bars right to left.
+    let (x0, x1) = (
         tm.tick(geo.frame(r.left())).0,
         tm.tick(geo.frame(r.right())).0,
     );
+    let (t0, t1) = (x0.min(x1), x0.max(x1));
     let mut k = t0.div_euclid(bar);
     while k * bar <= t1 {
         let x = geo.x(tm.frame(cantus_core::Ticks(k * bar)));

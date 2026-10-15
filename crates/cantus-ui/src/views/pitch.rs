@@ -281,10 +281,11 @@ fn fit(app: &mut CantusApp, track: TrackId, clip: ClipId, edit: &PitchEdit, grid
         app.clip_time(track, clip),
         app.project().track(track).and_then(|t| t.clip(clip)),
     ) {
-        (Some(time), Some(c)) => (
-            time.frame(c.start).max(0.0),
-            time.frame(c.end()).min(edit.frames as f64),
-        ),
+        (Some(time), Some(c)) => {
+            // Ordered: a clip played backwards maps its start to the window's far end.
+            let (x, y) = (time.frame(c.start), time.frame(c.end()));
+            (x.min(y).max(0.0), x.max(y).min(edit.frames as f64))
+        }
         _ => (0.0, edit.frames as f64),
     };
     let (a, b) = if b > a {

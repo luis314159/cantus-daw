@@ -196,14 +196,34 @@ impl CantusApp {
         let take = self.pitch_take(track, clip);
         let edit = self.pitch_edit(track, clip, &take)?;
         let time = self.clip_time(track, clip)?;
-        // Each note's edges on the timeline (a clip played backwards turns them round).
-        let notes: Vec<(Ticks, Ticks, u8, u8)> = midi::notes(&edit)
-            .iter()
-            .map(|n| {
-                let (a, b) = (time.tick(n.start as f64), time.tick(n.end as f64));
-                (a.min(b), a.max(b), n.pitch, n.velocity)
-            })
-            .collect();
+        // Each note's edges on the timeline (a clip played backwards turns them round),
+        // only what the clip plays: its window (one period of a loop, repeated to its end),
+        // a note across an edge cut there.
+        let (cs, ce, period) = {
+            let c = self.project().track(track)?.clip(clip)?;
+            (
+                c.start,
+                c.end(),
+                c.period().filter(|p| *p < c.length).unwrap_or(c.length),
+            )
+        };
+        let mut notes: Vec<(Ticks, Ticks, u8, u8)> = Vec::new();
+        for n in midi::notes(&edit) {
+            let (a, b) = (time.tick(n.start as f64), time.tick(n.end as f64));
+            let (a, b) = (a.min(b).max(cs), a.max(b).min(cs + period));
+            if b <= a {
+                continue;
+            }
+            let mut k = Ticks::ZERO;
+            while cs + k < ce && period > Ticks::ZERO {
+                let (x, y) = (a + k, (b + k).min(ce));
+                if y > x {
+                    notes.push((x, y, n.pitch, n.velocity));
+                }
+                k += period;
+            }
+        }
+        notes.sort_by_key(|n| (n.0, n.2));
         let (Some(first), Some(last)) = (
             notes.iter().map(|n| n.0).min(),
             notes.iter().map(|n| n.1).max(),
@@ -354,8 +374,7 @@ impl CantusApp {
                 let to = if octave {
                     n.pitch + 12.0 * dir as f32
                 } else if app.pitch.view.snap == crate::views::pitch::Snap::Scale {
-                    let base = current.key.nearest(n.pitch);
-                    current.key.degrees_from(base, dir) + (n.pitch - base)
+                    current.key.step(n.pitch, dir)
                 } else {
                     n.pitch + dir as f32
                 };
@@ -392,6 +411,38 @@ impl CantusApp {
             _ => return false,
         }
         true
+    }
+
+    /// Play from the selection's earliest note on the timeline (a beat early), or the
+    /// clip's start.
+    pub fn pitch_play_from_selection(&mut self, track: TrackId, clip: ClipId) {
+        let take = self.pitch_take(track, clip);
+        let edit = self.pitch_edit(track, clip, &take);
+        let sel = &self.pitch.view.selected;
+        let first = match (edit, self.clip_time(track, clip)) {
+            (Some(e), Some(tm)) => e
+                .notes
+                .iter()
+                .filter(|n| sel.contains(&n.id))
+                .map(|n| tm.tick(n.start as f64).min(tm.tick(n.end as f64)))
+                .min(),
+            _ => None,
+        };
+        let at = match first {
+            Some(t) => {
+                let beat = self.project().time_signature.ticks_per_beat();
+                (t - beat).max(Ticks::ZERO)
+            }
+            None => self
+                .project()
+                .track(track)
+                .and_then(|t| t.clip(clip))
+                .map_or(Ticks::ZERO, |c| c.start),
+        };
+        self.seek(at);
+        if !self.engine.is_playing() {
+            self.toggle_play();
+        }
     }
 
     /// A take landed (a recording, an import): analyse it now, on the worker, so the

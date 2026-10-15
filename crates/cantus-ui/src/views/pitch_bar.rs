@@ -183,7 +183,7 @@ pub(super) fn show(
         if playing {
             app.toggle_play();
         } else {
-            play_from_selection(app, track, clip, &e);
+            app.pitch_play_from_selection(track, clip);
         }
     }
     // MIDI out: drag onto an instrument track, or click for a new one.
@@ -289,29 +289,6 @@ fn key_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         app.commit_pitch(track, clip, Some(x), PitchOp::Key, false);
         ui.close();
     }
-}
-
-/// Play from the first selected note (or the clip's start), a beat early.
-fn play_from_selection(app: &mut CantusApp, track: TrackId, clip: ClipId, e: &PitchEdit) {
-    let sel = &app.pitch.view.selected;
-    let first = e
-        .notes
-        .iter()
-        .find(|n| sel.contains(&n.id))
-        .map(|n| n.start);
-    let at = match (first, app.clip_time(track, clip)) {
-        (Some(f), Some(tm)) => {
-            let beat = app.project().time_signature.ticks_per_beat();
-            (tm.tick(f as f64) - beat).max(Ticks::ZERO)
-        }
-        _ => app
-            .project()
-            .track(track)
-            .and_then(|t| t.clip(clip))
-            .map_or(Ticks::ZERO, |c| c.start),
-    };
-    app.seek(at);
-    app.toggle_play();
 }
 
 /// The MIDI chip: dragged onto a track of the arrangement it lands there as a note clip
