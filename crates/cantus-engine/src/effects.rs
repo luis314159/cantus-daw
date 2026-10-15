@@ -447,11 +447,9 @@ impl EffectUnit {
         }
     }
 
-    /// The engine's automation was planned again (ADR 0057): a hosted unit lets go of
-    /// what it is no longer sent.
-    #[inline]
     /// Hosted changes that found no room (its queue, the plug-in's event lists) since the
     /// last time this was asked.
+    #[inline]
     pub fn take_dropped(&mut self) -> u64 {
         let own = self.automation.take_dropped();
         match &mut self.dsp {
@@ -460,6 +458,9 @@ impl EffectUnit {
         }
     }
 
+    /// The engine's automation was planned again (ADR 0057): a hosted unit lets go of
+    /// what it is no longer sent.
+    #[inline]
     pub fn automation_replanned(&mut self) {
         self.automation.clear();
         if let Dsp::Fx(u) = &mut self.dsp {

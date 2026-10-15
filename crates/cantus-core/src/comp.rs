@@ -112,8 +112,6 @@ pub(crate) fn apply_set_comps(
     })
 }
 
-/// Move the seam between `left` and `right` (two playing-lane windows of `track` that
-/// meet) to `at`, both sides at once; the inverse moves it back.
 /// Whether a clip can be one side of a comp seam (ADR 0058): a playing-lane audio window
 /// with a length, neither reversed nor looping — the windows the engine crossfades. One
 /// test for the snapshot, the seam command and the arrangement, so none of them shows or
@@ -125,6 +123,8 @@ pub fn seam_window(c: &Clip) -> bool {
         && c.audio.as_ref().is_some_and(|a| !a.reverse)
 }
 
+/// Move the seam between `left` and `right` (two playing-lane windows of `track` that
+/// meet) to `at`, both sides at once; the inverse moves it back.
 pub(crate) fn apply_seam(
     project: &mut Project,
     track: TrackId,

@@ -660,6 +660,7 @@ impl Processor {
                 drop(st);
                 old.replaced = true;
                 self.dispose_effect(old);
+                self.auto_unit_swapped();
                 self.compensate();
                 return;
             }
@@ -668,6 +669,7 @@ impl Processor {
             let mut old = std::mem::replace(&mut self.master.effects[i], unit);
             old.replaced = true;
             self.dispose_effect(old);
+            self.auto_unit_swapped();
             self.compensate();
             return;
         }
@@ -731,6 +733,7 @@ impl Processor {
                     if let Some(old) = old {
                         self.dispose_instrument(old);
                     }
+                    self.auto_unit_swapped();
                     self.compensate();
                     return;
                 }

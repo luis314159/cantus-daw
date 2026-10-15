@@ -347,6 +347,8 @@ impl Processor {
                     self.stats.dropped_events += 1;
                 }
             });
+            // What found no room on its way into it, automated or not (review 2).
+            self.stats.dropped_events += e.take_dropped();
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }

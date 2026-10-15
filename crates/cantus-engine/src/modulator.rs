@@ -93,13 +93,16 @@ impl AutoQueue {
         self.next = 0;
     }
 
-    /// A change `offset` samples into the pass (offsets arrive in order).
+    /// A change `offset` samples into the pass (offsets arrive in order); whether it found
+    /// room (what did not is counted in `dropped`).
     #[inline]
-    pub fn push(&mut self, offset: u32, id: u32, value: HostedValue) {
+    pub fn push(&mut self, offset: u32, id: u32, value: HostedValue) -> bool {
         if self.items.len() < self.items.capacity() {
             self.items.push(Timed { offset, id, value });
+            true
         } else {
             self.dropped += 1;
+            false
         }
     }
 

@@ -337,6 +337,11 @@ fn track_segment(
                     if late > 0 {
                         nodes.stream_late.fetch_add(late as u64, Relaxed);
                     }
+                    // What found no room on its way into it, automated or not (review 2).
+                    let lost = u.automation.take_dropped() + u.unit.take_dropped();
+                    if lost > 0 {
+                        nodes.dropped.fetch_add(lost, Relaxed);
+                    }
                     let cut = u.unit.take_cut_notes();
                     if cut > 0 {
                         nodes.stream_cut.fetch_add(cut as u64, Relaxed);
