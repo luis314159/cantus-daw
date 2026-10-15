@@ -31,6 +31,7 @@ mod.add = + Connection
 mod.remove = Remove this connection
 mod.empty = No connections yet. Drag a source onto a knob, or add one here.
 mod.full = Every modulation slot is in use.
+mod.not_modulatable = Chorda’s tuning is set, never modulated.
 mod.drag_tip = Drag onto a knob to modulate it
 mod.curve.linear = Linear
 mod.curve.exp = Exponential

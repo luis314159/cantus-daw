@@ -212,8 +212,7 @@ fn param_at(
         .name(&name)
         .style(*s)
         .rings(&rings)
-        .automation(w.automated)
-        .modulation(w.offer);
+        .offers(w.on, w.automated, w.offer);
     if as_cell {
         p = p.cell(label);
     }

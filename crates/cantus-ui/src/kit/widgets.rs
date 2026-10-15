@@ -162,6 +162,16 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         self
     }
 
+    /// A knob whose key may take automation and modulation (`on`) offers both — else it
+    /// is a plain number (a key that is set, never automated: Chorda's tuning).
+    pub fn offers(self, on: bool, automated: bool, m: super::automate::ModOffer) -> Self {
+        if on {
+            self.automation(automated).modulation(m)
+        } else {
+            self.plain()
+        }
+    }
+
     pub fn modulation(mut self, m: super::automate::ModOffer) -> Self {
         let mut o = self.offer.unwrap_or_default();
         o.modulation = Some(m);

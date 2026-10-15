@@ -99,8 +99,7 @@ fn param(
         .name(&name)
         .style(*s)
         .rings(&rings)
-        .automation(w.automated)
-        .modulation(w.offer);
+        .offers(w.on, w.automated, w.offer);
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
@@ -115,12 +114,17 @@ fn param(
     if r.drag_stopped() || r.double_clicked() {
         app.end_gesture();
     }
-    if egui::DragAndDrop::has_payload_of_type::<&'static str>(ui.ctx()) && r.contains_pointer() {
+    // A key that takes no modulation (Chorda's tuning) takes no source either.
+    let takes = spec.kind.modulatable(key);
+    if takes
+        && egui::DragAndDrop::has_payload_of_type::<&'static str>(ui.ctx())
+        && r.contains_pointer()
+    {
         with_brush(ui.painter(), |b| {
             b.rrect_stroke(r.rect, s.r(4.0), s.s(1.5), s.hue)
         });
     }
-    if let Some(src) = r.dnd_release_payload::<&'static str>() {
+    if let Some(src) = r.dnd_release_payload::<&'static str>().filter(|_| takes) {
         app.connect_modulation(track, *src, key);
     }
     r

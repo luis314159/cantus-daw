@@ -148,7 +148,8 @@ pub fn carry_over(from: &NativeSpec, to: InstrumentKind) -> (NativeSpec, usize) 
     let mut slot = 0;
     for c in modulation::connections(from) {
         let src_ok = to.sources().contains(&c.src) || c.src.starts_with("macro");
-        let dst_ok = to.param(c.dst).is_some();
+        // Chorda's tuning takes no source (sound review 2).
+        let dst_ok = to.param(c.dst).is_some() && to.modulatable(c.dst);
         if !(src_ok && dst_ok) || slot >= modulation::MOD_SLOTS {
             continue;
         }

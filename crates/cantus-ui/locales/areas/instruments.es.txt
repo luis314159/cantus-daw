@@ -31,6 +31,7 @@ mod.add = + Conexión
 mod.remove = Quitar esta conexión
 mod.empty = Aún no hay conexiones. Arrastra una fuente a una perilla, o añade una aquí.
 mod.full = Todas las ranuras de modulación están en uso.
+mod.not_modulatable = La afinación de Chorda se fija; no se modula.
 mod.drag_tip = Arrástrala a una perilla para modularla
 mod.curve.linear = Lineal
 mod.curve.exp = Exponencial

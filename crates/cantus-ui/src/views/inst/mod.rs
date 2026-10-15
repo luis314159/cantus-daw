@@ -283,6 +283,11 @@ impl CantusApp {
         let Some(spec) = self.native_of(track) else {
             return;
         };
+        if !spec.kind.modulatable(target) {
+            // Chorda's tuning is set, never modulated (ADR 0059 §6).
+            self.set_error(t("mod.not_modulatable"));
+            return;
+        }
         let Some(n) = free_slot(&spec) else {
             self.set_error(t("mod.full"));
             return;

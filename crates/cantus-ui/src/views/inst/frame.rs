@@ -587,8 +587,7 @@ fn macro_band(
             .name(&name)
             .style(*s)
             .rings(&rings[..w.n])
-            .automation(w.automated)
-            .modulation(w.offer)
+            .offers(w.on, w.automated, w.offer)
             .format(|v, b| {
                 let _ = write!(b, "{:.0} %", v * 100.0);
             })
@@ -850,6 +849,9 @@ pub fn knob(
 /// handle, the Alt-drag depth or the automation menu.
 pub struct Wire {
     pub target: cantus_core::AutoTarget,
+    /// The key takes automation and modulation at all (`InstrumentKind::modulatable`):
+    /// off, the knob is a plain number — no menu, no rings, no clip's value shown.
+    pub on: bool,
     /// A clip drives it.
     pub automated: bool,
     pub offer: crate::kit::automate::ModOffer,
@@ -868,16 +870,32 @@ pub fn wire(
     s: &Style,
     rings: &mut [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
 ) -> Wire {
+    let on = app
+        .project()
+        .track(track)
+        .and_then(|t| t.instrument.native())
+        .is_none_or(|s| s.kind.modulatable(key));
+    let target = cantus_core::AutoTarget::Instrument {
+        track,
+        key: key.to_string(),
+    };
+    if !on {
+        // A clip left on it (an instrument swapped out had the key) is inert: the knob
+        // shows its own value (sound review 2).
+        return Wire {
+            target,
+            on,
+            automated: false,
+            offer: Default::default(),
+            n: 0,
+        };
+    }
     let automated = app.automated_value_where(|x| {
         matches!(x, cantus_core::AutoTarget::Instrument { track: t, key: k } if *t == track && k == key)
     });
     if let Some(Some(av)) = automated {
         *v = av;
     }
-    let target = cantus_core::AutoTarget::Instrument {
-        track,
-        key: key.to_string(),
-    };
     let taper = if log {
         crate::widgets::knob::Taper::Log
     } else {
@@ -887,6 +905,7 @@ pub fn wire(
     let (offer, n) = app.mod_offer(&target, base, s, rings);
     Wire {
         target,
+        on,
         automated: automated.is_some(),
         offer,
         n,
@@ -901,6 +920,9 @@ pub fn wired(
     rect: egui::Rect,
 ) {
     use crate::kit::automate::Choice;
+    if !w.on {
+        return;
+    }
     match choice {
         Some(Choice::Automate) => app.automate(w.target.clone()),
         Some(
@@ -954,11 +976,9 @@ fn param(
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
-        .rings(&rings);
-    // A key that is set, never automated or modulated (Chorda's tuning) offers neither.
-    if spec.kind.automatable(key) {
-        p = p.automation(w.automated).modulation(w.offer);
-    }
+        .rings(&rings)
+        // A key that is set, never automated or modulated (Chorda's tuning) offers neither.
+        .offers(w.on, w.automated, w.offer);
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }
@@ -982,7 +1002,11 @@ fn param(
     if r.drag_stopped() || r.double_clicked() {
         app.end_gesture();
     }
-    if egui::DragAndDrop::has_payload_of_type::<&'static str>(ui.ctx()) && r.contains_pointer() {
+    let takes = spec.kind.modulatable(key);
+    if takes
+        && egui::DragAndDrop::has_payload_of_type::<&'static str>(ui.ctx())
+        && r.contains_pointer()
+    {
         ui.painter().rect_stroke(
             r.rect,
             4.0 * s.k,
@@ -990,7 +1014,7 @@ fn param(
             egui::StrokeKind::Inside,
         );
     }
-    if let Some(src) = r.dnd_release_payload::<&'static str>() {
+    if let Some(src) = r.dnd_release_payload::<&'static str>().filter(|_| takes) {
         app.connect_modulation(track, *src, key);
     }
     r
@@ -1135,7 +1159,14 @@ pub fn matrix(
         })
         .collect();
     let sources = spec.kind.sources();
-    let targets = spec.kind.params();
+    // Only what a source can move: Chorda's tuning and its model are no targets
+    // (integration review).
+    let targets: Vec<&cantus_core::inst::InstParamInfo> = spec
+        .kind
+        .params()
+        .iter()
+        .filter(|p| spec.kind.modulatable(p.key))
+        .collect();
     let s = &s.function(Function::Mod);
     for (slot, src, dst, amount, curve, on) in rows {
         let k = SLOTS[slot - 1];
@@ -1189,8 +1220,7 @@ pub fn matrix(
                 .name(&name)
                 .style(*s)
                 .rings(&rings[..w.n])
-                .automation(w.automated)
-                .modulation(w.offer)
+                .offers(w.on, w.automated, w.offer)
                 .format(|v, b| {
                     let _ = write!(b, "{:+.0} %", v * 100.0);
                 })
@@ -1255,4 +1285,59 @@ pub fn inspector_strip(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, s
             param_knob(app, ui, track, spec, key);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CantusApp;
+    use cantus_core::inst::modulation::{connections, SLOTS};
+    use cantus_core::*;
+    use cantus_engine::EngineHandle;
+
+    /// Sound review 2: an `a4` automation clip an Organ left on its track is inert once
+    /// the track plays Chorda — the A4 knob shows its own value and offers nothing; and a
+    /// swap carries no source onto Chorda's tuning.
+    #[test]
+    fn chordas_tuning_knob_ignores_an_inert_clip_and_a_swap_brings_it_no_source() {
+        let mut p = crate::starter_project();
+        let track = p.tracks[0].id;
+        p.tracks[0].instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+        let mut clip = p.make_clip("a4", Ticks::ZERO, Ticks::beats(64));
+        clip.automation = Some(Automation::new(
+            AutoTarget::Instrument {
+                track,
+                key: "a4".into(),
+            },
+            vec![AutoPoint::new(Ticks::ZERO, 1.0)],
+        ));
+        p.tracks[0].clips.push(clip);
+        let a = CantusApp::from_parts(Some(p), EngineHandle::dummy(), false);
+        let mut v = 440.0;
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let w = super::wire(
+            &a,
+            track,
+            "a4",
+            &mut v,
+            (415.0, 466.0, false),
+            &crate::kit::Style::current(),
+            &mut rings,
+        );
+        assert_eq!(v, 440.0, "the clip's value is not shown");
+        assert!(!w.on && !w.automated);
+        // An Organ whose LFO drives its A4 (and its drive), swapped to Chorda.
+        let mut organ = NativeSpec::new(InstrumentKind::Organ);
+        let src = InstrumentKind::Organ.sources()[0];
+        for (slot, dst) in [(0usize, "a4"), (1, "volume")] {
+            let k = &SLOTS[slot];
+            organ.text.insert(k.src.into(), src.into());
+            organ.text.insert(k.dst.into(), dst.into());
+            organ.set(k.amt, 0.25);
+        }
+        let (chorda, _) = crate::swap::carry_over(&organ, InstrumentKind::Chorda);
+        assert!(
+            connections(&chorda).all(|c| c.dst != "a4"),
+            "no source on Chorda's A4"
+        );
+    }
 }

@@ -235,6 +235,9 @@ impl CantusApp {
     /// open *Modulate…* at `rect`, set a depth (a drag merges), end the drag, connect a
     /// dropped handle.
     pub fn modulation_choice(&mut self, target: &AutoTarget, choice: Choice, rect: egui::Rect) {
+        if !self.modulatable(target) {
+            return;
+        }
         match choice {
             Choice::Modulate => self.modulators.popup = Some((target.clone(), rect)),
             Choice::Depth(d) => {
@@ -256,6 +259,20 @@ impl CantusApp {
         }
     }
 
+    /// Whether `target` can be modulated at all: a native instrument's key that is set,
+    /// never modulated (Chorda's tuning, `InstrumentKind::modulatable`) cannot — every
+    /// path into a route asks here (integration review).
+    pub fn modulatable(&self, target: &AutoTarget) -> bool {
+        match target {
+            AutoTarget::Instrument { track, key } => self
+                .project()
+                .track(*track)
+                .and_then(|t| t.instrument.native())
+                .is_none_or(|s| s.kind.modulatable(key)),
+            _ => true,
+        }
+    }
+
     /// Put a new modulator of `kind` on `host` (one undo step), driving `target` when one
     /// is given; it is then the panel's newest.
     pub fn add_modulator(
@@ -264,6 +281,10 @@ impl CantusApp {
         kind: ModKind,
         target: Option<AutoTarget>,
     ) -> Option<ModulatorId> {
+        if target.as_ref().is_some_and(|t| !self.modulatable(t)) {
+            self.set_error(t("mod.not_modulatable"));
+            return None;
+        }
         let index = self.project().modulators(host)?.len();
         if index >= cantus_core::modulator::MAX_PER_HOST {
             self.set_error(t("mods.status.full"));
@@ -288,6 +309,10 @@ impl CantusApp {
     /// Connect modulator `id` to `target` at the new-route depth; one undo step. Already
     /// connected: nothing.
     pub fn connect(&mut self, id: ModulatorId, target: AutoTarget) -> bool {
+        if !self.modulatable(&target) {
+            self.set_error(t("mod.not_modulatable"));
+            return false;
+        }
         let Some((_, _, m)) = self.project().modulator(id) else {
             return false;
         };

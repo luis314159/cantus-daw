@@ -125,6 +125,13 @@ impl InstrumentKind {
         }
     }
 
+    /// Whether `key` can take a modulation source — the instrument's own matrix or a
+    /// modulator (ADR 0057): automatable, and with a range to move over (Chorda's `model`
+    /// has none). One test for every path into a modulation (integration review).
+    pub fn modulatable(self, key: &str) -> bool {
+        self.automatable(key) && self.param(key).is_none_or(|p| p.min < p.max)
+    }
+
     /// Every parameter the generic editors list (knobs, automation, a plug-in export). A
     /// kind with a structured space (zones, matrix slots) may accept more keys through
     /// [`param`](Self::param) than it lists here.

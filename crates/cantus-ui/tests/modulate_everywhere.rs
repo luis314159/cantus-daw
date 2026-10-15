@@ -156,3 +156,69 @@ fn sends_and_the_pinned_strip_offer_modulate() {
         assert!(has(&drawn, key), "the master's {key} offers no Modulate…");
     }
 }
+
+/// Integration review (and sound review 2): Chorda's tuning — A4, stretch, stiffness — is
+/// set, never automated or modulated (ADR 0059 §6). Its knobs offer neither, in every
+/// view; a source chip dropped on them, a modulator's handle, *New modulator* and the
+/// matrix all refuse them; an automation clip left on one (from an instrument swapped
+/// out) never moves the knob.
+#[test]
+fn chordas_tuning_keys_take_no_automation_nor_modulation() {
+    use cantus_core::inst::chorda::DESIGN_KEYS;
+    use cantus_core::inst::modulation::connections;
+    use cantus_core::modulator::{ModHost, ModKind};
+    let mut a = app(cantus_ui::starter_project());
+    let track = a.project().tracks[0].id;
+    a.set_instrument(
+        track,
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda)),
+    );
+    cantus_ui::views::inst::demo_setup(&mut a, track, InstrumentKind::Chorda);
+    a.open_inst_editor(track);
+    let names: Vec<String> = DESIGN_KEYS
+        .iter()
+        .map(|k| {
+            let info = InstrumentKind::Chorda.param(k).unwrap();
+            cantus_ui::i18n::t(info.label_key)
+        })
+        .collect();
+    for view in [View::Play, View::Edit, View::Matrix] {
+        a.inst.view = view;
+        probe::start();
+        paint(&ctx(), egui::vec2(1400.0, 900.0), 3, |ui| {
+            cantus_ui::views::inst::window_in(&mut a, ui)
+        });
+        let drawn = probe::take();
+        for (n, m) in &drawn {
+            assert!(
+                !(names.contains(n) && *m),
+                "{view:?}: Chorda's {n} offers modulation"
+            );
+        }
+    }
+    let spec = |a: &CantusApp| a.project().tracks[0].instrument.native().unwrap().clone();
+    let used = connections(&spec(&a)).count();
+    for key in DESIGN_KEYS {
+        // The knob's drop of a source chip.
+        a.connect_modulation(track, "lfo1", key);
+        assert_eq!(connections(&spec(&a)).count(), used, "{key}: a slot taken");
+        // A modulator's handle, New modulator.
+        let target = AutoTarget::Instrument {
+            track,
+            key: key.to_string(),
+        };
+        let lfo = a
+            .add_modulator(ModHost::Track(track), ModKind::Lfo, None)
+            .unwrap();
+        let steps = a.bus.history().len();
+        a.modulation_choice(
+            &target,
+            cantus_ui::kit::automate::Choice::Connect(lfo.0),
+            egui::Rect::NOTHING,
+        );
+        assert!(a
+            .add_modulator(ModHost::Track(track), ModKind::Lfo, Some(target.clone()))
+            .is_none());
+        assert_eq!(a.bus.history().len(), steps, "{key}: a route made");
+    }
+}
