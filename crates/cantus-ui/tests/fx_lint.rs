@@ -53,6 +53,8 @@ const ON_THE_KIT: &[&str] = &[
     "views/fx/stereo_scope.rs",
     "views/fx/tonsor.rs",
     "views/fx/tonus.rs",
+    "views/fx/tonus_graph.rs",
+    "views/fx/tonus_keys.rs",
     "views/fx/translatio.rs",
     "views/fx/tremor.rs",
     "views/fx/vibrans.rs",
