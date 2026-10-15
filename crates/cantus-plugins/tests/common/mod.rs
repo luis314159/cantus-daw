@@ -566,7 +566,7 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         EffectKind::Vibrato => vec![("depth", 60.0), ("rate", 4.0), ("spread", 90.0), ("mix", 0.8)],
         EffectKind::RingMod => vec![("freq", 220.0), ("wave", 1.0), ("lfo", 5.0), ("mix", 0.8), ("spread", 90.0)],
         EffectKind::FreqShift => vec![("shift", 140.0), ("side", 2.0), ("fb", 0.4), ("lfo", 30.0), ("mix", 0.8)],
-        EffectKind::VolumeShaper => vec![("out", -6.0)],
+        EffectKind::VolumeShaper => vec![("depth", 0.9), ("div", 11.0), ("smooth", 3.0), ("offset", 0.1)],
         EffectKind::Clipper => vec![("out", -6.0)],
         EffectKind::Transient => vec![("out", -6.0)],
         EffectKind::TransientSplit => vec![("out", -6.0)],
@@ -626,6 +626,7 @@ pub enum Direct {
     Max(Box<cantus_dsp::culmen::Culmen>),
     Sat(Box<cantus_dsp::fervor::Fervor>),
     Tremor(Box<cantus_dsp::tremor::Tremor>),
+    Fluctus(Box<cantus_dsp::fluctus::Fluctus>),
     Translatio(Box<cantus_dsp::translatio::Translatio>),
     Anulus(Box<cantus_dsp::anulus::Anulus>),
     Phasis(Box<cantus_dsp::phasis::Phasis>),
@@ -658,9 +659,10 @@ impl Direct {
             EffectKind::Vibrato => Direct::Vibrans(Box::new(cantus_dsp::vibrans::Vibrans::new(SR))),
             EffectKind::RingMod => Direct::Anulus(Box::new(cantus_dsp::anulus::Anulus::new(SR))),
             EffectKind::FreqShift => Direct::Translatio(Box::new(cantus_dsp::translatio::Translatio::new(SR))),
-            EffectKind::VolumeShaper => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::VolumeShaper, SR).unwrap())
-            }
+            EffectKind::VolumeShaper => Direct::Fluctus(Box::new(cantus_dsp::fluctus::Fluctus::new(
+                SR,
+                cantus_engine::fx::fluctus::shape_at,
+            ))),
             EffectKind::Clipper => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Clipper, SR).unwrap())
             }
@@ -709,6 +711,7 @@ impl Direct {
             Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
             Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
             Direct::Tremor(x) => x.set(&fx::tremor::settings(spec)),
+            Direct::Fluctus(x) => x.set(&fx::fluctus::settings(spec)),
             Direct::Translatio(x) => x.set(&fx::translatio::settings(spec)),
             Direct::Anulus(x) => x.set(&fx::anulus::settings(spec)),
             Direct::Phasis(x) => x.set(&fx::phasis::settings(spec)),
@@ -732,6 +735,7 @@ impl Direct {
             Direct::Max(x) => x.reset(),
             Direct::Sat(x) => x.reset(),
             Direct::Tremor(x) => x.reset(),
+            Direct::Fluctus(x) => x.reset(),
             Direct::Translatio(x) => x.reset(),
             Direct::Anulus(x) => x.reset(),
             Direct::Phasis(x) => x.reset(),
@@ -755,6 +759,7 @@ impl Direct {
             Direct::Max(x) => x.latency(),
             Direct::Sat(x) => x.latency(),
             Direct::Tremor(x) => x.latency(),
+            Direct::Fluctus(x) => x.latency(),
             Direct::Translatio(x) => x.latency(),
             Direct::Anulus(x) => x.latency(),
             Direct::Phasis(x) => x.latency(),
@@ -778,6 +783,7 @@ impl Direct {
             Direct::Max(x) => x.process(l, r),
             Direct::Sat(x) => x.process(l, r),
             Direct::Tremor(x) => x.process(l, r),
+            Direct::Fluctus(x) => x.process(l, r),
             Direct::Translatio(x) => x.process(l, r),
             Direct::Anulus(x) => x.process(l, r),
             Direct::Phasis(x) => x.process(l, r),
