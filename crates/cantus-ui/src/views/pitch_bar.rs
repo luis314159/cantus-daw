@@ -110,7 +110,7 @@ pub(super) fn show(
     }
     // A/B: the original, as it was sung.
     if bar
-        .led(ui, id.with("ab"), e.bypass, "pitch.original", 76.0, || t("pitch.original_tip"))
+        .led(ui, id.with("ab"), e.bypass, "pitch.original", 96.0, || t("pitch.original_tip"))
         .is_some_and(|r| r.clicked())
     {
         let mut x = e.clone();
