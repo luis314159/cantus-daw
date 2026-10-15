@@ -190,6 +190,73 @@ pub fn bar(b: &mut Brush, r: Rect, frac: f32, color: Color32, ink: &Ink, k: f32)
     }
 }
 
+/// A unit's columns (`cantus_dsp::dynfx_meter`) as the editor keeps them: every column the
+/// audio made, in order, whatever the frame rate — appended from the telemetry each frame.
+#[derive(Clone, Debug)]
+pub struct ColumnHistory {
+    cols: VecDeque<[f32; 3]>,
+    cap: usize,
+    last: Option<u32>,
+}
+
+impl Default for ColumnHistory {
+    fn default() -> Self {
+        ColumnHistory::new(320)
+    }
+}
+
+impl ColumnHistory {
+    pub fn new(cap: usize) -> ColumnHistory {
+        ColumnHistory {
+            cols: VecDeque::with_capacity(cap),
+            cap,
+            last: None,
+        }
+    }
+
+    /// Take the columns of `tel` not seen yet.
+    pub fn update(&mut self, tel: &[f32; 64]) {
+        let cols = &mut self.cols;
+        let cap = self.cap;
+        self.last = Some(cantus_dsp::dynfx_meter::new_columns(tel, self.last, |c| {
+            if cols.len() == cap {
+                cols.pop_front();
+            }
+            cols.push_back(c);
+        }));
+    }
+
+    /// The columns, oldest first.
+    pub fn iter(&self) -> impl Iterator<Item = &[f32; 3]> + '_ {
+        self.cols.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.cols.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cols.is_empty()
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.cap
+    }
+}
+
+/// A signed share as a percentage with its sign: `+80%`, `−35%`, `0%`.
+pub fn signed_pct(v: f32, b: &mut String) {
+    use std::fmt::Write as _;
+    let p = (v * 100.0).round();
+    if p > 0.0 {
+        let _ = write!(b, "+{p:.0}%");
+    } else if p < 0.0 {
+        let _ = write!(b, "\u{2212}{:.0}%", -p);
+    } else {
+        b.push_str("0%");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
