@@ -1096,3 +1096,14 @@ tonus vst3 5844B71EB6558FB8C2F9E7F26DD70EC0
 tonus out 723138143
 tonus cantus.sidechain 1368826709
 tonus cantus.bypass 710603219
+tremor mode 1819205650
+tremor depth 2121637610
+tremor sync 159043482
+tremor div 1700965192
+tremor rate 780377191
+tremor shape 499374374
+tremor edge 1459017788
+tremor swing 876997961
+tremor spread 1229586638
+tremor offset 348705738
+tremor xover 891963805
