@@ -255,6 +255,42 @@ mod tests {
     }
 
     #[test]
+    fn a_track_inserted_with_comps_another_track_keeps_is_refused() {
+        // Review 1: explode copied a track's comps, kept-window ids and all.
+        let (mut p, t, l, _) = comped();
+        let mut w = p.track(t).unwrap().clip(l).unwrap().clone();
+        w.id = ClipId(p.alloc_id());
+        let comps = vec![
+            Comp {
+                name: letter(0),
+                windows: Vec::new(),
+            },
+            Comp {
+                name: letter(1),
+                windows: vec![w],
+            },
+        ];
+        Command::SetTrackComps {
+            track: t,
+            comps: comps.clone(),
+            active: 0,
+        }
+        .apply(&mut p)
+        .unwrap();
+        let mut copy = p.make_track("Copy");
+        copy.comps = comps;
+        let refused = Command::InsertTrack {
+            index: 1,
+            track: Box::new(copy),
+        }
+        .apply(&mut p);
+        assert!(
+            matches!(refused, Err(CommandError::DuplicateId(_))),
+            "{refused:?}"
+        );
+    }
+
+    #[test]
     fn what_is_not_a_seam_is_refused() {
         let (mut p, t, l, r) = comped();
         let seam = |left, right, at| Command::SetCompSeam {

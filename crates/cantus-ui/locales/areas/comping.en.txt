@@ -34,3 +34,7 @@ comping.lane_tip_off = Quick swipe is off: drag selects time · click selects th
 rec.merge_nothing = Nothing to merge: the comp has no audio windows
 rec.merge_failed = The comp could not be merged: {error}
 rec.merged = Comp merged into one clip
+rec.merging = Merging the comp: waiting for what it plays, then rendering it
+rec.merge_moved = The comp was not merged: the project changed while it was rendering
+comping.merged_name = {name} comp
+comping.status.full = A track holds at most 26 comps

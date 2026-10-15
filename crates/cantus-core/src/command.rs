@@ -1124,6 +1124,17 @@ impl Command {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
                 crate::modulator::check_new(project, &track.modulators)?;
+                // Its alternate comps (ADR 0058): no kept window may share an id with
+                // anything the project or the track itself holds (review 1).
+                crate::comp::check(project, track.id, &track.comps, track.active_comp)?;
+                if let Some(w) = track
+                    .comps
+                    .iter()
+                    .flat_map(|c| c.windows.iter())
+                    .find(|w| track.clips.iter().any(|c| c.id == w.id))
+                {
+                    return Err(CommandError::DuplicateId(w.id.0));
+                }
                 for (i, c) in track.clips.iter().enumerate() {
                     check_joins(project, c)?;
                     // The track's own clips must agree with each other too: the project
