@@ -11,6 +11,11 @@
 //! The bar lays itself out by priority: when the window is narrow (or the interface is
 //! zoomed to 200 %) the least important groups leave first, so nothing ever overlaps.
 
+#[path = "transport_layout.rs"]
+pub mod layout;
+#[path = "transport_tap.rs"]
+pub mod tap;
+
 use super::workspace::Pane;
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
