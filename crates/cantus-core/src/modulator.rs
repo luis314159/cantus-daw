@@ -224,11 +224,11 @@ impl ModKind {
     /// The i18n key of its name.
     pub fn name_key(self) -> &'static str {
         match self {
-            ModKind::Lfo => "mod.kind.lfo",
-            ModKind::Envelope => "mod.kind.envelope",
-            ModKind::Follower => "mod.kind.follower",
-            ModKind::Step => "mod.kind.step",
-            ModKind::Random => "mod.kind.random",
+            ModKind::Lfo => "mods.kind.lfo",
+            ModKind::Envelope => "mods.kind.envelope",
+            ModKind::Follower => "mods.kind.follower",
+            ModKind::Step => "mods.kind.step",
+            ModKind::Random => "mods.kind.random",
         }
     }
 

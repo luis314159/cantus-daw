@@ -14,6 +14,8 @@ pub mod bake;
 pub mod paint;
 #[path = "modulator_popup.rs"]
 pub mod popup;
+#[path = "modulator_record.rs"]
+pub mod record;
 
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
@@ -46,6 +48,8 @@ pub struct ModUi {
     pub list: Option<(ModulatorId, ListKind, egui::Rect)>,
     /// A bake that waits for its offline trace (a source that follows audio).
     pub pending_bake: Option<bake::Pending>,
+    /// The automation a recording pass has written so far.
+    pub rec: record::AutoRec,
     /// Every route into each target, at a revision: (modulator, depth, its kind).
     cache: RefCell<Option<(u64, std::sync::Arc<Routes>)>>,
 }
@@ -94,7 +98,7 @@ pub fn mod_name(project: &Project, id: ModulatorId) -> Option<String> {
         .filter(|x| x.source.kind() == kind)
         .count();
     Some(tf(
-        "mod.name.numbered",
+        "mods.name.numbered",
         &[("kind", &t(kind.name_key())), ("n", &n.to_string())],
     ))
 }
@@ -260,7 +264,7 @@ impl CantusApp {
     ) -> Option<ModulatorId> {
         let index = self.project().modulators(host)?.len();
         if index >= cantus_core::modulator::MAX_PER_HOST {
-            self.set_error(t("mod.status.full"));
+            self.set_error(t("mods.status.full"));
             return None;
         }
         let id = ModulatorId(self.bus.alloc_id());
@@ -289,7 +293,7 @@ impl CantusApp {
             return false;
         }
         if m.routes.len() >= cantus_core::modulator::MAX_ROUTES {
-            self.set_error(t("mod.status.routes_full"));
+            self.set_error(t("mods.status.routes_full"));
             return false;
         }
         let mut m = m.clone();
@@ -367,7 +371,7 @@ impl CantusApp {
             .mapping
             .and_then(|m| mod_name(self.project(), m))
         {
-            self.set_status(tf("mod.status.mapping", &[("name", &name)]));
+            self.set_status(tf("mods.status.mapping", &[("name", &name)]));
         }
     }
 

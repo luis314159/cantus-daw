@@ -58,6 +58,8 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
             Act::OpenInstrument(t)
         });
     }
+    // Its parameters, to set, automate and modulate (ADR 0057).
+    super::modulator_hosted::show(sh, app, t);
 }
 
 /// The window row's word, and whether a click closes: by the window's state.

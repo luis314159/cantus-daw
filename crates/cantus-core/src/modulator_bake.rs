@@ -119,7 +119,7 @@ fn notes_gates(project: &Project, host: super::ModHost, src: &ModSource) -> Opti
 
 /// The samples as points in content ticks (from `origin`): jumps kept as a hold and the
 /// next value, the rest thinned to [`TOLERANCE`].
-fn thin(ticks: &[i64], values: &[f32], origin: i64) -> Vec<AutoPoint> {
+pub fn thin(ticks: &[i64], values: &[f32], origin: i64) -> Vec<AutoPoint> {
     let n = values.len();
     // A jump between two samples: a change far steeper than its neighbours'.
     let d = |i: usize| (values[i + 1] - values[i]).abs();

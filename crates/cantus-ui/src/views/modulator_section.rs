@@ -82,14 +82,14 @@ pub fn hosts(app: &CantusApp, subject: super::Subject) -> Vec<(ModHost, &'static
     let p = app.project();
     match subject {
         super::Subject::Track(t) | super::Subject::Clip(t, _) | super::Subject::Notes(t, _) => {
-            let mut v = vec![(ModHost::Track(t), "mod.band.track")];
+            let mut v = vec![(ModHost::Track(t), "mods.band.track")];
             if let Some(s) = p.track(t).and_then(|t| t.strip) {
-                v.push((ModHost::Strip(s), "mod.band.strip"));
+                v.push((ModHost::Strip(s), "mods.band.strip"));
             }
             v
         }
-        super::Subject::Strip(s) => vec![(ModHost::Strip(s), "mod.band.strip")],
-        super::Subject::Master => vec![(ModHost::Master, "mod.band.master")],
+        super::Subject::Strip(s) => vec![(ModHost::Strip(s), "mods.band.strip")],
+        super::Subject::Master => vec![(ModHost::Master, "mods.band.master")],
     }
 }
 
@@ -140,7 +140,7 @@ fn empty_row(sh: &mut Sheet<'_>, host: ModHost) {
     let resp = sh
         .ui
         .interact(r, Id::new(("mod-empty", host)), Sense::click());
-    sheet::placeholder_well(sh.b, r, &s, State::of(&resp, false), "mod.empty");
+    sheet::placeholder_well(sh.b, r, &s, State::of(&resp, false), "mods.empty");
     if resp.clicked() {
         sh.acts.push(Act::Mod(ModAct::AddMenu(host, r)));
     }
@@ -177,7 +177,7 @@ fn title(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
     }
     if hr.hovered() || hr.dragged() {
         sh.ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-        let name = sheet::name(sh.fmt.tr("mod.handle"));
+        let name = sheet::name(sh.fmt.tr("mods.handle"));
         hint::set_text(sh.ui.ctx(), &name, "", Caps::NONE);
     }
     glyph::paint(
@@ -218,7 +218,7 @@ fn title(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         .policy(Policy::Elide(Elide::End));
     let _ = text::paint(sh.b, tr, &t, s.tk());
     if nr.hovered() {
-        let tip = sheet::name(sh.fmt.tr(if folded { "mod.unfold" } else { "mod.fold" }));
+        let tip = sheet::name(sh.fmt.tr(if folded { "mods.unfold" } else { "mods.fold" }));
         hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
     }
     if nr.clicked() {
@@ -231,9 +231,9 @@ fn title(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
     // Map, on/off, remove.
     let mapping = app.modulators.mapping == Some(m.id);
     let keys = [
-        (map, Glyph::Link, "mod.map", mapping),
-        (power, Glyph::Power, "mod.on", !m.muted),
-        (remove, Glyph::Close, "mod.remove", false),
+        (map, Glyph::Link, "mods.map", mapping),
+        (power, Glyph::Power, "mods.on", !m.muted),
+        (remove, Glyph::Close, "mods.remove", false),
     ];
     for (i, (r, g, tip, lit)) in keys.into_iter().enumerate() {
         let resp = sh
@@ -272,7 +272,7 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             pos2(row.full.left() + mg, row.value.top()),
             pos2(row.full.right() - mg, row.value.bottom()),
         );
-        sheet::placeholder_well(sh.b, r, &s, State::REST, "mod.no_routes");
+        sheet::placeholder_well(sh.b, r, &s, State::REST, "mods.no_routes");
         return;
     }
     for route in &m.routes {
@@ -301,7 +301,7 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         if lr.hovered() {
             hint::set_text(sh.ui.ctx(), &name, "", Caps::NONE);
         }
-        let dname = sheet::name(sh.fmt.tr("mod.depth"));
+        let dname = sheet::name(sh.fmt.tr("mods.depth"));
         let d = sh.value(
             depth,
             Id::new(("mod-depth", m.id, &route.target)),
@@ -322,8 +322,8 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             sh.acts.push(Act::EndGesture);
         }
         for (r, g, tip, act) in [
-            (bake, Glyph::Automate, "mod.bake", ModAct::Bake(m.id, route.target.clone())),
-            (close, Glyph::Close, "mod.disconnect", ModAct::Disconnect(m.id, route.target.clone())),
+            (bake, Glyph::Automate, "mods.bake", ModAct::Bake(m.id, route.target.clone())),
+            (close, Glyph::Close, "mods.disconnect", ModAct::Disconnect(m.id, route.target.clone())),
         ] {
             let resp = sh.ui.interact(r, Id::new(("mod-route-key", m.id, &route.target, tip)), Sense::click());
             sheet::glyph_key(sh.b, r, &s, State::of(&resp, false), g);

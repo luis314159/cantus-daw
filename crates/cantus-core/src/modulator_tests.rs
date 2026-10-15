@@ -502,3 +502,38 @@ fn a_modulator_round_trips_through_json() {
         assert_eq!(back, m);
     }
 }
+
+/// A depth dragged is many `SetModulator`s merged into one undo step that holds the last
+/// modulator whole — never a growing batch.
+#[test]
+fn a_dragged_modulator_merges_into_one_superseding_step() {
+    let (mut p, tid, _, fid) = project_with_strip_fx();
+    let mut m = lfo(&mut p);
+    m.routes.push(ModRoute {
+        target: drive(fid),
+        depth: 0.1,
+    });
+    p.track_mut(tid).unwrap().modulators.push(m.clone());
+    let before = p.clone();
+    let mut bus = crate::CommandBus::new(p);
+    let key = crate::MergeKey::of(&("depth", m.id.0));
+    for k in 1..=30 {
+        let mut e = m.clone();
+        e.routes[0].depth = 0.1 + k as f32 * 0.01;
+        bus.execute_merging(
+            Command::SetModulator {
+                modulator: Box::new(e),
+            },
+            crate::Origin::User,
+            key,
+        )
+        .unwrap();
+    }
+    assert_eq!(bus.history().len(), 1);
+    assert!(matches!(
+        bus.history()[0].command,
+        Command::SetModulator { .. }
+    ));
+    bus.undo();
+    assert_eq!(bus.project(), &before);
+}

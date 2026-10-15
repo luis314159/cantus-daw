@@ -158,6 +158,37 @@ impl AutoTarget {
     }
 }
 
+impl AutoTarget {
+    /// The parameter a command sets and the value it sets it to, in the parameter's own
+    /// units (a hosted plug-in's in its own range): what recording automation writes
+    /// (ADR 0057). `None` for a command that sets none.
+    pub fn value_of_command(cmd: &crate::Command) -> Option<(AutoTarget, f64)> {
+        use crate::Command as C;
+        let target = AutoTarget::of_command(cmd)?;
+        let v = match cmd {
+            C::SetTrackGain { gain_db, .. } => f64::from(*gain_db),
+            C::SetTrackPan { pan, .. } => f64::from(*pan),
+            C::SetStripGain { gain_db, .. } => f64::from(*gain_db),
+            C::SetStripPan { pan, .. } => f64::from(*pan),
+            C::SetStripWidth { width, .. } => f64::from(*width),
+            C::SetStripSend { send, .. } => f64::from(send.level),
+            C::SetMasterGain { gain_db } => f64::from(*gain_db),
+            C::SetMasterPan { pan } => f64::from(*pan),
+            C::SetMasterWidth { width } => f64::from(*width),
+            C::SetEffectParam { value, .. } => f64::from(*value),
+            C::SetInstrumentValue { value, .. } => f64::from(*value),
+            C::SetInstrumentParam { value, .. } => f64::from(*value),
+            C::SetPluginParam { value: Some(v), .. } => *v,
+            C::SetInstrumentPluginParam { value: Some(v), .. } => *v,
+            C::Batch { commands, .. } => {
+                return commands.iter().rev().find_map(Self::value_of_command)
+            }
+            _ => return None,
+        };
+        v.is_finite().then_some((target, v))
+    }
+}
+
 /// How the curve travels from a point to the next one — FL's point modes.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Shape {

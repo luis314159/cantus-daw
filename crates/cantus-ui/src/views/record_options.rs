@@ -200,6 +200,22 @@ fn body(app: &mut CantusApp, ui: &mut Ui) {
             rs.loop_takes = on;
         }
     });
+    // The parameters moved while recording, as automation clips (ADR 0057).
+    ui.horizontal(|ui| {
+        label(ui, "mods.rec.automation", &s);
+        let mut on = rs.record_automation;
+        if kit::widgets::led_button(
+            ui,
+            &mut on,
+            Src::Key("mods.rec.automation_on"),
+            kit_word("mods.rec.automation"),
+            90.0,
+        )
+        .changed()
+        {
+            rs.record_automation = on;
+        }
+    });
     ui.horizontal(|ui| {
         label(ui, "rec.take_mode", &s);
         let modes = [TakeMode::Stack, TakeMode::Replace, TakeMode::Overdub];

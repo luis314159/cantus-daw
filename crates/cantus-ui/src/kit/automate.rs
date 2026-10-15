@@ -86,7 +86,7 @@ pub fn menu(ui: &Ui, resp: &Response, offer: Offer) -> Option<Choice> {
         let mut choices = vec![Choice::Automate];
         if offer.modulation.is_some() {
             items.push(Item::Action {
-                label: Src::Key("mod.param.modulate"),
+                label: Src::Key("mods.param.modulate"),
                 check: super::menu::Check::None,
                 shortcut: None,
                 submenu: true,

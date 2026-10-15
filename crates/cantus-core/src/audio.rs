@@ -262,6 +262,11 @@ pub struct RecordSettings {
     /// version played it; off, every beat sounds as an ordinary one.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub click_accent: bool,
+    /// While a pass records, the parameters moved — by a knob in Cantus or in a hosted
+    /// plug-in's own window — are written into automation clips (schema 28, ADR 0057).
+    /// On by default, as FL records automation; not written while on.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub record_automation: bool,
 }
 
 /// The metronome's voice (schema 26, ADR 0052). `Classic` is the sine burst every earlier
@@ -309,6 +314,7 @@ impl Default for RecordSettings {
             loop_takes: true,
             click_sound: ClickSound::Classic,
             click_accent: true,
+            record_automation: true,
         }
     }
 }

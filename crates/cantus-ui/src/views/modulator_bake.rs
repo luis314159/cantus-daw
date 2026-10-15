@@ -82,7 +82,7 @@ impl CantusApp {
             });
         if spawned.is_err() {
             self.plugins.finish_render();
-            self.set_error(t("mod.status.bake_failed"));
+            self.set_error(t("mods.status.bake_failed"));
             return false;
         }
         self.modulators.pending_bake = Some(Pending {
@@ -92,7 +92,7 @@ impl CantusApp {
             revision: self.bus.revision(),
             rx,
         });
-        self.set_status(t("mod.status.baking"));
+        self.set_status(t("mods.status.baking"));
         true
     }
 
@@ -111,7 +111,7 @@ impl CantusApp {
         };
         self.plugins.finish_render();
         if trace.is_empty() || p.revision != self.bus.revision() {
-            self.set_error(t("mod.status.bake_moved"));
+            self.set_error(t("mods.status.bake_moved"));
             return;
         }
         self.finish_bake(p.id, &p.target, p.span, Some(&trace));
@@ -132,7 +132,7 @@ impl CantusApp {
         let selected = self.selected_track;
         let project = self.bus.project();
         let Some(points) = bake(project, id, target, from, to, from, base, trace) else {
-            self.set_error(t("mod.status.bake_failed"));
+            self.set_error(t("mods.status.bake_failed"));
             return false;
         };
         let Some((_, _, m)) = project.modulator(id) else {
@@ -175,7 +175,7 @@ impl CantusApp {
             }
         }
         let name = tf(
-            "mod.bake.clip",
+            "mods.bake.clip",
             &[(
                 "name",
                 &crate::views::modulator::mod_name(project, id).unwrap_or_default(),
@@ -196,12 +196,12 @@ impl CantusApp {
             });
         }
         let ok = self.exec(Command::Batch {
-            label_key: "mod.cmd.bake".into(),
+            label_key: "mods.cmd.bake".into(),
             commands,
         });
         if ok {
             self.select_clip(track, clip_id);
-            self.set_status(t("mod.status.baked"));
+            self.set_status(t("mods.status.baked"));
         }
         ok
     }

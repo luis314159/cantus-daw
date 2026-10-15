@@ -103,7 +103,7 @@ fn cycle(
     well::menu_field(sh.b, row.value, &sh.s, st, value, true);
     if r.hovered() {
         let name = sheet::name(sh.fmt.tr(key));
-        let tip = sheet::name(sh.fmt.tr("mod.cycle_tip"));
+        let tip = sheet::name(sh.fmt.tr("mods.cycle_tip"));
         hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
     }
     let dir = if r.clicked() {
@@ -205,8 +205,8 @@ fn steps(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         .then(|| ((beats / len).floor() as i64).rem_euclid(st.steps.len() as i64) as usize);
     paint::steps(sh.b, r, &s, &st.steps, st.unipolar, playing, s.hue);
     if resp.hovered() {
-        let name = sheet::name(sh.fmt.tr("mod.steps"));
-        let tip = sheet::name(sh.fmt.tr("mod.steps_tip"));
+        let name = sheet::name(sh.fmt.tr("mods.steps"));
+        let tip = sheet::name(sh.fmt.tr("mods.steps_tip"));
         hint::set_text(sh.ui.ctx(), &name, &tip, Caps::NONE);
     }
     if let (true, Some(p)) = (
@@ -231,7 +231,7 @@ fn steps(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
 /// A rate: synced (a division, dragged through the table) or free (Hz).
 fn rate(sh: &mut Sheet<'_>, m: &Modulator, rate: ModRate, set: fn(&mut Modulator, ModRate)) {
     let synced = matches!(rate, ModRate::Sync { .. });
-    switch(sh, m, "mod.sync", "mod.sync_on", synced, move |e| {
+    switch(sh, m, "mods.sync", "mods.sync_on", synced, move |e| {
         set(
             e,
             if synced {
@@ -247,7 +247,7 @@ fn rate(sh: &mut Sheet<'_>, m: &Modulator, rate: ModRate, set: fn(&mut Modulator
         ModRate::Sync { division: d } => num(
             sh,
             m,
-            "mod.rate",
+            "mods.rate",
             "div",
             f32::from(d),
             Range::lin(0.0, (DIVISIONS.len() - 1) as f32, 8.0).stepped(true),
@@ -257,7 +257,7 @@ fn rate(sh: &mut Sheet<'_>, m: &Modulator, rate: ModRate, set: fn(&mut Modulator
         ModRate::Hz { hz: h } => num(
             sh,
             m,
-            "mod.rate",
+            "mods.rate",
             "hz",
             h,
             Range::log(ModRate::MIN_HZ, ModRate::MAX_HZ, 1.0),
@@ -274,7 +274,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             preview(sh, app, m);
             let i = LfoShape::ALL.iter().position(|x| *x == l.shape).unwrap_or(0);
             let word = sheet::name(sh.fmt.tr(&format!("modfx.shape.{i}")));
-            cycle(sh, m, "mod.shape", &word, |e, d| {
+            cycle(sh, m, "mods.shape", &word, |e, d| {
                 if let ModSource::Lfo(x) = &mut e.source {
                     let n = LfoShape::ALL.len() as i32;
                     x.shape = LfoShape::ALL[(i as i32 + d).rem_euclid(n) as usize];
@@ -288,7 +288,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.phase",
+                "mods.phase",
                 "phase",
                 l.phase,
                 Range::lin(0.0, 1.0, 0.0),
@@ -302,7 +302,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
                 },
             );
             let note = l.retrigger == Retrigger::Note;
-            switch(sh, m, "mod.retrigger", "mod.retrigger_on", note, |e| {
+            switch(sh, m, "mods.retrigger", "mods.retrigger_on", note, |e| {
                 if let ModSource::Lfo(x) = &mut e.source {
                     x.retrigger = if note { Retrigger::Song } else { Retrigger::Note };
                 }
@@ -312,9 +312,9 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         ModSource::Envelope(env) => {
             preview(sh, app, m);
             for (key, field, v) in [
-                ("mod.attack", "a", env.attack_ms),
-                ("mod.decay", "d", env.decay_ms),
-                ("mod.release", "r", env.release_ms),
+                ("mods.attack", "a", env.attack_ms),
+                ("mods.decay", "d", env.decay_ms),
+                ("mods.release", "r", env.release_ms),
             ] {
                 num(
                     sh,
@@ -338,7 +338,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.sustain",
+                "mods.sustain",
                 "s",
                 env.sustain,
                 Range::lin(0.0, 1.0, 0.5),
@@ -351,11 +351,11 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             );
             let audio = matches!(env.trigger, EnvTrigger::Audio { .. });
             let word = sheet::name(sh.fmt.tr(if audio {
-                "mod.trigger.audio"
+                "mods.trigger.audio"
             } else {
-                "mod.trigger.notes"
+                "mods.trigger.notes"
             }));
-            cycle(sh, m, "mod.trigger", &word, |e, _| {
+            cycle(sh, m, "mods.trigger", &word, |e, _| {
                 if let ModSource::Envelope(x) = &mut e.source {
                     x.trigger = if audio {
                         EnvTrigger::Notes { track: None }
@@ -370,18 +370,18 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             match env.trigger {
                 EnvTrigger::Notes { track } => {
                     let word = notes_word(sh, app, m, track);
-                    list(sh, m, "mod.notes", &word, ListKind::Notes);
+                    list(sh, m, "mods.notes", &word, ListKind::Notes);
                 }
                 EnvTrigger::Audio {
                     listen,
                     threshold_db,
                 } => {
                     let word = listen_word(sh, app, m, listen);
-                    list(sh, m, "mod.listen", &word, ListKind::Listen);
+                    list(sh, m, "mods.listen", &word, ListKind::Listen);
                     num(
                         sh,
                         m,
-                        "mod.threshold",
+                        "mods.threshold",
                         "thr",
                         threshold_db,
                         Range::lin(-90.0, 0.0, -24.0),
@@ -400,10 +400,10 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         ModSource::Follower(f) => {
             preview(sh, app, m);
             let word = listen_word(sh, app, m, f.listen);
-            list(sh, m, "mod.listen", &word, ListKind::Listen);
+            list(sh, m, "mods.listen", &word, ListKind::Listen);
             for (key, field, v) in [
-                ("mod.attack", "a", f.attack_ms),
-                ("mod.release", "r", f.release_ms),
+                ("mods.attack", "a", f.attack_ms),
+                ("mods.release", "r", f.release_ms),
             ] {
                 num(
                     sh,
@@ -427,7 +427,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.gain",
+                "mods.gain",
                 "gain",
                 f.gain_db,
                 Range::lin(-24.0, 24.0, 0.0).bipolar(),
@@ -444,7 +444,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.step_count",
+                "mods.step_count",
                 "n",
                 st.steps.len() as f32,
                 Range::lin(1.0, MAX_STEPS as f32, 8.0).stepped(true),
@@ -460,7 +460,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.step_length",
+                "mods.step_length",
                 "div",
                 f32::from(st.division),
                 Range::lin(0.0, (DIVISIONS.len() - 1) as f32, 14.0).stepped(true),
@@ -474,7 +474,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.glide",
+                "mods.glide",
                 "glide",
                 st.glide,
                 Range::lin(0.0, 1.0, 0.0),
@@ -495,7 +495,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
                 }
             });
             let smooth = r.smooth;
-            switch(sh, m, "mod.smooth", "mod.smooth_on", smooth, |e| {
+            switch(sh, m, "mods.smooth", "mods.smooth_on", smooth, |e| {
                 if let ModSource::Random(x) = &mut e.source {
                     x.smooth = !smooth;
                 }
@@ -503,7 +503,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             num(
                 sh,
                 m,
-                "mod.seed",
+                "mods.seed",
                 "seed",
                 r.seed as f32,
                 Range::lin(0.0, 999.0, 1.0).stepped(true),
@@ -523,7 +523,7 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
 
 /// The unipolar switch of an LFO, a step sequence, a random source.
 fn polarity(sh: &mut Sheet<'_>, m: &Modulator, unipolar: bool) {
-    switch(sh, m, "mod.polarity", "mod.unipolar", unipolar, |e| match &mut e.source {
+    switch(sh, m, "mods.polarity", "mods.unipolar", unipolar, |e| match &mut e.source {
         ModSource::Lfo(x) => x.unipolar = !unipolar,
         ModSource::Step(x) => x.unipolar = !unipolar,
         ModSource::Random(x) => x.unipolar = !unipolar,
@@ -536,7 +536,7 @@ pub fn amount(sh: &mut Sheet<'_>, m: &Modulator) {
     num(
         sh,
         m,
-        "mod.amount",
+        "mods.amount",
         "amount",
         m.amount,
         Range::lin(0.0, 1.0, 1.0),
@@ -551,7 +551,7 @@ fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) ->
         cache::key(("mod-listen", m.id)),
         app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
         |b| match l {
-            Listen::Host => b.push_str(&crate::i18n::t("mod.listen.host")),
+            Listen::Host => b.push_str(&crate::i18n::t("mods.listen.host")),
             Listen::Master => b.push_str(&crate::i18n::t("kit.mixer.master")),
             Listen::Strip(s) => b.push_str(
                 &crate::automation::target_parts(app.project(), &cantus_core::AutoTarget::StripGain(s)).0,
@@ -573,7 +573,7 @@ fn notes_word(
         app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
         |b| match t.and_then(|t| app.project().track(t)) {
             Some(tr) => b.push_str(&tr.name),
-            None => b.push_str(&crate::i18n::t("mod.notes.host")),
+            None => b.push_str(&crate::i18n::t("mods.notes.host")),
         },
     );
     sheet::name(text)

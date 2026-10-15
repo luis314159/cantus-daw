@@ -591,6 +591,8 @@ impl CantusApp {
                 pass_from: 0,
             })
             .collect();
+        // Automation is written from here (ADR 0057).
+        self.begin_automation_pass();
         self.rec.pass = Some(Live {
             plan,
             transport_start,
@@ -640,6 +642,8 @@ impl CantusApp {
         plan.stop_at = at;
         plan.last_pass = self.recorder.pass();
         self.finish_pass(plan, takes, notes);
+        // The parameters moved while it recorded, as automation clips (ADR 0057).
+        self.commit_recorded_automation(at);
         if live.audio {
             self.journal_pass_finished();
         }

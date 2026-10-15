@@ -1,1 +1,105 @@
 # modulators — round 28: the modulators. Every key here needs its twin in modulators.es.txt.
+cmd.insert_modulator = Add modulator
+cmd.remove_modulator = Remove modulator
+cmd.set_modulator = Edit modulator
+mods.cmd.bake = Bake modulation to automation
+
+# The kinds.
+mods.kind.lfo = LFO
+mods.kind.envelope = Envelope
+mods.kind.follower = Follower
+mods.kind.step = Steps
+mods.kind.random = Random
+mods.name.numbered = {kind} {n}
+
+# The section in the inspector.
+mods.band.track = Modulators
+mods.band.strip = Channel modulators
+mods.band.master = Master modulators
+mods.empty = Add a modulator…
+mods.handle = Drag onto any knob to modulate it
+mods.fold = Click to fold
+mods.unfold = Click to unfold
+mods.map = Map: drag any knob to set this modulator’s depth there
+mods.on = On / off
+mods.remove = Remove the modulator
+mods.no_routes = Drives nothing yet: drag its handle onto a knob
+mods.depth = Depth
+mods.bake = Bake to automation
+mods.disconnect = Disconnect
+mods.cycle_tip = Click for the next, right-click for the previous
+
+# A modulator's settings.
+mods.shape = Shape
+mods.sync = Timing
+mods.sync_on = SYNC
+mods.rate = Rate
+mods.phase = Phase
+mods.retrigger = Restart
+mods.retrigger_on = ON NOTES
+mods.polarity = Polarity
+mods.unipolar = UNIPOLAR
+mods.attack = Attack
+mods.decay = Decay
+mods.sustain = Sustain
+mods.release = Release
+mods.trigger = Opened by
+mods.trigger.notes = Notes
+mods.trigger.audio = Audio level
+mods.threshold = Threshold
+mods.listen = Listens to
+mods.listen.host = Its own channel
+mods.notes = Notes from
+mods.notes.host = Its own track
+mods.gain = Gain
+mods.steps = Steps
+mods.steps_tip = Click or drag across the bars to draw the steps
+mods.step_count = Steps
+mods.step_length = Step length
+mods.glide = Glide
+mods.smooth = Glide
+mods.smooth_on = SMOOTH
+mods.seed = Seed
+mods.amount = Amount
+
+# What a modulated parameter is called.
+mods.target.amount = Amount
+mods.target.param_id = Parameter {id}
+
+# A parameter's menu.
+mods.param.modulate = Modulate…
+mods.menu.band = Modulate
+mods.menu.volume = Modulate volume…
+mods.menu.pan = Modulate pan…
+mods.menu.width = Modulate stereo width…
+mods.menu.level = Modulate the track’s level…
+
+# The Modulate… list.
+mods.popup.connect = Connect
+mods.popup.none = No modulators yet
+mods.popup.new = New modulator
+mods.popup.bake = Bake to automation
+
+# A hosted instrument's parameters.
+mods.hosted.params = Parameters
+mods.hosted.filter = Type to filter
+mods.hosted.filter_label = Filter
+mods.hosted.more = {n} more — type to narrow
+mods.hosted.more_label = More
+
+# The status line.
+mods.status.full = This panel holds 16 modulators at most
+mods.status.routes_full = A modulator drives 32 parameters at most
+mods.status.mapping = Mapping {name}: drag any knob to set its depth there
+mods.status.baking = Baking: the stretch is being rendered…
+mods.status.baked = Modulation baked to an automation clip
+mods.status.bake_failed = Nothing to bake there
+mods.status.bake_moved = The project changed while baking: bake again
+mods.bake.clip = {name} (baked)
+
+# Automation recorded while a pass records.
+mods.cmd.record_automation = Record automation
+mods.status.recorded = Automation recorded: {n} parameter(s)
+mods.status.record_failed = The recorded automation could not be written
+mods.rec.automation = Automation
+mods.rec.automation_on = RECORD

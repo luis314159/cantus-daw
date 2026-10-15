@@ -1489,11 +1489,11 @@ fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
         Label::Key("auto.strip.width"),
         Act::Automate(id, 2),
     ));
-    e.push(Entry::band("mod.menu.band"));
+    e.push(Entry::band("mods.menu.band"));
     for (what, key) in [
-        (0, "mod.menu.volume"),
-        (1, "mod.menu.pan"),
-        (2, "mod.menu.width"),
+        (0, "mods.menu.volume"),
+        (1, "mods.menu.pan"),
+        (2, "mods.menu.width"),
     ] {
         e.push(Entry::act(Label::Key(key), Act::Modulate(id, what)));
     }

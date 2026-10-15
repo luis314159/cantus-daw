@@ -1,1 +1,105 @@
 # modulators — ronda 28: los moduladores. Cada clave de modulators.en.txt tiene aquí su gemela.
+cmd.insert_modulator = Añadir modulador
+cmd.remove_modulator = Quitar modulador
+cmd.set_modulator = Editar modulador
+mods.cmd.bake = Convertir la modulación en automatización
+
+# Las clases.
+mods.kind.lfo = LFO
+mods.kind.envelope = Envolvente
+mods.kind.follower = Seguidor
+mods.kind.step = Pasos
+mods.kind.random = Aleatorio
+mods.name.numbered = {kind} {n}
+
+# La sección en el inspector.
+mods.band.track = Moduladores
+mods.band.strip = Moduladores del canal
+mods.band.master = Moduladores del máster
+mods.empty = Añadir un modulador…
+mods.handle = Arrástralo a cualquier perilla para modularla
+mods.fold = Clic para plegar
+mods.unfold = Clic para desplegar
+mods.map = Asignar: arrastra cualquier perilla para fijar ahí la profundidad de este modulador
+mods.on = Encendido / apagado
+mods.remove = Quitar el modulador
+mods.no_routes = Aún no mueve nada: arrastra su asa a una perilla
+mods.depth = Profundidad
+mods.bake = Convertir en automatización
+mods.disconnect = Desconectar
+mods.cycle_tip = Clic para el siguiente, clic derecho para el anterior
+
+# Los ajustes de un modulador.
+mods.shape = Forma
+mods.sync = Tiempo
+mods.sync_on = SINCRO
+mods.rate = Velocidad
+mods.phase = Fase
+mods.retrigger = Reinicio
+mods.retrigger_on = CON NOTAS
+mods.polarity = Polaridad
+mods.unipolar = UNIPOLAR
+mods.attack = Ataque
+mods.decay = Caída
+mods.sustain = Sostén
+mods.release = Liberación
+mods.trigger = Lo abre
+mods.trigger.notes = Notas
+mods.trigger.audio = Nivel de audio
+mods.threshold = Umbral
+mods.listen = Escucha a
+mods.listen.host = Su propio canal
+mods.notes = Notas de
+mods.notes.host = Su propia pista
+mods.gain = Ganancia
+mods.steps = Pasos
+mods.steps_tip = Haz clic o arrastra sobre las barras para dibujar los pasos
+mods.step_count = Pasos
+mods.step_length = Duración del paso
+mods.glide = Deslizamiento
+mods.smooth = Deslizamiento
+mods.smooth_on = SUAVE
+mods.seed = Semilla
+mods.amount = Cantidad
+
+# Cómo se llama un parámetro modulado.
+mods.target.amount = Cantidad
+mods.target.param_id = Parámetro {id}
+
+# El menú de un parámetro.
+mods.param.modulate = Modular…
+mods.menu.band = Modular
+mods.menu.volume = Modular el volumen…
+mods.menu.pan = Modular el paneo…
+mods.menu.width = Modular la amplitud estéreo…
+mods.menu.level = Modular el nivel de la pista…
+
+# La lista de Modular…
+mods.popup.connect = Conectar
+mods.popup.none = Aún no hay moduladores
+mods.popup.new = Modulador nuevo
+mods.popup.bake = Convertir en automatización
+
+# Los parámetros de un instrumento alojado.
+mods.hosted.params = Parámetros
+mods.hosted.filter = Escribe para filtrar
+mods.hosted.filter_label = Filtro
+mods.hosted.more = {n} más: escribe para acotar
+mods.hosted.more_label = Más
+
+# La línea de estado.
+mods.status.full = Este panel admite 16 moduladores como máximo
+mods.status.routes_full = Un modulador mueve 32 parámetros como máximo
+mods.status.mapping = Asignando {name}: arrastra cualquier perilla para fijar ahí su profundidad
+mods.status.baking = Convirtiendo: se está renderizando el tramo…
+mods.status.baked = Modulación convertida en un clip de automatización
+mods.status.bake_failed = Ahí no hay nada que convertir
+mods.status.bake_moved = El proyecto cambió mientras se convertía: vuelve a intentarlo
+mods.bake.clip = {name} (convertido)
+
+# La automatización grabada mientras graba una pasada.
+mods.cmd.record_automation = Grabar automatización
+mods.status.recorded = Automatización grabada: {n} parámetro(s)
+mods.status.record_failed = No se pudo escribir la automatización grabada
+mods.rec.automation = Automatización
+mods.rec.automation_on = GRABAR

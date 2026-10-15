@@ -789,6 +789,8 @@ impl Command {
                     ..
                 },
             ) => ta == tb && ca == cb,
+            // A modulator edited whole (ADR 0057): a drag keeps the newest.
+            (SetModulator { modulator: a }, SetModulator { modulator: b }) => a.id == b.id,
             (
                 SetClipPitch {
                     track: ta,

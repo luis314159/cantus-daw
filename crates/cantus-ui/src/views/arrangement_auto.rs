@@ -840,8 +840,8 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
             enabled: true,
         });
     }
-    items.push(Item::Band(Src::Key("mod.menu.band")));
-    for key in ["mod.menu.volume", "mod.menu.pan", "mod.menu.level"] {
+    items.push(Item::Band(Src::Key("mods.menu.band")));
+    for key in ["mods.menu.volume", "mods.menu.pan", "mods.menu.level"] {
         items.push(Item::action(Src::Key(key)));
     }
     let clicked = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked;

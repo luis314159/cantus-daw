@@ -94,6 +94,8 @@ impl CantusApp {
         if let Some(t) = AutoTarget::of_command(cmd) {
             self.automation.last_tweaked = Some(t);
         }
+        // Written into the pass's automation while one records it (ADR 0057).
+        self.record_tweak(cmd);
     }
 
     /// FL's *Tools ▸ Last tweaked ▸ Create automation clip*.
@@ -306,7 +308,7 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
                 .and_then(|e| e.spec.external.as_deref())
                 .map(|x| x.name.clone())
                 .unwrap_or_else(|| t("auto.target.missing"));
-            (device, tf("mod.target.param_id", &[("id", &id.to_string())]))
+            (device, tf("mods.target.param_id", &[("id", &id.to_string())]))
         }
         AutoTarget::PluginInstrument { track: tr, id } => {
             let device = project
@@ -314,12 +316,12 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
                 .and_then(|x| x.instrument.external())
                 .map(|x| x.name.clone())
                 .unwrap_or_else(|| t("auto.target.missing"));
-            (device, tf("mod.target.param_id", &[("id", &id.to_string())]))
+            (device, tf("mods.target.param_id", &[("id", &id.to_string())]))
         }
         AutoTarget::ModAmount(m) => {
             let name = crate::views::modulator::mod_name(project, *m)
                 .unwrap_or_else(|| t("auto.target.missing"));
-            (name, t("mod.target.amount"))
+            (name, t("mods.target.amount"))
         }
     }
 }

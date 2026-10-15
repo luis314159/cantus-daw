@@ -49,13 +49,13 @@ fn rows(app: &CantusApp, target: &AutoTarget) -> Vec<(Row, String, Check, bool)>
             others.push(row);
         }
     }
-    let mut out = vec![(Row::Nothing, t("mod.popup.connect"), Check::None, true)];
+    let mut out = vec![(Row::Nothing, t("mods.popup.connect"), Check::None, true)];
     if mine.is_empty() && others.is_empty() {
-        out.push((Row::Nothing, t("mod.popup.none"), Check::None, false));
+        out.push((Row::Nothing, t("mods.popup.none"), Check::None, false));
     }
     out.extend(mine);
     out.extend(others);
-    out.push((Row::Nothing, t("mod.popup.new"), Check::None, true));
+    out.push((Row::Nothing, t("mods.popup.new"), Check::None, true));
     for k in ModKind::ALL {
         out.push((Row::New(k), t(k.name_key()), Check::None, false));
     }
@@ -64,7 +64,7 @@ fn rows(app: &CantusApp, target: &AutoTarget) -> Vec<(Row, String, Check, bool)>
         .map(|(m, _)| m.id)
         .collect::<Vec<_>>();
     if !baking.is_empty() {
-        out.push((Row::Nothing, t("mod.popup.bake"), Check::None, true));
+        out.push((Row::Nothing, t("mods.popup.bake"), Check::None, true));
         for id in baking {
             if let Some(n) = mod_name(p, id) {
                 out.push((Row::Bake(id), n, Check::None, false));
@@ -175,7 +175,7 @@ pub fn add_menu(app: &mut CantusApp, ctx: &Context) {
         return;
     };
     let labels: Vec<String> = ModKind::ALL.iter().map(|k| t(k.name_key())).collect();
-    let items: Vec<Item<'_>> = std::iter::once(Item::Band(Src::Key("mod.popup.new")))
+    let items: Vec<Item<'_>> = std::iter::once(Item::Band(Src::Key("mods.popup.new")))
         .chain(labels.iter().map(|l| Item::action(Src::Str(l))))
         .collect();
     let mut chosen = None;
@@ -238,7 +238,7 @@ pub fn setting_list(app: &mut CantusApp, ctx: &Context) {
                     _ => {}
                 })
             };
-            rows.push((t("mod.listen.host"), set(Listen::Host)));
+            rows.push((t("mods.listen.host"), set(Listen::Host)));
             rows.push((t("kit.mixer.master"), set(Listen::Master)));
             for s in &p.strips {
                 let name = crate::automation::target_parts(p, &AutoTarget::StripGain(s.id)).0;
@@ -257,7 +257,7 @@ pub fn setting_list(app: &mut CantusApp, ctx: &Context) {
                     _ => {}
                 })
             };
-            rows.push((t("mod.notes.host"), set(None)));
+            rows.push((t("mods.notes.host"), set(None)));
             for tr in &p.tracks {
                 rows.push((tr.name.clone(), set(Some(tr.id))));
             }
