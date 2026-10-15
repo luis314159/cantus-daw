@@ -176,3 +176,34 @@ fn no_word_is_cut_in_either_language() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Review 1: the key is chosen in Impetus's own editor, as in every keyed editor: the field
+/// opens on the desk's strips, and choosing one routes the sidechain, as one undo step.
+#[test]
+fn the_key_is_chosen_in_the_editor() {
+    let (mut a, s0, fx) = with_impetus();
+    let ctx = ctx();
+    frame(&mut a, &ctx, vec![]);
+    frame(&mut a, &ctx, vec![]);
+    let field = a.fx.impetus.key_field.expect("the key's field was drawn");
+    click(&mut a, &ctx, field.center());
+    // The list: its own signal first, then the other strips; the second row is a strip.
+    let mut chosen = None;
+    for dy in [1.5f32, 2.5, 3.5] {
+        let at = egui::pos2(field.left() + 30.0, field.bottom() + 24.0 * dy - 12.0);
+        click(&mut a, &ctx, at);
+        chosen = a.project().effect(s0, fx).and_then(|e| e.sidechain);
+        if chosen.is_some() {
+            break;
+        }
+        click(&mut a, &ctx, field.center());
+    }
+    let key = chosen.expect("a strip chosen from the list");
+    assert_ne!(key, s0);
+    a.undo();
+    assert_eq!(
+        a.project().effect(s0, fx).unwrap().sidechain,
+        None,
+        "one undo step"
+    );
+}

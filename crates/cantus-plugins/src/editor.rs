@@ -51,6 +51,8 @@ pub struct PluginHost {
     spec: EffectSpec,
     pairs: VecDeque<(f32, f32)>,
     rx: Option<rtrb::Consumer<(f32, f32)>>,
+    /// Frames the window's queue let go before Speculum took them (review 1).
+    stereo_lost: u64,
     sink: Box<dyn EditSink>,
     /// Parameters inside an open gesture.
     active: Vec<u32>,
@@ -70,6 +72,7 @@ impl PluginHost {
             shared,
             pairs: VecDeque::with_capacity(PAIRS),
             rx,
+            stereo_lost: 0,
             sink,
             active: Vec::new(),
             revision: 0,
@@ -104,6 +107,8 @@ impl PluginHost {
             while let Ok(p) = rx.pop() {
                 if self.pairs.len() == PAIRS {
                     self.pairs.pop_front();
+                    // Speculum reads every frame: one gone is a gap it reports.
+                    self.stereo_lost += 1;
                 }
                 self.pairs.push_back(p);
             }
@@ -285,10 +290,12 @@ impl FxHost for PluginHost {
             .shared
             .host_transport()
             .filter(|h| h.playing && h.tempo > 0.0)
-            .and_then(|h| h.beats.map(|b| (b, h.tempo)));
+            .and_then(|h| h.last_beats.map(|b| (b, h.tempo)));
         StereoTake {
             stream: true,
             clock,
+            lost: self.shared.scope_lost.swap(0, Ordering::Relaxed)
+                + std::mem::take(&mut self.stereo_lost),
         }
     }
 }

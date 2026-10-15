@@ -29,14 +29,18 @@ things had to be settled first:
 is a pure delay, and a decimator that band-limits **only what the curve changed**
 (`shape(u) − u`), added to the input delayed by the path's latency. A sample the curve leaves
 alone comes out bit for bit at 2 … 16×; the filters' ripple touches only the distortion.
-(Terminus's clipper does the same at 4×; this is the general form.)
+(Terminus's clipper does the same at 4×; this is the general form.) The decimator's window ends
+at the newest sample's point 0, so the residual lands on the dry line's own sample (review 1:
+it was (F − 1)/F of a sample early and an oversampled clip passed its ceiling by 2.26 dB;
+now within 0.034 dB). Between two factors above 1× (same latency) only the decimator's
+history starts over.
 
 **A true-peak ceiling is a guard, not a hope.** After the curve, the waveform between the
 samples is read as the meters read it (`terminus::os::TruePeak`); the gain each sample needs
 is held over ±20 samples and smoothed by a ±16 moving mean (so it is no more than any near
 sample needs and never steps), aimed 0.1 dB under the ceiling — the detector's measured
 accuracy against a 32-point reconstruction. Measured: a plain clip leaves +1.88 dBTP; the
-guard −0.045 … −0.09 dBTP.
+guard −0.045 … −0.072 dBTP.
 
 **A latency is a configuration's, and the engine follows it.** Every unit's latency is a
 function of its switches (oversampling, guard, look-ahead), never of a level. The processor
@@ -45,7 +49,10 @@ it before each pass (after the pass's automation is applied): when it moved, com
 planned again, as an edit would plan it (`Processor::replan_if_latency_moved`). A test
 switches Tonsor from 1× to 16× and back by automation with the bass on another strip: the
 whole mix is the reference later by the new latency, to the bit, once the lines have
-filled. This closes the gap for every unit with such a switch (Fervor's oversampling,
+filled. **A line keeps what it holds when its delay changes** (`DelayLine::retime`: the
+read point moves — shorter skips ahead, longer waits only the difference), so a switch costs
+at most the change, never a dropout of the path's whole delay (review 1). The signature folds
+every insert, the master's one by one. This closes the gap for every unit with such a switch (Fervor's oversampling,
 Sibilus's look-ahead), not only these.
 
 **The follower is standalone** (`dynfx_follow`): one-pole attack and release on a rectified
@@ -72,10 +79,15 @@ the family keeps peaks for 50 ms of audio (`dynfx_meter::Hold`), running counts 
 clips, overs) the editor turns into rates over the last second of audio, and **columns** of
 512 samples counted from the stream in a ring of sixteen with a running count, from which
 the editor appends every column it has not seen (`new_columns`). A non-finite level is never
-kept.
+kept, and a sample that is not a number is read as silence by the follower, the detector
+and every filter or envelope of the units (review 1: one NaN had locked them for good).
 
 **Speculum has its own stream.** Eight scope rings (lock-free, 1 024 chunks of 64 stereo
-frames, each chunk stamped with the song's position) are made when the engine starts.
+frames filled across passes, so 65 536 frames whatever the passes) are made when the engine
+starts. Each chunk carries its owner (a ring handed to another Speculum drops the last one's),
+the frames a full ring lost before it (the editor shows the gap), and the song's position
+**as heard at the slot** — the transport's less the compensation the slot waits
+(`Processor::scope_delays`). A master Speculum hears the mix with the chain off or bypassed.
 `EngineHandle::watch_scope` gives a ring to a Speculum (asked every UI frame it is
 measured); `release_unwatched_scopes` (once a frame) frees the rest; the strip and master
 chains copy a watched slot's frames after the insert (eight comparisons for one nobody

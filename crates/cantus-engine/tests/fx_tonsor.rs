@@ -154,3 +154,113 @@ fn an_automated_latency_keeps_the_mix_in_line() {
         );
     }
 }
+
+/// Review 1: an automated latency switch costs at most the change, never a dropout of a
+/// path's whole delay. The lead's line already carries 93 samples (the bass strip, silent,
+/// holds a 16× guarded Tonsor); switching the lead's Tonsor 1× → 16× and back moves that
+/// line by 40 samples each way. The longest run of silence near each switch, where the
+/// lead plays, is no longer than those 40 samples.
+#[test]
+fn an_automated_latency_switch_costs_at_most_the_change() {
+    let mut p = demo_project();
+    for c in &mut p.tracks[1].clips {
+        c.muted = true;
+    }
+    let bass_fx = {
+        let slot = p.make_effect(EffectKind::Clipper);
+        let id = slot.id;
+        strip_of(&mut p, 1).effects.push(slot);
+        id
+    };
+    let s = strip_of(&mut p, 1);
+    let slot = s.effects.iter_mut().find(|e| e.id == bass_fx).unwrap();
+    slot.spec.set("os", 4.0);
+    slot.spec.set("tp", 1.0);
+    let fx = add_effect(&mut p, EffectKind::Clipper);
+    let mut a = AutoPoint::new(Ticks::ZERO, 0.0);
+    a.shape = Shape::Hold;
+    let mut b = AutoPoint::new(Ticks::beats(4), 1.0);
+    b.shape = Shape::Hold;
+    let mut c = AutoPoint::new(Ticks::beats(6), 0.0);
+    c.shape = Shape::Hold;
+    let clip = p.make_automation_clip(
+        "os",
+        AutoTarget::Effect {
+            effect: fx,
+            key: "os".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![a, b, c],
+    );
+    p.tracks[0].clips.push(clip);
+    let out = render_of(&p);
+    let beat = BEAT as usize;
+    for at in [4 * beat, 6 * beat] {
+        let mut run = 0usize;
+        let mut longest = 0usize;
+        for f in at - 400..at + 400 {
+            if out[2 * f] == 0.0 && out[2 * f + 1] == 0.0 {
+                run += 1;
+                longest = longest.max(run);
+            } else {
+                run = 0;
+            }
+        }
+        assert!(
+            longest <= 40,
+            "{longest} silent frames at the switch at frame {at}"
+        );
+    }
+}
+
+/// Review 1: two master inserts whose latencies move the opposite ways at once (the chain's
+/// sum unchanged) still re-plan: the first's dry line (its slot mix at 50 %) follows its
+/// own latency, so the master sounds as if they had been set that way from the start.
+#[test]
+fn opposite_moves_on_two_master_inserts_re_plan() {
+    let build = |automate: bool| {
+        let mut p = demo_project();
+        let mut a = p.make_effect(EffectKind::Clipper);
+        a.mix = 0.5;
+        let mut b = p.make_effect(EffectKind::Clipper);
+        let (ia, ib) = (a.id, b.id);
+        if !automate {
+            a.spec.set("os", 2.0);
+        } else {
+            b.spec.set("os", 2.0);
+        }
+        p.master.effects.push(a);
+        p.master.effects.push(b);
+        if automate {
+            for (fx, from, to) in [(ia, 0.0, 0.5), (ib, 0.5, 0.0)] {
+                let mut x = AutoPoint::new(Ticks::ZERO, from);
+                x.shape = Shape::Hold;
+                let mut y = AutoPoint::new(Ticks::beats(2), to);
+                y.shape = Shape::Hold;
+                let clip = p.make_automation_clip(
+                    "os",
+                    AutoTarget::Effect {
+                        effect: fx,
+                        key: "os".into(),
+                    },
+                    Ticks::ZERO,
+                    Ticks::beats(8),
+                    vec![x, y],
+                );
+                p.tracks[0].clips.push(clip);
+            }
+        }
+        p
+    };
+    let moved = render_of(&build(true));
+    let set = render_of(&build(false));
+    let beat = BEAT as usize;
+    for f in 2 * beat + 2_000..6 * beat {
+        assert_eq!(
+            moved[2 * f].to_bits(),
+            set[2 * f].to_bits(),
+            "frame {f}: the dry line follows its insert"
+        );
+    }
+}

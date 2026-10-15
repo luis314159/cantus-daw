@@ -54,9 +54,12 @@ None touches a sample: they are how Speculum is looked at, kept with the project
 ## How it works
 
 **Every frame, several at once.** The engine keeps eight **scope rings** (lock-free, 65 536
-frames each — 1.4 s at 48 kHz). A Speculum being looked at is given one: after each pass the
-strip (or the master) copies the frames at its slot into the ring in chunks of 64, each
-stamped with the song's position at its first frame — eight comparisons for an insert
+frames each, 1.4 s at 48 kHz). A Speculum being looked at is given one: after each pass the
+strip (or the master, even with its chain off or bypassed) copies the frames at its slot into
+the ring in chunks of 64 filled across passes (so the capacity is in frames, however short the
+passes), each carrying its owner (a reused ring drops the last one's), the frames a full ring
+lost before it (shown as *Gaps* under the loudness), and the song's position at its first
+frame as heard at the slot (the transport's less the compensation the slot waits) — eight comparisons for an insert
 nobody watches, no allocation, nothing ever waits. The editor asks for its ring every frame
 it is shown and drains it; a ring nobody asked for during a frame is let go. In the exported
 plug-in the editor's tap carries the frames themselves (left, right) instead of the

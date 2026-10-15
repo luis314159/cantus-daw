@@ -284,3 +284,36 @@ fn the_telemetry_carries_columns_of_input_and_gain() {
         t[tel::GAIN_MAX]
     );
 }
+
+/// Review 1: a NaN or an infinity in the input passes through as itself but locks nothing:
+/// the samples after it are finite and shaped as before, and the unit comes to rest.
+#[test]
+fn a_non_finite_sample_locks_nothing() {
+    let s = ImpetusSettings {
+        attack: 1.0,
+        sustain: 0.5,
+        band: Band::Highs,
+        ..ImpetusSettings::default()
+    };
+    let mut x = hits(24_000, 0.6, 300.0);
+    x[100] = f32::NAN;
+    x[200] = f32::INFINITY;
+    let mut u = with(s);
+    let y = run(&mut u, &x, None, 256);
+    assert!(
+        y[1_000..].iter().all(|v| v.is_finite()),
+        "finite after the NaN"
+    );
+    let reference = run(&mut with(s), &hits(24_000, 0.6, 300.0), None, 256);
+    // Once the detector has forgotten the hit before, the same as without the NaN.
+    for i in 12_000..14_000 {
+        assert!((y[i] - reference[i]).abs() < 1e-3, "sample {i}");
+    }
+    let z = vec![0f32; 64];
+    let mut n = 0;
+    while !u.at_rest() {
+        run(&mut u, &z, None, 64);
+        n += 64;
+        assert!(n < 30 * 48_000, "no rest after a NaN");
+    }
+}

@@ -110,3 +110,32 @@ fn the_latency_is_the_two_halves_above_one() {
     assert_eq!(factor_of(4.0), 16);
     assert_eq!(factor_of(9.0), 16);
 }
+
+/// The decimator lines up with point 0: base sample `n`'s output is the band-limited
+/// residual at time `n − DOWN_HALF` exactly — the phase, not only the level (review 1: it
+/// was `(F − 1)/F` of a sample early).
+#[test]
+fn the_decimator_is_aligned_with_point_zero() {
+    let t = Tables::new();
+    let sr = 48_000.0f64;
+    let hz = 5_000.0f64;
+    for f in [2usize, 4, 8, 16] {
+        let rate = sr * f as f64;
+        let mut d = Down::default();
+        let mut pts = [0f32; MAX_FACTOR];
+        let mut worst = 0f64;
+        for n in 0..3_000usize {
+            for (p, v) in pts.iter_mut().enumerate().take(f) {
+                let k = (n * f + p) as f64;
+                *v = math::sin(std::f64::consts::TAU * hz * k / rate) as f32;
+            }
+            let y = d.push(&pts, f, &t);
+            if n > 2_000 {
+                let at = ((n - DOWN_HALF) * f) as f64;
+                let want = math::sin(std::f64::consts::TAU * hz * at / rate);
+                worst = worst.max((f64::from(y) - want).abs());
+            }
+        }
+        assert!(worst < 0.01, "factor {f}: off by {worst}");
+    }
+}

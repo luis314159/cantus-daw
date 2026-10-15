@@ -27,6 +27,9 @@ pub(crate) struct PassCtx {
     pub analysed: Option<EffectId>,
     /// The Speculums being watched, by scope ring (ADR 0056).
     pub scoped: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
+    /// How late each watched Speculum's signal is against the transport: the compensation
+    /// it waits (its beat stamps are moved back by as much).
+    pub scoped_delay: [usize; crate::fx::speculum::MAX_SCOPES],
     /// The strip slot the mix recorder takes, and its line.
     pub capture_slot: Option<usize>,
     pub capture_line: Option<usize>,
@@ -60,6 +63,7 @@ impl PassCtx {
             probed: None,
             analysed: None,
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
+            scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             capture_slot: None,
             capture_line: None,
             auto_at: None,

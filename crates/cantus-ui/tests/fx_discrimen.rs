@@ -66,7 +66,7 @@ fn the_editor_paints_its_cards() {
         "both",
         "transient share",
         "latency 2.0 ms",
-        "every hit is in the transient part",
+        "each hit is in the transient part",
     ] {
         assert!(lower.contains(want), "missing {want:?} in {text}");
     }
@@ -140,8 +140,12 @@ fn no_word_is_cut_in_either_language() {
         let (mut a, s0, fx) = with_discrimen();
         discrimen::demo_setup(&mut a, s0, fx);
         cantus_ui::views::fx::demo_feed(&mut a, EffectKind::TransientSplit);
-        let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
-        assert!(!text.contains('\u{2026}'), "{lang:?}: {text}");
+        // Both modes: each says what it costs in its own sentence (review 1).
+        for mode in [0.0, 1.0] {
+            a.set_fx_param(s0, fx, "mode", mode, false);
+            let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+            assert!(!text.contains('\u{2026}'), "{lang:?}, mode {mode}: {text}");
+        }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }

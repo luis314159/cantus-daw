@@ -176,6 +176,7 @@ impl Processor {
                 c.probed = self.probed;
                 c.analysed = self.analysed;
                 c.scoped = self.scoped;
+                c.scoped_delay = self.scoped_delay;
                 c.capture_slot = self.capture_slot;
                 c.capture_line = self.capture_line;
                 c.auto_at = self.auto.base();

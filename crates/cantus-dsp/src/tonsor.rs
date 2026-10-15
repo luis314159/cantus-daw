@@ -393,9 +393,17 @@ impl Tonsor {
         self.post.target = gain(s.out_db + back);
         let factor = s.factor();
         if factor != self.factor {
+            // Between two factors above 1× the latency stays: the input history and the dry
+            // line are the same at either, only the decimator's depends on the factor. To or
+            // from 1× the latency moves and everything starts over.
+            let keep = factor > 1 && self.factor > 1;
             self.factor = factor;
             for c in &mut self.chans {
-                c.clear();
+                if keep {
+                    c.down.reset();
+                } else {
+                    c.clear();
+                }
             }
         }
         if s.true_peak != self.set.true_peak {

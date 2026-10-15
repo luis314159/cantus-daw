@@ -143,11 +143,24 @@ pub(crate) struct Analysis {
     pub fx: Option<crate::fx::Telemetry>,
 }
 
-/// A watched Speculum's ring (ADR 0056), and the chunks a full ring lost.
-#[derive(Default)]
+/// A watched Speculum's ring (ADR 0056): the chunk being filled, whose it is, and the
+/// frames a full ring lost since the last chunk that went in.
 pub(crate) struct ScopeTap {
     pub ring: Option<rtrb::Producer<crate::fx::speculum::ScopeChunk>>,
+    pub pending: crate::fx::speculum::ScopeChunk,
+    pub owner: Option<EffectId>,
     pub lost: u64,
+}
+
+impl Default for ScopeTap {
+    fn default() -> Self {
+        ScopeTap {
+            ring: None,
+            pending: crate::fx::speculum::ScopeChunk::EMPTY,
+            owner: None,
+            lost: 0,
+        }
+    }
 }
 
 /// The mix recorder's ring (a strip's take, or the master's), and what it lost.

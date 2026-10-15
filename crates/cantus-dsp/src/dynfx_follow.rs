@@ -61,6 +61,9 @@ impl Follower {
     /// One sample of `level` (≥ 0): the envelope after it.
     #[inline]
     pub fn run(&mut self, level: f32, t: &Times) -> f32 {
+        // A level that is not a number is read as silence: a NaN kept here would stay for
+        // good (it takes the release branch and never settles).
+        let level = if level.is_finite() { level } else { 0.0 };
         let k = if level > self.env {
             t.attack
         } else {
@@ -228,6 +231,17 @@ impl EnvelopeFollower {
     /// `frames` of silence skipped at rest.
     pub fn skip(&mut self, frames: usize) {
         self.quiet.skip(frames);
+    }
+}
+
+/// A sample as a state may take it: a value that is not a number is silence (review 1 —
+/// one NaN in a filter or an envelope stays there for good).
+#[inline]
+pub fn sane(x: f32) -> f32 {
+    if x.is_finite() {
+        x
+    } else {
+        0.0
     }
 }
 
