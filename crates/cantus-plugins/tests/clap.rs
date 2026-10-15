@@ -187,7 +187,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Saturator => "drive",
             EffectKind::Chorus => "mix",
             EffectKind::Flanger => "mix",
-            EffectKind::Phaser => "out",
+            EffectKind::Phaser => "mix",
             EffectKind::Tremolo => "depth",
             EffectKind::Vibrato => "depth",
             EffectKind::RingMod => "out",
