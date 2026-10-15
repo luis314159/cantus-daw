@@ -191,7 +191,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Tremolo => "depth",
             EffectKind::Vibrato => "depth",
             EffectKind::RingMod => "freq",
-            EffectKind::FreqShift => "out",
+            EffectKind::FreqShift => "shift",
             EffectKind::VolumeShaper => "out",
             EffectKind::Clipper => "out",
             EffectKind::Transient => "out",

@@ -565,7 +565,7 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         EffectKind::Tremolo => vec![("depth", 0.8), ("sync", 0.0), ("rate", 7.0), ("mode", 2.0), ("shape", 2.0), ("spread", 90.0)],
         EffectKind::Vibrato => vec![("depth", 60.0), ("rate", 4.0), ("spread", 90.0), ("mix", 0.8)],
         EffectKind::RingMod => vec![("freq", 220.0), ("wave", 1.0), ("lfo", 5.0), ("mix", 0.8), ("spread", 90.0)],
-        EffectKind::FreqShift => vec![("out", -6.0)],
+        EffectKind::FreqShift => vec![("shift", 140.0), ("side", 2.0), ("fb", 0.4), ("lfo", 30.0), ("mix", 0.8)],
         EffectKind::VolumeShaper => vec![("out", -6.0)],
         EffectKind::Clipper => vec![("out", -6.0)],
         EffectKind::Transient => vec![("out", -6.0)],
@@ -626,6 +626,7 @@ pub enum Direct {
     Max(Box<cantus_dsp::culmen::Culmen>),
     Sat(Box<cantus_dsp::fervor::Fervor>),
     Tremor(Box<cantus_dsp::tremor::Tremor>),
+    Translatio(Box<cantus_dsp::translatio::Translatio>),
     Anulus(Box<cantus_dsp::anulus::Anulus>),
     Phasis(Box<cantus_dsp::phasis::Phasis>),
     Flexus(Box<cantus_dsp::flexus::Flexus>),
@@ -656,9 +657,7 @@ impl Direct {
             EffectKind::Tremolo => Direct::Tremor(Box::new(cantus_dsp::tremor::Tremor::new(SR))),
             EffectKind::Vibrato => Direct::Vibrans(Box::new(cantus_dsp::vibrans::Vibrans::new(SR))),
             EffectKind::RingMod => Direct::Anulus(Box::new(cantus_dsp::anulus::Anulus::new(SR))),
-            EffectKind::FreqShift => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::FreqShift, SR).unwrap())
-            }
+            EffectKind::FreqShift => Direct::Translatio(Box::new(cantus_dsp::translatio::Translatio::new(SR))),
             EffectKind::VolumeShaper => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::VolumeShaper, SR).unwrap())
             }
@@ -710,6 +709,7 @@ impl Direct {
             Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
             Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
             Direct::Tremor(x) => x.set(&fx::tremor::settings(spec)),
+            Direct::Translatio(x) => x.set(&fx::translatio::settings(spec)),
             Direct::Anulus(x) => x.set(&fx::anulus::settings(spec)),
             Direct::Phasis(x) => x.set(&fx::phasis::settings(spec)),
             Direct::Flexus(x) => x.set(&fx::flexus::settings(spec)),
@@ -732,6 +732,7 @@ impl Direct {
             Direct::Max(x) => x.reset(),
             Direct::Sat(x) => x.reset(),
             Direct::Tremor(x) => x.reset(),
+            Direct::Translatio(x) => x.reset(),
             Direct::Anulus(x) => x.reset(),
             Direct::Phasis(x) => x.reset(),
             Direct::Flexus(x) => x.reset(),
@@ -754,6 +755,7 @@ impl Direct {
             Direct::Max(x) => x.latency(),
             Direct::Sat(x) => x.latency(),
             Direct::Tremor(x) => x.latency(),
+            Direct::Translatio(x) => x.latency(),
             Direct::Anulus(x) => x.latency(),
             Direct::Phasis(x) => x.latency(),
             Direct::Flexus(x) => x.latency(),
@@ -776,6 +778,7 @@ impl Direct {
             Direct::Max(x) => x.process(l, r),
             Direct::Sat(x) => x.process(l, r),
             Direct::Tremor(x) => x.process(l, r),
+            Direct::Translatio(x) => x.process(l, r),
             Direct::Anulus(x) => x.process(l, r),
             Direct::Phasis(x) => x.process(l, r),
             Direct::Flexus(x) => x.process(l, r),
