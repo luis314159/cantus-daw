@@ -184,7 +184,7 @@ fn macro_card(
 
 /// *Quantise timing*: each note's start to the nearest line of the editor's grid on the
 /// timeline (its length kept, its neighbours respected).
-pub(super) fn quantise(
+pub fn quantise(
     app: &mut CantusApp,
     track: TrackId,
     clip: ClipId,

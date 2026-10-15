@@ -305,8 +305,9 @@ the take as it was (never silence). Export waits for every render.
   Scale*), on semitones, or anywhere (*Free*; hold `Alt` for cents). Drag it **sideways**
   to move it in time, or drag one of its **ends** to stretch it: only the gaps beside it
   give way, its neighbours stay exactly as sung. **Double-click** a note to pull its centre
-  onto its note (again to let it go). `Up`/`Down` move the selection a step (`Alt`: 10
-  cents), `Ctrl+A` selects every note, `Ctrl+J` joins, `Esc` clears.
+  onto its note (again to let it go). `Up`/`Down` move the selection a step (`Shift`: an
+  octave, `Alt`: 10 cents), `Ctrl+A` selects every note, `Ctrl+J` joins, `Q` quantises,
+  `Esc` clears.
 - **Split tool**: click inside a note to cut it in two; **Join** puts neighbours together.
 - **The note** (the panel below): what the selection *sounds* and was *sung*, and its
   **centre** (how far its centre is pulled onto its note, keeping its natural drift and

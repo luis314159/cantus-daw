@@ -331,8 +331,9 @@ hecho junto a la ventana, y mientras un render está en camino se oye la toma ta
   mantén `Alt` para cents). Arrástrala **a los lados** para moverla en el tiempo, o
   arrastra uno de sus **extremos** para estirarla: solo ceden los huecos a su lado, sus
   vecinas quedan exactamente como se cantaron. **Doble clic** en una nota lleva su centro a
-  su nota (otra vez para soltarlo). `Arriba`/`Abajo` mueven la selección un paso (`Alt`: 10
-  cents), `Ctrl+A` selecciona todas, `Ctrl+J` une, `Esc` deselecciona.
+  su nota (otra vez para soltarlo). `Arriba`/`Abajo` mueven la selección un paso (`Mayús`:
+  una octava, `Alt`: 10 cents), `Ctrl+A` selecciona todas, `Ctrl+J` une, `Q` cuantiza,
+  `Esc` deselecciona.
 - **Herramienta Dividir**: haz clic dentro de una nota para cortarla en dos; **Unir** junta
   vecinas.
 - **La nota** (el panel de abajo): lo que la selección *suena* y lo que se *cantó*, y su

@@ -289,10 +289,7 @@ pub(super) fn canvas(
             app.commit_pitch(track, clip, Some(e), PitchOp::Centre, false);
         }
     }
-    if resp.hovered()
-        || resp.has_focus()
-        || app.pitch.view.geo.is_some() && pointer.is_some_and(|p| geo.panel.contains(p))
-    {
+    if pointer.is_some_and(|p| geo.grid.union(geo.panel).union(geo.keys).contains(p)) {
         keys(app, ui, track, clip, current);
     }
 }
@@ -456,46 +453,22 @@ fn step_scale(e: &PitchEdit, p: f32, steps: i32) -> f32 {
     e.key.degrees_from(base, steps) + (p - base)
 }
 
-/// The keys: ↑/↓ move the selection a step (Alt: 10 cents), Ctrl+A selects every note,
-/// Ctrl+J joins the selection, Esc lets it go.
+/// The keys the keymap does not have: Alt+↑/↓ move the selection 10 cents. (Ctrl+A, Esc,
+/// ↑/↓, Shift+↑/↓, Ctrl+J and Q come through the keymap: `CantusApp::pitch_action`.)
 fn keys(app: &mut CantusApp, ui: &egui::Ui, track: TrackId, clip: ClipId, current: &PitchEdit) {
-    let (up, down, all, join, esc, alt) = ui.input(|i| {
+    let (up, down) = ui.input(|i| {
+        let alt = i.modifiers.alt && !i.modifiers.command && !i.modifiers.shift;
         (
-            i.key_pressed(egui::Key::ArrowUp),
-            i.key_pressed(egui::Key::ArrowDown),
-            i.modifiers.command && i.key_pressed(egui::Key::A),
-            i.modifiers.command && i.key_pressed(egui::Key::J),
-            i.key_pressed(egui::Key::Escape),
-            i.modifiers.alt,
+            alt && i.key_pressed(egui::Key::ArrowUp),
+            alt && i.key_pressed(egui::Key::ArrowDown),
         )
     });
-    if all {
-        app.pitch.view.selected = current.notes.iter().map(|n| n.id).collect();
-    }
-    if esc {
-        app.pitch.view.selected.clear();
-    }
     let sel = app.pitch.view.selected.clone();
-    if join && sel.len() >= 2 {
-        let mut e = current.clone();
-        if edit::join(&mut e, &sel) {
-            app.pitch.view.selected.truncate(1);
-            app.commit_pitch(track, clip, Some(e), PitchOp::Join, false);
-        }
-    }
     if (up || down) && !sel.is_empty() {
-        let dir = if up { 1 } else { -1 };
+        let d = if up { 0.1 } else { -0.1 };
         let mut e = current.clone();
         for n in current.notes.iter().filter(|n| sel.contains(&n.id)) {
-            let to = if alt {
-                n.pitch + 0.1 * dir as f32
-            } else {
-                match app.pitch.view.snap {
-                    Snap::Scale => step_scale(current, n.pitch, dir),
-                    _ => n.pitch + dir as f32,
-                }
-            };
-            edit::set_pitch(&mut e, n.id, to);
+            edit::set_pitch(&mut e, n.id, n.pitch + d);
         }
         app.commit_pitch(track, clip, Some(e), PitchOp::Pitch, false);
     }

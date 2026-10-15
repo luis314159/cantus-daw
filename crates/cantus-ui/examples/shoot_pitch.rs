@@ -116,11 +116,18 @@ fn main() {
             "pitch-arrangement-{}.png",
             if dark { "night" } else { "paper" }
         ));
-        shoot(&ctx, egui::vec2(1200.0, 420.0), 1.0, 6, Some(&out), |root| {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE)
-                .show(root, |ui| views::arrangement::show(&mut app, ui));
-        });
+        shoot(
+            &ctx,
+            egui::vec2(1200.0, 420.0),
+            1.0,
+            6,
+            Some(&out),
+            |root| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(root, |ui| views::arrangement::show(&mut app, ui));
+            },
+        );
         println!("{}", out.display());
     }
 }

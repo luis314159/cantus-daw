@@ -8,8 +8,9 @@
 //!   pitch (snapped to the key's scale, to semitones, or free — Alt for cents), sideways
 //!   to move it in time; drag its ends to stretch it (its neighbours untouched); a
 //!   double-click pulls its centre onto the note (or lets it go); drag on empty ground to
-//!   select. ↑/↓ move the selection a step (Alt: 10 cents), Ctrl+A selects all, Ctrl+J
-//!   joins.
+//!   select. ↑/↓ move the selection a step (Shift: an octave, Alt: 10 cents), Ctrl+A
+//!   selects all, Ctrl+J joins, Q quantises, Esc lets the notes go (the keymap's actions,
+//!   `CantusApp::pitch_action`).
 //! - **Split** — click inside a blob to split it there.
 //! - Below, **the note**: pitch centre, drift, vibrato, formant and gain of the selection;
 //!   and **the macros**: correct pitch and correct drift by an amount, quantise timing to
@@ -34,6 +35,8 @@ mod input;
 mod paint;
 #[path = "pitch_panel.rs"]
 mod panel;
+
+pub use panel::quantise;
 
 /// The key strip's width, the ruler's height, the note panel's height (at 100 %).
 const KEYS_W: f32 = 56.0;

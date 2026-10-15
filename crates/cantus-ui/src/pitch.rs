@@ -313,6 +313,87 @@ impl CantusApp {
         .then_some((tid, cid))
     }
 
+    /// The pitch editor is what the edit keys act on: the piano roll's place has the focus
+    /// and shows an audio clip.
+    pub fn pitch_editing(&self) -> Option<(TrackId, ClipId)> {
+        if self.focus != crate::app::EditFocus::PianoRoll
+            || !self.workspace.is_visible(Pane::PianoRoll)
+        {
+            return None;
+        }
+        let (t, c) = self.selected_track.zip(self.selected_clip)?;
+        self.project()
+            .track(t)?
+            .clip(c)?
+            .audio
+            .is_some()
+            .then_some((t, c))
+    }
+
+    /// The keymap's edit actions, in the pitch editor (the same keys as in the piano roll):
+    /// Ctrl+A selects every note, Esc lets them go (and never the clip), ↑/↓ move the
+    /// selection a step of the snap, Shift an octave, Ctrl+J joins, Q quantises. Returns
+    /// whether the action was the editor's.
+    pub fn pitch_action(&mut self, action: crate::keymap::Action) -> bool {
+        use crate::keymap::Action;
+        use cantus_core::pitch::edit;
+        let Some((track, clip)) = self.pitch_editing() else {
+            return false;
+        };
+        let take = self.pitch_take(track, clip);
+        let Some(current) = self.pitch_edit(track, clip, &take) else {
+            return matches!(action, Action::ClearSelection | Action::SelectAll);
+        };
+        let sel = self.pitch.view.selected.clone();
+        let step = |app: &mut CantusApp, dir: i32, octave: bool| {
+            if sel.is_empty() {
+                return;
+            }
+            let mut e = current.clone();
+            for n in current.notes.iter().filter(|n| sel.contains(&n.id)) {
+                let to = if octave {
+                    n.pitch + 12.0 * dir as f32
+                } else if app.pitch.view.snap == crate::views::pitch::Snap::Scale {
+                    let base = current.key.nearest(n.pitch);
+                    current.key.degrees_from(base, dir) + (n.pitch - base)
+                } else {
+                    n.pitch + dir as f32
+                };
+                edit::set_pitch(&mut e, n.id, to);
+            }
+            app.commit_pitch(track, clip, Some(e), PitchOp::Pitch, false);
+        };
+        match action {
+            Action::SelectAll => {
+                self.pitch.view.selected = current.notes.iter().map(|n| n.id).collect();
+            }
+            Action::ClearSelection => self.pitch.view.selected.clear(),
+            Action::TransposeUp => step(self, 1, false),
+            Action::TransposeDown => step(self, -1, false),
+            Action::TransposeOctaveUp => step(self, 1, true),
+            Action::TransposeOctaveDown => step(self, -1, true),
+            Action::GlueClips => {
+                let mut e = current.clone();
+                if edit::join(&mut e, &sel) {
+                    self.pitch.view.selected.truncate(1);
+                    self.commit_pitch(track, clip, Some(e), PitchOp::Join, false);
+                } else {
+                    self.set_status(crate::i18n::t("pitch.join_needs"));
+                }
+            }
+            Action::Quantize => {
+                let ids: Vec<u32> = if sel.is_empty() {
+                    current.notes.iter().map(|n| n.id).collect()
+                } else {
+                    sel
+                };
+                crate::views::pitch::quantise(self, track, clip, &current, &ids);
+            }
+            _ => return false,
+        }
+        true
+    }
+
     /// A take landed (a recording, an import): analyse it now, on the worker, so the
     /// editor opens on its notes at once.
     pub fn analyse_take_soon(&self, source: &AudioSource) {

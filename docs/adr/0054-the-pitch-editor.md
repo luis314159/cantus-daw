@@ -144,7 +144,8 @@ quantise grid, the take's status.
   take; gain; the engine plays the render, offline = real time; A/B and untouched play the
   file; the original while pending, `loading()` true; the disk cache; a legato move does not
   click; the three-minute timing.
-- `cantus-ui` `pitch_editor.rs` (8), `quick_gestures.rs`, `rec_fixes.rs`: through the
-  window — double-click opens it, a drag is one undo step undone exactly, split, Ctrl+J,
+- `cantus-ui` `pitch_editor.rs` (10), `quick_gestures.rs`, `rec_fixes.rs`: through the
+  window — double-click opens it, a drag is one undo step undone exactly, split, the edit
+  keys through the keymap (`CantusApp::pitch_action`), Ctrl+J,
   the macro, *Original*, MIDI out (clicked and dragged onto a track), the double, the boot
   path's cache, the demo project plays its edits.

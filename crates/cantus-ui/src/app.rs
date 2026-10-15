@@ -3093,6 +3093,10 @@ impl CantusApp {
     /// item cannot.
     pub fn run_action(&mut self, action: Action) {
         use Action::*;
+        // Round 28 (ADR 0054): the pitch editor's keys while it has the focus.
+        if self.pitch_action(action) {
+            return;
+        }
         match action {
             PlayPause => self.toggle_play(),
             Stop => self.stop(),

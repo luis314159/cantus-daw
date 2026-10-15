@@ -489,7 +489,16 @@ fn a_reversed_clip_gives_its_notes_as_they_sound() {
     let mut r = Rig::new();
     r.open();
     let (t, c) = r.voice();
-    let mut a = r.app.project().track(t).unwrap().clip(c).unwrap().audio.clone().unwrap();
+    let mut a = r
+        .app
+        .project()
+        .track(t)
+        .unwrap()
+        .clip(c)
+        .unwrap()
+        .audio
+        .clone()
+        .unwrap();
     a.reverse = true;
     assert!(r.app.exec(Command::SetClipAudio {
         track: t,
@@ -500,4 +509,31 @@ fn a_reversed_clip_gives_its_notes_as_they_sound() {
     let clip = r.app.project().track(mt).unwrap().clip(mc).unwrap();
     let pitches: Vec<u8> = clip.notes.iter().map(|n| n.pitch).collect();
     assert_eq!(pitches, vec![62, 64, 60, 57]);
+}
+
+/// The edit keys act on the notes while the editor has the focus: Ctrl+A, ↑ a step of the
+/// key, Shift+↑ an octave, Alt+↑ ten cents, Esc lets the notes go (never the clip).
+#[test]
+fn the_edit_keys_act_on_the_notes() {
+    let mut r = Rig::new();
+    r.open();
+    r.pointer = Some(r.blob(0).center());
+    r.key(Key::A, Modifiers::COMMAND);
+    assert_eq!(r.app.pitch.view.selected.len(), 4, "Ctrl+A");
+    r.app.pitch.view.selected = vec![r.app.pitch.view.blobs[0].0];
+    r.key(Key::ArrowUp, Modifiers::NONE);
+    let n = r.stored().unwrap().notes[0].clone();
+    // A3 in A minor: a step up is B3.
+    assert_eq!(n.pitch, 59.0, "a step of the key");
+    r.key(Key::ArrowUp, Modifiers::SHIFT);
+    assert_eq!(r.stored().unwrap().notes[0].pitch, 71.0, "an octave");
+    r.key(Key::ArrowDown, Modifiers::ALT);
+    assert!(
+        (r.stored().unwrap().notes[0].pitch - 70.9).abs() < 1e-4,
+        "ten cents"
+    );
+    let clip = r.app.selected_clip;
+    r.key(Key::Escape, Modifiers::NONE);
+    assert!(r.app.pitch.view.selected.is_empty());
+    assert_eq!(r.app.selected_clip, clip, "the clip stays in the editor");
 }
