@@ -27,6 +27,11 @@ pub const MODES: usize = 40;
 /// The low band's decimation.
 pub const DECIMATE: u32 = 4;
 const FDN: usize = 4;
+/// Radiation: a plate below its coincidence frequency radiates the better the higher the
+/// frequency, so what reaches the listener rises against the bridge's force — modelled as a
+/// first-order rise of 20 dB between 120 Hz and 1.2 kHz (unity above: `1 − 0.9·LP₁₂₀₀`).
+const RADIATION_HZ: f64 = 1_200.0;
+const RADIATION_CUT: f64 = 0.9;
 /// The bridge's motion a sympathetic string's end follows, against the voices' own
 /// coupling: a fifth (the bridge is stiffer where the struck key's strings do not cross it).
 const SYMPATHY: f64 = 0.2;
@@ -326,6 +331,9 @@ pub struct Soundboard {
     /// The body's level (modes and FDN), and the tilt's shelf gain minus one.
     pub body: f64,
     shelf: f64,
+    /// The radiation's low-pass (per channel, subtracted).
+    rad: [f64; 2],
+    rad_a: f64,
 }
 
 impl Soundboard {
@@ -384,6 +392,8 @@ impl Soundboard {
             tilt_a: math::exp(-std::f64::consts::TAU * 2_500.0 / fs),
             body: 1.0,
             shelf: 0.0,
+            rad: [0.0; 2],
+            rad_a: math::exp(-std::f64::consts::TAU * RADIATION_HZ / fs),
         }
     }
 
@@ -411,6 +421,7 @@ impl Soundboard {
         self.dc_x = [0.0; 2];
         self.dc_y = [0.0; 2];
         self.tilt = [0.0; 2];
+        self.rad = [0.0; 2];
     }
 
     /// Whether every state is exactly zero (what the rest of the instrument's silence needs).
@@ -426,6 +437,7 @@ impl Soundboard {
             && self.dc_x == [0.0; 2]
             && self.dc_y == [0.0; 2]
             && self.tilt == [0.0; 2]
+            && self.rad == [0.0; 2]
     }
 
     /// The largest state of each part (tests): modes, decimator, lines, damping, filters.
@@ -450,6 +462,8 @@ impl Soundboard {
             self.dc_y[1],
             self.tilt[0],
             self.tilt[1],
+            self.rad[0],
+            self.rad[1],
         ]
         .iter()
         .fold(0.0f64, |m, x| m.max(x.abs()));
@@ -484,6 +498,7 @@ impl Soundboard {
             f(&mut self.dc_x[c]);
             f(&mut self.dc_y[c]);
             f(&mut self.tilt[c]);
+            f(&mut self.rad[c]);
         }
         for l in self.lines.iter_mut() {
             if l.peak() < floor {
@@ -546,7 +561,9 @@ impl Soundboard {
             } else {
                 outs[1] + outs[3]
             };
-            out[c] = y + self.shelf * high + body * (low + 0.5 * fdn);
+            let o = y + self.shelf * high + body * (low + 0.5 * fdn);
+            self.rad[c] = o + self.rad_a * (self.rad[c] - o);
+            out[c] = o - RADIATION_CUT * self.rad[c];
         }
         (out[0], out[1])
     }

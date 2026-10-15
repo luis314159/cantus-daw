@@ -22,8 +22,9 @@ use std::sync::Arc;
 
 /// Samples per chunk: the lanes' length.
 pub const CHUNK: usize = 64;
-/// The bridge force (N) to the output's full scale: a forte middle C peaks near −12 dBFS.
-const OUTPUT_SCALE: f64 = 0.03;
+/// The bridge force (N) to the output's full scale: both hands fortissimo with the pedal
+/// down peak near −3 dBFS, a mezzo-forte middle C near −23 dBFS (`inst_chorda`).
+const OUTPUT_SCALE: f64 = 0.0225;
 /// The board's states are flushed below this (N: −230 dBFS out) once nothing drives it.
 const FLOOR: f64 = 1.0e-10;
 

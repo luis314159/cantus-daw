@@ -165,3 +165,49 @@ fn at_rest_it_is_as_good_as_new() {
     let (x, y) = (play(&mut a, 9_600), play(&mut b, 9_600));
     assert_null(&x, &y, 0.0, "the rested unit against a new one");
 }
+
+fn peak_db(x: &[f32]) -> f64 {
+    let p = x.iter().fold(0f32, |m, v| m.max(v.abs())) as f64;
+    20.0 * math::log10(p.max(1e-12))
+}
+
+#[test]
+fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
+    // Both hands fortissimo, the pedal down: under −2 dBFS at the defaults.
+    let mut u = Unit::new(SR);
+    u.controller(Controller::Sustain, 1.0);
+    for (i, k) in [21u8, 33, 45, 52, 57, 64, 69, 76, 88, 96]
+        .iter()
+        .enumerate()
+    {
+        u.note_on(on(*k, 1.0, i as u64 + 1));
+    }
+    let loud = peak_db(&play(&mut u, 48_000));
+    // A mezzo-forte middle C: clearly heard, well under the top.
+    let mut u = Unit::new(SR);
+    u.note_on(on(60, 0.6, 1));
+    let mf = peak_db(&play(&mut u, 24_000));
+    eprintln!("ff both hands with pedal {loud:.1} dBFS, mf middle C {mf:.1} dBFS");
+    assert!(loud < -2.0, "{loud}");
+    assert!((-30.0..-12.0).contains(&mf), "{mf}");
+}
+
+#[test]
+#[ignore]
+fn print_the_keys_levels() {
+    for k in [21u8, 28, 33, 40, 45, 52, 57, 64, 69, 76, 81, 88, 96, 108] {
+        let mut row = String::new();
+        for v in [0.2f32, 0.5, 0.8, 1.0] {
+            let mut u = Unit::new(SR);
+            u.note_on(on(k, v, 1));
+            let x = play(&mut u, 24_000);
+            let rms = (x.iter().map(|s| (*s as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+            row += &format!(
+                "  v{v}: pk {:6.1} rms {:6.1}",
+                peak_db(&x),
+                20.0 * math::log10(rms.max(1e-12))
+            );
+        }
+        eprintln!("key {k:3}{row}");
+    }
+}
