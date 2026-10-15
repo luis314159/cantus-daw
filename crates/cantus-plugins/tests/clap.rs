@@ -196,7 +196,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Clipper => "drive",
             EffectKind::Transient => "attack",
             EffectKind::TransientSplit => "t.gain",
-            EffectKind::Analyzer => "out",
+            EffectKind::Analyzer => "avg",
             // The test signal is not a voice: the throat works on it all the same.
             EffectKind::AutoTune => "throat",
             _ => "thr",

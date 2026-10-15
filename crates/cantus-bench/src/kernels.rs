@@ -197,7 +197,11 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("b.tilt", -4.0),
             ],
         ),
-        EffectKind::Analyzer => {}
+        // Speculum: a pass-through, whatever is shown (the largest FFT, both channels).
+        EffectKind::Analyzer => set(
+            &mut s,
+            &[("view", 1.0), ("fft", 4.0), ("chan", 4.0), ("sync", 1.0)],
+        ),
         // Tonus: the hard effect an octave up with the throat down, humanised, a created
         // vibrato — every grain path working at once.
         EffectKind::AutoTune => set(

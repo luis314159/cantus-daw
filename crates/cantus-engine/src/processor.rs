@@ -200,6 +200,8 @@ pub struct Processor {
     capture_slot: Option<usize>,
     /// The effect the analyser looks at.
     analysed: Option<cantus_core::EffectId>,
+    /// The Speculums whose signals go to the scope rings (ADR 0056).
+    scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -312,6 +314,7 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
+            scoped: [None; crate::fx::speculum::MAX_SCOPES],
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
@@ -515,6 +518,20 @@ impl Processor {
         match self.nodes.analysis.try_borrow_mut() {
             Some(mut a) => a.ring = Some(producer),
             None => self.nodes.conflict(),
+        }
+    }
+
+    /// Give the processor the producer ends of the scope rings, one per watchable Speculum
+    /// (ADR 0056; `EngineHandle::watch_scope`). Extra producers are ignored.
+    pub fn attach_scopes(
+        &mut self,
+        producers: Vec<Producer<crate::fx::speculum::ScopeChunk>>,
+    ) {
+        for (cell, p) in self.nodes.scopes.iter().zip(producers) {
+            match cell.try_borrow_mut() {
+                Some(mut t) => t.ring = Some(p),
+                None => self.nodes.conflict(),
+            }
         }
     }
 

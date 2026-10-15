@@ -27,6 +27,54 @@ pub(crate) fn analyse(a: &mut Analysis, l: &[f32], r: &[f32]) {
     }
 }
 
+/// A watched Speculum's signal into its scope ring (ADR 0056): chunks of up to
+/// [`CHUNK`](crate::fx::speculum::CHUNK) frames, each with the song's position at its first
+/// frame. Nothing for an effect nobody watches (eight comparisons); a full ring counts what
+/// it lost. Allocation-free.
+#[inline]
+pub(crate) fn scope(
+    nodes: &Nodes,
+    scoped: &[Option<EffectId>],
+    position: &crate::fx::SongPosition,
+    sample_rate: f64,
+    id: EffectId,
+    l: &[f32],
+    r: &[f32],
+) {
+    use crate::fx::speculum::{ScopeChunk, CHUNK};
+    let Some(i) = scoped.iter().position(|s| *s == Some(id)) else {
+        return;
+    };
+    let Some(mut tap) = nodes.scopes[i].try_borrow_mut() else {
+        nodes.conflict();
+        return;
+    };
+    let beats_per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
+    let n = l.len().min(r.len());
+    let mut at = 0;
+    while at < n {
+        let k = (n - at).min(CHUNK);
+        let tap = &mut *tap;
+        let Some(ring) = tap.ring.as_mut() else {
+            return;
+        };
+        if ring.slots() == 0 {
+            tap.lost += 1;
+            return;
+        }
+        let mut c = ScopeChunk::EMPTY;
+        c.frames = k as u16;
+        c.beat = position
+            .playing
+            .then(|| position.beats + at as f64 * beats_per_frame);
+        c.tempo_bpm = position.tempo_bpm;
+        c.l[..k].copy_from_slice(&l[at..at + k]);
+        c.r[..k].copy_from_slice(&r[at..at + k]);
+        let _ = ring.push(c);
+        at += k;
+    }
+}
+
 /// The analysed unit's readings, for the meters.
 #[inline]
 pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
@@ -145,6 +193,7 @@ pub(crate) fn strip_chain(
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
+            scope(nodes, &ctx.scoped, &ctx.position, ctx.sample_rate, e.id, l, r);
             continue;
         }
         let wet = mix[i];
@@ -200,6 +249,8 @@ pub(crate) fn strip_chain(
                 read_meters(a, e);
             }
         }
+        // A watched Speculum: its signal to its scope ring (ADR 0056).
+        scope(nodes, &ctx.scoped, &ctx.position, ctx.sample_rate, e.id, l, r);
     }
     prof.enter(Node::Strip(slot));
     // The strip's own EQ, after the inserts and before the channel is placed — where a

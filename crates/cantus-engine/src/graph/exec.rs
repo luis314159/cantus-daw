@@ -143,6 +143,13 @@ pub(crate) struct Analysis {
     pub fx: Option<crate::fx::Telemetry>,
 }
 
+/// A watched Speculum's ring (ADR 0056), and the chunks a full ring lost.
+#[derive(Default)]
+pub(crate) struct ScopeTap {
+    pub ring: Option<rtrb::Producer<crate::fx::speculum::ScopeChunk>>,
+    pub lost: u64,
+}
+
 /// The mix recorder's ring (a strip's take, or the master's), and what it lost.
 pub(crate) struct Capture {
     pub ring: Option<rtrb::Producer<f32>>,
@@ -189,6 +196,8 @@ pub(crate) struct Nodes {
     pub input: ShareCell<crate::processor::rec::InputBlock>,
     pub scratch: Box<[cantus_rt::CachePadded<NodeCell<Scratch>>]>,
     pub analysis: NodeCell<Analysis>,
+    /// The scope rings of the Speculums being watched, one cell each (ADR 0056).
+    pub scopes: Box<[NodeCell<ScopeTap>]>,
     pub probe: NodeCell<Option<crate::inst::Telemetry>>,
     pub capture: NodeCell<Capture>,
     pub tap: NodeCell<Option<Box<crate::stems::StemTap>>>,
@@ -273,6 +282,9 @@ impl Nodes {
                 comp: None,
                 fx: None,
             }),
+            scopes: (0..crate::fx::speculum::MAX_SCOPES)
+                .map(|_| NodeCell::new(ScopeTap::default()))
+                .collect(),
             probe: NodeCell::new(None),
             capture: NodeCell::new(Capture {
                 ring: None,

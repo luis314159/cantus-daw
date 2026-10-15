@@ -1,56 +1,86 @@
-//! Speculum, the analyser (Wave Candy / SPAN class), behind the engine's plug-in contract.
-//! Owned by Speculum.
+//! Speculum, the analyser, behind the engine's plug-in contract (ADR 0056). Owned by
+//! Speculum.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::speculum`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::speculum`.
+//! **A pure pass-through**: the unit touches no sample, holds no state and is always at
+//! rest. What Speculum shows is measured on the editor's thread (`cantus_dsp::speculum`)
+//! from its slot's own stereo signal, which the engine copies out — for every Speculum
+//! being looked at, up to [`MAX_SCOPES`] at once — into a lock-free ring of
+//! [`ScopeChunk`]s that carry the song's position with them (`graph/strip_run.rs`,
+//! `graph/master_run.rs`, `EngineHandle::watch_scope`). Nothing is dropped while the
+//! editor drains its ring once a frame: a ring holds 1.4 s at 48 kHz.
 
 use super::FxUnit;
+use cantus_core::fx::speculum::{FLOORS, SCOPE_BEATS};
 use cantus_core::EffectSpec;
+use cantus_dsp::speculum::{Channel, SpeculumSettings, Sync, FFT_SIZES};
 
-/// Speculum's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
+/// How many Speculums can be watched at once (each a ring of its own).
+pub const MAX_SCOPES: usize = 8;
+/// Frames a chunk carries.
+pub const CHUNK: usize = 64;
+/// Chunks a ring holds (65 536 frames: 1.4 s at 48 kHz, more than any editor frame waits).
+pub const SCOPE_CHUNKS: usize = 1_024;
+
+/// Frames of a watched Speculum's signal, with where the song was at the first of them.
+#[derive(Copy, Clone, Debug)]
+pub struct ScopeChunk {
+    /// Frames used, 1 … [`CHUNK`].
+    pub frames: u16,
+    /// The song's position at the first frame, quarter notes, while it plays.
+    pub beat: Option<f64>,
+    pub tempo_bpm: f64,
+    pub l: [f32; CHUNK],
+    pub r: [f32; CHUNK],
 }
 
-/// Speculum's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
-        out_db: spec.get("out"),
+impl ScopeChunk {
+    pub const EMPTY: ScopeChunk = ScopeChunk {
+        frames: 0,
+        beat: None,
+        tempo_bpm: 0.0,
+        l: [0.0; CHUNK],
+        r: [0.0; CHUNK],
+    };
+}
+
+/// Speculum's view settings as the measurements want them; also what its editor draws
+/// from.
+pub fn settings(spec: &EffectSpec) -> SpeculumSettings {
+    let pick = |i: f32, n: usize| (i.round().max(0.0) as usize).min(n - 1);
+    SpeculumSettings {
+        fft_size: FFT_SIZES[pick(spec.get("fft"), FFT_SIZES.len())],
+        avg_ms: spec.get("avg"),
+        slope_db: spec.get("slope"),
+        hold: spec.get("hold") >= 0.5,
+        channel: Channel::from_index(spec.get("chan")),
+        sync: Sync::from_index(spec.get("sync")),
+        scope_beats: SCOPE_BEATS[pick(spec.get("beats"), SCOPE_BEATS.len())],
+        scope_ms: spec.get("ms"),
+        target_lufs: spec.get("target"),
+        floor_db: FLOORS[pick(spec.get("floor"), FLOORS.len())],
     }
 }
 
-#[derive(Debug)]
-pub struct Unit {
-    gain: f32,
+/// The view a spec shows, 0 … 5.
+pub fn view_of(spec: &EffectSpec) -> usize {
+    (spec.get("view").round().max(0.0) as usize).min(5)
 }
+
+/// The pass-through: nothing to configure, nothing to remember.
+#[derive(Debug, Default)]
+pub struct Unit;
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
         let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit
     }
 }
 
 impl FxUnit for Unit {
-    fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
-    }
+    fn configure(&mut self, _spec: &EffectSpec) {}
 
-    fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
-    }
+    fn process(&mut self, _left: &mut [f32], _right: &mut [f32], _key: Option<(&[f32], &[f32])>) {}
 
     fn reset(&mut self) {}
 
@@ -65,19 +95,23 @@ mod tests {
     use super::*;
     use cantus_core::EffectKind;
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
+    /// The table's defaults are the measurements' defaults.
     #[test]
-    fn the_tables_defaults_are_the_dsps_defaults() {
+    fn the_tables_defaults_are_the_analysis_defaults() {
         let spec = EffectSpec::new(EffectKind::Analyzer);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(settings(&spec), SpeculumSettings::default());
+        assert_eq!(view_of(&spec), 0);
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    /// Whatever is set, the unit touches no sample and stays at rest.
     #[test]
-    fn the_defaults_touch_no_sample() {
+    fn it_touches_no_sample_whatever_is_set() {
+        let mut spec = EffectSpec::new(EffectKind::Analyzer);
+        for info in EffectKind::Analyzer.params() {
+            spec.set(info.key, info.max);
+        }
         let mut u = Unit::new(48_000.0);
-        u.configure(&EffectSpec::new(EffectKind::Analyzer));
+        u.configure(&spec);
         let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
         let (mut l, mut r) = (x.clone(), x.clone());
         u.process(&mut l, &mut r, None);

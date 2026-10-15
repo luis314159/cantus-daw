@@ -1088,7 +1088,6 @@ discrimen cantus.sidechain 1368826709
 discrimen cantus.bypass 710603219
 speculum clap com.github.lalmazan.cantus.speculum
 speculum vst3 CBA1953DC34A0CF35419D4DA1196A31A
-speculum out 723138143
 speculum cantus.sidechain 1368826709
 speculum cantus.bypass 710603219
 tonus clap com.github.lalmazan.cantus.tonus

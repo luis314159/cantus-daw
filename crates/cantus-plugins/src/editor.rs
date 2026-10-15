@@ -15,7 +15,7 @@ pub use crate::instance::Edit;
 use crate::instance::{Shared, PAIRS};
 use cantus_core::{EffectKind, EffectSpec};
 use cantus_engine::Telemetry;
-use cantus_ui::views::fx::host::{FxHost, KeySource, KeyTarget, Transport};
+use cantus_ui::views::fx::host::{FxHost, KeySource, KeyTarget, StereoTake, Transport};
 use cantus_ui::views::fx::Editor as FxEditor;
 use egui_baseview::baseview::dpi::{LogicalSize, Size};
 use egui_baseview::baseview::{self, Window};
@@ -269,6 +269,24 @@ impl FxHost for PluginHost {
 
     fn take_pairs(&mut self, out: &mut Vec<(f32, f32)>) {
         out.extend(self.pairs.drain(..));
+    }
+
+    /// Speculum's tap carries its own frames, left and right (ADR 0056); the song's
+    /// position is the host's transport as the audio thread last saw it.
+    fn take_stereo(&mut self, out: &mut Vec<(f32, f32)>) -> StereoTake {
+        if self.shared.desc.kind != EffectKind::Analyzer {
+            return StereoTake::default();
+        }
+        out.extend(self.pairs.drain(..));
+        let clock = self
+            .shared
+            .host_transport()
+            .filter(|h| h.playing && h.tempo > 0.0)
+            .map(|h| (h.beats, h.tempo));
+        StereoTake {
+            stream: true,
+            clock,
+        }
     }
 }
 
