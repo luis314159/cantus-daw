@@ -194,7 +194,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::FreqShift => "shift",
             EffectKind::VolumeShaper => "depth",
             EffectKind::Clipper => "drive",
-            EffectKind::Transient => "out",
+            EffectKind::Transient => "attack",
             EffectKind::TransientSplit => "out",
             EffectKind::Analyzer => "out",
             // The test signal is not a voice: the throat works on it all the same.

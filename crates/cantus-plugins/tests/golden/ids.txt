@@ -1287,3 +1287,9 @@ tonsor curve 423101972
 tonsor os 1580477207
 tonsor tp 1229280041
 tonsor match 2116038550
+impetus attack 1167440125
+impetus sustain 1103988874
+impetus speed 2072037248
+impetus length 63976981
+impetus band 815078726
+impetus xover 891963805

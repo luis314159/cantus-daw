@@ -157,7 +157,18 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("match", 1.0),
             ],
         ),
-        EffectKind::Transient => {}
+        // Impetus: both amounts at work on the highs, the shortest onset, a long tail.
+        EffectKind::Transient => set(
+            &mut s,
+            &[
+                ("attack", 1.0),
+                ("sustain", -0.7),
+                ("speed", 2.0),
+                ("length", 900.0),
+                ("band", 1.0),
+                ("xover", 600.0),
+            ],
+        ),
         EffectKind::TransientSplit => {}
         EffectKind::Analyzer => {}
         // Tonus: the hard effect an octave up with the throat down, humanised, a created
