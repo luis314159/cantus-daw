@@ -73,3 +73,4 @@ chorda.body.short = BOARD
 chorda.tilt.short = TILT
 chorda.width.short = WIDTH
 chorda.not_automatable = A4, stretch and stiffness design the strings: they are set, not automated.
+chorda.designing_pct = designing the strings: {pct} %

@@ -68,12 +68,25 @@ pub fn grand_caption(k: &Key) -> String {
     )
 }
 
-/// The piano from above in the display `d`.
-pub fn grand(b: &mut Brush, d: Rect, s: &Style, keys: &[Key; KEYS], now: &Now, grip: f32) {
+/// The piano from above in the display `d`; `busy` (the design's progress) leads its
+/// caption while the strings are designed.
+pub fn grand(
+    b: &mut Brush,
+    d: Rect,
+    s: &Style,
+    keys: &[Key; KEYS],
+    now: &Now,
+    grip: f32,
+    busy: Option<&str>,
+) {
     let tk = &s.t;
     let shown = keys.iter().find(|k| k.key == now.key).unwrap_or(&keys[39]);
     let (line, room) = caption(d, s);
-    label(b, line, &grand_caption(shown), Role::Label, tk.text, s);
+    let caption_text = match busy {
+        Some(p) => format!("{p} \u{b7} {}", grand_caption(shown)),
+        None => grand_caption(shown),
+    };
+    label(b, line, &caption_text, Role::Label, tk.text, s);
     light::sunken(b, room, s.r(3.0), tk.well, 1.0, tk.depth);
     let inner = room.shrink(s.s(4.0));
     let kb_h = s.s(16.0).min(inner.height() * 0.3);

@@ -10,8 +10,6 @@ mod inst_keys;
 mod support;
 use cantus_core::inst::modulation::connections;
 use cantus_core::*;
-use cantus_engine::EngineHandle;
-use cantus_ui::app::Files;
 use cantus_ui::views::inst::{chorda, preset_spec, View};
 use cantus_ui::CantusApp;
 use inst_keys::{audit, drag, drop_source, frame, joined, scroll, set_scale};
@@ -235,26 +233,63 @@ fn presets_set_what_they_name() {
 }
 
 #[test]
-fn the_boot_path_starts_designing_the_keyboard() {
-    let data = tempfile::tempdir().unwrap();
-    std::env::set_var("CANTUS_DATA_DIR", data.path());
-    let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
-    let ctx = egui::Context::default();
-    let app = CantusApp::assemble(
-        &ctx,
-        files,
-        None,
-        EngineHandle::dummy(),
-        None,
-        None,
-        None,
-        false,
-    );
-    let fs = app.engine.sample_rate as f32;
+fn the_inspector_reads_the_tuning_as_the_knobs_do() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let mut spec = NativeSpec::new(InstrumentKind::Chorda);
     assert!(
-        cantus_engine::inst::chorda::is_warm(fs),
-        "the reference keyboard at {fs} Hz is designed or on its way"
+        chorda::preview_text(&spec).contains("A4 440.0 Hz · Stretch 100 %"),
+        "{}",
+        chorda::preview_text(&spec)
     );
+    spec.set("stretch", 0.7).unwrap();
+    assert!(chorda::preview_text(&spec).contains("70 %"));
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let es = chorda::preview_text(&spec);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(es.contains("La4 440.0 Hz"), "{es}");
+}
+
+#[test]
+fn while_the_strings_are_designed_the_editor_says_so() {
+    let (mut a, _) = with_chorda();
+    let ctx = ctx();
+    let mut t = [0.0; cantus_engine::TELEMETRY_LEN];
+    t[cantus_engine::inst::chorda::tel::ALIVE] = 1.0;
+    a.inst.injected = Some(t);
+    for view in [View::Play, View::Edit] {
+        a.inst.view = view;
+        let text = settle(&mut a, &ctx);
+        assert!(text.contains("designing the strings: "), "{view:?}: {text}");
+    }
+    t[cantus_engine::inst::chorda::tel::DESIGNED] = 1.0;
+    a.inst.injected = Some(t);
+    a.inst.view = View::Play;
+    assert!(!settle(&mut a, &ctx).contains("designing"));
+}
+
+#[test]
+fn the_tuning_is_set_never_automated() {
+    let (mut a, track) = with_chorda();
+    let clips = |a: &CantusApp| {
+        a.project()
+            .tracks
+            .iter()
+            .map(|t| t.clips.len())
+            .sum::<usize>()
+    };
+    let before = clips(&a);
+    for key in ["a4", "stretch", "stiffness"] {
+        let made = a.create_automation_clip(AutoTarget::Instrument {
+            track,
+            key: key.into(),
+        });
+        assert!(!made, "{key}");
+    }
+    assert_eq!(clips(&a), before, "no clip");
+    assert!(a.create_automation_clip(AutoTarget::Instrument {
+        track,
+        key: "hardness".into(),
+    }));
 }
 
 #[test]
