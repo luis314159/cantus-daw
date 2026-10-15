@@ -48,6 +48,8 @@ pub mod host;
 pub mod impetus;
 pub mod limiter;
 pub mod maximizer;
+/// What the modulation family's editors share: the LFO card, the movement display (round 28).
+pub mod modfx;
 pub mod multiband;
 /// Phasis, the phaser (round 28).
 pub mod phasis;

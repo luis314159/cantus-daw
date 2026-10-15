@@ -188,7 +188,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Chorus => "out",
             EffectKind::Flanger => "out",
             EffectKind::Phaser => "out",
-            EffectKind::Tremolo => "out",
+            EffectKind::Tremolo => "depth",
             EffectKind::Vibrato => "out",
             EffectKind::RingMod => "out",
             EffectKind::FreqShift => "out",
