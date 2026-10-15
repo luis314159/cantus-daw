@@ -290,13 +290,17 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
     let _ = ModHandle(1);
 }
 
-/// The Modulators section draws every kind, folded and unfolded, without a fault, in both
-/// languages; the inspector shows the track's, its channel's and the master's.
+/// The Modulators section draws every kind, folded and unfolded, in both languages: the
+/// track's and its channel's bands for a track, the master's for the master — each
+/// modulator's name in its title, its amount a parameter row that offers modulation
+/// (nesting, ADR 0057), a folded one its title alone.
 #[test]
 fn the_modulators_section_draws_every_kind() {
+    use cantus_ui::kit::automate::probe;
     let mut p = starter_project();
     let t = p.tracks[0].id;
     let s = p.tracks[0].strip.unwrap();
+    let mut ids = Vec::new();
     for (host, k) in [
         (ModHost::Track(t), ModKind::Lfo),
         (ModHost::Track(t), ModKind::Envelope),
@@ -305,35 +309,106 @@ fn the_modulators_section_draws_every_kind() {
         (ModHost::Master, ModKind::Random),
     ] {
         let mut m = Modulator::new(ModulatorId(p.alloc_id()), k);
+        m.name = format!("Mod {}", ids.len() + 1);
         m.routes.push(ModRoute {
             target: AutoTarget::StripPan(s),
             depth: 0.3,
         });
+        ids.push(m.id);
         p.modulators_mut(host).unwrap().push(m);
     }
     let mut a = app(p);
-    a.select_track(t);
     let ctx = ctx();
-    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+    let draw = |a: &mut CantusApp| -> (String, usize) {
+        probe::start();
+        let mut text = String::new();
         for _ in 0..2 {
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(360.0, 1800.0),
+                    egui::vec2(360.0, 2400.0),
                 )),
                 ..Default::default()
             };
-            ctx.run_ui(input, |ui| {
+            let mut out = ctx.run_ui(input, |ui| {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
-                    .show(ui, |ui| cantus_ui::views::inspector::show(&mut a, ui));
-            })
-            .textures_delta
-            .clear();
+                    .show(ui, |ui| cantus_ui::views::inspector::show(a, ui));
+            });
+            out.textures_delta.clear();
+            text = String::new();
+            for c in &out.shapes {
+                if let egui::Shape::Text(t) = &c.shape {
+                    text.push_str(t.galley.text());
+                    text.push('|');
+                }
+            }
         }
+        let amounts = probe::take()
+            .iter()
+            .filter(|(n, m)| n == "mods.amount" && *m)
+            .count();
+        (text, amounts / 2)
+    };
+    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(locale);
+        a.select_track(t);
+        let (text, amounts) = draw(&mut a);
+        for n in ["Mod 1", "Mod 2", "Mod 3", "Mod 4"] {
+            assert!(text.contains(n), "{locale:?}: {n} is drawn: {text}");
+        }
+        assert!(!text.contains("Mod 5"), "the master's is not the track's");
+        assert_eq!(amounts, 4, "each one's amount row offers modulation");
+        // Folded: its title stays, its rows go.
+        a.modulators.folded.insert(ids[1]);
+        let (text, amounts) = draw(&mut a);
+        assert!(text.contains("Mod 2"));
+        assert_eq!(amounts, 3);
+        a.modulators.folded.clear();
+        // The master: its own band, the random source's rows.
+        a.select_master();
+        let (text, amounts) = draw(&mut a);
+        assert!(
+            text.contains("Mod 5"),
+            "{locale:?}: the master's band: {text}"
+        );
+        assert_eq!(amounts, 1);
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// Nesting from the interface (ADR 0057, review 1): another modulator's handle dropped on
+/// a modulator's amount connects it there — one undo step — and a modulator is never
+/// offered its own amount.
+#[test]
+fn a_handle_dropped_on_an_amount_nests_one_modulator_in_another() {
+    let mut a = app(starter_project());
+    let (t, s, _) = pan(&a);
+    let lfo = a
+        .add_modulator(
+            ModHost::Track(t),
+            ModKind::Lfo,
+            Some(AutoTarget::StripPan(s)),
+        )
+        .unwrap();
+    let rnd = a
+        .add_modulator(ModHost::Track(t), ModKind::Random, None)
+        .unwrap();
+    let steps = a.bus.history().len();
+    let amount = AutoTarget::ModAmount(lfo);
+    a.modulation_choice(&amount, Choice::Connect(rnd.0), egui::Rect::NOTHING);
+    assert_eq!(a.bus.history().len(), steps + 1);
+    let route = |a: &CantusApp| {
+        a.project()
+            .modulator(rnd)
+            .and_then(|(_, _, m)| m.route(&amount).map(|r| r.depth))
+    };
+    assert!(route(&a).is_some(), "nested");
+    // Its own handle on its own amount: nothing.
+    a.modulation_choice(&amount, Choice::Connect(lfo.0), egui::Rect::NOTHING);
+    assert_eq!(a.bus.history().len(), steps + 1);
+    a.undo();
+    assert!(route(&a).is_none());
 }
 
 /// Reach: the shipped window's frame (`boot::Shell`, whose frames are `CantusApp`'s own)

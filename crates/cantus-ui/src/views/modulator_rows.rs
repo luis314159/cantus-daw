@@ -552,20 +552,6 @@ fn polarity(sh: &mut Sheet<'_>, m: &Modulator, unipolar: bool) {
     );
 }
 
-/// The amount row: every route at once, 0…100 %.
-pub fn amount(sh: &mut Sheet<'_>, m: &Modulator) {
-    num(
-        sh,
-        m,
-        "mods.amount",
-        "amount",
-        m.amount,
-        Range::lin(0.0, 1.0, 1.0),
-        sheet::percent,
-        |e, v| e.amount = v,
-    );
-}
-
 /// Whose audio it hears, in words.
 fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) -> sheet::NameBuf {
     let text = sh.fmt.get(

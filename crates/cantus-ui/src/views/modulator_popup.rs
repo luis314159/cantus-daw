@@ -29,13 +29,22 @@ enum Row {
     Nothing,
 }
 
-/// The rows for `target`, and their items' labels (owned: names are the project's).
-fn rows(app: &CantusApp, target: &AutoTarget) -> Vec<(Row, String, Check, bool)> {
+/// One row of the popup: what it does, its label (owned: names are the project's), its
+/// check, and whether it is a band.
+type PopRow = (Row, String, Check, bool);
+
+/// The rows for `target` in three parts: the modulators to connect (scrolled when many),
+/// the kinds to make, the routes to bake (always in view).
+fn rows(app: &CantusApp, target: &AutoTarget) -> [Vec<PopRow>; 3] {
     let p = app.project();
     let home = host_for(p, target, app.selected_track);
     let mut mine = Vec::new();
     let mut others = Vec::new();
     for (host, m) in p.all_modulators() {
+        // A modulator's own amount is not a target it can take.
+        if *target == AutoTarget::ModAmount(m.id) {
+            continue;
+        }
         let on = m.route(target).is_some();
         let label = match mod_name(p, m.id) {
             Some(n) if host == home => n,
@@ -49,26 +58,48 @@ fn rows(app: &CantusApp, target: &AutoTarget) -> Vec<(Row, String, Check, bool)>
             others.push(row);
         }
     }
-    let mut out = vec![(Row::Nothing, t("mods.popup.connect"), Check::None, true)];
+    let mut connect = vec![(Row::Nothing, t("mods.popup.connect"), Check::None, true)];
     if mine.is_empty() && others.is_empty() {
-        out.push((Row::Nothing, t("mods.popup.none"), Check::None, false));
+        connect.push((Row::Nothing, t("mods.popup.none"), Check::None, false));
     }
-    out.extend(mine);
-    out.extend(others);
-    out.push((Row::Nothing, t("mods.popup.new"), Check::None, true));
+    connect.extend(mine);
+    connect.extend(others);
+    let mut new = vec![(Row::Nothing, t("mods.popup.new"), Check::None, true)];
     for k in ModKind::ALL {
-        out.push((Row::New(k), t(k.name_key()), Check::None, false));
+        new.push((Row::New(k), t(k.name_key()), Check::None, false));
     }
+    let mut bake = Vec::new();
     let baking: Vec<_> = p.routes_into(target).map(|(m, _)| m.id).collect::<Vec<_>>();
     if !baking.is_empty() {
-        out.push((Row::Nothing, t("mods.popup.bake"), Check::None, true));
+        bake.push((Row::Nothing, t("mods.popup.bake"), Check::None, true));
         for id in baking {
             if let Some(n) = mod_name(p, id) {
-                out.push((Row::Bake(id), n, Check::None, false));
+                bake.push((Row::Bake(id), n, Check::None, false));
             }
         }
     }
-    out
+    [connect, new, bake]
+}
+
+/// The items of some rows, with an optional title band first.
+fn items<'a>(title: Option<&'a str>, rows: &'a [PopRow]) -> Vec<Item<'a>> {
+    title
+        .map(|t| Item::Band(Src::Str(t)))
+        .into_iter()
+        .chain(rows.iter().map(|(row, label, check, band)| {
+            if *band {
+                Item::Band(Src::Str(label))
+            } else {
+                Item::Action {
+                    label: Src::Str(label),
+                    check: *check,
+                    shortcut: None,
+                    submenu: false,
+                    enabled: *row != Row::Nothing,
+                }
+            }
+        }))
+        .collect()
 }
 
 /// A host in words: the track's or strip's name, or the master.
@@ -97,36 +128,43 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         app.modulators.popup = Some((target.clone(), anchor));
     }
     let s = Style::current();
-    let list = rows(app, &target);
+    let [connect, new, bake] = rows(app, &target);
     let title = app.target_name(&target);
-    let items: Vec<Item<'_>> = std::iter::once(Item::Band(Src::Str(&title)))
-        .chain(list.iter().map(|(row, label, check, band)| {
-            if *band {
-                Item::Band(Src::Str(label))
-            } else {
-                Item::Action {
-                    label: Src::Str(label),
-                    check: *check,
-                    shortcut: None,
-                    submenu: false,
-                    enabled: *row != Row::Nothing,
-                }
-            }
-        }))
-        .collect();
     let width = 240.0;
     let mut clicked = None;
+    // The modulators to connect scroll when there are many (every track's, the strips',
+    // the master's); the title, the kinds to make and the bakes stay in view.
+    let screen = ctx.content_rect().height();
+    let fixed = crate::kit::menu::height(&items(Some(&title), &[]), s.d(1.0))
+        + crate::kit::menu::height(&items(None, &new), s.d(1.0))
+        + crate::kit::menu::height(&items(None, &bake), s.d(1.0));
+    let room = (screen - fixed - s.s(48.0)).max(s.s(120.0));
     let area = egui::Area::new(Id::new("mod-popup"))
         .order(Order::Foreground)
         .fixed_pos(egui::pos2(anchor.right() + s.s(4.0), anchor.top()))
         .constrain(true)
         .show(ctx, |ui| {
             crate::kit::automate::frame().show(ui, |ui| {
-                if let Some(i) = crate::kit::widgets::menu_list(ui, &items, width).1.clicked {
-                    clicked = i
-                        .checked_sub(1)
-                        .and_then(|k| list.get(k))
-                        .map(|x| x.0.clone());
+                let head = items(Some(&title), &[]);
+                crate::kit::widgets::menu_list(ui, &head, width);
+                egui::ScrollArea::vertical()
+                    .id_salt("mod-popup-list")
+                    .max_height(room)
+                    .show(ui, |ui| {
+                        let list = items(None, &connect);
+                        if let Some(i) = crate::kit::widgets::menu_list(ui, &list, width).1.clicked
+                        {
+                            clicked = connect.get(i).map(|x| x.0.clone());
+                        }
+                    });
+                for part in [&new, &bake] {
+                    if part.is_empty() {
+                        continue;
+                    }
+                    let list = items(None, part);
+                    if let Some(i) = crate::kit::widgets::menu_list(ui, &list, width).1.clicked {
+                        clicked = part.get(i).map(|x| x.0.clone());
+                    }
                 }
             });
         });

@@ -123,9 +123,34 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, host: ModHost, band_key: &'stat
             continue;
         }
         rows::source(sh, app, m);
-        rows::amount(sh, m);
+        amount(sh, app, m);
         routes(sh, app, m);
     }
+}
+
+/// The amount row: every route at once, 0…100 % — and a parameter of its own (ADR 0057's
+/// one level of nesting): its menu's *Modulate…*, another modulator's handle dropped on
+/// it, the Alt-drag depth, *Create automation clip*.
+fn amount(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
+    let base = m.clone();
+    let key = MergeKey::of(&("mod-field", m.id.0, "amount"));
+    param_row(
+        sh,
+        app,
+        "mods.amount",
+        Id::new(("mod-num", m.id, "amount")),
+        m.amount,
+        &Range::lin(0.0, 1.0, 1.0),
+        false,
+        sheet::percent,
+        function_of(m.source.kind()),
+        AutoTarget::ModAmount(m.id),
+        move |v| {
+            let mut e = base;
+            e.amount = v;
+            Act::Mod(ModAct::Set(Box::new(e), Some(key)))
+        },
+    );
 }
 
 /// No modulator yet: the empty row says what would go there, and opens the kinds.
