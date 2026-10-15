@@ -537,3 +537,37 @@ fn every_edit_keeps_the_edit_valid() {
         }
     }
 }
+
+/// Review 1: a valid edit sent to a clip that is not audio is refused, and nothing moves.
+#[test]
+fn a_pitch_edit_on_a_note_clip_is_refused() {
+    use crate::{Command, CommandBus, Origin, Ticks};
+    let mut bus = CommandBus::default();
+    let mut p = bus.project().clone();
+    let mut t = p.make_track("Keys");
+    let c = p.make_clip("notes", Ticks::ZERO, Ticks::beats(4));
+    let (tid, cid) = (t.id, c.id);
+    t.clips.push(c);
+    bus.execute(
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(t),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let before = bus.project().clone();
+    let (e, _) = take();
+    assert!(e.is_valid());
+    let r = bus.execute(
+        Command::SetClipPitch {
+            track: tid,
+            clip: cid,
+            pitch: Some(Box::new(e)),
+            op: PitchOp::Notes,
+        },
+        Origin::User,
+    );
+    assert!(r.is_err(), "not an audio clip");
+    assert_eq!(bus.project(), &before);
+}

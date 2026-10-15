@@ -755,8 +755,9 @@ mod tests {
     }
 
     /// Schema 27 (round 28, ADR 0054): the fixture's vocal take carries pitch edits — a
-    /// note moved and pulled onto its centre, one stretched, the key, the A/B switch — and
-    /// they come back as they were; an older file (25) opens with none.
+    /// note moved to another semitone and pulled onto its centre, one stretched, the key,
+    /// the A/B switch on — and they come back as they were; an older file (25) opens with
+    /// none.
     #[test]
     fn schema_27_keeps_a_takes_pitch_edits() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
@@ -773,10 +774,11 @@ mod tests {
         assert!(e.is_valid() && e.edited());
         assert_eq!((e.rate, e.key.tonic, e.key.scale), (48_000, 9, 2));
         assert_eq!(e.notes.len(), 3);
-        assert_eq!((e.notes[0].pitch, e.notes[0].centre), (69.0, 1.0));
+        assert_eq!((e.notes[0].pitch, e.notes[0].centre), (67.0, 1.0));
+        assert_ne!(e.notes[0].pitch, e.notes[0].home(), "moved to another note");
         assert!(e.notes[1].moved());
         assert_eq!(e.notes[2].formant, -2.0);
-        assert!(!e.bypass);
+        assert!(e.bypass, "the A/B switch, written and read");
         let old = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p

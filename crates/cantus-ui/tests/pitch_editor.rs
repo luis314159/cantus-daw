@@ -2,8 +2,9 @@
 //! clip (a double-click, *Edit pitch*), the take analysed off the window's thread, its
 //! notes drawn as blobs; a drag moves a note's pitch (one undo step, undone exactly),
 //! the Split tool cuts one, Ctrl+J joins, the macros correct the take, *Original* compares,
-//! MIDI out and *Double* make their clips — and the engine plays the render. Its own test
-//! binary: the boot path's test points `CANTUS_DATA_DIR` at a temporary folder.
+//! MIDI out and *Double* make their clips — and the engine plays the render. (The boot
+//! path's test, which points `CANTUS_DATA_DIR` elsewhere, has its own binary:
+//! `pitch_boot.rs`.)
 
 use cantus_core::pitch::PitchOp;
 use cantus_core::*;
@@ -379,29 +380,6 @@ fn midi_out_and_the_double_make_their_clips() {
 }
 
 #[test]
-fn the_boot_path_keeps_analyses_in_the_data_folder() {
-    let data = tempfile::tempdir().unwrap();
-    std::env::set_var("CANTUS_DATA_DIR", data.path());
-    let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
-    let ctx = egui::Context::default();
-    let app = CantusApp::assemble(
-        &ctx,
-        files,
-        None,
-        EngineHandle::dummy(),
-        None,
-        None,
-        None,
-        false,
-    );
-    assert_eq!(
-        app.engine.samples.pitch().disk_cache(),
-        Some(cantus_ui::app::data_dir().join("cache").join("pitch"))
-    );
-    data_dir();
-}
-
-#[test]
 fn every_pitch_string_is_in_both_languages() {
     for key in [
         "pitch.analysing",
@@ -453,12 +431,22 @@ fn the_demo_project_opens_and_plays_its_edits() {
     };
     // Muted tracks are not compiled: unmute to look at the double and the take as sung.
     assert!(differs(&data(0)), "the corrected voice plays its render");
-    app.exec(Command::SetTrackMute {
-        id: app.project().tracks[1].id,
-        muted: false,
-    });
+    for i in [1usize, 2] {
+        app.exec(Command::SetTrackMute {
+            id: app.project().tracks[i].id,
+            muted: false,
+        });
+    }
     let proj = app.project().clone();
     let snap = app.engine.compile_for_render(&proj, 2);
+    let double = snap.tracks[2].audio[0].data.clone().unwrap();
+    assert!(differs(&double), "the double plays a render");
+    let corrected = snap.tracks[0].audio[0].data.clone().unwrap();
+    assert!(
+        !std::sync::Arc::ptr_eq(&double, &corrected)
+            && double.frames.iter().zip(corrected.frames.iter()).any(|(a, b)| a != b),
+        "a render of its own"
+    );
     let sung = snap.tracks[1].audio[0].data.clone().unwrap();
     assert!(!differs(&sung), "the take as sung plays the file");
 }
