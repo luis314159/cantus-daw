@@ -1,4 +1,24 @@
 # Vibrans — owned by Vibrans. Every key here needs its twin in vibrans.es.txt.
 effect.vibrans = Vibrans vibrato
-fx.vibrans.about = Pitch that wavers like a voice, a tape or a rotary speaker.
+fx.vibrans.about = Pitch that wavers like a voice, a string or a tape.
+fx.vibrans.depth = Depth
+fx.vibrans.rise = Rise
+fx.vibrans.mix = Mix
 fx.vibrans.out = Output
+
+vibrans.card.pitch = Pitch over two cycles
+vibrans.card.rise = Rise
+vibrans.card.depth = Depth
+vibrans.card.output = Output
+vibrans.idle = Depth is 0 ct: the sound passes untouched
+vibrans.after_silence = After a silence
+vibrans.preview = Vibrato
+
+preset.vibrans.singer = Singer
+preset.vibrans.violin = Violin
+preset.vibrans.organ = Organ vibrato
+preset.vibrans.tape_wow = Tape wow
+preset.vibrans.seasick = Seasick
+preset.vibrans.trill = Two-note trill
+preset.vibrans.sync_wobble = Wobble on the eighths
+preset.vibrans.chorus_one = One-voice chorus

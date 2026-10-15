@@ -6,6 +6,8 @@
 pub fn readout(v: f32, unit: &str) -> String {
     match unit {
         "Hz" if v >= 1_000.0 => format!("{:.1} kHz", v / 1_000.0),
+        // An LFO's rate (round 28): below 10 Hz the hundredths are the setting.
+        "Hz" if v < 10.0 => format!("{v:.2} Hz"),
         "Hz" => format!("{v:.0} Hz"),
         "ms" if v >= 1_000.0 => format!("{:.2} s", v / 1_000.0),
         "ms" if v >= 100.0 => format!("{v:.0} ms"),

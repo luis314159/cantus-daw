@@ -20,10 +20,10 @@
 use crate::desc::{self, Descriptor};
 use crate::params::{self, Table};
 use cantus_core::{EffectId, EffectSlot, EffectSpec};
-use cantus_engine::{EffectUnit, FxNote, Telemetry, TELEMETRY_LEN};
+use cantus_engine::{EffectUnit, FxNote, SongPosition, Telemetry, TELEMETRY_LEN};
 use rtrb::{Consumer, Producer, RingBuffer};
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Samples between the points where parameter changes take effect: the DSPs' own update
@@ -80,6 +80,89 @@ pub fn push_note(out: &mut Vec<NoteIn>, n: NoteIn) {
     }
 }
 
+/// The host's transport at the start of a block, as either standard gives it (CLAP's
+/// `clap_event_transport`, VST3's `ProcessContext`): what a synced unit follows in another
+/// DAW (ADR 0055). Fields a host does not fill are `None`.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct HostTransport {
+    pub playing: bool,
+    /// BPM, when the host says.
+    pub tempo: Option<f64>,
+    /// Quarter notes from the song's start, when the host says.
+    pub beats: Option<f64>,
+    /// The current bar's start, quarter notes.
+    pub bar_start: Option<f64>,
+    pub time_sig: Option<(u16, u16)>,
+    /// The loop, quarter notes, while it is on.
+    pub loop_beats: Option<(f64, f64)>,
+}
+
+impl HostTransport {
+    /// The engine's song position `offset` samples into a block that starts where `self`
+    /// says, at `sample_rate`; `stream` is the samples since activation, the timeline when
+    /// the host gives none.
+    pub fn position(&self, offset: usize, sample_rate: f64, stream: u64) -> SongPosition {
+        let tempo = self
+            .tempo
+            .filter(|t| t.is_finite() && *t > 0.0)
+            .unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
+        let (beats, samples) = match self.beats.filter(|b| b.is_finite()) {
+            // The block's start in samples at this tempo, then whole samples on from it:
+            // the same integers whatever the block is cut into.
+            Some(b) => {
+                let start = (b * 60.0 / tempo * sample_rate).round() as i64;
+                if self.playing {
+                    (
+                        b + offset as f64 * tempo / (60.0 * sample_rate),
+                        start + offset as i64,
+                    )
+                } else {
+                    (b, start)
+                }
+            }
+            None => {
+                let s = stream as i64 + offset as i64;
+                (s as f64 * tempo / (60.0 * sample_rate), s)
+            }
+        };
+        let (num, den) = self.time_sig.unwrap_or((4, 4));
+        let bar = f64::from(num.max(1)) * 4.0 / f64::from(den.max(1));
+        SongPosition {
+            playing: self.playing,
+            tempo_bpm: tempo,
+            beats,
+            samples,
+            bar_start_beats: self.bar_start.unwrap_or((beats / bar).floor() * bar),
+            time_sig_num: num,
+            time_sig_den: den,
+            loop_beats: self.loop_beats,
+        }
+    }
+}
+
+/// The host's transport as the audio thread last saw it, in atomics an editor reads (its
+/// bar lines, a synced display's playhead).
+#[derive(Debug, Default)]
+struct HostView {
+    /// A transport has been seen.
+    known: AtomicBool,
+    playing: AtomicBool,
+    /// `f64` bits.
+    tempo: AtomicU64,
+    beats: AtomicU64,
+    /// Numerator in the high half, denominator in the low.
+    sig: AtomicU32,
+}
+
+/// What an editor reads of the host's transport.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct HostSeen {
+    pub playing: bool,
+    pub tempo: f64,
+    pub beats: f64,
+    pub time_sig: (u16, u16),
+}
+
 /// One thing a plug-in's own editor did, in the plug-in's parameter indices, for the
 /// format layer to apply and tell the host (CLAP output events, VST3's handler).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -114,6 +197,8 @@ pub struct Shared {
     pub telemetry_serial: AtomicU32,
     /// The sample rate of the last activation, `f32` bits (0 before the first).
     sample_rate: AtomicU32,
+    /// The host's transport as the audio thread last saw it, for an editor.
+    host: HostView,
     /// The analyser tap's ring: (input, output) mono pairs from the audio thread to an
     /// open editor. Each end is lent out — the producer to the running [`Processor`], the
     /// consumer to the editor — and given back when they go; the lock is only ever taken
@@ -146,6 +231,7 @@ impl Shared {
             telemetry: [const { AtomicU32::new(0) }; TELEMETRY_LEN],
             telemetry_serial: AtomicU32::new(0),
             sample_rate: AtomicU32::new(0),
+            host: HostView::default(),
             pairs: {
                 let (tx, rx) = RingBuffer::new(PAIRS);
                 Mutex::new((Some(tx), Some(rx)))
@@ -163,6 +249,34 @@ impl Shared {
         if let Ok(mut p) = self.pairs.lock() {
             p.1 = Some(rx);
         }
+    }
+
+    /// The host's transport as the audio thread last saw it; `None` until a host gave one.
+    pub fn host_transport(&self) -> Option<HostSeen> {
+        let h = &self.host;
+        h.known.load(Ordering::Acquire).then(|| {
+            let sig = h.sig.load(Ordering::Relaxed);
+            HostSeen {
+                playing: h.playing.load(Ordering::Relaxed),
+                tempo: f64::from_bits(h.tempo.load(Ordering::Relaxed)),
+                beats: f64::from_bits(h.beats.load(Ordering::Relaxed)),
+                time_sig: ((sig >> 16) as u16, (sig & 0xFFFF) as u16),
+            }
+        })
+    }
+
+    /// The audio thread's view of the host's transport (no allocation, no lock).
+    fn publish_transport(&self, t: &HostTransport) {
+        let h = &self.host;
+        let tempo = t.tempo.unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
+        let (num, den) = t.time_sig.unwrap_or((4, 4));
+        h.playing.store(t.playing, Ordering::Relaxed);
+        h.tempo.store(tempo.to_bits(), Ordering::Relaxed);
+        h.beats
+            .store(t.beats.unwrap_or(0.0).to_bits(), Ordering::Relaxed);
+        h.sig
+            .store((u32::from(num) << 16) | u32::from(den), Ordering::Relaxed);
+        h.known.store(true, Ordering::Release);
     }
 
     /// The sample rate of the last activation (0 before the first).
@@ -374,6 +488,8 @@ pub struct Processor {
     bypass: Bypass,
     /// The analyser tap, lent by [`Shared`] while this processor lives.
     pairs: Option<Producer<(f32, f32)>>,
+    /// The host's transport at the start of the current block, when it gives one.
+    transport: Option<HostTransport>,
 }
 
 impl Drop for Processor {
@@ -422,6 +538,7 @@ impl Processor {
         let pairs = shared.pairs.lock().ok().and_then(|mut p| p.0.take());
         Processor {
             pairs,
+            transport: None,
             modulation: vec![0.0; base.len()].into_boxed_slice(),
             sidechain: base[table.sidechain] >= 0.5,
             shared,
@@ -434,6 +551,12 @@ impl Processor {
             latency,
             bypass,
         }
+    }
+
+    /// The host's transport at the start of the next block (`None`: the host gave none,
+    /// and the units keep their own time). Audio thread; no allocation.
+    pub fn set_transport(&mut self, t: Option<HostTransport>) {
+        self.transport = t;
     }
 
     pub fn shared(&self) -> &Arc<Shared> {
@@ -589,6 +712,11 @@ impl Processor {
                 n
             };
             let end = end.min(n).min(s + MAX_CHUNK);
+            if let Some(t) = &self.transport {
+                let sr = f64::from(self.shared.sample_rate());
+                let p = t.position(s, sr, block_start + s as u64);
+                self.unit.set_position(&p);
+            }
             // The notes in this piece, at their offsets in it (a note past the block's
             // end, which a host should not send, plays at its last sample).
             while let Some(nt) = notes.get(next_note) {
@@ -611,6 +739,9 @@ impl Processor {
         // Notes of a call with no audio: at the start of the next block.
         for nt in &notes[next_note..] {
             self.unit.note(0, nt.note);
+        }
+        if let Some(t) = &self.transport {
+            self.shared.publish_transport(t);
         }
         if self.shared.editor_open.load(Ordering::Relaxed) {
             self.publish_telemetry();

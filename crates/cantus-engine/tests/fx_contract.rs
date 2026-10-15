@@ -433,7 +433,7 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Flanger => (true, true),
         EffectKind::Phaser => (true, true),
         EffectKind::Tremolo => (true, true),
-        EffectKind::Vibrato => (true, true),
+        EffectKind::Vibrato => (true, true), // round 28: the line empties, the rise waits for a silence
         EffectKind::RingMod => (true, true),
         EffectKind::FreqShift => (true, true),
         EffectKind::VolumeShaper => (true, true),

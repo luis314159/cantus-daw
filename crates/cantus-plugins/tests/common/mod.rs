@@ -129,6 +129,8 @@ pub struct Plug {
     params: *const clap_plugin_params,
     state: *const clap_plugin_state,
     latency: *const clap_plugin_latency,
+    /// The host's transport sent with each block (round 28, ADR 0055); `None`: none.
+    pub transport: std::cell::Cell<Option<clap_event_transport>>,
 }
 
 /// A parameter event for [`Plug::process`]: `(offset, id, value in CLAP's units)`.
@@ -154,6 +156,7 @@ impl Plug {
                 params: ext(CLAP_EXT_PARAMS) as *const _,
                 state: ext(CLAP_EXT_STATE) as *const _,
                 latency: ext(CLAP_EXT_LATENCY) as *const _,
+                transport: std::cell::Cell::new(None),
                 host,
                 plugin,
                 kind,
@@ -290,6 +293,7 @@ impl Plug {
         list: &EventList,
     ) {
         let mut key_ptrs = key.unwrap_or([ptr::null_mut(); 2]);
+        let transport = self.transport.get();
         let inputs = [
             clap_audio_buffer {
                 data32: in_ptrs.as_mut_ptr(),
@@ -316,7 +320,9 @@ impl Plug {
         let p = clap_process {
             steady_time: -1,
             frames_count: n as u32,
-            transport: ptr::null(),
+            transport: transport
+                .as_ref()
+                .map_or(ptr::null(), |t| t as *const clap_event_transport),
             audio_inputs: inputs.as_ptr(),
             audio_outputs: outputs.as_mut_ptr(),
             audio_inputs_count: if key.is_some() { 2 } else { 1 },
@@ -553,14 +559,61 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("p2.y", 0.8),
         ],
         // Round 28: each builder writes its own settings line.
-        EffectKind::Chorus => vec![("out", -6.0)],
-        EffectKind::Flanger => vec![("out", -6.0)],
-        EffectKind::Phaser => vec![("out", -6.0)],
-        EffectKind::Tremolo => vec![("out", -6.0)],
-        EffectKind::Vibrato => vec![("out", -6.0)],
-        EffectKind::RingMod => vec![("out", -6.0)],
-        EffectKind::FreqShift => vec![("out", -6.0)],
-        EffectKind::VolumeShaper => vec![("out", -6.0)],
+        EffectKind::Chorus => vec![
+            ("mode", 7.0),
+            ("mix", 0.5),
+            ("voices", 3.0),
+            ("rate", 1.3),
+            ("tone", 6_000.0),
+        ],
+        EffectKind::Flanger => vec![
+            ("mix", 0.5),
+            ("fb", 0.5),
+            ("tz", 1.0),
+            ("rate", 0.7),
+            ("invert", 1.0),
+        ],
+        EffectKind::Phaser => vec![
+            ("stages", 6.0),
+            ("mix", 0.5),
+            ("fb", 0.5),
+            ("rate", 0.8),
+            ("spread", 90.0),
+        ],
+        EffectKind::Tremolo => vec![
+            ("depth", 0.8),
+            ("sync", 0.0),
+            ("rate", 7.0),
+            ("mode", 2.0),
+            ("shape", 2.0),
+            ("spread", 90.0),
+        ],
+        EffectKind::Vibrato => vec![
+            ("depth", 60.0),
+            ("rate", 4.0),
+            ("spread", 90.0),
+            ("mix", 0.8),
+        ],
+        EffectKind::RingMod => vec![
+            ("freq", 220.0),
+            ("wave", 1.0),
+            ("lfo", 5.0),
+            ("mix", 0.8),
+            ("spread", 90.0),
+        ],
+        EffectKind::FreqShift => vec![
+            ("shift", 140.0),
+            ("side", 2.0),
+            ("fb", 0.4),
+            ("lfo", 30.0),
+            ("mix", 0.8),
+        ],
+        EffectKind::VolumeShaper => vec![
+            ("depth", 0.9),
+            ("div", 11.0),
+            ("smooth", 3.0),
+            ("offset", 0.1),
+        ],
         EffectKind::Clipper => vec![("out", -6.0)],
         EffectKind::Transient => vec![("out", -6.0)],
         EffectKind::TransientSplit => vec![("out", -6.0)],
@@ -627,6 +680,14 @@ pub enum Direct {
     Max(Box<cantus_dsp::culmen::Culmen>),
     Sat(Box<cantus_dsp::fervor::Fervor>),
     Tonus(Box<cantus_dsp::tonus::Tonus>),
+    Tremor(Box<cantus_dsp::tremor::Tremor>),
+    Fluctus(Box<cantus_dsp::fluctus::Fluctus>),
+    Translatio(Box<cantus_dsp::translatio::Translatio>),
+    Anulus(Box<cantus_dsp::anulus::Anulus>),
+    Phasis(Box<cantus_dsp::phasis::Phasis>),
+    Flexus(Box<cantus_dsp::flexus::Flexus>),
+    Concentus(Box<cantus_dsp::concentus::Concentus>),
+    Vibrans(Box<cantus_dsp::vibrans::Vibrans>),
     /// Round 28's stubs, until each builder names its DSP here: the engine's unit.
     Stub(Box<dyn cantus_engine::FxUnit>),
 }
@@ -647,29 +708,19 @@ impl Direct {
             EffectKind::Maximizer => Direct::Max(Box::new(cantus_dsp::culmen::Culmen::new(SR))),
             EffectKind::Saturator => Direct::Sat(Box::new(cantus_dsp::fervor::Fervor::new(SR))),
             EffectKind::Chorus => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Chorus, SR).unwrap())
+                Direct::Concentus(Box::new(cantus_dsp::concentus::Concentus::new(SR)))
             }
-            EffectKind::Flanger => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Flanger, SR).unwrap())
-            }
-            EffectKind::Phaser => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Phaser, SR).unwrap())
-            }
-            EffectKind::Tremolo => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Tremolo, SR).unwrap())
-            }
-            EffectKind::Vibrato => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Vibrato, SR).unwrap())
-            }
-            EffectKind::RingMod => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::RingMod, SR).unwrap())
-            }
+            EffectKind::Flanger => Direct::Flexus(Box::new(cantus_dsp::flexus::Flexus::new(SR))),
+            EffectKind::Phaser => Direct::Phasis(Box::new(cantus_dsp::phasis::Phasis::new(SR))),
+            EffectKind::Tremolo => Direct::Tremor(Box::new(cantus_dsp::tremor::Tremor::new(SR))),
+            EffectKind::Vibrato => Direct::Vibrans(Box::new(cantus_dsp::vibrans::Vibrans::new(SR))),
+            EffectKind::RingMod => Direct::Anulus(Box::new(cantus_dsp::anulus::Anulus::new(SR))),
             EffectKind::FreqShift => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::FreqShift, SR).unwrap())
+                Direct::Translatio(Box::new(cantus_dsp::translatio::Translatio::new(SR)))
             }
-            EffectKind::VolumeShaper => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::VolumeShaper, SR).unwrap())
-            }
+            EffectKind::VolumeShaper => Direct::Fluctus(Box::new(
+                cantus_dsp::fluctus::Fluctus::new(SR, cantus_engine::fx::fluctus::shape_at),
+            )),
             EffectKind::Clipper => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Clipper, SR).unwrap())
             }
@@ -716,6 +767,14 @@ impl Direct {
             Direct::Max(x) => x.set(&fx::maximizer::settings(spec)),
             Direct::Sat(x) => x.set(&fx::saturator::settings(spec)),
             Direct::Tonus(x) => x.set(&fx::tonus::settings(spec)),
+            Direct::Tremor(x) => x.set(&fx::tremor::settings(spec)),
+            Direct::Fluctus(x) => x.set(&fx::fluctus::settings(spec)),
+            Direct::Translatio(x) => x.set(&fx::translatio::settings(spec)),
+            Direct::Anulus(x) => x.set(&fx::anulus::settings(spec)),
+            Direct::Phasis(x) => x.set(&fx::phasis::settings(spec)),
+            Direct::Flexus(x) => x.set(&fx::flexus::settings(spec)),
+            Direct::Concentus(x) => x.set(&fx::concentus::settings(spec)),
+            Direct::Vibrans(x) => x.set(&fx::vibrans::settings(spec)),
             Direct::Stub(x) => x.configure(spec),
         }
     }
@@ -733,6 +792,14 @@ impl Direct {
             Direct::Max(x) => x.reset(),
             Direct::Sat(x) => x.reset(),
             Direct::Tonus(x) => x.reset(),
+            Direct::Tremor(x) => x.reset(),
+            Direct::Fluctus(x) => x.reset(),
+            Direct::Translatio(x) => x.reset(),
+            Direct::Anulus(x) => x.reset(),
+            Direct::Phasis(x) => x.reset(),
+            Direct::Flexus(x) => x.reset(),
+            Direct::Concentus(x) => x.reset(),
+            Direct::Vibrans(x) => x.reset(),
             Direct::Stub(x) => x.reset(),
         }
     }
@@ -750,6 +817,14 @@ impl Direct {
             Direct::Max(x) => x.latency(),
             Direct::Sat(x) => x.latency(),
             Direct::Tonus(x) => x.latency(),
+            Direct::Tremor(x) => x.latency(),
+            Direct::Fluctus(x) => x.latency(),
+            Direct::Translatio(x) => x.latency(),
+            Direct::Anulus(x) => x.latency(),
+            Direct::Phasis(x) => x.latency(),
+            Direct::Flexus(x) => x.latency(),
+            Direct::Concentus(x) => x.latency(),
+            Direct::Vibrans(x) => x.latency(),
             Direct::Stub(x) => x.latency(),
         }
     }
@@ -767,6 +842,14 @@ impl Direct {
             Direct::Max(x) => x.process(l, r),
             Direct::Sat(x) => x.process(l, r),
             Direct::Tonus(x) => x.process(l, r),
+            Direct::Tremor(x) => x.process(l, r),
+            Direct::Fluctus(x) => x.process(l, r),
+            Direct::Translatio(x) => x.process(l, r),
+            Direct::Anulus(x) => x.process(l, r),
+            Direct::Phasis(x) => x.process(l, r),
+            Direct::Flexus(x) => x.process(l, r),
+            Direct::Concentus(x) => x.process(l, r),
+            Direct::Vibrans(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key),
         }
     }

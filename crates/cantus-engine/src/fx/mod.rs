@@ -17,6 +17,7 @@ pub mod gate;
 pub mod impetus;
 pub mod limiter;
 pub mod maximizer;
+pub mod modfx;
 pub mod multiband;
 pub mod phasis;
 pub mod saturator;

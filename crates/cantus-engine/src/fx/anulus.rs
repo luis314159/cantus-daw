@@ -1,62 +1,79 @@
-//! Anulus, the ring modulator, behind the engine's plug-in contract.
-//! Owned by Anulus.
+//! Anulus, the ring modulator, behind the engine's plug-in contract (ADR 0055). Owned by
+//! Anulus.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::anulus`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::anulus`.
+//! [`settings`] reads the table (`cantus_core::fx::anulus`) into the DSP's settings
+//! (`cantus_dsp::anulus`); the editor draws from the same reading. The telemetry is the
+//! family's header and the carrier (`cantus_dsp::anulus::{T_FREQ, T_CARRIER}`).
 
-use super::FxUnit;
+use super::modfx::{lfo_settings, spread_cycles, telemetry_of, transport_of};
+use super::{FxUnit, SongPosition, Telemetry};
 use cantus_core::EffectSpec;
+use cantus_dsp::anulus::{Anulus, AnulusSettings, Wave};
+
+/// The seed of Anulus's random LFO.
+const SEED: u64 = 0xa2_0001;
 
 /// Anulus's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Anulus's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> AnulusSettings {
+    AnulusSettings {
+        freq_hz: spec.get("freq"),
+        wave: Wave::from_index(spec.get("wave")),
+        lfo_st: spec.get("lfo"),
+        lfo: lfo_settings(spec, SEED),
+        spread: spread_cycles(spec.get("spread")),
+        mix: spec.get("mix"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Anulus,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Anulus::new(sample_rate),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        telemetry_of(|t| self.dsp.telemetry(t))
+    }
+
+    fn set_position(&mut self, position: &SongPosition) {
+        self.dsp.set_transport(&transport_of(position));
     }
 }
 
@@ -64,28 +81,38 @@ impl FxUnit for Unit {
 mod tests {
     use super::*;
     use cantus_core::EffectKind;
+    use cantus_dsp::modfx_lfo::Rate;
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
-        let spec = EffectSpec::new(EffectKind::RingMod);
-        assert_eq!(settings(&spec), Settings::default());
+        let s = settings(&EffectSpec::new(EffectKind::RingMod));
+        let d = AnulusSettings::default();
+        assert_eq!(
+            (s.freq_hz, s.wave, s.lfo_st, s.mix),
+            (d.freq_hz, d.wave, d.lfo_st, d.mix)
+        );
+        assert_eq!((s.spread, s.out_db), (d.spread, d.out_db));
+        assert_eq!(s.lfo.rate, d.lfo.rate);
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
     #[test]
-    fn the_defaults_touch_no_sample() {
-        let mut u = Unit::new(48_000.0);
-        u.configure(&EffectSpec::new(EffectKind::RingMod));
-        let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
-        let (mut l, mut r) = (x.clone(), x.clone());
-        u.process(&mut l, &mut r, None);
-        assert!(l
-            .iter()
-            .chain(&r)
-            .zip(x.iter().chain(&x))
-            .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::RingMod);
+        for (k, v) in [
+            ("freq", 120.0),
+            ("wave", 2.0),
+            ("lfo", 12.0),
+            ("sync", 1.0),
+            ("div", 11.0),
+            ("spread", 90.0),
+            ("mix", 1.0),
+            ("out", -6.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!((s.freq_hz, s.wave, s.lfo_st), (120.0, Wave::Square, 12.0));
+        assert_eq!(s.lfo.rate, Rate::Beats(0.5));
+        assert_eq!((s.spread, s.mix, s.out_db), (0.25, 1.0, -6.0));
     }
 }

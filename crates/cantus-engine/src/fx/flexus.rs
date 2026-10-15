@@ -1,62 +1,85 @@
-//! Flexus, the through-zero flanger, behind the engine's plug-in contract.
+//! Flexus, the through-zero flanger, behind the engine's plug-in contract (ADR 0055).
 //! Owned by Flexus.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::flexus`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::flexus`.
+//! [`settings`] reads the table (`cantus_core::fx::flexus`) into the DSP's settings
+//! (`cantus_dsp::flexus`); the editor draws from the same reading. Through zero, the unit
+//! reports the dry path's 5 ms as its latency (`FxUnit::latency`). The telemetry is the
+//! family's header and the sweep (`cantus_dsp::flexus::{T_SWEEP, T_DELAY_MS, T_ENV_DB,
+//! T_LATENCY}`).
 
-use super::FxUnit;
+use super::modfx::{lfo_settings, spread_cycles, telemetry_of, transport_of};
+use super::{FxUnit, SongPosition, Telemetry};
 use cantus_core::EffectSpec;
+use cantus_dsp::flexus::{Flexus, FlexusSettings, Mode};
 
 /// Flexus's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Flexus's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> FlexusSettings {
+    FlexusSettings {
+        mode: Mode::from_index(spec.get("mode")),
+        through_zero: spec.get("tz") >= 0.5,
+        mix: spec.get("mix"),
+        delay_ms: spec.get("delay"),
+        depth_ms: spec.get("depth"),
+        feedback: spec.get("fb"),
+        invert: spec.get("invert") >= 0.5,
+        lfo: lfo_settings(spec, 0),
+        spread: spread_cycles(spec.get("spread")),
+        manual: spec.get("manual"),
+        attack_ms: spec.get("att"),
+        release_ms: spec.get("rel"),
+        sens_db: spec.get("sens"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Flexus,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Flexus::new(sample_rate),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        telemetry_of(|t| self.dsp.telemetry(t))
+    }
+
+    fn set_position(&mut self, position: &SongPosition) {
+        self.dsp.set_transport(&transport_of(position));
     }
 }
 
@@ -65,27 +88,51 @@ mod tests {
     use super::*;
     use cantus_core::EffectKind;
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
-        let spec = EffectSpec::new(EffectKind::Flanger);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(
+            settings(&EffectSpec::new(EffectKind::Flanger)),
+            FlexusSettings::default()
+        );
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
     #[test]
-    fn the_defaults_touch_no_sample() {
-        let mut u = Unit::new(48_000.0);
-        u.configure(&EffectSpec::new(EffectKind::Flanger));
-        let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
-        let (mut l, mut r) = (x.clone(), x.clone());
-        u.process(&mut l, &mut r, None);
-        assert!(l
-            .iter()
-            .chain(&r)
-            .zip(x.iter().chain(&x))
-            .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::Flanger);
+        for (k, v) in [
+            ("mode", 1.0),
+            ("tz", 1.0),
+            ("mix", 0.5),
+            ("delay", 1.0),
+            ("depth", 6.0),
+            ("fb", -0.5),
+            ("invert", 1.0),
+            ("spread", 90.0),
+            ("manual", 0.2),
+            ("att", 3.0),
+            ("rel", 300.0),
+            ("sens", 12.0),
+            ("out", 1.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!(s.mode, Mode::Envelope);
+        assert!(s.through_zero && s.invert);
+        assert_eq!(
+            (s.mix, s.delay_ms, s.depth_ms, s.feedback),
+            (0.5, 1.0, 6.0, -0.5)
+        );
+        assert_eq!((s.spread, s.manual), (0.25, 0.2));
+        assert_eq!(
+            (s.attack_ms, s.release_ms, s.sens_db, s.out_db),
+            (3.0, 300.0, 12.0, 1.0)
+        );
+        let u = {
+            let mut u = Unit::new(48_000.0);
+            u.configure(&spec);
+            u
+        };
+        assert_eq!(u.latency(), 240, "through zero: 5 ms at 48 kHz");
     }
 }

@@ -1,62 +1,81 @@
-//! Translatio, the frequency shifter, behind the engine's plug-in contract.
+//! Translatio, the frequency shifter, behind the engine's plug-in contract (ADR 0055).
 //! Owned by Translatio.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::translatio`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::translatio`.
+//! [`settings`] reads the table (`cantus_core::fx::translatio`) into the DSP's settings
+//! (`cantus_dsp::translatio`); the editor draws from the same reading. The unit designs its
+//! Hilbert pair for the sample rate when it is built (off the audio thread). The telemetry
+//! is the family's header, the shift now and the design's quality
+//! (`cantus_dsp::translatio::{T_SHIFT, T_SECTIONS, T_REJECTION}`).
 
-use super::FxUnit;
+use super::modfx::{lfo_settings, telemetry_of, transport_of};
+use super::{FxUnit, SongPosition, Telemetry};
 use cantus_core::EffectSpec;
+use cantus_dsp::translatio::{Side, Translatio, TranslatioSettings};
+
+/// The seed of Translatio's random LFO.
+const SEED: u64 = 0x7a_0001;
 
 /// Translatio's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Translatio's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> TranslatioSettings {
+    TranslatioSettings {
+        shift_hz: spec.get("shift"),
+        side: Side::from_index(spec.get("side")),
+        feedback: spec.get("fb"),
+        lfo_hz: spec.get("lfo"),
+        lfo: lfo_settings(spec, SEED),
+        mix: spec.get("mix"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Translatio,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Translatio::new(sample_rate),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        telemetry_of(|t| self.dsp.telemetry(t))
+    }
+
+    fn set_position(&mut self, position: &SongPosition) {
+        self.dsp.set_transport(&transport_of(position));
     }
 }
 
@@ -65,27 +84,33 @@ mod tests {
     use super::*;
     use cantus_core::EffectKind;
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
-        let spec = EffectSpec::new(EffectKind::FreqShift);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(settings(&EffectSpec::new(EffectKind::FreqShift)), {
+            let mut d = TranslatioSettings::default();
+            d.lfo.seed = SEED;
+            d
+        });
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
     #[test]
-    fn the_defaults_touch_no_sample() {
-        let mut u = Unit::new(48_000.0);
-        u.configure(&EffectSpec::new(EffectKind::FreqShift));
-        let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.37).fract() - 0.5).collect();
-        let (mut l, mut r) = (x.clone(), x.clone());
-        u.process(&mut l, &mut r, None);
-        assert!(l
-            .iter()
-            .chain(&r)
-            .zip(x.iter().chain(&x))
-            .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::FreqShift);
+        for (k, v) in [
+            ("shift", -120.0),
+            ("side", 2.0),
+            ("fb", 0.5),
+            ("lfo", 40.0),
+            ("mix", 1.0),
+            ("out", -2.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!(
+            (s.shift_hz, s.side, s.feedback, s.lfo_hz),
+            (-120.0, Side::Both, 0.5, 40.0)
+        );
+        assert_eq!((s.mix, s.out_db), (1.0, -2.0));
     }
 }
