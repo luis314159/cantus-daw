@@ -197,6 +197,47 @@ pub fn synced_inc(beats: f64, tempo: f64, sample_rate: f64) -> f64 {
     tempo / (60.0 * sample_rate * beats.max(1e-9))
 }
 
+/// The telemetry every unit of the family starts with (64 floats, ADR 0018): what its
+/// editor draws the LFO's playhead and the meters from. A unit's own numbers start at
+/// [`tel::OWN`].
+pub mod tel {
+    /// Sample rate, Hz.
+    pub const SAMPLE_RATE: usize = 0;
+    /// The tempo the clock runs at, BPM.
+    pub const TEMPO: usize = 1;
+    /// 1 while the transport plays.
+    pub const PLAYING: usize = 2;
+    /// The LFO's phase (0 … 1) at the end of the last block, left and right.
+    pub const PHASE_L: usize = 3;
+    pub const PHASE_R: usize = 4;
+    /// The modulation's value (−1 … 1) at the end of the last block, left and right.
+    pub const MOD_L: usize = 5;
+    pub const MOD_R: usize = 6;
+    /// Peaks of the last block, dBFS (−200 for silence).
+    pub const IN_PEAK: usize = 7;
+    pub const OUT_PEAK: usize = 8;
+    /// Blocks processed, modulo 2²⁴: an editor tells new telemetry from old.
+    pub const BLOCKS: usize = 9;
+    /// Where a unit's own numbers start.
+    pub const OWN: usize = 10;
+}
+
+/// A peak as dBFS for the telemetry: −200 for silence.
+#[inline]
+pub fn peak_db(peak: f32) -> f32 {
+    if peak > 1e-10 {
+        20.0 * crate::math::log10(peak)
+    } else {
+        -200.0
+    }
+}
+
+/// The largest magnitude in two channels.
+#[inline]
+pub fn peak_of(l: &[f32], r: &[f32]) -> f32 {
+    l.iter().chain(r).fold(0.0f32, |m, x| m.max(x.abs()))
+}
+
 /// A 64-bit hash (SplitMix64's finaliser): every random choice in the family is one of
 /// these of a seed and a count.
 #[inline]

@@ -1,62 +1,78 @@
-//! Tremor, tremolo and auto-pan, behind the engine's plug-in contract.
+//! Tremor, tremolo and auto-pan, behind the engine's plug-in contract (ADR 0055).
 //! Owned by Tremor.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::tremor`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::tremor`.
+//! [`settings`] reads the table (`cantus_core::fx::tremor`) into the DSP's settings
+//! (`cantus_dsp::tremor`); the editor draws from the same reading. The telemetry is the
+//! family's header (`cantus_dsp::modfx_clock::tel`).
 
-use super::FxUnit;
+use super::modfx::{lfo_settings, spread_cycles, telemetry_of, transport_of};
+use super::{FxUnit, SongPosition, Telemetry};
 use cantus_core::EffectSpec;
+use cantus_dsp::tremor::{Mode, Tremor, TremorSettings};
+
+/// The seed of Tremor's random wave.
+const SEED: u64 = 0x7e30_0001;
 
 /// Tremor's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Tremor's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> TremorSettings {
+    TremorSettings {
+        mode: Mode::from_index(spec.get("mode")),
+        depth: spec.get("depth"),
+        lfo: lfo_settings(spec, SEED),
+        spread: spread_cycles(spec.get("spread")),
+        xover_hz: spec.get("xover"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Tremor,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Tremor::new(sample_rate),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        telemetry_of(|t| self.dsp.telemetry(t))
+    }
+
+    fn set_position(&mut self, position: &SongPosition) {
+        self.dsp.set_transport(&transport_of(position));
     }
 }
 
@@ -64,16 +80,51 @@ impl FxUnit for Unit {
 mod tests {
     use super::*;
     use cantus_core::EffectKind;
+    use cantus_dsp::modfx_lfo::{Rate, Shape};
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
+    /// The defaults of the table read as the DSP's defaults where the null lives: depth 0,
+    /// 0 dB out.
     #[test]
-    fn the_tables_defaults_are_the_dsps_defaults() {
-        let spec = EffectSpec::new(EffectKind::Tremolo);
-        assert_eq!(settings(&spec), Settings::default());
+    fn the_tables_defaults_are_a_null() {
+        let s = settings(&EffectSpec::new(EffectKind::Tremolo));
+        assert_eq!(s.depth, 0.0);
+        assert_eq!(s.out_db, 0.0);
+        assert_eq!(s.mode, Mode::Tremolo);
+        assert_eq!(s.lfo.rate, Rate::Beats(0.5));
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    #[test]
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::Tremolo);
+        for (k, v) in [
+            ("mode", 2.0),
+            ("depth", 0.7),
+            ("sync", 0.0),
+            ("rate", 6.5),
+            ("shape", 4.0),
+            ("edge", 0.1),
+            ("swing", 0.4),
+            ("spread", 90.0),
+            ("offset", 180.0),
+            ("xover", 1_200.0),
+            ("out", -3.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!(s.mode, Mode::Harmonic);
+        assert_eq!(s.depth, 0.7);
+        assert_eq!(s.lfo.rate, Rate::Hz(6.5));
+        assert_eq!(s.lfo.shape, Shape::SawDown);
+        assert_eq!(s.lfo.edge, 0.1);
+        assert_eq!(s.lfo.swing, 0.4);
+        assert_eq!(s.spread, 0.25);
+        assert_eq!(s.lfo.offset, 0.5);
+        assert_eq!(s.xover_hz, 1_200.0);
+        assert_eq!(s.out_db, -3.0);
+    }
+
+    /// At its defaults the unit touches no sample, to the bit, and is at rest.
     #[test]
     fn the_defaults_touch_no_sample() {
         let mut u = Unit::new(48_000.0);

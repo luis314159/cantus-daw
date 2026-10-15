@@ -69,7 +69,7 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Chorus => {}
         EffectKind::Flanger => {}
         EffectKind::Phaser => {}
-        EffectKind::Tremolo => {}
+        EffectKind::Tremolo => set(&mut s, &[("mode", 2.0), ("depth", 1.0), ("shape", 5.0), ("swing", 0.5), ("spread", 90.0)]),
         EffectKind::Vibrato => {}
         EffectKind::RingMod => {}
         EffectKind::FreqShift => {}
