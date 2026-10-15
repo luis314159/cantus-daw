@@ -235,7 +235,7 @@ pub(super) fn show(
     }
     if folded {
         bar.divider(ui);
-        if let Some(resp) = bar.word(ui, id.with("more"), "\u{22ef}", 30.0, || {
+        if let Some(resp) = bar.word(ui, id.with("more"), "\u{2026}", 30.0, || {
             t("pitch.more_tip")
         }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {

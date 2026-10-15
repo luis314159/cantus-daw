@@ -278,7 +278,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         return;
     }
     ui.allocate_rect(full, Sense::hover());
-    let panel_h = (crate::views::fx::controls::card_height(crate::kit::knob::KnobSize::M) + 8.0)
+    // The macro card's knobs are a size up (their words fit): the panel is as tall.
+    let panel_h = (crate::views::fx::controls::card_height(crate::kit::knob::KnobSize::L) + 8.0)
         .max(PANEL_H)
         * s.k;
     let panel_h = panel_h.min(full.height() * 0.5);

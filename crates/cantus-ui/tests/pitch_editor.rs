@@ -766,7 +766,7 @@ fn a_narrow_bar_folds_into_its_more_menu() {
     r.idle(3);
     let folded = r.app.pitch.view.bar_folded;
     assert!(folded.iter().any(|f| *f), "{folded:?}");
-    let more = r.word("\u{22ef}");
+    let more = r.word("\u{2026}");
     r.click(more);
     for (i, words) in [
         (0usize, &["Unir", "Restablecer"][..]),

@@ -95,6 +95,7 @@ pub(super) fn show(
         ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
             egui::ScrollArea::horizontal()
                 .id_salt(("pitch-panel", clip.0))
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show(ui, |ui| {
                     let (r, _) = ui.allocate_exact_size(
                         egui::vec2(need, inner.height() - s.s(14.0)),
